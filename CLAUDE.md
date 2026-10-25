@@ -10,9 +10,9 @@ imported here:
 - **Path-scoped rules.** `.claude/rules/` holds short reminders that load when you read or edit
   matching files. They point to the folder READMEs, which hold the design. When a rule and a README
   disagree, the README is right.
-- **Permissions.** `.claude/settings.json` makes some commands ask first and refuses others. If a
-  command is refused or needs approval, do not reach the same result another way (a different
-  command, a script, the web interface): give the person the command to run themselves.
+- **Permissions** belong to each developer, in their own user or local settings; the repository
+  ships none. If a command is refused or needs approval, do not reach the same result another way
+  (a different command, a script, the web interface): give the person the command to run themselves.
 - **Worktrees** go in `.claude/worktrees/<name>`, which git ignores. Remove yours once its branch
   has merged.
 - **Subagents** get a self-contained brief and return their findings as text, not as files. Check

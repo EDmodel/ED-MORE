@@ -149,9 +149,10 @@ accept the reason.
 
 - **Read before you edit**: `src/README.md`, the README of the folder, and the science page. Before
   you fix a filed issue, measure its premise: the symptom may have another cause, or may not occur.
-- **Branch from `beta` and open the pull request against `beta`.** One topic per pull request.
-  Split a large change into one that only moves or renames (bit-for-bit) and one that changes
-  behaviour. Never push to `beta` or `main`, and never force-push a branch someone else uses.
+- **Work on a branch in your fork, made from `beta`, and open the pull request against `beta` of
+  `EDmodel/ED-MORE`.** One topic per pull request. Split a large change into one that only moves or
+  renames (bit-for-bit) and one that changes behaviour. Never push to the main repository's `beta`
+  or `main`, and never force-push a branch someone else uses.
 - **Act on the tracker only when a person asks you to** in the current session: opening, commenting
   on, reviewing, labelling, merging or closing issues and pull requests. That person is the author
   of record and answers for the change.
