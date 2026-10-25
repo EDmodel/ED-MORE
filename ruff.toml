@@ -1,0 +1,5 @@
+# Settings for `ruff check` (https://docs.astral.sh/ruff/), run on the Python code in CI and by the
+# optional pre-commit hook. Errors only: syntax errors and pyflakes (undefined names, unused imports
+# and variables). No style or formatting rules.
+[lint]
+select = ["E9", "F"]
