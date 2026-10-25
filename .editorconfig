@@ -1,0 +1,26 @@
+# Editor settings for ED-MORE (https://editorconfig.org), read by most editors directly or through
+# a plugin. CI checks the same line length, tabs and trailing spaces.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{f90,F90,f,F,fpp}]
+indent_style = space
+indent_size = 3
+max_line_length = 132
+
+[{CMakeLists.txt,*.cmake,*.sh}]
+indent_style = space
+indent_size = 3
+
+[*.py]
+indent_style = space
+indent_size = 4
+
+[*.{toml,json,yml,yaml}]
+indent_style = space
+indent_size = 2

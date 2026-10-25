@@ -1,0 +1,30 @@
+# How git treats each kind of file in ED-MORE.
+
+# Text files are stored and checked out with LF line endings; git detects which files are text.
+* text=auto eol=lf
+
+# Fortran: diff hunk headers name the enclosing routine, and GitHub counts the files as Fortran.
+*.f90 diff=fortran linguist-language=Fortran
+*.F90 diff=fortran linguist-language=Fortran
+*.f   diff=fortran linguist-language=Fortran
+*.F   diff=fortran linguist-language=Fortran
+*.fpp diff=fortran linguist-language=Fortran
+
+# Diff hunk headers for Python functions and Markdown sections.
+*.py diff=python
+*.md diff=markdown
+
+# Data and images: never diffed as text, never converted.
+*.nc   binary
+*.h5   binary
+*.png  binary
+*.gif  binary
+*.jpg  binary
+*.jpeg binary
+*.pdf  binary
+*.gz   binary
+*.zip  binary
+
+# Changelogs: when two branches add entries at the same place, a local git merge keeps both.
+# GitHub's merge button does not apply this; update the branch locally instead.
+CHANGELOG-v*.md merge=union
