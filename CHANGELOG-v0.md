@@ -22,5 +22,5 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ### Added
 
-- The model from MEDS v0.4.0: its source, science documentation and CMake build. Its output is
-  bit-for-bit that of MEDS v0.4.0. (#4)
+- The model from MEDS v0.4.0: its source, science documentation, CMake build and shipped data (the
+  CO₂ record and an example census). Its output is bit-for-bit that of MEDS v0.4.0. (#4)
