@@ -254,8 +254,8 @@ Full build, test and run instructions are in [`docs/building.md`](../docs/buildi
 
 `test/` mirrors `src/`, one test per module: `test/share/`, `config/`, `state/`, `fast/` (the fast
 processes, the integrator and the fast driver), `slow/`, `io/`, `driver/` (for `src/main`) and
-`c_api/`, with the shared fixtures in `test/support/`, the CMake checks in `test/checks/` and the
-restart test in `test/python/`. Test `slow_update` is `test/slow/test_slow_update.f90`, the test of
+`c_api/`, with the shared fixtures in `test/support/` and the CMake checks in `test/checks/`. Test
+`slow_update` is `test/slow/test_slow_update.f90`, the test of
 `src/slow_dynamics/driver/ed_slow_update.f90`. Many tests link one narrow library each
 (`ed_share`, `ed_config`, `ed_fast_kernels`, `ed_met`), which keeps those layers
 standalone-buildable. The assertion helpers are in `ed_testassert`, which links only `ed_share`.
