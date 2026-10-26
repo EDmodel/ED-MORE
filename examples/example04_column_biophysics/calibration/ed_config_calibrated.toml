@@ -1,7 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
-# MEDS example04_column_biophysics: the five tower years, 2012-08-01 to 2017-08-01 UTC, started from the
+# CALIBRATED by scripts/calibrate_fast from ed_config_eval.toml.
+# Every line is the base file's, comments included, except these keys the fit set
+# (calibrated value, the base file's value; EFFECTIVE: its value belongs to this model structure;
+# KATTGE & KNORR: fixed at the growth temperature's value, not fitted):
+#   aerodynamics.z0m_ratio         0.0492718  (0.13)  EFFECTIVE
+#   leaf_physiology.ds_vcmax       641.129  (650)  KATTGE & KNORR
+#   leaf_physiology.ds_jmax        640.592  (640)  KATTGE & KNORR
+# and these settings of the calibration (calibration.toml [overrides], the variant, [calibrated]):
+#   init.pft_config                "calibration/pft_parameters_calibrated.toml"
+#   output.prefix                  "cal"
+# ED-MORE example04_column_biophysics: the five tower years, 2012-08-01 to 2017-08-01 UTC, started from the
 # 2010 census of the BCI 50-ha plot, with hourly output to compare against the tower's own fluxes.
-# There is no spin-up: the stand is the census (bci_census.toml -> scripts/prepare_census), the soil
+# There is no spin-up: the stand is the census (bci_census.toml -> scripts/prepare_input/census), the soil
 # starts at the site's temperature, and soil carbon starts in steady state with the stand's litter.
 # Every output stamp is UTC; the post-processing shifts it to Panama time (UTC-5) for the comparison.
 
@@ -47,9 +57,9 @@ disturbance_survive_height = 10.0
 min_recruit_size          = 1.0e-2
 
 [init]
-init_mode    = 1                  # a census: one patch per 20 m quadrat, fused by MEDS before the first step
-census_file  = "data/bci_census2010_meds.csv"   # run_example.py builds it from bci_census.toml
-pft_config   = "pft_parameters.toml"
+init_mode    = 1                  # a census: one patch per 20 m quadrat, fused by ED-MORE before the first step
+census_file  = "data/bci_census2010_ed.csv"   # run_example.py builds it from bci_census.toml
+pft_config   = "calibration/pft_parameters_calibrated.toml"
 soil_temp    = 298.65             # [K] the tower's mean air temperature, as [soil].deep_temp
 soil_theta   = 0.42               # [m3/m3] wet season: August is three months into it ([soil] field capacity)
 
@@ -60,7 +70,7 @@ state_file_dir    = "output"
 state_file_prefix = "eval"
 enabled       = true
 dir           = "output"
-prefix        = "eval"
+prefix        = "cal"
 io_config     = "output_variables.toml"
 cohort_max    = 4096
 patch_max     = 256
@@ -109,8 +119,8 @@ ea_rd     = 46390.0
 hd_vcmax  = 200000.0
 hd_jmax   = 200000.0
 hd_rd     = 200000.0
-ds_vcmax  = 650.0
-ds_jmax   = 640.0
+ds_vcmax  = 641.129
+ds_jmax   = 640.592
 ds_rd     = 490.0
 o2_mol_frac      = 0.209
 leaf_absorptance = 0.85
@@ -174,3 +184,6 @@ thermal_bottom_bc = "dirichlet"
 deep_temp  = 298.65                # [K] the tower's mean air temperature, 2012-08 to 2017-08
 deep_depth = 3.145                  # [m] the bottom node (1.75 m) + 1.973 / sqrt(2), the default's rule:
                                     #   docs/science/soil_biophysics.md eq. (13)
+
+[aerodynamics]
+z0m_ratio = 0.0492718   # set by calibrate_fast

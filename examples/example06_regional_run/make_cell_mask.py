@@ -3,13 +3,13 @@
 """Example 06's cells: Xu et al. (2016)'s box (5-25 N, 100-80 W) on the ED_ERA5land 0.1 degree grid, cut into
 3 x 3-cell blocks from its south-west corner. In each block the cell with the most natural vegetation (ESA CCI
 2001-2020, from the ED soil maps' diagnostics) runs, if it is at least 80 % natural; among equals, the northern and
-then the eastern. A candidate must be a cell MEDS
+then the eastern. A candidate must be a cell ED-MORE
 can run as a polygon: valid forcing in the archive and a value in every map the run reads (soil depth, bottom class,
 deep temperature, the six layers of texture and chemistry, Chave's E).
 
 Writes output/cell_mask.nc: `mask` (1 at a chosen cell, else 0) on the archive's grid, the [region].cell_mask of
 every region of the run (run_regions.py); and output/cells.csv, the chosen cells' polygon_id (row * 3600 + col on the
-grid, as MEDS numbers its polygons), lat and lon, for the steps that read no netCDF (modis_monthly_lai.py).
+grid, as ED-MORE numbers its polygons), lat and lon, for the steps that read no netCDF (modis_monthly_lai.py).
 
 Usage: python make_cell_mask.py [--era5-archive DIR] [--soil-maps DIR] [--chave-e-map FILE]
        (or set ERA5LAND_ARCHIVE, ED_SOIL_MAPS and CHAVE_E_MAP)

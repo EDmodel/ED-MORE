@@ -17,6 +17,15 @@ compilers, the per-step conservation budgets, and thread invariance. Treat the n
 as a working model's numbers. The [changelog](CHANGELOG-v0.md) records which numbers each release
 moved.
 
+<p align="center">
+  <img src="https://github.com/EDmodel/ED-MORE/releases/download/v0.4.1/canopy_profile.gif" height="230" alt="Canopy-layer stand profile with vertical LAI">
+  &nbsp;&nbsp;
+  <img src="https://github.com/EDmodel/ED-MORE/releases/download/v0.4.1/landscape_growth_3d.gif" height="230" alt="3D landscape, trees growing in place">
+</p>
+
+A forest regrowing from near-bare ground over 300 years (example 03): the leaf-area profile beside a
+stand cross-section (left), and a landscape whose trees keep their place as they grow (right).
+
 ## Quick start
 
 ```bash
@@ -28,7 +37,7 @@ ctest --test-dir build-dev --output-on-failure
 
 # A forest regrowing from near-bare ground for 300 years (example 03; about a minute)
 PYTHONPATH=python python examples/example03_demography/run_demography.py --start bare
-python post_proc/plot_site_timeseries.py examples/example03_demography/output/bare.nc -o timeseries.png
+python examples/example03_demography/plot_site_timeseries.py examples/example03_demography/output/bare.nc -o timeseries.png
 ```
 
 netCDF is required; gfortran, ifx and nvfortran are supported. [`docs/building.md`](docs/building.md) covers the four
@@ -44,11 +53,11 @@ to run it.
 | learn what is in the model: each process and its equations | [`docs/science/`](docs/science/), one page per process, indexed in [`docs/README.md`](docs/README.md) |
 | run ED-MORE, coming from ED2 | [`docs/ed2_comparison.md`](docs/ed2_comparison.md): the main differences first, then process by process, keyed to `ED2IN` |
 | set up a run | [`docs/configuration.md`](docs/configuration.md): the two TOML files and the three ways to start |
-| see worked examples | `examples/`: leaf gas exchange, phenology, demography, a flux tower, forest regrowth, a region |
+| see worked examples | [`examples/`](examples/README.md): leaf gas exchange, phenology, demography, a flux tower, forest regrowth, a region |
 | prepare forcing, census and trait inputs | [`scripts/prepare_input/`](scripts/README.md): ERA5-Land, flux-tower, census, CO₂ and PFT-trait tools |
 | calibrate the fast processes at a flux tower | [`scripts/calibrate_fast/`](scripts/calibrate_fast/README.md) |
 | drive it from Python | [`python/README.md`](python/README.md): the `edmore` package |
-| plot the output | `post_proc/README.md` |
+| plot the output | [example 03](examples/example03_demography/README.md#plotting-the-stand-file) (its stand file) and [example 05](examples/example05_forest_regeneration/README.md#plotting-the-diagnostic-files) (`edmore`'s diagnostic files) |
 | change the code | [Developing ED-MORE](#developing-ed-more) below, then [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 | know what changed | [`CHANGELOG-v0.md`](CHANGELOG-v0.md) |
 

@@ -8,10 +8,10 @@ month and year, as in [example 03](../example03_demography/README.md) but on the
 fixes.
 
 1. **Barro Colorado Island (BCI), Panama**, a moist forest, 1600–2020: three successional PFTs, driven
-   from Python through [`meds.model.Run`](../../python/meds/model/_run.py), the same steps `meds_main`
+   from Python through [`edmore.model.Run`](../../python/edmore/model/_run.py), the same steps `edmore`
    takes.
 2. **Palo Verde, Costa Rica**, a seasonally dry forest, 150 years: Xu et al. (2016)'s four leaf
-   habits, set against the plots' 2009 inventory and run with `meds_main`.
+   habits, set against the plots' 2009 inventory and run with `edmore`.
    [Example 06](../example06_regional_run/README.md) runs the same PFTs across Central America.
 
 ## 1. Barro Colorado Island, 1600–2020
@@ -111,7 +111,7 @@ counts the model's ingrowth past 1 cm against the census's.
 
 ### The model and its parameters
 
-The run is [`meds_config_regeneration.toml`](meds_config_regeneration.toml), its PFTs
+The run is [`ed_config_regeneration.toml`](ed_config_regeneration.toml), its PFTs
 [`pft_parameters.toml`](pft_parameters.toml); the files' comments give every value's source.
 
 - **The setup.** Bare ground in 1600, six empty patches: BCI's old forest has not been cleared for
@@ -160,9 +160,9 @@ python run_example.py --plot-only                            # redraw regenerati
 ```
 
 The first step cuts BCI's ERA5-Land cell out of the processed archive
-([`make_forcing_file.py`](../../scripts/prepare_era5/make_forcing_file.py); about 7 minutes) into
+([`make_forcing_file.py`](../../scripts/prepare_input/era5/make_forcing_file.py); about 7 minutes) into
 `data/`; the archive is `--era5-archive` or the environment variable `ERA5LAND_ARCHIVE`. The run
-takes about 1.4 hours on 20 threads with the production build (`MEDS_LIB=../../build-production/libmeds.so`)
+takes about 1.4 hours on 20 threads with the production build (`EDMORE_LIB=../../build-production/libedmore.so`)
 and writes monthly and yearly site, PFT and size-class totals to
 `output/`, with the full stand checkpointed every 20 years.
 
@@ -178,15 +178,15 @@ P50, Vcmax25 and rooting depth follow Xu's wood-density relations; leaves fall a
 cohort's leaf water potential; mortality follows wood density (Camac et al. 2018); diameter growth is
 capped at 0.8 / 0.5 / 0.4 / 0.35 cm yr⁻¹; height follows Chave et al. (2014) at the cell's stress index
 E = 0.134. The soil is the cell's (10.4° N, 85.3° W) in the ED soil maps: a 1.57 m Cambisol through
-MEDS's pedotransfer function.
+ED-MORE's pedotransfer function.
 
-[`palo_verde/meds_config_inventory.toml`](palo_verde/meds_config_inventory.toml) runs the 2009
+[`palo_verde/ed_config_inventory.toml`](palo_verde/ed_config_inventory.toml) runs the 2009
 inventory of the Palo Verde dry forest ([`palo_verde/data/pv_2009_census.csv`](palo_verde/data/pv_2009_census.csv):
 6 plots, 12 patches, 336 cohorts) from July 2008 to December 2010 on the cell's ERA5-Land weather and
 soil, with the structure frozen (trees grow and die, none recruit). The PFT traits were set against
 this stand:
 
-| 2009–2010 | MEDS | Target |
+| 2009–2010 | ED-MORE | Target |
 |---|---|---|
 | Leaf litter [kg dry m⁻² yr⁻¹] | 0.49 | 0.5 (litter traps 0.54) |
 | AGB growth of trees ≥ 10 cm [kg dry m⁻² yr⁻¹] | 0.47 | 0.3–0.5 |
@@ -197,7 +197,7 @@ this stand:
 
 ### The regrowth
 
-[`palo_verde/meds_config_regrowth.toml`](palo_verde/meds_config_regrowth.toml) regrows the forest
+[`palo_verde/ed_config_regrowth.toml`](palo_verde/ed_config_regrowth.toml) regrows the forest
 from bare ground, June 1871 – May 2021, at the same cell: 3 recruits m⁻² of each PFT at 1.5 m
 ([`palo_verde/data/pv_bare_start.csv`](palo_verde/data/pv_bare_start.csv)), seed rain of 0.1 recruits
 m⁻² yr⁻¹ of each PFT, treefall opening 1.4 % of the ground a year, ERA5-Land's 2003–2022 repeated and
@@ -210,7 +210,7 @@ and Palo Verde's chronosequence at 20 years (Poorter et al. 2016, *Nature* 530: 
 year's highest and lowest monthly leaf area index; the last ten years' leaf area by PFT; GPP; and the
 trees of 10 cm and more.
 
-| | MEDS, 150 years | 2009 inventory |
+| | ED-MORE, 150 years | 2009 inventory |
 |---|---|---|
 | AGB [MgC ha⁻¹], all / Ds / D / BD / E | 78 / 21 / 3 / 8 / 46 | 88 / 2 / 16 / 56 / 14 |
 | basal area [m² ha⁻¹] | 24.1 | 21.8 |
@@ -241,22 +241,59 @@ python run_palo_verde.py --plot-only                           # redraw palo_ver
 
 The archive can also be named by the environment variable `ERA5LAND_ARCHIVE`. The regrowth reads the
 forcing cut into `palo_verde/data/`; the inventory check reads the archive itself, so the script runs a
-copy of `meds_config_inventory.toml` with the archive's folder in `[forcing].data_path`
+copy of `ed_config_inventory.toml` with the archive's folder in `[forcing].data_path`
 (`palo_verde/output/config/inventory.toml`). To run that config by hand, set `data_path` to the folder.
 The forcing cut takes about 6 minutes; with the production build
-(`--meds-main ../../../build-production/meds_main`), the inventory check takes about 1.5 minutes and
+(`--edmore ../../../build-production/edmore`), the inventory check takes about 1.5 minutes and
 the regrowth about 20 minutes on 12 threads (`[run].n_threads`). Output goes to `palo_verde/output/`.
+
+## Plotting the diagnostic files
+
+With `[output].enabled = true`, each tier writes files named from `[output].dir` and
+`[output].prefix`: `<prefix>-F-YYYYMMDD.nc` (fast), `<prefix>-D-YYYYMM.nc` (daily),
+`<prefix>-M-YYYY.nc` (monthly) and `<prefix>-Y.nc` (annual). The stamp follows each tier's
+`file_chunk`; the shipped values are day, month, year and run, and a `run` chunk has no stamp (the
+BCI run writes `output/regen-M.nc`). [`plot_pft_size.py`](plot_pft_size.py) reads any monthly or
+annual tier that carries the PFT and DBH-class axes, from `edmore` or `edmore.model`, given one file
+or a quoted glob:
+
+```bash
+python examples/example05_forest_regeneration/plot_pft_size.py 'OUTDIR/PREFIX-M-*.nc' -o pft_size.png
+```
+
+It draws six panels: aboveground biomass and leaf area by PFT over time, stem density and biomass by
+DBH class (first against last record), biomass by class stacked over the run, and growth and
+mortality against size. Before drawing, it prints the closure identities the two axes promise: the
+sum over PFTs, and over classes, equals the polygon total
+([`diagnostics.md`](../../docs/science/diagnostics.md)); ctest `output_closure` checks them on every
+build. A variable the run did not enable is skipped.
+
+**Following a plant across records.** Every cohort and patch carries a persistent `global_id`,
+stamped at creation and kept through every sort, fusion and compaction, and never reused. A fusion
+keeps the survivor's id, so one id followed across records follows one plant until it fuses away or
+dies. The cohort axis is ragged: `cohort_offset` and `cohort_count` map each patch to its cohorts,
+and slots beyond the live count hold the fill value.
+
+**Reading the files yourself.** The files are plain netCDF with CF metadata, and which variables
+exist depends on the config (`edmore --dump-io-config` lists them all). Read coordinates from the file
+(`soil_z`, `dbh_lower`, `dbh_upper`, `pft`) and the reference CO₂ from `mean_atm_co2_py`, so a figure
+stays right when a run changes its grid or forcing. Two habits keep a budget computed from the files
+closed: a rate becomes an amount with the width of its own window, `t[i+1] - t[i]`, the trailing
+partial window dropped because its width is unknown; and the litter variables are not all the carbon
+entering the soil, because cull and disturbance mortality add necromass directly to the soil-carbon
+pools, so closing the soil-carbon budget also needs the `mean_mort_carbon_*_py` variables.
 
 ## Files
 
 | File | |
 |---|---|
 | [`run_example.py`](run_example.py) | BCI: cuts the forcing, runs the model through the Python API, draws the figure |
-| [`meds_config_regeneration.toml`](meds_config_regeneration.toml), [`pft_parameters.toml`](pft_parameters.toml) | BCI: the run and its three PFTs |
+| [`ed_config_regeneration.toml`](ed_config_regeneration.toml), [`pft_parameters.toml`](pft_parameters.toml) | BCI: the run and its three PFTs |
 | [`calibrate_growth.py`](calibrate_growth.py), [`calibration.json`](calibration.json) | BCI: the census check (and the search) and its result |
 | [`calibrate_recruitment.py`](calibrate_recruitment.py) | BCI: ingrowth past 1 cm against the census |
 | [`plot_regeneration.py`](plot_regeneration.py) | BCI: the figure |
+| [`plot_pft_size.py`](plot_pft_size.py) | any run's monthly or annual files: composition by PFT and structure by DBH class |
 | [`palo_verde/run_palo_verde.py`](palo_verde/run_palo_verde.py) | Palo Verde: cuts the forcing, runs the inventory check and the regrowth, draws the figure |
 | [`palo_verde/pft_parameters.toml`](palo_verde/pft_parameters.toml) | Palo Verde: the four PFTs (also example 06's) |
-| [`palo_verde/meds_config_inventory.toml`](palo_verde/meds_config_inventory.toml), [`palo_verde/meds_config_regrowth.toml`](palo_verde/meds_config_regrowth.toml) | Palo Verde: the inventory check and the regrowth |
+| [`palo_verde/ed_config_inventory.toml`](palo_verde/ed_config_inventory.toml), [`palo_verde/ed_config_regrowth.toml`](palo_verde/ed_config_regrowth.toml) | Palo Verde: the inventory check and the regrowth |
 | [`palo_verde/plot_palo_verde.py`](palo_verde/plot_palo_verde.py) | Palo Verde: the figure |

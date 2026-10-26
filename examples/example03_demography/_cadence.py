@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """Shared slow-loop calendar cadence for the example drivers.
 
-Yields the ``(is_new_month, is_new_year)`` flags MEDS's stepper folds into the
+Yields the ``(is_new_month, is_new_year)`` flags ED-MORE's stepper folds into the
 monthly/annual fuse-fission triggers, from a simple day counter — the same logic
-the Fortran ``meds_stepper`` derives from the real calendar, sufficient for a
+the Fortran ``ed_stepper`` derives from the real calendar, sufficient for a
 fixed-length spin-up example.
 """
 

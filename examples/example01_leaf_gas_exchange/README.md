@@ -1,9 +1,9 @@
 # Example 01 — Leaf gas exchange (Slot & Winter 2017)
 
-The leaf gas-exchange module of MEDS on its own: C3 photosynthesis (Farquhar–von Caemmerer–Berry),
+The leaf gas-exchange module of ED-MORE on its own: C3 photosynthesis (Farquhar–von Caemmerer–Berry),
 stomatal conductance, and their coupled solution for the intercellular CO₂ Cᵢ. A Python script sets
 every parameter and driver; there is no site, config file or canopy. The same compiled kernels
-([`meds_leaf_gas_exchange.f90`](../../src/fast_dynamics/processes/meds_leaf_gas_exchange.f90)) run inside
+([`ed_leaf_gas_exchange.f90`](../../src/fast_dynamics/processes/ed_leaf_gas_exchange.f90)) run inside
 the coupled model, where canopy radiation, the leaf energy balance and plant hydraulics supply their
 drivers. The equations are in [`docs/science/leaf_gas_exchange.md`](../../docs/science/leaf_gas_exchange.md).
 
@@ -18,7 +18,7 @@ Build the Python library once, then run the script from the repository root (a f
 ```bash
 source /opt/intel/oneapi/setvars.sh
 FC=ifx cmake --preset dev                                   # the dev kind in build-dev
-cmake --build build-dev --target meds_py                    # -> build-dev/libmeds.so
+cmake --build build-dev --target ed_py                    # -> build-dev/libedmore.so
 PYTHONPATH=python python examples/example01_leaf_gas_exchange/reproduce_slot2017.py
 ```
 
@@ -29,7 +29,7 @@ CSVs in `slot2017/` and the figure `slot2017.png`.
 ## Setup
 
 All settings are at the top of [`reproduce_slot2017.py`](reproduce_slot2017.py); everything else is
-a default of [`meds.plant.leaf`](../../python/meds/plant/leaf.py).
+a default of [`edmore.plant.leaf`](../../python/edmore/plant/leaf.py).
 
 | Input | Value |
 |---|---|
@@ -47,7 +47,7 @@ stomata (`leaf.Stomata`), and a plain Arrhenius temperature response (`leaf.Temp
 
 ## Results
 
-![Slot & Winter 2017 reproduced with the MEDS leaf model](slot2017.png)
+![Slot & Winter 2017 reproduced with the ED-MORE leaf model](slot2017.png)
 
 **(a) A–Cᵢ curve.** Net assimilation is limited by RuBP carboxylation (A_c, red) below
 Cᵢ ≈ 185 µmol mol⁻¹ and by RuBP regeneration (A_j, blue) above it (star). The compensation point is

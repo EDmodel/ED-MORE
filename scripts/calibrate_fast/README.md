@@ -8,7 +8,7 @@ in it are in
 MEDS's [fast-calibration protocol](https://github.com/xiangtaoxu/MEDS/blob/v0.4.0/docs/dev_plans/MEDS_FAST_CALIBRATION_BEST_PRACTICE.md) (MEDS v0.4.0); the code
 cites its sections as "protocol §N".
 Barro Colorado Island is the worked example:
-`examples/example04_column_biophysics/calibration.toml`,
+[`examples/example04_column_biophysics/calibration.toml`](../../examples/example04_column_biophysics/calibration.toml),
 with what the rules chose there and the results in the example's README.
 
 **The user decides, the tool recommends and reports.** Every setting of a site's `calibration.toml`

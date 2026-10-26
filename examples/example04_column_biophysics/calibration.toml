@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # The fast-parameter calibration at Barro Colorado Island (scripts/calibrate_fast;
-# docs/dev_plans/MEDS_FAST_CALIBRATION_BEST_PRACTICE.md). run_example.py --calibrate runs it. Every
+# the protocol its README links). run_example.py --calibrate runs it. Every
 # setting, its default and why: scripts/calibrate_fast/calibration_reference.toml. Only the choices
 # that differ from the defaults are here. Paths are relative to this file.
 
 [base]
-main       = "meds_config_eval.toml"     # with the PFT file it names (pft_parameters.toml) and its forcing
+main       = "ed_config_eval.toml"     # with the PFT file it names (pft_parameters.toml) and its forcing
 parameters = "../../scripts/calibrate_fast/parameters.toml"
 
 # The tower's facts (file, clock, columns, units, which values were measured) are bci_site.toml, the
@@ -37,7 +37,7 @@ timeout_per_day = 30.0         # [s] over 10x a trial on a busy node (median 2.5
 [windows]
 skip_hours = 3                 # the first hours after a restart with changed traits are not scored
 
-# Set in the calibrated main config the fit writes (meds_config_calibrated.toml), beside the MAP.
+# Set in the calibrated main config the fit writes (ed_config_calibrated.toml), beside the MAP.
 [calibrated]
 "init.pft_config" = "calibration/pft_parameters_calibrated.toml"
 "output.prefix"   = "cal"

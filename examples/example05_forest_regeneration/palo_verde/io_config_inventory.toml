@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Output of meds_config_inventory.toml: daily (D) and monthly (M) cohort records for the leaf habits and the
+# Output of ed_config_inventory.toml: daily (D) and monthly (M) cohort records for the leaf habits and the
 # carbon budget, PFT and site totals also yearly (Y); hourly (F) leaf potential.
 [variables]
 "*_pa"                      = false     # no per-patch record

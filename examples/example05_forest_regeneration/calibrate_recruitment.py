@@ -7,7 +7,7 @@ min_cohort_height: seed set, germination and seedling survival together. Its tar
 the new stems of at least 1 cm per hectare and year, by PFT, over the five intervals of 1985-2010
 (example 03's recruits.csv.gz).
 
-A trial starts the coupled model of meds_config_regeneration.toml from the 1985 census, runs 20
+A trial starts the coupled model of ed_config_regeneration.toml from the 1985 census, runs 20
 years (1985-2004), and counts every cohort that crosses 1 cm dbh, weighted by its stems per m2 of
 site, day by day; the last ten years are scored, when the seedlings born after the start have had
 time to reach 1 cm. Each crossing is kept with its PFT and the LAI of its patch, so the model's
@@ -33,7 +33,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import calibrate_growth as cg             # noqa: E402  (the paths, the census start)
-from meds.config import RunConfig         # noqa: E402
+from edmore.config import RunConfig       # noqa: E402
 
 RECRUITS = os.path.join(cg.EX03, "data", "recruits.csv.gz")
 WORK = os.path.join(HERE, "output", "recruitment")
@@ -74,7 +74,7 @@ def trial_config(efficiency, threads, fitted=False, seed_rain=None):
 def run_trial(cfg, out):
     """Every crossing of 1 cm: (year, PFT, stems per m2 of site, patch LAI) -> `out` (.npz); and the
     site's area-weighted area by patch-LAI class each year, the exposure the rates are per."""
-    from meds.model import Run
+    from edmore.model import Run
     folder = os.path.splitext(out)[0]
     main = cfg.write(folder)
     os.chdir(folder)

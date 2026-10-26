@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Example 02: one MEDS phenology kernel, four forests, four leaf habits.
+"""Example 02: one ED-MORE phenology kernel, four forests, four leaf habits.
 
   Harvard Forest  deciduous broadleaf: warmth and day length
   Hyytiala        Scots pine (evergreen): warmth and the bright hours; needle fall stops at a floor
@@ -8,11 +8,11 @@
   Palo Verde      a drought-deciduous dry forest: predawn leaf water potential and day length
 
 The kernel and the leaf rule are the compiled Fortran of the coupled model, reached through
-meds.plant.pheno, with carbon never limiting the flush; the cues, switches and leaf habits are
-docs/science/plant_phenology.md §2-§6. Light at every site is ERA5-Land through MEDS's forcing
+edmore.plant.pheno, with carbon never limiting the flush; the cues, switches and leaf habits are
+docs/science/plant_phenology.md §2-§6. Light at every site is ERA5-Land through ED-MORE's forcing
 reader (drivers/era5_par_hours_*.csv.gz).
 
-Usage (after fetch_phenology_data.py; build libmeds.so first, see the README):
+Usage (after fetch_phenology_data.py; build libedmore.so first, see the README):
   python run_phenology.py                  # run fitted_parameters.json: print scores, write the figure
   python run_phenology.py --fit            # refit every site first
   python run_phenology.py --fit bci        # refit one site
@@ -27,10 +27,10 @@ import pandas as pd
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 try:
-    import meds  # noqa: F401  -- an installed package (pip install python/)
+    import edmore  # noqa: F401  -- an installed package (pip install python/)
 except ImportError:
     sys.path.insert(0, os.path.join(HERE, "..", "..", "python"))  # or the source tree
-import meds.plant.pheno as pheno                                   # noqa: E402
+import edmore.plant.pheno as pheno                                   # noqa: E402
 
 DATA = os.path.join(HERE, "data")
 DRIVERS = os.path.join(HERE, "drivers")
@@ -409,7 +409,7 @@ class BCI(LitterSite):
 
 class PaloVerde(LitterSite):
     """A drought-deciduous forest: flushing and senescence on the predawn leaf water potential and
-    the hours of light. The water potential is hypothetical: a MEDS run's canopy predawn value for
+    the hours of light. The water potential is hypothetical: an ED-MORE run's canopy predawn value for
     an evergreen stand at the site, so the fit asks what cues map that driver onto the observed
     canopy, not how this forest's own water status moves."""
     key, name = "palo_verde", "Palo Verde, drought-deciduous"

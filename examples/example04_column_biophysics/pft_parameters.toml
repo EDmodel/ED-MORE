@@ -79,7 +79,7 @@ kplastic_rd            = [-0.11760191025318557]
 kplastic_sla           = [0.12615477645341722]
 kplastic_leaf_turnover = [-0.015560662518427415]
 fineroot_turnover_rate = [0.8]   # [1/yr]
-# Necromass -> litter-destination split, as the reference meds_config_pft.toml's mid-successional PFT.
+# Necromass -> litter-destination split, as the reference ed_config_pft.toml's mid-successional PFT.
 f_labile_leaf          = [0.70]  # [--] labile fraction of leaf/storage/fine-root necromass
 f_labile_stem          = [0.05]  # [--] labile fraction of wood/CWD necromass
 struct_lignin_frac     = [0.25]  # [--] lignin fraction of the structural-litter stream
@@ -99,7 +99,7 @@ sapwood_area_b2    = [1.764]     # [--]        ED2 b2SA
 aboveground_frac       = [0.7]
 
 [hydraulics]
-# The PFT's plant-hydraulics traits (meds_config_pft.toml documents each key); one value for every PFT,
+# The PFT's plant-hydraulics traits (ed_config_pft.toml documents each key); one value for every PFT,
 # or one per PFT.
 leaf_pi0             = -1.5                 # [MPa]
 leaf_elastic_mod     = 12.0                 # [MPa]

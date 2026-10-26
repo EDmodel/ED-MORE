@@ -1,6 +1,6 @@
 {
  "variant": null,
- "config": "/home/xx286/projects/MEDS/.claude/worktrees/p7b-rerun/examples/example04_column_biophysics/calibration.toml",
+ "config": "examples/example04_column_biophysics/calibration.toml",
  "windows": {
   "cal1_2016": [
    "2016-01-01 00:00:00",
@@ -286,7 +286,7 @@
    "default": 45.0,
    "prior_centre": 39.86225382146285,
    "prior_sd_u": 0.7388734759891075,
-   "prior_source": "EEO: the coordination of the Rubisco- and light-limited rates at the site's growing-season daytime climate, with MEDS's own leaf (priors.py; Wang et al. 2017, Smith et al. 2019)"
+   "prior_source": "EEO: the coordination of the Rubisco- and light-limited rates at the site's growing-season daytime climate, with ED-MORE's own leaf (priors.py; Wang et al. 2017, Smith et al. 2019)"
   },
   "stomatal_g1": {
    "kind": "trait",
@@ -2511,7 +2511,7 @@
    "kind": "trait",
    "scope": "plant_type",
    "prior_centre": 39.86225382146285,
-   "prior_source": "EEO: the coordination of the Rubisco- and light-limited rates at the site's growing-season daytime climate, with MEDS's own leaf (priors.py; Wang et al. 2017, Smith et al. 2019)",
+   "prior_source": "EEO: the coordination of the Rubisco- and light-limited rates at the site's growing-season daytime climate, with ED-MORE's own leaf (priors.py; Wang et al. 2017, Smith et al. 2019)",
    "pushed_by": "gpp",
    "near_bound": null,
    "bound_pushed_by": null,

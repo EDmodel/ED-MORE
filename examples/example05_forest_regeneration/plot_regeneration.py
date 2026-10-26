@@ -33,7 +33,7 @@ plt.rcParams.update({"font.size": 9, "axes.edgecolor": MUTED, "axes.labelcolor":
                      "grid.linewidth": 0.6, "legend.frameon": False})
 
 
-UMOL_TO_KGC = 1.20107e-8                          # [kgC/umol CO2], meds_constants' umol_2_kgc
+UMOL_TO_KGC = 1.20107e-8                          # [kgC/umol CO2], ed_constants' umol_2_kgc
 
 
 def year_seconds(years):

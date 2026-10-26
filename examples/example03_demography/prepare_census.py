@@ -12,19 +12,19 @@ per tree; dbh in mm). Writes, in data/ (not committed):
                      interval before, the last one measured (died 1); the first interval has none
   survival.csv.gz    one row per tree and interval: alive at the start, dead (1) or alive (0) at the end
   recruits.csv.gz    one row per quadrat, PFT and interval: new stems >= 1 cm [plants/m2/yr]
-  bci_1985_census.csv, bci_2005_census.csv  the 1985 and 2005 stands as MEDS censuses: a patch per
+  bci_1985_census.csv, bci_2005_census.csv  the 1985 and 2005 stands as ED-MORE censuses: a patch per
                      quadrat, nplant per m2
 
-and, committed, census_stand.csv: stems, basal area and aboveground biomass (MEDS's allometry, each
+and, committed, census_stand.csv: stems, basal area and aboveground biomass (ED-MORE's allometry, each
 species' wood density) by PFT and size class in every census.
 
 A tree is described by what it is at the start of an interval: its dbh, its PFT (from its species'
 wood density) and its overtopping LAI, the leaf area of TALLER trees within 20 m of it per m2 of
-ground -- the competition index the MEDS engine computes for every cohort. Height and leaf area are
-MEDS's allometry as the example's PFT config sets it (the local log-quadratic for BCI). A quadrat's recruits are described
+ground -- the competition index the ED-MORE engine computes for every cohort. Height and leaf area are
+ED-MORE's allometry as the example's PFT config sets it (the local log-quadratic for BCI). A quadrat's recruits are described
 by the leaf area index within 20 m of the quadrat's centre, all of it and the PFT's own. Trees and
 quadrats whose 20 m circle crosses the plot's edge are not described (they still count as
-neighbours). A MEDS tree is one stem, so a tree alive with no main stem to measure has died, and is a
+neighbours). An ED-MORE tree is one stem, so a tree alive with no main stem to measure has died, and is a
 recruit when a stem is measured again. Growth keeps every increment measured at an unchanged height
 and below 75 mm/yr, negative ones included; fit_vital_rates.py decides how to treat those. The 1982
 census is not used: it rounded small stems to 5 mm.
@@ -93,7 +93,7 @@ def basal_area_m2(dbh_cm):
 
 
 def height_m(dbh_cm, pft):
-    """MEDS's dbh_to_height: each PFT's height curve (power law or log-quadratic), capped at its hgt_max."""
+    """ED-MORE's dbh_to_height: each PFT's height curve (power law or log-quadratic), capped at its hgt_max."""
     i = np.asarray(pft) - 1
     x = np.log(dbh_cm)
     h = np.exp(per_pft("b1Ht")[i] + per_pft("b2Ht")[i] * x)
@@ -107,13 +107,13 @@ def height_m(dbh_cm, pft):
 
 
 def agb_kgc(dbh_cm, pft, rho):
-    """MEDS's dbh_to_agb: agb_c1 (rho D^2 h)^agb_c2 [kgC per tree]."""
+    """ED-MORE's dbh_to_agb: agb_c1 (rho D^2 h)^agb_c2 [kgC per tree]."""
     i = np.asarray(pft) - 1
     return per_pft("agb_c1")[i] * (rho * dbh_cm ** 2 * height_m(dbh_cm, pft)) ** per_pft("agb_c2")[i]
 
 
 def leaf_area_m2(dbh_cm, pft):
-    """MEDS's dbh_to_leaf_area: lai_b1 (D^2 h)^lai_b2 [m2 per tree]."""
+    """ED-MORE's dbh_to_leaf_area: lai_b1 (D^2 h)^lai_b2 [m2 per tree]."""
     i = np.asarray(pft) - 1
     return per_pft("lai_b1")[i] * (dbh_cm ** 2 * height_m(dbh_cm, pft)) ** per_pft("lai_b2")[i]
 
@@ -193,7 +193,7 @@ for name, parts in (("growth", growth), ("survival", survival), ("recruits", rec
     pd.concat(parts, ignore_index=True).to_csv(os.path.join(OUT, f"{name}.csv.gz"), index=False,
                                                float_format="%.6g")
 
-# the 1985 and 2005 stands as MEDS censuses: one row per quadrat, PFT and dbh; MEDS fuses them when it
+# the 1985 and 2005 stands as ED-MORE censuses: one row per quadrat, PFT and dbh; ED-MORE fuses them when it
 # reads them. The 1985 stand starts the demography runs, the 2005 one example 05's growth check.
 for y in (1985, 2005):
     live = census[y][census[y].live]

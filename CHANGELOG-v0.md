@@ -26,6 +26,11 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   `pft_traits/` (were `scripts/prepare_era5/`, `prepare_flux_tower/`, `prepare_census/`, `prepare_co2/`
   and `pft_traits/`); `scripts/calibrate_fast/` stays. The install scripts read `EDMORE_ASSUME_YES`
   (was `MEDS_ASSUME_YES`). (#41)
+- `post_proc/` is gone; its plotters live with the examples that use them:
+  `plot_site_timeseries.py`, `plot_forest_structure.py`, `plot_landscape_3d.py` and
+  `animate_landscape_growth.py` in `examples/example03_demography/`, `plot_pft_size.py` in
+  `examples/example05_forest_regeneration/`. The examples' configs are `ed_config_*.toml` (were
+  `meds_config_*.toml`), and their scripts take `--edmore` (was `--meds-main`). (#42)
 
 ### Added
 
@@ -37,3 +42,7 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - The tools from MEDS v0.4.0, with their tests: ERA5-Land and flux-tower forcing, a census from a
   ForestGEO table, the CO₂ record, the PFT traits that follow published fits, and the calibration of
   the fast processes' parameters against a flux tower. (#41)
+- The six examples from MEDS v0.4.0, with their figures: leaf gas exchange, canopy phenology,
+  demography, a flux-tower column, forest regeneration and a regional run. Example 03's two
+  animations are assets of the release. A test checks that the PFT and DBH-class axes of the output
+  add up to the polygon totals. (#42)

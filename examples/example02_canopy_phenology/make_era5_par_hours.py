@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""make_era5_par_hours.py -- the hours of light each site's canopy sees, from ERA5-Land through MEDS.
+"""make_era5_par_hours.py -- the hours of light each site's canopy sees, from ERA5-Land through ED-MORE.
 
-For each site, MEDS runs on bare ground over the example's years with the ERA5-Land forcing archive
+For each site, ED-MORE runs on bare ground over the example's years with the ERA5-Land forcing archive
 and writes the PAR at the canopy top for every fast step (900 s; the reader's cosz disaggregation of
 the hourly values, as the coupled model sees it). The script counts, for each UTC day, the fast steps
 whose PAR exceeds each value of a grid of par_min, and writes them to drivers/era5_par_hours_<site>.csv.gz.
 run_phenology.py turns a count into hours (x 0.25) and interpolates between grid values.
 
-The CSVs are committed, because the processed archive is not public (scripts/prepare_era5 builds it
+The CSVs are committed, because the processed archive is not public (scripts/prepare_input/era5 builds it
 from ERA5-Land). Regenerating needs the archive (--archive, or the environment variable ERA5LAND_ARCHIVE)
-and a MEDS build whose shortwave split uses the interval-mean sun, so a sunrise or sunset hour still
+and an ED-MORE build whose shortwave split uses the interval-mean sun, so a sunrise or sunset hour still
 splits its light (docs/science/forcing.md §6):
 
     python make_era5_par_hours.py --archive /path/to/ED_ERA5land
 
-It runs build-dev/meds_main, the dev preset's build, unless --meds-main (or the environment variable
-MEDS_MAIN) names another, such as build-production/meds_main from the repository root.
+It runs build-dev/edmore, the dev preset's build, unless --edmore (or the environment variable
+EDMORE_MAIN) names another, such as build-production/edmore from the repository root.
 """
 import argparse
 import glob
@@ -31,7 +31,7 @@ import pandas as pd
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 sys.path.insert(0, os.path.join(ROOT, "python"))
-from meds.config import RunConfig   # noqa: E402
+from edmore.config import RunConfig   # noqa: E402
 
 #----- site: latitude, longitude, elevation [m], first day, the day after the last (UTC) -------------#
 SITES = {
@@ -43,13 +43,13 @@ SITES = {
 #----- par_min grid [umol/m2/s]: dense where the photoperiod and the bright hours sit ---------------#
 PAR_MIN = [1, 2, 5, 10, 20, 30, 50, 75, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600,
            700, 800, 900, 1000, 1200]
-PAR_W_2_UMOL = 4.6                      # MEDS's par_w_2_umol (meds_constants)
+PAR_W_2_UMOL = 4.6                      # ED-MORE's par_w_2_umol (ed_constants)
 STEP_S = 900.0
 
 
 def configure(site, work, archive):
     lat, lon, elev, first, stop = SITES[site]
-    cfg = RunConfig.load(os.path.join(ROOT, "meds_config_main.toml"))
+    cfg = RunConfig.load(os.path.join(ROOT, "ed_config_main.toml"))
     for key, value in {
         "run.dt_slow": "1d", "run.start_time": first, "run.end_time": stop,
         "fast.fast_biophysics_on": True, "fast.dt_fast": "900s",
@@ -97,8 +97,8 @@ def count(site, work):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--meds-main", default=os.environ.get("MEDS_MAIN", os.path.join(ROOT, "build-dev", "meds_main")),
-                    help="the meds_main to run (default: $MEDS_MAIN, else build-dev/meds_main)")
+    ap.add_argument("--edmore", default=os.environ.get("EDMORE_MAIN", os.path.join(ROOT, "build-dev", "edmore")),
+                    help="the edmore to run (default: $EDMORE_MAIN, else build-dev/edmore)")
     ap.add_argument("--archive", default=os.environ.get("ERA5LAND_ARCHIVE"), help="the ED_ERA5land archive")
     ap.add_argument("--work", default=os.path.join(HERE, "data", "era5_par_runs"))
     ap.add_argument("sites", nargs="*", default=list(SITES))
@@ -110,13 +110,13 @@ def main():
         work = os.path.abspath(os.path.join(args.work, site))
         os.makedirs(work, exist_ok=True)
         main_toml = configure(site, work, args.archive)
-        subprocess.run([os.path.abspath(args.meds_main), str(main_toml)], cwd=work, check=True,
+        subprocess.run([os.path.abspath(args.edmore), str(main_toml)], cwd=work, check=True,
                        stdout=subprocess.DEVNULL)
         table = count(site, work)
         lat, lon, *_ = SITES[site]
         path = os.path.join(HERE, "drivers", f"era5_par_hours_{site}.csv.gz")
         with gzip.open(path, "wt") as fh:
-            fh.write(f"# {site} ({lat}, {lon}): ERA5-Land through MEDS's forcing reader (clearidx split, "
+            fh.write(f"# {site} ({lat}, {lon}): ERA5-Land through ED-MORE's forcing reader (clearidx split, "
                      f"cosz disaggregation), PAR at the canopy top every 900 s.\n")
             fh.write("# steps_gt_<p>: the 15-min steps of the UTC day with PAR above p umol/m2/s "
                      "(hours = steps x 0.25). Made by make_era5_par_hours.py.\n")

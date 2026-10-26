@@ -157,8 +157,8 @@ chave_rse  = 0.0
 chave_e    = 0.0
 
 [hydraulics]
-# The PFT's plant-hydraulics traits (meds_config_pft.toml documents each key); one value for every PFT,
-# or one per PFT. wood_kmax is Xu et al. (2016)'s fit to each PFT's wood density (scripts/pft_traits).
+# The PFT's plant-hydraulics traits (ed_config_pft.toml documents each key); one value for every PFT,
+# or one per PFT. wood_kmax is Xu et al. (2016)'s fit to each PFT's wood density (scripts/prepare_input/pft_traits).
 leaf_pi0             = -1.5                                                         # [MPa]
 leaf_elastic_mod     = 12.0                                                         # [MPa]
 leaf_apoplast_frac   = 0.3                                                          # [-]

@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
-# MEDS example 05 (Palo Verde; also example 06's regional run): Xu et al. (2016)'s four tropical
+# ED-MORE example 05 (Palo Verde; also example 06's regional run): Xu et al. (2016)'s four tropical
 # dry-forest PFTs, Ds, D, BD and E, with wood densities 0.35, 0.52, 0.74 and 0.87 g/cm3 (drought-deciduous
 # to evergreen). Traits the Palo Verde design does not set are the BCI PFTs' (example 05), mapped
 # Ds <- early, D <- mid, BD and E <- late. The design
-# (docs/dev_plans/MEDS_EXAMPLE06_DRY_FOREST_PHENOLOGY_PLAN.md §6) sets:
+# (§6 of MEDS's dry-forest phenology plan,
+# https://github.com/xiangtaoxu/MEDS/blob/v0.4.0/docs/dev_plans/MEDS_EXAMPLE06_DRY_FOREST_PHENOLOGY_PLAN.md) sets:
 #   - hydraulics, turgor-loss point, P50, Vcmax25 and rooting depth from Xu's wood-density relations;
 #   - storage_cushion 3, three full flushes of leaf and fine root;
 #   - phenology on the water cue alone, shed_rate_max 0.15 / 0.15 / 0.025 / 0.01 per day;
@@ -39,7 +40,7 @@ leaf_turnover_rate_toc = [2.0, 2.0, 1.25, 0.6667]   # [1/yr] 1 / (0.5, 0.5, 0.8,
                                                    #   half a year (PV litter 0.5 kg/m2/yr)
 sla                = [20.8, 20.6, 18.6, 15.8]   # [m2/kgC] 2 x Xu's SLA (m2/kg dry): 10.4, 10.3, 9.3, 7.9
 vcmax25            = [65.64, 50.85, 36.62, 30.18]   # [umol/m2/s] from Xu (2016) A_area-WD (Table 1), inverted with
-                                                    #   MEDS's leaf (the design plan's §6.2); Jmax, TPU, Rd follow the ratios
+                                                    #   ED-MORE's leaf (the design plan's §6.2); Jmax, TPU, Rd follow the ratios
 root_to_leaf_ratio = [1.0, 1.0, 1.0, 1.0]
 
 #----- Stem maintenance respiration on sapwood volume alone (no surface term). The rate puts the 1985
@@ -131,7 +132,7 @@ leaf_angle_std     = [20.0, 20.0, 20.0, 20.0]
 # parameter p = p0 (WD/0.6)^b of wood density. At these PFTs' WD: gamma 0.0253, 0.0122,
 # 0.0064, 0.0047 /yr; alpha 0.093, 0.059, 0.039, 0.033 /yr; beta 16.1, 18.0, 19.8, 20.8 yr/cm. The fit counts
 # every death, so treefall (main config, 0.014/yr on trees above 10 m in each new gap) comes on top of it.
-# The values are Camac's power laws at these wood densities (scripts/pft_traits/pft_traits.py).
+# The values are Camac's power laws at these wood densities (scripts/prepare_input/pft_traits/pft_traits.py).
 mort_gamma = [0.025331078812726417, 0.01223010776146058, 0.006391645127479957, 0.00474613212227681]   # [1/yr]
 mort_alpha = [0.09289703076840167, 0.05893816273414772, 0.039290831605228047, 0.032621938104004176]   # [1/yr]
 mort_beta  = [16.104595210127126, 17.986810071937334, 19.848857390790634, 20.766331887441872]   # [yr/cm]
@@ -166,7 +167,7 @@ aboveground_frac       = [0.7, 0.7, 0.7, 0.7]
 height_allometry = "chave2014"
 chave_e    = 0.134          # [--] Chave's stress index at the forcing cell
 
-#----- Hydraulics (MEDS_EXAMPLE06_DRY_FOREST_PHENOLOGY_PLAN.md §6.2): ED2 X16 / base relations in WD and SLA. -----#
+#----- Hydraulics (dry-forest plan §6.2): ED2 X16 / base relations in WD and SLA. -----                            #
 [hydraulics]
 leaf_pi0               = [-1.1228, -1.6148, -2.2017, -2.504]   # [MPa] solved so pi0*eps/(pi0+eps) = the X16 TLP
                                                                #       -1.50, -1.96, -2.43, -2.72
@@ -179,16 +180,16 @@ wood_apoplast_frac     = 0.2   # [-]
 wood_water_sat         = [4.4071, 2.539, 1.3955, 0.9917]   # [kg H2O/kgC] ED2: 2 (1 - WD/1.53) / WD
 wood_psi50             = [-1.649, -2.159, -2.819, -3.209]   # [MPa] X16: -3.0 WD - 0.599
 wood_kexp              = [4, 4, 4, 4]   # [-] X16
-wood_kmax              = [6.0378621462769955, 3.9776850327121633, 2.3177572139966176, 1.6844683588774712]   # [kg/m/s/MPa] Xu et al. (2016) in WD (scripts/pft_traits)
+wood_kmax              = [6.0378621462769955, 3.9776850327121633, 2.3177572139966176, 1.6844683588774712]   # [kg/m/s/MPa] Xu et al. (2016) in WD (scripts/prepare_input/pft_traits)
 vessel_curl            = 1.5   # [-]
 root_depth_b1          = [0.6499, 0.9655, 1.374, 1.6154]   # [m] 1.114 * WD/0.6
-root_depth_b2          = [0.422301, 0.422301, 0.422301, 0.422301]   # [-] MEDS default (ED2 IALLOM 1)
+root_depth_b2          = [0.422301, 0.422301, 0.422301, 0.422301]   # [-] ED-MORE default (ED2 IALLOM 1)
 root_beta              = [0.001, 0.002, 0.005, 0.01]   # [-] deeper profiles with wood density (the default 0.1
                                                        #     would put half the roots below 51 cm)
 specific_root_length   = 20000.0   # [m/kgC]
 fine_root_radius       = 0.00025   # [m]
 
-#----- Phenology (MEDS_EXAMPLE06_DRY_FOREST_PHENOLOGY_PLAN.md §6.1): one water-only set for all four PFTs. -----#
+#----- Phenology (dry-forest plan §6.1): one water-only set for all four PFTs. -----                            #
 [phenology]
 flush_cue_mask         = [4, 4, 4, 4]   # WATER only
 shed_cue_mask          = [4, 4, 4, 4]

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""MODIS monthly LAI at example 06's cells (output/cells.csv), made the way the MEDS side is: the cell's mean LAI for each 8-day
+"""MODIS monthly LAI at example 06's cells (output/cells.csv), made the way the ED-MORE side is: the cell's mean LAI for each 8-day
 composite, monthly means of those, then the maximum and minimum of the monthly means in each June-May year,
-June 2011 - May 2021 (the years MEDS's last ten simulated years used), averaged over the years.
+June 2011 - May 2021 (the years ED-MORE's last ten simulated years used), averaged over the years.
 
 Per 500 m pixel the retrievals pass the MODIS pipeline's own stage-A filter and 3-point running median
 (the MODIS LAI pipeline's lai_extremes_tiles.py: read_kept, despike). A composite's cell mean counts when at

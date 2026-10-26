@@ -5,10 +5,12 @@
 #                                                                                            #
 # Every test is registered by ed_add_test (below) with exactly one label:                    #
 #   unit         a module's test, and edmore's refusals: seconds each                        #
-#   integration  whole runs: a region and the fast loop's driver                             #
+#   integration  whole runs: several sites, a region, the fast loop's driver, the C-API run  #
+#                and a restart                                                               #
 #   lint         the repository's rules                                                      #
 #   python       pytest suites                                                               #
-#   long         opt-in runs too long for every build                                        #
+#   long         opt-in, -DED_TEST_LONG=ON: example 05's Palo Verde inventory and its        #
+#                150-year regrowth                                                           #
 #                                                                                            #
 # Paths: CMAKE_CURRENT_SOURCE_DIR is this folder; PROJECT_SOURCE_DIR the repository and      #
 # PROJECT_BINARY_DIR the build tree's top, where every test runs unless it names another      #
@@ -187,6 +189,12 @@ ed_add_test(state_file SOURCES io/test_state_file.f90 LINK ed_model ed_output_st
 #==========================================================================================#
 #  driver/: the coupled model's runs (src/main).                                              #
 #==========================================================================================#
+#----- A polygon of several sites: its sites from [[sites]], their files, a census, their stands,   #
+#      threads and state file, and what edmore refuses. Its configs derive from example 04's,       #
+#      so it runs from that example's directory; it writes only under the build tree.               #
+ed_add_test(sites SOURCES driver/test_sites.f90 LINK ed_testsupport ed_run
+            ARGS ${PROJECT_BINARY_DIR}/work/sites $<TARGET_FILE:ed_main>
+            WORKDIR ${PROJECT_SOURCE_DIR}/examples/example04_column_biophysics LABELS integration)
 #----- A region against its site runs, on the synthetic archive. It runs from driver/region, whose  #
 #      site config it derives its configs from; it writes everything under the work directory in   #
 #      the build tree.                                                                               #
@@ -207,6 +215,17 @@ ed_add_test(region SOURCES driver/test_region.f90 LINK ed_run ed_testassert ed_t
 #      file it names, relative to it, and writes nothing.                                           #
 ed_add_test(c_api_leaf SOURCES c_api/test_c_api_leaf.f90 LINK ed_testsupport ed_c_api
             WORKDIR ${PROJECT_SOURCE_DIR} LABELS unit)
+#----- Runs from the SOURCE dir: it loads examples/example03_demography's shipped config, which    #
+#      gives that config a build-time consumer. A config nothing loads drifts behind the schema     #
+#      exactly like a shim nothing compiles.                                                         #
+ed_add_test(c_api_demography SOURCES c_api/test_c_api_demography.f90 LINK ed_testsupport ed_c_api
+            WORKDIR ${PROJECT_SOURCE_DIR} LABELS unit)
+#----- Runs from examples/example04_column_biophysics: it loads both of that example's shipped     #
+#      configs (the default and the calibrated run), so the build notices when they fall behind    #
+#      the config reader. It writes only under the build tree.                                      #
+ed_add_test(c_api_run SOURCES c_api/test_c_api_run.f90 LINK ed_testsupport ed_c_api
+            ARGS ${PROJECT_BINARY_DIR}/c_api_run
+            WORKDIR ${PROJECT_SOURCE_DIR}/examples/example04_column_biophysics LABELS integration)
 
 #==========================================================================================#
 #  checks/: the CMake scripts that check the source tree and edmore as a program.             #
@@ -332,6 +351,11 @@ endif()
 #      though pytest drives it.                                                                     #
 ed_add_pytest(restart_exact PATH ${CMAKE_CURRENT_SOURCE_DIR}/python/test_restart_exact.py
               IMPORTS numpy netCDF4 pytest ENVIRONMENT EDMORE_MAIN=$<TARGET_FILE:ed_main> LABEL integration)
+#----- The PFT and DBH-class axes partition the stand: in a two-month run from the shipped          #
+#      census, the sums over PFTs and over classes equal the polygon totals                         #
+#      (python/test_output_closure.py; docs/science/diagnostics.md eq. (3)).                        #
+ed_add_pytest(output_closure PATH ${CMAKE_CURRENT_SOURCE_DIR}/python/test_output_closure.py
+              IMPORTS numpy netCDF4 pytest ENVIRONMENT EDMORE_MAIN=$<TARGET_FILE:ed_main> LABEL integration)
 #----- The input tools' tests (scripts/prepare_input): a tower forcing file from flux-tower         #
 #      data, a census from a ForestGEO table, and the PFT traits that follow published fits.        #
 ed_add_pytest(prepare_flux_tower PATH ${PROJECT_SOURCE_DIR}/scripts/prepare_input/flux_tower/tests
@@ -347,6 +371,41 @@ ed_add_pytest(calibrate_fast PATH ${PROJECT_SOURCE_DIR}/scripts/calibrate_fast/t
               IMPORTS numpy pandas scipy netCDF4 pytest ENVIRONMENT ${ed_program_env} LABEL python)
 
 #----- Every test stops at 10 minutes. The longest takes about 1.5 in a Debug build, so a test that #
-#      hangs, or slows by an order of magnitude, fails instead of holding the suite.                #
+#      hangs, or slows by an order of magnitude, fails instead of holding the suite. The long runs, #
+#      registered after this, set their own.                                                         #
 get_property(ed_all_tests DIRECTORY PROPERTY TESTS)
 set_tests_properties(${ed_all_tests} PROPERTIES TIMEOUT 600)
+
+#==========================================================================================#
+#  long (opt-in, -DED_TEST_LONG=ON): example 05's two Palo Verde runs through edmore, the       #
+#  runs to make before a physics or tissue-energy change merges. Each runs a copy of the        #
+#  example's config in its own build-tree directory and passes when the run completes and its  #
+#  slow ledger closes; checks/check_long_run.cmake explains them. The inventory (85 s on the     #
+#  example's 12 threads, ifx dev) reads the ED_ERA5land archive; the regrowth (31 min) reads    #
+#  Palo Verde's cell cut from it, 2003-2022: ED_TEST_PV_FORCING names a cut file, and           #
+#  without one the test cuts it into its directory once (under 2 min).                          #
+#==========================================================================================#
+if (ED_TEST_LONG)
+   set(ED_ERA5LAND_ARCHIVE "$ENV{ERA5LAND_ARCHIVE}" CACHE PATH
+       "The processed ED_ERA5land archive the long tests read (default: the environment's ERA5LAND_ARCHIVE)")
+   set(ED_TEST_PV_FORCING "" CACHE FILEPATH
+       "Palo Verde's forcing file, 2003-2022, as run_palo_verde.py cuts it; empty: the test cuts it from the archive")
+   if (NOT IS_DIRECTORY "${ED_ERA5LAND_ARCHIVE}")
+      message(WARNING "ED-MORE: ED_TEST_LONG is on, but ED_ERA5LAND_ARCHIVE (\"${ED_ERA5LAND_ARCHIVE}\") is not a "
+                      "folder: the long tests will stop at their start. Configure with "
+                      "-DED_ERA5LAND_ARCHIVE=<the ED_ERA5land folder>, or set ERA5LAND_ARCHIVE.")
+   endif()
+   foreach(case inventory regrowth)
+      ed_add_test(palo_verde_${case}
+                  COMMAND ${CMAKE_COMMAND} -DEDMORE_MAIN=$<TARGET_FILE:ed_main> -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+                            -DWORK_DIR=${PROJECT_BINARY_DIR}/long/palo_verde_${case} -DCASE=${case}
+                            -DARCHIVE=${ED_ERA5LAND_ARCHIVE} -DFORCING=${ED_TEST_PV_FORCING}
+                            -DPYTHON=${Python3_EXECUTABLE}
+                            -P ${CMAKE_CURRENT_SOURCE_DIR}/checks/check_long_run.cmake
+                    LABELS long)
+   endforeach()
+   #----- The runs' own thread count ([run].n_threads), so a parallel ctest books it; a generous    #
+   #      limit, a Debug build being many times slower than the times above.                       #
+   set_tests_properties(palo_verde_inventory PROPERTIES TIMEOUT 3600 PROCESSORS 12)
+   set_tests_properties(palo_verde_regrowth PROPERTIES TIMEOUT 21600 PROCESSORS 12)
+endif()

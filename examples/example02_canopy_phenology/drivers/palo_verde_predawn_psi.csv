@@ -1,6 +1,6 @@
 # Palo Verde (10.35, -85.35): a hypothetical canopy predawn leaf water potential [MPa], the daily maximum
 # of each cohort's leaf water potential, weighted by the cohort's leaf area (LAI x patch area). From a
-# MEDS run of the BCI 2010 1-ha census on ERA5-Land at Palo Verde (2007-2013, bare soil carbon spin-up,
+# ED-MORE run of the BCI 2010 1-ha census on ERA5-Land at Palo Verde (2007-2013, bare soil carbon spin-up,
 # evergreen BCI traits, so no shed-to-water feedback); 2008-2013 kept.
 date,predawn_leaf_psi
 2008-01-01,-0.2769

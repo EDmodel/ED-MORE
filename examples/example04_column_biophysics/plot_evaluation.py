@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""plot_evaluation.py -- MEDS at Barro Colorado Island against the tower it was driven by.
+"""plot_evaluation.py -- ED-MORE at Barro Colorado Island against the tower it was driven by.
 
 The tower is read through its site TOML (bci_site.toml) by the one reader of tower files,
-scripts/prepare_flux_tower/tower_inputs.py: its half hours on their UTC start, each flux only where
+scripts/prepare_input/flux_tower/tower_inputs.py: its half hours on their UTC start, each flux only where
 the site TOML's rule says it was measured (the turbulent fluxes and the GPP partitioned from them
 where FLAG = 1; net radiation wherever present). The model's hourly records are stamped at the
 start of their hour in UTC. The tower's two half hours of each model hour are averaged, and both are
@@ -39,12 +39,12 @@ from netCDF4 import Dataset  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, "..", "..")
-for path in ("scripts/prepare_flux_tower", "scripts/calibrate_fast", "python"):
+for path in ("scripts/prepare_input/flux_tower", "scripts/calibrate_fast", "python"):
     sys.path.insert(0, os.path.join(ROOT, path))
 import tower_inputs as ti  # noqa: E402  (the one reader of tower files)
 import observation_models as om  # noqa: E402  (the calibration's observation models)
 import settings as calibration_settings  # noqa: E402
-from meds.config import load_toml  # noqa: E402
+from edmore.config import load_toml  # noqa: E402
 MIN_MONTH_HOURS = 240          # a calendar month needs at least ten days of hours the tower measured
 INK, MUTED, GRID = "#0b0b0b", "#52514e", "#d9d8d4"
 MODEL, TOWER, CALIBRATED = "#2a78d6", INK, "#d4661c"
@@ -160,11 +160,11 @@ def main(argv=None):
         a.plot(td.index + 0.5, td.values, color=TOWER, lw=2, label="tower")
         if scored:
             a.plot(ttd.index + 0.5, ttd.values, color=TOWER, lw=1.6, ls="--", label="tower, as the calibration scores it")
-        a.plot(md.index + 0.5, md.values, color=MODEL, lw=1.8, label="MEDS")
+        a.plot(md.index + 0.5, md.values, color=MODEL, lw=1.8, label="ED-MORE")
         if c is not None:
             cd = c.groupby(hour[both]).mean()
             sc["r_diurnal"] = float(np.corrcoef(cd, ttd)[0, 1])
-            a.plot(cd.index + 0.5, cd.values, color=CALIBRATED, lw=1.8, label="MEDS calibrated")
+            a.plot(cd.index + 0.5, cd.values, color=CALIBRATED, lw=1.8, label="ED-MORE calibrated")
         a.set(title=f"{group}: {name}\n({units})", xlabel=f"local time (UTC{site.utc_offset:+g})",
               xticks=range(0, 25, 6))
         note = f"bias {s['bias']:+.2f}\nr (hourly) {s['r_hourly']:.2f}"
@@ -187,11 +187,11 @@ def main(argv=None):
         if scored:
             a.plot(tts.index, tts.values, color=TOWER, lw=1.6, ls="--", marker="o", ms=3, mfc="white",
                    label="tower, as the calibration scores it")
-        a.plot(ms.index, ms.values, color=MODEL, lw=1.8, marker="o", ms=3.5, label="MEDS")
+        a.plot(ms.index, ms.values, color=MODEL, lw=1.8, marker="o", ms=3.5, label="ED-MORE")
         if c is not None:
             cs = c.groupby(month[both]).mean().where(n >= MIN_MONTH_HOURS)
             sc["r_seasonal"] = float(np.corrcoef(cs[ok], tts[ok])[0, 1]) if ok.sum() > 2 else None
-            a.plot(cs.index, cs.values, color=CALIBRATED, lw=1.8, marker="o", ms=3.5, label="MEDS calibrated")
+            a.plot(cs.index, cs.values, color=CALIBRATED, lw=1.8, marker="o", ms=3.5, label="ED-MORE calibrated")
             out_cal[name] = sc
         a.set(xlim=(0.5, 12.5), xticks=range(1, 13), xticklabels=list(MONTHS), xlabel="month (local)")
         out[name] = s
@@ -201,7 +201,7 @@ def main(argv=None):
     ax[0, 0].set_ylabel("mean diurnal cycle")
     ax[1, 0].set_ylabel("mean seasonal cycle")
     years = f"{model.index.min():%Y-%m} to {model.index.max():%Y-%m}"
-    fig.suptitle(f"MEDS started from the 2010 BCI census, driven by the BCI tower, against the same tower "
+    fig.suptitle(f"ED-MORE started from the 2010 BCI census, driven by the BCI tower, against the same tower "
                  f"({years}; turbulent fluxes where FLAG = 1)", color=INK, fontsize=11)
     fig.tight_layout(rect=(0, 0.05, 1, 1))
     fig.savefig(args.out, dpi=130)
@@ -210,10 +210,10 @@ def main(argv=None):
         json.dump({"kappa": kappa, "default": out, "calibrated": out_cal} if cal is not None
                   else {"kappa": kappa, "default": out}, fh, indent=2)
     print(f"figure: {args.out}")
-    for label, table in (("MEDS", out), ("MEDS calibrated", out_cal)):
+    for label, table in (("ED-MORE", out), ("ED-MORE calibrated", out_cal)):
         if not table:
             continue
-        print(f"{label:15s} {'hours':>6} {'tower':>8} {'MEDS':>8} {'bias':>8} {'RMSE':>8} {'r hour':>7} "
+        print(f"{label:15s} {'hours':>6} {'tower':>8} {'ED-MORE':>8} {'bias':>8} {'RMSE':>8} {'r hour':>7} "
               f"{'r diurn':>8} {'r season':>9}")
         for name, s in table.items():
             rs = f"{s['r_seasonal']:.2f}" if s["r_seasonal"] is not None else "--"

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Plot the per-PFT and per-DBH-class axes of a MEDS diagnostic file.
+"""Plot the per-PFT and per-DBH-class axes of an ED-MORE diagnostic file.
 
-MEDS aggregates every cohort quantity onto five axes; two of them -- PFT and DBH size class --
+ED-MORE aggregates every cohort quantity onto five axes; two of them -- PFT and DBH size class --
 describe *who* the stand is made of rather than how much of it there is, and they are what a
 demographic model exists to produce. This is their reference consumer.
 
@@ -185,7 +185,7 @@ def main():
               "         one-PFT run is the degenerate case of it, not a different figure.")
 
     fig, axes = plt.subplots(2, 3, figsize=(17, 9))
-    fig.suptitle("MEDS stand composition and size structure", fontsize=14)
+    fig.suptitle("ED-MORE stand composition and size structure", fontsize=14)
 
     #----- 1-2. Composition by PFT. ------------------------------------------------------------#
     for ax, dat, name in ((axes[0, 0], mean_agb_pft_py, "aboveground biomass"),

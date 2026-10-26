@@ -3,15 +3,15 @@
 Xu et al. (2016, *New Phytologist* 212: 80–95) explained the seasonality of leaf area across the
 seasonally dry tropical forests of Central America with four plant functional types that differ in wood
 density and hydraulic traits: deciduous with soft wood (Ds), deciduous (D), brevi-deciduous (BD) and
-evergreen (E). This example tries the same with MEDS. One parameter set for the four PFTs, set at Palo
+evergreen (E). This example tries the same with ED-MORE. One parameter set for the four PFTs, set at Palo
 Verde (Costa Rica) in [example 05](../example05_forest_regeneration/README.md), regrows a forest from bare
-ground in 953 cells of their box, run as eight MEDS region runs. The last ten years are set against MODIS
+ground in 953 cells of their box, run as eight ED-MORE region runs. The last ten years are set against MODIS
 leaf area, and the same runs give the region's productivity, biomass, canopy height, tree density, water
 use and regrowth ([Additional results](#additional-results)).
 
-![Leaf area and its seasonality, MEDS against MODIS](lai_seasonality_vs_modis.png)
+![Leaf area and its seasonality, ED-MORE against MODIS](lai_seasonality_vs_modis.png)
 
-Top: MEDS, the last ten simulated years (June 2011 – May 2021). Bottom: MODIS MCD15A2H at the same cell
+Top: ED-MORE, the last ten simulated years (June 2011 – May 2021). Bottom: MODIS MCD15A2H at the same cell
 and in the same months, whose weather drove those ten years. Columns: the mean annual maximum LAI, the
 mean annual minimum LAI, and the minimum leaf cover (mean minimum / mean maximum). Both are made the same
 way: monthly mean LAI, the maximum and minimum of the twelve months of each June–May year, and the means
@@ -28,7 +28,7 @@ cells); the peak leaf area is too high and too even (median 6.9 against 5.4, r =
 **Cells.** Xu et al.'s box, 5–25° N and 100–80° W, on the ERA5-Land 0.1° grid (201 × 201 cells), cut
 into 3 × 3-cell blocks from its south-west corner. In each block the cell with the most natural vegetation
 (ESA CCI 2001–2020, via the ED soil maps' diagnostics) runs, if it is at least 80 % natural; among equals,
-the northern and then the eastern. A candidate must be a cell MEDS can run: valid forcing in the archive
+the northern and then the eastern. A candidate must be a cell ED-MORE can run: valid forcing in the archive
 and a value in every map the run reads. **953 cells**, written as a 0/1 mask on the forcing grid.
 
 **The regions.** The cells run as eight region runs, each a box of the mask on a machine of its own. The
@@ -45,7 +45,7 @@ times a dry one, so a box holds from 62 cells (southern Costa Rica and Panama) t
 | Seed rain | 0.1 recruits m⁻² yr⁻¹ of each PFT | |
 | Weather | hourly ERA5-Land at the cell, 2003–2022, repeated (model year Y reads 2003 + (Y − 2003) mod 20), read from the archive by the region | ED_ERA5land archive |
 | CO₂ | the historical record | CMIP7 |
-| Soil | the cell's depth on MEDS's default layers; each layer's texture from the SoilGrids layers it overlaps, its van Genuchten curve and Ks from MEDS's pedotransfer function (Hodnett & Tomasella 2002, Ottoni et al. 2019), its thermal properties from CLM5 | ED soil maps v2 |
+| Soil | the cell's depth on ED-MORE's default layers; each layer's texture from the SoilGrids layers it overlaps, its van Genuchten curve and Ks from ED-MORE's pedotransfer function (Hodnett & Tomasella 2002, Ottoni et al. 2019), its thermal properties from CLM5 | ED soil maps v2 |
 | Bottom boundary | the map's class: free drainage (892 cells) or an aquifer (61), a leaky base running as free drainage | ED soil maps v2 |
 | Deep soil | the cell's mean air temperature + 1 K | ED soil maps v2 |
 | Height | Chave et al. (2014) eq. 6a with the cell's stress index E | Chave et al.'s E raster |
@@ -55,15 +55,15 @@ times a dry one, so a box holds from 62 cells (southern Costa Rica and Panama) t
 
 ## Running it
 
-Needs a built `meds_main`, numpy, netCDF4 and matplotlib, the ED_ERA5land archive, the ED soil maps and
+Needs a built `edmore`, numpy, netCDF4 and matplotlib, the ED_ERA5land archive, the ED soil maps and
 Chave's E map; the MODIS step also needs an environment with GDAL's HDF4 reader and the MCD15A2H tiles.
 The scripts take the data paths from `--era5-archive`, `--soil-maps` and `--chave-e-map`, or from the
 environment: `ERA5LAND_ARCHIVE`, `ED_SOIL_MAPS`, `CHAVE_E_MAP`, and `MODIS_LAI_CODE` for the MODIS LAI
 pipeline's code.
 
 1. `python make_cell_mask.py` — the 953 cells: `output/cell_mask.nc` and `output/cells.csv`.
-2. `python run_regions.py --regions 8 --threads 40 --cost cell_hours.csv --meds-main
-   ../../build-production/meds_main --submit "sbatch --exclusive"` — writes the PFT file and one config
+2. `python run_regions.py --regions 8 --threads 40 --cost cell_hours.csv --edmore
+   ../../build-production/edmore --submit "sbatch --exclusive"` — writes the PFT file and one config
    per region (`output/region01/config.toml`, ...) and submits each region as a batch job of its own,
    on the production build; without `--submit` they run here, one after another. `--cost`
    balances the regions by each cell's cost, here `cell_hours.csv`: the hours each cell took to run the
@@ -79,8 +79,8 @@ pipeline's code.
 `OMP_STACKSIZE` — 4 MB by default with ifx — not the process's (which a site run uses). A grown stand's
 automatic arrays overflow 4 MB after a few decades of regrowth, and the run dies with a segmentation
 fault. `run_regions.py` sets `OMP_STACKSIZE=512M` for every region (`--stack`); it only reserves address
-space, and a thread uses what it touches. When running `meds_main` on a region by hand, export it first;
-MEDS warns at a region's open when it is not set.
+space, and a thread uses what it touches. When running `edmore` on a region by hand, export it first;
+ED-MORE warns at a region's open when it is not set.
 
 **Restarts.** Each region writes a state file every 25 years (`<region>-S-<date>.nc`). To resume a region
 from one, set `[init] init_mode = 2` and `restart_file` to it, and give `[output]` a new `prefix` and
@@ -138,7 +138,7 @@ m tall, 960 mm of rain), most in the north of the box. Trees ≥ 10 cm vary litt
 (a) Each cell's AGB from the bare-ground start in 1871, coloured by its mean annual rainfall (ERA5-Land,
 2003–2022). (b) AGB after 20 years against rainfall, with the 45 Neotropical chronosequences of Poorter
 et al. (2016, *Nature* 530: 211–214; trees ≥ 5 cm in diameter) as open circles. Wet cells regrow fastest,
-and nearly every cell (97 %) is still gaining after 150 years. MEDS is within the range of the dry
+and nearly every cell (97 %) is still gaining after 150 years. ED-MORE is within the range of the dry
 chronosequences but reaches about half the observed biomass from 1,200 mm up (median 73 against 138 Mg
 ha⁻¹); the diameter-growth caps, set for Palo Verde's old stand, probably hold the young trees back. The
 few lines that start high are the hottest, driest cells, where a 1.5 m recruit on Chave's curve is up to

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Fit the three vital-rate laws to the census tables; writes vital_rates.json for the MEDS driver.
+"""Fit the three vital-rate laws to the census tables; writes vital_rates.json for the ED-MORE driver.
 
     python fit_vital_rates.py          # reads data/ (prepare_census.py); a few minutes
 

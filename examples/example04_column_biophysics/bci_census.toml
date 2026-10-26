@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # The census that starts the BCI example: the 2010 census of the Barro Colorado Island 50-ha plot,
-# for scripts/prepare_census/make_census.py. Each 20 m quadrat is one patch; MEDS fuses the stand
+# for scripts/prepare_input/census/make_census.py. Each 20 m quadrat is one patch; ED-MORE fuses the stand
 # before the first step (docs/configuration.md, "How a run starts").
 #
 # The tables are ForestGEO tree tables, one row per tree, from Condit et al. 2019, Dryad

@@ -35,7 +35,7 @@ dependencies = ["netCDF4", "numpy", "tomli; python_version < '3.11'"]
 
 [project.optional-dependencies]
 plot = ["matplotlib"]          # numpy is a hard dependency above
-viz = ["pyvista", "scipy", "pillow"]  # 3D render + GIF: post_proc/plot_landscape_3d.py, animate_landscape_growth.py
+viz = ["pyvista", "scipy", "pillow"]  # 3D render + GIF: examples/example03_demography/plot_landscape_3d.py, animate_landscape_growth.py
 test = ["pytest"]
 
 #----- The CMake project is the REPO ROOT, one level up: the Python package is a companion to the

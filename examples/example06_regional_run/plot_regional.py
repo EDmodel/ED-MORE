@@ -3,7 +3,7 @@
 """Example 06's figures, from output/cells_summary.npz (summarize_regions.py) and output/modis_monthly_cells.csv
 (modis_monthly_lai.py). Each cell is drawn as the 0.3 deg block (3 x 3 cells) it was chosen to represent.
   lai_seasonality_vs_modis.png  the mean annual maximum and minimum LAI and the minimum leaf cover (min / max),
-                                MEDS's last ten simulated years (2011-06 .. 2021-05) above MODIS MCD15A2H at the same
+                                ED-MORE's last ten simulated years (2011-06 .. 2021-05) above MODIS MCD15A2H at the same
                                 cells and months; both from monthly means, as the max and min of each June-May year
   regional_maps.png             last ten years: annual GPP, AGB, canopy height (the tallest cohort) and the
                                 AGB-weighted wood density
@@ -95,15 +95,15 @@ def map_panel(ax, background, grid, cmap, norm, title):
 def lai_vs_modis(z, background):
     modis = pd.read_csv(os.path.join(OUT, "modis_monthly_cells.csv")).set_index("polygon_id")
     pid = z["polygon_id"].astype(np.int64)
-    val = {"meds_max": z["lai_max"], "meds_min": z["lai_min"],
+    val = {"ed_max": z["lai_max"], "ed_min": z["lai_min"],
            "modis_max": modis.modis_max_m.reindex(pid).to_numpy(), "modis_min": modis.modis_min_m.reindex(pid).to_numpy()}
     with np.errstate(invalid="ignore", divide="ignore"):
-        for src in ("meds", "modis"):
+        for src in ("edmore", "modis"):
             val[f"{src}_cover"] = val[f"{src}_min"] / val[f"{src}_max"]
     cols = [("max", "Mean annual maximum LAI", "LAI (m² m⁻²)", "viridis", 0, 7),
             ("min", "Mean annual minimum LAI", "LAI (m² m⁻²)", "viridis", 0, 7),
             ("cover", "Minimum leaf cover (min / max LAI)", "fraction", "plasma", 0, 1)]
-    srcs = [("meds", "MEDS, last 10 simulated years (2011-06 to 2021-05)"),
+    srcs = [("edmore", "ED-MORE, last 10 simulated years (2011-06 to 2021-05)"),
             ("modis", "MODIS MCD15A2H, same cell and months")]
     fig, axes = plt.subplots(2, 3, figsize=(16.5, 11.6), facecolor=SURFACE, constrained_layout=True)
     letters = iter("abcdef")
@@ -115,8 +115,8 @@ def lai_vs_modis(z, background):
                            f"({next(letters)}) {title}\n{src_title}")
             note = f"median {np.nanmedian(v):.2f}"
             if src == "modis":
-                ok = np.isfinite(val[f"meds_{key}"]) & np.isfinite(v)
-                note += f"\nMEDS vs MODIS r = {np.corrcoef(val[f'meds_{key}'][ok], v[ok])[0, 1]:.2f}"
+                ok = np.isfinite(val[f"ed_{key}"]) & np.isfinite(v)
+                note += f"\nMEDS vs MODIS r = {np.corrcoef(val[f'ed_{key}'][ok], v[ok])[0, 1]:.2f}"
             ax.text(0.03, 0.04, note, transform=ax.transAxes, color=TEXT2, fontsize=12.5, zorder=4, va="bottom")
             if r == 1:
                 cb = fig.colorbar(im, ax=axes[:, c], orientation="horizontal", shrink=0.8, pad=0.02, aspect=35)
@@ -124,8 +124,8 @@ def lai_vs_modis(z, background):
                 cb.outline.set_linewidth(0.4)
     save_png(fig, "lai_seasonality_vs_modis.png")
     n_modis = int(np.isfinite(val["modis_max"]).sum())
-    print(f"  {z['lat'].size} cells, {n_modis} with MODIS; medians MEDS max/min/cover "
-          f"{np.nanmedian(val['meds_max']):.2f}/{np.nanmedian(val['meds_min']):.2f}/{np.nanmedian(val['meds_cover']):.2f}, "
+    print(f"  {z['lat'].size} cells, {n_modis} with MODIS; medians ED-MORE max/min/cover "
+          f"{np.nanmedian(val['ed_max']):.2f}/{np.nanmedian(val['ed_min']):.2f}/{np.nanmedian(val['ed_cover']):.2f}, "
           f"MODIS {np.nanmedian(val['modis_max']):.2f}/{np.nanmedian(val['modis_min']):.2f}/"
           f"{np.nanmedian(val['modis_cover']):.2f}")
 
@@ -191,7 +191,7 @@ def regrowth(z):
     cb = fig.colorbar(sm, ax=a, pad=0.01, aspect=30)
     cb.set_label("Mean annual rainfall (mm yr⁻¹)", color=TEXT2, fontsize=13)
     cb.outline.set_linewidth(0.4)
-    b.scatter(z["map_mm"], z["agb20"], s=12, color="#3b6e8f", alpha=0.55, linewidths=0, label="MEDS cells")
+    b.scatter(z["map_mm"], z["agb20"], s=12, color="#3b6e8f", alpha=0.55, linewidths=0, label="ED-MORE cells")
     p = pd.read_csv(os.path.join(HERE, "poorter2016_agb20.csv"))
     b.scatter(p.rain_mm, p.agb20_mg_ha, s=46, facecolors="none", edgecolors=TEXT, linewidths=1.2,
               label=f"Chronosequences (Poorter et al. 2016, n = {len(p)})")

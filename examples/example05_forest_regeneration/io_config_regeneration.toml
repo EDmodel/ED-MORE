@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Output of meds_config_regeneration.toml: every polygon, PFT and size-class variable at its default tiers,
+# Output of ed_config_regeneration.toml: every polygon, PFT and size-class variable at its default tiers,
 # and no per-cohort or per-patch record.
 [variables]
 "*_co" = false

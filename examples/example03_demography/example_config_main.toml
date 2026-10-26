@@ -1,9 +1,9 @@
-# MEDS example 03 MAIN config -- demography only: cohort and patch dynamics, driven from Python by
+# ED-MORE example 03 MAIN config -- demography only: cohort and patch dynamics, driven from Python by
 # vital rates trained on the BCI censuses (census_laws.py), with no carbon or water dynamics.
 #
-# The driver is examples/example03_demography/run_demography.py, not meds_main: the laws live in the
-# example, and meds_main has only the carbon path. This is still a full MEDS config because
-# `meds_config_load` requires one; the driver reads the PFT table, the demographic settings, the
+# The driver is examples/example03_demography/run_demography.py, not edmore: the laws live in the
+# example, and edmore has only the carbon path. This is still a full ED-MORE config because
+# `ed_config_load` requires one; the driver reads the PFT table, the demographic settings, the
 # treefall disturbance and the census file from it. The [run], [fast] and output keys are
 # required by the loader and unused on this path. Paths are relative to the repository root.
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""MEDS example 06 -- the regional run: example 05's Palo Verde regrowth, 150 years from bare ground, in every cell
+"""ED-MORE example 06 -- the regional run: example 05's Palo Verde regrowth, 150 years from bare ground, in every cell
 of make_cell_mask.py's mask, as region runs.
 
 Steps:
@@ -10,9 +10,9 @@ Steps:
   2. the regions: the mask's cells split into --regions boxes of about equal cost (halving the longer side, again
      and again): equal counts, or, with --cost, equal sums of each cell's cost in a CSV of lat, lon and cost (a
      previous run's hours: a wet cell grows many more cohorts and costs up to fifty times a dry one). Each box gets
-     output/<region>/config.toml, from example 05's meds_config_regrowth.toml with the box, the ED_ERA5land archive,
+     output/<region>/config.toml, from example 05's ed_config_regrowth.toml with the box, the ED_ERA5land archive,
      the [maps] files and this example's output
-  3. each region runs `meds_main config.toml` on --threads threads: here, one after another, or through --submit.
+  3. each region runs `edmore config.toml` on --threads threads: here, one after another, or through --submit.
      A region steps its polygons on OpenMP worker threads, whose stack (OMP_STACKSIZE, 4 MB by default with ifx)
      must hold a grown stand's automatic arrays, so each run sets OMP_STACKSIZE (--stack, default 512M; the
      stack-ceiling note in CMakeLists.txt). 4 MB overflows after a few decades of regrowth.
@@ -22,7 +22,7 @@ Usage:
   python run_regions.py --regions 2 --threads 128 --cost cell_hours.csv --submit "sbatch --exclusive"
   python run_regions.py --regions 1 --years 1 --threads 8      # a quick check, here
 
-Needs numpy, netCDF4, a built meds_main (--meds-main, or MEDS_MAIN; default ../../build-dev/meds_main, the dev
+Needs numpy, netCDF4, a built edmore (--edmore, or EDMORE_MAIN; default ../../build-dev/edmore, the dev
 preset's build) and the data paths (--era5-archive, --soil-maps, --chave-e-map, or ERA5LAND_ARCHIVE, ED_SOIL_MAPS
 and CHAVE_E_MAP).
 """
@@ -133,7 +133,7 @@ def make_regions(n_regions, years, threads, pft, archive, maps, chave_e, cost_fi
     lat, lon = mask_cells()
     cost = cell_costs(lat, lon, cost_file)
     groups = split(lat, lon, cost, np.arange(lat.size), n_regions)
-    base = open(os.path.join(PV, "meds_config_regrowth.toml")).read()
+    base = open(os.path.join(PV, "ed_config_regrowth.toml")).read()
     for sec, key in FROM_CELLS:
         base = del_key(base, sec, key)
     configs = []
@@ -181,8 +181,8 @@ def main(argv=None):
     ap.add_argument("--stack", default="512M", help="OMP_STACKSIZE: each worker thread's stack")
     ap.add_argument("--submit", default="", help='a batch command for each region, e.g. "sbatch --exclusive"; '
                                                  'empty: run them here, one after another')
-    ap.add_argument("--meds-main", default=os.environ.get("MEDS_MAIN", os.path.join(ROOT, "build-dev", "meds_main")),
-                    help="the meds_main each region runs (default: $MEDS_MAIN, else build-dev/meds_main)")
+    ap.add_argument("--edmore", default=os.environ.get("EDMORE_MAIN", os.path.join(ROOT, "build-dev", "edmore")),
+                    help="the edmore each region runs (default: $EDMORE_MAIN, else build-dev/edmore)")
     ap.add_argument("--era5-archive", default=os.environ.get("ERA5LAND_ARCHIVE"), help="the ED_ERA5land archive")
     ap.add_argument("--soil-maps", default=os.environ.get("ED_SOIL_MAPS"), help="the ED soil maps (v2)")
     ap.add_argument("--chave-e-map", default=os.environ.get("CHAVE_E_MAP"), help="Chave's E on the forcing grid")
@@ -202,7 +202,7 @@ def main(argv=None):
     for name, rdir, path, _ in configs:
         cmd = f"export OMP_NUM_THREADS={args.threads} OMP_STACKSIZE={args.stack} OMP_PLACES=threads " \
               f"OMP_PROC_BIND=close; cd {shlex.quote(rdir)}; " \
-              f"{shlex.quote(args.meds_main)} config.toml > run.log 2>&1"
+              f"{shlex.quote(args.edmore)} config.toml > run.log 2>&1"
         if args.submit:
             sub = shlex.split(args.submit) + [f"--job-name=ex06_{name}", f"--output={rdir}/slurm_%j.log",
                                               f"--cpus-per-task={args.threads}", "--wrap", cmd]

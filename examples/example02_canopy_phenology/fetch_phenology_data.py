@@ -20,8 +20,8 @@ Barro Colorado Island, Panama (9.15 N):
   Kupers Kupers et al. (2019) Scientific Data, figshare doi:10.6084/m9.figshare.7611005 (CC0):
          soil water content and water potential sampled together in the BCI 50-ha plot.
 
-drivers/ IS in the repository: every site's hours of light (ERA5-Land through MEDS's forcing
-reader, make_era5_par_hours.py) and Palo Verde's processed data -- a MEDS run's canopy predawn leaf
+drivers/ IS in the repository: every site's hours of light (ERA5-Land through ED-MORE's forcing
+reader, make_era5_par_hours.py) and Palo Verde's processed data -- an ED-MORE run's canopy predawn leaf
 water potential, monthly leaf litter (from the traps of Xu et al. 2016, New Phytol. 212:80) and
 monthly MODIS LAI.
 
@@ -59,7 +59,7 @@ KUPERS = "https://ndownloader.figshare.com/files/14758400"
 KUPERS_MEMBERS = {"Kupers_et_al/Input/BCI_Soil_moisture_mapping.txt":     "kupers_soil_moisture_mapping.txt",
                   "Kupers_et_al/Input/BCI_Soil_moisture_small_scale.txt": "kupers_soil_moisture_small_scale.txt"}
 #----- The Harvard Forest archive refuses urllib's default User-Agent, so name the client. --------#
-HEADERS = {"User-Agent": "MEDS-example02 (urllib)"}
+HEADERS = {"User-Agent": "ED-MORE-example02 (urllib)"}
 
 
 def get(url, opener=urllib.request.urlopen, **headers):

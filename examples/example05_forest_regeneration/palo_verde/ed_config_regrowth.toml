@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
-# MEDS example 05, Palo Verde: the PFTs' check against the 2009 inventory of the Palo Verde dry forest
-# (Costa Rica; 6 plots, 12 patches, 336 cohorts) at its ERA5-Land cell, July 2008 - December 2010, with
-# Xu et al. (2016)'s four leaf habits (Ds, D, BD, E; pft_parameters.toml). The stand's structure is
-# frozen (trees grow and die, none recruit); the run tests each PFT's leaf habit, growth and mortality.
-# Paths are relative to this folder.
+# ED-MORE example 05, Palo Verde: the dry forest regrowing from bare ground for 150 years, June 1871 - May
+# 2021, at its ERA5-Land cell, with the four leaf habits of pft_parameters.toml (set against the 2009
+# inventory: ed_config_inventory.toml). It starts from 3 recruits per m2 of each PFT at 1.5 m
+# (data/pv_bare_start.csv), as example 06's regional run does; full demography; ERA5-Land 2003-2022
+# repeated and the CO2 of its history. Paths are relative to this folder.
 
 [run]
 dt_slow    = "1d"
-start_time = "2008-07-01"
-end_time   = "2011-01-01"      # through 2010
+start_time = "1871-06-01"     # the start of the wet season
+end_time   = "2021-06-01"     # 150 years
 n_threads  = 12                # threads over the patches; the output is the same at any count
 
 #----- The column (example 04). ---------------------------------------------------------------------
@@ -26,7 +26,7 @@ fineroot_turnover_plastic = true      # fine roots, like leaves, turn over more 
 
 #----- The demography (example 03). -------------------------------------------------------------------
 [demography]
-demography_on             = false    # structure frozen: growth and mortality only
+demography_on             = true
 recruitment_on            = true
 cohort_fusion_on          = true
 patch_disturbance_on      = true
@@ -55,7 +55,7 @@ disturbance_survive_height = 10.0
 min_recruit_size          = 1.0e-2
 [init]
 init_mode    = 1
-census_file  = "data/pv_2009_census.csv"
+census_file  = "data/pv_bare_start.csv"
 pft_config   = "pft_parameters.toml"
 soil_temp    = 300.0              # [K]
 soil_theta   = 0.42               # [m3/m3] wet: wet-season start (87 % of the way from residual to saturation)
@@ -64,20 +64,21 @@ soil_theta   = 0.42               # [m3/m3] wet: wet-season start (87 % of the w
 state_write       = false
 state_interval    = "20 years"
 state_file_dir    = "output"
-state_file_prefix = "pv"
+state_file_prefix = "regrowth"
 enabled       = true
 dir           = "output"
-prefix        = "pv"
+prefix        = "regrowth"
 sync_every    = "flush"
-# Daily per-cohort records for the leaf-habit analysis; hourly leaf potential per cohort (io_config_inventory.toml).
-io_config     = "io_config_inventory.toml"
+# Monthly and yearly site and PFT totals (io_config_regrowth.toml); trees above and below 10 cm.
+io_config     = "io_config_regrowth.toml"
+dbh_class_edges = [0.0, 10.0, 1000.0]
 
 [output.fast]
-enabled    = true
+enabled    = false
 file_chunk = "month"
 
 [output.daily]
-enabled    = true
+enabled    = false
 file_chunk = "run"
 
 [output.monthly]
@@ -123,14 +124,15 @@ longitude             = -85.35
 elevation             = 10.0
 apply_elevation_lapse = false
 
-# ERA5-Land at the Palo Verde cell (10.40 N, 85.30 W, 7.8 km away), read from the archive for the run's
-# own dates; the CO2 follows its history. The archive's folder is installation-specific: run_palo_verde.py
-# writes it (--era5-archive, or ERA5LAND_ARCHIVE) into the copy of this file it runs.
+# ERA5-Land at the Palo Verde cell (10.40 N, 85.30 W, 7.8 km away); the CO2 follows its history.
 [forcing]
 forcing_on     = true
-format         = "ERA5land"
-data_path      = "/path/to/ED_ERA5land"
-max_distance_km = 15.0
+# ERA5-Land at Palo Verde's cell, 2003-2022 (run_palo_verde.py cuts it from the archive), repeated: model
+# year Y reads 2003 + (Y - 2003) mod 20.
+format         = "default"
+path           = "data/pv_era5land_2003-2022.nc"
+grid_index     = 1
+grid_match     = "explicit"
 # ERA5-Land's own heights (2 m air, 10 m wind over open ground); each sample is moved to the top of
 # every patch's canopy air.
 tq_height            = 2.0
@@ -145,18 +147,20 @@ sw_partition   = "clearidx"
 lwdown_source  = "file"
 co2_source     = "file"
 co2_file       = "../../../data/co2/co2_cmip7_global_annual_1000-2022.txt"
-recycle        = false
+recycle        = true
+recycle_start  = "2003-01-01 01:00:00"
+recycle_end    = "2023-01-01 01:00:00"
 start_clamp    = "error"
 
 #----- The soil: the forcing cell (10.4 N, 85.3 W) of the ED soil maps v2 (docs/configuration.md, Input maps). --
 [soil_carbon]
-soil_carbon_on = true             # starts empty; the inventory carries no soil pools
+soil_carbon_on = true             # starts empty; the start file carries no soil pools
 
 # A Cambisol, ~40 % clay at every depth, 1.57 m deep (the map's soil depth). Each SoilGrids layer's curve is
-# MEDS's pedotransfer function (Hodnett & Tomasella 2002 + Ottoni 2019 ksat; docs/science/soil_biophysics.md
+# ED-MORE's pedotransfer function (Hodnett & Tomasella 2002 + Ottoni 2019 ksat; docs/science/soil_biophysics.md
 # eqs. (6)-(7)); one van Genuchten curve is fitted to their thickness-weighted average over the column, ksat
 # is their geometric mean, and the thermal properties are CLM5's from the texture (eq. (9)). The layers are
-# MEDS's default SoilGrids cut at the depth.
+# ED-MORE's default SoilGrids cut at the depth.
 [soil]
 depth       = 1.5712           # [m]
 theta_sat   = 0.4456

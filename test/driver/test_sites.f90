@@ -2,76 +2,76 @@
 !==========================================================================================!
 ! test_sites -- a polygon of several sites (docs/configuration.md, Several sites).         !
 !                                                                                          !
-! 1. THE SITES FROM [[sites]] (meds_config_io: load_sites; meds_region: region_open): two  !
+! 1. THE SITES FROM [[sites]] (ed_config_io: load_sites; ed_region: region_open): two      !
 !    sites, 0.25 of the polygon on its own 0.6 m soil and terrain, 0.75 on [soil]. The     !
 !    config holds them, the polygon is built with them, and they run three days.           !
-! 2. THE SITE AXIS IN THE FILES (meds_output_setup: attach_output): the daily file holds   !
+! 2. THE SITE AXIS IN THE FILES (ed_output_setup: attach_output): the daily file holds     !
 !    the two sites, each one's share, and the shallow site's soil coordinate filled below  !
 !    its bottom layer.                                                                     !
-! 3. A CENSUS BY census_site_id (meds_init_census: init_from_census): each site is built   !
+! 3. A CENSUS BY census_site_id (ed_init_census: init_from_census): each site is built     !
 !    from its own rows.                                                                    !
-! 4. THE STANDS EVOLVE AS ONE-SITE POLYGONS (meds_stepper: advance_one_step). Two          !
+! 4. THE STANDS EVOLVE AS ONE-SITE POLYGONS (ed_stepper: advance_one_step). Two            !
 !    identical sites of areas 0.3 and 0.7 each evolve as a polygon of one site does, over  !
 !    31 days of fast and slow steps on a short calendar -- a month boundary every 15 days  !
 !    and a year boundary at day 30, which day 31's step performs, with a disturbance and   !
 !    patch fusion: every site's stand is the one-site stand, and the polygon totals are    !
 !    the one site's to round-off. Two sites on different soils each evolve as a one-site   !
 !    polygon on its own soil, and their soil columns differ.                               !
-! 5. THREADS (meds_stepper: advance_one_step's patch loop): the same polygon on one thread !
+! 5. THREADS (ed_stepper: advance_one_step's patch loop): the same polygon on one thread   !
 !    and on four.                                                                          !
-! 6. RESTART (meds_init_restart): the run of 1 restarts from its state file with the       !
+! 6. RESTART (ed_init_restart): the run of 1 restarts from its state file with the         !
 !    config's sites (region_open), and the two-soil stand of 4 comes back from a state     !
 !    file (read_restart_file) with each patch's site and each site's patches, plant carbon !
 !    and soil water.                                                                       !
-! 7. WHAT meds_main REFUSES (meds_config_check: check_sites, check_key_use): shares that   !
+! 7. WHAT edmore REFUSES (ed_config_check: check_sites, check_key_use): shares that        !
 !    do not sum to 1, a table without area_fraction, a key no table takes, a census run    !
 !    without census_site_id, [[sites]] in a region, and a site's soil keys beside the soil !
 !    maps.                                                                                 !
 !                                                                                          !
-! The configs of 1-3, 6 and 7 are derived from example 04's meds_config_eval.toml (the     !
+! The configs of 1-3, 6 and 7 are derived from example 04's ed_config_eval.toml (the       !
 ! test runs from its directory) by derive_config: a case's own keys, then a run block that !
 ! cuts the run to a few days without the fast loop or forcing, then the template, each key !
 ! written once, at its first value. Everything the test writes goes under the work         !
-! directory, the first argument; meds_main is the second.                                  !
+! directory, the first argument; edmore is the second.                                     !
 !==========================================================================================!
 program test_sites
    use iso_c_binding,           only : c_int, c_size_t, c_double
-   use meds_kinds,              only : wp, ik
-   use meds_constants,          only : rho_h2o
-   use meds_config,             only : meds_config_t
-   use meds_config_io,          only : load_meds_config
-   use meds_polygon_state_vars, only : polygon_t
-   use meds_init_bare_ground,   only : init_bare_sites, add_cohort, finalize_init
-   use meds_init,               only : init_fast_state
-   use meds_init_restart,       only : restart_file_t, restart_file_open, restart_file_write, restart_file_close, &
+   use ed_kinds,                only : wp, ik
+   use ed_constants,            only : rho_h2o
+   use ed_config,               only : ed_config_t
+   use ed_config_io,            only : load_ed_config
+   use ed_polygon_state_vars,   only : polygon_t
+   use ed_init_bare_ground,     only : init_bare_sites, add_cohort, finalize_init
+   use ed_init,                 only : init_fast_state
+   use ed_init_restart,         only : restart_file_t, restart_file_open, restart_file_write, restart_file_close, &
                                        read_restart_file
-   use meds_stepper,            only : advance_one_step, run_ledgers_t
-   use meds_output_reduce,      only : total_agb, total_nplant, total_area
-   use meds_region,             only : meds_region_t, region_open, region_step, region_done, region_finalize, &
+   use ed_stepper,              only : advance_one_step, run_ledgers_t
+   use ed_output_reduce,        only : total_agb, total_nplant, total_area
+   use ed_region,               only : ed_region_t, region_open, region_step, region_done, region_finalize, &
                                        region_free, RUN_OK
-   use meds_time,               only : meds_time_t
-   use meds_netcdf_c
-   use meds_test_support,       only : banner, build_test_config, check, check_close, test_report
-   use meds_test_run,           only : derive_config, main_refuses
+   use ed_time,                 only : ed_time_t
+   use ed_netcdf_c
+   use ed_test_support,         only : banner, build_test_config, check, check_close, test_report
+   use ed_test_run,             only : derive_config, main_refuses
    implicit none
 
-   character(len=*), parameter :: TEMPLATE = 'meds_config_eval.toml'
+   character(len=*), parameter :: TEMPLATE = 'ed_config_eval.toml'
    integer(ik), parameter :: N_DAY = 31_ik            ! two 15-day months, and the step that turns the year
    real(wp),    parameter :: RTOL  = 1.0e-12_wp       !< relative: check_close scales it by the expected value
-   character(len=512) :: work, meds_main
+   character(len=512) :: work, edmore
    character(len=:), allocatable :: cfg_path, nl
-   type(meds_config_t) :: cfg, cfg_shallow, sites_cfg
-   type(meds_region_t) :: reg
+   type(ed_config_t)   :: cfg, cfg_shallow, sites_cfg
+   type(ed_region_t)   :: reg
    type(polygon_t)     :: one, two, two_mt, one_shallow, mixed, back
-   type(meds_time_t)   :: t_read
+   type(ed_time_t)     :: t_read
    logical     :: ok, found
    integer(ik) :: status, i, is
    real(wp)    :: biggest
 
    call get_command_argument(1, work)
-   call get_command_argument(2, meds_main)
-   if (len_trim(work) == 0 .or. len_trim(meds_main) == 0)                                           &
-      error stop 'test_sites: pass the work directory and the meds_main executable'
+   call get_command_argument(2, edmore)
+   if (len_trim(work) == 0 .or. len_trim(edmore) == 0)                                           &
+      error stop 'test_sites: pass the work directory and the edmore executable'
    call execute_command_line('rm -rf "'//trim(work)//'" && mkdir -p "'//trim(work)//'"')
    nl = new_line('a')
    cfg_path = trim(work)//'/sites.toml'
@@ -80,7 +80,7 @@ program test_sites
    call banner('the sites from [[sites]]')
    call derive(cfg_path, run_block('2024-07-01', '2024-07-04', 0_ik, '')//                      &
                          '[output]'//nl//'state_write = true'//nl//two_sites())
-   call load_meds_config(cfg_path, sites_cfg)
+   call load_ed_config(cfg_path, sites_cfg)
    call check(allocated(sites_cfg%sites), 'the config holds the [[sites]]')
    if (allocated(sites_cfg%sites)) then
       call check(size(sites_cfg%sites) == 2, 'two [[sites]] tables are two sites')
@@ -221,7 +221,7 @@ program test_sites
    end if
    call region_free(reg)
    !----- The two-soil stand of 4, grown with cohorts, through a state file. ---------------------!
-   call write_state(mixed, meds_time_t(year=2000, month=1, day=31))
+   call write_state(mixed, ed_time_t(year=2000, month=1, day=31))
    call read_restart_file(back, cfg, trim(work)//'/stands-S-20000131000000.nc', t_read, found,      &
                           polygon=1_ik, site_cfg=[cfg, cfg_shallow])
    call check(found .and. back%site%n == 2_ik, 'the state file holds the two sites')
@@ -234,8 +234,8 @@ program test_sites
       call check(site_water(back, is) == site_water(mixed, is), 'each site keeps its soil water')
    end do
 
-   !=== 7. What meds_main refuses. ===========================================================!
-   call banner('what meds_main refuses')
+   !=== 7. What edmore refuses. ===========================================================   !
+   call banner('what edmore refuses')
    call refused('shares that do not sum to 1',                                                  &
                 '[[sites]]'//nl//'area_fraction = 0.5'//nl//'[[sites]]'//nl//'area_fraction = 0.4'//nl, &
                 'must sum to 1')
@@ -291,19 +291,19 @@ contains
           'slope = 12.0'//nl//'aspect = 135.0'//nl//'[[sites]]'//nl//'area_fraction = 0.75'//nl
    end function two_sites
 
-   !----- A config from these blocks and the template, each key once (meds_test_run). ------------!
+   !----- A config from these blocks and the template, each key once (ed_test_run). ------------  !
    subroutine derive(path, overrides)
       character(len=*), intent(in) :: path, overrides
       call derive_config(path, overrides, TEMPLATE)
    end subroutine derive
 
-   !----- meds_main must stop on the config, saying `message`. The case's keys come first, so they   !
+   !----- edmore must stop on the config, saying `message`. The case's keys come first, so they      !
    !      win over the run block's. ------------------------------------------------------------------!
    subroutine refused(what, overrides, message)
       character(len=*), intent(in) :: what, overrides, message
       call derive(trim(work)//'/refused.toml', overrides//run_block('2024-07-01', '2024-07-02', 0_ik, ''))
-      call check(main_refuses(trim(meds_main), trim(work)//'/refused.toml', trim(work)//'/refused.log', message), &
-                 'meds_main refuses '//what)
+      call check(main_refuses(trim(edmore), trim(work)//'/refused.toml', trim(work)//'/refused.log', message), &
+                 'edmore refuses '//what)
    end subroutine refused
 
    !----- Census sites 7 and 9, two patches each; site 9 holds the one tree over 40 cm. ---------!
@@ -344,7 +344,7 @@ contains
    !      sapling in the other. ---------------------------------------------------------------!
    subroutine stand(poly, run_cfg, site_cfg, site_area)
       type(polygon_t),     intent(out) :: poly
-      type(meds_config_t), intent(in)  :: run_cfg, site_cfg(:)
+      type(ed_config_t),   intent(in)  :: run_cfg, site_cfg(:)
       real(wp),            intent(in)  :: site_area(:)
       integer(ik) :: k, ns
       ns = int(size(site_cfg), ik)
@@ -375,7 +375,7 @@ contains
    !----- The polygon as the one polygon of a state file in the work directory (id 0, at 0 N 0 E). --!
    subroutine write_state(poly, t)
       type(polygon_t),   intent(in) :: poly
-      type(meds_time_t), intent(in) :: t
+      type(ed_time_t),   intent(in) :: t
       type(restart_file_t) :: sf
       call restart_file_open(sf, trim(work), 'stands', t, poly%n_pft,                               &
                            int(size(poly%cohort%growth_hist, 1), ik), poly%cohort%n, poly%patch%n,    &

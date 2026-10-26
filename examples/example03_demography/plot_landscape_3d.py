@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Render the whole MEDS site (all patches of one record) as a continuous 3D landscape (PyVista).
+"""Render the whole ED-MORE site (all patches of one record) as a continuous 3D landscape (PyVista).
 
 A spatially explicit synthesis in five steps:
 
@@ -18,7 +18,7 @@ A spatially explicit synthesis in five steps:
      layer power/Voronoi split), so an emergent crown may overlap the understory beneath it but
      same-height crowns never overlap. Crown vertical depth = crown_depth_scaler * leaf_area / ca.
   5. LIGHT. Canopy depth comes from BEER-LAMBERT attenuation baked into each crown's colour -- the PFT
-     colour times exp(-light_ext * overtopping_LAI) (MEDS's own light law), so the top is bright and
+     colour times exp(-light_ext * overtopping_LAI) (ED-MORE's own light law), so the top is bright and
      the understory darkens. NO geometric cast shadows (artifact-free at any angle); a directional sun
      + soft fill adds local form. Rendered oblique with the trunks showing through the gaps.
 
@@ -26,11 +26,10 @@ Cohort colour encodes PFT in the classic ED / Moorcroft et al. (2001) scheme: PF
 PFT 3 magenta.
 
 Usage:  python plot_landscape_3d.py OUTPUT.nc [-o OUT.png] [--target-canopy-stem N] [--seed S] ...
-Requires the `meds` conda environment plus the viz extra (pyvista, scipy, netCDF4).
+Requires the `edmore` conda environment plus the viz extra (pyvista, scipy, netCDF4).
 """
 import argparse
 import math
-import os
 import sys
 
 import numpy as np
@@ -55,8 +54,8 @@ def import_pyvista():
     try:
         import pyvista as pv
     except ImportError:
-        sys.exit("plot_landscape_3d needs PyVista (optional). Install it into the meds env:\n"
-                 "    conda install -n meds -c conda-forge pyvista scipy\n"
+        sys.exit("plot_landscape_3d needs PyVista (optional). Install it into the edmore env:\n"
+                 "    conda install -n edmore -c conda-forge pyvista scipy\n"
                  "  or:  pip install -e python/[viz]")
     return pv
 
@@ -183,7 +182,7 @@ def clip_halfplane(ring, c_keep, c_other):
 def build_crowns(pv, stems, args):
     """All crown prisms merged into ONE RGB-coloured mesh. Each crown is an allometric disk trimmed
     against same-height (+/- height_tol) neighbours; its colour is the PFT colour attenuated by
-    Beer-Lambert light through the LAI ABOVE it (overtopping LAI) -- exactly MEDS's own light law:
+    Beer-Lambert light through the LAI ABOVE it (overtopping LAI) -- exactly ED-MORE's own light law:
 
         light = exp(-light_ext * lai_above);  rgb = pft_colour * (ambient_floor + (1-floor)*light)
 
@@ -297,7 +296,7 @@ def build_scene(args):
     pv = import_pyvista()
     crown_mesh = build_crowns(pv, stems, args)
     trunk_mesh = None if args.no_trunks else build_trunks(pv, stems, args)
-    title = f"MEDS site  |  year {year}  |  {npat} patches  |  landscape mosaic"
+    title = f"ED-MORE site  |  year {year}  |  {npat} patches  |  landscape mosaic"
     return dict(pv=pv, crown=crown_mesh, trunks=trunk_mesh, side=side, top_h=top_h, title=title)
 
 
@@ -356,7 +355,7 @@ def render(sc, args):
 def build_parser():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("ncfile", help="MEDS netCDF output file")
+    ap.add_argument("ncfile", help="ED-MORE netCDF output file")
     ap.add_argument("-o", "--out", default=None, help="output PNG (default: <ncfile>_landscape3d.png)")
     ap.add_argument("--time", type=int, default=-1,
                     help="time record index, supports negatives (default -1 = last)")
@@ -388,7 +387,7 @@ def build_parser():
     #----- light attenuation (canopy depth) -----#
     ap.add_argument("--light-ext", type=float, default=0.5, dest="light_ext",
                     help="Beer-Lambert extinction k: crown brightness = exp(-k * overtopping_LAI); "
-                         "bigger = darker understory (default 0.5, MEDS's k)")
+                         "bigger = darker understory (default 0.5, ED-MORE's k)")
     ap.add_argument("--ambient-floor", type=float, default=0.25, dest="ambient_floor",
                     help="minimum crown brightness so the deepest understory isn't black (default 0.25)")
     #----- trunks -----#

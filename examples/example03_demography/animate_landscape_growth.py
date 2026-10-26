@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Animate MEDS forest growth as a 3D landscape GIF (PyVista), tracking every cohort by its
+"""Animate ED-MORE forest growth as a 3D landscape GIF (PyVista), tracking every cohort by its
 persistent ``global_cohort_id`` so trees grow IN PLACE across the run.
 
 The scene geometry -- ground size, camera, sun -- is FIXED for the whole animation; only the trees
@@ -30,7 +30,7 @@ the Beer-Lambert light attenuation and the classic ED / Moorcroft et al. (2001) 
 green, PFT 2 blue, PFT 3 magenta).
 
 Usage:  python animate_landscape_growth.py OUTPUT.nc [-o OUT.gif] [--stride N] [--fps F] ...
-Requires the `meds` conda env plus the viz extra (pyvista, scipy, netCDF4); Pillow writes the GIF.
+Requires the `edmore` conda env plus the viz extra (pyvista, scipy, netCDF4); Pillow writes the GIF.
 """
 import argparse
 import math
@@ -229,7 +229,7 @@ def render_animation(frames, plans, pos, side, top_h, args):
         else:
             p.remove_actor("trunks")
         fr = frames[r]
-        p.add_text(f"MEDS forest growth   year {fr['year'] - year0:3d}  ({fr['year']})   "
+        p.add_text(f"ED-MORE forest growth   year {fr['year'] - year0:3d}  ({fr['year']})   "
                    f"{fr['npat']} patches", name="title", font_size=11, color="black")
         imgs.append(Image.fromarray(p.screenshot(return_img=True)))
         if i % 10 == 0 or r == rec[-1]:
@@ -258,7 +258,7 @@ def render_animation(frames, plans, pos, side, top_h, args):
 def build_parser():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("ncfile", help="MEDS netCDF output file")
+    ap.add_argument("ncfile", help="ED-MORE netCDF output file")
     ap.add_argument("-o", "--out", default=None, help="output GIF (default: <ncfile>_growth.gif)")
     ap.add_argument("--seed", type=int, default=0, help="RNG seed (default 0)")
     #----- animation -----#

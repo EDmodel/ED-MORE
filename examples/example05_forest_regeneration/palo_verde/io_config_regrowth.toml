@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Output of meds_config_regrowth.toml: monthly (M) and yearly (Y) site and PFT totals, and no per-cohort or
+# Output of ed_config_regrowth.toml: monthly (M) and yearly (Y) site and PFT totals, and no per-cohort or
 # per-patch record.
 [variables]
 "*_co"                 = false

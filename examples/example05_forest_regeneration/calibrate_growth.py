@@ -20,7 +20,7 @@ The target is BCI's own growth over the census interval 2005-2010: each tree's d
 by PFT, size D and overtopping LAI L at the start of the interval, the trees that died within it
 included with their last measured growth (example 03's growth table), averaged per class as
 measured -- negative increments included, since they are measurement error that averages out. A
-trial starts the coupled model of meds_config_regeneration.toml from the 2005 census (example 03's
+trial starts the coupled model of ed_config_regeneration.toml from the 2005 census (example 03's
 census file), runs the same five years on ERA5-Land's weather, and measures each cohort's growth the
 census way: its dbh change from the start to the end of the run (or to the last month it was seen),
 over that time, credited to its D, L and stems per m2 of site at the start. A PFT's score is the mean
@@ -60,9 +60,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 EX03 = os.path.join(ROOT, "examples", "example03_demography")
 sys.path.insert(0, os.path.join(ROOT, "python"))
-from meds.config import RunConfig         # noqa: E402
+from edmore.config import RunConfig         # noqa: E402
 
-CONFIG = os.path.join(HERE, "meds_config_regeneration.toml")
+CONFIG = os.path.join(HERE, "ed_config_regeneration.toml")
 CENSUS = os.path.join(EX03, "data", "bci_1985_census.csv")          # calibrate_recruitment.py's start
 GROWTH_CENSUS = os.path.join(EX03, "data", "bci_2005_census.csv")   # the growth check's start
 GROWTH_TABLE = os.path.join(EX03, "data", "growth.csv.gz")          # the census's growth, tree by tree
@@ -131,7 +131,7 @@ def run_trial(cfg, out):
     growth [cm/yr] = its dbh change to the last month it was seen, over that time (at least a year);
     and the carbon budget of years 2-5. A cohort's record stops before it fuses with another (its
     density rises): the fused cohort's dbh is the two cohorts' mean, a change that is not growth."""
-    from meds.model import Run
+    from edmore.model import Run
     folder = os.path.splitext(out)[0]
     main = cfg.write(folder)
     os.chdir(folder)
@@ -167,7 +167,7 @@ BUDGET = ("mean_gpp_py", "mean_leaf_resp_py", "mean_stem_resp_py", "mean_root_re
 
 #: the fast loop's carbon fluxes, which the files give as mean rates [umol CO2 m-2 s-1]
 UMOL_RATES = ("mean_gpp_py", "mean_leaf_resp_py", "mean_stem_resp_py", "mean_root_resp_py")
-UMOL_TO_KGC = 1.20107e-8                              # [kgC/umol CO2], meds_constants' umol_2_kgc
+UMOL_TO_KGC = 1.20107e-8                              # [kgC/umol CO2], ed_constants' umol_2_kgc
 
 
 def carbon_budget(path):

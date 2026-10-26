@@ -7,7 +7,7 @@ ED-MORE's own conventions, fills gaps explicitly with a flag on every value, and
 heights in the file. ED-MORE then moves each sample from those heights to every patch's canopy-air top.
 The same site TOML declares the tower's fluxes (`[fluxes]`) for the fast calibration
 ([`../../calibrate_fast`](../../calibrate_fast/README.md)): `tower_inputs.py` is the one reader of tower
-files for both tools. The worked example is `examples/example04_column_biophysics/`;
+files for both tools. The worked example is [`examples/example04_column_biophysics/`](../../../examples/example04_column_biophysics/);
 the design record is
 MEDS's [flux-tower forcing plan](https://github.com/xiangtaoxu/MEDS/blob/v0.4.0/docs/dev_plans/MEDS_FLUX_TOWER_FORCING_PLAN.md).
 

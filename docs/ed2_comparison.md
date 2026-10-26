@@ -111,7 +111,7 @@ documents it. Rows without an `ED2IN` option are ED-MORE features ED2 does not h
 **Phenology is selectable and self-consistent; the coupled model is not validated.** Its thresholds are
 site- and biome-specific: a bright-hours senescence trigger set for a tropical dry season, used at a
 temperate site, strips the canopy every summer. Fit the cues to your site, as
-`examples/example02_canopy_phenology/README.md` does.
+[example 02](../examples/example02_canopy_phenology/README.md) does.
 
 **Thermal acclimation and trait plasticity ship off.** Each moves the numbers substantially; turning
 either on is a decision to leave the shipped baseline.
@@ -283,7 +283,7 @@ The output is the largest usability difference ([diagnostics](science/diagnostic
 | Discovering variables | `edmore --dump-io-config` lists every variable by group with its default and possible tiers | Read the source or the wiki |
 | Empty sets | A mean over an empty set is `_FillValue`; a sum is a true 0 | |
 | State files | A separate stream, `[output].state_write`, every `state_interval` days, months or years: the raw prognostic state at an instant | `ISOUTPUT`, `FRQSTATE`, HDF5 histories |
-| Post-processing | `post_proc/` (`post_proc/README.md`) | Community scripts |
+| Post-processing | the examples' plotting scripts: example 03's for its stand file, example 05's `plot_pft_size.py` for the diagnostic files | Community scripts |
 
 Variable names follow `[mean_]<quantity>[_<breakdown>]_<level>` ([diagnostics](science/diagnostics.md) §3). Two
 conventions matter for analysis code. Sub-daily variables share a name with

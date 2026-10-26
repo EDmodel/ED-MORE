@@ -274,6 +274,7 @@ enough. See `python/README.md`.
 ctest --test-dir build-dev --output-on-failure                    # all of them
 ctest --test-dir build-dev -L unit --output-on-failure            # one label (below)
 ctest --test-dir build-dev -L integration --output-on-failure
+ctest --test-dir build-dev -LE long --output-on-failure           # all but the long runs
 ctest --test-dir build-debug -R slow_update --output-on-failure   # one, by regex
 ```
 
@@ -302,6 +303,27 @@ A debug build has 89 tests: no `python_api` (it builds no `libedmore.so`), and n
 Python that imports what it uses: numpy, netCDF4 and pytest, with pandas for the tower and census
 tools and scipy for `calibrate_fast`; configure names any suite it leaves out.
 A `-L` takes a regular expression, so `-L 'unit|lint'` runs both.
+
+**The long tests are opt-in**, and the runs to make before merging a change to the physics or to the
+tissue energy. Configure with them, and run them alone:
+
+```bash
+FC=ifx cmake --preset dev -DED_TEST_LONG=ON -DED_ERA5LAND_ARCHIVE=/path/to/ED_ERA5land
+ctest --test-dir build-dev -L long --output-on-failure
+```
+
+Both runs are in `examples/example05_forest_regeneration/palo_verde/`:
+
+- `palo_verde_inventory` runs the 2009 inventory (`ed_config_inventory.toml`; 85 s on the
+  example's 12 threads, ifx dev), reading the archive.
+- `palo_verde_regrowth` runs 150 years from bare ground (`ed_config_regrowth.toml`; 31 minutes) on
+  Palo Verde's cell, 2003–2022. It cuts that cell from the archive into its directory once (under
+  2 minutes) unless `-DED_TEST_PV_FORCING=` names a cut file.
+
+Each runs a copy of the example's config in `<build>/long/palo_verde_<case>/`, which holds its
+output and its log, and passes when the run completes and its slow ledger closes
+(`test/checks/check_long_run.cmake`). `ED_ERA5LAND_ARCHIVE` defaults to `ERA5LAND_ARCHIVE` from the
+environment.
 
 ### The suite runs on dev
 

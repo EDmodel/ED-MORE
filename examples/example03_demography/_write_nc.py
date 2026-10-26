@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 """netCDF writer for the demography example's runs.
 
-The demography example drives MEDS's law-free apply-primitives from Python with its own
+The demography example drives ED-MORE's law-free apply-primitives from Python with its own
 vital-rate laws, so nothing in the Fortran output layer is involved: this module writes the
-stand itself, in the ragged cohort/patch layout `post_proc/` already reads.
+stand itself, in the ragged cohort/patch layout the plotting scripts beside it read.
 
 **Why the example writes its own file at all.** The laws live in the example, not in Fortran, so
-`meds_main` cannot produce this run. The figures need a file, and this is the only thing that can
+`edmore` cannot produce this run. The figures need a file, and this is the only thing that can
 make one.
 
 The schema is deliberately the one the existing plotters expect: one record per sampled year,
@@ -75,7 +75,7 @@ class StandWriter:
                 f"truncating -- a silently clipped stand is worse than a failed write.")
 
         with Dataset(self.path, "w", format="NETCDF4") as d:
-            d.title = "MEDS demography with census-trained vital rates (examples/example03_demography)"
+            d.title = "ED-MORE demography with census-trained vital rates (examples/example03_demography)"
             d.Conventions = "CF-1.8"
             d.createDimension("time", None)
             d.createDimension("cohort", self.cohort_cap)

@@ -30,7 +30,7 @@ OUT = os.path.join(HERE, "output")
 N_MONTHS = 1800
 LAST = slice(N_MONTHS - 120, N_MONTHS)                  # June 2011 - May 2021
 START = (1871, 6)                                        # the first month
-UMOL_TO_KGC = 1.20107e-8                                 # [kgC/umol CO2], meds_constants' umol_2_kgc
+UMOL_TO_KGC = 1.20107e-8                                 # [kgC/umol CO2], ed_constants' umol_2_kgc
 #: the length [s] of each of the run's months: a monthly record is a mean rate, so it times this is the month's total
 MONTH_SECONDS = np.array([calendar.monthrange(START[0] + (START[1] - 1 + k) // 12, (START[1] - 1 + k) % 12 + 1)[1]
                           for k in range(N_MONTHS)]) * 86400.0

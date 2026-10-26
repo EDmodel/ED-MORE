@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""MEDS example 05 -- a forest regrowing from bare ground at Barro Colorado Island, 1600-2020.
+"""ED-MORE example 05 -- a forest regrowing from bare ground at Barro Colorado Island, 1600-2020.
 
 Steps:
   1. cut BCI's ERA5-Land cell, 2003-2022, from the archive into data/
-     (scripts/prepare_era5/make_forcing_file.py); kept once made
-  2. run meds_config_regeneration.toml through the Python API (meds.model.Run), printing the stand
+     (scripts/prepare_input/era5/make_forcing_file.py); kept once made
+  2. run ed_config_regeneration.toml through the Python API (edmore.model.Run), printing the stand
      at the start of every year; the run's output and checkpoints go to output/
   3. draw the regrowing stand against the BCI plot (plot_regeneration.py -> regeneration.png)
 
@@ -15,7 +15,7 @@ Usage:
   python run_example.py --threads 20                           # more threads than [run].n_threads
   python run_example.py --plot-only
 
-Needs numpy, netCDF4, matplotlib, and the MEDS Python library (libmeds.so; see python/README.md).
+Needs numpy, netCDF4, matplotlib, and the ED-MORE Python library (libedmore.so; see python/README.md).
 """
 import argparse
 import os
@@ -26,11 +26,11 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, os.path.join(ROOT, "python"))
-from meds.config import RunConfig  # noqa: E402
+from edmore.config import RunConfig  # noqa: E402
 
-CONFIG = os.path.join(HERE, "meds_config_regeneration.toml")
+CONFIG = os.path.join(HERE, "ed_config_regeneration.toml")
 FORCING = os.path.join(HERE, "data", "bci_era5land_2003-2022.nc")
-CUT_TOOL = os.path.join(ROOT, "scripts", "prepare_era5", "make_forcing_file.py")
+CUT_TOOL = os.path.join(ROOT, "scripts", "prepare_input", "era5", "make_forcing_file.py")
 SITE = (9.1568, -79.8486)           # [deg N, deg E] the BCI 50-ha plot
 
 
@@ -44,8 +44,8 @@ def cut_forcing(archive):
 
 
 def run_model(end=None, threads=None):
-    """Run the config from bare ground, one slow step (a day) at a time, as meds_main would."""
-    from meds.model import COMPLETED, Run
+    """Run the config from bare ground, one slow step (a day) at a time, as edmore would."""
+    from edmore.model import COMPLETED, Run
     cfg = RunConfig.load(CONFIG)
     if threads:
         cfg.set("run.n_threads", threads)

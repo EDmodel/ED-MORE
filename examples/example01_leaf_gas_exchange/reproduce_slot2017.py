@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Reproduce Slot & Winter (2017) Figs 1(b) and 2 with the MEDS leaf model, driven from Python.
+"""Reproduce Slot & Winter (2017) Figs 1(b) and 2 with the ED-MORE leaf model, driven from Python.
 
 The species parameters, drivers and sweeps live in this script. The photosynthesis and stomatal
 kernels are the compiled Fortran that also runs inside the coupled model, reached through
-`meds.plant.leaf`; their equations are docs/science/leaf_gas_exchange.md §1-§3.
+`edmore.plant.leaf`; their equations are docs/science/leaf_gas_exchange.md §1-§3.
 
   (a)   A-Ci demand curve for F. insipida (Fig 1b), from the paper's in-situ Vcmax and Jmax.
   (b-f) Vcmax, Jmax, gs, Anet and Rlight against leaf temperature for four species (Fig 2),
         from the coupled A-gs-Ci solver.
 
-Writes slot2017/slot2017_*.csv and slot2017.png next to this script. Build libmeds.so first
+Writes slot2017/slot2017_*.csv and slot2017.png next to this script. Build libedmore.so first
 (see the README).
 """
 import math
@@ -21,16 +21,16 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 try:
-    import meds  # noqa: F401  -- an installed package (pip install python/)
+    import edmore  # noqa: F401  -- an installed package (pip install python/)
 except ImportError:
     sys.path.insert(0, os.path.join(HERE, "..", "..", "python"))  # or the source tree
-import meds.plant.leaf as leaf                                     # noqa: E402
+import edmore.plant.leaf as leaf                                   # noqa: E402
 from plot_slot2017 import plot_slot2017                            # noqa: E402
 
 #----- Drivers: the paper's measurement light and CO2, at sea level. ---------------------------#
 PAR, CA, PRESSURE = 1500.0, 400.0, 101325.0   # [umol/m2/s], [umol/mol], [Pa]
 TC = np.arange(25.0, 42.0 + 1e-9, 0.5)        # leaf-temperature sweep [degC]
-R, T_KELVIN = 8.314462618, 273.15             # as in meds_constants
+R, T_KELVIN = 8.314462618, 273.15             # as in ed_constants
 
 #----- Stomata and humidity. A constant relative humidity, as in a humid forest, keeps the leaf VPD
 #      at 0.95-2.5 kPa over the sweep. A fixed vapour pressure would push it past 5 kPa by 40 C,
@@ -111,7 +111,7 @@ def run_temperature(prefix):
 def main():
     prefix = os.path.join(HERE, "slot2017", "slot2017")
     os.makedirs(os.path.dirname(prefix), exist_ok=True)
-    print("Slot & Winter (2017) with the MEDS leaf model:")
+    print("Slot & Winter (2017) with the ED-MORE leaf model:")
     run_aci(prefix)
     run_temperature(prefix)
     plot_slot2017(prefix, list(SPECIES), os.path.join(HERE, "slot2017.png"))

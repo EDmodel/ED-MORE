@@ -1,11 +1,11 @@
 # Palo Verde, Costa Rica (10.35 N, 85.35 W): the 2009 inventory of the six 0.1-ha plots
 # (Xu et al. 2016, New Phytol. 212:80), merged from the ED2 files
-# PV_2009_2P_site<k>.lat10.4lon-85.4.{pss,css} by merge_ed2_pss_css.py into one MEDS site.
+# PV_2009_2P_site<k>.lat10.4lon-85.4.{pss,css} by merge_ed2_pss_css.py into one ED-MORE site.
 # patch_id = 10 * plot + ED2 patch; every plot's patches keep their ED2 area (0.5), so all
-# patches weigh the same once MEDS normalizes the areas. cohort_id = 100000 * plot + ED2 cohort.
+# patches weigh the same once ED-MORE normalizes the areas. cohort_id = 100000 * plot + ED2 cohort.
 # nplant [plants per m2 of the patch] = ED2 n. No height column: ED2 hite is 0 (from dbh).
-# ED2 pft -> MEDS pft: 24 -> 4 (E), 26 -> 3 (BD), 27 -> 2 (D), 29 -> 1 (Ds).
-# Per-plot ED2 patch data with no MEDS column (MEDS census patches start at age 0):
+# ED2 pft -> ED-MORE pft: 24 -> 4 (E), 26 -> 3 (BD), 27 -> 2 (D), 29 -> 1 (Ds).
+# Per-plot ED2 patch data with no ED-MORE column (ED-MORE census patches start at age 0):
 #   plot 1: stand age 10 yr; ED2 soil pools fsc 0.2984, stsc 2.685, fsn 0.2588; 2 patches, 69 cohorts
 #   plot 2: stand age 60 yr; ED2 soil pools fsc 0.5795, stsc 5.216, fsn 0.5191; 2 patches, 37 cohorts
 #   plot 3: stand age 7 yr; ED2 soil pools fsc 0.3682, stsc 3.314, fsn 0.3174; 2 patches, 60 cohorts

@@ -1,6 +1,6 @@
 # Example 04 — Column biophysics at a flux tower (Barro Colorado Island)
 
-The coupled column of MEDS — canopy radiation, leaf gas exchange, the energy balances of leaves,
+The coupled column of ED-MORE — canopy radiation, leaf gas exchange, the energy balances of leaves,
 canopy air and soil, plant hydraulics, and the soil's water and heat — solved every 15 minutes in
 each patch of a forest. The site is the Barro Colorado Island (BCI) flux tower in Panama (AmeriFlux
 PA-Bar, 41 m above a seasonal tropical forest), over its five years, 2012–2017. How the column is
@@ -8,7 +8,7 @@ solved: [`docs/science/coupled_biophysics.md`](../../docs/science/coupled_biophy
 
 The example:
 
-1. builds a MEDS forcing file from the tower's own meteorology;
+1. builds an ED-MORE forcing file from the tower's own meteorology;
 2. starts the forest from the 2010 census of the BCI 50-ha plot, with no spin-up;
 3. calibrates the fast (sub-daily) parameters against the same tower;
 4. compares the default and the calibrated runs with the tower's fluxes;
@@ -23,11 +23,11 @@ python run_example.py --census-dir /path/to/bci_census   # every step, with the 
 python run_example.py --calibrate --workers 40           # ... and redo the calibration first
 ```
 
-It needs numpy, pandas, netCDF4, matplotlib and a built `meds_main` (`--meds-main` or `MEDS_MAIN`,
-default `../../build-dev/meds_main`). The first full run builds the census file from the census
+It needs numpy, pandas, netCDF4, matplotlib and a built `edmore` (`--edmore` or `EDMORE_MAIN`,
+default `../../build-dev/edmore`). The first full run builds the census file from the census
 tables, which it reads from `--census-dir` or the environment variable `BCI_CENSUS_DIR` (see The
-data); later runs reuse `data/bci_census2010_meds.csv`. Every step together takes about 9 minutes
-on 8 threads with the production build (`--meds-main ../../build-production/meds_main`, see
+data); later runs reuse `data/bci_census2010_ed.csv`. Every step together takes about 9 minutes
+on 8 threads with the production build (`--edmore ../../build-production/edmore`, see
 [`docs/building.md`](../../docs/building.md)). The calibration's 996 runs took 60 minutes on 200 cores of five nodes, with the queue
 workers of [`scripts/calibrate_fast`](../../scripts/calibrate_fast/README.md).
 
@@ -48,14 +48,14 @@ workers of [`scripts/calibrate_fast`](../../scripts/calibrate_fast/README.md).
 
 [`bci_site.toml`](bci_site.toml) declares what the tower file holds: its clock (UTC−5), its
 measurement height (41 m), its location, and that the file swaps its two longwave labels.
-[`make_tower_forcing.py`](../../scripts/prepare_flux_tower/make_tower_forcing.py) checks each
-declaration against the sun and the data, and stops on a disagreement. MEDS moves each sample from
+[`make_tower_forcing.py`](../../scripts/prepare_input/flux_tower/make_tower_forcing.py) checks each
+declaration against the sun and the data, and stops on a disagreement. ED-MORE moves each sample from
 41 m to the top of each patch's canopy air.
 
 ![Fill flags of the BCI forcing, per variable, 2012-2017](forcing_qc.png)
 
 Two variables have gaps: **wind** (15 %), filled from the neighbouring hours or the mean diurnal
-cycle, and **longwave** (61 %: the radiometer arrived in 2015), filled by MEDS's longwave synthesis
+cycle, and **longwave** (61 %: the radiometer arrived in 2015), filled by ED-MORE's longwave synthesis
 corrected to the tower. On observations hidden from it, the longwave fill scores an RMSE of
 14.5 W m⁻², against 18.6 for a monthly climatology.
 
@@ -63,10 +63,10 @@ corrected to the tower. On observations hidden from it, the longwave fill scores
 
 ## 2. The model
 
-[`meds_config_eval.toml`](meds_config_eval.toml) runs 2012-08-01 to 2017-08-01.
-- **The stand is the 2010 census:** 207,259 live trees of at least 1 cm, which MEDS groups into 120
+[`ed_config_eval.toml`](ed_config_eval.toml) runs 2012-08-01 to 2017-08-01.
+- **The stand is the 2010 census:** 207,259 live trees of at least 1 cm, which ED-MORE groups into 120
   patches and 2,553 cohorts. One evergreen PFT ([`pft_parameters.toml`](pft_parameters.toml)) with
-  MEDS's default allometry puts it at LAI 5.6 and 16.1 kgC m⁻² aboveground (the census's own
+  ED-MORE's default allometry puts it at LAI 5.6 and 16.1 kgC m⁻² aboveground (the census's own
   estimate is 15.1).
 - **Leaf traits follow the light** down the canopy, and the canopy holds the rain it intercepts.
 - **Each tree roots to a depth set by its height** (5 m for a 35 m tree), cut at the soil's base, and
@@ -80,7 +80,7 @@ corrected to the tower. On observations hidden from it, the longwave fill scores
 
 [`calibration.toml`](calibration.toml) fits the fast parameters with
 [`scripts/calibrate_fast`](../../scripts/calibrate_fast/README.md), following
-[a cross-site protocol](../../docs/dev_plans/MEDS_FAST_CALIBRATION_BEST_PRACTICE.md). The fit sees
+[a cross-site protocol](https://github.com/xiangtaoxu/MEDS/blob/v0.4.0/docs/dev_plans/MEDS_FAST_CALIBRATION_BEST_PRACTICE.md) (MEDS's, at v0.4.0). The fit sees
 the tower's latent heat (LE), sensible heat (H), GPP, upwelling longwave and u\* in eight 10-day
 windows spread over the year, and LE over the 2016 and 2017 dry seasons; eight other windows
 validate it. Two choices are BCI's own:
@@ -120,7 +120,7 @@ The energy-balance gap is the largest uncertainty: sharing it between H and LE i
 
 ## 4. Against the tower
 
-![MEDS against the BCI tower: mean diurnal and seasonal cycles of carbon, water and energy](evaluation.png)
+![ED-MORE against the BCI tower: mean diurnal and seasonal cycles of carbon, water and energy](evaluation.png)
 
 The dashed lines are the calibration's targets: GPP with κ, and H with the energy-balance gap added.
 Means over the tower's measured hours, 2012-08 to 2017-07:
@@ -171,13 +171,13 @@ LAI 5.4) and its tallest tree.
 | [`run_example.py`](run_example.py) | runs every step |
 | [`fetch_bci_data.py`](fetch_bci_data.py) | downloads and checks the tower data |
 | [`bci_site.toml`](bci_site.toml), [`bci_census.toml`](bci_census.toml) | the declarations of the tower data and the census |
-| [`meds_config_eval.toml`](meds_config_eval.toml), [`pft_parameters.toml`](pft_parameters.toml), [`output_variables.toml`](output_variables.toml) | the MEDS run, its PFT and its output |
+| [`ed_config_eval.toml`](ed_config_eval.toml), [`pft_parameters.toml`](pft_parameters.toml), [`output_variables.toml`](output_variables.toml) | the ED-MORE run, its PFT and its output |
 | [`calibration.toml`](calibration.toml) | the calibration's BCI choices |
 | [`calibration/`](calibration) | the calibrated configs, the fit (`fit.json`) and its report |
 | [`output_window.toml`](output_window.toml) | the ten-day window's output |
 | [`plot_forcing.py`](plot_forcing.py), [`plot_evaluation.py`](plot_evaluation.py), [`plot_calibration.py`](plot_calibration.py), [`plot_window.py`](plot_window.py) | the figures |
 
-Design records:
-[forcing](../../docs/dev_plans/MEDS_FLUX_TOWER_FORCING_PLAN.md),
-[census start](../../docs/dev_plans/MEDS_BCI_CENSUS_INIT_PLAN.md),
-[calibration](../../docs/dev_plans/MEDS_FAST_CALIBRATION_BEST_PRACTICE.md).
+MEDS's design records, at v0.4.0:
+[forcing](https://github.com/xiangtaoxu/MEDS/blob/v0.4.0/docs/dev_plans/MEDS_FLUX_TOWER_FORCING_PLAN.md),
+[census start](https://github.com/xiangtaoxu/MEDS/blob/v0.4.0/docs/dev_plans/MEDS_BCI_CENSUS_INIT_PLAN.md),
+[calibration](https://github.com/xiangtaoxu/MEDS/blob/v0.4.0/docs/dev_plans/MEDS_FAST_CALIBRATION_BEST_PRACTICE.md).

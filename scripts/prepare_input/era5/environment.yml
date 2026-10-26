@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Conda environment for the forcing-preparation scripts: scripts/prepare_input/era5/ (the downloaders, the
 # archive builders, postprocess_era5land.py and make_forcing_file.py) and scripts/prepare_input/flux_tower/.
-# Kept separate from the top-level environment.yml, which serves the Fortran build and post_proc/.
+# Kept separate from the top-level environment.yml, which serves the Fortran build and the examples' plots.
 #   mamba env create -f scripts/prepare_input/era5/environment.yml      # or: micromamba create -f ...
 #   mamba activate edmore-era5                                     # or: micromamba activate edmore-era5
 name: edmore-era5

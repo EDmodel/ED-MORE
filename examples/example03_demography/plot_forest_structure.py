@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Animate MEDS forest structure as a canopy-layer stand profile.
+"""Animate ED-MORE forest structure as a canopy-layer stand profile.
 
-MEDS is spatially implicit: within a patch a cohort's canopy is a thin horizontal disk that
+ED-MORE is spatially implicit: within a patch a cohort's canopy is a thin horizontal disk that
 covers the WHOLE patch area at the cohort's height (ED2's flat-canopy assumption). This script
 renders that picture directly. For each output record it draws a pseudo-spatial cross-section
 of the site:
@@ -30,7 +30,7 @@ The frames are written to an animated GIF (default ~1 s per frame).
 Usage:
     python plot_forest_structure.py STAND.nc [-o OUT.gif] [--fps N] [--lai-scale M] [--min-thick T]
 
-Requires the `meds` conda environment (numpy, matplotlib, netCDF4, Pillow). The netCDF must be in
+Requires the `edmore` conda environment (numpy, matplotlib, netCDF4, Pillow). The netCDF must be in
 the ragged cohort/patch stand layout of example 03's _write_nc.py: per-cohort `pft`, `height`,
 `nplant`, `leaf_area` and `owner_patch`, per-patch `patch_area`, `patch_age`, `dist_type` and
 `global_patch_id`, and the site's `total_lai`.
@@ -73,7 +73,7 @@ def patch_bands(area, age, gid, area_floor=2.0e-3):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("ncfile", help="MEDS netCDF output file")
+    ap.add_argument("ncfile", help="ED-MORE netCDF output file")
     ap.add_argument("-o", "--out", default=None, help="output GIF (default: <ncfile>_forest.gif)")
     ap.add_argument("--fps", type=float, default=3.0,
                     help="frames per second (default 3)")
@@ -172,7 +172,7 @@ def main():
         ax.tick_params(labelleft=False)
         ax.set_xlabel("patches: oldest (left) -> youngest (right); width $\\propto$ area")
         ax.set_xticks([])
-        ax.set_title(f"MEDS forest structure — year {t[r] - t0:.0f}   "
+        ax.set_title(f"ED-MORE forest structure — year {t[r] - t0:.0f}   "
                      f"({nc} cohorts, {npt} patches)", fontsize=12)
 
         if npt == 0:

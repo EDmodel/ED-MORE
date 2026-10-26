@@ -83,6 +83,6 @@ def plot_slot2017(prefix, species, out):
             ax.tick_params(labelbottom=False)
     ax.set_xlabel("leaf temperature [°C]   (b–f: paper Fig. 2)", fontsize=11)
 
-    fig.suptitle("Slot & Winter (2017) reproduced with the MEDS leaf model", fontsize=13)
+    fig.suptitle("Slot & Winter (2017) reproduced with the ED-MORE leaf model", fontsize=13)
     fig.savefig(out, dpi=130)
     print(f"wrote {out}")

@@ -1,12 +1,12 @@
 # Example 02 — Canopy phenology
 
-The leaf-phenology module of MEDS on its own. **This example shows how the module is built — one
+The leaf-phenology module of ED-MORE on its own. **This example shows how the module is built — one
 kernel, three cues, and leaf habits as parameter sets — at four forests; it is not a calibration of
 any of them.** A temperate deciduous broadleaf, an evergreen pine, a tropical tree that renews its
 leaves in the dry season and a drought-deciduous dry forest all run the same compiled kernel
-([`meds_plant_phenology.f90`](../../src/slow_dynamics/processes/meds_plant_phenology.f90)) and
+([`ed_plant_phenology.f90`](../../src/slow_dynamics/processes/ed_plant_phenology.f90)) and
 differ only in parameter values. A Python script drives it through
-[`meds.plant.pheno`](../../python/meds/plant/pheno.py); the equations are in
+[`edmore.plant.pheno`](../../python/edmore/plant/pheno.py); the equations are in
 [`docs/science/plant_phenology.md`](../../docs/science/plant_phenology.md).
 
 ## The module in brief
@@ -34,8 +34,8 @@ evergreen is a canopy whose senescence stops above zero**, not a separate switch
 | Barro Colorado Island, Panama, 9.2° N | leaf exchanger | WATER; LIGHT + WATER | soil water as a stand-in for leaf water potential, light | litter traps (GLiMP) |
 | Palo Verde, Costa Rica, 10.4° N | drought-deciduous | WATER + LIGHT; WATER + LIGHT | a simulated leaf water potential, light | leaf litter traps (Xu et al. 2016); MODIS LAI |
 
-Light at every site is ERA5-Land as MEDS's forcing reader delivers it to the canopy. The water
-potential at Palo Verde is hypothetical: the canopy predawn value of a MEDS run of an evergreen
+Light at every site is ERA5-Land as ED-MORE's forcing reader delivers it to the canopy. The water
+potential at Palo Verde is hypothetical: the canopy predawn value of an ED-MORE run of an evergreen
 stand at the site, not of this forest.
 
 ## Run
@@ -54,9 +54,9 @@ first (about 45 minutes on 40 cores). The records are short, so the fits capture
 seasonal cycle, not its year-to-year variation, and each fit holds the leaves shed per year to a
 literature value (one canopy for the broadleaf forests, 0.3 for the pine).
 
-The hours of light in `drivers/` are committed. Remaking them needs a built `meds_main` (`--meds-main`
-or `MEDS_MAIN`, default `build-dev/meds_main`) and the processed ERA5-Land archive
-([`scripts/prepare_era5`](../../scripts/prepare_era5)), named by `--archive` or the environment
+The hours of light in `drivers/` are committed. Remaking them needs a built `edmore` (`--edmore`
+or `EDMORE_MAIN`, default `build-dev/edmore`) and the processed ERA5-Land archive
+([`scripts/prepare_input/era5`](../../scripts/prepare_input/era5)), named by `--archive` or the environment
 variable `ERA5LAND_ARCHIVE`:
 
 ```bash

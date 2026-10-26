@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Drive the MEDS demography engine with the census-trained vital rates.
+"""Drive the ED-MORE demography engine with the census-trained vital rates.
 
     python run_demography.py --start census     # from the 1985 census, to 2100
     python run_demography.py --start bare       # from near-bare ground, 300 years
 
-The stand is written once a year to output/<start>.nc, in the cohort/patch layout post_proc/ reads.
+The stand is written once a year to output/<start>.nc, in the cohort/patch layout this folder's plotting scripts read.
 Run from the repository root (the config's paths are relative to it).
 """
 import argparse
@@ -19,7 +19,7 @@ from _cadence import slow_steps                                  # noqa: E402
 from _write_nc import StandWriter                                # noqa: E402
 from census_laws import CensusLaws                               # noqa: E402
 
-from meds.demography import Config, Site                         # noqa: E402
+from edmore.demography import Config, Site                         # noqa: E402
 
 N_PATCH_BARE = 4
 FIRST_YEAR = {"census": 1985, "bare": 0}

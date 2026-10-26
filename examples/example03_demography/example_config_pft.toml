@@ -1,4 +1,4 @@
-# MEDS PFT configuration -- every PFT-specific parameter, its allometry and hydraulics among them.
+# ED-MORE PFT configuration -- every PFT-specific parameter, its allometry and hydraulics among them.
 # Named by [init].pft_config in the main config. EVERY key is REQUIRED; a missing key is a hard error.
 #
 # The number of PFTs is the length of [pft].wood_density; every per-PFT array must match it.
@@ -40,7 +40,7 @@ wstress_sref_stomata = [2.0, 2.0, 2.0]              # [1/MPa] Sabot stomatal-str
 
 #----- Required by the loader; most belong to processes this example does not run: per-PFT
 #      respiration and canopy optics, the wood geometry, the carbon-allocation and litter traits.
-#      Values follow the root meds_config_pft.toml, which has the same three PFTs, except where a
+#      Values follow the root ed_config_pft.toml, which has the same three PFTs, except where a
 #      line says.
 is_woody           = [1, 1, 1]     # 1 = woody (0 = grass: no stem respiration)
 stem_resp_factor25 = [0.06, 0.06, 0.06]  # [umol CO2/m2 stem/s @25C]
@@ -104,7 +104,7 @@ chave_rse  = 0.0
 chave_e    = 0.0
 
 [hydraulics]
-# The PFT's plant-hydraulics traits (meds_config_pft.toml documents each key); one value for every PFT,
+# The PFT's plant-hydraulics traits (ed_config_pft.toml documents each key); one value for every PFT,
 # or one per PFT.
 leaf_pi0             = -1.5                                                         # [MPa]
 leaf_elastic_mod     = 12.0                                                         # [MPa]

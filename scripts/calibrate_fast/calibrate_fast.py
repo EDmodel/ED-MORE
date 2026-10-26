@@ -63,6 +63,15 @@ from edmore.config import read_record  # noqa: E402
 from workers import Task, make_workers, queue_worker   # noqa: E402
 
 
+
+def repo_relative(path):
+    """The path from the repository's root when it lies inside it, so a fit kept in the repository
+    names no one's folders; otherwise the path as it is."""
+    try:
+        return str(Path(path).resolve().relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
 def log_to(path):
     fh = open(path, "a")
     lock = threading.Lock()
@@ -226,7 +235,7 @@ def cmd_fit(args):
                                 cal.fixed_observation_keys(keys), args.keep_netcdf, log, max_threads)
     states_start = dict(runner.states)
     fit_rows = [rows[w.name] for w in fit_windows]
-    out = {"variant": cal.variant, "config": str(cal.path),
+    out = {"variant": cal.variant, "config": repo_relative(cal.path),
            "windows": {w.name: [str(w.start), w.role, w.days] for w in all_windows},
            "registry": {p.name: {"state": p.state, "kind": p.kind, "scope": p.scope, "reason": p.reason}
                         for p in cal.registry()},

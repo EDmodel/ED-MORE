@@ -65,7 +65,7 @@ def main(argv=None):
            ylabel="RMSE / observation error, validation windows")
     a2.legend(frameon=False, fontsize=9)
     a2.set_title("the validation windows (never fitted)", color=INK, fontsize=10)
-    fig.suptitle("MEDS fast-parameter calibration at Barro Colorado Island (scripts/calibrate_fast)",
+    fig.suptitle("ED-MORE fast-parameter calibration at Barro Colorado Island (scripts/calibrate_fast)",
                  color=INK, fontsize=11)
     fig.tight_layout()
     fig.savefig(args.out, dpi=130)

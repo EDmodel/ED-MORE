@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 """plot_window.py -- ten days inside the column at half-hourly resolution: the forcing, and the states
-MEDS solves from it in one patch. The patch is the one that covers the most ground (closed forest);
+ED-MORE solves from it in one patch. The patch is the one that covers the most ground (closed forest);
 a site mean would average it with the gaps. Its top cohort is its tallest at each half hour.
 
 Panels, top to bottom: shortwave and rain (the forcing); air, canopy-air, top-leaf and top-soil
@@ -24,7 +24,7 @@ import pandas as pd  # noqa: E402
 from netCDF4 import Dataset  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, "..", "..", "scripts", "prepare_flux_tower"))
+sys.path.insert(0, os.path.join(HERE, "..", "..", "scripts", "prepare_input", "flux_tower"))
 import tower_inputs as ti  # noqa: E402  (the site TOML's reader)
 
 DEPTHS = [0.05, 0.15, 0.40, 1.00]           # [m] the soil layers drawn: the ones whose nodes are nearest

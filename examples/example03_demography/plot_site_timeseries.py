@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Plot timeseries of key site-level variables from a MEDS netCDF output file.
+"""Plot timeseries of key site-level variables from an ED-MORE netCDF output file.
 
 The file is in the ragged cohort/patch stand layout of example 03's _write_nc.py: one record per
 output interval with site totals (total_nplant, total_lai, total_agb, total_basal_area, mean_dbh)
@@ -11,7 +11,7 @@ area), in the classic ED / Moorcroft et al. (2001) colours -- PFT 1 green, PFT 2
 Usage:
     python plot_site_timeseries.py STAND.nc [-o OUT.png]
 
-Requires the `meds` conda environment (numpy, matplotlib, netCDF4).
+Requires the `edmore` conda environment (numpy, matplotlib, netCDF4).
 """
 import argparse
 import numpy as np
@@ -54,7 +54,7 @@ def per_pft_total(ds, var, npft):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("ncfile", help="MEDS netCDF output file")
+    ap.add_argument("ncfile", help="ED-MORE netCDF output file")
     ap.add_argument("-o", "--out", default=None, help="output PNG (default: <ncfile>.png)")
     args = ap.parse_args()
     out = args.out or (args.ncfile.rsplit(".", 1)[0] + ".png")
@@ -91,7 +91,7 @@ def main():
     for ax in axes[4:]:
         ax.set_xlabel("calendar year")
 
-    fig.suptitle(f"MEDS site-level timeseries — {args.ncfile}", fontsize=12)
+    fig.suptitle(f"ED-MORE site-level timeseries — {args.ncfile}", fontsize=12)
     fig.tight_layout(rect=(0, 0, 1, 0.97))
     fig.savefig(out, dpi=120)
     print(f"wrote {out}")
