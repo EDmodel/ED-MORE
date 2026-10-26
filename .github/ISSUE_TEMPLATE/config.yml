@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question about using ED-MORE
+    url: https://github.com/EDmodel/ED-MORE/discussions/categories/q-a
+    about: Ask in Discussions. The issue tracker is for bugs and concrete proposals.
+  - name: An idea that is still taking shape
+    url: https://github.com/EDmodel/ED-MORE/discussions/categories/ideas
+    about: Talk it through in Discussions first; file a science proposal once it has a formulation.
+  - name: Question about ED2
+    url: https://github.com/EDmodel/ED2/discussions
+    about: ED2 is a separate model with its own repository and community.
