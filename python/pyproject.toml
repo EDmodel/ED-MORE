@@ -1,0 +1,64 @@
+#----- `pip install python/` COMPILES and bundles libedmore.so. -----------------------------------
+#      scikit-build-core drives the top-level CMake, so a wheel carries the compiled backend beside
+#      the package and `edmore._libedmore` finds it with no env var.
+#
+#      ONE library is what makes this tractable: `edmore.plant`, `edmore.demography`, `edmore.model` and
+#      `edmore.canopy` are sub-modules over a single libedmore.so, so the wheel has one binary, one ABI,
+#      and one place for it to break (python/README.md).
+[build-system]
+requires = ["scikit-build-core>=0.11"]   # 0.11 is the first to read a PEP 639 license expression
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "edmore"
+version = "0.4.0"
+description = "Python interface to ED-MORE, a Modular, Open, Reproducible, and Extensible Ecosystem Demography model"
+readme = "README.md"
+requires-python = ">=3.9"
+#----- Apache-2.0, like the rest of the repository. The wheel carries LICENSE and NOTICE, and they
+#      are COPIES of the repository-root files, because license-files cannot reach above this
+#      directory (PEP 639). The ctests license_copy and notice_copy fail if a copy drifts.
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "The ED-MORE Authors" }]
+maintainers = [{ name = "Xiangtao Xu" }]
+#----- HARD dependencies -- what `import edmore.<anything>` needs, nothing more. -------------------
+#      netCDF4: libedmore.so links the model's netCDF I/O, so the runtime has to be present, and
+#      vendoring netCDF's dependency closure (a measured ~67 MB) into the wheel is left to a
+#      portable wheel (python/README.md). Declaring it lets pip resolve one copy the rest of the
+#      stack shares.
+#      numpy: edmore/demography/_site.py imports it at MODULE level, so `from edmore.demography import
+#      Site` fails without it. The leaf and phenology sub-modules import no third-party package at
+#      all, so only a clean-venv install of the wheel shows a missing numpy.
+#      tomli: edmore.config reads TOML with the standard library's tomllib, new in Python 3.11.
+dependencies = ["netCDF4", "numpy", "tomli; python_version < '3.11'"]
+
+[project.optional-dependencies]
+plot = ["matplotlib"]          # numpy is a hard dependency above
+viz = ["pyvista", "scipy", "pillow"]  # 3D render + GIF: post_proc/plot_landscape_3d.py, animate_landscape_growth.py
+test = ["pytest"]
+
+#----- The CMake project is the REPO ROOT, one level up: the Python package is a companion to the
+#      Fortran model, not a vendored copy of it. Only the shared library is built and installed;
+#      the executable, the tests and the netCDF I/O stream are not part of the wheel.
+[tool.scikit-build]
+cmake.source-dir = ".."
+cmake.version = ">=3.20"
+build-dir = "build/{wheel_tag}"
+wheel.packages = ["edmore"]
+#      ED_BUILD_PYLIB is what defines the libedmore.so target at all; tests are off because a wheel
+#      build should not compile every ctest binary to produce one .so.
+cmake.define.ED_BUILD_PYLIB   = "ON"
+cmake.define.ED_BUILD_TESTS   = "OFF"
+cmake.define.CMAKE_BUILD_TYPE = "Release"
+#      Serial, although the top-level default is OpenMP. The wheel exposes kernels to Python, where
+#      threads over patches buy nothing, and an OpenMP runtime linked into libedmore.so could meet a
+#      second one already loaded by numpy or another extension in the same process.
+cmake.define.ED_OPENMP = "OFF"
+#      Install ONLY the library, and place it inside the package so `edmore._libedmore` finds it as a
+#      sibling of __init__.py — the first candidate in its search order.
+build.targets = ["ed_py"]
+install.components = ["pylib"]
+
+[tool.scikit-build.sdist]
+include = ["../src", "../CMakeLists.txt", "../cmake"]

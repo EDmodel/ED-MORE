@@ -285,39 +285,48 @@ target, so an ABI change fails the build instead of breaking the optional Python
 **One test per `src` module, laid out as `src` is.** ctest `slow_update` is
 `test/slow/test_slow_update.f90`, the test of `src/slow_dynamics/driver/ed_slow_update.f90`; the
 folders are `test/share/`, `config/`, `state/`, `fast/`, `slow/`, `io/`, `driver/` and `c_api/`, with
-the shared fixtures in `test/support/` and the CMake checks in `test/checks/`.
+the shared fixtures in `test/support/`, the CMake checks in `test/checks/` and the restart test in
+`test/python/`; the Python package's own tests are in `python/tests/`.
 `test/CMakeLists.txt` registers every test through `ed_add_test` and builds the test programs in
 `<build>/test/`. Each test carries one label:
 
 | Label | What it holds | Tests (dev) | Time (dev, one core) |
 |---|---|---|---|
-| `unit` | each module's test, and `edmore`'s refusals (`*_refused`, `main_failure_finalizes`) | 66 | 15 s |
-| `integration` | whole runs: `region`, `fast_driver` | 2 | 34 s |
-| `lint` | the repository's checks, one test each and named after the check (`kernels_patch_only`, `clamps_named`, `no_issue_refs`, ...), and the CMake checks of the source tree and the shipped files (`no_procedure_arguments`, `config_keys_listed`, `io_config_example`) | 15 | 4 s |
+| `unit` | each module's test, and `edmore`'s refusals (`*_refused`, `main_failure_finalizes`) | 66 | 12 s |
+| `integration` | whole runs: `region`, `fast_driver`, `restart_exact` | 3 | 37 s |
+| `lint` | the repository's checks, one test each and named after the check (`kernels_patch_only`, `clamps_named`, `no_issue_refs`, ...), and the CMake checks of the source tree and the shipped files (`no_procedure_arguments`, `config_keys_listed`, `io_config_example`), and the Python package's copies of the licence files (`license_copy`, `notice_copy`) | 17 | 4 s |
+| `python` | the Python package's pytest suite (`python_api`), when `libedmore.so` is built | 1 | 3 s |
 
-A debug build has 82 tests: no `soil_nan_layer_refused` (it traps the NaN that case feeds the
-loader). A `-L` takes a regular expression, so `-L 'unit|lint'` runs both.
+A debug build has 85 tests: no `python_api` (it builds no `libedmore.so`), and no
+`soil_nan_layer_refused` (it traps the NaN that case feeds the loader). `python_api` and
+`restart_exact` need a Python with numpy, netCDF4 and pytest; configure says when it finds none.
+A `-L` takes a regular expression, so `-L 'unit|lint'` runs both.
 
 ### The suite runs on dev
 
-**Run the suite on a dev build** (or debug); dev passes all 83 tests with ifx and with gfortran.
+**Run the suite on a dev build** (or debug); dev passes all 87 tests with ifx and with gfortran.
 Several tests compare two computations of the same number bit for bit, or within a few units in the
 last place, and that holds only when both are compiled the same way. dev compiles each file on its
 own at `-O2`, for any x86-64 CPU. production optimises across files (IPO) and generates AVX-512 code,
 so the two sides of such a check can be compiled differently and part in the last bits. Built with
-`-DED_BUILD_TESTS=ON`, production fails 2 tests with ifx, and passes all 83 with gfortran (GCC 11.5):
+`-DED_BUILD_TESTS=ON`, production fails 3 tests with ifx and 1 with gfortran (GCC 11.5):
 
 | Test | Compiler | The check that fails | Production's value | Tolerance | Cause |
 |---|---|---|---|---|---|
 | `fast_driver` | ifx | the fast loop stages each sub-step's forcing sample exactly | the test's own recomputation of a sample does not equal the staged one; recomputed in a routine of its own, all eight fields match exactly, and printing the difference in place makes the check pass | exact | IPO |
 | `plant_hydraulics` | ifx | a leaf above its closing water content transpires its demand | 1.9999999999999998e-5 against 2e-5: one unit in the last place (3e-21, 2e-16 relative); dev gives 2e-5 exactly | exact | IPO |
 | `plant_hydraulics` | ifx | transpiration's derivative matches finite differences | where the derivative is 0, the finite difference is 2.6e-14, from round-off in the two transpirations it differences 2e-7 apart; dev's is 0 | 1e-15 | IPO |
+| `python_api` | ifx | `edmore.model` writes `edmore`'s output bit for bit | 111 of 301 variables differ, by up to 2.7e-12 of a variable's largest value (patch sensible heat), the near-zero conservation residuals aside | exact | IPO |
+| `python_api` | gfortran | `edmore.model` writes `edmore`'s output bit for bit | 105 of 301 variables differ, by up to 1.1e-13 (patch sensible heat), the residuals aside | exact | FMA under LTO |
 
-The cause comes from building each part of production on its own: IPO alone, the CPU target alone,
-and each with fused multiply-add (FMA) turned off (`-no-fma`). Both tests fail with IPO alone and
-pass with the CPU target alone. Each program is optimised as a whole, so one routine compiles
-differently where it is inlined, in the test and in the driver. Turning FMA off leaves the same
-failures.
+The causes come from building each part of production on its own: IPO alone, the CPU target alone,
+and production with fused multiply-add (FMA) turned off (`-no-fma`, `-ffp-contract=off`).
+
+- **IPO**: the ifx failures appear with IPO alone, pass with the CPU target alone, and stay with FMA
+  off. Each program is optimised as a whole, so one routine compiles differently where it is
+  inlined: in the test and in the driver, or in `edmore` and in `libedmore.so`.
+- **FMA under LTO**: gfortran fails only with LTO and the CPU target together, and passes with FMA
+  off. Inlining across files lets FMA contract expressions that each file alone leaves apart.
 
 ### Production's output against dev's
 
