@@ -18,7 +18,7 @@ hydraulics ([plant_hydraulics](plant_hydraulics.md)).
 
 ## Leaf and wood energy balance
 
-`tissue_energy_balance` (`meds_plant_energy`) is the one kernel for a cohort's leaf **or** wood; wood
+`tissue_energy_balance` (`ed_plant_energy`) is the one kernel for a cohort's leaf **or** wood; wood
 is the case without transpiration. Its conductances and absorbed radiation are frozen for the step
 (Category 0, [numerical_scheme](numerical_scheme.md) §2), the saturation terms follow the canopy-air
 state, and every flux is linearized about the canopy-air temperature $`T_{cas}`$ (the longwave about the
@@ -97,13 +97,13 @@ balances booked over the step: the step mean of the leaves', the wood's and the 
 as the ledger's fluxes are, so it is the radiation the patch's energy budget closes on. The
 two-stream's own net, at the start-of-step temperatures, differs from it by the change in their
 emission within the step. That emission leaves to the sky: the reported upwelling longwave carries it
-(`meds_fast_diag`), so shortwave in − shortwave up + longwave down − longwave up is the reported net
+(`ed_fast_diag`), so shortwave in − shortwave up + longwave down − longwave up is the reported net
 radiation.
 
 ## The canopy's interception film
 
 With `[fast].canopy_water_on`, rain and snow are intercepted by a film on each cohort. **Canopy
-interception** is a top-to-bottom cascade (`intercept_canopy_layer`, in `meds_canopy_water`): a
+interception** is a top-to-bottom cascade (`intercept_canopy_layer`, in `ed_canopy_water`): a
 capacity-limited bucket with a Beer interception fraction
 $`f = \alpha\,(1-e^{-k\,\mathrm{PAI}})`$ (`[fast].intercept_alpha`, `[fast].intercept_k`) and a wetted fraction
 $`\sigma_w = (W/W_{max})^{2/3}`$, each
@@ -211,8 +211,8 @@ temperature. Nothing switches; the physics chooses, per cohort, every step, cont
 
 ### The store is ON, and how its capacity is sized
 
-The store is always on: each step's heat capacity is `tissue_hcap_per_dt` (`meds_plant_energy`), filled
-per cohort by `tissue_coefficients` in `meds_fast_integ_frozen`. The capacity splits its two
+The store is always on: each step's heat capacity is `tissue_hcap_per_dt` (`ed_plant_energy`), filled
+per cohort by `tissue_coefficients` in `ed_fast_integ_frozen`. The capacity splits its two
 halves across **different** masses, which is a physical distinction and not a detail:
 
 - **dry tissue → ALL the wood**, at the dry specific heat. Heartwood is dead structure but still
@@ -234,7 +234,7 @@ Per unit ground area, with $B$ the dry biomass (carbon × 2 × $`n_{plant}`$):
 
 with $`c_{wood}`$ = 1217 J kg⁻¹ K⁻¹, ED2's specific heat of **dry** wood at 15 °C
 (`tissue_c_wood_dry`; 103.1 + 3.867 T), $`c_{leaf}`$ = 3200 J kg⁻¹ K⁻¹ for dry leaf (`tissue_c_leaf`;
-both in `meds_constants`), $`W_{wood}`$ the wood store's water per plant and $`W_{leaf}`$ the leaf's
+both in `ed_constants`), $`W_{wood}`$ the wood store's water per plant and $`W_{leaf}`$ the leaf's
 internal water, both from the water network. Fresh wood's specific heat (about 2700 J kg⁻¹ K⁻¹ at
 100 % moisture) is not used: the water is counted on its own, so a fresh-wood value would count it
 twice. The fast loop and the state layer's `cohort_tissue_heat_capacity` build the capacity the same
@@ -242,7 +242,7 @@ way, so the fusion weights and the slow ledger use the same capacity. Each tissu
 film it carries, in the cohort's capacity and energy; a step's balance runs on the tissue's own water
 (The canopy's interception film, above).
 
-The wood's area and its sapwood come from stem-size allometries (`meds_allometry_lib`; each PFT's
+The wood's area and its sapwood come from stem-size allometries (`ed_allometry_lib`; each PFT's
 `[allometry]` `wai_b1/b2`, `sapwood_area_b1/b2`), with $D$ the diameter [cm]. The wood area index is
 $`\mathrm{WAI} = n_{plant}\,b_1\,D^{b_2}`$ (`dbh_to_wai`), and the sapwood is the share
 $`f_{sap} = \min\big(1,\ b_{1SA}\,D^{b_{2SA}}/(\tfrac{\pi}{4} D^2)\big)`$ of the basal area
@@ -354,16 +354,16 @@ is re-valued by $`\Delta W c_{liq}(T_1-T_0+T_{sc})`$ each step, large when wet s
 
 | Concept | Routine |
 |---|---|
-| leaf/wood balance + exact exponential relaxation, eqs. (1), (3)–(7) | `meds_plant_energy`: `tissue_energy_balance` |
+| leaf/wood balance + exact exponential relaxation, eqs. (1), (3)–(7) | `ed_plant_energy`: `tissue_energy_balance` |
 | coefficients $h$, $g$, emission slope | `sensible_heat_coeff`, `leaf_transp_coeff`, `leaf_film_coeff`, `lw_emission_slope` |
 | a latent pathway, eq. (2) | `latent_pathway` (`latent_pathway_t`) |
 | every cohort's wood and leaf at one canopy-air state | `canopy_tissue_energy` |
-| tissue heat capacity, eq. (8), and $`a_{\rm store}`$ | `tissue_hcap_per_dt`, per cohort in `meds_fast_integ_frozen`'s `tissue_coefficients`; the dry part `derive_cohort_terms` (`meds_fast_state`) |
-| tissue energy and temperature, eqs. (9)–(10) | `meds_therm_lib`: `tissue_temp_to_energy`, `tissue_energy_to_temp` |
-| the fast step's energy commit | `meds_plant_energy`: `commit_tissue_energy` |
-| a cohort's temperatures from its energies; holding them through a change of mass | `meds_cohort_state_vars`: `cohort_tissue_temps`, `set_cohort_tissue_temps`, `hold_cohort_tissue_temps` |
-| ground surface (the snow/bare blend) and skin fluxes | `meds_surface`: `ground_surface_exchange`, `ground_surface_fluxes` |
-| canopy interception | `meds_canopy_water`: `intercept_canopy_layer`, swept over the cohorts by `canopy_interception`; `limit_film_evaporation`, `clamp_canopy_film` |
+| tissue heat capacity, eq. (8), and $`a_{\rm store}`$ | `tissue_hcap_per_dt`, per cohort in `ed_fast_integ_frozen`'s `tissue_coefficients`; the dry part `derive_cohort_terms` (`ed_fast_state`) |
+| tissue energy and temperature, eqs. (9)–(10) | `ed_therm_lib`: `tissue_temp_to_energy`, `tissue_energy_to_temp` |
+| the fast step's energy commit | `ed_plant_energy`: `commit_tissue_energy` |
+| a cohort's temperatures from its energies; holding them through a change of mass | `ed_cohort_state_vars`: `cohort_tissue_temps`, `set_cohort_tissue_temps`, `hold_cohort_tissue_temps` |
+| ground surface (the snow/bare blend) and skin fluxes | `ed_surface`: `ground_surface_exchange`, `ground_surface_fluxes` |
+| canopy interception | `ed_canopy_water`: `intercept_canopy_layer`, swept over the cohorts by `canopy_interception`; `limit_film_evaporation`, `clamp_canopy_film` |
 
 ## References
 - ED2 `../ED2/ED/src/dynamics/rk4_derivs.f90` — the leaf/wood energy budget in the reference model.

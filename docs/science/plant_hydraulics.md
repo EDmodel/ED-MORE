@@ -1,6 +1,6 @@
 # Plant hydraulics
 
-MEDS resolves water transport per individual as two water stores per cohort, the leaves and the wood (sapwood and fine roots). The xylem joins the two, the roots connect the wood to the soil layers, transpiration drives the top and soil water the bottom. The prognostic state is each tissue's water mass, carried in the cohort state; its potential is read off the tissue's pressure–volume curve. Everything is in **MPa** (never metres of head), matching the leaf gas-exchange input `psi_leaf` and the `[pft].wstress_psi_*` traits of each plant functional type (PFT). The physical reference is Xu et al. (2016, X16), revised for coupled stores, a nonlinear pressure–volume curve and a Kirchhoff-integrated conductance.
+ED-MORE resolves water transport per individual as two water stores per cohort, the leaves and the wood (sapwood and fine roots). The xylem joins the two, the roots connect the wood to the soil layers, transpiration drives the top and soil water the bottom. The prognostic state is each tissue's water mass, carried in the cohort state; its potential is read off the tissue's pressure–volume curve. Everything is in **MPa** (never metres of head), matching the leaf gas-exchange input `psi_leaf` and the `[pft].wstress_psi_*` traits of each plant functional type (PFT). The physical reference is Xu et al. (2016, X16), revised for coupled stores, a nonlinear pressure–volume curve and a Kirchhoff-integrated conductance.
 
 This page gives the plant's curves and flow laws. Each fast step solves them together with the soil's, as one network: [soil_plant_water](soil_plant_water.md).
 
@@ -170,16 +170,16 @@ These are the PFT file's `[hydraulics]` keys (record `plant_hydraulics_t`). Each
 
 | Concept | Routine |
 |---|---|
-| PV curves / capacitance | `meds_plant_hydr_lib`: one `water_curve_t` record per tissue; `tissue_psi_to_water`, `tissue_capacitance`, `tissue_water_to_psi`, `tissue_psi_tlp`, `tissue_rwc_to_psi`, `tissue_psi_to_rwc` |
-| a tissue's water relations in $R$ | `meds_plant_hydr_lib`: `tissue_water_relations`, `tissue_water_to_rwc` |
-| vulnerability curve | `meds_plant_hydr_lib`: `conductance_retained_fraction` |
-| Kirchhoff potential and mean | `meds_plant_hydraulics`: `kirchhoff_potential` (closed forms, or the PFT's table); the Kirchhoff mean conductance inside `xylem_sapflow`, from `kirchhoff_difference` |
-| Kirchhoff table | `kirchhoff_table_t` (`meds_pft_params`), built at load by `build_kirchhoff_table` (`meds_pft_derive`: one 7-point Gauss–Legendre panel per interval, written out in `kirchhoff_panel`); `kirchhoff_tail` past the table (`meds_plant_hydraulics`) |
-| xylem and root conductances | `meds_plant_hydr_lib`: `xylem_max_conductance`, `rhizosphere_conductance`, `root_fraction_profile` |
-| xylem and root flows | `meds_plant_hydraulics`: `xylem_sapflow`, `root_water_uptake`, `root_water_uptake_profile`, and the leaves' supply limit `supply_limited_transpiration` |
-| rooting depth and profile | `meds_plant_hydraulics`: `cohort_root_depth`, `cohort_root_profile`; `crown_gravity_head`, `leaf_node_psi` |
-| the solve | `meds_fast_integ_backward_euler`: `water_step` ([soil_plant_water](soil_plant_water.md)) |
-| the per-PFT table (`cfg%pft%hydraulics`) | `meds_pft_derive`: `derive_pft_tables` |
+| PV curves / capacitance | `ed_plant_hydr_lib`: one `water_curve_t` record per tissue; `tissue_psi_to_water`, `tissue_capacitance`, `tissue_water_to_psi`, `tissue_psi_tlp`, `tissue_rwc_to_psi`, `tissue_psi_to_rwc` |
+| a tissue's water relations in $R$ | `ed_plant_hydr_lib`: `tissue_water_relations`, `tissue_water_to_rwc` |
+| vulnerability curve | `ed_plant_hydr_lib`: `conductance_retained_fraction` |
+| Kirchhoff potential and mean | `ed_plant_hydraulics`: `kirchhoff_potential` (closed forms, or the PFT's table); the Kirchhoff mean conductance inside `xylem_sapflow`, from `kirchhoff_difference` |
+| Kirchhoff table | `kirchhoff_table_t` (`ed_pft_params`), built at load by `build_kirchhoff_table` (`ed_pft_derive`: one 7-point Gauss–Legendre panel per interval, written out in `kirchhoff_panel`); `kirchhoff_tail` past the table (`ed_plant_hydraulics`) |
+| xylem and root conductances | `ed_plant_hydr_lib`: `xylem_max_conductance`, `rhizosphere_conductance`, `root_fraction_profile` |
+| xylem and root flows | `ed_plant_hydraulics`: `xylem_sapflow`, `root_water_uptake`, `root_water_uptake_profile`, and the leaves' supply limit `supply_limited_transpiration` |
+| rooting depth and profile | `ed_plant_hydraulics`: `cohort_root_depth`, `cohort_root_profile`; `crown_gravity_head`, `leaf_node_psi` |
+| the solve | `ed_fast_integ_backward_euler`: `water_step` ([soil_plant_water](soil_plant_water.md)) |
+| the per-PFT table (`cfg%pft%hydraulics`) | `ed_pft_derive`: `derive_pft_tables` |
 
 ## References
 - Xu, Medvigy, Powers, Becknell & Guan (2016), *New Phytologist* — X16 hydraulics.

@@ -1,6 +1,6 @@
 # Soil and plant water: one network
 
-Each `dt_fast`, one patch's water is solved as a single network: the ponded surface water, every soil layer, and each cohort's wood and leaves are **stores**, joined by **paths** along which water flows down its potential gradient. This page says how the stores and paths are joined and solved, and what the solve conserves. The stores' curves (how much water a store holds at a given potential) and the paths' flow laws are in [soil_biophysics](soil_biophysics.md) (retention curves and the soil's boundary processes) and [plant_hydraulics](plant_hydraulics.md) (tissue pressure–volume curves, xylem vulnerability and root geometry). The design record is [MEDS_SPAC_WATER_NETWORK_PLAN](../dev_plans/archive/MEDS_SPAC_WATER_NETWORK_PLAN.md).
+Each `dt_fast`, one patch's water is solved as a single network: the ponded surface water, every soil layer, and each cohort's wood and leaves are **stores**, joined by **paths** along which water flows down its potential gradient. This page says how the stores and paths are joined and solved, and what the solve conserves. The stores' curves (how much water a store holds at a given potential) and the paths' flow laws are in [soil_biophysics](soil_biophysics.md) (retention curves and the soil's boundary processes) and [plant_hydraulics](plant_hydraulics.md) (tissue pressure–volume curves, xylem vulnerability and root geometry). The design record is [ED_SPAC_WATER_NETWORK_PLAN](../dev_plans/archive/MEDS_SPAC_WATER_NETWORK_PLAN.md).
 
 Potentials are in **MPa** and water in **kg m⁻² of ground**. A soil layer's potential is its matric potential; its total head adds $`\rho g z`$ ($`\rho g`$ = `grav_head`, $z<0$ below the surface).
 
@@ -75,7 +75,7 @@ Over one `dt_fast`, the network is advanced by **implicit Euler on sub-steps**. 
 
 with $F_i$ the net inflow, by **Newton** in the unknowns $\tau$:
 
-- The Newton matrix $`J = \partial W/\partial\tau\,/h - \partial F/\partial\tau`$ is solved by eliminating each cohort onto the core (`meds_linear_algebra`, a block arrowhead system): each cohort's 2×2 block is inverted in closed form, its rank-one Schur update is folded into the core, and the core (pond and layers) is LU-factored. The cost grows as cohorts × layers, not as (cohorts + layers)³.
+- The Newton matrix $`J = \partial W/\partial\tau\,/h - \partial F/\partial\tau`$ is solved by eliminating each cohort onto the core (`ed_linear_algebra`, a block arrowhead system): each cohort's 2×2 block is inverted in closed form, its rank-one Schur update is folded into the core, and the core (pond and layers) is LU-factored. The cost grows as cohorts × layers, not as (cohorts + layers)³.
 - A Newton step takes no soil layer or tissue more than 90 % of the way to empty, and moves no dry layer's $S_e$ or tissue's $R$ by more than 0.2; an Armijo line search on the sum of squared, scaled imbalances then backtracks it if needed.
 - Newton has converged when every store's imbalance over the sub-step is below 1 % of the step's absolute water tolerance.
 
@@ -162,19 +162,19 @@ Fixed in the code: the uptake ramp's width (10⁻² MPa), the transpiration corn
 
 | Concept | Routine |
 |---|---|
-| the records: drive, evaluation, state, flows, workspace | `meds_fast_integ_types`: `water_drive_t`, `water_tend_t`, `water_state_t`, `water_flows_t`, `water_work_t`, `ensure_water_capacity` |
-| the state from the model's, and the flows, inflows and Jacobian at one state | `meds_fast_integ_derivs`: `set_water_state`, `water_derivs` |
-| the step: sub-steps, Newton, the Newton matrix, commit | `meds_fast_integ_backward_euler`: `water_step` (and its sub-step routines) |
-| each store's error scale | `meds_fast_integ_control`: `water_scales` |
-| the cohorts' paths (xylem, rhizosphere, crown head), once per slow step | `meds_fast_state`: `derive_cohort_terms` |
-| the soil layers' curves and face weights, once per site | `meds_soil_derive`: `build_profile_hydraulics_layers` |
-| the linear solve (block arrowhead, Schur complement) | `meds_linear_algebra`: `arrowhead_allocate`, `arrowhead_factor`, `arrowhead_solve` |
-| the stores' water relations in their unknowns | `meds_soil_hydr_lib`: `soil_water_relations`, `pond_water_relations` and their inverses, `VG_PORE_CONNECTIVITY`; `meds_plant_hydr_lib`: `tissue_water_relations` and its inverses |
-| the leaf energy balance at held transpiration | `meds_plant_energy`: `transp_held` and `transp_net` of `plant_energy_env_t` |
-| plant flows | `meds_plant_hydraulics`: `root_water_uptake`, `root_water_uptake_profile`, `xylem_sapflow` (through the Kirchhoff mean, the PFT's table from `meds_pft_derive`) and the leaves' supply limit `supply_limited_transpiration`; their conductances `rhizosphere_conductance` and `xylem_max_conductance` (`meds_plant_hydr_lib`); the flows' rounded corner `smooth_max0` (`meds_numerics`) |
-| soil flows | `meds_soil_water`: `soil_water_flux`, `ground_evaporation_rate` (its per-step terms from `ground_evaporation_setup`), `bottom_flux` |
-| one patch's step | `meds_fast_integ_frozen`: `ground_inflow` (the drive; the pond's inflow is `meds_soil_water`'s `pond_inflow`), then `fast_step` calls `water_step` and `record_water_flows` |
-| plant water over the step | `meds_fast_integ_backward_euler`: `advance_plant_water` (ESDIRK2; constant rates, RK45 integrates the same rates in its stages) |
+| the records: drive, evaluation, state, flows, workspace | `ed_fast_integ_types`: `water_drive_t`, `water_tend_t`, `water_state_t`, `water_flows_t`, `water_work_t`, `ensure_water_capacity` |
+| the state from the model's, and the flows, inflows and Jacobian at one state | `ed_fast_integ_derivs`: `set_water_state`, `water_derivs` |
+| the step: sub-steps, Newton, the Newton matrix, commit | `ed_fast_integ_backward_euler`: `water_step` (and its sub-step routines) |
+| each store's error scale | `ed_fast_integ_control`: `water_scales` |
+| the cohorts' paths (xylem, rhizosphere, crown head), once per slow step | `ed_fast_state`: `derive_cohort_terms` |
+| the soil layers' curves and face weights, once per site | `ed_soil_derive`: `build_profile_hydraulics_layers` |
+| the linear solve (block arrowhead, Schur complement) | `ed_linear_algebra`: `arrowhead_allocate`, `arrowhead_factor`, `arrowhead_solve` |
+| the stores' water relations in their unknowns | `ed_soil_hydr_lib`: `soil_water_relations`, `pond_water_relations` and their inverses, `VG_PORE_CONNECTIVITY`; `ed_plant_hydr_lib`: `tissue_water_relations` and its inverses |
+| the leaf energy balance at held transpiration | `ed_plant_energy`: `transp_held` and `transp_net` of `plant_energy_env_t` |
+| plant flows | `ed_plant_hydraulics`: `root_water_uptake`, `root_water_uptake_profile`, `xylem_sapflow` (through the Kirchhoff mean, the PFT's table from `ed_pft_derive`) and the leaves' supply limit `supply_limited_transpiration`; their conductances `rhizosphere_conductance` and `xylem_max_conductance` (`ed_plant_hydr_lib`); the flows' rounded corner `smooth_max0` (`ed_numerics`) |
+| soil flows | `ed_soil_water`: `soil_water_flux`, `ground_evaporation_rate` (its per-step terms from `ground_evaporation_setup`), `bottom_flux` |
+| one patch's step | `ed_fast_integ_frozen`: `ground_inflow` (the drive; the pond's inflow is `ed_soil_water`'s `pond_inflow`), then `fast_step` calls `water_step` and `record_water_flows` |
+| plant water over the step | `ed_fast_integ_backward_euler`: `advance_plant_water` (ESDIRK2; constant rates, RK45 integrates the same rates in its stages) |
 
 ## References
 

@@ -1,6 +1,6 @@
 # Conservation checks
 
-MEDS checks that it conserves carbon, water and energy in two ways, one per timescale. This page
+ED-MORE checks that it conserves carbon, water and energy in two ways, one per timescale. This page
 describes the second, the slow ledger: what it stores, what each operator may declare, how a verdict is
 reached, and how to read the report.
 
@@ -205,12 +205,12 @@ All three are in [soil_carbon](soil_carbon.md) §6–§7, §9.
 
 | Concept | Routine |
 |---|---|
-| the ledger, its phases and report, eqs. (1)–(2) | `meds_slow_ledger`: `slow_ledger_open`, `slow_ledger_mark`, `slow_ledger_declare`, `slow_ledger_report` |
-| an operator's thermal-mass exchange, §4 | `meds_slow_ledger`: `slow_ledger_heat_open`, `slow_ledger_heat_close` |
-| the store | `meds_slow_ledger`: `slow_site_store`, `slow_tissue_energy`; `meds_patch_state_vars`: `soil_water_store`, `soil_energy_store`, `cas_capacities` |
-| the tolerance's flux scale, $`\epsilon_{\mathrm{flux}}`$ | `meds_budget_check`: `BUDGET_RTOL_FLUX` |
-| the fast loop's net carbon, the CO₂ owed, the litter | `meds_slow_ledger`: `slow_fast_carbon_handover`, `slow_co2_handoff`, `litter_carbon_total` |
-| plausibility | `meds_slow_ledger`: `check_plausible`; `meds_soil_carbon`: `soil_carbon_bad_pool` |
-| the soil-carbon seam's worst values | `meds_slow_ledger`: `slow_ledger_soil_check`, called by `meds_slow_state`: `advance_soil_carbon` |
-| where the phases are marked | `meds_slow_dynamics`: `advance_slow_dynamics`, `vegetation_dynamics`, `advance_boundary_dynamics`, `restructure_stand`, `settle_tissue_water` |
+| the ledger, its phases and report, eqs. (1)–(2) | `ed_slow_ledger`: `slow_ledger_open`, `slow_ledger_mark`, `slow_ledger_declare`, `slow_ledger_report` |
+| an operator's thermal-mass exchange, §4 | `ed_slow_ledger`: `slow_ledger_heat_open`, `slow_ledger_heat_close` |
+| the store | `ed_slow_ledger`: `slow_site_store`, `slow_tissue_energy`; `ed_patch_state_vars`: `soil_water_store`, `soil_energy_store`, `cas_capacities` |
+| the tolerance's flux scale, $`\epsilon_{\mathrm{flux}}`$ | `ed_budget_check`: `BUDGET_RTOL_FLUX` |
+| the fast loop's net carbon, the CO₂ owed, the litter | `ed_slow_ledger`: `slow_fast_carbon_handover`, `slow_co2_handoff`, `litter_carbon_total` |
+| plausibility | `ed_slow_ledger`: `check_plausible`; `ed_soil_carbon`: `soil_carbon_bad_pool` |
+| the soil-carbon seam's worst values | `ed_slow_ledger`: `slow_ledger_soil_check`, called by `ed_slow_state`: `advance_soil_carbon` |
+| where the phases are marked | `ed_slow_dynamics`: `advance_slow_dynamics`, `vegetation_dynamics`, `advance_boundary_dynamics`, `restructure_stand`, `settle_tissue_water` |
 | tests | `test/slow/test_slow_ledger.f90` |

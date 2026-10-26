@@ -1,6 +1,6 @@
 # Numerical schemes of the fast loop
 
-How MEDS advances the sub-daily biophysics in time, what the two integrators assume, where they
+How ED-MORE advances the sub-daily biophysics in time, what the two integrators assume, where they
 differ, and which to use. Written for ecological modellers rather than numerical analysts: after
 reading it you can read a run's `[fast]` block and know what it committed you to. The short version
 is in §6: `esdirk2` at `dt_fast = 900 s`, and `dt_fast` is an accuracy setting, not a stability limit.
@@ -13,7 +13,7 @@ Companion pages: [coupled_biophysics](coupled_biophysics.md) describes *what* is
 
 ## 1. The problem: one patch, wildly different clocks
 
-Each `dt_fast` MEDS advances one patch's whole surface: canopy air (heat, moisture, CO₂), leaf and
+Each `dt_fast` ED-MORE advances one patch's whole surface: canopy air (heat, moisture, CO₂), leaf and
 wood temperature, leaf and wood internal water, canopy surface water, a snow pack, a soil thermal
 column and a soil water column. These are coupled — the leaf's temperature sets its transpiration,
 which sets canopy humidity, which sets the leaf's temperature — so they cannot be advanced
@@ -41,11 +41,11 @@ what it does is the single largest determinant of its sub-daily behaviour.
 
 ## 2. The one decision that matters most: what gets frozen
 
-Before any integrator runs, MEDS makes a **semi-discretisation** choice: which quantities are
+Before any integrator runs, ED-MORE makes a **semi-discretisation** choice: which quantities are
 recomputed continuously as the patch's state evolves, and which are computed once at the start of the step
 and held fixed. This is inherited from ED2 and it is deliberate.
 
-MEDS sorts the processes into three categories.
+ED-MORE sorts the processes into three categories.
 
 **Category 0 — frozen once per `dt_fast`** (`build_frozen`, `water_step`, `record_water_flows`):
 
@@ -120,7 +120,7 @@ Selected by `[fast].time_integrator`. Both share the same physical kernels, the 
 and the same conservation ledgers.
 
 > **Why there is no operator-split scheme.** An operator-split backward-Euler stepper, advancing the
-> stores one after another, is the obvious third option, and MEDS does not offer one. It converges to
+> stores one after another, is the obvious third option, and ED-MORE does not offer one. It converges to
 > a **different limit** than ESDIRK2 and RK45 (~0.45 K on canopy-air temperature), so a test anchored on
 > it is anchored on something that is not the answer. It cannot carry the coupled tissue heat store:
 > with correctly sized wood, `cap_wood/cap_cas ≈ 0.5` while `τ_wood ≪ dt_fast`, so tissue and canopy
@@ -130,7 +130,7 @@ and the same conservation ledgers.
 >
 > On provenance: ED2's own default is `INTEGRATION_SCHEME = 1` (RK4). ED2 *does* have an operator
 > split — scheme 3, "hybrid", implicit canopy via `bdf2_solver` — but as an alternative, not the
-> default. MEDS's `rk45` covers the ED2 default lineage.
+> default. ED-MORE's `rk45` covers the ED2 default lineage.
 
 ### `esdirk2` (default) — 2-solve ESDIRK2
 
@@ -190,7 +190,7 @@ stages' increments is the free first-order error estimate:
 ```
 
 Both schemes judge a sub-step by the same weighted root-mean-square of their error estimate
-(`meds_fast_integ_control`), each of the $N$ counted state entries scaled by its group's tolerances:
+(`ed_fast_integ_control`), each of the $N$ counted state entries scaled by its group's tolerances:
 
 ```math
 \lVert\varepsilon\rVert
@@ -393,7 +393,7 @@ the same temperature and the time average is that temperature.
 that crossed its boundary over the window, and the ledger closes when
 $`|r| \le 10^{-6}\,F + f\,\Delta t`$, with $F$ the gross boundary flux (inflow plus outflow) and $f$
 a rate floor: 10⁻³ W m⁻² for energy, 10⁻⁹ kg m⁻² s⁻¹ for water (about 10⁻⁴ mm a day) and
-10⁻⁶ µmol m⁻² s⁻¹ for CO₂ (`meds_budget_check`). The tolerance follows the flux, never the store: a
+10⁻⁶ µmol m⁻² s⁻¹ for CO₂ (`ed_budget_check`). The tolerance follows the flux, never the store: a
 soil column holds ~10⁹ J m⁻², and 10⁻⁶ of that would let a sustained leak of ~1 W m⁻² through every
 step. The energy floor, 0.9 J m⁻² over a 900 s step, sits far above the round-off of the column's
 energy stores and far below any flux the column resolves, and it matches the water floor: 10⁻⁹
@@ -552,7 +552,7 @@ debug_error         = false      # true = HALT on a non-closing budget. Use it w
 
 [output]
 # The work counters are ordinary output variables, off by default; for a numerics study select them in
-# the io config: "mean_work_*_py" = "D M Y"   (meds_io_config.toml, the numerics group)
+# the io config: "mean_work_*_py" = "D M Y"   (ed_io_config.toml, the numerics group)
 ```
 
 **Three traps worth naming.**
@@ -572,7 +572,7 @@ debug_error         = false      # true = HALT on a non-closing budget. Use it w
 
 The fast loop's patches are **independent within a `dt_fast`** — patches couple only through the slow
 loop — so patches are the parallel axis, and threading them costs no accuracy at all. The default
-build compiles the threading in (`-DMEDS_OPENMP=OFF` leaves it out), and a run asks for threads:
+build compiles the threading in (`-DED_OPENMP=OFF` leaves it out), and a run asks for threads:
 
 ```toml
 [run]
@@ -660,24 +660,24 @@ agreement of those aggregates in one realization is reassurance rather than a co
 
 | piece | file |
 |---|---|
-| the step, the shared adaptive march (eqs. (3)–(4)) and the RK45→ESDIRK2 stiff rescue | `src/fast_dynamics/integrator/meds_fast_integ_stepper.f90` (`fast_step`, `adaptive_march`) |
-| the records and the march state's arithmetic | `src/fast_dynamics/integrator/meds_fast_integ_types.f90` |
-| ESDIRK2 scheme (config name `esdirk2`), eqs. (1)–(2) | `src/fast_dynamics/integrator/meds_fast_integ_esdirk2.f90` (`esdirk2_step`) |
-| adaptive Cash–Karp scheme | `src/fast_dynamics/integrator/meds_fast_integ_rk45.f90` (`rk45_step`, `rk45_state_railed`) |
-| the shared right-hand side | `src/fast_dynamics/integrator/meds_fast_integ_derivs.f90` (`march_derivs`, `surface_derivs`) |
-| the frozen record, Category 0 | `src/fast_dynamics/integrator/meds_fast_integ_frozen.f90` (`build_frozen`, `record_water_flows`) |
-| the implicit stage and its leaf↔canopy-air Newton | `src/fast_dynamics/integrator/meds_fast_integ_backward_euler.f90` (`backward_euler_stage`, `newton_surface_solve`) |
-| the soil–plant water network | `meds_fast_integ_backward_euler.f90` (`water_step`), its flows and Jacobian in `meds_fast_integ_derivs.f90` (`water_derivs`) ([soil_plant_water](soil_plant_water.md)) |
-| the commit and the seven ledgers (§5b) | `src/fast_dynamics/integrator/meds_fast_integ_update.f90` (`update_dynamic_state`, `close_ledgers`) |
-| error norm and step controller, eqs. (3)–(4) | `src/fast_dynamics/integrator/meds_fast_integ_control.f90` (`state_wrms_grouped`, `step_control_factor`); the tolerance set and the error control from config: `build_tol_set`, `build_error_control` there |
-| shared snow stage, its exchange and commit | `meds_surface.f90` (`prepare_snow_stage`, `ground_surface_exchange`), called from `meds_fast_integ_frozen.f90` (`build_frozen`) and `meds_fast_integ_derivs.f90` (`surface_derivs`); `meds_fast_integ_update.f90` (`update_dynamic_state`) |
-| patch loop, per-thread step data, order-preserving reductions (§6a) | `src/fast_dynamics/driver/meds_fast_dynamics.f90` (`fast_dynamics`) |
-| the linear solvers and the conservation test (§9) | `src/share/meds_linear_algebra.f90`, `src/share/meds_numerics.f90` (`conserved`) |
+| the step, the shared adaptive march (eqs. (3)–(4)) and the RK45→ESDIRK2 stiff rescue | `src/fast_dynamics/integrator/ed_fast_integ_stepper.f90` (`fast_step`, `adaptive_march`) |
+| the records and the march state's arithmetic | `src/fast_dynamics/integrator/ed_fast_integ_types.f90` |
+| ESDIRK2 scheme (config name `esdirk2`), eqs. (1)–(2) | `src/fast_dynamics/integrator/ed_fast_integ_esdirk2.f90` (`esdirk2_step`) |
+| adaptive Cash–Karp scheme | `src/fast_dynamics/integrator/ed_fast_integ_rk45.f90` (`rk45_step`, `rk45_state_railed`) |
+| the shared right-hand side | `src/fast_dynamics/integrator/ed_fast_integ_derivs.f90` (`march_derivs`, `surface_derivs`) |
+| the frozen record, Category 0 | `src/fast_dynamics/integrator/ed_fast_integ_frozen.f90` (`build_frozen`, `record_water_flows`) |
+| the implicit stage and its leaf↔canopy-air Newton | `src/fast_dynamics/integrator/ed_fast_integ_backward_euler.f90` (`backward_euler_stage`, `newton_surface_solve`) |
+| the soil–plant water network | `ed_fast_integ_backward_euler.f90` (`water_step`), its flows and Jacobian in `ed_fast_integ_derivs.f90` (`water_derivs`) ([soil_plant_water](soil_plant_water.md)) |
+| the commit and the seven ledgers (§5b) | `src/fast_dynamics/integrator/ed_fast_integ_update.f90` (`update_dynamic_state`, `close_ledgers`) |
+| error norm and step controller, eqs. (3)–(4) | `src/fast_dynamics/integrator/ed_fast_integ_control.f90` (`state_wrms_grouped`, `step_control_factor`); the tolerance set and the error control from config: `build_tol_set`, `build_error_control` there |
+| shared snow stage, its exchange and commit | `ed_surface.f90` (`prepare_snow_stage`, `ground_surface_exchange`), called from `ed_fast_integ_frozen.f90` (`build_frozen`) and `ed_fast_integ_derivs.f90` (`surface_derivs`); `ed_fast_integ_update.f90` (`update_dynamic_state`) |
+| patch loop, per-thread step data, order-preserving reductions (§6a) | `src/fast_dynamics/driver/ed_fast_dynamics.f90` (`fast_dynamics`) |
+| the linear solvers and the conservation test (§9) | `src/share/ed_linear_algebra.f90`, `src/share/ed_numerics.f90` (`conserved`) |
 
 ## 9. The shared numerical tools
 
-Every layer of the model uses the linear solvers in `meds_linear_algebra` and the small helpers in
-`meds_numerics`. Their sizes are passed as arguments rather than read from the arrays, so a caller
+Every layer of the model uses the linear solvers in `ed_linear_algebra` and the small helpers in
+`ed_numerics`. Their sizes are passed as arguments rather than read from the arrays, so a caller
 keeps fixed-size storage (the soil column holds `n_soil_layer_max` layers) and passes the size it
 uses. None of them passes an array-valued function result straight into a call, which nvfortran
 miscompiles (`docs/building.md`).

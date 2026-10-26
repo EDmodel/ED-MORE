@@ -38,7 +38,7 @@ because the surface layer is solved again at every integrator stage; the stand t
 feedback hardest is a mid-height canopy ([numerical_scheme](numerical_scheme.md) §5a′).
 
 All three variables are advanced by the shared box kernel `cas_box_step_implicit` /
-`cas_box_time_deriv` (`meds_canopy_air_space`), which is implicit in the atmosphere exchange. Each
+`cas_box_time_deriv` (`ed_canopy_air_space`), which is implicit in the atmosphere exchange. Each
 obeys
 
 ```math
@@ -61,7 +61,7 @@ The **humidity** follows the same form, with $`g_{aw}=\rho u_*\,\mathrm{temp2}`$
 only in units. CO₂ is a molar mixing ratio, so the capacity is the dry-air molar column
 $`C_{cap}=\rho\,(1-q)/M_{d}\cdot D_{can}`$ [mol m⁻²] and the conductance is
 $`g_{ac}=\rho_{mol}\,u_*\,\mathrm{temp2}`$. Its biotic source is $`F_{bio}=R_a+R_h-\mathrm{GPP}`$ (net
-ecosystem exchange), assembled once per `dt_fast` by `build_frozen` (`meds_fast_integ_frozen`) from
+ecosystem exchange), assembled once per `dt_fast` by `build_frozen` (`ed_fast_integ_frozen`) from
 four terms:
 
 - the aggregated cohort GPP and leaf respiration ($`\times`$ LAI);
@@ -84,8 +84,8 @@ takes only its liquid enthalpy; the latent heat stays in the air. The driver add
 snow sublimation, to the source before the box is stepped.
 
 The box has two forms, one for each integrator. `cas_box_step_implicit` is the backward-Euler box
-commit of each ESDIRK2 stage (`meds_fast_integ_backward_euler`); `cas_box_time_deriv` is the explicit
-right-hand side the RK45 stepper integrates (`surface_derivs`, `meds_fast_integ_derivs`). Both take one
+commit of each ESDIRK2 stage (`ed_fast_integ_backward_euler`); `cas_box_time_deriv` is the explicit
+right-hand side the RK45 stepper integrates (`surface_derivs`, `ed_fast_integ_derivs`). Both take one
 record, `cas_env_t`, with the pre-assembled sources and the capacities, conductances and atmospheric
 boundary conditions. Any scheme-specific adjustment is folded into the source by the driver, so the box
 math is shared by both schemes.
@@ -115,15 +115,15 @@ wrote it.
 
 | Concept | Routine |
 |---|---|
-| the canopy air's enthalpy, humidity and CO₂ (two-form box), eqs. (1)–(2) | `meds_canopy_air_space`: `cas_box_step_implicit`, `cas_box_time_deriv` |
-| what the box reads: capacities, conductances, the atmosphere, the sources | `meds_canopy_air_space`: `cas_env_t` |
-| capacities $`W_{cap}`$, $`C_{cap}`$ | `meds_patch_state_vars`: `cas_capacities` (the frozen build and the slow ledger) |
-| conductances, eq. (6) of canopy_aerodynamics | `meds_canopy_aerodynamics`: `cas_atm_conductances`, `canopy_air_conductances` |
-| condensation sink | `meds_canopy_air_space`: `cas_condensation` |
-| temperature ↔ enthalpy | `meds_therm_lib`: `cas_temp_to_enthalpy`, `cas_enthalpy_to_temp`, `cas_molar_density` |
-| biotic CO₂ source $`F_{bio}`$ | `meds_fast_integ_frozen`: `build_frozen` |
-| CAS depth and open-volume exchange | `refresh_canopy_depth` (`meds_slow_update`), `cas_set_depth` (`meds_patch_state_vars`) |
-| the start's canopy air | `seed_patch_stores` (`meds_init_bare_ground`, the placeholder); `seed_start_canopy_air` (`meds_fast_state`), called by `fast_dynamics` at the first window |
+| the canopy air's enthalpy, humidity and CO₂ (two-form box), eqs. (1)–(2) | `ed_canopy_air_space`: `cas_box_step_implicit`, `cas_box_time_deriv` |
+| what the box reads: capacities, conductances, the atmosphere, the sources | `ed_canopy_air_space`: `cas_env_t` |
+| capacities $`W_{cap}`$, $`C_{cap}`$ | `ed_patch_state_vars`: `cas_capacities` (the frozen build and the slow ledger) |
+| conductances, eq. (6) of canopy_aerodynamics | `ed_canopy_aerodynamics`: `cas_atm_conductances`, `canopy_air_conductances` |
+| condensation sink | `ed_canopy_air_space`: `cas_condensation` |
+| temperature ↔ enthalpy | `ed_therm_lib`: `cas_temp_to_enthalpy`, `cas_enthalpy_to_temp`, `cas_molar_density` |
+| biotic CO₂ source $`F_{bio}`$ | `ed_fast_integ_frozen`: `build_frozen` |
+| CAS depth and open-volume exchange | `refresh_canopy_depth` (`ed_slow_update`), `cas_set_depth` (`ed_patch_state_vars`) |
+| the start's canopy air | `seed_patch_stores` (`ed_init_bare_ground`, the placeholder); `seed_start_canopy_air` (`ed_fast_state`), called by `fast_dynamics` at the first window |
 
 ## References
 

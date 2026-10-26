@@ -1,6 +1,6 @@
 # Demography
 
-MEDS represents a site's vegetation as **cohorts**: plants of one plant functional type (PFT) and one
+ED-MORE represents a site's vegetation as **cohorts**: plants of one plant functional type (PFT) and one
 size, with a density $n$ [plant m⁻²], living in **patches**, pieces of the site's ground that share one
 disturbance history. This page gives the laws and operators that change that structure over the slow
 steps:
@@ -338,16 +338,16 @@ L_{\uparrow,j} = \sum_{i\,:\,h_i > h_j} n_i\,A_{\mathrm{leaf},i} \qquad(11)
 
 | Concept | Routine |
 |---|---|
-| the demographic laws, eqs. (1), (3)–(7); the founding test and treefall survival | `meds_demography`: `npp_to_growth`, `camac_mortality`, `decline_to_floor_mortality`, `recruit_efficiency`, `npp_to_recruitment`, `founds_cohort`, `disturbed_fraction`, `survives_treefall` |
-| $c_{\min}$ | `meds_pft_derive`: `derive_recruit_carbon` |
-| the rates per cohort and patch; the month's founding and the year's treefall decisions | `meds_slow_state`: `cohort_recruit_efficiency`, `compute_vital_rates`, `decide_recruitment`, `decide_disturbance` |
-| the growth history, eq. (2) | `meds_slow_update`: `update_cohort_derivatives`, `fill_cohort_deriv`; the window length `growth_window_steps` in `meds_config` |
-| applying growth and mortality, eq. (8) | `meds_slow_update`: `commit_vegetation_step`, `update_cohort_states`, `advance_pool`, `advance_density` |
-| mortality's litter and water, eq. (9); the cull's and the treefall's litter; the recruit pool | `meds_slow_state`: `accumulate_mortality_litter`, `shed_mortality_water`, `kill_litter`; `meds_slow_update`: `accumulate_recruit_pool` |
-| sort, fusion, fission, the cull, recruitment | `meds_slow_update`: `sort_cohorts`, `fuse_cohorts`, `fuse_2_cohorts`, `split_cohorts`, `terminate_cohorts`, `apply_recruitment` |
-| treefall gaps, patch fusion, termination, eq. (10) | `meds_slow_update`: `apply_patch_disturbance`, `fuse_patches`, `fuse_patch_into`, `terminate_patches`, `light_profile_of` |
-| the overtopping LAI, eq. (11) | `meds_slow_update`: `update_overtopping_lai`; `meds_numerics`: `equal_height_layers` |
-| the order of the operators | `meds_slow_dynamics`: `vegetation_dynamics`, `restructure_stand` |
+| the demographic laws, eqs. (1), (3)–(7); the founding test and treefall survival | `ed_demography`: `npp_to_growth`, `camac_mortality`, `decline_to_floor_mortality`, `recruit_efficiency`, `npp_to_recruitment`, `founds_cohort`, `disturbed_fraction`, `survives_treefall` |
+| $c_{\min}$ | `ed_pft_derive`: `derive_recruit_carbon` |
+| the rates per cohort and patch; the month's founding and the year's treefall decisions | `ed_slow_state`: `cohort_recruit_efficiency`, `compute_vital_rates`, `decide_recruitment`, `decide_disturbance` |
+| the growth history, eq. (2) | `ed_slow_update`: `update_cohort_derivatives`, `fill_cohort_deriv`; the window length `growth_window_steps` in `ed_config` |
+| applying growth and mortality, eq. (8) | `ed_slow_update`: `commit_vegetation_step`, `update_cohort_states`, `advance_pool`, `advance_density` |
+| mortality's litter and water, eq. (9); the cull's and the treefall's litter; the recruit pool | `ed_slow_state`: `accumulate_mortality_litter`, `shed_mortality_water`, `kill_litter`; `ed_slow_update`: `accumulate_recruit_pool` |
+| sort, fusion, fission, the cull, recruitment | `ed_slow_update`: `sort_cohorts`, `fuse_cohorts`, `fuse_2_cohorts`, `split_cohorts`, `terminate_cohorts`, `apply_recruitment` |
+| treefall gaps, patch fusion, termination, eq. (10) | `ed_slow_update`: `apply_patch_disturbance`, `fuse_patches`, `fuse_patch_into`, `terminate_patches`, `light_profile_of` |
+| the overtopping LAI, eq. (11) | `ed_slow_update`: `update_overtopping_lai`; `ed_numerics`: `equal_height_layers` |
+| the order of the operators | `ed_slow_dynamics`: `vegetation_dynamics`, `restructure_stand` |
 | tests | `test/slow/test_demography.f90` (the laws), `test/slow/test_slow_update.f90` (the operators), `test/slow/test_slow_step.f90` (the step) |
 
 ## References

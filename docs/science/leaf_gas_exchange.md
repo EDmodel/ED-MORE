@@ -1,12 +1,12 @@
 # Leaf gas exchange
 
-How MEDS computes the CO₂ uptake and water loss of a leaf: the photosynthetic demand for CO₂, the
+How ED-MORE computes the CO₂ uptake and water loss of a leaf: the photosynthetic demand for CO₂, the
 stomatal conductance that supplies it, the effect of drought on both, and the solver that makes them
 consistent. The code is
-[`src/fast_dynamics/processes/meds_leaf_gas_exchange.f90`](../../src/fast_dynamics/processes/meds_leaf_gas_exchange.f90);
+[`src/fast_dynamics/processes/ed_leaf_gas_exchange.f90`](../../src/fast_dynamics/processes/ed_leaf_gas_exchange.f90);
 the public entry points are `solve_leaf_gas_exchange` and `leaf_gas_exchange_batch`. Each PFT's
 (plant functional type's) parameters are flattened from the configuration once, at load, into the
-leaf table of the PFT table (`meds_pft_derive`).
+leaf table of the PFT table (`ed_pft_derive`).
 
 The kernel takes one leaf's environment as given (incident PAR, leaf temperature, vapour pressure
 deficit, CO₂, pressure, water potentials, boundary-layer conductance) and does no radiation, energy
@@ -67,7 +67,7 @@ its place would give the O₂-evolution yield, 0.106 (Björkman & Demmig 1987).
 **$`\Gamma^*`$ is proportional to the oxygen partial pressure**, because it is set by Rubisco's
 specificity for CO₂ over O₂: $`\Gamma^* = \tfrac{1}{2} O / S_{c/o}`$. The O₂ partial pressure is
 the O₂ mole fraction times the air's pressure, as the CO₂ one is, so $`\Gamma^*`$ as a mole fraction
-depends on the O₂ mole fraction and **not on pressure**. MEDS computes it as a mole fraction from the
+depends on the O₂ mole fraction and **not on pressure**. ED-MORE computes it as a mole fraction from the
 O₂ mole fraction and the pressure its reference value is stated at:
 
 ```math
@@ -79,7 +79,7 @@ The shipped `gstar25` = 4.275 Pa is Bernacchi et al. (2001)'s 42.75 µmol mol⁻
 as a partial pressure at 100 kPa, so $`\Gamma^*`$ at 25 °C is 42.75 µmol mol⁻¹ at any elevation.
 $`K_c`$ and $`K_o`$, the Michaelis constants of dissolved CO₂ and O₂, are partial pressures and are
 divided by the local pressure, so $`O/K_o`$ is the ratio of the two partial pressures
-(`rubisco_kinetics` in `meds_leaf_gas_exchange`; `meds.plant.leaf.rubisco_kinetics` in Python).
+(`rubisco_kinetics` in `ed_leaf_gas_exchange`; `ed.plant.leaf.rubisco_kinetics` in Python).
 Dividing `gstar25` by the local pressure instead would raise $`\Gamma^*`$ with elevation and cut
 gross photosynthesis in dim light, where photorespiration sets the quantum yield.
 
@@ -101,7 +101,7 @@ The three rates are combined into $A_g$ either as a sharp $\min(A_c,A_j,A_p)$
 **Temperature.** $`K_c`$, $`K_o`$ and $`\Gamma^*`$ scale from 25 °C by the plain Arrhenius form
 $`f_{\mathrm{Arr}}`$ of eq. (3), with the activation energies of Bernacchi et al. (2001).
 $`V_{cmax}`$, $`J_{max}`$, TPU, $`R_d`$ and the C4 $`k_p`$ take the form that
-`[leaf_physiology].temp_response_form` selects, plain or peaked (`meds_therm_lib`;
+`[leaf_physiology].temp_response_form` selects, plain or peaked (`ed_therm_lib`;
 [plant_respiration](plant_respiration.md) eq. (5)). TPU and $`k_p`$ have no temperature parameters of
 their own: both take $`V_{cmax}`$'s, and with them its high-temperature deactivation under the peaked
 form.
@@ -170,7 +170,7 @@ Three choices here are deliberate:
   but pin the two branches in a fixed proportion, which is not what the study measured: a warm-grown
   plant invests relatively less in electron transport.
 - **$T_g$ is the growth temperature, not the leaf temperature.** The fit is calibrated against the
-  mean air temperature of the preceding weeks, so MEDS tracks an exponential running mean of the
+  mean air temperature of the preceding weeks, so ED-MORE tracks an exponential running mean of the
   daily-mean air temperature (window `acclim_window_days`, default 30 d) and feeds that. An
   instantaneous leaf temperature would use the relation far outside what it was fitted to.
 - **It is one value per site, not per cohort**, for the same reason: each site keeps a running mean of
@@ -183,7 +183,7 @@ memory after every restart would make the acclimated optimum jump. A mean not ye
 first day's value outright, so the optimum starts from the site's own climate. It is applied by
 refreshing the per-PFT leaf table once per slow step from the reference coefficients in the
 configuration, which are never overwritten, so the refresh is idempotent (`acclimate_site_leaf_tables`
-in `meds_slow_state`, `acclimate_leaf_photo_table` in `meds_plant_traits`). `thermal_acclimation`
+in `ed_slow_state`, `acclimate_leaf_photo_table` in `ed_plant_traits`). `thermal_acclimation`
 requires the peaked form: with the Arrhenius form there is no $`\Delta S`$ to shift, and the loader
 refuses the combination.
 
@@ -243,7 +243,7 @@ Parameters: `katul_lambda25` ($\lambda_{25}$) and the water-stress terms below. 
 
 ## 4. Water stress — a fast and a slow control
 
-Drought reduces carbon gain in two ways, and MEDS treats them separately, following the two-factor
+Drought reduces carbon gain in two ways, and ED-MORE treats them separately, following the two-factor
 decomposition of Sabot et al. (2022) and Zhou et al. (2013): it lowers the photosynthetic **capacity**
 (biochemistry) and it narrows the **stomatal** aperture. The two act on different time scales, as in
 Xu et al. (2016)'s ED2 scheme: capacity follows the leaf's own current water potential, the aperture
@@ -295,7 +295,7 @@ for that threshold because a tall tree's gravity head is present even in wet soi
 
 **What drives $`\beta_s`$.** The stomatal driver is a supply-side potential $\psi$ (`leaf_env_t%psi`;
 the default 0 is well-watered), while the capacity driver is the current $\psi_{leaf}$, the
-demand-side tension. Sabot writes $\psi$ as the soil or predawn potential. MEDS supplies the cohort's
+demand-side tension. Sabot writes $\psi$ as the soil or predawn potential. ED-MORE supplies the cohort's
 own predawn potential, taken as the **previous day's daily-maximum leaf water potential**. That is the
 quantity the field measurements behind $`s_{ref}`$ describe. It is also the plant's own integration over
 its rooted profile, so it carries rooting depth, per-PFT vulnerability and the gravity head, which no
@@ -322,7 +322,7 @@ ED2's `farq_katul.f90` (Xu et al. 2016's scheme, `H2O_PLANT_LIM = 4`) has the sa
 turgor-loss capacity term on the leaf potential at the start of each step, and a Manzoni-style
 `stoma_beta` on the day's running maximum potential. The forms differ:
 
-| | MEDS | ED2 (`farq_katul.f90`) |
+| | ED-MORE | ED2 (`farq_katul.f90`) |
 |---|---|---|
 | **capacity shape** | linear ramp in $\psi_{leaf}$ from $\psi_{tlp}$ to $2\psi_{tlp}$ | $`1/\bigl(1+0.1(\psi_{leaf}/\psi_{tlp})^{6}\bigr)`$, a 6th-power turgor-loss curve |
 | **capacity targets** | $V_{cmax}$, $J_{max}$ **and** TPU | $J_{max}$ and quantum yield $\alpha$ only ($V_{cmax}$ and TPU are commented out) |
@@ -332,17 +332,17 @@ turgor-loss capacity term on the leaf potential at the start of each step, and a
 
 **Capacity shape and targets.** Both anchor the capacity term on $\psi_{tlp}$. ED2 applies it to
 $J_{max}$ and $\alpha$ and leaves $V_{cmax}$ untouched, so it acts only on the light-limited branch.
-MEDS downregulates all three potential rates together, which is what the underlying observations
-describe, and so the effect does not depend on which limitation a leaf is under. MEDS also applies it
+ED-MORE downregulates all three potential rates together, which is what the underlying observations
+describe, and so the effect does not depend on which limitation a leaf is under. ED-MORE also applies it
 for every stomatal model, not just Katul, because capacity downregulation is biochemistry. The ramp is
 linear, so its response to an error in $\psi_{leaf}$ is linear too; ED2's sixth power would amplify the
 same error more.
 
 **Stomatal scope.** Restricting $\beta_s$ to Katul, as ED2 does, would leave the two explicit schemes
-with no stomatal drought response. MEDS applies it to all three; for Medlyn the exponent $e = 2$ makes
+with no stomatal drought response. ED-MORE applies it to all three; for Medlyn the exponent $e = 2$ makes
 it equivalent to Katul's, because Medlyn gives $`g_1 \propto \lambda^{-1/2}`$ (§4.2).
 
-**Parameter split.** MEDS's $`s_{ref}\,e`$ is ED2's `stoma_beta`, the same exponential in the same
+**Parameter split.** ED-MORE's $`s_{ref}\,e`$ is ED2's `stoma_beta`, the same exponential in the same
 potential, so a value calibrated for one transfers to the other as
 $`\texttt{stoma\_beta} = -s_{ref}\,e`$. For Katul alone only the product matters, so the split is
 degenerate there; it is useful because $s_{ref}$ alone drives the Leuning and Medlyn limb, which ED2
@@ -362,7 +362,7 @@ conductance.
 so strictly its relative humidity is the Kelvin value $`\mathrm{RH}=\exp\!\big(\psi/(\rho_w R_v T)\big)`$
 and not 1. Transpiration on $`e_i=\mathrm{RH}\cdot e_{sat}`$ would shrink the vapour gradient
 continuously as the leaf dries and reverse it once $`e_i<e_a`$ (foliar water uptake), which would
-arrest transpiration with no threshold parameter, at $`\psi=\rho_w R_v T\ln(\mathrm{RH}_{air})`$. MEDS
+arrest transpiration with no threshold parameter, at $`\psi=\rho_w R_v T\ln(\mathrm{RH}_{air})`$. ED-MORE
 applies this relation to soil evaporation (`ground_evaporation_rate`, `alpha_soil`) but not to leaves.
 
 The leaf humidity cannot simply scale the latent flux. A tissue's latent flux is linearised about the
@@ -382,7 +382,7 @@ re-tune $`g_1`$.
 ## 5. The coupled solver
 
 `solve_leaf_gas_exchange` brackets $`C_i \in (\Gamma^*, C_{i,open}]`$ and finds the root of the residual
-by the Illinois method (the module's private `root_ci`, on the Illinois steps of `meds_numerics`):
+by the Illinois method (the module's private `root_ci`, on the Illinois steps of `ed_numerics`):
 regula falsi on the bracket, which halves the kept end's residual whenever the same end is kept twice,
 so both ends close in. It needs far fewer residual evaluations than bisection and stops when the
 bracket is narrower than the tolerance `CI_TOL_PPM` (10⁻³ µmol mol⁻¹):
@@ -440,19 +440,19 @@ selectors are in `[leaf_physiology]`.
 
 ## Code map
 
-| Concept | Routine (`meds_leaf_gas_exchange` unless noted) |
+| Concept | Routine (`ed_leaf_gas_exchange` unless noted) |
 |---|---|
 | Rubisco kinetics $K_c$, $K_o$, $`\Gamma^*`$ in µmol mol⁻¹, eq. (3) | `rubisco_kinetics` |
 | C3 and C4 demand, eq. (2) | `assimilation_demand_c3`, `assimilation_demand_c4`, `combine_limits` |
 | electron transport $J$ | `electron_transport_j` |
-| temperature responses and acclimation, eq. (4) | `meds_therm_lib`: `temp_response`, `kattge_knorr_entropy`, `kattge_knorr_jv_ratio`; `meds_plant_traits`: `acclimate_leaf_photo_table` |
+| temperature responses and acclimation, eq. (4) | `ed_therm_lib`: `temp_response`, `kattge_knorr_entropy`, `kattge_knorr_jv_ratio`; `ed_plant_traits`: `acclimate_leaf_photo_table` |
 | Leuning, Medlyn, Katul $\lambda$, eqs. (5)–(7) | `stomata_gs_leuning`, `stomata_gs_medlyn`, `katul_lambda` |
-| the two water-stress controls, eqs. (9)–(10) | `capacity_stress_factor` ($`\beta_{ns}`$), `stomatal_stress_factor` ($`\beta_s`$); `meds_pft_derive`: `pft_wstress_psi_open`, `pft_wstress_psi_close`, `pft_stomata_psi_onset` |
+| the two water-stress controls, eqs. (9)–(10) | `capacity_stress_factor` ($`\beta_{ns}`$), `stomatal_stress_factor` ($`\beta_s`$); `ed_pft_derive`: `pft_wstress_psi_open`, `pft_wstress_psi_close`, `pft_stomata_psi_onset` |
 | coupled solve | `solve_leaf_gas_exchange`; over n leaves, `leaf_gas_exchange_batch` |
 | a leaf's table entry with the cohort's capacities | `leaf_params_at_capacity` |
 | a cohort's incident PAR per unit of its own leaf area | `cohort_leaf_par` |
 | residuals, eqs. (1), (8) | `ci_residual`, then `residual_explicit_gs` or `residual_optimality` |
-| root finder | `root_ci` (private), on `meds_numerics`' `root_bracket_t`, `regula_falsi_point` and `illinois_narrow` |
+| root finder | `root_ci` (private), on `ed_numerics`' `root_bracket_t`, `regula_falsi_point` and `illinois_narrow` |
 
 ## References
 

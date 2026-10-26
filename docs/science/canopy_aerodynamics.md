@@ -1,6 +1,6 @@
 # Canopy aerodynamics
 
-How MEDS computes the turbulent transfer that couples the canopy air space (CAS) to the free
+How ED-MORE computes the turbulent transfer that couples the canopy air space (CAS) to the free
 atmosphere above and to the leaf, wood and ground surfaces inside it. The page gives the roughness
 geometry, the Monin–Obukhov surface layer, the conductances of the canopy air's three variables, the
 ground conductance, the in-canopy wind and the leaf and wood boundary layers.
@@ -84,7 +84,7 @@ u_m = \begin{cases}\bar u & \zeta\ge0\\[2pt]
 with $\beta = 1$ and the mixed-layer depth $`z_i`$ = 1000 m (CLM5's constants). As in CLM5, each sweep's
 $\zeta$ is held in $`[-100,\ \zeta_{max,stable}]`$ (`zeta_max_stable`, 0.5). Without the upper bound a
 stable night runs past $\zeta = 1$, where $`u_*`$ falls to $`u_{*,min}`$ and the coupling no longer
-depends on the wind. CLM5 also keeps $|\zeta| \ge 0.01$ at each sweep; MEDS keeps it only in the first
+depends on the wind. CLM5 also keeps $|\zeta| \ge 0.01$ at each sweep; ED-MORE keeps it only in the first
 guess, because nothing divides by $\zeta$ near neutral and the bound would put a jump in $`u_*`$ there.
 The buoyancy flux $`-u_*\theta_{v*}`$ vanishes as the air turns neutral, so $w_c$ does too, and the
 wind, with it $`u_*`$ and the conductances, passes through neutral without a jump. Only the first
@@ -249,7 +249,7 @@ g_{bh} = \max\!\Big(g_{bh,min},\ \big(\mathrm{Nu}_{forced}+\mathrm{Nu}_{free}\bi
 
 The kinematic viscosity $\nu$ and thermal diffusivity $\alpha_{th}$ are linear-in-temperature about a
 0 °C reference (`kin_visc0`, `dkin_visc`, `th_diff0`, `dth_diff`, `t_ref_air`): 1.52×10⁻⁵ and
-2.15×10⁻⁵ m² s⁻¹ at 20 °C. ED2 forms the Reynolds number with $\alpha_{th}$; MEDS uses $\nu$, its
+2.15×10⁻⁵ m² s⁻¹ at 20 °C. ED2 forms the Reynolds number with $\alpha_{th}$; ED-MORE uses $\nu$, its
 definition ([ED2 comparison](../ed2_comparison.md) §4.9). The floor is
 $`g_{bh,min}=`$ `gbhmos_min`. The vapour conductance is $`g_{bw}=1.075\,g_{bh}`$ (`gbh_2_gbw`).
 $g_{bh}$ is a velocity [m s⁻¹]; the energy kernel uses it directly, and the leaf gas exchange forms the
@@ -262,7 +262,7 @@ The `[aerodynamics]` block, held in `aero_params_t`; every key is optional.
 
 | Symbol | Config key | Meaning |
 |---|---|---|
-| $`\kappa`$ | none (`von_karman` in `meds_constants`) | von Karman constant (0.4) |
+| $`\kappa`$ | none (`von_karman` in `ed_constants`) | von Karman constant (0.4) |
 | $`c_{z0}`$ | `z0m_ratio` | roughness length over canopy height (0.13) |
 | $`c_d`$ | `d_ratio` | displacement height over canopy height (0.63) |
 | $`z_{0,snow}`$ | `snow_rough` | snow-surface roughness, a buried canopy's $`z_{0m}`$ and the $`z_{0m}`$ floor (0.001 m) |
@@ -287,7 +287,7 @@ The leaf width and branch diameter that set $\ell$ are PFT traits (`[pft]`).
 
 ## Code map
 
-| Concept | Routine (`meds_canopy_aerodynamics` unless noted) |
+| Concept | Routine (`ed_canopy_aerodynamics` unless noted) |
 |---|---|
 | the per-patch entry point | `canopy_aerodynamics` (cohorts reordered, then `aerodynamics_bottom_to_top`) |
 | roughness and displacement, eq. (1) | `canopy_roughness`; burial fraction `canopy_burial_fraction` |
@@ -295,14 +295,14 @@ The leaf width and branch diameter that set $\ell$ are PFT traits (`[pft]`).
 | profile denominators $D_m, D_h$ | `d_mom`, `d_heat` |
 | stability functions $`\Psi_m,\Psi_h`$, eq. (5) | `stabfunc1`, `stabfunc2` |
 | atmosphere↔CAS conductances, eq. (6) | `cas_atm_conductances` |
-| per-stage re-solve of eq. (6) | `canopy_air_conductances`, called by `refresh_cas_conductances` in `meds_fast_integ_derivs` |
+| per-stage re-solve of eq. (6) | `canopy_air_conductances`, called by `refresh_cas_conductances` in `ed_fast_integ_derivs` |
 | ground conductance and open fraction $W$, eq. (7) | `soil_conductance`, `open_canopy_fraction`; blended inside `aerodynamics_bottom_to_top` |
 | canopy-top wind, eq. (8) | `reduced_wind` |
 | in-canopy wind, eq. (9) | `aerodynamics_bottom_to_top` (inline, closed-crown extinction) |
 | leaf and wood Nusselt boundary layer, eqs. (10)–(11) | `boundary_layer_conductance` |
-| types | `meds_biophysics_params`: `aero_params_t`; `aero_env_t`, `aero_args_t`, `aero_out_t` |
+| types | `ed_biophysics_params`: `aero_params_t`; `aero_env_t`, `aero_args_t`, `aero_out_t` |
 | filling the environment | `set_aero_env_atm` (the reference level), `set_aero_env_canopy` (the canopy air and ground) |
-| cohorts of one height are one layer | `meds_numerics`: `equal_height_layers` |
+| cohorts of one height are one layer | `ed_numerics`: `equal_height_layers` |
 
 ## References
 

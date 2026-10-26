@@ -9,8 +9,8 @@
       "binaryDir": "${sourceDir}/build-${presetName}",
       "cacheVariables": {
         "CMAKE_PREFIX_PATH": "$env{CONDA_PREFIX}",
-        "MEDS_IPO": "OFF",
-        "MEDS_CPU_TARGET": ""
+        "ED_IPO": "OFF",
+        "ED_CPU_TARGET": ""
       }
     },
     {
@@ -23,11 +23,11 @@
     {
       "name": "dev",
       "inherits": "kind",
-      "displayName": "dev: -O2, any x86-64 CPU (the default with no build type); meds_main, libmeds.so and the tests",
-      "description": "Everyday work, the tests, comparing outputs between commits: -O2, any x86-64 CPU; meds_main, libmeds.so and the tests",
+      "displayName": "dev: -O2, any x86-64 CPU (the default with no build type); ed_main,   libed.so and the tests",
+      "description": "Everyday work, the tests, comparing outputs between commits: -O2, any x86-64 CPU; ed_main, libed.so and the tests",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "MEDS_BUILD_PYLIB": "ON"
+        "ED_BUILD_PYLIB":   "ON"
       }
     },
     {
@@ -40,13 +40,13 @@
     {
       "name": "production",
       "inherits": "dev",
-      "displayName": "production: IPO and cascadelake; meds_main and libmeds.so",
-      "description": "Long runs: IPO and code for Cascade Lake and later Xeons; meds_main and libmeds.so, no tests",
+      "displayName": "production: IPO and cascadelake; ed_main and libed.so",
+      "description": "Long runs: IPO and code for Cascade Lake and later Xeons; ed_main and libed.so, no tests",
       "cacheVariables": {
-        "MEDS_IPO": "ON",
-        "MEDS_CPU_TARGET": "cascadelake",
-        "MEDS_BUILD_PYLIB": "ON",
-        "MEDS_BUILD_TESTS": "OFF"
+        "ED_IPO": "ON",
+        "ED_CPU_TARGET": "cascadelake",
+        "ED_BUILD_PYLIB":   "ON",
+        "ED_BUILD_TESTS":   "OFF"
       }
     }
   ]

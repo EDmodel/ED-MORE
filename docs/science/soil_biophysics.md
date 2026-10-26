@@ -16,7 +16,7 @@ C(\psi_k)\,\frac{\partial\psi_k}{\partial t}
 \qquad(1)
 ```
 
-with matric potential $`\psi(\theta)`$, hydraulic conductivity $`K(\theta)`$ and specific moisture capacity $`C=d\theta/d\psi`$ from the **van Genuchten–Mualem** (default) or the **Campbell / Clapp–Hornberger** retention curve (`meds_soil_hydr_lib`). In effective saturation $`S_e=(\theta-\theta_{res})/(\theta_{sat}-\theta_{res})`$ and matric head $h<0$ [m], van Genuchten's curve is $`S_e=[1+(\alpha|h|)^n]^{-m}`$ with $`m=1-1/n`$. Campbell's is $`h=\psi_{sat}\,S_e^{-b}`$, saturated between its air-entry head $`\psi_{sat}<0`$ and zero, with $`K=K_{sat}\,S_e^{2b+3}`$. Both families keep their parameters in one pair, `[soil].curve_par_a` and `[soil].curve_par_n` (α [m⁻¹] and $n$, or $`\psi_{sat}`$ [m] and $b$), so every reader of a profile (the water network, the predawn seed, the diagnostics) evaluates the curve the profile was built with. The van Genuchten conductivity is Mualem's,
+with matric potential $`\psi(\theta)`$, hydraulic conductivity $`K(\theta)`$ and specific moisture capacity $`C=d\theta/d\psi`$ from the **van Genuchten–Mualem** (default) or the **Campbell / Clapp–Hornberger** retention curve (`ed_soil_hydr_lib`). In effective saturation $`S_e=(\theta-\theta_{res})/(\theta_{sat}-\theta_{res})`$ and matric head $h<0$ [m], van Genuchten's curve is $`S_e=[1+(\alpha|h|)^n]^{-m}`$ with $`m=1-1/n`$. Campbell's is $`h=\psi_{sat}\,S_e^{-b}`$, saturated between its air-entry head $`\psi_{sat}<0`$ and zero, with $`K=K_{sat}\,S_e^{2b+3}`$. Both families keep their parameters in one pair, `[soil].curve_par_a` and `[soil].curve_par_n` (α [m⁻¹] and $n$, or $`\psi_{sat}`$ [m] and $b$), so every reader of a profile (the water network, the predawn seed, the diagnostics) evaluates the curve the profile was built with. The van Genuchten conductivity is Mualem's,
 
 ```math
 K = K_{sat}\,S_e^{L}\,\big[1-(1-S_e^{1/m})^m\big]^2, \qquad L = -1 \qquad(2)
@@ -87,7 +87,7 @@ Water and heat share one grid. Every profile cuts one list of layer bottoms at i
 
 ### Hydraulic parameters from soil texture
 
-`soil_texture_to_hydraulics` (`meds_soil_hydr_lib`) gives a layer's van Genuchten curve and saturated conductivity from the quantities SoilGrids 2.0 maps per layer: sand $Sa$, silt $Si$ and clay $Cl$ (% of the fine earth, < 2 mm), organic carbon $OC$ (%), cation exchange capacity CEC (cmol(c) kg⁻¹), pH in water, the fine earth's bulk density $\rho_b$ (g cm⁻³) and the volume share of coarse fragments $f_v$. The curve is Hodnett & Tomasella's (2002, Table 8), fitted to tropical soils and kept by ED2 as `soil_hydro_scheme` 2; each polynomial is in percent:
+`soil_texture_to_hydraulics` (`ed_soil_hydr_lib`) gives a layer's van Genuchten curve and saturated conductivity from the quantities SoilGrids 2.0 maps per layer: sand $Sa$, silt $Si$ and clay $Cl$ (% of the fine earth, < 2 mm), organic carbon $OC$ (%), cation exchange capacity CEC (cmol(c) kg⁻¹), pH in water, the fine earth's bulk density $\rho_b$ (g cm⁻³) and the volume share of coarse fragments $f_v$. The curve is Hodnett & Tomasella's (2002, Table 8), fitted to tropical soils and kept by ED2 as `soil_hydro_scheme` 2; each polynomial is in percent:
 
 ```math
 \begin{aligned}
@@ -119,7 +119,7 @@ f_m = \frac{f_v}{(\rho_b/\rho_p)(1-f_v)+f_v} \qquad(8)
 
 ### The column from the soil maps
 
-With the `[maps]` soil maps (ED-SoilMaps v2; [configuration](../configuration.md), "Input maps"), `apply_map_inputs` (`meds_config`) builds each cell's profile from what `meds_maps` reads. A region's polygons and a site on the ED_ERA5land grid build it the same way.
+With the `[maps]` soil maps (ED-SoilMaps v2; [configuration](../configuration.md), "Input maps"), `apply_map_inputs` (`ed_config`) builds each cell's profile from what `ed_maps` reads. A region's polygons and a site on the ED_ERA5land grid build it the same way.
 
 - **The layers.** The profile ends at the map's `soil_depth`, on the layers of § The soil layers.
 - **Each layer's soil.** A layer takes the texture and chemistry of the map layers it overlaps (SoilGrids' six, to 2 m), each weighted by the overlap. Below 2 m it takes the deepest map layer's.
@@ -140,7 +140,7 @@ With the `[maps]` soil maps (ED-SoilMaps v2; [configuration](../configuration.md
   - aquifer.
 - **The thermal anchor.** With `[soil].thermal_bottom_bc = "dirichlet"`, the bottom conducts to the map's `deep_temp` (in ED-SoilMaps v2, the cell's mean 2 m air temperature plus 1 K), at $d/\sqrt2$ below the bottom node, $d = 1.973$ m (§ The bottom thermal boundary).
 
-A cell whose maps hold no value stops the run, naming the cell. The map products are made complete in their own pipelines; MEDS does not fill them.
+A cell whose maps hold no value stops the run, naming the cell. The map products are made complete in their own pipelines; ED-MORE does not fill them.
 
 Each layer has its own curve rather than the profile one fitted curve: the top layers hold the surface's organic, high-CEC soil and the deep layers the subsoil.
 
@@ -148,7 +148,7 @@ Each layer has its own curve rather than the profile one fitted curve: the top l
 
 ## The soil thermal column
 
-`soil_energy_step_implicit` (`meds_soil_heat`) advances each layer's prognostic volumetric internal energy $`E_k`$ [J m⁻³] by backward Euler, on the same layers as the water. The balance of layer $k$ over the step is
+`soil_energy_step_implicit` (`ed_soil_heat`) advances each layer's prognostic volumetric internal energy $`E_k`$ [J m⁻³] by backward Euler, on the same layers as the water. The balance of layer $k$ over the step is
 
 ```math
 \Delta z_k\,\frac{E_k^{n+1}-E_k^n}{\Delta t}
@@ -169,7 +169,7 @@ A sibling, `soil_energy_time_deriv`, exposes the same flux divergence as an expl
 
 **Why the energies.** A solve for $`T^{n+1}`$ with the sensible heat capacity at the step's start would take no latent heat into the step: a layer reaching freezing would overshoot in temperature, and the conservative commit would put the latent heat back only afterwards, so the freezing front would depend on $`\Delta t`$. With Newton on the energies, a five-layer column frozen from the top for two days gives the same profile with 30-minute and 1-minute steps (`test_soil_heat` requires agreement within 0.1 K).
 
-The conductivity is Johansen's, made ice-aware (`soil_thermal_conductivity`, `meds_therm_lib`). With the relative saturation $`S_r=\theta/\theta_{sat}`$, floored at 0.05 where the logarithm leaves its range of validity, the Kersten number blends Johansen's unfrozen form with the linear frozen one by the liquid fraction $`f_{liq}`$, and the saturated conductivity is the geometric mean of the solids, the liquid and the ice:
+The conductivity is Johansen's, made ice-aware (`soil_thermal_conductivity`, `ed_therm_lib`). With the relative saturation $`S_r=\theta/\theta_{sat}`$, floored at 0.05 where the logarithm leaves its range of validity, the Kersten number blends Johansen's unfrozen form with the linear frozen one by the liquid fraction $`f_{liq}`$, and the saturated conductivity is the geometric mean of the solids, the liquid and the ice:
 
 ```math
 K_e = f_{liq}\,(\log_{10}S_r + 1) + (1-f_{liq})\,S_r,\quad 0\le K_e\le 1, \qquad
@@ -279,7 +279,7 @@ The canopy's interception film, whose throughfall and drip are the rain that rea
 
 ## Soil heterotrophic respiration
 
-The heterotrophic soil CO₂ flux $`R_h`$ comes from one formula, the CENTURY transfer matrix (`meds_respiration`: `heterotrophic_respiration`, reached through `patch_heterotrophic_respiration`). It is a soil-carbon decomposition process (the pools' slow step is `meds_soil_carbon` in `src/slow_dynamics/processes/`; [soil_carbon](soil_carbon.md)), but its flux enters the fast loop as a source of the canopy air's CO₂ ([canopy_air_space_biophysics](canopy_air_space_biophysics.md)). It is computed once per fast step.
+The heterotrophic soil CO₂ flux $`R_h`$ comes from one formula, the CENTURY transfer matrix (`ed_respiration`: `heterotrophic_respiration`, reached through `patch_heterotrophic_respiration`). It is a soil-carbon decomposition process (the pools' slow step is `ed_soil_carbon` in `src/slow_dynamics/processes/`; [soil_carbon](soil_carbon.md)), but its flux enters the fast loop as a source of the canopy air's CO₂ ([canopy_air_space_biophysics](canopy_air_space_biophysics.md)). It is computed once per fast step.
 
 ---
 
@@ -319,22 +319,22 @@ Fixed in the code: the Mualem pore connectivity $L=-1$, the specific storage 10�
 
 | Concept | Routine |
 |---|---|
-| soil water (the network) | `meds_fast_integ_backward_euler`: `water_step` ([soil_plant_water](soil_plant_water.md)); a layer's water relations: `meds_soil_hydr_lib`: `soil_water_relations` |
-| soil water flows, eqs. (3)–(4) | `meds_soil_water`: `soil_water_flux`, `bottom_flux`, `ground_evaporation_rate` (its per-step terms from `ground_evaporation_setup`); the water reaching the pond, `pond_inflow` |
-| soil layers and profile | `meds_soil_derive`: `SOIL_LAYER_TEMPLATE`, `soil_layer_grid`, `soil_layers`, `build_soil_profile`; the types `soil_params_t` (`[soil]`) and `soil_profile_t` (what the solvers read), in `meds_soil_params` |
-| retention curves (van Genuchten, Campbell), eq. (2) | `meds_soil_hydr_lib`, with the matric potential `soil_matric_potential` [MPa] |
-| hydraulic parameters from texture, eqs. (6)–(8) | `meds_soil_hydr_lib`: `soil_texture_to_hydraulics` |
-| thermal properties from texture, eqs. (9) and (11) | `meds_therm_lib`: `soil_texture_to_thermal`, `soil_thermal_conductivity` |
-| soil thermal step (backward Euler, Newton on the energies), eq. (10) | `meds_soil_heat`: `soil_energy_step_implicit` |
-| the soil's thermal forcing from the water network's flows | `meds_soil_heat`: `set_soil_heat_env` |
-| a layer's temperature from its energy, and back, eq. (15) | `meds_soil_heat`: `soil_layer_temp`, `soil_layer_energy`, `soil_layer_energy_slope` |
-| the soil freezing curve, eq. (14) | `meds_soil_hydr_lib`: `soil_liquid_capacity` |
-| a layer's ice in the water network | `meds_soil_hydr_lib`: `soil_ice_t`, `soil_ice_state` |
-| explicit thermal tendency (RK45) | `meds_soil_heat`: `soil_energy_time_deriv` |
-| bottom thermal boundary, eqs. (12)–(13) | `meds_soil_heat`: `bottom_heat_face`, `deep_conductance` |
-| the profile from the soil maps | `meds_maps`: `read_map_inputs`; `meds_config`: `apply_map_inputs`; `meds_soil_derive`: `map_layer_texture` |
-| soil heterotrophic respiration | `meds_respiration`: `heterotrophic_respiration`; `meds_fast_integ_frozen`: `patch_heterotrophic_respiration` |
-| prognostic soil types | `meds_patch_state_vars`: `soil_water_state_t`, `soil_energy_state_t` |
+| soil water (the network) | `ed_fast_integ_backward_euler`: `water_step` ([soil_plant_water](soil_plant_water.md)); a layer's water relations: `ed_soil_hydr_lib`: `soil_water_relations` |
+| soil water flows, eqs. (3)–(4) | `ed_soil_water`: `soil_water_flux`, `bottom_flux`, `ground_evaporation_rate` (its per-step terms from `ground_evaporation_setup`); the water reaching the pond, `pond_inflow` |
+| soil layers and profile | `ed_soil_derive`: `SOIL_LAYER_TEMPLATE`, `soil_layer_grid`, `soil_layers`, `build_soil_profile`; the types `soil_params_t` (`[soil]`) and `soil_profile_t` (what the solvers read), in `ed_soil_params` |
+| retention curves (van Genuchten, Campbell), eq. (2) | `ed_soil_hydr_lib`, with the matric potential `soil_matric_potential` [MPa] |
+| hydraulic parameters from texture, eqs. (6)–(8) | `ed_soil_hydr_lib`: `soil_texture_to_hydraulics` |
+| thermal properties from texture, eqs. (9) and (11) | `ed_therm_lib`: `soil_texture_to_thermal`, `soil_thermal_conductivity` |
+| soil thermal step (backward Euler, Newton on the energies), eq. (10) | `ed_soil_heat`: `soil_energy_step_implicit` |
+| the soil's thermal forcing from the water network's flows | `ed_soil_heat`: `set_soil_heat_env` |
+| a layer's temperature from its energy, and back, eq. (15) | `ed_soil_heat`: `soil_layer_temp`, `soil_layer_energy`, `soil_layer_energy_slope` |
+| the soil freezing curve, eq. (14) | `ed_soil_hydr_lib`: `soil_liquid_capacity` |
+| a layer's ice in the water network | `ed_soil_hydr_lib`: `soil_ice_t`, `soil_ice_state` |
+| explicit thermal tendency (RK45) | `ed_soil_heat`: `soil_energy_time_deriv` |
+| bottom thermal boundary, eqs. (12)–(13) | `ed_soil_heat`: `bottom_heat_face`, `deep_conductance` |
+| the profile from the soil maps | `ed_maps`: `read_map_inputs`; `ed_config`: `apply_map_inputs`; `ed_soil_derive`: `map_layer_texture` |
+| soil heterotrophic respiration | `ed_respiration`: `heterotrophic_respiration`; `ed_fast_integ_frozen`: `patch_heterotrophic_respiration` |
+| prognostic soil types | `ed_patch_state_vars`: `soil_water_state_t`, `soil_energy_state_t` |
 
 ## References
 - ED2 (`ED/src/dynamics/`): `lsm_hyd.f90`, `soil_respiration.f90` — the soil stores in the reference model.
@@ -351,4 +351,4 @@ Fixed in the code: the Mualem pore connectivity $L=-1$, the specific storage 10�
 - Niu & Yang (2006), *J. Hydrometeorol.* 7:937 — the supercooled liquid of a frozen soil, eq. (14).
 - Swenson, Lawrence & Lee (2012), *J. Adv. Model. Earth Syst.* 4:M08002 — the ice impedance on the conductivity.
 - Lawrence et al. (2018), *Technical Description of version 5.0 of the Community Land Model (CLM)*, NCAR — the supercooled soil water and frozen-soil hydrology.
-- Design records: [MEDS_COLUMN_HYDROLOGY_DESIGN](../dev_plans/archive/MEDS_COLUMN_HYDROLOGY_DESIGN.md), [MEDS_ENERGY_BALANCE_DESIGN](../dev_plans/archive/MEDS_ENERGY_BALANCE_DESIGN.md).
+- Design records: [ED_COLUMN_HYDROLOGY_DESIGN](../dev_plans/archive/MEDS_COLUMN_HYDROLOGY_DESIGN.md), [ED_ENERGY_BALANCE_DESIGN](../dev_plans/archive/MEDS_ENERGY_BALANCE_DESIGN.md).

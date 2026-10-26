@@ -134,7 +134,7 @@ not.
 
 ## 5. Litter input
 
-Dead plant carbon becomes litter in one place — `necromass_to_litter` (`meds_soil_carbon`), whose
+Dead plant carbon becomes litter in one place — `necromass_to_litter` (`ed_soil_carbon`), whose
 arguments are plain carbon amounts and plain PFT traits, which is what lets both the slow driver and the
 demographic operators call it. Each tissue goes where it is:
 
@@ -212,7 +212,7 @@ the default scheme $\xi^{\mathrm{int}}\le1$ day, so $\lambda\le$ `k_fast`/`yr_da
 ## 7. The fast/slow seam
 
 Heterotrophic respiration must reach the canopy air every fast step, but the pools may be written only
-once per slow step. Counting the respiration at both rates would double-count it. MEDS has both ends
+once per slow step. Counting the respiration at both rates would double-count it. ED-MORE has both ends
 read the same object. At the start of each fast window the fast driver copies the patch's pools into
 the fast state, and that **frozen** copy is what every fast step respires, through the same kernel the
 slow step's bookkeeping uses:
@@ -224,7 +224,7 @@ slow step's bookkeeping uses:
   with like, into `decomp_xi%rh_fast`. Both are reset at the start of each fast window.
 
 Within a slow step, `soil_carbon_step` is the only change to the real pools. It debits them with
-exactly that $`\xi^{\mathrm{int}}`$, returns the new pools, and `meds_slow_update` writes them. At a
+exactly that $`\xi^{\mathrm{int}}`$, returns the new pools, and `ed_slow_update` writes them. At a
 calendar boundary, patch fusion and the treefall gaps blend the pools on area
 ([demography](demography.md) §4), and the plants the boundary kills reach them through the litter (§5).
 
@@ -319,7 +319,7 @@ produces them routinely; the ceiling catches divergence, not implausible science
 
 ## Parameters
 
-The `[soil_carbon]` keys; every one is optional, at the default shown in `meds_config_main.toml`.
+The `[soil_carbon]` keys; every one is optional, at the default shown in `ed_config_main.toml`.
 
 | Key | Meaning |
 |---|---|
@@ -350,18 +350,18 @@ either: the pools are empty and take no litter, so its CO₂ would be carbon fro
 
 | Concept | Routine |
 |---|---|
-| $\xi$; and $A$, $K$, $`e_r`$ | `meds_respiration`: `decomposition_env_scalar`, `decomposition_transfer_matrix` |
-| litter → source term $u$; necromass → destinations | `meds_soil_carbon`: `build_litter_input`, `necromass_to_litter`, `add_necromass` |
-| the pool advance (Euler / EXPM) and its audits | `meds_soil_carbon`: `soil_carbon_step`, `soil_carbon_out_t` |
-| instantaneous $`R_h`$ (the fast–slow seam kernel) | `meds_respiration`: `heterotrophic_respiration` |
-| steady state (SASU) and its cold start | `meds_soil_carbon`: `solve_soil_carbon_steady_state`, `soil_carbon_steady_pools`; `meds_init`: `init_polygon` |
-| pool plausibility | `meds_soil_carbon`: `soil_carbon_bad_pool` |
-| the pool layout and names | `meds_biogeochem_params`: `N_SOIL_POOL`, `IP_*`, `SOIL_POOL_NAME` |
-| the state: pools, lignin, the day's integrals, the litter accumulator | `meds_patch_state_vars`: `soil_carbon_state_t` (`carbon(N_SOIL_POOL)`, `lignin(2)`), `decomp_xi_t`, `litter_input_t` |
-| `[soil_carbon]` block and selectors | `meds_biogeochem_params`: `soil_carbon_params_t`, `DECOMP_SCHEME_*`, `DECOMP_STEP_*` |
-| the slow step's driver, seam guard and ledger entries | `meds_slow_state`: `advance_soil_carbon`; `meds_slow_update`: `commit_soil_carbon`; `meds_slow_ledger`: `slow_ledger_soil_check` |
-| litter accumulation | `meds_slow_state`: `compute_carbon_allocation`, `accumulate_mortality_litter`, `kill_litter`; the kills come from `meds_slow_update`: `terminate_cohorts`, `apply_patch_disturbance` |
-| fast-step $`R_h`$ and the $`\xi`$ accumulation | `meds_fast_integ_frozen`: `patch_heterotrophic_respiration`; `meds_fast_state`: `accumulate_fast_to_slow`, `reset_fast_to_slow` |
+| $\xi$; and $A$, $K$, $`e_r`$ | `ed_respiration`: `decomposition_env_scalar`, `decomposition_transfer_matrix` |
+| litter → source term $u$; necromass → destinations | `ed_soil_carbon`: `build_litter_input`, `necromass_to_litter`, `add_necromass` |
+| the pool advance (Euler / EXPM) and its audits | `ed_soil_carbon`: `soil_carbon_step`, `soil_carbon_out_t` |
+| instantaneous $`R_h`$ (the fast–slow seam kernel) | `ed_respiration`: `heterotrophic_respiration` |
+| steady state (SASU) and its cold start | `ed_soil_carbon`: `solve_soil_carbon_steady_state`, `soil_carbon_steady_pools`; `ed_init`: `init_polygon` |
+| pool plausibility | `ed_soil_carbon`: `soil_carbon_bad_pool` |
+| the pool layout and names | `ed_biogeochem_params`: `N_SOIL_POOL`, `IP_*`, `SOIL_POOL_NAME` |
+| the state: pools, lignin, the day's integrals, the litter accumulator | `ed_patch_state_vars`: `soil_carbon_state_t` (`carbon(N_SOIL_POOL)`, `lignin(2)`), `decomp_xi_t`, `litter_input_t` |
+| `[soil_carbon]` block and selectors | `ed_biogeochem_params`: `soil_carbon_params_t`, `DECOMP_SCHEME_*`, `DECOMP_STEP_*` |
+| the slow step's driver, seam guard and ledger entries | `ed_slow_state`: `advance_soil_carbon`; `ed_slow_update`: `commit_soil_carbon`; `ed_slow_ledger`: `slow_ledger_soil_check` |
+| litter accumulation | `ed_slow_state`: `compute_carbon_allocation`, `accumulate_mortality_litter`, `kill_litter`; the kills come from `ed_slow_update`: `terminate_cohorts`, `apply_patch_disturbance` |
+| fast-step $`R_h`$ and the $`\xi`$ accumulation | `ed_fast_integ_frozen`: `patch_heterotrophic_respiration`; `ed_fast_state`: `accumulate_fast_to_slow`, `reset_fast_to_slow` |
 | output | `mean_soilc_<pool>_py`, `mean_soilc_total_py`, `mean_soilc_total_pa`, `mean_rh_py`, `mean_litter_*_py`, `mean_root_exudate_py`; the state file's `soilc_<name>_pa`, `soilc_lignin_grnd_pa`, `soilc_lignin_soil_pa` |
 | tests | `test/fast/test_respiration.f90` ($\xi$, $A$, $K$, $`e_r`$, $`R_h`$ and the Jensen seam), `test/slow/test_soil_carbon.f90` (the soil step), `test/slow/test_slow_step.f90` (the seam through the driver) |
 

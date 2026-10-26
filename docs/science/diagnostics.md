@@ -1,12 +1,12 @@
-# MEDS diagnostic output
+# ED-MORE diagnostic output
 
-This page describes how MEDS reports itself: what a diagnostic variable means, how it is aggregated
+This page describes how ED-MORE reports itself: what a diagnostic variable means, how it is aggregated
 across the demographic hierarchy (cohort › patch › site › polygon) and across time, and how to choose
 the variables you want. Read §3 for variable names, §4 for what a record holds, and §5 to select
 output.
 
-Implementation: `src/io/output/` (`meds_output_{types,registry,setup,extract,reduce,integrate,stream}`)
-plus the per-cohort and per-patch accumulators in `src/state/meds_diag_vars.f90`. The temporal
+Implementation: `src/io/output/` (`ed_output_{types,registry,setup,extract,reduce,integrate,stream}`)
+plus the per-cohort and per-patch accumulators in `src/state/ed_diag_vars.f90`. The temporal
 aggregation engine underneath is recorded in
 [`docs/dev_plans/MEDS_IO_DESIGN.md`](../dev_plans/MEDS_IO_DESIGN.md).
 
@@ -17,18 +17,18 @@ aggregation engine underneath is recorded in
 ```
   raw prognostic state (cohort SoA, patch reservoirs, site scalars)
       │
-  [1] DERIVE      meds_output_extract         quantities that are a closed-form function of state
+  [1] DERIVE      ed_output_extract         quantities that are a closed-form function of state
       │                                       (LAI, gsc, WUE, soil psi/wetness, CAS VPD, DBH class)
       │
-  [2] CAPTURE     meds_diag_vars              dt-weighted accumulators for everything the fast loop
+  [2] CAPTURE     ed_diag_vars              dt-weighted accumulators for everything the fast loop
       │                                       computes per dt_fast and would otherwise discard
       │
-  [3] REDUCE      meds_output_reduce      ONE weighted aggregation:
+  [3] REDUCE      ed_output_reduce      ONE weighted aggregation:
       │                                       cohort -> {patch, site, PFT, DBH class}; patch -> site
       │
-  [4] INTEGRATE   meds_output_integrate       temporal folding per (variable, tier)
+  [4] INTEGRATE   ed_output_integrate       temporal folding per (variable, tier)
       │
-  [5] SERIALIZE   meds_output_stream          per-tier, per-time-chunk netCDF
+  [5] SERIALIZE   ed_output_stream          per-tier, per-time-chunk netCDF
 ```
 
 Stages [1]–[4] run inside the time step; a closed period's record is queued, and stage [5] writes the
@@ -274,7 +274,7 @@ per patch (`mean_skin_temp_pa`), and both are written sub-daily as well as daily
 - **What it is.** The black-body temperature of the longwave leaving the canopy top, $`(L^\uparrow /
   \sigma)^{1/4}`$, taken per patch and sub-step and then averaged. It is what an infrared thermometer
   or a satellite land-surface temperature sees, and over a forest it is mostly the canopy.
-- **What it is not.** It is not the soil. MEDS has no skin layer of its own: snow-free, the ground
+- **What it is not.** It is not the soil. ED-MORE has no skin layer of its own: snow-free, the ground
   surface is the top soil layer, `mean_soil_temp_top_py`. That layer's node sits at its midpoint (2.5 cm
   down for the default 5 cm top layer), so its diurnal swing is damped and lagged against the air's.
 - **Why it is formed inside the step.** Because of the fourth root, the skin temperature of the mean
@@ -393,12 +393,12 @@ F tier is off by default, and a tier whose `[output.<tier>].enabled` is false wr
 `io_config` says.
 
 ```bash
-meds_main --dump-io-config [main.toml]   # writes meds_io_config.toml: every variable, ready to uncomment
+ed_main --dump-io-config [main.toml]   # writes ed_io_config.toml: every variable, ready to uncomment
 ```
 
 lists every variable under its group, with its default tiers (`false`: off) and the tiers it can be
 on: F with a sub-step value, D and M with a value at the step's end, Y as well off the cohort and patch
-axes. The shipped `meds_io_config.toml` is that list, generated from the reference configs.
+axes. The shipped `ed_io_config.toml` is that list, generated from the reference configs.
 
 **`io_config`** is a TOML file of `[variables]` lines. Each names a variable, or a pattern of names
 with `*` for any run of characters (quoted, as TOML wants it), and gives it tiers, `true` (its
@@ -517,7 +517,7 @@ things. They are written whatever `soil_carbon_on` says, since they are demograp
 
 ## 7. Variable inventory
 
-`meds_main --dump-io-config` writes the authoritative list, with units, groups, axes and default tiers.
+`ed_main --dump-io-config` writes the authoritative list, with units, groups, axes and default tiers.
 It is generated from the registry, so it cannot drift; the page states no count for the same reason.
 
 | Group | What it holds |
@@ -550,11 +550,11 @@ A variable's axis is the dimension after `time` and `polygon` (§3):
 A registry variable takes two coupled edits:
 
 1. a `call add_variable(...)` line in the matching `register_*` routine
-   (`meds_output_registry`), naming the field, units, dim, `agg`, group, default streams, and —
+   (`ed_output_registry`), naming the field, units, dim, `agg`, group, default streams, and —
    if it is aggregated — the weight kind and mean/sum flag. Register the mean, `mean_<x>`: its
    snapshot `<x>` follows (`register_snapshots`). A quantity written as a snapshot by default is
    registered by its own name, with its mean beside it;
-2. a `case` in the matching field accessor (`meds_output_extract`) that copies the value out of
+2. a `case` in the matching field accessor (`ed_output_extract`) that copies the value out of
    live state, under a new source id there.
 
 Because the reduction is **data** (`dim` + `weight` + `mean` + `scale`) rather than code, a field
@@ -562,7 +562,7 @@ that already has an accessor case emits its patch, site, PFT and size-class twin
 registry line each**, with no new extraction code.
 
 For a quantity the fast loop computes and drops, add a row to `cohort_diag_block` or
-`patch_diag_block` (`meds_diag_vars`): a new index parameter in its section (a patch row the fast
+`patch_diag_block` (`ed_diag_vars`): a new index parameter in its section (a patch row the fast
 loop fills goes before `N_PA_FAST_ROWS`, and the slow driver's rows follow), one fill line in the
 capture, and its fusion kind. The patch block's row is also the FAST tier's sample (`patch_diag_row`),
 and the per-cohort rows are staged too, so a registry line on a fast row (`FLD_P_DIAG0 + PA_*`,

@@ -1,6 +1,6 @@
 # Canopy radiative transfer
 
-How MEDS shares the incident shortwave and longwave radiation among the cohorts of a patch and the
+How ED-MORE shares the incident shortwave and longwave radiation among the cohorts of a patch and the
 ground. The page gives the leaf-angle distribution, the optical properties of leaves and wood, the
 multi-layer **two-stream** solution, the ground boundary, and the fluxes handed to photosynthesis, the
 energy balance and the output.
@@ -20,13 +20,13 @@ fraction; $\beta_0$ = direct-beam **upscatter** fraction; $k$ = direct-beam exti
 index; ELAI, EWAI = the clumping-corrected leaf and wood area indices. All fluxes are absolute
 `W m⁻²`; nothing is normalized to unit incidence.
 
-The pipeline has four stages: (1) the leaf-angle distribution and its integrals (`meds_optics_lib`);
+The pipeline has four stages: (1) the leaf-angle distribution and its integrals (`ed_optics_lib`);
 (2) the per-PFT (plant functional type) scattering table, independent of $\mu$, built once at load
-(`build_rad_optics`, `derive_rad_optics` in `meds_pft_derive`); (3) the per-cohort blend of leaf and wood
+(`build_rad_optics`, `derive_rad_optics` in `ed_pft_derive`); (3) the per-cohort blend of leaf and wood
 optics with the solar geometry (`blend_cohort_optics`); and (4) the single-band adding solver. Stages 3
-and 4 run inside `canopy_radiation` (`meds_canopy_radiation`). The optical-property kernels are in the
-shared library `meds_optics_lib` (`src/share/functions/`); the assembly, the solver and the per-patch
-entry point are together in `meds_canopy_radiation`.
+and 4 run inside `canopy_radiation` (`ed_canopy_radiation`). The optical-property kernels are in the
+shared library `ed_optics_lib` (`src/share/functions/`); the assembly, the solver and the per-patch
+entry point are together in `ed_canopy_radiation`.
 
 ## 1. Leaf-angle distribution and the G-function
 
@@ -34,7 +34,7 @@ How leaves are tilted decides how much light a canopy intercepts and how it scat
 inclination distribution (LIDF) is a two-parameter **Beta** density on the normalized inclination
 $`t=\theta/(\pi/2)\in[0,1]`$ (Goel & Strebel 1984; the SCOPE / 4SAIL family, Verhoef 1984,
 van der Tol et al. 2009). One family covers the Verhoef archetypes (planophile, erectophile,
-plagiophile, extremophile, and uniform $=\mathrm{Beta}(1,1)$). MEDS uses it in place of ED2/CLM's
+plagiophile, extremophile, and uniform $=\mathrm{Beta}(1,1)$). ED-MORE uses it in place of ED2/CLM's
 $`\phi_1/\phi_2/\bar\mu`$ and $`(1+\chi_L)^2`$ backscatter approximation (design record:
 [`radiative_transfer_design.md`](../dev_plans/archive/radiative_transfer_design.md)).
 
@@ -114,7 +114,7 @@ and clumped area:
 
 ## 3. The single-band two-stream (adding) solve
 
-`solve_band` (`meds_canopy_radiation`) is the one single-band solver. It works on the vertical stack of
+`solve_band` (`ed_canopy_radiation`) is the one single-band solver. It works on the vertical stack of
 cohort layers, ordered from the bottom (index 1) to the top (index n), with the sky above. Shortwave
 bands carry a direct beam and no emission; the thermal band carries emission and no beam. The diffuse
 multiple-scattering operator is the same in every band; only the source terms and the boundary
@@ -268,7 +268,7 @@ the ground's alone.
 **PAR passed to photosynthesis.** The absorbed leaf VIS $`A^{leaf}_{\mathrm{VIS},i}`$ is an absorbed
 flux, but the leaf gas-exchange kernel takes incident PAR, because it applies the leaf absorptance
 itself when it forms the electron-transport light $`I_2`$ ([leaf_gas_exchange](leaf_gas_exchange.md)
-§2). The fast-loop driver (`apply_rt_forcing` in `meds_fast_forcing`) therefore passes
+§2). The fast-loop driver (`apply_rt_forcing` in `ed_fast_forcing`) therefore passes
 $`A^{leaf}_{\mathrm{VIS}} / \alpha_{leaf}`$ as the incident-equivalent PAR. Passing the absorbed flux
 would apply the absorptance twice. The absorbed leaf and wood shortwave and longwave go to the energy
 balance as absorbed, with no division.
@@ -315,18 +315,18 @@ vegetation indices are built on. A snow-covered ground raises both.
 
 | Concept | Routine |
 |---|---|
-| Beta LIDF and its parameters | `meds_optics_lib`: `beta_lidf`, `beta_log_kernel`; `meds_pft_derive`: `moments_to_beta_params` |
-| moments $`\mathrm{bf}`$, $G(\mu)$ | `meds_optics_lib`: `leaf_bf`, `gfun_direct` |
-| $\omega, g$ single-scatter pair | `meds_optics_lib`: `scatter_pair` |
-| per-PFT optics table ($\omega, g$), eq. (4) | `meds_pft_derive`: `build_rad_optics`, `derive_rad_optics`, once at load onto the PFT table (`cfg%pft%optics`) |
-| per-cohort blend ($\beta, \beta_0, k$, `leaf_frac`), eqs. (5)–(7) | `meds_canopy_radiation`: `blend_cohort_optics` |
-| ground reflectance and emission | `meds_canopy_radiation`: `ground_optics` (`ground_optics_env_t`) |
-| single-band adding solve, eqs. (8)–(13) | `meds_canopy_radiation`: `solve_band`, `layer_rt`, `layer_beam_sources` |
-| the per-patch entry point, tied-cohort layers, each tissue's emission and the leaf/wood split, eqs. (14)–(15) | `meds_canopy_radiation`: `canopy_radiation` |
-| cohorts of one height are one layer (as in the wind and the overtopping LAI) | `meds_numerics`: `equal_height_layers` |
-| types | `meds_pft_params`: `rad_pft_optics_t` and the bands `RAD_VIS`, `RAD_NIR`, `RAD_LW`; `meds_canopy_radiation`: `rad_env_t`, `rad_out_t`, `ground_optics_env_t` |
-| fast-loop join (PAR conversion, cohorts bottom to top, top-of-canopy fluxes) | `meds_fast_forcing`: `apply_rt_forcing` |
-| the ground's optics under snow, and each tile's radiation | `meds_surface`: `snow_blend_ground_optics`, `ground_tile_radiation` |
+| Beta LIDF and its parameters | `ed_optics_lib`: `beta_lidf`, `beta_log_kernel`; `ed_pft_derive`: `moments_to_beta_params` |
+| moments $`\mathrm{bf}`$, $G(\mu)$ | `ed_optics_lib`: `leaf_bf`, `gfun_direct` |
+| $\omega, g$ single-scatter pair | `ed_optics_lib`: `scatter_pair` |
+| per-PFT optics table ($\omega, g$), eq. (4) | `ed_pft_derive`: `build_rad_optics`, `derive_rad_optics`, once at load onto the PFT table (`cfg%pft%optics`) |
+| per-cohort blend ($\beta, \beta_0, k$, `leaf_frac`), eqs. (5)–(7) | `ed_canopy_radiation`: `blend_cohort_optics` |
+| ground reflectance and emission | `ed_canopy_radiation`: `ground_optics` (`ground_optics_env_t`) |
+| single-band adding solve, eqs. (8)–(13) | `ed_canopy_radiation`: `solve_band`, `layer_rt`, `layer_beam_sources` |
+| the per-patch entry point, tied-cohort layers, each tissue's emission and the leaf/wood split, eqs. (14)–(15) | `ed_canopy_radiation`: `canopy_radiation` |
+| cohorts of one height are one layer (as in the wind and the overtopping LAI) | `ed_numerics`: `equal_height_layers` |
+| types | `ed_pft_params`: `rad_pft_optics_t` and the bands `RAD_VIS`, `RAD_NIR`, `RAD_LW`; `ed_canopy_radiation`: `rad_env_t`, `rad_out_t`, `ground_optics_env_t` |
+| fast-loop join (PAR conversion, cohorts bottom to top, top-of-canopy fluxes) | `ed_fast_forcing`: `apply_rt_forcing` |
+| the ground's optics under snow, and each tile's radiation | `ed_surface`: `snow_blend_ground_optics`, `ground_tile_radiation` |
 
 ## References
 

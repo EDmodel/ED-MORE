@@ -1,8 +1,8 @@
 # Leaf phenology
 
-This page explains how MEDS decides when a cohort grows and drops its leaves, from the cues
+This page explains how ED-MORE decides when a cohort grows and drops its leaves, from the cues
 (temperature, hours of light, leaf water potential) to the leaf carbon lost and regrown each step.
-It has two layers. The **cue kernel** (`meds_plant_phenology`) turns the cues and per-PFT (plant
+It has two layers. The **cue kernel** (`ed_plant_phenology`) turns the cues and per-PFT (plant
 functional type) traits into two smoothed **tendencies** in $[0,1]$: a leaf **flush** tendency $f$ and
 a leaf **shed** (senescence) tendency $s$. The **carbon layer** turns the tendencies into leaf growth
 and leaf loss (`leaf_turnover_step`, §5). The kernel's state is the two tendencies plus a small
@@ -16,7 +16,7 @@ phenology scheme switch. An evergreen is a PFT whose senescence stops at a **lea
 
 **Timescale and inputs.** The cue kernel runs once per slow step (`[run].dt_slow`, a day by default),
 at the start of the vegetation phase, before trait acclimation and carbon allocation
-(`meds_slow_dynamics`: `vegetation_dynamics`; [`order_of_processes.md`](order_of_processes.md)). Its
+(`ed_slow_dynamics`: `vegetation_dynamics`; [`order_of_processes.md`](order_of_processes.md)). Its
 drivers are accumulated by the fast loop over the step's fast steps (see Drivers, below): the site's
 mean air temperature, each cohort's hours of light and its predawn leaf water potential. A slow step
 with no fast steps does not advance the memory. The carbon layer (`leaf_turnover_step`) runs in the
@@ -187,8 +187,8 @@ regrow under the flush cap.
 **Resorption** (`retained_carbon_fraction`, $`f_r`$) returns a share of **all** leaf loss $`B + S`$ and
 all fine-root loss to storage ([`plant_carbon_allocation.md`](plant_carbon_allocation.md) §1, eq. (2)).
 
-The same routine is exposed through the C API (`meds_leaf_turnover_step`), so the Python front end
-(`meds.plant.pheno.leaf_step`) applies exactly the carbon layer's rule.
+The same routine is exposed through the C API (`ed_leaf_turnover_step`), so the Python front end
+(`ed.plant.pheno.leaf_step`) applies exactly the carbon layer's rule.
 
 ## 6. Leaf habits as parameter sets
 
@@ -207,7 +207,7 @@ the floor; it is not a parameter of the kernel. The fitted values of the four ha
 ## 7. Evidence
 
 [`examples/example02_canopy_phenology`](../../examples/example02_canopy_phenology/README.md) fits the
-compiled kernel at four sites, every one with its light from ERA5-Land through MEDS's forcing reader:
+compiled kernel at four sites, every one with its light from ERA5-Land through ED-MORE's forcing reader:
 
 - **Harvard Forest** (temperate deciduous; a low `par_min`, so the cue is the photoperiod): MODIS LAI,
   the HF003 leaf-fall observations and the HF069 litter baskets.
@@ -217,7 +217,7 @@ compiled kernel at four sites, every one with its light from ERA5-Land through M
   traps. The water driver is a surrogate, the tower's soil water content through a retention curve fitted
   to the paired soil samples of Kupers et al. (2019).
 - **Palo Verde** (a drought-deciduous dry forest; a low `par_min`, the photoperiod): the monthly leaf
-  litter of Xu et al. (2016) and MODIS LAI. The water driver is the canopy predawn leaf ψ of a MEDS run
+  litter of Xu et al. (2016) and MODIS LAI. The water driver is the canopy predawn leaf ψ of an ED-MORE run
   at the site.
 
 Five results shaped the design (the tests are in `docs/dev_plans/MEDS_PHENOLOGY_SENESCENCE_PLAN.md`
@@ -248,7 +248,7 @@ Five results shaped the design (the tests are in `docs/dev_plans/MEDS_PHENOLOGY_
 
 **Limits of the evidence.** The fits capture the mean seasonal cycle; four to five scored years per
 site do not constrain its year-to-year variation. These fits exercise the water cue on a soil surrogate
-(BCI) and on a MEDS run's leaf potential without the shed-to-water feedback (Palo Verde). In a coupled
+(BCI) and on an ED-MORE run's leaf potential without the shed-to-water feedback (Palo Verde). In a coupled
 run the cue reads the run's own predawn leaf potential, feedback included; example 06
 ([`examples/example06_regional_run/`](../../examples/example06_regional_run/)) sets such a run's annual
 maximum and minimum leaf area, and its leaf cover, against MODIS across a rainfall gradient, but no
@@ -300,16 +300,16 @@ per-cohort state and are written to the state file.
 
 | Concept | Routine |
 |---|---|
-| cues → tendencies → potential rates | `meds_plant_phenology`: `phenology_kernel` (+ private `accumulate`, the water switches) |
-| tendencies → leaf loss + flush cap | `meds_plant_phenology`: `leaf_turnover_step`, `turnover_gate` |
-| types (env / state / out; the PFT's traits) | `meds_plant_phenology`: `pheno_env_t`, `pheno_state_t`, `pheno_out_t`; `meds_pft_params`: `phenology_traits_t` (its `leaf_psi_tlp` derived in `meds_pft_derive`) |
-| cue bits | `meds_pft_params`: `CUE_*`, beside the cue masks |
-| helpers | `meds_numerics`: `logistic`, `clamp01`; `meds_time`: `doy_effective` |
-| per-cohort advance (slow step) | `meds_slow_state`: `advance_leaf_phenology` |
-| hours of light at each cohort's top | `meds_canopy_radiation`: `rad_out_t%incid_top`; `meds_fast_forcing` (`par_top`); `meds_fast_state`: `accumulate_fast_to_slow` (`light_hours_accum`) |
-| turnover-first carbon demand | `meds_plant_carbon_allocation`: `cohort_carbon_demand` (called from `meds_slow_state`: `compute_carbon_allocation`) |
-| C API | `meds_c_api_phenology`: `meds_phenology_step`, `meds_leaf_turnover_step`, `meds_daylength` |
-| Python front end + example | `meds.plant.pheno`; `examples/example02_canopy_phenology/` |
+| cues → tendencies → potential rates | `ed_plant_phenology`: `phenology_kernel` (+ private `accumulate`, the water switches) |
+| tendencies → leaf loss + flush cap | `ed_plant_phenology`: `leaf_turnover_step`, `turnover_gate` |
+| types (env / state / out; the PFT's traits) | `ed_plant_phenology`: `pheno_env_t`, `pheno_state_t`, `pheno_out_t`; `ed_pft_params`: `phenology_traits_t` (its `leaf_psi_tlp` derived in `ed_pft_derive`) |
+| cue bits | `ed_pft_params`: `CUE_*`, beside the cue masks |
+| helpers | `ed_numerics`: `logistic`, `clamp01`; `ed_time`: `doy_effective` |
+| per-cohort advance (slow step) | `ed_slow_state`: `advance_leaf_phenology` |
+| hours of light at each cohort's top | `ed_canopy_radiation`: `rad_out_t%incid_top`; `ed_fast_forcing` (`par_top`); `ed_fast_state`: `accumulate_fast_to_slow` (`light_hours_accum`) |
+| turnover-first carbon demand | `ed_plant_carbon_allocation`: `cohort_carbon_demand` (called from `ed_slow_state`: `compute_carbon_allocation`) |
+| C API | `ed_c_api_phenology`: `ed_phenology_step`, `ed_leaf_turnover_step`, `ed_daylength` |
+| Python front end + example | `ed.plant.pheno`; `examples/example02_canopy_phenology/` |
 
 ## References
 

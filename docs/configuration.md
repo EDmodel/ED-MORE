@@ -1,11 +1,11 @@
-# Configuring a MEDS run
+# Configuring an ED-MORE run
 
 This page explains how to set up a run: the files it needs, what each block of the main config controls,
 the PFT file, how to choose the output, and the region and multi-site runs. Every key, with its default
-and units, is in the reference files `meds_config_main.toml`, `meds_config_pft.toml` and
-`meds_io_config.toml`; this page explains what a block does and the keys that need explaining.
+and units, is in the reference files `ed_config_main.toml`, `ed_config_pft.toml` and
+`ed_io_config.toml`; this page explains what a block does and the keys that need explaining.
 
-MEDS organises a landscape as **polygon › site › patch › cohort**. A polygon is a place (one forcing
+ED-MORE organises a landscape as **polygon › site › patch › cohort**. A polygon is a place (one forcing
 cell). It holds one or more sites (terrain and soil), a site holds patches (stands of one age since
 disturbance), and a patch holds cohorts (plants of one plant functional type, PFT, and size). A site run
 simulates one polygon; a region run simulates many.
@@ -14,12 +14,12 @@ simulates one polygon; a region run simulates many.
 
 | File | Role | Required |
 |---|---|---|
-| main config (`meds_config_main.toml`) | every non-PFT setting; the only command-line argument | always |
-| PFT file (`meds_config_pft.toml`) | every per-PFT trait, allometry and hydraulics; named by `[init].pft_config` | always |
+| main config (`ed_config_main.toml`) | every non-PFT setting; the only command-line argument | always |
+| PFT file (`ed_config_pft.toml`) | every per-PFT trait, allometry and hydraulics; named by `[init].pft_config` | always |
 | forcing | the meteorology: the ED_ERA5land archive or one forcing file ([The forcing file](#the-forcing-file)) | for a run with `[forcing].forcing_on = true` |
 | census CSV | a cohort inventory to start from (`[init].census_file`) | `[init].init_mode = 1` |
 | state file | a checkpoint to restart from (`[init].restart_file`) | `[init].init_mode = 2` |
-| output-selection file (`meds_io_config.toml`) | which diagnostic variables are written (`[output].io_config`) | optional |
+| output-selection file (`ed_io_config.toml`) | which diagnostic variables are written (`[output].io_config`) | optional |
 | soil and Chave E maps | per-cell soil and height-allometry inputs (`[maps]`) | a region run, or a site run that takes its soil from them |
 
 A missing file is a hard error.
@@ -27,18 +27,18 @@ A missing file is a hard error.
 ## Starting a run
 
 ```bash
-./build-dev/meds_main path/to/run_main.toml
+./build-dev/ed_main path/to/run_main.toml
 ```
 
-With no argument, `meds_main` reads `./meds_config_main.toml`. Relative paths inside the configs resolve
+With no argument, `ed_main` reads `./ed_config_main.toml`. Relative paths inside the configs resolve
 against the directory you launch from, not the config's own location.
 
-`meds_main --dump-io-config [main.toml]` writes `meds_io_config.toml`, listing every output variable,
+`ed_main --dump-io-config [main.toml]` writes `ed_io_config.toml`, listing every output variable,
 and exits without running.
 
 ## The parameter philosophy
 
-MEDS hard-codes no model parameters. The source defines only constants (numerical, geometric and
+ED-MORE hard-codes no model parameters. The source defines only constants (numerical, geometric and
 calendar). Every parameter is a TOML key, and a silent default is indistinguishable from a considered
 value once a run is a year old, so most keys are required: the loader notes each absent key as it reads, then
 stops and lists every missing key at once.
@@ -49,13 +49,13 @@ Two kinds of value are not in the config:
   slow step, the fusion tolerance schedules, the height-layer edges, the leaf capacities from their
   ratios to Vcmax25, and the stomatal-stress points a PFT file leaves out. A PFT trait that follows a
   fitted relation to another (sapwood conductivity or the mortality hazard from wood density, the
-  plasticity slopes from Vcmax25) is computed outside MEDS, by
+  plasticity slopes from Vcmax25) is computed outside ED-MORE, by
   [`scripts/pft_traits`](../scripts/pft_traits/README.md), and written into the PFT file.
 - **Optional keys** read with a fallback to a default. They are the solver settings, process switches and
   whole blocks (`[soil]`, `[snow]`, `[aerodynamics]`, `[soil_carbon]`, `[trait_dynamics]`, most of
   `[fast]` and `[output]`). The reference file lists each one commented out at its default.
 
-**Every key MEDS reads is listed in the two reference configs**, set or commented out at its default.
+**Every key ED-MORE reads is listed in the two reference configs**, set or commented out at its default.
 The test `config_keys_listed` holds the references equal to the keys the loader reads. Before a run
 starts, the loader checks every key of both files and reports all the problems at once:
 
@@ -112,7 +112,7 @@ Leaf phenology has no switch in the main file: it runs every day of every run, w
 threads. Patches and polygons are independent within a step and the site's sums are folded in patch
 order, so the output is byte-identical at any thread count: the key changes wall-clock time only, and is
 bounded by the patch count and by how unevenly the patches cost. A region of one polygon threads its
-patches. A build without OpenMP runs serially. MEDS does not read `OMP_NUM_THREADS`, so a run's config
+patches. A build without OpenMP runs serially. ED-MORE does not read `OMP_NUM_THREADS`, so a run's config
 records its thread count ([`science/numerical_scheme.md`](science/numerical_scheme.md) §6a).
 
 ### Slow-step switches
@@ -215,7 +215,7 @@ pass.
 ## How a run starts
 
 `[init].init_mode` selects one of three starts. The file a mode starts from is required by that mode and
-optional otherwise; the Python census start (`meds.demography.Site(census=True)`) reads `census_file`
+optional otherwise; the Python census start (`ed.demography.Site(census=True)`) reads `census_file`
 whatever the mode.
 
 | Mode | Start from | Needs |
@@ -230,7 +230,7 @@ site; without it they share it equally. A file without a header whose rows are s
 positionally as `site_id, patch_id, cohort_id, dbh, height, pft, nplant`. An unknown or repeated column,
 a missing required one, or a patch whose rows disagree on `patch_area` stops the run, naming it. An
 example file is [`data/census_example.csv`](../data/census_example.csv); the reader is
-`init_from_census` in [`src/io/init/meds_init_census.f90`](../src/io/init/meds_init_census.f90).
+`init_from_census` in [`src/io/init/ed_init_census.f90`](../src/io/init/ed_init_census.f90).
 
 **A census stand is restructured before the first step**, by the slow step's own operators under the same
 `[demography]` switches: cohort fusion, the cull and cohort fission, then patch fusion, then cohort
@@ -259,9 +259,9 @@ reaches the cohorts ([`scripts/calibrate_fast`](../scripts/calibrate_fast)).
 **A start that cannot proceed stops the run**, naming the mode, the file and the problem: a file that
 cannot be opened, a census with no row for the site or a malformed column or row, or a state file
 without a row for each of the run's polygons or with a PFT, site or soil-layer count unlike the run's. A
-state file must hold every variable this MEDS reads; one from an older MEDS stops the run at the first
+state file must hold every variable this ED-MORE reads; one from an older ED-MORE stops the run at the first
 it lacks, so start that run again from its census or bare ground. A run that asks for a stand never
-starts from bare ground instead. `meds_main` stops, and `meds.model.Run` raises `RuntimeError`.
+starts from bare ground instead. `ed_main` stops, and `ed.model.Run` raises `RuntimeError`.
 
 **The initial soil state** is `[init].soil_temp` [K] and `[init].soil_theta` [m³ m⁻³], both optional:
 every soil layer of every patch starts there, unless a state file restores the soil. They default to
@@ -317,7 +317,7 @@ The file formats, the ERA5-Land and flux-tower preparation, and the recycling ru
   correct, so nothing downstream complains. The window may start at any record stamp, and the seam
   between its last record and its first may fall anywhere in a day. On an end-stamped file such as
   ERA5-Land, a calendar year's first record is at 01:00.
-- **MEDS never gap-fills.** A missing or NaN required value is a hard error, not an interpolation.
+- **ED-MORE never gap-fills.** A missing or NaN required value is a hard error, not an interpolation.
 - **The records are described, not guessed.** `timestep`, `avg_convention` (`"end"` or `"begin"`),
   `sw_partition`, `lwdown_source` (`"file"` or `"synthesize"`), `start_clamp` (`"error"` or `"hold"`:
   a run that starts before the first record) and `recycle` (whether to repeat a calendar window of the
@@ -330,7 +330,7 @@ stand, and the aerodynamics runs from there ([`science/forcing.md`](science/forc
 - **Declare the forcing's own heights in `[forcing]`:** `tq_height` and `wind_height`; `height_above`
   (`"zero_plane"` for a reanalysis, `"ground"` for a flux tower); and `wind_exposure` (`"open_terrain"`
   for ERA5's 10 m wind, with `wind_exposure_z0` and `wind_blending_height`, or `"local"`, which refuses
-  those two). `meds_config_main.toml` shows ERA5-Land's values.
+  those two). `ed_config_main.toml` shows ERA5-Land's values.
 - **The terrain lapse** (`[site].apply_elevation_lapse`, required for a forced run) moves temperature,
   pressure, humidity (at constant relative humidity) and file longwave from the forcing cell's elevation
   to the site's. `[site].lapse_rate_tair` takes one rate or twelve monthly rates [K m⁻¹, 0–0.01] and is
@@ -346,9 +346,9 @@ stand, and the aerodynamics runs from there ([`science/forcing.md`](science/forc
   `co2_const`; without forcing it defaults to 420 µmol mol⁻¹.
 - **Without forcing**, `[forcing]` may hold just `forcing_on = false` and the CO₂ keys: the reference
   climate takes its CO₂ from them, and `co2_file` is read at startup with no met file opened.
-- **`co2_source = "file"`** reads `co2_file`, a MEDS CO₂ file looked up on model time, so the CO₂ keeps
+- **`co2_source = "file"`** reads `co2_file`, an ED-MORE CO₂ file looked up on model time, so the CO₂ keeps
   rising while recycled met repeats. The repository ships `data/co2/co2_cmip7_global_annual_1000-2022.txt`
-  (CMIP7 global annual means for 1000–2022). The path is relative to where MEDS runs, like `path`. A run
+  (CMIP7 global annual means for 1000–2022). The path is relative to where ED-MORE runs, like `path`. A run
   the file does not cover is refused at startup.
 - **Rejected combinations.** The other mode's key is rejected, and so is a met file that carries
   `CO2air`.
@@ -402,7 +402,7 @@ Every curve is capped at the PFT's `[allometry].hgt_max`, and biomass (`agb_c1`,
 (`lai_b1`, `lai_b2`) take the height it gives; the wood area (`wai_b1`, `wai_b2`), the sapwood
 (`sapwood_area_b1`, `sapwood_area_b2`) and the share of the wood above ground (`aboveground_frac`) are
 per PFT too. A cohort reproduces once its height reaches its PFT's `[pft].min_repro_height` [m], a height
-set outside MEDS.
+set outside ED-MORE.
 
 **Leaf traits.** Leaves are parameterized by their turnover: `[pft].leaf_turnover_rate_toc` [yr⁻¹, > 0]
 is the share of a top-of-canopy cohort's leaf carbon that background turnover replaces a year, and with
@@ -449,7 +449,7 @@ row ([Regional runs](#regional-runs) gives the layout).
 | Key | Default | Meaning |
 |---|---|---|
 | `enabled` | `false` | write the diagnostics |
-| `dir`, `prefix` | `"."`, `"meds"` | directory and file-name stem of the diagnostics |
+| `dir`, `prefix` | `"."`, `"ed"` | directory and file-name stem of the diagnostics |
 | `io_config` | `""` | the output-selection file; `""` writes every variable at its default tiers |
 | `cohort_max`, `patch_max` | 4096, 256 | the files' cohort and patch axis lengths; the run stops when a live count exceeds one |
 | `fast_interval_steps` | 4 | fast steps one sub-daily record spans (4 × 900 s is hourly); must divide the fast steps in a slow step |
@@ -459,8 +459,8 @@ row ([Regional runs](#regional-runs) gives the layout).
 
 ### Choosing variables
 
-`[output].io_config` names a TOML file with a `[variables]` table. `meds_main --dump-io-config` generates
-a file of this kind, [`meds_io_config.toml`](../meds_io_config.toml), listing every variable with its
+`[output].io_config` names a TOML file with a `[variables]` table. `ed_main --dump-io-config` generates
+a file of this kind, [`ed_io_config.toml`](../ed_io_config.toml), listing every variable with its
 default tiers, axis and units; every line is commented out, so the generated file changes nothing. Each
 line names a variable, or a pattern with `*` (quoted: `"mean_*_py"`), and what is written:
 
@@ -515,7 +515,7 @@ cell_mask_min     = 0.5                              # ... and the value a cell 
   `"mask"`) is at least `cell_mask_min` (default 0.5), and is skipped where it is below or the map holds
   no value. A 0/1 mask works as it is; a fraction, such as a natural-vegetation share, takes a threshold.
   The mask must be on the forcing grid: the file's `lat` and `lon` must be the ED_ERA5land static file's,
-  or the run stops. MEDS never regrids a map; the run log says how many cells the mask kept.
+  or the run stops. ED-MORE never regrids a map; the run log says how many cells the mask kept.
 - **Soil.** Every polygon takes its soil column from its own cell, through the `[maps]` soil maps, which a
   region requires; with `height_allometry = "chave2014"` it also needs `[maps].chave_e_map`. Each polygon
   is then a site run with that cell's soil, and its configuration is checked on its own.
@@ -556,7 +556,7 @@ cell_mask_min     = 0.5                              # ... and the value a cell 
 - **A failing polygon.** A polygon that fails (a NaN, a cohort or soil-carbon state out of bounds) stops
   at the failing step, and the others finish the month. The month's records are then written, with the
   fill value where the failed polygon has none, and so is a state file that falls due at the month's end
-  (the failed polygon as it stood); the log names the polygon and the date, and `meds_main` closes the
+  (the failed polygon as it stood); the log names the polygon and the date, and `ed_main` closes the
   files and stops with an error. The region ends after the month in which a polygon failed: no later
   month runs, and no end-of-run state file is written.
 - **Cost.** Work and memory grow with the polygon count. Output is written between months, so a crash
@@ -567,7 +567,7 @@ cell_mask_min     = 0.5                              # ... and the value a cell 
 
 `[maps]` names the static maps a run takes its soil from, and Chave's site index E. Each map is on the
 ED_ERA5land grid: its `lat` and `lon` must be the archive's static file's, so a cell's value sits at the
-cell's own row and column, and MEDS never regrids. `src/io/maps/meds_maps.f90` reads every map and is
+cell's own row and column, and ED-MORE never regrids. `src/io/maps/ed_maps.f90` reads every map and is
 the only module that does.
 
 | Key | File (ED-SoilMaps v2) | Variables |
@@ -585,7 +585,7 @@ follows:
 - **Depth and layers.** The column ends at `soil_depth`, on the default layers
   ([The soil layers](#the-soil-layers)).
 - **Each layer's soil.** A layer takes the map layers it overlaps, weighted by the overlap; below the
-  maps' 2 m, it takes the deepest map layer. Its retention curve and Ks come from MEDS's pedotransfer
+  maps' 2 m, it takes the deepest map layer. Its retention curve and Ks come from ED-MORE's pedotransfer
   function, and its thermal properties from the same texture by CLM5's mineral-soil formulas
   ([`science/soil_biophysics.md`](science/soil_biophysics.md)).
 - **The bottom water boundary** follows `bc_class` (1–4; anything else stops the run). The first three
@@ -611,7 +611,7 @@ they are set:
 `[allometry].chave_e` is refused in the PFT file, and the map needs a PFT on
 `height_allometry = "chave2014"`.
 
-MEDS fills no gaps. A run cell a map leaves empty stops the run, naming the map, the variable and the
+ED-MORE fills no gaps. A run cell a map leaves empty stops the run, naming the map, the variable and the
 cell. A product is completed in its own pipeline, not in the model.
 
 ## Several sites
@@ -665,6 +665,6 @@ Each example ships a complete main and PFT config pair; read them next to this p
 | Example | Config | Shows |
 |---|---|---|
 | [example 03](../examples/example03_demography/) | `example_config_main.toml`, `example_config_pft.toml` | the demography engine alone, from near-bare ground, with no fast loop |
-| [example 04](../examples/example04_column_biophysics/) | `calibration/meds_config_calibrated.toml` | a site run at a flux tower: tower forcing (`format = "default"`), a census start |
-| [example 05](../examples/example05_forest_regeneration/) | `meds_config_regeneration.toml`; `palo_verde/meds_config_inventory.toml` | regrowth from bare ground with state files; an ERA5-Land site run from a census |
+| [example 04](../examples/example04_column_biophysics/) | `calibration/ed_config_calibrated.toml` | a site run at a flux tower: tower forcing (`format = "default"`), a census start |
+| [example 05](../examples/example05_forest_regeneration/) | `ed_config_regeneration.toml`; `palo_verde/ed_config_inventory.toml` | regrowth from bare ground with state files; an ERA5-Land site run from a census |
 | [example 06](../examples/example06_regional_run/) | written by `run_regions.py` | a region run on the ED_ERA5land archive |

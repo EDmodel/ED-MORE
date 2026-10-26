@@ -1,6 +1,6 @@
 # Meteorological forcing
 
-This page describes the atmospheric forcing: the file formats MEDS reads, how a record becomes the
+This page describes the atmospheric forcing: the file formats ED-MORE reads, how a record becomes the
 air above each patch's canopy, and the equations on the way (interpolation, solar geometry,
 shortwave, humidity, rain and snow, lapse corrections, recycling, CO₂).
 
@@ -13,15 +13,15 @@ specific humidity, surface pressure, wind, downwelling longwave, the four (beam/
 shortwave streams and CO₂, plus the *derived* $`\cos z`$ and $`\rho_{air}`$, which are never stored in
 a file and always recomputed. CO₂ is prescribed on its own, not read from the met file (§12).
 
-The `meds_met` library links the config leaf and the netCDF C bindings (`meds_netcdf_c`) and nothing
+The `ed_met` library links the config leaf and the netCDF C bindings (`ed_netcdf_c`) and nothing
 else: no state, no demography, no kernels. A prescribed driver sits low in the dependency graph
 because everything consumes it and it consumes nothing. The laws it applies (the sun, the shortwave
-partition, the humidity and lapse conversions) are in the shared libraries `meds_time`,
-`meds_radiation_lib` and `meds_therm_lib`; `meds_met` only reads, brackets and calls them.
+partition, the humidity and lapse conversions) are in the shared libraries `ed_time`,
+`ed_radiation_lib` and `ed_therm_lib`; `ed_met` only reads, brackets and calls them.
 
 ## 1. The forcing file
 
-`[forcing].format` picks one of two sources: a single **MEDS forcing file** (`"default"`, below) or
+`[forcing].format` picks one of two sources: a single **ED-MORE forcing file** (`"default"`, below) or
 the global **ED_ERA5land archive** (`"ERA5land"`, at the end of this section). The single file is an
 **unstructured multi-grid NetCDF** whose forcing variables are all shaped `(time, grid)`. `time` is
 the record axis; `grid` is a plain *list* of locations (`grid = 1` for a single site), because a
@@ -47,7 +47,7 @@ variables:
     // every float is stored with _FillValue = 1.e20; the writer refuses a missing value (sec. 10)
 // global attributes -- time_zone is required and must be "UTC"; avg_convention, sw_input_kind and,
 // when present, the heights are checked against [forcing] at open; the rest is provenance:
-    :Conventions = "MEDS-forcing-1.1" ; :source = "ERA5-Land hourly" ; :time_zone = "UTC" ;
+    :Conventions = "ED-MORE-forcing-1.1" ; :source = "ERA5-Land hourly" ; :time_zone = "UTC" ;
     :timestep_seconds = 3600 ; :avg_convention = "end" ; :sw_input_kind = "total" ;
     :wind_meas_height_m = 10. ;          // = [forcing].wind_height; also tq_height_m, wind_height_m
                                          // and height_above ("zero_plane" | "ground") when present
@@ -102,7 +102,7 @@ matters, so the Earth radius is immaterial. At `met_open` the reader loads, for 
 record the run can reach (the recycle window, or the run period) into memory, one read per variable,
 so no step reads the file. A file stored one time record per chunk (what an unlimited time dimension
 gives by default) reads chunk by chunk, about 3 s per 90,000 records. `met_open` prints a note when it
-meets one, with the `nccopy` line that rewrites it with the same values. `scripts/meds_forcing_file.py`
+meets one, with the `nccopy` line that rewrites it with the same values. `scripts/ed_forcing_file.py`
 writes a fixed-length time dimension, so every variable is one contiguous block.
 
 **Producing one from ERA5-Land.** `scripts/prepare_era5/make_forcing_file.py` writes the file above,
@@ -184,7 +184,7 @@ and 0.008 kg kg⁻¹, whose four shortwave streams sum to 400 W m⁻² with the 
 whose CO₂ is the run's (§12).
 
 **No step reads a file.** Everything a step's sub-samples need is in memory before the step starts
-([order of processes](order_of_processes.md) §1). A MEDS forcing file's records for the recycle window
+([order of processes](order_of_processes.md) §1). An ED-MORE forcing file's records for the recycle window
 or the run period are read at `met_open`. For the archive, `met_prefetch` loads before each step the
 month the step reads plus the one record before it: 00:00 on the 1st, which lives in the previous
 month's file, or the window's last record at the recycle wrap. On moving into a new month that record
@@ -214,7 +214,7 @@ which keeps its direction.
 
 ## 4. Solar geometry: apparent solar time
 
-`meds_time%solar_cosz` expects **local apparent solar seconds** — it reads its time argument as a fraction
+`ed_time%solar_cosz` expects **local apparent solar seconds** — it reads its time argument as a fraction
 of day with noon at 0.5. Every forcing file is stamped in UTC, so feeding clock seconds straight in would
 put solar noon at 00:00 UTC everywhere. One transform fixes it:
 
@@ -268,7 +268,7 @@ F(t) = F_{avg}\,\frac{\cos z(t)}{\langle\cos z\rangle_{win}} \qquad(5)
 and emphatically not $`\langle\sec z\rangle`$.** ED2's `mean_daysecz` computes the mean secant; by Jensen's
 inequality $`\langle 1/\cos z\rangle \ge 1/\langle\cos z\rangle`$, with the gap blowing up near sunrise and
 sunset, so the secant form reconstructs a flux that does *not* integrate back to $`F_{avg}`$ and is biased
-high at low sun. MEDS does not port it, and the test asserts both halves. The mean is a 10-sub-sample
+high at low sun. ED-MORE does not port it, and the test asserts both halves. The mean is a 10-sub-sample
 midpoint rule over the **full** window, night sub-samples contributing exactly zero:
 
 ```math
@@ -375,8 +375,8 @@ whichever curve the provider used (Barro Colorado Island's `vpd` column is the A
 form, whose saturation pressure is 5.7 Pa below Bolton's at 25 °C). With `RHair`, 100 % at the tower is
 saturation in the model.
 
-Both conversions go through the **same** Bolton (1980) saturation vapour pressure the rest of MEDS
-uses (`sat_vapor_pressure` in `meds_therm_lib`,
+Both conversions go through the **same** Bolton (1980) saturation vapour pressure the rest of ED-MORE
+uses (`sat_vapor_pressure` in `ed_therm_lib`,
 $`e_{sat}(T)=611.2\exp[17.67\,T_c/(T_c+243.5)]`$ Pa), taken over **liquid** water, deliberately. Dewpoint
 is *defined* as the temperature at which the liquid saturation vapour pressure equals the actual one,
 and a relative-humidity sensor reports against liquid water (the WMO convention) even below freezing,
@@ -395,7 +395,7 @@ e = \mathrm{RH}\cdot e_{sat}(T)\ \text{(relative humidity)} \qquad(11)
 ```
 
 with $`\varepsilon = M_{h2o}/M_{dry} = 0.62196`$, water's molar mass over dry air's (`h2o_dry_ratio` in
-`meds_constants`).
+`ed_constants`).
 
 The file carries one total precipitation rate, and so does the forcing record; the model needs rain and
 snow separately. The split is made once, where each patch's forcing is filled, at that patch's
@@ -414,11 +414,11 @@ f_{liq} = \left[\frac{T-(T_3-1\,\mathrm{K})}{2\,\mathrm{K}}\right]_{0}^{1}, \qqu
 ## 8. Vertical corrections: the terrain, then the canopy-air top
 
 Every vertical correction runs in two steps: the **terrain** lapse per record as it is read, then the
-move to **each patch's canopy-air top** per patch and sub-step. The laws are `meds_therm_lib`'s and
-`meds_radiation_lib`'s; `meds_met` applies them (see the [code map](#code-map)). Between the two, a
+move to **each patch's canopy-air top** per patch and sub-step. The laws are `ed_therm_lib`'s and
+`ed_radiation_lib`'s; `ed_met` applies them (see the [code map](#code-map)). Between the two, a
 polygon of several sites moves the forcing to **each site's** elevation and slope.
 
-**What the forcing's heights mean.** For ERA5-Land, the reanalysis MEDS reads:
+**What the forcing's heights mean.** For ERA5-Land, the reanalysis ED-MORE reads:
 - heights are above the ground plus the roughness length; the ECMWF model has no displacement height
   (IFS Cy41r2 documentation, Part IV, §3.2);
 - the **10 m wind is an open-terrain diagnostic**: the model's 40 m blending-height wind brought down to
@@ -590,7 +590,7 @@ reader keeps the window's first day (its first record through the next midnight)
 a slow step that crosses the seam reads the window's last month and that day and loads nothing mid-step.
 A region's window starts at 00:00 or 01:00 on the 1st, because a region loads each month once, before it.
 
-## 10. MEDS never gap-fills
+## 10. ED-MORE never gap-fills
 
 Every required field is checked for NaN as it is read, and a missing value **halts the run**, naming the
 field, the time record and the grid index. In a forcing file, a value equal to its variable's `_FillValue`
@@ -624,7 +624,7 @@ $[0.5, 1]$:
 
 $`k_t`$ is the **same** clearness index the shortwave partition uses, and `[forcing].lw_cloud_a`
 (default 0.22, at least 0) is the cloud coefficient $a$. The synthesis replaces the file's longwave
-every sub-step, so a MEDS forcing file need not carry `LWdown`, and one that does goes unused.
+every sub-step, so an ED-MORE forcing file need not carry `LWdown`, and one that does goes unused.
 
 **Why the cloud term is not optional in practice.** Against the Ithaca ERA5-Land file, clear-sky
 Brutsaert alone underestimates `strd` by a mean of 29.9 W m⁻² (RMSE 43.6) on a file mean of
@@ -646,7 +646,7 @@ night starts from a clear sky, $`k_t = 1`$.
 
 **It is a fallback, not a substitute.** The synthesized longwave is a clear-sky emissivity with a one-
 coefficient cloud term and does not reproduce a reanalysis's. Use the file's longwave when the file has
-it; the synthesis exists so a source that lacks the field can drive MEDS at all.
+it; the synthesis exists so a source that lacks the field can drive ED-MORE at all.
 
 ## 12. CO₂
 
@@ -656,7 +656,7 @@ forcing, whose reference climate takes it (§2):
 
 - **`"const"`** (the default): `[forcing].co2_const` for the whole run. A run without forcing may
   leave it at 420 µmol mol⁻¹, `met_forcing_t`'s.
-- **`"file"`**: a **MEDS CO₂ file**, named by `[forcing].co2_file` and read once at `met_open` (without
+- **`"file"`**: a **ED-MORE CO₂ file**, named by `[forcing].co2_file` and read once at `met_open` (without
   forcing, at `met_open_co2`, which opens nothing else). The repository ships one (below).
 
 A key of the other mode (`co2_file` with `"const"`, `co2_const` with `"file"`) is rejected, not ignored.
@@ -748,7 +748,7 @@ checks that.
 
 ## What is not here
 
-- **No forcing perturbations.** MEDS runs on the forcing it is given. Sensitivity offsets, scalings
+- **No forcing perturbations.** ED-MORE runs on the forcing it is given. Sensitivity offsets, scalings
   and delta-change climate scenarios belong upstream, in the forcing file; they are out of scope.
 - **No latitude-resolved CO₂.** One global series drives every polygon (§12). CMIP7 also gives
   monthly 15° latitude bands, which a region spanning several bands would want for recent decades.
@@ -761,7 +761,7 @@ checks that.
 ## Parameters
 
 The keys of `[forcing]` and `[site]` that this page's equations use; defaults, units and which keys
-each option requires are in the reference config `meds_config_main.toml` and in
+each option requires are in the reference config `ed_config_main.toml` and in
 [configuration](../configuration.md), "The forcing file".
 
 | Key | Role | Section |
@@ -780,25 +780,25 @@ each option requires are in the reference config `meds_config_main.toml` and in
 
 | Concept | Routine / file |
 |---|---|
-| interpolation, wind energy form | `meds_numerics`: `linear_interpolate`; `meds_met`: `interpolate_wind_energy` |
-| apparent solar time, zenith | `meds_time`: `solar_cosz_utc` over `solar_cosz`, with `utc_to_solar_seconds` and the private `equation_of_time`; the window mean `mean_solar_cosz`; `solar_declination`, `daylength` |
-| SW disaggregation | `meds_met`: `cosz_reconstruct_factor`, `disaggregate_sw` |
-| SW partition | `meds_radiation_lib`: `partition_shortwave`, `erbs_diffuse_fraction`, `weiss_norman_partition` |
-| humidity, precip phase | `meds_therm_lib`: `sat_specific_humidity` (at the dewpoint), `rh_to_specific_humidity`, `vapor_pressure_to_specific_humidity`, `specific_humidity_to_vapor_pressure`, `precip_phase` |
-| longwave synthesis | `meds_radiation_lib`: `clearness_index`, `clear_sky_emissivity`, `synthesize_lwdown`; `meds_met`: `remember_clearness` (the night's $`k_t`$) |
-| the grid and its cells | `meds_met_grid`: `select_site_cell`, `select_box_cells`, `keep_cells`, `same_grid`, `great_circle_distance`, `nearest_grid_index`; the archive's grid, `meds_met_era5land`: `era5land_grid` |
-| terrain lapse (§8, Step 1) | the laws: `meds_therm_lib`: `lapse_air_temperature`, `lapse_pressure`, `lapse_specific_humidity`; `meds_radiation_lib`: `lapse_longwave`; applied in `read_record` (`meds_met`) |
-| each site (§8) | `meds_met`: `met_at_site`, with `slope_incidence_cosz` (`meds_time`) and `slope_beam_factor` (`meds_radiation_lib`) |
-| canopy-air top (§8, Step 2) | `meds_met`: `cas_top_wind_factor`, `met_to_cas_top`; `meds_therm_lib`: `dry_adiabat_temperature`; `canopy_roughness` (`meds_canopy_aerodynamics`); called per patch by `meds_fast_forcing` |
-| the reader | `meds_met`: `met_open`, `met_cursor_init`, `met_prefetch`, `met_advance`, `met_instant`, `met_close`; the one ingest `read_record`, `assert_finite` |
-| the two file sources | `meds_met_default`: `default_file_open`, `default_file_record`, `read_series`, `detect_humidity`; `meds_met_era5land`: `era5land_open`, `era5land_prefetch`, `era5land_record`, `open_archive`, `load_axis_month`, `locate_record`, `keep_window_head` |
-| the archive's files | `meds_met_era5land`: `era5land_path`, `era5land_month_hours`, `era5land_load_month` |
-| recycling | `meds_met_share`: `validate_recycle_window`, `file_lookup_sec`, `recycle_model_to_file`; `meds_met`: `load_wrap_bracket` |
-| CO₂ | `meds_met_co2`: `co2_series_read`, `co2_series_at`, `co2_series_covers`; `meds_met`: `open_co2`, `met_open_co2`, `met_co2`; the `CO2air` rejection is in `validate_file_against_config` (`meds_met_share`) |
-| types | `meds_met_types`: `met_forcing_t`, `met_record_t`, `met_source_t`, `met_cursor_t`, `met_grid_t`, `met_cells_t`, `met_month_t`, `co2_series_t` |
-| config | `meds_forcing_params`: `forcing_params_t`, `MET_BACKEND_*`, `METAVG_*`, `LW_FILE`, `LW_SYNTHESIZE`, `CLAMP_*`, `GRIDMATCH_*`, `CO2_SOURCE_*`, `HEIGHT_ABOVE_*`, `WIND_EXPOSURE_*`; `SWPART_*` and `LW_CLEAR_*` in `meds_radiation_lib`; read by `load_forcing_params` (`meds_config_io`), checked by `check_forcing` (`meds_config_check`) |
-| fast-loop join | `meds_fast_forcing`: `sample_window` (the per-sub-step `met_advance` and `met_instant`), `site_forcing` (each site's sample), `patch_forcing` (the air at the patch's canopy-air top, from `fill_forcing`, and the radiation, which `apply_rt_forcing` hands to the canopy two-stream, [canopy radiative transfer](canopy_radiation_transfer.md) §3–§4) |
-| file production | the archive: `scripts/prepare_era5/download_era5land_gdex.py` or `download_era5land_cds.py`, then `build_era5land_static.py` and `build_era5land_archive.py`; a single file: `make_forcing_file.py` (from the archive, or from `download_era5land_cds.py` and `postprocess_era5land.py` box files) or `scripts/prepare_flux_tower/make_tower_forcing.py` (flux-tower data); the shared writer `scripts/meds_forcing_file.py`; the tower tool's Python mirror of the model's conversions `scripts/prepare_flux_tower/tower_conversions.py`; the shipped CO₂ series `scripts/prepare_co2/make_co2_file.py` |
+| interpolation, wind energy form | `ed_numerics`: `linear_interpolate`; `ed_met`: `interpolate_wind_energy` |
+| apparent solar time, zenith | `ed_time`: `solar_cosz_utc` over `solar_cosz`, with `utc_to_solar_seconds` and the private `equation_of_time`; the window mean `mean_solar_cosz`; `solar_declination`, `daylength` |
+| SW disaggregation | `ed_met`: `cosz_reconstruct_factor`, `disaggregate_sw` |
+| SW partition | `ed_radiation_lib`: `partition_shortwave`, `erbs_diffuse_fraction`, `weiss_norman_partition` |
+| humidity, precip phase | `ed_therm_lib`: `sat_specific_humidity` (at the dewpoint), `rh_to_specific_humidity`, `vapor_pressure_to_specific_humidity`, `specific_humidity_to_vapor_pressure`, `precip_phase` |
+| longwave synthesis | `ed_radiation_lib`: `clearness_index`, `clear_sky_emissivity`, `synthesize_lwdown`; `ed_met`: `remember_clearness` (the night's $`k_t`$) |
+| the grid and its cells | `ed_met_grid`: `select_site_cell`, `select_box_cells`, `keep_cells`, `same_grid`, `great_circle_distance`, `nearest_grid_index`; the archive's grid, `ed_met_era5land`: `era5land_grid` |
+| terrain lapse (§8, Step 1) | the laws: `ed_therm_lib`: `lapse_air_temperature`, `lapse_pressure`, `lapse_specific_humidity`; `ed_radiation_lib`: `lapse_longwave`; applied in `read_record` (`ed_met`) |
+| each site (§8) | `ed_met`: `met_at_site`, with `slope_incidence_cosz` (`ed_time`) and `slope_beam_factor` (`ed_radiation_lib`) |
+| canopy-air top (§8, Step 2) | `ed_met`: `cas_top_wind_factor`, `met_to_cas_top`; `ed_therm_lib`: `dry_adiabat_temperature`; `canopy_roughness` (`ed_canopy_aerodynamics`); called per patch by `ed_fast_forcing` |
+| the reader | `ed_met`: `met_open`, `met_cursor_init`, `met_prefetch`, `met_advance`, `met_instant`, `met_close`; the one ingest `read_record`, `assert_finite` |
+| the two file sources | `ed_met_default`: `default_file_open`, `default_file_record`, `read_series`, `detect_humidity`; `ed_met_era5land`: `era5land_open`, `era5land_prefetch`, `era5land_record`, `open_archive`, `load_axis_month`, `locate_record`, `keep_window_head` |
+| the archive's files | `ed_met_era5land`: `era5land_path`, `era5land_month_hours`, `era5land_load_month` |
+| recycling | `ed_met_share`: `validate_recycle_window`, `file_lookup_sec`, `recycle_model_to_file`; `ed_met`: `load_wrap_bracket` |
+| CO₂ | `ed_met_co2`: `co2_series_read`, `co2_series_at`, `co2_series_covers`; `ed_met`: `open_co2`, `met_open_co2`, `met_co2`; the `CO2air` rejection is in `validate_file_against_config` (`ed_met_share`) |
+| types | `ed_met_types`: `met_forcing_t`, `met_record_t`, `met_source_t`, `met_cursor_t`, `met_grid_t`, `met_cells_t`, `met_month_t`, `co2_series_t` |
+| config | `ed_forcing_params`: `forcing_params_t`, `MET_BACKEND_*`, `METAVG_*`, `LW_FILE`, `LW_SYNTHESIZE`, `CLAMP_*`, `GRIDMATCH_*`, `CO2_SOURCE_*`, `HEIGHT_ABOVE_*`, `WIND_EXPOSURE_*`; `SWPART_*` and `LW_CLEAR_*` in `ed_radiation_lib`; read by `load_forcing_params` (`ed_config_io`), checked by `check_forcing` (`ed_config_check`) |
+| fast-loop join | `ed_fast_forcing`: `sample_window` (the per-sub-step `met_advance` and `met_instant`), `site_forcing` (each site's sample), `patch_forcing` (the air at the patch's canopy-air top, from `fill_forcing`, and the radiation, which `apply_rt_forcing` hands to the canopy two-stream, [canopy radiative transfer](canopy_radiation_transfer.md) §3–§4) |
+| file production | the archive: `scripts/prepare_era5/download_era5land_gdex.py` or `download_era5land_cds.py`, then `build_era5land_static.py` and `build_era5land_archive.py`; a single file: `make_forcing_file.py` (from the archive, or from `download_era5land_cds.py` and `postprocess_era5land.py` box files) or `scripts/prepare_flux_tower/make_tower_forcing.py` (flux-tower data); the shared writer `scripts/ed_forcing_file.py`; the tower tool's Python mirror of the model's conversions `scripts/prepare_flux_tower/tower_conversions.py`; the shipped CO₂ series `scripts/prepare_co2/make_co2_file.py` |
 | tests | ctest `met_file` (`test/io/test_met_file.f90`): the mean-conserving identity and the secant bias, the NetCDF round trip, start-clamp and recycle-window rejections, recycle phase over 29 years, prescribed CO₂ (every rejection, the shipped series, CO₂ not recycled with the met), the forcing at a site, and the flux-tower contract (humidity forms, the UTC requirement, stated heights, the interval each flux is read from, the move to the canopy-air top); `met_era5land` (`test/io/test_met_era5land.f90`): a synthetic archive, its cell selection, month loads, seam and recycling; `radiation_lib`, `therm_lib` and `numerics` (`test/share/`): the shortwave schemes, longwave synthesis, humidity, phase, lapse, the beam on a slope |
 
 ## References

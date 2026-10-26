@@ -8,7 +8,7 @@ This is one of the per-store pages under [coupled_biophysics](coupled_biophysics
 
 ## The snow store
 
-The snow kernels live in `meds_surface`; the pack is a single bulk layer ([ROADMAP](../ROADMAP.md) for multi-layer snow). The prognostic state is the water-equivalent mass `swe` [kg m⁻²], the **extensive** internal energy [J m⁻²] and the depth (`swe` over `rho_snow`). Temperature and liquid fraction are read-offs of `internal_energy_to_temp` (with no dry heat capacity), so **melt and refreeze are the internal-energy plateau**, exactly as for soil. Each `dt_fast` runs **accumulate**, then **drain**, before the fast loop's march; the **exchange** happens inside the march and the **commit** after it:
+The snow kernels live in `ed_surface`; the pack is a single bulk layer ([ROADMAP](../ROADMAP.md) for multi-layer snow). The prognostic state is the water-equivalent mass `swe` [kg m⁻²], the **extensive** internal energy [J m⁻²] and the depth (`swe` over `rho_snow`). Temperature and liquid fraction are read-offs of `internal_energy_to_temp` (with no dry heat capacity), so **melt and refreeze are the internal-energy plateau**, exactly as for soil. Each `dt_fast` runs **accumulate**, then **drain**, before the fast loop's march; the **exchange** happens inside the march and the **commit** after it:
 
 - **Accumulate** (`snow_accumulate`). Snowfall lands as ice at $`\min(T_{3ple},T_{air})`$ and rain-on-snow as liquid at $`T_{air}`$ (it refreezes later through the temperature inversion). A pack is created only from `min_new_snow_mass` of new snow in one `dt_fast`; sub-threshold snow joins the rain as liquid (the canopy films, then the pond).
 - **Drain** (`snow_drain_meltwater`). The free liquid the pack holds above its holding capacity (`liquid_holding_frac`), from the last step's melt and this step's rain, percolates out as a paired (mass, enthalpy) hand-off to the pond. It reaches the pond at the melt temperature and infiltrates from there in this step's water network. Full melt-out dumps the residual and reverts to bare ground. Meltwater therefore leaves the pack the step after it melts.
@@ -73,14 +73,14 @@ The `[snow]` block; every key is optional ([configuration](../configuration.md))
 
 | Concept | Routine |
 |---|---|
-| snow energy, base conductance | `meds_surface`: `snow_surface_balance`, `snow_take_exchange`, `snow_base_conductance` |
-| the stage before the march, the exchange in it, the commit | `meds_surface`: `prepare_snow_stage` (called by `meds_fast_integ_frozen`: `build_frozen`), `ground_surface_exchange` (called by `meds_fast_integ_derivs`: `surface_derivs`); `meds_fast_integ_update`: `update_dynamic_state` |
-| snow mass, cover, melt | `meds_surface`: `snow_accumulate`, `snow_cover_fraction`, `snow_drain_meltwater` |
-| the ground's optics and radiation | `meds_surface`: `snow_blend_ground_optics`, `snow_albedos`, `ground_tile_radiation` |
-| saturation vapour pressure, eq. (1) | `meds_therm_lib`: `sat_vapor_pressure`, `sat_specific_humidity` |
-| prognostic snow type | `meds_patch_state_vars`: `snow_state_t` |
+| snow energy, base conductance | `ed_surface`: `snow_surface_balance`, `snow_take_exchange`, `snow_base_conductance` |
+| the stage before the march, the exchange in it, the commit | `ed_surface`: `prepare_snow_stage` (called by `ed_fast_integ_frozen`: `build_frozen`), `ground_surface_exchange` (called by `ed_fast_integ_derivs`: `surface_derivs`); `ed_fast_integ_update`: `update_dynamic_state` |
+| snow mass, cover, melt | `ed_surface`: `snow_accumulate`, `snow_cover_fraction`, `snow_drain_meltwater` |
+| the ground's optics and radiation | `ed_surface`: `snow_blend_ground_optics`, `snow_albedos`, `ground_tile_radiation` |
+| saturation vapour pressure, eq. (1) | `ed_therm_lib`: `sat_vapor_pressure`, `sat_specific_humidity` |
+| prognostic snow type | `ed_patch_state_vars`: `snow_state_t` |
 
 ## References
 - Murphy & Koop (2005), *Q. J. R. Meteorol. Soc.* 131:1539 — vapour pressure over ice.
 - Niu & Yang (2007), *JGR* 112:D21101 — snow-cover fraction.
-- Design record: [MEDS_SNOW_DESIGN](../dev_plans/archive/MEDS_SNOW_DESIGN.md).
+- Design record: [ED_SNOW_DESIGN](../dev_plans/archive/MEDS_SNOW_DESIGN.md).

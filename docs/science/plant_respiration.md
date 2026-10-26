@@ -1,8 +1,8 @@
 # Plant respiration
 
-Autotrophic respiration returns a large fraction of gross photosynthesis to the atmosphere. MEDS charges
+Autotrophic respiration returns a large fraction of gross photosynthesis to the atmosphere. ED-MORE charges
 it in **three places on two timescales**: leaf dark respiration inside the gas-exchange solver and stem
-and fine-root **maintenance** respiration in `meds_respiration`, both on the fast step (`dt_fast`), and
+and fine-root **maintenance** respiration in `ed_respiration`, both on the fast step (`dt_fast`), and
 **growth (construction)** respiration once per slow step (`[run].dt_slow`, a day by default) inside the
 carbon allocator. This page collects the three limbs, states the accounting rule that keeps them from
 being double-counted, and gives the equations for the two non-leaf maintenance terms: ED2 forms (Chambers
@@ -110,7 +110,7 @@ kernel broadcasts it over the cohorts. A cohort with no fine roots respires noth
 ## 4. The shared temperature response
 
 Both maintenance limbs, and leaf $R_d$, scale from a 25 °C baseline through the **same two functions**
-in `meds_therm_lib`:
+in `ed_therm_lib`:
 
 ```math
 s_{\mathrm{arr}}(T) = \exp\!\Big[\frac{E_a}{R\,T_{25}}\Big(1 - \frac{T_{25}}{T}\Big)\Big],
@@ -127,7 +127,7 @@ PFT file is written**, never at runtime.
 
 Leaf $R_d$ reaches these functions through the dispatcher `temp_response(form, …)`, so its form follows the
 run's configured selection; stem and root call `peaked_arrhenius_scale` directly and are always peaked.
-Both routes end in the same code, and that is the point: the temperature response (`meds_therm_lib`) sits
+Both routes end in the same code, and that is the point: the temperature response (`ed_therm_lib`) sits
 in the shared library at the root of the dependency DAG precisely so leaf, stem and root cannot drift
 into three near-copies of an Arrhenius — a change to the deactivation normalisation or to the clamped
 `safe_exp` reaches every tissue at once. Stem and root take the leaf's $`E_a, H_d, \Delta S`$ too,
@@ -216,16 +216,16 @@ Per-PFT traits the respiration consumes (PFT file, `[pft]`).
 
 | Concept | Routine |
 |---|---|
-| stem maintenance respiration (eq. (3)) | `meds_respiration`: `stem_maintenance_respiration` (`elemental pure`: scalar = one cohort, array = one patch) |
-| fine-root maintenance respiration (eq. (4)) | `meds_respiration`: `fine_root_maintenance_respiration`, with the layer-summed temperature scale `root_zone_temp_scale` |
-| shared temperature response (eq. (5)) | `meds_therm_lib`: `arrhenius_scale`, `peaked_arrhenius_scale`, `temp_response` |
-| leaf dark respiration $R_d$ | `meds_leaf_gas_exchange` (inside the Ci solve; see [`leaf_gas_exchange.md`](leaf_gas_exchange.md)) |
-| per-fast-step call site + patch totals | `meds_fast_integ_frozen`: `canopy_maintenance_respiration`, `build_frozen` (eq. (7)) |
-| fast step → slow step integration | `meds_fast_state`: `accumulate_fast_to_slow` → `leaf_resp_accum` / `stem_resp_accum` / `root_resp_accum` on the cohort SoA |
-| slow-step maintenance sum handed to the allocator | `meds_cohort_state_vars`: `cohort_carbon_supply` (`resp_maint`) |
-| growth respiration (eq. (6)) | `meds_plant_carbon_allocation`: `growth_respiration`, charged inside `fill_carbon_demand` / `plant_carbon_allocation` |
-| growth respiration → canopy air | `meds_slow_state`: `compute_carbon_allocation` → `patch%slow_co2_rate` → `meds_fast_integ_frozen` |
-| per-PFT traits + TOML loading | `meds_pft_params` (`pft_table_t`), `meds_config_io` (`[pft]` block; every key is required except `stem_resp_sapwood25`, §2) |
+| stem maintenance respiration (eq. (3)) | `ed_respiration`: `stem_maintenance_respiration` (`elemental pure`: scalar = one cohort, array = one patch) |
+| fine-root maintenance respiration (eq. (4)) | `ed_respiration`: `fine_root_maintenance_respiration`, with the layer-summed temperature scale `root_zone_temp_scale` |
+| shared temperature response (eq. (5)) | `ed_therm_lib`: `arrhenius_scale`, `peaked_arrhenius_scale`, `temp_response` |
+| leaf dark respiration $R_d$ | `ed_leaf_gas_exchange` (inside the Ci solve; see [`leaf_gas_exchange.md`](leaf_gas_exchange.md)) |
+| per-fast-step call site + patch totals | `ed_fast_integ_frozen`: `canopy_maintenance_respiration`, `build_frozen` (eq. (7)) |
+| fast step → slow step integration | `ed_fast_state`: `accumulate_fast_to_slow` → `leaf_resp_accum` / `stem_resp_accum` / `root_resp_accum` on the cohort SoA |
+| slow-step maintenance sum handed to the allocator | `ed_cohort_state_vars`: `cohort_carbon_supply` (`resp_maint`) |
+| growth respiration (eq. (6)) | `ed_plant_carbon_allocation`: `growth_respiration`, charged inside `fill_carbon_demand` / `plant_carbon_allocation` |
+| growth respiration → canopy air | `ed_slow_state`: `compute_carbon_allocation` → `patch%slow_co2_rate` → `ed_fast_integ_frozen` |
+| per-PFT traits + TOML loading | `ed_pft_params` (`pft_table_t`), `ed_config_io` (`[pft]` block; every key is required except `stem_resp_sapwood25`, §2) |
 | tests | `test/fast/test_respiration.f90` (the 25 °C identity, the layered root response, the sapwood term, the grass gate, `aboveground_frac` inverse scaling; the soil's heterotrophic respiration there too, [soil_carbon.md](soil_carbon.md)); growth respiration in `test/slow/test_plant_carbon_allocation.f90` |
 
 ## References

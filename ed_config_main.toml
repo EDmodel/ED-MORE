@@ -1,0 +1,389 @@
+# ED-MORE main run configuration: every non-PFT setting. ed_main reads the file named on its command
+# line (default ./ed_config_main.toml); [init].pft_config names the PFT file.
+#
+# This file lists every key ED-MORE reads from a main file. A key set below is a parameter or a choice
+# the run must state, and a missing one stops the run, unless its block says its keys are optional;
+# a key commented out is optional and shows its default. A key not listed here is not an ED-MORE key: a
+# run that sets one stops and names it. docs/configuration.md describes every block. Relative paths
+# resolve against the directory ed_main runs from.
+
+[run]
+dt_slow    = "1d"              # slow step: "1d" | "7d" | "12h" | seconds
+start_time = "2000-01-01"      # first simulated instant ("YYYY-MM-DD" or "YYYY-MM-DD HH:MM:SS")
+end_time   = "2250-01-01"      # end, exclusive: a 250-year spin-up
+# mode     = "site"            # "site": one location, from [site] | "region": every selected cell of
+                               #   [region].box_nwse as its own polygon (docs/configuration.md "Regional runs")
+# n_threads = 1                # host threads: the patches of a site run, the polygons of a region; the
+                               #   output is the same at any count (docs/configuration.md "Threads")
+# slow_on = true               # false skips the slow step (growth, mortality, phenology, traits,
+                               #   demography, soil carbon): the stand stays as it is, the fast loop runs
+# slow_ledger_on = true        # the slow-step conservation ledger: a table at the end of the run of what
+                               #   each slow operator could not account for (changes no result)
+
+[fast]
+# The sub-daily loop, nint(dt_slow/dt_fast) sub-steps a slow step. Off in this reference, a demographic
+# spin-up with no forcing file: growth then runs on gpp_ref and the soil carbon decays at
+# [soil_carbon].spinup_xi (example 04 turns it on).
+fast_biophysics_on  = false    # the sub-daily loop
+dt_fast             = "900s"   # sub-daily step, an accuracy setting: 900 s is the edge of the measured
+                               #   range; 300 s for the timing of dry-season leaf habits
+                               #   (docs/science/numerical_scheme.md §5a, §6)
+gpp_ref             = 0.3      # [kgC/m2 leaf/yr] the GPP of a run without the loop: required there,
+                               #   unused with the loop on
+# ---- The time integrator and its error control (docs/science/numerical_scheme.md). ----
+# time_integrator     = "esdirk2"    # "esdirk2" (default) | "rk45" (explicit, for comparison)
+# rtol                = 2.0e-3       # [-]  relative tolerance of every error-controlled store, the march's
+#                                    #   and the soil-plant water network's; "rk45" takes 1.0e-4, the
+#                                    #   loosest it accepts
+# atol_scale          = 1.0          # [-]  multiplier on every absolute tolerance (rtol alone saturates)
+# ---- The soil-plant water network (docs/science/soil_plant_water.md §3). ----
+# water_atol          = 1.0e-4       # [-]  its absolute tolerance: water content for soil and pond, relative
+#                                    #   water content for plant tissues
+# ---- Budget checks. ----
+# soil_energy_budget_atol = 1.0e-2   # [K]  the soil-heat budget check's threshold (not a step tolerance)
+# debug_error         = false        # true: a budget breach stops the run; false: it is reported
+# ---- Switches and the initial snow. ----
+# forcing_sample_frac = 0.5          # [-]  where in each sub-step the forcing is sampled, in [0, 1]
+#                                    #   (docs/science/numerical_scheme.md §7)
+# canopy_water_on     = false        # the canopy interception films and their evaporation
+# intercept_alpha     = 1.0          # [-]  Beer interception efficiency
+# intercept_k         = 0.5          # [1/PAI] Beer interception extinction
+# snow_init_swe       = 0.0          # [kg/m2] snow water equivalent at the run start
+# snow_init_temp      = 270.0        # [K]  its temperature
+
+[soil]
+# The ground: the column, its surface and its two bottom boundaries. Every key is optional, at the
+# value shown: a generic loam, not a measured soil. With the [maps] soil maps each polygon takes its
+# column and its boundaries from its cell, and those keys are refused here.
+# ---- The column (docs/configuration.md "The soil layers"). ----
+depth       = 2.0          # [m]      column depth
+# layer_bottoms = [0.05, 0.15, 0.30, 0.60, 1.00, 1.50, 2.00]   # [m] measured layer bottoms, positive down
+retention   = "van_genuchten"   # van_genuchten | campbell
+theta_sat   = 0.43         # [m3/m3]  porosity
+theta_res   = 0.078        # [m3/m3]  residual water content
+ksat        = 2.89e-6      # [m/s]    saturated hydraulic conductivity
+curve_par_a = 3.6          # [1/m] van Genuchten alpha  OR  [m] Campbell psi_sat (negative)
+curve_par_n = 1.56         # [-]   van Genuchten n (>1)  OR  [-] Campbell b
+psi_fc      = -3.37        # [m]      field-capacity matric head
+solid_conductivity = 3.0   # [W/m/K]  mineral-solid thermal conductivity
+dry_conductivity   = 0.15  # [W/m/K]  dry-matrix thermal conductivity
+dry_heat_capacity  = 2.0e6 # [J/m3/K] dry-matrix volumetric heat capacity
+# ---- The surface. ----
+w_pond_max     = 5.0          # [kg/m2]  ponding capacity before surface runoff
+dsl_dmax       = 0.015        # [m]      dry-surface-layer thickness at most (soil evaporation)
+dsl_theta_init = 0.8          # [-]      the top layer's theta/theta_sat at which it starts
+ground_albedo_vis = 0.15      # [-]      bare-soil albedo, visible
+ground_albedo_nir = 0.30      # [-]      bare-soil albedo, near infrared
+ground_emissivity = 0.95      # [-]      bare-soil longwave emissivity
+# ---- The bottom boundaries (docs/configuration.md "The bottom thermal boundary"). ----
+water_bottom_bc = "free_drain" # free_drain | bedrock | aquifer: drainage q = f K at f = 1 and 0, or a
+                               #   water table at the base (wet sites)
+thermal_bottom_bc = "geothermal" # geothermal: no heat flux at the base, which reflects the annual wave |
+                                 #   dirichlet: conduction to deep_temp at deep_depth
+#deep_temp     = 284.75       # [K]  required by dirichlet: the mean annual soil temperature below the
+                              #      annual damping depth, a site property
+#deep_depth    = 3.145        # [m]  depth of that anchor, below the bottom node; the default suits the
+                              #      default column only
+
+[snow]
+# The snow pack's physical parameters (docs/science/snow_biophysics.md). The pack has no switch: a
+# column without snow never enters it. Every key optional, at the value shown.
+rho_snow           = 250.0    # [kg/m3] bulk density, fixed (depth = swe / rho)
+k_snow             = 0.15     # [W/m/K] thermal conductivity
+albedo_vis_fresh   = 0.85     # [-]     fresh-snow albedo, visible
+albedo_nir_fresh   = 0.65     # [-]     fresh-snow albedo, near infrared
+albedo_vis_aged    = 0.518    # [-]     aged-snow albedo, visible
+albedo_nir_aged    = 0.435    # [-]     aged-snow albedo, near infrared
+snow_emiss         = 0.97     # [-]     longwave emissivity
+liquid_holding_frac = 0.10    # [-]     liquid water the pack holds before it percolates
+min_new_snow_mass  = 1.0e-3   # [kg/m2] the snowfall that starts a pack
+tiny_snow_mass     = 1.0e-6   # [kg/m2] the pack that melts out into the soil
+ny07_a             = 2.5      # [-]     snow-cover fraction shape factor (Niu & Yang 2007)
+ny07_m             = 1.0      # [-]     snow-cover fraction exponent
+
+[aerodynamics]
+# Canopy aerodynamics (docs/science/canopy_aerodynamics.md, whose equations are cited). Every key
+# optional, at the value shown.
+z0m_ratio        = 0.13       # [-]   roughness length / canopy height, eq. (1)
+d_ratio          = 0.63       # [-]   displacement height / canopy height, eq. (1)
+snow_rough       = 0.001      # [m]   snow-surface roughness: a buried canopy's z0m and the z0m floor
+soil_rough       = 0.01       # [m]   bare soil's roughness length: a bare patch's z0m, the ground's coupling and the snow-cover scale
+zeta_m           = 1.574      # [-]   Monin-Obukhov momentum-range transition (CLM5)
+zeta_t           = 0.465      # [-]   Monin-Obukhov scalar-range transition (CLM5)
+zeta_max_stable  = 0.5        # [-]   cap on the stable zeta of the guess and each sweep (CLM5)
+n_iter_mo        = 20         # [-]   the most Monin-Obukhov sweeps; they stop once u* x temp1 settles to 1e-4
+wc               = 0.5        # [m/s] convective velocity of the first stability guess, eq. (2); the
+                              #   sweeps take it from the buoyancy flux, eq. (4)
+ustmin           = 0.10       # [m/s] friction-velocity floor
+ubmin            = 0.65       # [m/s] bulk-wind floor, eq. (2)
+ugbmin           = 0.25       # [m/s] canopy-top and in-canopy wind floor
+gbhmos_min       = 1.0e-9     # [m/s] boundary-layer conductance floor, eq. (10)
+min_canopy_depth = 5.0        # [m]   canopy-air-space depth floor
+canopy_freeboard = 5.0        # [m]   canopy-air space above the tallest cohort
+cs_dense         = 0.004      # [-]   dense-canopy ground-conductance scale, eq. (6)
+gamma_g          = 0.5        # [-]   dense-canopy stability factor, eq. (6)
+gbh_2_gbw        = 1.075      # [-]   boundary-layer heat:vapour conductance ratio
+kin_visc0        = 1.33e-5    # [m2/s] kinematic viscosity at t_ref_air
+dkin_visc        = 0.007      # [1/K] its linear temperature slope
+th_diff0         = 1.89e-5    # [m2/s] thermal diffusivity at t_ref_air
+dth_diff         = 0.007      # [1/K] its linear temperature slope
+t_ref_air        = 273.15     # [K]   reference temperature of the two air properties
+
+[demography]
+# The stand's structure (docs/science/demography.md; docs/configuration.md "Cohort and patch fusion").
+demography_on             = true     # false: the stand's structure is frozen (growth and mortality run)
+# ---- One switch per operator, each under demography_on. The cull (min_cohort_agb,
+# negligible_nplant) and patch termination (min_patch_area) have no switch of their own: they run
+# whenever demography_on does, to keep the blocks bounded. ----
+recruitment_on            = true     # monthly: a recruit pool of min_recruit_size founds a cohort
+cohort_fusion_on          = true     # monthly, and yearly after patch fusion: similar cohorts fuse
+cohort_fission_on         = true     # monthly: a cohort above cohort_lai_cap splits
+patch_disturbance_on      = true     # yearly: treefall gaps
+patch_fusion_on           = true     # yearly: patches of similar light profiles fuse
+# ---- Recruitment. ----
+min_recruit_size          = 1.0e-2   # [plant/m2] the recruit pool that founds a cohort
+# ---- Cohort fusion, fission and the cull. ----
+max_cohort                = 60       # cohorts in the most crowded patch, a target (at least 1)
+n_cohort_fusion_iter      = 6        # cohort-fusion passes at most
+cohort_size_tol_min       = 0.02     # [-] height tolerance, a share of the patch's top height, first pass
+cohort_size_tol_max       = 0.10     # [-] its ceiling
+cohort_lai_cap            = 1.0      # [m2/m2] one cohort's LAI at most: split above it, no fusion above it
+split_eps                 = 1.0e-4   # [-] a split's relative perturbation of the two halves' wood carbon
+min_cohort_agb            = 1.0e-6   # [kgC/m2] a cohort below this nplant * agb is culled
+negligible_nplant         = 1.0e-8   # [plant/m2] the density mortality stops at and the cull removes
+# ---- Treefall gaps. ----
+patch_disturbance_rate    = 0.014    # [1/yr] the share of the area a year's treefall gaps open (above 0)
+disturbance_survive_height = 10.0    # [m] a cohort this tall or taller dies in the gap
+# ---- Patch fusion and termination. ----
+max_patch                 = 12       # patches per site, a target (at least 1)
+n_patch_fusion_iter       = 6        # patch-fusion passes at most
+patch_light_tol           = 0.10     # [-] mean light-profile distance that fuses two patches, first pass
+patch_light_tol_max       = 0.15     # [-] its ceiling: patches further apart stay apart above max_patch
+patch_light_maxdev_factor = 1.5      # [-] one layer's distance may be this times the tolerance
+n_height_layers           = 16       # layers of the light profile patch fusion compares
+# light_ext_coeff_fusefiss  = 0.5      # [-] extinction of the light profiles fusion compares
+min_patch_area            = 1.0e-4   # [-] a patch below this share of its site is merged away
+# ---- The operators' tolerance, and the growth memory mortality reads. ----
+conservation_tol          = 0.001    # [-] the biomass and area a fusion or split may lose
+growth_memory_days        = 365.0    # [day] the window of the growth average mortality reads; a year, as
+                                     #   the census growth its laws are fitted on
+
+[init]
+# How the run starts (docs/configuration.md "How a run starts").
+init_mode    = 0                     # 0 near-bare ground | 1 a cohort census | 2 a state file
+# restart_file = "ed_output-S-22500101000000.nc"   # the state file: required by init_mode = 2
+census_file  = "data/census_example.csv"   # the cohort CSV: required by init_mode = 1, and read by the
+                                           #   Python census start in any mode
+pft_config   = "ed_config_pft.toml"        # the PFT file
+# soil_temp          = 288.0      # [K]      every soil layer's start
+# soil_theta         = 0.30       # [m3/m3]  every soil layer's start
+# reacclimate_traits = false      # a restart's plastic leaf traits from this run's PFT file
+
+# ------------------------------------------------------------------------------------------
+# What a run writes. The state files: the model's whole state at an instant, to restart from
+# ([init].restart_file), <state_file_prefix>-S-<date>.nc. The diagnostics: netCDF files
+# <prefix>-<F|D|M|Y>[-<stamp>].nc, one per tier and time chunk (docs/science/diagnostics.md); each
+# variable is written at its default tiers unless io_config says otherwise, and `ed_main
+# --dump-io-config` lists every variable, its default and the tiers it can be on.
+[output]
+state_write       = false         # write state files (the three keys below are required with it)
+state_interval    = "50 years"    # one every "N days", "N months" or "N years", and one at the end
+state_file_dir    = "."           # their directory, and that of <prefix>_pft_parameters.csv
+state_file_prefix = "ed_output"   # their file-name stem
+enabled       = false           # write the diagnostics
+dir           = "out"           # directory
+prefix        = "ed"            # file-name stem
+io_config     = ""              # what is written: a file of [variables] lines, each a name or a pattern
+                                #   ("*_co" = false, "mean_*_py" = "M Y"); "" = the defaults. `ed_main
+                                #   --dump-io-config` lists every variable (docs/science/diagnostics.md §5)
+cohort_max    = 4096            # the files' cohort axis (the run stops when the live count exceeds it)
+patch_max     = 256             # the files' patch axis
+fast_interval_steps = 4         # dt_fast sub-steps a sub-daily record spans (4 x 900 s = hourly)
+sync_every    = "flush"         # "flush": records reach the disk each month | "never"
+
+  # --- The dbh_class axis: ascending edges [cm]; a cohort counts whole in the class of its dbh. ---
+  dbh_class_edges = [0.0, 10.0, 20.0, 30.0, 50.0, 70.0, 100.0]
+
+  # --- Each tier: on or off (off writes nothing, whatever io_config says), and the span of one file. ---
+  [output.fast]
+  enabled = false
+  file_chunk = "day"
+  [output.daily]
+  enabled = true
+  file_chunk = "month"
+  [output.monthly]
+  enabled = true
+  file_chunk = "year"
+  [output.annual]
+  enabled = true
+  file_chunk = "run"
+
+# Leaf phenology has no switch: it runs every day of every run, with each PFT's [phenology] block in
+# the PFT file (docs/science/plant_phenology.md).
+
+[trait_dynamics]
+# Light acclimation of the leaf traits (docs/science/plant_traits.md).
+# trait_plasticity_on = false     # acclimate each cohort's sla, vcmax25, rd25 and leaf turnover rate to
+                                  #   the leaf area above it; false: the PFT's top-of-canopy values
+# fineroot_turnover_plastic = false  # with plasticity on, fine roots turn over as slowly as the cohort's
+                                     #   leaves do
+
+[leaf_physiology]
+# Leaf photosynthesis and stomatal conductance (docs/science/leaf_gas_exchange.md); each PFT's traits
+# are in the PFT file.
+stomatal_model     = "medlyn"      # "leuning" | "medlyn" | "katul" (§3)
+temp_response_form = "peaked"      # "arrhenius" | "peaked" (high-temperature deactivation)
+colimitation       = "quadratic"   # "min" | "quadratic" (smoothed)
+use_boundary_layer = false         # couple through the leaf boundary-layer conductance
+# Rubisco and electron-transport kinetics at 25 degC (Bernacchi et al. 2001), eqs. (2)-(4).
+kc25    = 40.49      # [Pa]      Michaelis constant for CO2
+ko25    = 27840.0    # [Pa]      Michaelis constant for O2
+gstar25 = 4.275      # [Pa]      CO2 compensation point without Rd, at 20.9 % O2 and 100 kPa (eq. (3))
+ea_kc     = 79430.0  # [J/mol]   activation energies
+ea_ko     = 36380.0
+ea_gstar  = 37830.0
+ea_vcmax  = 65330.0
+ea_jmax   = 43540.0
+ea_rd     = 46390.0
+hd_vcmax  = 200000.0 # [J/mol]   deactivation energies (peaked form)
+hd_jmax   = 200000.0
+hd_rd     = 200000.0
+ds_vcmax  = 650.0    # [J/mol/K] entropy terms (peaked form)
+ds_jmax   = 640.0
+ds_rd     = 490.0
+o2_mol_frac      = 0.209   # [mol/mol] atmospheric O2
+leaf_absorptance = 0.85    # [-] the leaf's PAR absorptance
+phi_psii         = 0.74    # [-] electrons per absorbed photon in low light, times 2 (§2)
+# vpd_min          = 0.05    # [kPa] the leaf-to-air VPD the Medlyn and Katul models use at least, eqs. (6), (8)
+# Thermal acclimation (Kattge & Knorr 2007), eq. (4): ds_vcmax, ds_jmax and Jmax/Vcmax follow the
+# growth temperature, a - b*Tg. Peaked form only.
+# thermal_acclimation = false
+# acclim_ds_vcmax_a   = 668.39     # [J/mol/K]
+# acclim_ds_vcmax_b   = 1.07       # [J/mol/K2]
+# acclim_ds_jmax_a    = 659.70     # [J/mol/K]
+# acclim_ds_jmax_b    = 0.75       # [J/mol/K2]
+# acclim_jv_a         = 2.59       # [-]
+# acclim_jv_b         = 0.035      # [1/K]
+# acclim_window_days  = 30.0       # [day] the growth temperature's running-mean window
+
+[soil_carbon]
+# The CENTURY soil-carbon matrix (docs/science/soil_carbon.md). Every key optional, at the value
+# shown; rates are per year.
+# soil_carbon_on      = true       # false: no soil carbon at all (not a coarser one)
+# decomp_scheme       = "ed2"      # "ed2" | "century5" (texture-controlled)
+# step_solver         = "euler"    # "euler" | "expm" (matrix exponential)
+# k_fast              = 11.0       # [1/yr] decay rates
+# k_struct            = 4.5
+# k_micr              = 0.0        #   0: inert (century5: 6.0)
+# k_slow              = 0.2
+# k_pass              = 0.0        #   0: inert (century5: 0.012)
+# er_fast             = 1.0        # [-]  the share respired on decay
+# er_struct_nonlig    = 0.3
+# er_struct_lig       = 0.3
+# er_slow             = 1.0
+# er_pass             = 1.0
+# e_lignin            = 3.0        # [-]  lignin brake: decay x exp(-e_lignin * lignin fraction)
+# er_micr_int         = 0.0        # [-]  century5: the microbial share respired = int + slp * xsand
+# er_micr_slp         = 0.0
+# xsand               = 0.35       # [-]  sand fraction
+# xclay               = 0.25       # [-]  clay fraction
+# fx_micr_pass_int    = 0.003      # [-]  century5: microbial -> passive = int + slp * xclay
+# fx_micr_pass_slp    = 0.032
+# fx_slow_pass_int    = 0.003      # [-]  century5: slow -> passive = int + slp * xclay
+# fx_slow_pass_slp    = 0.009
+# rh_q10              = 1.5        # [-]  Q10 of decomposition (century5)
+# rh_t_ref            = 288.15     # [K]  its reference temperature
+# resp_temp_increase  = 0.0757     # [1/K] temperature response: slope
+# resp_temp_ref       = 318.15     # [K]  and its saturation temperature
+# resp_opt_water      = 0.8938     # [-]  water response: optimum relative moisture
+# resp_water_below_opt = 5.0786    # [-]  and its shape below and above the optimum
+# resp_water_above_opt = 4.5139
+# spinup_steady       = false      # start from the semi-analytic steady state, not from zero (eq. (7))
+# spinup_xi           = 1.0        # [-]  its environmental scalar, and every step's without the fast loop
+# spinup_labile_grnd  = 0.0        # [kgC/m2/day] its litter input, per pool
+# spinup_labile_soil  = 0.0
+# spinup_struct_grnd  = 0.0
+# spinup_struct_soil  = 0.0
+
+# ------------------------------------------------------------------------------------------
+# Meteorological forcing (docs/configuration.md "The forcing file", docs/science/forcing.md). With
+# forcing_on false or absent the fast loop runs against a constant reference climate, at the CO2 the
+# co2 keys give; on, every key below is required unless marked optional or of another source. Every
+# forcing clock is UTC.
+# [site]
+# latitude              = 42.44          # [deg +N] Ithaca NY
+# longitude             = -76.50         # [deg +E] it gives local solar time
+# elevation             = 320.0          # [m]
+#   ---- The terrain lapse, from the forcing cell's elevation to the site's (forcing.md §8). ----
+# apply_elevation_lapse = true
+# lapse_rate_tair       = 0.0065         # [K/m] one rate, or twelve (January .. December), e.g. Kunkel
+#                                        #   (1989) for the N. Hemisphere, after Liston & Elder (2006):
+#                                        #   [0.0044, 0.0059, 0.0071, 0.0078, 0.0081, 0.0082,
+#                                        #    0.0081, 0.0081, 0.0077, 0.0068, 0.0055, 0.0047]
+# grid_elevation        = 367.5          # [m] the forcing cell's elevation (format = "default" only)
+# [forcing]
+# forcing_on            = true
+# format                = "default"      # "ERA5land" (the ED_ERA5land archive) | "default" (a forcing file)
+#   ---- format = "ERA5land" ----
+# data_path             = "/path/to/ED_ERA5land"   # the archive folder
+# max_distance_km       = 15.0           # a site on a cell without data takes the nearest valid cell this close
+# file_template         = "{data_path}/ED_ERA5land_{var}_{yyyy}{mm}.nc"   # optional; the default shown
+# static_file           = "{data_path}/ED_ERA5land_static.nc"             # optional; the default shown
+#   ---- format = "default" ----
+# path                  = "ithaca_forcing.nc"
+# grid_index            = 1              # the file's grid cell this polygon reads (grid_match = "explicit")
+# grid_match            = "explicit"     # "explicit" (grid_index) | "nearest" (to [site] latitude/longitude)
+#   ---- The forcing's own heights (forcing.md §8); ERA5-Land's are shown. ----
+# tq_height             = 2.0            # [m] height of air temperature and humidity
+# wind_height           = 10.0           # [m] height of the wind
+# height_above          = "zero_plane"   # "zero_plane" (a reanalysis) | "ground" (a flux tower)
+# wind_exposure         = "open_terrain" # "open_terrain" (ERA5's 10 m wind) | "local" (measured over this canopy)
+# wind_exposure_z0      = 0.03           # [m] "open_terrain" only: the roughness the wind was made for
+# wind_blending_height  = 40.0           # [m] "open_terrain" only: the height it was brought down from
+#   ---- The records. ----
+# timestep              = "3600s"        # the file's record interval
+# avg_convention        = "end"          # "end": a flux is the mean of the interval ending at its stamp |
+#                                        #   "begin": of the one beginning there
+# sw_partition          = "clearidx"     # total shortwave into streams: "clearidx" | "weiss_norman" | "passthrough"
+# lwdown_source         = "file"         # "file" | "synthesize" (from T, q and cloudiness)
+# lw_clear_form         = "brutsaert"    # optional, with "synthesize": "brutsaert" | "idso"
+# lw_cloud_a            = 0.22           # [-] optional, with "synthesize": the cloud term (1 + a(1-kt))
+#   ---- CO2, on model time, never from the met file; read with forcing on or off (forcing.md §12). ----
+# co2_source            = "const"        # optional: "const" | "file"
+# co2_const             = 420.0          # [umol/mol] co2_source = "const" (required with forcing on)
+# co2_file              = "data/co2/co2_cmip7_global_annual_1000-2022.txt"   # co2_source = "file"
+#   ---- Recycling, declared: a window of whole calendar years (forcing.md §9). ----
+# recycle               = true           # repeat the window when the run outruns it
+# recycle_start         = "2024-01-01 01:00:00"   # its first record (an end-stamped hourly file's first
+#                                                 #   record of a year is at 01:00)
+# recycle_end           = "2025-01-01 01:00:00"   # the instant after its last record
+# start_clamp           = "error"        # a run that starts before the first record: "error" | "hold"
+
+# ------------------------------------------------------------------------------------------
+# [region]: only with [run].mode = "region" (docs/configuration.md "Regional runs").
+# [region]
+# box_nwse          = [42.95, -76.95, 41.95, -75.95]  # [N, W, S, E] in degrees; may cross 0 or 180
+# land_fraction_min = 0.5            # a cell with less land is not run (lakes, coasts)
+# cell_mask         = ""             # a map on the forcing grid; "" = every cell of the box
+# cell_mask_var     = "mask"         # its (lat, lon) variable
+# cell_mask_min     = 0.5            # a cell runs where the mask is at least this
+
+# ------------------------------------------------------------------------------------------
+# [maps]: the static maps on the ED_ERA5land grid a run takes its soil and its Chave E from; each key
+# they provide is refused while they are set (docs/configuration.md "Input maps").
+# [maps]
+# soil_depth_map     = "/path/to/ED_ERA5land_soil_depth_v2.nc"
+# soil_texture_map   = "/path/to/ED_ERA5land_soil_texture_v2.nc"
+# soil_chemistry_map = "/path/to/ED_ERA5land_soil_biogeochemical_properties_v2.nc"
+# chave_e_map        = "/path/to/ED_ERA5land_Chave2014_E.nc"
+
+# ------------------------------------------------------------------------------------------
+# [[sites]]: the polygon's sites in a site run, one table each; without them the polygon is one site on
+# [soil]. A table may set any of [soil]'s column keys and its bottom boundary under the same names
+# (docs/configuration.md "Several sites").
+# [[sites]]
+# area_fraction  = 0.6              # [-] the site's share of the polygon; the shares sum to 1
+# elevation      = 320.0            # [m] default: the polygon's ([site].elevation)
+# slope          = 0.0              # [degrees] from horizontal
+# aspect         = 180.0            # [degrees] clockwise from north, the way the slope faces; default 0
+# census_site_id = 1                # the census rows it reads (init_mode = 1, where it is required)

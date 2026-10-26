@@ -2,7 +2,7 @@
 
 Leaf traits are not static PFT (plant functional type) constants: they **acclimate to the light
 environment** within a plant's lifetime. This page gives the equations of that acclimation and its
-carbon consequences. MEDS models it with a small **stateless, elemental** kernel, `meds_plant_traits`,
+carbon consequences. ED-MORE models it with a small **stateless, elemental** kernel, `ed_plant_traits`,
 that ports ED2's `update_cohort_plastic_trait` (Lloyd et al. 2010 canopy trait gradients). It covers
 **light-driven plasticity** of four cohort-level leaf traits: specific leaf area (SLA), photosynthetic
 capacity ($`V_{\mathrm{cmax25}}`$), leaf dark respiration ($`R_{\mathrm{d25}}`$), and the leaf turnover
@@ -10,19 +10,19 @@ rate $`\gamma`$ [yr⁻¹], the share of the leaf carbon replaced a year ([`plant
 $`k_{\mathrm{turn}}`$). Ma et al. (2025) show that constraining exactly this plasticity with canopy
 observations markedly improves predicted tropical-forest demography, structure, and biomass. Thermal
 acclimation of photosynthetic capacity is a separate, site-level mechanism
-([`leaf_gas_exchange.md`](leaf_gas_exchange.md), "Thermal acclimation"); MEDS has no per-cohort thermal
+([`leaf_gas_exchange.md`](leaf_gas_exchange.md), "Thermal acclimation"); ED-MORE has no per-cohort thermal
 acclimation.
 
 **Timescale and inputs.** The acclimation runs once per slow step (`[run].dt_slow`, a day by default),
 only with `[trait_dynamics].trait_plasticity_on`, after leaf phenology and before the carbon
-allocation (`meds_slow_dynamics`: `vegetation_dynamics`;
+allocation (`ed_slow_dynamics`: `vegetation_dynamics`;
 [`order_of_processes.md`](order_of_processes.md)). Its input is each cohort's overtopping LAI, the
 leaf area of the taller cohorts in its patch, as the previous slow step left it
 ([`demography.md`](demography.md) §6). The plastic traits then act on the fast step through leaf gas
 exchange and on the slow step through the carbon allocation (§4).
 
 The kernel is two pure functions (targets, then a relaxation step); the per-cohort trait **state**, the
-orchestration, and every carbon consequence live in the driver (`meds_slow_state`) and the core
+orchestration, and every carbon consequence live in the driver (`ed_slow_state`) and the core
 Structure-of-Arrays (SoA): the same kernel/driver/state split as phenology and carbon allocation.
 
 ## 1. The canopy-light trait gradient
@@ -30,7 +30,7 @@ Structure-of-Arrays (SoA): the same kernel/driver/state split as phenology and c
 A shaded leaf is thinner (higher SLA), lower-capacity (lower $`V_{\mathrm{cmax}}`$/$`R_\mathrm{d}`$), and
 longer-lived, so a shaded canopy turns its leaves over more slowly. Each trait acclimates toward a
 **target** that scales its top-of-canopy value ($`\cdot_{\mathrm{toc}}`$) by an exponential gradient in
-the **cumulative LAI above** the cohort, $`L_{\uparrow}`$ (the light-competition proxy MEDS already tracks
+the **cumulative LAI above** the cohort, $`L_{\uparrow}`$ (the light-competition proxy ED-MORE already tracks
 as `overtopping_lai`):
 
 ```math
@@ -81,7 +81,7 @@ k_{\mathrm{SLA}} = -k_{V}\,\tfrac{1.18}{1.10}, \qquad k_{\gamma} = \min\!\Big(0,
 $`R_\mathrm{d}`$ has its own slope key (the same value as $`k_V`$ in the fit, as ED2's `kplastic_rd0`); the
 `clamp` limits the exponent to $`[-30, 30]`$. $`k_\gamma`$ is minus ED2's
 slope for the leaf lifespan, $`0.2126 - 0.062\ln(12\,\ell_{\mathrm{toc}})`$ with $`12\,\ell_{\mathrm{toc}} = 12/\gamma_{\mathrm{toc}}`$
-the lifespan in months. The **cap at 0** is a MEDS choice: ED2's fit crosses zero near
+the lifespan in months. The **cap at 0** is an ED-MORE choice: ED2's fit crosses zero near
 $`\gamma_{\mathrm{toc}}\approx0.39`$ yr⁻¹ (a 2.6-yr lifespan), which would make *slow-turnover* PFTs turn their
 leaves over faster in shade — unphysical — so those PFTs instead keep one canopy-invariant rate, while
 fast-turnover PFTs still slow down.
@@ -110,11 +110,11 @@ $`R_\mathrm{d}`$ carries its own value.
 
 ## 5. Interface with other modules
 
-`meds_plant_traits` `use`s only `meds_kinds` + `meds_constants`, and for the site's leaf table its type
-(`meds_pft_params`) and the Kattge–Knorr terms (`meds_therm_lib`) — a pure kernel. State, cadence, and
+`ed_plant_traits` `use`s only `ed_kinds` + `ed_constants`, and for the site's leaf table its type
+(`ed_pft_params`) and the Kattge–Knorr terms (`ed_therm_lib`) — a pure kernel. State, cadence, and
 consumers live outside it.
 
-- **State (`meds_cohort_state_vars`).** The four traits are per-cohort SoA fields, section 6 of
+- **State (`ed_cohort_state_vars`).** The four traits are per-cohort SoA fields, section 6 of
   `cohort_block` — *dynamic*, one value per cohort, where a static PFT trait is read from the block's
   PFT table (`pft_table%x(pft(i))`) and never copied onto a cohort. They are
   seeded from the PFT top-of-canopy values at birth, threaded through the one centralized lockstep
@@ -124,24 +124,24 @@ consumers live outside it.
   the share of the leaf carbon lost a year, so leaf carbon weights it too and the fused cohort turns
   over the leaf carbon its two parents did, which a leaf-area mean does not when their SLAs differ.
 
-- **Orchestration (`meds_slow_state`: `advance_plant_traits`).** A slow-step process, opt-in via
+- **Orchestration (`ed_slow_state`: `advance_plant_traits`).** A slow-step process, opt-in via
   `[trait_dynamics].trait_plasticity_on` (default off ⇒ every cohort keeps its PFT's
   top-of-canopy traits). It runs **after** phenology and **before** `compute_carbon_allocation`, so
   this step's leaf demand and turnover see the updated traits; it reads the `overtopping_lai` the previous
   step's last operation refreshed. Per cohort it calls
   `light_plastic_traits` (eq. (1)) then `update_plastic_trait` (eq. (2)), and returns the leaf and storage carbon
-  that resorb any SLA overshoot (§4); `meds_slow_update`'s `commit_trait_carbon` writes them.
+  that resorb any SLA overshoot (§4); `ed_slow_update`'s `commit_trait_carbon` writes them.
 
 - **Consumers.** `compute_carbon_allocation` uses `cohort%sla` for the leaf-area-conserving target; the background
   leaf turnover uses `cohort%leaf_turnover_rate`; and the fast loop's `leaf_gas_exchange_batch` (called from
-  `meds_fast_integ_frozen.canopy_leaf_gas_exchange`) takes per-cohort `vcmax25`/`rd25` (threaded through the
-  fast-loop column buffer in `meds_fast_integ_types`), with `leaf_params_at_capacity` scaling
+  `ed_fast_integ_frozen.canopy_leaf_gas_exchange`) takes per-cohort `vcmax25`/`rd25` (threaded through the
+  fast-loop column buffer in `ed_fast_integ_types`), with `leaf_params_at_capacity` scaling
   $`J_{\mathrm{max25}}`$ and TPU with the plastic $`V_{\mathrm{cmax25}}`$. The canopy C API
-  (`meds_canopy_leaf`) applies the same two overrides through `leaf_params_at_capacity`.
+  (`ed_canopy_leaf`) applies the same two overrides through `leaf_params_at_capacity`.
 
-- **Persistence (`meds_init_restart`).** The four trait states are written to and read from the state checkpoint,
+- **Persistence (`ed_init_restart`).** The four trait states are written to and read from the state checkpoint,
   so a **state** restart recovers the acclimated traits exactly; `[init].reacclimate_traits` instead re-derives them from this
-  run's PFT file. A **census** start acclimates instantaneously when the run opens (`meds_init`: `init_polygon`,
+  run's PFT file. A **census** start acclimates instantaneously when the run opens (`ed_init`: `init_polygon`,
   `advance_plant_traits(..., instantaneous=.true.)`), because census cohorts carry no history. See
   [`configuration.md`](../configuration.md), "How a run starts".
 
@@ -159,14 +159,14 @@ consumers live outside it.
 
 | Concept | Routine |
 |---|---|
-| light target traits (eq. (1)) | `meds_plant_traits`: `light_plastic_traits` (+ private `light_gradient`) |
-| replacement-weighted / instant update (eq. (2)) | `meds_plant_traits`: `update_plastic_trait` |
+| light target traits (eq. (1)) | `ed_plant_traits`: `light_plastic_traits` (+ private `light_gradient`) |
+| replacement-weighted / instant update (eq. (2)) | `ed_plant_traits`: `update_plastic_trait` |
 | the slopes' fits (eqs. (3)–(4)) | `scripts/pft_traits/pft_traits.py`: `plasticity` |
-| site-level thermal acclimation of the leaf table | `meds_plant_traits`: `acclimate_leaf_photo_table`; `meds_slow_state`: `acclimate_site_leaf_tables` |
-| per-cohort trait state + fusion weighting | `meds_cohort_state_vars` (SoA `sla/vcmax25/rd25/leaf_turnover_rate`); `meds_slow_update`: `fuse_2_cohorts` |
-| slow-loop orchestration + SLA-overshoot resorption | `meds_slow_state`: `advance_plant_traits`; `meds_slow_update`: `commit_trait_carbon` |
-| carbon / gas-exchange consumers | `compute_carbon_allocation` (`cohort%sla`, `cohort%leaf_turnover_rate`); `meds_leaf_gas_exchange`: `leaf_gas_exchange_batch`, `leaf_params_at_capacity` (`vcmax25`/`rd25`) |
-| state persistence + census instant | `meds_init_restart`: `restart_file_write`/`read_restart_file`; `meds_init`: `init_polygon` (census start); `meds_slow_state`: `reacclimate_plant_traits`, written by `meds_slow_update`: `commit_trait_carbon` |
+| site-level thermal acclimation of the leaf table | `ed_plant_traits`: `acclimate_leaf_photo_table`; `ed_slow_state`: `acclimate_site_leaf_tables` |
+| per-cohort trait state + fusion weighting | `ed_cohort_state_vars` (SoA `sla/vcmax25/rd25/leaf_turnover_rate`); `ed_slow_update`: `fuse_2_cohorts` |
+| slow-loop orchestration + SLA-overshoot resorption | `ed_slow_state`: `advance_plant_traits`; `ed_slow_update`: `commit_trait_carbon` |
+| carbon / gas-exchange consumers | `compute_carbon_allocation` (`cohort%sla`, `cohort%leaf_turnover_rate`); `ed_leaf_gas_exchange`: `leaf_gas_exchange_batch`, `leaf_params_at_capacity` (`vcmax25`/`rd25`) |
+| state persistence + census instant | `ed_init_restart`: `restart_file_write`/`read_restart_file`; `ed_init`: `init_polygon` (census start); `ed_slow_state`: `reacclimate_plant_traits`, written by `ed_slow_update`: `commit_trait_carbon` |
 
 ## References
 - **Ma, Y., Moorcroft, P. R., Wright, S. J., Rogers, A., Lamour, J., Davidson, K. J., Serbin, S. P.,

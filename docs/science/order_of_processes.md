@@ -1,6 +1,6 @@
 # The order of processes
 
-This page is the map of a MEDS run: which process runs when, and what each one sees. The other
+This page is the map of an ED-MORE run: which process runs when, and what each one sees. The other
 science pages give each process's equations; this one gives their sequence. Three clocks nest:
 
 - a **fast step** (one `[fast].dt_fast`, 900 s in the shipped configs) advances each patch's surface:
@@ -71,7 +71,7 @@ partial windows are written.
 ## 2. One slow step
 
 `polygon_step` advances one polygon over one slow step, in this order. Items 1–5 are
-`advance_one_step` (`meds_stepper`), the step the tests drive too:
+`advance_one_step` (`ed_stepper`), the step the tests drive too:
 
 1. **The boundary the last step ended on**, if it owes one (`restructure_pending`), and only with
    `[run].slow_on`: the stand's monthly and yearly restructuring
@@ -332,20 +332,20 @@ file's instant, so none carries `mean_`.
 
 | Stage | Routine | Module |
 |---|---|---|
-| run setup, loop, finish | `region_open` (`choose_polygons`, `open_forcing`, `start_polygons`, `open_files`), `region_step_month` / `region_step` → `list_steps`, `step_polygons`, `region_finalize` | `meds_region` |
-| one slow step | `polygon_step` | `meds_polygon` |
-| the coupled step: the owed restructuring, the acclimation, the fast loop, the slow dynamics | `advance_one_step` | `meds_stepper` |
-| the fast loop | `fast_dynamics` | `meds_fast_dynamics` |
-| the forcing window, each site's and each patch's sample, the radiation | `sample_window`, `site_forcing`, `patch_forcing`, `apply_rt_forcing` | `meds_fast_forcing` |
-| vertical corrections: the terrain lapse at ingest, the move to each patch's canopy-air top | `read_record`; `met_to_cas_top` | `meds_met` |
-| one fast step of one patch | `fast_step` (`build_frozen`, `water_step`) | `meds_fast_integ_stepper` |
-| the slow dynamics | `advance_slow_dynamics` | `meds_slow_dynamics` |
-| the cohorts' day | `vegetation_dynamics` | `meds_slow_dynamics` |
-| soil carbon | `advance_soil_carbon`, `commit_soil_carbon` | `meds_slow_state`, `meds_slow_update` |
-| the calendar boundary | `advance_one_step` → `advance_boundary_dynamics` → `restructure_stand` | `meds_stepper`, `meds_slow_dynamics` |
-| the output tick | `output_tick` → `output_integrate_fast`, `close_tier`, `output_integrate` | `meds_output_integrate` |
-| zeroing the step diagnostics | `reset_step_diagnostics` | `meds_polygon_state_vars` |
-| writing records | `output_serialize` | `meds_output_stream` |
-| state files | `write_state_file` → `restart_file_open` / `restart_file_write`; `read_restart_file` | `meds_region`, `meds_init_restart` |
-| the start of a polygon | `init_polygon` | `meds_init` |
-| the output file set | `open_output_files`, `attach_output` | `meds_output_setup` |
+| run setup, loop, finish | `region_open` (`choose_polygons`, `open_forcing`, `start_polygons`, `open_files`), `region_step_month` / `region_step` → `list_steps`, `step_polygons`, `region_finalize` | `ed_region` |
+| one slow step | `polygon_step` | `ed_polygon` |
+| the coupled step: the owed restructuring, the acclimation, the fast loop, the slow dynamics | `advance_one_step` | `ed_stepper` |
+| the fast loop | `fast_dynamics` | `ed_fast_dynamics` |
+| the forcing window, each site's and each patch's sample, the radiation | `sample_window`, `site_forcing`, `patch_forcing`, `apply_rt_forcing` | `ed_fast_forcing` |
+| vertical corrections: the terrain lapse at ingest, the move to each patch's canopy-air top | `read_record`; `met_to_cas_top` | `ed_met` |
+| one fast step of one patch | `fast_step` (`build_frozen`, `water_step`) | `ed_fast_integ_stepper` |
+| the slow dynamics | `advance_slow_dynamics` | `ed_slow_dynamics` |
+| the cohorts' day | `vegetation_dynamics` | `ed_slow_dynamics` |
+| soil carbon | `advance_soil_carbon`, `commit_soil_carbon` | `ed_slow_state`, `ed_slow_update` |
+| the calendar boundary | `advance_one_step` → `advance_boundary_dynamics` → `restructure_stand` | `ed_stepper`, `ed_slow_dynamics` |
+| the output tick | `output_tick` → `output_integrate_fast`, `close_tier`, `output_integrate` | `ed_output_integrate` |
+| zeroing the step diagnostics | `reset_step_diagnostics` | `ed_polygon_state_vars` |
+| writing records | `output_serialize` | `ed_output_stream` |
+| state files | `write_state_file` → `restart_file_open` / `restart_file_write`; `read_restart_file` | `ed_region`, `ed_init_restart` |
+| the start of a polygon | `init_polygon` | `ed_init` |
+| the output file set | `open_output_files`, `attach_output` | `ed_output_setup` |

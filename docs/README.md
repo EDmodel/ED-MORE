@@ -1,4 +1,4 @@
-# MEDS documentation
+# ED-MORE documentation
 
 **Coming from ED2?** Start with **[`ed2_comparison.md`](ed2_comparison.md)**: what carried over,
 what changed and what is missing, keyed to the `ED2IN` options you already know.
@@ -17,8 +17,8 @@ the placement rules and the library graph.
   ways a run starts, output selection, regional runs and several sites per polygon.
 - **[`building.md`](building.md)**: compilers, dependencies, the four build kinds, the tests and the
   parallel builds.
-- **[`ed2_comparison.md`](ed2_comparison.md)**: MEDS against ED2, process by process.
-- **[`ROADMAP.md`](ROADMAP.md)**: everything MEDS has deliberately deferred, each item with its issue.
+- **[`ed2_comparison.md`](ed2_comparison.md)**: ED-MORE against ED2, process by process.
+- **[`ROADMAP.md`](ROADMAP.md)**: everything ED-MORE has deliberately deferred, each item with its issue.
 - **[`dev_plans/`](dev_plans/)**: dated **design and implementation records**, working documents rather
   than reference; [`dev_plans/README.md`](dev_plans/README.md) says which are still live, and
   [`dev_plans/archive/`](dev_plans/archive/) holds the ones whose work is done.
