@@ -1,0 +1,59 @@
+# Build the model with gfortran and with ifx, on every pull request and on every push to beta and
+# main. Both use the dev preset (-O2, code for any x86-64 CPU, edmore and libedmore.so). netCDF's C
+# library comes from Ubuntu; ifx from Intel's apt repository, at the version the developers use.
+name: build
+
+on:
+  pull_request:
+  push:
+    branches: [beta, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build (${{ matrix.compiler }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - compiler: gfortran
+            fc: gfortran-14
+          - compiler: ifx
+            fc: ifx
+    env:
+      FC: ${{ matrix.fc }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install netCDF and gfortran
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libnetcdf-dev gfortran-14
+      - name: Install ifx
+        if: matrix.compiler == 'ifx'
+        run: |
+          curl -fsSL https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
+            | sudo gpg --dearmor -o /usr/share/keyrings/oneapi-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" \
+            | sudo tee /etc/apt/sources.list.d/oneAPI.list
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends intel-oneapi-compiler-fortran-2026.1
+      # ifx needs Intel's environment in every step that compiles or runs what it built.
+      - name: Configure
+        run: |
+          if [ "$FC" = ifx ]; then source /opt/intel/oneapi/setvars.sh; fi
+          "$FC" --version
+          cmake --preset dev
+      - name: Build
+        run: |
+          if [ "$FC" = ifx ]; then source /opt/intel/oneapi/setvars.sh; fi
+          cmake --build build-dev -j 4
