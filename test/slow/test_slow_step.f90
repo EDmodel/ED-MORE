@@ -1,21 +1,21 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! Leaf phenology's wiring (meds_slow_state's advance_leaf_phenology): a two-cohort site    !
+! Leaf phenology's wiring (ed_slow_state's advance_leaf_phenology): a two-cohort site      !
 ! through one synthetic Ithaca year; a step with no air temperature is skipped; each cue   !
 ! driver against a hand-computed value; a drought-deciduous and a light-exchanging PFT end !
 ! to end.                                                                                  !
 !==========================================================================================!
 module test_slow_step_phenology
-   use meds_kinds,              only : wp, ik
-   use meds_config,             only : meds_config_t
-   use meds_pft_derive,         only : pft_leaf_psi_tlp
-   use meds_polygon_state_vars, only : polygon_t
-   use meds_init_bare_ground,   only : init_bare_ground, add_cohort
-   use meds_slow_state,         only : advance_leaf_phenology
-   use meds_constants,          only : day_sec
-   use meds_time,               only : daylength
-   use meds_pft_params,         only : CUE_TEMP, CUE_NONE, CUE_WATER, CUE_LIGHT
-   use meds_test_support,       only : build_test_config, check_close, check_int, check_true,            &
+   use ed_kinds,                only : wp, ik
+   use ed_config,               only : ed_config_t
+   use ed_pft_derive,           only : pft_leaf_psi_tlp
+   use ed_polygon_state_vars,   only : polygon_t
+   use ed_init_bare_ground,     only : init_bare_ground, add_cohort
+   use ed_slow_state,           only : advance_leaf_phenology
+   use ed_constants,            only : day_sec
+   use ed_time,                 only : daylength
+   use ed_pft_params,           only : CUE_TEMP, CUE_NONE, CUE_WATER, CUE_LIGHT
+   use ed_test_support,         only : build_test_config, check_close, check_int, check_true,            &
                                        test_report
    implicit none
    private
@@ -23,7 +23,7 @@ module test_slow_step_phenology
    public :: run_phenology_wiring
 
    real(wp), parameter :: TWOPI = 6.283185307179586_wp
-   type(meds_config_t) :: cfg
+   type(ed_config_t)   :: cfg
    type(polygon_t)     :: poly
    integer(ik) :: doy
    real(wp)    :: fl_decid_200, sh_decid_200, fl_decid_340, sh_decid_340
@@ -252,24 +252,24 @@ contains
 end module test_slow_step_phenology
 
 !==========================================================================================!
-! Thermal acclimation's wiring (meds_slow_state's acclimate_site_leaf_tables, and its      !
+! Thermal acclimation's wiring (ed_slow_state's acclimate_site_leaf_tables, and its        !
 ! switch in advance_one_step; docs/science/leaf_gas_exchange.md §2): each site's growth    !
 ! temperature starts from its own first day and follows its own days as a running mean,   !
 ! and each site's leaf table is the PFT table acclimated at its own mean; a site whose     !
 ! fast loop did not run keeps both; with acclimation off every table stays the PFT's own.  !
 !==========================================================================================!
 module test_slow_step_acclimation
-   use meds_kinds,              only : wp, ik
-   use meds_constants,          only : t_kelvin
-   use meds_config,             only : meds_config_t
-   use meds_pft_params,         only : leaf_photo_table_t
-   use meds_polygon_state_vars, only : polygon_t
-   use meds_state_defaults,     only : is_unset_positive
-   use meds_init_bare_ground,   only : init_bare_sites, finalize_init
-   use meds_plant_traits,       only : acclimate_leaf_photo_table
-   use meds_slow_state,         only : acclimate_site_leaf_tables
-   use meds_stepper,            only : advance_one_step, run_ledgers_t
-   use meds_test_support,       only : banner, build_test_config, check_close, check_true
+   use ed_kinds,                only : wp, ik
+   use ed_constants,            only : t_kelvin
+   use ed_config,               only : ed_config_t
+   use ed_pft_params,           only : leaf_photo_table_t
+   use ed_polygon_state_vars,   only : polygon_t
+   use ed_state_defaults,       only : is_unset_positive
+   use ed_init_bare_ground,     only : init_bare_sites, finalize_init
+   use ed_plant_traits,         only : acclimate_leaf_photo_table
+   use ed_slow_state,           only : acclimate_site_leaf_tables
+   use ed_stepper,              only : advance_one_step, run_ledgers_t
+   use ed_test_support,         only : banner, build_test_config, check_close, check_true
    implicit none
    private
 
@@ -282,7 +282,7 @@ module test_slow_step_acclimation
 contains
 
    subroutine run_thermal_acclimation()
-      type(meds_config_t)      :: cfg
+      type(ed_config_t)        :: cfg
       type(polygon_t)          :: poly
       type(run_ledgers_t)      :: ledgers   !< never activated: the steps book nothing
       type(leaf_photo_table_t) :: warm_table
@@ -353,7 +353,7 @@ contains
 
    !----- A polygon of two bare sites, each half of it, on the run's config. --------------------!
    subroutine two_sites(cfg, poly)
-      type(meds_config_t), intent(in)  :: cfg
+      type(ed_config_t), intent(in)    :: cfg
       type(polygon_t),     intent(out) :: poly
       call init_bare_sites(poly, cfg, [1_ik, 1_ik], [cfg, cfg], [0.5_wp, 0.5_wp])
       call finalize_init(poly)
@@ -370,7 +370,7 @@ contains
    !----- Each site's table is the PFT table acclimated at that site's running mean. ------------!
    subroutine check_tables_follow(poly, cfg, tag)
       type(polygon_t),     intent(in) :: poly
-      type(meds_config_t), intent(in) :: cfg
+      type(ed_config_t),   intent(in) :: cfg
       character(len=*),    intent(in) :: tag
       type(leaf_photo_table_t) :: expected
       integer(ik) :: is
@@ -403,24 +403,24 @@ end module test_slow_step_acclimation
 ! only the storage there is.                                                               !
 !==========================================================================================!
 module test_slow_step_carbon
-   use meds_kinds,                  only : wp, ik
-   use meds_constants,              only : grav_head
-   use meds_therm_lib,              only : internal_energy_liquid
-   use meds_plant_hydr_lib,         only : water_curve_t, tissue_water_to_psi, tissue_psi_to_water
-   use meds_allometry_lib, only : dbh_to_wai, sapwood_fraction, carbon_to_structure
-   use meds_config,                 only : meds_config_t, growth_window_steps
-   use meds_cohort_state_vars, only : cohort_deriv_alloc, cohort_bad_field, cohort_field_finite, cohort_field_name
-   use meds_patch_state_vars,  only : canopy_air_bad_field
-   use meds_polygon_state_vars, only : polygon_t
-   use meds_slow_update, only : update_cohort_states, terminate_cohorts, update_cohort_derivatives, commit_trait_carbon
-   use meds_plant_carbon_allocation, only : plant_carbon_allocation
-   use meds_slow_state, only : kill_report_t, advance_plant_traits, shed_turnover_water, reacclimate_plant_traits,      &
+   use ed_kinds,                    only : wp, ik
+   use ed_constants,                only : grav_head
+   use ed_therm_lib,                only : internal_energy_liquid
+   use ed_plant_hydr_lib,           only : water_curve_t, tissue_water_to_psi, tissue_psi_to_water
+   use ed_allometry_lib, only : dbh_to_wai, sapwood_fraction, carbon_to_structure
+   use ed_config,                 only : ed_config_t, growth_window_steps
+   use ed_cohort_state_vars,   only : cohort_deriv_alloc, cohort_bad_field, cohort_field_finite, cohort_field_name
+   use ed_patch_state_vars,    only : canopy_air_bad_field
+   use ed_polygon_state_vars, only : polygon_t
+   use ed_slow_update, only : update_cohort_states, terminate_cohorts, update_cohort_derivatives, commit_trait_carbon
+   use ed_plant_carbon_allocation, only : plant_carbon_allocation
+   use ed_slow_state,   only : kill_report_t, advance_plant_traits, shed_turnover_water, reacclimate_plant_traits,      &
                                slow_step_data_t, compute_carbon_allocation, clear_litter, fill_new_leaf_water
-   use meds_init_bare_ground, only : init_bare_ground, add_cohort, finalize_init
-   use meds_stepper,                only : advance_one_step, run_ledgers_t
-   use meds_test_support, only : banner, build_test_config, check, check_close
+   use ed_init_bare_ground, only : init_bare_ground, add_cohort, finalize_init
+   use ed_stepper,                only : advance_one_step, run_ledgers_t
+   use ed_test_support, only : banner, build_test_config, check, check_close
    use, intrinsic :: ieee_arithmetic, only : ieee_value, ieee_quiet_nan, ieee_positive_inf
-   use meds_slow_ledger,  only : slow_ledger_t
+   use ed_slow_ledger,  only : slow_ledger_t
    implicit none
    private
 
@@ -429,7 +429,7 @@ module test_slow_step_carbon
    type(slow_ledger_t) :: no_ledger    !< inactive: a test step books nothing
    type(run_ledgers_t) :: ledgers      !< never activated: the coupled steps book nothing
 
-   type(meds_config_t) :: cfg
+   type(ed_config_t)   :: cfg
    type(polygon_t)     :: poly
    real(wp)    :: wood0, dbh0
    integer(ik) :: istep
@@ -692,7 +692,7 @@ contains
    !      from empty litter. The step moves no pool, so repeated calls see the same cohort. -----!
    real(wp) function fineroot_litter(poly, cfg) result(shed)
       type(polygon_t),     intent(inout) :: poly
-      type(meds_config_t), intent(in)    :: cfg
+      type(ed_config_t), intent(in)      :: cfg
       type(slow_step_data_t) :: step
       call clear_litter(poly)
       call compute_carbon_allocation(poly, cfg, step)
@@ -707,28 +707,28 @@ end module test_slow_step_carbon
 ! and reproduction reaching the recruit pool.                                              !
 !==========================================================================================!
 module test_slow_step_ledger_paths
-   use meds_kinds,              only : wp, ik
-   use meds_biogeochem_params,  only : IP_SLOW
-   use meds_config,             only : meds_config_t
-   use meds_soil_derive,        only : build_profile_hydraulics, soil_layers, build_soil_profile,           &
+   use ed_kinds,                only : wp, ik
+   use ed_biogeochem_params,    only : IP_SLOW
+   use ed_config,               only : ed_config_t
+   use ed_soil_derive,          only : build_profile_hydraulics, soil_layers, build_soil_profile,           &
                                        soil_start_theta, top_soil_psi
-   use meds_polygon_state_vars, only : polygon_t, patch_polygon_area
-   use meds_patch_state_vars, only : cas_set_depth, patch_physical_state, litter_input_t
-   use meds_soil_params,        only : soil_profile_t
-   use meds_init_bare_ground, only : init_bare_ground, add_cohort, finalize_init
-   use meds_cohort_state_vars,  only : init_cohort, set_cohort_size_from_carbon, hold_cohort_tissue_temps
-   use meds_slow_update, only : terminate_cohorts, apply_patch_disturbance, fuse_2_patches, refresh_canopy_depth
-   use meds_slow_dynamics, only : vegetation_dynamics, restructure_stand, settle_tissue_water
-   use meds_slow_state, only : kill_report_t, kill_litter, shed_turnover_water, slow_step_data_t
-   use meds_slow_ledger,        only : slow_store_t, slow_ledger_t, slow_site_store,               &
+   use ed_polygon_state_vars,   only : polygon_t, patch_polygon_area
+   use ed_patch_state_vars, only : cas_set_depth, patch_physical_state, litter_input_t
+   use ed_soil_params,        only : soil_profile_t
+   use ed_init_bare_ground, only : init_bare_ground, add_cohort, finalize_init
+   use ed_cohort_state_vars,  only : init_cohort, set_cohort_size_from_carbon, hold_cohort_tissue_temps
+   use ed_slow_update, only : terminate_cohorts, apply_patch_disturbance, fuse_2_patches, refresh_canopy_depth
+   use ed_slow_dynamics, only : vegetation_dynamics, restructure_stand, settle_tissue_water
+   use ed_slow_state, only : kill_report_t, kill_litter, shed_turnover_water, slow_step_data_t
+   use ed_slow_ledger,          only : slow_store_t, slow_ledger_t, slow_site_store,               &
                                        slow_ledger_open, slow_ledger_declare, slow_ledger_mark,    &
                                        slow_fast_carbon_handover, slow_tissue_energy, SLOW_PHASE_GROW, &
                                        SLOW_PHASE_ALLOCATE, SLOW_PHASE_RECRUIT, SLOW_PHASE_TISSUE_WATER, &
                                        litter_carbon_total
-   use meds_plant_hydr_lib,     only : water_curve_t, tissue_water_to_psi
-   use meds_constants,          only : grav_head, n_soil_layer_max, umol_2_kgc
-   use meds_test_support, only : banner, build_test_config, check, check_close
-   use meds_constants,          only : rho_air_ref
+   use ed_plant_hydr_lib,       only : water_curve_t, tissue_water_to_psi
+   use ed_constants,            only : grav_head, n_soil_layer_max, umol_2_kgc
+   use ed_test_support, only : banner, build_test_config, check, check_close
+   use ed_constants,          only : rho_air_ref
    implicit none
    private
 
@@ -738,7 +738,7 @@ module test_slow_step_ledger_paths
    integer(ik) :: n_soil_layer
 
    real(wp), parameter  :: RHO = rho_air_ref    !< the density the canopy-air store is valued at
-   type(meds_config_t)  :: cfg
+   type(ed_config_t)    :: cfg
    type(polygon_t)      :: poly
    type(soil_profile_t) :: soil
 
@@ -844,7 +844,7 @@ contains
       real(wp), optional, intent(out) :: ddbh       !< the cohort's dbh growth over the step
       real(wp), optional, intent(out) :: dt_yr      !< the step's length [yr]
       real(wp) :: dbh_start
-      type(meds_config_t) :: c
+      type(ed_config_t)   :: c
       type(polygon_t)     :: st
       c = build_test_config()
       c%fast_biophysics_on = .true.
@@ -897,7 +897,7 @@ contains
                    + st%patch%litter_in(1)%struct_grnd + st%patch%litter_in(1)%struct_soil
    end subroutine run_variant
    subroutine check_mortality_water()
-      type(meds_config_t) :: c
+      type(ed_config_t)   :: c
       type(polygon_t)     :: st
       real(wp) :: tis0, tis1, shed0, shed1
       c = build_test_config()
@@ -936,7 +936,7 @@ contains
    end function tissue_water_total
    pure function shed_total(st, c) result(w)
       type(polygon_t),     intent(in) :: st
-      type(meds_config_t), intent(in) :: c
+      type(ed_config_t),   intent(in) :: c
       real(wp)    :: w
       integer(ik) :: ip
       w = 0.0_wp
@@ -962,7 +962,7 @@ contains
    ! duplicating it (a local array misattributes one patch's litter to another).                 !
    !---------------------------------------------------------------------------------------!
    subroutine check_litter_patch_lockstep()
-      type(meds_config_t) :: c
+      type(ed_config_t)   :: c
       type(polygon_t)     :: st
       real(wp)    :: tot0, tot1
       integer(ik) :: np0
@@ -1030,7 +1030,7 @@ contains
    subroutine grow_one_step(soil_carbon_on, litter, grow_residual)
       logical,  intent(in)  :: soil_carbon_on
       real(wp), intent(out) :: litter, grow_residual
-      type(meds_config_t) :: c
+      type(ed_config_t)   :: c
       type(polygon_t)     :: st
       type(slow_ledger_t) :: lg
       c = build_test_config()
@@ -1086,7 +1086,7 @@ contains
       real(wp),    intent(out) :: pool
       real(wp), optional, intent(in)  :: shade_decay   !< pft.recruit_shade_decay (default 0)
       real(wp), optional, intent(out) :: lai           !< the stand's LAI before the first step
-      type(meds_config_t) :: c
+      type(ed_config_t)   :: c
       type(polygon_t)     :: st
       integer(ik)         :: k
       c = build_test_config()
@@ -1117,19 +1117,19 @@ end module test_slow_step_ledger_paths
 ! death of a cohort with no leaves and no storage, each on its own row.                    !
 !==========================================================================================!
 module test_slow_step_mortality
-   use meds_kinds,               only : wp, ik
-   use meds_constants,           only : yr_sec
-   use meds_config,              only : meds_config_t
-   use meds_cohort_state_vars,   only : set_cohort_size_from_carbon
-   use meds_polygon_state_vars,  only : polygon_t
-   use meds_diag_vars,           only : alloc_patch_diag, patch_diag_value, PA_MORT_C_BACKGROUND, PA_MORT_C_CULL, &
+   use ed_kinds,                 only : wp, ik
+   use ed_constants,             only : yr_sec
+   use ed_config,                only : ed_config_t
+   use ed_cohort_state_vars,     only : set_cohort_size_from_carbon
+   use ed_polygon_state_vars,    only : polygon_t
+   use ed_diag_vars,             only : alloc_patch_diag, patch_diag_value, PA_MORT_C_BACKGROUND, PA_MORT_C_CULL, &
                                         PA_MORT_C_DISTURB
-   use meds_init_bare_ground, only : init_bare_ground, add_cohort, finalize_init
-   use meds_slow_update, only : terminate_cohorts, apply_patch_disturbance
-   use meds_slow_dynamics, only : advance_slow_dynamics, advance_boundary_dynamics
-   use meds_test_support,        only : banner, build_test_config, check, check_close, test_report
-   use meds_slow_ledger,  only : slow_ledger_t
-   use meds_slow_state,  only : kill_report_t, decide_disturbance
+   use ed_init_bare_ground, only : init_bare_ground, add_cohort, finalize_init
+   use ed_slow_update, only : terminate_cohorts, apply_patch_disturbance
+   use ed_slow_dynamics, only : advance_slow_dynamics, advance_boundary_dynamics
+   use ed_test_support,        only : banner, build_test_config, check, check_close, test_report
+   use ed_slow_ledger,  only : slow_ledger_t
+   use ed_slow_state,  only : kill_report_t, decide_disturbance
    implicit none
    private
 
@@ -1156,7 +1156,7 @@ contains
    !      that leaves it at zero reads every slot as 0 and passes nothing.  ---------------------!
    subroutine arm_patch_diag(poly, cfg)
       type(polygon_t),     intent(inout) :: poly
-      type(meds_config_t), intent(in)    :: cfg
+      type(ed_config_t), intent(in)      :: cfg
       call alloc_patch_diag(poly%patch%diag, poly%patch%n + 2_ik, .true.)
       poly%patch%diag%n = poly%patch%n
       poly%patch%diag%w(1:poly%patch%diag%cap) = cfg%dt_slow
@@ -1174,7 +1174,7 @@ contains
    !      amount that flowed.  ------------------------------------------------------------------!
    real(wp) function site_amount(poly, cfg, slot) result(a)
       type(polygon_t),     intent(in) :: poly
-      type(meds_config_t), intent(in) :: cfg
+      type(ed_config_t),   intent(in) :: cfg
       integer(ik),         intent(in) :: slot
       real(wp)    :: x(16)
       integer(ik) :: n, p
@@ -1187,7 +1187,7 @@ contains
    end function site_amount
    !=== CULL: a cohort below the tracked size floor. ==========================================!
    subroutine check_cull()
-      type(meds_config_t) :: cfg
+      type(ed_config_t)   :: cfg
       type(polygon_t)     :: poly
       real(wp)            :: expect
 
@@ -1221,7 +1221,7 @@ contains
    end subroutine check_cull
    !=== DISTURBANCE: the canopy killed when a gap opens. ======================================!
    subroutine check_disturbance()
-      type(meds_config_t) :: cfg
+      type(ed_config_t)   :: cfg
       type(polygon_t)     :: poly
       real(wp)            :: frac, expect
 
@@ -1259,7 +1259,7 @@ contains
    end subroutine check_disturbance
    !=== BACKGROUND: the continuous hazard, through the real slow driver. =======================!
    subroutine check_background()
-      type(meds_config_t) :: cfg
+      type(ed_config_t)   :: cfg
       type(polygon_t)     :: poly
       real(wp)            :: n0, expect
 
@@ -1301,7 +1301,7 @@ contains
    !    pathway, and the next month boundary culls it. The second pays its upkeep from storage      !
    !    through a 150-day dry season and loses density only at the growth-driven hazard.           !
    subroutine check_exhausted()
-      type(meds_config_t) :: cfg
+      type(ed_config_t)   :: cfg
       type(polygon_t)     :: poly
       real(wp)            :: n0, expect
       integer(ik)         :: day
@@ -1343,7 +1343,7 @@ contains
    !      and no photosynthesis on every step (there is no fast loop to overwrite the accumulators). -!
    subroutine leafless_stand(poly, cfg, storage)
       type(polygon_t),     intent(inout) :: poly
-      type(meds_config_t), intent(in)    :: cfg
+      type(ed_config_t),   intent(in)    :: cfg
       real(wp),            intent(in)    :: storage
       real(wp), parameter :: STEM_RESP_DAY = 1.0e-3_wp   !< [kgC/plant] one day's stem respiration
       call init_bare_ground(poly, cfg, 1_ik)
@@ -1367,24 +1367,24 @@ end module test_slow_step_mortality
 ! the fast loop the pools decay at spinup_xi and there is no seam.                         !
 !==========================================================================================!
 module test_slow_step_seam
-   use meds_kinds,               only : wp, ik
-   use meds_biogeochem_params,   only : IP_FAST_GRND, IP_FAST_SOIL, IP_STRUCT_GRND, IP_STRUCT_SOIL, &
+   use ed_kinds,                 only : wp, ik
+   use ed_biogeochem_params,     only : IP_FAST_GRND, IP_FAST_SOIL, IP_STRUCT_GRND, IP_STRUCT_SOIL, &
                                         IP_SLOW, N_SOIL_POOL
-   use meds_respiration,         only : decomposition_transfer_matrix
-   use meds_config,              only : meds_config_t
-   use meds_soil_derive,         only : build_profile_hydraulics, build_profile_thermal
-   use meds_soil_params,         only : soil_profile_t
-   use meds_polygon_state_vars,  only : polygon_t
-   use meds_init_bare_ground, only : init_bare_ground, add_cohort, finalize_init
-   use meds_test_soil_grid, only : geometric_layer_bottoms
-   use meds_constants,     only : n_soil_layer_max, day_sec
-   use meds_soil_hydr_lib,   only : SOIL_RETENTION_VG
-   use meds_fast_dynamics,       only : fast_dynamics
-   use meds_init,                only : init_fast_state
-   use meds_slow_dynamics, only : advance_slow_dynamics
-   use meds_patch_state_vars, only : litter_input_t
-   use meds_slow_ledger, only : slow_ledger_t
-   use meds_test_support, only : banner, build_test_config, check, check_close, check_true, test_report
+   use ed_respiration,           only : decomposition_transfer_matrix
+   use ed_config,                only : ed_config_t
+   use ed_soil_derive,           only : build_profile_hydraulics, build_profile_thermal
+   use ed_soil_params,           only : soil_profile_t
+   use ed_polygon_state_vars,    only : polygon_t
+   use ed_init_bare_ground, only : init_bare_ground, add_cohort, finalize_init
+   use ed_test_soil_grid, only : geometric_layer_bottoms
+   use ed_constants,     only : n_soil_layer_max, day_sec
+   use ed_soil_hydr_lib,   only : SOIL_RETENTION_VG
+   use ed_fast_dynamics,         only : fast_dynamics
+   use ed_init,                  only : init_fast_state
+   use ed_slow_dynamics, only : advance_slow_dynamics
+   use ed_patch_state_vars, only : litter_input_t
+   use ed_slow_ledger, only : slow_ledger_t
+   use ed_test_support, only : banner, build_test_config, check, check_close, check_true, test_report
    implicit none
    private
 
@@ -1394,7 +1394,7 @@ module test_slow_step_seam
 
    integer(ik)            :: n_budget_fail
    integer(ik), parameter :: NSL = 10_ik
-   type(meds_config_t)  :: cfg
+   type(ed_config_t)    :: cfg
    type(polygon_t)      :: poly
    type(soil_profile_t) :: test_profile   !< the site's soil column (use_test_column)
    real(wp) :: total0, total1
@@ -1532,23 +1532,23 @@ end module test_slow_step_seam
 ! moved, with and without a fast loop.                                                     !
 !==========================================================================================!
 module test_slow_step_diag
-   use meds_kinds,               only : wp, ik
-   use meds_constants,           only : yr_sec, n_soil_layer_max
-   use meds_config,              only : meds_config_t
-   use meds_soil_derive,         only : build_profile_hydraulics, build_profile_thermal
-   use meds_soil_params,         only : soil_profile_t
-   use meds_polygon_state_vars,  only : polygon_t, reset_step_diagnostics
-   use meds_diag_vars,           only : alloc_patch_diag, patch_diag_value, patch_diag_slow_row, PA_LITTER_LEAF, &
+   use ed_kinds,                 only : wp, ik
+   use ed_constants,             only : yr_sec, n_soil_layer_max
+   use ed_config,                only : ed_config_t
+   use ed_soil_derive,           only : build_profile_hydraulics, build_profile_thermal
+   use ed_soil_params,           only : soil_profile_t
+   use ed_polygon_state_vars,    only : polygon_t, reset_step_diagnostics
+   use ed_diag_vars,             only : alloc_patch_diag, patch_diag_value, patch_diag_slow_row, PA_LITTER_LEAF, &
                                         PA_LITTER_FINEROOT, PA_LITTER_STRUCT, PA_RECRUIT_NPLANT, PA_DISTURB_AREA, PA_LE, PA_GPP
-   use meds_init_bare_ground, only : init_bare_ground, add_cohort, finalize_init
-   use meds_test_soil_grid, only : geometric_layer_bottoms
-   use meds_soil_hydr_lib,       only : SOIL_RETENTION_VG
-   use meds_fast_dynamics,       only : fast_dynamics
-   use meds_init,                only : init_fast_state
-   use meds_slow_dynamics, only : advance_slow_dynamics, advance_boundary_dynamics, vegetation_dynamics
-   use meds_test_support,        only : banner, build_test_config, check, check_close, check_true, &
+   use ed_init_bare_ground, only : init_bare_ground, add_cohort, finalize_init
+   use ed_test_soil_grid, only : geometric_layer_bottoms
+   use ed_soil_hydr_lib,         only : SOIL_RETENTION_VG
+   use ed_fast_dynamics,         only : fast_dynamics
+   use ed_init,                  only : init_fast_state
+   use ed_slow_dynamics, only : advance_slow_dynamics, advance_boundary_dynamics, vegetation_dynamics
+   use ed_test_support,          only : banner, build_test_config, check, check_close, check_true, &
                                         test_report
-   use meds_slow_ledger,  only : slow_ledger_t
+   use ed_slow_ledger,  only : slow_ledger_t
    implicit none
    private
 
@@ -1557,7 +1557,7 @@ module test_slow_step_diag
    real(wp) :: test_bottoms(n_soil_layer_max)   ! the geometric layers these checks are computed on
 
    integer(ik), parameter :: NSL = 10_ik
-   type(meds_config_t)  :: cfg
+   type(ed_config_t)    :: cfg
    type(polygon_t)      :: poly
    type(soil_profile_t) :: test_profile   !< the site's soil column (use_test_column)
    real(wp)             :: x(8), pool0, pool1, elapsed_yr, frac_expected
@@ -1589,7 +1589,7 @@ contains
       call finalize_init(poly)
       call init_fast_state(poly, cfg)
 
-      !----- Turn the patch diagnostic block on by hand. In production meds_output_registry does this !
+      !----- Turn the patch diagnostic block on by hand. In production ed_output_registry does this   !
       !      from the enabled-variable set; a test has no registry, and the block is a no-op at every !
       !      entry point until it is active. -----------------------------------------------------!
       call alloc_patch_diag(poly%patch%diag, max(poly%patch%cap, 1_ik), .true.)
@@ -1656,7 +1656,7 @@ contains
       !    slow step does both: the slow rows read their rates exactly as with a fast loop, and the    !
       !    fast rows are not slow rows (the output layer reports those as missing). ----------------!
       block
-         type(meds_config_t) :: cfg_slow
+         type(ed_config_t) :: cfg_slow
          cfg_slow = cfg ; cfg_slow%fast_biophysics_on = .false.
          call reset_step_diagnostics(poly)
          poly%patch%diag%n = 0_ik                                   ! as if no fast loop had ever run
@@ -1690,7 +1690,7 @@ contains
 end module test_slow_step_diag
 
 !==========================================================================================!
-! test_slow_step -- the slow step through meds_slow_state and meds_slow_dynamics           !
+! test_slow_step -- the slow step through ed_slow_state and ed_slow_dynamics               !
 ! (docs/science/order_of_processes.md §4): leaf phenology's wiring, thermal acclimation's  !
 ! wiring, the carbon step, the paths the ledger cannot see, mortality by pathway, the      !
 ! soil-carbon seam and the slow rows' units. One module per section.                       !
@@ -1703,7 +1703,7 @@ program test_slow_step
    use test_slow_step_mortality, only : run_mortality_pathways
    use test_slow_step_seam, only : run_soil_seam
    use test_slow_step_diag, only : run_slow_rows
-   use meds_test_support, only : test_report
+   use ed_test_support, only : test_report
    implicit none
 
    call run_phenology_wiring()

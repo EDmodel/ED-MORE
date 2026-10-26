@@ -1,19 +1,19 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! meds_test_run -- the configs a test derives from a template config, and the meds_main    !
+! ed_test_run -- the configs a test derives from a template config, and the edmore         !
 ! runs it expects to be refused.                                                           !
 !                                                                                          !
 ! derive_config writes a config from override blocks and a template. The blocks come       !
 ! first and are layered: the first value a block gives a key is the one written, and a     !
 ! later block's value for it is left out. Then the template follows, less every key the    !
-! blocks set and any key the caller drops. Each key is written once, as meds_toml requires: !
-! it refuses a key set twice. Keys are named as meds_toml names them: `section.key`, and   !
+! blocks set and any key the caller drops. Each key is written once, as ed_toml requires:   !
+! it refuses a key set twice. Keys are named as ed_toml names them: `section.key`, and     !
 ! `name.<i>.key` in the i-th `[[name]]` table, so two tables may each set a key.           !
 !                                                                                          !
-! main_refuses runs meds_main on a config and tells whether it stopped and its report      !
+! main_refuses runs edmore on a config and tells whether it stopped and its report         !
 ! holds a message.                                                                         !
 !==========================================================================================!
-module meds_test_run
+module ed_test_run
    implicit none
    private
 
@@ -23,7 +23,7 @@ module meds_test_run
    integer, parameter :: KEY_LEN  = 128     !< longest qualified key
    integer, parameter :: MAX_ARRAYS = 8     !< [[name]] arrays in one config
 
-   !----- The keys written so far and the [[name]] tables met, as meds_toml counts them. --------!
+   !----- The keys written so far and the [[name]] tables met, as ed_toml counts them. --------  !
    type :: key_set_t
       integer :: n = 0
       character(len=KEY_LEN), allocatable :: key(:)
@@ -69,13 +69,13 @@ contains
          write(uout, '(a)') trim(line)
       end do
       !----- The template, less the keys set above and those dropped. Its keys are not added to   !
-      !      the set: a key the template itself sets twice is written twice, for meds_toml to      !
+      !      the set: a key the template itself sets twice is written twice, for ed_toml to        !
       !      refuse, as it would refuse the template. ------------------------------------------!
       open(newunit=uin, file=template, status='old', action='read')
       do
          read(uin, '(a)', iostat=ios) line
          if (ios /= 0) exit
-         if (len_trim(line) == LINE_LEN) error stop 'meds_test_run: a template line fills the buffer'
+         if (len_trim(line) == LINE_LEN) error stop 'ed_test_run: a template line fills the buffer'
          key = line_key(set, line)
          if (len_trim(key) > 0) then
             if (holds(set, key)) cycle
@@ -89,14 +89,14 @@ contains
       close(uout)
    end subroutine derive_config
 
-   !----- Run meds_main on `config`, its output into `log`: true when it stopped with an error  !
+   !----- Run edmore on `config`, its output into `log`: true when it stopped with an error     !
    !      and a line of the log holds `message`. ------------------------------------------------!
-   logical function main_refuses(meds_main, config, log, message) result(refused)
-      character(len=*), intent(in) :: meds_main, config, log, message
+   logical function main_refuses(edmore, config, log, message) result(refused)
+      character(len=*), intent(in) :: edmore, config, log, message
       character(len=LINE_LEN) :: line
       integer :: es, u, ios
       logical :: said
-      call execute_command_line('"'//meds_main//'" "'//config//'" > "'//log//'" 2>&1', exitstat=es)
+      call execute_command_line('"'//edmore//'" "'//config//'" > "'//log//'" 2>&1', exitstat=es)
       said = .false.
       open(newunit=u, file=log, status='old', action='read')
       do
@@ -124,7 +124,7 @@ contains
          if (nb > 3) then
             ia = findloc(set%array_name(1:set%n_array), adjustl(line(3:nb - 1)), dim=1)
             if (ia == 0) then
-               if (set%n_array >= MAX_ARRAYS) error stop 'meds_test_run: too many [[array]] names'
+               if (set%n_array >= MAX_ARRAYS) error stop 'ed_test_run: too many [[array]] names'
                set%n_array = set%n_array + 1
                ia = set%n_array
                set%array_name(ia) = adjustl(line(3:nb - 1))
@@ -183,4 +183,4 @@ contains
       set%key(set%n) = key
    end subroutine add_key
 
-end module meds_test_run
+end module ed_test_run

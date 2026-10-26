@@ -1,6 +1,6 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! test_soil_water -- the soil's water flows (meds_soil_water;                              !
+! test_soil_water -- the soil's water flows (ed_soil_water;                                !
 ! docs/science/soil_biophysics.md, docs/science/soil_plant_water.md §3).                   !
 !   1. DARCY (soil_water_flux, soil_biophysics.md eq. (3)): its four derivatives against   !
 !      central differences; the pond face at zero head is the infiltration capacity.       !
@@ -27,17 +27,17 @@
 !      base counts it once, in K(theta_N).                                                 !
 !==========================================================================================!
 program test_soil_water
-   use meds_test_assert,   only : check_true, check_close, test_report
-   use meds_kinds,         only : wp, ik
-   use meds_constants,     only : grav, grav_head, rho_h2o, r_wv, p_std, n_soil_layer_max, t_3ple, h2o_dry_ratio
-   use meds_soil_hydr_lib, only : SOIL_RETENTION_VG, soil_theta_to_head, soil_liquid_capacity, soil_ice_state,  &
+   use ed_test_assert,     only : check_true, check_close, test_report
+   use ed_kinds,           only : wp, ik
+   use ed_constants,       only : grav, grav_head, rho_h2o, r_wv, p_std, n_soil_layer_max, t_3ple, h2o_dry_ratio
+   use ed_soil_hydr_lib,   only : SOIL_RETENTION_VG, soil_theta_to_head, soil_liquid_capacity, soil_ice_state,  &
                                   soil_ice_t
-   use meds_soil_water,    only : ground_evaporation_rate, ground_evaporation_setup, soil_water_flux, ground_evap_env_t, &
+   use ed_soil_water,      only : ground_evaporation_rate, ground_evaporation_setup, soil_water_flux, ground_evap_env_t, &
                                   bottom_flux
-   use meds_therm_lib,     only : sat_specific_humidity, sat_vapor_pressure, specific_humidity_to_vapor_pressure
-   use meds_soil_params,   only : soil_profile_t, soil_params_t, SOIL_BC_DRAIN, SOIL_BC_AQUIFER
-   use meds_soil_derive,   only : build_profile_hydraulics
-   use meds_test_soil_grid, only : geometric_layer_bottoms
+   use ed_therm_lib,       only : sat_specific_humidity, sat_vapor_pressure, specific_humidity_to_vapor_pressure
+   use ed_soil_params,     only : soil_profile_t, soil_params_t, SOIL_BC_DRAIN, SOIL_BC_AQUIFER
+   use ed_soil_derive,     only : build_profile_hydraulics
+   use ed_test_soil_grid, only : geometric_layer_bottoms
    implicit none
 
    call test_soil_water_flux()

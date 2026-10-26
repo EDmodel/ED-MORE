@@ -1,6 +1,6 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! test_met_file -- the "default" forcing file and what meds_met does with it                 !
+! test_met_file -- the "default" forcing file and what ed_met does with it                   !
 ! (docs/science/forcing.md):                                                                 !
 !   - its reader: a netCDF round trip, gaps marked by _FillValue or missing_value and a      !
 !     packed variable, the interval that contains an instant, the sunrise                     !
@@ -17,26 +17,26 @@
 ! The laws it reads with are the libraries' tests': test_therm_lib, test_radiation_lib.        !
 !==========================================================================================!
 program test_met_file
-   use meds_test_assert,      only : check, check_true, test_report
-   use meds_kinds,            only : wp, ik
-   use meds_constants,        only : t_3ple, h2o_dry_ratio, grav, cp_air
-   use meds_time,             only : meds_time_t, time_advance_seconds, solar_cosz_utc
-   use meds_therm_lib,        only : sat_vapor_pressure, air_density, sat_specific_humidity, &
+   use ed_test_assert,        only : check, check_true, test_report
+   use ed_kinds,              only : wp, ik
+   use ed_constants,          only : t_3ple, h2o_dry_ratio, grav, cp_air
+   use ed_time,               only : ed_time_t, time_advance_seconds, solar_cosz_utc
+   use ed_therm_lib,          only : sat_vapor_pressure, air_density, sat_specific_humidity, &
                                      rh_to_specific_humidity, precip_phase, specific_humidity_to_vpd
-   use meds_radiation_lib,    only : SWPART_CLEARIDX, SWPART_PASSTHROUGH, clearness_index
-   use meds_forcing_params,   only : forcing_params_t, MET_BACKEND_DEFAULT, METAVG_END, METAVG_BEGIN, CLAMP_HOLD, &
+   use ed_radiation_lib,      only : SWPART_CLEARIDX, SWPART_PASSTHROUGH, clearness_index
+   use ed_forcing_params,     only : forcing_params_t, MET_BACKEND_DEFAULT, METAVG_END, METAVG_BEGIN, CLAMP_HOLD, &
                                      CLAMP_ERROR, GRIDMATCH_NEAREST, CO2_SOURCE_FILE, HEIGHT_ABOVE_ZERO_PLANE, &
                                      HEIGHT_ABOVE_GROUND, WIND_EXPOSURE_OPEN_TERRAIN, WIND_EXPOSURE_LOCAL, &
                                      LW_SYNTHESIZE
-   use meds_met_types,        only : met_forcing_t, met_source_t, met_cursor_t, FLD_TAIR, FLD_QAIR, FLD_PSURF
-   use meds_met,              only : cosz_reconstruct_factor, disaggregate_sw, cas_top_wind_factor, met_to_cas_top, &
+   use ed_met_types,          only : met_forcing_t, met_source_t, met_cursor_t, FLD_TAIR, FLD_QAIR, FLD_PSURF
+   use ed_met,                only : cosz_reconstruct_factor, disaggregate_sw, cas_top_wind_factor, met_to_cas_top, &
                                      met_open, met_cursor_init, met_advance, met_instant, met_close, met_at_site
-   use meds_met_grid,         only : great_circle_distance, nearest_grid_index
-   use meds_met_share,        only : MET_OK, MET_ERR_WINDOW_NOT_WHOLE_YEARS, MET_ERR_START_NOT_A_RECORD, &
+   use ed_met_grid,           only : great_circle_distance, nearest_grid_index
+   use ed_met_share,          only : MET_OK, MET_ERR_WINDOW_NOT_WHOLE_YEARS, MET_ERR_START_NOT_A_RECORD, &
                                      MET_ERR_WINDOW_NOT_COVERED, MET_ERR_DT_MISMATCH, MET_ERR_ATTR_MISMATCH, &
                                      MET_ERR_CO2_FILE, MET_ERR_CO2_NOT_COVERED, MET_ERR_CO2_IN_MET_FILE, &
                                      MET_ERR_NOT_UTC, MET_ERR_HUMIDITY
-   use meds_netcdf_c
+   use ed_netcdf_c
    use iso_c_binding,         only : c_int, c_size_t, c_double
    use, intrinsic :: ieee_arithmetic, only : ieee_is_nan
    implicit none
@@ -60,7 +60,7 @@ program test_met_file
    integer,     parameter :: SATURATED_REC = 10          !< the record whose RHair is exactly 1
    real(wp),    parameter :: TOWER_HEIGHT = 41.0_wp      !< [m] above the ground (BCI)
    real(wp),    parameter :: PSURF        = 98800.0_wp   !< [Pa]
-   type(meds_time_t)      :: base
+   type(ed_time_t)        :: base
 
 
    call test_cosz_reconstruction()
@@ -75,7 +75,7 @@ program test_met_file
    if (command_argument_count() >= 1) call get_command_argument(1, co2_default_file)
    call test_co2_series(trim(co2_default_file))
 
-   base = meds_time_t(year=2020_ik, month=7_ik, day=1_ik)
+   base = ed_time_t(year=2020_ik, month=7_ik, day=1_ik)
    call test_humidity_forms()
    call test_utc_required()
    call test_stated_heights()
@@ -106,12 +106,12 @@ contains
 
    !----- 5. cosz reconstruction conserves the interval mean (the load-bearing method). -----!
    subroutine test_cosz_reconstruction()
-      type(meds_time_t) :: t
+      type(ed_time_t) :: t
       real(wp) :: factor, f_avg, win_start, dt_win, dt_sub, sec, cosz, fsum
       integer(ik) :: i, n
       real(wp), parameter :: LAT = 42.44_wp, LON = -76.50_wp
       print '(a)', '-- test 5: cosz reconstruction (interval-mean conserving) --'
-      t = meds_time_t(year=2020_ik, month=7_ik, day=1_ik)
+      t = ed_time_t(year=2020_ik, month=7_ik, day=1_ik)
       ! A SUNRISE window (10-11 UTC ~ 05-06 local at Ithaca), where cosz rises steeply from ~0.07 --
       ! this is where ED2's <sec z> mistake is worst (docs/science/forcing.md §5). Solar noon is ~17 UTC here.
       f_avg = 500.0_wp ; win_start = 10.0_wp*3600.0_wp ; dt_win = 3600.0_wp
@@ -136,10 +136,10 @@ contains
       type(met_cursor_t)     :: cur
       type(forcing_params_t) :: fc
       type(met_forcing_t)    :: met_noon, met_night, met_g2
-      type(meds_time_t)      :: base, now
+      type(ed_time_t)        :: base, now
       real(wp) :: sw_g1
       print '(a)', '-- test 7: NetCDF round-trip (multi-grid) --'
-      base = meds_time_t(year=2020_ik, month=7_ik, day=1_ik)
+      base = ed_time_t(year=2020_ik, month=7_ik, day=1_ik)
       call write_synthetic_forcing(NCFILE, base)
 
       fc%format = MET_BACKEND_DEFAULT ; fc%path = NCFILE ; fc%grid_index = 1_ik
@@ -199,10 +199,10 @@ contains
       type(met_cursor_t)     :: cur
       type(forcing_params_t) :: fc
       type(met_forcing_t)    :: met
-      type(meds_time_t)      :: base, now
+      type(ed_time_t)        :: base, now
       integer(ik) :: jt, jq, jp
       print '(a)', '-- test 7c: gaps by _FillValue and missing_value, and a packed variable --'
-      base = meds_time_t(year=2020_ik, month=7_ik, day=1_ik)
+      base = ed_time_t(year=2020_ik, month=7_ik, day=1_ik)
       call write_synthetic_forcing(NCFILE, base, conventions=.true.)
       fc%format = MET_BACKEND_DEFAULT ; fc%path = NCFILE ; fc%grid_index = 1_ik
       fc%timestep = 3600.0_wp ; fc%avg_convention = METAVG_END ; fc%sw_partition = SWPART_CLEARIDX
@@ -233,12 +233,12 @@ contains
       type(met_cursor_t)     :: cur
       type(forcing_params_t) :: fc
       type(met_forcing_t)    :: met
-      type(meds_time_t)      :: base, now
+      type(ed_time_t)        :: base, now
       real(wp), parameter    :: SW = 30.0_wp, LAT = 42.44_wp
       integer  :: h, k, il, hsun
       real(wp) :: lon, cz_mid, factor, mean_sw
       print '(a)', '-- test 7b: a sunrise hour keeps its shortwave --'
-      base = meds_time_t(year=2020_ik, month=7_ik, day=1_ik)
+      base = ed_time_t(year=2020_ik, month=7_ik, day=1_ik)
       hsun = -1
       search: do il = 0, 60
          lon = -76.5_wp - 0.25_wp * real(il, wp)                     ! one minute of sun time per step
@@ -275,10 +275,10 @@ contains
    subroutine test_file_config_agreement()
       type(met_source_t)     :: src
       type(forcing_params_t) :: fc
-      type(meds_time_t)      :: base
+      type(ed_time_t)        :: base
       integer(ik)            :: st
       print '(a)', '-- test 13: the forcing file must agree with [forcing] --'
-      base = meds_time_t(year=2020_ik, month=7_ik, day=1_ik)
+      base = ed_time_t(year=2020_ik, month=7_ik, day=1_ik)
       call write_synthetic_forcing(NCFILE, base)
 
       fc%format = MET_BACKEND_DEFAULT ; fc%path = NCFILE ; fc%grid_index = 1_ik
@@ -319,12 +319,12 @@ contains
 
    !----- 8. Edge paths: the CLAMP_HOLD start and the recycle-window checks. ---------------------!
    subroutine test_edge_paths(base)
-      type(meds_time_t), intent(in) :: base
+      type(ed_time_t), intent(in) :: base
       type(met_source_t)     :: src
       type(met_cursor_t)     :: cur
       type(forcing_params_t) :: fc
       type(met_forcing_t)    :: met
-      type(meds_time_t)      :: now
+      type(ed_time_t)        :: now
       integer(ik) :: st
       real(wp) :: tair0, tair1, expect_hold
       print '(a)', '-- test 8: edge paths (start-hold + recycle) --'
@@ -360,17 +360,17 @@ contains
                       st == MET_ERR_WINDOW_NOT_WHOLE_YEARS, real(st, wp))
 
       ! (c) A whole-year window whose start does NOT match a record stamp is rejected too --
-      !     MEDS never guesses the start of the day (e.g. a config saying 00:00 against an
+      !     ED-MORE never guesses the start of the day (e.g. a config saying 00:00 against an
       !     end-of-interval ERA5-Land file whose records are stamped 01:00).
       fc%recycle_start = time_advance_seconds(base, 1800.0_wp)           ! 00:30, between records
-      fc%recycle_end   = meds_time_t(2021_ik, 7_ik, 1_ik, 0_ik, 30_ik)
+      fc%recycle_end   = ed_time_t(2021_ik, 7_ik, 1_ik, 0_ik, 30_ik)
       call met_open(src, fc, stat=st)
       call check_true('recycle_start off the record grid rejected',                              &
                       st == MET_ERR_START_NOT_A_RECORD, real(st, wp))
 
       ! (d) A whole-year window ON the record grid, but the file only holds 24 h of it.
       fc%recycle_start = base
-      fc%recycle_end   = meds_time_t(2021_ik, 7_ik, 1_ik)
+      fc%recycle_end   = ed_time_t(2021_ik, 7_ik, 1_ik)
       call met_open(src, fc, stat=st)
       call check_true('window not covered by the file rejected',                                 &
                       st == MET_ERR_WINDOW_NOT_COVERED, real(st, wp))
@@ -398,31 +398,31 @@ contains
       !      January instant to 2021-01, which is OUTSIDE this window; the anchored form sends it
       !      to 2022-01 instead. The file only reaches 2021-12-31, so this window is (correctly)
       !      rejected as not covered -- which is itself the check that the coverage test bites.
-      fc%recycle_start = meds_time_t(2021_ik, 3_ik, 1_ik)
-      fc%recycle_end   = meds_time_t(2022_ik, 3_ik, 1_ik)
+      fc%recycle_start = ed_time_t(2021_ik,   3_ik, 1_ik)
+      fc%recycle_end   = ed_time_t(2022_ik,   3_ik, 1_ik)
       call met_open(src, fc, stat=st)
       call check_true('mid-year window beyond the file is rejected',                             &
                       st == MET_ERR_WINDOW_NOT_COVERED, real(st, wp))
 
       !----- Whole-year window on the file: every model year must read the SAME calendar day, for
       !      model years both before and after the window (the modulo must not go negative).
-      fc%recycle_start = meds_time_t(2021_ik, 1_ik, 1_ik)
-      fc%recycle_end   = meds_time_t(2022_ik, 1_ik, 1_ik)
+      fc%recycle_start = ed_time_t(2021_ik,   1_ik, 1_ik)
+      fc%recycle_end   = ed_time_t(2022_ik,   1_ik, 1_ik)
       call met_open(src, fc, stat=st)
       call check_true('whole-year window accepted', st == MET_OK, real(st, wp))
       call site_cursor(src, cur, fc)
-      call met_advance(src, cur, meds_time_t(2021_ik,9_ik,17_ik)) ; m_ref = met_instant(src, cur, meds_time_t(2021_ik,9_ik,17_ik))
-      call met_advance(src, cur, meds_time_t(2049_ik,9_ik,17_ik)) ; m_map = met_instant(src, cur, meds_time_t(2049_ik,9_ik,17_ik))
+      call met_advance(src, cur, ed_time_t(2021_ik,9_ik,17_ik))   ; m_ref = met_instant(src, cur, ed_time_t(2021_ik,9_ik,17_ik))
+      call met_advance(src, cur, ed_time_t(2049_ik,9_ik,17_ik))   ; m_map = met_instant(src, cur, ed_time_t(2049_ik,9_ik,17_ik))
       call check('29 yr later reads the same calendar day', m_map%air_temp, m_ref%air_temp, 1.0e-9_wp)
-      call met_advance(src, cur, meds_time_t(2013_ik,9_ik,17_ik)) ; m_map = met_instant(src, cur, meds_time_t(2013_ik,9_ik,17_ik))
+      call met_advance(src, cur, ed_time_t(2013_ik,9_ik,17_ik)) ; m_map = met_instant(src, cur, ed_time_t(2013_ik,9_ik,17_ik))
       call check('a model year BEFORE the window maps in too', m_map%air_temp, m_ref%air_temp, 1.0e-9_wp)
       call met_close(src)
    end subroutine test_recycle_anchor_phase
 
-   !----- Write a synthetic (time=25 hourly, grid=2) MEDS forcing NetCDF via meds_netcdf_c. ----!
+   !----- Write a synthetic (time=25 hourly, grid=2) ED-MORE forcing NetCDF via ed_netcdf_c. ---- !
    subroutine write_synthetic_forcing(path, base, with_components, with_co2air, sw_flat, conventions)
       character(len=*),  intent(in) :: path
-      type(meds_time_t), intent(in) :: base
+      type(ed_time_t),   intent(in) :: base
       logical, optional, intent(in) :: with_components   !< also write u10 = 3, v10 = -4 (speed 5, not Wind's 3)
       logical, optional, intent(in) :: with_co2air       !< also write CO2air, which the reader rejects
       real(wp), optional, intent(in) :: sw_flat          !< every record's SWdown [W/m2], night and day
@@ -555,7 +555,7 @@ contains
       call check('great-circle self-distance = 0', great_circle_distance(-76.5_wp,42.44_wp,-76.5_wp,42.44_wp), 0.0_wp, 1.0e-6_wp)
       call check('great-circle 1 deg lat ~ 111 km', great_circle_distance(0.0_wp,0.0_wp,0.0_wp,1.0_wp), 111195.0_wp, 500.0_wp)
       !----- reader override: the 2-grid file has lon/lat cells (-76.6,42.5) and (-76.5,42.4). ---!
-      call write_synthetic_forcing(NCFILE, meds_time_t(2020_ik,7_ik,1_ik))
+      call write_synthetic_forcing(NCFILE, ed_time_t(2020_ik,7_ik,1_ik))
       fc%format = MET_BACKEND_DEFAULT ; fc%path = NCFILE ; fc%timestep = 3600.0_wp
       fc%grid_match = GRIDMATCH_NEAREST ; fc%grid_index = 1_ik      ! grid_index deliberately WRONG for cell 2
       fc%latitude = 42.41_wp ; fc%longitude = -76.49_wp     ! nearest to cell 2
@@ -638,25 +638,25 @@ contains
       fc%timestep = 86400.0_wp ; fc%avg_convention = METAVG_END ; fc%sw_partition = SWPART_CLEARIDX
       fc%recycle = .true.
       !----- The cycle is DECLARED, never inferred from the file. --------------------------------!
-      fc%recycle_start = meds_time_t(2021_ik, 1_ik, 1_ik)
-      fc%recycle_end   = meds_time_t(2022_ik, 1_ik, 1_ik)
+      fc%recycle_start = ed_time_t(2021_ik,   1_ik, 1_ik)
+      fc%recycle_end   = ed_time_t(2022_ik,   1_ik, 1_ik)
       call met_open(src, fc) ; call site_cursor(src, cur, fc)
       call check('n_cycle_years = 1', real(src%n_cycle_years,wp), 1.0_wp, 0.5_wp)
       call check('cycle anchor year = 2021', real(src%cycle_anchor%year,wp), 2021.0_wp, 0.5_wp)
       call check('cycle first record = record 1', real(src%irec_cycle_first,wp), 1.0_wp, 0.5_wp)
       !----- recycle identity: model 2023-07-01 reads the 2021-07-01 record (day-of-year exact). --!
-      call met_advance(src, cur, meds_time_t(2021_ik,7_ik,1_ik)) ; m_ref = met_instant(src, cur, meds_time_t(2021_ik,7_ik,1_ik))
-      call met_advance(src, cur, meds_time_t(2023_ik,7_ik,1_ik)) ; m_map = met_instant(src, cur, meds_time_t(2023_ik,7_ik,1_ik))
+      call met_advance(src, cur, ed_time_t(2021_ik,7_ik,1_ik))   ; m_ref = met_instant(src, cur, ed_time_t(2021_ik,7_ik,1_ik))
+      call met_advance(src, cur, ed_time_t(2023_ik,7_ik,1_ik))   ; m_map = met_instant(src, cur, ed_time_t(2023_ik,7_ik,1_ik))
       call check('recycle: 2023-07-01 reads the 2021-07-01 record', m_map%air_temp, m_ref%air_temp, 1.0e-9_wp)
       !----- Feb-29 reconciliation: model 2024-02-29 (leap) maps to file 2021-02-28. --------------!
-      call met_advance(src, cur, meds_time_t(2021_ik,2_ik,28_ik)) ; m_ref = met_instant(src, cur, meds_time_t(2021_ik,2_ik,28_ik))
-      call met_advance(src, cur, meds_time_t(2024_ik,2_ik,29_ik)) ; m_map = met_instant(src, cur, meds_time_t(2024_ik,2_ik,29_ik))
+      call met_advance(src, cur, ed_time_t(2021_ik,2_ik,28_ik))   ; m_ref = met_instant(src, cur, ed_time_t(2021_ik,2_ik,28_ik))
+      call met_advance(src, cur, ed_time_t(2024_ik,2_ik,29_ik))   ; m_map = met_instant(src, cur, ed_time_t(2024_ik,2_ik,29_ik))
       call check('Feb-29 (leap model) maps to file Feb-28', m_map%air_temp, m_ref%air_temp, 1.0e-9_wp)
       call met_close(src)
    end subroutine test_multiyear_cycling
 
    !----- 15. Prescribed CO2 (docs/science/forcing.md §12, eq. (18)): co2_const on every backend,   !
-   !      or a MEDS CO2 file read on MODEL time -- each value at its period's middle, linear        !
+   !      or an ED-MORE CO2 file read on MODEL time -- each value at its period's middle, linear    !
    !      between middles, the end values held over the outer half-periods, a run the file does not !
    !      cover rejected at open.                                                                   !
    subroutine test_co2_series(default_file)
@@ -675,7 +675,7 @@ contains
       fc%co2_const = 284.3_wp
       call met_open(src, fc)
       call site_cursor(src, cur, fc)
-      met = met_instant(src, cur, meds_time_t(2021_ik, 7_ik, 1_ik))
+      met = met_instant(src, cur, ed_time_t(2021_ik, 7_ik, 1_ik))
       call check('const: CO2 = co2_const', met%co2, 284.3_wp, 1.0e-12_wp)
       call met_close(src)
 
@@ -683,60 +683,60 @@ contains
       !      Jul 2 00:00; 2001's is Jul 2 12:00. On 2001-01-01 the weight is 183 d / 365.5 d. -------!
       call write_text(CF, [character(len=48) :: '# a comment', 'timestep  1 year', 'units umol/mol', &
                            '2000  300.0   # a trailing comment', '2001  310.0', '', '2002  330.0'])
-      call open_file_co2(CF, meds_time_t(2000_ik,1_ik,1_ik), meds_time_t(2003_ik,1_ik,1_ik), src, cur, st)
+      call open_file_co2(CF, ed_time_t(2000_ik,1_ik,1_ik), ed_time_t(2003_ik,1_ik,1_ik), src, cur, st)
       call check_true('year: the file opens and covers 2000-01-01 .. 2003-01-01', st == MET_OK, real(st, wp))
       call check('year: at the middle of 2001, the 2001 value', co2_now(src, cur,                    &
-                 meds_time_t(2001_ik,7_ik,2_ik,12_ik)), 310.0_wp, 1.0e-9_wp)
-      call check('year: linear between middles', co2_now(src, cur, meds_time_t(2001_ik,1_ik,1_ik)), &
+                 ed_time_t(2001_ik,7_ik,2_ik,12_ik)), 310.0_wp, 1.0e-9_wp)
+      call check('year: linear between middles', co2_now(src, cur, ed_time_t(2001_ik,1_ik,1_ik)), &
                  300.0_wp + 10.0_wp * 183.0_wp / 365.5_wp, 1.0e-9_wp)
       call check('year: held before the first middle', co2_now(src, cur,                           &
-                 meds_time_t(2000_ik,3_ik,1_ik)), 300.0_wp, 1.0e-12_wp)
+                 ed_time_t(2000_ik,3_ik,1_ik)), 300.0_wp, 1.0e-12_wp)
       call check('year: held after the last middle', co2_now(src, cur,                             &
-                 meds_time_t(2002_ik,12_ik,31_ik,23_ik)), 330.0_wp, 1.0e-12_wp)
+                 ed_time_t(2002_ik,12_ik,31_ik,23_ik)), 330.0_wp, 1.0e-12_wp)
       call met_close(src)
-      call open_file_co2(CF, meds_time_t(1999_ik,12_ik,31_ik), meds_time_t(2003_ik,1_ik,1_ik), src, cur, st)
+      call open_file_co2(CF, ed_time_t(1999_ik,12_ik,31_ik), ed_time_t(2003_ik,1_ik,1_ik), src, cur, st)
       call check_true('year: a run starting before the file is rejected', st == MET_ERR_CO2_NOT_COVERED, real(st, wp))
-      call open_file_co2(CF, meds_time_t(2000_ik,1_ik,1_ik), meds_time_t(2003_ik,1_ik,1_ik,1_ik), src, cur, st)
+      call open_file_co2(CF, ed_time_t(2000_ik,1_ik,1_ik), ed_time_t(2003_ik,1_ik,1_ik,1_ik), src, cur, st)
       call check_true('year: a run ending after the file is rejected', st == MET_ERR_CO2_NOT_COVERED, real(st, wp))
 
       !----- Monthly, across a leap February: Jan's middle is the 16th 12:00 (15.5 d), Feb's the   !
       !      15th 12:00 (14.5 d), so Feb 1 00:00 is 15.5/30 of the way. -----------------------------!
       call write_text(CF, [character(len=48) :: 'timestep 1 month', 'units umol/mol', '2024-01 400', &
                            '2024-02 410', '2024-03 420'])
-      call open_file_co2(CF, meds_time_t(2024_ik,1_ik,1_ik), meds_time_t(2024_ik,4_ik,1_ik), src, cur, st)
+      call open_file_co2(CF, ed_time_t(2024_ik,1_ik,1_ik), ed_time_t(2024_ik,4_ik,1_ik), src, cur, st)
       call check_true('month: opens', st == MET_OK, real(st, wp))
       call check('month: at the middle of a leap February', co2_now(src, cur,                       &
-                 meds_time_t(2024_ik,2_ik,15_ik,12_ik)), 410.0_wp, 1.0e-9_wp)
+                 ed_time_t(2024_ik,2_ik,15_ik,12_ik)), 410.0_wp, 1.0e-9_wp)
       call check('month: Feb 1, linear by calendar days', co2_now(src, cur,                         &
-                 meds_time_t(2024_ik,2_ik,1_ik)), 400.0_wp + 10.0_wp * 15.5_wp / 30.0_wp, 1.0e-9_wp)
+                 ed_time_t(2024_ik,2_ik,1_ik)), 400.0_wp + 10.0_wp * 15.5_wp / 30.0_wp, 1.0e-9_wp)
       call met_close(src)
 
       !----- 5-year means from the year 1000: both spans are 1826 d, so 1005-01-01 is halfway. -----!
       call write_text(CF, [character(len=48) :: 'timestep 5 year', 'units umol/mol', '1000 280', '1005 290'])
-      call open_file_co2(CF, meds_time_t(1000_ik,1_ik,1_ik), meds_time_t(1010_ik,1_ik,1_ik), src, cur, st)
+      call open_file_co2(CF, ed_time_t(1000_ik,1_ik,1_ik), ed_time_t(1010_ik,1_ik,1_ik), src, cur, st)
       call check_true('5 year: opens and covers 1000 .. 1010', st == MET_OK, real(st, wp))
       call check('5 year: halfway between the two middles', co2_now(src, cur,                       &
-                 meds_time_t(1005_ik,1_ik,1_ik)), 285.0_wp, 1.0e-9_wp)
+                 ed_time_t(1005_ik,1_ik,1_ik)), 285.0_wp, 1.0e-9_wp)
       call met_close(src)
 
       !----- Daily, and 30-minute (a flux tower's cadence). ------------------------------------!
       call write_text(CF, [character(len=48) :: 'timestep 1 day', 'units umol/mol', '2024-02-28 400', &
                            '2024-02-29 402'])
-      call open_file_co2(CF, meds_time_t(2024_ik,2_ik,28_ik), meds_time_t(2024_ik,3_ik,1_ik), src, cur, st)
+      call open_file_co2(CF, ed_time_t(2024_ik,2_ik,28_ik), ed_time_t(2024_ik,3_ik,1_ik), src, cur, st)
       call check_true('day: opens (a leap day row)', st == MET_OK, real(st, wp))
       call check('day: midnight between two daily means', co2_now(src, cur,                         &
-                 meds_time_t(2024_ik,2_ik,29_ik)), 401.0_wp, 1.0e-9_wp)
+                 ed_time_t(2024_ik,2_ik,29_ik)), 401.0_wp, 1.0e-9_wp)
       call met_close(src)
       call write_text(CF, [character(len=48) :: 'timestep 30 minute', 'units umol/mol',             &
                            '2024-07-01T00:00 400', '2024-07-01T00:30 402', '2024-07-01T01:00 404'])
-      call open_file_co2(CF, meds_time_t(2024_ik,7_ik,1_ik), meds_time_t(2024_ik,7_ik,1_ik,1_ik,30_ik), src, cur, st)
+      call open_file_co2(CF, ed_time_t(2024_ik,7_ik,1_ik), ed_time_t(2024_ik,7_ik,1_ik,1_ik,30_ik), src, cur, st)
       call check_true('30 minute: opens and covers 00:00 .. 01:30', st == MET_OK, real(st, wp))
       call check('30 minute: between the 00:15 and 00:45 middles', co2_now(src, cur,                &
-                 meds_time_t(2024_ik,7_ik,1_ik,0_ik,30_ik)), 401.0_wp, 1.0e-9_wp)
+                 ed_time_t(2024_ik,7_ik,1_ik,0_ik,30_ik)), 401.0_wp, 1.0e-9_wp)
       call check('30 minute: held over the last half-period', co2_now(src, cur,                     &
-                 meds_time_t(2024_ik,7_ik,1_ik,1_ik,25_ik)), 404.0_wp, 1.0e-12_wp)
+                 ed_time_t(2024_ik,7_ik,1_ik,1_ik,25_ik)), 404.0_wp, 1.0e-12_wp)
       call met_close(src)
-      call open_file_co2(CF, meds_time_t(2024_ik,7_ik,1_ik), meds_time_t(2024_ik,7_ik,1_ik,1_ik,31_ik), src, cur, st)
+      call open_file_co2(CF, ed_time_t(2024_ik,7_ik,1_ik), ed_time_t(2024_ik,7_ik,1_ik,1_ik,31_ik), src, cur, st)
       call check_true('30 minute: a run past 01:30 is rejected', st == MET_ERR_CO2_NOT_COVERED, real(st, wp))
 
       !----- Files that break format 1 are rejected, never guessed at. ------------------------!
@@ -761,8 +761,8 @@ contains
                       'units umol/mol', '2000 300', '2001 -5'])
       call expect_bad('a third column', [character(len=48) :: 'timestep 1 year', 'units umol/mol',     &
                       '2000 300 1', '2001 310 1'])
-      call open_file_co2('no_such_co2_file.txt', meds_time_t(2000_ik,1_ik,1_ik),                      &
-                         meds_time_t(2001_ik,1_ik,1_ik), src, cur, st)
+      call open_file_co2('no_such_co2_file.txt', ed_time_t(2000_ik,1_ik,1_ik),                      &
+                         ed_time_t(2001_ik,1_ik,1_ik), src, cur, st)
       call check_true('bad file: a missing file is rejected', st == MET_ERR_CO2_FILE, real(st, wp))
 
       !----- The point of reading CO2 on model time: recycled met repeats, the CO2 does not. Model !
@@ -771,17 +771,17 @@ contains
                            '2022 410', '2023 420', '2024 430'])
       fc = co2_test_forcing()
       fc%recycle = .true.
-      fc%recycle_start = meds_time_t(2021_ik, 1_ik, 1_ik) ; fc%recycle_end = meds_time_t(2022_ik, 1_ik, 1_ik)
+      fc%recycle_start = ed_time_t(2021_ik, 1_ik, 1_ik) ; fc%recycle_end = ed_time_t(2022_ik, 1_ik, 1_ik)
       fc%co2_source = CO2_SOURCE_FILE ; fc%co2_file = CF
-      call met_open(src, fc, stat=st, run_start=meds_time_t(2021_ik,1_ik,1_ik),                      &
-                    run_end=meds_time_t(2025_ik,1_ik,1_ik))
+      call met_open(src, fc, stat=st, run_start=ed_time_t(2021_ik,1_ik,1_ik),                      &
+                    run_end=ed_time_t(2025_ik,1_ik,1_ik))
       call check_true('recycle: opens with a CO2 file', st == MET_OK, real(st, wp))
       if (st == MET_OK) then
          call site_cursor(src, cur, fc)
-         call met_advance(src, cur, meds_time_t(2021_ik,7_ik,2_ik,12_ik))
-         m_ref = met_instant(src, cur, meds_time_t(2021_ik,7_ik,2_ik,12_ik))
-         call met_advance(src, cur, meds_time_t(2023_ik,7_ik,2_ik,12_ik))
-         m_map = met_instant(src, cur, meds_time_t(2023_ik,7_ik,2_ik,12_ik))
+         call met_advance(src, cur, ed_time_t(2021_ik,7_ik,2_ik,12_ik))
+         m_ref = met_instant(src, cur, ed_time_t(2021_ik,7_ik,2_ik,12_ik))
+         call met_advance(src, cur, ed_time_t(2023_ik,7_ik,2_ik,12_ik))
+         m_map = met_instant(src, cur, ed_time_t(2023_ik,7_ik,2_ik,12_ik))
          call check('recycle: the met repeats (2023 reads the 2021 record)', m_map%air_temp, m_ref%air_temp, 1.0e-9_wp)
          call check('recycle: 2021 CO2', m_ref%co2, 400.0_wp, 1.0e-9_wp)
          call check('recycle: the CO2 does not repeat (2023 CO2)', m_map%co2, 420.0_wp, 1.0e-9_wp)
@@ -789,31 +789,31 @@ contains
       end if
 
       !----- A met file that carries CO2air is rejected: nothing would read it. ---------------!
-      call write_synthetic_forcing(NCFILE, meds_time_t(year=2020_ik, month=7_ik, day=1_ik), with_co2air=.true.)
+      call write_synthetic_forcing(NCFILE, ed_time_t(year=2020_ik, month=7_ik, day=1_ik), with_co2air=.true.)
       fc = forcing_params_t()
       fc%format = MET_BACKEND_DEFAULT ; fc%path = NCFILE ; fc%grid_index = 1_ik
       fc%timestep = 3600.0_wp ; fc%avg_convention = METAVG_END ; fc%sw_partition = SWPART_CLEARIDX
       fc%recycle = .false.
       call met_open(src, fc, stat=st)
       call check_true('CO2air: a met file carrying it is rejected', st == MET_ERR_CO2_IN_MET_FILE, real(st, wp))
-      call write_synthetic_forcing(NCFILE, meds_time_t(year=2020_ik, month=7_ik, day=1_ik))
+      call write_synthetic_forcing(NCFILE, ed_time_t(year=2020_ik, month=7_ik, day=1_ik))
 
       !----- The shipped default series (data/co2/): it loads, covers 1000 .. 2023, and reads   !
       !      back the CMIP7 values at the years' middles (1700 and 1850 are not leap years). --------!
       if (len_trim(default_file) == 0) then
          print '(a)', '   NOTE: no path to the shipped CO2 file was given; its check is skipped'
       else
-         call open_file_co2(default_file, meds_time_t(1000_ik,1_ik,1_ik), meds_time_t(2023_ik,1_ik,1_ik), &
+         call open_file_co2(default_file, ed_time_t(1000_ik,1_ik,1_ik), ed_time_t(2023_ik,1_ik,1_ik), &
                             src, cur, st)
          call check_true('shipped: loads and covers 1000-01-01 .. 2023-01-01', st == MET_OK, real(st, wp))
          if (st == MET_OK) then
-            call check('shipped: 1000 (held)', co2_now(src, cur, meds_time_t(1000_ik,3_ik,1_ik)), 282.437_wp, 1.0e-9_wp)
-            call check('shipped: 1700', co2_now(src, cur, meds_time_t(1700_ik,7_ik,2_ik,12_ik)), 277.537_wp, 1.0e-9_wp)
-            call check('shipped: 1850', co2_now(src, cur, meds_time_t(1850_ik,7_ik,2_ik,12_ik)), 284.297_wp, 1.0e-9_wp)
-            call check('shipped: 2022 (held)', co2_now(src, cur, meds_time_t(2022_ik,12_ik,31_ik)), 417.320_wp, 1.0e-9_wp)
+            call check('shipped: 1000 (held)', co2_now(src, cur, ed_time_t(1000_ik,3_ik,1_ik)), 282.437_wp, 1.0e-9_wp)
+            call check('shipped: 1700', co2_now(src, cur, ed_time_t(1700_ik,7_ik,2_ik,12_ik)),   277.537_wp, 1.0e-9_wp)
+            call check('shipped: 1850', co2_now(src, cur, ed_time_t(1850_ik,7_ik,2_ik,12_ik)),   284.297_wp, 1.0e-9_wp)
+            call check('shipped: 2022 (held)', co2_now(src, cur, ed_time_t(2022_ik,12_ik,31_ik)), 417.320_wp, 1.0e-9_wp)
             call met_close(src)
          end if
-         call open_file_co2(default_file, meds_time_t(1000_ik,1_ik,1_ik), meds_time_t(2023_ik,1_ik,2_ik), &
+         call open_file_co2(default_file, ed_time_t(1000_ik,1_ik,1_ik), ed_time_t(2023_ik,1_ik,2_ik), &
                             src, cur, st)
          call check_true('shipped: a run past 2022 is rejected', st == MET_ERR_CO2_NOT_COVERED, real(st, wp))
       end if
@@ -822,7 +822,7 @@ contains
    !----- Open CO2_MET_FILE with co2_file = path over the run [t0, t1]; `st` is met_open's. ------!
    subroutine open_file_co2(path, t0, t1, src, cur, st)
       character(len=*),   intent(in)    :: path
-      type(meds_time_t),  intent(in)    :: t0, t1
+      type(ed_time_t),    intent(in)    :: t0, t1
       type(met_source_t), intent(inout) :: src
       type(met_cursor_t), intent(out)   :: cur
       integer(ik),        intent(out)   :: st
@@ -850,7 +850,7 @@ contains
    real(wp) function co2_now(src, cur, t) result(co2)
       type(met_source_t), intent(in) :: src
       type(met_cursor_t), intent(in) :: cur
-      type(meds_time_t),  intent(in) :: t
+      type(ed_time_t),    intent(in) :: t
       type(met_forcing_t) :: met
       !----- A series that failed to open has no rows. -1 fails every check that follows, where    !
       !      met_instant would read its unallocated arrays and the segfault would swallow the       !
@@ -870,7 +870,7 @@ contains
       type(met_cursor_t) :: cur
       integer(ik)        :: st
       call write_text(BF, lines)
-      call open_file_co2(BF, meds_time_t(2000_ik,1_ik,1_ik), meds_time_t(2001_ik,1_ik,1_ik), src, cur, st)
+      call open_file_co2(BF, ed_time_t(2000_ik,1_ik,1_ik), ed_time_t(2001_ik,1_ik,1_ik), src, cur, st)
       call check_true('bad file: '//what, st == MET_ERR_CO2_FILE, real(st, wp))
       if (st == MET_OK) call met_close(src)
    end subroutine expect_bad
@@ -976,7 +976,7 @@ contains
       s = real(k - 1, wp) * DT
    end function stamp_seconds
 
-   !----- A one-point MEDS forcing file, half-hourly from 2020-07-01 00:00 UTC. `humidity` names the !
+   !----- A one-point ED-MORE forcing file, half-hourly from 2020-07-01 00:00 UTC. `humidity` names the !
    !      variable(s) it carries ('RHair', 'Tdew', 'Qair', 'RHair+Qair' or 'none'); an empty         !
    !      `time_zone` or `height_above` leaves that attribute out, and so does stated_height <= 0.    !
    subroutine write_tower_file(convention, humidity, time_zone, rh_scale, stated_height, height_above)
@@ -1063,7 +1063,7 @@ contains
       type(met_cursor_t), intent(inout) :: cur
       real(wp),           intent(in)    :: sec
       type(met_forcing_t) :: met
-      type(meds_time_t)   :: now
+      type(ed_time_t)     :: now
       now = time_advance_seconds(base, sec)
       call met_advance(src, cur, now)
       met = met_instant(src, cur, now)
@@ -1123,7 +1123,7 @@ contains
       call met_close(src)
    end subroutine test_humidity_forms
 
-   !----- 2. MEDS runs in UTC: a file that does not say time_zone = "UTC" is refused. -----------!
+   !----- 2. ED-MORE runs in UTC: a file that does not say time_zone = "UTC" is refused. ----------- !
    subroutine test_utc_required()
       type(met_source_t)     :: src
       type(forcing_params_t) :: fc
@@ -1269,7 +1269,7 @@ contains
       call met_close(src)
    end subroutine test_tower_round_trip
 
-   !----- A site's forcing within its polygon (meds_met::met_at_site; docs/science/forcing.md §8): a  !
+   !----- A site's forcing within its polygon (ed_met::met_at_site; docs/science/forcing.md §8): a    !
    !      site above its polygon is colder by the lapse rate times the height, at a lower pressure  !
    !      and the same relative humidity, under less longwave; one at the polygon's elevation on    !
    !      level ground keeps the polygon's forcing exactly; without the lapse only the beam scales.  !

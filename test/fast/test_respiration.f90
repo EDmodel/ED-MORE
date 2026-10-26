@@ -1,6 +1,6 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! test_respiration -- the respiration of meds_respiration: the plants' maintenance         !
+! test_respiration -- the respiration of ed_respiration: the plants' maintenance           !
 ! respiration (docs/science/plant_respiration.md eqs. (3)-(5)) and the soil's              !
 ! heterotrophic respiration from its carbon pools (docs/science/soil_carbon.md §3-§4).     !
 !   1. 25 C (root_zone_temp_scale, fine_root_maintenance_respiration,                      !
@@ -31,17 +31,17 @@
 !      under a diurnal cycle xi at the daily-mean temperature falls short of the day's     !
 !      mean xi (Jensen: the Q10 response is convex), so the day must integrate xi.         !
 ! Growth respiration is the daily allocator's (test_plant_carbon_allocation), and the      !
-! pools' daily step meds_soil_carbon's (test_soil_carbon).                                 !
+! pools' daily step ed_soil_carbon's (test_soil_carbon).                                   !
 !==========================================================================================!
 program test_respiration
-   use meds_test_assert,       only : check_close, check_true, test_report
-   use meds_kinds,             only : wp, ik
-   use meds_constants,         only : t_ref_photo, pi
-   use meds_patch_state_vars,  only : soil_carbon_state_t
-   use meds_biogeochem_params, only : soil_carbon_params_t, DECOMP_SCHEME_ED2, DECOMP_SCHEME_CENTURY5, N_SOIL_POOL,  &
+   use ed_test_assert,         only : check_close, check_true, test_report
+   use ed_kinds,               only : wp, ik
+   use ed_constants,           only : t_ref_photo, pi
+   use ed_patch_state_vars,    only : soil_carbon_state_t
+   use ed_biogeochem_params,   only : soil_carbon_params_t, DECOMP_SCHEME_ED2, DECOMP_SCHEME_CENTURY5, N_SOIL_POOL,  &
                                       IP_FAST_GRND, IP_FAST_SOIL, IP_STRUCT_GRND, IP_STRUCT_SOIL, IP_MICR, IP_SLOW,  &
                                       IP_PASSIVE
-   use meds_respiration,       only : stem_maintenance_respiration, fine_root_maintenance_respiration,              &
+   use ed_respiration,         only : stem_maintenance_respiration, fine_root_maintenance_respiration,              &
                                       root_zone_temp_scale, decomposition_env_scalar, decomposition_transfer_matrix, &
                                       heterotrophic_respiration
    implicit none

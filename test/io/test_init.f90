@@ -2,42 +2,42 @@
 !==========================================================================================!
 ! test_init -- how a run's polygon starts (src/io/init; docs/configuration.md, How a run     !
 ! starts).                                                                                  !
-!   1. THE CENSUS READER (meds_init_census): a site is built from a cohort CSV -- the site     !
+!   1. THE CENSUS READER (ed_init_census): a site is built from a cohort CSV -- the site       !
 !      filter, the patch map, the allometry from dbh, comment and blank lines, a header-less    !
 !      file read positionally, columns by name in any order, patch_area normalized to the site, !
 !      and restructure_census_stand conserving the stand's stems and biomass and honouring its  !
 !      switches. A missing file or a site with no row is reported, not a crash.                  !
 !   2. THE CENSUS REFUSALS: every reason the reader gives for a file it cannot use, each from a !
 !      file written to give exactly that reason. The driver stops the run with the reason.       !
-!   3. THE INITIAL SOIL STATE (meds_init_bare_ground, meds_init): [init].soil_temp and           !
+!   3. THE INITIAL SOIL STATE (ed_init_bare_ground, ed_init): [init].soil_temp and               !
 !      soil_theta reach every layer of every patch through build_soil_profile, with the         !
 !      defaults pinned (288 K, theta = 0.30); a start below freezing holds the liquid its        !
 !      freezing curve allows; a texture per layer starts each layer at its own field capacity;  !
 !      and bare ground is empty unless a PFT's nbg_init_density seeds it at min_cohort_height.  !
-!   4. THE INITIAL SNOWPACK (meds_init: init_fast_state; docs/science/snow_biophysics.md): no   !
+!   4. THE INITIAL SNOWPACK (ed_init: init_fast_state; docs/science/snow_biophysics.md): no     !
 !      [fast].snow_init_swe seeds no pack; one seeds every patch with one frozen layer of that   !
 !      water equivalent at [fast].snow_init_temp, as deep as its water over the snow density,   !
 !      at a configured density too.                                                            !
-!   5. THE CANOPY AIR'S DEPTH (meds_init: init_polygon, which ends every start with the depth  !
+!   5. THE CANOPY AIR'S DEPTH (ed_init: init_polygon, which ends every start with the depth    !
 !      the stand sets): a bare-ground start, which has no stand, opens each patch's canopy air !
 !      at [aerodynamics].min_canopy_depth.                                                     !
 !==========================================================================================!
 program test_init
-   use meds_kinds,              only : wp, ik
-   use meds_config,             only : meds_config_t
-   use meds_polygon_state_vars, only : polygon_t
-   use meds_init_census,        only : init_from_census, restructure_census_stand
-   use meds_output_reduce,      only : total_nplant
-   use meds_soil_derive,        only : soil_layers, build_soil_profile
-   use meds_soil_params,        only : soil_profile_t
-   use meds_init_bare_ground,   only : init_bare_ground, seed_bare_ground, finalize_init
-   use meds_constants,          only : n_soil_layer_max, rho_h2o
-   use meds_soil_heat,          only : soil_layer_temp
-   use meds_soil_hydr_lib,      only : soil_liquid_capacity
-   use meds_init,               only : init_fast_state, init_polygon
-   use meds_met_types,          only : met_forcing_t
-   use meds_time,               only : meds_time_t
-   use meds_test_support,       only : banner, build_test_config, check, check_close
+   use ed_kinds,                only : wp, ik
+   use ed_config,               only : ed_config_t
+   use ed_polygon_state_vars,   only : polygon_t
+   use ed_init_census,          only : init_from_census, restructure_census_stand
+   use ed_output_reduce,        only : total_nplant
+   use ed_soil_derive,          only : soil_layers, build_soil_profile
+   use ed_soil_params,          only : soil_profile_t
+   use ed_init_bare_ground,     only : init_bare_ground, seed_bare_ground, finalize_init
+   use ed_constants,            only : n_soil_layer_max, rho_h2o
+   use ed_soil_heat,            only : soil_layer_temp
+   use ed_soil_hydr_lib,        only : soil_liquid_capacity
+   use ed_init,                 only : init_fast_state, init_polygon
+   use ed_met_types,            only : met_forcing_t
+   use ed_time,                 only : ed_time_t
+   use ed_test_support,         only : banner, build_test_config, check, check_close
    implicit none
 
    call test_census()
@@ -51,7 +51,7 @@ contains
 
    !----- 1. The census reader. --------------------------------------------------------------!
    subroutine test_census()
-      type(meds_config_t) :: cfg
+      type(ed_config_t)   :: cfg
       type(polygon_t)     :: poly
       integer(ik)         :: u, i, ip
       logical             :: found
@@ -179,7 +179,7 @@ contains
       character(len=64)   :: header(N_CASE), row1(N_CASE), row2(N_CASE)
       character(len=72)   :: expect(N_CASE)
       character(len=256)  :: wide
-      type(meds_config_t) :: cfg
+      type(ed_config_t)   :: cfg
       type(polygon_t)     :: poly
       logical             :: found
       character(len=:), allocatable :: why
@@ -233,7 +233,7 @@ contains
 
    !----- 3. The initial soil state. ---------------------------------------------------------!
    subroutine test_soil_state()
-      type(meds_config_t)  :: cfg
+      type(ed_config_t)    :: cfg
       type(polygon_t)      :: poly
       type(soil_profile_t) :: prof
       integer(ik)          :: ip, nsl, k, n
@@ -335,7 +335,7 @@ contains
    !      frozen layer on every patch, whose energy gives back 265 K, as deep as the pack's water over  !
    !      the snow density (depth = swe / rho_snow, the relation the pack keeps every step). ---------!
    subroutine test_initial_snowpack()
-      type(meds_config_t) :: cfg
+      type(ed_config_t)   :: cfg
       type(polygon_t)     :: poly
       integer(ik)         :: ip
       real(wp), parameter :: SWE = 40.0_wp, T_PACK = 265.0_wp   ! [kg/m2], [K]
@@ -379,9 +379,9 @@ contains
    !      depth taken from the freeboard on the empty stand would not pass. ----------------------!
    subroutine test_canopy_air_floor()
       real(wp), parameter :: FLOOR = 7.0_wp   ! [m]
-      type(meds_config_t) :: cfg
+      type(ed_config_t)   :: cfg
       type(polygon_t)     :: poly
-      type(meds_time_t)   :: now
+      type(ed_time_t)     :: now
       logical             :: ok
       call banner('the canopy air''s depth at a bare-ground start')
       cfg = build_test_config()

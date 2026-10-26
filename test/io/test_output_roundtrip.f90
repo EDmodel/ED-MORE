@@ -5,8 +5,8 @@
 ! averaged values, calendar, and CF layout (docs/science/diagnostics.md §3 and §4).                !
 !==========================================================================================!
 module test_ro_support
-   use meds_kinds,            only : wp, ik
-   use meds_polygon_state_vars, only : polygon_t
+   use ed_kinds,            only : wp, ik
+   use ed_polygon_state_vars, only : polygon_t
    implicit none
 contains
    !----- Opaque per-cohort agb mutation (production mutates through veg dynamics; see the        !
@@ -33,34 +33,34 @@ end module test_ro_support
 
 program test_output_roundtrip
    use iso_c_binding,         only : c_int, c_size_t, c_double
-   use meds_kinds,            only : wp, ik
-   use meds_config,           only : meds_config_t
-   use meds_soil_derive,      only : build_profile_hydraulics
-   use meds_time,             only : meds_time_t, time_advance_days
-   use meds_polygon_state_vars, only : polygon_t, alloc_polygon, free_polygon, rebuild_patch_map
-   use meds_output_params,    only : FC_DAY, FC_MONTH, FC_YEAR, FC_RUN, SYNC_FLUSH
-   use meds_output_types,     only : output_files_t, output_buffers_t
-   use meds_output_setup,     only : alloc_output_set
-   use meds_output_registry,  only : selection_t, OVR_FALSE, OVR_MASK
-   use meds_output_params,    only : FREQ_NONE, FREQ_DAILY, FREQ_ANNUAL
-   use meds_output_integrate, only : output_integrate
-   use meds_output_stream,   only : output_serialize, output_close
-   use meds_netcdf_c
-   use meds_test_soil_grid, only : geometric_layer_bottoms
-   use meds_constants,        only : n_soil_layer_max, kgc_2_umol, day_sec
-   use meds_soil_params,      only : soil_profile_t
-   use meds_soil_hydr_lib,    only : SOIL_RETENTION_VG
-   use meds_output_types,     only : MISSING_VALUE
-   use meds_test_support, only : banner, check, check_close, test_pft_table
+   use ed_kinds,              only : wp, ik
+   use ed_config,             only : ed_config_t
+   use ed_soil_derive,        only : build_profile_hydraulics
+   use ed_time,               only : ed_time_t, time_advance_days
+   use ed_polygon_state_vars, only : polygon_t, alloc_polygon, free_polygon, rebuild_patch_map
+   use ed_output_params,      only : FC_DAY, FC_MONTH, FC_YEAR, FC_RUN, SYNC_FLUSH
+   use ed_output_types,       only : output_files_t, output_buffers_t
+   use ed_output_setup,       only : alloc_output_set
+   use ed_output_registry,    only : selection_t, OVR_FALSE, OVR_MASK
+   use ed_output_params,      only : FREQ_NONE, FREQ_DAILY, FREQ_ANNUAL
+   use ed_output_integrate,   only : output_integrate
+   use ed_output_stream,   only : output_serialize, output_close
+   use ed_netcdf_c
+   use ed_test_soil_grid, only : geometric_layer_bottoms
+   use ed_constants,          only : n_soil_layer_max, kgc_2_umol, day_sec
+   use ed_soil_params,        only : soil_profile_t
+   use ed_soil_hydr_lib,      only : SOIL_RETENTION_VG
+   use ed_output_types,       only : MISSING_VALUE
+   use ed_test_support, only : banner, check, check_close, test_pft_table
    use test_ro_support,       only : set_site_agb, set_site_gpp, set_site_soil_temp
    implicit none
    real(wp) :: test_bottoms(n_soil_layer_max)   ! the geometric layers these checks are computed on
 
-   type(meds_config_t)    :: cfg
+   type(ed_config_t)      :: cfg
    type(polygon_t)        :: poly
    type(output_files_t)   :: files
    type(output_buffers_t) :: bufs(1)     !< one site's buffers: an array of one, as the driver holds them
-   type(meds_time_t)      :: prev, now
+   type(ed_time_t)        :: prev, now
    integer(ik)            :: iday
    real(wp)               :: dt
    type(soil_profile_t)   :: soilp
@@ -115,7 +115,7 @@ program test_output_roundtrip
    !----- Walk 3 daily steps of 2000-01, as polygon_step calls the tick: the step from `prev` to  !
    !      `now` folds into the day that holds `prev`, then closes it, because `now` left that day.  !
    !      agb 10 / 20 / 30 are the states at the end of the steps of 1, 2 and 3 January. ---------!
-   now = meds_time_t(year=2000_ik, month=1_ik, day=1_ik)
+   now = ed_time_t(year=2000_ik, month=1_ik, day=1_ik)
    do iday = 1_ik, 3_ik
       prev = now ; now = time_advance_days(prev, 1_ik)
       call set_site_agb(poly, 10.0_wp * real(iday, wp))
@@ -135,7 +135,7 @@ program test_output_roundtrip
 contains
 
    function build_cfg() result(c)
-      type(meds_config_t) :: c
+      type(ed_config_t) :: c
       c%output%enabled    = .true.
       c%output%dir        = '.'
       c%output%prefix     = 'test_ro'

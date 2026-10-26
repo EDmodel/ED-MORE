@@ -11,17 +11,17 @@
 ! when it is written without that key.                                                     !
 !==========================================================================================!
 program test_config_keys
-   use meds_kinds,          only : ik
-   use meds_toml,           only : toml_table_t, toml_parse_file, toml_has_section
-   use meds_config,         only : meds_config_t
-   use meds_forcing_params, only : MET_BACKEND_ERA5LAND
-   use meds_config_check,   only : key_report_t, check_config_keys, check_key_use, nearest_key,     &
+   use ed_kinds,            only : ik
+   use ed_toml,             only : toml_table_t, toml_parse_file, toml_has_section
+   use ed_config,           only : ed_config_t
+   use ed_forcing_params,   only : MET_BACKEND_ERA5LAND
+   use ed_config_check,     only : key_report_t, check_config_keys, check_key_use, nearest_key,     &
                                    MAIN_KEYS, PFT_KEYS
-   use meds_test_support,   only : banner, check, build_test_config
+   use ed_test_support,     only : banner, check, build_test_config
    implicit none
    type(toml_table_t)  :: t, tp
    type(key_report_t)  :: report
-   type(meds_config_t) :: cfg
+   type(ed_config_t)   :: cfg
    logical :: ok
    integer :: u
 
@@ -55,7 +55,7 @@ program test_config_keys
               index(report%line(1), 'did you mean forcing.timestep?') > 0, 'the misspelling is named')
    call check(index(report%line(2), 'did you mean output.cohort_max?') > 0, 'the moved key is named')
    call check(index(report%line(3), 'output.strict_caps') > 0 .and.                                &
-              index(report%line(3), 'is not a key MEDS reads') > 0, 'an unknown key is named')
+              index(report%line(3), 'is not a key ED-MORE reads') > 0, 'an unknown key is named')
 
    !----- The PFT file is checked against its own list: a main-file key is unknown there. -----!
    report = key_report_t()

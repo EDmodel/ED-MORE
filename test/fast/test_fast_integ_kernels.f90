@@ -33,30 +33,30 @@
 ! test_fast_integ_schemes'; whole steps are test_fast_integ_step's.                        !
 !==========================================================================================!
 program test_fast_integ_kernels
-   use meds_kinds,             only : wp, ik
-   use meds_constants,         only : stefan_boltzmann, cp_air, tiny_num, rho_h2o, h2o_dry_ratio, n_soil_layer_max
-   use meds_config,            only : meds_config_t
-   use meds_therm_lib,         only : cas_temp_to_enthalpy, cas_enthalpy_to_temp, sat_specific_humidity,           &
+   use ed_kinds,               only : wp, ik
+   use ed_constants,           only : stefan_boltzmann, cp_air, tiny_num, rho_h2o, h2o_dry_ratio, n_soil_layer_max
+   use ed_config,              only : ed_config_t
+   use ed_therm_lib,           only : cas_temp_to_enthalpy, cas_enthalpy_to_temp, sat_specific_humidity,           &
                                       sat_vapor_pressure, sat_vapor_pressure_temp_deriv, enthalpy_vapor,          &
                                       temp_to_internal_energy, internal_energy_liquid
-   use meds_soil_heat,         only : soil_heat_env_t, soil_energy_time_deriv, soil_layer_temp
-   use meds_patch_state_vars,  only : soil_energy_state_t
-   use meds_site_state_vars,   only : site_surface_t
-   use meds_fast_integ_types,  only : surface_state_t, surface_tend_t, march_state_t, march_tend_t, frozen_t,      &
+   use ed_soil_heat,           only : soil_heat_env_t, soil_energy_time_deriv, soil_layer_temp
+   use ed_patch_state_vars,    only : soil_energy_state_t
+   use ed_site_state_vars,     only : site_surface_t
+   use ed_fast_integ_types,    only : surface_state_t, surface_tend_t, march_state_t, march_tend_t, frozen_t,      &
                                       error_control_t, tol_set_t, fast_dynamic_state_t, GRP_ENTH, GRP_SHV,         &
                                       GRP_CO2, GRP_SE, GRP_THETA, state_init, state_sub, state_err_diff,           &
                                       zero_like, state_accum, state_extrap, state_to_array, state_entry_rules,     &
                                       ensure_output_capacity, ensure_forcing_capacity, WOOD, LEAF
-   use meds_fast_integ_derivs, only : surface_derivs, march_derivs, set_water_state, water_derivs
-   use meds_fast_integ_backward_euler, only : backward_euler_stage, advance_plant_water
-   use meds_fast_integ_rk45,   only : rk45_step, RK45_P_ORDER
-   use meds_fast_integ_control, only : build_tol_set, build_error_control, state_wrms_grouped, step_control_factor
-   use meds_fast_integ_update, only : unpack_column_state
-   use meds_plant_hydr_lib,    only : tissue_psi_to_water, tissue_water_to_psi
-   use meds_fast_state,        only : static_state_fixture
-   use meds_test_fast_fixture, only : fast_column_t, make_fast_column, kernel_record, reset_column, set_noon_forcing, &
+   use ed_fast_integ_derivs,   only : surface_derivs, march_derivs, set_water_state, water_derivs
+   use ed_fast_integ_backward_euler, only : backward_euler_stage, advance_plant_water
+   use ed_fast_integ_rk45,   only : rk45_step, RK45_P_ORDER
+   use ed_fast_integ_control, only : build_tol_set, build_error_control, state_wrms_grouped, step_control_factor
+   use ed_fast_integ_update,   only : unpack_column_state
+   use ed_plant_hydr_lib,      only : tissue_psi_to_water, tissue_water_to_psi
+   use ed_fast_state,          only : static_state_fixture
+   use ed_test_fast_fixture,   only : fast_column_t, make_fast_column, kernel_record, reset_column, set_noon_forcing, &
                                       frozen_record
-   use meds_test_assert,       only : check, check_true, test_report
+   use ed_test_assert,         only : check, check_true, test_report
    implicit none
 
    type(fast_column_t)   :: col          !< the fixture column: its config and its site's soil
@@ -721,7 +721,7 @@ contains
    end subroutine same_state
 
    !=======================================================================================!
-   ! 6. THE ERROR CONTROL (meds_fast_integ_control).                                         !
+   ! 6. THE ERROR CONTROL (ed_fast_integ_control).                                           !
    !=======================================================================================!
 
    !----- One tolerance set for every adaptive error estimate in the fast loop: build_tol_set is the  !
@@ -731,7 +731,7 @@ contains
    !      directly, the atol_scale dial included: rtol alone saturates once atol dominates the       !
    !      atol + rtol|y| denominator. ------------------------------------------------------------!
    subroutine test_tolerance_set()
-      type(meds_config_t)   :: c
+      type(ed_config_t)     :: c
       type(tol_set_t)       :: t, t1
       type(error_control_t) :: ec
       print '(a)', 'test_tolerance_set:'
@@ -865,7 +865,7 @@ contains
    end subroutine test_step_factor
 
    !=======================================================================================!
-   ! 7. THE WATER NETWORK'S STORES (meds_fast_integ_derivs: set_water_state, water_derivs) !
+   ! 7. THE WATER NETWORK'S STORES (ed_fast_integ_derivs: set_water_state, water_derivs)   !
    !=======================================================================================!
 
    !----- Each cohort's wood and leaves are read on its own PFT's pressure-volume curves (docs/        !

@@ -1,6 +1,6 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! test_plant_energy -- a tissue's energy balance (meds_plant_energy: tissue_energy_balance; !
+! test_plant_energy -- a tissue's energy balance (ed_plant_energy: tissue_energy_balance;   !
 ! docs/science/vegetation_energy_dynamics.md eqs. (1)-(8)).                                 !
 !   1. EXACT RELAXATION (eqs. (3)-(7)): the closed-form tissue step, its diagnostic and    !
 !      frozen limits, its energy identity and small-x branch, marched exactly against the  !
@@ -28,13 +28,13 @@
 !      temperature, its heat capacity over the step being the tissue's own.                !
 !==========================================================================================!
 program test_plant_energy
-   use meds_test_assert,  only : check, check_true, test_report
-   use meds_kinds,        only : wp, ik
-   use meds_constants,    only : cp_air, cp_liq, latent_heat_vap, stefan_boltzmann, pi
-   use meds_therm_lib,    only : enthalpy_vapor, internal_energy_liquid, sat_specific_humidity,                     &
+   use ed_test_assert,    only : check, check_true, test_report
+   use ed_kinds,          only : wp, ik
+   use ed_constants,      only : cp_air, cp_liq, latent_heat_vap, stefan_boltzmann, pi
+   use ed_therm_lib,      only : enthalpy_vapor, internal_energy_liquid, sat_specific_humidity,                     &
                                  sat_specific_humidity_temp_deriv, tissue_temp_to_energy
-   use meds_canopy_water, only : canopy_water_out_t
-   use meds_plant_energy, only : tissue_energy_balance, latent_pathway_t, plant_energy_env_t, canopy_tissue_energy,  &
+   use ed_canopy_water,   only : canopy_water_out_t
+   use ed_plant_energy,   only : tissue_energy_balance, latent_pathway_t, plant_energy_env_t, canopy_tissue_energy,  &
                                  commit_tissue_energy, tissue_hcap_per_dt
    implicit none
 

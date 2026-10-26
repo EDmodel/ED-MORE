@@ -1,6 +1,6 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! test_surface -- the ground's surface and its snow store (meds_surface;                   !
+! test_surface -- the ground's surface and its snow store (ed_surface;                     !
 ! docs/science/snow_biophysics.md). The pack steps as the integrator steps it: the ground  !
 ! surface's exchange at the pack's state (ground_surface_exchange), then the pack takes the !
 ! step's amounts (snow_take_exchange), with snow_accumulate and snow_drain_meltwater around !
@@ -28,14 +28,14 @@
 ! The energy datum the pack is held in is test_therm_lib's.                                !
 !==========================================================================================!
 program test_surface
-   use meds_test_assert,      only : check, check_true, test_report
-   use meds_kinds,            only : wp, ik
-   use meds_constants,        only : t_3ple, stefan_boltzmann
-   use meds_therm_lib,        only : temp_to_internal_energy, internal_energy_to_temp, internal_energy_ice,      &
+   use ed_test_assert,        only : check, check_true, test_report
+   use ed_kinds,              only : wp, ik
+   use ed_constants,          only : t_3ple, stefan_boltzmann
+   use ed_therm_lib,          only : temp_to_internal_energy, internal_energy_to_temp, internal_energy_ice,      &
                                      internal_energy_liquid, sat_specific_humidity
-   use meds_patch_state_vars, only : snow_state_t
-   use meds_biophysics_params, only : snow_params_t
-   use meds_surface,          only : surface_env_t, snow_out_t, snow_cover_fraction, snow_accumulate,            &
+   use ed_patch_state_vars,   only : snow_state_t
+   use ed_biophysics_params, only : snow_params_t
+   use ed_surface,            only : surface_env_t, snow_out_t, snow_cover_fraction, snow_accumulate,            &
                                      snow_drain_meltwater, ground_surface_exchange, snow_take_exchange,         &
                                      snow_blend_ground_optics, ground_tile_radiation, ground_surface_fluxes
    implicit none

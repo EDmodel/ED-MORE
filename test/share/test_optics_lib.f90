@@ -1,8 +1,8 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! test_optics_lib -- the canopy's optical kernels (meds_optics_lib;                        !
+! test_optics_lib -- the canopy's optical kernels (ed_optics_lib;                          !
 ! docs/science/canopy_radiation_transfer.md §1-§2, eqs. (1)-(3)). A PFT's leaf-angle       !
-! moments reach the Beta LIDF through meds_pft_derive's moments_to_beta_params, as at load.!
+! moments reach the Beta LIDF through ed_pft_derive's moments_to_beta_params, as at load.  !
 !   1. LEAF-ANGLE LIMITS (beta_lidf, leaf_bf): a uniform inclination gives bf = 0.5, a     !
 !      planophile canopy bf near 1 and an erectophile one bf near 0.                       !
 !   2. NORMALIZATION (beta_lidf): narrow distributions, whose density underflows, still    !
@@ -14,11 +14,11 @@
 !      a spherical LIDF projects G = 1/2 toward every sun.                                 !
 !==========================================================================================!
 program test_optics_lib
-   use meds_test_assert, only : check, check_true, test_report
-   use meds_kinds,       only : wp, ik
-   use meds_constants,   only : pi
-   use meds_optics_lib,  only : beta_lidf, leaf_bf, gfun_direct, N_LEAF_CLASS
-   use meds_pft_derive,  only : moments_to_beta_params
+   use ed_test_assert,   only : check, check_true, test_report
+   use ed_kinds,         only : wp, ik
+   use ed_constants,     only : pi
+   use ed_optics_lib,    only : beta_lidf, leaf_bf, gfun_direct, N_LEAF_CLASS
+   use ed_pft_derive,    only : moments_to_beta_params
    implicit none
 
    call test_leaf_angle_limits()

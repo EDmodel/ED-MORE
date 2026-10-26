@@ -1,6 +1,6 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! test_soil_carbon -- unit tests for the soil carbon pools' daily step (meds_soil_carbon;  !
+! test_soil_carbon -- unit tests for the soil carbon pools' daily step (ed_soil_carbon;    !
 ! docs/science/soil_carbon.md):                                                            !
 !   1. MASS CLOSURE  : dC == litter_in - Rh for one soil_carbon_step (EULER and EXPM),     !
 !                      with Rh recomputed INDEPENDENTLY from er*xi_int*K*X0. rh_today is   !
@@ -16,21 +16,21 @@
 !  PLAUSIBILITY      : soil_carbon_bad_pool passes round-off and real soils, catches the   !
 !                      rest.                                                               !
 ! The decomposition chemistry the step debits with (xi, A, K, er and Rh) is                !
-! meds_respiration's (test_respiration).                                                   !
+! ed_respiration's (test_respiration).                                                     !
 !==========================================================================================!
 program test_soil_carbon
    use, intrinsic :: ieee_arithmetic, only : ieee_value, ieee_quiet_nan
-   use meds_test_assert, only : check, check_true, test_report
-   use meds_kinds,            only : wp, ik
-   use meds_constants,        only : yr_day, kgcday_2_umols
-   use meds_patch_state_vars, only : litter_input_t, soil_carbon_state_t
-   use meds_soil_carbon, only : soil_carbon_out_t, soil_carbon_bad_pool, SOILC_NEG_TOL, SOILC_MAX_PLAUSIBLE, &
+   use ed_test_assert, only : check, check_true, test_report
+   use ed_kinds,              only : wp, ik
+   use ed_constants,          only : yr_day, kgcday_2_umols
+   use ed_patch_state_vars,   only : litter_input_t, soil_carbon_state_t
+   use ed_soil_carbon,   only : soil_carbon_out_t, soil_carbon_bad_pool, SOILC_NEG_TOL, SOILC_MAX_PLAUSIBLE, &
                                 build_litter_input, soil_carbon_step, solve_soil_carbon_steady_state,    &
                                 necromass_to_litter, add_necromass
-   use meds_biogeochem_params, only : soil_carbon_params_t, DECOMP_STEP_EULER, DECOMP_STEP_EXPM, DECOMP_SCHEME_ED2,         &
+   use ed_biogeochem_params,   only : soil_carbon_params_t, DECOMP_STEP_EULER, DECOMP_STEP_EXPM, DECOMP_SCHEME_ED2,         &
                                       DECOMP_SCHEME_CENTURY5, N_SOIL_POOL, IP_FAST_GRND, IP_FAST_SOIL,                      &
                                       IP_STRUCT_GRND, IP_STRUCT_SOIL, IP_MICR, IP_SLOW, IP_PASSIVE, SOIL_POOL_NAME
-   use meds_respiration,      only : decomposition_transfer_matrix
+   use ed_respiration,      only : decomposition_transfer_matrix
    implicit none
 
    call test_mass_closure()
@@ -285,7 +285,7 @@ contains
       call check_true('EXPM large step: lignin_resid ~ 0', abs(audit%lignin_resid) < 1.0e-12_wp, audit%lignin_resid)
    end subroutine test_litter_and_lignin
    !=======================================================================================!
-   ! 4. NECROMASS_TO_LITTER (meds_soil_carbon; docs/science/soil_carbon.md §5):                    !
+   ! 4. NECROMASS_TO_LITTER (ed_soil_carbon; docs/science/soil_carbon.md §5):                      !
    !     the driver-side (and core-side termination/disturbance) necromass -> litter-destination !
    !     split. (a) reproduces test_litter_and_lignin's own two-cohort hand formula EXACTLY when   !
    !     called per-cohort with storage_c=0 (no wood/storage in a turnover-shed call), catching any !

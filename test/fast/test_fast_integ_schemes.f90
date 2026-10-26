@@ -1,7 +1,7 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
 ! test_fast_integ_schemes -- the fast loop's two schemes and the march that drives them    !
-! (meds_fast_integ_esdirk2, meds_fast_integ_rk45, meds_fast_integ_stepper::adaptive_march; !
+! (ed_fast_integ_esdirk2, ed_fast_integ_rk45, ed_fast_integ_stepper::adaptive_march;       !
 ! docs/science/numerical_scheme.md §3, eqs. (1)-(4)).                                      !
 !   1. ESDIRK2 (esdirk2_step) on the kernel record: second order on the decoupled CO2      !
 !      twin; at least first order on the coupled soil-top temperature; plant water         !
@@ -17,21 +17,21 @@
 !      canopy air's three ledgers to round-off across a rejected trial.                     !
 !==========================================================================================!
 program test_fast_integ_schemes
-   use meds_kinds,              only : wp, ik
-   use meds_constants,          only : tiny_num
-   use meds_fast_params,        only : INTEG_ESDIRK2, INTEG_RK45, RK45_RTOL
-   use meds_therm_lib,          only : cas_enthalpy_to_temp, cas_temp_to_enthalpy
-   use meds_soil_heat,          only : soil_layer_temp
-   use meds_fast_integ_types,   only : march_state_t, frozen_t, error_control_t, surface_tend_t, boundary_flux_t, &
+   use ed_kinds,                only : wp, ik
+   use ed_constants,            only : tiny_num
+   use ed_fast_params,          only : INTEG_ESDIRK2, INTEG_RK45, RK45_RTOL
+   use ed_therm_lib,            only : cas_enthalpy_to_temp, cas_temp_to_enthalpy
+   use ed_soil_heat,            only : soil_layer_temp
+   use ed_fast_integ_types,     only : march_state_t, frozen_t, error_control_t, surface_tend_t, boundary_flux_t, &
                                        state_init, state_sub
-   use meds_fast_integ_backward_euler, only : backward_euler_stage, advance_plant_water
-   use meds_fast_integ_esdirk2, only : esdirk2_step
-   use meds_fast_integ_rk45,    only : rk45_step, RK45_P_ORDER
-   use meds_fast_integ_stepper, only : adaptive_march
-   use meds_fast_integ_control, only : default_error_control, build_error_control, state_wrms_grouped
-   use meds_test_fast_fixture,  only : fast_column_t, make_fast_column, reset_column, set_noon_forcing,           &
+   use ed_fast_integ_backward_euler,   only : backward_euler_stage, advance_plant_water
+   use ed_fast_integ_esdirk2,   only : esdirk2_step
+   use ed_fast_integ_rk45,      only : rk45_step, RK45_P_ORDER
+   use ed_fast_integ_stepper,   only : adaptive_march
+   use ed_fast_integ_control,   only : default_error_control, build_error_control, state_wrms_grouped
+   use ed_test_fast_fixture,    only : fast_column_t, make_fast_column, reset_column, set_noon_forcing,           &
                                        frozen_record, kernel_record
-   use meds_test_assert,        only : check_true, test_report
+   use ed_test_assert,          only : check_true, test_report
    implicit none
 
    integer(ik), parameter :: N = 2_ik            !< the kernel record's cohorts
@@ -58,7 +58,7 @@ contains
    !    and the second order shows. The soil-top temperature is coupled to the canopy air    !
    !    through the backward-Euler stage, which holds the ground temperature, and the        !
    !    canopy-air conductances, at their values at the stage's start while its surface      !
-   !    Newton solves the canopy air (meds_fast_integ_backward_euler): the surface sees the  !
+   !    Newton solves the canopy air (ed_fast_integ_backward_euler): the surface sees the    !
    !    soil a stage late, and the observed order there is about one.                         !
    !=======================================================================================!
    subroutine test_esdirk2()

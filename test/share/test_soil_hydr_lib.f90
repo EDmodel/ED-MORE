@@ -1,6 +1,6 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! test_soil_hydr_lib -- the soil water laws (meds_soil_hydr_lib): a layer's relations in   !
+! test_soil_hydr_lib -- the soil water laws (ed_soil_hydr_lib): a layer's relations in     !
 ! the water network's unknown (docs/science/soil_plant_water.md §2), its retention curve   !
 ! and conductivity (docs/science/soil_biophysics.md eq. (2)), the pond's depression store, !
 ! and the pedotransfer function (soil_biophysics.md eqs. (6)-(8)).                         !
@@ -21,10 +21,10 @@
 !      (theta - theta_res) / (theta_sat - theta_res), clamped to [0, 1].                   !
 !==========================================================================================!
 program test_soil_hydr_lib
-   use meds_test_assert,   only : check_true, check_close, test_report
-   use meds_kinds,         only : wp, ik
-   use meds_constants,     only : grav, grav_head, rho_h2o, t_3ple, latent_heat_fusion
-   use meds_soil_hydr_lib, only : soil_layer_curve_t, build_soil_layer_curve, soil_water_relations,           &
+   use ed_test_assert,     only : check_true, check_close, test_report
+   use ed_kinds,           only : wp, ik
+   use ed_constants,       only : grav, grav_head, rho_h2o, t_3ple, latent_heat_fusion
+   use ed_soil_hydr_lib,   only : soil_layer_curve_t, build_soil_layer_curve, soil_water_relations,           &
                                   soil_theta_to_unknown, pond_water_relations, pond_water_to_head,            &
                                   SOIL_SPECIFIC_STORAGE, POND_DEPRESSION_DEPTH, SOIL_RETENTION_VG,            &
                                   SOIL_RETENTION_CAMPBELL, soil_head_to_theta, VG_PORE_CONNECTIVITY,          &
@@ -42,7 +42,7 @@ program test_soil_hydr_lib
 
 contains
 
-   !----- The conductivity's closed form, written independently of meds_soil_hydr_lib: Mualem-    !
+   !----- The conductivity's closed form, written independently of ed_soil_hydr_lib: Mualem-      !
    !      van Genuchten Ks Se^L [1 - (1 - Se^(1/m))^m]^2, or Campbell's Ks Se^(2b+3). -------------!
    pure real(wp) function conductivity_ref(c, se) result(k)
       type(soil_layer_curve_t), intent(in) :: c
@@ -124,7 +124,7 @@ contains
          if (c(ic)%retention == SOIL_RETENTION_VG)                                                     &
             call check_true(trim(label(ic))//': branches meet (slope of water)',                       &
                             abs(dw_hi - dw_lo) <= 1.0e-5_wp * abs(dw_lo))
-         !----- Values against meds_soil_hydr_lib, where its floors do not bind. -------------!
+         !----- Values against ed_soil_hydr_lib, where its floors do not bind. -------------  !
          ok_val = .true.
          ok_k_val = .true.
          ok_round = .true.
@@ -142,7 +142,7 @@ contains
             if (abs(psi / grav_head - head) > 1.0e-6_wp * abs(head) .and.                              &
                 theta_ref < c(ic)%theta_sat - 1.0e-9_wp) ok_round = .false.
          end do
-         call check_true(trim(label(ic))//': theta(psi) matches meds_soil_hydr_lib', ok_val)
+         call check_true(trim(label(ic))//': theta(psi) matches ed_soil_hydr_lib', ok_val)
          call check_true(trim(label(ic))//': K(theta) matches the closed form', ok_k_val)
          call check_true(trim(label(ic))//': theta -> unknown -> potential round-trips', ok_round)
          !----- Above saturation the layer holds theta_sat + S_s * head. ---------------------!
@@ -308,7 +308,7 @@ contains
       call check_close('worked example: n', vg_n, 1.3674_wp, 1.0e-4_wp)
 
       !=== Ottoni et al. (2019) for the example: 19.31 m/day x (theta_sat - theta(-33 kPa))^1.948,    !
-      !    with theta(-33 kPa) = 0.34409; 5.9343e-6 m/s (21.4 mm/h), computed apart from MEDS. ======!
+      !    with theta(-33 kPa) = 0.34409; 5.9343e-6 m/s (21.4 mm/h), computed apart from ED-MORE. ====== !
       call check_close('worked example: Ks [m/s]', ksat, 5.934313e-6_wp, 1.0e-11_wp)
 
       !=== 30 % coarse fragments by volume at a fine-earth bulk density of 1.2: the curve holds 0.7 of !

@@ -1,9 +1,9 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! test_fast_driver -- the polygon's fast loop over one slow step (meds_fast_dynamics:      !
+! test_fast_driver -- the polygon's fast loop over one slow step (ed_fast_dynamics:        !
 ! fast_dynamics; docs/science/order_of_processes.md §3) and the stepper that runs it       !
-! (meds_stepper: advance_one_step). Every block runs on one day of hourly weather at       !
-! Ithaca (write_diurnal_forcing), read through meds_met as a run reads it: one source for  !
+! (ed_stepper: advance_one_step). Every block runs on one day of hourly weather at         !
+! Ithaca (write_diurnal_forcing), read through ed_met as a run reads it: one source for    !
 ! the test, and a fresh cursor for each block.                                             !
 !   1. CONSERVATION AND ACTIVITY (fast_dynamics): over a day window, every whole-column    !
 !      budget closes on a vegetated and on a bare patch, and the canopy air moves.         !
@@ -36,42 +36,42 @@
 !      takes its wood's temperature, and the budgets close.                                !
 !==========================================================================================!
 program test_fast_driver
-   use meds_kinds,               only : wp, ik
-   use meds_config,              only : meds_config_t, derive_parameters
-   use meds_soil_derive,         only : build_profile_hydraulics, build_profile_thermal, top_soil_psi,       &
+   use ed_kinds,                 only : wp, ik
+   use ed_config,                only : ed_config_t, derive_parameters
+   use ed_soil_derive,           only : build_profile_hydraulics, build_profile_thermal, top_soil_psi,       &
                                         build_soil_profile
-   use meds_soil_params,         only : soil_profile_t
-   use meds_cohort_state_vars,   only : set_cohort_size_from_carbon, hold_cohort_tissue_temps
-   use meds_polygon_state_vars,  only : polygon_t
-   use meds_init_bare_ground, only : init_bare_ground, add_cohort, finalize_init
-   use meds_test_soil_grid, only : geometric_layer_bottoms
-   use meds_soil_hydr_lib,   only : SOIL_RETENTION_VG
-   use meds_plant_hydr_lib,  only : tissue_psi_to_water
-   use meds_slow_dynamics, only : settle_tissue_water
-   use meds_fast_dynamics,       only : fast_dynamics
-   use meds_init,                only : init_fast_state
-   use meds_stepper,             only : advance_one_step, run_ledgers_t
-   use meds_test_support, only : banner, build_test_config, check, check_close
-   use meds_time,                only : meds_time_t, time_advance_seconds
-   use meds_forcing_params,      only : MET_BACKEND_DEFAULT, METAVG_END
-   use meds_radiation_lib,       only : SWPART_CLEARIDX
-   use meds_met_types,       only : met_source_t, met_cursor_t, met_forcing_t
-   use meds_met,          only : met_open, met_cursor_init, met_close, met_advance, met_instant
-   use meds_output_types,        only : output_buffers_t
-   use meds_diag_vars,           only : PY_TAIR, PY_QAIR, PY_PAR_BEAM, PY_COSZ, PY_SW_IN, PY_LWDOWN, PY_PAR_DIFFUSE, PY_RHO_AIR, &
+   use ed_soil_params,           only : soil_profile_t
+   use ed_cohort_state_vars,     only : set_cohort_size_from_carbon, hold_cohort_tissue_temps
+   use ed_polygon_state_vars,    only : polygon_t
+   use ed_init_bare_ground, only : init_bare_ground, add_cohort, finalize_init
+   use ed_test_soil_grid, only : geometric_layer_bottoms
+   use ed_soil_hydr_lib,     only : SOIL_RETENTION_VG
+   use ed_plant_hydr_lib,    only : tissue_psi_to_water
+   use ed_slow_dynamics, only : settle_tissue_water
+   use ed_fast_dynamics,         only : fast_dynamics
+   use ed_init,                  only : init_fast_state
+   use ed_stepper,               only : advance_one_step, run_ledgers_t
+   use ed_test_support, only : banner, build_test_config, check, check_close
+   use ed_time,                  only : ed_time_t, time_advance_seconds
+   use ed_forcing_params,        only : MET_BACKEND_DEFAULT, METAVG_END
+   use ed_radiation_lib,         only : SWPART_CLEARIDX
+   use ed_met_types,       only : met_source_t, met_cursor_t, met_forcing_t
+   use ed_met,          only : met_open, met_cursor_init, met_close, met_advance, met_instant
+   use ed_output_types,          only : output_buffers_t
+   use ed_diag_vars,             only : PY_TAIR, PY_QAIR, PY_PAR_BEAM, PY_COSZ, PY_SW_IN, PY_LWDOWN, PY_PAR_DIFFUSE, PY_RHO_AIR, &
                                         PY_WIND, PA_CAS_TEMP, PA_SKIN_TEMP, PA_LW_UP
-   use meds_constants,           only : stefan_boltzmann, n_soil_layer_max
-   use meds_netcdf_c
+   use ed_constants,             only : stefan_boltzmann, n_soil_layer_max
+   use ed_netcdf_c
    use iso_c_binding,            only : c_int, c_size_t, c_double
-   use meds_slow_ledger,  only : slow_ledger_t
+   use ed_slow_ledger,  only : slow_ledger_t
    implicit none
    character(len=*), parameter :: FORCING_FILE = 'test_fast_driver_forcing.nc'
    !----- The windows, on the forcing file's one day: a night (02-04 UTC, no sun), the late       !
    !      morning (15-17 UTC), solar noon (17-19 UTC) and the afternoon (19-21 UTC). -----------!
-   type(meds_time_t), parameter :: NIGHT     = meds_time_t(2020_ik, 7_ik, 1_ik, 2_ik)
-   type(meds_time_t), parameter :: DAY       = meds_time_t(2020_ik, 7_ik, 1_ik, 15_ik)
-   type(meds_time_t), parameter :: NOON      = meds_time_t(2020_ik, 7_ik, 1_ik, 17_ik)
-   type(meds_time_t), parameter :: AFTERNOON = meds_time_t(2020_ik, 7_ik, 1_ik, 19_ik)
+   type(ed_time_t),   parameter :: NIGHT     = ed_time_t(2020_ik,   7_ik, 1_ik, 2_ik)
+   type(ed_time_t),   parameter :: DAY       = ed_time_t(2020_ik,   7_ik, 1_ik, 15_ik)
+   type(ed_time_t),   parameter :: NOON      = ed_time_t(2020_ik,   7_ik, 1_ik, 17_ik)
+   type(ed_time_t),   parameter :: AFTERNOON = ed_time_t(2020_ik,   7_ik, 1_ik, 19_ik)
    type(slow_ledger_t) :: no_ledger    !< inactive: a test step books nothing
    type(run_ledgers_t) :: ledgers      !< never activated: the coupled steps book nothing
    type(met_source_t)  :: src          !< the forcing file, opened once, as a run opens it
@@ -79,7 +79,7 @@ program test_fast_driver
    real(wp) :: test_bottoms(n_soil_layer_max)   ! the geometric layers these checks were written on
 
    integer(ik), parameter :: NSL = 10_ik
-   type(meds_config_t)  :: cfg
+   type(ed_config_t)    :: cfg
    type(polygon_t)      :: poly
    type(soil_profile_t) :: test_profile   !< the site's soil column (use_test_column)
    real(wp)    :: we, ww, t_cas0, t_cas1, theta0_1, mass0_leaf, mass1_leaf, mass2_leaf
@@ -94,7 +94,7 @@ program test_fast_driver
    cfg%dt_fast            = 150.0_wp
    cfg%n_fast_per_slow    = 48_ik           ! 48 x 150 s = 2 h of fast integration per slow step
 
-   !----- The forcing: a MEDS forcing file at Ithaca, its CO2 from the config, not the file  !
+   !----- The forcing: an ED-MORE forcing file at Ithaca, its CO2 from the config, not the file !
    !      (docs/science/forcing.md §12). --------------------------------------------------------!
    call write_diurnal_forcing(FORCING_FILE)
    cfg%forcing%forcing_on     = .true.
@@ -271,7 +271,7 @@ program test_fast_driver
       gpp_day = poly%cohort%gpp_accum(1)
       light_day = poly%cohort%light_hours_accum(1)
 
-      !=== The FORCING ECHO (MEDS_FORCING_DESIGN.md §6.7): with the polygon diagnostics and the     !
+      !=== The FORCING ECHO (docs/science/forcing.md §8): with the polygon diagnostics and the      !
       !    fast tier on, a step must record exactly the forcing the reader hands the fast loop --    !
       !    the dt-weighted mean of the sub-step samples in the polygon block (poly%diag, once per    !
       !    polygon), and each sample itself in the fast staging. A second cursor on the same source  !
@@ -280,7 +280,7 @@ program test_fast_driver
          type(output_buffers_t) :: ob
          type(met_cursor_t)     :: cur2
          type(met_forcing_t)    :: m
-         type(meds_time_t)      :: ts
+         type(ed_time_t)        :: ts
          real(wp)    :: sum_t, sum_q, sum_pb, sum_cz, sum_sw, w
          integer(ik) :: isub
          logical     :: exact
@@ -680,7 +680,7 @@ contains
       call met_cursor_init(src, c, 1_ik, cfg%forcing%latitude, cfg%forcing%longitude, cfg%forcing%elevation)
    end subroutine site_cursor
 
-   !----- Write a 1-day hourly (time=25, grid=1) MEDS forcing NetCDF with a diurnal shortwave    !
+   !----- Write a 1-day hourly (time=25, grid=1) ED-MORE forcing NetCDF with a diurnal shortwave !
    !      (peaks ~17 UTC at Ithaca) so the fast loop sees a real day/night cycle.                 !
    subroutine write_diurnal_forcing(path)
       character(len=*), intent(in) :: path

@@ -1,6 +1,6 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! test_region -- a region run is its site runs (meds_region; docs/configuration.md         !
+! test_region -- a region run is its site runs (ed_region; docs/configuration.md           !
 ! §Regional runs).                                                                         !
 !                                                                                          !
 ! On the synthetic ED_ERA5land archive, a region over a box that crosses 180 degrees,      !
@@ -26,35 +26,35 @@
 !   8. The cell mask drops a cell; a region freed without finalizing opens again in the    !
 !      same variable; a region with a cell masked out resumes from the first half's state  !
 !      file, its polygons running on as they do in the second half.                        !
-!   9. meds_main (the second argument) refuses each config that breaks a region-mode rule  !
-!      (meds_config_check: check_region and the region keys of check_key_use; the cell     !
+!   9. edmore (the second argument) refuses each config that breaks a region-mode rule     !
+!      (ed_config_check: check_region and the region keys of check_key_use; the cell       !
 !      mask's grid), with that rule's message.                                             !
 !                                                                                          !
-! The configs are derived from test/driver/region/meds_config_site.toml (the test runs    !
+! The configs are derived from test/driver/region/ed_config_site.toml (the test runs      !
 ! from that directory) by derive_config: a case's own keys, then the blocks every run      !
 ! shares, then the template, each key written once, at its first value. Everything the     !
 ! test writes goes under the work directory given as the first argument.                   !
 !==========================================================================================!
 program test_region
    use iso_c_binding,              only : c_int, c_size_t, c_double
-   use meds_kinds,                 only : wp, ik
-   use meds_biogeochem_params,     only : IP_SLOW
-   use meds_test_assert,           only : check_true, test_report
-   use meds_test_run,              only : derive_config, main_refuses
-   use meds_test_archive,          only : write_archive, write_map, write_surface_maps, deep_temp_at, &
+   use ed_kinds,                   only : wp, ik
+   use ed_biogeochem_params,       only : IP_SLOW
+   use ed_test_assert,             only : check_true, test_report
+   use ed_test_run,                only : derive_config, main_refuses
+   use ed_test_archive,            only : write_archive, write_map, write_surface_maps, deep_temp_at, &
                                           f_leak_at, NLAT, NLON
-   use meds_soil_params,           only : SOIL_BC_DRAIN, SOIL_BC_AQUIFER
-   use meds_constants,             only : n_soil_layer_max
-   use meds_netcdf_c
-   use meds_output_types,          only : output_registry_t, DIM_SCALAR, DIM_COHORT, DIM_PATCH,   &
+   use ed_soil_params,             only : SOIL_BC_DRAIN, SOIL_BC_AQUIFER
+   use ed_constants,               only : n_soil_layer_max
+   use ed_netcdf_c
+   use ed_output_types,            only : output_registry_t, DIM_SCALAR, DIM_COHORT, DIM_PATCH,   &
                                           DIM_SOIL, DIM_PFT, DIM_SIZE, DIM_SOIL_PATCH, DIM_SITE, XTYPE_INT, &
                                           MISSING_INT
-   use meds_region,                only : meds_region_t, region_open, region_step, region_step_month, &
+   use ed_region,                  only : ed_region_t, region_open, region_step, region_step_month, &
                                           region_done, region_finalize, region_free, RUN_OK,   &
                                           RUN_ERR_BOUNDS
    implicit none
 
-   character(len=*), parameter :: TEMPLATE = 'meds_config_site.toml'
+   character(len=*), parameter :: TEMPLATE = 'ed_config_site.toml'
    character(len=1), parameter :: LETTER(4) = ['F', 'D', 'M', 'Y']
    !----- The box [N, W, S, E] = [40, 150, 20, -150] holds rows 1-2 (35 N, 25 N) and columns 17, 0, 1  !
    !      (160 E, 180, 160 W). (2,0) has no data and column 1 is 30% land, so land_fraction_min = 0.5 !
@@ -64,15 +64,15 @@ program test_region
    real(wp),    parameter :: LAT(NP) = [35.0_wp, 35.0_wp, 25.0_wp], LON(NP) = [160.0_wp, -180.0_wp, 160.0_wp]
    real(wp),    parameter :: ELEV(NP) = [117.0_wp, 100.0_wp, 217.0_wp]
    integer(ik), parameter :: ROW(NP) = [1_ik, 1_ik, 2_ik], COL(NP) = [17_ik, 0_ik, 17_ik]
-   !----- Their soil (meds_test_archive): 1.95, 1.10 and 2.25 m deep, so 7, 5 and 7 layers on          !
+   !----- Their soil (ed_test_archive): 1.95, 1.10 and 2.25 m deep, so 7, 5 and 7 layers on            !
    !      the default ones; sealed (drainage at f = 0), leaky (drainage at the cell's f_leak) and      !
    !      aquifer bottoms. ---------------------------------------------------------------------------!
    integer(ik), parameter :: N_LAYER(NP) = [7_ik, 5_ik, 7_ik]
    real(wp),    parameter :: COLUMN_DEPTH(NP) = [1.95_wp, 1.10_wp, 2.25_wp]
    integer(ik), parameter :: BOTTOM(NP)  = [SOIL_BC_DRAIN, SOIL_BC_DRAIN, SOIL_BC_AQUIFER]
 
-   character(len=512)  :: work, meds_main
-   type(meds_region_t) :: reg, site_run
+   character(len=512)  :: work, edmore
+   type(ed_region_t)   :: reg, site_run
    type(output_registry_t) :: reg_region, reg_site
    character(len=64), allocatable :: files(:), files2(:)
    integer(ik) :: p, st, f, nf, nbad, nf2, f2
@@ -81,9 +81,9 @@ program test_region
    real(wp)          :: mask(NLON, NLAT, 1)
 
    call get_command_argument(1, work)
-   call get_command_argument(2, meds_main)
-   if (len_trim(work) == 0 .or. len_trim(meds_main) == 0)                                           &
-      error stop 'test_region: pass the work directory and the meds_main executable'
+   call get_command_argument(2, edmore)
+   if (len_trim(work) == 0 .or. len_trim(edmore) == 0)                                           &
+      error stop 'test_region: pass the work directory and the edmore executable'
    call execute_command_line('rm -rf "'//trim(work)//'" && mkdir -p "'//trim(work)//'/out"')
    call write_archive(trim(work)//'/archive')
    call write_surface_maps(trim(work)//'/archive')
@@ -343,7 +343,7 @@ program test_region
    call refused('a region''s recycle window starts at 00:00 or 01:00 on the 1st',                   &
                 '[forcing]'//nl()//'recycle = true'//nl()//'recycle_start = "2021-01-01 06:00:00"'//nl()// &
                 'recycle_end = "2022-01-01 06:00:00"'//nl()//region_block(), 'needs forcing.recycle_start at 00:00 or')
-   !----- The cell mask (meds_maps, as region_open picks the polygons) must be on the forcing grid. -!
+   !----- The cell mask (ed_maps, as region_open picks the polygons) must be on the forcing grid. -  !
    call refused('a cell mask must be on the forcing grid', '[region]'//nl()//'cell_mask = "'//            &
                 trim(work)//'/archive/offgrid.nc"'//nl()//'cell_mask_var = "keep"'//nl()//region_block(),  &
                 'is not on the forcing grid')
@@ -400,15 +400,15 @@ contains
       c = new_line('a')
    end function nl
 
-   !----- meds_main must fail on this config and say why. --------------------------------------------!
+   !----- edmore must fail on this config and say why. --------------------------------------------   !
    subroutine refused(what, overrides, message)
       character(len=*), intent(in) :: what, overrides, message
       call derive(trim(work)//'/refused.toml', overrides)
-      call check_true(what, main_refuses(trim(meds_main), trim(work)//'/refused.toml', trim(work)//'/refused.log', &
+      call check_true(what, main_refuses(trim(edmore), trim(work)//'/refused.toml', trim(work)//'/refused.log', &
                                          message))
    end subroutine refused
 
-   !----- A config from these blocks and the template, each key once (meds_test_run). ------------!
+   !----- A config from these blocks and the template, each key once (ed_test_run). ------------  !
    subroutine derive(path, overrides)
       character(len=*), intent(in) :: path, overrides
       call derive_config(path, overrides, TEMPLATE)
@@ -612,7 +612,7 @@ contains
    !----- Open, step and close a region from its config. ------------------------------------------!
    subroutine run_region(path)
       character(len=*), intent(in) :: path
-      type(meds_region_t) :: r
+      type(ed_region_t) :: r
       integer(ik) :: s
       logical     :: opened
       call region_open(path, r, opened, verbose=.false.)
@@ -730,7 +730,7 @@ contains
    !      pools, and each patch's area and soil water, matched by their persistent ids. --------------!
    logical function rows_resumed(path, r) result(same)
       character(len=*),    intent(in) :: path
-      type(meds_region_t), intent(in) :: r
+      type(ed_region_t),   intent(in) :: r
       integer(c_int) :: ncid
       real(c_double), allocatable :: meta(:), gid(:), nplant(:), dbh(:), leafc(:), woodc(:)
       real(c_double), allocatable :: pgid(:), area(:), theta(:)

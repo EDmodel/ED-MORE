@@ -483,11 +483,8 @@ endif()
 ed_fortran_flags(ed_main)
 
 #----- Tests: the suite, its support libraries and the checks, in test/ (test/CMakeLists.txt).  #
-#      enable_testing() stays here, so ctest runs the suite from the build tree's top. A tree   #
-#      without test/ builds the model alone.                                                    #
-if(ED_BUILD_TESTS AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/test/CMakeLists.txt)
+#      enable_testing() stays here, so ctest runs the suite from the build tree's top.          #
+if(ED_BUILD_TESTS)
    enable_testing()
    add_subdirectory(test)
-elseif(ED_BUILD_TESTS)
-   message(STATUS "ED-MORE: no test/ folder in this tree, so the tests are not built")
 endif()

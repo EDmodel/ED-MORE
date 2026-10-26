@@ -21,28 +21,28 @@
 ! than passing a quantity through, and a production run closes it to 1e-17.                      !
 !==========================================================================================!
 program test_slow_ledger
-   use meds_kinds,              only : wp, ik
-   use meds_config,             only : meds_config_t
-   use meds_soil_derive,        only : build_profile_hydraulics, soil_layers, build_soil_profile,           &
+   use ed_kinds,                only : wp, ik
+   use ed_config,               only : ed_config_t
+   use ed_soil_derive,          only : build_profile_hydraulics, soil_layers, build_soil_profile,           &
                                        soil_start_theta, top_soil_psi
-   use meds_polygon_state_vars, only : polygon_t, patch_polygon_area
-   use meds_patch_state_vars, only : cas_set_depth, patch_physical_state, litter_input_t
-   use meds_biogeochem_params,  only : N_SOIL_POOL, IP_SLOW, SOIL_POOL_NAME
-   use meds_soil_params,        only : soil_profile_t
-   use meds_init_bare_ground, only : init_bare_ground, add_cohort, finalize_init
-   use meds_cohort_state_vars,  only : init_cohort, set_cohort_size_from_carbon, hold_cohort_tissue_temps
-   use meds_slow_update, only : terminate_cohorts, apply_patch_disturbance, fuse_2_patches, refresh_canopy_depth
-   use meds_slow_dynamics, only : vegetation_dynamics, restructure_stand, settle_tissue_water
-   use meds_slow_state, only : kill_report_t, kill_litter, shed_turnover_water, slow_step_data_t
-   use meds_slow_ledger,        only : slow_store_t, slow_ledger_t, slow_site_store,               &
+   use ed_polygon_state_vars,   only : polygon_t, patch_polygon_area
+   use ed_patch_state_vars, only : cas_set_depth, patch_physical_state, litter_input_t
+   use ed_biogeochem_params,    only : N_SOIL_POOL, IP_SLOW, SOIL_POOL_NAME
+   use ed_soil_params,          only : soil_profile_t
+   use ed_init_bare_ground, only : init_bare_ground, add_cohort, finalize_init
+   use ed_cohort_state_vars,  only : init_cohort, set_cohort_size_from_carbon, hold_cohort_tissue_temps
+   use ed_slow_update, only : terminate_cohorts, apply_patch_disturbance, fuse_2_patches, refresh_canopy_depth
+   use ed_slow_dynamics, only : vegetation_dynamics, restructure_stand, settle_tissue_water
+   use ed_slow_state, only : kill_report_t, kill_litter, shed_turnover_water, slow_step_data_t
+   use ed_slow_ledger,          only : slow_store_t, slow_ledger_t, slow_site_store,               &
                                        slow_ledger_open, slow_ledger_declare, slow_ledger_mark,    &
                                        slow_fast_carbon_handover, slow_tissue_energy, SLOW_PHASE_GROW, &
                                        SLOW_PHASE_ALLOCATE, SLOW_PHASE_RECRUIT, SLOW_PHASE_TISSUE_WATER, &
                                        litter_carbon_total
-   use meds_plant_hydr_lib,     only : water_curve_t, tissue_water_to_psi
-   use meds_constants,          only : grav_head, n_soil_layer_max, umol_2_kgc
-   use meds_test_support, only : banner, build_test_config, check, check_close
-   use meds_constants,          only : rho_air_ref
+   use ed_plant_hydr_lib,       only : water_curve_t, tissue_water_to_psi
+   use ed_constants,            only : grav_head, n_soil_layer_max, umol_2_kgc
+   use ed_test_support, only : banner, build_test_config, check, check_close
+   use ed_constants,          only : rho_air_ref
    implicit none
    type(kill_report_t)  :: kills   !< what the cull and the treefall killed
    type(slow_ledger_t) :: no_ledger    !< inactive: a test step books nothing
@@ -54,7 +54,7 @@ program test_slow_ledger
    integer(ik) :: n_soil_layer
 
    real(wp), parameter  :: RHO = rho_air_ref    !< the density the canopy-air store is valued at
-   type(meds_config_t)  :: cfg
+   type(ed_config_t)    :: cfg
    type(polygon_t)      :: poly
    type(soil_profile_t) :: soil
    type(slow_store_t)   :: s0, s1
@@ -203,7 +203,7 @@ contains
    !       store left above its capacity, whose excess the settle before the fast loop sheds to the   !
    !       ground.                                                                                   !
    subroutine check_tissue_water_ledger()
-      type(meds_config_t) :: c
+      type(ed_config_t)   :: c
       type(polygon_t)     :: st
       type(slow_ledger_t) :: lg
       type(slow_store_t)  :: s_now
@@ -301,7 +301,7 @@ contains
       call check_reflush_water()
    end subroutine check_tissue_water_ledger
    subroutine check_reflush_water()
-      type(meds_config_t) :: c
+      type(ed_config_t)   :: c
       type(polygon_t)     :: st
       type(slow_ledger_t) :: lg
       type(water_curve_t) :: leaf_curve, wood_curve
@@ -378,7 +378,7 @@ contains
    end subroutine check_shed_heat
    pure function shed_total(st, c) result(w)
       type(polygon_t),     intent(in) :: st
-      type(meds_config_t), intent(in) :: c
+      type(ed_config_t),   intent(in) :: c
       real(wp)    :: w
       integer(ik) :: ip
       w = 0.0_wp

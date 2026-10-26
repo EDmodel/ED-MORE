@@ -1,6 +1,6 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! test_soil_heat -- the soil thermal column (meds_soil_heat;                               !
+! test_soil_heat -- the soil thermal column (ed_soil_heat;                                 !
 ! docs/science/soil_biophysics.md §The soil thermal column, §Frozen soil and §The bottom   !
 ! thermal boundary, eqs. (10)-(12)).                                                       !
 !   1. CONSERVATION (soil_energy_step_implicit): a column on an insulated base gains       !
@@ -29,17 +29,17 @@
 ! The soil's thermal conductivity and heat capacity are test_therm_lib's.                  !
 !==========================================================================================!
 program test_soil_heat
-   use meds_test_assert,    only : check, check_true, test_report
-   use meds_kinds,          only : wp, ik
-   use meds_constants,      only : rho_h2o, t_3ple, pi, n_soil_layer_max
-   use meds_soil_heat,      only : soil_heat_env_t, soil_heat_out_t, soil_energy_step_implicit, soil_layer_energy,   &
+   use ed_test_assert,      only : check, check_true, test_report
+   use ed_kinds,            only : wp, ik
+   use ed_constants,        only : rho_h2o, t_3ple, pi, n_soil_layer_max
+   use ed_soil_heat,        only : soil_heat_env_t, soil_heat_out_t, soil_energy_step_implicit, soil_layer_energy,   &
                                    soil_layer_energy_slope, soil_layer_temp, soil_energy_time_deriv
-   use meds_patch_state_vars, only : soil_energy_state_t
-   use meds_test_soil_grid, only : geometric_layer_bottoms
-   use meds_soil_params,    only : soil_profile_t, soil_params_t, ENERGY_BC_DIRICHLET
-   use meds_soil_derive,    only : build_profile_hydraulics, build_profile_thermal
-   use meds_soil_hydr_lib,  only : SOIL_RETENTION_VG, soil_liquid_capacity
-   use meds_therm_lib,      only : soil_thermal_conductivity, soil_volumetric_heat_capacity,                         &
+   use ed_patch_state_vars,   only : soil_energy_state_t
+   use ed_test_soil_grid,   only : geometric_layer_bottoms
+   use ed_soil_params,      only : soil_profile_t, soil_params_t, ENERGY_BC_DIRICHLET
+   use ed_soil_derive,      only : build_profile_hydraulics, build_profile_thermal
+   use ed_soil_hydr_lib,    only : SOIL_RETENTION_VG, soil_liquid_capacity
+   use ed_therm_lib,        only : soil_thermal_conductivity, soil_volumetric_heat_capacity,                         &
                                    temp_to_internal_energy, internal_energy_liquid
    implicit none
    real(wp) :: test_bottoms(n_soil_layer_max)   ! the geometric layers these checks are computed on

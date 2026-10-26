@@ -1,6 +1,6 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! test_maps -- meds_maps, the one module that reads static per-cell maps (docs/configuration.md §Input !
+! test_maps -- ed_maps, the one module that reads static per-cell maps (docs/configuration.md §Input   !
 ! maps), on the synthetic archive's 4 x 18 grid.                                                      !
 !                                                                                          !
 ! A 2-D map is read at a box's cells, each at its own (row, col); a cell the map leaves empty reads  !
@@ -19,21 +19,21 @@
 !==========================================================================================!
 program test_maps
    use, intrinsic :: ieee_arithmetic, only : ieee_is_nan
-   use meds_kinds,                 only : wp, ik
-   use meds_test_assert,           only : check_true, test_report
-   use meds_test_archive,          only : NLAT, NLON, write_static, write_map, write_surface_maps, archive_grid, &
+   use ed_kinds,                   only : wp, ik
+   use ed_test_assert,             only : check_true, test_report
+   use ed_test_archive,            only : NLAT, NLON, write_static, write_map, write_surface_maps, archive_grid, &
                                           soil_depth_at, bc_class_at, f_leak_at, deep_temp_at, chave_e_at, &
                                           texture_at, SG_TOP, SG_BOTTOM
-   use meds_met_types,             only : met_grid_t, met_cells_t
-   use meds_met_grid,              only : select_box_cells, keep_cells, GRID_OK
-   use meds_maps,                  only : map_values_at_cells, map_layers_at_cells, apply_cell_mask,  &
+   use ed_met_types,               only : met_grid_t, met_cells_t
+   use ed_met_grid,                only : select_box_cells, keep_cells, GRID_OK
+   use ed_maps,                    only : map_values_at_cells, map_layers_at_cells, apply_cell_mask,  &
                                           MAP_OK, MAP_ERR_OPEN, MAP_ERR_GRID, MAP_ERR_VAR,              &
                                           read_map_inputs
-   use meds_config,                only : meds_config_t, alloc_pft_table, apply_map_inputs
-   use meds_maps_params,           only : maps_params_t, map_inputs_t
-   use meds_soil_hydr_lib,         only : soil_texture_t, soil_texture_to_hydraulics
-   use meds_therm_lib,             only : soil_texture_to_thermal
-   use meds_soil_params,           only : SOIL_BC_DRAIN, SOIL_BC_AQUIFER, ANNUAL_DAMPING_DEPTH
+   use ed_config,                  only : ed_config_t, alloc_pft_table, apply_map_inputs
+   use ed_maps_params,             only : maps_params_t, map_inputs_t
+   use ed_soil_hydr_lib,           only : soil_texture_t, soil_texture_to_hydraulics
+   use ed_therm_lib,               only : soil_texture_to_thermal
+   use ed_soil_params,             only : SOIL_BC_DRAIN, SOIL_BC_AQUIFER, ANNUAL_DAMPING_DEPTH
    implicit none
 
    real(wp), parameter :: FILL = -9999.0_wp
@@ -48,7 +48,7 @@ program test_maps
    logical :: ok
    type(maps_params_t)    :: opts
    type(map_inputs_t)     :: inp
-   type(meds_config_t)    :: cfg, cfg2
+   type(ed_config_t)      :: cfg, cfg2
    type(soil_texture_t)   :: t5, t6, tex
    character(len=:), allocatable :: msg
    real(wp) :: ts, tr, al, vn, ks, kso, kd, cv

@@ -1,6 +1,6 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! test_radiation_lib -- meds_radiation_lib, the radiation above the canopy                  !
+! test_radiation_lib -- ed_radiation_lib, the radiation above the canopy                    !
 ! (docs/science/forcing.md):                                                                 !
 !   1. the shortwave partition, Erbs (clearness index) and Weiss-Norman (band-specific):      !
 !      four streams that sum to the total, mostly beam under a clear sky and mostly diffuse   !
@@ -13,9 +13,9 @@
 !      clear-sky emissivity times T^4, so a warmer, moister site gets more, and dz = 0 none.  !
 !==========================================================================================!
 program test_radiation_lib
-   use meds_test_assert,   only : check, check_true, test_report
-   use meds_kinds,         only : wp
-   use meds_radiation_lib, only : LW_CLEAR_BRUTSAERT, LW_CLEAR_IDSO, SWPART_CLEARIDX, SWPART_WEISS_NORMAN,  &
+   use ed_test_assert,     only : check, check_true, test_report
+   use ed_kinds,           only : wp
+   use ed_radiation_lib,   only : LW_CLEAR_BRUTSAERT, LW_CLEAR_IDSO, SWPART_CLEARIDX, SWPART_WEISS_NORMAN,  &
                                   partition_shortwave, clearness_index, clear_sky_emissivity,            &
                                   synthesize_lwdown, slope_beam_factor, lapse_longwave
    implicit none

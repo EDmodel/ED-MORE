@@ -1,6 +1,6 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! test_state_file -- the state (restart) file of meds_init_restart                           !
+! test_state_file -- the state (restart) file of ed_init_restart                             !
 ! (docs/science/order_of_processes.md §6, The restart file):                                  !
 !   1. a polygon of two sites, three patches and four cohorts, every store stamped with a     !
 !      value of its own, is written (A), read back and written again (B): every variable of   !
@@ -21,21 +21,21 @@
 program test_state_file
    use iso_c_binding,           only : c_int, c_size_t, c_double, c_char, c_null_char
    use iso_fortran_env,         only : int64
-   use meds_kinds,              only : wp, ik
-   use meds_constants,          only : n_soil_layer_max, n_snow_layer_max
-   use meds_biogeochem_params,  only : N_SOIL_POOL
-   use meds_config,             only : meds_config_t, growth_window_steps
-   use meds_polygon_state_vars, only : polygon_t, alloc_polygon
-   use meds_site_state_vars,    only : make_site_surface
-   use meds_cohort_state_vars,  only : hold_cohort_tissue_temps, set_cohort_size_from_carbon
-   use meds_init_bare_ground,   only : init_bare_sites, add_cohort, finalize_init
-   use meds_init_restart,       only : restart_file_t, restart_file_open, restart_file_write, restart_file_close, &
+   use ed_kinds,                only : wp, ik
+   use ed_constants,            only : n_soil_layer_max, n_snow_layer_max
+   use ed_biogeochem_params,    only : N_SOIL_POOL
+   use ed_config,               only : ed_config_t, growth_window_steps
+   use ed_polygon_state_vars,   only : polygon_t, alloc_polygon
+   use ed_site_state_vars,      only : make_site_surface
+   use ed_cohort_state_vars,    only : hold_cohort_tissue_temps, set_cohort_size_from_carbon
+   use ed_init_bare_ground,     only : init_bare_sites, add_cohort, finalize_init
+   use ed_init_restart,         only : restart_file_t, restart_file_open, restart_file_write, restart_file_close, &
                                        read_restart_file, restart_file_slots
-   use meds_time,               only : meds_time_t
-   use meds_netcdf_c,           only : NC_NOERR, NC_NOWRITE, nc_open_f, nc_close, nc_inq_varid_f, nc_inq_dimlen,  &
+   use ed_time,                 only : ed_time_t
+   use ed_netcdf_c,             only : NC_NOERR, NC_NOWRITE, nc_open_f, nc_close, nc_inq_varid_f, nc_inq_dimlen,  &
                                        nc_get_vara_double
-   use meds_test_support,       only : build_test_config
-   use meds_test_assert,        only : check_true, test_report
+   use ed_test_support,         only : build_test_config
+   use ed_test_assert,          only : check_true, test_report
    implicit none
 
    interface
@@ -64,13 +64,13 @@ program test_state_file
    character(len=*), parameter :: FILE_Z = './test_sf_z-S-20000101000000.nc'
    character(len=*), parameter :: FILE_R = './test_sf_r-S-20000101000000.nc'   !< a region's: polygons 35, 18, 53
 
-   type(meds_config_t) :: cfg
+   type(ed_config_t)   :: cfg
    type(polygon_t)     :: poly, back
-   type(meds_time_t)   :: now, rt
+   type(ed_time_t)     :: now, rt
    logical             :: found
 
    cfg = build_test_config()
-   now = meds_time_t(year=2000, month=1, day=1, hour=0, minute=0, second=0)
+   now = ed_time_t(year=2000, month=1, day=1, hour=0, minute=0, second=0)
    call stamped_polygon(poly)
 
    call test_write_read_write()
@@ -145,7 +145,7 @@ contains
 
    !----- 4. A run of another growth-window length: each cohort's rings full of its average. ---!
    subroutine test_other_window()
-      type(meds_config_t) :: cfg_short
+      type(ed_config_t) :: cfg_short
       integer(ik) :: nwin, i
       print '(a)', '-- 4. another growth-window length --'
       cfg_short = cfg
@@ -166,7 +166,7 @@ contains
 
    !----- 5. The files a run cannot start from. ------------------------------------------------!
    subroutine test_refusals()
-      type(meds_config_t) :: cfg_pft
+      type(ed_config_t) :: cfg_pft
       character(len=:), allocatable :: why
       integer(ik), allocatable :: slot(:)
       print '(a)', '-- 5. the files a run cannot start from --'

@@ -1,5 +1,5 @@
 # The per-variable output table of test_region's runs (named by [output].io_config in
-# meds_config_site.toml).
+# ed_config_site.toml).
 #
 # Each entry is  <registry-name> = <value>, where <value> is either
 #   true | false      force the variable on with its registry-default streams, or off everywhere
@@ -13,7 +13,7 @@
 # The F tier is replayed from per-sub-step samples STAGED inside the fast loop, because sub-daily
 # resolution exists nowhere else; a variable reads those samples on F and live state on D, M and Y,
 # under one name. A tier a variable has no value on is rejected at start-up rather than silently
-# writing a file full of _FillValue. Run `meds_main --dump-io-config` for the full list.
+# writing a file full of _FillValue. Run `edmore --dump-io-config` for the full list.
 
 [variables]
 # --- energy: the air, canopy-air, leaf and soil temperatures -------------------------------------

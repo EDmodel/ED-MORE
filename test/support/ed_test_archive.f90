@@ -1,6 +1,6 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! meds_test_archive -- a tiny synthetic ED_ERA5land archive for the tests, written               !
+! ed_test_archive -- a tiny synthetic ED_ERA5land archive for the tests, written                 !
 ! through the netCDF C API: a 4 x 18 grid (10 deg x 20 deg) spanning the antimeridian and two     !
 ! 16-cell chunk columns wide, every month of 2021 and January 2022 (so a recycle window may start  !
 ! after January 1st), two no-data cells, a mostly-water column, and values that are analytic       !
@@ -9,16 +9,16 @@
 ! soil depth, texture and chemistry on SoilGrids' six layers, and Chave's E, each a function of the  !
 ! cell (soil_depth_at, ..., texture_at), empty at the no-data cells.                                  !
 !==========================================================================================!
-module meds_test_archive
+module ed_test_archive
    use, intrinsic :: ieee_arithmetic, only : ieee_value, ieee_quiet_nan
-   use meds_kinds,           only : wp, sp, ik
-   use meds_time,            only : meds_time_t, seconds_between
-   use meds_met_era5land,    only : era5land_path, era5land_default_template, era5land_month_hours, &
+   use ed_kinds,             only : wp, sp, ik
+   use ed_time,              only : ed_time_t, seconds_between
+   use ed_met_era5land,      only : era5land_path, era5land_default_template, era5land_month_hours, &
                                     ERA_NVAR, ERA_VAR_NAME, ERA_VAR_UNITS, ERA_CHUNK
-   use meds_met_types,       only : met_grid_t
-   use meds_netcdf_c
+   use ed_met_types,         only : met_grid_t
+   use ed_netcdf_c
    use iso_c_binding,        only : c_int, c_size_t, c_double
-   use meds_soil_hydr_lib,   only : soil_texture_t
+   use ed_soil_hydr_lib,     only : soil_texture_t
    implicit none
    private
 
@@ -33,7 +33,7 @@ module meds_test_archive
    real(wp),    parameter :: LAT0 = 45.0_wp, DLAT = -10.0_wp, LON0 = -180.0_wp, DLON = 20.0_wp
    real(wp),    parameter :: TWO_PI = 6.283185307179586_wp
    !----- The archive's first stamp; g below counts hours from it (0-based). ---------------------!
-   type(meds_time_t), parameter :: T0 = meds_time_t(2021_ik, 1_ik, 1_ik, 1_ik, 0_ik, 0_ik)
+   type(ed_time_t), parameter :: T0 = ed_time_t(2021_ik, 1_ik, 1_ik, 1_ik, 0_ik, 0_ik)
    !----- The soil maps' layers: SoilGrids 2.0's depths [m]. ---------------------------------------!
    real(wp), parameter :: SG_TOP(6)    = [0.0_wp, 0.05_wp, 0.15_wp, 0.30_wp, 0.60_wp, 1.00_wp]
    real(wp), parameter :: SG_BOTTOM(6) = [0.05_wp, 0.15_wp, 0.30_wp, 0.60_wp, 1.00_wp, 2.00_wp]
@@ -79,7 +79,7 @@ contains
 
    !----- Hours from T0 to t. -----------------------------------------------------------------------!
    integer(ik) function hour_index(t) result(g)
-      type(meds_time_t), intent(in) :: t
+      type(ed_time_t), intent(in) :: t
       g = nint(seconds_between(T0, t) / 3600.0_wp, ik)
    end function hour_index
 
@@ -158,7 +158,7 @@ contains
       st = nc_close(ncid) ; call nc_check(st, 'close static')
    end subroutine write_static
 
-   !----- A static map on the archive's grid (meds_maps): values(lon, lat, layer) as a 2-D    !
+   !----- A static map on the archive's grid (ed_maps): values(lon, lat, layer) as a 2-D      !
    !      (lat, lon) variable, or, with layer_dim, a layered (layer, lat, lon) one, with a _FillValue.  !
    !      lat_shift moves the file's lat axis, to make a map that is off the grid. -----------------------!
    subroutine write_map(path, name, values, fill, layer_dim, lat_shift)
@@ -351,7 +351,7 @@ contains
       integer(ik) :: nt, g0, h, r, c
       nan = ieee_value(0.0_c_double, ieee_quiet_nan)
       nt = era5land_month_hours(y, m)
-      g0 = hour_index(meds_time_t(y, m, 1_ik, 1_ik))
+      g0 = hour_index(ed_time_t(y, m, 1_ik, 1_ik))
       path = trim(era5land_path(era5land_default_template(), dir, ERA_VAR_NAME(v), y, m))
       st = nc_create_f(path, NC_NETCDF4, ncid) ; call nc_check(st, 'create '//path)
       st = nc_def_dim_f(ncid, 'time', int(nt, c_size_t), dt) ; call nc_check(st, 'def time dim')
@@ -372,7 +372,7 @@ contains
       call put_grid(ncid)
       allocate(tsec(nt), dat(NLON, NLAT, nt))
       do h = 1_ik, nt
-         tsec(h) = seconds_between(meds_time_t(1970_ik, 1_ik, 1_ik), T0) + 3600.0_wp * real(g0 + h - 1_ik, wp)
+         tsec(h) = seconds_between(ed_time_t(1970_ik, 1_ik, 1_ik), T0) + 3600.0_wp * real(g0 + h - 1_ik, wp)
          do r = 0_ik, NLAT - 1_ik
             do c = 0_ik, NLON - 1_ik
                dat(c + 1_ik, r + 1_ik, h) = merge(field(v, r, c, g0 + h - 1_ik), nan, is_valid(r, c))
@@ -387,4 +387,4 @@ contains
       st = nc_close(ncid) ; call nc_check(st, 'close '//path)
    end subroutine write_month
 
-end module meds_test_archive
+end module ed_test_archive

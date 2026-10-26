@@ -2,7 +2,7 @@
 !==========================================================================================!
 ! test_plant_carbon_allocation -- unit tests for the elemental, GROWTH-ONLY daily carbon      !
 ! allocation kernel + growth_respiration. (Leaf loss is applied upstream by the driver from   !
-! meds_plant_phenology::leaf_turnover_step -- tested in test_plant_phenology.) The equations are   !
+! ed_plant_phenology::leaf_turnover_step -- tested in test_plant_phenology.) The equations are     !
 ! docs/science/plant_carbon_allocation.md eqs. (4)-(5).                                    !
 !                                                                                          !
 !   1. GROWTH RESP     : growth_respiration = g * max(0, npp_growth).                            !
@@ -21,11 +21,11 @@
 !                        and a surplus grows wood.                                         !
 !==========================================================================================!
 program test_plant_carbon_allocation
-   use meds_test_assert, only : check_close, check_true, test_report
-   use meds_kinds,           only : wp, ik
-   use meds_plant_carbon_allocation, only : plant_carbon_allocation, growth_respiration,                 &
+   use ed_test_assert, only : check_close, check_true, test_report
+   use ed_kinds,           only : wp, ik
+   use ed_plant_carbon_allocation,   only : plant_carbon_allocation, growth_respiration,                 &
                                             growth_sink_limitation
-   use meds_allometry_lib,           only : allometry_t, size_to_wood_carbon, wood_to_dbh, dbh_to_height
+   use ed_allometry_lib,             only : allometry_t, size_to_wood_carbon, wood_to_dbh, dbh_to_height
    implicit none
 
    !----- A stem for the sink-limit tests: wood density, height cap and aboveground share. -----!

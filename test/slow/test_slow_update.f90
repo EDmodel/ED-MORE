@@ -6,18 +6,18 @@
 ! removes the cohort there.                                                                !
 !==========================================================================================!
 module test_slow_update_commit
-   use meds_kinds,              only : wp, ik
-   use meds_constants,          only : tissue_c_wood_dry
-   use meds_allometry_lib,      only : carbon_to_structure
-   use meds_therm_lib,          only : tissue_dry_heat_capacity
-   use meds_config,             only : meds_config_t, growth_window_steps
-   use meds_cohort_state_vars,  only : cohort_deriv_alloc, cohort_bad_field, cohort_field_name, cohort_tissue_temps
-   use meds_polygon_state_vars, only : polygon_t
-   use meds_slow_update,        only : update_cohort_states, terminate_cohorts,                          &
+   use ed_kinds,                only : wp, ik
+   use ed_constants,            only : tissue_c_wood_dry
+   use ed_allometry_lib,        only : carbon_to_structure
+   use ed_therm_lib,            only : tissue_dry_heat_capacity
+   use ed_config,               only : ed_config_t, growth_window_steps
+   use ed_cohort_state_vars,    only : cohort_deriv_alloc, cohort_bad_field, cohort_field_name, cohort_tissue_temps
+   use ed_polygon_state_vars,   only : polygon_t
+   use ed_slow_update,          only : update_cohort_states, terminate_cohorts,                          &
                                        update_cohort_derivatives
-   use meds_slow_state,         only : kill_report_t, slow_step_data_t
-   use meds_init_bare_ground,   only : init_bare_ground, add_cohort, finalize_init
-   use meds_test_support,       only : banner, build_test_config, check, check_close
+   use ed_slow_state,           only : kill_report_t, slow_step_data_t
+   use ed_init_bare_ground,     only : init_bare_ground, add_cohort, finalize_init
+   use ed_test_support,         only : banner, build_test_config, check, check_close
    use, intrinsic :: ieee_arithmetic,         only : ieee_value, ieee_quiet_nan
    implicit none
    private
@@ -26,7 +26,7 @@ module test_slow_update_commit
    type(kill_report_t)  :: kills   !< what the cull and the treefall killed
    real(wp)            :: shed_water   !< an operator's shed water, unread here
 
-   type(meds_config_t) :: cfg
+   type(ed_config_t)   :: cfg
    type(polygon_t)     :: poly
 
 contains
@@ -195,27 +195,27 @@ end module test_slow_update_commit
 ! window.                                                                                  !
 !==========================================================================================!
 module test_slow_update_cohorts
-   use meds_kinds,           only : wp, ik
-   use meds_constants,       only : pio4
-   use meds_config,          only : meds_config_t
+   use ed_kinds,             only : wp, ik
+   use ed_constants,         only : pio4
+   use ed_config,            only : ed_config_t
    use, intrinsic :: ieee_arithmetic, only : ieee_value, ieee_quiet_nan
-   use meds_cohort_state_vars,          only : set_cohort_size, cohort_tissue_heat_capacity, set_cohort_size_from_carbon, &
+   use ed_cohort_state_vars,            only : set_cohort_size, cohort_tissue_heat_capacity, set_cohort_size_from_carbon, &
                                                cohort_bad_field, cohort_field_name, cohort_deriv_block, cohort_deriv_alloc, &
                                                init_cohort, hold_cohort_tissue_temps
-   use meds_polygon_state_vars,         only : polygon_t
-   use meds_slow_update, only : fill_cohort_deriv, fuse_2_cohorts, fuse_cohorts, split_cohorts,      &
+   use ed_polygon_state_vars,           only : polygon_t
+   use ed_slow_update,   only : fill_cohort_deriv, fuse_2_cohorts, fuse_cohorts, split_cohorts,      &
                                 max_cohort_count
-   use meds_init_bare_ground, only : init_bare_ground, add_cohort, finalize_init
-   use meds_output_reduce, only : total_nplant, total_agb
-   use meds_diag_vars,        only : alloc_cohort_diag, cohort_diag_value, CO_LEAF_TEMP, CO_WOOD_TEMP
-   use meds_allometry_lib,   only : storage_carbon_target
-   use meds_test_support, only : banner, build_test_config, check, check_close
+   use ed_init_bare_ground, only : init_bare_ground, add_cohort, finalize_init
+   use ed_output_reduce, only : total_nplant, total_agb
+   use ed_diag_vars,        only : alloc_cohort_diag, cohort_diag_value, CO_LEAF_TEMP, CO_WOOD_TEMP
+   use ed_allometry_lib,   only : storage_carbon_target
+   use ed_test_support, only : banner, build_test_config, check, check_close
    implicit none
    private
 
    public :: run_cohort_operators
 
-   type(meds_config_t) :: cfg
+   type(ed_config_t) :: cfg
    type(polygon_t)  :: poly
    real(wp)            :: agb_tot, n0, agb0, dbh_avg
    real(wp)            :: wr, wd, leafmass_exp, woodmass_exp, ltemp_exp, wtemp_exp
@@ -556,17 +556,17 @@ end module test_slow_update_cohorts
 ! conserved and the diagnostic rows.                                                       !
 !==========================================================================================!
 module test_slow_update_gaps
-   use meds_kinds,            only : wp, ik
-   use meds_config,           only : meds_config_t
-   use meds_patch_state_vars, only : DIST_TREEFALL
-   use meds_polygon_state_vars, only : polygon_t
-   use meds_slow_update, only : apply_patch_disturbance
-   use meds_diag_vars,                 only : PA_DISTURB_AREA, PA_LE, PA_MORT_C_CULL, alloc_patch_diag, patch_diag_value
-   use meds_constants,                 only : yr_sec
-   use meds_init_bare_ground, only : init_bare_ground, add_cohort, finalize_init
-   use meds_output_reduce, only : total_area, total_nplant
-   use meds_test_support, only : banner, build_test_config, check, check_close
-   use meds_slow_state,  only : kill_report_t, decide_disturbance
+   use ed_kinds,              only : wp, ik
+   use ed_config,             only : ed_config_t
+   use ed_patch_state_vars,   only : DIST_TREEFALL
+   use ed_polygon_state_vars, only : polygon_t
+   use ed_slow_update, only : apply_patch_disturbance
+   use ed_diag_vars,                   only : PA_DISTURB_AREA, PA_LE, PA_MORT_C_CULL, alloc_patch_diag, patch_diag_value
+   use ed_constants,                   only : yr_sec
+   use ed_init_bare_ground, only : init_bare_ground, add_cohort, finalize_init
+   use ed_output_reduce, only : total_area, total_nplant
+   use ed_test_support, only : banner, build_test_config, check, check_close
+   use ed_slow_state,  only : kill_report_t, decide_disturbance
    implicit none
    private
 
@@ -576,7 +576,7 @@ module test_slow_update_gaps
    logical, allocatable :: dist_survives(:)   !< and its survivors
    real(wp)            :: shed_water   !< an operator's shed water, unread here
 
-   type(meds_config_t) :: cfg
+   type(ed_config_t) :: cfg
    type(polygon_t)  :: poly
    integer(ik)         :: ig, ip, i0, i1, i, n_gap_cohorts, n_slot
    real(wp)            :: disturb_rate(8)
@@ -750,20 +750,20 @@ end module test_slow_update_gaps
 ! than dropped, the stores riding the patch lockstep, the tolerance ceiling.               !
 !==========================================================================================!
 module test_slow_update_patches
-   use meds_kinds,          only : wp, ik
-   use meds_config,         only : meds_config_t, derive_parameters
-   use meds_polygon_state_vars,        only : polygon_t
-   use meds_init_bare_ground, only : init_bare_ground, add_cohort, finalize_init
-   use meds_slow_update, only : fuse_patches, terminate_patches, sort_patches, patch_light_profile
-   use meds_output_reduce, only : total_nplant, total_area
-   use meds_cohort_state_vars, only : cohort_film_water
-   use meds_test_support, only : banner, build_test_config, check, check_close
+   use ed_kinds,            only : wp, ik
+   use ed_config,           only : ed_config_t, derive_parameters
+   use ed_polygon_state_vars,        only : polygon_t
+   use ed_init_bare_ground, only : init_bare_ground, add_cohort, finalize_init
+   use ed_slow_update, only : fuse_patches, terminate_patches, sort_patches, patch_light_profile
+   use ed_output_reduce, only : total_nplant, total_area
+   use ed_cohort_state_vars, only : cohort_film_water
+   use ed_test_support, only : banner, build_test_config, check, check_close
    implicit none
    private
 
    public :: run_patch_operators
 
-   type(meds_config_t) :: cfg
+   type(ed_config_t) :: cfg
    type(polygon_t)  :: poly
    real(wp)            :: n0, w_before, w_after, cas_before, cas_after, davg, film0
    real(wp), allocatable :: light1(:), light2(:)
@@ -930,20 +930,20 @@ end module test_slow_update_patches
 ! layer's potential, not a global constant.                                                !
 !==========================================================================================!
 module test_slow_update_birth
-   use meds_kinds,              only : wp, ik
-   use meds_config,             only : meds_config_t
-   use meds_polygon_state_vars, only : polygon_t
-   use meds_patch_state_vars,   only : patch_physical_state
-   use meds_soil_derive,        only : top_soil_psi
-   use meds_cohort_state_vars,  only : init_cohort, expand_cohort_block
-   use meds_plant_hydr_lib,     only : water_curve_t, tissue_water_to_psi
-   use meds_init_bare_ground,   only : init_bare_ground, add_cohort, finalize_init
-   use meds_test_support,       only : banner, build_test_config, check, check_close
+   use ed_kinds,                only : wp, ik
+   use ed_config,               only : ed_config_t
+   use ed_polygon_state_vars,   only : polygon_t
+   use ed_patch_state_vars,     only : patch_physical_state
+   use ed_soil_derive,          only : top_soil_psi
+   use ed_cohort_state_vars,    only : init_cohort, expand_cohort_block
+   use ed_plant_hydr_lib,       only : water_curve_t, tissue_water_to_psi
+   use ed_init_bare_ground,     only : init_bare_ground, add_cohort, finalize_init
+   use ed_test_support,         only : banner, build_test_config, check, check_close
    implicit none
    private
 
    public :: run_birth_state
-   type(meds_config_t) :: cfg
+   type(ed_config_t)   :: cfg
    type(polygon_t)     :: poly
 
 contains
@@ -994,17 +994,17 @@ end module test_slow_update_birth
 ! carbon reaches the soil with the next step (docs/science/conservation.md §3, §5).        !
 !==========================================================================================!
 module test_slow_update_ledger
-   use meds_kinds,              only : wp, ik
-   use meds_config,             only : meds_config_t
-   use meds_polygon_state_vars, only : polygon_t, patch_polygon_area
-   use meds_biogeochem_params,  only : N_SOIL_POOL
-   use meds_init_bare_ground,   only : init_bare_ground, add_cohort, finalize_init
-   use meds_slow_dynamics,      only : advance_boundary_dynamics, advance_slow_dynamics
-   use meds_slow_ledger,        only : slow_ledger_t, slow_ledger_open, slow_ledger_failures,             &
+   use ed_kinds,                only : wp, ik
+   use ed_config,               only : ed_config_t
+   use ed_polygon_state_vars,   only : polygon_t, patch_polygon_area
+   use ed_biogeochem_params,    only : N_SOIL_POOL
+   use ed_init_bare_ground,     only : init_bare_ground, add_cohort, finalize_init
+   use ed_slow_dynamics,        only : advance_boundary_dynamics, advance_slow_dynamics
+   use ed_slow_ledger,          only : slow_ledger_t, slow_ledger_open, slow_ledger_failures,             &
                                        litter_carbon_total, SLOW_PHASE_ALLOCATE, SLOW_PHASE_GROW,         &
                                        SLOW_PHASE_RECRUIT, SLOW_PHASE_COHORT, SLOW_PHASE_DISTURB,         &
                                        SLOW_PHASE_PATCH, SLOW_PHASE_CANOPY, SLOW_PHASE_SOILC
-   use meds_test_support,       only : banner, build_test_config, check
+   use ed_test_support,         only : banner, build_test_config, check
    implicit none
    private
 
@@ -1020,7 +1020,7 @@ contains
       character(len=8), parameter :: BOUNDARY_NAME(5) = [character(len=8) :: 'recruit', 'cohort', 'disturb',  &
                                                          'patch', 'canopy']
       character(len=8), parameter :: STEP_NAME(4) = [character(len=8) :: 'allocate', 'grow', 'canopy', 'soilc']
-      type(meds_config_t) :: cfg
+      type(ed_config_t)   :: cfg
       type(polygon_t)     :: poly
       type(slow_ledger_t) :: led
       integer(ik), allocatable :: patch_id0(:), cohort_id0(:)
@@ -1117,7 +1117,7 @@ contains
 end module test_slow_update_ledger
 
 !==========================================================================================!
-! test_slow_update -- the operators of meds_slow_update, the one writer of the stand's     !
+! test_slow_update -- the operators of ed_slow_update, the one writer of the stand's       !
 ! carbon and structure (docs/science/demography.md §2-§4): the commit, cohort fusion and   !
 ! fission, the treefall gaps, patch fusion and termination, a recruit's birth state, and   !
 ! the restructuring through the slow ledger with soil carbon on. One module per section.   !
@@ -1129,7 +1129,7 @@ program test_slow_update
    use test_slow_update_patches, only : run_patch_operators
    use test_slow_update_birth, only : run_birth_state
    use test_slow_update_ledger, only : run_restructure_ledger
-   use meds_test_support, only : test_report
+   use ed_test_support, only : test_report
    implicit none
 
    call run_commit()

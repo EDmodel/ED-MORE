@@ -1,8 +1,8 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! test_pft_config -- the PFT file's loader (load_meds_config's PFT half) and the per-PFT   !
+! test_pft_config -- the PFT file's loader (load_ed_config's PFT half) and the per-PFT     !
 ! tables derive_parameters builds from it.                                                 !
-!   1. THE SHIPPED FILE: meds_config_pft.toml, loaded through meds_config_main.toml, gives  !
+!   1. THE SHIPPED FILE: ed_config_pft.toml, loaded through ed_config_main.toml, gives      !
 !      as many PFTs as wood_density lists; each [pft] optics key and each [hydraulics] key  !
 !      reaches every PFT's field (one value broadcast, or one per PFT), and the two-stream  !
 !      table holds each shipped PFT's optics.                                               !
@@ -21,32 +21,32 @@
 ! compiles. The same holds for the per-PFT hydraulics, down to a cohort's water at birth   !
 ! and the slow tier's shed of water above capacity.                                       !
 !                                                                                          !
-! It runs from the source tree, where meds_config_main.toml names meds_config_pft.toml,    !
+! It runs from the source tree, where ed_config_main.toml names ed_config_pft.toml,        !
 ! and writes only into the directory its first argument names.                             !
 !==========================================================================================!
 program test_pft_config
-   use meds_kinds,          only : wp, ik
-   use meds_config,         only : meds_config_t, derive_parameters
-   use meds_pft_derive,     only : pft_leaf_psi_tlp
-   use meds_config_io,      only : load_meds_config, write_pft_params_csv
-   use meds_toml,           only : toml_table_t, toml_parse_file, toml_has, toml_is_array, toml_real, toml_real_array
-   use meds_pft_params,     only : hydraulics_table_t, RAD_VIS, RAD_NIR, RAD_LW
-   use meds_constants,      only : stefan_boltzmann
-   use meds_met_types,      only : met_forcing_t
-   use meds_fast_integ_types,     only : fast_static_state_t, fast_dynamic_state_t, fast_forcing_t,       &
+   use ed_kinds,            only : wp, ik
+   use ed_config,           only : ed_config_t, derive_parameters
+   use ed_pft_derive,       only : pft_leaf_psi_tlp
+   use ed_config_io,        only : load_ed_config, write_pft_params_csv
+   use ed_toml,             only : toml_table_t, toml_parse_file, toml_has, toml_is_array, toml_real, toml_real_array
+   use ed_pft_params,       only : hydraulics_table_t, RAD_VIS, RAD_NIR, RAD_LW
+   use ed_constants,        only : stefan_boltzmann
+   use ed_met_types,        only : met_forcing_t
+   use ed_fast_integ_types,     only : fast_static_state_t, fast_dynamic_state_t, fast_forcing_t,       &
                                    ensure_static_capacity, ensure_forcing_capacity
-   use meds_fast_forcing,   only : patch_forcing
-   use meds_plant_hydr_lib, only : conductance_retained_fraction, tissue_psi_tlp,  &
+   use ed_fast_forcing,     only : patch_forcing
+   use ed_plant_hydr_lib,   only : conductance_retained_fraction, tissue_psi_tlp,  &
                                    tissue_psi_to_water
-   use meds_polygon_state_vars, only : polygon_t
-   use meds_patch_state_vars, only : patch_physical_state
-   use meds_soil_params,    only : soil_profile_t
-   use meds_init_bare_ground, only : init_bare_ground, add_cohort, finalize_init
-   use meds_slow_state, only : shed_excess_tissue_water
-   use meds_test_support, only : banner, build_test_config, check, check_close
+   use ed_polygon_state_vars, only : polygon_t
+   use ed_patch_state_vars, only : patch_physical_state
+   use ed_soil_params,    only : soil_profile_t
+   use ed_init_bare_ground, only : init_bare_ground, add_cohort, finalize_init
+   use ed_slow_state, only : shed_excess_tissue_water
+   use ed_test_support, only : banner, build_test_config, check, check_close
    implicit none
 
-   type(meds_config_t)  :: cfg
+   type(ed_config_t)  :: cfg
    real(wp) :: om1, om2
    character(len=1024) :: work_dir   !< where the CSV of section 6 is written
 
@@ -218,18 +218,18 @@ program test_pft_config
 
 contains
 
-   !----- 1. meds_config_main.toml and the PFT file it names, loaded as a run loads them, against  !
+   !----- 1. ed_config_main.toml and the PFT file it names, loaded as a run loads them, against    !
    !      the PFT file read on its own: the PFT count, every optics key of [pft] and every key of  !
    !      [hydraulics] for every PFT, and the two-stream table's optics for every PFT. ----------!
    subroutine test_shipped_pft_file()
-      type(meds_config_t) :: shipped
+      type(ed_config_t)   :: shipped
       type(toml_table_t)  :: t
       real(wp)    :: buf(64)
       integer(ik) :: n, ip
       logical     :: ok
-      call load_meds_config('meds_config_main.toml', shipped)
+      call load_ed_config('ed_config_main.toml', shipped)
       call toml_parse_file(trim(shipped%init%pft_config), t, ok)
-      call check(ok, 'the PFT file meds_config_main.toml names parses on its own')
+      call check(ok, 'the PFT file ed_config_main.toml names parses on its own')
       call toml_real_array(t, 'pft.wood_density', buf, n)
       call check(n > 1_ik .and. shipped%pft%n == n, 'the loader gives as many PFTs as pft.wood_density lists')
       associate (p => shipped%pft)
@@ -299,7 +299,7 @@ contains
          same = toml_has(t, key)
          if (same) same = all(loaded(1:npft) == toml_real(t, key, 0.0_wp))
       end if
-      call check(same, 'meds_config_pft.toml '//key//' did not reach every PFT')
+      call check(same, 'ed_config_pft.toml '//key//' did not reach every PFT')
    end subroutine check_key
 
    pure integer(ik) function count_fields(line) result(n)

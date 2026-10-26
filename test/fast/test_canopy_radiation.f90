@@ -1,6 +1,6 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! test_canopy_radiation -- the canopy two-stream (meds_canopy_radiation;                   !
+! test_canopy_radiation -- the canopy two-stream (ed_canopy_radiation;                     !
 ! docs/science/canopy_radiation_transfer.md).                                              !
 !                                                                                          !
 ! Checks the physical invariants that a correct two-stream must satisfy (canopy_radiation,   !
@@ -25,14 +25,14 @@
 ! The leaf-angle distribution and its moments are test_optics_lib's.                       !
 !==========================================================================================!
 program test_canopy_radiation
-   use meds_test_assert, only : check, check_true, test_report
-   use meds_kinds,          only : wp, ik
-   use meds_constants,      only : stefan_boltzmann
-   use meds_canopy_radiation, only : rad_env_t, rad_out_t, alloc_rad_env, ground_optics_env_t
-   use meds_pft_params,   only : rad_pft_optics_t, RAD_VIS, RAD_NIR, RAD_LW, N_RAD_BAND_DEFAULT
-   use meds_optics_lib,     only : gfun_direct
-   use meds_pft_derive,     only : derive_rad_optics, moments_to_beta_params
-   use meds_canopy_radiation, only : canopy_radiation, ground_optics, layer_beam_sources
+   use ed_test_assert, only : check, check_true, test_report
+   use ed_kinds,            only : wp, ik
+   use ed_constants,        only : stefan_boltzmann
+   use ed_canopy_radiation, only : rad_env_t, rad_out_t, alloc_rad_env, ground_optics_env_t
+   use ed_pft_params,   only : rad_pft_optics_t, RAD_VIS, RAD_NIR, RAD_LW, N_RAD_BAND_DEFAULT
+   use ed_optics_lib,       only : gfun_direct
+   use ed_pft_derive,       only : derive_rad_optics, moments_to_beta_params
+   use ed_canopy_radiation, only : canopy_radiation, ground_optics, layer_beam_sources
    implicit none
 
    real(wp), parameter :: TOL = 1.0e-9_wp

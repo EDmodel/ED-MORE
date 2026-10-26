@@ -1,6 +1,6 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! test_plant_traits -- unit tests for meds_plant_traits: the light-plasticity kernel       !
+! test_plant_traits -- unit tests for ed_plant_traits: the light-plasticity kernel         !
 ! (docs/science/plant_traits.md eqs. (1)-(2)) and the thermal acclimation of a leaf table  !
 ! (docs/science/leaf_gas_exchange.md §2, eq. (4)).                                         !
 !                                                                                          !
@@ -22,12 +22,12 @@
 !                      growth temperature alone.                                           !
 !==========================================================================================!
 program test_plant_traits
-   use meds_test_assert,  only : check_close, check_true, test_report
-   use meds_kinds,        only : wp, ik
-   use meds_constants,    only : t_kelvin
-   use meds_therm_lib,    only : peaked_arrhenius_scale
-   use meds_pft_params,   only : leaf_photo_table_t, PATH_C3
-   use meds_plant_traits, only : light_plastic_traits, update_plastic_trait, acclimate_leaf_photo_table
+   use ed_test_assert,    only : check_close, check_true, test_report
+   use ed_kinds,          only : wp, ik
+   use ed_constants,      only : t_kelvin
+   use ed_therm_lib,      only : peaked_arrhenius_scale
+   use ed_pft_params,     only : leaf_photo_table_t, PATH_C3
+   use ed_plant_traits,   only : light_plastic_traits, update_plastic_trait, acclimate_leaf_photo_table
    implicit none
 
    real(wp)    :: sla_t, vc_t, rd_t, turnover_t

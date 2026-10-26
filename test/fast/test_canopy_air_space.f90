@@ -1,6 +1,6 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! test_canopy_air_space -- the canopy-air box (meds_canopy_air_space;                      !
+! test_canopy_air_space -- the canopy-air box (ed_canopy_air_space;                        !
 ! docs/science/canopy_air_space_biophysics.md eqs. (1)-(2)), stepped by                    !
 ! cas_box_step_implicit.                                                                   !
 !   1. ENTHALPY (eq. (2)): each step solves the box's backward-Euler enthalpy balance, and !
@@ -11,11 +11,11 @@
 !      and respiration pushes it up.                                                       !
 !==========================================================================================!
 program test_canopy_air_space
-   use meds_test_assert,      only : check, check_true, test_report
-   use meds_kinds,            only : wp, ik
-   use meds_constants,        only : mmdry
-   use meds_therm_lib,        only : cas_temp_to_enthalpy, cas_enthalpy_to_temp
-   use meds_canopy_air_space, only : cas_env_t, cas_box_step_implicit
+   use ed_test_assert,        only : check, check_true, test_report
+   use ed_kinds,              only : wp, ik
+   use ed_constants,          only : mmdry
+   use ed_therm_lib,          only : cas_temp_to_enthalpy, cas_enthalpy_to_temp
+   use ed_canopy_air_space,   only : cas_env_t, cas_box_step_implicit
    implicit none
 
    call test_cas()

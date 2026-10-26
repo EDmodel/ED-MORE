@@ -1,6 +1,6 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! test_canopy_water -- the canopy's interception film (meds_canopy_water;                  !
+! test_canopy_water -- the canopy's interception film (ed_canopy_water;                    !
 ! docs/science/vegetation_energy_dynamics.md, "The canopy's interception film").           !
 !   1. INTERCEPTION (intercept_canopy_layer): a dry canopy fills below its capacity with   !
 !      no drip and an exact water balance; a full one drips, holds its capacity and is     !
@@ -8,9 +8,9 @@
 !      excess, and throughfall plus the change in storage is still the rain.               !
 !==========================================================================================!
 program test_canopy_water
-   use meds_test_assert,  only : check, check_true, test_report
-   use meds_kinds,        only : wp
-   use meds_canopy_water, only : intercept_canopy_layer
+   use ed_test_assert,    only : check, check_true, test_report
+   use ed_kinds,          only : wp
+   use ed_canopy_water,   only : intercept_canopy_layer
    implicit none
 
    call test_interception()

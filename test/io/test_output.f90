@@ -2,22 +2,22 @@
 !==========================================================================================!
 ! test_output -- the diagnostic output's netCDF-free half (src/io/output;                  !
 ! docs/science/diagnostics.md), one section per module:                                    !
-!   1. THE REGISTRY AND THE SELECTION (meds_output_registry: build_output_registry,         !
+!   1. THE REGISTRY AND THE SELECTION (ed_output_registry: build_output_registry,           !
 !      apply_selections, resolve_streams, glob_match, apply_variable_override,              !
 !      parse_stream_mask; §5): the registration list and its defaults, the io_config lines  !
 !      (names and patterns, the most specific winning), the axes' bookkeeping, the tier     !
 !      switches, the unknown-key trap, and the snapshot each state has.                     !
-!   2. THE REDUCTION (meds_output_reduce: reduce_cohort_to_polygon, reduce_cohort_to_patch, !
+!   2. THE REDUCTION (ed_output_reduce: reduce_cohort_to_polygon, reduce_cohort_to_patch,   !
 !      reduce_cohort_to_pft, reduce_cohort_to_size, reduce_patch_columns_to_sites,          !
 !      gather_patch_columns, dbh_class_index; §2 eqs. (1)-(3)): the weighted aggregation,   !
 !      extensive against intensive, the PFT and size-class closure, empty sets, unsampled   !
 !      cohorts, the class edges and the soil columns.                                       !
-!   3. THE EXTRACT (meds_output_extract: extract_variable, extract_fast_scalar): a          !
+!   3. THE EXTRACT (ed_output_extract: extract_variable, extract_fast_scalar): a            !
 !      variable's live slab or site value from the state, and a sub-step's row from the     !
 !      staging.                                                                             !
-!   4. THE INTEGRATION (meds_output_integrate: integrate_scalar, integrate_slab,            !
+!   4. THE INTEGRATION (ed_output_integrate: integrate_scalar, integrate_slab,              !
 !      normalize_scalar, normalize_slab, output_integrate_fast, close_tier,                 !
-!      output_integrate; with meds_output_setup's sizing; §4): the operators and the        !
+!      output_integrate; with ed_output_setup's sizing; §4): the operators and the          !
 !      zero-sample guard, a slab over a fixed-slot window, the FAST tier, a slab sized      !
 !      after the overrides, two polygons' buffers, the month boundary and the snapshots.    !
 !                                                                                          !
@@ -37,8 +37,8 @@
 ! aliasing blind spot); an opaque mutation defeats it, as production does.                    !
 !==========================================================================================!
 module test_output_support
-   use meds_kinds,              only : wp, ik
-   use meds_polygon_state_vars, only : polygon_t
+   use ed_kinds,                only : wp, ik
+   use ed_polygon_state_vars,   only : polygon_t
    implicit none
 contains
    !----- Opaque per-cohort agb setter (separate compilation scope; nvfortran cannot CSE across it). !
@@ -52,35 +52,35 @@ end module test_output_support
 
 program test_output
    use test_output_support,     only : set_cohort_agb
-   use meds_kinds,              only : wp, ik
-   use meds_config,             only : meds_config_t
-   use meds_constants,          only : n_soil_layer_max
-   use meds_polygon_state_vars, only : polygon_t, alloc_polygon, free_polygon, rebuild_patch_map
-   use meds_output_params,      only : FREQ_FAST, FREQ_DAILY, FREQ_MONTHLY, FREQ_ANNUAL, FREQ_NONE, N_FREQ
-   use meds_output_types,       only : output_registry_t, var_desc_t, integ_buffer_t, output_files_t,          &
+   use ed_kinds,                only : wp, ik
+   use ed_config,               only : ed_config_t
+   use ed_constants,            only : n_soil_layer_max
+   use ed_polygon_state_vars,   only : polygon_t, alloc_polygon, free_polygon, rebuild_patch_map
+   use ed_output_params,        only : FREQ_FAST, FREQ_DAILY, FREQ_MONTHLY, FREQ_ANNUAL, FREQ_NONE, N_FREQ
+   use ed_output_types,         only : output_registry_t, var_desc_t, integ_buffer_t, output_files_t,          &
                                        output_buffers_t, diag_setup_t, slab_col, MAX_OUTPUT_VARS,               &
                                        MISSING_VALUE, AGG_MEAN, AGG_RATE, AGG_LAST, AGG_TMEAN, DIM_SCALAR,      &
                                        DIM_COHORT, DIM_PATCH
-   use meds_output_registry,    only : build_output_registry, build_freq_index, find_var_index,                &
+   use ed_output_registry,      only : build_output_registry, build_freq_index, find_var_index,                &
                                        apply_variable_override, parse_stream_mask, selection_t,                 &
                                        apply_selections, resolve_streams, glob_match, OVR_TRUE, OVR_FALSE,      &
                                        OVR_MASK
-   use meds_output_reduce,      only : reduce_cohort_to_polygon, reduce_cohort_to_patch, reduce_cohort_to_pft,  &
+   use ed_output_reduce,        only : reduce_cohort_to_polygon, reduce_cohort_to_patch, reduce_cohort_to_pft,  &
                                        reduce_cohort_to_size, reduce_patch_columns_to_sites,                    &
                                        gather_patch_columns, dbh_class_index, W_NONE, W_NPLANT, W_LEAF_AREA,    &
                                        W_BASAL_AREA, total_agb, total_lai, total_nplant
-   use meds_output_extract,     only : extract_variable, extract_fast_scalar, FLD_C_AGB, FLD_C_DIAG0,           &
+   use ed_output_extract,       only : extract_variable, extract_fast_scalar, FLD_C_AGB, FLD_C_DIAG0,           &
                                        SRC_F_PA0, SRC_F_PY0, SRC_F_CO0, SRC_NONE
-   use meds_output_integrate,   only : alloc_integ_buffer, reset_buffer, integrate_scalar, integrate_slab,      &
+   use ed_output_integrate,     only : alloc_integ_buffer, reset_buffer, integrate_scalar, integrate_slab,      &
                                        normalize_scalar, normalize_slab, output_integrate_fast, close_tier,     &
                                        output_integrate
-   use meds_output_setup,       only : alloc_output_set, alloc_output_buffers, setup_output_files,              &
+   use ed_output_setup,         only : alloc_output_set, alloc_output_buffers, setup_output_files,              &
                                        finalize_output_files
-   use meds_diag_vars,          only : alloc_cohort_diag, CO_LEAF_TEMP, CO_GSW, N_PY_ROWS, PY_TAIR, PY_CO2,      &
+   use ed_diag_vars,            only : alloc_cohort_diag, CO_LEAF_TEMP, CO_GSW, N_PY_ROWS, PY_TAIR, PY_CO2,      &
                                        N_PA_ROWS, N_CO_FAST_ROWS, PA_CAS_TEMP, PA_LE, PA_H, PA_GPP, PA_SW_UP,   &
                                        PA_LW_UP, PA_CAS_CO2
-   use meds_time,               only : meds_time_t, time_advance_days
-   use meds_test_support,       only : banner, build_test_config, test_pft_table, check, check_close
+   use ed_time,                 only : ed_time_t, time_advance_days
+   use ed_test_support,         only : banner, build_test_config, test_pft_table, check, check_close
    implicit none
 
    call banner('output')
@@ -112,13 +112,13 @@ program test_output
 contains
 
    !=======================================================================================!
-   !  1. THE REGISTRY AND THE SELECTION (meds_output_registry; docs/science/diagnostics.md   !
+   !  1. THE REGISTRY AND THE SELECTION (ed_output_registry; docs/science/diagnostics.md     !
    !  §5): build_output_registry's list and defaults, then the io_config lines through        !
    !  apply_selections and resolve_streams, the tier switches, apply_variable_override and   !
    !  parse_stream_mask.                                                                     !
    !=======================================================================================!
    subroutine test_registry()
-      type(meds_config_t)     :: cfg
+      type(ed_config_t)       :: cfg
       type(output_registry_t) :: reg
       integer(ik)             :: mask, status
       character(len=8)        :: bad
@@ -255,7 +255,7 @@ contains
    !      default, and a flux or a rate none; a slow-step state's snapshot reads the state, a fast-loop    !
    !      state's the staging; and a fast-loop row is staged, so it may be on the F tier. ----------------!
    subroutine test_snapshot_registry()
-      type(meds_config_t)  :: cfg
+      type(ed_config_t)    :: cfg
       type(output_files_t) :: files
       integer(ik) :: k
       cfg = build_test_config(86400.0_wp)
@@ -291,7 +291,7 @@ contains
    !----- The registry from the config, with these io_config lines applied. -------------------!
    subroutine choose(reg, cfg, sel)
       type(output_registry_t), intent(inout) :: reg
-      type(meds_config_t),     intent(in)    :: cfg
+      type(ed_config_t),       intent(in)    :: cfg
       type(selection_t),       intent(in)    :: sel(:)
       call build_output_registry(reg, cfg)
       call apply_selections(reg, sel)
@@ -339,7 +339,7 @@ contains
    end function in_tier
 
    !=======================================================================================!
-   !  2. THE REDUCTION (meds_output_reduce; docs/science/diagnostics.md §2, eqs. (1)-(3)).   !
+   !  2. THE REDUCTION (ed_output_reduce; docs/science/diagnostics.md §2, eqs. (1)-(3)).     !
    !=======================================================================================!
 
    !----- Two patches, three cohorts, deliberately unequal nplant / basal_area so that a SUM, a  !
@@ -628,7 +628,7 @@ contains
    end subroutine test_soil_columns
 
    !=======================================================================================!
-   !  3. THE EXTRACT (meds_output_extract).                                                  !
+   !  3. THE EXTRACT (ed_output_extract).                                                    !
    !=======================================================================================!
 
    !----- A fixed 3-cohort / 1-patch site (slot set constant across a window), agb 1, 2, 3. ----!
@@ -731,7 +731,7 @@ contains
    end subroutine test_fast_extract
 
    !=======================================================================================!
-   !  4. THE INTEGRATION (meds_output_integrate, with meds_output_setup's sizing;            !
+   !  4. THE INTEGRATION (ed_output_integrate, with ed_output_setup's sizing;                !
    !  docs/science/diagnostics.md §4).                                                       !
    !=======================================================================================!
 
@@ -832,7 +832,7 @@ contains
    !      close_tier(1) -> TMEAN in pending(1), across the scalar, soil-column, and per-cohort     !
    !      slab paths. netCDF-free; mirrors what main's replay loop does.  -------------------------!
    subroutine test_fast_tier()
-      type(meds_config_t)    :: cfg
+      type(ed_config_t)      :: cfg
       type(output_files_t)   :: files
       type(output_buffers_t) :: bufs
       integer(ik) :: k_cas, k_soil, k_air, k_hgt, k_cas_p, k_soil_p, nl, c_soil, c_hgt, c_cas_p, c_soil_p
@@ -916,7 +916,7 @@ contains
    !      slab variable setup left off, then finalize_output_files and alloc_output_buffers. The slab must !
    !      hold every soil layer, read from the QUEUED record through slab_col, as the writer reads it. !
    subroutine test_slab_sized_after_overrides()
-      type(meds_config_t)    :: cfg
+      type(ed_config_t)      :: cfg
       type(output_files_t)   :: files
       type(output_buffers_t) :: bufs
       integer(ik) :: k, c, i, nl, n_live_slab
@@ -962,7 +962,7 @@ contains
    !      is patch-major, so it holds nslab / n_soil_layer_max patches. If only a DIM_PATCH         !
    !      variable set the count, such a record would write one patch and every value as fill. ---!
    subroutine test_soil_patch_record()
-      type(meds_config_t)    :: cfg
+      type(ed_config_t)      :: cfg
       type(output_files_t)   :: files
       type(output_buffers_t) :: bufs
       integer(ik) :: k, nl
@@ -993,7 +993,7 @@ contains
    !      one leaves the other's window open. Folds are interleaved the way a region's month     !
    !      loop would interleave its polygons. ---------------------------------------------------!
    subroutine test_two_buffers()
-      type(meds_config_t)    :: cfg
+      type(ed_config_t)      :: cfg
       type(output_files_t)   :: files
       type(output_buffers_t) :: a, b
       integer(ik) :: k_cas
@@ -1027,11 +1027,11 @@ contains
    !      (the next step's start), so January's cohort slab holds one slot set, and February opens on  !
    !      1 February with the new one. -----------------------------------------------------------!
    subroutine test_boundary_step()
-      type(meds_config_t)    :: cfg
+      type(ed_config_t)      :: cfg
       type(output_files_t)   :: files
       type(output_buffers_t) :: bufs
       type(polygon_t)        :: poly
-      type(meds_time_t)      :: jan30, jan31, feb1
+      type(ed_time_t)        :: jan30, jan31, feb1
       integer(ik) :: k_s, k_c, k_n, c_c
       real(wp), parameter :: DT = 86400.0_wp
       cfg = build_test_config(DT)
@@ -1051,7 +1051,7 @@ contains
       poly%patch%n = 1_ik
       poly%patch%area(1) = 1.0_wp
       poly%patch%cohort_offset(1) = 1_ik
-      jan30 = meds_time_t(year=2000_ik, month=1_ik, day=30_ik)
+      jan30 = ed_time_t(year=2000_ik, month=1_ik, day=30_ik)
       jan31 = time_advance_days(jan30, 1_ik)
       feb1  = time_advance_days(jan31, 1_ik)
 
@@ -1092,11 +1092,11 @@ contains
    !      reduced as its mean is (leaf_temp_py, leaf-area-weighted); a step with nothing staged     !
    !      reads as fill. F: a snapshot keeps the last sub-step where its mean averages them. ------!
    subroutine test_snapshots()
-      type(meds_config_t)    :: cfg
+      type(ed_config_t)      :: cfg
       type(output_files_t)   :: files
       type(output_buffers_t) :: bufs
       type(polygon_t)        :: poly
-      type(meds_time_t)      :: day1
+      type(ed_time_t)        :: day1
       integer(ik) :: k_t, k_tp, k_r, k_lt, k_m, c_tp
       logical     :: found
       real(wp), parameter :: DT = 86400.0_wp
@@ -1144,7 +1144,7 @@ contains
       call check_close(bufs%pending(1)%sval(k_t), 294.0_wp, 1.0e-12_wp, 'F: the snapshot keeps the last sub-step')
       call check_close(bufs%pending(1)%sval(k_m), 292.0_wp, 1.0e-12_wp, 'F: the mean averages them')
 
-      day1 = meds_time_t(year=2000_ik, month=1_ik, day=1_ik)
+      day1 = ed_time_t(year=2000_ik, month=1_ik, day=1_ik)
       call output_integrate(files, bufs, poly, day1, DT, .true., .false., .false.)
       call check_close(bufs%pending(2)%sval(k_t), 294.0_wp, 1.0e-12_wp, 'D: a polygon value''s last sub-step')
       c_tp = slab_col(bufs%pending(2), k_tp)

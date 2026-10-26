@@ -1,6 +1,6 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! meds_test_fast_fixture -- the column the fast integrator's tests run on, assembled the  !
+! ed_test_fast_fixture -- the column the fast integrator's tests run on, assembled the    !
 ! way a run assembles one, and the helpers they share.                                     !
 !   * make_fast_column: the in-code config (build_test_config) with the test soil, a 2 m   !
 !     loam in 10 geometric layers; the site's surface made from it (make_site_surface);    !
@@ -22,28 +22,28 @@
 !     canopy-air conductances held, no water flowing, so a closed form or an observed order !
 !     can be read from the right-hand side.                                                !
 !==========================================================================================!
-module meds_test_fast_fixture
-   use meds_kinds,             only : wp, ik
-   use meds_constants,         only : rho_h2o, cp_air, stefan_boltzmann, tissue_c_leaf, tissue_c_wood_dry
-   use meds_config,            only : meds_config_t
-   use meds_time,              only : meds_time_t, solar_cosz
-   use meds_therm_lib,         only : cas_temp_to_enthalpy, temp_to_internal_energy, tissue_temp_to_energy,       &
+module ed_test_fast_fixture
+   use ed_kinds,               only : wp, ik
+   use ed_constants,           only : rho_h2o, cp_air, stefan_boltzmann, tissue_c_leaf, tissue_c_wood_dry
+   use ed_config,              only : ed_config_t
+   use ed_time,                only : ed_time_t, solar_cosz
+   use ed_therm_lib,           only : cas_temp_to_enthalpy, temp_to_internal_energy, tissue_temp_to_energy,       &
                                       tissue_dry_heat_capacity
-   use meds_soil_params,       only : soil_params_t
-   use meds_soil_hydr_lib,     only : SOIL_RETENTION_VG
-   use meds_site_state_vars,   only : site_surface_t, make_site_surface
-   use meds_plant_hydr_lib,    only : tissue_psi_to_water
-   use meds_pft_params,        only : hydraulics_table_t
-   use meds_fast_state,        only : static_state_fixture
-   use meds_fast_integ_types,  only : fast_static_state_t, fast_dynamic_state_t, fast_forcing_t, fast_output_t,   &
+   use ed_soil_params,         only : soil_params_t
+   use ed_soil_hydr_lib,       only : SOIL_RETENTION_VG
+   use ed_site_state_vars,     only : site_surface_t, make_site_surface
+   use ed_plant_hydr_lib,      only : tissue_psi_to_water
+   use ed_pft_params,          only : hydraulics_table_t
+   use ed_fast_state,          only : static_state_fixture
+   use ed_fast_integ_types,    only : fast_static_state_t, fast_dynamic_state_t, fast_forcing_t, fast_output_t,   &
                                       fast_workspace_t, step_report_t, march_state_t, frozen_t, error_control_t,  &
                                       alloc_dynamic_state, ensure_forcing_capacity, ensure_output_capacity
-   use meds_fast_integ_control, only : build_error_control
-   use meds_fast_integ_frozen, only : build_frozen, record_water_flows
-   use meds_fast_integ_backward_euler, only : water_step
-   use meds_fast_integ_stepper, only : fast_step
-   use meds_test_soil_grid,    only : geometric_layer_bottoms
-   use meds_test_support,      only : build_test_config
+   use ed_fast_integ_control, only : build_error_control
+   use ed_fast_integ_frozen, only : build_frozen, record_water_flows
+   use ed_fast_integ_backward_euler, only : water_step
+   use ed_fast_integ_stepper, only : fast_step
+   use ed_test_soil_grid,      only : geometric_layer_bottoms
+   use ed_test_support,        only : build_test_config
    implicit none
    private
 
@@ -67,12 +67,12 @@ module meds_test_fast_fixture
    real(wp),    parameter :: THETA0 = 0.30_wp             !< [m3/m3] the soil's starting water content
    real(wp),    parameter :: LAT    = 40.0_wp             !< [deg N]
    real(wp),    parameter :: SHV_AIR = 0.008_wp           !< [kg/kg] the air's humidity
-   type(meds_time_t), parameter :: SIM_DATE = meds_time_t(2001_ik, 6_ik, 21_ik)
+   type(ed_time_t), parameter :: SIM_DATE = ed_time_t(2001_ik, 6_ik, 21_ik)
    real(wp),    parameter :: PSI_START = -0.1_wp          !< [MPa] the tissues' starting potential, a mild tension
 
    !----- Everything one fast step takes, as a run holds it for a patch. --------------------------!
    type :: fast_column_t
-      type(meds_config_t)        :: cfg
+      type(ed_config_t)          :: cfg
       type(site_surface_t)       :: site      !< the column's soil and its boundaries
       type(fast_static_state_t)  :: static    !< the cohort, the canopy geometry and its top
       type(fast_dynamic_state_t) :: dynamic
@@ -91,7 +91,7 @@ contains
       col%cfg%dt_fast         = DT_FAST          ! the column's step, not the fixture's shipped 900 s
       col%cfg%n_fast_per_slow = STEPS_PER_DAY
       !----- The test soil: the loam these checks were computed on, in geometric layers that thicken !
-      !      with depth (meds_test_soil_grid), given as an explicit list of bottoms. ----------------!
+      !      with depth (ed_test_soil_grid), given as an explicit list of bottoms. ----------------  !
       col%cfg%soil = soil_params_t()
       col%cfg%soil%depth       = 2.0_wp
       col%cfg%soil%retention   = SOIL_RETENTION_VG
@@ -385,4 +385,4 @@ contains
       end do
    end subroutine kernel_record
 
-end module meds_test_fast_fixture
+end module ed_test_fast_fixture

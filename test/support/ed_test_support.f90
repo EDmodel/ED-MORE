@@ -1,20 +1,20 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! meds_test_support -- the in-code test CONFIGURATION fixture, plus a re-export of the      !
+! ed_test_support -- the in-code test CONFIGURATION fixture, plus a re-export of the        !
 ! assertion helpers so a test needs one `use` rather than two. The assertions themselves live !
-! in meds_test_assert, which depends on nothing but a kind; see that module for why, and for  !
+! in ed_test_assert, which depends on nothing but a kind; see that module for why, and for    !
 ! the two assertion families (fatal and accumulating).                                     !
 !==========================================================================================!
-module meds_test_support
-   use meds_kinds,      only : wp, ik
-   use meds_constants,  only : day_sec
-   use meds_time,       only : meds_time_t
-   use meds_pft_params, only : pft_table_t, PATH_C3, PATH_C4
-   use meds_config,     only : meds_config_t, derive_parameters, INIT_BARE, alloc_pft_table
-   use meds_fast_params,  only : INTEG_ESDIRK2
-   use meds_leaf_params,   only : SM_MEDLYN, COLIM_QUADRATIC
-   use meds_therm_lib,     only : TEMP_RESPONSE_PEAKED
-   use meds_test_assert, only : check, check_close, check_true, check_int, banner,             &
+module ed_test_support
+   use ed_kinds,        only : wp, ik
+   use ed_constants,    only : day_sec
+   use ed_time,         only : ed_time_t
+   use ed_pft_params,   only : pft_table_t, PATH_C3, PATH_C4
+   use ed_config,       only : ed_config_t, derive_parameters, INIT_BARE, alloc_pft_table
+   use ed_fast_params,  only : INTEG_ESDIRK2
+   use ed_leaf_params,     only : SM_MEDLYN, COLIM_QUADRATIC
+   use ed_therm_lib,       only : TEMP_RESPONSE_PEAKED
+   use ed_test_assert,   only : check, check_close, check_true, check_int, banner,             &
                                 test_report, test_reset, test_failures
    implicit none
    private
@@ -29,7 +29,7 @@ contains
    !---------------------------------------------------------------------------------------!
    ! The tests' configuration FIXTURE: a complete configuration built in code, so that     !
    ! no test reads a TOML file. Every value it sets is the shipped config's                !
-   ! (meds_config_main.toml, meds_config_pft.toml), dt_fast (900 s) and                    !
+   ! (ed_config_main.toml, ed_config_pft.toml), dt_fast (900 s) and                        !
    ! growth_memory_days (365 days) among them, except on purpose:                          !
    !   * no files: the start is bare ground from no census, and nothing is written;        !
    !   * allometry and hydraulics differ by PFT. Where the PFT file gives one value        !
@@ -46,15 +46,15 @@ contains
    !---------------------------------------------------------------------------------------!
    function build_test_config(dt_slow) result(cfg)
       real(wp), intent(in), optional :: dt_slow
-      type(meds_config_t)            :: cfg
+      type(ed_config_t)              :: cfg
 
       cfg%dt_slow = day_sec
       if (present(dt_slow)) cfg%dt_slow = dt_slow
       cfg%fast_biophysics_on = .false.
       cfg%dt_fast            = 900.0_wp
       cfg%time_integrator    = INTEG_ESDIRK2
-      cfg%start_time = meds_time_t(2000_ik, 1_ik, 1_ik)
-      cfg%end_time   = meds_time_t(2250_ik, 1_ik, 1_ik)
+      cfg%start_time = ed_time_t(2000_ik,   1_ik, 1_ik)
+      cfg%end_time   = ed_time_t(2250_ik,   1_ik, 1_ik)
       cfg%demography%demography_on = .true.
       cfg%demography%recruitment_on = .true.
       cfg%demography%cohort_fusion_on = .true.
@@ -235,9 +235,9 @@ contains
    !----- The test configuration's PFT table, for a fixture site that has no config of its own. --!
    function test_pft_table() result(pft)
       type(pft_table_t)   :: pft
-      type(meds_config_t) :: cfg
+      type(ed_config_t)   :: cfg
       cfg = build_test_config()
       pft = cfg%pft
    end function test_pft_table
 
-end module meds_test_support
+end module ed_test_support

@@ -1,6 +1,6 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! test_canopy_aerodynamics -- the canopy's turbulent exchange (meds_canopy_aerodynamics;   !
+! test_canopy_aerodynamics -- the canopy's turbulent exchange (ed_canopy_aerodynamics;     !
 ! docs/science/canopy_aerodynamics.md §2-§4, eqs. (3), (7)-(11)).                          !
 !   1. NEUTRAL (mo_surface_layer): with the air and the canopy air alike, u* and the       !
 !      scalar factor are the log law's, kappa u / ln(zldis/z0m) and kappa / ln(zldis/z0m), !
@@ -41,16 +41,16 @@
 !      own state the re-solve gives what cas_atm_conductances makes of the kernel's u*.    !
 !==========================================================================================!
 program test_canopy_aerodynamics
-   use meds_test_assert,         only : check, check_true, test_report
-   use meds_kinds,               only : wp, ik
-   use meds_constants,           only : von_karman, mmdry
-   use meds_biophysics_params,   only : aero_params_t
-   use meds_therm_lib,           only : cas_molar_density
-   use meds_canopy_aerodynamics, only : aero_env_t, aero_args_t, aero_out_t, ensure_aero_out_capacity,          &
+   use ed_test_assert,           only : check, check_true, test_report
+   use ed_kinds,                 only : wp, ik
+   use ed_constants,             only : von_karman, mmdry
+   use ed_biophysics_params,     only : aero_params_t
+   use ed_therm_lib,             only : cas_molar_density
+   use ed_canopy_aerodynamics,   only : aero_env_t, aero_args_t, aero_out_t, ensure_aero_out_capacity,          &
                                         canopy_aerodynamics, mo_surface_layer, open_canopy_fraction,             &
                                         set_aero_env_atm, set_aero_env_canopy, canopy_burial_fraction,          &
                                         canopy_roughness, canopy_air_conductances, cas_atm_conductances
-   use meds_numerics,            only : ascending_order
+   use ed_numerics,              only : ascending_order
    implicit none
 
    call test_neutral()

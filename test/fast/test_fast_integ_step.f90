@@ -1,6 +1,6 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! test_fast_integ_step -- one fast step of a column, end to end (meds_fast_integ_stepper:  !
+! test_fast_integ_step -- one fast step of a column, end to end (ed_fast_integ_stepper:    !
 ! fast_step; docs/science/numerical_scheme.md §2-§5), on the shared fast fixture: the      !
 ! frozen record, the water network's step, the march under ESDIRK2 or RK45, the update and !
 ! the seven ledgers. A scenario that both schemes take runs on both.                       !
@@ -35,26 +35,26 @@
 ! march are test_fast_integ_schemes'.                                                       !
 !==========================================================================================!
 program test_fast_integ_step
-   use meds_kinds,              only : wp, ik
-   use meds_constants,          only : latent_heat_fusion, rho_h2o, grav, pio4, cp_liq, grav_head, mmh2o,          &
+   use ed_kinds,                only : wp, ik
+   use ed_constants,            only : latent_heat_fusion, rho_h2o, grav, pio4, cp_liq, grav_head, mmh2o,          &
                                        tissue_c_wood_dry, tissue_c_leaf
-   use meds_fast_params,        only : INTEG_ESDIRK2, INTEG_RK45, RK45_RTOL
-   use meds_time,               only : solar_cosz
-   use meds_therm_lib,          only : temp_to_internal_energy, internal_energy_liquid, sat_specific_humidity,     &
+   use ed_fast_params,          only : INTEG_ESDIRK2, INTEG_RK45, RK45_RTOL
+   use ed_time,                 only : solar_cosz
+   use ed_therm_lib,            only : temp_to_internal_energy, internal_energy_liquid, sat_specific_humidity,     &
                                        tissue_temp_to_energy, tissue_dry_heat_capacity
-   use meds_soil_hydr_lib,      only : SOIL_RETENTION_CAMPBELL, SOIL_SPECIFIC_STORAGE, soil_theta_to_head
-   use meds_soil_params,        only : soil_params_t, SOIL_BC_DRAIN, SOIL_BC_AQUIFER
-   use meds_site_state_vars,    only : make_site_surface
-   use meds_diag_vars,          only : CO_PSI_PREDAWN, CO_TRANSP
-   use meds_plant_hydr_lib,     only : tissue_water_to_psi
-   use meds_fast_state,         only : derive_cohort_terms
-   use meds_fast_integ_types,   only : frozen_t, march_state_t, ensure_output_capacity, WORK_RK45_RESCUE,          &
+   use ed_soil_hydr_lib,        only : SOIL_RETENTION_CAMPBELL, SOIL_SPECIFIC_STORAGE, soil_theta_to_head
+   use ed_soil_params,          only : soil_params_t, SOIL_BC_DRAIN, SOIL_BC_AQUIFER
+   use ed_site_state_vars,      only : make_site_surface
+   use ed_diag_vars,            only : CO_PSI_PREDAWN, CO_TRANSP
+   use ed_plant_hydr_lib,       only : tissue_water_to_psi
+   use ed_fast_state,           only : derive_cohort_terms
+   use ed_fast_integ_types,     only : frozen_t, march_state_t, ensure_output_capacity, WORK_RK45_RESCUE,          &
                                        WORK_INTEG_STEPS
-   use meds_test_fast_fixture,  only : fast_column_t, make_fast_column, gather_column, reset_column, step_column,  &
+   use ed_test_fast_fixture,    only : fast_column_t, make_fast_column, gather_column, reset_column, step_column,  &
                                        set_diurnal_forcing, set_noon_forcing, set_coldsnap_forcing, set_air,        &
                                        set_ground_tiles, frozen_record, all_ledgers_closed, NSL, DT_FAST,           &
                                        STEPS_PER_HOUR, STEPS_PER_DAY, T0, THETA0, LAT, SIM_DATE, SHV_AIR
-   use meds_test_assert,        only : check, check_true, test_report
+   use ed_test_assert,          only : check, check_true, test_report
    implicit none
 
    integer(ik), parameter :: SCHEMES(2) = [INTEG_ESDIRK2, INTEG_RK45]

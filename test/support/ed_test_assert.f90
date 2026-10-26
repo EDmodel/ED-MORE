@@ -1,12 +1,12 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! meds_test_assert -- the shared assertion helpers for the CTest programs.                 !
+! ed_test_assert -- the shared assertion helpers for the CTest programs.                   !
 !                                                                                          !
-! SEPARATE from meds_test_support on purpose. `build_test_config` needs the config, PFT and !
+! SEPARATE from ed_test_support on purpose. `build_test_config` needs the config, PFT and   !
 ! demography layers; assertions need nothing but a kind. Many tests deliberately link one     !
-! narrow library each (`meds_share`, `meds_config`, `meds_fast_kernels`, `meds_met`) to    !
+! narrow library each (`ed_share`, `ed_config`, `ed_fast_kernels`, `ed_met`) to            !
 ! keep those layers standalone-buildable, and they must be able to assert without dragging     !
-! the whole model in. That is why this module exists and why it uses meds_kinds only.           !
+! the whole model in. That is why this module exists and why it uses ed_kinds only.             !
 !                                                                                          !
 ! TWO assertion families, deliberately. They differ in FAILURE BEHAVIOUR, not just signature:  !
 !                                                                                          !
@@ -22,8 +22,8 @@
 ! in the fatal form and character in the accumulating form, which is what makes them              !
 ! distinguishable.                                                                         !
 !==========================================================================================!
-module meds_test_assert
-   use meds_kinds, only : wp, ik
+module ed_test_assert
+   use ed_kinds, only : wp, ik
    implicit none
    private
 
@@ -147,4 +147,4 @@ contains
       character(len=*), intent(in) :: name
       write(*,'(2a)') '[test] ', name
    end subroutine banner
-end module meds_test_assert
+end module ed_test_assert

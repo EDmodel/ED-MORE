@@ -1,7 +1,7 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
 ! test_plant_hydraulics -- how water moves through a cohort's plants                       !
-! (meds_plant_hydraulics; docs/science/plant_hydraulics.md §2-§4,                          !
+! (ed_plant_hydraulics; docs/science/plant_hydraulics.md §2-§4,                            !
 ! docs/science/soil_plant_water.md §1 and §4). The tissue curves and conductances it is    !
 ! built from are test_plant_hydr_lib's; the network that solves it is test_water_network's.!
 !   1. KIRCHHOFF (xylem_sapflow, kirchhoff_potential; eqs. (8)-(9)): the mean retained     !
@@ -26,14 +26,14 @@
 !      crown head; with leaves it reads the leaf curve.                                    !
 !==========================================================================================!
 program test_plant_hydraulics
-   use meds_test_assert,      only : check, check_true, test_report
-   use meds_kinds,            only : wp, ik
-   use meds_constants,        only : grav_head, pi
-   use meds_plant_hydr_lib,   only : conductance_retained_fraction, xylem_max_conductance, rhizosphere_conductance,  &
+   use ed_test_assert,        only : check, check_true, test_report
+   use ed_kinds,              only : wp, ik
+   use ed_constants,          only : grav_head, pi
+   use ed_plant_hydr_lib,     only : conductance_retained_fraction, xylem_max_conductance, rhizosphere_conductance,  &
                                      tissue_psi_to_water, tissue_water_to_psi, water_curve_t
-   use meds_pft_params,       only : hydraulics_pft_t, kirchhoff_table_t
-   use meds_pft_derive,       only : build_kirchhoff_table
-   use meds_plant_hydraulics, only : leaf_node_psi, kirchhoff_potential, xylem_sapflow, cohort_root_profile,       &
+   use ed_pft_params,         only : hydraulics_pft_t, kirchhoff_table_t
+   use ed_pft_derive,         only : build_kirchhoff_table
+   use ed_plant_hydraulics,   only : leaf_node_psi, kirchhoff_potential, xylem_sapflow, cohort_root_profile,       &
                                      root_water_uptake, supply_limited_transpiration
    implicit none
 

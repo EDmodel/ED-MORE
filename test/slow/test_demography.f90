@@ -1,6 +1,6 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! test_demography -- unit tests for the demographic laws (meds_demography;                 !
+! test_demography -- unit tests for the demographic laws (ed_demography;                   !
 ! docs/science/demography.md §1-§4). Each law is checked by a property it must have, not   !
 ! by its own formula typed again:                                                          !
 !   1. GROWTH        : the prospective rate inverts the wood allometry; no wood growth, no   !
@@ -16,10 +16,10 @@
 !                      height dies in the gap.                                              !
 !==========================================================================================!
 program test_demography
-   use meds_test_assert,   only : check_close, check_true, test_report
-   use meds_kinds,         only : wp
-   use meds_allometry_lib, only : allometry_t, size_to_wood_carbon, dbh_to_height
-   use meds_demography,    only : npp_to_growth, camac_mortality, decline_to_floor_mortality,          &
+   use ed_test_assert,     only : check_close, check_true, test_report
+   use ed_kinds,           only : wp
+   use ed_allometry_lib,   only : allometry_t, size_to_wood_carbon, dbh_to_height
+   use ed_demography,      only : npp_to_growth, camac_mortality, decline_to_floor_mortality,          &
                                   recruit_efficiency, npp_to_recruitment, founds_cohort,               &
                                   disturbed_fraction, survives_treefall
    implicit none

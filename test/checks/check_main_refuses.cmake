@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
-#----- meds_main refuses a run it cannot start, and names the cause. ------------------------------#
+#----- edmore refuses a run it cannot start, and names the cause. ------------------------------   #
 #
-# Each case edits the reference config (meds_config_main.toml), or a copy of the PFT file it names
-# (meds_config_pft.toml), into a run that must stop before its first step, runs meds_main on it, and
+# Each case edits the reference config (ed_config_main.toml), or a copy of the PFT file it names
+# (ed_config_pft.toml), into a run that must stop before its first step, runs edmore on it, and
 # asserts that it stopped and that its report names the cause:
 #   config_unknown_keys        a misspelt key, a key that moved block, and a [region] block in a site run
 #   config_bad_choice          a key set to none of its choices (run.mode = "globe")
@@ -13,7 +13,7 @@
 #   config_malformed_value     a value the reader cannot parse as the number its key takes
 #   output_fast_window         a sub-daily record that spans more fast steps than divide a slow step, so
 #                              its window would straddle two slow steps
-#   io_config_*                an [output].io_config line the selection refuses (meds_output_registry):
+#   io_config_*                an [output].io_config line the selection refuses (ed_output_registry):
 #                              a variable with no sub-daily value on F (coarse_on_f), one that exists
 #                              only sub-daily on D (fast_on_coarse), `true` on a variable off by default
 #                              (true_off), a pattern that matches nothing (no_match), two lines as
@@ -37,7 +37,7 @@
 # absolute: a refusal that stops working then costs a day's run there, never a long run in the
 # source tree.
 #
-# Usage: cmake -DMEDS_MAIN=<meds_main> -DSOURCE_DIR=<repo> -DWORK_DIR=<build-tree dir> -DCASE=<case>
+# Usage: cmake -DEDMORE_MAIN=<edmore> -DSOURCE_DIR=<repo> -DWORK_DIR=<build-tree dir> -DCASE=<case>
 #              -P check_main_refuses.cmake
 #--------------------------------------------------------------------------------------------------#
 cmake_minimum_required(VERSION 3.20)
@@ -85,7 +85,7 @@ endfunction()
 
 file(REMOVE_RECURSE "${WORK_DIR}")
 file(MAKE_DIRECTORY "${WORK_DIR}")
-file(READ "${SOURCE_DIR}/meds_config_main.toml" text)
+file(READ "${SOURCE_DIR}/ed_config_main.toml" text)
 
 #----- A one-day run, its input files named by absolute path. ------------------------------------#
 replace_or_fail(text "\nstart_time *= *\"[^\"]*\"" "\nstart_time = \"2000-01-01\"" "start_time")
@@ -181,7 +181,7 @@ elseif(CASE STREQUAL "toml_duplicate_key")
    set(expects "soil\\.depth[^\n]*twice")
 elseif(CASE MATCHES "^hydraulics_")
    #----- The PFT file's copy beside the run, with one trait made impossible for every PFT. --------#
-   file(READ "${SOURCE_DIR}/meds_config_pft.toml" pft)
+   file(READ "${SOURCE_DIR}/ed_config_pft.toml" pft)
    if(CASE STREQUAL "hydraulics_pv_traits")
       #----- The stress points set by hand, as a PFT file may: left to their default, the positive    #
       #      turgor-loss point would already be refused through them. -------------------------------#
@@ -194,8 +194,8 @@ elseif(CASE MATCHES "^hydraulics_")
       replace_or_fail(pft "\nwood_psi50 *= *[^ #\n]+" "\nwood_psi50 = 0.5" "[hydraulics] wood_psi50")
       set(expects "hydraulics\\.wood_psi50 must be < 0")
    endif()
-   file(WRITE "${WORK_DIR}/meds_config_pft.toml" "${pft}")
-   replace_or_fail(text "\npft_config *= *\"[^\"]*\"" "\npft_config = \"${WORK_DIR}/meds_config_pft.toml\"" "pft_config")
+   file(WRITE "${WORK_DIR}/ed_config_pft.toml" "${pft}")
+   replace_or_fail(text "\npft_config *= *\"[^\"]*\"" "\npft_config = \"${WORK_DIR}/ed_config_pft.toml\"" "pft_config")
 elseif(CASE MATCHES "^init_")
    if(CASE STREQUAL "init_restart_missing")
       set(mode 2)
@@ -225,8 +225,8 @@ else()
    message(FATAL_ERROR "check_main_refuses: unknown CASE '${CASE}'")
 endif()
 
-file(WRITE "${WORK_DIR}/meds_config_main.toml" "${text}")
-execute_process(COMMAND "${MEDS_MAIN}" "${WORK_DIR}/meds_config_main.toml" WORKING_DIRECTORY "${WORK_DIR}"
+file(WRITE "${WORK_DIR}/ed_config_main.toml" "${text}")
+execute_process(COMMAND "${EDMORE_MAIN}" "${WORK_DIR}/ed_config_main.toml" WORKING_DIRECTORY "${WORK_DIR}"
                 OUTPUT_VARIABLE out ERROR_VARIABLE err RESULT_VARIABLE rc)
 set(log "${out}${err}")
 set(problems "")
@@ -242,6 +242,6 @@ foreach(expect IN LISTS expects)
    endif()
 endforeach()
 if(problems)
-   message(FATAL_ERROR "meds_main did not refuse case ${CASE} as expected:${problems}\n--- output:\n${log}")
+   message(FATAL_ERROR "edmore did not refuse case ${CASE} as expected:${problems}\n--- output:\n${log}")
 endif()
-message(STATUS "meds_main refused case ${CASE}, naming the cause")
+message(STATUS "edmore refused case ${CASE}, naming the cause")

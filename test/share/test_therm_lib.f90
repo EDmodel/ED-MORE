@@ -1,6 +1,6 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! test_therm_lib -- the thermodynamics the stores share (meds_therm_lib).                  !
+! test_therm_lib -- the thermodynamics the stores share (ed_therm_lib).                    !
 !   1. TEMPERATURE RESPONSE (arrhenius_scale, peaked_arrhenius_scale,                      !
 !      kattge_knorr_entropy; docs/science/plant_respiration.md eq. (5),                    !
 !      docs/science/leaf_gas_exchange.md eq. (4)): each form is k25 at 25 C; Arrhenius     !
@@ -10,7 +10,7 @@
 !      phase-change inverter round-trips liquid and ice, is continuous at the ends of the  !
 !      melt plateau and sits at t_3ple on it; ice holds internal_energy_ice per kilogram,  !
 !      and melting it at t_3ple costs the latent heat of fusion                            !
-!      (MEDS_ENERGY_BALANCE_DESIGN.md §3.1).                                               !
+!      (docs/science/coupled_biophysics.md, principle 1).                                  !
 !   3. CLAUSIUS-CLAPEYRON (sat_vapor_pressure_temp_deriv): the slope of e_sat against a    !
 !      finite difference.                                                                  !
 !   4. ICE SATURATION (sat_vapor_pressure; docs/science/snow_biophysics.md eq. (1)): an    !
@@ -39,10 +39,10 @@
 !      water that comes or goes at the tissue's temperature leaves the temperature there.    !
 !==========================================================================================!
 program test_therm_lib
-   use meds_test_assert, only : check, check_true, test_report
-   use meds_kinds,       only : wp, ik
-   use meds_constants,   only : t_kelvin, t_3ple, cp_ice, latent_heat_fusion, k_water, k_ice, h2o_dry_ratio
-   use meds_therm_lib,   only : arrhenius_scale, peaked_arrhenius_scale, kattge_knorr_entropy,                    &
+   use ed_test_assert,   only : check, check_true, test_report
+   use ed_kinds,         only : wp, ik
+   use ed_constants,     only : t_kelvin, t_3ple, cp_ice, latent_heat_fusion, k_water, k_ice, h2o_dry_ratio
+   use ed_therm_lib,     only : arrhenius_scale, peaked_arrhenius_scale, kattge_knorr_entropy,                    &
                                 temp_to_internal_energy, internal_energy_to_temp, internal_energy_ice,            &
                                 sat_vapor_pressure, sat_vapor_pressure_temp_deriv, sat_specific_humidity,         &
                                 soil_thermal_conductivity, soil_texture_to_thermal, rh_to_specific_humidity,      &
@@ -250,7 +250,7 @@ contains
    end subroutine test_soil_conductivity
 
    !----- 6. CLM5's mineral soil at Palo Verde's column (sand 33 %, clay 40 %, porosity 0.4456),      !
-   !      computed apart from MEDS: solids (8.80 x 33 + 2.92 x 40) / 73 = 5.57808 W/m/K; dry bulk   !
+   !      computed apart from ED-MORE: solids (8.80 x 33 + 2.92 x 40) / 73 = 5.57808 W/m/K; dry bulk !
    !      density 1496.88 kg/m3, so dry soil (0.135 x 1496.88 + 64.7) / (2700 - 0.947 x 1496.88)   !
    !      = 0.208022 W/m/K; and the solids' heat capacity (2.128 x 33 + 2.385 x 40) / 73 x 1e6 x    !
    !      0.5544 = 1.257835e6 J/m3/K. -------------------------------------------------------------!

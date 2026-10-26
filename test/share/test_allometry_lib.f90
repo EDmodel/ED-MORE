@@ -1,27 +1,27 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! test_allometry_lib -- meds_allometry_lib, the size allometry (docs/science/plant_carbon_allocation.md §2). !
+! test_allometry_lib -- ed_allometry_lib, the size allometry (docs/science/plant_carbon_allocation.md §2).   !
 !   1. THE LAWS: dbh <-> height in both regimes (below and at the cap), AGB and leaf area     !
 !      increasing with size and wood density, agb_to_dbh and wood_to_dbh inverting their      !
 !      forward laws, the carbon targets as re-expressions of the size allometry, Chave et al.  !
 !      (2014) eq. 6a against BIOMASS's retrieveH, a local log-quadratic fit, and one record    !
 !      per PFT.                                                                                !
-!   2. THE SHIPPED DEFAULTS: meds_config_pft.toml's [allometry] block equals the library's    !
+!   2. THE SHIPPED DEFAULTS: ed_config_pft.toml's [allometry] block equals the library's      !
 !      initializers, and those are Chave et al. (2014) eq. 4 in carbon and ED2's BAAD leaf fit !
 !      over C2B. The initializers exist for the Python library, which reaches the allometry    !
 !      without a config; a model run takes every value from the PFT config, so the two copies  !
-!      can drift apart silently. Both fits are dry mass or its equivalent and MEDS keeps        !
+!      can drift apart silently. Both fits are dry mass or its equivalent and ED-MORE keeps     !
 !      carbon: taken without the division by C2B, AGB is dry mass labelled as carbon and leaf  !
 !      area twice ED2's.                                                                       !
-! The path of meds_config_pft.toml is the first argument (ctest passes the source tree's).  !
+! The path of ed_config_pft.toml is the first argument (ctest passes the source tree's).    !
 !==========================================================================================!
 program test_allometry_lib
-   use meds_kinds,         only : wp, ik
-   use meds_toml,          only : toml_table_t, toml_parse_file, toml_has, toml_real, toml_string, toml_real_array
-   use meds_allometry_lib, only : dbh_to_height, height_to_dbh, dbh_to_agb, agb_to_dbh, dbh_to_leaf_area,  &
+   use ed_kinds,           only : wp, ik
+   use ed_toml,            only : toml_table_t, toml_parse_file, toml_has, toml_real, toml_string, toml_real_array
+   use ed_allometry_lib,   only : dbh_to_height, height_to_dbh, dbh_to_agb, agb_to_dbh, dbh_to_leaf_area,  &
                                   allometry_t, size_to_leaf_carbon, size_to_wood_carbon, wood_to_dbh,      &
                                   HEIGHT_CHAVE, HEIGHT_POWER
-   use meds_test_assert,   only : banner, check, check_close
+   use ed_test_assert,     only : banner, check, check_close
    implicit none
 
    real(wp), parameter :: C2B              = 2.0_wp          ! ED2 C2B, carbon -> biomass
@@ -178,9 +178,9 @@ contains
 
       !----- CMake passes the SOURCE-tree path; ctest runs from the build tree. -------------!
       call get_command_argument(1, arg)
-      call check(len_trim(arg) > 0, 'the meds_config_pft.toml path was passed on the command line')
+      call check(len_trim(arg) > 0, 'the ed_config_pft.toml path was passed on the command line')
       call toml_parse_file(trim(arg), t, ok)
-      call check(ok, 'the shipped meds_config_pft.toml parses')
+      call check(ok, 'the shipped ed_config_pft.toml parses')
 
       !----- The Fortran initializers: Chave 2014 in carbon, and ED2's leaf fit over C2B. ----!
       call check_close(d%agb_c1, CHAVE14_SCALE / C2B, RTOL, 'agb_c1 initializer = Chave 2014 eq. 4 scale / C2B')
@@ -209,7 +209,7 @@ contains
 
       !----- The height curve: the shipped config and the initializer are both the power law. ---!
       call check(trim(toml_string(t, 'allometry.height_allometry', '')) == 'power',                    &
-                 'meds_config_pft.toml sets [allometry].height_allometry = "power"')
+                 'ed_config_pft.toml sets [allometry].height_allometry = "power"')
       call check(d%height_allometry == HEIGHT_POWER, 'the height-curve initializer is the power law')
 
    end subroutine test_shipped_defaults
@@ -217,9 +217,9 @@ contains
    subroutine same(key, initializer)
       character(len=*), intent(in) :: key
       real(wp),         intent(in) :: initializer
-      call check(toml_has(t, 'allometry.'//key), 'meds_config_pft.toml sets [allometry].'//key)
+      call check(toml_has(t, 'allometry.'//key), 'ed_config_pft.toml sets [allometry].'//key)
       call check_close(toml_real(t, 'allometry.'//key, -huge(1.0_wp)), initializer, RTOL,         &
-                       'meds_config_pft.toml [allometry].'//key//' equals the meds_allometry_lib initializer')
+                       'ed_config_pft.toml [allometry].'//key//' equals the ed_allometry_lib initializer')
    end subroutine same
 
    subroutine same_per_pft(key, initializer)
@@ -228,9 +228,9 @@ contains
       real(wp)    :: buf(64)
       integer(ik) :: n
       call toml_real_array(t, 'allometry.'//key, buf, n)
-      call check(n > 0, 'meds_config_pft.toml lists [allometry].'//key//' per PFT')
+      call check(n > 0, 'ed_config_pft.toml lists [allometry].'//key//' per PFT')
       call check(all(abs(buf(1:n) - initializer) <= RTOL * abs(initializer)),                         &
-                 'meds_config_pft.toml [allometry].'//key//' equals the meds_allometry_lib initializer for every PFT')
+                 'ed_config_pft.toml [allometry].'//key//' equals the ed_allometry_lib initializer for every PFT')
    end subroutine same_per_pft
 
    !----- A copy of a record with another height cap. ------------------------------------!

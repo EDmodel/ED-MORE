@@ -1,12 +1,12 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
 ! test_params_config -- the config blocks reach the records the model runs on.             !
-!   1. THE BLOCK LOADERS (meds_config_io): [soil], [fast], [snow] and [aerodynamics] from a  !
+!   1. THE BLOCK LOADERS (ed_config_io): [soil], [fast], [snow] and [aerodynamics] from a    !
 !      small TOML file. String selectors map to their codes, scalar keys override, keys absent !
 !      from a block keep their type default, a file with no [soil] block keeps the geothermal  !
 !      bottom, the drainage boundary's two named ends, and the parameter record lists every key !
 !      the loaders read, set or defaulted, and none they did not.                             !
-!   2. THE [soil] COLUMN (meds_soil_derive::build_soil_profile): the default column is        !
+!   2. THE [soil] COLUMN (ed_soil_derive::build_soil_profile): the default column is          !
 !      SOIL_LAYER_TEMPLATE (SoilGrids' depths, then deeper) cut at the 2 m default depth; depth !
 !      cuts the same list; a short remainder joins the layer above; layer_bottoms replaces the  !
 !      list; and the texture, retention and thermal keys reach every layer of the profile       !
@@ -14,17 +14,17 @@
 !      running on a default with every budget closed, so these assert that the keys turn.      !
 !==========================================================================================!
 program test_params_config
-   use meds_test_assert,       only : check, check_true, test_report
-   use meds_kinds,             only : wp, ik
-   use meds_constants,         only : n_soil_layer_max
-   use meds_biophysics_params, only : snow_params_t, aero_params_t
-   use meds_soil_params,       only : soil_params_t, soil_profile_t, SOIL_BC_AQUIFER, SOIL_BC_DRAIN,      &
+   use ed_test_assert,         only : check, check_true, test_report
+   use ed_kinds,               only : wp, ik
+   use ed_constants,           only : n_soil_layer_max
+   use ed_biophysics_params,   only : snow_params_t, aero_params_t
+   use ed_soil_params,         only : soil_params_t, soil_profile_t, SOIL_BC_AQUIFER, SOIL_BC_DRAIN,      &
                                       ENERGY_BC_GEOTHERMAL, ENERGY_BC_DIRICHLET
-   use meds_soil_derive,       only : soil_layers, build_soil_profile
-   use meds_soil_hydr_lib,     only : SOIL_RETENTION_VG, SOIL_RETENTION_CAMPBELL
-   use meds_config,            only : meds_config_t
-   use meds_toml,              only : toml_table_t, toml_parse_file, toml_write_record
-   use meds_config_io,         only : load_fast_params, load_soil, load_snow_params, load_aero_params
+   use ed_soil_derive,         only : soil_layers, build_soil_profile
+   use ed_soil_hydr_lib,       only : SOIL_RETENTION_VG, SOIL_RETENTION_CAMPBELL
+   use ed_config,              only : ed_config_t
+   use ed_toml,                only : toml_table_t, toml_parse_file, toml_write_record
+   use ed_config_io,           only : load_fast_params, load_soil, load_snow_params, load_aero_params
    implicit none
 
    call test_block_loaders()
@@ -39,7 +39,7 @@ contains
       character(len=*), parameter :: TOMLFILE = 'test_params_config_tmp.toml'
       type(toml_table_t)   :: tm
       type(soil_params_t)  :: s
-      type(meds_config_t)  :: c
+      type(ed_config_t)    :: c
       type(snow_params_t)  :: sn
       type(aero_params_t)  :: a
       integer(ik) :: u

@@ -5,7 +5,7 @@
 # Why: under ifx, a routine that hands one of its contained functions to another routine (a
 # residual to a root finder, an integrand to a quadrature) allocates a lock-guarded record on every
 # call. Called per cohort and per step, that lock makes more than four threads slower than four.
-# Solvers in MEDS take their problem as an explicit record instead.
+# Solvers in ED-MORE take their problem as an explicit record instead.
 #
 # Usage: cmake -DSRC_DIR=<src> -P check_no_procedure_arguments.cmake
 file(GLOB_RECURSE sources "${SRC_DIR}/*.f90")

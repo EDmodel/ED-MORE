@@ -41,27 +41,27 @@
 !                        one with no dry surface layer, at its liquid's potential.                 !
 !==========================================================================================!
 program test_water_network
-   use meds_test_assert, only : check_true, check_close, check_int, test_report
+   use ed_test_assert, only : check_true, check_close, check_int, test_report
    use, intrinsic :: iso_fortran_env, only : int64
-   use meds_kinds,       only : wp, ik
-   use meds_constants,   only : grav_head, rho_h2o, pi, tiny_num, n_soil_layer_max, grav, r_wv, p_std
-   use meds_linear_algebra,  only : arrowhead_system_t, arrowhead_allocate, arrowhead_factor, arrowhead_solve
-   use meds_fast_integ_types,  only : fast_static_state_t, water_drive_t, water_work_t, tol_set_t,                    &
+   use ed_kinds,         only : wp, ik
+   use ed_constants,     only : grav_head, rho_h2o, pi, tiny_num, n_soil_layer_max, grav, r_wv, p_std
+   use ed_linear_algebra,  only : arrowhead_system_t, arrowhead_allocate, arrowhead_factor, arrowhead_solve
+   use ed_fast_integ_types,  only : fast_static_state_t, water_drive_t, water_work_t, tol_set_t,                    &
                                 ensure_static_capacity, POND, WOOD, LEAF, GRP_THETA, N_WORK, WORK_WATER_NSUB,   &
                                 WORK_WATER_REJECT, WORK_WATER_NFAIL
-   use meds_fast_state,  only : derive_cohort_terms
-   use meds_fast_integ_derivs, only : set_water_state, water_derivs
-   use meds_fast_integ_backward_euler, only : water_step, water_jacobian_error
-   use meds_plant_hydr_lib, only : water_curve_t, tissue_psi_to_rwc, tissue_psi_tlp
-   use meds_pft_derive,     only : build_kirchhoff_table
-   use meds_soil_hydr_lib,   only : SOIL_RETENTION_VG, SOIL_RETENTION_CAMPBELL, soil_theta_to_head, soil_ice_state,  &
+   use ed_fast_state,    only : derive_cohort_terms
+   use ed_fast_integ_derivs, only : set_water_state, water_derivs
+   use ed_fast_integ_backward_euler, only : water_step, water_jacobian_error
+   use ed_plant_hydr_lib,   only : water_curve_t, tissue_psi_to_rwc, tissue_psi_tlp
+   use ed_pft_derive,       only : build_kirchhoff_table
+   use ed_soil_hydr_lib,     only : SOIL_RETENTION_VG, SOIL_RETENTION_CAMPBELL, soil_theta_to_head, soil_ice_state,  &
                                     soil_liquid_capacity
-   use meds_therm_lib,       only : internal_energy_liquid, liquid_energy_to_temp, sat_specific_humidity
-   use meds_pft_params,    only : hydraulics_table_t
-   use meds_soil_params, only : soil_profile_t, soil_params_t, SOIL_BC_DRAIN, SOIL_BC_AQUIFER
-   use meds_soil_derive,        only : build_profile_hydraulics
-   use meds_test_soil_grid, only : geometric_layer_bottoms
-   use meds_soil_water,    only : ground_evap_env_t, ground_evaporation_setup
+   use ed_therm_lib,         only : internal_energy_liquid, liquid_energy_to_temp, sat_specific_humidity
+   use ed_pft_params,    only : hydraulics_table_t
+   use ed_soil_params, only : soil_profile_t, soil_params_t, SOIL_BC_DRAIN, SOIL_BC_AQUIFER
+   use ed_soil_derive,        only : build_profile_hydraulics
+   use ed_test_soil_grid, only : geometric_layer_bottoms
+   use ed_soil_water,    only : ground_evap_env_t, ground_evaporation_setup
    implicit none
 
    !----- A stand on the fixture soil: its cohorts (the static state the gather would build), what !

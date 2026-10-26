@@ -1,30 +1,30 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
 ! test_containers -- the state layer's containers (src/state):                             !
-!   1. THE COHORT CSR (meds_polygon_state_vars, meds_init_bare_ground: finalize_init;       !
-!      meds_slow_update: terminate_cohorts): counts, offsets and owners, the height sort,   !
+!   1. THE COHORT CSR (ed_polygon_state_vars, ed_init_bare_ground: finalize_init;           !
+!      ed_slow_update: terminate_cohorts): counts, offsets and owners, the height sort,     !
 !      persistent unique ids, and termination's compaction, the diagnostic blocks' counts   !
 !      included.                                                                            !
-!   2. THE FAST DIAGNOSTIC BLOCK (meds_diag_vars: reorder_cohort_diag, copy_cohort_diag,    !
+!   2. THE FAST DIAGNOSTIC BLOCK (ed_diag_vars: reorder_cohort_diag, copy_cohort_diag,      !
 !      clear_cohort_diag, fuse_cohort_diag, cohort_diag_value): it moves in lockstep with   !
 !      the cohorts, and a fused cohort's diagnostics blend by each field's own kind.        !
 !==========================================================================================!
 program test_containers
-   use meds_kinds,           only : wp, ik
-   use meds_config,          only : meds_config_t
-   use meds_polygon_state_vars,         only : polygon_t
-   use meds_init_bare_ground, only : init_bare_ground, add_cohort, finalize_init
-   use meds_slow_update, only : terminate_cohorts
-   use meds_diag_vars,       only : cohort_diag_block, alloc_cohort_diag, reorder_cohort_diag, copy_cohort_diag,   &
+   use ed_kinds,             only : wp, ik
+   use ed_config,            only : ed_config_t
+   use ed_polygon_state_vars,         only : polygon_t
+   use ed_init_bare_ground, only : init_bare_ground, add_cohort, finalize_init
+   use ed_slow_update, only : terminate_cohorts
+   use ed_diag_vars,         only : cohort_diag_block, alloc_cohort_diag, reorder_cohort_diag, copy_cohort_diag,   &
                                     fuse_cohort_diag, clear_cohort_diag, cohort_diag_value, CO_LEAF_TEMP,         &
                                     CO_SAPFLOW, CO_ABS_SW, CO_WOOD_TEMP, CO_GSW
-   use meds_test_support, only : banner, build_test_config, check, check_close
-   use meds_slow_state,  only : kill_report_t
+   use ed_test_support, only : banner, build_test_config, check, check_close
+   use ed_slow_state,  only : kill_report_t
    implicit none
    type(kill_report_t)  :: kills   !< what the cull and the treefall killed
    real(wp)            :: shed_water   !< an operator's shed water, unread here
 
-   type(meds_config_t) :: cfg
+   type(ed_config_t) :: cfg
    type(polygon_t)  :: poly
    integer(ik)         :: ip, k, i0, i1, nbefore, a, b, gid_dropped
    integer(ik)         :: nread
@@ -111,7 +111,7 @@ program test_containers
 contains
 
    !=======================================================================================!
-   !  2. THE LOCKSTEP + FUSION CONTRACT of the fast diagnostic block (meds_diag_vars). This is  !
+   !  2. THE LOCKSTEP + FUSION CONTRACT of the fast diagnostic block (ed_diag_vars). This is    !
    !  the highest-risk part of the output subsystem: the block is filled by the fast loop and    !
    !  read at the output tick, with restructuring in between, so slot i must keep meaning        !
    !  cohort i across every permutation -- and a fused cohort's diagnostics must blend by each   !

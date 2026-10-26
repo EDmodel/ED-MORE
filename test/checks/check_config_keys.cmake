@@ -1,17 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 # Fails unless the two reference configs list exactly the keys the loader reads.
 #
-# Why: a run stops on any key its reference does not list (meds_config_check), so a key the loader
+# Why: a run stops on any key its reference does not list (ed_config_check), so a key the loader
 # reads but the references omit could never be set, and a key the references list but nothing
 # reads would be accepted and do nothing. Both directions are checked, and the two files may not
 # share a section, so a key cannot be listed in the file the loader does not read it from.
 #
 # Usage: cmake -DSRC_DIR=<src> -DMAIN_TOML=<main> -DPFT_TOML=<pft> -P check_config_keys.cmake
 cmake_minimum_required(VERSION 3.20)
-include(${CMAKE_CURRENT_LIST_DIR}/../../cmake/meds_config_keys.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/../../cmake/ed_config_keys.cmake)
 
-meds_toml_keys("${MAIN_TOML}" main_keys)
-meds_toml_keys("${PFT_TOML}" pft_keys)
+ed_toml_keys("${MAIN_TOML}" main_keys)
+ed_toml_keys("${PFT_TOML}" pft_keys)
 
 # The keys the loader reads: the literal second argument of every toml_* / req_* / opt_* reader
 # call outside a comment (a key read through toml_has alone only refuses or gates on it).
@@ -58,7 +58,7 @@ endforeach()
 foreach(key IN LISTS pft_keys)
    string(REGEX REPLACE "\\..*" "" section "${key}")
    if(section IN_LIST main_sections)
-      string(APPEND problems "\n  section [${section}] is in both meds_config_main.toml and meds_config_pft.toml")
+      string(APPEND problems "\n  section [${section}] is in both ed_config_main.toml and ed_config_pft.toml")
    endif()
 endforeach()
 

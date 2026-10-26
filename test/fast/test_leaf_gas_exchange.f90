@@ -1,6 +1,6 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! test_leaf_gas_exchange -- one leaf's gas exchange (meds_leaf_gas_exchange;               !
+! test_leaf_gas_exchange -- one leaf's gas exchange (ed_leaf_gas_exchange;                 !
 ! docs/science/leaf_gas_exchange.md), on the in-code config fixture's leaf table.          !
 !   1. C3 DEMAND (assimilation_demand_c3, eq. (2)): a hand-computed Ac, Aj and Ap, and    !
 !      the co-limitation curvatures' cost against the sharp minimum.                       !
@@ -24,20 +24,20 @@
 ! The temperature responses are test_therm_lib's.                                          !
 !==========================================================================================!
 program test_leaf_gas_exchange
-   use meds_kinds,              only : wp, ik
-   use meds_constants,          only : t_kelvin
-   use meds_config,             only : meds_config_t, derive_parameters
-   use meds_pft_derive,         only : pft_leaf_psi_tlp, pft_stomata_psi_onset, pft_wstress_psi_open,  &
+   use ed_kinds,                only : wp, ik
+   use ed_constants,            only : t_kelvin
+   use ed_config,               only : ed_config_t, derive_parameters
+   use ed_pft_derive,           only : pft_leaf_psi_tlp, pft_stomata_psi_onset, pft_wstress_psi_open,  &
                                        pft_wstress_psi_close
-   use meds_pft_params,         only : HYD_UNSET, leaf_photo_pft_t
-   use meds_leaf_params,        only : SM_LEUNING, SM_MEDLYN, SM_KATUL, COLIM_MIN, COLIM_QUADRATIC
-   use meds_leaf_gas_exchange,  only : assimilation_demand_c3, rubisco_kinetics, stomata_gs_medlyn,          &
+   use ed_pft_params,           only : HYD_UNSET, leaf_photo_pft_t
+   use ed_leaf_params,          only : SM_LEUNING, SM_MEDLYN, SM_KATUL, COLIM_MIN, COLIM_QUADRATIC
+   use ed_leaf_gas_exchange,    only : assimilation_demand_c3, rubisco_kinetics, stomata_gs_medlyn,          &
                                        solve_leaf_gas_exchange, leaf_env_t, leaf_out_t, LIM_NONE,         &
                                        LIM_RUBISCO, LIM_RUBP, LIM_C4_PEP, cohort_leaf_par
-   use meds_test_support,       only : banner, build_test_config, check, check_close
+   use ed_test_support,         only : banner, build_test_config, check, check_close
    implicit none
 
-   type(meds_config_t) :: cfg
+   type(ed_config_t)   :: cfg
    type(leaf_env_t)    :: env
    type(leaf_out_t)   :: flux, flux2
    real(wp) :: a_gross, ac, aj, ap, an0, an1, an2, prev
