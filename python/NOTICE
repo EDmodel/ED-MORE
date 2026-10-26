@@ -1,0 +1,9 @@
+MEDS (Modular Ecosystem Dynamics Simulator)
+Copyright 2026 The MEDS Authors, as listed in the AUTHORS file.
+
+Portions of MEDS are adapted from ED2, the Ecosystem Demography model, by the
+ED2 developers (https://github.com/EDmodel/ED2). ED2 is licensed under the
+Creative Commons Attribution 4.0 International License
+(https://creativecommons.org/licenses/by/4.0/) and is provided as-is, without
+warranties. The adapted portions were translated to Fortran 2018 and
+restructured for MEDS.
