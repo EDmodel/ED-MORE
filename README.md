@@ -1,5 +1,7 @@
 # ED-MORE: a Modular, Open, Reproducible, and Extensible Ecosystem Demography model
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23674060.svg)](https://doi.org/10.5281/zenodo.23674060)
+
 ED-MORE is a size- and age-structured terrestrial biosphere model with fully coupled carbon, energy
 and water dynamics, written in Fortran 2018. A forest is cohorts of plants on patches of land, with
 fusion and fission keeping both bounded. At every sub-daily step, ED-MORE solves the carbon, energy
@@ -104,7 +106,9 @@ repository, with its history, issues and pull requests up to v0.4.0, is archived
 ## Citing ED-MORE
 
 Cite the version you used, as [`CITATION.cff`](CITATION.cff) gives it; GitHub's "Cite this
-repository" button formats it. The science ED-MORE builds on:
+repository" button formats it. Zenodo archives every release with its own DOI; the DOI
+[10.5281/zenodo.23674060](https://doi.org/10.5281/zenodo.23674060) stands for all of them and
+resolves to the latest. The science ED-MORE builds on:
 
 - Moorcroft, P. R., Hurtt, G. C. and Pacala, S. W. (2001). A method for scaling vegetation dynamics:
   the Ecosystem Demography model (ED). *Ecological Monographs* 71(4), 557–586.
