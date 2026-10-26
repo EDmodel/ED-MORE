@@ -1,0 +1,74 @@
+# What git ignores in ED-MORE, by section, each rule with its reason. A personal pattern (an editor
+# this list lacks, a scratch folder of your own) belongs in your .git/info/exclude, not here.
+
+# ---- Build trees ----------------------------------------------------------------------------------
+# CMake builds out of source, into build-<kind>/ (the presets) or any build*/ you name.
+/build*/
+# The Python package's build tree (pip install python/).
+/python/build/
+# Your own presets beside CMakePresets.json: machine-local.
+CMakeUserPresets.json
+# What an in-source configure leaves behind; the build does not support one.
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+Testing/
+_deps/
+compile_commands.json
+# Compiler output outside a build tree.
+*.o
+*.mod
+*.smod
+*.a
+*.so
+*.dylib
+*.optrpt
+*.gcno
+*.gcda
+
+# ---- Python ---------------------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# ---- Model output and downloaded data -------------------------------------------------------------
+# Runs write netCDF and HDF5 files, which are never tracked. A small input that a test needs goes in
+# test/data/, the one place these formats are tracked.
+*.nc
+*.h5
+!/test/data/**/*.nc
+!/test/data/**/*.h5
+# The PFT parameter table a run writes beside its output.
+*_pft_parameters.csv
+# Each user's own runs.
+/runs/
+# What each example's scripts download, and every run an example makes.
+/examples/*/data/
+/examples/**/output/
+/examples/*/calibration/run/
+# Logs from runs and batch jobs.
+*.log
+# Core dumps: "core" at the root and "core.<pid>" anywhere, never the source folder src/core.
+/core
+core.[0-9]*
+
+# ---- Editors and operating systems ----------------------------------------------------------------
+*~
+*.swp
+*.swo
+.DS_Store
+.idea/
+.vscode/
+*.code-workspace
+
+# ---- Personal AI-assistant files ------------------------------------------------------------------
+# Each developer's own settings, notes and worktrees. The shared instructions are AGENTS.md, CLAUDE.md
+# and .claude/rules/.
+CLAUDE.local.md
+AGENTS.override.md
+.claude/settings.json
+.claude/settings.local.json
+.claude/worktrees/

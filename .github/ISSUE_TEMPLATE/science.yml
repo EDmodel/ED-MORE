@@ -1,0 +1,66 @@
+name: Science proposal
+description: Propose a new or changed representation of a process.
+labels: ["type: science", "status: needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        A science change is designed here before any code is written: a maintainer agrees to the
+        design on this issue, and the pull request follows it. For an idea that is still taking
+        shape, start in Discussions (Ideas) instead.
+  - type: input
+    id: process
+    attributes:
+      label: Process and science page
+      placeholder: leaf gas exchange, docs/science/leaf_gas_exchange.md
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is missing or wrong, and the evidence
+      description: >
+        What the model does now, and what shows it should do otherwise: observations,
+        experiments or literature, with references.
+    validations:
+      required: true
+  - type: textarea
+    id: formulation
+    attributes:
+      label: Proposed formulation
+      description: >
+        The equations or the algorithm, with references (and DOIs), and how it differs from what
+        ED-MORE does now.
+    validations:
+      required: true
+  - type: textarea
+    id: parameters
+    attributes:
+      label: New parameters and their sources
+      description: >
+        Each with its value, units and source, an observation or a paper. A value fitted to the
+        outputs it will be judged against is not a source.
+  - type: textarea
+    id: evaluation
+    attributes:
+      label: How to test it
+      description: Data, sites or experiments to evaluate the change against.
+  - type: dropdown
+    id: results
+    attributes:
+      label: Will the results of the shipped configuration change?
+      options:
+        - No, it is an option that is off by default
+        - "Yes"
+        - Not sure yet
+    validations:
+      required: true
+  - type: dropdown
+    id: lead
+    attributes:
+      label: Will you lead the development?
+      options:
+        - "Yes"
+        - Yes, with help
+        - "No"
+        - Not sure

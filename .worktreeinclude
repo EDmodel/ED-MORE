@@ -1,0 +1,5 @@
+# Ignored files that Claude Code copies into each worktree it creates (claude --worktree, subagent
+# worktrees). The syntax is .gitignore's; only files that git ignores are copied.
+CLAUDE.local.md
+.claude/settings.json
+CMakeUserPresets.json

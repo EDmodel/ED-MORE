@@ -1,0 +1,49 @@
+name: Improvement
+description: A new capability, faster or clearer code, documentation, an example, tests or build tooling.
+labels: ["status: needs-triage"]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      options:
+        - New capability (input and output, tools, regions, calibration)
+        - Performance (the same results in less time or memory)
+        - Refactor (clearer structure, bit-for-bit results)
+        - Example (a new example, or one that is broken)
+        - Documentation
+        - Tests, build or CI
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What and why
+      description: What you want, and what it makes possible or easier.
+    validations:
+      required: true
+  - type: textarea
+    id: current
+    attributes:
+      label: The current state, with evidence
+      description: >
+        New capability: what cannot be done today. Performance: a measurement (the run, the build
+        and thread count, the time, and where the time goes). Refactor: what is hard to read or
+        extend today. Example: what it would show, its data and their public source, and roughly
+        how long it runs. Documentation: the page and what is wrong or missing.
+    validations:
+      required: true
+  - type: textarea
+    id: approach
+    attributes:
+      label: Proposed approach
+      description: How you would do it, and any interface it adds (config keys, command-line options).
+  - type: dropdown
+    id: lead
+    attributes:
+      label: Will you lead the development?
+      options:
+        - "Yes"
+        - Yes, with help
+        - "No"
+        - Not sure

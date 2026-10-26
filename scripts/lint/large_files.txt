@@ -1,0 +1,2 @@
+# Files allowed over the 1 MB limit of check_file_size.py: one path per line, then '#' and the
+# reason. Keep this list short; a large file is usually better as a release asset or a download.

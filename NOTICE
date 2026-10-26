@@ -1,0 +1,14 @@
+ED-MORE (Ecosystem Demography: Modular, Open, Reproducible, Extensible)
+Copyright 2026 The ED-MORE Authors, as listed in the AUTHORS file.
+
+ED-MORE carries forward, from version 0.4.1, the development of its prototype,
+MEDS (https://github.com/xiangtaoxu/MEDS). MEDS is Copyright 2026 The MEDS
+Authors and licensed under the Apache License 2.0; the parts of ED-MORE that
+come from it keep that copyright and licence.
+
+Portions of ED-MORE are adapted from ED2, the Ecosystem Demography model, by the
+ED2 developers (https://github.com/EDmodel/ED2). ED2 is licensed under the
+Creative Commons Attribution 4.0 International License
+(https://creativecommons.org/licenses/by/4.0/) and is provided as-is, without
+warranties. The adapted portions were translated to Fortran 2018 and
+restructured for ED-MORE.
