@@ -16,6 +16,9 @@ from typing import Optional
 # Files never read as text: data and images.
 BINARY_SUFFIXES = (".nc", ".h5", ".png", ".gif", ".jpg", ".jpeg", ".pdf", ".gz", ".zip", ".npy", ".npz")
 
+# Fortran source files.
+FORTRAN = (".f90", ".F90")
+
 # Folders a tree outside git leaves out wherever they are.
 SKIPPED_FOLDERS = (".git", "__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", ".venv", "venv",
                    "node_modules", "build")
@@ -100,3 +103,39 @@ class Repo:
         if suffixes or names:
             chosen = [p for p in chosen if p.endswith(suffixes) or PurePosixPath(p).name in names]
         return [p for p in chosen if self.text(p) is not None]
+
+
+def split_fortran_comment(line: str) -> tuple:
+    """A Fortran line as (its code, its `!` comment); a `!` inside a quoted string is code."""
+    quote = ""
+    for col, ch in enumerate(line):
+        if quote:
+            if ch == quote:
+                quote = ""
+        elif ch in "'\"":
+            quote = ch
+        elif ch == "!":
+            return line[:col], line[col + 1:]
+    return line, ""
+
+
+def fortran_statements(lines: list):
+    """Each Fortran statement as (its first line number, its code with the `&` continuations joined
+    and the comments removed, the comments of its lines joined). A comment line inside a continued
+    statement belongs to it."""
+    code, comments, first = "", "", 0
+    for no, line in enumerate(lines, 1):
+        part, comment = split_fortran_comment(line)
+        part = part.strip()
+        if not code:
+            if not part:
+                continue
+            first = no
+        comments += " " + comment
+        if not part:
+            continue
+        continued = part.endswith("&")
+        code += " " + (part[:-1] if continued else part).strip().lstrip("&").strip()
+        if not continued:
+            yield first, code.strip(), comments.strip()
+            code, comments = "", ""
