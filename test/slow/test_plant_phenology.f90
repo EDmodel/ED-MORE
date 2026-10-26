@@ -76,8 +76,10 @@ contains
       integer(ik) :: d
       logical     :: flush_ok, shed_ok
       print '(a)', '-- 1. no cues (flush={}, shed={}) --'
-      params%flush_cue_mask = CUE_NONE ; params%shed_cue_mask = CUE_NONE
-      flush_ok = .true. ; shed_ok = .true.
+      params%flush_cue_mask = CUE_NONE
+      params%shed_cue_mask = CUE_NONE
+      flush_ok = .true.
+      shed_ok = .true.
       do d = 1_ik, 400_ik
          env%doy              = modulo(d - 1_ik, 365_ik) + 1_ik
          env%temp_day         = annual_temp(env%doy)
@@ -113,11 +115,13 @@ contains
          if (d == 366_ik) gdd_1   = state%growing_degree_days
          if (d == 536_ik) cdd_171 = state%cold_degree_days
          if (d == 565_ik) then
-            fl_200 = state%leaf_flush_tendency ; sh_200 = state%leaf_shed_tendency
+            fl_200 = state%leaf_flush_tendency
+            sh_200 = state%leaf_shed_tendency
             gdd_200 = state%growing_degree_days
          end if
          if (d == 705_ik) then
-            fl_340 = state%leaf_flush_tendency ; sh_340 = state%leaf_shed_tendency
+            fl_340 = state%leaf_flush_tendency
+            sh_340 = state%leaf_shed_tendency
          end if
       end do
    end subroutine run_two_years
@@ -154,7 +158,8 @@ contains
       integer(ik) :: d
       real(wp)    :: dry_before_rain
       print '(a)', '-- 4. drought deciduous (flush={WATER}, shed={WATER}) --'
-      params%flush_cue_mask = CUE_WATER ; params%shed_cue_mask = CUE_WATER   ! tlp -2, sums 10
+      params%flush_cue_mask = CUE_WATER
+      params%shed_cue_mask = CUE_WATER                                       ! tlp -2, sums 10
       !----- (a) A long wet season: the wet sum grows far past its centre. -----------------!
       do d = 1_ik, 60_ik
          env%predawn_leaf_psi = -0.5_wp                     ! 1.5 MPa above the TLP each day
@@ -196,7 +201,8 @@ contains
       type(pheno_out_t)    :: out
       integer(ik) :: d
       print '(a)', '-- 5. light-driven leaf exchange (flush={}, shed={LIGHT}) --'
-      params%flush_cue_mask       = CUE_NONE ; params%shed_cue_mask = CUE_LIGHT
+      params%flush_cue_mask       = CUE_NONE
+      params%shed_cue_mask = CUE_LIGHT
       params%shed_light_hours     = 6.0_wp
       params%shed_light_sharpness = 2.0_wp               ! > 0: many bright hours trigger senescence
       call check_true('leaf-exch: a new cohort has no light memory', state%light_hours_mean < 0.0_wp, &
@@ -225,10 +231,13 @@ contains
       type(pheno_out_t)    :: out
       integer(ik) :: d
       print '(a)', '-- 6. rate mapping (potential = rate_max * tendency) --'
-      params%flush_cue_mask = CUE_WATER ; params%shed_cue_mask = CUE_LIGHT
-      params%shed_light_hours = 6.0_wp ; params%shed_light_sharpness = 0.5_wp
+      params%flush_cue_mask = CUE_WATER
+      params%shed_cue_mask = CUE_LIGHT
+      params%shed_light_hours = 6.0_wp
+      params%shed_light_sharpness = 0.5_wp
       do d = 1_ik, 25_ik
-         env%predawn_leaf_psi = -1.7_wp ; env%par_hours = 6.2_wp   ! partial flush + partial shed
+         env%predawn_leaf_psi = -1.7_wp
+         env%par_hours = 6.2_wp                                    ! partial flush + partial shed
          call phenology_kernel(env, params, 1.0_wp, state, out)
       end do
       call check_close('flush potential == flush_rate_max * flush tendency', out%leaf_flush_potential, &
@@ -248,14 +257,19 @@ contains
       integer(ik) :: d
       logical     :: ok
       print '(a)', '-- 7. degenerate drivers (every cue on both sides) --'
-      params%flush_cue_mask = CUE_ALL ; params%shed_cue_mask = CUE_ALL
+      params%flush_cue_mask = CUE_ALL
+      params%shed_cue_mask = CUE_ALL
       ok = .true.
       do d = 1_ik, 60_ik
          env%doy = modulo(d - 1_ik, 365_ik) + 1_ik
          if (mod(d, 2_ik) == 0_ik) then
-            env%temp_day = 350.0_wp ; env%predawn_leaf_psi = 5.0_wp ; env%par_hours = 30.0_wp
+            env%temp_day = 350.0_wp
+            env%predawn_leaf_psi = 5.0_wp
+            env%par_hours = 30.0_wp
          else
-            env%temp_day = 200.0_wp ; env%predawn_leaf_psi = -100.0_wp ; env%par_hours = -5.0_wp
+            env%temp_day = 200.0_wp
+            env%predawn_leaf_psi = -100.0_wp
+            env%par_hours = -5.0_wp
          end if
          call phenology_kernel(env, params, 1.0_wp, state, out)
          if (out%leaf_flush_potential < 0.0_wp .or. out%leaf_shed_potential < 0.0_wp) ok = .false.
@@ -363,7 +377,8 @@ contains
       call check_close(st%growing_degree_days, 0.0_wp, 1.0e-12_wp, 'a sub-base day adds no warmth')
 
       !=== 4. The water fields: the dry sum grows by (leaf_psi_tlp - predawn_leaf_psi). ========!
-      env = warm_day() ; env%predawn_leaf_psi = -3.5_c_double
+      env = warm_day()
+      env%predawn_leaf_psi = -3.5_c_double
       p   = base_params(CUE_WATER, CUE_WATER)
       st  = birth_state()
       call ed_phenology_step(env, p, DT, st, out)
@@ -379,7 +394,8 @@ contains
       call ed_phenology_step(env, p, DT, st, out)
       call check_close(st%light_hours_mean, env%par_hours / p%light_window, 1.0e-12_wp,                &
                        'the light running mean moves by par_hours / light_window in one day')
-      st  = birth_state() ; st%light_hours_mean = -1.0_c_double
+      st  = birth_state()
+      st%light_hours_mean = -1.0_c_double
       call ed_phenology_step(env, p, DT, st, out)
       call check_close(st%light_hours_mean, env%par_hours, 0.0_wp,                                     &
                        'with no light memory, the first day sets it to par_hours')
@@ -444,9 +460,12 @@ contains
    end function base_params
 
    type(pheno_state_c) function birth_state() result(s)
-      s%leaf_flush_tendency = 1.0_c_double ; s%leaf_shed_tendency = 0.0_c_double
-      s%growing_degree_days = 0.0_c_double ; s%cold_degree_days   = 0.0_c_double
-      s%wet_psi_sum         = 0.0_c_double ; s%dry_psi_sum        = 0.0_c_double
+      s%leaf_flush_tendency = 1.0_c_double
+      s%leaf_shed_tendency = 0.0_c_double
+      s%growing_degree_days = 0.0_c_double
+      s%cold_degree_days   = 0.0_c_double
+      s%wet_psi_sum         = 0.0_c_double
+      s%dry_psi_sum        = 0.0_c_double
       s%light_hours_mean    = 0.0_c_double
    end function birth_state
 

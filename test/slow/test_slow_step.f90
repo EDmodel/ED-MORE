@@ -57,13 +57,17 @@ contains
          call set_daily_drivers(poly, daily_tair(doy), daylength(cfg%forcing%latitude, doy))
          call advance_leaf_phenology(poly, cfg, doy)
          if (doy == 200_ik) then
-            fl_decid_200 = poly%cohort%leaf_flush_tendency(1) ; sh_decid_200 = poly%cohort%leaf_shed_tendency(1)
-            fl_none_200  = poly%cohort%leaf_flush_tendency(2) ; sh_none_200  = poly%cohort%leaf_shed_tendency(2)
+            fl_decid_200 = poly%cohort%leaf_flush_tendency(1)
+            sh_decid_200 = poly%cohort%leaf_shed_tendency(1)
+            fl_none_200  = poly%cohort%leaf_flush_tendency(2)
+            sh_none_200  = poly%cohort%leaf_shed_tendency(2)
             gdd_summer   = poly%cohort%growing_degree_days(1)
          end if
          if (doy == 340_ik) then
-            fl_decid_340 = poly%cohort%leaf_flush_tendency(1) ; sh_decid_340 = poly%cohort%leaf_shed_tendency(1)
-            fl_none_340  = poly%cohort%leaf_flush_tendency(2) ; sh_none_340  = poly%cohort%leaf_shed_tendency(2)
+            fl_decid_340 = poly%cohort%leaf_flush_tendency(1)
+            sh_decid_340 = poly%cohort%leaf_shed_tendency(1)
+            fl_none_340  = poly%cohort%leaf_flush_tendency(2)
+            sh_none_340  = poly%cohort%leaf_shed_tendency(2)
          end if
       end do
 
@@ -445,7 +449,8 @@ contains
       call init_bare_ground(poly, cfg, 1_ik)
       call add_cohort(poly, cfg, 1_ik, 3_ik, 0.1_wp, 20.0_wp)       ! climax cohort
       call finalize_init(poly)
-      wood0 = poly%cohort%wood_carbon(1) ; dbh0 = poly%cohort%dbh(1)
+      wood0 = poly%cohort%wood_carbon(1)
+      dbh0 = poly%cohort%dbh(1)
       do istep = 1_ik, 30_ik
          call advance_one_step(poly, cfg, ledgers)                  ! growth + mortality only
       end do
@@ -502,7 +507,9 @@ contains
          real(wp) :: sla0, vc0, ll0, ns0
          cfg%trait_dynamics%trait_plasticity_on = .true.
          poly%cohort%overtopping_lai(1) = 4.0_wp                  ! deep shade
-         sla0 = poly%cohort%sla(1) ; vc0 = poly%cohort%vcmax25(1) ; ll0 = poly%cohort%leaf_turnover_rate(1)
+         sla0 = poly%cohort%sla(1)
+         vc0 = poly%cohort%vcmax25(1)
+         ll0 = poly%cohort%leaf_turnover_rate(1)
          ns0  = poly%cohort%nonstructural_carbon(1)
          do istep = 1_ik, 200_ik                                  ! many steps so the slow relaxation shows
             call advance_plant_traits(poly, 1.0_wp, leaf_new, storage_new)
@@ -576,7 +583,8 @@ contains
          wood_water0      = poly%cohort%wood_water_mass(1)
 
          allocate(step%d_leaf(1), step%d_fineroot(1), step%d_wood(1), step%d_nonstructural(1))
-         step%d_wood = 0.0_wp ; step%d_nonstructural = 0.0_wp
+         step%d_wood = 0.0_wp
+         step%d_nonstructural = 0.0_wp
 
          !----- (a) Net LOSS on both leaf and fine root: shed proportional to the carbon fraction lost. --!
          step%d_leaf(1)     = -0.25_wp * leaf_carbon0        ! sheds 25% of the leaf pool this step
@@ -927,7 +935,8 @@ contains
       integer(ik) :: ip, i, i0, i1
       w = 0.0_wp
       do ip = 1_ik, st%patch%n
-         i0 = st%patch%cohort_offset(ip) ; i1 = i0 + st%patch%cohort_count(ip) - 1_ik
+         i0 = st%patch%cohort_offset(ip)
+         i1 = i0 + st%patch%cohort_count(ip) - 1_ik
          do i = i0, i1
             w = w + st%patch%area(ip) * st%cohort%nplant(i)                                        &
                   * (st%cohort%leaf_water_mass(i) + st%cohort%wood_water_mass(i))
@@ -1657,7 +1666,8 @@ contains
       !    fast rows are not slow rows (the output layer reports those as missing). ----------------!
       block
          type(ed_config_t) :: cfg_slow
-         cfg_slow = cfg ; cfg_slow%fast_biophysics_on = .false.
+         cfg_slow = cfg
+         cfg_slow%fast_biophysics_on = .false.
          call reset_step_diagnostics(poly)
          poly%patch%diag%n = 0_ik                                   ! as if no fast loop had ever run
          pool0 = sum(poly%patch%recruit_pool(:, 1))

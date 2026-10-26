@@ -244,10 +244,14 @@ contains
       !      follows wood carbon and the sapwood ring, not leaf area).                                  !
       !      leaf_water_mass/wood_water_mass are EXTENSIVE like AGB (nplant-weighted, so the fused      !
       !      site-TOTAL water is conserved -- leaf-area-weighting them would not conserve it). ---------!
-      poly%cohort%leaf_water_mass(1) = 2.0_wp ; poly%cohort%leaf_water_mass(2) = 5.0_wp
-      poly%cohort%wood_water_mass(1) = 3.0_wp ; poly%cohort%wood_water_mass(2) = 7.0_wp
-      poly%cohort%leaf_temp(1) = 300.0_wp ; poly%cohort%leaf_temp(2) = 305.0_wp
-      poly%cohort%wood_temp(1) = 298.0_wp ; poly%cohort%wood_temp(2) = 306.0_wp
+      poly%cohort%leaf_water_mass(1) = 2.0_wp
+      poly%cohort%leaf_water_mass(2) = 5.0_wp
+      poly%cohort%wood_water_mass(1) = 3.0_wp
+      poly%cohort%wood_water_mass(2) = 7.0_wp
+      poly%cohort%leaf_temp(1) = 300.0_wp
+      poly%cohort%leaf_temp(2) = 305.0_wp
+      poly%cohort%wood_temp(1) = 298.0_wp
+      poly%cohort%wood_temp(2) = 306.0_wp
       !----- And the canopy films [kg/plant]: nplant-weighted like the tissue water, and part of the  !
       !      tissues' heat capacity, so set before the energies. ------------------------------------!
       poly%cohort%leaf_surf_water(1) = 0.02_wp
@@ -261,13 +265,18 @@ contains
              + poly%cohort%nplant(2) * (poly%cohort%leaf_energy(2) + poly%cohort%wood_energy(2))
       !----- The four per-plant flux accumulators are EXTENSIVE too. Assert them, so the declared     !
       !      policy in fuse_cohort_fast_state has a witness for every kind it names.                  !
-      poly%cohort%gpp_accum(1)       = 1.0_wp ; poly%cohort%gpp_accum(2)       = 4.0_wp
-      poly%cohort%leaf_resp_accum(1) = 0.2_wp ; poly%cohort%leaf_resp_accum(2) = 0.9_wp
-      poly%cohort%stem_resp_accum(1) = 0.1_wp ; poly%cohort%stem_resp_accum(2) = 0.6_wp
-      poly%cohort%root_resp_accum(1) = 0.3_wp ; poly%cohort%root_resp_accum(2) = 0.8_wp
+      poly%cohort%gpp_accum(1)       = 1.0_wp
+      poly%cohort%gpp_accum(2)       = 4.0_wp
+      poly%cohort%leaf_resp_accum(1) = 0.2_wp
+      poly%cohort%leaf_resp_accum(2) = 0.9_wp
+      poly%cohort%stem_resp_accum(1) = 0.1_wp
+      poly%cohort%stem_resp_accum(2) = 0.6_wp
+      poly%cohort%root_resp_accum(1) = 0.3_wp
+      poly%cohort%root_resp_accum(2) = 0.8_wp
       wr = poly%cohort%nplant(1) * poly%cohort%leaf_area(1)
       wd = poly%cohort%nplant(2) * poly%cohort%leaf_area(2)
-      np1 = poly%cohort%nplant(1) ; np2 = poly%cohort%nplant(2)   ! captured BEFORE the fuse
+      np1 = poly%cohort%nplant(1)
+      np2 = poly%cohort%nplant(2)                                 ! captured BEFORE the fuse
       leafmass_exp = (poly%cohort%nplant(1)*2.0_wp + poly%cohort%nplant(2)*5.0_wp)                     &
                    / (poly%cohort%nplant(1) + poly%cohort%nplant(2))
       woodmass_exp = (poly%cohort%nplant(1)*3.0_wp + poly%cohort%nplant(2)*7.0_wp)                     &
@@ -374,7 +383,8 @@ contains
       agb0 = total_agb(poly)
       !----- The interception films are per plant: each daughter keeps its parent's, so the patch's     !
       !      film water is what it was. -------------------------------------------------------------!
-      poly%cohort%leaf_surf_water(1) = 0.30_wp ; poly%cohort%wood_surf_water(1) = 0.05_wp
+      poly%cohort%leaf_surf_water(1) = 0.30_wp
+      poly%cohort%wood_surf_water(1) = 0.05_wp
       film0 = poly%cohort%nplant(1) * 0.35_wp
       !----- The tissues away from their birth temperature, held to their energies, films included:   !
       !      each daughter keeps its parent's temperatures (the wood carbon it gained or lost held at  !
@@ -430,7 +440,8 @@ contains
          call finalize_init(poly)
          !----- Push one cohort's storage OFF allometry (the starvation buffer a reset would lose). -!
          poly%cohort%nonstructural_carbon(1) = 3.0_wp * poly%cohort%nonstructural_carbon(1)
-         nr5 = poly%cohort%nplant(1) ; nd5 = poly%cohort%nplant(2)
+         nr5 = poly%cohort%nplant(1)
+         nd5 = poly%cohort%nplant(2)
          lc_t = nr5*poly%cohort%leaf_carbon(1)          + nd5*poly%cohort%leaf_carbon(2)
          fc_t = nr5*poly%cohort%fineroot_carbon(1)      + nd5*poly%cohort%fineroot_carbon(2)
          wc_t = nr5*poly%cohort%wood_carbon(1)          + nd5*poly%cohort%wood_carbon(2)
@@ -463,8 +474,10 @@ contains
          call add_cohort(poly, cfg, 1_ik, 1_ik, 0.5_wp, 10.0_wp)
          call add_cohort(poly, cfg, 1_ik, 1_ik, 0.3_wp, 12.0_wp)
          call finalize_init(poly)
-         poly%cohort%sla(1) = 12.0_wp ; poly%cohort%sla(2) = 24.0_wp      ! shade-acclimated donor
-         poly%cohort%leaf_turnover_rate(1) = 1.0_wp ; poly%cohort%leaf_turnover_rate(2) = 0.4_wp
+         poly%cohort%sla(1) = 12.0_wp
+         poly%cohort%sla(2) = 24.0_wp                                     ! shade-acclimated donor
+         poly%cohort%leaf_turnover_rate(1) = 1.0_wp
+         poly%cohort%leaf_turnover_rate(2) = 0.4_wp
          call set_cohort_size_from_carbon(poly%cohort, 1_ik)
          call set_cohort_size_from_carbon(poly%cohort, 2_ik)
          lai0 = poly%cohort%nplant(1)*poly%cohort%leaf_area(1) + poly%cohort%nplant(2)*poly%cohort%leaf_area(2)
@@ -481,8 +494,10 @@ contains
          call add_cohort(poly, cfg, 1_ik, 1_ik, 0.5_wp, 10.0_wp)
          call add_cohort(poly, cfg, 1_ik, 1_ik, 0.3_wp, 12.0_wp)
          call finalize_init(poly)
-         poly%cohort%sla(1) = 12.0_wp ; poly%cohort%sla(2) = 24.0_wp
-         poly%cohort%leaf_carbon(1) = 1.0e-193_wp ; poly%cohort%leaf_carbon(2) = 3.0e-193_wp
+         poly%cohort%sla(1) = 12.0_wp
+         poly%cohort%sla(2) = 24.0_wp
+         poly%cohort%leaf_carbon(1) = 1.0e-193_wp
+         poly%cohort%leaf_carbon(2) = 3.0e-193_wp
          call set_cohort_size_from_carbon(poly%cohort, 1_ik)
          call set_cohort_size_from_carbon(poly%cohort, 2_ik)
          lai0 = poly%cohort%nplant(1)*poly%cohort%leaf_area(1) + poly%cohort%nplant(2)*poly%cohort%leaf_area(2)
@@ -651,19 +666,22 @@ contains
                        'gap patch starts a fresh shed_water_rate, like age, and receives the dead canopy''s water')
 
       !----- The gap holds ONLY survivors (height < threshold): the short cohort. -------------!
-      i0 = poly%patch%cohort_offset(ig) ; i1 = i0 + poly%patch%cohort_count(ig) - 1_ik
+      i0 = poly%patch%cohort_offset(ig)
+      i1 = i0 + poly%patch%cohort_count(ig) - 1_ik
       n_gap_cohorts = poly%patch%cohort_count(ig)
       call check(n_gap_cohorts == 1_ik, 'gap should contain exactly the one survivor cohort')
       film_after = 0.0_wp
       do ip = 1_ik, poly%patch%n
-         i0 = poly%patch%cohort_offset(ip) ; i1 = i0 + poly%patch%cohort_count(ip) - 1_ik
+         i0 = poly%patch%cohort_offset(ip)
+         i1 = i0 + poly%patch%cohort_count(ip) - 1_ik
          do i = i0, i1
             if (poly%cohort%height(i) < cfg%demography%disturbance_survive_height)                                &
                film_after = film_after + poly%patch%area(ip) * poly%cohort%nplant(i) * poly%cohort%leaf_surf_water(i)
          end do
       end do
       call check_close(film_after, film_before, 1.0e-12_wp, 'disturbance broke the survivor film-water conservation')
-      i0 = poly%patch%cohort_offset(ig) ; i1 = i0 + poly%patch%cohort_count(ig) - 1_ik
+      i0 = poly%patch%cohort_offset(ig)
+      i1 = i0 + poly%patch%cohort_count(ig) - 1_ik
       do i = i0, i1
          call check(poly%cohort%height(i) < cfg%demography%disturbance_survive_height,                        &
                     'tall canopy cohort must not survive in the gap')
@@ -676,7 +694,8 @@ contains
       !      densities diluted by frac*area(d)/new_area and keep their per-plant films, so the site's   !
       !      survivor film water is what it was. -------------------------------------------------------!
       call init_bare_ground(poly, cfg, 2_ik)
-      poly%patch%area(1) = 0.6_wp ; poly%patch%area(2) = 0.4_wp
+      poly%patch%area(1) = 0.6_wp
+      poly%patch%area(2) = 0.4_wp
       call add_cohort(poly, cfg, 1_ik, 2_ik, 0.20_wp, 40.0_wp)   ! tall, dies
       call add_cohort(poly, cfg, 1_ik, 2_ik, 0.50_wp,  3.0_wp)   ! short survivor, WET
       call add_cohort(poly, cfg, 2_ik, 2_ik, 0.20_wp, 40.0_wp)   ! tall, dies
@@ -684,7 +703,8 @@ contains
       call finalize_init(poly)
       film_before = 0.0_wp
       do ip = 1_ik, poly%patch%n
-         i0 = poly%patch%cohort_offset(ip) ; i1 = i0 + poly%patch%cohort_count(ip) - 1_ik
+         i0 = poly%patch%cohort_offset(ip)
+         i1 = i0 + poly%patch%cohort_count(ip) - 1_ik
          do i = i0, i1
             if (poly%cohort%height(i) < cfg%demography%disturbance_survive_height .and. ip == 1_ik) then
                poly%cohort%leaf_surf_water(i) = 0.25_wp
@@ -716,7 +736,8 @@ contains
       call check_close(le(ig), 180.0_wp, 1.0e-9_wp, 'the gap inherits the donors'' area-weighted diagnostics')
       film_after = 0.0_wp
       do ip = 1_ik, poly%patch%n
-         i0 = poly%patch%cohort_offset(ip) ; i1 = i0 + poly%patch%cohort_count(ip) - 1_ik
+         i0 = poly%patch%cohort_offset(ip)
+         i1 = i0 + poly%patch%cohort_count(ip) - 1_ik
          do i = i0, i1
             film_after = film_after + poly%patch%area(ip) * poly%cohort%nplant(i) * poly%cohort%leaf_surf_water(i)
          end do
@@ -785,7 +806,8 @@ contains
       n0 = total_nplant(poly)
       !----- Films are per plant: fusion rescales the densities and leaves the films alone, and the   !
       !      site's film water, the area- and nplant-weighted sum, is what it was. -------------------!
-      poly%cohort%leaf_surf_water(1) = 0.20_wp ; poly%cohort%wood_surf_water(2) = 0.10_wp   ! patch 1
+      poly%cohort%leaf_surf_water(1) = 0.20_wp
+      poly%cohort%wood_surf_water(2) = 0.10_wp                                              ! patch 1
       poly%cohort%leaf_surf_water(3) = 0.40_wp                                               ! patch 2
       film0 = site_film(poly)
       call fuse_patches(poly, cfg)
@@ -834,19 +856,24 @@ contains
       !    (a) area-weighted MERGE on fusion conserves the area-extensive store; (b) SORT keeps  !
       !    each reservoir bound to its patch. Both are silent-wrong if the lockstep misses them. !
       call init_bare_ground(poly, cfg, 2_ik)
-      poly%patch%area(1) = 0.75_wp ; poly%patch%area(2) = 0.25_wp
+      poly%patch%area(1) = 0.75_wp
+      poly%patch%area(2) = 0.25_wp
       call add_cohort(poly, cfg, 1_ik, 1_ik, 0.5_wp, 12.0_wp)   ! identical cohort in each patch
       call add_cohort(poly, cfg, 2_ik, 1_ik, 0.5_wp, 12.0_wp)   ! -> identical light profiles -> fuse
       call finalize_init(poly)
-      poly%patch%soil_water(1)%theta(1)       = 0.20_wp   ; poly%patch%soil_water(2)%theta(1)       = 0.40_wp
-      poly%patch%cas(1)%can_enthalpy      = 1000.0_wp ; poly%patch%cas(2)%can_enthalpy      = 2000.0_wp
-      poly%patch%soil_energy(1)%soil_energy(3) = 1.0e6_wp  ; poly%patch%soil_energy(2)%soil_energy(3) = 3.0e6_wp
+      poly%patch%soil_water(1)%theta(1)       = 0.20_wp
+      poly%patch%soil_water(2)%theta(1)       = 0.40_wp
+      poly%patch%cas(1)%can_enthalpy      = 1000.0_wp
+      poly%patch%cas(2)%can_enthalpy      = 2000.0_wp
+      poly%patch%soil_energy(1)%soil_energy(3) = 1.0e6_wp
+      poly%patch%soil_energy(2)%soil_energy(3) = 3.0e6_wp
       !----- DIFFERENT canopy depths, or this fixture cannot tell the two weightings apart. The      !
       !      canopy air is intensive per kg of AIR, and the air mass is area x depth, so the merged  !
       !      value is mass-weighted: (0.75*30*1000 + 0.25*10*2000)/(0.75*30 + 0.25*10) = 1100, not   !
       !      the 1250 an area weighting gives. Equal depths are exactly the case where the wrong     !
       !      answer and the right one agree. ---------------------------------------------------------!
-      poly%patch%cas(1)%can_depth = 30.0_wp ; poly%patch%cas(2)%can_depth = 10.0_wp
+      poly%patch%cas(1)%can_depth = 30.0_wp
+      poly%patch%cas(2)%can_depth = 10.0_wp
       cas_before = poly%patch%area(1) * poly%patch%cas(1)%can_depth * poly%patch%cas(1)%can_enthalpy  &
                  + poly%patch%area(2) * poly%patch%cas(2)%can_depth * poly%patch%cas(2)%can_enthalpy
       call fuse_patches(poly, cfg)
@@ -860,8 +887,10 @@ contains
       call check_close(cas_after, cas_before, 1.0e-12_wp, 'patch fusion must conserve canopy-air energy')
 
       call init_bare_ground(poly, cfg, 2_ik)
-      poly%patch%age(1) = 1.0_wp ; poly%patch%age(2) = 5.0_wp             ! patch 2 is older
-      poly%patch%soil_water(1)%theta(1) = 0.11_wp ; poly%patch%soil_water(2)%theta(1) = 0.55_wp
+      poly%patch%age(1) = 1.0_wp
+      poly%patch%age(2) = 5.0_wp                                          ! patch 2 is older
+      poly%patch%soil_water(1)%theta(1) = 0.11_wp
+      poly%patch%soil_water(2)%theta(1) = 0.55_wp
       call finalize_init(poly)
       call sort_patches(poly)                                             ! sorts age-descending: older first
       call check_close(poly%patch%age(1), 5.0_wp, 1.0e-12_wp, 'sort did not put the older patch first')

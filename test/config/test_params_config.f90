@@ -161,7 +161,10 @@ contains
          integer :: ios
          logical :: set_seen, default_seen, typo_seen, header_ok
          call toml_write_record(RECFILE)
-         set_seen = .false. ; default_seen = .false. ; typo_seen = .false. ; z0m_line = '(none)'
+         set_seen = .false.
+         default_seen = .false.
+         typo_seen = .false.
+         z0m_line = '(none)'
          open(newunit=u, file=RECFILE, status='old', action='read')
          read(u, '(a)') line
          header_ok = trim(line) == 'source,key,index,present,value'

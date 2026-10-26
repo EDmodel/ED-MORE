@@ -83,7 +83,8 @@ program test_c_api_leaf
    call check_close(arr, k25, 1.0e-9_wp, 'C-API ed_arrhenius returns k25 at the 25 C reference')
 
    !=== 4. The boundary-layer switch is an int flag, not a logical -- assert it is honoured. =!
-   env = make_env(0.0_c_double) ; env%gb = 0.5_c_double
+   env = make_env(0.0_c_double)
+   env%gb = 0.5_c_double
    call ed_leaf_solve(env, p, int(SM_MEDLYN, c_int), int(TEMP_RESPONSE_PEAKED, c_int),                 &
                       int(COLIM_QUADRATIC, c_int), 1_c_int, fb)
    call check(fb%converged /= 0_c_int, 'C-API solve converges with the boundary layer ON')
@@ -227,8 +228,11 @@ contains
    pure function make_env(psi) result(e)
       real(c_double), intent(in) :: psi
       type(leaf_env_c) :: e
-      e%par = 1500.0_c_double ; e%leaf_temp = 298.0_c_double ; e%vpd = 1500.0_c_double
-      e%ca  = 400.0_c_double  ; e%pressure  = 101325.0_c_double
+      e%par = 1500.0_c_double
+      e%leaf_temp = 298.0_c_double
+      e%vpd = 1500.0_c_double
+      e%ca  = 400.0_c_double
+      e%pressure  = 101325.0_c_double
       e%psi_leaf = 0.0_c_double          ! demand-side limb off, so only `psi` moves gs
       e%gb  = 0.0_c_double
       e%psi = psi                         ! supply-side: what beta_stomata keys on
@@ -240,22 +244,43 @@ contains
    pure function c3_defaults() result(q)
       type(leaf_args_c)   :: q
       q%pathway = int(PATH_C3, c_int)
-      q%vcmax25 = 60.0_c_double  ; q%jmax25 = 108.0_c_double ; q%tpu25 = 1.0e6_c_double
-      q%rd25    = 0.9_c_double   ; q%kp25   = 0.0_c_double
-      q%g0      = 0.01_c_double  ; q%g1     = 4.0_c_double   ; q%d0    = 1500.0_c_double
+      q%vcmax25 = 60.0_c_double
+      q%jmax25 = 108.0_c_double
+      q%tpu25 = 1.0e6_c_double
+      q%rd25    = 0.9_c_double
+      q%kp25   = 0.0_c_double
+      q%g0      = 0.01_c_double
+      q%g1     = 4.0_c_double
+      q%d0    = 1500.0_c_double
       q%quantum_yield = 0.0_c_double
       q%theta_j     = 0.85_c_double
-      q%theta_cj_c3 = 0.98_c_double ; q%theta_ip_c3 = 0.95_c_double
-      q%theta_cj_c4 = 0.80_c_double ; q%theta_ic_c4 = 0.95_c_double
+      q%theta_cj_c3 = 0.98_c_double
+      q%theta_ip_c3 = 0.95_c_double
+      q%theta_cj_c4 = 0.80_c_double
+      q%theta_ic_c4 = 0.95_c_double
       q%lambda25 = 600.0_c_double
-      q%psi_open = -0.5_c_double ; q%psi_close = -2.5_c_double ; q%lambda_psi_exp = 1.0_c_double
+      q%psi_open = -0.5_c_double
+      q%psi_close = -2.5_c_double
+      q%lambda_psi_exp = 1.0_c_double
       q%sref_stomata = 2.0_c_double
-      q%kc25 = 40.49_c_double ; q%ko25 = 27840.0_c_double ; q%gstar25 = 4.275_c_double
-      q%ea_kc = 79430.0_c_double ; q%ea_ko = 36380.0_c_double ; q%ea_gstar = 37830.0_c_double
-      q%ea_vcmax = 65330.0_c_double ; q%ea_jmax = 43540.0_c_double ; q%ea_rd = 46390.0_c_double
-      q%hd_vcmax = 200000.0_c_double ; q%hd_jmax = 200000.0_c_double ; q%hd_rd = 1.0e9_c_double
-      q%ds_vcmax = 650.0_c_double ; q%ds_jmax = 640.0_c_double ; q%ds_rd = 490.0_c_double
-      q%o2_mol_frac = 0.209_c_double ; q%absorptance = 0.85_c_double ; q%phi_psii = 0.85_c_double
+      q%kc25 = 40.49_c_double
+      q%ko25 = 27840.0_c_double
+      q%gstar25 = 4.275_c_double
+      q%ea_kc = 79430.0_c_double
+      q%ea_ko = 36380.0_c_double
+      q%ea_gstar = 37830.0_c_double
+      q%ea_vcmax = 65330.0_c_double
+      q%ea_jmax = 43540.0_c_double
+      q%ea_rd = 46390.0_c_double
+      q%hd_vcmax = 200000.0_c_double
+      q%hd_jmax = 200000.0_c_double
+      q%hd_rd = 1.0e9_c_double
+      q%ds_vcmax = 650.0_c_double
+      q%ds_jmax = 640.0_c_double
+      q%ds_rd = 490.0_c_double
+      q%o2_mol_frac = 0.209_c_double
+      q%absorptance = 0.85_c_double
+      q%phi_psii = 0.85_c_double
    end function c3_defaults
 
 end program test_c_api_leaf

@@ -114,8 +114,11 @@ contains
       t = ed_time_t(year=2020_ik, month=7_ik, day=1_ik)
       ! A SUNRISE window (10-11 UTC ~ 05-06 local at Ithaca), where cosz rises steeply from ~0.07 --
       ! this is where ED2's <sec z> mistake is worst (docs/science/forcing.md §5). Solar noon is ~17 UTC here.
-      f_avg = 500.0_wp ; win_start = 10.0_wp*3600.0_wp ; dt_win = 3600.0_wp
-      n = 12_ik ; dt_sub = dt_win / real(n, wp)
+      f_avg = 500.0_wp
+      win_start = 10.0_wp*3600.0_wp
+      dt_win = 3600.0_wp
+      n = 12_ik
+      dt_sub = dt_win / real(n, wp)
       factor = cosz_reconstruct_factor(t, win_start, dt_sub, dt_win, LAT, LON)  ! = 1/<cosz>
       ! (a) the CORRECT 1/<cosz> factor conserves the interval mean EXACTLY over the same subsamples:
       fsum = 0.0_wp
@@ -142,18 +145,25 @@ contains
       base = ed_time_t(year=2020_ik, month=7_ik, day=1_ik)
       call write_synthetic_forcing(NCFILE, base)
 
-      fc%format = MET_BACKEND_DEFAULT ; fc%path = NCFILE ; fc%grid_index = 1_ik
-      fc%timestep = 3600.0_wp ; fc%avg_convention = METAVG_END ; fc%sw_partition = SWPART_CLEARIDX
-      fc%latitude = 42.44_wp ; fc%longitude = -76.50_wp
+      fc%format = MET_BACKEND_DEFAULT
+      fc%path = NCFILE
+      fc%grid_index = 1_ik
+      fc%timestep = 3600.0_wp
+      fc%avg_convention = METAVG_END
+      fc%sw_partition = SWPART_CLEARIDX
+      fc%latitude = 42.44_wp
+      fc%longitude = -76.50_wp
       fc%recycle = .false.
-      call met_open(src, fc) ; call site_cursor(src, cur, fc)
+      call met_open(src, fc)
+      call site_cursor(src, cur, fc)
       call check_true('opened file: nrec=25', src%nrec == 25_ik, real(src%nrec, wp))
       call check_true('opened file: ngrid=2', src%ngrid == 2_ik, real(src%ngrid, wp))
       call check_true('a file with Wind only supplies no wind vector', .not. src%has_wind_vector)
 
       ! noon (17 UTC): SW positive, Tair follows the diurnal input
       now = time_advance_seconds(base, 17.0_wp*3600.0_wp)
-      call met_advance(src, cur, now) ; met_noon = met_instant(src, cur, now)
+      call met_advance(src, cur, now)
+      met_noon = met_instant(src, cur, now)
       call check_true('noon SWdown > 0', met_noon%sw_down() > 100.0_wp, met_noon%sw_down())
       call check_true('noon cosz > 0.5', met_noon%cosz > 0.5_wp, met_noon%cosz)
       call check_true('Tair in [285,305]', met_noon%air_temp > 285.0_wp .and. met_noon%air_temp < 305.0_wp, met_noon%air_temp)
@@ -161,7 +171,8 @@ contains
 
       ! night (04 UTC): SW exactly 0
       now = time_advance_seconds(base, 4.0_wp*3600.0_wp)
-      call met_advance(src, cur, now) ; met_night = met_instant(src, cur, now)
+      call met_advance(src, cur, now)
+      met_night = met_instant(src, cur, now)
       call check('night SWdown = 0', met_night%sw_down(), 0.0_wp, 1.0e-12_wp)
       call check_true('an instant from a Wind-only file has no vector', .not. met_night%has_wind_vector)
       call met_close(src)
@@ -170,10 +181,12 @@ contains
       !      (docs/science/forcing.md §1). ----------------------------------------------------!
       call write_synthetic_forcing(NCFILE, base, with_components=.true.)
       fc%grid_index = 1_ik
-      call met_open(src, fc) ; call site_cursor(src, cur, fc)
+      call met_open(src, fc)
+      call site_cursor(src, cur, fc)
       call check_true('a file with u10 and v10 supplies the wind vector', src%has_wind_vector)
       now = time_advance_seconds(base, 6.0_wp*3600.0_wp)
-      call met_advance(src, cur, now) ; met_night = met_instant(src, cur, now)
+      call met_advance(src, cur, now)
+      met_night = met_instant(src, cur, now)
       call check('wind_u = u10', met_night%wind_u, 3.0_wp, 1.0e-12_wp)
       call check('wind_v = v10', met_night%wind_v, -4.0_wp, 1.0e-12_wp)
       call check('speed from the components, not Wind', met_night%wind, 5.0_wp, 1.0e-12_wp)
@@ -182,9 +195,11 @@ contains
 
       ! multi-grid: grid_index=2 carries a distinct (scaled) SW series
       fc%grid_index = 2_ik
-      call met_open(src, fc) ; call site_cursor(src, cur, fc)
+      call met_open(src, fc)
+      call site_cursor(src, cur, fc)
       now = time_advance_seconds(base, 17.0_wp*3600.0_wp)
-      call met_advance(src, cur, now) ; met_g2 = met_instant(src, cur, now)
+      call met_advance(src, cur, now)
+      met_g2 = met_instant(src, cur, now)
       call check_true('grid 2 SW differs from grid 1', abs(met_g2%sw_down() - sw_g1) > 1.0_wp, met_g2%sw_down()-sw_g1)
       call met_close(src)
 
@@ -204,11 +219,20 @@ contains
       print '(a)', '-- test 7c: gaps by _FillValue and missing_value, and a packed variable --'
       base = ed_time_t(year=2020_ik, month=7_ik, day=1_ik)
       call write_synthetic_forcing(NCFILE, base, conventions=.true.)
-      fc%format = MET_BACKEND_DEFAULT ; fc%path = NCFILE ; fc%grid_index = 1_ik
-      fc%timestep = 3600.0_wp ; fc%avg_convention = METAVG_END ; fc%sw_partition = SWPART_CLEARIDX
-      fc%latitude = 42.44_wp ; fc%longitude = -76.50_wp ; fc%recycle = .false.
-      call met_open(src, fc) ; call site_cursor(src, cur, fc)
-      jt = src%series_col(FLD_TAIR) ; jq = src%series_col(FLD_QAIR) ; jp = src%series_col(FLD_PSURF)
+      fc%format = MET_BACKEND_DEFAULT
+      fc%path = NCFILE
+      fc%grid_index = 1_ik
+      fc%timestep = 3600.0_wp
+      fc%avg_convention = METAVG_END
+      fc%sw_partition = SWPART_CLEARIDX
+      fc%latitude = 42.44_wp
+      fc%longitude = -76.50_wp
+      fc%recycle = .false.
+      call met_open(src, fc)
+      call site_cursor(src, cur, fc)
+      jt = src%series_col(FLD_TAIR)
+      jq = src%series_col(FLD_QAIR)
+      jp = src%series_col(FLD_PSURF)
       call check_true('Tair at its _FillValue reads as a gap', ieee_is_nan(src%series(GAP_REC, jt)))
       call check_true('Qair at its missing_value reads as a gap', ieee_is_nan(src%series(GAP_REC + 1, jq)))
       call check_true('every other record reads as data', count(ieee_is_nan(src%series(:, jt))) == 1 .and.   &
@@ -216,7 +240,8 @@ contains
       call check('PSurf is unpacked: scale_factor, then add_offset', maxval(abs(src%series(:, jp) - 98000.0_wp)), &
                  0.0_wp, 1.0e-9_wp)
       now = time_advance_seconds(base, 3.5_wp*3600.0_wp)          ! a step away from the gaps
-      call met_advance(src, cur, now) ; met = met_instant(src, cur, now)
+      call met_advance(src, cur, now)
+      met = met_instant(src, cur, now)
       call check_true('a step away from the gaps reads Tair', met%air_temp > 285.0_wp .and. met%air_temp < 305.0_wp, &
                       met%air_temp)
       call met_close(src)
@@ -247,20 +272,29 @@ contains
             factor = cosz_reconstruct_factor(base, real(h - 1, wp) * 3600.0_wp, 360.0_wp, 3600.0_wp, LAT, lon)
             if (cz_mid <= 1.0e-3_wp .and. factor > 0.0_wp .and. &
                 solar_cosz_utc(base, real(h, wp) * 3600.0_wp, LAT, lon) > 0.02_wp) then
-               hsun = h ; exit search
+               hsun = h
+               exit search
             end if
          end do
       end do search
       call check_true('a sunrise hour with a dark midpoint exists', hsun > 0, real(hsun, wp))
       call write_synthetic_forcing(NCFILE, base, sw_flat=SW)
-      fc%format = MET_BACKEND_DEFAULT ; fc%path = NCFILE ; fc%grid_index = 1_ik
-      fc%timestep = 3600.0_wp ; fc%avg_convention = METAVG_END ; fc%sw_partition = SWPART_CLEARIDX
-      fc%latitude = LAT ; fc%longitude = lon ; fc%recycle = .false.
-      call met_open(src, fc) ; call site_cursor(src, cur, fc)
+      fc%format = MET_BACKEND_DEFAULT
+      fc%path = NCFILE
+      fc%grid_index = 1_ik
+      fc%timestep = 3600.0_wp
+      fc%avg_convention = METAVG_END
+      fc%sw_partition = SWPART_CLEARIDX
+      fc%latitude = LAT
+      fc%longitude = lon
+      fc%recycle = .false.
+      call met_open(src, fc)
+      call site_cursor(src, cur, fc)
       mean_sw = 0.0_wp
       do k = 1, 60                                                     ! one-minute mid-points
          now = time_advance_seconds(base, (real(hsun - 1, wp) + (real(k, wp) - 0.5_wp) / 60.0_wp) * 3600.0_wp)
-         call met_advance(src, cur, now) ; met = met_instant(src, cur, now)
+         call met_advance(src, cur, now)
+         met = met_instant(src, cur, now)
          mean_sw = mean_sw + met%sw_down() / 60.0_wp
       end do
       call check('sunrise hour: its instants average to the hour''s SW', mean_sw, SW, 0.1_wp * SW)
@@ -281,9 +315,14 @@ contains
       base = ed_time_t(year=2020_ik, month=7_ik, day=1_ik)
       call write_synthetic_forcing(NCFILE, base)
 
-      fc%format = MET_BACKEND_DEFAULT ; fc%path = NCFILE ; fc%grid_index = 1_ik
-      fc%timestep = 3600.0_wp ; fc%avg_convention = METAVG_END ; fc%sw_partition = SWPART_CLEARIDX
-      fc%latitude = 42.44_wp ; fc%longitude = -76.50_wp
+      fc%format = MET_BACKEND_DEFAULT
+      fc%path = NCFILE
+      fc%grid_index = 1_ik
+      fc%timestep = 3600.0_wp
+      fc%avg_convention = METAVG_END
+      fc%sw_partition = SWPART_CLEARIDX
+      fc%latitude = 42.44_wp
+      fc%longitude = -76.50_wp
       fc%recycle = .false.
 
       !----- the honest config opens cleanly. A validator that rejects the good case is useless. --!
@@ -328,22 +367,31 @@ contains
       integer(ik) :: st
       real(wp) :: tair0, tair1, expect_hold
       print '(a)', '-- test 8: edge paths (start-hold + recycle) --'
-      fc%format = MET_BACKEND_DEFAULT ; fc%path = NCFILE ; fc%grid_index = 1_ik
-      fc%timestep = 3600.0_wp ; fc%avg_convention = METAVG_END ; fc%sw_partition = SWPART_CLEARIDX
-      fc%latitude = 42.44_wp ; fc%longitude = -76.50_wp
+      fc%format = MET_BACKEND_DEFAULT
+      fc%path = NCFILE
+      fc%grid_index = 1_ik
+      fc%timestep = 3600.0_wp
+      fc%avg_convention = METAVG_END
+      fc%sw_partition = SWPART_CLEARIDX
+      fc%latitude = 42.44_wp
+      fc%longitude = -76.50_wp
       ! synthetic Tair(hh) = 288 + 8 sin(2 pi (hh-15)/24)  -- reproduce the file's values for the checks:
       tair0 = 288.0_wp + 8.0_wp*sin(2.0_wp*3.14159265_wp*(0.0_wp-15.0_wp)/24.0_wp)
       tair1 = 288.0_wp + 8.0_wp*sin(2.0_wp*3.14159265_wp*(1.0_wp-15.0_wp)/24.0_wp)
 
       ! (a) CLAMP_HOLD: start before the first record holds rec1; then MARCHING into [t0,t1) must
       !     interpolate, not hold rec1 for the whole first interval.
-      fc%start_clamp = CLAMP_HOLD ; fc%recycle = .false.
-      call met_open(src, fc) ; call site_cursor(src, cur, fc)
+      fc%start_clamp = CLAMP_HOLD
+      fc%recycle = .false.
+      call met_open(src, fc)
+      call site_cursor(src, cur, fc)
       now = time_advance_seconds(base, -12.0_wp*3600.0_wp)          ! 12 h before the first record
-      call met_advance(src, cur, now) ; met = met_instant(src, cur, now)
+      call met_advance(src, cur, now)
+      met = met_instant(src, cur, now)
       call check('hold before t0 -> record 1', met%air_temp, tair0, 1.0e-4_wp)
       now = time_advance_seconds(base, 0.5_wp*3600.0_wp)            ! 00:30 -> midpoint of [t0,t1)
-      call met_advance(src, cur, now) ; met = met_instant(src, cur, now)
+      call met_advance(src, cur, now)
+      met = met_instant(src, cur, now)
       expect_hold = 0.5_wp*(tair0 + tair1)
       call check('march into [t0,t1) interpolates (not stuck at rec1)', met%air_temp, expect_hold, 1.0e-4_wp)
       call met_close(src)
@@ -352,7 +400,8 @@ contains
       !     hour-of-day and day-of-year on every wrap: an absolute-seconds span-wrap would
       !     SILENTLY drive a multi-decade run with sub-daily shortwave ~10 h out of phase. It must
       !     be REJECTED (docs/science/forcing.md §9).
-      fc%start_clamp = CLAMP_ERROR ; fc%recycle = .true.
+      fc%start_clamp = CLAMP_ERROR
+      fc%recycle = .true.
       fc%recycle_start = base
       fc%recycle_end   = time_advance_seconds(base, 24.0_wp*3600.0_wp)   ! 1 day, not a whole year
       call met_open(src, fc, stat=st)
@@ -390,8 +439,12 @@ contains
       integer(ik) :: st
       print '(a)', '-- test: recycle anchor + sub-daily phase --'
       call write_yearfile(YF, 2021_ik)                       ! 365 daily records from 2021-01-01 00:00
-      fc%format = MET_BACKEND_DEFAULT ; fc%path = YF ; fc%grid_index = 1_ik
-      fc%timestep = 86400.0_wp ; fc%avg_convention = METAVG_END ; fc%sw_partition = SWPART_CLEARIDX
+      fc%format = MET_BACKEND_DEFAULT
+      fc%path = YF
+      fc%grid_index = 1_ik
+      fc%timestep = 86400.0_wp
+      fc%avg_convention = METAVG_END
+      fc%sw_partition = SWPART_CLEARIDX
       fc%recycle = .true.
 
       !----- A MID-YEAR window: 2021-03-01 .. 2022-03-01. Plain year substitution would map a
@@ -411,10 +464,13 @@ contains
       call met_open(src, fc, stat=st)
       call check_true('whole-year window accepted', st == MET_OK, real(st, wp))
       call site_cursor(src, cur, fc)
-      call met_advance(src, cur, ed_time_t(2021_ik,9_ik,17_ik))   ; m_ref = met_instant(src, cur, ed_time_t(2021_ik,9_ik,17_ik))
-      call met_advance(src, cur, ed_time_t(2049_ik,9_ik,17_ik))   ; m_map = met_instant(src, cur, ed_time_t(2049_ik,9_ik,17_ik))
+      call met_advance(src, cur, ed_time_t(2021_ik,9_ik,17_ik))
+      m_ref = met_instant(src, cur, ed_time_t(2021_ik,9_ik,17_ik))
+      call met_advance(src, cur, ed_time_t(2049_ik,9_ik,17_ik))
+      m_map = met_instant(src, cur, ed_time_t(2049_ik,9_ik,17_ik))
       call check('29 yr later reads the same calendar day', m_map%air_temp, m_ref%air_temp, 1.0e-9_wp)
-      call met_advance(src, cur, ed_time_t(2013_ik,9_ik,17_ik)) ; m_map = met_instant(src, cur, ed_time_t(2013_ik,9_ik,17_ik))
+      call met_advance(src, cur, ed_time_t(2013_ik,9_ik,17_ik))
+      m_map = met_instant(src, cur, ed_time_t(2013_ik,9_ik,17_ik))
       call check('a model year BEFORE the window maps in too', m_map%air_temp, m_ref%air_temp, 1.0e-9_wp)
       call met_close(src)
    end subroutine test_recycle_anchor_phase
@@ -443,35 +499,49 @@ contains
       if (present(with_co2air)) co2air = with_co2air
       packed = .false.
       if (present(conventions)) packed = conventions
-      st = nc_create_f(path, NC_NETCDF4, ncid) ; call nc_check(st, 'write: create')
-      st = nc_def_dim_f(ncid, 'time', int(NT, c_size_t), td) ; call nc_check(st, 'write: time dim')
-      st = nc_def_dim_f(ncid, 'grid', int(NG, c_size_t), gd) ; call nc_check(st, 'write: grid dim')
+      st = nc_create_f(path, NC_NETCDF4, ncid)
+      call nc_check(st, 'write: create')
+      st = nc_def_dim_f(ncid, 'time', int(NT, c_size_t), td)
+      call nc_check(st, 'write: time dim')
+      st = nc_def_dim_f(ncid, 'grid', int(NG, c_size_t), gd)
+      call nc_check(st, 'write: grid dim')
       dims1(1) = td
-      st = nc_def_var_f(ncid, 'time', NC_DOUBLE, 1, dims1, vt) ; call nc_check(st, 'write: time var')
+      st = nc_def_var_f(ncid, 'time', NC_DOUBLE, 1, dims1, vt)
+      call nc_check(st, 'write: time var')
       st = nc_put_att_text_f(ncid, vt, 'units', int(len_trim('seconds since 2020-07-01 00:00:00'), c_size_t), &
-                             'seconds since 2020-07-01 00:00:00') ; call nc_check(st, 'write: units')
+                             'seconds since 2020-07-01 00:00:00')
+                             call nc_check(st, 'write: units')
       dims1(1) = gd
-      st = nc_def_var_f(ncid, 'latitude',  NC_DOUBLE, 1, dims1, vla) ; call nc_check(st, 'write: lat var')
-      st = nc_def_var_f(ncid, 'longitude', NC_DOUBLE, 1, dims1, vlo) ; call nc_check(st, 'write: lon var')
-      dims2(1) = td ; dims2(2) = gd        ! [time, grid] (slowest first)
+      st = nc_def_var_f(ncid, 'latitude',  NC_DOUBLE, 1, dims1, vla)
+      call nc_check(st, 'write: lat var')
+      st = nc_def_var_f(ncid, 'longitude', NC_DOUBLE, 1, dims1, vlo)
+      call nc_check(st, 'write: lon var')
+      dims2(1) = td
+      dims2(2) = gd                        ! [time, grid] (slowest first)
       do k = 1, 7
          st = nc_def_var_f(ncid, trim(VNAMES(k)), NC_DOUBLE, 2, dims2, vv(k))
          call nc_check(st, 'write: var '//trim(VNAMES(k)))
       end do
       if (co2air) then
-         st = nc_def_var_f(ncid, 'CO2air', NC_DOUBLE, 2, dims2, vc) ; call nc_check(st, 'write: var CO2air')
+         st = nc_def_var_f(ncid, 'CO2air', NC_DOUBLE, 2, dims2, vc)
+         call nc_check(st, 'write: var CO2air')
       end if
       if (packed) then
-         st = nc_put_att_double_f(ncid, vv(1), '_FillValue', NC_DOUBLE, TAIR_FILL) ; call nc_check(st, 'write: fill')
+         st = nc_put_att_double_f(ncid, vv(1), '_FillValue', NC_DOUBLE, TAIR_FILL)
+         call nc_check(st, 'write: fill')
          st = nc_put_att_double_f(ncid, vv(2), 'missing_value', NC_DOUBLE, QAIR_MISSING)
          call nc_check(st, 'write: missing_value')
-         st = nc_put_att_double_f(ncid, vv(3), 'scale_factor', NC_DOUBLE, PSURF_SCALE) ; call nc_check(st, 'write: scale')
-         st = nc_put_att_double_f(ncid, vv(3), 'add_offset', NC_DOUBLE, PSURF_OFFSET) ; call nc_check(st, 'write: offset')
+         st = nc_put_att_double_f(ncid, vv(3), 'scale_factor', NC_DOUBLE, PSURF_SCALE)
+         call nc_check(st, 'write: scale')
+         st = nc_put_att_double_f(ncid, vv(3), 'add_offset', NC_DOUBLE, PSURF_OFFSET)
+         call nc_check(st, 'write: offset')
       end if
       if (present(with_components)) then
          if (with_components) then
-            st = nc_def_var_f(ncid, 'u10', NC_DOUBLE, 2, dims2, vu) ; call nc_check(st, 'write: var u10')
-            st = nc_def_var_f(ncid, 'v10', NC_DOUBLE, 2, dims2, vw) ; call nc_check(st, 'write: var v10')
+            st = nc_def_var_f(ncid, 'u10', NC_DOUBLE, 2, dims2, vu)
+            call nc_check(st, 'write: var u10')
+            st = nc_def_var_f(ncid, 'v10', NC_DOUBLE, 2, dims2, vw)
+            call nc_check(st, 'write: var v10')
          end if
       end if
       !----- The two SELF-DESCRIBING global attributes the prep script writes. The fixture has to      !
@@ -483,44 +553,61 @@ contains
       call nc_check(st, 'write: avg_convention')
       st = nc_put_att_text_f(ncid, NC_GLOBAL, 'sw_input_kind', int(len_trim('total'), c_size_t), 'total')
       call nc_check(st, 'write: sw_input_kind')
-      st = nc_put_att_text_f(ncid, NC_GLOBAL, 'time_zone', 3_c_size_t, 'UTC') ; call nc_check(st, 'write: time_zone')
-      st = nc_enddef(ncid) ; call nc_check(st, 'write: enddef')
+      st = nc_put_att_text_f(ncid, NC_GLOBAL, 'time_zone', 3_c_size_t, 'UTC')
+      call nc_check(st, 'write: time_zone')
+      st = nc_enddef(ncid)
+      call nc_check(st, 'write: enddef')
 
       do it = 1, NT
          tsec(it) = real(it - 1, c_double) * 3600.0_c_double
       end do
-      lat = [42.5_c_double, 42.4_c_double] ; lon = [-76.6_c_double, -76.5_c_double]
-      start1(1) = 0_c_size_t ; count1(1) = int(NT, c_size_t)
-      st = nc_put_vara_double(ncid, vt, start1, count1, tsec) ; call nc_check(st, 'write: time vals')
+      lat = [42.5_c_double, 42.4_c_double]
+      lon = [-76.6_c_double, -76.5_c_double]
+      start1(1) = 0_c_size_t
+      count1(1) = int(NT, c_size_t)
+      st = nc_put_vara_double(ncid, vt, start1, count1, tsec)
+      call nc_check(st, 'write: time vals')
       count1(1) = int(NG, c_size_t)
-      st = nc_put_vara_double(ncid, vla, start1, count1, lat) ; call nc_check(st, 'write: lat vals')
-      st = nc_put_vara_double(ncid, vlo, start1, count1, lon) ; call nc_check(st, 'write: lon vals')
+      st = nc_put_vara_double(ncid, vla, start1, count1, lat)
+      call nc_check(st, 'write: lat vals')
+      st = nc_put_vara_double(ncid, vlo, start1, count1, lon)
+      call nc_check(st, 'write: lon vals')
 
-      start2 = [0_c_size_t, 0_c_size_t] ; count2 = [int(NT, c_size_t), int(NG, c_size_t)]
+      start2 = [0_c_size_t, 0_c_size_t]
+      count2 = [int(NT, c_size_t), int(NG, c_size_t)]
       do k = 1, 7
          do it = 1, NT
             hh = real(it - 1, wp)                      ! UTC hour 0..24
             do ig = 1, NG
                select case (k)
-               case (1) ; dat(ig,it) = 288.0_wp + 8.0_wp*sin(2.0_wp*3.14159265_wp*(hh-15.0_wp)/24.0_wp) ! Tair
-               case (2) ; dat(ig,it) = 0.008_wp        ! Qair
-               case (3) ; dat(ig,it) = 98000.0_wp      ! PSurf
-               case (4) ; dat(ig,it) = 3.0_wp          ! Wind
-               case (5) ; dat(ig,it) = 0.0_wp          ! Rainf
+               case (1)
+                  dat(ig,it) = 288.0_wp + 8.0_wp*sin(2.0_wp*3.14159265_wp*(hh-15.0_wp)/24.0_wp)         ! Tair
+               case (2)
+                  dat(ig,it) = 0.008_wp                ! Qair
+               case (3)
+                  dat(ig,it) = 98000.0_wp              ! PSurf
+               case (4)
+                  dat(ig,it) = 3.0_wp                  ! Wind
+               case (5)
+                  dat(ig,it) = 0.0_wp                  ! Rainf
                case (6)                                 ! SWdown: daytime bump, scaled per grid cell
                   sw_mean = max(0.0_wp, 900.0_wp*sin(3.14159265_wp*(hh-11.0_wp)/12.0_wp))
                   if (hh < 11.0_wp .or. hh > 23.0_wp) sw_mean = 0.0_wp
                   dat(ig,it) = sw_mean * (1.0_wp + 0.3_wp*real(ig-1, wp))
                   if (present(sw_flat)) dat(ig,it) = sw_flat
-               case (7) ; dat(ig,it) = 320.0_wp        ! LWdown
+               case (7)
+                  dat(ig,it) = 320.0_wp                ! LWdown
                end select
             end do
          end do
          if (packed) then
             select case (k)
-            case (1) ; dat(:, GAP_REC)     = TAIR_FILL
-            case (2) ; dat(:, GAP_REC + 1) = QAIR_MISSING
-            case (3) ; dat = (dat - PSURF_OFFSET) / PSURF_SCALE
+            case (1)
+               dat(:, GAP_REC)     = TAIR_FILL
+            case (2)
+               dat(:, GAP_REC + 1) = QAIR_MISSING
+            case (3)
+               dat = (dat - PSURF_OFFSET) / PSURF_SCALE
             end select
          end if
          st = nc_put_vara_double(ncid, vv(k), start2, count2, dat)
@@ -529,16 +616,20 @@ contains
       if (present(with_components)) then
          if (with_components) then
             dat = 3.0_wp
-            st = nc_put_vara_double(ncid, vu, start2, count2, dat) ; call nc_check(st, 'write: vals u10')
+            st = nc_put_vara_double(ncid, vu, start2, count2, dat)
+            call nc_check(st, 'write: vals u10')
             dat = -4.0_wp
-            st = nc_put_vara_double(ncid, vw, start2, count2, dat) ; call nc_check(st, 'write: vals v10')
+            st = nc_put_vara_double(ncid, vw, start2, count2, dat)
+            call nc_check(st, 'write: vals v10')
          end if
       end if
       if (co2air) then
          dat = 415.0_wp
-         st = nc_put_vara_double(ncid, vc, start2, count2, dat) ; call nc_check(st, 'write: vals CO2air')
+         st = nc_put_vara_double(ncid, vc, start2, count2, dat)
+         call nc_check(st, 'write: vals CO2air')
       end if
-      st = nc_close(ncid) ; call nc_check(st, 'write: close')
+      st = nc_close(ncid)
+      call nc_check(st, 'write: close')
    end subroutine write_synthetic_forcing
 
    !----- Nearest-grid match: pure kernel (argmin + great-circle) and the reader override. --------!
@@ -549,21 +640,29 @@ contains
       real(wp)    :: lon(3), lat(3), d
       integer(ik) :: idx
       print '(a)', '-- test: nearest-grid match --'
-      lon = [-80.0_wp, -76.5_wp, -70.0_wp] ; lat = [40.0_wp, 42.44_wp, 45.0_wp]
+      lon = [-80.0_wp, -76.5_wp, -70.0_wp]
+      lat = [40.0_wp, 42.44_wp, 45.0_wp]
       call check('argmin picks the coincident cell', real(nearest_grid_index(-76.5_wp,42.44_wp,lon,lat),wp), 2.0_wp, 0.5_wp)
       call check('argmin picks the SW cell',         real(nearest_grid_index(-79.0_wp,40.5_wp,lon,lat),wp), 1.0_wp, 0.5_wp)
       call check('great-circle self-distance = 0', great_circle_distance(-76.5_wp,42.44_wp,-76.5_wp,42.44_wp), 0.0_wp, 1.0e-6_wp)
       call check('great-circle 1 deg lat ~ 111 km', great_circle_distance(0.0_wp,0.0_wp,0.0_wp,1.0_wp), 111195.0_wp, 500.0_wp)
       !----- reader override: the 2-grid file has lon/lat cells (-76.6,42.5) and (-76.5,42.4). ---!
       call write_synthetic_forcing(NCFILE, ed_time_t(2020_ik,7_ik,1_ik))
-      fc%format = MET_BACKEND_DEFAULT ; fc%path = NCFILE ; fc%timestep = 3600.0_wp
-      fc%grid_match = GRIDMATCH_NEAREST ; fc%grid_index = 1_ik      ! grid_index deliberately WRONG for cell 2
-      fc%latitude = 42.41_wp ; fc%longitude = -76.49_wp     ! nearest to cell 2
-      call met_open(src, fc) ; call site_cursor(src, cur, fc)
+      fc%format = MET_BACKEND_DEFAULT
+      fc%path = NCFILE
+      fc%timestep = 3600.0_wp
+      fc%grid_match = GRIDMATCH_NEAREST
+      fc%grid_index = 1_ik                                          ! grid_index deliberately WRONG for cell 2
+      fc%latitude = 42.41_wp
+      fc%longitude = -76.49_wp                              ! nearest to cell 2
+      call met_open(src, fc)
+      call site_cursor(src, cur, fc)
       call check('reader resolves nearest -> grid_index 2', real(src%grid_index,wp), 2.0_wp, 0.5_wp)
       call met_close(src)
-      fc%latitude = 42.51_wp ; fc%longitude = -76.61_wp     ! nearest to cell 1
-      call met_open(src, fc) ; call site_cursor(src, cur, fc)
+      fc%latitude = 42.51_wp
+      fc%longitude = -76.61_wp                              ! nearest to cell 1
+      call met_open(src, fc)
+      call site_cursor(src, cur, fc)
       call check('reader resolves nearest -> grid_index 1', real(src%grid_index,wp), 1.0_wp, 0.5_wp)
       call met_close(src)
    end subroutine test_nearest_grid
@@ -577,8 +676,12 @@ contains
       real(wp) :: fac, rain_top, snow_top, rain_ref, snow_ref
       print '(a)', '-- test: forcing to the canopy-air top --'
       !----- ERA5-Land: open-terrain 10 m wind, heights above the zero plane. -------------------!
-      f%tq_height = 2.0_wp ; f%wind_height = 10.0_wp ; f%height_above = HEIGHT_ABOVE_ZERO_PLANE
-      f%wind_exposure = WIND_EXPOSURE_OPEN_TERRAIN ; f%wind_exposure_z0 = 0.03_wp ; f%wind_blending_height = 40.0_wp
+      f%tq_height = 2.0_wp
+      f%wind_height = 10.0_wp
+      f%height_above = HEIGHT_ABOVE_ZERO_PLANE
+      f%wind_exposure = WIND_EXPOSURE_OPEN_TERRAIN
+      f%wind_exposure_z0 = 0.03_wp
+      f%wind_blending_height = 40.0_wp
       fac = cas_top_wind_factor(f, ZC, D, Z0)
       call check('ERA5 wind: open-terrain step, then the patch profile', fac,                     &
                  log(40.0_wp/0.03_wp) / log(10.0_wp/0.03_wp) * log((ZC - D)/Z0) / log(40.0_wp/Z0), 1.0e-12_wp)
@@ -589,8 +692,10 @@ contains
       call check('theta at the top equals theta at the forcing height',                            &
                  top%air_temp + GC * ZC, 290.0_wp + GC * (D + 2.0_wp), 1.0e-9_wp)
       !----- A flux tower: local wind at 40 m above the ground; the 2 z0 floor on a tall stand. --!
-      f%height_above = HEIGHT_ABOVE_GROUND ; f%wind_exposure = WIND_EXPOSURE_LOCAL
-      f%tq_height = 40.0_wp ; f%wind_height = 40.0_wp
+      f%height_above = HEIGHT_ABOVE_GROUND
+      f%wind_exposure = WIND_EXPOSURE_LOCAL
+      f%tq_height = 40.0_wp
+      f%wind_height = 40.0_wp
       call check('tower wind: the patch profile from 40 m above the ground', cas_top_wind_factor(f, ZC, D, Z0), &
                  log((ZC - D)/Z0) / log((40.0_wp - D)/Z0), 1.0e-12_wp)
       top = met_to_cas_top(m, f, ZC, D, Z0)
@@ -599,10 +704,17 @@ contains
       call check('heights floored at 2 z0 above d', cas_top_wind_factor(f, D + 1.0_wp, D, Z0),       &
                  log(2.0_wp) / log((40.0_wp - D)/Z0), 1.0e-12_wp)
       !----- The whole record: wind and vector scaled, temperature moved, rho re-derived, the rest kept. -!
-      f%height_above = HEIGHT_ABOVE_ZERO_PLANE ; f%wind_exposure = WIND_EXPOSURE_OPEN_TERRAIN
-      f%tq_height = 2.0_wp ; f%wind_height = 10.0_wp
-      m%wind = 5.0_wp ; m%wind_u = 3.0_wp ; m%wind_v = -4.0_wp ; m%has_wind_vector = .true.
-      m%air_temp = 290.0_wp ; m%air_shv = 0.009_wp ; m%air_pressure = 98000.0_wp
+      f%height_above = HEIGHT_ABOVE_ZERO_PLANE
+      f%wind_exposure = WIND_EXPOSURE_OPEN_TERRAIN
+      f%tq_height = 2.0_wp
+      f%wind_height = 10.0_wp
+      m%wind = 5.0_wp
+      m%wind_u = 3.0_wp
+      m%wind_v = -4.0_wp
+      m%has_wind_vector = .true.
+      m%air_temp = 290.0_wp
+      m%air_shv = 0.009_wp
+      m%air_pressure = 98000.0_wp
       top = met_to_cas_top(m, f, ZC, D, Z0)
       fac = cas_top_wind_factor(f, ZC, D, Z0)
       call check('record: wind speed scaled', top%wind, 5.0_wp * fac, 1.0e-12_wp)
@@ -616,7 +728,8 @@ contains
       !----- The record carries total precipitation, unchanged by the move; the rain/snow split is made  !
       !      from the moved temperature where the column's forcing is filled. At freezing, the cooler top  !
       !      air turns some of the rain to snow. ---------------------------------------------------------!
-      m%air_temp = t_3ple ; m%precip = 1.0e-3_wp
+      m%air_temp = t_3ple
+      m%precip = 1.0e-3_wp
       top = met_to_cas_top(m, f, ZC, D, Z0)
       call check('record: total precipitation unchanged', top%precip, 1.0e-3_wp, 1.0e-15_wp)
       call precip_phase(m%precip, m%air_temp, rain_ref, snow_ref)
@@ -634,23 +747,32 @@ contains
       type(met_forcing_t)    :: m_ref, m_map
       print '(a)', '-- test: multi-year cycling + Feb-29 --'
       call write_yearfile(YF, 2021_ik)                             ! 365 daily records, Jan-1 2021 aligned
-      fc%format = MET_BACKEND_DEFAULT ; fc%path = YF ; fc%grid_index = 1_ik
-      fc%timestep = 86400.0_wp ; fc%avg_convention = METAVG_END ; fc%sw_partition = SWPART_CLEARIDX
+      fc%format = MET_BACKEND_DEFAULT
+      fc%path = YF
+      fc%grid_index = 1_ik
+      fc%timestep = 86400.0_wp
+      fc%avg_convention = METAVG_END
+      fc%sw_partition = SWPART_CLEARIDX
       fc%recycle = .true.
       !----- The cycle is DECLARED, never inferred from the file. --------------------------------!
       fc%recycle_start = ed_time_t(2021_ik,   1_ik, 1_ik)
       fc%recycle_end   = ed_time_t(2022_ik,   1_ik, 1_ik)
-      call met_open(src, fc) ; call site_cursor(src, cur, fc)
+      call met_open(src, fc)
+      call site_cursor(src, cur, fc)
       call check('n_cycle_years = 1', real(src%n_cycle_years,wp), 1.0_wp, 0.5_wp)
       call check('cycle anchor year = 2021', real(src%cycle_anchor%year,wp), 2021.0_wp, 0.5_wp)
       call check('cycle first record = record 1', real(src%irec_cycle_first,wp), 1.0_wp, 0.5_wp)
       !----- recycle identity: model 2023-07-01 reads the 2021-07-01 record (day-of-year exact). --!
-      call met_advance(src, cur, ed_time_t(2021_ik,7_ik,1_ik))   ; m_ref = met_instant(src, cur, ed_time_t(2021_ik,7_ik,1_ik))
-      call met_advance(src, cur, ed_time_t(2023_ik,7_ik,1_ik))   ; m_map = met_instant(src, cur, ed_time_t(2023_ik,7_ik,1_ik))
+      call met_advance(src, cur, ed_time_t(2021_ik,7_ik,1_ik))
+      m_ref = met_instant(src, cur, ed_time_t(2021_ik,7_ik,1_ik))
+      call met_advance(src, cur, ed_time_t(2023_ik,7_ik,1_ik))
+      m_map = met_instant(src, cur, ed_time_t(2023_ik,7_ik,1_ik))
       call check('recycle: 2023-07-01 reads the 2021-07-01 record', m_map%air_temp, m_ref%air_temp, 1.0e-9_wp)
       !----- Feb-29 reconciliation: model 2024-02-29 (leap) maps to file 2021-02-28. --------------!
-      call met_advance(src, cur, ed_time_t(2021_ik,2_ik,28_ik))   ; m_ref = met_instant(src, cur, ed_time_t(2021_ik,2_ik,28_ik))
-      call met_advance(src, cur, ed_time_t(2024_ik,2_ik,29_ik))   ; m_map = met_instant(src, cur, ed_time_t(2024_ik,2_ik,29_ik))
+      call met_advance(src, cur, ed_time_t(2021_ik,2_ik,28_ik))
+      m_ref = met_instant(src, cur, ed_time_t(2021_ik,2_ik,28_ik))
+      call met_advance(src, cur, ed_time_t(2024_ik,2_ik,29_ik))
+      m_map = met_instant(src, cur, ed_time_t(2024_ik,2_ik,29_ik))
       call check('Feb-29 (leap model) maps to file Feb-28', m_map%air_temp, m_ref%air_temp, 1.0e-9_wp)
       call met_close(src)
    end subroutine test_multiyear_cycling
@@ -771,8 +893,10 @@ contains
                            '2022 410', '2023 420', '2024 430'])
       fc = co2_test_forcing()
       fc%recycle = .true.
-      fc%recycle_start = ed_time_t(2021_ik, 1_ik, 1_ik) ; fc%recycle_end = ed_time_t(2022_ik, 1_ik, 1_ik)
-      fc%co2_source = CO2_SOURCE_FILE ; fc%co2_file = CF
+      fc%recycle_start = ed_time_t(2021_ik, 1_ik, 1_ik)
+      fc%recycle_end = ed_time_t(2022_ik, 1_ik, 1_ik)
+      fc%co2_source = CO2_SOURCE_FILE
+      fc%co2_file = CF
       call met_open(src, fc, stat=st, run_start=ed_time_t(2021_ik,1_ik,1_ik),                      &
                     run_end=ed_time_t(2025_ik,1_ik,1_ik))
       call check_true('recycle: opens with a CO2 file', st == MET_OK, real(st, wp))
@@ -791,8 +915,12 @@ contains
       !----- A met file that carries CO2air is rejected: nothing would read it. ---------------!
       call write_synthetic_forcing(NCFILE, ed_time_t(year=2020_ik, month=7_ik, day=1_ik), with_co2air=.true.)
       fc = forcing_params_t()
-      fc%format = MET_BACKEND_DEFAULT ; fc%path = NCFILE ; fc%grid_index = 1_ik
-      fc%timestep = 3600.0_wp ; fc%avg_convention = METAVG_END ; fc%sw_partition = SWPART_CLEARIDX
+      fc%format = MET_BACKEND_DEFAULT
+      fc%path = NCFILE
+      fc%grid_index = 1_ik
+      fc%timestep = 3600.0_wp
+      fc%avg_convention = METAVG_END
+      fc%sw_partition = SWPART_CLEARIDX
       fc%recycle = .false.
       call met_open(src, fc, stat=st)
       call check_true('CO2air: a met file carrying it is rejected', st == MET_ERR_CO2_IN_MET_FILE, real(st, wp))
@@ -856,7 +984,8 @@ contains
       !      met_instant would read its unallocated arrays and the segfault would swallow the       !
       !      buffered output that says why the open failed. ---------------------------------------!
       if (src%co2%n < 2_ik) then
-         co2 = -1.0_wp ; return
+         co2 = -1.0_wp
+         return
       end if
       met = met_instant(src, cur, t)
       co2 = met%co2
@@ -898,41 +1027,72 @@ contains
                                                   'Rainf   ','SWdown  ','LWdown  ']
       character(len=40) :: units
       write(units,'(a,i0,a)') 'seconds since ', year, '-01-01 00:00:00'
-      st = nc_create_f(path, NC_NETCDF4, ncid) ; call nc_check(st, 'yf: create')
-      st = nc_def_dim_f(ncid, 'time', int(NT,c_size_t), td) ; call nc_check(st, 'yf: time dim')
-      st = nc_def_dim_f(ncid, 'grid', int(NG,c_size_t), gd) ; call nc_check(st, 'yf: grid dim')
-      dims1(1) = td ; st = nc_def_var_f(ncid, 'time', NC_DOUBLE, 1, dims1, vt) ; call nc_check(st, 'yf: time var')
-      st = nc_put_att_text_f(ncid, vt, 'units', int(len_trim(units),c_size_t), trim(units)) ; call nc_check(st, 'yf: units')
+      st = nc_create_f(path, NC_NETCDF4, ncid)
+      call nc_check(st, 'yf: create')
+      st = nc_def_dim_f(ncid, 'time', int(NT,c_size_t), td)
+      call nc_check(st, 'yf: time dim')
+      st = nc_def_dim_f(ncid, 'grid', int(NG,c_size_t), gd)
+      call nc_check(st, 'yf: grid dim')
+      dims1(1) = td
+      st = nc_def_var_f(ncid, 'time', NC_DOUBLE, 1, dims1, vt)
+      call nc_check(st, 'yf: time var')
+      st = nc_put_att_text_f(ncid, vt, 'units', int(len_trim(units),c_size_t), trim(units))
+      call nc_check(st, 'yf: units')
       dims1(1) = gd
-      st = nc_def_var_f(ncid, 'latitude',  NC_DOUBLE, 1, dims1, vla) ; call nc_check(st, 'yf: lat var')
-      st = nc_def_var_f(ncid, 'longitude', NC_DOUBLE, 1, dims1, vlo) ; call nc_check(st, 'yf: lon var')
-      dims2(1) = td ; dims2(2) = gd
-      do k = 1, 7 ; st = nc_def_var_f(ncid, trim(VNAMES(k)), NC_DOUBLE, 2, dims2, vv(k)) ; call nc_check(st, 'yf: var') ; end do
-      st = nc_put_att_text_f(ncid, NC_GLOBAL, 'time_zone', 3_c_size_t, 'UTC') ; call nc_check(st, 'yf: time_zone')
-      st = nc_enddef(ncid) ; call nc_check(st, 'yf: enddef')
-      do it = 1, NT ; tsec(it) = real(it-1, c_double) * 86400.0_c_double ; end do
-      la = 42.44_c_double ; lo = -76.50_c_double
-      start1(1) = 0_c_size_t ; count1(1) = int(NT,c_size_t)
-      st = nc_put_vara_double(ncid, vt, start1, count1, tsec) ; call nc_check(st, 'yf: time vals')
+      st = nc_def_var_f(ncid, 'latitude',  NC_DOUBLE, 1, dims1, vla)
+      call nc_check(st, 'yf: lat var')
+      st = nc_def_var_f(ncid, 'longitude', NC_DOUBLE, 1, dims1, vlo)
+      call nc_check(st, 'yf: lon var')
+      dims2(1) = td
+      dims2(2) = gd
+      do k = 1, 7
+         st = nc_def_var_f(ncid, trim(VNAMES(k)), NC_DOUBLE, 2, dims2, vv(k))
+         call nc_check(st, 'yf: var')
+      end do
+      st = nc_put_att_text_f(ncid, NC_GLOBAL, 'time_zone', 3_c_size_t, 'UTC')
+      call nc_check(st, 'yf: time_zone')
+      st = nc_enddef(ncid)
+      call nc_check(st, 'yf: enddef')
+      do it = 1, NT
+         tsec(it) = real(it-1, c_double) * 86400.0_c_double
+      end do
+      la = 42.44_c_double
+      lo = -76.50_c_double
+      start1(1) = 0_c_size_t
+      count1(1) = int(NT,c_size_t)
+      st = nc_put_vara_double(ncid, vt, start1, count1, tsec)
+      call nc_check(st, 'yf: time vals')
       count1(1) = int(NG,c_size_t)
-      st = nc_put_vara_double(ncid, vla, start1, count1, la) ; call nc_check(st, 'yf: lat vals')
-      st = nc_put_vara_double(ncid, vlo, start1, count1, lo) ; call nc_check(st, 'yf: lon vals')
-      start2 = [0_c_size_t, 0_c_size_t] ; count2 = [int(NT,c_size_t), int(NG,c_size_t)]
+      st = nc_put_vara_double(ncid, vla, start1, count1, la)
+      call nc_check(st, 'yf: lat vals')
+      st = nc_put_vara_double(ncid, vlo, start1, count1, lo)
+      call nc_check(st, 'yf: lon vals')
+      start2 = [0_c_size_t, 0_c_size_t]
+      count2 = [int(NT,c_size_t), int(NG,c_size_t)]
       do k = 1, 7
          do it = 1, NT
             select case (k)
-            case (1) ; dat(1,it) = 280.0_wp + real(it-1, wp)   ! Tair encodes the day index (unique per day)
-            case (2) ; dat(1,it) = 0.006_wp                    ! Qair
-            case (3) ; dat(1,it) = 99000.0_wp                  ! PSurf
-            case (4) ; dat(1,it) = 2.0_wp                      ! Wind
-            case (5) ; dat(1,it) = 0.0_wp                      ! Rainf
-            case (6) ; dat(1,it) = 200.0_wp                    ! SWdown (daily mean)
-            case (7) ; dat(1,it) = 300.0_wp                    ! LWdown
+            case (1)
+               dat(1,it) = 280.0_wp + real(it-1, wp)           ! Tair encodes the day index (unique per day)
+            case (2)
+               dat(1,it) = 0.006_wp                            ! Qair
+            case (3)
+               dat(1,it) = 99000.0_wp                          ! PSurf
+            case (4)
+               dat(1,it) = 2.0_wp                              ! Wind
+            case (5)
+               dat(1,it) = 0.0_wp                              ! Rainf
+            case (6)
+               dat(1,it) = 200.0_wp                            ! SWdown (daily mean)
+            case (7)
+               dat(1,it) = 300.0_wp                            ! LWdown
             end select
          end do
-         st = nc_put_vara_double(ncid, vv(k), start2, count2, dat) ; call nc_check(st, 'yf: vals')
+         st = nc_put_vara_double(ncid, vv(k), start2, count2, dat)
+         call nc_check(st, 'yf: vals')
       end do
-      st = nc_close(ncid) ; call nc_check(st, 'yf: close')
+      st = nc_close(ncid)
+      call nc_check(st, 'yf: close')
    end subroutine write_yearfile
 
 
@@ -941,12 +1101,20 @@ contains
    function tower_config(convention) result(fc)
       integer(ik), intent(in) :: convention
       type(forcing_params_t)  :: fc
-      fc%format = MET_BACKEND_DEFAULT ; fc%path = TOWER_FILE ; fc%grid_index = 1_ik
-      fc%timestep = DT ; fc%avg_convention = convention ; fc%sw_partition = SWPART_CLEARIDX
-      fc%latitude = 9.1568_wp ; fc%longitude = -79.8486_wp ; fc%elevation = 150.0_wp
+      fc%format = MET_BACKEND_DEFAULT
+      fc%path = TOWER_FILE
+      fc%grid_index = 1_ik
+      fc%timestep = DT
+      fc%avg_convention = convention
+      fc%sw_partition = SWPART_CLEARIDX
+      fc%latitude = 9.1568_wp
+      fc%longitude = -79.8486_wp
+      fc%elevation = 150.0_wp
       fc%recycle = .false.
-      fc%tq_height = TOWER_HEIGHT ; fc%wind_height = TOWER_HEIGHT
-      fc%height_above = HEIGHT_ABOVE_GROUND ; fc%wind_exposure = WIND_EXPOSURE_LOCAL
+      fc%tq_height = TOWER_HEIGHT
+      fc%wind_height = TOWER_HEIGHT
+      fc%height_above = HEIGHT_ABOVE_GROUND
+      fc%wind_exposure = WIND_EXPOSURE_LOCAL
    end function tower_config
 
    !----- The fixture's values at record k (1-based), so a test can name what it expects. ---------!
@@ -990,24 +1158,41 @@ contains
       names(1:6) = [character(len=8) :: 'Tair', 'PSurf', 'Wind', 'Rainf', 'SWdown', 'LWdown']
       nvar = 6
       select case (humidity)
-      case ('RHair')      ; nvar = 7 ; names(7) = 'RHair'
-      case ('Tdew')       ; nvar = 7 ; names(7) = 'Tdew'
-      case ('Qair')       ; nvar = 7 ; names(7) = 'Qair'
-      case ('RHair+Qair') ; nvar = 8 ; names(7) = 'RHair' ; names(8) = 'Qair'
+      case ('RHair')
+         nvar = 7
+         names(7) = 'RHair'
+      case ('Tdew')
+         nvar = 7
+         names(7) = 'Tdew'
+      case ('Qair')
+         nvar = 7
+         names(7) = 'Qair'
+      case ('RHair+Qair')
+         nvar = 8
+         names(7) = 'RHair'
+         names(8) = 'Qair'
       end select
-      st = nc_create_f(TOWER_FILE, NC_NETCDF4, ncid) ; call nc_check(st, 'tower: create')
-      st = nc_def_dim_f(ncid, 'time', int(NT, c_size_t), td) ; call nc_check(st, 'tower: time dim')
-      st = nc_def_dim_f(ncid, 'grid', 1_c_size_t, gd) ; call nc_check(st, 'tower: grid dim')
+      st = nc_create_f(TOWER_FILE, NC_NETCDF4, ncid)
+      call nc_check(st, 'tower: create')
+      st = nc_def_dim_f(ncid, 'time', int(NT, c_size_t), td)
+      call nc_check(st, 'tower: time dim')
+      st = nc_def_dim_f(ncid, 'grid', 1_c_size_t, gd)
+      call nc_check(st, 'tower: grid dim')
       dims1(1) = td
-      st = nc_def_var_f(ncid, 'time', NC_DOUBLE, 1, dims1, vt) ; call nc_check(st, 'tower: time var')
+      st = nc_def_var_f(ncid, 'time', NC_DOUBLE, 1, dims1, vt)
+      call nc_check(st, 'tower: time var')
       st = nc_put_att_text_f(ncid, vt, 'units', 33_c_size_t, 'seconds since 2020-07-01 00:00:00')
       call nc_check(st, 'tower: units')
       dims1(1) = gd
-      st = nc_def_var_f(ncid, 'latitude',  NC_DOUBLE, 1, dims1, vla) ; call nc_check(st, 'tower: lat')
-      st = nc_def_var_f(ncid, 'longitude', NC_DOUBLE, 1, dims1, vlo) ; call nc_check(st, 'tower: lon')
-      dims2(1) = td ; dims2(2) = gd
+      st = nc_def_var_f(ncid, 'latitude',  NC_DOUBLE, 1, dims1, vla)
+      call nc_check(st, 'tower: lat')
+      st = nc_def_var_f(ncid, 'longitude', NC_DOUBLE, 1, dims1, vlo)
+      call nc_check(st, 'tower: lon')
+      dims2(1) = td
+      dims2(2) = gd
       do j = 1, nvar
-         st = nc_def_var_f(ncid, trim(names(j)), NC_DOUBLE, 2, dims2, vid(j)) ; call nc_check(st, 'tower: var')
+         st = nc_def_var_f(ncid, trim(names(j)), NC_DOUBLE, 2, dims2, vid(j))
+         call nc_check(st, 'tower: var')
       end do
       !----- The global attributes make_tower_forcing.py writes; the fixture must carry them or the  !
       !      checks under test would be skipped here and fire in production. ---------------------!
@@ -1029,32 +1214,53 @@ contains
          st = nc_put_att_text_f(ncid, NC_GLOBAL, 'height_above', int(len(height_above), c_size_t), height_above)
          call nc_check(st, 'tower: height_above')
       end if
-      st = nc_enddef(ncid) ; call nc_check(st, 'tower: enddef')
+      st = nc_enddef(ncid)
+      call nc_check(st, 'tower: enddef')
 
-      do k = 1, NT ; tsec(k) = real(stamp_seconds(k), c_double) ; end do
-      s1(1) = 0_c_size_t ; c1(1) = int(NT, c_size_t)
-      st = nc_put_vara_double(ncid, vt, s1, c1, tsec) ; call nc_check(st, 'tower: time vals')
+      do k = 1, NT
+         tsec(k) = real(stamp_seconds(k), c_double)
+      end do
+      s1(1) = 0_c_size_t
+      c1(1) = int(NT, c_size_t)
+      st = nc_put_vara_double(ncid, vt, s1, c1, tsec)
+      call nc_check(st, 'tower: time vals')
       c1(1) = 1_c_size_t
-      one = 9.1568_c_double  ; st = nc_put_vara_double(ncid, vla, s1, c1, one) ; call nc_check(st, 'tower: lat vals')
-      one = -79.8486_c_double ; st = nc_put_vara_double(ncid, vlo, s1, c1, one) ; call nc_check(st, 'tower: lon vals')
-      s2 = 0_c_size_t ; c2 = [int(NT, c_size_t), 1_c_size_t]
+      one = 9.1568_c_double
+      st = nc_put_vara_double(ncid, vla, s1, c1, one)
+      call nc_check(st, 'tower: lat vals')
+      one = -79.8486_c_double
+      st = nc_put_vara_double(ncid, vlo, s1, c1, one)
+      call nc_check(st, 'tower: lon vals')
+      s2 = 0_c_size_t
+      c2 = [int(NT, c_size_t), 1_c_size_t]
       do j = 1, nvar
          do k = 1, NT
             select case (trim(names(j)))
-            case ('Tair')   ; dat(1, k) = tair_at(k)
-            case ('PSurf')  ; dat(1, k) = PSURF
-            case ('Wind')   ; dat(1, k) = 2.5_wp
-            case ('Rainf')  ; dat(1, k) = merge(RAIN_RATE, 0.0_wp, k == RAIN_REC)
-            case ('SWdown') ; dat(1, k) = sw_at(k)
-            case ('LWdown') ; dat(1, k) = 450.0_wp
-            case ('RHair')  ; dat(1, k) = rh_scale * rh_at(k)
-            case ('Tdew')   ; dat(1, k) = tair_at(k) - 3.0_wp
-            case ('Qair')   ; dat(1, k) = 0.018_wp
+            case ('Tair')
+               dat(1, k) = tair_at(k)
+            case ('PSurf')
+               dat(1, k) = PSURF
+            case ('Wind')
+               dat(1, k) = 2.5_wp
+            case ('Rainf')
+               dat(1, k) = merge(RAIN_RATE, 0.0_wp, k == RAIN_REC)
+            case ('SWdown')
+               dat(1, k) = sw_at(k)
+            case ('LWdown')
+               dat(1, k) = 450.0_wp
+            case ('RHair')
+               dat(1, k) = rh_scale * rh_at(k)
+            case ('Tdew')
+               dat(1, k) = tair_at(k) - 3.0_wp
+            case ('Qair')
+               dat(1, k) = 0.018_wp
             end select
          end do
-         st = nc_put_vara_double(ncid, vid(j), s2, c2, dat) ; call nc_check(st, 'tower: vals')
+         st = nc_put_vara_double(ncid, vid(j), s2, c2, dat)
+         call nc_check(st, 'tower: vals')
       end do
-      st = nc_close(ncid) ; call nc_check(st, 'tower: close')
+      st = nc_close(ncid)
+      call nc_check(st, 'tower: close')
    end subroutine write_tower_file
 
    !----- The forcing at an instant `sec` seconds after the file's first stamp. --------------------!

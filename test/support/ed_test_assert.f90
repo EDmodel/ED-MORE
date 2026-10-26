@@ -94,7 +94,8 @@ contains
       real(wp),           intent(in) :: got, expect
       real(wp), optional, intent(in) :: atol
       real(wp) :: tol
-      tol = 1.0e-9_wp * max(1.0_wp, abs(expect)) ; if (present(atol)) tol = atol
+      tol = 1.0e-9_wp * max(1.0_wp, abs(expect))
+      if (present(atol)) tol = atol
       call check_named(name, got, expect, tol)
    end subroutine check_close_named
 
@@ -103,7 +104,8 @@ contains
       logical,            intent(in) :: cond
       real(wp), optional, intent(in) :: val
       character(len=:), allocatable  :: tag
-      tag = '  ok   : ' ; if (.not. cond) tag = '  FAIL : '
+      tag = '  ok   : '
+      if (.not. cond) tag = '  FAIL : '
       if (.not. cond) n_fail = n_fail + 1_ik
       if (present(val)) then
          print '(a,a,a,es13.5,a)', tag, name, '  (', val, ')'

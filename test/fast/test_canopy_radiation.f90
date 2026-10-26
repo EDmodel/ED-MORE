@@ -63,16 +63,23 @@ contains
       integer(ik) :: p
       real(wp) :: emiss_leaf, emiss_wood
       !----- Leaf spectral: PFT 1 darker (low VIS reflectance), PFT 2 brighter. -------------!
-      rl(RAD_VIS,:) = [0.09_wp, 0.14_wp] ; tl(RAD_VIS,:) = [0.05_wp, 0.08_wp]
-      rl(RAD_NIR,:) = [0.45_wp, 0.50_wp] ; tl(RAD_NIR,:) = [0.25_wp, 0.30_wp]
+      rl(RAD_VIS,:) = [0.09_wp, 0.14_wp]
+      tl(RAD_VIS,:) = [0.05_wp, 0.08_wp]
+      rl(RAD_NIR,:) = [0.45_wp, 0.50_wp]
+      tl(RAD_NIR,:) = [0.25_wp, 0.30_wp]
       emiss_leaf = 0.97_wp
-      rl(RAD_LW,:)  = 1.0_wp - emiss_leaf ; tl(RAD_LW,:) = 0.0_wp
+      rl(RAD_LW,:)  = 1.0_wp - emiss_leaf
+      tl(RAD_LW,:) = 0.0_wp
       !----- Wood spectral (near-opaque). ---------------------------------------------------!
-      rw(RAD_VIS,:) = 0.11_wp ; tw(RAD_VIS,:) = 0.001_wp
-      rw(RAD_NIR,:) = 0.25_wp ; tw(RAD_NIR,:) = 0.001_wp
+      rw(RAD_VIS,:) = 0.11_wp
+      tw(RAD_VIS,:) = 0.001_wp
+      rw(RAD_NIR,:) = 0.25_wp
+      tw(RAD_NIR,:) = 0.001_wp
       emiss_wood = 0.90_wp
-      rw(RAD_LW,:)  = 1.0_wp - emiss_wood ; tw(RAD_LW,:) = 0.0_wp
-      cl = [0.80_wp, 0.85_wp] ; cw = [0.50_wp, 0.50_wp]
+      rw(RAD_LW,:)  = 1.0_wp - emiss_wood
+      tw(RAD_LW,:) = 0.0_wp
+      cl = [0.80_wp, 0.85_wp]
+      cw = [0.50_wp, 0.50_wp]
       do p = 1_ik, NP
          call moments_to_beta_params(mean_deg, 20.0_wp, bp(p), bq(p))
       end do
@@ -89,13 +96,17 @@ contains
       logical :: he(N_RAD_BAND_DEFAULT)
       call alloc_rad_env(f, N_RAD_BAND_DEFAULT)
       f%cosz = cosz
-      f%incid_beam(RAD_VIS) = 300.0_wp ; f%incid_diff(RAD_VIS) = 100.0_wp
-      f%incid_beam(RAD_NIR) = 250.0_wp ; f%incid_diff(RAD_NIR) =  80.0_wp
-      f%incid_beam(RAD_LW)  = 0.0_wp   ; f%incid_diff(RAD_LW)  = stefan_boltzmann * t_sky ** 4
+      f%incid_beam(RAD_VIS) = 300.0_wp
+      f%incid_diff(RAD_VIS) = 100.0_wp
+      f%incid_beam(RAD_NIR) = 250.0_wp
+      f%incid_diff(RAD_NIR) =  80.0_wp
+      f%incid_beam(RAD_LW)  = 0.0_wp
+      f%incid_diff(RAD_LW)  = stefan_boltzmann * t_sky ** 4
       surf%n_band = N_RAD_BAND_DEFAULT
       allocate(surf%soil_albedo(N_RAD_BAND_DEFAULT))
       surf%soil_albedo = [0.15_wp, 0.30_wp, 0.0_wp]
-      surf%soil_emiss  = 0.95_wp ; surf%soil_temp = t_soil
+      surf%soil_emiss  = 0.95_wp
+      surf%soil_temp = t_soil
       he = [.false., .false., .true.]
       call ground_optics(surf, N_RAD_BAND_DEFAULT, he, f%grnd_refl, f%grnd_emiss)
    end subroutine build_forcing
@@ -147,7 +158,10 @@ contains
       print '(a)', '[6] cohort order: top of two equal-LAI cohorts absorbs more than the bottom'
       call build_optics(45.0_wp, opt)
       call build_forcing(0.7_wp, 290.0_wp, 298.0_wp, f)
-      pft = [1_ik, 1_ik] ; lai = [2.0_wp, 2.0_wp] ; wai = [0.0_wp, 0.0_wp] ; tcan = 298.0_wp  ! idx1=bottom, idx2=top
+      pft = [1_ik, 1_ik]
+      lai = [2.0_wp, 2.0_wp]
+      wai = [0.0_wp, 0.0_wp]
+      tcan = 298.0_wp                                                                         ! idx1=bottom, idx2=top
       hgt = [(2.0_wp*real(ih,wp), ih = 1, NC)]      ! distinct heights: no ties, per-cohort layers
       call canopy_radiation(opt, f, NC, pft, hgt, lai, wai, tcan, tcan, flux)
       call check_true('VIS: top cohort (idx2) absorbs more than bottom (idx1)',                 &
@@ -209,11 +223,13 @@ contains
       !      hands PFT 1 the upper slot at every recruitment event. -------------------------------!
       pft = [1_ik, 2_ik, 1_ik]
       call canopy_radiation(opt, f, NC, pft, hgt, lai, wai, tcan, tcan, flux)
-      a_pft1 = flux%abs_leaf(RAD_NIR,1) ; a_pft2 = flux%abs_leaf(RAD_NIR,2)
+      a_pft1 = flux%abs_leaf(RAD_NIR,1)
+      a_pft2 = flux%abs_leaf(RAD_NIR,2)
       total_a = a_pft1 + a_pft2
       pft = [2_ik, 1_ik, 1_ik]
       call canopy_radiation(opt, f, NC, pft, hgt, lai, wai, tcan, tcan, flux)
-      b_pft2 = flux%abs_leaf(RAD_NIR,1) ; b_pft1 = flux%abs_leaf(RAD_NIR,2)
+      b_pft2 = flux%abs_leaf(RAD_NIR,1)
+      b_pft1 = flux%abs_leaf(RAD_NIR,2)
       total_b = b_pft2 + b_pft1
       call check('permuting tied PFTs leaves PFT 1 unchanged', a_pft1, b_pft1,                   &
                  1.0e-12_wp * max(a_pft1, 1.0e-12_wp))
@@ -239,8 +255,15 @@ contains
       print '(a)', '[8] cutting invariance (one LAI-5 cohort against five LAI-1 cohorts)'
       call build_optics(45.0_wp, opt)
       call build_forcing(0.87_wp, 290.0_wp, 298.0_wp, f)
-      pft1 = 1_ik ; hgt1 = 20.0_wp ; lai1 = 5.0_wp ; wai1 = 0.5_wp ; t1 = 298.0_wp
-      pft5 = 1_ik ; lai5 = 1.0_wp  ; wai5 = 0.1_wp ; t5 = 298.0_wp
+      pft1 = 1_ik
+      hgt1 = 20.0_wp
+      lai1 = 5.0_wp
+      wai1 = 0.5_wp
+      t1 = 298.0_wp
+      pft5 = 1_ik
+      lai5 = 1.0_wp
+      wai5 = 0.1_wp
+      t5 = 298.0_wp
       hgt5 = [(10.0_wp + 2.0_wp * real(ih, wp), ih = 1, 5)]     ! distinct heights: five layers
       call canopy_radiation(opt, f, 1_ik, pft1, hgt1, lai1, wai1, t1, t1, one)
       call canopy_radiation(opt, f, 5_ik, pft5, hgt5, lai5, wai5, t5, t5, five)
@@ -273,11 +296,16 @@ contains
       call build_optics(45.0_wp, opt)
       call build_forcing(1.0_wp, 290.0_wp, 298.0_wp, f)
       !----- Black leaves: force VIS single-scatter albedo to ~0 by zeroing spectra. --------!
-      opt%omega_leaf(RAD_VIS,:) = 0.0_wp ; opt%g_leaf(RAD_VIS,:) = 0.0_wp
-      opt%omega_wood(RAD_VIS,:) = 0.0_wp ; opt%g_wood(RAD_VIS,:) = 0.0_wp
+      opt%omega_leaf(RAD_VIS,:) = 0.0_wp
+      opt%g_leaf(RAD_VIS,:) = 0.0_wp
+      opt%omega_wood(RAD_VIS,:) = 0.0_wp
+      opt%g_wood(RAD_VIS,:) = 0.0_wp
       f%incid_diff(RAD_VIS) = 0.0_wp                       ! beam only
       f%grnd_refl(RAD_VIS)  = 0.0_wp                       ! black soil: no reflection to re-absorb
-      pft = [1_ik] ; lai = [3.0_wp] ; wai = [0.0_wp] ; tcan = 298.0_wp
+      pft = [1_ik]
+      lai = [3.0_wp]
+      wai = [0.0_wp]
+      tcan = 298.0_wp
       hgt = [(2.0_wp*real(ih,wp), ih = 1, NC)]      ! distinct heights: no ties, per-cohort layers
       call canopy_radiation(opt, f, NC, pft, hgt, lai, wai, tcan, tcan, flux)
       elai         = opt%clumping_leaf(1) * lai(1)
@@ -302,7 +330,10 @@ contains
       print '(a)', '[3] zero-LAI canopy has albedo = ground albedo'
       call build_optics(45.0_wp, opt)
       call build_forcing(0.7_wp, 290.0_wp, 298.0_wp, f)
-      pft = [1_ik] ; lai = [0.0_wp] ; wai = [0.0_wp] ; tcan = 298.0_wp
+      pft = [1_ik]
+      lai = [0.0_wp]
+      wai = [0.0_wp]
+      tcan = 298.0_wp
       hgt = [(2.0_wp*real(ih,wp), ih = 1, NC)]      ! distinct heights: no ties, per-cohort layers
       call canopy_radiation(opt, f, NC, pft, hgt, lai, wai, tcan, tcan, flux)
       call check('albedo(VIS) = soil albedo', flux%albedo(RAD_VIS), f%grnd_refl(RAD_VIS), 1.0e-9_wp)
@@ -322,7 +353,10 @@ contains
       print '(a)', '[4] multi-PFT patch: conservation, and each cohort on its own optics (ED2 bug B1)'
       call build_optics(45.0_wp, opt)
       call build_forcing(0.6_wp, 290.0_wp, 298.0_wp, f)
-      pft = [1_ik, 2_ik] ; lai = [1.5_wp, 1.5_wp] ; wai = 0.15_wp ; tcan = 298.0_wp
+      pft = [1_ik, 2_ik]
+      lai = [1.5_wp, 1.5_wp]
+      wai = 0.15_wp
+      tcan = 298.0_wp
       call check_true('the two PFTs differ in VIS omega',                                              &
                       abs(opt%omega_leaf(RAD_VIS,1) - opt%omega_leaf(RAD_VIS,2)) > 1.0e-3_wp,           &
                       opt%omega_leaf(RAD_VIS,2) - opt%omega_leaf(RAD_VIS,1))
@@ -342,14 +376,16 @@ contains
       !      absorption alone: under B1 it would move with the top's optics. Conservation alone   !
       !      cannot see this, since B1 conserves energy. ---------------------------------------!
       f%incid_beam = 0.0_wp
-      lai = [1.5_wp, 0.5_wp] ; wai = [0.15_wp, 0.05_wp]
+      lai = [1.5_wp, 0.5_wp]
+      wai = [0.15_wp, 0.05_wp]
       call canopy_radiation(opt, f, NC, [1_ik, 1_ik], hgt, lai, wai, tcan, tcan, flux)
       a_own1 = flux%abs_leaf(RAD_VIS,1)
       call canopy_radiation(opt, f, NC, [2_ik, 1_ik], hgt, lai, wai, tcan, tcan, flux)
       a_own2 = flux%abs_leaf(RAD_VIS,1)
       call check_true('B1: the lower cohort''s diffuse absorption follows its own PFT',                   &
                       abs(a_own2 - a_own1) > 1.0e-3_wp * a_own1, (a_own2 - a_own1) / a_own1)
-      lai = [1.5_wp, 1.0e-6_wp] ; wai = [0.15_wp, 0.0_wp]
+      lai = [1.5_wp, 1.0e-6_wp]
+      wai = [0.15_wp, 0.0_wp]
       call canopy_radiation(opt, f, NC, [1_ik, 1_ik], hgt, lai, wai, tcan, tcan, flux)
       a_top1 = flux%abs_leaf(RAD_VIS,1)
       call canopy_radiation(opt, f, NC, [1_ik, 2_ik], hgt, lai, wai, tcan, tcan, flux)
@@ -371,7 +407,9 @@ contains
       print '(a)', '[5] longwave radiative equilibrium (isothermal -> zero net absorption)'
       call build_optics(45.0_wp, opt)
       call build_forcing(0.5_wp, TEQ, TEQ, f)          ! sky and soil both at Teq
-      pft  = [1_ik, 2_ik, 1_ik] ; lai = [2.0_wp, 1.0_wp, 0.5_wp] ; wai = 0.1_wp * lai
+      pft  = [1_ik, 2_ik, 1_ik]
+      lai = [2.0_wp, 1.0_wp, 0.5_wp]
+      wai = 0.1_wp * lai
       tcan = TEQ                                        ! canopy also at Teq
       hgt = [(2.0_wp*real(ih,wp), ih = 1, NC)]      ! distinct heights: no ties, per-cohort layers
       call canopy_radiation(opt, f, NC, pft, hgt, lai, wai, tcan, tcan, flux)
@@ -406,7 +444,10 @@ contains
       print '(a)', '[9] tissue longwave: each tissue charged its own emission'
       call build_optics(45.0_wp, opt)
       call build_forcing(0.5_wp, T_COOL, T_COOL, f)          ! sky and soil at the cool temperature
-      pft1 = 1_ik ; hgt1 = 10.0_wp ; lai1 = 3.0_wp ; wai1 = 0.6_wp
+      pft1 = 1_ik
+      hgt1 = 10.0_wp
+      lai1 = 3.0_wp
+      wai1 = 0.6_wp
       call canopy_radiation(opt, f, 1_ik, pft1, hgt1, lai1, wai1, [T_COOL], [T_WARM], hot_wood)
       call canopy_radiation(opt, f, 1_ik, pft1, hgt1, lai1, wai1, [T_WARM], [T_COOL], hot_leaf)
       call check_true('warm wood warms its cool leaves', hot_wood%abs_leaf(RAD_LW,1) > 0.0_wp,            &
@@ -424,7 +465,10 @@ contains
 
       !----- Two tied cohorts of different PFT and area: the cool one gains from the warm one   !
       !      exactly what it would give were the temperatures swapped. -------------------------!
-      pft2 = [1_ik, 2_ik] ; hgt2 = 4.0_wp ; lai2 = [1.0_wp, 2.5_wp] ; wai2 = [0.3_wp, 0.2_wp]
+      pft2 = [1_ik, 2_ik]
+      hgt2 = 4.0_wp
+      lai2 = [1.0_wp, 2.5_wp]
+      wai2 = [0.3_wp, 0.2_wp]
       call canopy_radiation(opt, f, 2_ik, pft2, hgt2, lai2, wai2, [T_WARM, T_COOL], [T_WARM, T_COOL], hot_a)
       call canopy_radiation(opt, f, 2_ik, pft2, hgt2, lai2, wai2, [T_COOL, T_WARM], [T_COOL, T_WARM], hot_b)
       gain_b = hot_a%abs_leaf(RAD_LW,2) + hot_a%abs_wood(RAD_LW,2)

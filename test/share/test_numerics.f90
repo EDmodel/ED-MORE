@@ -59,11 +59,17 @@ contains
       integer(ik), parameter :: NMAX = 8_ik, N = 4_ik
       real(wp) :: a(NMAX), b(NMAX), c(NMAX), d(NMAX), x(NMAX), xtrue(N)
       integer(ik) :: k
-      a = 0.0_wp ; b = 0.0_wp ; c = 0.0_wp ; d = 0.0_wp ; x = 0.0_wp
+      a = 0.0_wp
+      b = 0.0_wp
+      c = 0.0_wp
+      d = 0.0_wp
+      x = 0.0_wp
       xtrue = [1.0_wp, 2.0_wp, 3.0_wp, 4.0_wp]
       !----- Symmetric diagonally-dominant matrix: b=4, a=c=-1. d = A*xtrue. -----------------!
       do k = 1_ik, N
-         a(k) = -1.0_wp ; b(k) = 4.0_wp ; c(k) = -1.0_wp
+         a(k) = -1.0_wp
+         b(k) = 4.0_wp
+         c(k) = -1.0_wp
       end do
       d(1) = b(1)*xtrue(1) + c(1)*xtrue(2)
       do k = 2_ik, N-1_ik
@@ -143,7 +149,8 @@ contains
          !----- merge: two "patches" of area 0.25 and 0.75 with residuals +1e-5 each -> site +1e-5;   !
          !      elapsed is the common window (weights sum to 1), counts add. ----------------------!
          r = budget_t()
-         call budget_merge(r, c, 0.25_wp) ; call budget_merge(r, d, 0.75_wp)
+         call budget_merge(r, c, 0.25_wp)
+         call budget_merge(r, d, 0.75_wp)
          call check('budget_merge: area-weighted resid_sum', r%resid_sum, 1.0e-5_wp, 1.0e-12_wp)
          call check('budget_merge: elapsed is the common window', r%elapsed, 900.0_wp, 1.0e-12_wp)
          call check_true('budget_merge: counts add', r%n_check == 2_ik .and. r%n_fail == 1_ik, real(r%n_check, wp))

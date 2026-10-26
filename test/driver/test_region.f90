@@ -203,7 +203,8 @@ program test_region
    call derive(trim(work)//'/half2.toml', recycled('half2', '"2023-01-06"', .true.))
    call run_region(trim(work)//'/half2.toml')
    call list_files(trim(work)//'/out', files2, nf2)
-   nbad = 0_ik ; f2 = 0_ik
+   nbad = 0_ik
+   f2 = 0_ik
    do f = 1_ik, nf2
       if (index(files2(f), 'whole-') /= 1 .or. index(files2(f), '202301') == 0) cycle
       f2 = f2 + 1_ik
@@ -224,10 +225,12 @@ program test_region
    end do
    call check_true('a run ending on the 1st leaves its boundary''s restructuring owed',              &
                    site_run%poly(1)%restructure_pending)
-   call region_finalize(site_run, st) ; call region_free(site_run)
+   call region_finalize(site_run, st)
+   call region_free(site_run)
    call region_open(trim(work)//'/reuse.toml', site_run, ok, verbose=.false.)
    call check_true('a reused run opens owing no restructuring', ok .and. .not. site_run%poly(1)%restructure_pending)
-   call region_finalize(site_run, st) ; call region_free(site_run)
+   call region_finalize(site_run, st)
+   call region_free(site_run)
 
    !=== 7. A polygon that fails in mid-month. Polygon 2's soil carbon is made impossible after the  !
    !       first month, so its first February step fails. The others finish the month: polygons 1   !
@@ -305,7 +308,8 @@ program test_region
    end do
    call region_finalize(reg, st)
    call region_free(reg)
-   nbad = 0_ik ; f2 = 0_ik
+   nbad = 0_ik
+   f2 = 0_ik
    do f = 1_ik, nf2
       if (index(files2(f), 'half2-') /= 1) cycle
       f2 = f2 + 1_ik
@@ -447,7 +451,10 @@ contains
       character(len=*), intent(in) :: name
       integer :: i
       i = index(name, '-', back=.true.)
-      if (i < 2) then ; t = 0_ik ; return ; end if
+      if (i < 2) then
+         t = 0_ik
+         return
+      end if
       do t = 1_ik, 4_ik
          if (name(i - 1:i - 1) == LETTER(t) .and. name(i - 2:i - 2) == '-') return
       end do
@@ -493,7 +500,8 @@ contains
       found = nc_inq_varid_f(ncid, name, vid) == NC_NOERR
       allocate(x(product(shape_c)))
       if (.not. found .or. size(x) == 0) return
-      start = 0_c_size_t ; count = int(shape_c, c_size_t)
+      start = 0_c_size_t
+      count = int(shape_c, c_size_t)
       call nc_check(nc_get_vara_double(ncid, vid, start, count, x), 'read '//name)
    end subroutine read_var
 
@@ -506,13 +514,20 @@ contains
       integer(ik) :: nt
       nt = dim_len(ncid, 'time')
       select case (dm)
-      case (DIM_SCALAR)     ; sh = [integer(ik) ::]
-      case (DIM_COHORT)     ; sh = [dim_len(ncid, 'cohort')]
-      case (DIM_PATCH)      ; sh = [dim_len(ncid, 'patch')]
-      case (DIM_SOIL)       ; sh = [dim_len(ncid, 'site'), dim_len(ncid, 'soil')]
-      case (DIM_PFT)        ; sh = [dim_len(ncid, 'pft')]
-      case (DIM_SIZE)       ; sh = [dim_len(ncid, 'dbh_class')]
-      case (DIM_SOIL_PATCH) ; sh = [dim_len(ncid, 'patch'), dim_len(ncid, 'soil')]
+      case (DIM_SCALAR)
+         sh = [integer(ik) ::]
+      case (DIM_COHORT)
+         sh = [dim_len(ncid, 'cohort')]
+      case (DIM_PATCH)
+         sh = [dim_len(ncid, 'patch')]
+      case (DIM_SOIL)
+         sh = [dim_len(ncid, 'site'), dim_len(ncid, 'soil')]
+      case (DIM_PFT)
+         sh = [dim_len(ncid, 'pft')]
+      case (DIM_SIZE)
+         sh = [dim_len(ncid, 'dbh_class')]
+      case (DIM_SOIL_PATCH)
+         sh = [dim_len(ncid, 'patch'), dim_len(ncid, 'soil')]
       case (DIM_SITE)
          sh = [dim_len(ncid, 'site')]
       end select
@@ -534,17 +549,22 @@ contains
       logical :: fr, fs, pad_ok
       nbad = 0_ik
       t = tier_of(rpath)
-      rn = open_nc(rpath) ; sn = open_nc(spath)
+      rn = open_nc(rpath)
+      sn = open_nc(spath)
       do j = 1_ik, reg_site%nidx(t)
          k = reg_site%idx_freq(j, t)
          rs = var_shape(rn, reg_site%var(k)%dim, .true.)
          ss = var_shape(sn, reg_site%var(k)%dim, .true.)
          call read_var(rn, trim(reg_site%var(k)%name), rs, xr, fr)
          call read_var(sn, trim(reg_site%var(k)%name), ss, xs, fs)
-         nt = rs(1) ; np_ = rs(2) ; na = product(rs(3:)) ; ns = product(ss(3:))   ! C order: axis fastest
+         nt = rs(1)
+         np_ = rs(2)
+         na = product(rs(3:))
+         ns = product(ss(3:))                                                     ! C order: axis fastest
          if (.not. (fr .and. fs) .or. rs(1) /= ss(1) .or. ns > na) then
             write(*,'(5a)') '  missing or mismatched: ', trim(reg_site%var(k)%name), ' in ', rpath, ''
-            nbad = nbad + 1_ik ; cycle
+            nbad = nbad + 1_ik
+            cycle
          end if
          do it = 0_ik, nt - 1_ik
             base = it*np_*na + (p - 1_ik)*na
@@ -555,11 +575,13 @@ contains
             end if
             if (any(xr(base + 1_ik : base + ns) /= xs(it*ns + 1_ik : (it + 1_ik)*ns)) .or. .not. pad_ok) then
                write(*,'(3a,i0,2a)') '  DIFFERS: ', trim(reg_site%var(k)%name), ' polygon ', IDS(p), ' in ', rpath
-               nbad = nbad + 1_ik ; exit
+               nbad = nbad + 1_ik
+               exit
             end if
          end do
       end do
-      call nc_check(nc_close(rn), 'close') ; call nc_check(nc_close(sn), 'close')
+      call nc_check(nc_close(rn), 'close')
+      call nc_check(nc_close(sn), 'close')
    end function compare_region_file
 
    !----- The daily file of the month polygon 2 failed in: five records, polygons 1 and 3's days,   !
@@ -636,10 +658,13 @@ contains
       nbad = 0_ik
       inquire(file=apath, exist=ex)
       if (.not. ex) then
-         write(*,'(2a)') '  missing restarted file ', apath ; nbad = 1_ik ; return
+         write(*,'(2a)') '  missing restarted file ', apath
+         nbad = 1_ik
+         return
       end if
       t = tier_of(bpath)
-      an = open_nc(apath) ; bn = open_nc(bpath)
+      an = open_nc(apath)
+      bn = open_nc(bpath)
       do j = 1_ik, reg_region%nidx(t)
          k = reg_region%idx_freq(j, t)
          as = var_shape(an, reg_region%var(k)%dim, .true.)
@@ -648,14 +673,16 @@ contains
          call read_var(bn, trim(reg_region%var(k)%name), bs, xb, fb)
          if (.not. (fa .and. fb) .or. any(as /= bs)) then
             write(*,'(4a)') '  missing or reshaped: ', trim(reg_region%var(k)%name), ' in ', apath
-            nbad = nbad + 1_ik ; cycle
+            nbad = nbad + 1_ik
+            cycle
          end if
          if (any(xa /= xb)) then
             write(*,'(4a)') '  DIFFERS after the restart: ', trim(reg_region%var(k)%name), ' in ', apath
             nbad = nbad + 1_ik
          end if
       end do
-      call nc_check(nc_close(an), 'close') ; call nc_check(nc_close(bn), 'close')
+      call nc_check(nc_close(an), 'close')
+      call nc_check(nc_close(bn), 'close')
    end function compare_whole_file
 
    !----- Polygon pa of one region file against polygon pb of another of the same tier: every live   !
@@ -673,10 +700,13 @@ contains
       nbad = 0_ik
       inquire(file=apath, exist=ex)
       if (.not. ex) then
-         write(*,'(2a)') '  missing resumed file ', apath ; nbad = 1_ik ; return
+         write(*,'(2a)') '  missing resumed file ', apath
+         nbad = 1_ik
+         return
       end if
       t = tier_of(bpath)
-      an = open_nc(apath) ; bn = open_nc(bpath)
+      an = open_nc(apath)
+      bn = open_nc(bpath)
       do j = 1_ik, reg_region%nidx(t)
          k = reg_region%idx_freq(j, t)
          as = var_shape(an, reg_region%var(k)%dim, .true.)
@@ -685,16 +715,20 @@ contains
          call read_var(bn, trim(reg_region%var(k)%name), bs, xb, fb)
          if (.not. (fa .and. fb) .or. as(1) /= bs(1)) then
             write(*,'(4a)') '  missing or mismatched: ', trim(reg_region%var(k)%name), ' in ', apath
-            nbad = nbad + 1_ik ; cycle
+            nbad = nbad + 1_ik
+            cycle
          end if
-         ea = 1_ik ; eb = 1_ik                           ! the axes after (time, polygon), at most two
-         ea(1:size(as) - 2) = as(3:) ; eb(1:size(bs) - 2) = bs(3:)
+         ea = 1_ik
+         eb = 1_ik                                       ! the axes after (time, polygon), at most two
+         ea(1:size(as) - 2) = as(3:)
+         eb(1:size(bs) - 2) = bs(3:)
          int_var = reg_region%var(k)%xtype == XTYPE_INT
          same = .true.
          do it = 0_ik, as(1) - 1_ik
             do i1 = 0_ik, max(ea(1), eb(1)) - 1_ik
                do i2 = 0_ik, max(ea(2), eb(2)) - 1_ik
-                  in_a = i1 < ea(1) .and. i2 < ea(2) ; in_b = i1 < eb(1) .and. i2 < eb(2)
+                  in_a = i1 < ea(1) .and. i2 < ea(2)
+                  in_b = i1 < eb(1) .and. i2 < eb(2)
                   if (in_a) va = xa(((it*as(2) + pa - 1_ik)*ea(1) + i1)*ea(2) + i2 + 1_ik)
                   if (in_b) vb = xb(((it*bs(2) + pb - 1_ik)*eb(1) + i1)*eb(2) + i2 + 1_ik)
                   if (in_a .and. in_b) then
@@ -712,7 +746,8 @@ contains
             nbad = nbad + 1_ik
          end if
       end do
-      call nc_check(nc_close(an), 'close') ; call nc_check(nc_close(bn), 'close')
+      call nc_check(nc_close(an), 'close')
+      call nc_check(nc_close(bn), 'close')
    end function compare_polygons
 
    logical function is_fill(x, int_var)
@@ -738,7 +773,9 @@ contains
       integer(ik) :: q, row, nc, np_, nmeta, ncoh, npat, nsoil, i, j, base
       logical :: found(9)
       ncid = open_nc(path)
-      nc = dim_len(ncid, 'cohort') ; np_ = dim_len(ncid, 'patch') ; nsoil = dim_len(ncid, 'soil_layer')
+      nc = dim_len(ncid, 'cohort')
+      np_ = dim_len(ncid, 'patch')
+      nsoil = dim_len(ncid, 'soil_layer')
       nmeta = dim_len(ncid, 'nmeta_int')                 ! a row of meta_int: its first two, the counts
       call read_var(ncid, 'meta_int',            [NP, nmeta],       meta,   found(1))
       call read_var(ncid, 'global_cohort_id',    [NP, nc],          gid,    found(2))
@@ -754,14 +791,18 @@ contains
       if (.not. same) return
       do q = 1_ik, size(r%poly, kind=ik)
          row = findloc(IDS, r%poly(q)%id, dim=1) - 1_ik
-         ncoh = nint(meta(row*nmeta + 1_ik), ik) ; npat = nint(meta(row*nmeta + 2_ik), ik)
+         ncoh = nint(meta(row*nmeta + 1_ik), ik)
+         npat = nint(meta(row*nmeta + 2_ik), ik)
          associate (c => r%poly(q)%cohort, pt => r%poly(q)%patch)
             same = same .and. c%n == ncoh .and. pt%n == npat
             if (.not. same) return
             row_ids = nint(gid(row*nc + 1_ik : row*nc + ncoh), ik)
             do i = 1_ik, ncoh
                j = findloc(row_ids, c%global_id(i), dim=1)
-               if (j == 0_ik) then ; same = .false. ; return ; end if
+               if (j == 0_ik) then
+                  same = .false.
+                  return
+               end if
                base = row*nc + j
                same = same .and. c%nplant(i) == nplant(base) .and. c%dbh(i) == dbh(base)            &
                            .and. c%leaf_carbon(i) == leafc(base) .and. c%wood_carbon(i) == woodc(base)
@@ -769,7 +810,10 @@ contains
             row_ids = nint(pgid(row*np_ + 1_ik : row*np_ + npat), ik)
             do i = 1_ik, npat
                j = findloc(row_ids, pt%global_id(i), dim=1)
-               if (j == 0_ik) then ; same = .false. ; return ; end if
+               if (j == 0_ik) then
+                  same = .false.
+                  return
+               end if
                base = (row*np_ + j - 1_ik)*nsoil
                same = same .and. pt%area(i) == area(row*np_ + j)                                    &
                            .and. all(pt%soil_water(i)%theta(1:nsoil) == theta(base + 1_ik : base + nsoil))
@@ -793,7 +837,8 @@ contains
       nmeta = dim_len(ncid, 'nmeta_int')                 ! a row of meta_int: its first two, the counts
       call read_var(ncid, 'meta_int', [NP, nmeta], meta, found)
       found = found .and. nmeta >= 2_ik
-      ncoh_max = 0_ik ; npat_max = 0_ik
+      ncoh_max = 0_ik
+      npat_max = 0_ik
       do p = 1_ik, merge(NP, 0_ik, found)
          ncoh_max = max(ncoh_max, nint(meta((p - 1_ik) * nmeta + 1_ik), ik))
          npat_max = max(npat_max, nint(meta((p - 1_ik) * nmeta + 2_ik), ik))
@@ -874,7 +919,8 @@ contains
       edges  = fb .and. fd .and. ns == n_soil_layer_max
       do p = 1_ik, NP
          if (.not. (same_z .and. edges)) exit
-         n = N_LAYER(p) ; base = (p - 1_ik) * ns
+         n = N_LAYER(p)
+         base = (p - 1_ik) * ns
          write(id,'(i0)') IDS(p)
          sn = open_nc(trim(work)//'/out/site'//trim(id)//suffix)
          call read_var(sn, 'soil_z', [1_ik, 1_ik, ns], zs, fs)
@@ -882,7 +928,8 @@ contains
          same_z = fs .and. all(z(base + 1_ik : base + n) == zs(1:n)) .and.                           &
                   all(z(base + n + 1_ik : base + ns) > 1.0e30_c_double)      ! the loop stops at a miss
          do k = 1_ik, ns
-            top(k) = b(2_ik * (base + k) - 1_ik) ; bot(k) = b(2_ik * (base + k))
+            top(k) = b(2_ik * (base + k) - 1_ik)
+            bot(k) = b(2_ik * (base + k))
          end do
          edges = top(1) == 0.0_c_double .and. all(top(2:n) == bot(1:n - 1_ik)) .and.                 &
                  all(z(base + 1_ik : base + n) == 0.5_c_double * (top(1:n) + bot(1:n))) .and.         &

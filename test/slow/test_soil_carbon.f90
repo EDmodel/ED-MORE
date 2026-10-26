@@ -61,21 +61,35 @@ contains
       integer(ik) :: i, j
       print '(a)', '-- test 1: mass closure (EULER + EXPM) --'
       opts%decomp_scheme = DECOMP_SCHEME_CENTURY5      ! all 5 active -> exercises transfers + EXPM
-      opts%k_micr = 6.0_wp ; opts%k_pass = 0.012_wp ; opts%k_slow = 0.15_wp ; opts%k_struct = 1.5_wp
+      opts%k_micr = 6.0_wp
+      opts%k_pass = 0.012_wp
+      opts%k_slow = 0.15_wp
+      opts%k_struct = 1.5_wp
       opts%k_fast = 12.0_wp
-      opts%er_fast = 0.55_wp ; opts%er_struct_nonlig = 0.50_wp ; opts%er_struct_lig = 0.20_wp
-      opts%er_slow = 0.55_wp ; opts%er_pass = 0.55_wp ; opts%er_micr_int = 0.60_wp ; opts%er_micr_slp = 0.17_wp
+      opts%er_fast = 0.55_wp
+      opts%er_struct_nonlig = 0.50_wp
+      opts%er_struct_lig = 0.20_wp
+      opts%er_slow = 0.55_wp
+      opts%er_pass = 0.55_wp
+      opts%er_micr_int = 0.60_wp
+      opts%er_micr_slp = 0.17_wp
 
-      pools%carbon(IP_FAST_GRND) = 0.4_wp ; pools%carbon(IP_FAST_SOIL) = 0.6_wp
-      pools%carbon(IP_STRUCT_GRND) = 2.0_wp ; pools%carbon(IP_STRUCT_SOIL) = 3.0_wp
-      pools%carbon(IP_MICR) = 0.5_wp ; pools%carbon(IP_SLOW) = 8.0_wp ; pools%carbon(IP_PASSIVE) = 20.0_wp
-      pools%lignin(1) = 0.6_wp ; pools%lignin(2) = 0.9_wp
+      pools%carbon(IP_FAST_GRND) = 0.4_wp
+      pools%carbon(IP_FAST_SOIL) = 0.6_wp
+      pools%carbon(IP_STRUCT_GRND) = 2.0_wp
+      pools%carbon(IP_STRUCT_SOIL) = 3.0_wp
+      pools%carbon(IP_MICR) = 0.5_wp
+      pools%carbon(IP_SLOW) = 8.0_wp
+      pools%carbon(IP_PASSIVE) = 20.0_wp
+      pools%lignin(1) = 0.6_wp
+      pools%lignin(2) = 0.9_wp
       u = [ (0.01_wp * frac(int(10*i, ik)), i = 1, N_SOIL_POOL) ]
       u(IP_MICR:IP_PASSIVE) = 0.0_wp                   ! litter only enters pools 1-4
       lignin_in = [0.002_wp, 0.003_wp]
       xi_int = [ (0.5_wp * frac(int(3*i+1, ik)) + 0.1_wp, i = 1, N_SOIL_POOL) ]  ! ~O(0.1..0.6) day
 
-      x = pools%carbon ; sx = max(sum(x), 1.0_wp)
+      x = pools%carbon
+      sx = max(sum(x), 1.0_wp)
 
       opts%step_solver = DECOMP_STEP_EULER
       call decomposition_transfer_matrix(pools, opts, a_mat, k_diag, er)
@@ -139,14 +153,26 @@ contains
       opts = soil_carbon_params_t()
       opts%decomp_scheme = scheme
       if (scheme == DECOMP_SCHEME_CENTURY5) then
-         opts%k_micr=6.0_wp; opts%k_pass=0.012_wp; opts%k_slow=0.15_wp; opts%k_struct=1.5_wp; opts%k_fast=12.0_wp
-         opts%er_fast=0.55_wp; opts%er_struct_nonlig=0.50_wp; opts%er_struct_lig=0.20_wp
-         opts%er_slow=0.55_wp; opts%er_pass=0.55_wp; opts%er_micr_int=0.60_wp; opts%er_micr_slp=0.17_wp
+         opts%k_micr=6.0_wp
+         opts%k_pass=0.012_wp
+         opts%k_slow=0.15_wp
+         opts%k_struct=1.5_wp
+         opts%k_fast=12.0_wp
+         opts%er_fast=0.55_wp
+         opts%er_struct_nonlig=0.50_wp
+         opts%er_struct_lig=0.20_wp
+         opts%er_slow=0.55_wp
+         opts%er_pass=0.55_wp
+         opts%er_micr_int=0.60_wp
+         opts%er_micr_slp=0.17_wp
       end if
       ! frozen climate scalar (constant), constant litter input to pools 1-4:
       xi = [0.7_wp, 0.5_wp, 0.7_wp, 0.5_wp, 0.5_wp, 0.5_wp, 0.5_wp]
       u  = 0.0_wp
-      u(IP_FAST_GRND)=0.03_wp; u(IP_FAST_SOIL)=0.05_wp; u(IP_STRUCT_GRND)=0.02_wp; u(IP_STRUCT_SOIL)=0.04_wp
+      u(IP_FAST_GRND)=0.03_wp
+      u(IP_FAST_SOIL)=0.05_wp
+      u(IP_STRUCT_GRND)=0.02_wp
+      u(IP_STRUCT_SOIL)=0.04_wp
       lignin_in = 0.0_wp
       call decomposition_transfer_matrix(pools, opts, a_mat, k_diag, er)
       call solve_soil_carbon_steady_state(a_mat, k_diag, xi, u, pss)
@@ -226,9 +252,12 @@ contains
                    + LEAF2*(1.0_wp-FLAB_LEAF2) + WOOD2*(1.0_wp-FLAB_STEM2)*AGF2
       exp_str_soil = ROOT1*(1.0_wp-FLAB_LEAF1) + WOOD1*(1.0_wp-FLAB_STEM1)*(1.0_wp-AGF1)  &
                    + ROOT2*(1.0_wp-FLAB_LEAF2) + WOOD2*(1.0_wp-FLAB_STEM2)*(1.0_wp-AGF2)
-      lit%labile_grnd = exp_lab_grnd ; lit%labile_soil = exp_lab_soil
-      lit%struct_grnd = exp_str_grnd ; lit%struct_soil = exp_str_soil
-      lit%lignin_grnd = 0.3_wp*exp_str_grnd ; lit%lignin_soil = 0.3_wp*exp_str_soil
+      lit%labile_grnd = exp_lab_grnd
+      lit%labile_soil = exp_lab_soil
+      lit%struct_grnd = exp_str_grnd
+      lit%struct_soil = exp_str_soil
+      lit%lignin_grnd = 0.3_wp*exp_str_grnd
+      lit%lignin_soil = 0.3_wp*exp_str_soil
       call build_litter_input(lit, u, lignin_in)
       call check('build u(fast_grnd)',   u(IP_FAST_GRND),   exp_lab_grnd, 1.0e-14_wp)
       call check('build u(fast_soil)',   u(IP_FAST_SOIL),   exp_lab_soil, 1.0e-14_wp)
@@ -241,11 +270,15 @@ contains
       ! (b) lignin tracer: proportional decay conserves f_lignin under pure decomposition (no input).
       opts = soil_carbon_params_t()
       pools = soil_carbon_state_t()
-      pools%carbon(IP_STRUCT_GRND) = 2.0_wp ; pools%lignin(1) = 0.8_wp   ! f_lignin = 0.4
-      c_before = pools%carbon(IP_STRUCT_GRND) ; l_before = pools%lignin(1)
+      pools%carbon(IP_STRUCT_GRND) = 2.0_wp
+      pools%lignin(1) = 0.8_wp                                           ! f_lignin = 0.4
+      c_before = pools%carbon(IP_STRUCT_GRND)
+      l_before = pools%lignin(1)
       f_lig_before = l_before / c_before
-      xi_int = 0.0_wp ; xi_int(IP_STRUCT_GRND) = 0.2_wp        ! decay only the struct_grnd pool
-      u = 0.0_wp ; lignin_in = 0.0_wp
+      xi_int = 0.0_wp
+      xi_int(IP_STRUCT_GRND) = 0.2_wp                          ! decay only the struct_grnd pool
+      u = 0.0_wp
+      lignin_in = 0.0_wp
       opts%step_solver = DECOMP_STEP_EULER
       p = pools
       call soil_carbon_step(p, u, lignin_in, xi_int, opts, rh, audit)
@@ -257,9 +290,13 @@ contains
                       p%lignin(1) <= p%carbon(IP_STRUCT_GRND), p%lignin(1))
       call check_true('lignin_resid ~ 0', abs(audit%lignin_resid) < 1.0e-14_wp, audit%lignin_resid)
       ! fresh lignin input raises f_lignin:
-      pools = soil_carbon_state_t() ; pools%carbon(IP_STRUCT_GRND) = 2.0_wp ; pools%lignin(1) = 0.4_wp
+      pools = soil_carbon_state_t()
+      pools%carbon(IP_STRUCT_GRND) = 2.0_wp
+      pools%lignin(1) = 0.4_wp
       xi_int = 0.0_wp
-      u = 0.0_wp ; u(IP_STRUCT_GRND) = 0.5_wp ; lignin_in = [0.4_wp, 0.0_wp]     ! high-lignin input
+      u = 0.0_wp
+      u(IP_STRUCT_GRND) = 0.5_wp
+      lignin_in = [0.4_wp, 0.0_wp]                                               ! high-lignin input
       p = pools
       call soil_carbon_step(p, u, lignin_in, xi_int, opts, rh, audit)
       p = audit%pools
@@ -269,11 +306,18 @@ contains
       ! (c) EXPM at a LARGE accelerated-spin-up step: lignin must decay in lockstep with its host
       ! carbon (exp(-d_s)), so f_lignin stays conserved and 0 <= L <= C. The linear survival (1 - d_s)
       ! would drive L NEGATIVE here (d_s = 3.0 => L = 0.8*(1-3) = -1.6; docs/science/soil_carbon.md §6).
-      opts = soil_carbon_params_t() ; opts%step_solver = DECOMP_STEP_EXPM
-      pools = soil_carbon_state_t() ; pools%carbon(IP_STRUCT_GRND) = 2.0_wp ; pools%lignin(1) = 0.8_wp  ! f_lignin=0.4
-      c_before = pools%carbon(IP_STRUCT_GRND) ; l_before = pools%lignin(1) ; f_lig_before = l_before/c_before
-      xi_int = 0.0_wp ; xi_int(IP_STRUCT_GRND) = 3.0_wp / (opts%k_struct/yr_day)   ! force d_s = xi_int*K = 3.0
-      u = 0.0_wp ; lignin_in = 0.0_wp
+      opts = soil_carbon_params_t()
+      opts%step_solver = DECOMP_STEP_EXPM
+      pools = soil_carbon_state_t()
+      pools%carbon(IP_STRUCT_GRND) = 2.0_wp
+      pools%lignin(1) = 0.8_wp                                                                          ! f_lignin=0.4
+      c_before = pools%carbon(IP_STRUCT_GRND)
+      l_before = pools%lignin(1)
+      f_lig_before = l_before/c_before
+      xi_int = 0.0_wp
+      xi_int(IP_STRUCT_GRND) = 3.0_wp / (opts%k_struct/yr_day)                     ! force d_s = xi_int*K = 3.0
+      u = 0.0_wp
+      lignin_in = 0.0_wp
       p = pools
       call soil_carbon_step(p, u, lignin_in, xi_int, opts, rh, audit)
       p = audit%pools
@@ -332,7 +376,10 @@ contains
       ! (b) exhaustive mass conservation: the four labile/structural destinations (lignin is a
       !     passive SUB-tracer of struct_grnd/struct_soil, not a fifth carbon pool) must sum to the
       !     total necromass in, for an arbitrary input including a nonzero storage term.
-      leaf_c = 0.37_wp ; root_c = 0.21_wp ; wood_c = 1.85_wp ; storage_c = 0.09_wp
+      leaf_c = 0.37_wp
+      root_c = 0.21_wp
+      wood_c = 1.85_wp
+      storage_c = 0.09_wp
       call necromass_to_litter(leaf_c, root_c, wood_c, storage_c, 0.65_wp, 0.08_wp, 0.55_wp, 0.28_wp, &
                                lg, ls, sg, ss, lig_g, lig_s)
       total_in  = leaf_c + root_c + wood_c + storage_c
@@ -387,8 +434,10 @@ contains
 
       !----- A realistic temperate-forest profile is PLAUSIBLE. -------------------------------!
       p = soil_carbon_state_t()
-      p%carbon(IP_FAST_GRND)   = 1.5_wp  ; p%carbon(IP_FAST_SOIL)   = 1.8_wp
-      p%carbon(IP_STRUCT_GRND) = 7.2_wp  ; p%carbon(IP_STRUCT_SOIL) = 6.3_wp
+      p%carbon(IP_FAST_GRND)   = 1.5_wp
+      p%carbon(IP_FAST_SOIL)   = 1.8_wp
+      p%carbon(IP_STRUCT_GRND) = 7.2_wp
+      p%carbon(IP_STRUCT_SOIL) = 6.3_wp
       p%carbon(IP_SLOW)        = 5.4_wp
       call check_true('a real soil profile passes the plausibility check',                          &
                       soil_carbon_bad_pool(p) == 0_ik, real(soil_carbon_bad_pool(p), wp))

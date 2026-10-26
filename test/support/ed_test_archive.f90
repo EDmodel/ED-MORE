@@ -57,16 +57,25 @@ contains
    pure real(wp) function field(v, r, c, g) result(x)
       integer(ik), intent(in) :: v, r, c, g
       real(wp) :: hr, day
-      hr = real(g, wp) ; day = real(modulo(g, 24_ik), wp)
+      hr = real(g, wp)
+      day = real(modulo(g, 24_ik), wp)
       select case (v)
-      case (1) ; x = air_temperature(r, c, hr)                                                   ! Tair
-      case (2) ; x = air_temperature(r, c, hr) - 4.0_wp - 0.5_wp * sin(TWO_PI * hr / 24.0_wp)    ! Tdew
-      case (3) ; x = 90000.0_wp + 100.0_wp * real(r, wp) + 10.0_wp * real(c, wp) + day         ! PSurf
-      case (4) ; x = 2.0_wp + 3.0_wp * sin(TWO_PI * hr / 24.0_wp) + 0.1_wp * real(c, wp)       ! u10
-      case (5) ; x = -1.0_wp + 2.0_wp * cos(TWO_PI * hr / 17.0_wp) - 0.1_wp * real(r, wp)      ! v10
-      case (6) ; x = merge(1.0e-4_wp, 0.0_wp, modulo(g, 7_ik) == 3_ik)                          ! Rainf
-      case (7) ; x = max(0.0_wp, 600.0_wp * sin(TWO_PI * (day - 6.0_wp) / 24.0_wp))              ! SWdown
-      case default ; x = 300.0_wp + 0.001_wp * hr + real(c, wp)                                  ! LWdown
+      case (1)
+         x = air_temperature(r, c, hr)                                                           ! Tair
+      case (2)
+         x = air_temperature(r, c, hr) - 4.0_wp - 0.5_wp * sin(TWO_PI * hr / 24.0_wp)            ! Tdew
+      case (3)
+         x = 90000.0_wp + 100.0_wp * real(r, wp) + 10.0_wp * real(c, wp) + day                 ! PSurf
+      case (4)
+         x = 2.0_wp + 3.0_wp * sin(TWO_PI * hr / 24.0_wp) + 0.1_wp * real(c, wp)               ! u10
+      case (5)
+         x = -1.0_wp + 2.0_wp * cos(TWO_PI * hr / 17.0_wp) - 0.1_wp * real(r, wp)              ! v10
+      case (6)
+         x = merge(1.0e-4_wp, 0.0_wp, modulo(g, 7_ik) == 3_ik)                                  ! Rainf
+      case (7)
+         x = max(0.0_wp, 600.0_wp * sin(TWO_PI * (day - 6.0_wp) / 24.0_wp))                      ! SWdown
+      case default
+         x = 300.0_wp + 0.001_wp * hr + real(c, wp)                                              ! LWdown
       end select
       x = real(real(x, sp), wp)                              ! the archive holds float32
    end function field
@@ -106,12 +115,16 @@ contains
       integer(c_int), intent(in)  :: ncid
       integer(c_int), intent(out) :: dlat_id, dlon_id
       integer(c_int) :: st, vla, vlo, dims1(1)
-      st = nc_def_dim_f(ncid, 'lat', int(NLAT, c_size_t), dlat_id) ; call nc_check(st, 'def lat dim')
-      st = nc_def_dim_f(ncid, 'lon', int(NLON, c_size_t), dlon_id) ; call nc_check(st, 'def lon dim')
+      st = nc_def_dim_f(ncid, 'lat', int(NLAT, c_size_t), dlat_id)
+      call nc_check(st, 'def lat dim')
+      st = nc_def_dim_f(ncid, 'lon', int(NLON, c_size_t), dlon_id)
+      call nc_check(st, 'def lon dim')
       dims1 = dlat_id
-      st = nc_def_var_f(ncid, 'lat', NC_DOUBLE, 1, dims1, vla) ; call nc_check(st, 'def lat')
+      st = nc_def_var_f(ncid, 'lat', NC_DOUBLE, 1, dims1, vla)
+      call nc_check(st, 'def lat')
       dims1 = dlon_id
-      st = nc_def_var_f(ncid, 'lon', NC_DOUBLE, 1, dims1, vlo) ; call nc_check(st, 'def lon')
+      st = nc_def_var_f(ncid, 'lon', NC_DOUBLE, 1, dims1, vlo)
+      call nc_check(st, 'def lon')
    end subroutine define_grid
 
    subroutine put_grid(ncid)
@@ -123,10 +136,14 @@ contains
       lat = [(LAT0 + DLAT * real(k, wp), k = 0_ik, NLAT - 1_ik)]
       lon = [(LON0 + DLON * real(k, wp), k = 0_ik, NLON - 1_ik)]
       start1 = 0_c_size_t
-      st = nc_inq_varid_f(ncid, 'lat', vid) ; count1 = int(NLAT, c_size_t)
-      st = nc_put_vara_double(ncid, vid, start1, count1, lat) ; call nc_check(st, 'put lat')
-      st = nc_inq_varid_f(ncid, 'lon', vid) ; count1 = int(NLON, c_size_t)
-      st = nc_put_vara_double(ncid, vid, start1, count1, lon) ; call nc_check(st, 'put lon')
+      st = nc_inq_varid_f(ncid, 'lat', vid)
+      count1 = int(NLAT, c_size_t)
+      st = nc_put_vara_double(ncid, vid, start1, count1, lat)
+      call nc_check(st, 'put lat')
+      st = nc_inq_varid_f(ncid, 'lon', vid)
+      count1 = int(NLON, c_size_t)
+      st = nc_put_vara_double(ncid, vid, start1, count1, lon)
+      call nc_check(st, 'put lon')
    end subroutine put_grid
 
    subroutine write_static(path, all_valid)
@@ -136,13 +153,18 @@ contains
       integer(c_size_t) :: start2(2), count2(2)
       real(c_double)    :: valid(NLON, NLAT), elev(NLON, NLAT), lfrac(NLON, NLAT)
       integer(ik) :: r, c
-      st = nc_create_f(path, NC_NETCDF4, ncid) ; call nc_check(st, 'create static')
+      st = nc_create_f(path, NC_NETCDF4, ncid)
+      call nc_check(st, 'create static')
       call define_grid(ncid, dla, dlo)
       dims2 = [dla, dlo]
-      st = nc_def_var_f(ncid, 'valid', NC_BYTE, 2, dims2, vv) ; call nc_check(st, 'def valid')
-      st = nc_def_var_f(ncid, 'elevation', NC_FLOAT, 2, dims2, ve) ; call nc_check(st, 'def elevation')
-      st = nc_def_var_f(ncid, 'land_fraction', NC_FLOAT, 2, dims2, vf) ; call nc_check(st, 'def land_fraction')
-      st = nc_enddef(ncid) ; call nc_check(st, 'enddef static')
+      st = nc_def_var_f(ncid, 'valid', NC_BYTE, 2, dims2, vv)
+      call nc_check(st, 'def valid')
+      st = nc_def_var_f(ncid, 'elevation', NC_FLOAT, 2, dims2, ve)
+      call nc_check(st, 'def elevation')
+      st = nc_def_var_f(ncid, 'land_fraction', NC_FLOAT, 2, dims2, vf)
+      call nc_check(st, 'def land_fraction')
+      st = nc_enddef(ncid)
+      call nc_check(st, 'enddef static')
       call put_grid(ncid)
       do r = 0_ik, NLAT - 1_ik
          do c = 0_ik, NLON - 1_ik
@@ -151,11 +173,16 @@ contains
             lfrac(c + 1_ik, r + 1_ik) = merge(0.3_c_double, 1.0_c_double, c == 1_ik)   ! column 1: mostly water
          end do
       end do
-      start2 = 0_c_size_t ; count2 = [int(NLAT, c_size_t), int(NLON, c_size_t)]
-      st = nc_put_vara_double(ncid, vv, start2, count2, valid) ; call nc_check(st, 'put valid')
-      st = nc_put_vara_double(ncid, ve, start2, count2, elev) ; call nc_check(st, 'put elevation')
-      st = nc_put_vara_double(ncid, vf, start2, count2, lfrac) ; call nc_check(st, 'put land_fraction')
-      st = nc_close(ncid) ; call nc_check(st, 'close static')
+      start2 = 0_c_size_t
+      count2 = [int(NLAT, c_size_t), int(NLON, c_size_t)]
+      st = nc_put_vara_double(ncid, vv, start2, count2, valid)
+      call nc_check(st, 'put valid')
+      st = nc_put_vara_double(ncid, ve, start2, count2, elev)
+      call nc_check(st, 'put elevation')
+      st = nc_put_vara_double(ncid, vf, start2, count2, lfrac)
+      call nc_check(st, 'put land_fraction')
+      st = nc_close(ncid)
+      call nc_check(st, 'close static')
    end subroutine write_static
 
    !----- A static map on the archive's grid (ed_maps): values(lon, lat, layer) as a 2-D      !
@@ -171,25 +198,32 @@ contains
       integer(c_size_t) :: start3(3), count3(3), start2(2), count2(2), start1(1), count1(1)
       real(c_double)    :: buf(NLON, NLAT, size(values, 3)), lat(NLAT)
       integer(ik)       :: k
-      st = nc_create_f(path, NC_NETCDF4, ncid) ; call nc_check(st, 'create map')
+      st = nc_create_f(path, NC_NETCDF4, ncid)
+      call nc_check(st, 'create map')
       call define_grid(ncid, dla, dlo)
       if (present(layer_dim)) then
-         st = nc_def_dim_f(ncid, layer_dim, int(size(values, 3), c_size_t), dly) ; call nc_check(st, 'def layer')
+         st = nc_def_dim_f(ncid, layer_dim, int(size(values, 3), c_size_t), dly)
+         call nc_check(st, 'def layer')
          dims3 = [dly, dla, dlo]
-         st = nc_def_var_f(ncid, name, NC_DOUBLE, 3, dims3, vid) ; call nc_check(st, 'def map')
+         st = nc_def_var_f(ncid, name, NC_DOUBLE, 3, dims3, vid)
+         call nc_check(st, 'def map')
       else
          dims2 = [dla, dlo]
-         st = nc_def_var_f(ncid, name, NC_DOUBLE, 2, dims2, vid) ; call nc_check(st, 'def map')
+         st = nc_def_var_f(ncid, name, NC_DOUBLE, 2, dims2, vid)
+         call nc_check(st, 'def map')
       end if
       st = nc_put_att_double_f(ncid, vid, '_FillValue', NC_DOUBLE, real(fill, c_double))
       call nc_check(st, 'put _FillValue')
-      st = nc_enddef(ncid) ; call nc_check(st, 'enddef map')
+      st = nc_enddef(ncid)
+      call nc_check(st, 'enddef map')
       call put_grid(ncid)
       if (present(lat_shift)) then
          lat = [(LAT0 + DLAT * real(k, wp) + lat_shift, k = 0_ik, NLAT - 1_ik)]
          st = nc_inq_varid_f(ncid, 'lat', vla)
-         start1 = 0_c_size_t ; count1 = int(NLAT, c_size_t)
-         st = nc_put_vara_double(ncid, vla, start1, count1, lat) ; call nc_check(st, 'shift lat')
+         start1 = 0_c_size_t
+         count1 = int(NLAT, c_size_t)
+         st = nc_put_vara_double(ncid, vla, start1, count1, lat)
+         call nc_check(st, 'shift lat')
       end if
       buf = real(values, c_double)
       if (present(layer_dim)) then
@@ -197,11 +231,13 @@ contains
          count3 = [int(size(values, 3), c_size_t), int(NLAT, c_size_t), int(NLON, c_size_t)]
          st = nc_put_vara_double(ncid, vid, start3, count3, buf)
       else
-         start2 = 0_c_size_t ; count2 = [int(NLAT, c_size_t), int(NLON, c_size_t)]
+         start2 = 0_c_size_t
+         count2 = [int(NLAT, c_size_t), int(NLON, c_size_t)]
          st = nc_put_vara_double(ncid, vid, start2, count2, buf)
       end if
       call nc_check(st, 'put map')
-      st = nc_close(ncid) ; call nc_check(st, 'close map')
+      st = nc_close(ncid)
+      call nc_check(st, 'close map')
    end subroutine write_map
 
    !=======================================================================================!
@@ -259,7 +295,10 @@ contains
       real(wp) :: v2(NLON, NLAT, 1, 4), v3(NLON, NLAT, 6, 5), vc(NLON, NLAT, 6, 3), ve(NLON, NLAT, 1, 1)
       type(soil_texture_t) :: t
       integer(ik) :: r, c, l
-      v2 = FILL ; v3 = FILL ; vc = FILL ; ve = FILL
+      v2 = FILL
+      v3 = FILL
+      vc = FILL
+      ve = FILL
       do r = 0_ik, NLAT - 1_ik
          do c = 0_ik, NLON - 1_ik
             if (.not. is_valid(r, c)) cycle
@@ -297,13 +336,17 @@ contains
       integer(c_size_t) :: start2(2), count2(2), start3(3), count3(3)
       real(c_double)    :: bnds(2, 6), buf(NLON, NLAT, size(values, 3))
       integer(ik)       :: f
-      st = nc_create_f(path, NC_NETCDF4, ncid) ; call nc_check(st, 'create '//path)
+      st = nc_create_f(path, NC_NETCDF4, ncid)
+      call nc_check(st, 'create '//path)
       call define_grid(ncid, dla, dlo)
       if (layered) then
-         st = nc_def_dim_f(ncid, 'depth', int(size(values, 3), c_size_t), dly) ; call nc_check(st, 'def depth')
-         st = nc_def_dim_f(ncid, 'nv', 2_c_size_t, dnv) ; call nc_check(st, 'def nv')
+         st = nc_def_dim_f(ncid, 'depth', int(size(values, 3), c_size_t), dly)
+         call nc_check(st, 'def depth')
+         st = nc_def_dim_f(ncid, 'nv', 2_c_size_t, dnv)
+         call nc_check(st, 'def nv')
          dims2 = [dly, dnv]
-         st = nc_def_var_f(ncid, 'depth_bnds', NC_DOUBLE, 2, dims2, vb) ; call nc_check(st, 'def depth_bnds')
+         st = nc_def_var_f(ncid, 'depth_bnds', NC_DOUBLE, 2, dims2, vb)
+         call nc_check(st, 'def depth_bnds')
       end if
       do f = 1_ik, size(names, kind=ik)
          if (layered) then
@@ -317,12 +360,16 @@ contains
          st = nc_put_att_double_f(ncid, vid(f), '_FillValue', NC_DOUBLE, real(fill, c_double))
          call nc_check(st, 'put _FillValue')
       end do
-      st = nc_enddef(ncid) ; call nc_check(st, 'enddef '//path)
+      st = nc_enddef(ncid)
+      call nc_check(st, 'enddef '//path)
       call put_grid(ncid)
       if (layered) then
-         bnds(1, :) = SG_TOP ; bnds(2, :) = SG_BOTTOM
-         start2 = 0_c_size_t ; count2 = [6_c_size_t, 2_c_size_t]
-         st = nc_put_vara_double(ncid, vb, start2, count2, bnds) ; call nc_check(st, 'put depth_bnds')
+         bnds(1, :) = SG_TOP
+         bnds(2, :) = SG_BOTTOM
+         start2 = 0_c_size_t
+         count2 = [6_c_size_t, 2_c_size_t]
+         st = nc_put_vara_double(ncid, vb, start2, count2, bnds)
+         call nc_check(st, 'put depth_bnds')
       end if
       do f = 1_ik, size(names, kind=ik)
          buf = real(values(:, :, :, f), c_double)
@@ -331,12 +378,14 @@ contains
             count3 = [int(size(values, 3), c_size_t), int(NLAT, c_size_t), int(NLON, c_size_t)]
             st = nc_put_vara_double(ncid, vid(f), start3, count3, buf)
          else
-            start2 = 0_c_size_t ; count2 = [int(NLAT, c_size_t), int(NLON, c_size_t)]
+            start2 = 0_c_size_t
+            count2 = [int(NLAT, c_size_t), int(NLON, c_size_t)]
             st = nc_put_vara_double(ncid, vid(f), start2, count2, buf)
          end if
          call nc_check(st, 'put '//trim(names(f)))
       end do
-      st = nc_close(ncid) ; call nc_check(st, 'close '//path)
+      st = nc_close(ncid)
+      call nc_check(st, 'close '//path)
    end subroutine write_fields
 
    subroutine write_month(dir, v, y, m, fill)
@@ -353,22 +402,29 @@ contains
       nt = era5land_month_hours(y, m)
       g0 = hour_index(ed_time_t(y, m, 1_ik, 1_ik))
       path = trim(era5land_path(era5land_default_template(), dir, ERA_VAR_NAME(v), y, m))
-      st = nc_create_f(path, NC_NETCDF4, ncid) ; call nc_check(st, 'create '//path)
-      st = nc_def_dim_f(ncid, 'time', int(nt, c_size_t), dt) ; call nc_check(st, 'def time dim')
+      st = nc_create_f(path, NC_NETCDF4, ncid)
+      call nc_check(st, 'create '//path)
+      st = nc_def_dim_f(ncid, 'time', int(nt, c_size_t), dt)
+      call nc_check(st, 'def time dim')
       call define_grid(ncid, dla, dlo)
       dims1 = dt
-      st = nc_def_var_f(ncid, 'time', NC_DOUBLE, 1, dims1, vt) ; call nc_check(st, 'def time')
+      st = nc_def_var_f(ncid, 'time', NC_DOUBLE, 1, dims1, vt)
+      call nc_check(st, 'def time')
       st = nc_put_att_text_f(ncid, vt, 'units', 33_c_size_t, 'seconds since 1970-01-01 00:00:00')
       call nc_check(st, 'time units')
       dims3 = [dt, dla, dlo]
-      st = nc_def_var_f(ncid, trim(ERA_VAR_NAME(v)), NC_FLOAT, 3, dims3, vx) ; call nc_check(st, 'def var')
+      st = nc_def_var_f(ncid, trim(ERA_VAR_NAME(v)), NC_FLOAT, 3, dims3, vx)
+      call nc_check(st, 'def var')
       st = nc_put_att_text_f(ncid, vx, 'units', int(len_trim(ERA_VAR_UNITS(v)), c_size_t), trim(ERA_VAR_UNITS(v)))
       call nc_check(st, 'var units')
       if (present(fill)) then
-         st = nc_put_att_double_f(ncid, vx, '_FillValue', NC_FLOAT, fill) ; call nc_check(st, 'var fill')
+         st = nc_put_att_double_f(ncid, vx, '_FillValue', NC_FLOAT, fill)
+         call nc_check(st, 'var fill')
       end if
-      st = nc_put_att_text_f(ncid, NC_GLOBAL, 'avg_convention', 3_c_size_t, 'end') ; call nc_check(st, 'avg_convention')
-      st = nc_enddef(ncid) ; call nc_check(st, 'enddef month')
+      st = nc_put_att_text_f(ncid, NC_GLOBAL, 'avg_convention', 3_c_size_t, 'end')
+      call nc_check(st, 'avg_convention')
+      st = nc_enddef(ncid)
+      call nc_check(st, 'enddef month')
       call put_grid(ncid)
       allocate(tsec(nt), dat(NLON, NLAT, nt))
       do h = 1_ik, nt
@@ -379,12 +435,16 @@ contains
             end do
          end do
       end do
-      start1 = 0_c_size_t ; count1 = int(nt, c_size_t)
-      st = nc_put_vara_double(ncid, vt, start1, count1, tsec) ; call nc_check(st, 'put time')
-      start3 = 0_c_size_t ; count3 = [int(nt, c_size_t), int(NLAT, c_size_t), int(NLON, c_size_t)]
+      start1 = 0_c_size_t
+      count1 = int(nt, c_size_t)
+      st = nc_put_vara_double(ncid, vt, start1, count1, tsec)
+      call nc_check(st, 'put time')
+      start3 = 0_c_size_t
+      count3 = [int(nt, c_size_t), int(NLAT, c_size_t), int(NLON, c_size_t)]
       st = nc_put_vara_double(ncid, vx, start3, count3, dat)
       call nc_check(st, 'put '//path)
-      st = nc_close(ncid) ; call nc_check(st, 'close '//path)
+      st = nc_close(ncid)
+      call nc_check(st, 'close '//path)
    end subroutine write_month
 
 end module ed_test_archive

@@ -70,13 +70,23 @@ program test_output_roundtrip
 
    !----- A fixed 1-cohort / 1-patch site (constant slot set). -----!
    call alloc_polygon(poly, 1_ik, 16_ik, 4_ik, 4_ik, test_pft_table())
-   poly%cohort%n = 1_ik ; poly%patch%n = 1_ik
-   poly%cohort%nplant(1) = 1.0_wp ; poly%cohort%dbh(1) = 5.0_wp
-   poly%cohort%height(1) = 4.0_wp ; poly%cohort%basal_area(1) = 19.6_wp
-   poly%cohort%leaf_area(1) = 2.0_wp ; poly%cohort%growth_avg(1) = 0.1_wp
-   poly%cohort%pft(1) = 1_ik ; poly%cohort%owner_patch(1) = 1_ik ; poly%cohort%global_id(1) = 1_ik
-   poly%patch%area(1) = 1.0_wp ; poly%patch%cohort_offset(1) = 1_ik ; poly%patch%cohort_count(1) = 1_ik
-   poly%patch%age(1) = 0.0_wp ; poly%patch%dist_type(1) = 1_ik ; poly%patch%global_id(1) = 1_ik
+   poly%cohort%n = 1_ik
+   poly%patch%n = 1_ik
+   poly%cohort%nplant(1) = 1.0_wp
+   poly%cohort%dbh(1) = 5.0_wp
+   poly%cohort%height(1) = 4.0_wp
+   poly%cohort%basal_area(1) = 19.6_wp
+   poly%cohort%leaf_area(1) = 2.0_wp
+   poly%cohort%growth_avg(1) = 0.1_wp
+   poly%cohort%pft(1) = 1_ik
+   poly%cohort%owner_patch(1) = 1_ik
+   poly%cohort%global_id(1) = 1_ik
+   poly%patch%area(1) = 1.0_wp
+   poly%patch%cohort_offset(1) = 1_ik
+   poly%patch%cohort_count(1) = 1_ik
+   poly%patch%age(1) = 0.0_wp
+   poly%patch%dist_type(1) = 1_ik
+   poly%patch%global_id(1) = 1_ik
    call rebuild_patch_map(poly)
 
    !----- Constant carbon + soil sources (fast loop is off in this unit test, so set them here    !
@@ -117,7 +127,8 @@ program test_output_roundtrip
    !      agb 10 / 20 / 30 are the states at the end of the steps of 1, 2 and 3 January. ---------!
    now = ed_time_t(year=2000_ik, month=1_ik, day=1_ik)
    do iday = 1_ik, 3_ik
-      prev = now ; now = time_advance_days(prev, 1_ik)
+      prev = now
+      now = time_advance_days(prev, 1_ik)
       call set_site_agb(poly, 10.0_wp * real(iday, wp))
       call output_integrate(files, bufs(1), poly, prev, dt, .true., .false., .false.)
       call output_serialize(files, bufs)

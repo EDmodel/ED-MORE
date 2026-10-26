@@ -56,7 +56,8 @@ contains
       integer(ik) :: loads
       call met_prefetch(src, ed_time_t(t%year, t%month, t%day))
       loads = src%n_loads
-      call met_advance(src, cur, t) ; met = met_instant(src, cur, t)
+      call met_advance(src, cur, t)
+      met = met_instant(src, cur, t)
       if (src%n_loads /= loads) error stop 'test_met_era5land: the reader loaded a month inside a step'
    end function step_sample
 
@@ -119,7 +120,8 @@ contains
       real(wp)    :: across(4), inside(4)
       integer(ik) :: st, g
       print '(a)', '-- era5land 3: box selection and month load --'
-      across = [40.0_wp, 150.0_wp, 20.0_wp, -150.0_wp] ; inside = [50.0_wp, -130.0_wp, 10.0_wp, -90.0_wp]
+      across = [40.0_wp, 150.0_wp, 20.0_wp, -150.0_wp]
+      inside = [50.0_wp, -130.0_wp, 10.0_wp, -90.0_wp]
       !----- [N, W, S, E] = [40, 150, 20, -150]: rows 35 and 25 N; columns 160 E, then -180 and  !
       !      -160 across 180. (2,0) has no data, so 5 cells.                                        !
       call select_box_cells(archive_grid(DIR//'/ED_ERA5land_static.nc'), across, dom, st)
@@ -198,10 +200,16 @@ contains
    !----- A reader config on the synthetic archive at the valid cell (1,3), 35 N 120 W. ----------!
    function archive_config() result(fc)
       type(forcing_params_t) :: fc
-      fc%format = MET_BACKEND_ERA5LAND ; fc%data_path = DIR ; fc%max_distance_km = 50.0_wp
-      fc%timestep = 3600.0_wp ; fc%avg_convention = METAVG_END ; fc%sw_partition = SWPART_CLEARIDX
-      fc%latitude = 35.0_wp ; fc%longitude = -120.0_wp
-      fc%recycle = .false. ; fc%start_clamp = CLAMP_ERROR
+      fc%format = MET_BACKEND_ERA5LAND
+      fc%data_path = DIR
+      fc%max_distance_km = 50.0_wp
+      fc%timestep = 3600.0_wp
+      fc%avg_convention = METAVG_END
+      fc%sw_partition = SWPART_CLEARIDX
+      fc%latitude = 35.0_wp
+      fc%longitude = -120.0_wp
+      fc%recycle = .false.
+      fc%start_clamp = CLAMP_ERROR
    end function archive_config
 
    !=======================================================================================!
@@ -228,31 +236,37 @@ contains
       call check_true('the archive supplies the wind vector', src%has_wind_vector)
 
       !----- At a stamp every weight is 0, so the record comes through untouched. ---------------!
-      t = ed_time_t(2021_ik, 1_ik, 20_ik, 6_ik) ; g = hour_index(t)
+      t = ed_time_t(2021_ik, 1_ik, 20_ik, 6_ik)
+      g = hour_index(t)
       met = step_sample(src, cur, t)
       call check('Tair at a stamp', met%air_temp, field(ERA_TAIR, 1_ik, 3_ik, g), 1.0e-9_wp)
       call check('Qair = the kernel of the stored Tdew and PSurf', met%air_shv,                      &
                  sat_specific_humidity(field(ERA_TDEW, 1_ik, 3_ik, g),                    &
                                                field(ERA_PSURF, 1_ik, 3_ik, g)), 1.0e-15_wp)
-      u1 = field(ERA_U10, 1_ik, 3_ik, g) ; v1 = field(ERA_V10, 1_ik, 3_ik, g)
+      u1 = field(ERA_U10, 1_ik, 3_ik, g)
+      v1 = field(ERA_V10, 1_ik, 3_ik, g)
       call check('wind_u = u10', met%wind_u, u1, 1.0e-12_wp)
       call check('wind_v = v10', met%wind_v, v1, 1.0e-12_wp)
       call check('speed from the components', met%wind, sqrt(u1**2 + v1**2), 1.0e-12_wp)
       call check_true('the instant carries the vector', met%has_wind_vector)
 
       !----- Inside January's file: 31 Jan 23:30 sits between 23:00 and 00:00 (both January). --!
-      t = ed_time_t(2021_ik, 1_ik, 31_ik, 23_ik, 30_ik) ; g = hour_index(ed_time_t(2021_ik, 1_ik, 31_ik, 23_ik))
+      t = ed_time_t(2021_ik, 1_ik, 31_ik, 23_ik, 30_ik)
+      g = hour_index(ed_time_t(2021_ik, 1_ik, 31_ik, 23_ik))
       met = step_sample(src, cur, t)
       call check('31 Jan 23:30 interpolates inside the January file', met%air_temp,                 &
                  0.5_wp * (field(ERA_TAIR, 1_ik, 3_ik, g) + field(ERA_TAIR, 1_ik, 3_ik, g + 1_ik)), 1.0e-9_wp)
 
       !----- The seam: 1 Feb 00:00 is January's last record, 01:00 February's first. -----------!
-      t = ed_time_t(2021_ik, 2_ik, 1_ik, 0_ik, 30_ik) ; g = hour_index(ed_time_t(2021_ik, 2_ik, 1_ik))
+      t = ed_time_t(2021_ik, 2_ik, 1_ik, 0_ik, 30_ik)
+      g = hour_index(ed_time_t(2021_ik, 2_ik, 1_ik))
       met = step_sample(src, cur, t)
       call check('1 Feb 00:30 brackets January''s last and February''s first record', met%air_temp, &
                  0.5_wp * (field(ERA_TAIR, 1_ik, 3_ik, g) + field(ERA_TAIR, 1_ik, 3_ik, g + 1_ik)), 1.0e-9_wp)
-      u1 = field(ERA_U10, 1_ik, 3_ik, g) ; u2 = field(ERA_U10, 1_ik, 3_ik, g + 1_ik)
-      v1 = field(ERA_V10, 1_ik, 3_ik, g) ; v2 = field(ERA_V10, 1_ik, 3_ik, g + 1_ik)
+      u1 = field(ERA_U10, 1_ik, 3_ik, g)
+      u2 = field(ERA_U10, 1_ik, 3_ik, g + 1_ik)
+      v1 = field(ERA_V10, 1_ik, 3_ik, g)
+      v2 = field(ERA_V10, 1_ik, 3_ik, g + 1_ik)
       call check('the vector interpolates linearly (u)', met%wind_u, 0.5_wp * (u1 + u2), 1.0e-12_wp)
       call check('the vector interpolates linearly (v)', met%wind_v, 0.5_wp * (v1 + v2), 1.0e-12_wp)
       call check_true('the energy-form speed is at least the vector''s length',                    &
@@ -273,12 +287,15 @@ contains
                     run_end=ed_time_t(2021_ik, 3_ik, 1_ik))
       fc%elevation = src%cells%elevation(1) + 500.0_wp
       call site_cursor(src, cur, fc)
-      t = ed_time_t(2021_ik, 1_ik, 20_ik, 6_ik) ; g = hour_index(t)
+      t = ed_time_t(2021_ik, 1_ik, 20_ik, 6_ik)
+      g = hour_index(t)
       met = step_sample(src, cur, t)
-      t0  = field(ERA_TAIR, 1_ik, 3_ik, g) ; p0 = field(ERA_PSURF, 1_ik, 3_ik, g)
+      t0  = field(ERA_TAIR, 1_ik, 3_ik, g)
+      p0 = field(ERA_PSURF, 1_ik, 3_ik, g)
       q0  = sat_specific_humidity(field(ERA_TDEW, 1_ik, 3_ik, g), p0)
       lw0 = field(ERA_LWDOWN, 1_ik, 3_ik, g)
-      t1  = t0 - 0.0042_wp * 500.0_wp ; p1 = lapse_pressure(p0, t0, 500.0_wp, 0.0042_wp)
+      t1  = t0 - 0.0042_wp * 500.0_wp
+      p1 = lapse_pressure(p0, t0, 500.0_wp, 0.0042_wp)
       call check('lapse: T by January''s rate', met%air_temp, t1, 1.0e-9_wp)
       call check('lapse: P hydrostatic', met%air_pressure, p1, 1.0e-6_wp)
       rh0 = q0 * p0 / (h2o_dry_ratio + (1.0_wp - h2o_dry_ratio) * q0) / sat_vapor_pressure(t0)
@@ -290,7 +307,8 @@ contains
                  lw0 * clear_sky_emissivity(fc%lw_clear_form, met%air_temp, met%air_shv, met%air_pressure)      &
                      * met%air_temp**4 / (clear_sky_emissivity(fc%lw_clear_form, t0, q0, p0) * t0**4), 1.0e-9_wp)
       call check_true('lapse: the colder, drier site gets less longwave', met%lw_down < lw0, met%lw_down - lw0)
-      u1 = field(ERA_U10, 1_ik, 3_ik, g) ; v1 = field(ERA_V10, 1_ik, 3_ik, g)
+      u1 = field(ERA_U10, 1_ik, 3_ik, g)
+      v1 = field(ERA_V10, 1_ik, 3_ik, g)
       call check('the reader leaves the wind as delivered (u)', met%wind_u, u1, 1.0e-12_wp)
       call check('the reader leaves the wind as delivered (v)', met%wind_v, v1, 1.0e-12_wp)
       call met_close(src)
@@ -310,12 +328,14 @@ contains
       print '(a)', '-- era5land 6: recycling across months --'
       fc = archive_config()
       fc%recycle = .true.
-      fc%recycle_start = T0 ; fc%recycle_end = ed_time_t(2022_ik, 1_ik, 1_ik, 1_ik)
+      fc%recycle_start = T0
+      fc%recycle_end = ed_time_t(2022_ik, 1_ik, 1_ik, 1_ik)
       call met_open(src, fc, stat=st)
       call check_true('a whole-year window opens without a run period', st == MET_OK)
       call site_cursor(src, cur, fc)
       call check_true('the window is 8760 records', src%nrec == 8760_ik)
-      t = ed_time_t(2035_ik, 6_ik, 15_ik, 12_ik) ; g = hour_index(ed_time_t(2021_ik, 6_ik, 15_ik, 12_ik))
+      t = ed_time_t(2035_ik, 6_ik, 15_ik, 12_ik)
+      g = hour_index(ed_time_t(2021_ik, 6_ik, 15_ik, 12_ik))
       met = step_sample(src, cur, t)
       call check('2035-06-15 12:00 reads 2021-06-15 12:00', met%air_temp, field(ERA_TAIR, 1_ik, 3_ik, g), 1.0e-9_wp)
       t = ed_time_t(2036_ik, 1_ik, 1_ik, 0_ik, 30_ik)
@@ -327,10 +347,13 @@ contains
       !      last record and January, and the reader reads January once more, not December again. ---!
       block
          integer(ik) :: loads
-         t = ed_time_t(2036_ik,   12_ik, 30_ik, 12_ik) ; met = step_sample(src, cur, t)
-         t = ed_time_t(2036_ik,   12_ik, 31_ik, 23_ik, 30_ik) ; met = step_sample(src, cur, t)
+         t = ed_time_t(2036_ik,   12_ik, 30_ik, 12_ik)
+         met = step_sample(src, cur, t)
+         t = ed_time_t(2036_ik,   12_ik, 31_ik, 23_ik, 30_ik)
+         met = step_sample(src, cur, t)
          loads = src%n_loads
-         t = ed_time_t(2037_ik, 1_ik, 1_ik, 0_ik, 30_ik) ; met = step_sample(src, cur, t)
+         t = ed_time_t(2037_ik, 1_ik, 1_ik, 0_ik, 30_ik)
+         met = step_sample(src, cur, t)
          call check('across the wrap: December''s last and January''s first record', met%air_temp,   &
                     0.5_wp * (field(ERA_TAIR, 1_ik, 3_ik, 8759_ik) + field(ERA_TAIR, 1_ik, 3_ik, 0_ik)), 1.0e-9_wp)
          call check_true('the wrap reads January once, December''s record comes from the buffer',  &
@@ -357,7 +380,8 @@ contains
                     run_end=ed_time_t(2021_ik, 4_ik, 1_ik))
       call check_true('passthrough against total shortwave is rejected', st == MET_ERR_ATTR_MISMATCH)
       fc = archive_config()
-      fc%latitude = 45.0_wp ; fc%longitude = -80.0_wp
+      fc%latitude = 45.0_wp
+      fc%longitude = -80.0_wp
       call met_open(src, fc, stat=st, run_start=ed_time_t(2021_ik, 3_ik, 1_ik),                &
                     run_end=ed_time_t(2021_ik, 4_ik, 1_ik))
       call check_true('a site with no valid cell within max_distance_km is rejected', st == MET_ERR_ARCHIVE)
@@ -391,7 +415,8 @@ contains
          call met_cursor_init(region, cur(k), PICK(k), cells%lat(PICK(k)), cells%lon(PICK(k)),    &
                               fc%elevation)
          fc = archive_config()
-         fc%latitude = cells%lat(PICK(k)) ; fc%longitude = cells%lon(PICK(k))
+         fc%latitude = cells%lat(PICK(k))
+         fc%longitude = cells%lon(PICK(k))
          call met_open(site(k), fc, stat=st, run_start=ed_time_t(2021_ik, 1_ik, 15_ik),        &
                        run_end=ed_time_t(2021_ik, 3_ik, 1_ik))
          call site_cursor(site(k), cur_site(k), fc)
@@ -408,7 +433,8 @@ contains
          call met_prefetch(region, ed_time_t(t%year, t%month, t%day))
          loads = region%n_loads
          do k = 1_ik, 2_ik
-            call met_advance(region, cur(k), t) ; met = met_instant(region, cur(k), t)
+            call met_advance(region, cur(k), t)
+            met = met_instant(region, cur(k), t)
             met_site = step_sample(site(k), cur_site(k), t)
             same = same .and. met%air_temp == met_site%air_temp .and. met%air_shv == met_site%air_shv       &
                  .and. met%air_pressure == met_site%air_pressure .and. met%precip == met_site%precip    &
@@ -426,13 +452,15 @@ contains
       end do
       call check_true('each polygon reads what a site run at its cell reads, bit for bit', same)
       call check_true('the region read each month once', region%n_loads == 2_ik)
-      call met_close(region) ; call met_close(site(1))
+      call met_close(region)
+      call met_close(site(1))
 
       !----- A source closed and opened again starts clean (the C API reuses a run's source): on the  !
       !      second cell, a fresh cursor's first bracket at 1 Feb 00:30 needs January's last record,  !
       !      which would be the first cell's if met_close left the carried record behind.  -------------!
       fc = archive_config()
-      fc%latitude = cells%lat(PICK(2)) ; fc%longitude = cells%lon(PICK(2))
+      fc%latitude = cells%lat(PICK(2))
+      fc%longitude = cells%lon(PICK(2))
       call met_open(site(1), fc, stat=st, run_start=ed_time_t(2021_ik, 1_ik, 15_ik),             &
                     run_end=ed_time_t(2021_ik, 3_ik, 1_ik))
       call site_cursor(site(1), cur_site(1), fc)
@@ -441,7 +469,8 @@ contains
       call check('a reopened source reads its new cell''s carried record', met%air_temp,               &
                  0.5_wp * (field(ERA_TAIR, PR(2), PC(2), hour_index(ed_time_t(2021_ik, 2_ik, 1_ik)))  &
                  + field(ERA_TAIR, PR(2), PC(2), hour_index(ed_time_t(2021_ik, 2_ik, 1_ik)) + 1_ik)), 1.0e-9_wp)
-      call met_close(site(1)) ; call met_close(site(2))
+      call met_close(site(1))
+      call met_close(site(2))
    end subroutine test_region_cursors
 
    !=======================================================================================!
@@ -464,7 +493,8 @@ contains
       fc%recycle = .true.
 
       !----- 2021-01-02 00:00 .. 2022-01-02 00:00: the seam, 2022-01-01 23:00 + 1 h, ends a step. ---!
-      fc%recycle_start = ed_time_t(2021_ik, 1_ik, 2_ik) ; fc%recycle_end = ed_time_t(2022_ik, 1_ik, 2_ik)
+      fc%recycle_start = ed_time_t(2021_ik, 1_ik, 2_ik)
+      fc%recycle_end = ed_time_t(2022_ik, 1_ik, 2_ik)
       call met_open(src, fc, stat=st)
       call check_true('a midnight anchor opens (MET_OK)', st == MET_OK)
       call site_cursor(src, cur, fc)
@@ -510,7 +540,8 @@ contains
       !----- 2021-02-01 00:00 .. 2022-02-01 00:00, walked as a region walks a month: one prefetch at  !
       !      the month's start, and no later day of the month may load. The seam ends the month's last  !
       !      day; the next month takes the window's first record from the kept day. -------------------!
-      fc%recycle_start = ed_time_t(2021_ik, 2_ik, 1_ik) ; fc%recycle_end = ed_time_t(2022_ik, 2_ik, 1_ik)
+      fc%recycle_start = ed_time_t(2021_ik, 2_ik, 1_ik)
+      fc%recycle_end = ed_time_t(2022_ik, 2_ik, 1_ik)
       call met_open(src, fc, stat=st)
       call check_true('an anchor at 00:00 on the 1st opens (MET_OK)', st == MET_OK)
       call site_cursor(src, cur, fc)
@@ -520,7 +551,8 @@ contains
          call met_prefetch(src, ed_time_t(2036_ik, 1_ik, d))
       end do
       t = ed_time_t(2036_ik, 1_ik, 31_ik, 23_ik, 30_ik)
-      call met_advance(src, cur, t) ; met = met_instant(src, cur, t)
+      call met_advance(src, cur, t)
+      met = met_instant(src, cur, t)
       call check('the seam of a window from the 1st ends the month', met%air_temp,                         &
                  seam_mean(ed_time_t(2022_ik, 1_ik, 31_ik, 23_ik), fc%recycle_start), 1.0e-9_wp)
       call check_true('the month loaded nothing after its first day', src%n_loads == loads)

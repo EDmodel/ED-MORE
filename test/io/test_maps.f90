@@ -160,8 +160,10 @@ program test_maps
                    all(inp%layer_bottom == SG_BOTTOM))
    ok = .true.
    do k = 1_ik, masked%ncell
-      r = masked%row(k) ; c = masked%col(k)
-      t5 = texture_at(3_ik, r, c) ; t6 = texture_at(6_ik, r, c)
+      r = masked%row(k)
+      c = masked%col(k)
+      t5 = texture_at(3_ik, r, c)
+      t6 = texture_at(6_ik, r, c)
       ok = ok .and. close(inp%soil_depth(k), soil_depth_at(r, c)) .and. nint(inp%bc_class(k)) == bc_class_at(r, c) &
               .and. close(inp%f_leak(k), f_leak_at(r, c))                                                         &
               .and. close(inp%deep_temp(k), deep_temp_at(r, c)) .and. close(inp%chave_e(k), chave_e_at(r, c))       &
@@ -175,11 +177,14 @@ program test_maps
    end do
    call alloc_pft_table(cfg%pft, 1_ik)      ! the cell's E goes into every PFT's allometry
    call apply_map_inputs(inp, k, cfg)
-   t5 = texture_at(5_ik, 1_ik, 0_ik) ; t6 = texture_at(6_ik, 1_ik, 0_ik)
-   tex%sand = (0.4_wp*t5%sand + 0.1_wp*t6%sand) / 0.5_wp ; tex%silt = (0.4_wp*t5%silt + 0.1_wp*t6%silt) / 0.5_wp
+   t5 = texture_at(5_ik, 1_ik, 0_ik)
+   t6 = texture_at(6_ik, 1_ik, 0_ik)
+   tex%sand = (0.4_wp*t5%sand + 0.1_wp*t6%sand) / 0.5_wp
+   tex%silt = (0.4_wp*t5%silt + 0.1_wp*t6%silt) / 0.5_wp
    tex%clay = (0.4_wp*t5%clay + 0.1_wp*t6%clay) / 0.5_wp
    tex%org_carbon = (0.4_wp*t5%org_carbon + 0.1_wp*t6%org_carbon) / 0.5_wp
-   tex%cec = (0.4_wp*t5%cec + 0.1_wp*t6%cec) / 0.5_wp ; tex%ph = (0.4_wp*t5%ph + 0.1_wp*t6%ph) / 0.5_wp
+   tex%cec = (0.4_wp*t5%cec + 0.1_wp*t6%cec) / 0.5_wp
+   tex%ph = (0.4_wp*t5%ph + 0.1_wp*t6%ph) / 0.5_wp
    tex%bulk_density = (0.4_wp*t5%bulk_density + 0.1_wp*t6%bulk_density) / 0.5_wp
    tex%coarse_frag  = (0.4_wp*t5%coarse_frag + 0.1_wp*t6%coarse_frag) / 0.5_wp
    call soil_texture_to_hydraulics(tex, ts, tr, al, vn, ks)

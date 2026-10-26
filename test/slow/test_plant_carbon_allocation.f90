@@ -141,7 +141,8 @@ contains
                           wood_to_dbh(ALLOM, w + cap, RHO) - d, 0.2_wp * sqrt(d), 1.0e-9_wp)
       end do
       !----- Both set: the tighter one. At 3 cm a 0.4 cm/yr cap is ~30 % of wood a year. -------!
-      d = 3.0_wp ; w = size_to_wood_carbon(ALLOM, d, dbh_to_height(ALLOM, d), RHO)
+      d = 3.0_wp
+      w = size_to_wood_carbon(ALLOM, d, dbh_to_height(ALLOM, d), RHO)
       call check_close('sink limit: both => the tighter (relative)', limit(w, d, 0.05_wp, 0.4_wp, 1.0_wp), 0.05_wp * w)
       call check_close('sink limit: both => the tighter (absolute)', limit(w, d, 5.0_wp, 0.4_wp, 1.0_wp),  &
                        limit(w, d, 0.0_wp, 0.4_wp, 1.0_wp))
@@ -164,7 +165,9 @@ contains
       real(wp), intent(in) :: wood, dbh, rgr, agr, dt
       real(wp), intent(in), optional :: expo, window, grown
       real(wp) :: e, win, gro
-      e = 0.0_wp ; win = dt ; gro = 0.0_wp
+      e = 0.0_wp
+      win = dt
+      gro = 0.0_wp
       if (present(expo))   e   = expo
       if (present(window)) win = window
       if (present(grown))  gro = grown

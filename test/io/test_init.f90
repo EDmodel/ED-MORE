@@ -189,19 +189,27 @@ contains
       header = 'patch_id,dbh,pft,nplant'
       row1 = ''
       row2 = ''
-      header(1) = 'patch_id,basal,dbh,pft,nplant'      ; row1(1) = '1,0.5,10.0,1,0.01'
+      header(1) = 'patch_id,basal,dbh,pft,nplant'
+      row1(1) = '1,0.5,10.0,1,0.01'
       expect(1) = 'has an unknown column "basal"'
-      header(2) = 'patch_id,patch_area,dbh,pft,nplant' ; row1(2) = '1,400.0,10.0,1,0.01' ; row2(2) = '1,300.0,20.0,1,0.01'
+      header(2) = 'patch_id,patch_area,dbh,pft,nplant'
+      row1(2) = '1,400.0,10.0,1,0.01'
+      row2(2) = '1,300.0,20.0,1,0.01'
       expect(2) = 'has two different patch_area values for patch_id 1'
-      header(3) = 'patch_id,dbh,dbh,pft,nplant'        ; row1(3) = '1,10.0,10.0,1,0.01'
+      header(3) = 'patch_id,dbh,dbh,pft,nplant'
+      row1(3) = '1,10.0,10.0,1,0.01'
       expect(3) = 'has the column "dbh" twice'
-      header(4) = 'dbh,pft,nplant'                     ; row1(4) = '10.0,1,0.01'
+      header(4) = 'dbh,pft,nplant'
+      row1(4) = '10.0,1,0.01'
       expect(4) = 'has no patch_id column'
-      header(5) = 'patch_id,pft,nplant'                ; row1(5) = '1,1,0.01'
+      header(5) = 'patch_id,pft,nplant'
+      row1(5) = '1,1,0.01'
       expect(5) = 'has no dbh column'
-      header(6) = 'patch_id,dbh,nplant'                ; row1(6) = '1,10.0,0.01'
+      header(6) = 'patch_id,dbh,nplant'
+      row1(6) = '1,10.0,0.01'
       expect(6) = 'has no pft column'
-      header(7) = 'patch_id,dbh,pft'                   ; row1(7) = '1,10.0,1'
+      header(7) = 'patch_id,dbh,pft'
+      row1(7) = '1,10.0,1'
       expect(7) = 'has no nplant column'
       row1(8)   = '1,10.0,1'
       expect(8) = 'has a row with too few columns'
@@ -293,7 +301,8 @@ contains
             sc%layer_ksat(k)        = 1.0e-6_wp / real(k, wp)
             sc%layer_curve_par_a(k) = 2.0_wp + 0.1_wp * real(k, wp)
             sc%layer_curve_par_n(k) = 1.3_wp + 0.02_wp * real(k, wp)
-            sc%layer_solid_conductivity(k) = 3.0_wp ; sc%layer_dry_conductivity(k) = 0.2_wp
+            sc%layer_solid_conductivity(k) = 3.0_wp
+            sc%layer_dry_conductivity(k) = 0.2_wp
             sc%layer_dry_heat_capacity(k)  = 1.5e6_wp + 1.0e4_wp * real(k, wp)
          end do
       end associate

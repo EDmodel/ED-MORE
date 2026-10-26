@@ -83,7 +83,10 @@ program test_water_network
 
    call make_pft(hyd)
    call make_soil(soil, 10_ik, 1.44_wp, 3.0_wp)
-   forc%t_ground = 299.0_wp ; forc%q_air = 0.016_wp ; forc%rho_air = 1.15_wp ; forc%r_aero = 80.0_wp
+   forc%t_ground = 299.0_wp
+   forc%q_air = 0.016_wp
+   forc%rho_air = 1.15_wp
+   forc%r_aero = 80.0_wp
 
    call test_arrowhead_solve()
    call test_jacobian()
@@ -115,8 +118,10 @@ contains
       allocate(h%pft(1))
       h%pft(1)%leaf_curve = water_curve_t(pi0=-1.5_wp, elastic_mod=12.0_wp, apoplast_frac=0.30_wp, water_sat=2.0_wp)
       h%pft(1)%wood_curve = water_curve_t(pi0=-1.0_wp, elastic_mod=8.0_wp,  apoplast_frac=0.20_wp, water_sat=1.0_wp)
-      h%pft(1)%wood_psi50  = -2.0_wp ; h%pft(1)%wood_kexp = 2.0_wp
-      h%pft(1)%wood_kmax   = 3.3_wp  ; h%pft(1)%vessel_curl = 1.5_wp
+      h%pft(1)%wood_psi50  = -2.0_wp
+      h%pft(1)%wood_kexp = 2.0_wp
+      h%pft(1)%wood_kmax   = 3.3_wp
+      h%pft(1)%vessel_curl = 1.5_wp
       h%pft(1)%root_beta = 0.1_wp
       h%pft(1)%root_depth_b1 = 1.1140580_wp
       h%pft(1)%root_depth_b2 = 0.4223014_wp
@@ -171,9 +176,11 @@ contains
       allocate(st%drive%e_demand(n))
       st%drive%e_demand = e_total * lai_share
       st%drive%rain = 0.0_wp
-      st%drive%t_soil = 299.0_wp ; st%drive%t_rain = 297.0_wp
+      st%drive%t_soil = 299.0_wp
+      st%drive%t_rain = 297.0_wp
       st%drive%ground = forc
-      st%tols%rtol(GRP_THETA) = WATER_RTOL ; st%tols%atol(GRP_THETA) = WATER_ATOL
+      st%tols%rtol(GRP_THETA) = WATER_RTOL
+      st%tols%atol(GRP_THETA) = WATER_ATOL
       call set_water_state(st%static, soil, hyd, theta, st%drive%ice, w_pond, 0.0_wp, leaf_w, wood_w, st%water)
    end subroutine make_stand
 
@@ -209,38 +216,50 @@ contains
       integer(ik) :: i, j, g, l, seed
       logical :: ok
       call arrowhead_allocate(s, NC, NG, MG)
-      seed = 12345_ik ; full = 0.0_wp
+      seed = 12345_ik
+      full = 0.0_wp
       do j = 1_ik, NC
          do i = 1_ik, NC
-            v = pseudo(seed) ; s%a(i, j) = v ; full(i, j) = v
+            v = pseudo(seed)
+            s%a(i, j) = v
+            full(i, j) = v
          end do
-         s%a(j, j) = s%a(j, j) + 8.0_wp ; full(j, j) = full(j, j) + 8.0_wp
+         s%a(j, j) = s%a(j, j) + 8.0_wp
+         full(j, j) = full(j, j) + 8.0_wp
       end do
       do g = 1_ik, NG
          do i = 1_ik, NC            ! each group meets the core through its first unknown
-            v = pseudo(seed) ; s%b(i, g) = v ; full(i, NC + (g-1)*MG + 1) = v
-            v = pseudo(seed) ; s%c(i, g) = v ; full(NC + (g-1)*MG + 1, i) = v
+            v = pseudo(seed)
+            s%b(i, g) = v
+            full(i, NC + (g-1)*MG + 1) = v
+            v = pseudo(seed)
+            s%c(i, g) = v
+            full(NC + (g-1)*MG + 1, i) = v
          end do
          do l = 1_ik, MG
             do j = 1_ik, MG
                v = pseudo(seed) + merge(5.0_wp, 0.0_wp, j == l)
-               s%d(l, j, g) = v ; full(NC + (g-1)*MG + l, NC + (g-1)*MG + j) = v
+               s%d(l, j, g) = v
+               full(NC + (g-1)*MG + l, NC + (g-1)*MG + j) = v
             end do
          end do
       end do
       !----- Additions to the blocks' diagonals, as a Newton matrix's storage terms are added. --------!
       do i = 1_ik, NC
-         add_c(i) = 1.5_wp + 0.1_wp * real(i, wp) ; full(i, i) = full(i, i) + add_c(i)
+         add_c(i) = 1.5_wp + 0.1_wp * real(i, wp)
+         full(i, i) = full(i, i) + add_c(i)
       end do
       do g = 1_ik, NG
          do l = 1_ik, MG
-            add_g(l, g) = 0.7_wp ; full(NC + (g-1)*MG + l, NC + (g-1)*MG + l) = full(NC + (g-1)*MG + l, NC + (g-1)*MG + l) + 0.7_wp
+            add_g(l, g) = 0.7_wp
+            full(NC + (g-1)*MG + l, NC + (g-1)*MG + l) = full(NC + (g-1)*MG + l, NC + (g-1)*MG + l) + 0.7_wp
          end do
       end do
       do i = 1_ik, NT
          rhs(i) = pseudo(seed)
       end do
-      r_c = rhs(1:NC) ; r_g = reshape(rhs(NC+1:NT), [MG, NG])
+      r_c = rhs(1:NC)
+      r_g = reshape(rhs(NC+1:NT), [MG, NG])
       call dense_solve(full, rhs, x_ref, NT)
       a_kept = s%a
       call arrowhead_factor(s, add_c, add_g, ok)
@@ -259,11 +278,13 @@ contains
       call make_stand(st, 3_ik, theta, 0.0_wp, 0.95_wp, 0.9_wp, 4.0e-5_wp)
       err = water_jacobian_error(st%static, soil, sopts, hyd, st%drive, st%water, 300.0_wp)
       call check_true('jacobian: wet soil, transpiring stand', err < 1.0e-5_wp, err)
-      theta = 0.12_wp ; theta(1) = 0.1 + 0.003_wp
+      theta = 0.12_wp
+      theta(1) = 0.1 + 0.003_wp
       call make_stand(st, 3_ik, theta, 0.0_wp, 0.4_wp, 0.35_wp, 2.0e-5_wp)
       err = water_jacobian_error(st%static, soil, sopts, hyd, st%drive, st%water, 300.0_wp)
       call check_true('jacobian: dry soil, stressed stand', err < 1.0e-5_wp, err)
-      theta = 0.4314_wp - 1.0e-3_wp ; theta(1) = 0.4314_wp + 1.0e-5_wp
+      theta = 0.4314_wp - 1.0e-3_wp
+      theta(1) = 0.4314_wp + 1.0e-5_wp
       call make_stand(st, 2_ik, theta, 12.0_wp, 0.98_wp, 0.97_wp, 0.0_wp)
       err = water_jacobian_error(st%static, soil, sopts, hyd, st%drive, st%water, 300.0_wp)
       call check_true('jacobian: ponded, supersaturated top layer', err < 1.0e-5_wp, err)
@@ -281,7 +302,10 @@ contains
       integer(ik) :: step, nfail
       theta = 0.33_wp
       call make_stand(st, 4_ik, theta, 0.0_wp, 0.95_wp, 0.9_wp, 0.0_wp)
-      dt = 900.0_wp ; worst = 0.0_wp ; worst_coh = 0.0_wp ; nfail = 0_ik
+      dt = 900.0_wp
+      worst = 0.0_wp
+      worst_coh = 0.0_wp
+      nfail = 0_ik
       do step = 1_ik, 192
          hour = mod(real(step, wp) * dt / 3600.0_wp, 24.0_wp)
          st%drive%e_demand = 5.0e-5_wp * max(0.0_wp, sin(pi * (hour - 6.0_wp) / 12.0_wp))                     &
@@ -289,9 +313,11 @@ contains
          st%drive%rain = 0.0_wp
          if (step >= 60 .and. step < 68) st%drive%rain = 2.0e-2_wp      ! 72 mm/h for two hours
          if (step >= 150 .and. step < 160) st%drive%rain = 1.0e-3_wp    ! a long drizzle
-         w0 = total_water(st) ; wc0 = sum(st%water%state%water_coh, dim=1)
+         w0 = total_water(st)
+         wc0 = sum(st%water%state%water_coh, dim=1)
          call advance(st, sopts, dt)
-         w1 = total_water(st) ; wc1 = sum(st%water%state%water_coh, dim=1)
+         w1 = total_water(st)
+         wc1 = sum(st%water%state%water_coh, dim=1)
          !----- Each cohort's leaf + wood water changes by its own uptake less its transpiration. ------!
          worst_coh = max(worst_coh, maxval(abs((wc1 - wc0) - (sum(st%water%flows%uptake, dim=1)               &
                                                               - st%water%flows%transp))) / max(maxval(wc0), 1.0e-6_wp))
@@ -319,17 +345,22 @@ contains
       integer(ik) :: step
       shallow = soil
       call make_soil(soil, 1_ik, 100.0_wp, 3.0_wp)
-      sealed = sopts ; sealed%water_bottom_bc = SOIL_BC_DRAIN ; sealed%drain_factor = 0.0_wp
+      sealed = sopts
+      sealed%water_bottom_bc = SOIL_BC_DRAIN
+      sealed%drain_factor = 0.0_wp
       theta = 0.28_wp
       call make_stand(st, 1_ik, theta, 0.0_wp, 0.95_wp, 0.92_wp, 3.0e-5_wp)
       st%drive%ground%q_air = 0.05_wp                 ! air wetter than any surface: no evaporation
-      st%tols%rtol(GRP_THETA) = 1.0e-8_wp ; st%tols%atol(GRP_THETA) = 1.0e-9_wp
+      st%tols%rtol(GRP_THETA) = 1.0e-8_wp
+      st%tols%atol(GRP_THETA) = 1.0e-9_wp
       do step = 1_ik, 96_ik
          w_plant0 = sum(st%water%state%water_coh)
          call advance(st, sealed, 900.0_wp)
          w_plant1 = sum(st%water%state%water_coh)
       end do
-      e = st%water%flows%transp(1) ; u = sum(st%water%flows%uptake(:, 1)) ; sap = st%water%flows%sapflow(1)
+      e = st%water%flows%transp(1)
+      u = sum(st%water%flows%uptake(:, 1))
+      sap = st%water%flows%sapflow(1)
       print '(a,3es11.3)', '  info : plant only: |u-e|/e, |sap-e|/e, |dW|/W: ', abs(u - e) / e, abs(sap - e) / e,   &
             abs(w_plant1 - w_plant0) / w_plant1
       soil = shallow
@@ -350,8 +381,11 @@ contains
       real(wp) :: theta(soil%n_active), head(soil%n_active), w0, drain_max
       integer(ik) :: step, nsl
       nsl = soil%n_active
-      theta = 0.40_wp ; theta(1:3) = 0.425_wp          ! wet: BCI's clay settles in days, not years
-      sealed = sopts ; sealed%water_bottom_bc = SOIL_BC_DRAIN ; sealed%drain_factor = 0.0_wp
+      theta = 0.40_wp
+      theta(1:3) = 0.425_wp                            ! wet: BCI's clay settles in days, not years
+      sealed = sopts
+      sealed%water_bottom_bc = SOIL_BC_DRAIN
+      sealed%drain_factor = 0.0_wp
       call make_stand(st, 0_ik, theta, 0.0_wp, 0.9_wp, 0.9_wp, 0.0_wp)
       st%drive%ground%q_air = 0.05_wp                 ! air wetter than any surface: no evaporation
       w0 = total_water(st)
@@ -434,10 +468,13 @@ contains
       integer(ik) :: step, nsl
       logical :: finite
       nsl = soil%n_active
-      theta = 0.16_wp ; theta(1) = 0.0981_wp + 2.0e-3_wp
+      theta = 0.16_wp
+      theta(1) = 0.0981_wp + 2.0e-3_wp
       call make_stand(st, 6_ik, theta, 0.0_wp, 0.45_wp, 0.40_wp, 0.0_wp)
-      w0 = total_water(st) ; flows = 0.0_wp
-      finite = .true. ; theta_min = 1.0_wp
+      w0 = total_water(st)
+      flows = 0.0_wp
+      finite = .true.
+      theta_min = 1.0_wp
       do step = 1_ik, 6_ik
          st%drive%rain = merge(30.0_wp / 3600.0_wp, 0.0_wp, step == 3 .or. step == 4)
          call advance(st, sopts, 900.0_wp)
@@ -464,7 +501,10 @@ contains
       nsl = soil%n_active
       theta = 0.4314_wp - 1.0e-3_wp
       call make_stand(st, 2_ik, theta, 0.0_wp, 0.97_wp, 0.95_wp, 1.0e-5_wp)
-      w0 = total_water(st) ; flows = 0.0_wp ; spill = 0.0_wp ; over = 0.0_wp
+      w0 = total_water(st)
+      flows = 0.0_wp
+      spill = 0.0_wp
+      over = 0.0_wp
       do step = 1_ik, 8_ik
          st%drive%rain = merge(50.0_wp / 3600.0_wp, 0.0_wp, step <= 4)
          call advance(st, sopts, 900.0_wp)
@@ -492,14 +532,16 @@ contains
       theta = 0.30_wp
       call make_stand(st, 3_ik, theta, 0.0_wp, 0.9_wp, 0.85_wp, 0.0_wp)
       call make_stand(ref, 3_ik, theta, 0.0_wp, 0.9_wp, 0.85_wp, 0.0_wp)
-      ref%tols%rtol(GRP_THETA) = 1.0e-3_wp * WATER_RTOL ; ref%tols%atol(GRP_THETA) = 1.0e-3_wp * WATER_ATOL
+      ref%tols%rtol(GRP_THETA) = 1.0e-3_wp * WATER_RTOL
+      ref%tols%atol(GRP_THETA) = 1.0e-3_wp * WATER_ATOL
       isub = 0_ik
       do step = 1_ik, 96_ik
          hour = real(step, wp) * 0.25_wp
          st%drive%e_demand = 5.0e-5_wp * max(0.0_wp, sin(pi * (hour - 6.0_wp) / 12.0_wp))                     &
                              * st%static%nplant * st%static%bleaf / sum(st%static%nplant * st%static%bleaf)
          ref%drive%e_demand = st%drive%e_demand
-         st%drive%rain = merge(1.0e-2_wp, 0.0_wp, step >= 50 .and. step < 54) ; ref%drive%rain = st%drive%rain
+         st%drive%rain = merge(1.0e-2_wp, 0.0_wp, step >= 50 .and. step < 54)
+         ref%drive%rain = st%drive%rain
          call advance(st, sopts, 900.0_wp)
          call advance(ref, sopts, 900.0_wp)
          isub = isub + st%work(WORK_WATER_NSUB)
@@ -530,10 +572,15 @@ contains
       wood_w = st%water%state%water_coh(WOOD, :) / st%static%nplant
       leaf_w(3) = 2.0_wp * st%static%bleaf(3) * 0.9_wp
       call set_water_state(st%static, soil, hyd, theta, st%drive%ice, 3.0e-8_wp, 0.0_wp, leaf_w, wood_w, st%water)
-      w0 = total_water(st) ; flows = 0.0_wp ; nfail = 0_ik ; rwc_max = 0.0_wp ; pond_min = 0.0_wp
+      w0 = total_water(st)
+      flows = 0.0_wp
+      nfail = 0_ik
+      rwc_max = 0.0_wp
+      pond_min = 0.0_wp
       do step = 1_ik, 96_ik
          st%drive%rain = merge(1.0e-6_wp, 1.2e-3_wp, step < 40)
-         st%drive%e_demand(1:2) = 2.0e-5_wp ; st%drive%e_demand(3) = 1.0e-32_wp
+         st%drive%e_demand(1:2) = 2.0e-5_wp
+         st%drive%e_demand(3) = 1.0e-32_wp
          call advance(st, sopts, 900.0_wp)
          flows = flows + boundary_water(st, 900.0_wp)
          nfail = nfail + st%work(WORK_WATER_NFAIL)
@@ -569,7 +616,11 @@ contains
                                   PSI_SAT, B, -3.37_wp, soil)
       theta = 0.30_wp
       call make_stand(st, 4_ik, theta, 0.0_wp, 0.95_wp, 0.9_wp, 0.0_wp)
-      dt = 900.0_wp ; worst = 0.0_wp ; worst_psi = 0.0_wp ; uptake = 0.0_wp ; nfail = 0_ik
+      dt = 900.0_wp
+      worst = 0.0_wp
+      worst_psi = 0.0_wp
+      uptake = 0.0_wp
+      nfail = 0_ik
       below_zero = .true.
       do step = 1_ik, 192
          hour = mod(real(step, wp) * dt / 3600.0_wp, 24.0_wp)
@@ -962,13 +1013,16 @@ contains
       real(wp),    intent(out) :: x(n)
       real(wp) :: a(n, n+1), row(n+1), f
       integer(ik) :: i, j, p
-      a(:, 1:n) = a_in ; a(:, n+1) = b
+      a(:, 1:n) = a_in
+      a(:, n+1) = b
       do j = 1_ik, n
          p = j
          do i = j + 1_ik, n
             if (abs(a(i, j)) > abs(a(p, j))) p = i
          end do
-         row = a(j, :) ; a(j, :) = a(p, :) ; a(p, :) = row
+         row = a(j, :)
+         a(j, :) = a(p, :)
+         a(p, :) = row
          do i = j + 1_ik, n
             f = a(i, j) / a(j, j)
             a(i, :) = a(i, :) - f * a(j, :)

@@ -87,7 +87,9 @@ program test_pft_config
 
    !=== 4b. The ground optics come from [soil]: a bare patch reflects each shortwave band by its   !
    !        albedo and returns the sky's longwave by 1 - emissivity, plus its own emission. =======!
-   cfg%soil%ground_albedo_vis = 0.11_wp ; cfg%soil%ground_albedo_nir = 0.22_wp ; cfg%soil%ground_emissivity = 0.93_wp
+   cfg%soil%ground_albedo_vis = 0.11_wp
+   cfg%soil%ground_albedo_nir = 0.22_wp
+   cfg%soil%ground_emissivity = 0.93_wp
    block
       type(fast_static_state_t)  :: bare
       type(fast_dynamic_state_t) :: dyn
@@ -105,7 +107,9 @@ program test_pft_config
       lw_up = (1.0_wp - 0.93_wp) * met%lw_down + 0.93_wp * stefan_boltzmann * 290.0_wp**4
       call check_close(forcing%lw_up, lw_up, 1.0e-9_wp, 'soil.ground_emissivity did not reach the radiation solver')
    end block
-   cfg%soil%ground_albedo_vis = 0.15_wp ; cfg%soil%ground_albedo_nir = 0.30_wp ; cfg%soil%ground_emissivity = 0.95_wp
+   cfg%soil%ground_albedo_vis = 0.15_wp
+   cfg%soil%ground_albedo_nir = 0.30_wp
+   cfg%soil%ground_emissivity = 0.95_wp
 
    !=== 5. Clumping and the leaf-angle distribution are per PFT too. ========================!
    cfg%pft%leaf_clumping(2)   = 0.40_wp

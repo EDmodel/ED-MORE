@@ -289,14 +289,20 @@ program test_fast_driver
          call init_fast_state(poly, cfg)
          call fast_dynamics(poly, cfg, met_src=src, met_cur=cur, step_start=DAY, out_bufs=ob)
          call site_cursor(cur2)
-         sum_t = 0.0_wp ; sum_q = 0.0_wp ; sum_pb = 0.0_wp ; sum_cz = 0.0_wp ; sum_sw = 0.0_wp
+         sum_t = 0.0_wp
+         sum_q = 0.0_wp
+         sum_pb = 0.0_wp
+         sum_cz = 0.0_wp
+         sum_sw = 0.0_wp
          exact = .true.
          do isub = 1_ik, cfg%n_fast_per_slow
             ts = time_advance_seconds(DAY, (real(isub, wp) - 1.0_wp + cfg%forcing_sample_frac) * cfg%dt_fast)
             call met_advance(src, cur2, ts)
             m = met_instant(src, cur2, ts)
-            sum_t = sum_t + m%air_temp * cfg%dt_fast ; sum_q = sum_q + m%air_shv * cfg%dt_fast
-            sum_pb = sum_pb + m%par_beam * cfg%dt_fast ; sum_cz = sum_cz + m%cosz * cfg%dt_fast
+            sum_t = sum_t + m%air_temp * cfg%dt_fast
+            sum_q = sum_q + m%air_shv * cfg%dt_fast
+            sum_pb = sum_pb + m%par_beam * cfg%dt_fast
+            sum_cz = sum_cz + m%cosz * cfg%dt_fast
             sum_sw = sum_sw + m%sw_down() * cfg%dt_fast
             associate (f => ob%fast_forcing(:, isub))
                exact = exact .and. f(PY_QAIR) == m%air_shv .and. f(PY_LWDOWN) == m%lw_down               &
@@ -322,8 +328,11 @@ program test_fast_driver
             integer(ik) :: ip, nsub, na, kb
             real(wp)    :: site_cas
             logical     :: own, folded, skin
-            nsub = cfg%n_fast_per_slow ; na = test_profile%n_active
-            own = ob%fast_n_patch == poly%patch%n ; site_cas = 0.0_wp ; skin = .true.
+            nsub = cfg%n_fast_per_slow
+            na = test_profile%n_active
+            own = ob%fast_n_patch == poly%patch%n
+            site_cas = 0.0_wp
+            skin = .true.
             do ip = 1_ik, poly%patch%n
                kb = (ip - 1_ik) * n_soil_layer_max
                own = own .and. ob%fast_patch(PA_CAS_TEMP, ip, nsub) == poly%patch%cas(ip)%can_temp     &
@@ -400,7 +409,9 @@ program test_fast_driver
          !      (docs/science/numerical_scheme.md §6a). ------------------------------------------------!
          call check(abs(g1 - g2) <= 1.0e-14_wp * max(abs(g2), 1.0e-30_wp),                   &
                     'patch 1 == patch 2 exactly: no loop-carried controller warm start')
-         g1_ref = g1 ; g2_ref = g2 ; g3_ref = g3     ! the 1-thread reference for the thread-invariance check below
+         g1_ref = g1
+         g2_ref = g2
+         g3_ref = g3                                 ! the 1-thread reference for the thread-invariance check below
       end block
 
       !=== THREAD INVARIANCE (docs/science/numerical_scheme.md §6a). =====================================!
@@ -482,7 +493,8 @@ program test_fast_driver
       call init_fast_state(poly, cfg)
       call fast_dynamics(poly, cfg, met_src=src, met_cur=cur, step_start=DAY)      ! 15-17 UTC (day)
 
-      itall = 1_ik ; ishort = 1_ik                               ! locate the tallest / shortest cohort
+      itall = 1_ik
+      ishort = 1_ik                                              ! locate the tallest / shortest cohort
       do ii = 2_ik, poly%cohort%n
          if (poly%cohort%height(ii) > poly%cohort%height(itall))  itall  = ii
          if (poly%cohort%height(ii) < poly%cohort%height(ishort)) ishort = ii
@@ -618,8 +630,10 @@ program test_fast_driver
       real(wp), parameter :: NPLANT_THIN = 0.002_wp, DBH_THIN = 20.0_wp
       real(wp), parameter :: HOLD_OFF = 1.0e6_wp     ! tolerances no step error reaches
       real(wp)           :: rtol0, atol_scale0
-      rtol0 = cfg%rtol ; atol_scale0 = cfg%atol_scale
-      cfg%rtol = HOLD_OFF ; cfg%atol_scale = HOLD_OFF
+      rtol0 = cfg%rtol
+      atol_scale0 = cfg%atol_scale
+      cfg%rtol = HOLD_OFF
+      cfg%atol_scale = HOLD_OFF
       call build_soil_profile(cfg%soil, test_profile)            ! the site's column from [soil] from here on
       do icase = 1_ik, 3_ik
          call init_bare_ground(poly, cfg, 1_ik)
@@ -640,8 +654,10 @@ program test_fast_driver
          call site_cursor(cur)
          call init_fast_state(poly, cfg)
          call fast_dynamics(poly, cfg, met_src=src, met_cur=cur, step_start=DAY, n_budget_fail=nfail(icase))
-         t_leaf(icase) = poly%cohort%leaf_temp(poly%cohort%n) ; t_wood(icase) = poly%cohort%wood_temp(poly%cohort%n)
-         t_cas(icase)  = poly%patch%cas(1)%can_temp          ; gpp(icase)    = poly%cohort%gpp_accum(poly%cohort%n)
+         t_leaf(icase) = poly%cohort%leaf_temp(poly%cohort%n)
+         t_wood(icase) = poly%cohort%wood_temp(poly%cohort%n)
+         t_cas(icase)  = poly%patch%cas(1)%can_temp
+         gpp(icase)    = poly%cohort%gpp_accum(poly%cohort%n)
          if (icase == 2_ik) call check(poly%cohort%leaf_temp(1) == poly%cohort%leaf_temp(2) .and.              &
                                        poly%cohort%wood_temp(1) == poly%cohort%wood_temp(2),                   &
                                        'split: the two half-density cohorts are identical')
@@ -656,7 +672,8 @@ program test_fast_driver
       call check(poly%cohort%leaf_area(1) == 0.0_wp, 'leafless: the cohort has no leaf area')
       call check(t_leaf(3) == t_wood(3), 'leafless: the leaf takes its wood''s temperature')
       call check(abs(t_wood(3) - t_cas(3)) > 1.0e-3_wp, 'leafless: the wood is not at the canopy air''s temperature')
-      cfg%rtol = rtol0 ; cfg%atol_scale = atol_scale0
+      cfg%rtol = rtol0
+      cfg%atol_scale = atol_scale0
    end block
 
    call met_close(src)
@@ -692,43 +709,79 @@ contains
       real(wp) :: hh, sw
       character(len=8), parameter :: NM(7) = ['Tair    ','Qair    ','PSurf   ','Wind    ',        &
                                               'Rainf   ','SWdown  ','LWdown  ']
-      st = nc_create_f(path, NC_NETCDF4, ncid) ; call nc_check(st,'c')
-      st = nc_def_dim_f(ncid,'time',int(NT,c_size_t),td) ; call nc_check(st,'t')
-      st = nc_def_dim_f(ncid,'grid',1_c_size_t,gd) ; call nc_check(st,'g')
-      dims1(1)=td ; st = nc_def_var_f(ncid,'time',NC_DOUBLE,1,dims1,vt) ; call nc_check(st,'tv')
+      st = nc_create_f(path, NC_NETCDF4, ncid)
+      call nc_check(st,'c')
+      st = nc_def_dim_f(ncid,'time',int(NT,c_size_t),td)
+      call nc_check(st,'t')
+      st = nc_def_dim_f(ncid,'grid',1_c_size_t,gd)
+      call nc_check(st,'g')
+      dims1(1)=td
+      st = nc_def_var_f(ncid,'time',NC_DOUBLE,1,dims1,vt)
+      call nc_check(st,'tv')
       st = nc_put_att_text_f(ncid,vt,'units',int(len_trim('seconds since 2020-07-01 00:00:00'),c_size_t), &
-                             'seconds since 2020-07-01 00:00:00') ; call nc_check(st,'u')
-      dims1(1)=gd ; st = nc_def_var_f(ncid,'latitude',NC_DOUBLE,1,dims1,vla) ; call nc_check(st,'la')
-      st = nc_def_var_f(ncid,'longitude',NC_DOUBLE,1,dims1,vlo) ; call nc_check(st,'lo')
-      dims2(1)=td ; dims2(2)=gd
-      do k=1,7 ; st = nc_def_var_f(ncid,trim(NM(k)),NC_DOUBLE,2,dims2,vv(k)) ; call nc_check(st,'v') ; end do
-      st = nc_put_att_text_f(ncid,NC_GLOBAL,'time_zone',3_c_size_t,'UTC') ; call nc_check(st,'tz')
-      st = nc_enddef(ncid) ; call nc_check(st,'e')
-      do it=1,NT ; tsec(it)=real(it-1,c_double)*3600.0_c_double ; end do
-      s1=0_c_size_t ; c1(1)=int(NT,c_size_t) ; st=nc_put_vara_double(ncid,vt,s1,c1,tsec) ; call nc_check(st,'tw')
+                             'seconds since 2020-07-01 00:00:00')
+                             call nc_check(st,'u')
+      dims1(1)=gd
+      st = nc_def_var_f(ncid,'latitude',NC_DOUBLE,1,dims1,vla)
+      call nc_check(st,'la')
+      st = nc_def_var_f(ncid,'longitude',NC_DOUBLE,1,dims1,vlo)
+      call nc_check(st,'lo')
+      dims2(1)=td
+      dims2(2)=gd
+      do k=1,7
+         st = nc_def_var_f(ncid,trim(NM(k)),NC_DOUBLE,2,dims2,vv(k))
+         call nc_check(st,'v')
+      end do
+      st = nc_put_att_text_f(ncid,NC_GLOBAL,'time_zone',3_c_size_t,'UTC')
+      call nc_check(st,'tz')
+      st = nc_enddef(ncid)
+      call nc_check(st,'e')
+      do it=1,NT
+         tsec(it)=real(it-1,c_double)*3600.0_c_double
+      end do
+      s1=0_c_size_t
+      c1(1)=int(NT,c_size_t)
+      st=nc_put_vara_double(ncid,vt,s1,c1,tsec)
+      call nc_check(st,'tw')
       c1(1)=1_c_size_t
-      block ; real(c_double) :: la(1),lo(1) ; la=42.44_c_double ; lo=-76.50_c_double
-         st=nc_put_vara_double(ncid,vla,s1,c1,la) ; call nc_check(st,'law')
-         st=nc_put_vara_double(ncid,vlo,s1,c1,lo) ; call nc_check(st,'low') ; end block
-      s2=0_c_size_t ; c2=[int(NT,c_size_t),1_c_size_t]
+      block
+         real(c_double) :: la(1),lo(1)
+         la=42.44_c_double
+         lo=-76.50_c_double
+         st=nc_put_vara_double(ncid,vla,s1,c1,la)
+         call nc_check(st,'law')
+         st=nc_put_vara_double(ncid,vlo,s1,c1,lo)
+         call nc_check(st,'low')
+         end block
+      s2=0_c_size_t
+      c2=[int(NT,c_size_t),1_c_size_t]
       do k=1,7
          do it=1,NT
             hh=real(it-1,wp)
             sw = max(0.0_wp, 850.0_wp*sin(3.14159265_wp*(hh-11.0_wp)/12.0_wp))
             if (hh<11.0_wp .or. hh>23.0_wp) sw=0.0_wp
             select case (k)
-            case(1) ; dat(1,it)=290.0_wp + 6.0_wp*sin(2.0_wp*3.14159265_wp*(hh-15.0_wp)/24.0_wp)
-            case(2) ; dat(1,it)=0.010_wp
-            case(3) ; dat(1,it)=97500.0_wp
-            case(4) ; dat(1,it)=2.5_wp
-            case(5) ; dat(1,it)=0.0_wp
-            case(6) ; dat(1,it)=sw
-            case(7) ; dat(1,it)=340.0_wp
+            case(1)
+               dat(1,it)=290.0_wp + 6.0_wp*sin(2.0_wp*3.14159265_wp*(hh-15.0_wp)/24.0_wp)
+            case(2)
+               dat(1,it)=0.010_wp
+            case(3)
+               dat(1,it)=97500.0_wp
+            case(4)
+               dat(1,it)=2.5_wp
+            case(5)
+               dat(1,it)=0.0_wp
+            case(6)
+               dat(1,it)=sw
+            case(7)
+               dat(1,it)=340.0_wp
             end select
          end do
-         st=nc_put_vara_double(ncid,vv(k),s2,c2,dat) ; call nc_check(st,'vw')
+         st=nc_put_vara_double(ncid,vv(k),s2,c2,dat)
+         call nc_check(st,'vw')
       end do
-      st = nc_close(ncid) ; call nc_check(st,'cl')
+      st = nc_close(ncid)
+      call nc_check(st,'cl')
    end subroutine write_diurnal_forcing
 
 end program test_fast_driver

@@ -223,7 +223,8 @@ contains
       call refresh_canopy_depth(st, c, no_ledger)
       st%patch%recruit_pool(:, 1) = 0.0_wp
       st%patch%recruit_pool(2, 1) = 5.0_wp * c%demography%min_recruit_size
-      lg = slow_ledger_t() ; lg%active = .true.
+      lg = slow_ledger_t()
+      lg%active = .true.
       call slow_ledger_open(lg, st, c)
       call restructure_stand(st, c, .true., .false., lg)
       call check(st%cohort%n == 1_ik, 'tissue water (a): one recruit is born')
@@ -258,7 +259,8 @@ contains
       st%cohort%leaf_resp_accum(1) = 0.0_wp
       st%cohort%stem_resp_accum(1) = 0.0_wp
       st%cohort%root_resp_accum(1) = 0.0_wp
-      lg = slow_ledger_t() ; lg%active = .true.
+      lg = slow_ledger_t()
+      lg%active = .true.
       call slow_ledger_open(lg, st, c)
       call vegetation_dynamics(st, c, lg)
       call settle_tissue_water(st, c, lg)
@@ -284,7 +286,8 @@ contains
       call check(excess > 0.0_wp, 'tissue water (c): the fixture leaves the leaves above their capacity')
       shed0 = shed_total(st, c)
       n_new = st%cohort%nplant(1)
-      lg = slow_ledger_t() ; lg%active = .true.            ! no window yet: the settle takes its reference
+      lg = slow_ledger_t()
+      lg%active = .true.                                   ! no window yet: the settle takes its reference
       call settle_tissue_water(st, c, lg)
       call check_close(lg%decl_gross(SLOW_PHASE_TISSUE_WATER)%water, st%patch%area(1) * n_new * excess, &
                        1.0e-12_wp, 'tissue water (c): the excess is declared as leaving')
@@ -326,7 +329,8 @@ contains
       st%cohort%stem_resp_accum(1) = 0.0_wp
       st%cohort%root_resp_accum(1) = 0.0_wp
       w_plant0 = st%cohort%leaf_water_mass(1) + st%cohort%wood_water_mass(1)
-      lg = slow_ledger_t() ; lg%active = .true.
+      lg = slow_ledger_t()
+      lg%active = .true.
       call slow_ledger_open(lg, st, c)
       call vegetation_dynamics(st, c, lg)
       call check(st%cohort%leaf_carbon(1) > 0.0_wp, 'reflush: the bare cohort grew leaves')
@@ -349,7 +353,8 @@ contains
       real(wp)    :: fast_in
       nc = poly%cohort%n
       allocate(step%d_leaf(nc), step%d_fineroot(nc), step%d_wood(nc), step%d_nonstructural(nc))
-      step%d_wood = 0.0_wp ; step%d_nonstructural = 0.0_wp
+      step%d_wood = 0.0_wp
+      step%d_nonstructural = 0.0_wp
       step%d_leaf     = -0.25_wp * poly%cohort%leaf_carbon(1:nc)       ! a quarter of the leaves shed
       step%d_fineroot = -0.10_wp * poly%cohort%fineroot_carbon(1:nc)   ! a tenth of the fine roots
       poly%cohort%leaf_water_mass(1:nc) = 0.7_wp
@@ -419,7 +424,8 @@ contains
       integer(ik) :: n0
       !----- Drive cohort 2 below the density floor so the cull takes it, and nothing else. ------!
       poly%cohort%nplant(2)   = 0.5_wp * cfg%demography%negligible_nplant
-      poly%cohort%leaf_temp(2) = 291.0_wp ; poly%cohort%wood_temp(2) = 289.0_wp
+      poly%cohort%leaf_temp(2) = 291.0_wp
+      poly%cohort%wood_temp(2) = 289.0_wp
       n0          = poly%cohort%n
       shed_before = poly%patch%shed_water_rate(1)
       heat_before = slow_tissue_energy(poly)
@@ -526,31 +532,42 @@ contains
       call perturb()
       b = slow_site_store(poly, cfg)
       select case (currency)
-      case ('carbon') ; d = b%carbon - a%carbon
-      case ('water')  ; d = b%water  - a%water
-      case default    ; d = b%energy - a%energy
+      case ('carbon')
+         d = b%carbon - a%carbon
+      case ('water')
+         d = b%water  - a%water
+      case default
+         d = b%energy - a%energy
       end select
       call check(abs(d) > 0.0_wp, 'store: '//name//' reaches the '//currency//' total')
    end subroutine moves
-   subroutine perturb_theta()        ; poly%patch%soil_water(1)%theta(1) = poly%patch%soil_water(1)%theta(1) + 0.01_wp
+   subroutine perturb_theta()
+   poly%patch%soil_water(1)%theta(1) = poly%patch%soil_water(1)%theta(1) + 0.01_wp
    end subroutine perturb_theta
-   subroutine perturb_pond()         ; poly%patch%soil_water(1)%w_surface = poly%patch%soil_water(1)%w_surface + 1.0_wp
+   subroutine perturb_pond()
+   poly%patch%soil_water(1)%w_surface = poly%patch%soil_water(1)%w_surface + 1.0_wp
    end subroutine perturb_pond
-   subroutine perturb_swe()          ; poly%patch%snow(1)%swe(1) = poly%patch%snow(1)%swe(1) + 1.0_wp
+   subroutine perturb_swe()
+   poly%patch%snow(1)%swe(1) = poly%patch%snow(1)%swe(1) + 1.0_wp
    end subroutine perturb_swe
-   subroutine perturb_shv()          ; poly%patch%cas(1)%can_shv = poly%patch%cas(1)%can_shv + 0.001_wp
+   subroutine perturb_shv()
+   poly%patch%cas(1)%can_shv = poly%patch%cas(1)%can_shv + 0.001_wp
    end subroutine perturb_shv
    !----- The members of a group, one at a time: `which` picks the tissue, pool or PFT. ------!
    subroutine perturb_tissue_water()
       select case (which)
-      case (1_ik) ; poly%cohort%leaf_water_mass(1) = poly%cohort%leaf_water_mass(1) + 0.01_wp
-      case default ; poly%cohort%wood_water_mass(1) = poly%cohort%wood_water_mass(1) + 0.01_wp
+      case (1_ik)
+         poly%cohort%leaf_water_mass(1) = poly%cohort%leaf_water_mass(1) + 0.01_wp
+      case default
+         poly%cohort%wood_water_mass(1) = poly%cohort%wood_water_mass(1) + 0.01_wp
       end select
    end subroutine perturb_tissue_water
    subroutine perturb_film()
       select case (which)
-      case (1_ik) ; poly%cohort%leaf_surf_water(1) = poly%cohort%leaf_surf_water(1) + 0.01_wp
-      case default ; poly%cohort%wood_surf_water(1) = poly%cohort%wood_surf_water(1) + 0.01_wp
+      case (1_ik)
+         poly%cohort%leaf_surf_water(1) = poly%cohort%leaf_surf_water(1) + 0.01_wp
+      case default
+         poly%cohort%wood_surf_water(1) = poly%cohort%wood_surf_water(1) + 0.01_wp
       end select
    end subroutine perturb_film
    subroutine perturb_soil_energy()
@@ -562,16 +579,22 @@ contains
    subroutine perturb_snow_energy()
       poly%patch%snow(1)%snow_energy(1) = poly%patch%snow(1)%snow_energy(1) + 1.0e5_wp
    end subroutine perturb_snow_energy
-   subroutine perturb_cas_enth()     ; poly%patch%cas(1)%can_enthalpy = poly%patch%cas(1)%can_enthalpy + 1.0e4_wp
+   subroutine perturb_cas_enth()
+   poly%patch%cas(1)%can_enthalpy = poly%patch%cas(1)%can_enthalpy + 1.0e4_wp
    end subroutine perturb_cas_enth
-   subroutine perturb_cas_co2()      ; poly%patch%cas(1)%can_co2 = poly%patch%cas(1)%can_co2 + 50.0_wp
+   subroutine perturb_cas_co2()
+   poly%patch%cas(1)%can_co2 = poly%patch%cas(1)%can_co2 + 50.0_wp
    end subroutine perturb_cas_co2
    subroutine perturb_live_c()
       select case (which)
-      case (1_ik) ; poly%cohort%leaf_carbon(1)          = poly%cohort%leaf_carbon(1)          + 0.5_wp
-      case (2_ik) ; poly%cohort%fineroot_carbon(1)      = poly%cohort%fineroot_carbon(1)      + 0.5_wp
-      case (3_ik) ; poly%cohort%wood_carbon(1)          = poly%cohort%wood_carbon(1)          + 0.5_wp
-      case default ; poly%cohort%nonstructural_carbon(1) = poly%cohort%nonstructural_carbon(1) + 0.5_wp
+      case (1_ik)
+         poly%cohort%leaf_carbon(1)          = poly%cohort%leaf_carbon(1)          + 0.5_wp
+      case (2_ik)
+         poly%cohort%fineroot_carbon(1)      = poly%cohort%fineroot_carbon(1)      + 0.5_wp
+      case (3_ik)
+         poly%cohort%wood_carbon(1)          = poly%cohort%wood_carbon(1)          + 0.5_wp
+      case default
+         poly%cohort%nonstructural_carbon(1) = poly%cohort%nonstructural_carbon(1) + 0.5_wp
       end select
    end subroutine perturb_live_c
    subroutine perturb_necromass()
@@ -582,10 +605,13 @@ contains
    end subroutine perturb_necromass
    subroutine perturb_tissue_energy()
       select case (which)
-      case (1_ik) ; poly%cohort%leaf_energy(1) = poly%cohort%leaf_energy(1) + 1.0e3_wp
-      case default ; poly%cohort%wood_energy(1) = poly%cohort%wood_energy(1) + 1.0e3_wp
+      case (1_ik)
+         poly%cohort%leaf_energy(1) = poly%cohort%leaf_energy(1) + 1.0e3_wp
+      case default
+         poly%cohort%wood_energy(1) = poly%cohort%wood_energy(1) + 1.0e3_wp
       end select
    end subroutine perturb_tissue_energy
-   subroutine perturb_recruit()      ; poly%patch%recruit_pool(which,1) = poly%patch%recruit_pool(which,1) + 0.5_wp
+   subroutine perturb_recruit()
+   poly%patch%recruit_pool(which,1) = poly%patch%recruit_pool(which,1) + 0.5_wp
    end subroutine perturb_recruit
 end program test_slow_ledger
