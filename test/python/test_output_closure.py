@@ -5,7 +5,7 @@ over PFTs and the sum over DBH classes equal the polygon total (docs/science/dia
 A half-open or closed class-edge error, or a wrong reduction weight, breaks these sums while every
 number on its own still looks plausible. The run starts from the shipped census
 (data/census_example.csv) on the fast loop's constant reference climate (no forcing file) and lasts
-two months, so the second monthly record follows a slow step that grew, killed and recruited plants.
+two months, so the second month's file follows a slow step that grew, killed and recruited plants.
 EDMORE_MAIN names the executable; CTest sets it.
 """
 import os
@@ -28,7 +28,7 @@ PARTS = [("mean_agb_pft_py", "mean_agb_py"), ("mean_agb_size_py", "mean_agb_py")
          ("mean_lai_pft_py", "mean_lai_py")]
 
 
-def monthly_file(run_dir):
+def monthly_files(run_dir):
     cfg = RunConfig.load(ROOT / "ed_config_main.toml")
     for key, value in {"run.start_time": "2001-06-01", "run.end_time": "2001-08-01", "run.slow_on": True,
                        "run.n_threads": 1, "fast.fast_biophysics_on": True, "forcing.forcing_on": False,
@@ -39,18 +39,18 @@ def monthly_file(run_dir):
     res = subprocess.run([EDMORE_MAIN, str(cfg.write(run_dir))], cwd=run_dir, capture_output=True,
                          text=True, timeout=600)
     assert res.returncode == 0, res.stdout[-3000:] + res.stderr[-3000:]
-    files = sorted((run_dir / "out").glob("c-M*.nc"))
-    assert files, f"no monthly file in {run_dir / 'out'}"
-    return files[0]
+    files = sorted((run_dir / "out").glob("c-M-*.nc"))      # one file a month, one record each
+    assert len(files) == 2, f"expected two monthly files in {run_dir / 'out'}, found {files}"
+    return files
 
 
 def test_the_pft_and_size_axes_partition_the_stand(tmp_path):
-    with Dataset(monthly_file(tmp_path)) as ds:
-        assert ds.dimensions["time"].size == 2
-        for part, whole in PARTS:
-            v = ds[part]
-            axis = next(k for k, d in enumerate(v.dimensions) if d in ("pft", "dbh_class"))
-            parts = np.ma.filled(v[:], np.nan).sum(axis=axis)
-            total = np.ma.filled(ds[whole][:], np.nan)
-            assert np.all(total > 0), whole
-            assert np.allclose(parts, total, rtol=1e-12, atol=0), f"{part} does not add up to {whole}"
+    for path in monthly_files(tmp_path):
+        with Dataset(path) as ds:
+            for part, whole in PARTS:
+                v = ds[part]
+                axis = next(k for k, d in enumerate(v.dimensions) if d in ("pft", "dbh_class"))
+                parts = np.ma.filled(v[:], np.nan).sum(axis=axis)
+                total = np.ma.filled(ds[whole][:], np.nan)
+                assert np.all(total > 0), f"{whole} in {path.name}"
+                assert np.allclose(parts, total, rtol=1e-12, atol=0), f"{part} does not add up to {whole} in {path.name}"

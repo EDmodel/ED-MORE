@@ -293,12 +293,13 @@ the shared fixtures in `test/support/`, the CMake checks in `test/checks/` and t
 
 | Label | What it holds | Tests (dev) | Time (dev, one core) |
 |---|---|---|---|
-| `unit` | each module's test, and `edmore`'s refusals (`*_refused`, `main_failure_finalizes`) | 66 | 14 s |
-| `integration` | whole runs: `region`, `fast_driver`, `restart_exact` | 3 | 37 s |
+| `unit` | each module's test, and `edmore`'s refusals (`*_refused`, `main_failure_finalizes`) | 67 | 15 s |
+| `integration` | whole runs: `sites`, `region`, `fast_driver`, `c_api_run`, `restart_exact`, `output_closure` | 6 | 48 s |
 | `lint` | the repository's checks, one test each and named after the check (`kernels_patch_only`, `clamps_named`, `no_issue_refs`, ...), and the CMake checks of the source tree and the shipped files (`no_procedure_arguments`, `config_keys_listed`, `io_config_example`), and the Python package's copies of the licence files (`license_copy`, `notice_copy`) | 17 | 4 s |
 | `python` | the pytest suites of the Python package (`python_api`, when `libedmore.so` is built) and of the tools (`prepare_flux_tower`, `prepare_census`, `pft_traits`, `calibrate_fast`) | 5 | 45 s |
+| `long` | opt-in: example 05's Palo Verde inventory and its 150-year regrowth | 2 | 34 min on 12 threads |
 
-A debug build has 89 tests: no `python_api` (it builds no `libedmore.so`), and no
+A debug build has 93 tests: no `python_api` (it builds no `libedmore.so`), and no
 `soil_nan_layer_refused` (it traps the NaN that case feeds the loader). Each pytest suite needs a
 Python that imports what it uses: numpy, netCDF4 and pytest, with pandas for the tower and census
 tools and scipy for `calibrate_fast`; configure names any suite it leaves out.
@@ -327,7 +328,7 @@ environment.
 
 ### The suite runs on dev
 
-**Run the suite on a dev build** (or debug); dev passes all 91 tests with ifx and with gfortran.
+**Run the suite on a dev build** (or debug); dev passes all 95 tests with ifx and with gfortran.
 Several tests compare two computations of the same number bit for bit, or within a few units in the
 last place, and that holds only when both are compiled the same way. dev compiles each file on its
 own at `-O2`, for any x86-64 CPU. production optimises across files (IPO) and generates AVX-512 code,

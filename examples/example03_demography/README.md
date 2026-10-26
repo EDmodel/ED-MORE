@@ -141,8 +141,9 @@ assets of the v0.4.1 release; the commands under Run remake them.
 `patch_area`, `patch_age`, `dist_type`, `global_patch_id`; per record `n_cohort`, `n_patch`, `year`
 and the site totals `total_nplant`, `total_lai`, `total_agb`, `total_basal_area`, `mean_dbh`. Four
 scripts here read it. They need numpy, matplotlib and netCDF4, and the two 3-D renderers also the
-`viz` extra (`pip install -e python/[viz]`: pyvista and scipy). Without `-o`, each writes next to its
-input; `--help` lists the options.
+`viz` extra (`pip install -e python/[viz]`: pyvista and scipy); on a node with no display, render
+through EGL with `VTK_DEFAULT_OPENGL_WINDOW=vtkEGLRenderWindow` and `XDG_RUNTIME_DIR` set to a folder
+of your own. Without `-o`, each writes next to its input; `--help` lists the options.
 
 - **`plot_site_timeseries.py`** — plant number, leaf area index, aboveground biomass, basal area,
   mean diameter, and cohort and patch counts; and a second figure, `<out>_pft.png`, of aboveground

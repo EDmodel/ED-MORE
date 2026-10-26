@@ -95,7 +95,7 @@ def map_panel(ax, background, grid, cmap, norm, title):
 def lai_vs_modis(z, background):
     modis = pd.read_csv(os.path.join(OUT, "modis_monthly_cells.csv")).set_index("polygon_id")
     pid = z["polygon_id"].astype(np.int64)
-    val = {"ed_max": z["lai_max"], "ed_min": z["lai_min"],
+    val = {"edmore_max": z["lai_max"], "edmore_min": z["lai_min"],
            "modis_max": modis.modis_max_m.reindex(pid).to_numpy(), "modis_min": modis.modis_min_m.reindex(pid).to_numpy()}
     with np.errstate(invalid="ignore", divide="ignore"):
         for src in ("edmore", "modis"):
@@ -115,8 +115,8 @@ def lai_vs_modis(z, background):
                            f"({next(letters)}) {title}\n{src_title}")
             note = f"median {np.nanmedian(v):.2f}"
             if src == "modis":
-                ok = np.isfinite(val[f"ed_{key}"]) & np.isfinite(v)
-                note += f"\nMEDS vs MODIS r = {np.corrcoef(val[f'ed_{key}'][ok], v[ok])[0, 1]:.2f}"
+                ok = np.isfinite(val[f"edmore_{key}"]) & np.isfinite(v)
+                note += f"\nED-MORE vs MODIS r = {np.corrcoef(val[f'edmore_{key}'][ok], v[ok])[0, 1]:.2f}"
             ax.text(0.03, 0.04, note, transform=ax.transAxes, color=TEXT2, fontsize=12.5, zorder=4, va="bottom")
             if r == 1:
                 cb = fig.colorbar(im, ax=axes[:, c], orientation="horizontal", shrink=0.8, pad=0.02, aspect=35)
@@ -125,7 +125,7 @@ def lai_vs_modis(z, background):
     save_png(fig, "lai_seasonality_vs_modis.png")
     n_modis = int(np.isfinite(val["modis_max"]).sum())
     print(f"  {z['lat'].size} cells, {n_modis} with MODIS; medians ED-MORE max/min/cover "
-          f"{np.nanmedian(val['ed_max']):.2f}/{np.nanmedian(val['ed_min']):.2f}/{np.nanmedian(val['ed_cover']):.2f}, "
+          f"{np.nanmedian(val['edmore_max']):.2f}/{np.nanmedian(val['edmore_min']):.2f}/{np.nanmedian(val['edmore_cover']):.2f}, "
           f"MODIS {np.nanmedian(val['modis_max']):.2f}/{np.nanmedian(val['modis_min']):.2f}/"
           f"{np.nanmedian(val['modis_cover']):.2f}")
 
@@ -138,7 +138,7 @@ def map_figure(z, background, panels, name):
                              squeeze=False)
     for ax, (key, title, unit, cmap, norm, fmt, extend) in zip(axes.flat, panels):
         im = map_panel(ax, background, block_grid(z["lat"], z["lon"], z[key]), cmap, norm,
-                       f"{title}\nMEDS, last 10 simulated years (2011-06 to 2021-05)")
+                       f"{title}\nED-MORE, last 10 simulated years (2011-06 to 2021-05)")
         ax.text(0.03, 0.04, "median " + fmt.format(np.nanmedian(z[key])), transform=ax.transAxes, color=TEXT2,
                 fontsize=12.5, zorder=4)
         cb = fig.colorbar(im, ax=ax, orientation="horizontal", shrink=0.8, pad=0.02, aspect=35, extend=extend)
