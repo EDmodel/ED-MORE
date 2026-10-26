@@ -1,20 +1,20 @@
 # SPDX-License-Identifier: Apache-2.0
-"""meds.config -- read, change and write a MEDS run's configuration from Python.
+"""edmore.config -- read, change and write an ED-MORE run's configuration from Python.
 
 A run is configured by two TOML files: the main file, and the PFT file (the plant traits) that the
-main file names in ``[init].pft_config``. ``RunConfig.load`` reads both. Keys are dotted as MEDS reads
+main file names in ``[init].pft_config``. ``RunConfig.load`` reads both. Keys are dotted as ED-MORE reads
 them: ``"aerodynamics.z0m_ratio"`` in the main file, ``"pft.vcmax25"`` in the PFT file, where a trait
 is an array with one value per PFT.
 
-    from meds.config import RunConfig
-    cfg = RunConfig.load("meds_config_eval.toml")
+    from edmore.config import RunConfig
+    cfg = RunConfig.load("ed_config_eval.toml")
     cfg.get("pft.vcmax25", file="pft")                 # [45.0]: one value per PFT
     cfg.set("pft.vcmax25", 50.0, file="pft", pft=1)   # the first PFT's value
     cfg.set("run.end_time", "2015-01-11 00:00:00")
     main_path = cfg.write("trial")                     # trial/main.toml and trial/pft.toml
 
-    from meds.model import run
-    run(main_path)                                     # what `meds_main trial/main.toml` does
+    from edmore.model import run
+    run(main_path)                                     # what `edmore trial/main.toml` does
 
 A run writes a parameter record beside its output (``<prefix>_parameters.csv``): every key the model
 read, the file it came from, whether that file set it or the model used its default, and the value.
@@ -22,7 +22,7 @@ read, the file it came from, whether that file set it or the model used its defa
 
 The files are parsed and written again, never edited as text: a block appended to a file that already
 has that table would move the keys that follow it into the wrong table. The writer produces the
-TOML that MEDS reads: ``key = value`` lines under ``[table]`` headers, with numbers, booleans,
+TOML that ED-MORE reads: ``key = value`` lines under ``[table]`` headers, with numbers, booleans,
 strings and flat arrays. Comments are not kept.
 
 Importing this module loads no compiled library.
@@ -139,7 +139,7 @@ class RunConfig:
     @classmethod
     def load(cls, path, relative_to=None) -> "RunConfig":
         """Read a main file and the PFT file its ``[init].pft_config`` names. The main file's input
-        paths are made absolute. MEDS reads a relative path from the directory it runs in, so
+        paths are made absolute. ED-MORE reads a relative path from the directory it runs in, so
         `relative_to` names that directory; by default it is the main file's own."""
         path = Path(path).resolve()
         here = path.parent if relative_to is None else Path(relative_to).resolve()

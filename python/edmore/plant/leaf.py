@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
-"""meds.plant.leaf — leaf gas exchange (photosynthesis + stomatal conductance).
+"""edmore.plant.leaf — leaf gas exchange (photosynthesis + stomatal conductance).
 
-A Pythonic front end to the MEDS Fortran leaf-physiology model (FvCB C3 / Collatz C4, the
+A Pythonic front end to the ED-MORE Fortran leaf-physiology model (FvCB C3 / Collatz C4, the
 Leuning / Medlyn / Katul stomatal models, Arrhenius / peaked temperature response and the coupled
 A-gs-Ci solver). The compiled Fortran does the arithmetic; this module exposes it with dataclasses
 and enums, so callers never touch ctypes.
 
-    import meds.plant.leaf as leaf
+    import edmore.plant.leaf as leaf
 
     params = leaf.c3_params(vcmax25=60.0, jmax25=108.0)          # or leaf.c4_params(...)
     flux = leaf.gas_exchange(par=1500.0, leaf_temp=298.15,       # leaf_temp is KELVIN
@@ -17,7 +17,7 @@ and enums, so callers never touch ctypes.
     leaf.peaked(60.0, 65330.0, 200000.0, 650.0, 308.15)          # Vcmax(T), peaked Arrhenius
     leaf.arrhenius(0.9, 46390.0, 308.15)                         # Rd(T), plain Arrhenius
 
-Leaf PHENOLOGY is the sibling submodule `meds.plant.pheno` (both backed by libmeds.so). Requires the
+Leaf PHENOLOGY is the sibling submodule `edmore.plant.pheno` (both backed by libedmore.so). Requires the
 compiled shared library (python/README.md has the one-time CMake build). The equations are in
 docs/science/leaf_gas_exchange.md.
 """
@@ -37,7 +37,7 @@ __all__ = [
 ]
 
 
-#----- Model choices (mirror the Fortran enums in meds_config / meds_leaf_types). ----------#
+#----- Model choices (mirror the Fortran enums in ed_config / ed_leaf_types). ----------    #
 class Stomata(IntEnum):
     """Stomatal-conductance model."""
     LEUNING = 1
@@ -86,14 +86,14 @@ class Params:
     g1: float = 4.0                # stomatal slope (units depend on the model)
     d0: float = 1500.0             # [Pa]         Leuning VPD sensitivity
     quantum_yield: float = 0.0     # [mol CO2/mol photon]  C4 light slope (0 for C3)
-    theta_j: float = 0.70          # [--]  C3 electron-transport curvature (NOT a co-limitation one; meds_config_pft.toml)
+    theta_j: float = 0.70          # [--]  C3 electron-transport curvature (NOT a co-limitation one; ed_config_pft.toml)
     theta_cj_c3: float = 0.98      # [--]  C3 Ac/Aj co-limitation curvature
     theta_ip_c3: float = 0.95      # [--]  C3 (Ac,Aj)/Ap co-limitation curvature
     theta_cj_c4: float = 0.80      # [--]  C4 co-limitation curvature 1
     theta_ic_c4: float = 0.95      # [--]  C4 co-limitation curvature 2
     lambda25: float = 600.0        # [umol CO2/mol H2O]  Katul marginal water-use efficiency
-    psi_open: float = -2.0         # [MPa]  leaf potential where the fast limb starts (MEDS: the turgor-loss point)
-    psi_close: float = -4.0        # [MPa]  ... and where it has shut Vcmax/Jmax/TPU (MEDS: twice it)
+    psi_open: float = -2.0         # [MPa]  leaf potential where the fast limb starts (ED-MORE: the turgor-loss point)
+    psi_close: float = -4.0        # [MPa]  ... and where it has shut Vcmax/Jmax/TPU (ED-MORE: twice it)
     lambda_psi_exp: float = 1.0    # [--]  Katul lambda water-stress exponent
     sref_stomata: float = 2.0      # [1/MPa]  Sabot stomatal water-stress sensitivity (beta_stomata=exp(sref*psi))
     kc25: float = 40.49            # [Pa]  Rubisco CO2 Michaelis constant
@@ -113,7 +113,7 @@ class Params:
     ds_rd: float = 490.0
     o2_mol_frac: float = 0.209     # [mol/mol]  ambient O2
     absorptance: float = 0.85      # [--]  leaf PAR absorptance
-    phi_psii: float = 0.74         # [--]  electron yield of linear transport in low light (meds_config_main.toml)
+    phi_psii: float = 0.74         # [--]  electron yield of linear transport in low light (ed_config_main.toml)
 
 
 #----- C4 defaults: the vetted C4-grass traits from the example PFT config (PFT 3). ---------#
@@ -184,7 +184,7 @@ def gas_exchange(par, leaf_temp, vpd, ca, params, *,
     psi_onset = 0, which the C API does not pass), as distinct from `psi_leaf`, the
     current demand-side tension driving the fast capacity limb on Vcmax/Jmax/TPU (always applied,
     1 at psi_open falling to 0 at psi_close; eq. (9)). Sabot et al. (2022)
-    write it as soil/predawn potential; MEDS supplies the cohort's own predawn (previous-day
+    write it as soil/predawn potential; ED-MORE supplies the cohort's own predawn (previous-day
     daily-max) LEAF potential, which is both what the underlying field measurement is and the
     plant's own integration over its rooted profile. The two coincide only in wet soil -- under
     drought the wood<->soil relaxation time is ~4.8 days, so they diverge exactly where this limb

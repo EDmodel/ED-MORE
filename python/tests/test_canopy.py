@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
-"""meds.canopy and meds.plant.leaf.gas_exchange_batch (needs libmeds.so; skipped without it): the
+"""edmore.canopy and edmore.plant.leaf.gas_exchange_batch (needs libedmore.so; skipped without it): the
 canopy's fast pieces on their own, the same ones the model's fast loop uses."""
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-import meds.plant.leaf as leaf
-from meds.config import RunConfig
+import edmore.plant.leaf as leaf
+from edmore.config import RunConfig
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -16,7 +16,7 @@ def _lib_or_skip():
     try:
         leaf.self_test()
     except FileNotFoundError as exc:
-        pytest.skip(f"libmeds.so not built: {exc}")
+        pytest.skip(f"libedmore.so not built: {exc}")
 
 
 def test_batch_is_the_single_solve_leaf_by_leaf():
@@ -32,7 +32,7 @@ def test_batch_is_the_single_solve_leaf_by_leaf():
 
 
 def _config(tmp_path, **keys):
-    cfg = RunConfig.load(ROOT / "meds_config_main.toml")
+    cfg = RunConfig.load(ROOT / "ed_config_main.toml")
     for k, v in keys.items():
         cfg.set(k.replace("__", "."), v)
     return cfg.write(tmp_path)
@@ -40,7 +40,7 @@ def _config(tmp_path, **keys):
 
 def test_plastic_traits_follow_the_switch(tmp_path):
     _lib_or_skip()
-    from meds.canopy import Canopy
+    from edmore.canopy import Canopy
     off = Canopy(_config(tmp_path / "off", trait_dynamics__trait_plasticity_on=False))
     on = Canopy(_config(tmp_path / "on", trait_dynamics__trait_plasticity_on=True))
     pft = np.array([1, 1, 1], dtype=np.int32)
@@ -56,7 +56,7 @@ def test_a_config_rewritten_at_the_same_path_is_read_again(tmp_path):
     """A calibration loop rewrites its trial's config at one path: each new Canopy reads the file
     as it is now, not the configuration the library last opened from that path."""
     _lib_or_skip()
-    from meds.canopy import Canopy
+    from edmore.canopy import Canopy
     pft = np.array([1, 1], dtype=np.int32)
     lai_above = np.array([0.0, 5.0])
     path = _config(tmp_path, trait_dynamics__trait_plasticity_on=False)
@@ -68,7 +68,7 @@ def test_a_config_rewritten_at_the_same_path_is_read_again(tmp_path):
 
 def test_the_two_stream_conserves_the_beam(tmp_path):
     _lib_or_skip()
-    from meds.canopy import Canopy
+    from edmore.canopy import Canopy
     c = Canopy(_config(tmp_path))
     cosz = np.array([0.0, 0.3, 0.9])
     vb, vd = np.array([0.0, 100.0, 300.0]), np.array([0.0, 80.0, 100.0])
@@ -77,7 +77,7 @@ def test_the_two_stream_conserves_the_beam(tmp_path):
     assert r["cohort_leaf_vis"].shape == (3, 2)
     assert np.allclose(r["cohort_leaf_vis"].sum(axis=1), r["leaf_vis"])
     inc = vb + vd
-    alb = 0.15                                                       # ground_albedo_vis in meds_config_main.toml
+    alb = 0.15                                                       # ground_albedo_vis in ed_config_main.toml
     #----- every VIS photon is reflected to the sky, absorbed by leaves or wood, or absorbed by the ground
     absorbed_ground = (1.0 - alb) * r["ground_vis"]
     assert np.allclose(r["up_vis"] + r["leaf_vis"] + r["wood_vis"] + absorbed_ground, inc, atol=1e-9)
@@ -89,6 +89,6 @@ def test_the_two_stream_conserves_the_beam(tmp_path):
 
 def test_thermal_acclimation_is_refused(tmp_path):
     _lib_or_skip()
-    from meds.canopy import Canopy
+    from edmore.canopy import Canopy
     with pytest.raises(ValueError, match="acclimation"):
         Canopy(_config(tmp_path, leaf_physiology__thermal_acclimation=True))

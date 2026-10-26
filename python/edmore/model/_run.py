@@ -1,16 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
-"""High-level wrapper over the MEDS full-coupled-model C-API.
+"""High-level wrapper over the ED-MORE full-coupled-model C-API.
 
-``Run`` is an opaque handle to a live simulation -- the same thing the ``meds_main``
+``Run`` is an opaque handle to a live simulation -- the same thing the ``edmore``
 executable holds -- with the time loop handed back to Python:
 
-    with Run("meds_config_main.toml") as run:
+    with Run("ed_config_main.toml") as run:
         for step in run:
             if step.is_new_year:
                 print(step.date, run.total_agb, run.soil_carbon)
 
-Each step is one slow step of the same run (``meds_region``) the executable steps a month
-at a time, so a Python-driven run and a ``meds_main`` run of the same config produce
+Each step is one slow step of the same run (``ed_region``) the executable steps a month
+at a time, so a Python-driven run and a ``edmore`` run of the same config produce
 byte-identical netCDF. Nothing is
 re-implemented here; this is the executable's loop, in Python.
 
@@ -26,7 +26,7 @@ import numpy as np
 
 from ._ffi import lib
 
-#----- Field ids match meds_c_api_demography's, so the two sub-packages read the same way. ----#
+#----- Field ids match ed_c_api_demography's, so the two sub-packages read the same way. ----  #
 _REAL = {"dbh": 0, "height": 1, "nplant": 2, "agb": 3, "leaf_area": 4,
          "overtopping_lai": 5, "growth_avg": 6, "wood_carbon": 7,
          "gpp": 8,   # [kgC/plant] gross GPP over the last slow step (a run's own; not a demography site's)
@@ -44,7 +44,7 @@ _PATCH_REAL = {"area": 0, "age": 1, "share": 2}
 _PATCH_INT = {"site": 0}
 _SITE_REAL = {"area": 0}
 
-#----- A step's status codes (the RUN_* parameters of meds_polygon). -----------------------#
+#----- A step's status codes (the RUN_* parameters of ed_polygon). -----------------------  #
 OK, FINISHED, ERR_NAN, ERR_AREA, ERR_BOUNDS = 0, 1, 2, 3, 4
 
 
@@ -62,12 +62,12 @@ class StepInfo:
 
 
 class Run:
-    """A live MEDS simulation driven from Python.
+    """A live ED-MORE simulation driven from Python.
 
     Parameters
     ----------
     config : str or Path
-        The run TOML -- the same file ``meds_main`` takes on its command line.
+        The run TOML -- the same file ``edmore`` takes on its command line.
     verbose : bool
         Keep the Fortran progress lines (init/forcing/summary/ledger) on stdout.
         They go to the process's stdout, not through Python's ``sys.stdout``.
@@ -75,11 +75,11 @@ class Run:
 
     def __init__(self, config, verbose=True):
         b = str(config).encode("utf-8")
-        self.handle = lib.meds_run_open(b, len(b), 1 if verbose else 0)
+        self.handle = lib.ed_run_open(b, len(b), 1 if verbose else 0)
         if self.handle == -1:
-            raise RuntimeError("MEDS run registry full (max 4 concurrent runs)")
+            raise RuntimeError("ED-MORE run registry full (max 4 concurrent runs)")
         if self.handle < 0:
-            raise RuntimeError(f"MEDS could not open a run from {config!r}")
+            raise RuntimeError(f"ED-MORE could not open a run from {config!r}")
         self._finalized = False
 
     #----- Lifecycle ---------------------------------------------------------------------#
@@ -88,24 +88,24 @@ class Run:
         if self.is_done:
             return None
         prev = self.date
-        status = lib.meds_run_step(self.handle)
+        status = lib.ed_run_step(self.handle)
         if status == ERR_NAN:
             #----- The Fortran driver RETURNS these rather than `error stop`ping, which is
             #      the only reason a bad state is an exception here instead of a dead
-            #      interpreter. See the meds_region module header.
-            raise RuntimeError(f"MEDS: NaN in the state or the energy/water ledger at {self.date}")
+            #      interpreter. See the ed_region module header.
+            raise RuntimeError(f"ED-MORE: NaN in the state or the energy/water ledger at {self.date}")
         if status == ERR_BOUNDS:
             #----- A cohort's density, carbon or water went negative or infinite, or a CENTURY
             #      pool went negative or past the divergence ceiling. The Fortran side has
             #      already printed which field and cohort (or pool and patch); for soil carbon
             #      the slow ledger's report names the PHASE that did it.
             raise RuntimeError(
-                f"MEDS: a cohort or soil-carbon state out of its physical bounds at {self.date} "
+                f"ED-MORE: a cohort or soil-carbon state out of its physical bounds at {self.date} "
                 "(see the printed field and cohort, or pool and patch)")
         if status == FINISHED:
             return None
         if status < 0:
-            raise RuntimeError(f"MEDS: invalid run handle {self.handle}")
+            raise RuntimeError(f"ED-MORE: invalid run handle {self.handle}")
         now = self.date
         return StepInfo(now, self.istep, self.iyear,
                         (now.year, now.month) != (prev.year, prev.month),
@@ -127,10 +127,10 @@ class Run:
         """
         if self._finalized:
             return 0
-        status = lib.meds_run_finalize(self.handle)
+        status = lib.ed_run_finalize(self.handle)
         self._finalized = True
         if status == ERR_AREA:
-            raise RuntimeError("MEDS: site area not conserved")
+            raise RuntimeError("ED-MORE: site area not conserved")
         return status
 
     def close(self):
@@ -138,7 +138,7 @@ class Run:
         if self.handle is None:
             return
         self.finalize()
-        lib.meds_run_free(self.handle)
+        lib.ed_run_free(self.handle)
         self.handle = None
 
     def __enter__(self):
@@ -158,54 +158,54 @@ class Run:
     #----- Where the calendar is ---------------------------------------------------------#
     @property
     def is_done(self):
-        return bool(lib.meds_run_is_done(self.handle))
+        return bool(lib.ed_run_is_done(self.handle))
 
     @property
     def date(self):
-        return date(lib.meds_run_year(self.handle),
-                    lib.meds_run_month(self.handle),
-                    lib.meds_run_day(self.handle))
+        return date(lib.ed_run_year(self.handle),
+                    lib.ed_run_month(self.handle),
+                    lib.ed_run_day(self.handle))
 
     @property
     def istep(self):
-        return lib.meds_run_istep(self.handle)
+        return lib.ed_run_istep(self.handle)
 
     @property
     def iyear(self):
-        return lib.meds_run_iyear(self.handle)
+        return lib.ed_run_iyear(self.handle)
 
     #----- Site aggregates: the same reducers the executable's summary line prints. -------#
     @property
     def n_patch(self):
-        return lib.meds_run_n_patch(self.handle)
+        return lib.ed_run_n_patch(self.handle)
 
     @property
     def n_cohort(self):
-        return lib.meds_run_n_cohort(self.handle)
+        return lib.ed_run_n_cohort(self.handle)
 
     @property
     def n_site(self):
-        return lib.meds_run_n_site(self.handle)
+        return lib.ed_run_n_site(self.handle)
 
     @property
     def total_agb(self):
         """Above-ground biomass [kgC/m2], area-weighted over patches."""
-        return lib.meds_run_total_agb(self.handle)
+        return lib.ed_run_total_agb(self.handle)
 
     @property
     def total_lai(self):
         """Leaf area index [m2/m2]."""
-        return lib.meds_run_total_lai(self.handle)
+        return lib.ed_run_total_lai(self.handle)
 
     @property
     def total_nplant(self):
         """Stem density [plants/m2]."""
-        return lib.meds_run_total_nplant(self.handle)
+        return lib.ed_run_total_nplant(self.handle)
 
     @property
     def total_basal_area(self):
         """Basal area [m2/m2]."""
-        return lib.meds_run_total_basal_area(self.handle)
+        return lib.ed_run_total_basal_area(self.handle)
 
     @property
     def soil_carbon(self):
@@ -215,7 +215,7 @@ class Run:
         off, litter is DISCARDED rather than stored, so this stays flat at zero while
         the stand grows. That is worth watching from the loop.
         """
-        return lib.meds_run_soil_carbon(self.handle)
+        return lib.ed_run_soil_carbon(self.handle)
 
     #----- Per-cohort state, copied out ---------------------------------------------------#
     def cohorts(self, *fields):
@@ -231,11 +231,11 @@ class Run:
         for f in fields:
             if f in _REAL:
                 buf = np.zeros(max(n, 1), dtype=np.float64)
-                lib.meds_run_get_real(self.handle, _REAL[f],
+                lib.ed_run_get_real(self.handle, _REAL[f],
                                       buf.ctypes.data_as(ctypes.POINTER(ctypes.c_double)))
             elif f in _INT:
                 buf = np.zeros(max(n, 1), dtype=np.int32)
-                lib.meds_run_get_int(self.handle, _INT[f],
+                lib.ed_run_get_int(self.handle, _INT[f],
                                      buf.ctypes.data_as(ctypes.POINTER(ctypes.c_int)))
             else:
                 raise KeyError(f"unknown cohort field {f!r}; "
@@ -259,11 +259,11 @@ class Run:
         for f in fields:
             if f in _PATCH_REAL:
                 buf = np.zeros(max(n, 1), dtype=np.float64)
-                lib.meds_run_get_patch_real(self.handle, _PATCH_REAL[f],
+                lib.ed_run_get_patch_real(self.handle, _PATCH_REAL[f],
                                             buf.ctypes.data_as(ctypes.POINTER(ctypes.c_double)))
             elif f in _PATCH_INT:
                 buf = np.zeros(max(n, 1), dtype=np.int32)
-                lib.meds_run_get_patch_int(self.handle, _PATCH_INT[f],
+                lib.ed_run_get_patch_int(self.handle, _PATCH_INT[f],
                                            buf.ctypes.data_as(ctypes.POINTER(ctypes.c_int)))
             else:
                 raise KeyError(f"unknown patch field {f!r}; "
@@ -283,7 +283,7 @@ class Run:
             if f not in _SITE_REAL:
                 raise KeyError(f"unknown site field {f!r}; have {sorted(_SITE_REAL)}")
             buf = np.zeros(max(n, 1), dtype=np.float64)
-            lib.meds_run_get_site_real(self.handle, _SITE_REAL[f],
+            lib.ed_run_get_site_real(self.handle, _SITE_REAL[f],
                                        buf.ctypes.data_as(ctypes.POINTER(ctypes.c_double)))
             out[f] = buf[:n]
         return out
@@ -300,12 +300,12 @@ class Run:
                 f"cohorts={self.n_cohort} patches={self.n_patch}>")
 
 
-#: the line meds_main prints when a run ends well; a tool that checks a run's log looks for it
+#: the line edmore prints when a run ends well; a tool that checks a run's log looks for it
 COMPLETED = " OK: simulation completed, area conserved, no NaNs."
 
 
 def run(config, verbose=True):
-    """Run a config from its start to its ``end_time``, as the ``meds_main`` executable does: the
+    """Run a config from its start to its ``end_time``, as the ``edmore`` executable does: the
     same steps, the same output files and the same closing line on stdout. Returns the number of
     slow steps. A NaN in the state, a cohort or soil-carbon state out of bounds, or a site whose
     area is not conserved raises RuntimeError, where the executable would stop."""

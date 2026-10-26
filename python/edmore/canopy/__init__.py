@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
-"""meds.canopy — the canopy's kernels over a frozen stand, parameterized by a run's own config.
+"""edmore.canopy — the canopy's kernels over a frozen stand, parameterized by a run's own config.
 
 The leaf solve over many leaves and the two-stream radiation over a stand, with every parameter
 built from a run's main TOML (and the PFT file it names) by the model's own code, so a caller
 outside the model computes what the fast loop computes:
 
-    from meds.canopy import Canopy
+    from edmore.canopy import Canopy
     c = Canopy("run/main.toml")
     vc, rd = c.plastic_traits(pft, lai_above)          # each cohort's plastic Vcmax25, Rd25
     a = c.leaf(pft, vc, rd, par=..., leaf_temp=..., vpd=..., ca=..., pressure=...,
@@ -51,9 +51,9 @@ class Canopy:
         status = _ffi.open_config(self.path)
         if status == -1:
             raise ValueError(f"{self.path}: thermal acclimation is on; its leaf table depends on model "
-                             "state, so meds.canopy cannot reproduce it")
+                             "state, so edmore.canopy cannot reproduce it")
         if status != 0:
-            raise RuntimeError(f"{self.path}: meds_canopy_open returned {status}")
+            raise RuntimeError(f"{self.path}: ed_canopy_open returned {status}")
         _OPEN["owner"] = self
 
     @property

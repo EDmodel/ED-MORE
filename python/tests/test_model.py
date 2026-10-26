@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
-"""meds.model runs a config as meds_main does.
+"""edmore.model runs a config as edmore does.
 
-- A run through the Python API (`python -m meds.model`) writes the same output files as meds_main,
+- A run through the Python API (`python -m edmore.model`) writes the same output files as edmore,
   bit for bit, and the same parameter record.
 - Two runs in one Python process each write their own parameter record.
 - Patch areas weight the cohorts to the site totals the model reports.
 - A census or state file that cannot start the run stops it: opening the run raises.
 
 Each run is two days from the pseudo census in data/census_example.csv on the fast loop's constant
-reference climate. MEDS_MAIN names the executable for the comparison (CTest sets it); without it
+reference climate. EDMORE_MAIN names the executable for the comparison (CTest sets it); without it
 that test is skipped.
 """
 import os
@@ -20,17 +20,17 @@ import numpy as np
 import pytest
 from netCDF4 import Dataset
 
-from meds.config import RunConfig, read_record
-from meds.model import COMPLETED, run
+from edmore.config import RunConfig, read_record
+from edmore.model import COMPLETED, run
 
 ROOT = Path(__file__).resolve().parents[2]
-MEDS_MAIN = os.environ.get("MEDS_MAIN")
+EDMORE_MAIN = os.environ.get("EDMORE_MAIN")
 
 
 def two_days(run_dir: Path, monthly: bool = False, overrides: dict | None = None) -> Path:
     """A two-day census run with hourly and daily output (and monthly, which keeps the slow cohort
     diagnostics), written into run_dir; `overrides` sets further keys."""
-    cfg = RunConfig.load(ROOT / "meds_config_main.toml")
+    cfg = RunConfig.load(ROOT / "ed_config_main.toml")
     for key, value in {"run.start_time": "2001-06-01 00:00:00", "run.end_time": "2001-06-03 00:00:00",
                        "run.n_threads": 1, "fast.fast_biophysics_on": True, "forcing.forcing_on": False,
                        "init.init_mode": 1,
@@ -61,11 +61,11 @@ def record(run_dir: Path) -> dict:
             for k, (p, v) in rec.items()}
 
 
-@pytest.mark.skipif(not MEDS_MAIN or not Path(MEDS_MAIN).exists(),
-                    reason="MEDS_MAIN is not set to a meds_main executable")
-def test_python_run_matches_meds_main(tmp_path):
+@pytest.mark.skipif(not EDMORE_MAIN or not Path(EDMORE_MAIN).exists(),
+                    reason="EDMORE_MAIN is not set to a edmore executable")
+def test_python_run_matches_ed_main(tmp_path):
     logs = {}
-    for name, argv in (("exe", [MEDS_MAIN]), ("py", [sys.executable, "-m", "meds.model"])):
+    for name, argv in (("exe", [EDMORE_MAIN]), ("py", [sys.executable, "-m", "edmore.model"])):
         main = two_days(tmp_path / name)
         res = subprocess.run(argv + [str(main)], cwd=tmp_path / name, capture_output=True, text=True,
                              timeout=600)
@@ -77,7 +77,7 @@ def test_python_run_matches_meds_main(tmp_path):
     assert a.keys() == b.keys() and a
     differ = [(f, v) for f in a for v in a[f]
               if a[f][v].shape != b[f][v].shape or not np.array_equal(a[f][v], b[f][v], equal_nan=True)]
-    assert not differ, f"{len(differ)} variables differ between meds_main and meds.model: {differ[:8]}"
+    assert not differ, f"{len(differ)} variables differ between edmore and edmore.model: {differ[:8]}"
     assert record(tmp_path / "exe") == record(tmp_path / "py")
 
 
@@ -90,7 +90,7 @@ def test_each_run_in_a_process_keeps_its_own_record(tmp_path):
 
 
 def test_patch_areas_weight_cohorts_to_the_site_totals(tmp_path):
-    from meds.model import Run
+    from edmore.model import Run
     with Run(two_days(tmp_path), verbose=False) as r:
         r.step()
         p = r.patches("area", "site", "share")
@@ -108,7 +108,7 @@ def test_patch_areas_weight_cohorts_to_the_site_totals(tmp_path):
 def test_cohort_gpp_is_the_last_steps(tmp_path):
     """A cohort's gpp is its gross GPP per plant over the last slow step: never negative, and a
     day of the root config's sunshine gives the stand some."""
-    from meds.model import Run
+    from edmore.model import Run
     with Run(two_days(tmp_path), verbose=False) as r:
         r.step()
         area = r.patches("area")["area"]
@@ -122,7 +122,7 @@ def test_cohort_gpp_is_the_last_steps(tmp_path):
 def test_cohort_carbon_closes(tmp_path):
     """A cohort's last-step GPP less its maintenance respiration is, per year, its NPP, growth
     respiration and root exudate: the allocator's identity, read through the Python API."""
-    from meds.model import Run
+    from edmore.model import Run
     with Run(two_days(tmp_path, monthly=True), verbose=False) as r:
         r.step()
         c = r.cohorts("gpp", "leaf_resp", "stem_resp", "root_resp", "npp", "npp_leaf", "npp_fineroot",
@@ -140,7 +140,7 @@ def test_cohort_carbon_closes(tmp_path):
 def test_a_missing_initial_file_stops_the_run(tmp_path, mode, key, name):
     """A run asked to start from a census or a state file that is not there raises: it never starts
     from bare ground instead."""
-    from meds.model import Run
+    from edmore.model import Run
     main = two_days(tmp_path, overrides={"init.init_mode": mode, key: str(tmp_path / name)})
     with pytest.raises(RuntimeError, match="could not open"):
         Run(main, verbose=False)

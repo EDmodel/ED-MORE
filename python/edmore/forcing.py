@@ -1,8 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
-"""meds_forcing_file.py -- the one writer of a MEDS forcing file ([forcing].format =
-"default"), shared by every tool that makes one: scripts/prepare_era5/make_forcing_file.py (a
-site file cut from the ERA5-Land archive) and scripts/prepare_flux_tower/make_tower_forcing.py (a
-file from flux-tower data).
+"""edmore.forcing -- the one writer of an ED-MORE forcing file ([forcing].format = "default"),
+shared by every tool that makes one: the ERA5-Land and flux-tower preparation tools in scripts/,
+and the tests that need a forcing file of their own.
 
 The file is always on a UTC clock. Its time dimension has a fixed length, so every variable is
 stored in one contiguous block: the model reads a whole series at open in one pass, where a file
@@ -15,7 +14,7 @@ import datetime as dt
 import numpy as np
 from netCDF4 import Dataset
 
-CONVENTIONS = "MEDS-forcing-1.1"
+CONVENTIONS = "ED-MORE-forcing-1.1"
 
 # The file's variables and their CF attributes. Every forcing variable is float32 on (time, grid)
 # with _FillValue 1e20; states are values at the stamps, fluxes are means over the interval the
@@ -56,19 +55,19 @@ QC_FLAG_MEANINGS = ("observed short_gap_interpolation synthesis_or_mean_diurnal_
 
 
 def check_complete(times, arrays):
-    """MEDS never gap-fills: a missing value left in the file is an error, named here, not in a run."""
+    """ED-MORE never gap-fills: a missing value left in the file is an error, named here, not in a run."""
     for name, arr in arrays.items():
         missing = ~np.isfinite(arr)
         if missing.any():
             k, g = np.argwhere(missing)[0]
             raise SystemExit(f"ERROR: {name} has {int(missing.sum())} missing value(s), first at "
                              f"{np.datetime_as_string(times[k], unit='m')} UTC in grid {g}. "
-                             f"MEDS does not gap-fill: fill it upstream.")
+                             f"ED-MORE does not gap-fill: fill it upstream.")
 
 
 def write_forcing_file(path, times, grid, arrays, attrs, qc=None, variable_attributes=None,
                        elevation_long_name="elevation of the grid point"):
-    """Write a MEDS forcing file.
+    """Write an ED-MORE forcing file.
 
     times   UTC stamps (numpy datetime64), uniform
     grid    [(latitude, longitude, elevation or None), ...], one per grid point

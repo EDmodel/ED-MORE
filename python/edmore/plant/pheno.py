@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
-"""meds.plant.pheno — the leaf-phenology kernel (part of the plant-ecophysiology package).
+"""edmore.plant.pheno — the leaf-phenology kernel (part of the plant-ecophysiology package).
 
-A Pythonic front end to the MEDS Fortran phenology kernel (meds_plant_phenology.f90, exposed through the
-same libmeds.so as meds.plant's gas exchange -- one C-API for the whole model). Each day it takes
+A Pythonic front end to the ED-MORE Fortran phenology kernel (ed_plant_phenology.f90, exposed through the
+same libedmore.so as edmore.plant's gas exchange -- one C-API for the whole model). Each day it takes
 the cues (air temperature, hours of light, predawn leaf water potential) and per-PFT traits, and
 advances two smoothed tendencies in [0,1]: leaf_flush_tendency and leaf_shed_tendency. The hours
 of light are the hours the PAR reaching the canopy exceeds the PFT's par_min (`par_hours` counts
 them from sub-daily PAR, as the coupled model's fast loop does).
 
-    import meds.plant.pheno as pheno
+    import edmore.plant.pheno as pheno
 
     ph = pheno.Phenology(pheno.temperate_deciduous())     # params + cue memory + leaf cover
     day = ph.step(temp_day=290.0, par_hours=14.5, doy=150)
@@ -18,7 +18,7 @@ them from sub-daily PAR, as the coupled model's fast loop does).
 leaf_turnover_step through the C-API) with carbon never limiting the flush: senescence at
 shed_rate_max * leaf_shed_tendency down to min_leaf_cover, background turnover while the canopy
 flushes and drops no leaves, and a flush of up to flush_rate_max * leaf_flush_tendency per day toward full cover.
-Requires the compiled libmeds.so (see meds._libmeds).
+Requires the compiled libedmore.so (see edmore._libedmore).
 
 The equations are in docs/science/plant_phenology.md: the cues in §2, the switches and their
 combination in eqs. (2), (6) and (7), the smoothing in eq. (8) and the leaf rule in eq. (9).
@@ -30,7 +30,7 @@ from ctypes import c_double, c_int, byref, POINTER
 from dataclasses import dataclass, asdict, fields
 from enum import IntFlag
 
-from ._ffi import _lib   # the shared libmeds.so handle (also used by leaf gas exchange)
+from ._ffi import _lib   # the shared libedmore.so handle (also used by leaf gas exchange)
 
 __all__ = [
     "Cue", "Params", "State", "Out", "Day", "Phenology", "step", "leaf_step", "par_hours", "daylength",
@@ -41,7 +41,7 @@ __all__ = [
 
 #===========================================================================================#
 #  ctypes mirrors — field order MUST match the bind(c) types in                             #
-#  src/c_api/meds_c_api_phenology.f90.                                                      #
+#  src/c_api/ed_c_api_phenology.f90.                                                        #
 #===========================================================================================#
 _ENV_FIELDS = [
     ("temp_day", c_double), ("par_hours", c_double),
@@ -86,17 +86,17 @@ _BOUND = False
 
 
 def _pheno_lib():
-    """The shared libmeds.so (via meds.plant._ffi), with the phenology entries bound once."""
+    """The shared libedmore.so (via edmore.plant._ffi), with the phenology entries bound once."""
     global _BOUND
     lib = _lib()
     if not _BOUND:
-        lib.meds_phenology_step.restype = None
-        lib.meds_phenology_step.argtypes = [POINTER(_EnvC), POINTER(_ParamsC), c_double,
+        lib.ed_phenology_step.restype = None
+        lib.ed_phenology_step.argtypes = [POINTER(_EnvC), POINTER(_ParamsC), c_double,
                                             POINTER(_StateC), POINTER(_OutC)]
-        lib.meds_leaf_turnover_step.restype = None
-        lib.meds_leaf_turnover_step.argtypes = [c_double] * 10 + [POINTER(c_double)] * 3
-        lib.meds_daylength.restype = c_double
-        lib.meds_daylength.argtypes = [c_double, c_int]
+        lib.ed_leaf_turnover_step.restype   = None
+        lib.ed_leaf_turnover_step.argtypes = [c_double] * 10 + [POINTER(c_double)] * 3
+        lib.ed_daylength.restype = c_double
+        lib.ed_daylength.argtypes = [c_double, c_int]
         _BOUND = True
     return lib
 
@@ -107,7 +107,7 @@ def _make(struct_cls, src):
 
 
 class Cue(IntFlag):
-    """Cue-enable bits (mirror meds_pft_params). flush_cue_mask and shed_cue_mask pick the
+    """Cue-enable bits (mirror ed_pft_params). flush_cue_mask and shed_cue_mask pick the
     cues of each side: the flush signal is the PRODUCT of its cues' switches, the shed signal the
     larger of the seasonal trigger (TEMP x LIGHT) and the water trigger."""
     NONE = 0
@@ -196,7 +196,7 @@ def step(env, params, state, dt=1.0):
     params_c = _make(_ParamsC, p)
     state_c = _make(_StateC, s)
     out_c = _OutC()
-    _pheno_lib().meds_phenology_step(byref(env_c), byref(params_c), float(dt),
+    _pheno_lib().ed_phenology_step(byref(env_c), byref(params_c), float(dt),
                                      byref(state_c), byref(out_c))
     out = Out(leaf_flush_potential=out_c.leaf_flush_potential,
               leaf_shed_potential=out_c.leaf_shed_potential)
@@ -213,7 +213,7 @@ def leaf_step(leaf_cover, leaf_flush_tendency, leaf_shed_tendency, params, dt=1.
     (senescence + background) * (1 - resorption).
     """
     sen, bg, cap = c_double(), c_double(), c_double()
-    _pheno_lib().meds_leaf_turnover_step(
+    _pheno_lib().ed_leaf_turnover_step(
         float(leaf_cover), 1.0, float(leaf_flush_tendency), float(leaf_shed_tendency),
         float(params.flush_rate_max), float(params.shed_rate_max), float(params.leaf_turnover_rate),
         float(params.min_leaf_cover), float(params.bare_leaf_cover), float(dt),
@@ -232,8 +232,8 @@ def par_hours(par, step_hours, par_min):
 
 
 def daylength(lat_deg, doy):
-    """Day length [h] at latitude `lat_deg` on day of year `doy` (meds_time::daylength)."""
-    return _pheno_lib().meds_daylength(float(lat_deg), int(doy))
+    """Day length [h] at latitude `lat_deg` on day of year `doy` (ed_time::daylength)."""
+    return _pheno_lib().ed_daylength(float(lat_deg), int(doy))
 
 
 class Phenology:
@@ -262,9 +262,9 @@ class Phenology:
         for name, value in {**_ENV_DEFAULTS, **env}.items():
             setattr(self._env_c, name, value)
         st, p = self._state_c, self.params
-        self._lib.meds_phenology_step(byref(self._env_c), byref(self._params_c), float(dt),
+        self._lib.ed_phenology_step(byref(self._env_c), byref(self._params_c), float(dt),
                                       byref(st), byref(self._out_c))
-        self._lib.meds_leaf_turnover_step(
+        self._lib.ed_leaf_turnover_step(
             self.leaf_cover, 1.0, st.leaf_flush_tendency, st.leaf_shed_tendency,
             p.flush_rate_max, p.shed_rate_max, p.leaf_turnover_rate, p.min_leaf_cover,
             p.bare_leaf_cover, float(dt), byref(self._sen), byref(self._bg), byref(self._cap))
@@ -355,4 +355,4 @@ def self_test() -> None:
         day = evg.step(doy=doy, **autumn)
     floor = evg.params.min_leaf_cover
     assert abs(day.leaf_cover - floor) < 1e-6, f"an evergreen should stop at {floor}, got {day.leaf_cover}"
-    print("meds.plant.pheno.self_test: OK")
+    print("edmore.plant.pheno.self_test: OK")

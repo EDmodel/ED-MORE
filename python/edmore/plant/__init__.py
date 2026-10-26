@@ -1,25 +1,25 @@
 # SPDX-License-Identifier: Apache-2.0
-"""meds.plant — a Pythonic front end to the MEDS plant-ecophysiology model (libmeds.so).
+"""edmore.plant — a Pythonic front end to the ED-MORE plant-ecophysiology model (libedmore.so).
 
 The plant module goes beyond a single leaf process, so it is split into submodules (one per process
-family), all backed by the one shared library, libmeds.so:
+family), all backed by the one shared library, libedmore.so:
 
-    meds.plant.leaf   — leaf gas exchange: FvCB C3 / Collatz C4 photosynthesis + Leuning / Medlyn /
+    edmore.plant.leaf — leaf gas exchange: FvCB C3 / Collatz C4 photosynthesis + Leuning / Medlyn /
                         Katul stomatal conductance, Arrhenius / peaked temperature response, and the
                         coupled A-gs-Ci solver.
-    meds.plant.pheno  — leaf phenology: temperature, hours-of-light and water cues + traits ->
+    edmore.plant.pheno  — leaf phenology: temperature, hours-of-light and water cues + traits ->
                         flush and senescence tendencies -> leaf cover, by the coupled model's rule.
 
 Both are exposed with dataclasses + enums so callers never touch ctypes:
 
-    import meds.plant.leaf as leaf
+    import edmore.plant.leaf as leaf
     flux = leaf.gas_exchange(par=1500.0, leaf_temp=298.15, vpd=1000.0, ca=400.0, params=leaf.c3_params())
 
-    import meds.plant.pheno as pheno
+    import edmore.plant.pheno as pheno
     ph = pheno.Phenology(pheno.temperate_deciduous())
     day = ph.step(temp_day=290.0, par_hours=13.0, doy=150)     # day.leaf_cover, day.senescence
 
-Importing `meds.plant` is cheap; the compiled library (see meds._libmeds) loads lazily on first use.
+Importing `edmore.plant` is cheap; the compiled library (see edmore._libedmore) loads lazily on first use.
 """
 from __future__ import annotations
 

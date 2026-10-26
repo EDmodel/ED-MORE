@@ -2,9 +2,9 @@
 """A restart continues exactly as the run that wrote the state would have, and a restart that
 re-acclimates its traits ([init].reacclimate_traits) gets the traits a census start gives.
 
-Each case runs meds_main from the demography example's census, on the fast loop's constant
+Each case runs edmore from the demography example's census, on the fast loop's constant
 reference climate (no forcing file) or on a synthetic hourly forcing file, and compares state files
-variable by variable, bit for bit. MEDS_MAIN names the executable; CTest sets it.
+variable by variable, bit for bit. EDMORE_MAIN names the executable; CTest sets it.
 """
 import os
 import subprocess
@@ -17,16 +17,15 @@ from netCDF4 import Dataset
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "python"))
-from meds.config import RunConfig  # noqa: E402
-sys.path.insert(0, str(ROOT / "scripts"))
-import meds_forcing_file as mff  # noqa: E402
+from edmore import forcing  # noqa: E402
+from edmore.config import RunConfig  # noqa: E402
 
-MEDS_MAIN = os.environ.get("MEDS_MAIN", str(ROOT / "build-dev" / "meds_main"))
+EDMORE_MAIN = os.environ.get("EDMORE_MAIN", str(ROOT / "build-dev" / "edmore"))
 
 
 def base_config(run_dir, start, end, *, slow_on, restart_file=None, reacclimate=False,
                 plasticity=True, canopy_water=False):
-    cfg = RunConfig.load(ROOT / "meds_config_main.toml")
+    cfg = RunConfig.load(ROOT / "ed_config_main.toml")
     for key, value in {"run.start_time": start, "run.end_time": end, "run.slow_on": slow_on,
                        "run.n_threads": 1, "fast.fast_biophysics_on": True,
                        "fast.canopy_water_on": canopy_water, "forcing.forcing_on": False,
@@ -43,7 +42,7 @@ def base_config(run_dir, start, end, *, slow_on, restart_file=None, reacclimate=
 
 
 def synthetic_forcing(path, start="2001-05-31", days=8):
-    """An hourly MEDS forcing file at 0 E, so a UTC day starts at local midnight: a diurnal cycle whose
+    """An hourly ED-MORE forcing file at 0 E, so a UTC day starts at local midnight: a diurnal cycle whose
     clearness changes from day to day, an afternoon shower every other day, and no longwave, which the
     run synthesizes from the air and the clearness (the reader carries a day's last clearness through
     the night)."""
@@ -60,7 +59,7 @@ def synthetic_forcing(path, start="2001-05-31", days=8):
     attrs = {"title": "restart-test forcing", "source": "synthetic", "history": "test_restart_exact.py",
              "timestep_seconds": 3600, "avg_convention": "begin", "sw_input_kind": "total",
              "wind_meas_height_m": 10.0}
-    mff.write_forcing_file(path, t, [(42.4, 0.0, 300.0)], arrays, attrs)
+    forcing.write_forcing_file(path, t, [(42.4, 0.0, 300.0)], arrays, attrs)
 
 
 def forced_config(run_dir, forcing, start, end, restart_file=None):
@@ -82,7 +81,7 @@ def forced_config(run_dir, forcing, start, end, restart_file=None):
 def run(run_dir, cfg, pft_edit=None):
     if pft_edit:
         pft_edit(cfg)
-    res = subprocess.run([MEDS_MAIN, str(cfg.write(run_dir))], cwd=run_dir, capture_output=True,
+    res = subprocess.run([EDMORE_MAIN, str(cfg.write(run_dir))], cwd=run_dir, capture_output=True,
                          text=True, timeout=600)
     assert res.returncode == 0, res.stdout[-3000:] + res.stderr[-3000:]
     states = sorted((run_dir / "out").glob("s-S-*.nc"))

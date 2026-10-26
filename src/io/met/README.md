@@ -49,7 +49,7 @@ partition, longwave, slope) and `ed_therm_lib` (humidity, rain and snow, lapse).
   `make_forcing_file.py`).
 - A flux tower's file comes from `scripts/prepare_flux_tower/make_tower_forcing.py`.
 - The shipped CO₂ series (`data/co2/`) comes from `scripts/prepare_co2/make_co2_file.py`.
-- `scripts/ed_forcing_file.py` is the one writer of an ED-MORE forcing file.
+- `edmore.forcing` (`python/edmore/forcing.py`) is the one writer of an ED-MORE forcing file.
 
 Commands are in each script's header and in forcing.md §1.
 

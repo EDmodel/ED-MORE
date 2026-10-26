@@ -1,20 +1,20 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Internal ctypes bridge to libmeds.so. NOT part of the public API.
+"""Internal ctypes bridge to libedmore.so. NOT part of the public API.
 
 This module holds the leaf gas exchange's ctypes code; everything user-facing lives in
-`meds.plant.leaf` (dataclasses + enums), and `meds.plant.pheno` binds its own phenology entries on
+`edmore.plant.leaf` (dataclasses + enums), and `edmore.plant.pheno` binds its own phenology entries on
 the same library. The struct field order below MUST match the bind(c) mirror types in
-src/c_api/meds_c_api_leaf.f90 exactly.
+src/c_api/ed_c_api_leaf.f90 exactly.
 
-Locating and loading the library is `meds._libmeds`'s job, not this module's -- there is ONE
-libmeds.so behind every sub-package, so there is one search.
+Locating and loading the library is `edmore._libedmore`'s job, not this module's -- there is ONE
+libedmore.so behind every sub-package, so there is one search.
 """
 import ctypes
 from ctypes import c_double, c_int, byref, POINTER
 
-from .._libmeds import lib as _shared_lib
+from .._libedmore import lib as _shared_lib
 
-#----- Field orders — must mirror meds_c_api_leaf.f90. --------------------------------------#
+#----- Field orders — must mirror ed_c_api_leaf.f90. --------------------------------------  #
 _ENV_FIELDS = ("par", "leaf_temp", "vpd", "ca", "pressure", "psi_leaf", "gb", "psi")
 _FLUX_REALS = ("A_net", "A_gross", "gs", "ci", "cs", "transpiration", "rd")
 PARAM_FIELDS = (
@@ -60,27 +60,27 @@ _LIB = None
 
 
 def _lib():
-    """Take the shared libmeds.so and declare this sub-package's signatures on it, once."""
+    """Take the shared libedmore.so and declare this sub-package's signatures on it, once."""
     global _LIB
     if _LIB is None:
         lib = _shared_lib()
-        lib.meds_leaf_solve.restype = None
-        lib.meds_leaf_solve.argtypes = [POINTER(_EnvC), POINTER(_ParamsC),
+        lib.ed_leaf_solve.restype = None
+        lib.ed_leaf_solve.argtypes = [POINTER(_EnvC), POINTER(_ParamsC),
                                         c_int, c_int, c_int, c_int, POINTER(_FluxC)]
-        lib.meds_leaf_solve_batch.restype = None
-        lib.meds_leaf_solve_batch.argtypes = [c_int, POINTER(_EnvC), POINTER(_ParamsC),
+        lib.ed_leaf_solve_batch.restype = None
+        lib.ed_leaf_solve_batch.argtypes = [c_int, POINTER(_EnvC), POINTER(_ParamsC),
                                               c_int, c_int, c_int, c_int, POINTER(_FluxC)]
-        lib.meds_assimilation_demand_c3.restype = None
-        lib.meds_assimilation_demand_c3.argtypes = [c_double] * 8 + [c_int, c_double, c_double,
+        lib.ed_assimilation_demand_c3.restype = None
+        lib.ed_assimilation_demand_c3.argtypes = [c_double] * 8 + [c_int, c_double, c_double,
                                                     POINTER(_C3DemandC)]
-        lib.meds_rubisco_kinetics.restype = None
-        lib.meds_rubisco_kinetics.argtypes = [POINTER(_ParamsC), c_double, c_double, POINTER(_KineticsC)]
-        lib.meds_electron_transport_j.restype = c_double
-        lib.meds_electron_transport_j.argtypes = [c_double] * 5
-        lib.meds_peaked_arrhenius.restype = c_double
-        lib.meds_peaked_arrhenius.argtypes = [c_double] * 5
-        lib.meds_arrhenius.restype = c_double
-        lib.meds_arrhenius.argtypes = [c_double] * 3
+        lib.ed_rubisco_kinetics.restype = None
+        lib.ed_rubisco_kinetics.argtypes = [POINTER(_ParamsC), c_double, c_double, POINTER(_KineticsC)]
+        lib.ed_electron_transport_j.restype = c_double
+        lib.ed_electron_transport_j.argtypes = [c_double] * 5
+        lib.ed_peaked_arrhenius.restype = c_double
+        lib.ed_peaked_arrhenius.argtypes = [c_double] * 5
+        lib.ed_arrhenius.restype = c_double
+        lib.ed_arrhenius.argtypes = [c_double] * 3
         _LIB = lib
     return _LIB
 
@@ -91,7 +91,7 @@ def solve(env, params, stomata, temp_response, colimitation, boundary_layer):
     params_c = _ParamsC(pathway=int(params["pathway"]),
                         **{k: float(params[k]) for k in PARAM_FIELDS})
     flux_c = _FluxC()
-    _lib().meds_leaf_solve(byref(env_c), byref(params_c),
+    _lib().ed_leaf_solve(byref(env_c), byref(params_c),
                            int(stomata), int(temp_response), int(colimitation),
                            1 if boundary_layer else 0, byref(flux_c))
     out = {n: getattr(flux_c, n) for n in _FLUX_REALS}
@@ -111,7 +111,7 @@ def solve_batch(env_columns, params, stomata, temp_response, colimitation, bound
     params_c = _ParamsC(pathway=int(params["pathway"]),
                         **{k: float(params[k]) for k in PARAM_FIELDS})
     fluxes = (_FluxC * n)()
-    _lib().meds_leaf_solve_batch(n, envs, byref(params_c), int(stomata), int(temp_response),
+    _lib().ed_leaf_solve_batch(n, envs, byref(params_c), int(stomata), int(temp_response),
                                  int(colimitation), 1 if boundary_layer else 0, fluxes)
     out = {k: [getattr(f, k) for f in fluxes] for k in _FLUX_REALS}
     out["limitation"] = [f.limitation for f in fluxes]
@@ -122,7 +122,7 @@ def solve_batch(env_columns, params, stomata, temp_response, colimitation, bound
 def assimilation_demand_c3(ci, vcmax, j, tpu, gstar, kc, ko, o2, colimitation, theta_cj, theta_ip):
     """Raw C3 FvCB demand at a prescribed Ci (mole-fraction kinetics, no T-scaling). Plain dict."""
     dem_c = _C3DemandC()
-    _lib().meds_assimilation_demand_c3(float(ci), float(vcmax), float(j), float(tpu), float(gstar),
+    _lib().ed_assimilation_demand_c3(float(ci), float(vcmax), float(j), float(tpu), float(gstar),
                                 float(kc), float(ko), float(o2), int(colimitation),
                                 float(theta_cj), float(theta_ip), byref(dem_c))
     return {n: getattr(dem_c, n) for n in _C3_DEMAND_FIELDS}
@@ -133,18 +133,18 @@ def rubisco_kinetics(params, t_leaf, pressure):
     params_c = _ParamsC(pathway=int(params["pathway"]),
                         **{k: float(params[k]) for k in PARAM_FIELDS})
     kin_c = _KineticsC()
-    _lib().meds_rubisco_kinetics(byref(params_c), float(t_leaf), float(pressure), byref(kin_c))
+    _lib().ed_rubisco_kinetics(byref(params_c), float(t_leaf), float(pressure), byref(kin_c))
     return {n: getattr(kin_c, n) for n in _KINETICS_FIELDS}
 
 
 def electron_transport_j(par, absorptance, phi_psii, jmax, theta):
     """Electron-transport rate J from Jmax and PAR (non-rectangular hyperbola)."""
-    return _lib().meds_electron_transport_j(par, absorptance, phi_psii, jmax, theta)
+    return _lib().ed_electron_transport_j(par, absorptance, phi_psii, jmax, theta)
 
 
 def peaked(k25, ea, hd, ds, t_leaf):
-    return _lib().meds_peaked_arrhenius(k25, ea, hd, ds, t_leaf)
+    return _lib().ed_peaked_arrhenius(k25, ea, hd, ds, t_leaf)
 
 
 def arrhenius(k25, ea, t_leaf):
-    return _lib().meds_arrhenius(k25, ea, t_leaf)
+    return _lib().ed_arrhenius(k25, ea, t_leaf)

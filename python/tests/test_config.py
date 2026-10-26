@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""meds.config reads a run's main file and the PFT (plant trait) file it names, changes keys, and
+"""edmore.config reads a run's main file and the PFT (plant trait) file it names, changes keys, and
 writes a pair of files that read back as set. No compiled library is needed."""
 from pathlib import Path
 
@@ -10,14 +10,14 @@ try:
 except ModuleNotFoundError:  # py3.10 and older
     import tomli as tomllib
 
-from meds.config import RunConfig, dumps, load_toml, read_record
+from edmore.config import RunConfig, dumps, load_toml, read_record
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_load_reads_both_files_and_resolves_inputs():
-    cfg = RunConfig.load(ROOT / "meds_config_main.toml")
-    assert cfg.pft_path == ROOT / "meds_config_pft.toml"
+    cfg = RunConfig.load(ROOT / "ed_config_main.toml")
+    assert cfg.pft_path == ROOT / "ed_config_pft.toml"
     assert Path(cfg.get("init.census_file")).is_absolute()
     assert Path(cfg.get("init.census_file")).exists()
     assert cfg.get("output.io_config") == ""          # "no file" is left alone
@@ -25,7 +25,7 @@ def test_load_reads_both_files_and_resolves_inputs():
 
 
 def test_set_one_pft_keeps_the_others(tmp_path):
-    cfg = RunConfig.load(ROOT / "meds_config_main.toml")
+    cfg = RunConfig.load(ROOT / "ed_config_main.toml")
     before = list(cfg.get("pft.vcmax25", file="pft"))
     trial = cfg.copy()
     trial.set("pft.vcmax25", 61.5, file="pft", pft=2)

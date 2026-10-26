@@ -1,19 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Smoke tests for the meds.plant.leaf Python API (needs libmeds.so built; see python/README.md).
+"""Smoke tests for the edmore.plant.leaf Python API (needs libedmore.so built; see python/README.md).
 
 Skips itself cleanly if the shared library hasn't been built, so `pytest` never hard-fails on a
 machine that only has the Python sources.
 """
 import pytest
 
-import meds.plant.leaf as leaf
+import edmore.plant.leaf as leaf
 
 
 def _lib_or_skip():
     try:
         return leaf.self_test()
     except FileNotFoundError as exc:
-        pytest.skip(f"libmeds.so not built: {exc}")
+        pytest.skip(f"libedmore.so not built: {exc}")
 
 
 def test_self_test_passes():
