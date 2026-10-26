@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""The targets' observation models (MEDS_FAST_CALIBRATION_BEST_PRACTICE.md §3.1, §3.3): how the
+"""The targets' observation models (protocol §3.1, §3.3): how the
 tower's number relates to the true flux, each known bias as its own term, and the random error.
 
 Closure (H and LE). The tower misses the same fraction of the turbulent flux at every hour:
@@ -21,7 +21,7 @@ that respiration carries one multiplicative error, R_tower = kappa R_true. So th
 
     r = [GPP_model - GPP_tower - (1/kappa - 1) R_tower] / sigma_NEE
 
-with kappa an observation key (never written to a MEDS config) and sigma NEE's random error. This
+with kappa an observation key (never written to an ED-MORE config) and sigma NEE's random error. This
 is the same as fitting daytime NEE closed with the tower's own respiration. Without kappa in the
 fit, kappa is 1 and the tower's GPP is taken as given.
 

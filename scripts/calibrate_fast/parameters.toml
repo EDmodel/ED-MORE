@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
-# The fast-parameter registry (docs/dev_plans/MEDS_FAST_CALIBRATION_BEST_PRACTICE.md §3.5, §4): the
+# The fast-parameter registry (protocol §3.5, §4; README.md): the
 # keys a flux-tower fit may move. One table per key (parameters.py; an unknown field stops the tool):
 #
 #   file      = "pft" (the PFT TOML), "main", or "obs" (an observation key, kappa: a term of a target's
 #               observation model, never written to a config)
-#   key       = the dotted TOML key as MEDS reads it
+#   key       = the dotted TOML key as ED-MORE reads it
 #   pft       = the element of a per-PFT array (1-based; default 1)
 #   range     = [lo, hi]: a hard bound, through the transform
 #   transform = "linear" (logit on the range) or "log" (log, then logit): a positive scale is "log"
@@ -24,8 +24,9 @@
 #   fixed_at  = "kattge_knorr": fixed at Kattge & Knorr's value for the site's growth temperature (priors.py)
 #   meta      = { <plant type> = { centre, sd | log_sd, source } }: a meta-analysis prior by plant type
 #               ([fit].plant_type); the prior of a key without an EEO centre, reported beside the EEO one
-#   source    = what the key is, and where its range comes from; its "plan §4.n" is
-#               docs/dev_plans/MEDS_FAST_CALIBRATION_PLAN.md §4.n, where each key's range is argued
+#   source    = what the key is, and where its range comes from; its "plan §4.n" is §4.n of MEDS's
+#               fast-calibration plan, where each key's range is argued:
+#               https://github.com/xiangtaoxu/MEDS/blob/v0.4.0/docs/dev_plans/MEDS_FAST_CALIBRATION_PLAN.md
 #
 # The RANGE is what is physically possible and the PRIOR what the evidence says, kept apart: each
 # fitted key has its own sd, and its prior z at the MAP is reported. A prior centre of "eeo" is
@@ -96,7 +97,7 @@ source = "mean leaf inclination [deg]; spherical is 57.3; plan §4.1"
 [vcmax25]
 file = "pft"
 key = "pft.vcmax25"
-prior = { centre = "eeo", log_sd = 0.5, source = "the coordination of the Rubisco- and light-limited rates at the site's growing-season daytime climate, with MEDS's own leaf (priors.py; Wang et al. 2017, Smith et al. 2019)" }
+prior = { centre = "eeo", log_sd = 0.5, source = "the coordination of the Rubisco- and light-limited rates at the site's growing-season daytime climate, with ED-MORE's own leaf (priors.py; Wang et al. 2017, Smith et al. 2019)" }
 kind = "trait"
 range = [10.0, 150.0]
 transform = "log"
@@ -110,7 +111,7 @@ kind = "effective"
 range = [0.70, 0.90]
 state = "fixed"
 reason = "held at the PFT file's value (0.7 in the reference PFTs: the effective curvature of a mean-light cohort). A tower cannot tell it from the canopy's light distribution or from the error in its respiration; fit 3 drove it to its floor to absorb the GPP offset. Revisit with sunlit/shaded leaves (see docs/ROADMAP.md)"
-prior = { centre = 0.80, sd = 0.05, source = "the curvature of the electron-transport light response: CLM5 0.7, MEDS 0.9 (owner, 2026-10-02)" }
+prior = { centre = 0.80, sd = 0.05, source = "the curvature of the electron-transport light response: CLM5 0.7, ED-MORE 0.9 (owner, 2026-10-02)" }
 shape = true
 source = "electron-transport curvature; plan §4.2. It trades with vcmax25: fit it only with a GPP target that samples the light response well"
 
@@ -310,7 +311,7 @@ state = "optional"
 process = "drought"
 source = "ED2 root-profile decay over 2 m (an e-folding of 0.25-2 m); plan §4.4. Uninformed by ten-day windows (sd ratio 0.98); the seasonal runs may do better"
 
-# ----- RESPIRATION (MEDS_FAST_CALIBRATION_PLAN.md §4.5) -------------------------------------------------------
+# ----- RESPIRATION (plan §4.5) -------------------------------------------------------
 [rd_vcmax_ratio]
 file = "pft"
 key = "pft.rd_vcmax_ratio"
@@ -330,4 +331,4 @@ kind = "observation"
 range = [0.5, 1.5]
 state = "fit"
 prior = { centre = 1.0, sd = 0.15, source = "best-practice plan §3.3: centre 1 at a tower without evidence of a respiration bias; the sd from the gap between the provider's two partitionings (RECO against RECO_DT) where both exist, else 0.15" }
-source = "the GPP observation model's error on the tower's respiration, R_tower = kappa R_true: a term of the residual, never written to a MEDS config. Its gradient needs no trials"
+source = "the GPP observation model's error on the tower's respiration, R_tower = kappa R_true: a term of the residual, never written to an ED-MORE config. Its gradient needs no trials"

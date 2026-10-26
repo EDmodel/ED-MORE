@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-"""The observations (MEDS_FAST_CALIBRATION_BEST_PRACTICE.md §2): the tower as its site TOML declares
-it, read by the one reader of tower files (scripts/prepare_flux_tower/tower_inputs.py), on its own
+"""The observations (protocol §2): the tower as its site TOML declares
+it, read by the one reader of tower files (scripts/prepare_input/flux_tower/tower_inputs.py), on its own
 interval and the UTC start of each record -- the clock the model's output is on.
 
 A flux is used only where the site TOML's rule says it was measured (BCI: FLAG = 1), the radiation
@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 from netCDF4 import Dataset, num2date
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "prepare_flux_tower"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "prepare_input" / "flux_tower"))
 import tower_inputs                  # noqa: E402  (the one reader of tower files)
 import data_rules                    # noqa: E402
 import observation_models            # noqa: E402

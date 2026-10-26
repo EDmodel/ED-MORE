@@ -79,7 +79,7 @@ def with_header(text: str, head: str) -> str:
 
 
 def write(cal, keys, values, out_dir: Path):
-    """pft_parameters_calibrated.toml and meds_config_calibrated.toml in out_dir: the base files with
+    """pft_parameters_calibrated.toml and ed_config_calibrated.toml in out_dir: the base files with
     the fitted values and the Kattge & Knorr values written in, then the calibration's overrides (the
     variant's among them: the values were fitted with them) and its [calibrated] settings."""
     text = {"main": cal.main_path.read_text(), "pft": cal.pft_path.read_text()}
@@ -97,5 +97,5 @@ def write(cal, keys, values, out_dir: Path):
         text["main"] = set_toml_text(text["main"], k, v)
     (out_dir / "pft_parameters_calibrated.toml").write_text(
         with_header(text["pft"], header(cal.variant, cal.pft_path, changed["pft"])))
-    (out_dir / "meds_config_calibrated.toml").write_text(
+    (out_dir / "ed_config_calibrated.toml").write_text(
         with_header(text["main"], header(cal.variant, cal.main_path, changed["main"], settings)))

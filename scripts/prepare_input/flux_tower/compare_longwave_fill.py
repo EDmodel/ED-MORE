@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 """compare_longwave_fill.py -- score the longwave gap fills against observations they never saw
-(scripts/prepare_flux_tower/README.md, "Gap filling").
+(scripts/prepare_input/flux_tower/README.md, "Gap filling").
 
 It hides a share of the tower's observed longwave in whole blocks of days (the way real gaps come),
 fills them exactly as make_tower_forcing.py would, and scores the fill, and two references, against
@@ -9,7 +9,7 @@ the hidden observations:
 
   synth       the model's own synthesis, split into its clear-sky and cloud parts and regressed
               onto the tower by month and day/night: the fill make_tower_forcing.py writes
-  meds_synth  the synthesis exactly as MEDS computes it with lwdown_source = "synthesize"
+  ed_synth    the synthesis exactly as ED-MORE computes it with lwdown_source = "synthesize"
               (cloud coefficient 0.22, no regression): what a run gets with no longwave at all
   climatology the observed monthly day/night means: the floor any fill has to beat
 
@@ -87,7 +87,7 @@ def main(argv=None):
 
     fills = {"synth": mt.prepare(site, lw_holdout=hidden)["values"]["LWdown"]}
     y = base["values"]
-    fills["meds_synth"] = tg.synthesized_longwave(y["Tair"], y["RH"], y["PSurf"], y["SWdown"], base["mean_cosz"])
+    fills["ed_synth"] = tg.synthesized_longwave(y["Tair"], y["RH"], y["PSurf"], y["SWdown"], base["mean_cosz"])
     groups = tg.regression_groups(base["stamps"], base["mean_cosz"], by_day_night=True)
     seen = observed & ~hidden
     climatology = np.full(len(groups), np.nan)
@@ -119,8 +119,8 @@ def draw(path, site, obs, fills, hidden, stamps_local, months, result):
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     ink, muted, grid = "#0b0b0b", "#52514e", "#d9d8d4"
-    series = [("synth", "#2a78d6"), ("meds_synth", "#1baf7a")]
-    label = {"synth": "synthesis, regressed", "meds_synth": "MEDS synthesis as is"}
+    series = [("synth", "#2a78d6"), ("ed_synth", "#1baf7a")]
+    label = {"synth": "synthesis, regressed", "ed_synth": "ED-MORE synthesis as is"}
     plt.rcParams.update({"axes.edgecolor": muted, "axes.labelcolor": ink, "xtick.color": muted,
                          "ytick.color": muted, "axes.grid": True, "grid.color": grid, "grid.linewidth": 0.6,
                          "axes.axisbelow": True, "axes.spines.top": False, "axes.spines.right": False})

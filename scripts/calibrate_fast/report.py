@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""What the tool reports (MEDS_FAST_CALIBRATION_BEST_PRACTICE.md §2, §7.2): the data report before
+"""What the tool reports (protocol §2, §7.2): the data report before
 the fit, and after it the model/tower ratios, kappa's implications, the validation's verdict and
 report.md, the results for a reader. fit.json holds everything.
 """

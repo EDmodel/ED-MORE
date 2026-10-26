@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Trials: frozen MEDS runs over one window, each restarted from that window's state with one set of
-key values (MEDS_FAST_CALIBRATION_BEST_PRACTICE.md §6).
+"""Trials: frozen ED-MORE runs over one window, each restarted from that window's state with one set of
+key values (protocol §6).
 
 A trial is a directory holding its own main and PFT TOML, made from the base configuration with
-meds.config by setting keys. Its name is a hash of the two, so a repeated set of values reuses the
-finished run. A trial runs through the Python API (`python -m meds.model`) or the meds_main
+edmore.config by setting keys. Its name is a hash of the two, so a repeated set of values reuses the
+finished run. A trial runs through the Python API (`python -m edmore.model`) or the edmore
 executable; both write the same files.
 
 A trial passes only when:
@@ -33,7 +33,7 @@ import pandas as pd
 from netCDF4 import Dataset
 
 import targets
-from meds.config import RunConfig, read_record
+from edmore.config import RunConfig, read_record
 from workers import Task
 
 #: the fast variables a trial writes: every target's model side (targets.py)
@@ -42,7 +42,7 @@ TRIAL_VARIABLES = ("mean_sw_in_py", "mean_sw_up_py", "mean_lw_up_py", "mean_rnet
 PREFIX = "t"
 #: the runner that runs a config through the Python API instead of an executable
 PYTHON_RUNNER = "python"
-#: the line meds_main and meds.model print when a run ends well (meds.model.COMPLETED)
+#: the line edmore and edmore.model print when a run ends well (edmore.model.COMPLETED)
 COMPLETED = "OK: simulation completed"
 #: the variables that describe the stand in a state file (the stand must not change in a trial)
 STAND_VARIABLES = ("pft", "nplant", "dbh", "height", "leaf_area", "leaf_carbon", "fineroot_carbon",
@@ -82,7 +82,7 @@ DAYS_PER_THREAD = 15
 
 
 def threads_for(days: float, max_threads: int) -> int:
-    """The threads of a run of `days` simulated days. MEDS's output is the same at any count."""
+    """The threads of a run of `days` simulated days. ED-MORE's output is the same at any count."""
     return max(1, min(int(max_threads), math.ceil(float(days) / DAYS_PER_THREAD)))
 
 
@@ -135,9 +135,9 @@ def build_trial(base: RunConfig, keys, values, window: Window, state_file, root:
 
 def command(runner: str, config: Path) -> list[str]:
     """The command that runs a config: through the Python API when the runner is "python", else
-    the meds_main executable the runner names."""
+    the edmore executable the runner names."""
     if runner == PYTHON_RUNNER:
-        return [sys.executable, "-m", "meds.model", str(config)]
+        return [sys.executable, "-m", "edmore.model", str(config)]
     return [runner, str(config)]
 
 
@@ -235,7 +235,7 @@ class TrialRunner:
     states: dict                     # window name -> its state file
     base: RunConfig                  # the base main and PFT files
     overrides: dict
-    runner: str                      # "python" (the Python API) or a meds_main executable
+    runner: str                      # "python" (the Python API) or a edmore executable
     workers: object
     root: Path
     step: float                      # the tower's interval [s]: the trials' output must match it

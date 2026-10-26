@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""calibrate_fast.py -- fit MEDS's fast (sub-daily) parameters to a flux tower, with the stand frozen
-at its initial structure (docs/dev_plans/MEDS_FAST_CALIBRATION_BEST_PRACTICE.md).
+"""calibrate_fast.py -- fit ED-MORE's fast (sub-daily) parameters to a flux tower, with the stand frozen
+at its initial structure (the protocol README.md links).
 
 One joint fit (§6.3): Levenberg-Marquardt on every fitted key at once, over ten-day calibration
 windows (every target) and seasonal soil-drying runs (LE), each a frozen run restarted from its own
@@ -22,9 +22,9 @@ Commands (each reads a calibration's settings, e.g. examples/example04_column_bi
   variants  the structural variants' fits side by side: each key's MAP and their spread
   worker    a node's worker for --queue (started inside the Slurm allocation)
 
-Trials run through MEDS's Python API (`python -m meds.model`, which needs libmeds.so) unless
---runner names a meds_main executable; the two give the same output, bit for bit. The EEO vcmax25
-prior uses MEDS's own leaf through libmeds (meds.plant.leaf). A trial that fails stops the command
+Trials run through ED-MORE's Python API (`python -m edmore.model`, which needs libedmore.so) unless
+--runner names a edmore executable; the two give the same output, bit for bit. The EEO vcmax25
+prior uses ED-MORE's own leaf through libedmore (edmore.plant.leaf). A trial that fails stops the command
 with its log.
 
 Usage:
@@ -46,7 +46,7 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 sys.path.insert(0, str(HERE))
-#----- the meds package of this source tree: meds.config here, meds.model in the trials this starts
+#----- the edmore package of this source tree: edmore.config here, edmore.model in the trials this starts
 sys.path.insert(0, str(ROOT / "python"))
 os.environ["PYTHONPATH"] = os.pathsep.join(filter(None, [str(ROOT / "python"), os.environ.get("PYTHONPATH")]))
 
@@ -59,7 +59,7 @@ import targets                         # noqa: E402
 import trials                          # noqa: E402
 import uncertainty                     # noqa: E402
 from calibration import Calibration    # noqa: E402
-from meds.config import read_record    # noqa: E402
+from edmore.config import read_record  # noqa: E402
 from workers import Task, make_workers, queue_worker   # noqa: E402
 
 
@@ -409,8 +409,8 @@ def main(argv=None):
         p.add_argument("--work", required=True, help="the working directory (trials, chains, results)")
         if runs:
             p.add_argument("--runner", default=trials.PYTHON_RUNNER,
-                           help='how a trial runs: "python" (the Python API, python -m meds.model; the '
-                                'default) or the path of a meds_main executable')
+                           help='how a trial runs: "python" (the Python API, python -m edmore.model; the '
+                                'default) or the path of a edmore executable')
             p.add_argument("--workers", type=int, default=os.cpu_count(), help="trials at once on this machine")
             p.add_argument("--queue", action="store_true",
                            help="hand the trials to `worker`s on other nodes through a queue under --work")

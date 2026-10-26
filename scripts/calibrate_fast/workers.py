@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""The workers that run trials and chains: each is one MEDS process, and a fit runs hundreds at a time.
+"""The workers that run trials and chains: each is one ED-MORE process, and a fit runs hundreds at a time.
 
 A run uses as many threads as its length earns (trials.threads_for), and takes that many of its
 machine's cores: a long run (a seasonal run, a chain) finishes as soon as the ten-day windows beside

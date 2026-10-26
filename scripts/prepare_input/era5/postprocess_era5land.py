@@ -16,7 +16,7 @@ era5land_<source>_<variable>_<period>.nc, with
   * `latitude` (north to south) and `longitude` (-180..180, or 0..360 if the box crosses the antimeridian);
   * the variable under its CDS/ERA5-Land short name and units, float32, NaN where ERA5-Land has no data;
   * accumulated fields (tp, ssrd, strd) left accumulated since 00 UTC: de-accumulation belongs to the
-    conversion to MEDS forcing, which needs the hour before each file anyway.
+    conversion to ED-MORE forcing, which needs the hour before each file anyway.
 A missing hour is an error (never filled); a duplicated hour keeps the first copy. Outputs are written
 via .part files, so an existing output is complete; reruns skip it unless --force.
 

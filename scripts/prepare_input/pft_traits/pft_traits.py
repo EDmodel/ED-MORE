@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""PFT traits that follow a fitted relation, for a MEDS PFT file (scripts/pft_traits/README.md).
+"""PFT traits that follow a fitted relation, for an ED-MORE PFT file (scripts/prepare_input/pft_traits/README.md).
 
-MEDS reads every PFT value from the PFT file and holds no rule that derives one trait from another.
+ED-MORE reads every PFT value from the PFT file and holds no rule that derives one trait from another.
 This tool computes the traits that published fits give from other traits, so a PFT file can be
 written from them:
   * the sapwood specific conductivity wood_kmax [kg/m/s/MPa] from wood density
@@ -18,7 +18,7 @@ on the command line. The output is the TOML lines to put in the PFT file's [pft]
 blocks.
 
 Usage:
-    python pft_traits.py --pft-file meds_config_pft.toml
+    python pft_traits.py --pft-file ed_config_pft.toml
     python pft_traits.py --wood-density 0.40 0.60 0.85 --vcmax25 60 45 40 --leaf-turnover 1.0 0.5 0.33
 
 Dependencies: none beyond the standard library (tomli on Python < 3.11).
@@ -74,7 +74,7 @@ def toml_array(values):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--pft-file", help="a MEDS PFT file; its [pft] block supplies the inputs")
+    ap.add_argument("--pft-file", help="an ED-MORE PFT file; its [pft] block supplies the inputs")
     ap.add_argument("--wood-density", type=float, nargs="+", help="[g/cm3] one per PFT")
     ap.add_argument("--vcmax25", type=float, nargs="+", help="[umol/m2/s] one per PFT")
     ap.add_argument("--leaf-turnover", type=float, nargs="+", help="[1/yr] top-of-canopy, one per PFT")
@@ -95,7 +95,7 @@ def main(argv=None):
     hazards = [mortality(r) for r in rho]
     slopes = [plasticity(v, t) for v, t in zip(vcmax, turnover)]
     src = f"--pft-file {args.pft_file}" if args.pft_file else "the command line"
-    print(f"# scripts/pft_traits/pft_traits.py, from {src}")
+    print(f"# scripts/prepare_input/pft_traits/pft_traits.py, from {src}")
     print("# [pft]")
     for name, k in (("mort_gamma", 0), ("mort_alpha", 1), ("mort_beta", 2)):
         print(f"{name} = {toml_array(h[k] for h in hazards)}")

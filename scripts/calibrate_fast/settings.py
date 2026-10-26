@@ -13,7 +13,7 @@ from __future__ import annotations
 import copy
 from pathlib import Path
 
-from meds.config import load_toml
+from edmore.config import load_toml
 from targets import FILTERS
 
 REFERENCE = Path(__file__).resolve().parent / "calibration_reference.toml"

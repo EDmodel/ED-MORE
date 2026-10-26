@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
-"""The calibration tool with MEDS itself: a self-contained site -- the pseudo census in
+"""The calibration tool with ED-MORE itself: a self-contained site -- the pseudo census in
 data/census_example.csv, a synthetic forcing file and tower -- through `calibrate_fast.py check` (a
 state chain, a trial restarted from it with its parameter record checked, one gradient column that
 must move the output, a repeated trial that must match byte for byte, and a stand unchanged at the
-trial's end) and through a whole `fit`. The check runs once with meds_main (MEDS_MAIN names it) and
-once through the Python API (MEDS_LIB names libmeds.so); CTest sets both, and a run whose model is
+trial's end) and through a whole `fit`. The check runs once with edmore (EDMORE_MAIN names it) and
+once through the Python API (EDMORE_LIB names libedmore.so); CTest sets both, and a run whose model is
 missing is skipped. The tower is half-hourly and the forcing hourly: the trials' output must come out
 on the tower's interval."""
 import os
@@ -19,19 +19,18 @@ import pytest
 HERE = Path(__file__).resolve().parents[1]
 ROOT = HERE.parents[1]
 sys.path.insert(0, str(ROOT / "python"))
-from meds.config import RunConfig  # noqa: E402
+from edmore.config import RunConfig  # noqa: E402
 
-sys.path.insert(0, str(ROOT / "scripts"))
-import meds_forcing_file as mff  # noqa: E402
+from edmore import forcing as mff  # noqa: E402
 
-MEDS_MAIN = os.environ.get("MEDS_MAIN")
-MEDS_LIB = os.environ.get("MEDS_LIB")
-RUNNERS = [pytest.param(MEDS_MAIN, id="meds_main",
-                        marks=pytest.mark.skipif(not MEDS_MAIN or not Path(MEDS_MAIN).exists(),
-                                                 reason="MEDS_MAIN is not set to a meds_main executable")),
+EDMORE_MAIN = os.environ.get("EDMORE_MAIN")
+EDMORE_LIB = os.environ.get("EDMORE_LIB")
+RUNNERS = [pytest.param(EDMORE_MAIN, id="edmore",
+                        marks=pytest.mark.skipif(not EDMORE_MAIN or not Path(EDMORE_MAIN).exists(),
+                                                 reason="EDMORE_MAIN is not set to a edmore executable")),
            pytest.param("python", id="python_api",
-                        marks=pytest.mark.skipif(not MEDS_LIB or not Path(MEDS_LIB).exists(),
-                                                 reason="MEDS_LIB is not set to a built libmeds.so"))]
+                        marks=pytest.mark.skipif(not EDMORE_LIB or not Path(EDMORE_LIB).exists(),
+                                                 reason="EDMORE_LIB is not set to a built libedmore.so"))]
 
 
 def synthetic_tower(path, start="2001-06-01", days=6):
@@ -87,7 +86,7 @@ ustar_threshold = 0.4
 
 
 def synthetic_forcing(path, start="2001-05-31", days=7):
-    """An hourly MEDS forcing file with a clear diurnal cycle (the fast output needs a forcing file)."""
+    """An hourly ED-MORE forcing file with a clear diurnal cycle (the fast output needs a forcing file)."""
     t = np.arange(np.datetime64(start), np.datetime64(start) + np.timedelta64(days, "D"),
                   np.timedelta64(1, "h"))
     hour = (t - t.astype("datetime64[D]")).astype("timedelta64[h]").astype(int).astype(float)
@@ -106,7 +105,7 @@ def synthetic_forcing(path, start="2001-05-31", days=7):
 def make_site(tmp_path, windows, head=""):
     """The synthetic site: the pseudo census in data/census_example.csv, a synthetic forcing and
     tower, a one-key registry, and a calibration.toml with these windows."""
-    cfg = RunConfig.load(ROOT / "meds_config_main.toml")
+    cfg = RunConfig.load(ROOT / "ed_config_main.toml")
     main = cfg.main
     main["fast"]["fast_biophysics_on"] = True
     synthetic_forcing(tmp_path / "forcing.nc")
@@ -175,7 +174,7 @@ role = "cal"
         assert line in res.stdout, line
 
 
-@pytest.mark.skipif(not MEDS_MAIN or not Path(MEDS_MAIN).exists(), reason="MEDS_MAIN is not set to a meds_main executable")
+@pytest.mark.skipif(not EDMORE_MAIN or not Path(EDMORE_MAIN).exists(), reason="EDMORE_MAIN is not set to a edmore executable")
 def test_fit_end_to_end(tmp_path):
     """The whole joint fit on the synthetic site: the data report, the screening, Levenberg-Marquardt
     before and after the refresh, the final gradient matrix, the validation and the calibrated configs."""
@@ -192,7 +191,7 @@ role = "val"
 ''', head="[fit]\nmax_iter = 2\n")
     res = subprocess.run([sys.executable, str(HERE / "calibrate_fast.py"), "fit", "--config",
                           str(tmp_path / "calibration.toml"), "--work", str(tmp_path / "work"),
-                          "--runner", MEDS_MAIN, "--workers", "4"],
+                          "--runner", EDMORE_MAIN, "--workers", "4"],
                          capture_output=True, text=True, timeout=1800)
     assert res.returncode == 0, res.stdout[-6000:] + res.stderr[-4000:]
     import json

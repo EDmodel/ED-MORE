@@ -105,7 +105,7 @@ gives by default) reads chunk by chunk, about 3 s per 90,000 records. `met_open`
 meets one, with the `nccopy` line that rewrites it with the same values. `edmore.forcing` (`python/edmore/forcing.py`)
 writes a fixed-length time dimension, so every variable is one contiguous block.
 
-**Producing one from ERA5-Land.** `scripts/prepare_era5/make_forcing_file.py` writes the file above,
+**Producing one from ERA5-Land.** `scripts/prepare_input/era5/make_forcing_file.py` writes the file above,
 either by cutting the site's cell out of an ED_ERA5land archive (`--data-path`) or from a small download:
 `download_era5land_cds.py` pulls the eight hourly variables (`t2m`, `d2m`, `sp`, `u10`, `v10`, `tp`,
 `ssrd`, `strd`) for a box around the site from the CDS (the Copernicus Climate Data Store),
@@ -118,7 +118,7 @@ source's speed at `[aerodynamics].ubmin`, for the Monin–Obukhov stability), an
 $`\mathrm{Rainf}=\Delta tp\cdot 1000/3600`$ [kg m⁻² s⁻¹], $`\mathrm{SWdown}=\Delta ssrd/3600`$ and
 $`\mathrm{LWdown}=\Delta strd/3600`$ [W m⁻²], with the small negative differences that GRIB packing
 leaves in rain and shortwave set to zero. Both inputs go through one table and one rule,
-`ARCHIVE_VARIABLES` and `deaccumulate` in `scripts/prepare_era5/era5land_common.py`, the ones the
+`ARCHIVE_VARIABLES` and `deaccumulate` in `scripts/prepare_input/era5/era5land_common.py`, the ones the
 archive is built with, so the file names and describes each variable as the archive does. The location
 is always named (`--lat` with `--lon`, `--cells`, or `--all-cells` for box files); only the archive
 knows the cell's orography, so only a file cut from it carries `elevation`.
@@ -132,14 +132,14 @@ last hour needs the 00:00 stamp of day D+1, so the downloader fetches that closi
 extra request; the box files therefore start at 01:00 on the first day and end at 00:00 after the
 last, and nothing is filled.
 
-**Producing one from flux-tower data.** `scripts/prepare_flux_tower/make_tower_forcing.py` reads
+**Producing one from flux-tower data.** `scripts/prepare_input/flux_tower/make_tower_forcing.py` reads
 AmeriFlux BASE, FLUXNET (ONEFlux) or a plain CSV described by a site TOML, converts the clock to UTC,
 writes `RHair` as measured, fills gaps explicitly with a per-variable `<Var>_qc` flag, and states the
 tower's heights; `examples/example04_column_biophysics/` builds Barro Colorado Island's file with it. Its
-conversions and checks are in `scripts/prepare_flux_tower/README.md`.
+conversions and checks are in `scripts/prepare_input/flux_tower/README.md`.
 
 **The ED_ERA5land archive (`[forcing].format = "ERA5land"`).** The global archive built by
-`scripts/prepare_era5/` holds one file per variable per month, `ED_ERA5land_<Var>_<YYYYMM>.nc`, each
+`scripts/prepare_input/era5/` holds one file per variable per month, `ED_ERA5land_<Var>_<YYYYMM>.nc`, each
 a regular `(time, lat, lon)` grid at 0.1°: `Tair`, `Tdew`, `PSurf`, `u10`, `v10` as ERA5-Land
 delivers them, and `Rainf`, `SWdown`, `LWdown` already de-accumulated to hourly means, end-stamped
 from 01:00 on the 1st to 00:00 on the 1st of the next month. A static file carries the `valid`
@@ -726,7 +726,7 @@ eq. (18) is $`(c_{i-1} + 6c_i + c_{i+1})/8`$.
 - **Contents.** Global-mean annual CO₂ for 1000–2022, from the CMIP7 input4MIPs greenhouse-gas
   concentrations (Nicholls et al., in prep.; source_id `CR-CMIP-1-0-0`, grid `gm`). It reads 282.437 in
   1000, 277.537 in 1700, 284.297 in 1850, 313.079 in 1950 and 417.320 in 2022.
-- **How it was built.** `scripts/prepare_co2/make_co2_file.py` joins the two ESGF files, 1000–1749
+- **How it was built.** `scripts/prepare_input/co2/make_co2_file.py` joins the two ESGF files, 1000–1749
   and 1750–2022, which meet without a step (278.007 on both sides).
 - **It is its own template.** The file's header repeats the format above.
 - **Licence.** The data is CC BY 4.0, so keep the attribution lines in any copy.
@@ -795,7 +795,7 @@ each option requires are in the reference config `ed_config_main.toml` and in
 | types | `ed_met_types`: `met_forcing_t`, `met_record_t`, `met_source_t`, `met_cursor_t`, `met_grid_t`, `met_cells_t`, `met_month_t`, `co2_series_t` |
 | config | `ed_forcing_params`: `forcing_params_t`, `MET_BACKEND_*`, `METAVG_*`, `LW_FILE`, `LW_SYNTHESIZE`, `CLAMP_*`, `GRIDMATCH_*`, `CO2_SOURCE_*`, `HEIGHT_ABOVE_*`, `WIND_EXPOSURE_*`; `SWPART_*` and `LW_CLEAR_*` in `ed_radiation_lib`; read by `load_forcing_params` (`ed_config_io`), checked by `check_forcing` (`ed_config_check`) |
 | fast-loop join | `ed_fast_forcing`: `sample_window` (the per-sub-step `met_advance` and `met_instant`), `site_forcing` (each site's sample), `patch_forcing` (the air at the patch's canopy-air top, from `fill_forcing`, and the radiation, which `apply_rt_forcing` hands to the canopy two-stream, [canopy radiative transfer](canopy_radiation_transfer.md) §3–§4) |
-| file production | the archive: `scripts/prepare_era5/download_era5land_gdex.py` or `download_era5land_cds.py`, then `build_era5land_static.py` and `build_era5land_archive.py`; a single file: `make_forcing_file.py` (from the archive, or from `download_era5land_cds.py` and `postprocess_era5land.py` box files) or `scripts/prepare_flux_tower/make_tower_forcing.py` (flux-tower data); the shared writer `edmore.forcing` (`python/edmore/forcing.py`); the tower tool's Python mirror of the model's conversions `scripts/prepare_flux_tower/tower_conversions.py`; the shipped CO₂ series `scripts/prepare_co2/make_co2_file.py` |
+| file production | the archive: `scripts/prepare_input/era5/download_era5land_gdex.py` or `download_era5land_cds.py`, then `build_era5land_static.py` and `build_era5land_archive.py`; a single file: `make_forcing_file.py` (from the archive, or from `download_era5land_cds.py` and `postprocess_era5land.py` box files) or `scripts/prepare_input/flux_tower/make_tower_forcing.py` (flux-tower data); the shared writer `edmore.forcing` (`python/edmore/forcing.py`); the tower tool's Python mirror of the model's conversions `scripts/prepare_input/flux_tower/tower_conversions.py`; the shipped CO₂ series `scripts/prepare_input/co2/make_co2_file.py` |
 | tests | ctest `met_file` (`test/io/test_met_file.f90`): the mean-conserving identity and the secant bias, the NetCDF round trip, start-clamp and recycle-window rejections, recycle phase over 29 years, prescribed CO₂ (every rejection, the shipped series, CO₂ not recycled with the met), the forcing at a site, and the flux-tower contract (humidity forms, the UTC requirement, stated heights, the interval each flux is read from, the move to the canopy-air top); `met_era5land` (`test/io/test_met_era5land.f90`): a synthetic archive, its cell selection, month loads, seam and recycling; `radiation_lib`, `therm_lib` and `numerics` (`test/share/`): the shortwave schemes, longwave synthesis, humidity, phase, lapse, the beam on a slope |
 
 ## References

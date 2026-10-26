@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests of the census preparation tool. Every table is synthetic, so each check has an answer that
 does not come from the code under test. Run with:
-    python -m pytest scripts/prepare_census/tests
+    python -m pytest scripts/prepare_input/census/tests
 """
 import json
 import math
@@ -67,13 +67,13 @@ def test_rows_share_a_diameter_and_conserve_every_stem():
     assert empty == 15 - 2
 
 
-def test_writes_the_file_meds_reads(tmp_path):
+def test_writes_the_file_ed_reads(tmp_path):
     csv = tmp_path / "trees.csv"
     table([("A", 253.0, 5, 5), ("A", 12.0, 45, 25), ("D", 99.0, 5, 5)]).to_csv(csv, index=False)
     decl = tmp_path / "census.toml"
     decl.write_text('[source]\npath = "trees.csv"\ncensus = "synthetic"\n'
                     '[plot]\nx_extent = 100.0\ny_extent = 60.0\ncell_size = 20.0\n')
-    out = tmp_path / "census_meds.csv"
+    out = tmp_path / "census_ed.csv"
     summary = mc.main(["--declaration", str(decl), "--out", str(out)])
     lines = out.read_text().splitlines()
     data = [ln for ln in lines if not ln.startswith("#")]
@@ -81,7 +81,7 @@ def test_writes_the_file_meds_reads(tmp_path):
     parsed = pd.read_csv(out, comment="#")
     assert sorted(parsed.dbh.round(4)) == [1.2, 25.3]
     assert summary["kept_trees"] == 2 and summary["rows"] == 2
-    assert json.loads((tmp_path / "census_meds_summary.json").read_text())["stems_in_file"] == pytest.approx(2.0)
+    assert json.loads((tmp_path / "census_ed_summary.json").read_text())["stems_in_file"] == pytest.approx(2.0)
 
 
 def test_the_default_allometry():

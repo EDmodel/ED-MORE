@@ -28,7 +28,7 @@
 #   concentrations for climate modelling (CMIP7), in prep., 2025.
 #   doi: https://doi.org/10.5281/zenodo.14892947
 #   Licence: CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
-#   Built by scripts/prepare_co2/make_co2_file.py on 2026-09-27; values rounded to 0.001 umol/mol.
+#   Built by scripts/prepare_input/co2/make_co2_file.py on 2026-09-27; values rounded to 0.001 umol/mol.
 # ============================================================================================
 timestep  1 year
 units     umol/mol

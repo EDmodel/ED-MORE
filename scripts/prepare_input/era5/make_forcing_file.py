@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""make_forcing_file.py -- write a MEDS single forcing file, the (time, grid) NetCDF that
-[forcing].format = "default" reads (src/io/met/meds_met.f90), from either source of ERA5-Land
+"""make_forcing_file.py -- write an ED-MORE single forcing file, the (time, grid) NetCDF that
+[forcing].format = "default" reads (src/io/met/ed_met.f90), from either source of ERA5-Land
 data this folder produces:
 
   --data-path DIR   an ED_ERA5land archive (build_era5land_archive.py), for the days --start..--end.
@@ -25,10 +25,10 @@ Both inputs give the same file (docs/science/forcing.md §1):
     itself, for every source), and the hour-mean fluxes Rainf [kg m-2 s-1], SWdown (total; the model
     partitions it) and LWdown [W m-2], each with the units, names and cell method the archive gives it;
   * end-stamped hourly records (avg_convention = "end"), UTC, written by the shared writer
-    (scripts/meds_forcing_file.py).
+    (edmore.forcing, python/edmore/forcing.py).
 No CO2air: CO2 is not meteorology, and the model takes it from [forcing].co2_source (a constant, or
-a MEDS CO2 file such as data/co2/), never from this file -- it rejects a file that carries one.
-MEDS never gap-fills: a missing value is an error, here as in the model.
+an ED-MORE CO2 file such as data/co2/), never from this file -- it rejects a file that carries one.
+ED-MORE never gap-fills: a missing value is an error, here as in the model.
 
 De-accumulation of the box files (the 00Z trap, docs/science/forcing.md §1): ERA5-Land accumulates
 from 00 UTC and resets daily, and the 00:00 stamp holds the WHOLE previous day. Ordered by valid
@@ -64,8 +64,8 @@ from netCDF4 import Dataset, num2date
 
 import era5land_common as common
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import meds_forcing_file as forcing_file  # noqa: E402  (the shared writer, in scripts/)
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "python"))
+from edmore import forcing as forcing_file  # noqa: E402  (the shared writer, python/edmore/forcing.py)
 
 EARTH_RADIUS_KM = 6371.0
 HOUR = dt.timedelta(hours=1)
@@ -265,8 +265,8 @@ def variable_attributes(name):
     return attrs
 
 
-def write_meds_forcing(path, times, grid, arrays, attrs):
-    """Write the MEDS (time, grid) forcing NetCDF through the shared writer: time in seconds since
+def write_ed_forcing(path, times, grid, arrays, attrs):
+    """Write the ED-MORE (time, grid) forcing NetCDF through the shared writer: time in seconds since
     the first record; latitude, longitude and, where the source knows it, elevation per grid point;
     the FILE_VARIABLES as float32 with _FillValue 1e20; the global attributes attrs. A missing value
     is an error there, as in the model."""
@@ -277,7 +277,7 @@ def write_meds_forcing(path, times, grid, arrays, attrs):
 
 
 def parse_args(argv):
-    ap = argparse.ArgumentParser(description="An ED_ERA5land archive or ERA5-Land box files -> a MEDS single "
+    ap = argparse.ArgumentParser(description="An ED_ERA5land archive or ERA5-Land box files -> an ED-MORE single "
                                              "forcing file ((time, grid) NetCDF).")
     src = ap.add_mutually_exclusive_group(required=True)
     src.add_argument("--data-path", help="an ED_ERA5land archive folder (build_era5land_archive.py)")
@@ -285,7 +285,7 @@ def parse_args(argv):
     ap.add_argument("--start", help="archive only: first day, YYYY-MM-DD (UTC); the file starts at 01:00")
     ap.add_argument("--end", help="archive only: last day, YYYY-MM-DD (UTC, inclusive); the file ends at 00:00 "
                                   "the next day")
-    ap.add_argument("--out", required=True, help="output MEDS forcing NetCDF")
+    ap.add_argument("--out", required=True, help="output ED-MORE forcing NetCDF")
     ap.add_argument("--lat", type=float, help="site latitude [deg N], with --lon")
     ap.add_argument("--lon", type=float, help="site longitude [deg E], with --lat")
     ap.add_argument("--cells", nargs="+", default=None,
@@ -318,7 +318,7 @@ def main(argv=None):
     times, grid, per_cell, source = from_archive(args) if args.data_path else from_box_files(args)
     arrays = file_arrays(per_cell)
     attrs = dict(
-        title="MEDS meteorological forcing",
+        title="ED-MORE meteorological forcing",
         source=source,
         history="make_forcing_file.py",
         timestep_seconds=3600,
@@ -328,7 +328,7 @@ def main(argv=None):
         tq_height_m=2.0,               # 2 m temperature and dewpoint; checked against [forcing].tq_height
         height_above="zero_plane",     # the IFS surface layer has no displacement height (docs/science/forcing.md §8)
     )
-    write_meds_forcing(args.out, times, grid, arrays, attrs)
+    write_ed_forcing(args.out, times, grid, arrays, attrs)
     print(f"wrote {args.out}: ntime={len(times)} ({times[0]:%Y-%m-%d %H:%M} .. {times[-1]:%Y-%m-%d %H:%M} UTC), "
           f"ngrid={len(grid)}, cells={[(round(g[0], 3), round(g[1], 3)) for g in grid]}")
 

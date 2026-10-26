@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """A calibration: its settings (a site's calibration.toml, completed from calibration_reference.toml),
 the base configuration its runs start from, the tower's facts (the site TOML), and the tower's data
-with the data rules applied (MEDS_FAST_CALIBRATION_BEST_PRACTICE.md §2, §3, §6.2).
+with the data rules applied (protocol §2, §3, §6.2).
 
 The forcing is the base configuration's own ([forcing].path and grid_index), so the windows, the
 water-deficit index and the climate priors read the file the runs read.
@@ -23,7 +23,7 @@ import priors
 import settings
 import targets
 import tower
-from meds.config import RunConfig, load_toml
+from edmore.config import RunConfig, load_toml
 from trials import Window
 
 

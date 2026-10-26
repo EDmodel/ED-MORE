@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Turn a ForestGEO tree table into a MEDS census file (scripts/prepare_census/README.md).
+"""Turn a ForestGEO tree table into an ED-MORE census file (scripts/prepare_input/census/README.md).
 
 The tool only maps trees to patches. Each square plot cell is one patch, and each distinct
 (cell, diameter) is one row, with `nplant` the number of those trees over the cell's area. It does
-no binning and no fusion: MEDS restructures the stand itself before the first step
+no binning and no fusion: ED-MORE restructures the stand itself before the first step
 (`restructure_census_stand`), with the same operators the slow step uses.
 
 A declaration TOML names the table and says how to read it; `bci_census.toml` in
@@ -16,7 +16,7 @@ examples/example04_column_biophysics is the worked example. The tool writes:
     litter input for [soil_carbon].spinup_steady.
 
 Usage:
-    python make_census.py --declaration bci_census.toml --out data/bci_census2010_meds.csv
+    python make_census.py --declaration bci_census.toml --out data/bci_census2010_ed.csv
 
 Dependencies: numpy, pandas (pyreadr for .rdata tables; tomli on Python < 3.11).
 """
@@ -27,7 +27,6 @@ import json
 import math
 import os
 import subprocess
-import sys
 
 import numpy as np
 import pandas as pd
@@ -37,7 +36,7 @@ try:
 except ImportError:                     # Python < 3.11
     import tomli as tomllib
 
-YR_DAY = 365.2425                       # days per year, as meds_constants
+YR_DAY = 365.2425                       # days per year, as ed_constants
 ALIVE = ("A",)
 
 
@@ -140,8 +139,8 @@ def write_census(rows, out, header_lines):
 #  The PFT's allometry and the steady-state litter input                                          #
 # --------------------------------------------------------------------------------------------- #
 def pft_params(pft_file, pft):
-    """The allometry and turnover of one PFT from a MEDS PFT file (the same formulas as
-    src/share/functions/meds_allometry_lib.f90)."""
+    """The allometry and turnover of one PFT from an ED-MORE PFT file (the same formulas as
+    src/share/functions/ed_allometry_lib.f90)."""
     with open(pft_file, "rb") as fh:
         t = tomllib.load(fh)
     a, p, k = t["allometry"], t["pft"], int(pft) - 1
@@ -190,7 +189,7 @@ def biomass_mortality(earlier, later):
 
 def litter_input(dbh_cm, plot_area, pp, wood_mortality):
     """The four steady-state litter streams [kgC m-2 day-1] of the stand, routed as
-    meds_soil_carbon's necromass_to_litter routes necromass."""
+    ed_soil_carbon's necromass_to_litter routes necromass."""
     _, la, agb = allometry(dbh_cm, pp)
     leaf_c = la.sum() / pp["sla"] / plot_area
     root_c = pp["root_to_leaf"] * leaf_c
@@ -223,7 +222,7 @@ def git_commit(where):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--declaration", required=True, help="the census declaration TOML")
-    ap.add_argument("--out", required=True, help="the MEDS census CSV to write")
+    ap.add_argument("--out", required=True, help="the ED-MORE census CSV to write")
     ap.add_argument("--summary", help="the summary JSON (default: the CSV path with _summary.json)")
     args = ap.parse_args(argv)
 
@@ -244,12 +243,12 @@ def main(argv=None):
     dates = pd.to_datetime(trees.get("ExactDate"), errors="coerce") if "ExactDate" in trees else None
     date_note = (f"{dates.min().date()} to {dates.max().date()}"
                  if dates is not None and dates.notna().any() else "not given")
-    header = [f"MEDS census: {src.get('census', os.path.basename(path))}, measured {date_note}",
+    header = [f"ED-MORE census: {src.get('census', os.path.basename(path))}, measured {date_note}",
               f"source {os.path.basename(path)}, SHA-256 {sha256(path)[:16]}...; {src.get('citation', '')}".rstrip("; "),
               f"{len(trees)} live trees >= {plot.get('min_dbh_mm', 10.0):g} mm; one patch per "
               f"{float(plot.get('cell_size', 20.0)):g} m cell; one row per distinct (cell, dbh)",
               "patch_area [m2]; dbh [cm]; nplant [plants per m2 of the patch]; "
-              f"made by scripts/prepare_census/make_census.py at {git_commit(base)} on "
+              f"made by scripts/prepare_input/census/make_census.py at {git_commit(base)} on "
               f"{datetime.date.today().isoformat()}"]
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     write_census(rows, args.out, header)

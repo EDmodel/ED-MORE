@@ -27,7 +27,7 @@ Sources (--source):
         at a time, only the coded (valid) values, into a (hours x valid cells) array: about 6.6 GB for a
         31-day month, so size --workers to the node's memory (about 10 GB per worker).
 
-Checks, all hard errors (MEDS never gap-fills): the raw files give exactly the month's hourly stamps on
+Checks, all hard errors (ED-MORE never gap-fills): the raw files give exactly the month's hourly stamps on
 the static file's grid; the no-data pattern equals the static file's `valid` mask at every hour; every
 value is inside the variable's plausibility bounds. Soft check (warning, recorded in the manifest): Tdew
 above Tair by more than 0.5 K, on a sample of chunk columns.

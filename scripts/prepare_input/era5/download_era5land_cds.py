@@ -6,7 +6,7 @@ Climate Data Store (CDS), dataset "reanalysis-era5-land".
 A single site is simply a small box. This script only downloads: the files are kept exactly as the
 CDS delivers them (GRIB by default), one per request, and checked by message or time-stamp count.
 postprocess_era5land.py decodes, cuts, merges and trims them into NetCDF box files, the same layout
-it writes from GDEX files; conversion to the MEDS forcing format and the split into regions follow.
+it writes from GDEX files; conversion to the ED-MORE forcing format and the split into regions follow.
 
 Request design (CDS cost = variables x days x hours, NetCDF counted double, limit 12,000; the area
 does not change the cost):
@@ -167,7 +167,7 @@ def main(argv=None):
         if args.format == "grib":
             import eccodes  # noqa: F401  (fail before queueing, not after downloading)
     except ImportError as err:
-        sys.exit(f"{err}: conda env create -f scripts/prepare_era5/environment.yml")
+        sys.exit(f"{err}: conda env create -f scripts/prepare_input/era5/environment.yml")
     if not os.path.exists(os.path.expanduser("~/.cdsapirc")) and not os.environ.get("CDSAPI_KEY"):
         sys.exit("no CDS credentials: create ~/.cdsapirc with the url and key lines (see --help)")
     os.makedirs(args.out_dir, exist_ok=True)

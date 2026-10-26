@@ -10,13 +10,13 @@
 # Usage:                                                                                    #
 #   ./scripts/install_ifx.sh            # check; prompt before installing                  #
 #   ./scripts/install_ifx.sh -y         # check; install without prompting (for CI)        #
-#   MEDS_ASSUME_YES=1 ./scripts/install_ifx.sh   # same as -y                              #
+#   EDMORE_ASSUME_YES=1 ./scripts/install_ifx.sh   # same as -y                            #
 #   ./scripts/install_ifx.sh -h         # help                                             #
 #                                                                                          #
 # Notes:                                                                                    #
 #   * System install needs root; the script uses sudo and will prompt for your password.   #
 #   * Intel MPI / MKL are separate oneAPI packages (intel-oneapi-mpi-devel, intel-oneapi-  #
-#     mkl-devel); MEDS uses neither, so this script does not install them.                 #
+#     mkl-devel); ED-MORE uses neither, so this script does not install them.              #
 #==========================================================================================#
 set -euo pipefail
 
@@ -27,7 +27,7 @@ APT_LIST="/etc/apt/sources.list.d/oneAPI.list"
 KEY_URL="https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
 FORTRAN_PKG="intel-oneapi-compiler-fortran"
 
-ASSUME_YES="${MEDS_ASSUME_YES:-0}"
+ASSUME_YES="${EDMORE_ASSUME_YES:-0}"
 
 usage() {
    cat <<'EOF'
@@ -39,7 +39,7 @@ Usage:
   ./scripts/install_ifx.sh -h       show this help
 
 Environment:
-  MEDS_ASSUME_YES=1   same as -y
+  EDMORE_ASSUME_YES=1   same as -y
   ONEAPI_ROOT=<dir>   oneAPI install prefix (default /opt/intel/oneapi)
 
 Targets Debian/Ubuntu (apt). Installs intel-oneapi-compiler-fortran via the
@@ -163,7 +163,7 @@ Done. To use ifx, activate the oneAPI environment in your shell:
     source ${SETVARS}
 Add that line to ~/.bashrc to make ifx available in every new terminal.
 
-To build MEDS with ifx via CMake (needs CMake >= 3.20; the dev kind, the others
+To build ED-MORE with ifx via CMake (needs CMake >= 3.20; the dev kind, the others
 are in docs/building.md, "Build kinds"):
     source ${SETVARS}
     cmake -B build-dev -DCMAKE_Fortran_COMPILER=ifx -DCMAKE_PREFIX_PATH=<netCDF prefix>

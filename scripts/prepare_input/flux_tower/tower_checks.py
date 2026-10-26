@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""tower_checks.py -- the validation gates of a tower forcing build (scripts/prepare_flux_tower/README.md,
+"""tower_checks.py -- the validation gates of a tower forcing build (scripts/prepare_input/flux_tower/README.md,
 "What it checks"). Each gate checks a DECLARATION of the site TOML against the data and stops the build
 on a disagreement; V5 only reports.
 
@@ -30,13 +30,13 @@ F1_MAX_MEDIAN_RESIDUAL = 25.0   # [W m-2] median |Rnet - (SW_in - SW_out + LW_in
 F3_MAX_BAD_FRACTION = 0.05      # SW_out above SW_in, or LW_out outside the band, at most this often
 F_MIN_RECORDS = 100             # a flux check needs at least this many records, or it is skipped
 
-FLUX_BOUNDS = {                 # MEDS units: wide, so only a unit error trips them
+FLUX_BOUNDS = {                 # ED-MORE units: wide, so only a unit error trips them
     "SW_out": (0.0, 1200.0), "LW_out": (100.0, 800.0), "Rnet": (-300.0, 1200.0), "LE": (-300.0, 1200.0),
     "H": (-500.0, 1200.0), "NEE": (-80.0, 80.0), "GPP": (-20.0, 100.0), "RECO": (-20.0, 80.0),
     "USTAR": (0.0, 5.0),
 }
 
-BOUNDS = {                      # MEDS units
+BOUNDS = {                      # ED-MORE units
     "Tair": (170.0, 340.0), "RH": (0.0, 1.05), "VPD": (-50.0, 1.0e4), "PSurf": (3.0e4, 1.1e5),
     "Rainf": (0.0, 0.2), "SWdown": (0.0, 1500.0), "LWdown": (30.0, 650.0), "Wind": (0.0, 75.0),
     "PAR": (0.0, 3000.0),
@@ -57,7 +57,7 @@ def check_axis(stamps, timestep):
     if bad.any():
         k = int(np.argmax(bad))
         raise SystemExit(f"ERROR (V1): records {k + 1} and {k + 2} are {step[k]:.0f} s apart, not the declared "
-                         f"clock.timestep = {timestep:.0f} s. MEDS reads a uniform axis: insert the missing "
+                         f"clock.timestep = {timestep:.0f} s. ED-MORE reads a uniform axis: insert the missing "
                          f"stamps as missing values, which the gap filling then treats openly.")
     return dict(records=int(len(stamps)), first=str(stamps[0]), last=str(stamps[-1]))
 
@@ -82,7 +82,7 @@ def screen_bounds(values):
         report[name] = dict(present=n_present, out_of_bounds=int(bad.sum()))
         if n_present and bad.sum() / n_present > V4_MAX_BAD_FRACTION:
             raise SystemExit(f"ERROR (V4): {100.0 * bad.sum() / n_present:.1f}% of {name} lies outside "
-                             f"[{lo}, {hi}] in MEDS units. Check its declared units.")
+                             f"[{lo}, {hi}] in ED-MORE units. Check its declared units.")
         values[name] = x.where(~bad)
     return values, report
 
@@ -104,7 +104,7 @@ def screen_flux_bounds(fluxes):
         report[name] = dict(present=n_present, out_of_bounds=int(bad.sum()))
         if n_present and bad.sum() / n_present > V4_MAX_BAD_FRACTION:
             raise SystemExit(f"ERROR (V4): {100.0 * bad.sum() / n_present:.1f}% of fluxes.{name} lies outside "
-                             f"[{lo}, {hi}] in MEDS units. Check its declared units.")
+                             f"[{lo}, {hi}] in ED-MORE units. Check its declared units.")
         fluxes[name] = x.where(~bad)
     return fluxes, report
 

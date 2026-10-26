@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """tower_gapfill.py -- explicit, flagged gap filling for a tower forcing file
-(scripts/prepare_flux_tower/README.md, "Gap filling"). MEDS never gap-fills, so every value the file carries is
+(scripts/prepare_input/flux_tower/README.md, "Gap filling"). ED-MORE never gap-fills, so every value the file carries is
 either observed or filled here, and the file says which with a <Var>_qc flag:
 
   0  observed
@@ -168,7 +168,7 @@ def clearness_held_through_night(sw, mean_cosz):
 
 
 def synthesized_longwave(tair_k, rh, psurf_ground_pa, sw, mean_cosz, cloud_a=conv.LW_CLOUD_A):
-    """MEDS's lwdown_source = "synthesize" from the tower's own temperature, humidity, pressure and
+    """ED-MORE's lwdown_source = "synthesize" from the tower's own temperature, humidity, pressure and
     shortwave (docs/science/forcing.md eq. (17))."""
     q = conv.rh_to_specific_humidity(rh, tair_k, psurf_ground_pa)
     kt = clearness_held_through_night(sw, mean_cosz)
@@ -192,10 +192,10 @@ SYNTHESIS_FALLBACK = (0.0, 1.0, conv.LW_CLOUD_A)
 
 
 # ---------------------------------------------------------------------------------------------
-# Re-centring the states: MEDS reads a state as a value at its stamp (docs/science/forcing.md §3).
+# Re-centring the states: ED-MORE reads a state as a value at its stamp (docs/science/forcing.md §3).
 # ---------------------------------------------------------------------------------------------
 def recentre(y, qc, stamp, energy=False):
-    """Interval means -> values AT the stamps, which is how MEDS reads a state. On a begin-stamped
+    """Interval means -> values AT the stamps, which is how ED-MORE reads a state. On a begin-stamped
     file the stamp t_k starts interval k, so x(t_k) = (x_{k-1} + x_k)/2; on an end-stamped one it ends
     it, so x(t_k) = (x_k + x_{k+1})/2. The first (begin) or last (end) record has one neighbour and
     keeps its mean. Wind averages its square, as the reader interpolates it. A value built from a

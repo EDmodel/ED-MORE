@@ -1,19 +1,19 @@
-# `prepare_era5/` — ERA5-Land forcing for MEDS
+# `prepare_input/era5/` — ERA5-Land forcing for ED-MORE
 
-Downloads ERA5-Land hourly weather and prepares it for MEDS in two forms: the **ED_ERA5land archive**
+Downloads ERA5-Land hourly weather and prepares it for ED-MORE in two forms: the **ED_ERA5land archive**
 (global, one file per variable per month, plus a static file), which a run reads with
 `[forcing].format = "ERA5land"`; and a **single forcing file** for one or a few sites, which a run reads
 with `format = "default"`. The file layout and the variables are in
-[`docs/science/forcing.md`](../../docs/science/forcing.md) §1, the `[forcing]` keys in
-[`docs/configuration.md`](../../docs/configuration.md).
+[`docs/science/forcing.md`](../../../docs/science/forcing.md) §1, the `[forcing]` keys in
+[`docs/configuration.md`](../../../docs/configuration.md).
 
 ## Install
 
 ```bash
-mamba env create -f scripts/prepare_era5/environment.yml     # or micromamba; creates `meds-era5`
+mamba env create -f scripts/prepare_input/era5/environment.yml     # or micromamba; creates `edmore-era5`
 ```
 
-The environment also serves [`../prepare_flux_tower`](../prepare_flux_tower/README.md). The CDS
+The environment also serves [`../flux_tower`](../flux_tower/README.md). The CDS
 downloader needs `~/.cdsapirc` (two lines, `url: https://cds.climate.copernicus.eu/api` and
 `key: <token>`) and the ERA5-Land licence accepted once on the CDS website. The GDEX downloader is
 anonymous. The examples below use `$ERA5LAND_ROOT` as a placeholder for your data folder; no script
@@ -67,7 +67,7 @@ python make_forcing_file.py --data-path $ERA5LAND_ROOT/ED_ERA5land --start 2024-
   sites, or `--all-cells` (box files only). From the archive it picks the nearest valid cell within
   `--max-distance-km` (15) and needs `--start` and `--end`; from box files it needs no `--start`/`--end`
   and writes no `elevation`.
-- The checks stop on a missing hour or an out-of-bounds value: MEDS never gap-fills.
+- The checks stop on a missing hour or an out-of-bounds value: ED-MORE never gap-fills.
 
 ## Using the output
 

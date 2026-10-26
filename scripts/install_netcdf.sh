@@ -3,7 +3,7 @@
 #==========================================================================================#
 # install_netcdf.sh — check for the netCDF C library and offer to install it.              #
 #                                                                                          #
-# MEDS writes its output through the netCDF *C* library (via iso_c_binding). EVERY build     #
+# ED-MORE writes its output through the netCDF *C* library (via iso_c_binding). EVERY build  #
 # needs it (netCDF is a hard dependency — always compiled); CMake locates it with            #
 # `find_package(netCDF CONFIG)`, which you point at the install via -DCMAKE_PREFIX_PATH=<prefix>. #
 #                                                                                          #
@@ -29,7 +29,7 @@
 #==========================================================================================#
 set -euo pipefail
 
-ASSUME_YES="${MEDS_ASSUME_YES:-0}"
+ASSUME_YES="${EDMORE_ASSUME_YES:-0}"
 ROUTE="auto"               # auto | conda | apt
 
 usage() {
@@ -44,10 +44,10 @@ Usage:
   ./scripts/install_netcdf.sh -h        show this help
 
 Environment:
-  MEDS_ASSUME_YES=1   same as -y
+  EDMORE_ASSUME_YES=1   same as -y
 
-MEDS's CMake uses find_package(netCDF CONFIG); conda-forge's libnetcdf ships that config,
-so the conda route is recommended. Build MEDS with -DCMAKE_PREFIX_PATH=<prefix> (the printed
+ED-MORE's CMake uses find_package(netCDF CONFIG); conda-forge's libnetcdf ships that config,
+so the conda route is recommended. Build ED-MORE with -DCMAKE_PREFIX_PATH=<prefix> (the printed
 prefix). netCDF is required for every build.
 EOF
 }
@@ -83,11 +83,11 @@ report_netcdf() {                             # report version/prefix + how to p
    [[ -n "${prefix}" ]] && echo "  prefix: ${prefix}"
    if [[ -n "${prefix}" && -f "${prefix}/lib/cmake/netCDF/netCDFConfig.cmake" ]]; then
       echo "  CMake config present -> find_package(netCDF CONFIG) will find it."
-      echo "  Build MEDS with:  -DCMAKE_PREFIX_PATH=${prefix}"
+      echo "  Build ED-MORE with:  -DCMAKE_PREFIX_PATH=${prefix}"
    else
       echo "  NOTE: no CMake config under <prefix>/lib/cmake/netCDF — find_package(netCDF CONFIG)"
       echo "        may not locate it. conda-forge's libnetcdf ships one; install that (netCDF is"
-      echo "        a required MEDS build dependency)."
+      echo "        a required ED-MORE build dependency)."
    fi
 }
 
@@ -127,8 +127,8 @@ if [[ "${ROUTE}" == "conda" ]]; then
       cat >&2 <<EOF
 No conda environment is active (\$CONDA_PREFIX is empty). Activate one first, e.g.:
     conda activate base        # or your project env
-then re-run, or create the full MEDS env in one step:
-    mamba env create -f environment.yml && conda activate meds
+then re-run, or create the full ED-MORE env in one step:
+    mamba env create -f environment.yml && conda activate edmore
 EOF
       exit 1
    fi
@@ -183,8 +183,8 @@ fi
 
 cat <<'EOF'
 
-Done. Build MEDS (netCDF is required), pointing CMake at the prefix above:
+Done. Build ED-MORE (netCDF is required), pointing CMake at the prefix above:
     cmake -B build-dev -DCMAKE_Fortran_COMPILER=ifx -DCMAKE_PREFIX_PATH=<prefix>
     cmake --build build-dev -j
-    LD_LIBRARY_PATH=<prefix>/lib ./build-dev/meds_main meds_config_main.toml
+    LD_LIBRARY_PATH=<prefix>/lib ./build-dev/edmore ed_config_main.toml
 EOF

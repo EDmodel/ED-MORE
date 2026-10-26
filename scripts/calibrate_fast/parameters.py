@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """The parameter registry (parameters.toml): which keys a fit may move, where each lives, its range,
-its prior, its kind and scope, and how it is transformed (MEDS_FAST_CALIBRATION_BEST_PRACTICE.md
+its prior, its kind and scope, and how it is transformed (protocol
 §3.5, §4).
 
 A key bounded to [a, b] is fitted as u = logit((g(value) - g(a)) / (g(b) - g(a))), with g the
@@ -21,7 +21,7 @@ and a kind (best-practice plan §4.2):
   trait        a measurable property, with a prior from evidence
   effective    a scheme property: its value belongs to this model structure (labelled as such)
   numerical    never calibrated
-  observation  a term of a target's observation model (kappa), never written to a MEDS config
+  observation  a term of a target's observation model (kappa), never written to an ED-MORE config
 
 and a scope: "plant_type" (shared by every tower of that type), "site", or "observation".
 
@@ -39,7 +39,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from meds.config import load_toml
+from edmore.config import load_toml
 
 DEFAULT_PRIOR_SD_U = math.log(0.975 / 0.025) / 2.0     # 1.832: logit(0.975) / 2
 GRADIENT_STEP_U = 0.04                                   # the central-difference step in u (~1 % of the range)

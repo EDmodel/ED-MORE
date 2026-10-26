@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""The state chains (MEDS_FAST_CALIBRATION_BEST_PRACTICE.md §6.1).
+"""The state chains (protocol §6.1).
 
 Every window has its own chain: a frozen run from the initial stand (the base config's census or
 state) that starts `chain_lead_days` before the window and writes a state at its start. Every trial

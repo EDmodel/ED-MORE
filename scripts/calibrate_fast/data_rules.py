@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""The data rules (MEDS_FAST_CALIBRATION_BEST_PRACTICE.md §2.3, §2.5, §6.2). Each works at any
+"""The data rules (protocol §2.3, §2.5, §6.2). Each works at any
 tower from its own data and forcing; the calibration's settings can override every outcome.
 
   u* per target      within classes of the target's driver (PAR for GPP, Rnet for LE and H), the

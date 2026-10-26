@@ -44,11 +44,11 @@ partition, longwave, slope) and `ed_therm_lib` (humidity, rain and snow, lapse).
 
 ## Making the input
 
-- The archive and single-site files come from `scripts/prepare_era5/` (`download_era5land_gdex.py` or
+- The archive and single-site files come from `scripts/prepare_input/era5/` (`download_era5land_gdex.py` or
   `download_era5land_cds.py`, `build_era5land_static.py`, `build_era5land_archive.py`,
   `make_forcing_file.py`).
-- A flux tower's file comes from `scripts/prepare_flux_tower/make_tower_forcing.py`.
-- The shipped CO₂ series (`data/co2/`) comes from `scripts/prepare_co2/make_co2_file.py`.
+- A flux tower's file comes from `scripts/prepare_input/flux_tower/make_tower_forcing.py`.
+- The shipped CO₂ series (`data/co2/`) comes from `scripts/prepare_input/co2/make_co2_file.py`.
 - `edmore.forcing` (`python/edmore/forcing.py`) is the one writer of an ED-MORE forcing file.
 
 Commands are in each script's header and in forcing.md §1.

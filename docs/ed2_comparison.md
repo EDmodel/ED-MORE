@@ -214,7 +214,7 @@ The numerical limitations and open questions are listed in
 | Format | Two TOML files: the main file and the PFT file it names in `[init].pft_config` | `ED2IN` namelist, optional XML (`IEDCNFGF`), `EVENT_FILE` |
 | Missing and unknown keys | A required key that is missing, or any key ED-MORE does not read, stops the run and is named. There are no built-in PFT defaults | Defaults in `ed_params.f90`; XML overrides |
 | Scheme selectors | Few; most processes have one implementation | About 40 `I*` flags, many with legacy and beta branches |
-| Derived parameters | `derive_config`; fitted PFT traits are computed outside the model by `scripts/pft_traits` | `ed_params.f90` |
+| Derived parameters | `derive_config`; fitted PFT traits are computed outside the model by `scripts/prepare_input/pft_traits` | `ed_params.f90` |
 | Provenance | The per-PFT table a run used is written to `<prefix>_pft_parameters.csv` | `ATTACH_METADATA` |
 
 The no-defaults rule is the biggest practical difference in setting up a run. A config fully determines the
@@ -244,7 +244,7 @@ each patch gets one cohort of every PFT whose density is above zero, at `min_coh
 | Downwelling longwave | From the file, or synthesized (Brutsaert clear sky with a cloud correction) | Required in the driver |
 | CO₂ | `[forcing].co2_source`: a constant (`co2_const`) or a prescribed series (`co2_file`) read on model time, never from the met file | `INITIAL_CO2` or the driver |
 | Terrain | A lapse from the forcing cell's elevation to each site's, and each site's slope and aspect on the direct beam | |
-| Preparation | `scripts/prepare_era5/` | Community drivers in ED2 format |
+| Preparation | `scripts/prepare_input/era5/` | Community drivers in ED2 format |
 
 The no-gap-filling policy is deliberate and rejects forcing files ED2 would run. Synthesized longwave is a
 fallback for forcing without it, not a substitute for a measured series
@@ -346,7 +346,7 @@ what they take from ED2 is listed here.
   the sapwood fraction ED2's `dbh2sf`.
 - **Plant hydraulics** (`ed_plant_hydr_lib`). The sapwood conductivity against wood density is Xu et al.
   (2016) as ED2 codes it (`plant_hydro_scheme = 2`), with wood density held to ED2's 0.35–0.95 g cm⁻³; it
-  is computed outside the model, by `scripts/pft_traits`. The root profile is ED2's cumulative exponential;
+  is computed outside the model, by `scripts/prepare_input/pft_traits`. The root profile is ED2's cumulative exponential;
   over the rooting depth it sums to 1 − β, and ED-MORE divides by that so the fractions sum to one.
 - **Soil water** (`ed_soil_hydr_lib`). The van Genuchten parameters follow Hodnett and Tomasella (2002)
   and the saturated conductivity Ottoni et al. (2019), as ED2's `soil_hydro_scheme = 2` uses them; the

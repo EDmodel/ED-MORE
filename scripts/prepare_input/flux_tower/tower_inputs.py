@@ -6,9 +6,9 @@ The site TOML DECLARES what the data are: the file and its format, the location,
 offset and which end of each interval a stamp marks), the sensor heights, for every meteorological
 variable its column and units, and optionally the tower's fluxes ([fluxes], each with the rule that
 says when it was measured) and what the provider did ([provider]). This module reads the file under
-that declaration and converts every value to MEDS units; tower_checks.py then VALIDATES the
+that declaration and converts every value to ED-MORE units; tower_checks.py then VALIDATES the
 declaration against the sun and the data. Nothing is sniffed: a missing declaration is an error
-naming the key. read_standard() gives the one table both tools use: UTC interval starts, MEDS units,
+naming the key. read_standard() gives the one table both tools use: UTC interval starts, ED-MORE units,
 and a measured mask per column.
 
 Three input formats share one column map and differ only in their defaults:
@@ -18,7 +18,6 @@ Three input formats share one column map and differ only in their defaults:
                   which values the provider filled
 """
 import os
-import sys
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -29,8 +28,6 @@ try:
 except ModuleNotFoundError:          # Python < 3.11
     import tomli as tomllib
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import meds_forcing_file as mff  # noqa: E402  (the writer, in scripts/)
 import tower_conversions as conv  # noqa: E402  (the model's conversions, this folder)
 
 FORMAT_DEFAULTS = {
@@ -58,7 +55,7 @@ FLUX_VARIABLES = ("SW_out", "LW_out", "Rnet", "LE", "H", "G", "NEE", "GPP", "REC
 # provider's quality flag screened.
 PROVIDER_KEYS = ("gpp_method", "notes", "ustar_threshold", "uncertainty", "flag")
 
-# Unit conversions to MEDS units. Rain per interval needs the interval length, applied by the caller.
+# Unit conversions to ED-MORE units. Rain per interval needs the interval length, applied by the caller.
 UNITS = {
     "Tair":   {"degC": lambda x: x + 273.15, "K": lambda x: x},
     "RH":     {"%": lambda x: x / 100.0, "1": lambda x: x},
@@ -123,7 +120,7 @@ class Site:
 
 def _require(table, key, where):
     if key not in table:
-        raise SystemExit(f"ERROR: the site TOML has no {where}.{key}; it is required (MEDS never guesses it)")
+        raise SystemExit(f"ERROR: the site TOML has no {where}.{key}; it is required (ED-MORE never guesses it)")
     return table[key]
 
 
@@ -227,12 +224,12 @@ def read_site(path):
 
 @dataclass
 class TowerData:
-    """The tower's data in MEDS units on the SOURCE clock, one row per stamp.
+    """The tower's data in ED-MORE units on the SOURCE clock, one row per stamp.
 
     values       DataFrame: Tair [K], RH [1], VPD [Pa], PSurf [Pa, at the barometer], Rainf [kg m-2 s-1],
                  SWdown, LWdown [W m-2], Wind [m s-1], PAR [umol m-2 s-1]; NaN where missing
     provider     DataFrame of the same columns: True where the provider filled the value (FLUXNET _QC > 0)
-    fluxes       DataFrame of the declared [fluxes] in MEDS units, NaN where missing
+    fluxes       DataFrame of the declared [fluxes] in ED-MORE units, NaN where missing
     measured     DataFrame of the same columns: True where the flux was measured (its declared rule)
     uncertainty  DataFrame: the provider's random uncertainty of a flux, by flux name, where given
     """
@@ -252,7 +249,7 @@ def _numeric(raw, col, missing):
 
 
 def read_tower(site):
-    """Read the declared columns of the input file and convert them to MEDS units.
+    """Read the declared columns of the input file and convert them to ED-MORE units.
 
     A flux is measured where its value is present and, when the site declares
     `measured = { column, equals }`, that column equals that value (BCI: FLAG = 1). Without a rule a
@@ -322,7 +319,7 @@ class StandardTable:
     """The tower as both tools read it (read_standard).
 
     values       DataFrame on the UTC START of each interval: the meteorological variables (screened
-                 for physical bounds, V4) and the fluxes, in MEDS units
+                 for physical bounds, V4) and the fluxes, in ED-MORE units
     measured     DataFrame of the same columns: True where the value was measured -- present and not
                  filled by the provider for a variable, present and passing its rule for a flux
     uncertainty  the provider's random uncertainty of a flux, where given
@@ -336,7 +333,7 @@ class StandardTable:
 
 
 def read_standard(site, strict=False):
-    """The one table of a tower: UTC interval starts, MEDS units, a measured mask per column. The
+    """The one table of a tower: UTC interval starts, ED-MORE units, a measured mask per column. The
     flux checks stop a strict caller (the forcing build) and are reported to the others (the
     calibration)."""
     import tower_checks as tc                              # (tower_checks imports this module)

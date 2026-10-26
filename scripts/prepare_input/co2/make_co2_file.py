@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""make_co2_file.py -- write a MEDS CO2 file (format 1) from the CMIP7 input4MIPs global-mean annual
+"""make_co2_file.py -- write an ED-MORE CO2 file (format 1) from the CMIP7 input4MIPs global-mean annual
 CO2 concentrations. This is how data/co2/co2_cmip7_global_annual_1000-2022.txt, the default series
 [forcing].co2_file points to, was built; rerun it to rebuild or re-span that file.
 
 The format is defined in docs/science/forcing.md §12, and summarised in the header this
-tool writes, so every file it makes is its own template. MEDS reads the file on model time
-(src/io/met/meds_met_co2.f90), so the CO2 keeps rising while recycled met repeats.
+tool writes, so every file it makes is its own template. ED-MORE reads the file on model time
+(src/io/met/ed_met_co2.f90), so the CO2 keeps rising while recycled met repeats.
 
 Input: the CMIP7 historical files, source_id CR-CMIP-1-0-0, grid "gm" (global mean), frequency "yr",
 in time order. They are small (53-89 KB) and served by ESGF:
@@ -17,7 +17,7 @@ in time order. They are small (53-89 KB) and served by ESGF:
 
 Usage (the default file):
   python make_co2_file.py co2_*_gm_1000-1749.nc co2_*_gm_1750-2022.nc \\
-      --out ../../data/co2/co2_cmip7_global_annual_1000-2022.txt
+      --out ../../../data/co2/co2_cmip7_global_annual_1000-2022.txt
 
 Each input record is a calendar-year mean with 1 Jan - 1 Jan bounds; the tool checks that, that the
 years run on without a gap or an overlap across the files, and that every file is the same product.
@@ -32,7 +32,7 @@ from netCDF4 import Dataset, num2date
 
 FORMAT_BLOCK = """\
 # ============================================================================================
-# MEDS CO2 file, format 1
+# ED-MORE CO2 file, format 1
 # ============================================================================================
 # FORMAT (full definition: docs/science/forcing.md section 12)
 #   Plain text. '#' starts a comment that runs to the end of the line; blank lines are ignored.
@@ -44,7 +44,7 @@ FORMAT_BLOCK = """\
 #       year YYYY | month YYYY-MM | day YYYY-MM-DD | hour YYYY-MM-DDThh | minute YYYY-MM-DDThh:mm
 #     The value is the mean CO2 over the period, from the start to the start plus n units.
 #     Each row starts exactly n units after the one before it (no gaps); at least two rows.
-#   MEDS places each value at the middle of its period and interpolates linearly between the
+#   ED-MORE places each value at the middle of its period and interpolates linearly between the
 #   middles, holding the first and last values over the outer half-periods. A run must lie
 #   between the start of the first period and the end of the last.
 #   Examples:  timestep 5 year     ->  1000, 1005, 1010, ...
@@ -80,9 +80,9 @@ def read_cmip7(path):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="CMIP7 global-mean annual CO2 (netCDF) -> a MEDS CO2 file")
+    ap = argparse.ArgumentParser(description="CMIP7 global-mean annual CO2 (netCDF) -> an ED-MORE CO2 file")
     ap.add_argument("inputs", nargs="+", help="CMIP7 gm/yr co2 files, in time order")
-    ap.add_argument("--out", required=True, help="the MEDS CO2 file to write")
+    ap.add_argument("--out", required=True, help="the ED-MORE CO2 file to write")
     ap.add_argument("--start", type=int, help="first year to write (default: the first in the inputs)")
     ap.add_argument("--end", type=int, help="last year to write (default: the last in the inputs)")
     ap.add_argument("--decimals", type=int, default=3, help="decimals written (default 3)")
@@ -122,7 +122,7 @@ def main(argv=None):
              f"#   {CITATION}",
              f"#   doi: {a.get('doi', 'n/a')}",
              f"#   Licence: {a.get('license_id', 'n/a')} (https://creativecommons.org/licenses/by/4.0/).",
-             f"#   Built by scripts/prepare_co2/make_co2_file.py on {dt.date.today():%Y-%m-%d}; "
+             f"#   Built by scripts/prepare_input/co2/make_co2_file.py on {dt.date.today():%Y-%m-%d}; "
              f"values rounded to {10.0 ** -args.decimals:g} umol/mol.",
              "# ============================================================================================",
              "timestep  1 year",

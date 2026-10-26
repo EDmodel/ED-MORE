@@ -15,12 +15,12 @@
 #                                                                                          #
 # Notes:                                                                                    #
 #   * System install needs root; the script uses sudo and will prompt for your password.   #
-#   * Ubuntu's HDF5 Fortran bindings land under /usr/include/hdf5/serial. MEDS needs       #
+#   * Ubuntu's HDF5 Fortran bindings land under /usr/include/hdf5/serial. ED-MORE needs    #
 #     none (its I/O is netCDF); a build that does points there or uses h5fc/pkg-config.    #
 #==========================================================================================#
 set -euo pipefail
 
-ASSUME_YES="${MEDS_ASSUME_YES:-0}"
+ASSUME_YES="${EDMORE_ASSUME_YES:-0}"
 WITH_HDF5=0
 PACKAGES=(gfortran)
 
@@ -35,7 +35,7 @@ Usage:
   ./scripts/install_gfortran.sh -h        show this help
 
 Environment:
-  MEDS_ASSUME_YES=1   same as -y
+  EDMORE_ASSUME_YES=1   same as -y
 
 Targets Debian/Ubuntu (apt). Installs gfortran (and optionally libhdf5-dev) from
 the standard repositories; the install step needs sudo (prompts for password).
@@ -125,7 +125,7 @@ fi
 
 cat <<'EOF'
 
-Done. gfortran is ready. To build MEDS with it via CMake (the dev kind; the
+Done. gfortran is ready. To build ED-MORE with it via CMake (the dev kind; the
 others are in docs/building.md, "Build kinds"):
     cmake -B build-dev -DCMAKE_Fortran_COMPILER=gfortran -DCMAKE_PREFIX_PATH=<netCDF prefix>
     cmake --build build-dev -j

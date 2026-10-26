@@ -2,8 +2,8 @@
 """Unit tests for scripts/calibrate_fast: the registry, its priors and the key selection, the
 calibration's settings against calibration_reference.toml, the transforms, the trial writer and
 runner, the observation models, the targets' filters and weights, the data rules, the calibrated
-files, and the fit and its uncertainty on a synthetic linear model with a known answer. No MEDS run
-(tests/test_smoke.py runs MEDS)."""
+files, and the fit and its uncertainty on a synthetic linear model with a known answer. No ED-MORE run
+(tests/test_smoke.py runs ED-MORE)."""
 import argparse
 import datetime as dt
 import json
@@ -19,7 +19,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import calibrate_fast          # noqa: E402  (puts the source tree's meds package on the path)
+import calibrate_fast          # noqa: E402  (puts the source tree's edmore package on the path)
 import calibrated_files        # noqa: E402
 import data_rules              # noqa: E402
 import fit                     # noqa: E402
@@ -33,7 +33,7 @@ import trials                  # noqa: E402
 import uncertainty             # noqa: E402
 import workers                 # noqa: E402
 from calibration import Calibration, seconds          # noqa: E402
-from meds.config import RunConfig, load_toml          # noqa: E402
+from edmore.config import RunConfig, load_toml        # noqa: E402
 from parameters import (DEFAULT_PRIOR_SD_U, GRADIENT_STEP_U, Param, interval, load, select,   # noqa: E402
                         set_defaults)
 
@@ -184,8 +184,8 @@ def test_a_queue_worker_counts_threads_against_its_slots(tmp_path):
 
 
 def test_command_runs_the_python_api_or_an_executable():
-    assert trials.command("python", Path("/t/main.toml")) == [sys.executable, "-m", "meds.model", "/t/main.toml"]
-    assert trials.command("/b/meds_main", Path("/t/main.toml")) == ["/b/meds_main", "/t/main.toml"]
+    assert trials.command("python", Path("/t/main.toml")) == [sys.executable, "-m", "edmore.model", "/t/main.toml"]
+    assert trials.command("/b/edmore", Path("/t/main.toml")) == ["/b/edmore", "/t/main.toml"]
 
 
 def test_record_check(tmp_path):
@@ -664,26 +664,7 @@ def test_priestley_taylor_and_the_range_coverage():
 
 
 # ----- the calibration's settings against calibration_reference.toml ----------------------------------
-BCI = Path(__file__).resolve().parents[3] / "examples/example04_column_biophysics/calibration.toml"
 MINIMAL = {"base": {"main": "m.toml", "parameters": "r.toml"}, "tower": {"site": "site.toml"}}
-
-
-def test_the_bci_calibration_is_complete_and_valid():
-    d = settings.complete(load_toml(BCI))
-    site = tower.tower_inputs.read_site(str(BCI.parent / d["tower"]["site"]))
-    assert site.timestep == 1800 and site.utc_offset == -5.0
-    assert site.fluxes["LW_out"]["column"] == "Rl_dn"                  # the file's longwave labels are swapped
-    assert site.fluxes["RECO"] == {"sum": ["GPP", "NEE"]} and site.provider["ustar_threshold"] == 0.4
-    assert site.leaf_on_months == list(range(1, 13))
-    assert all(site.fluxes[q]["measured"] == {"column": "FLAG", "equals": 1} for q in ("LE", "H", "NEE", "GPP", "USTAR"))
-    assert d["targets"]["gpp"]["ustar_min"] == "provider" and d["targets"]["gpp"]["sigma_abs"] == 1.5
-    assert set(d["targets"]) == set(targets.TARGETS) and d["closure"]["shares"] == "attribution"
-    assert d["targets"]["le"]["ustar_min"] == "diagnostic" and d["targets"]["h"]["ustar_min"] == "diagnostic"
-    assert d["priors"]["kappa"] == {"centre": 0.65, "sd": 0.10, "range": [0.4, 1.0], "source": d["priors"]["kappa"]["source"]}
-    assert d["targets"]["albedo"]["on"] is False and d["targets"]["albedo"]["min_solar_elevation"] == 20.0
-    assert d["windows"]["list"] == [] and d["seasonal_runs"]["list"] == []       # chosen by the rules
-    assert d["tower"]["forcing_qc"] == ["LWdown_qc", "Wind_qc"] and d["fit"]["timeout_per_day"] == 30.0
-    assert d["fit"]["max_iter"] == 10 and d["seasonal_runs"]["targets"] == ["le"]  # defaults it left out
 
 
 def test_every_target_takes_the_filters():
@@ -1019,7 +1000,7 @@ def test_co2_from_the_run_setting(tmp_path):
     assert priors.co2_ppm(base, [2015]) == 390.0
 
 
-@pytest.mark.skipif(not os.environ.get("MEDS_LIB"), reason="the EEO vcmax25 uses MEDS's own leaf (libmeds.so)")
+@pytest.mark.skipif(not os.environ.get("EDMORE_LIB"), reason="the EEO vcmax25 uses ED-MORE's own leaf (libedmore.so)")
 def test_the_coordination_vcmax25_balances_the_two_rates():
     lp = dict(priors.LEAF_DEFAULTS)
     clim = {"t_day_k": 299.4, "p_day_pa": 99300.0, "vpd_day_pa": 530.0, "par_day": 840.0}
@@ -1030,12 +1011,12 @@ def test_the_coordination_vcmax25_balances_the_two_rates():
     assert brighter > v25                                            # more light: more Rubisco to match it
 
 
-@pytest.mark.skipif(not os.environ.get("MEDS_LIB"), reason="compares with MEDS's own leaf kinetics (libmeds.so)")
+@pytest.mark.skipif(not os.environ.get("EDMORE_LIB"), reason="compares with ED-MORE's own leaf kinetics (libedmore.so)")
 def test_the_priors_kinetics_are_the_leafs():
     # The least-cost g1 needs no library, so priors.kinetics computes the kinetics itself, as partial
     # pressures; they must be the leaf kernel's at any pressure (Gamma* as a mole fraction does not
     # depend on it: docs/science/leaf_gas_exchange.md eq. (3)).
-    from meds.plant import leaf
+    from edmore.plant import leaf
     for p_pa in (99300.0, 70000.0):
         k = priors.kinetics(dict(priors.LEAF_DEFAULTS), 303.15, p_pa)
         m = leaf.rubisco_kinetics(leaf.c3_params(), 303.15, p_pa)

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""make_tower_forcing.py -- build a MEDS forcing file ([forcing].format = "default") from
+"""make_tower_forcing.py -- build an ED-MORE forcing file ([forcing].format = "default") from
 flux-tower meteorology: AmeriFlux BASE, FLUXNET/ONEFlux, or any CSV a site TOML describes
-(scripts/prepare_flux_tower/README.md).
+(scripts/prepare_input/flux_tower/README.md).
 
 What it does, in order:
   1. reads the site TOML, which DECLARES the file, the location, the clock (UTC offset and which
      end of each interval a stamp marks), the sensor heights and every variable's column and units;
-  2. converts every variable to MEDS units and screens physical bounds (V4);
+  2. converts every variable to ED-MORE units and screens physical bounds (V4);
   3. checks the time axis (V1), the clock against the sun (V2), a provider VPD against RH under
      its declared saturation curve (V3) and, when the site declares [fluxes], the fluxes' metadata
      (F1-F3: net radiation against its components, swapped longwave columns, bounds), and stops on
@@ -17,11 +17,11 @@ What it does, in order:
      variation, and the longwave by the model's own synthesis regressed onto the tower -- and flags
      each value with <Var>_qc. Filling from another source (ERA5-Land, a nearby station) is the
      user's to do in the tower file before the build;
-  6. turns the states' interval means into values at the stamps, which is how MEDS reads a state;
+  6. turns the states' interval means into values at the stamps, which is how ED-MORE reads a state;
   7. writes the file, with its heights, clock and fills stated, and a JSON report beside it (V5).
 
-The file carries relative humidity as measured (RHair); MEDS converts it with its own saturation
-curve, so the provider's never enters the model. The clock of the file is UTC; shift MEDS's output
+The file carries relative humidity as measured (RHair); ED-MORE converts it with its own saturation
+curve, so the provider's never enters the model. The clock of the file is UTC; shift ED-MORE's output
 back to local time in post-processing.
 
 Usage:
@@ -38,11 +38,12 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import tower_checks as tc    # noqa: E402
-import tower_gapfill as tg   # noqa: E402
-import tower_inputs as ti    # noqa: E402
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "python"))
+import tower_checks as tc         # noqa: E402
+import tower_gapfill as tg        # noqa: E402
+import tower_inputs as ti         # noqa: E402
+from edmore import forcing as mff  # noqa: E402  (the writer, python/edmore/forcing.py)
 
-mff = ti.mff
 conv = ti.conv
 STATES = ("Tair", "RH", "PSurf", "Wind", "SWdown")
 FILE_NAMES = {"Tair": "Tair", "RH": "RHair", "PSurf": "PSurf", "Wind": "Wind", "Rainf": "Rainf",
@@ -103,10 +104,10 @@ def prepare(site, short_gap_max=4, lw_holdout=None):
     # rain is never interpolated or averaged: a rain gap stops the build
     missing_rain = ~np.isfinite(y["Rainf"])
     if missing_rain.any():
-        raise SystemExit(f"ERROR: Rainf has {int(missing_rain.sum())} missing records. MEDS does not invent rain: "
+        raise SystemExit(f"ERROR: Rainf has {int(missing_rain.sum())} missing records. ED-MORE does not invent rain: "
                          f"fill them in the tower file (from a nearby gauge or a reanalysis) before the build.")
 
-    # the pressure at the ground, where MEDS keeps it (docs/science/forcing.md §8)
+    # the pressure at the ground, where ED-MORE keeps it (docs/science/forcing.md §8)
     y["PSurf"] = conv.pressure_at_height(y["PSurf"], y["Tair"], -site.pressure_height)
 
     # the longwave, last, because the synthesis needs the filled states
@@ -120,7 +121,7 @@ def prepare(site, short_gap_max=4, lw_holdout=None):
     fills["LWdown"]["method"] = "synthesis_regression"
     if fills["LWdown"]["fell_back_unfitted"]:
         print(f"WARNING: fewer than {tg.MIN_FIT_POINTS} observed longwave records to fit the synthesis to; the "
-              f"longwave is the model synthesis as MEDS computes it, not regressed onto the tower")
+              f"longwave is the model synthesis as ED-MORE computes it, not regressed onto the tower")
     report["fills"] = fills
     return dict(stamps=stamps, starts=starts, mean_cosz=mean_cosz, values=y, qc=qc, report=report,
                 source=values)
@@ -147,9 +148,9 @@ def build(site, out, short_gap_max=4, start=None, end=None, report_path=None):
         humidity_source += (f"; where RH is missing, from the provider's VPD under its "
                             f"{site.variables['VPD']['curve']} saturation curve")
     attrs = dict(
-        title="MEDS meteorological forcing from flux-tower data",
+        title="ED-MORE meteorological forcing from flux-tower data",
         source=f"{site.name}: {os.path.basename(site.input_path)} ({site.input_format})",
-        history="make_tower_forcing.py (scripts/prepare_flux_tower)",
+        history="make_tower_forcing.py (scripts/prepare_input/flux_tower)",
         timestep_seconds=int(round(site.timestep)),
         avg_convention=site.stamp,
         sw_input_kind="total",
@@ -188,7 +189,7 @@ def build(site, out, short_gap_max=4, start=None, end=None, report_path=None):
 
 
 def parse_args(argv):
-    ap = argparse.ArgumentParser(description="Flux-tower meteorology -> a MEDS forcing file.")
+    ap = argparse.ArgumentParser(description="Flux-tower meteorology -> an ED-MORE forcing file.")
     ap.add_argument("--site", required=True, help="the site TOML that declares the data")
     ap.add_argument("--out", required=True, help="the forcing NetCDF to write")
     ap.add_argument("--short-gap-max", type=int, help="the longest gap interpolated, in records (default 4)")

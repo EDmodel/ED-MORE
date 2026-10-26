@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""The targets, their filters, and the residuals (MEDS_FAST_CALIBRATION_BEST_PRACTICE.md §2.5, §3).
+"""The targets, their filters, and the residuals (protocol §2.5, §3).
 
 For each window, the rows a target contributes -- which records, the observed value and its
 observation error sigma -- depend only on the observations, so they are fixed once (WindowRows) and

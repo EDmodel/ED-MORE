@@ -3,7 +3,7 @@
 
 Every input is synthetic, made here from a known sun and a known humidity, so each check has an
 answer that does not come from the code under test. Run with:
-    python -m pytest scripts/prepare_flux_tower/tests
+    python -m pytest scripts/prepare_input/flux_tower/tests
 """
 import os
 import sys
@@ -15,7 +15,7 @@ from netCDF4 import Dataset
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
-sys.path.insert(0, os.path.join(HERE, "..", "..", "prepare_era5"))
+sys.path.insert(0, os.path.join(HERE, "..", "..", "era5"))
 import make_tower_forcing as mt   # noqa: E402
 import tower_gapfill as tg        # noqa: E402
 import tower_inputs as ti         # noqa: E402
@@ -134,7 +134,7 @@ def test_percent_units_declared_wrong_are_refused(tmp_path):
 # ---------------------------------------------------------------------------------------------
 def test_the_file_is_utc_begin_stamped_with_its_heights(tmp_path):
     ds, _ = build(tmp_path, write_site(tmp_path, synthetic_tower()))
-    assert ds.time_zone == "UTC" and ds.avg_convention == "begin" and ds.Conventions == "MEDS-forcing-1.1"
+    assert ds.time_zone == "UTC" and ds.avg_convention == "begin" and ds.Conventions == "ED-MORE-forcing-1.1"
     assert ds.tq_height_m == 30.0 and ds.wind_height_m == 32.0 and ds.height_above == "ground"
     assert ds["time"].units == "seconds since 2014-02-01 05:00:00"   # 00:00 UTC-5
     assert "RHair" in ds.variables and "Qair" not in ds.variables and "Tdew" not in ds.variables
@@ -287,7 +287,7 @@ Wind = {{ column = "WS", units = "m s-1" }}
 
 def test_ameriflux_timestamp_end_with_begin_stamp_is_refused(tmp_path):
     toml = tmp_path / "bad.toml"
-    toml.write_text(f'''
+    toml.write_text('''
 [input]
 format = "ameriflux_base"
 path = "x.csv"
@@ -305,7 +305,7 @@ tq_height = 2.0
 wind_height = 2.0
 pressure_height = 0.0
 [variables]
-Tair = {{ column = "TA", units = "degC" }}
+Tair = { column = "TA", units = "degC" }
 ''')
     with pytest.raises(SystemExit, match="TIMESTAMP_END"):
         ti.read_site(str(toml))
@@ -492,11 +492,11 @@ def test_make_forcing_file_writes_the_dewpoint(tmp_path):
                    LWdown=300.0).items()}
     arrays = mf.file_arrays([series])
     path = str(tmp_path / "era5.nc")
-    mf.write_meds_forcing(path, times, [(42.4, -76.5, 367.5)], arrays,
+    mf.write_ed_forcing(path, times, [(42.4, -76.5, 367.5)], arrays,
                           dict(avg_convention="end", sw_input_kind="total", timestep_seconds=3600,
                                wind_meas_height_m=10.0, tq_height_m=2.0, height_above="zero_plane"))
     with Dataset(path) as ds:
         assert "Tdew" in ds.variables and "Qair" not in ds.variables
-        assert ds.time_zone == "UTC" and ds.Conventions == "MEDS-forcing-1.1"
+        assert ds.time_zone == "UTC" and ds.Conventions == "ED-MORE-forcing-1.1"
         assert np.allclose(ds["Wind"][:, 0], 5.0)
         assert ds["Tdew"].height == "2 m"

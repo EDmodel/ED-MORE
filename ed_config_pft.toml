@@ -7,7 +7,7 @@
 [pft]
 wood_density       = [0.40, 0.60, 0.85]    # [g/cm3] the growth-mortality trade-off axis (pioneer/mid/climax)
 # The mortality hazard, mort_gamma + mort_alpha*exp(-mort_beta*growth_avg) (Camac et al. 2018). The values
-# are Camac's power laws in wood density at each PFT's, from scripts/pft_traits/pft_traits.py.
+# are Camac's power laws in wood density at each PFT's, from scripts/prepare_input/pft_traits/pft_traits.py.
 mort_gamma         = [0.019815037439806053, 0.0094, 0.004953547651645506]  # [1/yr]  growth-independent hazard
 mort_alpha         = [0.07968043353213256, 0.05, 0.0335056513529311]     # [1/yr]  low-growth hazard
 mort_beta          = [16.71633880800162, 18.72, 20.631926375047502]        # [yr/cm] growth sensitivity
@@ -114,7 +114,7 @@ growth_resp_factor     = [0.3, 0.3, 0.3]            # [--] construction cost: th
 leaf_turnover_rate_toc = [1.0, 0.5, 0.33]          # [1/yr] top-of-canopy baseline leaf turnover (> 0)
 # Light plasticity: a cohort's trait is its PFT's top-of-canopy value times exp(k * LAI above it), k in
 # 1/(m2/m2), when [trait_dynamics].trait_plasticity_on (docs/science/plant_traits.md eqs. (1), (3)-(4)).
-# The values are ED2's fits to vcmax25 and leaf_turnover_rate_toc, from scripts/pft_traits/pft_traits.py.
+# The values are ED2's fits to vcmax25 and leaf_turnover_rate_toc, from scripts/prepare_input/pft_traits/pft_traits.py.
 kplastic_vcmax         = [-0.1459341188305866, -0.11760191025318557, -0.10943768264434321]  # < 0: Vcmax25 falls in shade
 kplastic_rd            = [-0.1459341188305866, -0.11760191025318557, -0.10943768264434321]  # < 0: Rd25 falls in shade
 kplastic_sla           = [0.15654750929099287, 0.12615477645341722, 0.11739678683665906]    # > 0: SLA rises in shade
@@ -175,7 +175,7 @@ wood_psi50         = -2.0    # [MPa, < 0]   xylem potential at 50 % loss of cond
 wood_kexp          = 2.0     # [-]          vulnerability shape (1 or 2: closed form; else lookup table)
 # The plant's maximum internal conductance is its sapwood's, wood_kmax * sapwood area / (height *
 # vessel_curl) (eq. (10)). These wood_kmax are Xu et al. (2016)'s fit to each PFT's wood density
-# (eq. (11)), from scripts/pft_traits/pft_traits.py.
+# (eq. (11)), from scripts/prepare_input/pft_traits/pft_traits.py.
 wood_kmax          = [5.340397027887704, 3.2683981418222547, 1.7692398658114543]  # [kg/m/s/MPa] sapwood specific conductivity
 vessel_curl        = 1.5     # [-]          xylem path length per unit height
 # Roots. A cohort roots to root_depth_b1 * height^root_depth_b2 [m] (ED2's height allometry, IALLOM 1:

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""The estimation (MEDS_FAST_CALIBRATION_BEST_PRACTICE.md §6.3): one joint Levenberg-Marquardt fit
+"""The estimation (protocol §6.3): one joint Levenberg-Marquardt fit
 of every free key on the stacked residuals of every target in every window, with a Gaussian prior
 per key in the transformed space, the triage of the first gradient matrix, and the Laplace
 covariance at the MAP.

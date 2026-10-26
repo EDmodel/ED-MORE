@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""scripts/pft_traits: the fits a PFT file's fitted traits come from, and the shipped values."""
+"""scripts/prepare_input/pft_traits: the fits a PFT file's fitted traits come from, and the shipped values."""
 import importlib.util
 import math
 from pathlib import Path
@@ -9,8 +9,8 @@ try:
 except ImportError:                     # Python < 3.11
     import tomli as tomllib
 
-ROOT = Path(__file__).resolve().parents[2]
-_spec = importlib.util.spec_from_file_location("pft_traits", ROOT / "scripts" / "pft_traits" / "pft_traits.py")
+ROOT = Path(__file__).resolve().parents[4]
+_spec = importlib.util.spec_from_file_location("pft_traits", Path(__file__).resolve().parents[1] / "pft_traits.py")
 pft_traits = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(pft_traits)
 
@@ -36,7 +36,7 @@ def test_slow_turnover_keeps_one_rate_through_the_canopy():
 def test_the_reference_pft_file_carries_the_fits():
     """The shipped values came from the model's own arithmetic, which may round exp and log
     differently in the last place."""
-    with open(ROOT / "meds_config_pft.toml", "rb") as fh:
+    with open(ROOT / "ed_config_pft.toml", "rb") as fh:
         cfg = tomllib.load(fh)
     pft = cfg["pft"]
     rho, vcmax, turnover = pft["wood_density"], pft["vcmax25"], pft["leaf_turnover_rate_toc"]

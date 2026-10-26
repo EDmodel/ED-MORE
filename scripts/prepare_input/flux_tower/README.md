@@ -1,15 +1,15 @@
-# `prepare_flux_tower/` — MEDS forcing from flux-tower data
+# `prepare_input/flux_tower/` — ED-MORE forcing from flux-tower data
 
-Builds a MEDS forcing file (`[forcing].format = "default"`) from a flux tower's
+Builds an ED-MORE forcing file (`[forcing].format = "default"`) from a flux tower's
 meteorology: AmeriFlux BASE, FLUXNET/ONEFlux, or any CSV. A site TOML **declares** what the data
 are. The tool **checks** each declaration against the sun and the data, converts everything to
-MEDS's own conventions, fills gaps explicitly with a flag on every value, and states the tower's
-heights in the file. MEDS then moves each sample from those heights to every patch's canopy-air top.
+ED-MORE's own conventions, fills gaps explicitly with a flag on every value, and states the tower's
+heights in the file. ED-MORE then moves each sample from those heights to every patch's canopy-air top.
 The same site TOML declares the tower's fluxes (`[fluxes]`) for the fast calibration
-([`../calibrate_fast`](../calibrate_fast/README.md)): `tower_inputs.py` is the one reader of tower
-files for both tools. The worked example is [`examples/example04_column_biophysics/`](../../examples/example04_column_biophysics/);
+([`../../calibrate_fast`](../../calibrate_fast/README.md)): `tower_inputs.py` is the one reader of tower
+files for both tools. The worked example is `examples/example04_column_biophysics/`;
 the design record is
-[`docs/dev_plans/MEDS_FLUX_TOWER_FORCING_PLAN.md`](../../docs/dev_plans/MEDS_FLUX_TOWER_FORCING_PLAN.md).
+MEDS's [flux-tower forcing plan](https://github.com/xiangtaoxu/MEDS/blob/v0.4.0/docs/dev_plans/MEDS_FLUX_TOWER_FORCING_PLAN.md).
 
 ```bash
 python make_tower_forcing.py --site my_site.toml --out my_forcing.nc
@@ -21,9 +21,9 @@ not written), `--short-gap-max` (overrides `[gapfill]`) and `--report` (the JSON
 `<out>.report.json`). `compare_longwave_fill.py` takes `--holdout` (share of the observed longwave
 hidden, 0.2), `--block-days` (10) and `--seed` (1).
 
-Needs numpy, pandas and netCDF4, plus tomli on Python < 3.11: the `meds-era5` environment of
-[`../prepare_era5/environment.yml`](../prepare_era5/environment.yml) has them. The tests use pytest:
-`python -m pytest scripts/prepare_flux_tower/tests`, which CTest also runs as `prepare_flux_tower`
+Needs numpy, pandas and netCDF4, plus tomli on Python < 3.11: the `edmore-era5` environment of
+[`../era5/environment.yml`](../era5/environment.yml) has them. The tests use pytest:
+`python -m pytest scripts/prepare_input/flux_tower/tests`, which CTest also runs as `prepare_flux_tower`
 when the Python it finds has the dependencies.
 
 ## The site TOML
@@ -95,7 +95,7 @@ A flux is **measured** where its value is present and its `measured` rule holds 
 BCI the flag also removes every rain half hour). Without a rule, a FLUXNET flux is measured where its
 `_QC` column is 0, and any other flux wherever it is present. `RECO` may instead be the sum of other
 declared fluxes, for a provider who made GPP as RECO − NEE. `read_standard()` gives the table both
-tools read: UTC interval starts, MEDS units, and a measured mask for every column.
+tools read: UTC interval starts, ED-MORE units, and a measured mask for every column.
 
 ## What it checks
 
@@ -107,7 +107,7 @@ calibration reports them instead of stopping.
 | V1 | the time axis is uniform at `timestep`, sorted, without duplicates |
 | V2 | under the declared clock and stamp, the shortwave fits the model's own sun within 10 min, and less than 0.1 % of it falls where the model sees night. This catches a local-time file declared UTC and a stamp at the wrong end of the interval, errors that keep daily totals right and scramble the sub-daily phase |
 | V3 | with RH and VPD both given, the VPD is (1 − RH)·e_s(T) under the declared curve, to 1 Pa at the 99th percentile. A wrong declaration is answered with the curve that fits |
-| V4 | physical bounds in MEDS units, for the fluxes too. Out-of-bounds values become missing; more than 5 % of a variable is taken as a unit error |
+| V4 | physical bounds in ED-MORE units, for the fluxes too. Out-of-bounds values become missing; more than 5 % of a variable is taken as a unit error |
 | F1 | net radiation against its four components: the median of \|Rnet − (SW_in − SW_out + LW_in − LW_out)\| within 25 W m⁻² |
 | F2 | at night the upwelling longwave is above the downwelling (median). Below it, the two columns are swapped |
 | F3 | the reflected shortwave above the incoming in at most 5 % of records with SW_in > 200 W m⁻², and the upwelling longwave within σ(T_air − 20 K)⁴ … σ(T_air + 30 K)⁴ in at least 95 % |
@@ -117,20 +117,20 @@ calibration reports them instead of stopping.
 
 - **Clock:** UTC. The source clock and stamp convention are converted, and the convention is kept
   (`avg_convention`).
-- **`RHair`:** the measured relative humidity, a fraction. MEDS converts it with its own saturation
+- **`RHair`:** the measured relative humidity, a fraction. ED-MORE converts it with its own saturation
   curve. Where RH is missing, it is recovered from the provider's VPD under the declared curve.
 - **`PSurf`:** at the ground, brought down from `pressure_height` hypsometrically.
-- **States** (`Tair`, `RHair`, `PSurf`, `LWdown`, `Wind`): values at the stamps, as MEDS reads a
+- **States** (`Tair`, `RHair`, `PSurf`, `LWdown`, `Wind`): values at the stamps, as ED-MORE reads a
   state. Each is the mean of the two half-hour means that meet there; wind uses the root mean square.
 - **Fluxes** (`Rainf`, `SWdown`): means over each interval.
 - **`<Var>_qc`**, one per variable: 0 observed, 1 short gap, 3 synthesis regression or mean diurnal
   variation, 4 filled by the provider, 5 RH recovered from the provider's VPD. Code 2 is unused.
-- **Global attributes:** `tq_height_m`, `wind_height_m` and `height_above = "ground"`, which MEDS
+- **Global attributes:** `tq_height_m`, `wind_height_m` and `height_above = "ground"`, which ED-MORE
   checks against `[forcing]`, plus the fill methods and the source clock.
 
 ## Gap filling
 
-MEDS never gap-fills, so the tool fills explicitly and flags each fill. Filling from another source,
+ED-MORE never gap-fills, so the tool fills explicitly and flags each fill. Filling from another source,
 such as ERA5-Land or a nearby station, is the user's to do in the tower file before the build.
 - **Short gaps** of up to `short_gap_max` records are interpolated. Shortwave is interpolated through
   its clearness index, and wind in the energy form.
@@ -141,19 +141,19 @@ such as ERA5-Land or a nearby station, is the user's to do in the tower file bef
   εσT⁴(1 − kt), regressed onto the tower by month and day/night, so the site sets the cloud
   coefficient instead of the model's 0.22. A month and day/night group of fewer than 48 records
   takes the pooled fit. With fewer than 48 observed longwave records in all there is nothing to fit, and
-  the fill is the model's synthesis as MEDS computes it, with a warning.
+  the fill is the model's synthesis as ED-MORE computes it, with a warning.
 - [`compare_longwave_fill.py`](compare_longwave_fill.py) scores the longwave fill against
-  observations it never saw, beside a monthly climatology and the synthesis as MEDS computes it.
+  observations it never saw, beside a monthly climatology and the synthesis as ED-MORE computes it.
 
 ## Files
 
 | File | What it does |
 |---|---|
 | `make_tower_forcing.py` | the build (the CLI) |
-| `tower_inputs.py` | the site TOML and the three input formats, in MEDS units; `read_standard()`, the table both tools read |
+| `tower_inputs.py` | the site TOML and the three input formats, in ED-MORE units; `read_standard()`, the table both tools read |
 | `tower_checks.py` | V1–V5, F1–F3 |
 | `tower_gapfill.py` | the fills, the longwave predictors, re-centring |
 | `compare_longwave_fill.py` | the longwave comparison |
 | `tests/test_tower_forcing.py` | synthetic towers from a known sun and known humidity |
 | `tower_conversions.py` | the Python copy of the model's conversions (humidity, pressure, sun, longwave synthesis) |
-| `../meds_forcing_file.py` | the writer of the forcing file, shared with `prepare_era5/make_forcing_file.py` |
+| `edmore.forcing` (`python/edmore/forcing.py`) | the writer of the forcing file, shared with `../era5/make_forcing_file.py` |

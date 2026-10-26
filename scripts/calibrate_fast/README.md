@@ -1,13 +1,14 @@
 # calibrate_fast — fast-parameter calibration against a flux tower
 
-Fits MEDS's sub-daily parameters (radiation, photosynthesis and stomata, aerodynamics, water stress)
+Fits ED-MORE's sub-daily parameters (radiation, photosynthesis and stomata, aerodynamics, water stress)
 to a flux tower's fluxes, with the stand frozen at its initial structure, and gives a rough
 uncertainty for each parameter. It is the starting point for a longer-term calibration. The rules work
 at any tower; the tower's numbers come from its own data and climate. The protocol and every decision
 in it are in
-[`docs/dev_plans/MEDS_FAST_CALIBRATION_BEST_PRACTICE.md`](../../docs/dev_plans/MEDS_FAST_CALIBRATION_BEST_PRACTICE.md).
+MEDS's [fast-calibration protocol](https://github.com/xiangtaoxu/MEDS/blob/v0.4.0/docs/dev_plans/MEDS_FAST_CALIBRATION_BEST_PRACTICE.md) (MEDS v0.4.0); the code
+cites its sections as "protocol §N".
 Barro Colorado Island is the worked example:
-[`examples/example04_column_biophysics/calibration.toml`](../../examples/example04_column_biophysics/calibration.toml),
+`examples/example04_column_biophysics/calibration.toml`,
 with what the rules chose there and the results in the example's README.
 
 **The user decides, the tool recommends and reports.** Every setting of a site's `calibration.toml`
@@ -37,15 +38,15 @@ calibrate_fast.py variants runs/off/fit.json runs/on/fit.json --out runs/variant
 | `variants` | puts the fits of several variants side by side: each key's MAP and their spread in posterior sd |
 | `worker` | a queue worker on another node (see Slurm) |
 
-- **Runner.** Trials run through the Python API (`python -m meds.model`, which needs `libmeds.so`) by
-  default, or through an executable with `--runner ../../build-dev/meds_main`. The two give the same
-  output, bit for bit. The EEO vcmax25 prior needs `libmeds.so` in any case.
+- **Runner.** Trials run through the Python API (`python -m edmore.model`, which needs `libedmore.so`) by
+  default, or through an executable with `--runner ../../build-dev/edmore`. The two give the same
+  output, bit for bit. The EEO vcmax25 prior needs `libedmore.so` in any case.
 - **Re-running.** A re-run of `fit` replays every trial it has run from the cache in `--work`, so it
   costs only what is new, such as the post-fit steps after a change in the tool.
 - **Threads.** A run takes one thread for every 15 simulated days, up to `[fit].max_threads` (8). The
   120-day seasonal runs and the 180-day chains set an iteration's pace; the ten-day windows run on one
   thread. `--workers` (one machine) and a queue worker's `--slots` count cores, and a run takes as many
-  as it has threads. MEDS's output is the same at any thread count, so the fit is too.
+  as it has threads. ED-MORE's output is the same at any thread count, so the fit is too.
 - **Slurm.** `--queue` hands the trials to a directory queue under `--work`. Start one worker per node
   inside the same allocation; the driver hands trials to them and writes `STOP` when the fit ends.
   Ask Slurm for `--mem=0` (the whole node): a trial takes up to about 1 GB, and a cluster whose default
@@ -61,7 +62,7 @@ python calibrate_fast.py fit ... --queue
 ## The tower
 
 - **The site TOML holds the facts, `calibration.toml` the choices.** `[tower].site` names the tower's
-  site TOML, the file the forcing build reads ([`../prepare_flux_tower`](../prepare_flux_tower/README.md)).
+  site TOML, the file the forcing build reads ([`../prepare_input/flux_tower`](../prepare_input/flux_tower/README.md)).
   It declares the file, the clock, the columns and their units; in `[fluxes]`, each target's column
   with the rule that says when it was measured (BCI: `FLAG = 1`); in `[provider]`, what the provider
   did; and the leaf-on months. Both tools read it through `tower_inputs`.
@@ -107,7 +108,7 @@ python calibrate_fast.py fit ... --queue
     measured.
   - **GPP: respiration.** The provider made GPP from its own respiration, R_tower = κ R_true, so the
     residual is [GPP_model − GPP_tower − (1/κ − 1) R_tower]/σ_NEE. κ is an observation key: fitted with
-    a prior, never written to a MEDS config, and its gradient costs no trials. Without κ in the fit,
+    a prior, never written to an ED-MORE config, and its gradient costs no trials. Without κ in the fit,
     κ = 1. Without a site prior, κ is centred at 1, with its sd from the gap between the provider's two
     partitionings where both exist. κ is never fitted beside a free shape key of the leaf's light
     response.
@@ -122,7 +123,7 @@ python calibrate_fast.py fit ... --queue
 
 - **A trial** is a frozen run (`[run].slow_on = false`) restarted from its window's state, with
   `[init].reacclimate_traits = true` so a changed trait reaches the cohorts. Its main and PFT files are
-  the base configuration with keys set through `meds.config`, and its directory is named by a hash of
+  the base configuration with keys set through `edmore.config`, and its directory is named by a hash of
   them, so a repeated set of values reuses the finished run. A trial passes when it ends with `OK`, no
   whole-site budget breaches its tolerance, the model's parameter record lists every key the trial set
   with the value written, and the output has no missing or non-finite value. A trial that fails, or
@@ -152,9 +153,9 @@ python calibrate_fast.py fit ... --queue
   its own sd, and its prior z at the MAP is reported.
 - **Priors from the site's climate** (`priors.py`; the forcing only, never the tower's fluxes):
   - `stomatal_g1`: the least-cost value, ξ = √(β (K + Γ\*)/(1.6 η\*)) with β = 146, at the
-    growing-season daytime climate with MEDS's Rubisco kinetics; log-sd 0.5.
-  - `vcmax25`: the coordination of the Rubisco- and light-limited rates, solved with MEDS's own leaf
-    (`meds.plant.leaf`, so `libmeds`); log-sd 0.5.
+    growing-season daytime climate with ED-MORE's Rubisco kinetics; log-sd 0.5.
+  - `vcmax25`: the coordination of the Rubisco- and light-limited rates, solved with ED-MORE's own leaf
+    (`edmore.plant.leaf`, so `libedmore`); log-sd 0.5.
   - Jmax/Vcmax, `ds_vcmax`, `ds_jmax`: fixed at Kattge & Knorr for the growth temperature, set in every
     run and written into the calibrated files.
 - **Priors by plant type** (`[fit].plant_type`, the registry's `meta`) apply to a key without an EEO
@@ -217,7 +218,7 @@ One fit of every key at once (best-practice plan §6.3):
 |---|---|
 | `fit.json` | everything: the data report, climate priors, coverage and screening; each phase's history, the refresh's weights and σ scales; the MAP, start and default values, intervals, covariance and correlations; the key table; the linearity check, the declared alternatives, the model/tower ratios and κ's implications; the scores on the calibration and validation windows and the verdict; the trial count and timing |
 | `report.md` | the results for a reader: the validation, the keys with their flags, the targets, κ, the uncertainty |
-| `pft_parameters_calibrated.toml`, `meds_config_calibrated.toml` | the base configs with the MAP and the Kattge & Knorr values written in, comments kept, effective keys labelled |
+| `pft_parameters_calibrated.toml`, `ed_config_calibrated.toml` | the base configs with the MAP and the Kattge & Knorr values written in, comments kept, effective keys labelled |
 | `fit.log` | the run's log |
 | `trials/`, `chains/` | every trial and state (cached: a re-run reuses them) |
 
@@ -243,4 +244,4 @@ One fit of every key at once (best-practice plan §6.3):
 | `uncertainty.py` | the linearity check, the key table, the declared alternatives |
 | `report.py` | the data report, the model/tower ratios, κ, the validation's verdict, `report.md` |
 | `calibrated_files.py` | the calibrated configs |
-| `tests/` | unit tests, `check`, and an end-to-end fit with MEDS (ctest `calibrate_fast`) |
+| `tests/` | unit tests, `check`, and an end-to-end fit with ED-MORE (ctest `calibrate_fast`) |

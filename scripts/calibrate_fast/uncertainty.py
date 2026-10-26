@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""The uncertainty after the fit (MEDS_FAST_CALIBRATION_BEST_PRACTICE.md §7.1), from the final
+"""The uncertainty after the fit (protocol §7.1), from the final
 gradient matrix J at the MAP (fit.py's notation):
 
   linearity      along the posterior's leading directions, +-1 sd: the actual change in the cost

@@ -6,11 +6,12 @@ The downloaders only fetch source files, unchanged:
   download_era5land_gdex.py  NCAR GDEX dataset d633008 (global 5-day NetCDF files, a shared raw pool)
 Post-processing turns raw files into model-ready NetCDF:
   build_era5land_static.py   the archive's static file (valid-data mask, elevation, land fraction)
-  build_era5land_archive.py  the global per-variable monthly ED_ERA5land_ archive (the forcing MEDS reads)
+  build_era5land_archive.py  the global per-variable monthly ED_ERA5land_ archive (the forcing ED-MORE reads)
   postprocess_era5land.py    NetCDF box files with ERA5-Land's own names (a portable box extract)
-  make_forcing_file.py       a MEDS single forcing file, from the archive or from box files
+  make_forcing_file.py       an ED-MORE single forcing file, from the archive or from box files
 The archive is described in docs/science/forcing.md §1; its file layout in detail is
-docs/dev_plans/archive/MEDS_FORCING_DESIGN.md §14.
+§14 of MEDS's forcing design,
+https://github.com/xiangtaoxu/MEDS/blob/v0.4.0/docs/dev_plans/archive/MEDS_FORCING_DESIGN.md.
 What more than one script needs is defined here once: the variable tables with their units and
 conversions, the de-accumulation rule, the time conventions, source file naming and grid decoding.
 """
@@ -29,7 +30,7 @@ import urllib.request
 
 import numpy as np
 
-# The eight raw ERA5-Land variables MEDS forcing needs.
+# The eight raw ERA5-Land variables ED-MORE forcing needs.
 #   short name -> (CDS request name, GDEX product, GDEX file code)
 # The GDEX product "accumu" holds the fields accumulated since 00 UTC; ARCHIVE_VARIABLES' kind says
 # which archive variables are de-accumulated from them.
@@ -172,7 +173,7 @@ def deaccumulate(acc, hour_is_01, clip_negative):
     day's last hour, because the 00:00 stamp holds the whole previous day. A first sample that is not
     01:00 has nothing to difference and is NaN. GRIB packing noise can make a difference slightly
     negative, and clip_negative sets those to 0: only negatives, since a positive threshold such as
-    1e-5 m zeroes 0.95 % of all rain and 55 % of wet hours (MEDS_FORCING_DESIGN.md §7.3).
+    1e-5 m zeroes 0.95 % of all rain and 55 % of wet hours (MEDS's forcing design §7.3).
     No-data (NaN) stays NaN, and acc's dtype is kept."""
     acc = np.asarray(acc)
     out = np.empty_like(acc)

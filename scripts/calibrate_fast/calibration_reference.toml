@@ -2,7 +2,7 @@
 # =====================================================================================================
 # calibrate_fast -- the CALIBRATION REFERENCE: every setting a site's calibration.toml may hold, with
 # the value the tool uses when the file leaves it out, and why that is the recommendation
-# (docs/dev_plans/MEDS_FAST_CALIBRATION_BEST_PRACTICE.md).
+# (the protocol README.md links).
 #
 # This file IS the tool's schema. A setting the calibration file holds that is not here stops the
 # tool (a misspelling would otherwise silently keep the default), and every value below is the
@@ -11,7 +11,7 @@
 # =====================================================================================================
 
 [base]
-main       = "meds_config_eval.toml"   # REQUIRED. The main TOML of the base run. The PFT file is the one it names in
+main       = "ed_config_eval.toml"     # REQUIRED. The main TOML of the base run. The PFT file is the one it names in
                                        #   [init].pft_config, and the forcing the one in [forcing].path (with grid_index).
 parameters = "../../scripts/calibrate_fast/parameters.toml"   # REQUIRED. The parameter registry (the keys, ranges, priors).
 
@@ -26,10 +26,10 @@ parameters = "../../scripts/calibrate_fast/parameters.toml"   # REQUIRED. The pa
 
 # The tower. Its FACTS -- the file, format, clock, sensor heights, every column and its units, which
 # values were measured, and what the provider did -- are its site TOML, the one the forcing build
-# reads (scripts/prepare_flux_tower; [fluxes] and [provider] there). Only the calibration's CHOICES
+# reads (scripts/prepare_input/flux_tower; [fluxes] and [provider] there). Only the calibration's CHOICES
 # about the data are here.
 [tower]
-site       = "bci_site.toml"     # REQUIRED. The tower's site TOML (scripts/prepare_flux_tower/README.md). Its [fluxes]
+site       = "bci_site.toml"     # REQUIRED. The tower's site TOML (scripts/prepare_input/flux_tower/README.md). Its [fluxes]
                                  #   give the targets' data and the rule that says which values were measured. Only
                                  #   measured values are used: a gap-filled value is a gap-filling model's prediction.
 forcing_qc = ["LWdown_qc", "Wind_qc"]   # The forcing file's qc variables that must be 0 (observed) in every window: a
@@ -199,7 +199,7 @@ timeout_per_day = 90.0           # [s per simulated day] a run's timeout (at lea
                                  #   out, like any failed run, stops the fit with its log.
 max_threads     = 8              # a run takes one thread for every 15 simulated days, up to this (and up to --workers
                                  #   on one machine): the 120-day seasonal runs and the chains set an iteration's pace,
-                                 #   the ten-day windows run on one thread. MEDS's output is the same at any count.
+                                 #   the ten-day windows run on one thread. ED-MORE's output is the same at any count.
 min_process_records = 48         # a key that acts through one process (the registry's `process`: wet canopy, night,
                                  #   snow, drought) is fixed when the kept records sample it fewer times than this
 

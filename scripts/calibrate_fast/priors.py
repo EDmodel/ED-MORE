@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""The priors from the site's climate (MEDS_FAST_CALIBRATION_BEST_PRACTICE.md §3.5). Everything here
+"""The priors from the site's climate (protocol §3.5). Everything here
 comes from the forcing, never from the tower's fluxes.
 
   growth climate   over the leaf-on months: the mean air temperature (Kattge & Knorr's growth
@@ -7,11 +7,11 @@ comes from the forcing, never from the tower's fluxes.
                    temperature, VPD, pressure and PAR; CO2 from the run's own CO2 setting
   stomatal_g1      the least-cost value: Medlyn's g1 equals xi = sqrt(beta (K + Gamma*) / (1.6 eta*)),
                    beta = 146 (Prentice et al. 2014; Stocker et al. 2020), at the daytime climate with
-                   MEDS's own Rubisco kinetics; eta* is water's viscosity relative to 25 degC
+                   ED-MORE's own Rubisco kinetics; eta* is water's viscosity relative to 25 degC
   vcmax25          the coordination condition (Wang et al. 2017; Smith et al. 2019), solved with
-                   MEDS's own leaf equations (meds.plant.leaf): the vcmax25 at which the Rubisco- and
+                   ED-MORE's own leaf equations (edmore.plant.leaf): the vcmax25 at which the Rubisco- and
                    light-limited rates are equal at the daytime climate, with ci from the least-cost
-                   ratio, the configured phi_psii, theta_J and leaf absorptance, and MEDS's
+                   ratio, the configured phi_psii, theta_J and leaf absorptance, and ED-MORE's
                    temperature response at the Kattge & Knorr values below
   Kattge & Knorr   (2007) for the growth temperature T [degC]: Jmax/Vcmax = 2.59 - 0.035 T,
                    ds_vcmax = 668.39 - 1.07 T, ds_jmax = 659.70 - 0.75 T
@@ -30,14 +30,14 @@ import pandas as pd
 R_GAS = 8.314462618          # [J mol-1 K-1]
 T25 = 298.15                 # [K]
 BETA_LEAST_COST = 146.0      # the unit-cost ratio of carboxylation to transpiration (Stocker et al. 2020)
-PAR_PER_SW = 2.1             # [umol J-1] PAR photons per joule of total shortwave (MEDS's constant-path blend)
-#: the O2 mole fraction and pressure gstar25 is stated at, as in MEDS's leaf kernel: Gamma* as a mole
+PAR_PER_SW = 2.1             # [umol J-1] PAR photons per joule of total shortwave (ED-MORE's constant-path blend)
+#: the O2 mole fraction and pressure gstar25 is stated at, as in ED-MORE's leaf kernel: Gamma* as a mole
 #: fraction does not depend on pressure (docs/science/leaf_gas_exchange.md eq. (3))
 O2_REF_GSTAR, P_REF_GSTAR = 0.209, 1.0e5          # [mol mol-1], [Pa]
 EEO_KEYS = {"pft.stomatal_g1": "g1", "pft.vcmax25": "vcmax25"}
 KATTGE_KNORR = {"pft.jmax_vcmax_ratio": (2.59, 0.035), "leaf_physiology.ds_vcmax": (668.39, 1.07),
                 "leaf_physiology.ds_jmax": (659.70, 0.75)}
-#: MEDS's leaf-physiology settings the priors read, and the model's own defaults
+#: ED-MORE's leaf-physiology settings the priors read, and the model's own defaults
 LEAF_DEFAULTS = {"kc25": 40.49, "ko25": 27840.0, "gstar25": 4.275, "ea_kc": 79430.0, "ea_ko": 36380.0,
                  "ea_gstar": 37830.0, "ea_vcmax": 65330.0, "ea_jmax": 43540.0, "hd_vcmax": 200000.0,
                  "hd_jmax": 200000.0, "ds_vcmax": 650.0, "ds_jmax": 640.0, "o2_mol_frac": 0.209,
@@ -102,7 +102,7 @@ def viscosity_ratio(t_k: float) -> float:
 
 
 def kinetics(lp: dict, t_k: float, p_pa: float) -> dict:
-    """MEDS's Rubisco kinetics as partial pressures [Pa] at t_k and the site's pressure."""
+    """ED-MORE's Rubisco kinetics as partial pressures [Pa] at t_k and the site's pressure."""
     gstar = _arr(lp["gstar25"], lp["ea_gstar"], t_k) * lp["o2_mol_frac"] / O2_REF_GSTAR * p_pa / P_REF_GSTAR
     kc, ko = _arr(lp["kc25"], lp["ea_kc"], t_k), _arr(lp["ko25"], lp["ea_ko"], t_k)
     o2 = lp["o2_mol_frac"] * p_pa
@@ -121,10 +121,10 @@ def eeo_g1(lp: dict, clim: dict) -> float:
 
 
 def eeo_vcmax25(lp: dict, pft: dict, clim: dict, ca_ppm: float, temp_response: str = "peaked") -> float:
-    """The coordination vcmax25 with MEDS's own leaf equations (module docstring). `pft` holds the
+    """The coordination vcmax25 with ED-MORE's own leaf equations (module docstring). `pft` holds the
     PFT's theta_j and jmax_vcmax_ratio; `lp` the leaf-physiology settings (with Kattge & Knorr's ds)."""
     from scipy.optimize import brentq
-    from meds.plant import leaf
+    from edmore.plant import leaf
     t, p = clim["t_day_k"], clim["p_day_pa"]
     k = kinetics(lp, t, p)
     ca = ca_ppm * 1.0e-6 * p
@@ -150,6 +150,6 @@ def eeo_vcmax25(lp: dict, pft: dict, clim: dict, ca_ppm: float, temp_response: s
 
 
 def leaf_settings(value) -> dict:
-    """MEDS's leaf-physiology settings through `value(key, default)` (the base config, else the
+    """ED-MORE's leaf-physiology settings through `value(key, default)` (the base config, else the
     model's parameter record, else the model's default)."""
     return {k: float(value(f"leaf_physiology.{k}", v)) for k, v in LEAF_DEFAULTS.items()}
