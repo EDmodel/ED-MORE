@@ -29,7 +29,8 @@ stand cross-section (left), and a landscape whose trees keep their place as they
 ## Quick start
 
 ```bash
-./scripts/install_netcdf.sh                  # if you do not have netCDF; prints the prefix
+mamba env create -f environment.yml          # once: netCDF, CMake and the Python tools
+conda activate edmore
 
 FC=ifx cmake --preset dev                    # the dev build, in build-dev/; netCDF from $CONDA_PREFIX
 cmake --build build-dev -j
@@ -40,11 +41,13 @@ PYTHONPATH=python python examples/example03_demography/run_demography.py --start
 python examples/example03_demography/plot_site_timeseries.py examples/example03_demography/output/bare.nc -o timeseries.png
 ```
 
-netCDF is required; gfortran, ifx and nvfortran are supported. [`docs/building.md`](docs/building.md) covers the four
-build kinds (debug, dev, profile, and production for long runs), the parallel builds and the compiler
-traps. The dev build also makes the shared library the Python front end loads ([`python/README.md`](python/README.md));
-the plots need numpy, matplotlib and netCDF4. Each example's README says which data it needs and how
-to run it.
+netCDF is required: [`environment.yml`](environment.yml) brings it, with CMake and the Python
+packages the examples use, and without conda `scripts/install_netcdf.sh` installs it. gfortran, ifx
+and nvfortran are supported. [`docs/building.md`](docs/building.md) covers the four build kinds
+(debug, dev, profile, and production for long runs), the parallel builds and the compiler traps. The
+dev build also makes the shared library the Python front end loads
+([`python/README.md`](python/README.md)). Each example's README says which data it needs and how to
+run it.
 
 ## Where to go next
 
