@@ -9,6 +9,9 @@ authors:
     given-names: Xiangtao
     affiliation: Cornell University
 repository-code: https://github.com/EDmodel/ED-MORE
+# The concept DOI: it stands for every version and resolves to the latest. Zenodo gives each release
+# its own DOI as well (https://doi.org/10.5281/zenodo.23674060 lists them).
+doi: 10.5281/zenodo.23674060
 license: Apache-2.0
 version: 0.4.1
 date-released: 2026-10-26
