@@ -483,7 +483,7 @@ contains
       poly%next_cohort_id = meta_i(4)
       poly%next_patch_id = meta_i(5)
       restart_time = ed_time_t(year=meta_i(6), month=meta_i(7), day=meta_i(8),               &
-                                 hour=meta_i(9), minute=meta_i(10), second=meta_i(11))
+                               hour=meta_i(9), minute=meta_i(10), second=meta_i(11))
       !----- 3. Calendar: the restructuring owed (the ring's slot comes with the rings, section 2). !
       call nc_check(nc_get_att_text_f(r%ncid, NC_GLOBAL, 'restructure_pending', pending), 'state restructure_pending')
       poly%restructure_pending  = trim(pending) == 'month' .or. trim(pending) == 'year'

@@ -22,9 +22,6 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 option(ED_BUILD_TESTS "Build the CTest test suite" ON)
-# The long runs (ctest label `long`): example 05's Palo Verde inventory and its 150-year regrowth,
-# which read the ED_ERA5land archive (ED_ERA5LAND_ARCHIVE). OFF by default: they take over half an hour.
-option(ED_TEST_LONG "Register the long tests (label long): the Palo Verde inventory and 150-year regrowth" OFF)
 # netCDF output + I/O are ALWAYS compiled: the standard (and only) build needs the netCDF C library.
 # Point CMake at it with -DCMAKE_PREFIX_PATH=<prefix> (find_package(netCDF CONFIG REQUIRED), below).
 
@@ -214,8 +211,8 @@ add_library(ed_config STATIC ${CONFIG_SOURCES})
 #      written into an include at configure time, and re-written when either reference changes.   #
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ed_config_keys.cmake)
 ed_write_config_keys(${CMAKE_CURRENT_SOURCE_DIR}/ed_config_main.toml
-                       ${CMAKE_CURRENT_SOURCE_DIR}/ed_config_pft.toml
-                       ${CMAKE_CURRENT_BINARY_DIR}/generated/ed_config_keys.inc)
+                     ${CMAKE_CURRENT_SOURCE_DIR}/ed_config_pft.toml
+                     ${CMAKE_CURRENT_BINARY_DIR}/generated/ed_config_keys.inc)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
              ${CMAKE_CURRENT_SOURCE_DIR}/ed_config_main.toml ${CMAKE_CURRENT_SOURCE_DIR}/ed_config_pft.toml)
 target_include_directories(ed_config PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
@@ -483,11 +480,8 @@ endif()
 ed_fortran_flags(ed_main)
 
 #----- Tests: the suite, its support libraries and the checks, in test/ (test/CMakeLists.txt).  #
-#      enable_testing() stays here, so ctest runs the suite from the build tree's top. A tree   #
-#      without test/ builds the model alone.                                                    #
-if(ED_BUILD_TESTS AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/test/CMakeLists.txt)
+#      enable_testing() stays here, so ctest runs the suite from the build tree's top.          #
+if(ED_BUILD_TESTS)
    enable_testing()
    add_subdirectory(test)
-elseif(ED_BUILD_TESTS)
-   message(STATUS "ED-MORE: no test/ folder in this tree, so the tests are not built")
 endif()

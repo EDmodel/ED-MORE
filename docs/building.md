@@ -134,7 +134,7 @@ measurable build time, because the tests compile its sources anyway and it adds 
 without it, a clean configure and build at `-j 16` takes 44–50 s with ifx and 52–56 s with gfortran,
 and the rebuild after an edit 3–4 s. It compiles every library position-independent (`-fPIC`),
 which leaves every output value of `edmore` as it is, on ifx and gfortran, and its run time
-within noise. The suite includes the Python package's tests: 86 tests.
+within noise.
 
 **dev is the reference.** It is the project's `-O2`, for any x86-64 CPU. Outputs are compared between
 commits on dev builds; gfortran dev builds of two commits that change no arithmetic give
@@ -274,7 +274,6 @@ enough. See `python/README.md`.
 ctest --test-dir build-dev --output-on-failure                    # all of them
 ctest --test-dir build-dev -L unit --output-on-failure            # one label (below)
 ctest --test-dir build-dev -L integration --output-on-failure
-ctest --test-dir build-dev -LE long --output-on-failure           # all but the long runs
 ctest --test-dir build-debug -R slow_update --output-on-failure   # one, by regex
 ```
 
@@ -286,77 +285,39 @@ target, so an ABI change fails the build instead of breaking the optional Python
 **One test per `src` module, laid out as `src` is.** ctest `slow_update` is
 `test/slow/test_slow_update.f90`, the test of `src/slow_dynamics/driver/ed_slow_update.f90`; the
 folders are `test/share/`, `config/`, `state/`, `fast/`, `slow/`, `io/`, `driver/` and `c_api/`, with
-the shared fixtures in `test/support/`, the CMake checks in `test/checks/` and the restart test in
-`test/python/`. `test/CMakeLists.txt` registers every test through `ed_add_test` and builds the
-test programs in `<build>/test/`. Each test carries one label:
+the shared fixtures in `test/support/` and the CMake checks in `test/checks/`.
+`test/CMakeLists.txt` registers every test through `ed_add_test` and builds the test programs in
+`<build>/test/`. Each test carries one label:
 
 | Label | What it holds | Tests (dev) | Time (dev, one core) |
 |---|---|---|---|
-| `unit` | each module's test, and `edmore`'s refusals (`*_refused`, `main_failure_finalizes`) | 67 | 15 s |
-| `integration` | whole runs: `sites`, `region`, `fast_driver`, `c_api_run`, `restart_exact` | 5 | 44 s |
-| `lint` | the source-tree rules (`no_issue_refs`, `constants_named`, `kernels_patch_only`, ...) and the tracked copies (`io_config_example`, `license_copy`, `notice_copy`) | 10 | 2 s |
-| `python` | the Python tools' and the package's pytest suites (`prepare_flux_tower`, `calibrate_fast`, `python_api`, `prepare_census`) | 4 | 26 s |
-| `long` | opt-in: example 05's Palo Verde inventory and its 150-year regrowth | 2 | 34 min on 12 threads |
+| `unit` | each module's test, and `edmore`'s refusals (`*_refused`, `main_failure_finalizes`) | 66 | 15 s |
+| `integration` | whole runs: `region`, `fast_driver` | 2 | 34 s |
+| `lint` | the repository's checks, one test each and named after the check (`kernels_patch_only`, `clamps_named`, `no_issue_refs`, ...), and the CMake checks of the source tree and the shipped files (`no_procedure_arguments`, `config_keys_listed`, `io_config_example`) | 15 | 4 s |
 
-A debug build has 84 tests: no `python_api` (it builds no `libedmore.so`), and no
-`soil_nan_layer_refused` (it traps the NaN that case feeds the loader). A `-L` takes a regular
-expression, so `-L 'unit|lint'` runs both.
-
-**The long tests are opt-in**, and the runs to make before merging a change to the physics or to the
-tissue energy. Configure with them, and run them alone:
-
-```bash
-FC=ifx cmake --preset dev -DED_TEST_LONG=ON -DED_ERA5LAND_ARCHIVE=/path/to/ED_ERA5land
-ctest --test-dir build-dev -L long --output-on-failure
-```
-
-Both runs are in `examples/example05_forest_regeneration/palo_verde/`:
-
-- `palo_verde_inventory` runs the 2009 inventory (`ed_config_inventory.toml`; 85 s on the
-  example's 12 threads, ifx dev), reading the archive.
-- `palo_verde_regrowth` runs 150 years from bare ground (`ed_config_regrowth.toml`; 31 minutes) on
-  Palo Verde's cell, 2003–2022. It cuts that cell from the archive into its directory once (under
-  2 minutes) unless `-DED_TEST_PV_FORCING=` names a cut file.
-
-Each runs a copy of the example's config in `<build>/long/palo_verde_<case>/`, which holds its
-output and its log, and passes when the run completes and its slow ledger closes
-(`test/checks/check_long_run.cmake`). `ED_ERA5LAND_ARCHIVE` defaults to `ERA5LAND_ARCHIVE` from the
-environment.
+A debug build has 82 tests: no `soil_nan_layer_refused` (it traps the NaN that case feeds the
+loader). A `-L` takes a regular expression, so `-L 'unit|lint'` runs both.
 
 ### The suite runs on dev
 
-**Run the suite on a dev build** (or debug); dev passes all 86 tests with ifx and with gfortran.
+**Run the suite on a dev build** (or debug); dev passes all 83 tests with ifx and with gfortran.
 Several tests compare two computations of the same number bit for bit, or within a few units in the
 last place, and that holds only when both are compiled the same way. dev compiles each file on its
 own at `-O2`, for any x86-64 CPU. production optimises across files (IPO) and generates AVX-512 code,
 so the two sides of such a check can be compiled differently and part in the last bits. Built with
-`-DED_BUILD_TESTS=ON`, production fails 4 tests with ifx and 2 with gfortran:
+`-DED_BUILD_TESTS=ON`, production fails 2 tests with ifx, and passes all 83 with gfortran (GCC 11.5):
 
 | Test | Compiler | The check that fails | Production's value | Tolerance | Cause |
 |---|---|---|---|---|---|
 | `fast_driver` | ifx | the fast loop stages each sub-step's forcing sample exactly | the test's own recomputation of a sample does not equal the staged one; recomputed in a routine of its own, all eight fields match exactly, and printing the difference in place makes the check pass | exact | IPO |
 | `plant_hydraulics` | ifx | a leaf above its closing water content transpires its demand | 1.9999999999999998e-5 against 2e-5: one unit in the last place (3e-21, 2e-16 relative); dev gives 2e-5 exactly | exact | IPO |
 | `plant_hydraulics` | ifx | transpiration's derivative matches finite differences | where the derivative is 0, the finite difference is 2.6e-14, from round-off in the two transpirations it differences 2e-7 apart; dev's is 0 | 1e-15 | IPO |
-| `plant_hydraulics` | gfortran | transpiration's derivative matches finite differences | the same, 5.8e-15 | 1e-15 | FMA under LTO |
-| `python_api` | ifx | `edmore.model` writes `edmore`'s output bit for bit | 101 of 301 variables differ, by up to 1.3e-12 of a variable's largest value (patch sensible heat), the near-zero conservation residuals aside | exact | IPO |
-| `python_api` | gfortran | `edmore.model` writes `edmore`'s output bit for bit | 104 of 301 variables differ, by up to 9.5e-14 (patch sensible heat), the residuals aside | exact | FMA under LTO |
-| `sites` | ifx | each of two identical sites holds the one-site stand's plant carbon | 9.696054 against 9.696198 kgC m⁻² after 60 days, 1.5e-5 relative; the two sites agree with each other to 2e-16 | 1e-12 relative | AVX-512 vectorisation |
 
-The causes come from building each part of production on its own: IPO alone, the CPU target alone,
-and each with fused multiply-add (FMA) turned off (`-no-fma`, `-ffp-contract=off`).
-
-- **IPO**: the test fails with IPO alone and passes with the CPU target alone. Each program is
-  optimised as a whole, so one routine compiles differently where it is inlined: in the test and in
-  the driver, or in `edmore` and in `libedmore.so`. With ifx, turning FMA off leaves the same four
-  failures.
-- **FMA under LTO**: gfortran fails only with LTO and the CPU target together, and passes with FMA
-  off. Inlining across files lets FMA contract expressions that each file alone leaves apart.
-- **AVX-512 vectorisation**: the test fails with the CPU target alone, with or without FMA, and
-  passes with IPO alone. The rounding of a vectorised loop depends on how many elements it covers,
-  so a site in a two-site polygon parts from the same site run alone in the last bit, and the run's
-  fusion and disturbance carry that to 1.5e-5 in 60 days. It is the size of the difference between
-  dev builds with the two compilers (1.6e-5 in the same quantity), and production's one-site value
-  lies 3.6e-5 from dev's.
+The cause comes from building each part of production on its own: IPO alone, the CPU target alone,
+and each with fused multiply-add (FMA) turned off (`-no-fma`). Both tests fail with IPO alone and
+pass with the CPU target alone. Each program is optimised as a whole, so one routine compiles
+differently where it is inlined, in the test and in the driver. Turning FMA off leaves the same
+failures.
 
 ### Production's output against dev's
 

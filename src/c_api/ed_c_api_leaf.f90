@@ -101,7 +101,7 @@ contains
    ! mirror structs; each leaf is exactly ed_leaf_solve's.                                       !
    !---------------------------------------------------------------------------------------!
    subroutine ed_leaf_solve_batch(n, env_c, p_c, sm, temp_response_form, colim, use_boundary_layer, flux_c) &
-                                    bind(c, name="ed_leaf_solve_batch")
+                                  bind(c, name="ed_leaf_solve_batch")
       integer(c_int), value, intent(in)  :: n
       type(leaf_env_c),      intent(in)  :: env_c(n)
       type(leaf_args_c),     intent(in)  :: p_c
@@ -161,7 +161,7 @@ contains
    ! Electron-transport rate J from Jmax and incident PAR (non-rectangular hyperbola).      !
    !---------------------------------------------------------------------------------------!
    function ed_electron_transport_j(par, absorptance, phi_psii, jmax, theta) result(j)       &
-                                      bind(c, name="ed_electron_transport_j")
+                                    bind(c, name="ed_electron_transport_j")
       real(c_double), value, intent(in) :: par, absorptance, phi_psii, jmax, theta
       real(c_double)                    :: j
       j = electron_transport_j(par, absorptance, phi_psii, jmax, theta)

@@ -91,7 +91,7 @@ Each process has its page:
 `test_plant_carbon_allocation`, `test_plant_traits`, `test_soil_carbon`, `test_demography`. The
 driver: `test_slow_update` (the operators, and the restructuring through the ledger),
 `test_slow_step` (the step through `ed_slow_state` and `ed_slow_dynamics`) and
-`test_slow_ledger`. Through the C API: `test_c_api_demography`.
+`test_slow_ledger`.
 
 ## What the model does not have
 
