@@ -1,0 +1,53 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 21, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "kind",
+      "hidden": true,
+      "description": "What every kind shares: its own build directory, and netCDF from the active conda environment",
+      "binaryDir": "${sourceDir}/build-${presetName}",
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "$env{CONDA_PREFIX}",
+        "ED_IPO": "OFF",
+        "ED_CPU_TARGET": ""
+      }
+    },
+    {
+      "name": "debug",
+      "inherits": "kind",
+      "displayName": "debug: -O0, every runtime check on",
+      "description": "Writing or fixing engine code: every bounds, uninitialised-value and floating-point check on",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    },
+    {
+      "name": "dev",
+      "inherits": "kind",
+      "displayName": "dev: -O2, any x86-64 CPU (the default with no build type); edmore, libedmore.so and the tests",
+      "description": "Everyday work, the tests, comparing outputs between commits: -O2, any x86-64 CPU; edmore, libedmore.so and the tests",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "ED_BUILD_PYLIB": "ON"
+      }
+    },
+    {
+      "name": "profile",
+      "inherits": "dev",
+      "displayName": "profile: dev with -g",
+      "description": "Finding where the time goes: dev with debug symbols",
+      "cacheVariables": { "CMAKE_Fortran_FLAGS": "-g" }
+    },
+    {
+      "name": "production",
+      "inherits": "dev",
+      "displayName": "production: IPO and cascadelake; edmore and libedmore.so",
+      "description": "Long runs: IPO and code for Cascade Lake and later Xeons; edmore and libedmore.so, no tests",
+      "cacheVariables": {
+        "ED_IPO": "ON",
+        "ED_CPU_TARGET": "cascadelake",
+        "ED_BUILD_PYLIB": "ON",
+        "ED_BUILD_TESTS": "OFF"
+      }
+    }
+  ]
+}

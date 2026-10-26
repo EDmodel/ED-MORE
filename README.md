@@ -31,7 +31,7 @@ PYTHONPATH=python python examples/example03_demography/run_demography.py --start
 python post_proc/plot_site_timeseries.py examples/example03_demography/output/bare.nc -o timeseries.png
 ```
 
-netCDF is required; gfortran, ifx and nvfortran are supported. `docs/building.md` covers the four
+netCDF is required; gfortran, ifx and nvfortran are supported. [`docs/building.md`](docs/building.md) covers the four
 build kinds (debug, dev, profile, and production for long runs), the parallel builds and the compiler
 traps. The dev build also makes the shared library the Python front end loads (`python/README.md`);
 the plots need numpy, matplotlib and netCDF4. Each example's README says which data it needs and how
@@ -41,9 +41,9 @@ to run it.
 
 | If you want to | Read |
 |---|---|
-| learn what is in the model: each process and its equations | `docs/science/`, one page per process, indexed in `docs/README.md` |
-| run ED-MORE, coming from ED2 | `docs/ed2_comparison.md`: process by process, keyed to `ED2IN` |
-| set up a run | `docs/configuration.md`: the two TOML files and the three ways to start |
+| learn what is in the model: each process and its equations | [`docs/science/`](docs/science/), one page per process, indexed in [`docs/README.md`](docs/README.md) |
+| run ED-MORE, coming from ED2 | [`docs/ed2_comparison.md`](docs/ed2_comparison.md): the main differences first, then process by process, keyed to `ED2IN` |
+| set up a run | [`docs/configuration.md`](docs/configuration.md): the two TOML files and the three ways to start |
 | see worked examples | `examples/`: leaf gas exchange, phenology, demography, a flux tower, forest regrowth, a region |
 | prepare forcing and census inputs | `scripts/prepare_era5/`, `scripts/prepare_flux_tower/`, `scripts/prepare_census/` |
 | drive it from Python | `python/README.md` |
@@ -61,10 +61,10 @@ them, and binding on everyone who changes the code. How to propose, send and mer
 - **Modular: one job per piece, and one place for each piece.** The source splits by timescale, a
   fast sub-daily loop and a slow daily one, over a state layer both share. A process kernel sees only
   the stores it works on, dependencies point one way, and there is no hidden global state: config and
-  state are passed as arguments, so every routine can be tested alone. `src/README.md` says where a
-  new file goes.
+  state are passed as arguments, so every routine can be tested alone. [`src/README.md`](src/README.md)
+  says where a new file goes.
 - **Open: anyone can read the model, check it and reuse it.** The code is under Apache 2.0. Every
-  equation is published in `docs/science/`, versioned with the code that implements it, and the code
+  equation is published in [`docs/science/`](docs/science/), versioned with the code that implements it, and the code
   cites it. Comments say what the code does and why, in plain words. Every parameter value carries
   its source, and decisions are made in the open, on issues and pull requests.
 - **Reproducible: the same inputs give the same answer, and every change to the answer is
@@ -79,7 +79,7 @@ them, and binding on everyone who changes the code. How to propose, send and mer
 
 The code is modern Fortran 2018: modules, derived types, explicit interfaces, `allocatable`
 ownership, parameterized kinds, `pure` and `elemental` kernels, `implicit none` everywhere, and at
-most 132 columns. `docs/building.md` lists the compiler traps: code that one compiler builds
+most 132 columns. [`docs/building.md`](docs/building.md) lists the compiler traps: code that one compiler builds
 correctly and another miscompiles.
 
 ## Origins
