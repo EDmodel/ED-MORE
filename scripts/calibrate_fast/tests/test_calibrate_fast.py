@@ -664,7 +664,27 @@ def test_priestley_taylor_and_the_range_coverage():
 
 
 # ----- the calibration's settings against calibration_reference.toml ----------------------------------
+BCI = Path(__file__).resolve().parents[3] / "examples/example04_column_biophysics/calibration.toml"
 MINIMAL = {"base": {"main": "m.toml", "parameters": "r.toml"}, "tower": {"site": "site.toml"}}
+
+
+def test_the_bci_calibration_is_complete_and_valid():
+    d = settings.complete(load_toml(BCI))
+    site = tower.tower_inputs.read_site(str(BCI.parent / d["tower"]["site"]))
+    assert site.timestep == 1800 and site.utc_offset == -5.0
+    assert site.fluxes["LW_out"]["column"] == "Rl_dn"                  # the file's longwave labels are swapped
+    assert site.fluxes["RECO"] == {"sum": ["GPP", "NEE"]} and site.provider["ustar_threshold"] == 0.4
+    assert site.leaf_on_months == list(range(1, 13))
+    assert all(site.fluxes[q]["measured"] == {"column": "FLAG", "equals": 1} for q in ("LE", "H", "NEE", "GPP", "USTAR"))
+    assert d["targets"]["gpp"]["ustar_min"] == "provider" and d["targets"]["gpp"]["sigma_abs"] == 1.5
+    assert set(d["targets"]) == set(targets.TARGETS) and d["closure"]["shares"] == "attribution"
+    assert d["targets"]["le"]["ustar_min"] == "diagnostic" and d["targets"]["h"]["ustar_min"] == "diagnostic"
+    assert d["priors"]["kappa"] == {"centre": 0.65, "sd": 0.10, "range": [0.4, 1.0], "source": d["priors"]["kappa"]["source"]}
+    assert d["targets"]["albedo"]["on"] is False and d["targets"]["albedo"]["min_solar_elevation"] == 20.0
+    assert d["windows"]["list"] == [] and d["seasonal_runs"]["list"] == []       # chosen by the rules
+    assert d["tower"]["forcing_qc"] == ["LWdown_qc", "Wind_qc"] and d["fit"]["timeout_per_day"] == 30.0
+    assert d["fit"]["max_iter"] == 10 and d["seasonal_runs"]["targets"] == ["le"]  # defaults it left out
+
 
 
 def test_every_target_takes_the_filters():

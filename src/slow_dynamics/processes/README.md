@@ -27,7 +27,7 @@ links the fast kernels. The sub-daily process modules are in
 
 - `edmore.plant.pheno` — the leaf-phenology kernel, through the C API's `ed_c_api_phenology`. The
   four phenology strategies are in
-  `examples/example02_canopy_phenology/`.
+  [`examples/example02_canopy_phenology/`](../../../examples/example02_canopy_phenology/).
 - `edmore.demography` — a site's slow steps, or externally computed rates applied through the same
   update routines (`Site.apply_rates`, `ed_c_api_demography`). The census example is
-  `examples/example03_demography/`.
+  [`examples/example03_demography/`](../../../examples/example03_demography/).

@@ -202,11 +202,11 @@ The same routine is exposed through the C API (`ed_leaf_turnover_step`), so the 
 
 Evergreen and deciduous differ in one number. The emergent leaf lifespan follows from the rates and
 the floor; it is not a parameter of the kernel. The fitted values of the four habits are in
-`examples/example02_canopy_phenology/README.md`.
+[`examples/example02_canopy_phenology`](../../examples/example02_canopy_phenology/README.md).
 
 ## 7. Evidence
 
-`examples/example02_canopy_phenology/README.md` fits the
+[`examples/example02_canopy_phenology`](../../examples/example02_canopy_phenology/README.md) fits the
 compiled kernel at four sites, every one with its light from ERA5-Land through ED-MORE's forcing reader:
 
 - **Harvard Forest** (temperate deciduous; a low `par_min`, so the cue is the photoperiod): MODIS LAI,
@@ -249,7 +249,7 @@ Five results shaped the design:
 site do not constrain its year-to-year variation. These fits exercise the water cue on a soil surrogate
 (BCI) and on an ED-MORE run's leaf potential without the shed-to-water feedback (Palo Verde). In a coupled
 run the cue reads the run's own predawn leaf potential, feedback included; example 06
-(`examples/example06_regional_run/`) sets such a run's annual
+([`examples/example06_regional_run/`](../../examples/example06_regional_run/)) sets such a run's annual
 maximum and minimum leaf area, and its leaf cover, against MODIS across a rainfall gradient, but no
 coupled run's month-by-month leaf-area cycle is scored.
 

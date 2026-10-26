@@ -1,0 +1,55 @@
+{
+  "harvard_forest": {
+    "flush_degree_days": 91.7506,
+    "shed_base_temp": 290.25,
+    "shed_degree_days": 47.889,
+    "flush_rate_max": 0.0333098,
+    "shed_rate_max": 0.333333,
+    "leaf_turnover_rate": 0.000106781,
+    "flush_light_hours": 13.6528,
+    "flush_light_sharpness": 7.99321,
+    "shed_light_hours": 9.05994,
+    "light_window": 1.00135,
+    "par_min": 2.0001
+  },
+  "hyytiala": {
+    "shed_base_temp": 287.894,
+    "shed_degree_days": 5.0,
+    "shed_rate_max": 0.127987,
+    "leaf_turnover_rate": 0.130692,
+    "min_leaf_cover": 0.884456,
+    "flush_light_hours": 14.4397,
+    "flush_light_sharpness": 1.19015,
+    "shed_light_hours": 4.06352,
+    "shed_light_sharpness": -0.482575,
+    "light_window": 7.01585,
+    "par_min": 100.179
+  },
+  "bci": {
+    "flush_rate_max": 0.0287136,
+    "shed_rate_max": 0.0706892,
+    "leaf_turnover_rate": 1.69692,
+    "min_leaf_cover": 0.8,
+    "shed_light_hours": 11.24,
+    "shed_light_sharpness": 0.573411,
+    "light_window": 2.23213,
+    "par_min": 1000.0
+  },
+  "palo_verde": {
+    "leaf_psi_tlp": -1.35455,
+    "flush_water_sum": 0.969397,
+    "flush_water_sharpness": 19.9995,
+    "shed_water_sum": 34.5513,
+    "shed_water_sharpness": 8.13924,
+    "flush_rate_max": 0.258888,
+    "shed_rate_max": 0.0433399,
+    "leaf_turnover_rate": 0.526933,
+    "min_leaf_cover": 0.304499,
+    "flush_light_hours": 12.371,
+    "flush_light_sharpness": 7.48124,
+    "shed_light_hours": 11.1566,
+    "shed_light_sharpness": -4.67508,
+    "light_window": 12.1459,
+    "par_min": 5.155
+  }
+}

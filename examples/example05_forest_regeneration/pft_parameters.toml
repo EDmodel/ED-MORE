@@ -1,0 +1,180 @@
+# SPDX-License-Identifier: Apache-2.0
+# The three PFTs of example 05: early, mid and late successional trees at Barro Colorado Island.
+#
+# Their wood is example 03's: BCI's species split into three wood-density classes (thirds of the 1985
+# basal area), with that example's census-fitted mortality and BCI height curve. Their leaves sit on
+# the leaf economics spectrum, early to late from thin, short-lived, fast leaves to thick, long-lived,
+# slow ones; example 04's calibrated BCI leaf is the spectrum's anchor, and everything else a canopy
+# or a root does is example 04's. calibrate_growth.py fitted where the PFTs sit on the spectrum and
+# the carbon costs below to example 03's growth law (calibration.json).
+# Every per-PFT array has length 3 (the PFT count = length of [pft].wood_density).
+
+[pft]
+#----- Wood, size and recruitment (example 03). ----------------------------------------------------
+wood_density       = [0.36, 0.50, 0.68]    # [g/cm3] early, mid, late: the BCI wood-density classes
+min_cohort_height  = 1.5                   # [m] recruits are born here: dbh 0.55 cm on the BCI height curve
+recruit_carbon_efficiency = [1.0e-3, 1.0e-3, 1.0e-3]  # [--] reproduction carbon -> recruits
+seed_rain_recruits = [0.3333, 0.3333, 0.3333]   # [plant/m2/yr] from outside, every patch: one sapling per m2
+                                               # a year shared by the PFTs
+include_pft        = [1, 1, 1]
+
+#----- Leaf traits at the top of the canopy, from Panama's sun leaves: canopy-crane leaves at PNM and
+#      Fort Sherman (Xu et al. 2017, Ecology Letters 20:1097, Appendix 3) and seedlings in gaps at the
+#      Barro Colorado Nature Monument (Kitajima et al. 2013, Annals of Botany 112:685), where leaves
+#      live from about 0.3 yr (light wood) to 0.4-2.4 yr (dense wood), and canopy sun leaves at the PNM
+#      crane 0.2-0.9 yr (Kitajima et al. 1997, 2005). Leaves turn over at 1 / their lifespan, here 0.5,
+#      0.7 and 0.9 yr; LMA is the crane PFTs' 100-120 g/m2; Vcmax25 is example 04's calibrated BCI leaf
+#      for all three PFTs. SLA is carbon-based: 2000 / LMA. Fine-root carbon equals leaf carbon (ED2's
+#      q = 1), and fine roots turn over 1.5 times as fast as the leaves, slower in the shade as the
+#      leaves are ([trait_dynamics].fineroot_turnover_plastic).
+leaf_turnover_rate_toc = [2.0, 1.4286, 1.1111]   # [1/yr] 1 / (0.5, 0.7, 0.9 yr)
+sla                = [20.0, 18.18, 16.67]    # [m2/kgC] LMA 100, 110, 120 g/m2
+vcmax25            = [32.3321, 32.3321, 32.3321]   # [umol/m2/s] example 04's calibrated leaf
+root_to_leaf_ratio = [1.0, 1.0, 1.0]
+
+#----- Stem maintenance respiration on sapwood volume alone (no surface term). The rate puts the 1985
+#      census stand's aboveground stem respiration at the 4.2-5.1 MgC/ha/yr of stem CO2 efflux measured in
+#      mature Amazon forests (Chambers et al. 2004; Malhi 2012; Cavaleri et al. 2006 at La Selva) on BCI's
+#      weather. The coarse roots respire at the same rate on top (/aboveground_frac).
+stem_resp_factor25  = [0.0, 0.0, 0.0]      # [umol CO2/m2 stem/s @25C]
+stem_resp_sapwood25 = [31.25, 31.25, 31.25]   # [umol CO2/m3 sapwood/s @25C]
+
+#----- Carbon costs (calibrate_growth.py). -------------------------------------------------------------
+# Reproduction: about 0.5 MgC/ha/yr of flowers and fruit fall in BCI's litter traps, 9-10 % of the
+# litterfall (Chave et al. 2010, Table 1, Leigh 1999's traps), 2-5 % of a tropical forest's NPP
+# (Malhi et al. 2011: 5-15 % of canopy NPP).
+reproduction_investment_fraction = [0.10, 0.10, 0.10]   # [--] growth fraction to reproduction ...
+min_repro_height   = [5.27, 5.27, 5.27]   # [m] ... from this height (calibrate_growth.py)
+
+#----- Sink limit on wood growth (docs/science/plant_carbon_allocation.md eq. (3)): a cohort's diameter
+#      grows at most max_absolute_growth_rate x dbh[cm]^0.5 a year, and the carbon it cannot use is
+#      exuded by the roots. The shape is BCI's census: the 75th percentile of diameter growth rises as
+#      dbh^0.5 at a given light (a quantile regression ln g = a + 0.5 ln dbh + beta x overtopping LAI on
+#      each PFT's 1990-2010 growth of trees 1-30 cm; fitted per PFT 0.45, 0.65, 0.47). Its level is
+#      twice that quantile extrapolated to LAI 0 (0.211, 0.153, 0.059 cm/yr at 1 cm), which lets
+#      saplings on open ground grow as fast as the census's best-lit ones.
+max_absolute_growth_rate     = [0.422, 0.306, 0.118]   # [cm/yr] at dbh 1 cm
+max_absolute_growth_exponent = [0.5, 0.5, 0.5]
+
+leaf_width         = [0.04, 0.04, 0.04]
+branch_diameter    = [0.02, 0.02, 0.02]
+
+#----- Leaf photosynthesis and stomata: example 04's calibration (Vcmax25 is above). -------------------
+photosynthetic_pathway = [1, 1, 1]
+jmax_vcmax_ratio   = [1.6983, 1.6983, 1.6983]
+tpu_vcmax_ratio    = [0.167, 0.167, 0.167]
+rd_vcmax_ratio     = [0.015, 0.015, 0.015]
+kp25               = [1.0e-9, 1.0e-9, 1.0e-9]
+stomatal_g0        = [0.000334162, 0.000334162, 0.000334162]
+stomatal_g1        = [2.81978, 2.81978, 2.81978]       # Medlyn [kPa^0.5]
+stomatal_d0        = [1500.0, 1500.0, 1500.0]
+quantum_yield_c4   = [0.0, 0.0, 0.0]
+theta_j            = [0.70, 0.70, 0.70]
+theta_cj_c3        = [0.98, 0.98, 0.98]
+theta_ip_c3        = [0.95, 0.95, 0.95]
+theta_cj_c4        = [0.80, 0.80, 0.80]
+theta_ic_c4        = [0.95, 0.95, 0.95]
+katul_lambda25     = [800.0, 800.0, 800.0]
+wstress_lambda_exp = [1.0, 1.0, 1.0]
+wstress_sref_stomata = [2.02774, 2.02774, 2.02774]
+
+#----- Other carbon traits (example 04). -----------------------------------------------------------
+storage_cushion        = [0.5, 0.5, 0.5]  # [--] storage target, x (leaf + fine-root target):
+                                          #      0.5 is the leaf carbon at root_to_leaf_ratio 1
+growth_resp_factor     = [0.3, 0.3, 0.3]
+retained_carbon_fraction = [0.0, 0.0, 0.0]   # [--] no resorption, as the example's calibration assumes (default 0.3)
+fineroot_turnover_rate = [3.0, 2.143, 1.667]  # [1/yr] 1.5 x leaf_turnover_rate_toc
+f_labile_leaf          = [0.70, 0.70, 0.70]
+f_labile_stem          = [0.05, 0.05, 0.05]
+struct_lignin_frac     = [0.25, 0.25, 0.25]
+
+#----- Maintenance respiration of fine roots (leaf Rd is rd_vcmax_ratio, stems above). ----------------
+is_woody           = [1, 1, 1]
+# The roots' autotrophic respiration, rhizosphere included: 5.8 MgC/ha/yr at Gigante (soil respiration
+# 15.3, Sayer et al. 2007, of which roots 38 % by trenching, Sayer & Tanner 2010), 5.5 at Manaus
+# (Chambers et al. 2004). 2.7 gives the census stand 5.6 with the coarse roots' share of stem
+# respiration and the roots' growth respiration.
+root_resp_factor25 = [2.7, 2.7, 2.7]     # [umol CO2/kgC fine root/s @25C]
+
+#----- Canopy optics (example 04; leaf_angle_mean is its calibrated value). --------------------------
+leaf_reflect_vis   = [0.10, 0.10, 0.10]
+leaf_transmit_vis  = [0.05, 0.05, 0.05]
+leaf_reflect_nir   = [0.45, 0.45, 0.45]
+leaf_transmit_nir  = [0.25, 0.25, 0.25]
+leaf_emissivity    = [0.97, 0.97, 0.97]
+wood_reflect_vis   = [0.11, 0.11, 0.11]
+wood_transmit_vis  = [0.001, 0.001, 0.001]
+wood_reflect_nir   = [0.25, 0.25, 0.25]
+wood_transmit_nir  = [0.001, 0.001, 0.001]
+wood_emissivity    = [0.90, 0.90, 0.90]
+leaf_clumping      = [0.80, 0.80, 0.80]
+wood_clumping      = [0.50, 0.50, 0.50]
+leaf_angle_mean    = [54.9255, 54.9255, 54.9255]   # [deg]
+leaf_angle_std     = [20.0, 20.0, 20.0]
+
+# Mortality m = mort_gamma + mort_alpha * exp(-mort_beta * g), g a cohort's dbh growth [cm/yr] over
+# the growth window (growth_memory_days, a year): example 03's fit to the BCI censuses
+# (vital_rates.json), the same law on the same growth. Treefall (main config, 0.014/yr) kills the canopy
+# trees in each new gap on top of this, and the census's gamma already counts those deaths, so 0.014 is
+# taken off gamma.
+mort_gamma = [0.011182, 0.006528, 0.005908]   # [1/yr] census gamma 0.025182, 0.020528, 0.019908 - 0.014
+mort_alpha = [0.247431, 0.086574, 0.152056]   # [1/yr]
+mort_beta  = [15.0890, 19.3890, 58.7932]      # [yr/cm]
+
+# Light plasticity, trait = top-of-canopy value x exp(k x overtopping LAI) (docs/science/plant_traits.md
+# eq. (1)): Ma et al. (2025, JGR Biogeosciences) from BCI's crane, saplings against canopy leaves --
+# k_Vcmax = -(0.00242 Vcmax25 + 0.06212), k_Rd = -(0.18974 Rd25 + 0.11744) with Rd25 = 0.015 Vcmax25,
+# k_SLA 0.199 -- and the leaf turnover rate at minus half of their leaf-lifespan slope k_LL 0.240: shade
+# lengthens leaf life 1.5 times in Kitajima et al. (2013)'s seedling gardens and 2 times from canopy to
+# understory in Xu et al. (2017), against 3.3 times at LAI 5 with 0.240.
+kplastic_vcmax  = [-0.1404, -0.1404, -0.1404]
+kplastic_rd     = [-0.2095, -0.2095, -0.2095]
+kplastic_sla    = [0.199, 0.199, 0.199]
+kplastic_leaf_turnover = [-0.120, -0.120, -0.120]
+
+# The Barro Colorado height curve, as in example 03; leaf area and biomass follow from the height.
+[allometry]
+b1Ht       = 1.139963
+b2Ht       = 0.564899
+agb_c1     = 0.03365        # [kgC] Chave et al. (2014) eq. 4, 0.0673 / C2B (dry mass to carbon)
+agb_c2     = 0.976          # Chave et al. (2014) eq. 4
+lai_b1     = 0.23384770     # ED2 c14f15_bl_xx / C2B (= ED2 SLA*bleaf)
+lai_b2     = 0.6410495
+hgt_max            = [46.0, 46.0, 46.0]    # [m] the BCI height curve stays below it (44.6 m at 300 cm)
+wai_b1             = [0.0096, 0.0096, 0.0096]
+wai_b2             = [2.0947, 2.0947, 2.0947]
+sapwood_area_b1    = [1.582, 1.582, 1.582]
+sapwood_area_b2    = [1.764, 1.764, 1.764]
+aboveground_frac       = [0.7, 0.7, 0.7]
+# Barro Colorado's height curve: the log-quadratic fitted, uniformly in ln dbh over 1-300 cm, to Cano et
+# al. (2019, Biogeosciences 16:847)'s curve for 9884 trees of the Barro Colorado Nature Monument; within
+# 4.3 % of it everywhere. E is 0, and chave_rse 0 because the fit is to that curve, not to scattered heights.
+height_allometry = "chave2014"
+chave_a    = 0.8898
+chave_b    = 0.7908
+chave_c    = -0.04923
+chave_rse  = 0.0
+chave_e    = 0.0
+
+[hydraulics]
+# The PFT's plant-hydraulics traits (ed_config_pft.toml documents each key); one value for every PFT,
+# or one per PFT. wood_kmax is Xu et al. (2016)'s fit to each PFT's wood density (scripts/prepare_input/pft_traits).
+leaf_pi0             = -1.5                                                         # [MPa]
+leaf_elastic_mod     = 12.0                                                         # [MPa]
+leaf_apoplast_frac   = 0.3                                                          # [-]
+leaf_water_sat       = 2.0                                                          # [kg H2O/kgC]
+wood_pi0             = -1.0                                                         # [MPa]
+wood_elastic_mod     = 8.0                                                          # [MPa]
+wood_apoplast_frac   = 0.2                                                          # [-]
+wood_water_sat       = 1.0                                                          # [kg H2O/kgC]
+wood_psi50           = -2.0                                                         # [MPa]
+wood_kexp            = 2.0                                                          # [-]
+wood_kmax            = [5.8914373491131515, 4.177863535653273, 2.685588809977599]   # [kg/m/s/MPa]
+vessel_curl          = 1.5                                                          # [-]
+root_beta            = 0.1                                                          # [-]
+root_depth_b1        = 1.114058                                                     # [m]
+root_depth_b2        = 0.4223014                                                    # [-]
+specific_root_length = 20000.0                                                      # [m/kgC]
+fine_root_radius     = 0.00025                                                      # [m]
+
+# No [phenology] section: every PFT is evergreen, losing leaves to background turnover alone.

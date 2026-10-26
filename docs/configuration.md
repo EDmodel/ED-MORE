@@ -664,7 +664,7 @@ Each example ships a complete main and PFT config pair; read them next to this p
 
 | Example | Config | Shows |
 |---|---|---|
-| `examples/example03_demography/` | `example_config_main.toml`, `example_config_pft.toml` | the demography engine alone, from near-bare ground, with no fast loop |
-| `examples/example04_column_biophysics/` | `calibration/ed_config_calibrated.toml` | a site run at a flux tower: tower forcing (`format = "default"`), a census start |
-| `examples/example05_forest_regeneration/` | `ed_config_regeneration.toml`; `palo_verde/ed_config_inventory.toml` | regrowth from bare ground with state files; an ERA5-Land site run from a census |
-| `examples/example06_regional_run/` | written by `run_regions.py` | a region run on the ED_ERA5land archive |
+| [example 03](../examples/example03_demography/) | `example_config_main.toml`, `example_config_pft.toml` | the demography engine alone, from near-bare ground, with no fast loop |
+| [example 04](../examples/example04_column_biophysics/) | `calibration/ed_config_calibrated.toml` | a site run at a flux tower: tower forcing (`format = "default"`), a census start |
+| [example 05](../examples/example05_forest_regeneration/) | `ed_config_regeneration.toml`; `palo_verde/ed_config_inventory.toml` | regrowth from bare ground with state files; an ERA5-Land site run from a census |
+| [example 06](../examples/example06_regional_run/) | written by `run_regions.py` | a region run on the ED_ERA5land archive |

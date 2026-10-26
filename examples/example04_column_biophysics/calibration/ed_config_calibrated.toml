@@ -1,0 +1,189 @@
+# SPDX-License-Identifier: Apache-2.0
+# CALIBRATED by scripts/calibrate_fast from ed_config_eval.toml.
+# Every line is the base file's, comments included, except these keys the fit set
+# (calibrated value, the base file's value; EFFECTIVE: its value belongs to this model structure;
+# KATTGE & KNORR: fixed at the growth temperature's value, not fitted):
+#   aerodynamics.z0m_ratio         0.0492718  (0.13)  EFFECTIVE
+#   leaf_physiology.ds_vcmax       641.129  (650)  KATTGE & KNORR
+#   leaf_physiology.ds_jmax        640.592  (640)  KATTGE & KNORR
+# and these settings of the calibration (calibration.toml [overrides], the variant, [calibrated]):
+#   init.pft_config                "calibration/pft_parameters_calibrated.toml"
+#   output.prefix                  "cal"
+# ED-MORE example04_column_biophysics: the five tower years, 2012-08-01 to 2017-08-01 UTC, started from the
+# 2010 census of the BCI 50-ha plot, with hourly output to compare against the tower's own fluxes.
+# There is no spin-up: the stand is the census (bci_census.toml -> scripts/prepare_input/census), the soil
+# starts at the site's temperature, and soil carbon starts in steady state with the stand's litter.
+# Every output stamp is UTC; the post-processing shifts it to Panama time (UTC-5) for the comparison.
+
+[run]
+dt_slow    = "1d"
+start_time = "2012-08-01"
+end_time   = "2017-08-01"      # the recycle window itself, so every model year reads its own tower year
+n_threads  = 8                 # threads over the patches; the output is the same at any count
+
+[fast]
+fast_biophysics_on  = true
+dt_fast             = "900s"
+time_integrator     = "esdirk2"
+rtol                = 2.0e-3
+canopy_water_on     = true       # the canopy intercepts rain and its film evaporates (condensate goes to soil layer 1)
+
+[demography]
+demography_on             = true
+recruitment_on            = true
+cohort_fusion_on          = true
+patch_disturbance_on      = true
+patch_fusion_on           = true
+max_cohort                = 60
+n_cohort_fusion_iter      = 6
+cohort_size_tol_min       = 0.02
+cohort_size_tol_max       = 0.10
+cohort_lai_cap            = 1.0
+min_cohort_agb            = 1.0e-6
+negligible_nplant         = 1.0e-8
+split_eps                 = 1.0e-4
+cohort_fission_on         = true
+n_height_layers           = 16
+max_patch                 = 60
+n_patch_fusion_iter       = 6
+patch_light_tol           = 0.04    # strict: the census's gaps stay apart from the closed forest
+patch_light_tol_max       = 0.08    #   (130 patches and 1,924 cohorts at the start)
+patch_light_maxdev_factor = 1.5
+min_patch_area            = 1.0e-4
+conservation_tol          = 0.001
+growth_memory_days        = 365.0
+patch_disturbance_rate    = 0.014
+disturbance_survive_height = 10.0
+min_recruit_size          = 1.0e-2
+
+[init]
+init_mode    = 1                  # a census: one patch per 20 m quadrat, fused by ED-MORE before the first step
+census_file  = "data/bci_census2010_ed.csv"   # run_example.py builds it from bci_census.toml
+pft_config   = "calibration/pft_parameters_calibrated.toml"
+soil_temp    = 298.65             # [K] the tower's mean air temperature, as [soil].deep_temp
+soil_theta   = 0.42               # [m3/m3] wet season: August is three months into it ([soil] field capacity)
+
+[output]
+state_write       = false
+state_interval    = "5 years"
+state_file_dir    = "output"
+state_file_prefix = "eval"
+enabled       = true
+dir           = "output"
+prefix        = "cal"
+io_config     = "output_variables.toml"
+cohort_max    = 4096
+patch_max     = 256
+sync_every    = "flush"
+# output_variables.toml picks the variables, so the hourly tier stays site-only and is written one
+# file per year.
+fast_interval_steps = 4                # 4 * dt_fast (900 s) = hourly records
+
+[output.fast]
+enabled    = true
+file_chunk = "year"               # one file per UTC year of hourly records
+
+[output.daily]
+enabled    = true
+file_chunk = "run"
+
+[output.monthly]
+enabled    = false
+file_chunk = "year"
+
+[output.annual]
+enabled    = false
+file_chunk = "run"
+
+# The leaf traits follow the canopy's light gradient: each cohort's Vcmax25, Rd25, SLA and leaf
+# turnover rate are its PFT's top-of-canopy values times exp(k * LAI above it), set at the census start
+# and followed as the canopy changes (docs/science/plant_traits.md §1-§2). The calibration keeps it
+# on (calibration.toml).
+[trait_dynamics]
+trait_plasticity_on = true
+
+[leaf_physiology]
+stomatal_model     = "medlyn"
+temp_response_form = "peaked"
+colimitation       = "quadratic"
+use_boundary_layer = false
+kc25    = 40.49
+ko25    = 27840.0
+gstar25 = 4.275
+ea_kc     = 79430.0
+ea_ko     = 36380.0
+ea_gstar  = 37830.0
+ea_vcmax  = 65330.0
+ea_jmax   = 43540.0
+ea_rd     = 46390.0
+hd_vcmax  = 200000.0
+hd_jmax   = 200000.0
+hd_rd     = 200000.0
+ds_vcmax  = 641.129
+ds_jmax   = 640.592
+ds_rd     = 490.0
+o2_mol_frac      = 0.209
+leaf_absorptance = 0.85
+phi_psii         = 0.74    # [--] the electron yield of linear transport in low light: 0.37 electrons per absorbed
+                           #   photon, the measured maximum CO2 yield 0.093 at 4 electrons per CO2
+
+[site]
+latitude              = 9.1568        # AmeriFlux PA-Bar
+longitude             = -79.8486      # with the UTC clock, gives local solar time
+elevation             = 150.0
+apply_elevation_lapse = false         # the tower measures at the site: no terrain step
+
+[forcing]
+forcing_on     = true
+format         = "default"
+path           = "data/bci_forcing.nc"             # run_example.py builds it (make_tower_forcing.py)
+grid_index     = 1
+grid_match     = "explicit"
+# The tower's own heights, above the ground at its base (41 m). Each sample is moved from them to
+# the top of every patch's canopy air space: along the dry adiabat, and down the patch's own log
+# wind profile (docs/science/forcing.md §8). The file states the same heights, and met_open
+# stops if they disagree.
+tq_height      = 41.0
+wind_height    = 41.0
+height_above   = "ground"
+wind_exposure  = "local"           # measured over this canopy, not an open-terrain diagnostic
+timestep       = "1800s"
+avg_convention = "begin"           # the tower stamps the START of each half hour
+sw_partition   = "clearidx"
+lwdown_source  = "file"
+co2_source     = "file"
+co2_file       = "../../data/co2/co2_cmip7_global_annual_1000-2022.txt"
+recycle        = true
+recycle_start  = "2012-08-01 00:00:00"   # a record stamp of the begin-stamped UTC file
+recycle_end    = "2017-08-01 00:00:00"   # five whole calendar years later
+start_clamp    = "error"
+
+[soil_carbon]
+soil_carbon_on = true
+# Start in steady state with the census stand's litter (make_census.py's summary): leaf and fine-root
+# turnover from the PFT, wood from the plot's biomass mortality of 1.90 %/yr (2005-2010).
+spinup_steady      = true
+spinup_labile_grnd = 3.3080e-04     # [kgC/m2/day]
+spinup_labile_soil = 8.0198e-04
+spinup_struct_grnd = 9.2093e-04
+spinup_struct_soil = 6.7763e-04
+
+# BCI's soil: a kaolinitic, micro-aggregated clay Oxisol (Ava; 55-80 % clay, yet porous and fast to drain near
+# the surface). Van Genuchten parameters fitted to the 50-ha plot's paired water content and potential
+# (Kupers et al. 2019, Sci. Data 6:63) with the tower's soil water record; ksat is the in-situ median at
+# 12.5 cm on the plot's soil (Godsey et al. 2004, J. Hydrol. 295:276). A texture class does not fit: a
+# textbook clay holds far too little water and drains 20 times slower.
+[soil]
+depth       = 2.0                # [m]     the plot's soil to saprolite (1-2+ m); rooting depths are capped at it
+theta_sat   = 0.60               # [m3/m3] porosity 0.62-0.70 at bulk density 0.8-1.0, surface-weighted
+theta_res   = 0.10               # [m3/m3] the plot's dry branch: 0.24-0.25 at -1.2 to -1.6 MPa
+curve_par_a = 2.0                # [1/m]   van Genuchten alpha: the aggregates' large pores drain at small suction
+curve_par_n = 1.23               # [-]     van Genuchten n: little water lost between -0.15 and -1.6 MPa
+ksat        = 1.0e-5             # [m/s]
+thermal_bottom_bc = "dirichlet"
+deep_temp  = 298.65                # [K] the tower's mean air temperature, 2012-08 to 2017-08
+deep_depth = 3.145                  # [m] the bottom node (1.75 m) + 1.973 / sqrt(2), the default's rule:
+                                    #   docs/science/soil_biophysics.md eq. (13)
+
+[aerodynamics]
+z0m_ratio = 0.0492718   # set by calibrate_fast

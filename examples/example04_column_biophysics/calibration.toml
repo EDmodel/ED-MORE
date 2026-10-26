@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: Apache-2.0
+# The fast-parameter calibration at Barro Colorado Island (scripts/calibrate_fast;
+# the protocol its README links). run_example.py --calibrate runs it. Every
+# setting, its default and why: scripts/calibrate_fast/calibration_reference.toml. Only the choices
+# that differ from the defaults are here. Paths are relative to this file.
+
+[base]
+main       = "ed_config_eval.toml"     # with the PFT file it names (pft_parameters.toml) and its forcing
+parameters = "../../scripts/calibrate_fast/parameters.toml"
+
+# The tower's facts (file, clock, columns, units, which values were measured) are bci_site.toml, the
+# forcing build's own. Its forcing qc variables (LWdown_qc, Wind_qc: the defaults) keep every window
+# on observed longwave and wind, so the windows fall in 2015-2017, the years the tower measured
+# longwave.
+[tower]
+site = "bci_site.toml"
+
+# The tower's respiration (4.09 umol m-2 s-1) is about the soil chambers' alone (1,613 gC m-2 yr-1,
+# about 4.3; Rubio & Detto 2017), and the provider's note says it "appeared underestimated ...
+# considering that RECO includes also above ground respiration which can contribute up to 40-50% of
+# total respiration" (bci_site.toml [provider]). So kappa, the GPP observation model's respiration
+# error, gets a prior below 1.
+[priors.kappa]
+centre = 0.65
+sd     = 0.10
+range  = [0.4, 1.0]
+source = "best-practice plan §3.3: the tower's respiration is about the soil chambers' alone; the provider's note on the above-ground share (40-50 %)"
+
+[fit]
+plant_type      = "tropical_evergreen_broadleaf"   # the meta-analysis priors beside the EEO centres
+timeout_per_day = 30.0         # [s] over 10x a trial on a busy node (median 2.5 s a day)
+
+# The windows and seasonal runs are chosen by the rules (best-practice plan §6.2; `calibrate_fast.py
+# report` prints them): eight ten-day windows, one per 1.5-month slot, each the slot's best covered,
+# with validation windows in the same slots of other years; and the soil-drying runs from the years'
+# deepest water deficits (2016's is the El Nino drought).
+[windows]
+skip_hours = 3                 # the first hours after a restart with changed traits are not scored
+
+# Set in the calibrated main config the fit writes (ed_config_calibrated.toml), beside the MAP.
+[calibrated]
+"init.pft_config" = "calibration/pft_parameters_calibrated.toml"
+"output.prefix"   = "cal"

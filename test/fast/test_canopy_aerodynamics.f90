@@ -231,7 +231,7 @@ contains
       real(wp), parameter :: HEIGHT(N) = [8.0_wp, 18.0_wp], LAI(N) = [1.5_wp, 2.0_wp]
       real(wp), parameter :: TL(N) = [299.0_wp, 300.0_wp], TW(N) = [298.5_wp, 299.0_wp]
       real(wp), parameter :: LW(N) = [0.04_wp, 0.04_wp], BD(N) = [0.02_wp, 0.02_wp]
-      real(wp) :: gg(NW), r_meds, r_clm, nu
+      real(wp) :: gg(NW), r_edmore, r_clm, nu
       integer(ik) :: k
       geom%veg_height = 18.0_wp
       geom%snowfac    = 0.0_wp
@@ -272,11 +272,11 @@ contains
       env%t_ground  = 298.15_wp
       env%can_shv   = env%shv_atm
       call canopy_aerodynamics(cfg, env, geom, 0_ik, ORDER, HEIGHT, LAI, TL, TW, LW, BD, out)
-      r_meds = 1.0_wp / (out%ustar * out%heat_transfer_factor) + 1.0_wp / out%ggnet
+      r_edmore = 1.0_wp / (out%ustar * out%heat_transfer_factor) + 1.0_wp / out%ggnet
       nu     = cfg%kin_visc0 * (1.0_wp + cfg%dkin_visc * (298.15_wp - cfg%t_ref_air))
       r_clm  = (log((env%zref - out%displace) / out%rough)                                        &
                 + 0.13_wp * (out%rough * out%ustar / nu) ** 0.45_wp) / (von_karman * out%ustar)
-      call check('a bare patch is coupled as CLM5 couples bare soil', r_meds, r_clm, 1.0e-10_wp * r_clm)
+      call check('a bare patch is coupled as CLM5 couples bare soil', r_edmore, r_clm, 1.0e-10_wp * r_clm)
    end subroutine test_open_canopy
 
    !----- 7. Tied cohorts share one wind layer (docs/science/canopy_aerodynamics.md eq. (9)), as they  !

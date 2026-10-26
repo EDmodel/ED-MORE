@@ -1,0 +1,91 @@
+# ED-MORE example 03 MAIN config -- demography only: cohort and patch dynamics, driven from Python by
+# vital rates trained on the BCI censuses (census_laws.py), with no carbon or water dynamics.
+#
+# The driver is examples/example03_demography/run_demography.py, not edmore: the laws live in the
+# example, and edmore has only the carbon path. This is still a full ED-MORE config because
+# `ed_config_load` requires one; the driver reads the PFT table, the demographic settings, the
+# treefall disturbance and the census file from it. The [run], [fast] and output keys are
+# required by the loader and unused on this path. Paths are relative to the repository root.
+
+[run]
+dt_slow    = "1d"
+start_time = "2000-01-01"
+end_time   = "2300-01-01"
+
+[fast]
+fast_biophysics_on  = false    # demographics only: no sub-daily biophysics
+dt_fast             = "900s"
+gpp_ref             = 0.3   # [kgC/m2 leaf/yr] stub GPP per unit leaf area (carbon mode only)
+
+[demography]
+demography_on             = true
+recruitment_on            = true
+cohort_fusion_on          = true
+patch_disturbance_on      = true
+patch_fusion_on           = true
+max_cohort                = 60
+n_cohort_fusion_iter      = 6
+cohort_size_tol_min       = 0.02
+cohort_size_tol_max       = 0.10
+cohort_lai_cap            = 1.0
+min_cohort_agb            = 1.0e-6
+negligible_nplant         = 1.0e-8
+split_eps                 = 1.0e-4
+cohort_fission_on         = true
+n_height_layers           = 16
+max_patch                 = 12
+n_patch_fusion_iter       = 6
+patch_light_tol           = 0.10
+patch_light_tol_max       = 0.15
+patch_light_maxdev_factor = 1.5
+min_patch_area            = 1.0e-4
+conservation_tol          = 0.001
+growth_memory_days        = 365.0
+patch_disturbance_rate    = 0.014
+disturbance_survive_height = 10.0
+min_recruit_size          = 1.0e-2
+
+[init]
+init_mode    = 0
+census_file  = "examples/example03_demography/data/bci_1985_census.csv"   # prepare_census.py
+pft_config   = "examples/example03_demography/example_config_pft.toml"
+
+[output]
+state_write       = false
+state_interval    = "50 years"
+state_file_dir    = "examples/example03_demography/output" # relative to the repo root (run dir)
+state_file_prefix = "example_output"
+
+[leaf_physiology]
+# Leaf-level photosynthesis + stomatal conductance, unused here: the fast loop is off and growth is a
+# census law. MODEL-CHOICE keys are run-level; the per-PFT biochemical traits (Vcmax25, g1, pathway,
+# ...) live in the PFT config file.
+stomatal_model     = "medlyn"      # "leuning" | "medlyn" | "katul"
+temp_response_form = "peaked"      # "arrhenius" | "peaked" (high-temperature deactivation)
+colimitation       = "quadratic"   # "min" | "quadratic" (smoothed co-limitation)
+use_boundary_layer = false         # couple via the leaf boundary-layer conductance (env gb)
+# Shared FvCB biochemistry at 25 degC + Arrhenius/deactivation terms (Bernacchi et al. 2001).
+kc25    = 40.49      # [Pa]      Michaelis constant for CO2 at 25 degC
+ko25    = 27840.0    # [Pa]      Michaelis constant for O2 at 25 degC
+gstar25 = 4.275      # [Pa]      CO2 compensation point (no Rd) at 25 degC
+ea_kc     = 79430.0  # [J/mol]   activation energies
+ea_ko     = 36380.0
+ea_gstar  = 37830.0
+ea_vcmax  = 65330.0
+ea_jmax   = 43540.0
+ea_rd     = 46390.0
+hd_vcmax  = 200000.0 # [J/mol]   deactivation energies (peaked form)
+hd_jmax   = 200000.0
+hd_rd     = 200000.0
+ds_vcmax  = 650.0    # [J/mol/K] entropy terms (peaked form)
+ds_jmax   = 640.0
+ds_rd     = 490.0
+o2_mol_frac      = 0.209   # [mol/mol] atmospheric O2 mole fraction
+leaf_absorptance = 0.85    # [--] leaf PAR absorptance (for electron transport)
+phi_psii         = 0.85    # [--] electron yield of linear transport in low light (J's initial slope
+                           #   is 0.5*phi_psii electrons per absorbed photon)
+
+#----- Demographics only: no soil biogeochemistry. The default is on, so this has to be said rather
+#      than left out. ------
+[soil_carbon]
+soil_carbon_on = false

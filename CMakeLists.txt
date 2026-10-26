@@ -22,6 +22,9 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 option(ED_BUILD_TESTS "Build the CTest test suite" ON)
+# The long runs (ctest label `long`): example 05's Palo Verde inventory and its 150-year regrowth,
+# which read the ED_ERA5land archive (ED_ERA5LAND_ARCHIVE). OFF by default: they take over half an hour.
+option(ED_TEST_LONG "Register the long tests (label long): the Palo Verde inventory and 150-year regrowth" OFF)
 # netCDF output + I/O are ALWAYS compiled: the standard (and only) build needs the netCDF C library.
 # Point CMake at it with -DCMAKE_PREFIX_PATH=<prefix> (find_package(netCDF CONFIG REQUIRED), below).
 
