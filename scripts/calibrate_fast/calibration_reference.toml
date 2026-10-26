@@ -1,0 +1,230 @@
+# SPDX-License-Identifier: Apache-2.0
+# =====================================================================================================
+# calibrate_fast -- the CALIBRATION REFERENCE: every setting a site's calibration.toml may hold, with
+# the value the tool uses when the file leaves it out, and why that is the recommendation
+# (docs/dev_plans/MEDS_FAST_CALIBRATION_BEST_PRACTICE.md).
+#
+# This file IS the tool's schema. A setting the calibration file holds that is not here stops the
+# tool (a misspelling would otherwise silently keep the default), and every value below is the
+# default -- except the REQUIRED ones, marked so, whose values here are examples. Tables marked FREE
+# take any keys (model config keys, or names the calibration chooses).
+# =====================================================================================================
+
+[base]
+main       = "meds_config_eval.toml"   # REQUIRED. The main TOML of the base run. The PFT file is the one it names in
+                                       #   [init].pft_config, and the forcing the one in [forcing].path (with grid_index).
+parameters = "../../scripts/calibrate_fast/parameters.toml"   # REQUIRED. The parameter registry (the keys, ranges, priors).
+
+# FREE: model config keys set in every run of the calibration (main-file keys, dotted), e.g.
+#   "trait_dynamics.trait_plasticity_on" = true
+[overrides]
+
+# FREE: named variants, each a table of model config keys on top of [overrides] (--variant NAME), e.g.
+#   [variants.interception_on]
+#   "fast.canopy_water_on" = true
+[variants]
+
+# The tower. Its FACTS -- the file, format, clock, sensor heights, every column and its units, which
+# values were measured, and what the provider did -- are its site TOML, the one the forcing build
+# reads (scripts/prepare_flux_tower; [fluxes] and [provider] there). Only the calibration's CHOICES
+# about the data are here.
+[tower]
+site       = "bci_site.toml"     # REQUIRED. The tower's site TOML (scripts/prepare_flux_tower/README.md). Its [fluxes]
+                                 #   give the targets' data and the rule that says which values were measured. Only
+                                 #   measured values are used: a gap-filled value is a gap-filling model's prediction.
+forcing_qc = ["LWdown_qc", "Wind_qc"]   # The forcing file's qc variables that must be 0 (observed) in every window: a
+                                        #   trial driven by gap-filled forcing would score the gap filling. The tower
+                                        #   forcing build writes these; a forcing without qc variables sets [].
+daytime_sw = 10.0                # [W m-2] incoming shortwave above which a record is daytime (every daytime target).
+
+# The closure observation model of H and LE (best-practice plan §3.3; observation_models.py). The tower misses the
+# same fraction of the turbulent flux at every hour: f_d = median over +-window_days of the daily (Rnet - G) / (H + LE),
+# from days with at least min_measured of their records measured (the provider's gap-filled values fill those days'
+# sums; over a whole day storage nets out). H_true = H + s_H (f_d - 1)(H + LE), LE_true likewise with s_LE.
+[closure]
+shares       = "attribution"     # "attribution": from the attribution test -- within VPD classes, which of H/Rnet and
+                                 #   LE/Rnet rises from the calmest to the most turbulent third of the records by more
+                                 #   than min_rise (median over the classes). One rising takes the whole share, both
+                                 #   rising means Bowen, neither means as measured. "bowen": H and LE scaled together
+                                 #   (the FLUXNET convention, the declared alternative). "none": as measured.
+min_rise     = 0.10
+vpd_classes  = 4
+window_days  = 15                # [days] f_d's window, each side
+min_measured = 0.7               # a day counts when this share of its records has H and LE measured
+min_days     = 5                 # f_d needs at least this many valid days in its window
+
+# The targets' random error (best-practice plan §3.1; observation_models.py): sigma = sigma_abs + sigma_rel |x| from the
+# first of these with enough records: the provider's per-record random uncertainty ([provider].uncertainty in the site
+# TOML), the paired-day estimate (Hollinger & Richardson 2005: the same record on two days in a row, both measured, with
+# similar conditions), or the target's defaults. It is evaluated at a smoothed observation -- the mean of the measured
+# values at the same time of day within +-smooth_days -- because a sigma that follows each record's own value gives the
+# randomly low records more weight (a simulation put the fitted GPP 6-14 % low).
+[sigma]
+smooth_days  = 7
+paired_dpar  = 75.0              # [umol m-2 s-1] a pair's light differs by less (incoming PAR) ...
+paired_dsw   = 35.0              # [W m-2] ... or incoming shortwave, where the site gives no PAR
+paired_dt    = 3.0               # [K] air temperature
+paired_dvpd  = 200.0             # [Pa] VPD
+paired_dwind = 1.0               # [m s-1] wind
+min_pairs    = 200               # fewer pairs (or provider records): the next source
+bins         = 10                # equal-count bins of |x| for the fit of sigma_abs and sigma_rel
+
+[windows]
+days            = 10             # A calibration window's length [days]. Ten frozen days inform the fast keys; the
+                                 #   water-stress keys need the seasonal runs ([seasonal_runs]).
+skip_hours      = 0              # Hours left unscored at each window's start (the restart's first hours).
+chain_lead_days = 180            # Every window restarts from its own state: a frozen run from the initial stand (the
+                                 #   base config's census or state) that starts this many days before the window, so the
+                                 #   soil water and temperature are the model's own. Half a year spans a wet season
+                                 #   before any dry-season window.
+# The windows are chosen by the rule (best-practice plan §6.2) unless the calibration lists them: one calibration window
+# per slot of the year (`per_year` equal slots, 1.5 months for 8) inside the site TOML's leaf-on months, each the slot's
+# best covered -- the share of daytime records with H, LE and GPP measured, times the share with observed forcing --
+# and a validation window in the same slot of another year. `report` prints the choice as entries for this list.
+per_year     = 8
+min_coverage = 0.5               # a window's (and a seasonal run's) mean daily coverage must reach this
+# EXAMPLE: the calibration's own windows (name, start [UTC date], role "cal" or "val", optionally days); empty = the rule.
+list         = [ { name = "example", start = "2015-09-11", role = "cal" } ]
+
+# The seasonal runs (soil drying): frozen runs long enough for the soil to dry, scored on LE only, rows of the joint fit
+# beside the ten-day windows. By the rule, up to max_runs runs, each ending at a year's deepest cumulative water deficit
+# (rain minus Priestley-Taylor evaporation, from the forcing) inside the leaf-on months, the deepest years first; a year
+# whose deficit stays under min_deficit_mm gives none, and without any the drought keys are fixed.
+[seasonal_runs]
+days           = 120
+targets        = ["le"]          # LE only: scored on GPP too, a tower GPP with a biased respiration sets the strongest stress
+max_runs       = 2               # 0 = no seasonal runs
+min_deficit_mm = 100.0
+# EXAMPLE: the calibration's own runs (name, start, days); empty = the rule.
+list           = [ { name = "seasonal_2016", start = "2016-01-01", days = 120 } ]
+
+# The u* diagnostic (best-practice plan §2.3): within classes of each target's driver (PAR for GPP, Rnet for LE and H),
+# the flux-to-driver ratio across u* classes; the plateau test finds the lowest class within `plateau_fraction` of the
+# mean of the classes above (Papale et al. 2006), and a bootstrap over days its spread (Barr et al. 2013). Measured
+# daytime records only.
+[ustar]
+plateau_fraction  = 0.95
+classes           = [0.0, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.5, 0.6, 0.8, 3.0]   # the u* class edges [m s-1]
+driver_classes    = 4            # equal-count classes of the driver
+min_driver        = { par = 100.0, rnet = 50.0 }   # [umol m-2 s-1, W m-2] dimmer records make a ratio of small numbers
+min_class_records = 15           # a u* class with fewer records is skipped
+min_records       = 500          # fewer records in all: no diagnostic (no filter)
+n_boot            = 200
+seed              = 1
+
+# ----- TARGETS -------------------------------------------------------------------------------------------
+# Every target takes:
+#   on                   use it
+#   sigma_abs, sigma_rel its observation error: sigma = sigma_abs + sigma_rel |obs| (for LE, H and GPP the defaults of
+#                        [sigma]'s sources)
+# and these FILTERS, applied in this order after the target's own definition (a filter left out is off):
+#   ustar_min            u* at or above [m s-1] (refused on the u* target: it would bias it): a number, "provider"
+#                        (the site TOML's [provider].ustar_threshold, one value or one per year) or "diagnostic"
+#                        (the target's own u* diagnostic: filtered at a plateau, not at all when the ratio is flat
+#                        or still rising)
+#   par_min              incident PAR at or above [umol m-2 s-1] (needs the site TOML's variables.PAR)
+#   hours                local hours [from, to)
+#   min_solar_elevation  the sun at least this high [degrees]
+#   snow_free_days       no freezing air for this many days before (a tower has no snow sensor in its columns)
+# H, LE, GPP and u* are daytime targets (incoming shortwave above [tower].daytime_sw): at night they are set mostly by
+# the model's numerical floors and by stable-air measurement problems.
+[targets.albedo]
+on        = false                # Off: at realistic leaf optics the model's canopy reflects too much NIR, so the albedo
+                                 #   can be met only by moving a leaf's optics past its evidence. It stays off until the
+                                 #   canopy's structure can meet it (see docs/ROADMAP.md).
+sigma_abs = 0.01
+min_sw    = 200.0                # [W m-2] only records with this much incoming shortwave (a ratio of small numbers is noise)
+min_solar_elevation = 20.0       # [deg] low-sun albedo is the least reliable
+snow_free_days = 7               # snow is a different surface from the one the keys describe
+
+[targets.lw_up]
+on        = true
+sigma_abs = 5.0                  # [W m-2]
+
+[targets.le]
+on        = true                 # observation model: closure ([closure])
+sigma_abs = 10.0                 # [W m-2] the defaults; random error grows with the flux (Richardson et al. 2006)
+sigma_rel = 0.15
+ustar_min = "diagnostic"
+
+[targets.h]
+on        = true                 # observation model: closure ([closure])
+sigma_abs = 10.0
+sigma_rel = 0.15
+ustar_min = "diagnostic"         # a ratio still rising at the top u* classes is not filtered: the missing sensible heat
+                                 #   is the closure model's to handle, not a filter's
+
+[targets.gpp]
+on        = true                 # observation model: respiration -- the provider made GPP from its respiration,
+                                 #   R_tower = kappa R_true, so the residual is [GPP_model - GPP_tower - (1/kappa - 1)
+                                 #   R_tower] / sigma_NEE, with kappa an observation key (the registry's `kappa`; without
+                                 #   it in the fit, kappa = 1). The site TOML must declare RECO.
+sigma_abs = 1.5                  # [umol m-2 s-1] the defaults, of NEE (the respiration's error is kappa's)
+sigma_rel = 0.15
+ustar_min = "provider"           # the provider's CO2 threshold (the ONEFlux convention): low turbulence after sunrise
+                                 #   under-reads uptake. The daytime plateau of the u* diagnostic is the declared alternative.
+
+[targets.ustar]
+on        = true
+sigma_abs = 0.1                  # [m s-1] loose: the tower measures u* in the roughness sublayer
+sigma_rel = 0.2
+
+# ----- THE FIT -------------------------------------------------------------------------------------------
+# One joint fit (best-practice plan §6.3): the screening of the first gradient matrix at the prior centres, then
+# Levenberg-Marquardt on every remaining key at once, with the residuals weighted by each target's effective sample
+# size and Huber's loss; once, after the first convergence, the chains, weights and sigma are refreshed at the current
+# values (each target's sigma multiplied by max(1, sqrt(chi^2 per row)), at most sigma_scale_max: a target the model
+# structurally cannot fit stops bending the keys, §3.4), and the fit continues to convergence.
+[fit]
+# Which keys: the registry's `state = "fit"` keys by default. Set `keys` (the exact list; a fixed key may be named),
+# or `add` / `remove` (edits of the default set) -- not both. Unknown names stop the tool.
+#   keys   = ["vcmax25", "stomatal_g1"]
+#   add    = ["theta_j"]
+#   remove = ["leaf_angle_mean"]
+plant_type = ""                  # the plant type of the fitted PFT, for the registry's meta-analysis priors (`meta`):
+                                 #   e.g. "tropical_evergreen_broadleaf". A key without an EEO centre takes its type's
+                                 #   prior; an EEO centre is reported beside it and flagged when more than 2 sd apart.
+uninformed_sd_ratio = 0.9        # the screening fixes at its prior's centre a key that is dead (a zero column), rough
+                                 #   (the two one-sided slopes disagree 3x: make the model continuous), uninformed
+                                 #   (posterior/prior sd ratio at least this) or the less informed of a pair correlated
+max_correlation     = 0.95       #   beyond this
+huber_c         = 2.0            # Huber's loss: a row's pull is capped at this many sigma (half-hourly errors are
+                                 #   heavy-tailed, Lasslop et al. 2008); chi^2 is reported on the plain residuals
+sigma_scale_max = 3.0
+max_iter        = 10             # Levenberg-Marquardt iterations before and again after the refresh
+min_cost_drop   = 1.0e-3         # ... and each stops when the cost falls by less than this fraction (0.1 %)
+recompute_every = 3              # the gradient matrix (one-sided differences) is recomputed in full every this many
+                                 #   accepted steps and after a rejected one; Broyden's update carries it in between
+timeout_per_day = 90.0           # [s per simulated day] a run's timeout (at least ten days' worth). A run that times
+                                 #   out, like any failed run, stops the fit with its log.
+max_threads     = 8              # a run takes one thread for every 15 simulated days, up to this (and up to --workers
+                                 #   on one machine): the 120-day seasonal runs and the chains set an iteration's pace,
+                                 #   the ten-day windows run on one thread. MEDS's output is the same at any count.
+min_process_records = 48         # a key that acts through one process (the registry's `process`: wet canopy, night,
+                                 #   snow, drought) is fixed when the kept records sample it fewer times than this
+
+# FREE (key names from the registry): a key's prior and range, over the registry's. Site leaf measurements come
+# first (best-practice plan §3.5), then the EEO centres the tool computes from the site's climate (stomatal_g1,
+# vcmax25), then a meta-analysis by plant type.
+#   [priors.vcmax25]
+#   centre = 45.0                  # the prior's centre (the key's units); also where the fit starts
+#   sd     = 8.0                   # its sd (the key's units); or log_sd (log units) for a log key
+#   range  = [25.0, 80.0]          # its bounds
+#   source = "site leaf data"
+# A narrow prior holds a key near its centre but lets strong evidence nudge it; a wide one lets the data decide.
+[priors]
+
+[uncertainty]
+linearity_dirs = 3               # the linearity check: +-1 sd along this many leading directions
+# The declared alternatives (best-practice plan §7.1), the same at every site. Each one's shift of the MAP is first the
+# linear estimate from the final gradient matrix (no new trials); beyond refit_beyond_sd posterior sd the fit is rerun
+# from the MAP under it and both MAPs are reported.
+#   gpp_ustar     GPP filtered at the daytime plateau of its own u* diagnostic, against the provider's threshold
+#   closure       Bowen, against the attribution test's shares
+#   partitioning  the provider's daytime partitioning, against its night-time one, where the site TOML declares both
+alternatives    = ["gpp_ustar", "closure", "partitioning"]
+refit_beyond_sd = 1.0
+refit_max_iter  = 5
+
+# FREE: model config keys written into the calibrated main TOML (e.g. its output prefix).
+[calibrated]
