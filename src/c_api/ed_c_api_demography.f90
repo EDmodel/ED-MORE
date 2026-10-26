@@ -159,7 +159,7 @@ contains
    ! (PFT-fastest) npft*npatch array. is_new_month / is_new_year are 0/1.                        !
    !---------------------------------------------------------------------------------------!
    subroutine ed_apply_rates(sh, ch, growth, mortality, recr, is_new_month, is_new_year) &
-                               bind(c, name="ed_apply_rates")
+                             bind(c, name="ed_apply_rates")
       integer(c_int), value, intent(in) :: sh, ch, is_new_month, is_new_year
       real(c_double),        intent(in) :: growth(*), mortality(*), recr(*)
       integer(ik) :: n, np, npft, ip, pf, i, n_window

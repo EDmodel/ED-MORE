@@ -214,8 +214,8 @@ add_library(ed_config STATIC ${CONFIG_SOURCES})
 #      written into an include at configure time, and re-written when either reference changes.   #
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ed_config_keys.cmake)
 ed_write_config_keys(${CMAKE_CURRENT_SOURCE_DIR}/ed_config_main.toml
-                       ${CMAKE_CURRENT_SOURCE_DIR}/ed_config_pft.toml
-                       ${CMAKE_CURRENT_BINARY_DIR}/generated/ed_config_keys.inc)
+                     ${CMAKE_CURRENT_SOURCE_DIR}/ed_config_pft.toml
+                     ${CMAKE_CURRENT_BINARY_DIR}/generated/ed_config_keys.inc)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
              ${CMAKE_CURRENT_SOURCE_DIR}/ed_config_main.toml ${CMAKE_CURRENT_SOURCE_DIR}/ed_config_pft.toml)
 target_include_directories(ed_config PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)

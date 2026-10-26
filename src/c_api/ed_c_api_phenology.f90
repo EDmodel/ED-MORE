@@ -125,10 +125,10 @@ contains
    ! rule rather than a copy of it.                                                           !
    !---------------------------------------------------------------------------------------!
    subroutine ed_leaf_turnover_step(leaf, leaf_full, leaf_flush_tendency, leaf_shed_tendency,    &
-                                      flush_rate_max, shed_rate_max, leaf_turnover_rate,         &
-                                      min_leaf_cover, bare_leaf_cover, dt,                       &
-                                      senescence, background, flush_cap)                         &
-                                      bind(c, name="ed_leaf_turnover_step")
+                                    flush_rate_max, shed_rate_max, leaf_turnover_rate,           &
+                                    min_leaf_cover, bare_leaf_cover, dt,                         &
+                                    senescence, background, flush_cap)                           &
+                                    bind(c, name="ed_leaf_turnover_step")
       real(c_double), value, intent(in) :: leaf, leaf_full, leaf_flush_tendency, leaf_shed_tendency
       real(c_double), value, intent(in) :: flush_rate_max, shed_rate_max, leaf_turnover_rate
       real(c_double), value, intent(in) :: min_leaf_cover, bare_leaf_cover, dt

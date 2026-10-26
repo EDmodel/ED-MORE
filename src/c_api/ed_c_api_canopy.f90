@@ -99,7 +99,7 @@ contains
    !----- The leaf solve for n leaves, each with its own drivers and plastic capacities: the loop   !
    !      of leaf_gas_exchange_batch, with canopy-air CO2 and pressure per leaf rather than shared. --!
    subroutine ed_canopy_leaf(n, pft, vcmax25, rd25, par, leaf_temp, vpd, ca, pressure, psi_leaf,   &
-                               gb, psi, a_gross, a_net, gs, ci) bind(c, name="ed_canopy_leaf")
+                             gb, psi, a_gross, a_net, gs, ci) bind(c, name="ed_canopy_leaf")
       integer(c_int), value, intent(in)  :: n
       integer(c_int),        intent(in)  :: pft(n)
       real(c_double),        intent(in)  :: vcmax25(n), rd25(n)
