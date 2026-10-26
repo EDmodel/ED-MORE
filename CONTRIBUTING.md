@@ -25,6 +25,9 @@ AI agents alike, are in [`AGENTS.md`](AGENTS.md).
 - **Agree on the design first** for a new process, a change to the numerics, to the layout of the
   config files or to a file format. Describe the design on the issue; a maintainer agrees to it there
   before the pull request opens.
+- **Plans live in issues and pull requests.** Post a design plan, including one an AI tool drafted,
+  in the issue or the pull request description, and say who or what drafted it. The repository
+  holds no plan documents and no roadmap; the issues and the milestones are the plan.
 
 ## Making the change
 
