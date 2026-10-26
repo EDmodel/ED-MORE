@@ -22,6 +22,10 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - The Python package is `edmore` (was `meds`): `import edmore.plant`, `python -m edmore.model`. It
   finds the library through `EDMORE_LIB` and the program through `EDMORE_MAIN` (were `MEDS_LIB` and
   `MEDS_MAIN`). The forcing-file writer is `edmore.forcing` (was `scripts/meds_forcing_file.py`). (#40)
+- The input tools are in `scripts/prepare_input/`: `era5/`, `flux_tower/`, `census/`, `co2/` and
+  `pft_traits/` (were `scripts/prepare_era5/`, `prepare_flux_tower/`, `prepare_census/`, `prepare_co2/`
+  and `pft_traits/`); `scripts/calibrate_fast/` stays. The install scripts read `EDMORE_ASSUME_YES`
+  (was `MEDS_ASSUME_YES`). (#41)
 
 ### Added
 
@@ -30,3 +34,6 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - The Python package from MEDS v0.4.0: the leaf, phenology and canopy kernels, the demography
   engine, the whole coupled model with the time loop in Python, and config editing; `pip install
   python/` builds it with the library inside. (#40)
+- The tools from MEDS v0.4.0, with their tests: ERA5-Land and flux-tower forcing, a census from a
+  ForestGEO table, the CO₂ record, the PFT traits that follow published fits, and the calibration of
+  the fast processes' parameters against a flux tower. (#41)

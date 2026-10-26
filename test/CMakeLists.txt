@@ -284,9 +284,8 @@ else()
 endif()
 
 #==========================================================================================#
-#  python/: the package's own tests, the restart test that pytest drives, and the wheel's  #
-#  copies of LICENSE and NOTICE. The pytest suites need a Python with numpy, netCDF4 and   #
-#  pytest (and tomli below 3.11); without one they are left out, and configure says so.    #
+#  python/ and scripts/: the package's tests, the restart test pytest drives, the tools'   #
+#  tests, and the wheel's copies of LICENSE and NOTICE.                                    #
 #==========================================================================================#
 #----- The wheel ships COPIES of LICENSE and NOTICE, because python/pyproject.toml cannot           #
 #      list license files above its own directory. A tracked copy drifts silently, so the           #
@@ -296,35 +295,56 @@ foreach(f LICENSE NOTICE)
    ed_add_test(${f_lower}_copy COMMAND ${CMAKE_COMMAND} -E compare_files --ignore-eol
                ${PROJECT_SOURCE_DIR}/${f} ${PROJECT_SOURCE_DIR}/python/${f} LABELS lint)
 endforeach()
-if (Python3_Interpreter_FOUND)
+#----- ed_add_pytest(<name> PATH <tests> IMPORTS <module>... [ENVIRONMENT <VAR=value>...]           #
+#                    LABEL <label>)                                                                 #
+#      The pytest suite at PATH, registered when the Python CMake found imports every module        #
+#      it lists (and tomli below Python 3.11); otherwise configure says what is missing.            #
+#      PYTHONPATH holds python/, so a suite imports edmore from the source tree.                    #
+function(ed_add_pytest name)
+   cmake_parse_arguments(PARSE_ARGV 1 arg "" "PATH;LABEL" "IMPORTS;ENVIRONMENT")
+   if (NOT Python3_Interpreter_FOUND)
+      return()
+   endif()
+   list(JOIN arg_IMPORTS ", " imports)
    execute_process(COMMAND ${Python3_EXECUTABLE} -c
-                   "import sys, numpy, netCDF4, pytest; sys.version_info >= (3, 11) or __import__('tomli')"
-                   RESULT_VARIABLE ed_python_test_deps OUTPUT_QUIET ERROR_QUIET)
-endif()
-if (Python3_Interpreter_FOUND AND ed_python_test_deps EQUAL 0)
+                   "import sys, ${imports}; sys.version_info >= (3, 11) or __import__('tomli')"
+                   RESULT_VARIABLE missing OUTPUT_QUIET ERROR_QUIET)
+   if (missing)
+      message(STATUS "ED-MORE: ${name} is not registered (${Python3_EXECUTABLE} cannot import ${imports}, "
+                     "or tomli)")
+      return()
+   endif()
+   ed_add_test(${name} COMMAND ${Python3_EXECUTABLE} -m pytest -q -p no:cacheprovider ${arg_PATH}
+               ENVIRONMENT PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=${PROJECT_SOURCE_DIR}/python ${arg_ENVIRONMENT}
+               LABELS ${arg_LABEL})
+endfunction()
+set(ed_program_env EDMORE_MAIN=$<TARGET_FILE:ed_main>)
+if (ED_BUILD_PYLIB)
+   list(APPEND ed_program_env EDMORE_LIB=$<TARGET_FILE:ed_py>)
    #----- The package's tests (python/tests): the leaf, phenology and canopy kernels,               #
    #      edmore.config, and edmore.model against edmore, bit for bit. They load libedmore.so.      #
-   if (ED_BUILD_PYLIB)
-      ed_add_test(python_api
-                  COMMAND ${Python3_EXECUTABLE} -m pytest -q -p no:cacheprovider ${PROJECT_SOURCE_DIR}/python/tests
-                  ENVIRONMENT PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=${PROJECT_SOURCE_DIR}/python
-                              EDMORE_LIB=$<TARGET_FILE:ed_py> EDMORE_MAIN=$<TARGET_FILE:ed_main>
-                  LABELS python)
-   endif()
-   #----- A restart continues exactly, and re-acclimates its traits on request                      #
-   #      (python/test_restart_exact.py: edmore on the constant reference climate, and on a         #
-   #      forcing file edmore.forcing writes). A whole run, so it is labelled integration,          #
-   #      though pytest drives it.                                                                  #
-   ed_add_test(restart_exact
-               COMMAND ${Python3_EXECUTABLE} -m pytest -q -p no:cacheprovider
-                       ${CMAKE_CURRENT_SOURCE_DIR}/python/test_restart_exact.py
-               ENVIRONMENT PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=${PROJECT_SOURCE_DIR}/python
-                           EDMORE_MAIN=$<TARGET_FILE:ed_main>
-               LABELS integration)
-else()
-   message(STATUS "ED-MORE: python_api and restart_exact are not registered (they need a Python with "
-                  "numpy, netCDF4 and pytest)")
+   ed_add_pytest(python_api PATH ${PROJECT_SOURCE_DIR}/python/tests IMPORTS numpy netCDF4 pytest
+                 ENVIRONMENT ${ed_program_env} LABEL python)
 endif()
+#----- A restart continues exactly, and re-acclimates its traits on request                         #
+#      (python/test_restart_exact.py: edmore on the constant reference climate, and on a            #
+#      forcing file edmore.forcing writes). A whole run, so it is labelled integration,             #
+#      though pytest drives it.                                                                     #
+ed_add_pytest(restart_exact PATH ${CMAKE_CURRENT_SOURCE_DIR}/python/test_restart_exact.py
+              IMPORTS numpy netCDF4 pytest ENVIRONMENT EDMORE_MAIN=$<TARGET_FILE:ed_main> LABEL integration)
+#----- The input tools' tests (scripts/prepare_input): a tower forcing file from flux-tower         #
+#      data, a census from a ForestGEO table, and the PFT traits that follow published fits.        #
+ed_add_pytest(prepare_flux_tower PATH ${PROJECT_SOURCE_DIR}/scripts/prepare_input/flux_tower/tests
+              IMPORTS numpy pandas netCDF4 pytest LABEL python)
+ed_add_pytest(prepare_census PATH ${PROJECT_SOURCE_DIR}/scripts/prepare_input/census/tests
+              IMPORTS numpy pandas pytest LABEL python)
+ed_add_pytest(pft_traits PATH ${PROJECT_SOURCE_DIR}/scripts/prepare_input/pft_traits/tests
+              IMPORTS pytest LABEL python)
+#----- The fast-parameter calibration (scripts/calibrate_fast/tests): the unit tests, a smoke       #
+#      test that runs a chain, a trial and a Jacobian column through edmore (and through the        #
+#      Python API when libedmore.so is built), and a short end-to-end fit.                          #
+ed_add_pytest(calibrate_fast PATH ${PROJECT_SOURCE_DIR}/scripts/calibrate_fast/tests
+              IMPORTS numpy pandas scipy netCDF4 pytest ENVIRONMENT ${ed_program_env} LABEL python)
 
 #----- Every test stops at 10 minutes. The longest takes about 1.5 in a Debug build, so a test that #
 #      hangs, or slows by an order of magnitude, fails instead of holding the suite.                #
