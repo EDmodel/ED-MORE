@@ -33,7 +33,7 @@ python post_proc/plot_site_timeseries.py examples/example03_demography/output/ba
 
 netCDF is required; gfortran, ifx and nvfortran are supported. [`docs/building.md`](docs/building.md) covers the four
 build kinds (debug, dev, profile, and production for long runs), the parallel builds and the compiler
-traps. The dev build also makes the shared library the Python front end loads (`python/README.md`);
+traps. The dev build also makes the shared library the Python front end loads ([`python/README.md`](python/README.md));
 the plots need numpy, matplotlib and netCDF4. Each example's README says which data it needs and how
 to run it.
 
@@ -46,7 +46,7 @@ to run it.
 | set up a run | [`docs/configuration.md`](docs/configuration.md): the two TOML files and the three ways to start |
 | see worked examples | `examples/`: leaf gas exchange, phenology, demography, a flux tower, forest regrowth, a region |
 | prepare forcing and census inputs | `scripts/prepare_era5/`, `scripts/prepare_flux_tower/`, `scripts/prepare_census/` |
-| drive it from Python | `python/README.md` |
+| drive it from Python | [`python/README.md`](python/README.md): the `edmore` package |
 | plot the output | `post_proc/README.md` |
 | change the code | [Developing ED-MORE](#developing-ed-more) below, then [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 | know what changed | [`CHANGELOG-v0.md`](CHANGELOG-v0.md) |

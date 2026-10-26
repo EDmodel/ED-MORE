@@ -62,8 +62,8 @@ def record(run_dir: Path) -> dict:
 
 
 @pytest.mark.skipif(not EDMORE_MAIN or not Path(EDMORE_MAIN).exists(),
-                    reason="EDMORE_MAIN is not set to a edmore executable")
-def test_python_run_matches_ed_main(tmp_path):
+                    reason="EDMORE_MAIN is not set to an edmore executable")
+def test_python_run_matches_edmore(tmp_path):
     logs = {}
     for name, argv in (("exe", [EDMORE_MAIN]), ("py", [sys.executable, "-m", "edmore.model"])):
         main = two_days(tmp_path / name)

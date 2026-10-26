@@ -283,6 +283,49 @@ else()
    message(STATUS "ED-MORE: the repository checks are not registered as tests (CMake found no Python)")
 endif()
 
+#==========================================================================================#
+#  python/: the package's own tests, the restart test that pytest drives, and the wheel's  #
+#  copies of LICENSE and NOTICE. The pytest suites need a Python with numpy, netCDF4 and   #
+#  pytest (and tomli below 3.11); without one they are left out, and configure says so.    #
+#==========================================================================================#
+#----- The wheel ships COPIES of LICENSE and NOTICE, because python/pyproject.toml cannot           #
+#      list license files above its own directory. A tracked copy drifts silently, so the           #
+#      build compares them.                                                                         #
+foreach(f LICENSE NOTICE)
+   string(TOLOWER ${f} f_lower)
+   ed_add_test(${f_lower}_copy COMMAND ${CMAKE_COMMAND} -E compare_files --ignore-eol
+               ${PROJECT_SOURCE_DIR}/${f} ${PROJECT_SOURCE_DIR}/python/${f} LABELS lint)
+endforeach()
+if (Python3_Interpreter_FOUND)
+   execute_process(COMMAND ${Python3_EXECUTABLE} -c
+                   "import sys, numpy, netCDF4, pytest; sys.version_info >= (3, 11) or __import__('tomli')"
+                   RESULT_VARIABLE ed_python_test_deps OUTPUT_QUIET ERROR_QUIET)
+endif()
+if (Python3_Interpreter_FOUND AND ed_python_test_deps EQUAL 0)
+   #----- The package's tests (python/tests): the leaf, phenology and canopy kernels,               #
+   #      edmore.config, and edmore.model against edmore, bit for bit. They load libedmore.so.      #
+   if (ED_BUILD_PYLIB)
+      ed_add_test(python_api
+                  COMMAND ${Python3_EXECUTABLE} -m pytest -q -p no:cacheprovider ${PROJECT_SOURCE_DIR}/python/tests
+                  ENVIRONMENT PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=${PROJECT_SOURCE_DIR}/python
+                              EDMORE_LIB=$<TARGET_FILE:ed_py> EDMORE_MAIN=$<TARGET_FILE:ed_main>
+                  LABELS python)
+   endif()
+   #----- A restart continues exactly, and re-acclimates its traits on request                      #
+   #      (python/test_restart_exact.py: edmore on the constant reference climate, and on a         #
+   #      forcing file edmore.forcing writes). A whole run, so it is labelled integration,          #
+   #      though pytest drives it.                                                                  #
+   ed_add_test(restart_exact
+               COMMAND ${Python3_EXECUTABLE} -m pytest -q -p no:cacheprovider
+                       ${CMAKE_CURRENT_SOURCE_DIR}/python/test_restart_exact.py
+               ENVIRONMENT PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=${PROJECT_SOURCE_DIR}/python
+                           EDMORE_MAIN=$<TARGET_FILE:ed_main>
+               LABELS integration)
+else()
+   message(STATUS "ED-MORE: python_api and restart_exact are not registered (they need a Python with "
+                  "numpy, netCDF4 and pytest)")
+endif()
+
 #----- Every test stops at 10 minutes. The longest takes about 1.5 in a Debug build, so a test that #
 #      hangs, or slows by an order of magnitude, fails instead of holding the suite.                #
 get_property(ed_all_tests DIRECTORY PROPERTY TESTS)
