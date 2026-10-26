@@ -12,6 +12,12 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-26
+
+The first ED-MORE release: MEDS v0.4.0 renamed and moved to the EDmodel organization, with its
+model, Python package, tools and examples. A run gives MEDS v0.4.0's numbers bit for bit, hence a
+patch version; the names change, and the Upgrading notes list them.
+
 ### Upgrading
 
 - MEDS is now ED-MORE. The config files are `ed_config_main.toml`, `ed_config_pft.toml` and
@@ -48,3 +54,6 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   demography, a flux-tower column, forest regeneration and a regional run. Example 03's two
   animations are assets of the release. A test checks that the PFT and DBH-class axes of the output
   add up to the polygon totals. (#42)
+
+[Unreleased]: https://github.com/EDmodel/ED-MORE/compare/v0.4.1...beta
+[0.4.1]: https://github.com/EDmodel/ED-MORE/releases/tag/v0.4.1

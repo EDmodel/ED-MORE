@@ -24,5 +24,5 @@ of it exposed for their own sake.
 Importing `edmore` is cheap and does NOT load any compiled library; each sub-module loads the
 shared library lazily on first import, so `import edmore` works even without it built.
 """
-__version__ = "0.4.0"
+__version__ = "0.4.1"
 __all__ = ["plant", "demography", "model", "config", "canopy", "forcing"]

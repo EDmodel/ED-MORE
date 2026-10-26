@@ -12,7 +12,7 @@
 # (docs/building.md, "Parallel builds").                                                       #
 #==========================================================================================#
 cmake_minimum_required(VERSION 3.20)
-project(ED-MORE VERSION 0.4.0 LANGUAGES Fortran
+project(ED-MORE VERSION 0.4.1 LANGUAGES Fortran
         DESCRIPTION "A Modular, Open, Reproducible, and Extensible Ecosystem Demography model")
 
 #      A configure that names no build type gets the dev kind (docs/building.md, "Build kinds"):

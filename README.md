@@ -9,7 +9,7 @@ demography then grows, kills and recruits plants on the carbon this produces. A 
 site, a polygon divided into sites with their own soil, elevation and slope, or a region in which
 every ERA5-Land grid cell within a box is its own polygon.
 
-**Status: v0.4.1 in preparation, and not yet benchmarked.** The examples fit some parameters to
+**Status: v0.4.1, the first ED-MORE release, not yet benchmarked.** The examples fit some parameters to
 observations (a flux tower, a forest census, leaf area and litter) and set a regional run against
 satellite leaf area, but no regression suite against reference runs exists yet, and no systematic
 evaluation against observations has been made. What is verified is internal: the test suite on two
