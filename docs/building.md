@@ -291,21 +291,21 @@ the shared fixtures in `test/support/` and the CMake checks in `test/checks/`.
 
 | Label | What it holds | Tests (dev) | Time (dev, one core) |
 |---|---|---|---|
-| `unit` | each module's test, and `edmore`'s refusals (`*_refused`, `main_failure_finalizes`) | 66 | 13 s |
-| `integration` | whole runs: `region`, `fast_driver` | 2 | 32 s |
-| `lint` | the repository's checks, one test each and named after the check (`no_issue_refs`, `spdx_header`, `one_statement_per_line`, ...), and the CMake checks of the source tree and the shipped files (`no_procedure_arguments`, `config_keys_listed`, `io_config_example`) | 11 | 6 s |
+| `unit` | each module's test, and `edmore`'s refusals (`*_refused`, `main_failure_finalizes`) | 66 | 15 s |
+| `integration` | whole runs: `region`, `fast_driver` | 2 | 34 s |
+| `lint` | the repository's checks, one test each and named after the check (`kernels_patch_only`, `clamps_named`, `no_issue_refs`, ...), and the CMake checks of the source tree and the shipped files (`no_procedure_arguments`, `config_keys_listed`, `io_config_example`) | 15 | 4 s |
 
-A debug build has 78 tests: no `soil_nan_layer_refused` (it traps the NaN that case feeds the
+A debug build has 82 tests: no `soil_nan_layer_refused` (it traps the NaN that case feeds the
 loader). A `-L` takes a regular expression, so `-L 'unit|lint'` runs both.
 
 ### The suite runs on dev
 
-**Run the suite on a dev build** (or debug); dev passes all 79 tests with ifx and with gfortran.
+**Run the suite on a dev build** (or debug); dev passes all 83 tests with ifx and with gfortran.
 Several tests compare two computations of the same number bit for bit, or within a few units in the
 last place, and that holds only when both are compiled the same way. dev compiles each file on its
 own at `-O2`, for any x86-64 CPU. production optimises across files (IPO) and generates AVX-512 code,
 so the two sides of such a check can be compiled differently and part in the last bits. Built with
-`-DED_BUILD_TESTS=ON`, production fails 2 tests with ifx, and passes all 79 with gfortran (GCC 11.5):
+`-DED_BUILD_TESTS=ON`, production fails 2 tests with ifx, and passes all 83 with gfortran (GCC 11.5):
 
 | Test | Compiler | The check that fails | Production's value | Tolerance | Cause |
 |---|---|---|---|---|---|
