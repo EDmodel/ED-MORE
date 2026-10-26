@@ -124,7 +124,7 @@ contains
             sel(n)%kind = OVR_FALSE
          case default
             if (raw(1:1) /= '"')                                                                  &
-               error stop 'ed_output_setup: io_config bad value   for '//trim(key)//                     &
+               error stop 'ed_output_setup: io_config bad value for '//trim(key)//                     &
                           ' (expected true|false or a quoted "F D M Y" string)'
             sval = raw(2:index(raw(2:), '"'))
             call parse_stream_mask(trim(sval), mask, status, bad)

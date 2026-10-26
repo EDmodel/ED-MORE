@@ -708,7 +708,7 @@ contains
       n_set = count([len_trim(cfg%maps%soil_depth_map) > 0, len_trim(cfg%maps%soil_texture_map) > 0, &
                      len_trim(cfg%maps%soil_chemistry_map) > 0])
       if (n_set /= 0_ik .and. n_set /= 3_ik)                                                         &
-         error stop 'load_ed_config:   [maps] needs soil_depth_map, soil_texture_map and '//       &
+         error stop 'load_ed_config: [maps] needs soil_depth_map, soil_texture_map and '//       &
                     'soil_chemistry_map together'
    end subroutine load_maps_params
 
@@ -1262,7 +1262,7 @@ contains
          write(*,'(a)') '   CHANGELOG.md lists the keys that were renamed or retired.'
       end if
       if (miss%n > 0_ik .or. unknown%n > 0_ik)                                                     &
-         error stop 'ed_config: the configuration has missing, unknown or inapplicable keys (see   above)'
+         error stop 'ed_config: the configuration has missing, unknown or inapplicable keys (see above)'
 
       !----- Install allometry + compute every derived quantity (one consolidation point). -----!
       call derive_parameters(cfg)

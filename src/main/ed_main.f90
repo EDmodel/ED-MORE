@@ -62,8 +62,8 @@ program ed_main
    !      writes nothing more, and it closes the files, so the failed month's records stay readable.  !
    call region_finalize(reg, status)
    call region_free(reg)
-   if (step_status == RUN_ERR_NAN)    error stop 'ed_main:   NaN in the state or the energy/water ledger'
-   if (step_status == RUN_ERR_BOUNDS) error stop 'ed_main:   a cohort or soil-carbon state out of bounds'
+   if (step_status == RUN_ERR_NAN)    error stop 'ed_main: NaN in the state or the energy/water ledger'
+   if (step_status == RUN_ERR_BOUNDS) error stop 'ed_main: a cohort or soil-carbon state out of bounds'
    if (status == RUN_ERR_AREA) error stop 'ed_main: a polygon''s area was not conserved'
    write(*,'(a)') ' OK: simulation completed, area conserved, no NaNs.'
 

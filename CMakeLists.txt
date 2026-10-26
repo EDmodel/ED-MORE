@@ -22,7 +22,7 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type: Release (dev, profile, production) or Debug" FORCE)
 endif()
 
-option(ED_BUILD_TESTS "Build the CTest test   suite" ON)
+option(ED_BUILD_TESTS "Build the CTest test suite" ON)
 # The long runs (ctest label `long`): example 05's Palo Verde inventory and its 150-year regrowth,
 # which read the ED_ERA5land archive (ED_ERA5LAND_ARCHIVE). OFF by default: they take over half an hour.
 option(ED_TEST_LONG   "Register the long tests (label long): the Palo Verde inventory and 150-year regrowth" OFF)
@@ -31,7 +31,7 @@ option(ED_TEST_LONG   "Register the long tests (label long): the Palo Verde inve
 
 # Optional Python C-API shared libraries (ctypes). OFF by default -> normal builds are foreign-
 # call-free. When ON, ALL static libs are built position-independent so they link into the .so.
-option(ED_BUILD_PYLIB "Build the C-API shared   libraries for Python (ctypes)" OFF)
+option(ED_BUILD_PYLIB "Build the C-API shared libraries for Python (ctypes)" OFF)
 if(ED_BUILD_PYLIB)
    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 endif()
@@ -76,8 +76,8 @@ include_directories(${CMAKE_Fortran_MODULE_DIRECTORY})
 #  it. ED_OPENMP therefore adds the per-compiler "all locals on the stack" flag to EVERY target.
 #  Corollary: more goes on the stack, so the OMP_STACKSIZE note above applies with more force.
 #-----------------------------------------------------------------------------------------#
-option(ED_HEAP_ARRAYS "Put large automatic arrays   on the heap (see the note above)" OFF)
-option(ED_OPENMP "Compile the patch (one polygon)   and polygon (several) parallelism; serial if the compiler has none" ON)
+option(ED_HEAP_ARRAYS "Put large automatic arrays on the heap (see the note above)" OFF)
+option(ED_OPENMP "Compile the patch (one polygon) and polygon (several) parallelism; serial if the compiler has none" ON)
 #      ON BY DEFAULT. The thread count is a RUNTIME setting ([run].n_threads, default 1), so an OpenMP
 #      build still runs serially until a config asks for threads, and its output is byte-identical at
 #      any thread count. Only an OpenMP build lets test_fast_driver's 4-thread check test anything: in a
@@ -91,7 +91,7 @@ if(ED_OPENMP)
       set(ED_OPENMP_ACTIVE ON)
    else()
       message(WARNING "ED-MORE: ${CMAKE_Fortran_COMPILER_ID} offers no Fortran OpenMP, so this build is "
-                      "SERIAL and [run].n_threads has no effect. Configure with -DED_OPENMP=OFF   "
+                      "SERIAL and [run].n_threads has no effect. Configure with -DED_OPENMP=OFF "
                       "to ask for that and silence this warning.")
    endif()
 endif()
@@ -111,8 +111,8 @@ set(ED_AUTO_LOCALS ${ED_OPENMP_ACTIVE})
 #      ED_CPU_TARGET names the CPU family to generate code for, so nobody writes a compiler's       #
 #      flag by hand: empty is any x86-64 CPU, `cascadelake` the AVX-512 Xeons, `host` the machine   #
 #      that builds. Such a binary may not start on an older CPU.                                    #
-option(ED_IPO "Optimise across files, generating   the code at the link at -O3 (the production kind)" OFF)
-set(ED_CPU_TARGET "" CACHE STRING "CPU family to   generate code for: empty (any x86-64), cascadelake or host")
+option(ED_IPO "Optimise across files, generating the code at the link at -O3 (the production kind)" OFF)
+set(ED_CPU_TARGET "" CACHE STRING "CPU family to generate code for: empty (any x86-64), cascadelake or host")
 set_property(CACHE ED_CPU_TARGET   PROPERTY STRINGS "" cascadelake host)
 if(ED_IPO OR NOT   ED_CPU_TARGET   STREQUAL "")
    if(NOT (CMAKE_Fortran_COMPILER_ID MATCHES "^Intel" OR CMAKE_Fortran_COMPILER_ID STREQUAL "GNU"))

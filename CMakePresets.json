@@ -23,7 +23,7 @@
     {
       "name": "dev",
       "inherits": "kind",
-      "displayName": "dev: -O2, any x86-64 CPU (the default with no build type); ed_main,   libed.so and the tests",
+      "displayName": "dev: -O2, any x86-64 CPU (the default with no build type); ed_main, libed.so and the tests",
       "description": "Everyday work, the tests, comparing outputs between commits: -O2, any x86-64 CPU; ed_main, libed.so and the tests",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",

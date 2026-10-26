@@ -287,7 +287,7 @@ contains
       if (.not. cfg%fast_biophysics_on) return
       if (cfg%dt_fast <= 0.0_wp) error stop TAG//'dt_fast <= 0'
       if (cfg%dt_fast > 900.0_wp) then
-         print '(a)', 'WARNING [ed_config]:   dt_fast > 900 s is beyond the measured range. At'
+         print '(a)', 'WARNING [ed_config]: dt_fast > 900 s is beyond the measured range. At'
          print '(a)', '  900 s the canopy air is stable and carbon and daily leaf water potential'
          print '(a)', '  converge; above it neither has been measured.'
       end if
@@ -506,7 +506,7 @@ contains
             error stop TAG//'forcing.recycle_end must be after forcing.recycle_start'
          if (whole_years_between(cfg%forcing%recycle_start, cfg%forcing%recycle_end,                   &
                                  MAX_RECYCLE_YEARS) < 1_ik) then
-            write(*,'(4a)') ' ed_config: forcing recycle window   ',                                    &
+            write(*,'(4a)') ' ed_config: forcing recycle window ',                                    &
                time_to_string(cfg%forcing%recycle_start), ' .. ', time_to_string(cfg%forcing%recycle_end)
             write(*,'(a)')  '   is not an exact whole number of calendar years. Recycling a'
             write(*,'(a)')  '   partial-year window drifts hour-of-day and day-of-year on every'

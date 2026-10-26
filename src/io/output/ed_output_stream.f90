@@ -212,8 +212,8 @@ contains
       !      polygon's count is fixed within a file of a month or less (write_record caps the chunk), !
       !      so the axis fits every record; write_one asserts it. max(.,1) avoids a zero-length    !
       !      axis on bare ground. ---------------------------------------------------------------!
-      if (hasc .and. n_cohort > files%cohort_max) error stop 'ed_output_stream:   n_cohort exceeds cohort_max buffer'
-      if (hasp .and. n_patch  > files%patch_max)  error stop 'ed_output_stream:   n_patch exceeds patch_max buffer'
+      if (hasc .and. n_cohort > files%cohort_max) error stop 'ed_output_stream: n_cohort exceeds cohort_max buffer'
+      if (hasp .and. n_patch  > files%patch_max)  error stop 'ed_output_stream: n_patch exceeds patch_max buffer'
       cohort_dim = max(n_cohort, 1_ik)
       patch_dim  = max(n_patch,  1_ik)
 
@@ -542,7 +542,7 @@ contains
          if (stream%has_cohort .and. bufs(p)%queue(t)%rec(i)%n_cohort > stream%cohort_dim)            &
             error stop 'ed_output_stream: cohort count grew within a file (cohort output needs file_chunk <= month)'
          if (stream%has_patch .and. bufs(p)%queue(t)%rec(i)%n_patch > stream%patch_dim)               &
-            error stop 'ed_output_stream: patch count grew within   a file (patch output needs file_chunk <= month)'
+            error stop 'ed_output_stream: patch count grew within a file (patch output needs file_chunk <= month)'
       end do
       !----- calendar (period start) + live counts. ---!
       call nc_check(nc_put_var1_double(ncid, int(stream%v_time, c_int), i1, time_to_decimal_year(r1%t_open)), 'put time')

@@ -290,7 +290,7 @@ contains
       end do
       x_red = b_red
       call lu_factor(m_red(1:na, 1:na), piv(1:na), na, ok)
-      if (.not. ok) error stop 'ed_soil_carbon:   the steady-state soil carbon system is singular'
+      if (.not. ok) error stop 'ed_soil_carbon: the steady-state soil carbon system is singular'
       call lu_solve(m_red(1:na, 1:na), piv(1:na), na, x_red(1:na))
       !----- scatter back (inert pools stay 0). ---------------------------------------------------!
       x_ss = 0.0_wp

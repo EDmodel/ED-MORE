@@ -917,7 +917,7 @@ contains
          !      axis, which the snapshot reduces itself from the staged row (staged_snapshot). ----!
          if (snap%snap_staged .and. snap%source_fast == SRC_NONE .and.                             &
              .not. (base%source_id > FLD_C_DIAG0 .and. base%source_id <= FLD_C_DIAG0 + N_CO_FAST_ROWS)) &
-            error stop 'ed_output_registry: no   staged sub-step for the snapshot '//trim(snap%name)
+            error stop 'ed_output_registry: no staged sub-step for the snapshot '//trim(snap%name)
          call append_variable(reg, snap)
       end do
    end subroutine register_snapshots
@@ -940,7 +940,7 @@ contains
       integer(ik) :: k
       do k = 1_ik, reg%nvar
          if (ragged_dim(reg%var(k)%dim) .and. iand(reg%var(k)%streams_default, FREQ_ANNUAL) /= 0_ik) &
-            error stop 'ed_output_registry:   cohort/patch variable on the annual stream ('//trim(reg%var(k)%name)//')'
+            error stop 'ed_output_registry: cohort/patch variable on the annual stream ('//trim(reg%var(k)%name)//')'
       end do
    end subroutine enforce_annual_guard
 
@@ -962,10 +962,10 @@ contains
       type(var_desc_t), intent(in) :: v
       integer(ik),      intent(in) :: streams
       if (iand(streams, FREQ_FAST) /= 0_ik .and. src_class(v%source_fast) /= SRCK_FAST)             &
-         error stop 'ed_output_registry:   "'//trim(v%name)//'" has no sub-daily value and cannot be '// &
+         error stop 'ed_output_registry: "'//trim(v%name)//'" has no sub-daily value and cannot be '// &
                     'put on the F stream'
       if (iand(streams, not(FREQ_FAST)) /= 0_ik .and. v%source_id == SRC_NONE .and. .not. v%snap_staged) &
-         error stop 'ed_output_registry:   "'//trim(v%name)//'" exists only sub-daily and can only be '// &
+         error stop 'ed_output_registry: "'//trim(v%name)//'" exists only sub-daily and can only be '// &
                     'on the F stream'
    end subroutine check_fast_tier
 
@@ -1000,7 +1000,7 @@ contains
             if (.not. glob_match(trim(sel(e)%key), trim(reg%var(k)%name))) cycle
             if (reg%var(k)%coord) then
                if (index(sel(e)%key, '*') == 0)                                                     &
-                  error stop 'ed_output_registry: io_config "'//trim(sel(e)%key)//'"   is written with '// &
+                  error stop 'ed_output_registry: io_config "'//trim(sel(e)%key)//'" is written with '// &
                              'its axis, wherever a variable on the axis is, and is not selected'
                hit_coord(e) = .true.
                cycle
@@ -1013,7 +1013,7 @@ contains
             else if (s == s_best) then
                b = best(k)
                if (sel(e)%kind /= sel(b)%kind .or. sel(e)%mask /= sel(b)%mask)                        &
-                  error stop 'ed_output_registry: io_config "'//trim(sel(b)%key)//'" and   "'//            &
+                  error stop 'ed_output_registry: io_config "'//trim(sel(b)%key)//'" and "'//            &
                              trim(sel(e)%key)//'" select '//trim(reg%var(k)%name)//' alike and disagree; '// &
                              'make one more specific'
             end if
@@ -1022,9 +1022,9 @@ contains
       do e = 1_ik, size(sel, kind=ik)
          if (hit(e)) cycle
          if (hit_coord(e))                                                                        &
-            error stop 'ed_output_registry: io_config "'//trim(sel(e)%key)//'" matches only the   '//     &
+            error stop 'ed_output_registry: io_config "'//trim(sel(e)%key)//'" matches only the '//     &
                        'axes'' bookkeeping, which is written with its axis'
-         error stop 'ed_output_registry: io_config   "'//trim(sel(e)%key)//'" matches no variable (typo?)'
+         error stop 'ed_output_registry: io_config "'//trim(sel(e)%key)//'" matches no variable (typo?)'
       end do
       do k = 1_ik, reg%nvar
          e = best(k)
@@ -1053,7 +1053,7 @@ contains
       select case (kind)
       case (OVR_TRUE)
          if (named .and. v%streams_default == FREQ_NONE)                                        &
-            error stop 'ed_output_registry:   "'//trim(v%name)//'" is off by default, so true has no '// &
+            error stop 'ed_output_registry: "'//trim(v%name)//'" is off by default, so true has no '// &
                        'tiers to restore; name them, e.g. "D M"'
          v%streams = v%streams_default
       case (OVR_FALSE)
@@ -1061,7 +1061,7 @@ contains
       case (OVR_MASK)
          if (named) then
             if (ragged_dim(v%dim) .and. iand(mask, FREQ_ANNUAL) /= 0_ik)                          &
-               error stop 'ed_output_registry: annual (Y) stream   forbidden on cohort/patch variable ('// &
+               error stop 'ed_output_registry: annual (Y) stream forbidden on cohort/patch variable ('// &
                           trim(v%name)//')'
             call check_fast_tier(v, mask)
             v%streams = mask
@@ -1084,7 +1084,7 @@ contains
       found = (k > 0_ik)
       if (.not. found) return
       if (reg%var(k)%coord)                                                                       &
-         error stop 'ed_output_registry: "'//trim(name)//'" is written with its axis and is not   selected'
+         error stop 'ed_output_registry: "'//trim(name)//'" is written with its axis and is not selected'
       call select_variable(reg%var(k), kind, mask, .true.)
    end subroutine apply_variable_override
 

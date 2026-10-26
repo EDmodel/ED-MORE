@@ -115,8 +115,8 @@ contains
          !      second one would be ignored in silence. A [[name]] table's keys carry its index, so  !
          !      two tables may each set a key. ------------------------------------------------------!
          if (find_key(t, t%key(t%n)) < t%n) then
-            write(*,'(4a)') ' ed_toml:   key "', trim(t%key(t%n)), '" is set twice in ', trim(path)
-            error stop 'ed_toml: a key   set twice'
+            write(*,'(4a)') ' ed_toml: key "', trim(t%key(t%n)), '" is set twice in ', trim(path)
+            error stop 'ed_toml: a key set twice'
          end if
       end do
       close(unit)
@@ -194,7 +194,7 @@ contains
    !----- A present value that cannot be parsed: print its key and raw text, and stop. ---------!
    subroutine toml_parse_error(key, raw, what)
       character(len=*), intent(in) :: key, raw, what
-      write(*,'(5a)') ' ed_toml:   cannot parse ', trim(what), ' for key "', trim(key), '"'
+      write(*,'(5a)') ' ed_toml: cannot parse ', trim(what), ' for key "', trim(key), '"'
       write(*,'(3a)') '   raw value: "', trim(raw), '"'
       error stop 'ed_toml: malformed configuration value'
    end subroutine toml_parse_error

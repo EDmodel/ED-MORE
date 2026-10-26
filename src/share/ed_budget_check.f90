@@ -81,9 +81,9 @@ contains
       character(len=*), intent(in) :: label
       logical,          intent(in) :: debug
       if (debug .and. .not. closure_ok(resid, scale, rtol, atol)) then
-         write(*, '(a,a,a,es13.5,a,es13.5)') 'ed_budget_check:   budget did NOT close [', &
+         write(*, '(a,a,a,es13.5,a,es13.5)') 'ed_budget_check: budget did NOT close [', &
             trim(label), '] resid = ', resid, '  tol = ', rtol * abs(scale) + atol
-         error stop 'ed_budget_check: budget did not   close'
+         error stop 'ed_budget_check: budget did not close'
       end if
    end subroutine budget_check_stop
 
