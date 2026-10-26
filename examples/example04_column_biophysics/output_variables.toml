@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: Apache-2.0
+# The variables the BCI evaluation run writes: the hourly fluxes and states the tower also measures,
+# the forcing as the model saw it, and daily stand structure. Tiers: F = sub-daily (hourly here,
+# fast_interval_steps = 4), D = daily. Every stamp is UTC. "*" = false starts from nothing, so only these
+# are written.
+[variables]
+"*"                      = false
+"mean_resid_*_py"        = "D"     # the energy and water budget residuals: is the run sane?
+mean_sw_in_py            = "F"     # incoming shortwave, as the model disaggregated it
+mean_lwdown_py           = "F"     # downward longwave at the canopy top (the forcing)
+mean_rnet_py             = "F"     # net all-wave radiation      <-> the tower's Rnet
+mean_le_py               = "F"     # latent heat flux            <-> LE
+mean_h_py                = "F"     # sensible heat flux          <-> H
+mean_gpp_py              = "F"     # gross primary productivity  <-> gpp
+mean_nee_py              = "F"     # net ecosystem exchange      <-> NEE
+mean_ustar_py            = "F"     # friction velocity           <-> ustar
+mean_air_temp_py         = "F"     # the forcing's air temperature, at the tower height
+mean_qair_py             = "F"     # the forcing's specific humidity, from RHair by the model's curve
+mean_psurf_py            = "F"     # the forcing's pressure, at the ground
+mean_wind_py             = "F"     # the forcing's wind, at the tower height
+mean_precip_py           = "F D"   # the forcing's total precipitation  <-> PPT
+mean_rainf_py            = "F"     # its rain part, split at each patch's canopy-air top
+mean_cas_temp_py         = "F"     # canopy-air-space temperature
+mean_soil_water_layer_si = "F"     # volumetric soil moisture, all layers  <-> SWC (0-15 cm)
+mean_lai_py              = "D"
+mean_agb_py              = "D"
+mean_canopy_height_py    = "D"
+mean_lw_up_py            = "F D"   # upwelling longwave          <-> Rl_dn (the file swaps the two)
+mean_et_py               = "D"
+mean_cas_depth_pa        = "D"     # each patch's canopy-air top, the height the forcing is moved to
+mean_air_temp_cas_top_pa = "D"     # the forcing temperature at that top
+mean_wind_cas_top_pa     = "D"     # the forcing wind at that top
+area_pa                  = "D"
+mean_sw_up_py            = "F"     # shortwave leaving the canopy top  <-> Rs_dn
+mean_growth_resp_py      = "D"     # growth respiration (the stand's; a frozen calibration trial has none)

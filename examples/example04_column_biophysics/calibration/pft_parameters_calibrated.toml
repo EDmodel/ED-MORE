@@ -1,0 +1,133 @@
+# SPDX-License-Identifier: Apache-2.0
+# CALIBRATED by scripts/calibrate_fast from pft_parameters.toml.
+# Every line is the base file's, comments included, except these keys the fit set
+# (calibrated value, the base file's value; EFFECTIVE: its value belongs to this model structure;
+# KATTGE & KNORR: fixed at the growth temperature's value, not fitted):
+#   pft.leaf_angle_mean            51.6361  (45)
+#   pft.vcmax25                    33.5877  (45)
+#   pft.stomatal_g1                2.87558  (3)
+#   pft.stomatal_g0                0.000299389  (0.01)
+#   pft.wstress_sref_stomata       2.78129  (2)  EFFECTIVE
+#   pft.jmax_vcmax_ratio           1.6983  (1.7)  KATTGE & KNORR
+# The PFT of example 04 at Barro Colorado Island: ONE evergreen broadleaf PFT at a mid-successional
+# wood density, for the whole census. Its fast parameters are the calibration's starting point
+# (calibration/ holds the fitted file). BCI's drought-deciduous and liana components are not
+# represented.
+# Every per-PFT array has length 1 (the PFT count = length of [pft].wood_density).
+
+[pft]
+wood_density       = [0.60]      # [g/cm3] mid-successional
+# The mortality hazard, mort_gamma + mort_alpha*exp(-mort_beta*growth_avg).
+mort_gamma         = [0.0094]   # [1/yr]
+mort_alpha         = [0.05]     # [1/yr]
+mort_beta          = [18.72]    # [yr/cm]
+
+#----- Canopy-element geometry for the aerodynamic boundary layers.
+leaf_width         = [0.04]     # [m]  characteristic leaf width
+branch_diameter    = [0.02]     # [m]  characteristic branch diameter
+reproduction_investment_fraction = [0.3]
+recruit_carbon_efficiency          = [1.0e-3]
+seed_rain_recruits = [0.01]      # [plant/m2/yr]
+include_pft        = [1]
+min_cohort_height       = 2.0    # [m] shared scalar (recruit/birth size)
+min_repro_height   = [20.0]   # [m] a cohort reproduces from this height
+# Leaf photosynthesis / stomatal traits (C3).
+photosynthetic_pathway = [1]
+vcmax25            = [33.5877]
+jmax_vcmax_ratio   = [1.6983]
+tpu_vcmax_ratio    = [0.167]
+rd_vcmax_ratio     = [0.015]
+kp25               = [1.0e-9]
+stomatal_g0        = [0.000299389]
+stomatal_g1        = [2.87558]        # Medlyn [kPa^0.5]
+stomatal_d0        = [1500.0]
+quantum_yield_c4   = [0.0]
+theta_j            = [0.70]       # the effective curvature of a mean-light cohort (CLM5, ED2)
+theta_cj_c3        = [0.98]                        # [--] C3 Ac/Aj co-limitation curvature (NOT theta_j)
+theta_ip_c3        = [0.95]                        # [--] C3 (Ac,Aj)/Ap co-limitation curvature
+theta_cj_c4        = [0.80]
+theta_ic_c4        = [0.95]
+katul_lambda25     = [800.0]
+wstress_lambda_exp = [1.0]
+wstress_sref_stomata = [2.78129]     # [1/MPa] Sabot stomatal-stress sensitivity
+# Carbon-dynamics traits.
+sla                    = [13.0]
+root_to_leaf_ratio     = [1.0]
+
+#----- Non-leaf maintenance respiration (leaf Rd is rd_vcmax_ratio above).
+is_woody           = [1]     # 1 = woody (0 = grass: no stem respiration)
+stem_resp_factor25 = [0.06]  # [umol CO2/m2 stem/s @25C]
+root_resp_factor25 = [0.30]  # [umol CO2/kgC fine root/s @25C]
+
+#----- CANOPY OPTICS (the two-stream's per-PFT table). Shortwave as reflectance + transmittance
+#      per band; LONGWAVE as EMISSIVITY, because that is the number anyone has for a leaf -- the
+#      band's reflectance is 1 - emissivity and its transmittance is 0 (a leaf is opaque at
+#      thermal wavelengths). Validated at load: reflect + transmit is the single-scatter albedo
+#      and must stay BELOW 1, or a scattering layer conserves or creates energy.
+leaf_reflect_vis   = [0.10]   # [--] leaf VIS reflectance
+leaf_transmit_vis  = [0.05]   # [--] leaf VIS transmittance
+leaf_reflect_nir   = [0.45]   # [--] leaf NIR reflectance
+leaf_transmit_nir  = [0.25]   # [--] leaf NIR transmittance
+leaf_emissivity    = [0.97]    # [--] leaf thermal emissivity
+wood_reflect_vis   = [0.11]   # [--] wood/bark VIS reflectance
+wood_transmit_vis  = [0.001]   # [--] wood/bark VIS transmittance (near-opaque)
+wood_reflect_nir   = [0.25]   # [--] wood/bark NIR reflectance
+wood_transmit_nir  = [0.001]   # [--] wood/bark NIR transmittance
+wood_emissivity    = [0.90]    # [--] wood thermal emissivity
+leaf_clumping      = [0.80]    # [--] leaf clumping factor in (0,1]
+wood_clumping      = [0.50]    # [--] wood clumping factor in (0,1]
+leaf_angle_mean    = [51.6361]   # [deg] mean leaf inclination (spherical: mean 57.3, std 21.6)
+leaf_angle_std     = [20.0]   # [deg] its standard deviation
+storage_cushion        = [0.5]  # [--] storage target, x (leaf + fine-root target):
+                                #      0.5 is the leaf carbon at root_to_leaf_ratio 1
+growth_resp_factor     = [0.3]
+retained_carbon_fraction = [0.0]   # [--] no resorption, as the example's calibration assumes (default 0.3)
+leaf_turnover_rate_toc = [0.5]   # [1/yr]
+# Light plasticity: a trait is its top-of-canopy value times exp(k * LAI above it), k in 1/(m2/m2).
+kplastic_vcmax         = [-0.11760191025318557]
+kplastic_rd            = [-0.11760191025318557]
+kplastic_sla           = [0.12615477645341722]
+kplastic_leaf_turnover = [-0.015560662518427415]
+fineroot_turnover_rate = [0.8]   # [1/yr]
+# Necromass -> litter-destination split, as the reference ed_config_pft.toml's mid-successional PFT.
+f_labile_leaf          = [0.70]  # [--] labile fraction of leaf/storage/fine-root necromass
+f_labile_stem          = [0.05]  # [--] labile fraction of wood/CWD necromass
+struct_lignin_frac     = [0.25]  # [--] lignin fraction of the structural-litter stream
+
+[allometry]
+b1Ht       = 1.139963
+b2Ht       = 0.564899
+agb_c1     = 0.03365        # [kgC] Chave et al. (2014) eq. 4, 0.0673 / C2B (dry mass to carbon)
+agb_c2     = 0.976          # Chave et al. (2014) eq. 4
+lai_b1     = 0.23384770     # ED2 c14f15_bl_xx / C2B (= ED2 SLA*bleaf)
+lai_b2     = 0.6410495
+hgt_max            = [46.0]      # [m] asymptotic max height (allometry cap)
+wai_b1             = [0.0096]    # [--] ED2 b1WAI = 0.0192*0.5
+wai_b2             = [2.0947]    # [--] ED2 b2WAI
+sapwood_area_b1    = [1.582]     # [cm2/cm^b2] ED2 b1SA
+sapwood_area_b2    = [1.764]     # [--]        ED2 b2SA
+aboveground_frac       = [0.7]
+
+[hydraulics]
+# The PFT's plant-hydraulics traits (ed_config_pft.toml documents each key); one value for every PFT,
+# or one per PFT.
+leaf_pi0             = -1.5                 # [MPa]
+leaf_elastic_mod     = 12.0                 # [MPa]
+leaf_apoplast_frac   = 0.3                  # [-]
+leaf_water_sat       = 2.0                  # [kg H2O/kgC]
+wood_pi0             = -1.0                 # [MPa]
+wood_elastic_mod     = 8.0                  # [MPa]
+wood_apoplast_frac   = 0.2                  # [-]
+wood_water_sat       = 1.0                  # [kg H2O/kgC]
+wood_psi50           = -2.0                 # [MPa]
+wood_kexp            = 2.0                  # [-]
+wood_kmax            = 3.2683981418222547   # [kg/m/s/MPa]
+vessel_curl          = 1.5                  # [-]
+root_beta            = 0.1                  # [-]
+root_depth_b1        = 1.114058             # [m]
+root_depth_b2        = 0.4223014            # [-]
+specific_root_length = 20000.0              # [m/kgC]
+fine_root_radius     = 0.00025              # [m]
+
+# No [phenology] section: without it every PFT always flushes and never senesces, losing leaves to
+# background turnover alone, which is what a single evergreen tropical PFT needs.

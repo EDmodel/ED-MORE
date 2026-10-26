@@ -1,0 +1,334 @@
+# SPDX-License-Identifier: Apache-2.0
+# The fast-parameter registry (protocol §3.5, §4; README.md): the
+# keys a flux-tower fit may move. One table per key (parameters.py; an unknown field stops the tool):
+#
+#   file      = "pft" (the PFT TOML), "main", or "obs" (an observation key, kappa: a term of a target's
+#               observation model, never written to a config)
+#   key       = the dotted TOML key as ED-MORE reads it
+#   pft       = the element of a per-PFT array (1-based; default 1)
+#   range     = [lo, hi]: a hard bound, through the transform
+#   transform = "linear" (logit on the range) or "log" (log, then logit): a positive scale is "log"
+#   state     = "fit" (in the default set), "optional" (fitted when the calibration asks: [fit].add or
+#               keys) or "fixed" (left at the base value); `reason` says why a key is not in the default set
+#   prior     = { centre, sd | log_sd, source }: the prior's centre (default: the base value) and sd
+#               (the key's units; log_sd in log units for a log key). Without an sd the prior's +-2 sd
+#               band is the range. A calibration overrides any of it in [priors.<key>].
+#   default   = only where neither the base TOML nor the model's parameter record gives one
+#   process   = "wet_canopy", "night", "snow" or "drought": the one process the key acts through. The
+#               fit fixes it when the kept data sample that process in fewer than
+#               [fit].min_process_records records (best-practice plan §2.5)
+#   shape     = true for a shape key of the leaf's light response: never fitted beside kappa
+#   kind      = "trait" (measurable, a prior from evidence), "effective" (a scheme property, labelled in the
+#               calibrated files), "numerical" (never calibrated) or "observation" (best-practice plan §4.2)
+#   scope     = "plant_type" (shared by every tower of the type), "site" or "observation"
+#   fixed_at  = "kattge_knorr": fixed at Kattge & Knorr's value for the site's growth temperature (priors.py)
+#   meta      = { <plant type> = { centre, sd | log_sd, source } }: a meta-analysis prior by plant type
+#               ([fit].plant_type); the prior of a key without an EEO centre, reported beside the EEO one
+#   source    = what the key is, and where its range comes from; its "plan §4.n" is §4.n of MEDS's
+#               fast-calibration plan, where each key's range is argued:
+#               https://github.com/xiangtaoxu/MEDS/blob/v0.4.0/docs/dev_plans/MEDS_FAST_CALIBRATION_PLAN.md
+#
+# The RANGE is what is physically possible and the PRIOR what the evidence says, kept apart: each
+# fitted key has its own sd, and its prior z at the MAP is reported. A prior centre of "eeo" is
+# computed from the site's climate (priors.py): the least-cost g1 and the coordination vcmax25, with
+# a wide log-sd of 0.5. A site with leaf or canopy measurements sets them in [priors] (§3.5).
+#
+# An optional key is out of the default set because a tower rarely informs it; a calibration that adds
+# it gets the screening, which fixes it again where the data are dead, rough, uninformative or
+# collinear with another key.
+# ----- 1 OPTICS: the albedo ----------------------------------------
+[leaf_reflect_nir]
+file = "pft"
+key = "pft.leaf_reflect_nir"
+prior = { centre = 0.45, sd = 0.05, source = "CLM5 broadleaf evergreen tropical 0.45; measured broadleaf NIR reflectance spans about 0.35-0.55 (+-2 sd). The range is what a leaf can do" }
+kind = "trait"
+range = [0.25, 0.65]
+state = "fixed"
+reason = "held at the PFT file's value with the albedo target off (owner, 2026-10-04): at realistic leaf optics the model's canopy reflects too much NIR, and the albedo pushed the leaf's reflectance to 0.32 (prior z -3.1; reflectance + transmittance 0.57 against ~0.70 for tropical leaves) to make up for it. Revisit with the canopy's structure (clumping, wood optics)"
+source = "broadleaf NIR reflectance; CLM5 broadleaf evergreen tropical 0.45; plan §4.1"
+
+[leaf_transmit_nir]
+file = "pft"
+key = "pft.leaf_transmit_nir"
+kind = "trait"
+range = [0.15, 0.40]
+state = "optional"
+reason = "the albedo sees the leaf's NIR reflectance and transmittance only as their sum: fit one of the two"
+source = "broadleaf NIR transmittance; CLM5 0.25; plan §4.1"
+
+[leaf_reflect_vis]
+file = "pft"
+key = "pft.leaf_reflect_vis"
+kind = "trait"
+range = [0.05, 0.12]
+state = "optional"
+reason = "a tower barely sees the visible optics: the leaf absorbs most of the PAR at any value in the range"
+source = "broadleaf VIS reflectance; CLM5 0.10; plan §4.1"
+
+[leaf_transmit_vis]
+file = "pft"
+key = "pft.leaf_transmit_vis"
+kind = "trait"
+range = [0.02, 0.08]
+state = "optional"
+reason = "a tower barely sees the visible optics: the leaf absorbs most of the PAR at any value in the range"
+source = "broadleaf VIS transmittance; CLM5 0.05; plan §4.1"
+
+[leaf_clumping]
+file = "pft"
+key = "pft.leaf_clumping"
+scope = "site"
+kind = "effective"
+range = [0.50, 1.00]
+state = "fixed"
+reason = "held at the base value (0.80: ED2's tropical trees and lianas; FATES uses 0.85 for broadleaf evergreen tropical trees): the albedo cannot tell it from the leaf NIR reflectance (Jacobian correlation 0.986), and the fits sent it to either bound with the energy targets' treatment (owner, 2026-10-02)"
+source = "foliage clumping index. BCI's floor light (2.4 % of PAR under closed canopy at 0.8, against 1-2 % measured in tropical understories, Chazdon & Fetcher 1984) points to 0.9-1.0; plan §4.1"
+
+[leaf_angle_mean]
+file = "pft"
+key = "pft.leaf_angle_mean"
+prior = { sd = 10.0, source = "the PFT file's value, +-10 degrees; spherical leaves average 57.3. The range is what a canopy can do" }
+kind = "trait"
+range = [10.0, 80.0]
+state = "fit"
+source = "mean leaf inclination [deg]; spherical is 57.3; plan §4.1"
+
+# ----- 2 PHOTOSYNTHESIS: GPP -------------------------------------
+[vcmax25]
+file = "pft"
+key = "pft.vcmax25"
+prior = { centre = "eeo", log_sd = 0.5, source = "the coordination of the Rubisco- and light-limited rates at the site's growing-season daytime climate, with ED-MORE's own leaf (priors.py; Wang et al. 2017, Smith et al. 2019)" }
+kind = "trait"
+range = [10.0, 150.0]
+transform = "log"
+state = "fit"
+source = "top-of-canopy Vcmax25. The PFT mean and spread of Kattge et al. 2009 (Global Change Biology 15, 976-991) belong in prior.centre and prior.sd: to be read from the paper's table. Until then the prior is the range; plan §4.2"
+
+[theta_j]
+file = "pft"
+key = "pft.theta_j"
+kind = "effective"
+range = [0.70, 0.90]
+state = "fixed"
+reason = "held at the PFT file's value (0.7 in the reference PFTs: the effective curvature of a mean-light cohort). A tower cannot tell it from the canopy's light distribution or from the error in its respiration; fit 3 drove it to its floor to absorb the GPP offset. Revisit with sunlit/shaded leaves (see docs/ROADMAP.md)"
+prior = { centre = 0.80, sd = 0.05, source = "the curvature of the electron-transport light response: CLM5 0.7, ED-MORE 0.9 (owner, 2026-10-02)" }
+shape = true
+source = "electron-transport curvature; plan §4.2. It trades with vcmax25: fit it only with a GPP target that samples the light response well"
+
+[jmax_vcmax_ratio]
+file = "pft"
+key = "pft.jmax_vcmax_ratio"
+fixed_at = "kattge_knorr"
+kind = "trait"
+range = [1.4, 2.2]
+state = "fixed"
+shape = true
+reason = "fixed at Kattge & Knorr (2007) for the site's growth temperature (2.59 - 0.035 T), computed from the forcing; a shape key, never fitted beside kappa (best-practice plan §3.5, §4.3)"
+prior = { centre = 1.70, sd = 0.15, source = "Kattge & Knorr 2007 (Plant, Cell & Environment 30, 1176-1190) acclimated at BCI's mean air temperature (25.5 C): 2.59 - 0.035 T = 1.70; Medlyn et al. 2002 1.67; Panama leaves 1.57-1.78. Slot & Winter 2017's four BCI-area species give 1.1-3.6 at 25 C, extrapolated from their optima" }
+source = "Jmax25/Vcmax25; plan §4.2"
+
+[phi_psii]
+file = "main"
+key = "leaf_physiology.phi_psii"
+kind = "trait"
+range = [0.70, 0.88]
+state = "fixed"
+shape = true
+reason = "the electron yield of linear transport in low light (0.74: 0.37 electrons per absorbed photon, the measured maximum CO2 yield 0.093 of Long et al. 1993 at 4 electrons per CO2). A tower's dim-light GPP cannot tell it from the error in the tower's respiration, so the leaf measurements set it"
+source = "plan §4.2"
+
+[ds_vcmax]
+file = "main"
+key = "leaf_physiology.ds_vcmax"
+fixed_at = "kattge_knorr"
+kind = "trait"
+range = [625.0, 665.0]
+state = "fixed"
+shape = true
+reason = "fixed at Kattge & Knorr (2007) for the site's growth temperature (668.39 - 1.07 T), computed from the forcing (best-practice plan §3.5)"
+prior = { centre = 641.0, sd = 5.0, source = "Kattge & Knorr 2007 acclimated at BCI's 25.5 C: 668.39 - 1.07 T = 641 (optimum 35.9 C at ea_vcmax 65.33 and hd_vcmax 200 kJ/mol); Slot & Winter 2017 (Plant, Cell & Environment 40, 3055-3068, Table 2): four Panama canopy species peak at 32.9-39.7 C, dS 633-648 in this form. The model's default, 650, peaks at 31.7 C" }
+source = "Vcmax entropy term [J mol-1 K-1]: it sets the optimum temperature of the peaked response. The range spans optima of 26-43 C. Global (the main file's [leaf_physiology]), so one value for every PFT"
+
+[ds_jmax]
+file = "main"
+key = "leaf_physiology.ds_jmax"
+fixed_at = "kattge_knorr"
+kind = "trait"
+range = [625.0, 660.0]
+state = "fixed"
+shape = true
+reason = "fixed at Kattge & Knorr (2007) for the site's growth temperature (659.70 - 0.75 T), computed from the forcing (best-practice plan §3.5)"
+prior = { centre = 640.0, sd = 4.0, source = "Kattge & Knorr 2007 acclimated at BCI's 25.5 C: 659.70 - 0.75 T = 640.6 (optimum 34.0 C at ea_jmax 43.54 and hd_jmax 200 kJ/mol); Slot & Winter 2017: optima 33.5-37.5 C, dS 633-642 in this form" }
+source = "Jmax entropy term [J mol-1 K-1]: the optimum temperature of electron transport. Global, as ds_vcmax"
+
+[ea_vcmax]
+file = "main"
+key = "leaf_physiology.ea_vcmax"
+kind = "trait"
+range = [40000.0, 100000.0]
+state = "optional"
+shape = true
+prior = { centre = 65330.0, sd = 10000.0, source = "Medlyn et al. 2002 / CLM5 65.33 kJ/mol; Slot & Winter 2017: 69-79 kJ/mol in three of four species (349 in the fourth)" }
+source = "Vcmax activation energy [J mol-1]: the rise below the optimum. Optional: over BCI's leaf temperatures (24-35 C) it trades with ds_vcmax"
+
+[ea_jmax]
+file = "main"
+key = "leaf_physiology.ea_jmax"
+kind = "trait"
+range = [30000.0, 100000.0]
+state = "optional"
+shape = true
+prior = { centre = 43540.0, sd = 10000.0, source = "Medlyn et al. 2002 / CLM5 43.54 kJ/mol; Slot & Winter 2017: 48-98 kJ/mol in three of four species (250 in the fourth)" }
+source = "Jmax activation energy [J mol-1]. Optional, as ea_vcmax"
+
+# ----- 3 STOMATA, AERODYNAMICS AND THE WET CANOPY: H, LE, u* -----------------------------------
+[stomatal_g1]
+file = "pft"
+key = "pft.stomatal_g1"
+meta = { tropical_evergreen_broadleaf = { centre = 3.77, log_sd = 0.35, source = "Lin et al. 2015 (Nature Climate Change 5, 459-464, Fig. 2e): tropical rainforest trees, 167 species" }, temperate_evergreen_broadleaf = { centre = 4.12, log_sd = 0.35, source = "CLM5 medlynslope (from Lin et al. 2015)" }, deciduous_broadleaf = { centre = 4.45, log_sd = 0.35, source = "CLM5 medlynslope (from Lin et al. 2015)" }, needleleaf = { centre = 2.35, log_sd = 0.35, source = "CLM5 medlynslope (from Lin et al. 2015)" }, shrub = { centre = 4.70, log_sd = 0.35, source = "CLM5 medlynslope (from Lin et al. 2015)" }, c3_grass = { centre = 5.25, log_sd = 0.35, source = "CLM5 medlynslope (from Lin et al. 2015)" }, c4_grass = { centre = 1.62, log_sd = 0.35, source = "CLM5 medlynslope (from Lin et al. 2015)" } }
+kind = "trait"
+range = [0.5, 15.0]
+transform = "log"
+state = "fit"
+prior = { centre = "eeo", log_sd = 0.5, source = "the least-cost optimum at the site's growing-season daytime climate (priors.py; Prentice et al. 2014, Stocker et al. 2020, beta 146)" }
+source = "Medlyn g1 [kPa^0.5]; plan §4.2"
+
+[stomatal_g0]
+file = "pft"
+key = "pft.stomatal_g0"
+prior = { log_sd = 1.0, source = "the PFT file's value, a factor e either way: the residual conductance is poorly known" }
+kind = "trait"
+range = [1.0e-4, 0.1]
+transform = "log"
+state = "fit"
+source = "residual stomatal conductance [mol m-2 s-1]; plan §4.2"
+
+[z0m_ratio]
+file = "main"
+key = "aerodynamics.z0m_ratio"
+prior = { sd = 0.04, source = "the base value (ED2 0.13), +-0.04: closed canopies give z0/h of about 0.06-0.15 (Raupach 1994). Effective: it carries the canopy-air scheme's errors" }
+scope = "site"
+kind = "effective"
+range = [0.02, 0.30]
+state = "fit"
+source = "roughness length / canopy height; plan §4.3"
+
+[d_ratio]
+file = "main"
+key = "aerodynamics.d_ratio"
+scope = "site"
+kind = "effective"
+range = [0.50, 0.80]
+state = "optional"
+reason = "it moves the fluxes as z0m_ratio does: fit one of the two"
+source = "displacement height / canopy height; plan §4.3"
+
+[leaf_width]
+file = "pft"
+key = "pft.leaf_width"
+kind = "trait"
+range = [0.02, 0.15]
+transform = "log"
+state = "optional"
+reason = "it sets only the leaves' boundary-layer conductance, which a tower's fluxes barely inform"
+source = "characteristic leaf width [m]; plan §4.3"
+
+[dsl_dmax]
+file = "main"
+key = "soil.dsl_dmax"
+scope = "site"
+kind = "effective"
+range = [0.005, 0.05]
+transform = "log"
+state = "optional"
+reason = "it sets only soil evaporation, a small part of LE under a closed canopy"
+source = "maximum dry surface layer [m]; plan §4.3"
+
+[leaf_surf_water_max]
+file = "pft"
+key = "pft.leaf_surf_water_max"
+kind = "effective"
+range = [0.05, 0.3]
+transform = "log"
+state = "fixed"
+process = "wet_canopy"
+reason = "the tower does not see the wet canopy: at BCI FLAG gap-fills every raining hour and 56 % of the three hours after (an open-path analyser's usual loss), so a fit tunes it on dry hours only (owner, 2026-10-02). A tower that measures through rain may fit it"
+source = "leaf film capacity [kg m-2 leaf] (the old soil.dewmx, CLM5 0.1); plan §4.3 (interception on)"
+
+[wood_surf_water_max]
+file = "pft"
+key = "pft.wood_surf_water_max"
+kind = "effective"
+range = [0.05, 0.3]
+transform = "log"
+state = "fixed"
+process = "wet_canopy"
+reason = "as leaf_surf_water_max; the tower cannot tell the wood film from the leaf film"
+source = "woody-surface film capacity [kg m-2 wood] (the old soil.dewmx, CLM5 0.1)"
+
+[intercept_k]
+file = "main"
+key = "fast.intercept_k"
+scope = "site"
+kind = "effective"
+range = [0.3, 0.8]
+state = "optional"
+process = "wet_canopy"
+reason = "it acts only through the wet canopy, which a tower that gap-fills its rain hours never samples, and its response can be rough"
+source = "interception extinction coefficient; plan §4.3 (interception on)"
+
+# ----- 4 WATER STRESS: the seasonal runs' LE ----------------------------
+[wstress_sref_stomata]
+file = "pft"
+key = "pft.wstress_sref_stomata"
+prior = { log_sd = 0.7, source = "the PFT file's value, a factor 2 either way (Sabot et al. 2022 fit 0.5-5 across species)" }
+kind = "effective"
+range = [0.1, 10.0]
+transform = "log"
+state = "fit"
+process = "drought"
+source = "Sabot stomatal-stress sensitivity [MPa-1] below the onset (Sabot et al. 2022); plan §4.4"
+
+[stomata_psi_onset]
+file = "pft"
+key = "pft.stomata_psi_onset"
+prior = { sd = 0.5, source = "half the PFT's turgor-loss point (the model's default), +-0.5 MPa" }
+kind = "trait"
+range = [-5.0, 0.0]
+default = -0.857143
+state = "fixed"
+reason = "held at half the PFT's turgor-loss point (owner, 2026-10-04): the BCI fit took it to its bound (-0.16 MPa, prior z +2.6), set by the ten-day windows' upwelling longwave and LE rather than the drought runs (test T6), and traded it against stomatal_g1 (correlation 0.91). wstress_sref_stomata carries the drought response"
+process = "drought"
+source = "predawn leaf potential where the stomatal stress begins [MPa]. The model's default is half the PFT's turgor-loss point; -0.857143 is that at the shipped leaf_pi0 (-1.5 MPa) and leaf_elastic_mod (12 MPa). A PFT with other pressure-volume traits sets [priors.stomata_psi_onset].centre"
+
+[root_beta]
+file = "pft"
+key = "hydraulics.root_beta"
+kind = "trait"
+range = [3.4e-4, 0.37]
+transform = "log"
+state = "optional"
+process = "drought"
+source = "ED2 root-profile decay over 2 m (an e-folding of 0.25-2 m); plan §4.4. Uninformed by ten-day windows (sd ratio 0.98); the seasonal runs may do better"
+
+# ----- RESPIRATION (plan §4.5) -------------------------------------------------------
+[rd_vcmax_ratio]
+file = "pft"
+key = "pft.rd_vcmax_ratio"
+kind = "trait"
+range = [0.008, 0.025]
+state = "fixed"
+process = "night"
+reason = "night NEE leaves the fast fit (owner, 2026-10-02); the target that informed it pulled it to its floor"
+source = "leaf dark respiration / Vcmax at 25 C; CLM5 0.015; plan §4.5"
+
+# ----- OBSERVATION (best-practice plan §3.3) -----------------------------------------------------------------
+[kappa]
+file = "obs"
+key = "kappa"
+scope = "observation"
+kind = "observation"
+range = [0.5, 1.5]
+state = "fit"
+prior = { centre = 1.0, sd = 0.15, source = "best-practice plan §3.3: centre 1 at a tower without evidence of a respiration bias; the sd from the gap between the provider's two partitionings (RECO against RECO_DT) where both exist, else 0.15" }
+source = "the GPP observation model's error on the tower's respiration, R_tower = kappa R_true: a term of the residual, never written to an ED-MORE config. Its gradient needs no trials"

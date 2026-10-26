@@ -1,0 +1,37 @@
+# The pull-request policy, on every pull request into beta: a title of the form type(area): summary,
+# exactly one "Effect on results" box ticked, and a changelog entry unless the type is docs, test
+# or build. The rules are in scripts/lint/pr_policy.py. Dependabot's pull requests are exempt.
+name: pr-policy
+
+on:
+  pull_request:
+    branches: [beta]
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  policy:
+    name: pr-policy
+    if: github.event.pull_request.user.login != 'dependabot[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Check the title, the effect on results and the changelog
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          git diff --name-only HEAD^1 HEAD > "$RUNNER_TEMP/changed.txt"
+          printf '%s' "$BODY" > "$RUNNER_TEMP/body.md"
+          python3 scripts/lint/pr_policy.py --title "$TITLE" \
+            --body-file "$RUNNER_TEMP/body.md" --changed-files "$RUNNER_TEMP/changed.txt"

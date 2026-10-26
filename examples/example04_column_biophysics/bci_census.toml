@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: Apache-2.0
+# The census that starts the BCI example: the 2010 census of the Barro Colorado Island 50-ha plot,
+# for scripts/prepare_input/census/make_census.py. Each 20 m quadrat is one patch; ED-MORE fuses the stand
+# before the first step (docs/configuration.md, "How a run starts").
+#
+# The tables are ForestGEO tree tables, one row per tree, from Condit et al. 2019, Dryad
+# doi:10.15146/5xcp-0d46 (download bci.tree.zip in a browser). The two paths below name the tables'
+# folder as /path/to/bci_census, which is installation-specific: run_example.py writes the folder
+# (--census-dir, or the environment variable BCI_CENSUS_DIR) into the copy of this file it runs,
+# data/bci_census.toml. The checksums are of the CSV exports the example was made with; for another
+# export, or bci.tree7.rdata with format = "rdata" and rdata_object = "bci.tree7", drop or replace them.
+
+[source]
+path     = "/path/to/bci_census/bci_2010.csv"
+sha256   = "eb5b8373de32118250ec5955b91df122223867c9046af5e91f2085836158bf7b"
+format   = "csv"
+census   = "Barro Colorado Island 50-ha plot, census 7 (2010)"
+citation = "Condit et al. 2019, doi:10.15146/5xcp-0d46"
+
+[plot]
+x_extent   = 1000.0          # [m] gx, west to east
+y_extent   = 500.0           # [m] gy, south to north
+cell_size  = 20.0            # [m] one patch per cell; the plot's own quadrats
+min_dbh_mm = 10.0            # the census's own threshold
+
+[output]
+pft = 1                      # every tree is the example's one PFT
+
+# For the summary's stand totals and the steady-state litter input of [soil_carbon].
+[pft]
+pft_file = "pft_parameters.toml"
+
+# The census before, for the plot's observed biomass mortality (2005-2010).
+[mortality]
+path   = "/path/to/bci_census/bci_2005.csv"
+sha256 = "4794db4da9017d0a13b4b0acc2540e91aae5adfe2e43f62fae16c366696473ae"
+format = "csv"

@@ -1,0 +1,72 @@
+name: Bug report
+description: Something gives wrong results, crashes, or does not build.
+labels: ["type: bug", "status: needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Thank you for reporting a problem. A bug that can be reproduced gets fixed fastest, so the
+        smallest run that shows it is the most useful thing you can give. Questions about using the
+        model belong in Discussions.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of problem
+      options:
+        - Silently wrong results
+        - Crash or error stop
+        - Conservation breach (a budget that does not close)
+        - Build failure
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: The release or commit you ran; `git describe --tags` prints it.
+      placeholder: v0.4.1-12-gabc1234
+    validations:
+      required: true
+  - type: dropdown
+    id: compiler
+    attributes:
+      label: Compiler
+      multiple: true
+      options:
+        - ifx
+        - gfortran
+        - nvfortran
+        - other
+    validations:
+      required: true
+  - type: input
+    id: build
+    attributes:
+      label: Compiler version, build kind and machine
+      description: For example "ifx 2026.1, production preset, Linux x86-64 cluster".
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, with numbers where you have them.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and why
+      description: For wrong results, the evidence, such as observations, ED2, or a budget that should close.
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: The smallest run that shows it
+      description: >
+        An example and the number of days, or your changes to the shipped config files, and the
+        command you ran.
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log or error message
+      render: text

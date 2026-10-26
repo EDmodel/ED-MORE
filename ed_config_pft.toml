@@ -1,0 +1,246 @@
+# ED-MORE PFT configuration -- every PFT-specific parameter, each PFT's size allometry and hydraulics among
+# them. Named by [init].pft_config in the main config. A key that is set is REQUIRED, and a missing one is
+# a hard error; a commented-out key is OPTIONAL and shows its default.
+#
+# The number of PFTs is the length of [pft].wood_density; every per-PFT array must match it.
+
+[pft]
+wood_density       = [0.40, 0.60, 0.85]    # [g/cm3] the growth-mortality trade-off axis (pioneer/mid/climax)
+# The mortality hazard, mort_gamma + mort_alpha*exp(-mort_beta*growth_avg) (Camac et al. 2018). The values
+# are Camac's power laws in wood density at each PFT's, from scripts/prepare_input/pft_traits/pft_traits.py.
+mort_gamma         = [0.019815037439806053, 0.0094, 0.004953547651645506]  # [1/yr]  growth-independent hazard
+mort_alpha         = [0.07968043353213256, 0.05, 0.0335056513529311]     # [1/yr]  low-growth hazard
+mort_beta          = [16.71633880800162, 18.72, 20.631926375047502]        # [yr/cm] growth sensitivity
+reproduction_investment_fraction = [0.3, 0.3, 0.3]      # [--] growth fraction diverted to reproduction
+recruit_carbon_efficiency          = [1.0e-3, 1.0e-3, 1.0e-3] # [--] share of reproduction carbon that becomes
+                                    #      recruits: seed set, germination and seedling survival together
+# recruit_shade_decay = [0.0, 0.0, 0.0]   # [1/(m2/m2)] that share x exp(-k * patch LAI); optional, default 0
+# nbg_init_density = [0.0, 0.0, 0.0]      # [plant/m2] a bare-ground start's seedlings, per patch, at
+                                          #      min_cohort_height (ED2 init_density); optional, default 0
+seed_rain_recruits = [0.01, 0.01, 0.01]    # [plant/m2/yr] baseline external seed rain
+include_pft        = [1, 1, 1]             # 1 = PFT may recruit, 0 = excluded
+min_cohort_height       = 2.0              # [m] smallest tracked cohort; recruits born here (all PFTs)
+min_repro_height   = [13.912064431085485, 13.912064431085485, 13.912064431085485]   # [m] a cohort reproduces from this height:
+                                    #      0.33 of a 100 cm tree's height on the power curve (Thomas 1996: 0.2-0.75)
+# Leaf photosynthesis / stomatal traits (FvCB C3 + Collatz C4; docs/science/leaf_gas_exchange.md).
+# pathway: 1 = C3, 2 = C4.
+photosynthetic_pathway = [1, 1, 2]                  # PFTs 1 and 2 C3, PFT 3 C4
+vcmax25            = [60.0, 45.0, 40.0]             # [umol/m2/s] max carboxylation at 25 degC
+jmax_vcmax_ratio   = [1.8, 1.7, 4.0]                # [--] Jmax25/Vcmax25 (C4 ratio high; J unused for C4)
+tpu_vcmax_ratio    = [0.167, 0.167, 0.167]          # [--] TPU25/Vcmax25 (C3 product limit)
+rd_vcmax_ratio     = [0.015, 0.015, 0.025]          # [--] Rd25/Vcmax25 (leaf respiration)
+kp25               = [1.0e-9, 1.0e-9, 0.7]          # [mol/m2/s] C4 PEPcase slope (>0; ~unused for C3)
+stomatal_g0        = [0.01, 0.01, 0.04]             # [mol/m2/s] cuticular/residual conductance
+stomatal_g1        = [4.0, 3.0, 1.6]                # Medlyn [kPa^0.5], eq. (6) (Leuning, eq. (5), would use ~8-12)
+stomatal_d0        = [1500.0, 1500.0, 1500.0]       # [Pa] Leuning humidity sensitivity
+quantum_yield_c4   = [0.0, 0.0, 0.04]               # [mol CO2/mol photon] C4 light slope (0 for C3)
+theta_j            = [0.70, 0.70, 0.85]             # [--] curvature of the J hyperbola ONLY (C3 co-limitation is theta_*_c3;
+                                                    #   C4 does not use it). 0.7, as CLM5 and ED2: every leaf of a cohort
+                                                    #   gets the cohort's mean light, and averaging a leaf's curve over the
+                                                    #   light its leaves really see bends it more than one leaf's (a leaf's
+                                                    #   own value moves with its light and CO2: 0.6-0.95, Ogren & Evans
+                                                    #   1993). Sunlit and shaded leaves would change it
+theta_cj_c3        = [0.98, 0.98, 0.98]            # [--] C3 Ac/Aj co-limitation curvature (NOT theta_j: leaf_gas_exchange.md §2)
+theta_ip_c3        = [0.95, 0.95, 0.95]            # [--] C3 (Ac,Aj)/Ap co-limitation curvature
+theta_cj_c4        = [0.80, 0.80, 0.80]             # [--] C4 co-limitation curvature 1 (C4 only)
+theta_ic_c4        = [0.95, 0.95, 0.95]             # [--] C4 co-limitation curvature 2 (C4 only)
+katul_lambda25     = [600.0, 800.0, 350.0]          # [umol CO2/mol H2O] Katul marginal water-use efficiency
+wstress_lambda_exp = [1.0, 1.0, 1.0]                # [--] Katul lambda water-stress exponent
+wstress_sref_stomata = [2.0, 2.0, 2.0]              # [1/MPa] Sabot stomatal-stress sensitivity:
+                                                    #   beta_stomata = exp(sref*(psi-psi_onset)), eq. (10)
+# wstress_psi_open  = [-1.714, -1.714, -1.714]      # [MPa] OPTIONAL current leaf potential where the fast limb on
+                                                    #   Vcmax/Jmax/TPU starts (default: the turgor-loss point), eq. (9)
+# wstress_psi_close = [-3.43, -3.43, -3.43]         # [MPa] OPTIONAL ... and where it has shut them (default: twice
+                                                    #   the turgor-loss point)
+# stomata_psi_onset = [-0.857, -0.857, -0.857]      # [MPa] OPTIONAL predawn leaf potential where the stomatal stress begins
+                                                    #   (beta_stomata = 1 above it). Absent: half the PFT's leaf turgor-loss
+                                                    #   point, the recommended value (-0.857 at the [hydraulics] leaf_pi0 and
+                                                    #   leaf_elastic_mod). It clears the gravity head of a tree up to ~85 m in
+                                                    #   wet soil.
+# leaf_surf_water_max = [0.1, 0.1, 0.1]             # [kg/m2 leaf] OPTIONAL film capacity of a leaf (intercepted rain and dew)
+# wood_surf_water_max = [0.1, 0.1, 0.1]             # [kg/m2 wood] OPTIONAL film capacity of the woody surface. Absent: 0.1 each,
+                                                    #   CLM5's dewmx. Used with [fast].canopy_water_on; a cohort holds
+                                                    #   leaf_surf_water_max*LAI + wood_surf_water_max*WAI before it drips.
+# Carbon traits (docs/science/plant_carbon_allocation.md). All state is CARBON; conversions are folded in
+# here. The leaf carbon target is the allometric leaf area over sla.
+sla                    = [16.0, 13.0, 10.0]         # [m2/kgC] specific leaf area (pioneer high -> climax low)
+
+#----- Canopy-element geometry for the aerodynamic boundary layers
+#      (docs/science/canopy_aerodynamics.md §4).
+leaf_width         = [0.04, 0.04, 0.04]     # [m]  characteristic leaf width
+branch_diameter    = [0.02, 0.02, 0.02]     # [m]  characteristic branch diameter
+root_to_leaf_ratio     = [1.0, 1.0, 1.0]            # [--] fine-root:leaf target ratio (ED2 q)
+
+#----- Non-leaf MAINTENANCE respiration (per-PFT; leaf Rd is rd_vcmax_ratio above):
+#      docs/science/plant_respiration.md eqs. (3)-(4).
+is_woody           = [1, 1, 1]     # 1 = woody (0 = grass: no stem respiration)
+stem_resp_factor25 = [0.06, 0.06, 0.06]  # [umol CO2/m2 stem/s @25C] per stem surface (cylinder + branches)
+# stem_resp_sapwood25 = [0.0, 0.0, 0.0]  # [umol CO2/m3 sapwood/s @25C] per sapwood volume, added to the
+#                                         # surface term; optional, default 0 (set the surface rate to 0 to use it alone)
+root_resp_factor25 = [0.30, 0.30, 0.30]  # [umol CO2/kgC fine root/s @25C]
+
+#----- CANOPY OPTICS (the two-stream's per-PFT table; docs/science/canopy_radiation_transfer.md
+#      §1-§2). Shortwave as reflectance + transmittance
+#      per band; LONGWAVE as EMISSIVITY, because that is the number anyone has for a leaf -- the
+#      band's reflectance is 1 - emissivity and its transmittance is 0 (a leaf is opaque at
+#      thermal wavelengths). Validated at load: reflect + transmit is the single-scatter albedo
+#      and must stay BELOW 1, or a scattering layer conserves or creates energy.
+leaf_reflect_vis   = [0.10, 0.10, 0.10]   # [--] leaf VIS reflectance
+leaf_transmit_vis  = [0.05, 0.05, 0.05]   # [--] leaf VIS transmittance
+leaf_reflect_nir   = [0.45, 0.45, 0.45]   # [--] leaf NIR reflectance
+leaf_transmit_nir  = [0.25, 0.25, 0.25]   # [--] leaf NIR transmittance
+leaf_emissivity    = [0.97, 0.97, 0.97]    # [--] leaf thermal emissivity
+wood_reflect_vis   = [0.11, 0.11, 0.11]   # [--] wood/bark VIS reflectance
+wood_transmit_vis  = [0.001, 0.001, 0.001]   # [--] wood/bark VIS transmittance (near-opaque)
+wood_reflect_nir   = [0.25, 0.25, 0.25]   # [--] wood/bark NIR reflectance
+wood_transmit_nir  = [0.001, 0.001, 0.001]   # [--] wood/bark NIR transmittance
+wood_emissivity    = [0.90, 0.90, 0.90]    # [--] wood thermal emissivity
+leaf_clumping      = [0.80, 0.80, 0.80]    # [--] leaf clumping factor in (0,1]
+wood_clumping      = [0.50, 0.50, 0.50]    # [--] wood clumping factor in (0,1]
+leaf_angle_mean    = [45.0, 45.0, 45.0]   # [deg] mean leaf inclination (spherical: mean 57.3, std 21.6)
+leaf_angle_std     = [20.0, 20.0, 20.0]   # [deg] its standard deviation
+storage_cushion        = [3.0, 3.0, 3.0]            # [--] storage target as a multiple of the leaf +
+                                                    #      fine-root target (three full flushes); also the
+                                                    #      starting storage of an inventory cohort
+growth_resp_factor     = [0.3, 0.3, 0.3]            # [--] construction cost: the fraction of the carbon built
+                                                    #      that is respired (plant_carbon_allocation.md eq. (4))
+# retained_carbon_fraction = [0.3, 0.3, 0.3]       # [--] OPTIONAL (default 0.3): share of all leaf and fine-root
+#                                                  #      loss resorbed to storage rather than littered
+# OPTIONAL carbon traits; absent, each is 0 for every PFT.
+# max_relative_growth_rate = [0.0, 0.0, 0.0]       # [1/yr] sink limit on wood growth per unit wood carbon
+# max_absolute_growth_rate = [0.0, 0.0, 0.0]       # [cm/yr] sink limit on diameter growth of a 1 cm stem;
+#                                                  #        with both, the tighter applies; the residual is exuded (0 = off)
+# max_absolute_growth_exponent = [0.0, 0.0, 0.0]   # [--] that limit scales as dbh[cm]^exponent (0 = size-independent)
+leaf_turnover_rate_toc = [1.0, 0.5, 0.33]          # [1/yr] top-of-canopy baseline leaf turnover (> 0)
+# Light plasticity: a cohort's trait is its PFT's top-of-canopy value times exp(k * LAI above it), k in
+# 1/(m2/m2), when [trait_dynamics].trait_plasticity_on (docs/science/plant_traits.md eqs. (1), (3)-(4)).
+# The values are ED2's fits to vcmax25 and leaf_turnover_rate_toc, from scripts/prepare_input/pft_traits/pft_traits.py.
+kplastic_vcmax         = [-0.1459341188305866, -0.11760191025318557, -0.10943768264434321]  # < 0: Vcmax25 falls in shade
+kplastic_rd            = [-0.1459341188305866, -0.11760191025318557, -0.10943768264434321]  # < 0: Rd25 falls in shade
+kplastic_sla           = [0.15654750929099287, 0.12615477645341722, 0.11739678683665906]    # > 0: SLA rises in shade
+kplastic_leaf_turnover = [-0.058535787713143994, -0.015560662518427415, 0.0]                # <= 0: turnover slows in shade
+fineroot_turnover_rate = [1.0, 0.8, 0.6]            # [1/yr] baseline fine-root turnover
+# Necromass -> litter-destination split (ed_soil_carbon's necromass_to_litter). aboveground_frac
+# (above) doubles as the litter above/below-ground split for leaf/storage and wood streams.
+f_labile_leaf          = [0.80, 0.70, 0.60]         # [--] labile fraction of leaf/storage/fine-root necromass
+f_labile_stem          = [0.05, 0.05, 0.05]         # [--] labile fraction of wood/CWD necromass
+struct_lignin_frac     = [0.20, 0.25, 0.30]         # [--] lignin fraction of the structural-litter stream
+
+[allometry]
+# Each PFT's size allometry (ed_allometry_lib; docs/science/plant_carbon_allocation.md §2). Every key takes
+# one value, for every PFT, or an array with one value per PFT.
+height_allometry = "power"  # "power" or "chave2014", or one per PFT (["chave2014", "power", "power"])
+hgt_max    = [46.0, 46.0, 46.0]   # [m] the largest height: the cap on every curve
+# The power law, height = exp(b1Ht + b2Ht ln dbh): pan-tropical (ED2 iallom 3).
+b1Ht       = 1.139963
+b2Ht       = 0.564899
+# The log-quadratic curve, for the PFTs on "chave2014": ln height = chave_a - chave_e + chave_b ln dbh
+# + chave_c (ln dbh)^2 + chave_rse^2/2 (the mean, as BIOMASS's retrieveH). The coefficients default to
+# Chave et al. (2014) eq. 6a; a site's own heights give a local fit (examples 03 and 05 fit BCI's).
+# chave_a   = 0.893     # [--] intercept
+# chave_b   = 0.760     # [--] slope on ln dbh
+# chave_c   = -0.0340   # [--] coefficient of (ln dbh)^2
+# chave_rse = 0.243     # [--] the fit's residual standard error
+# chave_e is the site's stress index, the same for every PFT: E = 1e-3 (0.178 TS - 0.938 CWD - 6.61 PS)
+# (Chave eq. 6b), below 0 at wet, aseasonal sites (taller trees), above 0 where it is dry, seasonal or
+# hot (shorter trees). With [maps].chave_e_map each polygon takes its cell's.
+# chave_e = 0.0   # [--] Chave's environmental stress index
+# Biomass, leaf area, wood area and sapwood of one stem:
+agb_c1     = 0.03365        # [kgC] agb = agb_c1 * rho^agb_c2 * (dbh^2*h)^agb_c2: Chave et al. (2014) eq. 4, 0.0673 / C2B
+agb_c2     = 0.976          # [--] AGB exponent on rho and on dbh^2*h
+lai_b1     = 0.23384770     # [--] leaf area = lai_b1 * (dbh^2*h)^lai_b2 [m2]: ED2 c14f15_bl_xx / C2B
+lai_b2     = 0.6410495      # [--] leaf-area exponent
+wai_b1     = [0.0096, 0.0096, 0.0096]   # [--] wood area = wai_b1 * dbh^wai_b2 [m2]: ED2 b1WAI = 0.0192*0.5, broadleaf
+wai_b2     = [2.0947, 2.0947, 2.0947]   # [--] ED2 b2WAI, broadleaf
+sapwood_area_b1  = [1.582, 1.582, 1.582]  # [cm2/cm^b2] sapwood area = sapwood_area_b1 * dbh^sapwood_area_b2:
+                                          #   ED2 b1SA, tropical broadleaf; its share of basal area is capped at 1
+sapwood_area_b2  = [1.764, 1.764, 1.764]  # [--] ED2 b2SA, tropical broadleaf
+aboveground_frac = [0.7, 0.7, 0.7]        # [--] share of the wood carbon above ground (ED2 agf_bs)
+
+[hydraulics]
+# Each PFT's plant-hydraulics traits (docs/science/plant_hydraulics.md): the tissues' pressure-volume curves
+# (Bartlett/Tyree-Hammel, eqs. (3)-(6)), the xylem's vulnerability (eq. (7)) and conductivity, and the
+# roots. Every key is required, and takes one value, for every PFT, or an array
+# with one value per PFT. wood_kexp = 1 or 2 keeps a closed form of the Kirchhoff integral (ln, atan); any
+# other value uses the lookup table build_kirchhoff_table precomputes (eq. (8)).
+leaf_pi0           = -1.5    # [MPa]        leaf osmotic potential at full turgor
+leaf_elastic_mod   = 12.0    # [MPa]        leaf bulk elastic modulus
+leaf_apoplast_frac = 0.30    # [-]          leaf apoplastic fraction
+leaf_water_sat     = 2.0     # [kg H2O/kgC] leaf saturated water content
+wood_pi0           = -1.0    # [MPa]        wood osmotic potential at full turgor
+wood_elastic_mod   = 8.0     # [MPa]        wood bulk elastic modulus
+wood_apoplast_frac = 0.20    # [-]          wood apoplastic fraction
+wood_water_sat     = 1.0     # [kg H2O/kgC] wood saturated water content
+wood_psi50         = -2.0    # [MPa, < 0]   xylem potential at 50 % loss of conductance
+wood_kexp          = 2.0     # [-]          vulnerability shape (1 or 2: closed form; else lookup table)
+# The plant's maximum internal conductance is its sapwood's, wood_kmax * sapwood area / (height *
+# vessel_curl) (eq. (10)). These wood_kmax are Xu et al. (2016)'s fit to each PFT's wood density
+# (eq. (11)), from scripts/prepare_input/pft_traits/pft_traits.py.
+wood_kmax          = [5.340397027887704, 3.2683981418222547, 1.7692398658114543]  # [kg/m/s/MPa] sapwood specific conductivity
+vessel_curl        = 1.5     # [-]          xylem path length per unit height
+# Roots. A cohort roots to root_depth_b1 * height^root_depth_b2 [m] (ED2's height allometry, IALLOM 1:
+# 5 m at 35 m), capped at the soil column; its fine roots fall off within that depth as ED2's
+# (1 - root_beta^(d/D)) / (1 - root_beta) above depth d. Its root length (fine-root carbon *
+# specific_root_length) sets each layer's soil->root conductance, 2 pi K L / ln(r_half /
+# fine_root_radius) (Gardner 1960) (eqs. (12)-(14)).
+root_beta            = 0.1        # [-]     share of the profile that would lie below the rooting depth (0,1)
+root_depth_b1        = 1.1140580  # [m]     rooting depth = b1 * height[m]^b2
+root_depth_b2        = 0.4223014  # [-]
+specific_root_length = 2.0e4      # [m/kgC] fine-root length per unit fine-root carbon: 10 m per g dry mass, the
+                                  #         tropical fine roots of Panama (Wurzburger & Wright 2015; Cordeiro et
+                                  #         al. 2024) and GRooT, times 2 g dry per g C. All fine-root carbon counts:
+                                  #         the 0-1 mm roots hold 92 % of the length.
+fine_root_radius     = 2.5e-4     # [m]     fine-root radius: tropical fine-root diameters are 0.4-0.6 mm
+
+# ------------------------------------------------------------------------------------------
+# Leaf-phenology cue parameters (per PFT; docs/science/plant_phenology.md). The gate is the
+# PRESENCE of this [phenology] section in THIS file: absent, every PFT keeps the built-in defaults,
+# both masks 0 -- always flushing, never senescing, losing leaves to background turnover alone.
+# Present, every key below is REQUIRED except the optional ones marked; every array length must
+# equal the number of PFTs. Leaf habit (deciduous, semi-deciduous, evergreen) comes from these
+# parameters: a deciduous PFT senesces to min_leaf_cover = 0, an evergreen one stops above 0.
+#
+# Three cues, chosen independently for each side by a bit mask: 1 = TEMP, 2 = LIGHT, 4 = WATER.
+#   TEMP     : warmth above flush_base_temp summed from midwinter; cold below shed_base_temp
+#              summed from midsummer.
+#   LIGHT    : the hours a day the PAR reaching the cohort's top exceeds par_min [umol/m2/s], as a
+#              running mean over light_window [day]. A low par_min counts the photoperiod; a high
+#              one counts the bright hours, with their clouds and the cohort's place in the canopy.
+#   WATER    : predawn leaf water potential summed above and below the PFT's turgor-loss point
+#              [MPa day]; each sum restarts when the other side's switch crosses 0.5.
+# Every switch is sigma(s (x - x*)): a centre x* and a signed sharpness s; it rises from 0.12 to
+# 0.88 over x* +- 2/|s|, and s < 0 turns it on as x falls. The flush signal is the PRODUCT of the
+# flush cues' switches; the shed signal is the larger of the seasonal trigger (the product of the
+# TEMP and LIGHT switches) and the WATER switch (plant_phenology.md eqs. (2), (6)-(7)). A mask of 0
+# always flushes / never senesces.
+#
+# Example below: PFT 1 a temperate deciduous tree (TEMP and LIGHT on both sides), PFTs 2 and 3
+# always flushing and never senescing.
+# [phenology]
+# flush_cue_mask        = [3, 0, 0]                # [bitmask] cues of the flush side
+# shed_cue_mask         = [3, 0, 0]                # [bitmask] cues of the shed side
+# flush_cue_timescale   = [5.0, 5.0, 5.0]          # [day]   smoothing of the flush tendency
+# shed_cue_timescale    = [5.0, 5.0, 5.0]          # [day]   smoothing of the shed tendency
+# flush_rate_max        = [0.06667, 0.06667, 0.06667] # [1/day] leaf growth at full flush tendency
+# shed_rate_max         = [0.05, 0.05, 0.05]       # [1/day] senescence at full shed tendency
+# min_leaf_cover        = [0.0, 0.0, 0.0]          # [--]    leaf cover senescence stops at
+# bare_leaf_cover       = [0.02, 0.02, 0.02]       # [--]    a dormant canopy below this goes bare
+# flush_base_temp       = [278.15, 278.15, 278.15] # [K]     warmth base
+# flush_degree_days     = [100.0, 100.0, 100.0]    # [K day] warmth requirement
+# flush_temp_sharpness  = [0.04, 0.04, 0.04]       # [1/(K day)]
+# shed_base_temp        = [290.15, 290.15, 290.15] # [K]     cold base
+# shed_degree_days      = [50.0, 50.0, 50.0]       # [K day] cold requirement after midsummer
+# shed_temp_sharpness   = [0.1, 0.1, 0.1]          # [1/(K day)]
+# par_min               = [5.0, 5.0, 5.0]          # [umol/m2/s] PAR that counts as an hour of light
+# flush_light_hours     = [12.0, 12.0, 12.0]       # [h/day]
+# flush_light_sharpness = [1.0, 1.0, 1.0]          # [1/h]   a flush gate fits as a step (~8)
+# shed_light_hours      = [11.0, 11.0, 11.0]       # [h/day]
+# shed_light_sharpness  = [-1.0, -1.0, -1.0]       # [1/h]   < 0: short or dim days trigger senescence,
+#                                                  #         > 0: bright days do (leaf exchange)
+# light_window          = [10.0, 10.0, 10.0]       # [day]   running mean of the hours of light
+#
+# OPTIONAL: the WATER cue; absent keys keep the defaults shown.
+# flush_water_sum       = [10.0, 10.0, 10.0]       # [MPa day] wet sum that permits flushing
+# flush_water_sharpness = [0.5, 0.5, 0.5]          # [1/(MPa day)]
+# shed_water_sum        = [10.0, 10.0, 10.0]       # [MPa day] dry sum that triggers shedding
+# shed_water_sharpness  = [0.5, 0.5, 0.5]          # [1/(MPa day)]

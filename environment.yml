@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: Apache-2.0
+# Conda environment for ED-MORE: the netCDF C library every Fortran build needs (netCDF is a hard
+# dependency), CMake, and the Python the package, the examples and the tools' tests use.
+#   mamba env create -f environment.yml      # or: conda env create -f environment.yml
+#   conda activate edmore
+# The presets find netCDF in the active environment ($CONDA_PREFIX). The compilers come from the
+# system or from Intel (docs/building.md). The ERA5 downloaders have their own environment,
+# scripts/prepare_input/era5/environment.yml.
+name: edmore
+channels:
+  - conda-forge
+  - nodefaults       # search conda-forge only: much faster solve, no channel mixing
+dependencies:
+  - python >=3.11    # tomllib, for edmore.config and the tools' TOML files
+  - cmake >=3.21     # the presets in CMakePresets.json
+  - netcdf4          # pulls libnetcdf (the C library + CMake config) for the Fortran build
+  - numpy
+  - matplotlib       # the examples' figures
+  - pillow           # GIF writer: example 03's plot_forest_structure.py and animate_landscape_growth.py
+  - pandas           # the input tools (scripts/prepare_input/) and the examples' tables
+  - scipy            # the examples' fits, example 03's 3-D landscape, and calibrate_fast
+  - pytest           # the Python tests, which CTest runs when the Python it finds has them
+  - scikit-learn     # example 03's recruitment fit (fit_vital_rates.py)
+  - pyvista          # example 03's 3-D landscape and its animation; pulls VTK

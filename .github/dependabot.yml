@@ -1,0 +1,18 @@
+# Keep the GitHub Actions the workflows use up to date: one pull request a month, into beta, with all
+# updates grouped, and only for releases at least two weeks old. The workflows pin each action to a
+# commit; Dependabot updates the commit and the version comment beside it.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: beta
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 14
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      actions:
+        patterns: ["*"]

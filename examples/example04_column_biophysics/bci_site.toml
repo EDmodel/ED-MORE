@@ -1,0 +1,68 @@
+# SPDX-License-Identifier: Apache-2.0
+# Barro Colorado Island, Panama (AmeriFlux PA-Bar): the site TOML that DECLARES what the tower file
+# is, for scripts/prepare_input/flux_tower/make_tower_forcing.py. Every value here is checked against the
+# data where it can be (the clock against the sun, the VPD curve against RH), and the build stops on
+# a disagreement. §2-§3 of MEDS's flux-tower forcing plan record how each was found:
+# https://github.com/xiangtaoxu/MEDS/blob/v0.4.0/docs/dev_plans/MEDS_FLUX_TOWER_FORCING_PLAN.md
+
+[input]
+format           = "csv"
+path             = "data/BCI_v5.1.csv"      # fetch_bci_data.py puts it here (Zenodo 6456527, CC0)
+timestamp        = "date"
+timestamp_format = "%Y-%m-%d %H:%M"
+missing          = ["NaN"]
+
+[site]
+name      = "Barro Colorado Island (PA-Bar)"
+latitude  = 9.1568                          # [deg N]  AmeriFlux site coordinates
+longitude = -79.8486                        # [deg E]
+elevation = 150.0                           # [m]      AmeriFlux; the papers give "about 140 m"
+leaf_on_months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]   # the model's one PFT is evergreen
+
+[clock]
+utc_offset = -5.0                           # [h] the file is in Panama's local standard time
+stamp      = "begin"                        # `date` marks the START of each half hour
+timestep   = 1800                           # [s]
+
+[heights]                                   # [m] above the ground at the tower base
+tq_height       = 41.0                      # HC2S3 temperature/RH probe, taken to be at the EC level
+wind_height     = 41.0                      # CSAT3 sonic, at the eddy-covariance height
+pressure_height = 41.0                      # the mean pressure puts the barometer at the tower top
+
+[variables]                                 # ED-MORE variable -> the file's column and units
+Tair   = { column = "tair",  units = "degC" }
+RH     = { column = "RH",    units = "%" }
+VPD    = { column = "vpd",   units = "kPa", curve = "alduchov_eskridge" }  # checked (V3); unused for q
+PSurf  = { column = "p_kpa", units = "kPa" }
+Rainf  = { column = "PPT",   units = "mm" }                 # per half hour
+SWdown = { column = "Rs",    units = "W m-2" }
+LWdown = { column = "Rl_up", units = "W m-2" }              # not Rl_dn: the file swaps the two (below)
+Wind   = { column = "ubar",  units = "m s-1" }              # 212 negative values are screened out
+PAR    = { column = "Par_tot", units = "umol m-2 s-1" }     # reports only
+# THE LONGWAVE COLUMNS ARE SWAPPED IN BCI_v5.1.csv: `Rl_up` is the downwelling longwave and `Rl_dn`
+# the upwelling. The provider's Rnet equals Rs - Rs_dn + Rl_up - Rl_dn to the last digit; at night
+# `Rl_dn` averages 1.022 times the air's blackbody emission sigma T^4, more than the sky can emit,
+# and `Rl_up` 0.948; and ERA5-Land's daily longwave follows `Rl_up` (r 0.86) and not `Rl_dn` (0.12).
+# The longwave is observed only from 2015 on: 46 % of 2015, 88 % of 2016 and all of 2017.
+
+[gapfill]
+short_gap_max = 4                           # [records] interpolate gaps up to 2 h
+
+# The tower's fluxes, for the calibration (scripts/calibrate_fast). FLAG is the provider's "QA/QC for
+# turbulent fluxes (1 good, 0 gap-filled)"; the radiation is measured wherever it is present.
+[fluxes]
+SW_out = { column = "Rs_dn", units = "W m-2" }
+LW_out = { column = "Rl_dn", units = "W m-2" }              # the upwelling: the labels are swapped (above)
+Rnet   = { column = "Rnet",  units = "W m-2" }
+LE     = { column = "LE",    units = "W m-2",        measured = { column = "FLAG", equals = 1 } }
+H      = { column = "H",     units = "W m-2",        measured = { column = "FLAG", equals = 1 } }
+NEE    = { column = "NEE",   units = "umol m-2 s-1", measured = { column = "FLAG", equals = 1 } }
+GPP    = { column = "gpp",   units = "umol m-2 s-1", measured = { column = "FLAG", equals = 1 } }
+RECO   = { sum = ["GPP", "NEE"] }                           # the respiration the provider's GPP was made from
+USTAR  = { column = "ustar", units = "m s-1",        measured = { column = "FLAG", equals = 1 } }
+
+[provider]
+gpp_method = "Not stated in the README. In the data, gpp + NEE is constant within each day: GPP = RECO - NEE with one RECO value per day."
+notes = "Dryad README on RECO: it 'appeared underestimated ... considering that RECO includes also above ground respiration which can contribute up to 40-50% of total respiration'."
+ustar_threshold = 0.4                       # [m s-1] the CO2 u* threshold (calibration protocol §2.3, scripts/calibrate_fast/README.md)
+flag = "FLAG: QA/QC for turbulent fluxes (1 good, 0 gap-filled). At BCI it also removes every rain half hour."

@@ -1,0 +1,167 @@
+# SPDX-License-Identifier: Apache-2.0
+# ED-MORE example 05: a forest regrowing from bare ground at Barro Colorado Island, 1600-2020, with every
+# part of the model on: the column biophysics every 15 minutes, and growth, mortality, recruitment
+# and treefall each day, month and year. Three PFTs (pft_parameters.toml) compete for light.
+# The weather is ERA5-Land's 2003-2022 at BCI, repeated; the CO2 follows its history. The run starts in
+# 1600 because BCI's old forest, the 50-ha plot's, has not been cleared for at least 400 years
+# (Mascaro et al. 2011, Biogeosciences 8:1615).
+# Paths are relative to this folder; run_example.py runs it through the Python API.
+
+[run]
+dt_slow    = "1d"
+start_time = "1600-01-01"
+end_time   = "2021-01-01"      # through 2020
+n_threads  = 8                 # threads over the patches; the output is the same at any count
+
+#----- The column (example 04). ---------------------------------------------------------------------
+[fast]
+fast_biophysics_on  = true
+dt_fast             = "900s"
+time_integrator     = "esdirk2"
+rtol                = 2.0e-3
+canopy_water_on     = true       # the canopy intercepts rain and its film evaporates (condensate goes to soil layer 1)
+
+# Each cohort's Vcmax25, Rd25, SLA and leaf turnover rate follow the leaf area above it.
+[trait_dynamics]
+trait_plasticity_on = true
+fineroot_turnover_plastic = true      # fine roots, like leaves, turn over more slowly in the shade
+
+#----- The demography (example 03). -------------------------------------------------------------------
+[demography]
+demography_on             = true
+recruitment_on            = true
+cohort_fusion_on          = true
+patch_disturbance_on      = true
+patch_fusion_on           = true
+max_cohort                = 60
+n_cohort_fusion_iter      = 6
+cohort_size_tol_min       = 0.02
+cohort_size_tol_max       = 0.10
+cohort_lai_cap            = 1.0
+min_cohort_agb            = 1.0e-6
+negligible_nplant         = 1.0e-8
+split_eps                 = 1.0e-4
+cohort_fission_on         = true
+n_height_layers           = 16
+max_patch                 = 25       # enough that gaps stay apart from the closed canopy
+n_patch_fusion_iter       = 6
+patch_light_tol           = 0.05
+patch_light_tol_max       = 0.10
+patch_light_maxdev_factor = 1.5
+min_patch_area            = 1.0e-4
+conservation_tol          = 0.001
+growth_memory_days        = 365.0
+
+patch_disturbance_rate    = 0.014
+disturbance_survive_height = 10.0
+min_recruit_size          = 1.0e-2
+[init]
+init_mode    = 0
+pft_config   = "pft_parameters.toml"
+soil_temp    = 298.65             # [K] as [soil].deep_temp
+soil_theta   = 0.42               # [m3/m3] example 04's start
+
+[output]
+state_write       = true           # a checkpoint every 20 years and at the end, to restart from
+state_interval    = "20 years"
+state_file_dir    = "output"
+state_file_prefix = "regen"
+enabled       = true
+dir           = "output"
+prefix        = "regen"
+sync_every    = "flush"
+# Site, PFT and size-class totals only: per-cohort and per-patch records over 421 years would be
+# gigabytes (io_config_regeneration.toml). The checkpoints hold the full stand.
+io_config     = "io_config_regeneration.toml"
+
+[output.fast]
+enabled    = false
+
+[output.daily]
+enabled    = false
+
+[output.monthly]
+enabled    = true
+file_chunk = "run"
+
+[output.annual]
+enabled    = true
+file_chunk = "run"
+
+#----- Leaf physiology (example 04's calibrated configuration). ----------------------------------------
+[leaf_physiology]
+stomatal_model     = "medlyn"
+temp_response_form = "peaked"
+colimitation       = "quadratic"
+use_boundary_layer = false
+kc25    = 40.49
+ko25    = 27840.0
+gstar25 = 4.275
+ea_kc     = 79430.0
+ea_ko     = 36380.0
+ea_gstar  = 37830.0
+ea_vcmax  = 65330.0
+ea_jmax   = 43540.0
+ea_rd     = 46390.0
+hd_vcmax  = 200000.0
+hd_jmax   = 200000.0
+hd_rd     = 200000.0
+ds_vcmax  = 641.129
+ds_jmax   = 640.592
+ds_rd     = 490.0
+o2_mol_frac      = 0.209
+leaf_absorptance = 0.85
+phi_psii         = 0.74
+
+[aerodynamics]
+z0m_ratio = 0.0528022             # example 04's calibration
+
+#----- The site and its weather. ----------------------------------------------------------------------
+[site]
+latitude              = 9.1568
+longitude             = -79.8486
+elevation             = 150.0
+apply_elevation_lapse = false
+
+# ERA5-Land at BCI's cell, 2003-2022 (run_example.py cuts it from the archive), repeated: model year
+# Y reads year 2003 + (Y - 2003) mod 20, so 2003-2020 read their own weather. The CO2 is read on the
+# model's own date: 279 umol/mol in 1600, 282 in 1800, 413 in 2020.
+[forcing]
+forcing_on     = true
+format         = "default"
+path           = "data/bci_era5land_2003-2022.nc"
+grid_index     = 1
+grid_match     = "explicit"
+# ERA5-Land's own heights (2 m air, 10 m wind over open ground); each sample is moved to the top of
+# every patch's canopy air.
+tq_height            = 2.0
+wind_height          = 10.0
+height_above         = "zero_plane"
+wind_exposure        = "open_terrain"
+wind_exposure_z0     = 0.03
+wind_blending_height = 40.0
+timestep       = "3600s"
+avg_convention = "end"
+sw_partition   = "clearidx"
+lwdown_source  = "file"
+co2_source     = "file"
+co2_file       = "../../data/co2/co2_cmip7_global_annual_1000-2022.txt"
+recycle        = true
+recycle_start  = "2003-01-01 01:00:00"   # the file's first record (end-stamped hours)
+recycle_end    = "2023-01-01 01:00:00"   # twenty whole years later
+start_clamp    = "error"
+
+#----- BCI's soil (example 04): a clay Oxisol, 2 m deep. -----------------------------------------------
+[soil_carbon]
+soil_carbon_on = true             # starts empty, filled by the regrowing forest's litter
+
+[soil]
+depth       = 2.0
+theta_sat   = 0.60
+theta_res   = 0.10
+curve_par_a = 2.0
+curve_par_n = 1.23
+ksat        = 1.0e-5
+thermal_bottom_bc = "dirichlet"
+deep_temp  = 298.65
+deep_depth = 3.145

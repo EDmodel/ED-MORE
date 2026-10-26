@@ -1,0 +1,70 @@
+# Build the model with gfortran and with ifx and run the test suite, the Python package's tests
+# included, on every pull request and on every push to beta and main. Both use the dev preset (-O2,
+# code for any x86-64 CPU, edmore, libedmore.so and the tests). netCDF's C library comes from
+# Ubuntu; ifx from Intel's apt repository and the Python packages from PyPI, at the versions the
+# developers use.
+name: build
+
+on:
+  pull_request:
+  push:
+    branches: [beta, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build (${{ matrix.compiler }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - compiler: gfortran
+            fc: gfortran-14
+          - compiler: ifx
+            fc: ifx
+    env:
+      FC: ${{ matrix.fc }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Install the Python tests' packages
+        run: python -m pip install numpy==2.5.3 netCDF4==1.7.4 pandas==3.0.6 scipy==1.18.1 pytest==9.1.1
+      - name: Install netCDF and gfortran
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libnetcdf-dev gfortran-14
+      - name: Install ifx
+        if: matrix.compiler == 'ifx'
+        run: |
+          curl -fsSL https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
+            | sudo gpg --dearmor -o /usr/share/keyrings/oneapi-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" \
+            | sudo tee /etc/apt/sources.list.d/oneAPI.list
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends intel-oneapi-compiler-fortran-2026.1
+      # ifx needs Intel's environment in every step that compiles or runs what it built.
+      - name: Configure
+        run: |
+          if [ "$FC" = ifx ]; then source /opt/intel/oneapi/setvars.sh; fi
+          "$FC" --version
+          cmake --preset dev -DPython3_EXECUTABLE="$(command -v python)"
+      - name: Build
+        run: |
+          if [ "$FC" = ifx ]; then source /opt/intel/oneapi/setvars.sh; fi
+          cmake --build build-dev -j 4
+      - name: Test
+        run: |
+          if [ "$FC" = ifx ]; then source /opt/intel/oneapi/setvars.sh; fi
+          ctest --test-dir build-dev --output-on-failure --no-tests=error

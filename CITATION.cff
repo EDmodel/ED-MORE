@@ -1,0 +1,22 @@
+# How to cite ED-MORE (https://citation-file-format.github.io). Each release pull request sets the
+# version and the release date; contributors add themselves to the authors in their first pull request.
+cff-version: 1.2.0
+message: If you use ED-MORE, please cite it as below, with the version you used.
+title: "ED-MORE: Ecosystem Demography — Modular, Open, Reproducible, Extensible"
+type: software
+authors:
+  - family-names: Xu
+    given-names: Xiangtao
+    affiliation: Cornell University
+repository-code: https://github.com/EDmodel/ED-MORE
+license: Apache-2.0
+version: 0.4.1
+date-released: 2026-10-26
+abstract: >
+  ED-MORE is a size- and age-structured terrestrial biosphere model, advanced on a fast (sub-daily)
+  and a slow (daily and longer) timescale, whose science follows the Ecosystem Demography model.
+keywords:
+  - terrestrial biosphere model
+  - vegetation demography
+  - Ecosystem Demography
+  - Fortran
