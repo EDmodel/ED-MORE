@@ -21,7 +21,7 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   modules start with `ed_` (were `meds_`). (#4)
 - The Python package is `edmore` (was `meds`): `import edmore.plant`, `python -m edmore.model`. It
   finds the library through `EDMORE_LIB` and the program through `EDMORE_MAIN` (were `MEDS_LIB` and
-  `MEDS_MAIN`). The forcing-file writer is `edmore.forcing` (was `scripts/meds_forcing_file.py`). (#9)
+  `MEDS_MAIN`). The forcing-file writer is `edmore.forcing` (was `scripts/meds_forcing_file.py`). (#40)
 
 ### Added
 
@@ -29,4 +29,4 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   CO₂ record and an example census). Its output is bit-for-bit that of MEDS v0.4.0. (#4)
 - The Python package from MEDS v0.4.0: the leaf, phenology and canopy kernels, the demography
   engine, the whole coupled model with the time loop in Python, and config editing; `pip install
-  python/` builds it with the library inside. (#9)
+  python/` builds it with the library inside. (#40)
