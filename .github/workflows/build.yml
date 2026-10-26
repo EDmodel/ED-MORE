@@ -1,6 +1,7 @@
-# Build the model with gfortran and with ifx, on every pull request and on every push to beta and
-# main. Both use the dev preset (-O2, code for any x86-64 CPU, edmore and libedmore.so). netCDF's C
-# library comes from Ubuntu; ifx from Intel's apt repository, at the version the developers use.
+# Build the model with gfortran and with ifx and run the test suite, on every pull request and on
+# every push to beta and main. Both use the dev preset (-O2, code for any x86-64 CPU, edmore,
+# libedmore.so and the tests). netCDF's C library comes from Ubuntu; ifx from Intel's apt
+# repository, at the version the developers use.
 name: build
 
 on:
@@ -57,3 +58,7 @@ jobs:
         run: |
           if [ "$FC" = ifx ]; then source /opt/intel/oneapi/setvars.sh; fi
           cmake --build build-dev -j 4
+      - name: Test
+        run: |
+          if [ "$FC" = ifx ]; then source /opt/intel/oneapi/setvars.sh; fi
+          ctest --test-dir build-dev --output-on-failure --no-tests=error
