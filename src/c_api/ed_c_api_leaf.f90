@@ -79,13 +79,19 @@ contains
       type(leaf_photo_pft_t)    :: p
       type(leaf_out_t)         :: flux
 
-      env = to_env(env_c) ; p = to_params(p_c)
+      env = to_env(env_c)
+      p = to_params(p_c)
 
       call solve_leaf_gas_exchange(env, p, int(sm), int(temp_response_form), int(colim), use_boundary_layer /= 0_c_int, flux)
 
-      flux_c%A_net = flux%A_net ; flux_c%A_gross = flux%A_gross ; flux_c%gs = flux%gs
-      flux_c%ci = flux%ci ; flux_c%cs = flux%cs ; flux_c%transpiration = flux%transpiration
-      flux_c%rd = flux%rd ; flux_c%limitation = int(flux%limitation, c_int)
+      flux_c%A_net = flux%A_net
+      flux_c%A_gross = flux%A_gross
+      flux_c%gs = flux%gs
+      flux_c%ci = flux%ci
+      flux_c%cs = flux%cs
+      flux_c%transpiration = flux%transpiration
+      flux_c%rd = flux%rd
+      flux_c%limitation = int(flux%limitation, c_int)
       flux_c%converged = merge(1_c_int, 0_c_int, flux%converged)
    end subroutine ed_leaf_solve
 
@@ -126,7 +132,10 @@ contains
       call assimilation_demand_c3(real(ci, wp), real(vcmax, wp), real(j, wp), real(tpu, wp),           &
                            real(gstar, wp), real(kc, wp), real(ko, wp), real(o2, wp),           &
                            int(colim), real(theta_cj, wp), real(theta_ip, wp), a_gross, ac, aj, ap)
-      dem_c%A_gross = a_gross ; dem_c%Ac = ac ; dem_c%Aj = aj ; dem_c%Ap = ap
+      dem_c%A_gross = a_gross
+      dem_c%Ac = ac
+      dem_c%Aj = aj
+      dem_c%Ap = ap
    end subroutine ed_assimilation_demand_c3
 
    !---------------------------------------------------------------------------------------!
@@ -142,7 +151,10 @@ contains
       real(wp) :: kc, ko, gstar, o2
       p = to_params(params_c)
       call rubisco_kinetics(p, real(t_leaf, wp), real(pressure, wp), kc, ko, gstar, o2)
-      kin_c%kc = kc ; kin_c%ko = ko ; kin_c%gstar = gstar ; kin_c%o2 = o2
+      kin_c%kc = kc
+      kin_c%ko = ko
+      kin_c%gstar = gstar
+      kin_c%o2 = o2
    end subroutine ed_rubisco_kinetics
 
    !---------------------------------------------------------------------------------------!

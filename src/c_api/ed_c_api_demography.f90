@@ -82,7 +82,10 @@ contains
       integer :: i
       h = -1_c_int
       do i = 1, MAXH
-         if (.not. cfg_used(i)) then ; h = int(i, c_int) ; exit ; end if
+         if (.not. cfg_used(i)) then
+            h = int(i, c_int)
+            exit
+         end if
       end do
       if (h < 0_c_int) return
       call load_ed_config(f_string(path, path_len), g_cfg(h))
@@ -96,7 +99,10 @@ contains
       h = -1_c_int
       do i = 1, MAXH
          if (.not. site_used(i)) then
-            h = int(i, c_int) ; site_used(i) = .true. ; g_generation(i) = 0_c_long ; exit
+            h = int(i, c_int)
+            site_used(i) = .true.
+            g_generation(i) = 0_c_long
+            exit
          end if
       end do
    end function ed_site_create
@@ -164,7 +170,9 @@ contains
       type(slow_ledger_t) :: no_ledger   !< inactive: this path books no ledger
 
       associate (poly => g_poly(sh), cfg => g_cfg(ch))
-         n = poly%cohort%n ; np = poly%patch%n ; npft = cfg%pft%n
+         n = poly%cohort%n
+         np = poly%patch%n
+         npft = cfg%pft%n
          allocate(g(max(n,1)), m(max(n,1)), rec(npft, max(np,1)))
          if (n > 0_ik) then
             g(1:n) = real(growth(1:n),    wp)
@@ -292,14 +300,22 @@ contains
          n = c%n
          if (n < 1_ik) return
          select case (field_id)
-         case (0_c_int) ; buf(1:n) = real(c%dbh(1:n),             c_double)
-         case (1_c_int) ; buf(1:n) = real(c%height(1:n),          c_double)
-         case (2_c_int) ; buf(1:n) = real(c%nplant(1:n),          c_double)
-         case (3_c_int) ; buf(1:n) = real(c%agb(1:n),             c_double)
-         case (4_c_int) ; buf(1:n) = real(c%leaf_area(1:n),       c_double)
-         case (5_c_int) ; buf(1:n) = real(c%overtopping_lai(1:n), c_double)
-         case (6_c_int) ; buf(1:n) = real(c%growth_avg(1:n),      c_double)
-         case (7_c_int) ; buf(1:n) = real(c%wood_carbon(1:n),     c_double)
+         case (0_c_int)
+            buf(1:n) = real(c%dbh(1:n),             c_double)
+         case (1_c_int)
+            buf(1:n) = real(c%height(1:n),          c_double)
+         case (2_c_int)
+            buf(1:n) = real(c%nplant(1:n),          c_double)
+         case (3_c_int)
+            buf(1:n) = real(c%agb(1:n),             c_double)
+         case (4_c_int)
+            buf(1:n) = real(c%leaf_area(1:n),       c_double)
+         case (5_c_int)
+            buf(1:n) = real(c%overtopping_lai(1:n), c_double)
+         case (6_c_int)
+            buf(1:n) = real(c%growth_avg(1:n),      c_double)
+         case (7_c_int)
+            buf(1:n) = real(c%wood_carbon(1:n),     c_double)
          end select
       end associate
    end subroutine ed_site_get_real
@@ -312,9 +328,12 @@ contains
          n = c%n
          if (n < 1_ik) return
          select case (field_id)
-         case (0_c_int) ; buf(1:n) = int(c%pft(1:n),         c_int)
-         case (1_c_int) ; buf(1:n) = int(c%owner_patch(1:n), c_int)
-         case (2_c_int) ; buf(1:n) = int(c%global_id(1:n),   c_int)
+         case (0_c_int)
+            buf(1:n) = int(c%pft(1:n),         c_int)
+         case (1_c_int)
+            buf(1:n) = int(c%owner_patch(1:n), c_int)
+         case (2_c_int)
+            buf(1:n) = int(c%global_id(1:n),   c_int)
          end select
       end associate
    end subroutine ed_site_get_int
@@ -332,8 +351,10 @@ contains
          n = p%n
          if (n < 1_ik) return
          select case (field_id)
-         case (0_c_int) ; buf(1:n) = real(p%area(1:n), c_double)
-         case (1_c_int) ; buf(1:n) = real(p%age(1:n),  c_double)
+         case (0_c_int)
+            buf(1:n) = real(p%area(1:n), c_double)
+         case (1_c_int)
+            buf(1:n) = real(p%age(1:n),  c_double)
          end select
       end associate
    end subroutine ed_site_get_patch_real
@@ -346,10 +367,14 @@ contains
          n = p%n
          if (n < 1_ik) return
          select case (field_id)
-         case (0_c_int) ; buf(1:n) = int(p%dist_type(1:n),     c_int)
-         case (1_c_int) ; buf(1:n) = int(p%global_id(1:n),     c_int)
-         case (2_c_int) ; buf(1:n) = int(p%cohort_offset(1:n), c_int)
-         case (3_c_int) ; buf(1:n) = int(p%cohort_count(1:n),  c_int)
+         case (0_c_int)
+            buf(1:n) = int(p%dist_type(1:n),     c_int)
+         case (1_c_int)
+            buf(1:n) = int(p%global_id(1:n),     c_int)
+         case (2_c_int)
+            buf(1:n) = int(p%cohort_offset(1:n), c_int)
+         case (3_c_int)
+            buf(1:n) = int(p%cohort_count(1:n),  c_int)
          end select
       end associate
    end subroutine ed_site_get_patch_int

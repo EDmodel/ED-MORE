@@ -87,9 +87,11 @@ contains
                                          t%kplastic_rd(pf), t%kplastic_leaf_turnover(pf), sla_t, vc_t, rd_t,   &
                                          turnover_t)
             else
-               vc_t = t%vcmax25(pf) ; rd_t = t%rd25(pf)
+               vc_t = t%vcmax25(pf)
+               rd_t = t%rd25(pf)
             end if
-            vcmax25(i) = vc_t ; rd25(i) = rd_t
+            vcmax25(i) = vc_t
+            rd25(i) = rd_t
          end do
       end associate
    end subroutine ed_canopy_plastic
@@ -109,15 +111,23 @@ contains
       type(leaf_photo_pft_t)    :: p
       integer(ik) :: i
       do i = 1_ik, int(n, ik)
-         env%par = par(i) ; env%leaf_temp = leaf_temp(i) ; env%vpd = vpd(i)
-         env%ca = ca(i) ; env%pressure = pressure(i) ; env%psi_leaf = psi_leaf(i) ; env%gb = gb(i)
+         env%par = par(i)
+         env%leaf_temp = leaf_temp(i)
+         env%vpd = vpd(i)
+         env%ca = ca(i)
+         env%pressure = pressure(i)
+         env%psi_leaf = psi_leaf(i)
+         env%gb = gb(i)
          env%psi = psi(i)
          associate (leaf_photo => g_cfg%pft%leaf_photo)
             p = leaf_params_at_capacity(leaf_photo, int(pft(i), ik), real(vcmax25(i), wp), real(rd25(i), wp))
             call solve_leaf_gas_exchange(env, p, leaf_photo%stomatal_model, leaf_photo%temp_response_form,   &
                                          leaf_photo%colimitation, leaf_photo%use_boundary_layer, flux)
          end associate
-         a_gross(i) = flux%A_gross ; a_net(i) = flux%A_net ; gs(i) = flux%gs ; ci(i) = flux%ci
+         a_gross(i) = flux%A_gross
+         a_net(i) = flux%A_net
+         gs(i) = flux%gs
+         ci(i) = flux%ci
       end do
    end subroutine ed_canopy_leaf
 
@@ -146,8 +156,10 @@ contains
       nc = int(ncoh, ik)
       call ascending_order(real(height, wp), nc, perm(1:nc))
       do j = 1_ik, nc
-         pft_bt(j) = int(pft(perm(j)), ik) ; hgt_bt(j) = height(perm(j))
-         lai_bt(j) = lai(perm(j)) ; wai_bt(j) = wai(perm(j))
+         pft_bt(j) = int(pft(perm(j)), ik)
+         hgt_bt(j) = height(perm(j))
+         lai_bt(j) = lai(perm(j))
+         wai_bt(j) = wai(perm(j))
       end do
       tcan_bt = 298.15_wp                                     ! longwave only; its outputs are unused
       call alloc_rad_env(rf, NB)
@@ -160,9 +172,12 @@ contains
       call ground_optics(surf, NB, he, rf%grnd_refl, rf%grnd_emiss)
       do h = 1_ik, int(nh, ik)
          rf%cosz = cosz(h)
-         rf%incid_beam(RAD_VIS) = vis_beam(h) ; rf%incid_diff(RAD_VIS) = vis_diff(h)
-         rf%incid_beam(RAD_NIR) = nir_beam(h) ; rf%incid_diff(RAD_NIR) = nir_diff(h)
-         rf%incid_beam(RAD_LW)  = 0.0_wp      ; rf%incid_diff(RAD_LW)  = 0.0_wp
+         rf%incid_beam(RAD_VIS) = vis_beam(h)
+         rf%incid_diff(RAD_VIS) = vis_diff(h)
+         rf%incid_beam(RAD_NIR) = nir_beam(h)
+         rf%incid_diff(RAD_NIR) = nir_diff(h)
+         rf%incid_beam(RAD_LW)  = 0.0_wp
+         rf%incid_diff(RAD_LW)  = 0.0_wp
          call canopy_radiation(g_cfg%pft%optics, rf, nc, pft_bt(1:nc), hgt_bt(1:nc), lai_bt(1:nc),       &
                                wai_bt(1:nc), tcan_bt(1:nc), tcan_bt(1:nc), flux)
          up_vis(h)     = flux%albedo(RAD_VIS) * (vis_beam(h) + vis_diff(h))

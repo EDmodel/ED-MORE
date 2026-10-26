@@ -77,11 +77,14 @@ contains
       u_freeze = (dry_hcap + wmass * cp_ice) * t_3ple
       u_melt   = u_freeze + wmass * latent_heat_fusion
       if (uext <= u_freeze) then                            ! all ice
-         fliq = 0.0_wp ; temp = uext / (dry_hcap + wmass * cp_ice)
+         fliq = 0.0_wp
+         temp = uext / (dry_hcap + wmass * cp_ice)
       else if (uext >= u_melt) then                         ! all liquid
-         fliq = 1.0_wp ; temp = (uext + wmass * cp_liq * tsupercool_liq) / (dry_hcap + wmass * cp_liq)
+         fliq = 1.0_wp
+         temp = (uext + wmass * cp_liq * tsupercool_liq) / (dry_hcap + wmass * cp_liq)
       else                                                  ! mixed-phase plateau (wmass > 0 here)
-         temp = t_3ple ; fliq = (uext - u_freeze) / (wmass * latent_heat_fusion)
+         temp = t_3ple
+         fliq = (uext - u_freeze) / (wmass * latent_heat_fusion)
       end if
    end subroutine internal_energy_to_temp
 
@@ -478,8 +481,10 @@ contains
       real(wp),    intent(in) :: k25, ea, hd, ds, t_leaf
       real(wp)                :: k
       select case (form)
-      case (TEMP_RESPONSE_PEAKED) ; k = peaked_arrhenius_scale(k25, ea, hd, ds, t_leaf)
-      case default        ; k = arrhenius_scale(k25, ea, t_leaf)
+      case (TEMP_RESPONSE_PEAKED)
+         k = peaked_arrhenius_scale(k25, ea, hd, ds, t_leaf)
+      case default
+         k = arrhenius_scale(k25, ea, t_leaf)
       end select
    end function temp_response
 

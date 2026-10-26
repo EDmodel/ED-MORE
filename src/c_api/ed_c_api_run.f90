@@ -85,11 +85,17 @@ contains
       logical :: ok
       h = -1_c_int
       do i = 1, MAXR
-         if (.not. run_used(i)) then ; h = int(i, c_int) ; exit ; end if
+         if (.not. run_used(i)) then
+            h = int(i, c_int)
+            exit
+         end if
       end do
       if (h < 0_c_int) return
       call region_open(f_string(path, path_len), g_run(h), ok, verbose=(verbose /= 0_c_int))
-      if (.not. ok) then ; h = -2_c_int ; return ; end if
+      if (.not. ok) then
+         h = -2_c_int
+         return
+      end if
       run_used(h) = .true.
    end function ed_run_open
 
@@ -99,7 +105,10 @@ contains
       integer(c_int), value, intent(in) :: h
       integer(c_int)                    :: status
       integer(ik) :: st
-      if (.not. live(h)) then ; status = -1_c_int ; return ; end if
+      if (.not. live(h)) then
+         status = -1_c_int
+         return
+      end if
       call region_step(g_run(h), st)
       status = int(st, c_int)
    end function ed_run_step
@@ -109,7 +118,10 @@ contains
    function ed_run_is_done(h) result(d) bind(c, name="ed_run_is_done")
       integer(c_int), value, intent(in) :: h
       integer(c_int)                    :: d
-      if (.not. live(h)) then ; d = 1_c_int ; return ; end if
+      if (.not. live(h)) then
+         d = 1_c_int
+         return
+      end if
       d = merge(1_c_int, 0_c_int, region_done(g_run(h)))
    end function ed_run_is_done
 
@@ -119,7 +131,10 @@ contains
       integer(c_int), value, intent(in) :: h
       integer(c_int)                    :: status
       integer(ik) :: st
-      if (.not. live(h)) then ; status = -1_c_int ; return ; end if
+      if (.not. live(h)) then
+         status = -1_c_int
+         return
+      end if
       call region_finalize(g_run(h), st)
       status = int(st, c_int)
    end function ed_run_finalize
@@ -137,31 +152,36 @@ contains
    function ed_run_year(h)   result(v) bind(c, name="ed_run_year")
       integer(c_int), value, intent(in) :: h
       integer(c_int)                    :: v
-      v = -1_c_int ; if (live(h)) v = int(g_run(h)%now%year, c_int)
+      v = -1_c_int
+      if (live(h)) v = int(g_run(h)%now%year, c_int)
    end function ed_run_year
 
    function ed_run_month(h) result(v)   bind(c, name="ed_run_month")
       integer(c_int), value, intent(in) :: h
       integer(c_int)                    :: v
-      v = -1_c_int ; if (live(h)) v = int(g_run(h)%now%month, c_int)
+      v = -1_c_int
+      if (live(h)) v = int(g_run(h)%now%month, c_int)
    end function ed_run_month
 
    function ed_run_day(h) result(v) bind(c, name="ed_run_day")
       integer(c_int), value, intent(in) :: h
       integer(c_int)                    :: v
-      v = -1_c_int ; if (live(h)) v = int(g_run(h)%now%day, c_int)
+      v = -1_c_int
+      if (live(h)) v = int(g_run(h)%now%day, c_int)
    end function ed_run_day
 
    function ed_run_istep(h) result(v)   bind(c, name="ed_run_istep")
       integer(c_int), value, intent(in) :: h
       integer(c_int)                    :: v
-      v = -1_c_int ; if (live(h)) v = int(g_run(h)%istep, c_int)
+      v = -1_c_int
+      if (live(h)) v = int(g_run(h)%istep, c_int)
    end function ed_run_istep
 
    function ed_run_iyear(h) result(v)   bind(c, name="ed_run_iyear")
       integer(c_int), value, intent(in) :: h
       integer(c_int)                    :: v
-      v = -1_c_int ; if (live(h)) v = int(g_run(h)%iyear, c_int)
+      v = -1_c_int
+      if (live(h)) v = int(g_run(h)%iyear, c_int)
    end function ed_run_iyear
 
    !=======================================================================================!
@@ -171,7 +191,8 @@ contains
    function ed_run_n_patch(h) result(v) bind(c, name="ed_run_n_patch")
       integer(c_int), value, intent(in) :: h
       integer(c_int)                    :: v
-      v = -1_c_int ; if (live(h)) v = int(g_run(h)%poly(1)%patch%n, c_int)
+      v = -1_c_int
+      if (live(h)) v = int(g_run(h)%poly(1)%patch%n, c_int)
    end function ed_run_n_patch
 
    function ed_run_n_site(h) result(v) bind(c, name="ed_run_n_site")
@@ -184,31 +205,36 @@ contains
    function ed_run_n_cohort(h) result(v)   bind(c, name="ed_run_n_cohort")
       integer(c_int), value, intent(in) :: h
       integer(c_int)                    :: v
-      v = -1_c_int ; if (live(h)) v = int(g_run(h)%poly(1)%cohort%n, c_int)
+      v = -1_c_int
+      if (live(h)) v = int(g_run(h)%poly(1)%cohort%n, c_int)
    end function ed_run_n_cohort
 
    function ed_run_total_agb(h) result(v) bind(c, name="ed_run_total_agb")
       integer(c_int), value, intent(in) :: h
       real(c_double)                    :: v
-      v = 0.0_c_double ; if (live(h)) v = real(total_agb(g_run(h)%poly(1)), c_double)
+      v = 0.0_c_double
+      if (live(h)) v = real(total_agb(g_run(h)%poly(1)), c_double)
    end function ed_run_total_agb
 
    function ed_run_total_lai(h) result(v) bind(c, name="ed_run_total_lai")
       integer(c_int), value, intent(in) :: h
       real(c_double)                    :: v
-      v = 0.0_c_double ; if (live(h)) v = real(total_lai(g_run(h)%poly(1)), c_double)
+      v = 0.0_c_double
+      if (live(h)) v = real(total_lai(g_run(h)%poly(1)), c_double)
    end function ed_run_total_lai
 
    function ed_run_total_nplant(h) result(v) bind(c, name="ed_run_total_nplant")
       integer(c_int), value, intent(in) :: h
       real(c_double)                    :: v
-      v = 0.0_c_double ; if (live(h)) v = real(total_nplant(g_run(h)%poly(1)), c_double)
+      v = 0.0_c_double
+      if (live(h)) v = real(total_nplant(g_run(h)%poly(1)), c_double)
    end function ed_run_total_nplant
 
    function ed_run_total_basal_area(h) result(v) bind(c, name="ed_run_total_basal_area")
       integer(c_int), value, intent(in) :: h
       real(c_double)                    :: v
-      v = 0.0_c_double ; if (live(h)) v = real(total_basal_area(g_run(h)%poly(1)), c_double)
+      v = 0.0_c_double
+      if (live(h)) v = real(total_basal_area(g_run(h)%poly(1)), c_double)
    end function ed_run_total_basal_area
 
    !----- Site total soil carbon [kgC/m2], area-weighted over patches: all seven CENTURY pools.    !
@@ -244,27 +270,43 @@ contains
          n = c%n
          if (n < 1_ik) return
          select case (field_id)
-         case (0_c_int) ; buf(1:n) = real(c%dbh(1:n),             c_double)
-         case (1_c_int) ; buf(1:n) = real(c%height(1:n),          c_double)
-         case (2_c_int) ; buf(1:n) = real(c%nplant(1:n),          c_double)
-         case (3_c_int) ; buf(1:n) = real(c%agb(1:n),             c_double)
-         case (4_c_int) ; buf(1:n) = real(c%leaf_area(1:n),       c_double)
-         case (5_c_int) ; buf(1:n) = real(c%overtopping_lai(1:n), c_double)
-         case (6_c_int) ; buf(1:n) = real(c%growth_avg(1:n),      c_double)
-         case (7_c_int) ; buf(1:n) = real(c%wood_carbon(1:n),     c_double)
+         case (0_c_int)
+            buf(1:n) = real(c%dbh(1:n),             c_double)
+         case (1_c_int)
+            buf(1:n) = real(c%height(1:n),          c_double)
+         case (2_c_int)
+            buf(1:n) = real(c%nplant(1:n),          c_double)
+         case (3_c_int)
+            buf(1:n) = real(c%agb(1:n),             c_double)
+         case (4_c_int)
+            buf(1:n) = real(c%leaf_area(1:n),       c_double)
+         case (5_c_int)
+            buf(1:n) = real(c%overtopping_lai(1:n), c_double)
+         case (6_c_int)
+            buf(1:n) = real(c%growth_avg(1:n),      c_double)
+         case (7_c_int)
+            buf(1:n) = real(c%wood_carbon(1:n),     c_double)
          !----- Run only (a demography site has no fast loop): gross GPP over the last slow step. --!
-         case (8_c_int) ; buf(1:n) = real(c%gpp_accum(1:n),       c_double)
+         case (8_c_int)
+            buf(1:n) = real(c%gpp_accum(1:n),       c_double)
          !----- Run only: the maintenance respiration over the last slow step [kgC/plant] the        !
          !      allocator charged against that GPP -- leaves, stems (coarse roots included), fine     !
          !      roots. ----------------------------------------------------------------------------!
-         case (11_c_int) ; buf(1:n) = real(c%leaf_resp_accum(1:n), c_double)
-         case (12_c_int) ; buf(1:n) = real(c%stem_resp_accum(1:n), c_double)
-         case (13_c_int) ; buf(1:n) = real(c%root_resp_accum(1:n), c_double)
+         case (11_c_int)
+            buf(1:n) = real(c%leaf_resp_accum(1:n), c_double)
+         case (12_c_int)
+            buf(1:n) = real(c%stem_resp_accum(1:n), c_double)
+         case (13_c_int)
+            buf(1:n) = real(c%root_resp_accum(1:n), c_double)
          !----- The live pools [kgC/plant] and the baseline leaf turnover rate [1/yr]. ----------!
-         case (14_c_int) ; buf(1:n) = real(c%leaf_carbon(1:n),          c_double)
-         case (15_c_int) ; buf(1:n) = real(c%fineroot_carbon(1:n),      c_double)
-         case (16_c_int) ; buf(1:n) = real(c%nonstructural_carbon(1:n), c_double)
-         case (17_c_int) ; buf(1:n) = real(c%leaf_turnover_rate(1:n),   c_double)
+         case (14_c_int)
+            buf(1:n) = real(c%leaf_carbon(1:n),          c_double)
+         case (15_c_int)
+            buf(1:n) = real(c%fineroot_carbon(1:n),      c_double)
+         case (16_c_int)
+            buf(1:n) = real(c%nonstructural_carbon(1:n), c_double)
+         case (17_c_int)
+            buf(1:n) = real(c%leaf_turnover_rate(1:n),   c_double)
          !----- The last slow step's allocation [kgC/plant/yr]: NPP (leaf, fine-root, wood,        !
          !      reproduction and storage growth) and its parts, the growth respiration and the root  !
          !      exudate; NaN unless the output needs the slow cohort diagnostics that hold them (a   !
@@ -279,13 +321,20 @@ contains
                buf(1:n) = real(c%sdiag%v(CO_NPP_LEAF, 1:n) + c%sdiag%v(CO_NPP_FINEROOT, 1:n)          &
                              + c%sdiag%v(CO_NPP_WOOD, 1:n) + c%sdiag%v(CO_NPP_STORAGE, 1:n)          &
                              + c%sdiag%v(CO_NPP_REPRO, 1:n), c_double)
-            case (10_c_int) ; buf(1:n) = real(c%sdiag%v(CO_NPP_WOOD,     1:n), c_double)
-            case (18_c_int) ; buf(1:n) = real(c%sdiag%v(CO_NPP_LEAF,     1:n), c_double)
-            case (19_c_int) ; buf(1:n) = real(c%sdiag%v(CO_NPP_FINEROOT, 1:n), c_double)
-            case (20_c_int) ; buf(1:n) = real(c%sdiag%v(CO_NPP_STORAGE,  1:n), c_double)
-            case (21_c_int) ; buf(1:n) = real(c%sdiag%v(CO_NPP_REPRO,    1:n), c_double)
-            case (22_c_int) ; buf(1:n) = real(c%sdiag%v(CO_GROWTH_RESP,  1:n), c_double)
-            case (23_c_int) ; buf(1:n) = real(c%sdiag%v(CO_EXUDATE,      1:n), c_double)
+            case (10_c_int)
+               buf(1:n) = real(c%sdiag%v(CO_NPP_WOOD,     1:n), c_double)
+            case (18_c_int)
+               buf(1:n) = real(c%sdiag%v(CO_NPP_LEAF,     1:n), c_double)
+            case (19_c_int)
+               buf(1:n) = real(c%sdiag%v(CO_NPP_FINEROOT, 1:n), c_double)
+            case (20_c_int)
+               buf(1:n) = real(c%sdiag%v(CO_NPP_STORAGE,  1:n), c_double)
+            case (21_c_int)
+               buf(1:n) = real(c%sdiag%v(CO_NPP_REPRO,    1:n), c_double)
+            case (22_c_int)
+               buf(1:n) = real(c%sdiag%v(CO_GROWTH_RESP,  1:n), c_double)
+            case (23_c_int)
+               buf(1:n) = real(c%sdiag%v(CO_EXUDATE,      1:n), c_double)
             end select
          end select
       end associate
@@ -300,9 +349,12 @@ contains
          n = c%n
          if (n < 1_ik) return
          select case (field_id)
-         case (0_c_int) ; buf(1:n) = int(c%pft(1:n),         c_int)
-         case (1_c_int) ; buf(1:n) = int(c%owner_patch(1:n), c_int)
-         case (2_c_int) ; buf(1:n) = int(c%global_id(1:n),   c_int)
+         case (0_c_int)
+            buf(1:n) = int(c%pft(1:n),         c_int)
+         case (1_c_int)
+            buf(1:n) = int(c%owner_patch(1:n), c_int)
+         case (2_c_int)
+            buf(1:n) = int(c%global_id(1:n),   c_int)
          end select
       end associate
    end subroutine ed_run_get_int
@@ -320,8 +372,10 @@ contains
          n = p%n
          if (n < 1_ik) return
          select case (field_id)
-         case (0_c_int) ; buf(1:n) = real(p%area(1:n), c_double)   ! fraction of its site
-         case (1_c_int) ; buf(1:n) = real(p%age(1:n),  c_double)   ! [yr] since disturbance
+         case (0_c_int)
+            buf(1:n) = real(p%area(1:n), c_double)                 ! fraction of its site
+         case (1_c_int)
+            buf(1:n) = real(p%age(1:n),  c_double)                 ! [yr] since disturbance
          case (2_c_int)                                            ! fraction of the polygon
             do ip = 1_ik, n
                buf(ip) = real(patch_polygon_area(g_run(h)%poly(1), ip), c_double)

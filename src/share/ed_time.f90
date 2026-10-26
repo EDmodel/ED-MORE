@@ -207,7 +207,9 @@ contains
    pure integer(lk) function to_jdn(t) result(jdn)
       type(ed_time_t), intent(in) ::   t
       integer(lk) :: y, m, d
-      y = int(t%year, lk) ; m = int(t%month, lk) ; d = int(t%day, lk)
+      y = int(t%year, lk)
+      m = int(t%month, lk)
+      d = int(t%day, lk)
       jdn = (1461_lk * (y + 4800_lk + (m - 14_lk) / 12_lk)) / 4_lk                            &
           + (367_lk * (m - 2_lk - 12_lk * ((m - 14_lk) / 12_lk))) / 12_lk                     &
           - (3_lk * ((y + 4900_lk + (m - 14_lk) / 12_lk) / 100_lk)) / 4_lk                    &
@@ -228,7 +230,9 @@ contains
       l = j / 11_lk
       j = j + 2_lk - 12_lk * l
       i = 100_lk * (n - 49_lk) + i + l
-      year = int(i, ik) ; month = int(j, ik) ; day = int(k, ik)
+      year = int(i, ik)
+      month = int(j, ik)
+      day = int(k, ik)
    end subroutine from_jdn
 
    !=======================================================================================!
@@ -318,7 +322,8 @@ contains
    pure logical function time_lt(a, b) result(yes)
       type(ed_time_t),   intent(in) :: a, b
       integer(lk) :: ja, jb
-      ja = to_jdn(a) ; jb = to_jdn(b)
+      ja = to_jdn(a)
+      jb = to_jdn(b)
       if (ja /= jb) then
          yes = ja < jb
       else
@@ -352,7 +357,10 @@ contains
       integer(ik) :: n, k
       n = 0_ik
       do k = 1_ik, nmax
-         if (time_eq(time_advance_years(a, k), b)) then ; n = k ; return ; end if
+         if (time_eq(time_advance_years(a, k), b)) then
+            n = k
+            return
+         end if
          if (time_lt(b, time_advance_years(a, k))) return       ! past b: not a whole number of years
       end do
    end function whole_years_between
@@ -383,26 +391,39 @@ contains
       integer(ik) :: y, mo, d, h, mi, se
 
       t = ed_time_t()
-      y = 2000_ik ; mo = 1_ik ; d = 1_ik ; h = 0_ik ; mi = 0_ik ; se = 0_ik
+      y = 2000_ik
+      mo = 1_ik
+      d = 1_ik
+      h = 0_ik
+      mi = 0_ik
+      se = 0_ik
 
       !----- Separators become blanks; a list-directed read then takes the numbers. -------!
       buf = s
       do i = 1_ik, int(len_trim(buf), ik)
          select case (buf(i:i))
-         case ('-', '/', ':', 'T', 't', ',') ; buf(i:i) = ' '
+         case ('-', '/', ':', 'T', 't', ',')
+            buf(i:i) = ' '
          end select
       end do
 
       ntok = count_tokens(buf)
       ios  = 0_ik
       select case (ntok)
-      case (6_ik:) ; read(buf, *, iostat=ios) y, mo, d, h, mi, se
-      case (5_ik)  ; read(buf, *, iostat=ios) y, mo, d, h, mi
-      case (4_ik)  ; read(buf, *, iostat=ios) y, mo, d, h
-      case (3_ik)  ; read(buf, *, iostat=ios) y, mo, d
-      case (2_ik)  ; read(buf, *, iostat=ios) y, mo
-      case (1_ik)  ; read(buf, *, iostat=ios) y
-      case default ; ios = -1_ik
+      case (6_ik:)
+         read(buf, *, iostat=ios) y, mo, d, h, mi, se
+      case (5_ik)
+         read(buf, *, iostat=ios) y, mo, d, h, mi
+      case (4_ik)
+         read(buf, *, iostat=ios) y, mo, d, h
+      case (3_ik)
+         read(buf, *, iostat=ios) y, mo, d
+      case (2_ik)
+         read(buf, *, iostat=ios) y, mo
+      case (1_ik)
+         read(buf, *, iostat=ios) y
+      case default
+         ios = -1_ik
       end select
 
       t = ed_time_t(year=y, month=mo, day=d, hour=h, minute=mi, second=se)
@@ -418,7 +439,10 @@ contains
       logical,           intent(out) :: ok
       integer :: k
       k = index(units, 'since')
-      if (k == 0) then ; ok = .false. ; return ; end if
+      if (k == 0) then
+         ok = .false.
+         return
+      end if
       call string_to_time(adjustl(units(k + 5:)), base, ok)
    end subroutine time_units_base
 
@@ -451,7 +475,8 @@ contains
       character(len=*), intent(in) :: s
       integer(ik) :: i
       logical     :: in_tok
-      nt = 0_ik ; in_tok = .false.
+      nt = 0_ik
+      in_tok = .false.
       do i = 1_ik, int(len_trim(s), ik)
          if (s(i:i) /= ' ') then
             if (.not. in_tok) nt = nt + 1_ik

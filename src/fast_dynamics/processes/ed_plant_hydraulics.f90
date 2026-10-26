@@ -292,7 +292,9 @@ contains
       integer(ik) :: k
       do k = 1_ik, nsl
          if (g_rhizo(k) <= 0.0_wp) then
-            u(k) = 0.0_wp ; du_dpsi_soil(k) = 0.0_wp ; du_dk(k) = 0.0_wp
+            u(k) = 0.0_wp
+            du_dpsi_soil(k) = 0.0_wp
+            du_dk(k) = 0.0_wp
             cycle
          end if
          call root_water_uptake(g_rhizo(k), k_soil(k), psi_soil(k), z_soil(k), psi_wood, u(k),          &

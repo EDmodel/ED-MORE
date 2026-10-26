@@ -139,7 +139,9 @@ contains
                               real(shed_rate_max, wp), real(leaf_turnover_rate, wp),                  &
                               real(min_leaf_cover, wp), real(bare_leaf_cover, wp), real(dt, wp),      &
                               sen, bg, cap)
-      senescence = sen ; background = bg ; flush_cap = cap
+      senescence = sen
+      background = bg
+      flush_cap = cap
    end subroutine ed_leaf_turnover_step
 
    !---------------------------------------------------------------------------------------!

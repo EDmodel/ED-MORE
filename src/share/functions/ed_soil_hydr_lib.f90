@@ -271,8 +271,13 @@ contains
       real(wp),                 intent(in)  :: theta_sat, theta_res, par_a, par_n, ksat, dz
       type(soil_layer_curve_t), intent(out) :: c
       real(wp) :: m, x
-      c%retention = retention ; c%theta_sat = theta_sat ; c%theta_res = theta_res
-      c%par_a = par_a ; c%par_n = par_n ; c%ksat = ksat ; c%dz = dz
+      c%retention = retention
+      c%theta_sat = theta_sat
+      c%theta_res = theta_res
+      c%par_a = par_a
+      c%par_n = par_n
+      c%ksat = ksat
+      c%dz = dz
       if (retention == SOIL_RETENTION_CAMPBELL) then
          c%se_switch    = 1.0_wp
          c%head_switch   = par_a
@@ -453,7 +458,8 @@ contains
             se        = (head / par_a) ** (-1.0_wp / par_n)
             dse_dhead = -se ** (1.0_wp + par_n) / (par_n * par_a)
          else
-            se = 1.0_wp ; dse_dhead = 0.0_wp
+            se = 1.0_wp
+            dse_dhead = 0.0_wp
          end if
          return
       end if
@@ -505,7 +511,8 @@ contains
             call saturation_to_conductivity(retention, par_n, ksat, se, kcond, dk_dse)
             dk_dhead = dk_dse * dse_dhead
          else
-            kcond = ksat ; dk_dhead = 0.0_wp
+            kcond = ksat
+            dk_dhead = 0.0_wp
          end if
          return
       end if
@@ -536,7 +543,8 @@ contains
       psi  = grav_head * h
       dpsi = grav_head
       if (h <= 0.0_wp) then
-         w = 0.0_wp ; dw = 0.0_wp
+         w = 0.0_wp
+         dw = 0.0_wp
       else if (h < POND_DEPRESSION_DEPTH) then
          w  = rho_h2o * h * h / (2.0_wp * POND_DEPRESSION_DEPTH)
          dw = rho_h2o * h / POND_DEPRESSION_DEPTH
