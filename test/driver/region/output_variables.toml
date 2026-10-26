@@ -1,0 +1,50 @@
+# The per-variable output table of test_region's runs (named by [output].io_config in
+# meds_config_site.toml).
+#
+# Each entry is  <registry-name> = <value>, where <value> is either
+#   true | false      force the variable on with its registry-default streams, or off everywhere
+#   "F D M Y"          an explicit stream mask (F=fast, D=daily, M=monthly, Y=annual)
+# A name matching no registry variable is a HARD ERROR, so this table doubles as a typo guard.
+# Every other variable keeps its default (docs/science/diagnostics.md §5).
+#
+# Each variable is pinned to one stream: the sub-daily series to "F" (hourly), the patch fields
+# that identify the closed-canopy patch to "D".
+#
+# The F tier is replayed from per-sub-step samples STAGED inside the fast loop, because sub-daily
+# resolution exists nowhere else; a variable reads those samples on F and live state on D, M and Y,
+# under one name. A tier a variable has no value on is rejected at start-up rather than silently
+# writing a file full of _FillValue. Run `meds_main --dump-io-config` for the full list.
+
+[variables]
+# --- energy: the air, canopy-air, leaf and soil temperatures -------------------------------------
+mean_air_temp_py         = "F D"   # the forcing's air temperature, at its own height
+mean_cas_temp_py         = "F D"   # canopy-air-space temperature (the prognostic CAS twin)
+mean_leaf_temp_co        = "F D"   # per-cohort leaf temperature
+mean_soil_temp_top_py    = "F D"   # soil top-layer temperature (the model's surface temperature)
+
+# --- needed to identify WHICH cohort is the tallest, per record ---------------------------------
+mean_height_co           = "F D"
+
+# --- needed to identify WHICH PATCH is the closed-canopy one, and which cohorts are in it -------
+#     The FAST tier is site-mean; these daily patch fields pick the patch, and bring each patch's
+#     first global cohort slot and cohort count (cohort_offset, cohort_count) with them.
+mean_lai_pa              = "D"     # patch leaf area index -- the selector
+area_pa                  = "D"     # patch area fraction
+
+# --- the radiation and turbulent fluxes, the context for sanity-checking the run -----------------
+mean_sw_in_py            = "F D"   # incoming shortwave -- the diurnal driver
+mean_rnet_py             = "F D"   # net radiation at the surface
+mean_le_py               = "F D"   # latent heat flux
+mean_h_py                = "F D"   # sensible heat flux
+
+# --- carbon: the site fluxes and the canopy-air CO2 they act on ---------------------------------
+mean_gpp_py              = "F D"   # gross primary productivity
+mean_npp_py              = "F D"   # GPP net of autotrophic MAINTENANCE respiration
+mean_reco_py             = "F"     # ecosystem respiration (autotrophic + heterotrophic)
+mean_nee_py              = "F D"   # net ecosystem exchange, positive to the atmosphere
+mean_cas_co2_py          = "F D"   # canopy-air CO2 -- the state the two fluxes above act on
+mean_atm_co2_py          = "F D"   # the FORCING's free-atmosphere CO2, beside the canopy-air CO2
+
+# --- soil: the full area-weighted profiles at hourly resolution ---------------------------------
+mean_soil_water_layer_si = "F D"   # volumetric soil moisture, all layers
+mean_soil_temp_layer_si  = "F D"   # soil temperature profile
