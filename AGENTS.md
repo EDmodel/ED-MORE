@@ -93,8 +93,9 @@ accept the reason.
 6. **Every parameter value has a source**, an observation or a paper, cited beside the value. Never
    back-calculate a parameter from the output it will be judged against. Check every reference by
    searching for it (title and DOI); never cite from memory.
-7. **Decide in the open**: on an issue, a pull request, or a design plan with numbered decisions.
-   Disclose AI help (see "Working rules for agents").
+7. **Decide in the open**, on an issue or a pull request. A design plan goes in its description,
+   never into the repository: there are no plan documents and no roadmap. Disclose AI help (see
+   "Working rules for agents").
 
 ### Reproducible: the same inputs give the same answer, and every change to the answer is declared
 
