@@ -6,8 +6,8 @@ reading it you can read a run's `[fast]` block and know what it committed you to
 is in §6: `esdirk2` at `dt_fast = 900 s`, and `dt_fast` is an accuracy setting, not a stability limit.
 
 Companion pages: [coupled_biophysics](coupled_biophysics.md) describes *what* is being integrated
-(the stores and their fluxes). This page is about *how*. Open numerics work is listed in
-`docs/ROADMAP.md`.
+(the stores and their fluxes). This page is about *how*. Open numerical questions are listed in
+§7.
 
 ---
 
@@ -629,7 +629,7 @@ agreement of those aggregates in one realization is reassurance rather than a co
    months run GPP and ET 5.5–6 % high, linearly in `dt_fast` (§5a). The candidate fix is a
    predictor–corrector: re-evaluate the gas exchange at the mid-step leaf potential and re-solve the
    water network once, about one extra pre-pass per step. The start-up transient on the first day
-   after a restart has not been re-measured on the network (see `docs/ROADMAP.md`).
+   after a restart has not been re-measured on the network.
 
 2. **Light wind is no worse.** The feedback behind the oscillation is stability-dependent and its
    gain varies with wind, so light-to-moderate wind, the common band, is the one that matters. On a tropical

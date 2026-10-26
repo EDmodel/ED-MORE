@@ -34,8 +34,8 @@
 !     plus a fill line -- ZERO edits to the reorder machinery. The alternative, one        !
 !     allocatable per field, would need a new line per field in each of alloc_cohort_block /     !
 !     expand_cohort_block / move_cohort_block / reorder_cohort_block / copy_cohort --               !
-!     precisely the "forgot to reallocate" class CLAUDE.md names as the reason the         !
-!     centralized reorder exists.                                                          !
+!     precisely the "forgot to reallocate" class src/README.md names as the reason the     !
+!     centralized reorder exists ("Invariants the tree is built on").                      !
 !                                                                                          !
 !  5. ALLOCATED ONLY ON DEMAND. A run that reports no per-cohort ecophysiology pays        !
 !     nothing: main sets `active` from the registry, and every entry point is a no-op      !

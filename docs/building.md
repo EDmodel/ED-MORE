@@ -10,7 +10,7 @@ each costs, and the test suite.
   `nvfortran` ([Compilers](#compilers)).
 - CMake 3.20 or later (3.21 or later to use the presets below).
 - The netCDF **C** library, with its CMake config. conda-forge ships it, and
-  [`environment.yml`](../environment.yml) is a conda environment that holds it and the Python tools
+  `environment.yml` is a conda environment that holds it and the Python tools
   ([Installing dependencies](#installing-dependencies)).
 
 ## Quick start
@@ -234,7 +234,8 @@ fault in a debug build, so prefer the runtime setting.
 
 **There is no GPU build.** OpenMP `target` offload under nvfortran measured 1.4× slower than the
 CPU (49.8 s against 36.2 s), with one kernel at 0.4 % occupancy. The measurement and what to do
-instead are in [`dev_plans/archive/MEDS_GPU_EVALUATION.md`](dev_plans/archive/MEDS_GPU_EVALUATION.md).
+instead are in the archived GPU evaluation:
+<https://github.com/xiangtaoxu/MEDS/blob/v0.4.0/docs/dev_plans/archive/MEDS_GPU_EVALUATION.md>.
 nvfortran threads the host through `ED_OPENMP`, as the other compilers do.
 
 ## Installing dependencies
@@ -255,7 +256,7 @@ Helper scripts check whether a dependency is already present and prompt before c
 ## Python and post-processing
 
 The post-processing scripts need Python with numpy, matplotlib, netCDF4 and pillow. The tools'
-tests also need pandas and pytest. The conda environment in [`../environment.yml`](../environment.yml)
+tests also need pandas and pytest. The conda environment in `environment.yml`
 provides all of them:
 
 ```bash
@@ -265,7 +266,7 @@ conda activate ed
 
 To drive the model from Python, `pip install python/` compiles the Fortran and bundles
 `libed.so` beside the package; from the source tree, `PYTHONPATH=python` and a dev build are
-enough. See [`../python/README.md`](../python/README.md).
+enough. See `python/README.md`.
 
 ## Running the tests
 

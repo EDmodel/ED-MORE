@@ -7,8 +7,7 @@ output.
 
 Implementation: `src/io/output/` (`ed_output_{types,registry,setup,extract,reduce,integrate,stream}`)
 plus the per-cohort and per-patch accumulators in `src/state/ed_diag_vars.f90`. The temporal
-aggregation engine underneath is recorded in
-[`docs/dev_plans/MEDS_IO_DESIGN.md`](../dev_plans/MEDS_IO_DESIGN.md).
+aggregation engine underneath is described in §4.
 
 ---
 

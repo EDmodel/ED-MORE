@@ -149,7 +149,7 @@ consumers live outside it.
 
 | Symbol | Config key | Meaning |
 |---|---|---|
-| $`k_{\mathrm{SLA}}, k_{V}, k_{R}, k_{\gamma}`$ | `[pft]` `kplastic_sla`, `kplastic_vcmax`, `kplastic_rd`, `kplastic_leaf_turnover` | light-response slopes per PFT [(m² m⁻²)⁻¹], required keys (§3; [`scripts/pft_traits`](../../scripts/pft_traits/README.md) for the fits) |
+| $`k_{\mathrm{SLA}}, k_{V}, k_{R}, k_{\gamma}`$ | `[pft]` `kplastic_sla`, `kplastic_vcmax`, `kplastic_rd`, `kplastic_leaf_turnover` | light-response slopes per PFT [(m² m⁻²)⁻¹], required keys (§3; `scripts/pft_traits/README.md` for the fits) |
 | $`\gamma_{\mathrm{toc}}`$ | `leaf_turnover_rate_toc` | top-of-canopy baseline leaf turnover rate [yr⁻¹], > 0 |
 | $`\mathrm{SLA}_{\mathrm{toc}}, V_{\mathrm{toc}}, R_{\mathrm{toc}}`$ | `sla`, `vcmax25`, `rd25` | top-of-canopy trait values (base PFT traits) |
 | — | `[trait_dynamics].trait_plasticity_on` | opt-in master switch (default off) |

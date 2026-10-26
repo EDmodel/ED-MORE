@@ -5,7 +5,7 @@
 ! annual and fast guards, the io_config lines (apply_selections), and the tiers switched off    !
 ! and the axes' bookkeeping (resolve_streams) (docs/science/diagnostics.md §5); and              !
 ! dump_io_config, the list of what a selection can name. netCDF-free. Adding a variable:        !
-! docs/science/diagnostics.md §8. Design record: MEDS_IO_DESIGN.md §3, §6.                      !
+! docs/science/diagnostics.md §8.                                                               !
 !==========================================================================================!
 module ed_output_registry
    use ed_kinds,            only : wp, ik

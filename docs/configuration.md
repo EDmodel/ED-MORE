@@ -50,7 +50,7 @@ Two kinds of value are not in the config:
   ratios to Vcmax25, and the stomatal-stress points a PFT file leaves out. A PFT trait that follows a
   fitted relation to another (sapwood conductivity or the mortality hazard from wood density, the
   plasticity slopes from Vcmax25) is computed outside ED-MORE, by
-  [`scripts/pft_traits`](../scripts/pft_traits/README.md), and written into the PFT file.
+  `scripts/pft_traits/README.md`, and written into the PFT file.
 - **Optional keys** read with a fallback to a default. They are the solver settings, process switches and
   whole blocks (`[soil]`, `[snow]`, `[aerodynamics]`, `[soil_carbon]`, `[trait_dynamics]`, most of
   `[fast]` and `[output]`). The reference file lists each one commented out at its default.
@@ -68,7 +68,7 @@ starts, the loader checks every key of both files and reports all the problems a
 - a required key that is missing.
 
 A key set twice in one file stops the run, naming the key and the file. Each `[[sites]]` table's keys
-are its own, so two tables may each set the same key. [`CHANGELOG.md`](../CHANGELOG.md) lists the keys
+are its own, so two tables may each set the same key. [`CHANGELOG-v0.md`](../CHANGELOG-v0.md) lists the keys
 that were renamed or retired.
 
 Two records document what a run did:
@@ -229,7 +229,7 @@ site) is a patch of age 0. With `patch_area`, in any unit, the patches take thei
 site; without it they share it equally. A file without a header whose rows are seven numbers is read
 positionally as `site_id, patch_id, cohort_id, dbh, height, pft, nplant`. An unknown or repeated column,
 a missing required one, or a patch whose rows disagree on `patch_area` stops the run, naming it. An
-example file is [`data/census_example.csv`](../data/census_example.csv); the reader is
+example file is `data/census_example.csv`; the reader is
 `init_from_census` in [`src/io/init/ed_init_census.f90`](../src/io/init/ed_init_census.f90).
 
 **A census stand is restructured before the first step**, by the slow step's own operators under the same
@@ -254,7 +254,7 @@ PFT's top-of-canopy values without it. Leaf area stays as read, and leaf carbon 
 SLA, with storage taking up the difference; a lower SLA takes at most the storage a cohort holds, and its
 leaf area then falls short by the rest. A restart whose PFT file gives the traits the state already has
 changes nothing. A calibration trial restarts from a shared state this way, so a changed `vcmax25`
-reaches the cohorts ([`scripts/calibrate_fast`](../scripts/calibrate_fast)).
+reaches the cohorts (`scripts/calibrate_fast`).
 
 **A start that cannot proceed stops the run**, naming the mode, the file and the problem: a file that
 cannot be opened, a census with no row for the site or a malformed column or row, or a state file
@@ -664,7 +664,7 @@ Each example ships a complete main and PFT config pair; read them next to this p
 
 | Example | Config | Shows |
 |---|---|---|
-| [example 03](../examples/example03_demography/) | `example_config_main.toml`, `example_config_pft.toml` | the demography engine alone, from near-bare ground, with no fast loop |
-| [example 04](../examples/example04_column_biophysics/) | `calibration/ed_config_calibrated.toml` | a site run at a flux tower: tower forcing (`format = "default"`), a census start |
-| [example 05](../examples/example05_forest_regeneration/) | `ed_config_regeneration.toml`; `palo_verde/ed_config_inventory.toml` | regrowth from bare ground with state files; an ERA5-Land site run from a census |
-| [example 06](../examples/example06_regional_run/) | written by `run_regions.py` | a region run on the ED_ERA5land archive |
+| `examples/example03_demography/` | `example_config_main.toml`, `example_config_pft.toml` | the demography engine alone, from near-bare ground, with no fast loop |
+| `examples/example04_column_biophysics/` | `calibration/ed_config_calibrated.toml` | a site run at a flux tower: tower forcing (`format = "default"`), a census start |
+| `examples/example05_forest_regeneration/` | `ed_config_regeneration.toml`; `palo_verde/ed_config_inventory.toml` | regrowth from bare ground with state files; an ERA5-Land site run from a census |
+| `examples/example06_regional_run/` | written by `run_regions.py` | a region run on the ED_ERA5land archive |

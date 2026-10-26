@@ -315,8 +315,6 @@ produces them routinely; the ceiling catches divergence, not implausible science
   sees layer-resolved temperature and moisture.
 - **No fire**, so nothing consumes the above-ground pools; treefall is the only disturbance.
 
-[`docs/ROADMAP.md`](../ROADMAP.md) says where these stand.
-
 ## Parameters
 
 The `[soil_carbon]` keys; every one is optional, at the default shown in `ed_config_main.toml`.

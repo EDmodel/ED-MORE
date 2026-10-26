@@ -10,7 +10,7 @@
 # ships and what is byte-identical at any thread count. GPU offload was evaluated and is not   #
 # viable as scoped: the offload build ran 1.4x slower than the CPU (49.8 s against 36.2 s),    #
 # one kernel at 0.4% occupancy, so its build option is retired                                 #
-# (docs/dev_plans/archive/MEDS_GPU_EVALUATION.md).                                             #
+# (docs/building.md, "Parallel builds").                                                       #
 #==========================================================================================#
 cmake_minimum_required(VERSION 3.20)
 project(ED-MORE VERSION 0.4.0 LANGUAGES Fortran

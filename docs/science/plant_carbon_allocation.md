@@ -183,7 +183,7 @@ The test needs no threshold: its scale is the cohort's own maintenance respirati
 more leaf carbon than one step's upkeep, and a cohort with storage pays it, so a leafless cohort living
 on its reserves through a dry season or a winter is not affected. Every other cohort dies at the
 growth-driven hazard; there is no separate starvation hazard. A growth- or storage-based starvation
-mortality is on the roadmap ([`ROADMAP.md`](../ROADMAP.md)).
+mortality is not modelled.
 
 ## 3. Growth respiration on realized growth
 

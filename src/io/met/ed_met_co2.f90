@@ -100,7 +100,7 @@ contains
             call split_token(rest, ntok, mid)
             call split_token(mid, utok, extra)
             read(ntok, *, iostat=ios) step_n
-            !----- `utok` untrimmed: findloc of a shorter value returns 0 (a compiler trap, CLAUDE.md). !
+            !----- `utok` untrimmed: findloc of a shorter value returns 0 (docs/building.md).           !
             step_unit = int(findloc(UNIT_NAME, utok, dim=1), ik)
             if (ios /= 0 .or. step_n < 1_ik .or. step_unit == 0_ik .or. len_trim(extra) > 0) then
                call line_msg(msg, iline, 'expected "timestep <n> <unit>", n a whole number >= 1 and '// &

@@ -251,7 +251,7 @@ contains
    !---------------------------------------------------------------------------------------!
    ! String-argument wrappers, for plain character(len=*) arguments; the raw bind(c) forms !
    ! stay for the numeric calls. Each binds cstr() to a named local before the C call:     !
-   ! no function result goes straight into a call (CLAUDE.md, compiler traps).             !
+   ! no function result goes straight into a call (docs/building.md, "Compilers").         !
    !---------------------------------------------------------------------------------------!
    integer(c_int) function nc_create_f(path, cmode, ncidp) result(st)
       character(len=*), intent(in)  :: path

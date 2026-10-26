@@ -5,7 +5,7 @@
 ! registry, a closed record and its queue, a stream file's handles, and the run's file set    !
 ! and one polygon's buffers (output_files_t, output_buffers_t); also the codes AGG_* and      !
 ! DIM_* (FREQ_*, GRP_* and FC_* are in ed_output_params). netCDF-free                         !
-! (docs/science/diagnostics.md §1). Design record: MEDS_IO_DESIGN.md §3.                      !
+! (docs/science/diagnostics.md §1).                                                           !
 !==========================================================================================!
 module ed_output_types
    use ed_kinds,           only : wp, ik

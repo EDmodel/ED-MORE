@@ -2,7 +2,7 @@
 !==========================================================================================!
 ! ed_therm_lib -- the thermodynamics the model's stores share, so each uses one formula:   !
 ! the specific energies of liquid, ice, vapour and canopy air in one datum and the energy  !
-! -> temperature inverter with phase change (MEDS_ENERGY_BALANCE_DESIGN.md §3.1); moist    !
+! -> temperature inverter with phase change (docs/science/soil_biophysics.md); moist       !
 ! air: saturation vapour pressure and humidity, VPD and density                            !
 ! (docs/science/snow_biophysics.md eq. (1), docs/science/forcing.md eq. (11)); the         !
 ! rain/snow split; the air at another height (docs/science/forcing.md §8); plant           !
@@ -64,12 +64,12 @@ contains
 
    !=======================================================================================!
    !     Energy datum: the specific energies of liquid, ice and vapour, and the            !
-   !     phase-change inverter (MEDS_ENERGY_BALANCE_DESIGN.md §3.1).                       !
+   !     phase-change inverter (docs/science/soil_biophysics.md).                          !
    !=======================================================================================!
 
    !----- Phase-change inverter: internal energy, water and dry heat capacity ->           !
    !      temperature and liquid fraction, per m3 of soil or per m2 of surface alike       !
-   !      (MEDS_ENERGY_BALANCE_DESIGN.md §3.1). With no water the plateau is empty. -------!
+   !      (docs/science/soil_biophysics.md). With no water the plateau is empty. ----------!
    elemental subroutine internal_energy_to_temp(uext, wmass, dry_hcap, temp, fliq)
       real(wp), intent(in)  :: uext, wmass, dry_hcap
       real(wp), intent(out) :: temp, fliq
@@ -97,7 +97,7 @@ contains
    end function temp_to_internal_energy
 
    !----- Specific enthalpy of water vapour [J/kg] in the common datum, so a vapour flux   !
-   !      carries its latent heat (MEDS_ENERGY_BALANCE_DESIGN.md §4b). --------------------!
+   !      carries its latent heat (docs/science/canopy_air_space_biophysics.md). ----------!
    elemental function enthalpy_vapor(t_k) result(h)
       real(wp), intent(in) :: t_k
       real(wp)             :: h

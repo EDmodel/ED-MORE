@@ -171,10 +171,6 @@ fractions $`w_i = a_i/(a_1+a_2)`$:
 - Ascher, Ruuth & Spiteri (1997), *Appl. Numer. Math.* 25:151 — the ARS(2,2,2) tableau of `esdirk2`.
 - Per-store references (retention curves, DSL evaporation, snow-cover fraction) are on the domain pages
   linked above.
-- Design docs (archived, `docs/dev_plans/archive/`): `MEDS_COLUMN_DYNAMICS_DESIGN.md`,
-  `MEDS_ENERGY_BALANCE_DESIGN.md`, `MEDS_COLUMN_HYDROLOGY_DESIGN.md`, `MEDS_COLUMN_CO2_BALANCE_DESIGN.md`,
-  `MEDS_IMEX_ARK_DESIGN.md`, `MEDS_SNOW_DESIGN.md`, `MEDS_LEAF_WOOD_ENERGY_DESIGN.md`,
-  `MEDS_P3_COUPLED_SURFACE_DESIGN.md`.
 
 ## Code map
 

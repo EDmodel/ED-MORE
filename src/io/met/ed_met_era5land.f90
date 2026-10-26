@@ -1,8 +1,8 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
 ! ed_met_era5land -- format = "ERA5land": the ERA5-Land archive, monthly files of          !
-! hourly fields over its global grid (docs/science/forcing.md §1-§2; the files' layout is  !
-! MEDS_FORCING_DESIGN.md §14), laid end to end as one hourly axis over the months a run    !
+! hourly fields over its global grid (docs/science/forcing.md §1-§2, with the files'       !
+! layout), laid end to end as one hourly axis over the months a run                        !
 ! needs. era5land_open opens it, era5land_prefetch loads a month before the step that      !
 ! reads it, and era5land_record hands the shared ingest one record's values as stored.     !
 ! era5land_grid is its grid (ed_met_grid). A month load checks every file, and ED-MORE     !
@@ -580,7 +580,7 @@ contains
 
       !----- ED-MORE never gap-fills (docs/science/forcing.md §10): the static mask promises data  !
       !      in every selected cell. ieee_is_nan, because a -fpe0 build can trap x /= x on a NaN,    !
-      !      and findloc over an integer mask, not a logical one (a compiler trap, CLAUDE.md). ------!
+      !      and findloc over an integer mask, not a logical one (compiler trap, docs/building.md). -!
       if (any(ieee_is_nan(buf%values))) then
          bad = int(findloc(merge(1, 0, ieee_is_nan(buf%values)), 1), ik)
          write(message, '(a,a,i4.4,a,i2.2,a,i0,a,f9.3,a,f9.3,a)') trim(ERA_VAR_NAME(bad(3))), ' ',         &

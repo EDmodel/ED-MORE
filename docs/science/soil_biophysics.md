@@ -22,7 +22,7 @@ with matric potential $`\psi(\theta)`$, hydraulic conductivity $`K(\theta)`$ and
 K = K_{sat}\,S_e^{L}\,\big[1-(1-S_e^{1/m})^m\big]^2, \qquad L = -1 \qquad(2)
 ```
 
-with pore connectivity $L=-1$ (Schaap & Leij 2000, `VG_PORE_CONNECTIVITY`), as ED2 uses with this curve. With Mualem's 0.5 a soil of $n$ near 1.4 would conduct less than ED2's floor of 1.16×10⁻¹³ m s⁻¹ from about −0.7 MPa, far wetter than measured (UNSODA); $L=-1$ keeps it above that floor to about −2 MPa. There is no film-flow term for drier soil ([ROADMAP](../ROADMAP.md)). The conductivity at a layer face follows ED2's rule (`rk4_derivs`): $\ln K$ interpolated linearly from the two nodes to the face, a thickness-weighted geometric mean,
+with pore connectivity $L=-1$ (Schaap & Leij 2000, `VG_PORE_CONNECTIVITY`), as ED2 uses with this curve. With Mualem's 0.5 a soil of $n$ near 1.4 would conduct less than ED2's floor of 1.16×10⁻¹³ m s⁻¹ from about −0.7 MPa, far wetter than measured (UNSODA); $L=-1$ keeps it above that floor to about −2 MPa. There is no film-flow term for drier soil. The conductivity at a layer face follows ED2's rule (`rk4_derivs`): $\ln K$ interpolated linearly from the two nodes to the face, a thickness-weighted geometric mean,
 
 ```math
 K_{k+1/2} = K_k^{\,1-w}\,K_{k+1}^{\,w}, \qquad w = \frac{\Delta z_k}{\Delta z_k+\Delta z_{k+1}} \qquad(3)
@@ -216,7 +216,7 @@ The anchor is checked against the analytic profile in `test_soil_annual_damping`
 
 A sweep of `deep_depth` puts the measured optimum at 3.0–3.1 m, so the derivation is right to within one sweep step, and the minimum is flat: anything from 2.8 to 4.0 m is still three to seven times better than the adiabatic wall. The harness itself is sound: a 12 m column with the adiabatic base reproduces $`\exp(-z/d)`$ to 0.1 % over the top three damping depths, because there the boundary is too far away to matter.
 
-**What this does not fix.** A purely resistive termination cannot reflect less than 0.41 in amplitude, whatever $`\ell`$ is: matching a complex impedance with a real one leaves the phase wrong by 45°. Closing that last gap needs heat *capacity* below the column, that is passive deep thermal layers under the hydrologically active column ([ROADMAP](../ROADMAP.md)). The anchor buys roughly a factor of ten in this metric, not exactness.
+**What this does not fix.** A purely resistive termination cannot reflect less than 0.41 in amplitude, whatever $`\ell`$ is: matching a complex impedance with a real one leaves the phase wrong by 45°. Closing that last gap needs heat *capacity* below the column, that is passive deep thermal layers under the hydrologically active column. The anchor buys roughly a factor of ten in this metric, not exactness.
 
 **`deep_temp` is the user's choice, and the loader requires it.** It is the mean annual soil temperature below the damping depth, close to the mean annual air temperature of the driving forcing, and a site property like latitude. An error in it is a steady flux $`g_{deep}\,\Delta T`$ into the column base, so it biases deep-soil temperature in the annual mean. There is no default: a silent one would bring back, in a new place, the bias this boundary condition exists to remove.
 
@@ -351,4 +351,3 @@ Fixed in the code: the Mualem pore connectivity $L=-1$, the specific storage 10�
 - Niu & Yang (2006), *J. Hydrometeorol.* 7:937 — the supercooled liquid of a frozen soil, eq. (14).
 - Swenson, Lawrence & Lee (2012), *J. Adv. Model. Earth Syst.* 4:M08002 — the ice impedance on the conductivity.
 - Lawrence et al. (2018), *Technical Description of version 5.0 of the Community Land Model (CLM)*, NCAR — the supercooled soil water and frozen-soil hydrology.
-- Design records: [ED_COLUMN_HYDROLOGY_DESIGN](../dev_plans/archive/MEDS_COLUMN_HYDROLOGY_DESIGN.md), [ED_ENERGY_BALANCE_DESIGN](../dev_plans/archive/MEDS_ENERGY_BALANCE_DESIGN.md).

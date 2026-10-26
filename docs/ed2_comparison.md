@@ -4,6 +4,22 @@ ED-MORE is a ground-up reimplementation of [ED2](https://github.com/EDmodel/ED2)
 is for ED2 users: it goes process by process, keyed to the `ED2IN` option you know, and says what ED-MORE
 does instead, where it is configured and where the science is written up.
 
+**The main differences, in brief.** *Science.* ED-MORE couples carbon, energy and water more tightly
+than ED2's defaults. Plant hydraulics is always on, and the pond, the soil layers and every cohort's wood
+and leaves are solved as one implicit water network. Water stress acts on the leaf water potential through
+two limbs, photosynthetic capacity and the stomata, instead of ED2's supply–demand factor. Leaf and wood
+each carry their own energy, and the soil is carried as internal energy, so freezing needs no option.
+Photosynthesis is Farquhar–von Caemmerer–Berry with explicit Jmax and TPU, under a choice of three stomatal
+models. Phenology is one rate-based cue kernel whose per-PFT cues let deciduous habits coexist, allocation
+follows FATES's PARTEH, mortality is one growth-based hazard, and soil carbon is the CENTURY network written
+as a carbon matrix. The scope is narrower: no fire, land use, nitrogen or MPI, one soil column per site and
+one snow layer. *Engineering.* The default integrator is an L-stable ESDIRK2 with adaptive sub-steps, not
+ED2's RK4. Most processes have one implementation instead of a scheme selector. Every model parameter is
+read from TOML, with no built-in PFT defaults, and an unknown key stops the run. Output is netCDF, with
+each variable selectable per timescale. The state is passed as arguments, not held globally; each module
+has unit tests; every fast step closes water and energy ledgers; and output is identical at any thread
+count. Sections 1–4 give the detail.
+
 **Reference points.** ED2 mainline at commit `125f814d` (ED-2.2, Longo et al. 2019). ED2 options are
 named by their `ED2IN` namelist key, and "ED2 default" is the value in the shipped `ED/run/ED2IN`. ED-MORE
 keys are written `[block].key` and live in the main config, `ed_config_main.toml`, or the PFT config,
@@ -95,7 +111,7 @@ documents it. Rows without an `ED2IN` option are ED-MORE features ED2 does not h
 **Phenology is selectable and self-consistent; the coupled model is not validated.** Its thresholds are
 site- and biome-specific: a bright-hours senescence trigger set for a tropical dry season, used at a
 temperate site, strips the canopy every summer. Fit the cues to your site, as
-[example 02](../examples/example02_canopy_phenology/README.md) does.
+`examples/example02_canopy_phenology/README.md` does.
 
 **Thermal acclimation and trait plasticity ship off.** Each moves the numbers substantially; turning
 either on is a decision to leave the shipped baseline.
@@ -185,7 +201,7 @@ domain is split into regions run as separate jobs. See [building](building.md), 
 ### 3.6 Known limitations
 
 The numerical limitations and open questions are listed in
-[numerical_scheme](science/numerical_scheme.md) §7, and the planned work in [ROADMAP](ROADMAP.md).
+[numerical_scheme](science/numerical_scheme.md) §7.
 
 ---
 
@@ -267,7 +283,7 @@ The output is the largest usability difference ([diagnostics](science/diagnostic
 | Discovering variables | `ed_main --dump-io-config` lists every variable by group with its default and possible tiers | Read the source or the wiki |
 | Empty sets | A mean over an empty set is `_FillValue`; a sum is a true 0 | |
 | State files | A separate stream, `[output].state_write`, every `state_interval` days, months or years: the raw prognostic state at an instant | `ISOUTPUT`, `FRQSTATE`, HDF5 histories |
-| Post-processing | `post_proc/` ([README](../post_proc/README.md)) | Community scripts |
+| Post-processing | `post_proc/` (`post_proc/README.md`) | Community scripts |
 
 Variable names follow `[mean_]<quantity>[_<breakdown>]_<level>` ([diagnostics](science/diagnostics.md) §3). Two
 conventions matter for analysis code. Sub-daily variables share a name with

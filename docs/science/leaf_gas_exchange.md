@@ -175,8 +175,7 @@ Three choices here are deliberate:
   instantaneous leaf temperature would use the relation far outside what it was fitted to.
 - **It is one value per site, not per cohort**, for the same reason: each site keeps a running mean of
   its own air temperature, after its terrain correction ([forcing](forcing.md) §8), and its own leaf
-  table. Per-cohort acclimation would need a relation calibrated on leaf temperature
-  ([ROADMAP](../ROADMAP.md)).
+  table. Per-cohort acclimation would need a relation calibrated on leaf temperature.
 
 The running mean is prognostic and slow, so it is written to the state file; rebuilding a month of
 memory after every restart would make the acclimated optimum jump. A mean not yet seeded takes the
@@ -371,7 +370,7 @@ canopy-air temperature as $`\mathrm{ref}+\mathrm{slope}\,(T-T_{cas})`$ (`latent_
 base point and the slope inconsistently, and on a nearly turgid leaf it gives condensation at midday.
 The fault is the linearisation, not the magnitude. Doing it properly means rebuilding the flux and its
 temperature derivative from $`\mathrm{RH}\cdot q_{sat}(T_{leaf})`$ inside the leaf energy balance. Its
-likely value is as a route to foliar water uptake, not as a drought response ([ROADMAP](../ROADMAP.md)).
+likely value is as a route to foliar water uptake, not as a drought response.
 
 The Kelvin correction is kept out of the stomatal model on purpose: the Medlyn and Leuning $`g_1`$
 were calibrated against a VPD based on $`e_{sat}`$, so feeding them a corrected VPD would silently

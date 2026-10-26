@@ -94,7 +94,7 @@ contains
       real(c_double)    :: x(size(lat))
       start1 = 0_c_size_t
       count1 = int(size(polygon_id), c_size_t)
-      !----- Each through a named array: no function result goes straight into a call (CLAUDE.md). -!
+      !----- Each through a named array: no function result as an argument (docs/building.md). -----!
       ids = int(polygon_id, c_int)
       call nc_check(nc_inq_varid_f(ncid, 'polygon_id', v), 'inq polygon_id')
       call nc_check(nc_put_vara_int(ncid, v, start1, count1, ids), 'put polygon_id')
@@ -177,7 +177,7 @@ contains
       call put_dbl('drain_factor_si', drain_factor)
       call put_dbl('deep_temp_si', deep_temp)
    contains
-      !----- Each through a named array: no function result goes straight into a call (CLAUDE.md). -!
+      !----- Each through a named array: no function result as an argument (docs/building.md). -----!
       subroutine put_dbl(name, x)
          character(len=*), intent(in) :: name
          real(wp),         intent(in) :: x(:,:)

@@ -48,7 +48,7 @@ module ed_constants
    real(wp), parameter :: grav_head          = rho_h2o * grav * 1.0e-6_wp  !< [MPa/m] water potential per metre of height
    !----- One energy zero for ice, liquid and vapour: ice at 0 K. Liquid water then holds     !
    !      cp_liq * (T - tsupercool_liq) and vapour cp_vap * (T - tsupercool_vap); see         !
-   !      ed_therm_lib and MEDS_ENERGY_BALANCE_DESIGN.md §3.1. ---------------------------  !
+   !      ed_therm_lib and docs/science/canopy_air_space_biophysics.md. ------------------  !
    real(wp), parameter :: tsupercool_liq = t_3ple - (cp_ice * t_3ple + latent_heat_fusion) / cp_liq
    real(wp), parameter :: tsupercool_vap = t_3ple                                                     &
                           - (cp_ice * t_3ple + latent_heat_vap + latent_heat_fusion) / cp_vap
@@ -90,7 +90,7 @@ module ed_constants
    !      come from its config ([soil].depth and layer_bottoms), and the loader refuses         !
    !      a column with more layers than fit. The soil and snow stores are fixed-size arrays,  !
    !      so copying a patch's stores never allocates. The snow is one bulk layer             !
-   !      (multi-layer snow: docs/ROADMAP.md). --------------------------------------------!
+   !      (multi-layer snow is not modelled). ---------------------------------------------!
    integer(ik), parameter :: n_soil_layer_max = 20_ik
    integer(ik), parameter :: n_snow_layer_max = 1_ik
 

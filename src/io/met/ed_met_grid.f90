@@ -135,7 +135,7 @@ contains
       end do
       west = wrap_longitude(nwse(2), lon(1))
       east = wrap_longitude(nwse(4), lon(1))
-      !----- A named index array, not an implied-do inside pack (a compiler trap, CLAUDE.md). ------!
+      !----- A named index array, not an implied-do inside pack (compiler trap, docs/building.md). -!
       col_index = [(i, i = 0_ik, nlon - 1_ik)]
       if (west <= east) then
          cols = pack(col_index, lon >= west - GRID_TOL .and. lon <= east + GRID_TOL)

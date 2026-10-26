@@ -12,8 +12,7 @@ CO₂; the per-cohort in-canopy wind and leaf and wood boundary-layer conductanc
 conductance. Like ED2's `canopy_turbulence8`, it carries no integrated state and is recomputed from the
 current CAS and vegetation state. The physics combines ED2 and CLM: CLM5's four-range Monin–Obukhov
 surface layer, ED2's forced-plus-free-convection Nusselt boundary layers, ED2's per-cohort wind
-extinction, and a CLM4-like ground conductance (design record:
-[`MEDS_COLUMN_DYNAMICS_DESIGN.md`](../dev_plans/archive/MEDS_COLUMN_DYNAMICS_DESIGN.md)).
+extinction, and a CLM4-like ground conductance.
 
 Symbols: $`u_*`$ = friction velocity; $\zeta = z/L$ = Monin–Obukhov stability parameter ($L$ = Obukhov
 length); $`z_{0m}, z_{0h}, z_{0q}`$ = roughness lengths for momentum, heat and vapour; $d$ = displacement
@@ -186,8 +185,7 @@ wood area indices (`open_canopy_fraction`; the kernel takes $W$ as `opencan_frac
 cohorts ($W=1$) couples its ground as bare soil; under a closed canopy the dense form sets the
 conductance ($W=0.0025$ at LAI + WAI = 6). CLM blends the transfer coefficients that multiply one
 velocity scale; with both terms on $`u_*`$, that is this linear blend of the conductances. Snow does not
-bury the canopy in $W$ (CLM's burial would raise $W$ through the exposed leaf and wood area;
-[ROADMAP](../ROADMAP.md)). The **soil-evaporation aerodynamic resistance** is $`r_{aero}=1/g_{g,net}`$, and
+bury the canopy in $W$ (CLM's burial would raise $W$ through the exposed leaf and wood area). The **soil-evaporation aerodynamic resistance** is $`r_{aero}=1/g_{g,net}`$, and
 $`g_{g,net}`$ is the ground sensible and latent conductance in the surface energy balance.
 
 ## 4. In-canopy wind and the leaf/wood boundary layers
@@ -314,6 +312,3 @@ The leaf width and branch diameter that set $\ell$ are PFT traits (`[pft]`).
 - Zeng, X., et al. (2005), Treatment of undercanopy turbulence in land models, *J. Climate* 18,
   5086–5094: the open-fraction blend of eq. (7); Sakaguchi, K., and X. Zeng (2009), *J. Geophys.
   Res.* 114, D01107: its under-canopy stability factor.
-- Design records: [`MEDS_COLUMN_DYNAMICS_DESIGN.md`](../dev_plans/archive/MEDS_COLUMN_DYNAMICS_DESIGN.md)
-  (Part I, ED2↔CLM reconciliation) and
-  [`MEDS_ENERGY_BALANCE_DESIGN.md`](../dev_plans/archive/MEDS_ENERGY_BALANCE_DESIGN.md).

@@ -113,7 +113,7 @@ contains
       !=========================================================================================!
       !  The step data: one per thread, indexed by thread number and aliased with `associate`  !
       !  in the loop. An array, not OpenMP private copies or BLOCK locals, which ifx builds    !
-      !  through shared compiler-made storage (CLAUDE.md, compiler traps; docs/building.md).   !
+      !  through shared compiler-made storage (docs/building.md, "Compilers").                 !
       !=========================================================================================!
       type(fast_step_data_t), allocatable :: step_data(:)
       real(wp)    :: area

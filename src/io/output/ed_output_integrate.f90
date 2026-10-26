@@ -5,8 +5,7 @@
 ! (integrate_scalar, integrate_slab), close a period (normalize_*,                             !
 ! close_tier) and re-seed (reset_buffer). output_integrate is the per-step tick and            !
 ! output_integrate_fast the FAST tier's replay. netCDF-free. Each tier integrates raw state    !
-! on its own, which for these operators equals chaining (docs/science/diagnostics.md §1, §4;   !
-! MEDS_IO_DESIGN.md §4.1).                                                                     !
+! on its own, which for these operators equals chaining (docs/science/diagnostics.md §1, §4).  !
 !==========================================================================================!
 module ed_output_integrate
    use ed_kinds,            only : wp, ik

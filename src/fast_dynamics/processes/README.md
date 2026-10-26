@@ -35,7 +35,7 @@ signature change is a build failure in a default build rather than a silent brea
 
 The fast kernels are exposed through process-oriented packages in `python/ed/`:
 
-- `ed.plant.leaf` — leaf gas exchange. [`examples/example01_leaf_gas_exchange/`](../../../examples/example01_leaf_gas_exchange/)
+- `ed.plant.leaf` — leaf gas exchange. `examples/example01_leaf_gas_exchange/`
   reproduces Slot & Winter (2017) with it.
 - `ed.canopy` — the leaf solve over many leaves and the two-stream over a frozen stand
   (`ed_c_api_canopy`).

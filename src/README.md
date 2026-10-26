@@ -3,8 +3,7 @@
 This page is the map of the source: the layout, the four rules that decide where a new file goes, and
 the library graph the build enforces. Read it before adding code.
 
-The science is in [`docs/science/`](../docs/science/); the design records are in
-[`docs/dev_plans/`](../docs/dev_plans/).
+The science is in [`docs/science/`](../docs/science/).
 
 ## The shape, in one sentence
 
@@ -111,7 +110,7 @@ blends, through `use ed_patch_state_vars, only : ...`, and link only `state` and
 slow kernels also link the fast kernels, for the seam of rule 2). That is what keeps each kernel
 library building standalone, keeps the kernels eligible for OpenMP `target` offload (a portability
 property worth holding, though offload is not a speedup and has no build option — see
-[`dev_plans/archive/MEDS_GPU_EVALUATION.md`](../docs/dev_plans/archive/MEDS_GPU_EVALUATION.md)), and lets a
+[`docs/building.md`](../docs/building.md), "Parallel builds"), and lets a
 test link one kernel library alone. It is checked on every ctest run, by `kernels_patch_only`
 (`scripts/lint/check_kernel_state.py`), because the library boundary cannot hold it: every module
 file goes to one shared directory, so any file can use any built module. **If a new routine needs

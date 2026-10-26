@@ -98,4 +98,3 @@ driver: `test_slow_update` (the operators, and the restructuring through the led
 The soil is carbon-only: there is no nitrogen cycle, no vertically resolved pools, no nitrogen
 limitation of productivity, no fire and no explicit coarse woody debris pool. There is no DAMM
 decomposition-moisture alternative; an unwired kernel for it is kept on the branch `archive/damm-hr`.
-These are listed in [`docs/ROADMAP.md`](../../docs/ROADMAP.md) §3.

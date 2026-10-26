@@ -367,5 +367,3 @@ is re-valued by $`\Delta W c_{liq}(T_1-T_0+T_{sc})`$ each step, large when wet s
 
 ## References
 - ED2 `../ED2/ED/src/dynamics/rk4_derivs.f90` — the leaf/wood energy budget in the reference model.
-- Design records (archived, `docs/dev_plans/archive/`): `MEDS_VEG_ENERGY_INTEGRATION_PLAN.md` (the
-  exact-exponential tissue store), `MEDS_ENERGY_BALANCE_DESIGN.md`, `MEDS_P3_COUPLED_SURFACE_DESIGN.md`.

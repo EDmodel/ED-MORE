@@ -9,8 +9,8 @@
 ! likewise an opaque handle loaded from the same TOML `ed_main` uses. Only flat arrays          !
 ! (copied into caller buffers) and scalars cross the boundary; getters always COPY.             !
 !                                                                                          !
-! WHY THIS IS ONE FILE, not the `site` / `demography` pair of MEDS_CODE_STRUCTURE_DESIGN.md     !
-! §7.6: that registry (g_poly / g_cfg / site_used / cfg_used / g_generation) is module state    !
+! WHY THIS IS ONE FILE, not a `site` / `demography` pair: that registry (g_poly / g_cfg /       !
+! site_used / cfg_used / g_generation) is module state                                          !
 ! EVERY entry point indexes. Splitting lifecycle from verbs would have to hoist it into a third !
 ! module both `use`, which buys nothing at this size and gives the registry two places to be    !
 ! got wrong.                                                                                    !

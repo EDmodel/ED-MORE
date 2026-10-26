@@ -35,8 +35,7 @@ inclination distribution (LIDF) is a two-parameter **Beta** density on the norma
 $`t=\theta/(\pi/2)\in[0,1]`$ (Goel & Strebel 1984; the SCOPE / 4SAIL family, Verhoef 1984,
 van der Tol et al. 2009). One family covers the Verhoef archetypes (planophile, erectophile,
 plagiophile, extremophile, and uniform $=\mathrm{Beta}(1,1)$). ED-MORE uses it in place of ED2/CLM's
-$`\phi_1/\phi_2/\bar\mu`$ and $`(1+\chi_L)^2`$ backscatter approximation (design record:
-[`radiative_transfer_design.md`](../dev_plans/archive/radiative_transfer_design.md)).
+$`\phi_1/\phi_2/\bar\mu`$ and $`(1+\chi_L)^2`$ backscatter approximation.
 
 The class weights are integrals of the unnormalized Beta kernel over the SCOPE 13-class inclination
 grid, renormalized to sum to one (the normalizing constant cancels):
@@ -217,7 +216,7 @@ snow-cover fraction, so a partial pack changes the ground continuously. The blen
 one at which the blended emissivity emits what the soil and the pack emit at their own temperatures.
 What reaches the ground in each band is then shared between soil and snow at their own optics
 ([snow_biophysics](snow_biophysics.md), "The ground's radiation"). Litter, standing water and soil
-moisture do not change the ground optics ([ROADMAP](../ROADMAP.md)).
+moisture do not change the ground optics.
 
 `canopy_radiation` (the per-patch entry point) loops over the bands, blends the optics per cohort and
 passes each band to `solve_band`.
@@ -335,6 +334,4 @@ vegetation indices are built on. A snow-covered ground raises both.
 - Verhoef (1984), *Remote Sens. Environ.* 16:125–141: SAIL, the diffuse two-stream layer operator.
 - van der Tol et al. (2009), *Biogeosciences* 6:3109: SCOPE (leaf angle and `volscatt`).
 - Goel & Strebel (1984), *Agron. J.* 76:800: Beta leaf-inclination distribution.
-- ED2 `../ED2/ED/src/dynamics/twostream_rad.f90`; design records
-  [`radiative_transfer_design.md`](../dev_plans/archive/radiative_transfer_design.md) and
-  [`MEDS_ENERGY_BALANCE_DESIGN.md`](../dev_plans/archive/MEDS_ENERGY_BALANCE_DESIGN.md).
+- ED2 `../ED2/ED/src/dynamics/twostream_rad.f90`.

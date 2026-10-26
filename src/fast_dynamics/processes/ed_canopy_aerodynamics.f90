@@ -7,7 +7,7 @@
 ! <-> canopy-air conductance (§3), and the in-canopy wind and the Nusselt leaf and wood    !
 ! boundary layers (§4). Main routines: canopy_aerodynamics, mo_surface_layer,              !
 ! cas_atm_conductances, canopy_air_conductances, canopy_roughness. All pure; per-cohort    !
-! outputs go into caller-owned arrays (CLAUDE.md, compiler traps).                         !
+! outputs go into caller-owned arrays (docs/building.md, "Compilers").                     !
 !==========================================================================================!
 module ed_canopy_aerodynamics
    use ed_kinds,              only : wp, ik

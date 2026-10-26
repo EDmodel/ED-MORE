@@ -18,12 +18,8 @@ the placement rules and the library graph.
 - **[`building.md`](building.md)**: compilers, dependencies, the four build kinds, the tests and the
   parallel builds.
 - **[`ed2_comparison.md`](ed2_comparison.md)**: ED-MORE against ED2, process by process.
-- **[`ROADMAP.md`](ROADMAP.md)**: everything ED-MORE has deliberately deferred, each item with its issue.
-- **[`dev_plans/`](dev_plans/)**: dated **design and implementation records**, working documents rather
-  than reference; [`dev_plans/README.md`](dev_plans/README.md) says which are still live, and
-  [`dev_plans/archive/`](dev_plans/archive/) holds the ones whose work is done.
 
-The changelog is at the repository root: [`../CHANGELOG.md`](../CHANGELOG.md).
+The changelog is at the repository root: [`../CHANGELOG-v0.md`](../CHANGELOG-v0.md).
 
 ## The science pages
 
@@ -73,7 +69,7 @@ For the API of a routine, read its doc comment in the Fortran source.
 ## Writing a science page
 
 A science page states equations and their rationale in the present tense. What changed and when
-goes in [`../CHANGELOG.md`](../CHANGELOG.md); what is deferred goes in [`ROADMAP.md`](ROADMAP.md).
+goes in [`../CHANGELOG-v0.md`](../CHANGELOG-v0.md).
 
 - **Shape.** Open with what the page covers and what the reader gets from it, then the numbered
   sections, then `## Parameters`, `## Code map` and `## References`, in that order, as the page needs
@@ -84,7 +80,7 @@ goes in [`../CHANGELOG.md`](../CHANGELOG.md); what is deferred goes in [`ROADMAP
 - **Math.** GitHub's Markdown sanitizer runs *inside* `$…$` before MathJax, so display equations go in
   ` ```math ` fenced blocks, never `$$…$$`, and inline math with backslash spacing or paired brace
   subscripts needs the dollar-backtick form. The full rules are in
-  [`.claude/rules/docs-math.md`](../.claude/rules/docs-math.md).
+  `.claude/rules/docs-math.md`.
 
 There is **no local preview**. Validate structurally (no `$$` left, fences balanced, every
 conflicting construct protected) and look at the rendered file on a branch before merging.

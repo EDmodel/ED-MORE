@@ -39,7 +39,7 @@ theta_j            = [0.70, 0.70, 0.85]             # [--] curvature of the J hy
                                                     #   gets the cohort's mean light, and averaging a leaf's curve over the
                                                     #   light its leaves really see bends it more than one leaf's (a leaf's
                                                     #   own value moves with its light and CO2: 0.6-0.95, Ogren & Evans
-                                                    #   1993). Sunlit and shaded leaves would change it (see docs/ROADMAP.md)
+                                                    #   1993). Sunlit and shaded leaves would change it
 theta_cj_c3        = [0.98, 0.98, 0.98]            # [--] C3 Ac/Aj co-limitation curvature (NOT theta_j: leaf_gas_exchange.md §2)
 theta_ip_c3        = [0.95, 0.95, 0.95]            # [--] C3 (Ac,Aj)/Ap co-limitation curvature
 theta_cj_c4        = [0.80, 0.80, 0.80]             # [--] C4 co-limitation curvature 1 (C4 only)

@@ -7,7 +7,7 @@
 ! it (one that failed earlier in the month) and past a polygon's live cohort and patch counts  !
 ! (docs/science/diagnostics.md §1, §3). output_serialize drains the queued records in the     !
 ! run's I/O phase, and output_close writes the final partial periods and closes the files. The !
-! only diagnostic module that calls netCDF. Design record: MEDS_IO_DESIGN.md §5.               !
+! only diagnostic module that calls netCDF.                                                    !
 !==========================================================================================!
 module ed_output_stream
    use iso_c_binding, only : c_int, c_size_t, c_double

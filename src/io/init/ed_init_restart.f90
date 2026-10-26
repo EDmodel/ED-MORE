@@ -758,7 +758,7 @@ contains
    end subroutine define_patch_vars
 
    !----- The patches. Each per-patch number of a store goes through a contiguous buffer: a     !
-   !      component section is never an actual argument (CLAUDE.md, compiler traps). ----------!
+   !      component section is never an actual argument (docs/building.md, "Compilers"). ------!
    subroutine put_patch_vars(r, poly)
       type(file_row_t), intent(in) :: r
       type(polygon_t),  intent(in) :: poly

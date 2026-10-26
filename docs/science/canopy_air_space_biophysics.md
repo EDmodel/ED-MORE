@@ -128,5 +128,3 @@ wrote it.
 ## References
 
 - ED2 `../ED2/ED/src/dynamics/canopy_struct_dynamics.f90`: the canopy-air budget in the reference model.
-- Design records: [`MEDS_COLUMN_CO2_BALANCE_DESIGN.md`](../dev_plans/archive/MEDS_COLUMN_CO2_BALANCE_DESIGN.md)
-  (the canopy air's CO₂) and [`MEDS_COLUMN_DYNAMICS_DESIGN.md`](../dev_plans/archive/MEDS_COLUMN_DYNAMICS_DESIGN.md).

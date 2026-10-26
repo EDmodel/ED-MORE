@@ -143,7 +143,7 @@ conversions and checks are in `scripts/prepare_flux_tower/README.md`.
 a regular `(time, lat, lon)` grid at 0.1°: `Tair`, `Tdew`, `PSurf`, `u10`, `v10` as ERA5-Land
 delivers them, and `Rainf`, `SWdown`, `LWdown` already de-accumulated to hourly means, end-stamped
 from 01:00 on the 1st to 00:00 on the 1st of the next month. A static file carries the `valid`
-mask, the orography and the land fraction (`docs/dev_plans/archive/MEDS_FORCING_DESIGN.md` §14.3). An
+mask, the orography and the land fraction. An
 archive run steps daily from midnight (`[run].dt_slow = "1d"` and `[run].start_time` at 00:00, both
 checked at config load), because the reader loads one month at a time before a step. Given
 `[forcing].data_path`, the reader:
@@ -313,8 +313,7 @@ f_{diff} =
 Then $`F_{diff}=f_{diff}\,\mathrm{SW}`$ and $`F_{beam}=\mathrm{SW}-F_{diff}`$, each divided into PAR and
 NIR by **fixed energy fractions** — 0.43 of the beam and 0.52 of the diffuse are PAR, the rest NIR; diffuse
 light is PAR-enriched because Rayleigh scattering is strongest at short wavelengths. Against tower quantum
-sensors these fractions give PPFD 3–11 % high, mostly from the diffuse 0.52 (see
-[`docs/ROADMAP.md`](../ROADMAP.md) §8).
+sensors these fractions give PPFD 3–11 % high, mostly from the diffuse 0.52.
 
 **`sw_partition = "weiss_norman"`** — the band-specific Weiss & Norman (1985) scheme, after ED2's
 `short_bdown_weissnorman`. It builds *potential* (clear-sky) band fluxes from air-mass optical depth, with
@@ -362,7 +361,7 @@ the diffuse terms fit the towers best of the variants tried:
 - `clearidx` gives 1.11, 1.07 and 1.03.
 
 WN85's 600 W m⁻² visible band is the 320–700 nm share of the solar spectrum, so it includes near-UV. This
-and the other open uncertainties of the partition are listed in [`docs/ROADMAP.md`](../ROADMAP.md) §8.
+is one of the partition's open uncertainties.
 
 ## 7. Humidity and precipitation phase
 
@@ -756,8 +755,6 @@ checks that.
   instantaneous or centre-stamped record has no disaggregation branch of its own, and running the
   end-of-interval one under its name would be silently wrong.
 
-[`docs/ROADMAP.md`](../ROADMAP.md) §8 lists what is planned.
-
 ## Parameters
 
 The keys of `[forcing]` and `[site]` that this page's equations use; defaults, units and which keys
@@ -822,4 +819,3 @@ each option requires are in the reference config `ed_config_main.toml` and in
 - Nicholls, Meinshausen, Lewis, Pflüger, Menking et al. (in prep., 2025): CMIP7 greenhouse-gas
   concentrations, input4MIPs `CR-CMIP-1-0-0`, doi:10.5281/zenodo.14892947 (CC BY 4.0).
 - Meinshausen et al. (2017), *GMD* 10:2057: the CMIP6 greenhouse-gas concentrations CMIP7 succeeds.
-- Design record (archived): [`docs/dev_plans/archive/MEDS_FORCING_DESIGN.md`](../dev_plans/archive/MEDS_FORCING_DESIGN.md).

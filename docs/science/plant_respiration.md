@@ -195,8 +195,6 @@ canopy-air budget these fluxes enter is in [`canopy_air_space_biophysics.md`](ca
   still grows with size through its basis: the example 05 PFTs scale it through the sapwood term, which
   charges saplings less and canopy trees more than the surface term (§2).
 
-The open items are in [`ROADMAP.md`](../ROADMAP.md) §7.
-
 ## Parameters
 
 Per-PFT traits the respiration consumes (PFT file, `[pft]`).
