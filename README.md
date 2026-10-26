@@ -45,7 +45,8 @@ to run it.
 | run ED-MORE, coming from ED2 | [`docs/ed2_comparison.md`](docs/ed2_comparison.md): the main differences first, then process by process, keyed to `ED2IN` |
 | set up a run | [`docs/configuration.md`](docs/configuration.md): the two TOML files and the three ways to start |
 | see worked examples | `examples/`: leaf gas exchange, phenology, demography, a flux tower, forest regrowth, a region |
-| prepare forcing and census inputs | `scripts/prepare_era5/`, `scripts/prepare_flux_tower/`, `scripts/prepare_census/` |
+| prepare forcing, census and trait inputs | [`scripts/prepare_input/`](scripts/README.md): ERA5-Land, flux-tower, census, CO₂ and PFT-trait tools |
+| calibrate the fast processes at a flux tower | [`scripts/calibrate_fast/`](scripts/calibrate_fast/README.md) |
 | drive it from Python | [`python/README.md`](python/README.md): the `edmore` package |
 | plot the output | `post_proc/README.md` |
 | change the code | [Developing ED-MORE](#developing-ed-more) below, then [`CONTRIBUTING.md`](CONTRIBUTING.md) |

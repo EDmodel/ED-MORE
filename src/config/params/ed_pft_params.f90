@@ -7,7 +7,7 @@
 ! allometry (allom, ed_allometry_lib), hydraulics (hydro, plant_hydraulics_t) and          !
 ! phenology (pheno) are records. Every trait is the PFT file's: a trait that follows a     !
 ! fitted relation (the sapwood conductivity or the mortality hazards from wood density,    !
-! the plasticity slopes from Vcmax) is computed outside the model, by scripts/pft_traits.  !
+! the plasticity slopes from Vcmax) is computed outside the model, by scripts/prepare_input/pft_traits.  !
 !                                                                                          !
 ! The table also holds three tables derived from the traits once at load                   !
 ! (ed_pft_derive): each PFT's leaf-photosynthesis parameters, its hydraulics with its      !

@@ -68,7 +68,7 @@ in an established stand but carry no trait history.
 
 The slopes $`k_X`$ are PFT traits, `[pft].kplastic_vcmax`, `kplastic_rd`, `kplastic_sla` and
 `kplastic_leaf_turnover`. The shipped PFTs take ED2's `trait_plasticity_scheme = 2` fits (Lloyd et al.
-2010) to their base traits, which `scripts/pft_traits` computes outside the model:
+2010) to their base traits, which `scripts/prepare_input/pft_traits` computes outside the model:
 
 ```math
 k_{V} = -\exp\!\big(\mathrm{clamp}(-2.788 + 0.01439\,V_{\mathrm{cmax25}})\big), \qquad k_{R} = k_{V} \qquad(3)
@@ -149,7 +149,7 @@ consumers live outside it.
 
 | Symbol | Config key | Meaning |
 |---|---|---|
-| $`k_{\mathrm{SLA}}, k_{V}, k_{R}, k_{\gamma}`$ | `[pft]` `kplastic_sla`, `kplastic_vcmax`, `kplastic_rd`, `kplastic_leaf_turnover` | light-response slopes per PFT [(m² m⁻²)⁻¹], required keys (§3; `scripts/pft_traits/README.md` for the fits) |
+| $`k_{\mathrm{SLA}}, k_{V}, k_{R}, k_{\gamma}`$ | `[pft]` `kplastic_sla`, `kplastic_vcmax`, `kplastic_rd`, `kplastic_leaf_turnover` | light-response slopes per PFT [(m² m⁻²)⁻¹], required keys (§3; `scripts/prepare_input/pft_traits/README.md` for the fits) |
 | $`\gamma_{\mathrm{toc}}`$ | `leaf_turnover_rate_toc` | top-of-canopy baseline leaf turnover rate [yr⁻¹], > 0 |
 | $`\mathrm{SLA}_{\mathrm{toc}}, V_{\mathrm{toc}}, R_{\mathrm{toc}}`$ | `sla`, `vcmax25`, `rd25` | top-of-canopy trait values (base PFT traits) |
 | — | `[trait_dynamics].trait_plasticity_on` | opt-in master switch (default off) |
@@ -161,7 +161,7 @@ consumers live outside it.
 |---|---|
 | light target traits (eq. (1)) | `ed_plant_traits`: `light_plastic_traits` (+ private `light_gradient`) |
 | replacement-weighted / instant update (eq. (2)) | `ed_plant_traits`: `update_plastic_trait` |
-| the slopes' fits (eqs. (3)–(4)) | `scripts/pft_traits/pft_traits.py`: `plasticity` |
+| the slopes' fits (eqs. (3)–(4)) | `scripts/prepare_input/pft_traits/pft_traits.py`: `plasticity` |
 | site-level thermal acclimation of the leaf table | `ed_plant_traits`: `acclimate_leaf_photo_table`; `ed_slow_state`: `acclimate_site_leaf_tables` |
 | per-cohort trait state + fusion weighting | `ed_cohort_state_vars` (SoA `sla/vcmax25/rd25/leaf_turnover_rate`); `ed_slow_update`: `fuse_2_cohorts` |
 | slow-loop orchestration + SLA-overshoot resorption | `ed_slow_state`: `advance_plant_traits`; `ed_slow_update`: `commit_trait_carbon` |

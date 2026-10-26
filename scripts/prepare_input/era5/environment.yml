@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: Apache-2.0
+# Conda environment for the forcing-preparation scripts: scripts/prepare_input/era5/ (the downloaders, the
+# archive builders, postprocess_era5land.py and make_forcing_file.py) and scripts/prepare_input/flux_tower/.
+# Kept separate from the top-level environment.yml, which serves the Fortran build and post_proc/.
+#   mamba env create -f scripts/prepare_input/era5/environment.yml      # or: micromamba create -f ...
+#   mamba activate edmore-era5                                     # or: micromamba activate edmore-era5
+name: edmore-era5
+channels:
+  - conda-forge
+  - nodefaults       # search conda-forge only: much faster solve, no channel mixing
+dependencies:
+  - python >=3.10
+  - numpy
+  - netcdf4          # read GDEX files; write the archive, box files and forcing files
+  - cdsapi >=0.7.7   # Copernicus Climate Data Store client (download_era5land_cds.py)
+  - eccodes          # GRIB decoding: the CDS delivers GRIB by default
+  - python-eccodes
+  - pandas           # prepare_flux_tower: tower files, gap filling, the checks
+  - tomli            # prepare_flux_tower: site TOMLs on Python < 3.11
+  - pytest           # prepare_flux_tower/tests

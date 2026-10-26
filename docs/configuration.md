@@ -50,7 +50,7 @@ Two kinds of value are not in the config:
   ratios to Vcmax25, and the stomatal-stress points a PFT file leaves out. A PFT trait that follows a
   fitted relation to another (sapwood conductivity or the mortality hazard from wood density, the
   plasticity slopes from Vcmax25) is computed outside ED-MORE, by
-  `scripts/pft_traits/README.md`, and written into the PFT file.
+  `scripts/prepare_input/pft_traits/README.md`, and written into the PFT file.
 - **Optional keys** read with a fallback to a default. They are the solver settings, process switches and
   whole blocks (`[soil]`, `[snow]`, `[aerodynamics]`, `[soil_carbon]`, `[trait_dynamics]`, most of
   `[fast]` and `[output]`). The reference file lists each one commented out at its default.
@@ -292,7 +292,7 @@ on, the keys the source, the location and the switches pick are required; the re
 `[forcing].format` picks the source:
 
 - **`"ERA5land"`** reads the global ED_ERA5land archive: one file per variable per month, built with the
-  tools in `scripts/prepare_era5/`. Give it `data_path` (the archive folder) and, in a site run,
+  tools in `scripts/prepare_input/era5/`. Give it `data_path` (the archive folder) and, in a site run,
   `max_distance_km` (a site on a cell without data takes the nearest valid cell this close). The
   optional `file_template` and `static_file` name the files inside the archive. The reader finds the
   site's cell and takes that cell's elevation from the archive, so `path`, `grid_index`, `grid_match` and
@@ -301,8 +301,8 @@ on, the keys the source, the location and the switches pick are required; the re
   file the run needs must exist when it starts, and the run must step daily from midnight
   (`dt_slow = "1d"`, `start_time` at 00:00:00): the reader loads a month at a time before each step.
 - **`"default"`** reads one forcing file, named by `path`: cut from ERA5-Land by
-  `scripts/prepare_era5/make_forcing_file.py`, or built from flux-tower data by
-  `scripts/prepare_flux_tower/make_tower_forcing.py`. `grid_match` is `"explicit"` (the file's cell
+  `scripts/prepare_input/era5/make_forcing_file.py`, or built from flux-tower data by
+  `scripts/prepare_input/flux_tower/make_tower_forcing.py`. `grid_match` is `"explicit"` (the file's cell
   `grid_index`) or `"nearest"` (to `[site]` latitude and longitude).
 
 The file formats, the ERA5-Land and flux-tower preparation, and the recycling rules are in
@@ -371,7 +371,7 @@ profile is a plant trait, so these keys live in the PFT file only.
 **Mortality.** Wood density is the primary PFT axis. The mortality hazard's parameters,
 `[pft].mort_gamma`, `mort_alpha` and `mort_beta`, ship as Camac et al. (2018)'s power laws in it, so
 low-density PFTs get a higher growth-independent hazard and a steeper low-growth penalty;
-`scripts/pft_traits` computes them, and a site's own census fit replaces them. A cohort with no leaves
+`scripts/prepare_input/pft_traits` computes them, and a site's own census fit replaces them. A cohort with no leaves
 and no storage dies in the step it is found
 ([`science/plant_carbon_allocation.md`](science/plant_carbon_allocation.md) §2). Growth, competition and
 reproduction parameters are per PFT but ship uniform.
@@ -409,7 +409,7 @@ is the share of a top-of-canopy cohort's leaf carbon that background turnover re
 `[trait_dynamics].trait_plasticity_on` it slows in shade
 ([`science/plant_traits.md`](science/plant_traits.md) eq. (1)). The light-plasticity slopes,
 `[pft].kplastic_vcmax`, `kplastic_rd`, `kplastic_sla` and `kplastic_leaf_turnover`, ship as ED2's fits to
-Vcmax25 and the turnover rate (Lloyd et al. 2010), from `scripts/pft_traits`.
+Vcmax25 and the turnover rate (Lloyd et al. 2010), from `scripts/prepare_input/pft_traits`.
 
 **Phenology.** The optional `[phenology]` section sets each PFT's leaf habit through three cues (warmth,
 light, water), chosen per side by a bit mask ([`science/plant_phenology.md`](science/plant_phenology.md)).
