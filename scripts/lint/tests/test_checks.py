@@ -40,8 +40,9 @@ def found(name: str, root: Path) -> list:
 
 
 def test_every_check_states_its_rule():
-    assert set(CHECKS) == {"file_size", "line_length", "machine_paths", "markdown_links", "no_issue_refs",
-                           "one_statement_per_line", "spdx_header", "whitespace"}
+    assert set(CHECKS) == {"clamps_named", "constants_named", "file_size", "integrator_boundary",
+                           "kernels_patch_only", "line_length", "machine_paths", "markdown_links",
+                           "no_issue_refs", "one_statement_per_line", "spdx_header", "whitespace"}
     for name, module in CHECKS.items():
         assert run_checks.summary(module), name
 
@@ -97,6 +98,67 @@ def test_one_statement_per_line(tmp_path):
                     "b.F90": "#define X 1; 2\n",
                     "c.f90": "print *, \"a; &\n   & b;c\"\nd = 1; e = 2\n"})
     assert found("one_statement_per_line", tmp_path) == [("a.f90", 1), ("c.f90", 3)]
+
+
+def test_fortran_statements_join_continuations_and_keep_comments():
+    from lintlib import fortran_statements
+    lines = ["x = max(a, &  ! first", "    ! a comment line inside", "    & 2.0)", "", "s = 'a!b'  ! note"]
+    assert list(fortran_statements(lines)) == [(1, "x = max(a, 2.0)", "first  a comment line inside"),
+                                               (5, "s = 'a!b'", "note")]
+
+
+def test_clamps_named(tmp_path):
+    tree(tmp_path, {"src/a.f90": "x = max(y, 0.5_wp)\n"                      # a threshold: flagged
+                                 "x = min(y, 1.0_wp, 0.0_wp, -1.0d0)\n"      # physical bounds pass
+                                 "x = max(y, 1.0e-3_wp)  ! clamp-ok: a solver's step\n"
+                                 "x = max(y, &\n      2.0_wp)\n"             # across a continuation
+                                 "x = max(y, tiny_num, 3)\n",                # a name and an integer pass
+                    "test/b.f90": "x = max(y, 0.5_wp)\n"})                   # only src/ is checked
+    assert found("clamps_named", tmp_path) == [("src/a.f90", 1), ("src/a.f90", 4)]
+
+
+KERNEL = "src/fast_dynamics/processes/ed_k.f90"
+
+
+def test_kernels_patch_only(tmp_path):
+    tree(tmp_path, {"src/share/ed_law.f90": "module ed_law\nend module ed_law\n",
+                    "src/state/ed_patch_state_vars.f90": "module ed_patch_state_vars\nend module\n",
+                    "src/state/ed_polygon_state_vars.f90": "module ed_polygon_state_vars\nend module\n",
+                    "src/slow_dynamics/processes/ed_p.f90": "module ed_p\nend module ed_p\n",
+                    KERNEL: "use ed_law, only : f\n"                                       # a law: fine
+                            "use ed_p\n"                                                   # a process: fine
+                            "use iso_c_binding\n"
+                            "use ed_patch_state_vars, only : cas_state_t, blend_cas\n"     # stores: fine
+                            "use ed_patch_state_vars, only : patch_block\n"                # 5: a block
+                            "use ed_patch_state_vars\n"                                    # 6: no only-list
+                            "use ed_polygon_state_vars, only : x\n"                        # 7: the polygon
+                            "type(polygon_t) :: p\n",                                      # 8: names it
+                    "src/slow_dynamics/driver/ed_slow_update.f90": "use ed_law\nuse ed_p\n"})   # 2: a process
+    assert found("kernels_patch_only", tmp_path) == [
+        (KERNEL, 5), (KERNEL, 5), (KERNEL, 6), (KERNEL, 7), (KERNEL, 8),
+        ("src/slow_dynamics/driver/ed_slow_update.f90", 2)]
+
+
+def test_integrator_boundary(tmp_path):
+    integ = "src/fast_dynamics/integrator/ed_i.f90"
+    tree(tmp_path, {integ: "use ed_site_state_vars, only : site_surface_t\n"           # fine
+                           "use ed_patch_state_vars, only : snow_state_t\n"            # fine
+                           "use ed_met_types, only : met_t\n"                          # 3: a met module
+                           "use ed_site_state_vars, only : site_surface_t, &\n"
+                           "                               site_block\n"               # 4: a block
+                           "use ed_time\n",                                            # 6: the calendar
+                    "src/fast_dynamics/driver/ed_d.f90": "use ed_met_types\n"})      # the driver may
+    assert found("integrator_boundary", tmp_path) == [(integ, 3), (integ, 4), (integ, 4), (integ, 6)]
+
+
+def test_constants_named(tmp_path):
+    tree(tmp_path, {"src/share/ed_constants.f90": "real(wp), parameter :: grav = 9.8_wp, BAD = 1.0_wp\n",
+                    "src/a.f90": "integer, parameter :: SOIL_X = 1, low_y = 2\n"
+                                 "real(wp), parameter :: TABLE(2) = [1.0_wp, &\n   2.0_wp], ok_not = 3.0_wp\n"
+                                 "real(wp) :: lower_variable = 1.0_wp\n",           # not a parameter
+                    "test/t.f90": "character(len=*), parameter :: name = 'a, b'\n"})
+    assert found("constants_named", tmp_path) == [("src/a.f90", 1), ("src/a.f90", 2),
+                                                 ("src/share/ed_constants.f90", 1), ("test/t.f90", 1)]
 
 
 def test_markdown_links(tmp_path):
