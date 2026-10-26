@@ -31,6 +31,8 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   `animate_landscape_growth.py` in `examples/example03_demography/`, `plot_pft_size.py` in
   `examples/example05_forest_regeneration/`. The examples' configs are `ed_config_*.toml` (were
   `meds_config_*.toml`), and their scripts take `--edmore` (was `--meds-main`). (#42)
+- The conda environment is `edmore` (was `meds`): `mamba env create -f environment.yml`, then
+  `conda activate edmore`. It needs Python 3.11 or later and brings CMake. (#43)
 
 ### Added
 

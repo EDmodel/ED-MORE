@@ -10,8 +10,8 @@ each costs, and the test suite.
   `nvfortran` ([Compilers](#compilers)).
 - CMake 3.20 or later (3.21 or later to use the presets below).
 - The netCDF **C** library, with its CMake config. conda-forge ships it, and
-  `environment.yml` is a conda environment that holds it and the Python tools
-  ([Installing dependencies](#installing-dependencies)).
+  [`environment.yml`](../environment.yml) is a conda environment that holds it, CMake and the
+  Python tools ([Installing dependencies](#installing-dependencies)).
 
 ## Quick start
 
@@ -19,8 +19,8 @@ each costs, and the test suite.
 and exits. Three commands build it and check it:
 
 ```bash
-mamba env create -f environment.yml    # once: netCDF and the Python tools (or conda env create)
-conda activate ed
+mamba env create -f environment.yml    # once: netCDF, CMake and the Python tools (or conda env create)
+conda activate edmore
 source /opt/intel/oneapi/setvars.sh    # so CMake finds ifx
 
 FC=ifx cmake --preset dev              # 1. configure the dev kind, in build-dev/
@@ -144,8 +144,8 @@ so do not compare a production run's output byte for byte with a dev run's.
 
 **production is 26–29 % faster than dev** (ifx, example 04's 120-patch stand, 1 and 20 threads). Two
 things give it: inlining across modules (`ED_IPO`), and code for the CPU family
-(`ED_CPU_TARGET=cascadelake`, which gains more with more threads; it covers cbsuxu 01–10). Under
-IPO the files compile at `-O2`, and ifx generates the code at the link at `-O3`, which the build
+(`ED_CPU_TARGET=cascadelake`, the AVX-512 Xeons, which gains more with more threads). Under IPO
+the files compile at `-O2`, and ifx generates the code at the link at `-O3`, which the build
 names; gfortran keeps each file's `-O2` through the link. A production binary may not start on an
 older CPU: build with `-DED_CPU_TARGET=` (empty) for a portable one, or `host` for the machine you
 build on. Use ifx: gfortran's production build is only 4–8 % faster than ifx dev. IPO and the CPU
@@ -207,7 +207,7 @@ places local arrays and derived types in static storage shared by every thread; 
 the kernels race and return plausible, silently thread-count-dependent numbers.
 
 **What threads buy.** The BCI flux-tower example (130 census patches, falling to about 57 over the
-five years), ifx Release, each run alone on an idle `R128C40` node; the 60-day times are the second
+five years), ifx Release, each run alone on an idle 40-core node; the 60-day times are the second
 of two runs:
 
 | `n_threads` | 60 days | five years |
@@ -255,13 +255,13 @@ Helper scripts check whether a dependency is already present and prompt before c
 
 ## Python and post-processing
 
-The post-processing scripts need Python with numpy, matplotlib, netCDF4 and pillow. The tools'
-tests also need pandas and pytest. The conda environment in `environment.yml`
-provides all of them:
+The examples' scripts need Python with numpy, matplotlib, netCDF4, pillow, pandas and scipy;
+example 03 also uses scikit-learn and, for its 3-D views, pyvista. The tests need pytest. The conda
+environment in [`environment.yml`](../environment.yml) provides all of them:
 
 ```bash
 mamba env create -f environment.yml    # or: conda env create -f environment.yml
-conda activate ed
+conda activate edmore
 ```
 
 To drive the model from Python, `pip install python/` compiles the Fortran and bundles

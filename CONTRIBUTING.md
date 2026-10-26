@@ -103,9 +103,9 @@ the release's theme.
 
 ## Review and merging
 
-A maintainer reviews every pull request; GitHub asks the maintainers team automatically. One
-approval is enough. Until the team grows, the lead maintainer may merge their own pull requests once
-CI passes.
+A developer reviews every pull request; GitHub asks the developers team (`edmore-developer`)
+automatically. One approval is enough. Until the team grows, the lead maintainer may merge their own
+pull requests once CI passes.
 
 A reviewer checks that:
 
