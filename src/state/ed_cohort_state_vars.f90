@@ -28,7 +28,7 @@ module ed_cohort_state_vars
    use ed_pft_params,        only : pft_table_t
    use ed_diag_vars,         only : cohort_diag_block, expand_cohort_diag, reorder_cohort_diag,              &
                                     copy_cohort_diag, clear_cohort_diag
-   use ed_state_defaults,  only :   UNSET_POSITIVE, UNSET_NEGATIVE, DMAX_PSI_LEAF_ACCUM_RESET,            &
+   use ed_state_defaults,    only : UNSET_POSITIVE, UNSET_NEGATIVE, DMAX_PSI_LEAF_ACCUM_RESET,            &
                                     PHENO_FLUSH_INIT, PHENO_SHED_INIT
    implicit none
    private

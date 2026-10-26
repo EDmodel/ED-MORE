@@ -1,11 +1,11 @@
-# ED-MORE main run configuration: every non-PFT setting. ed_main reads the file named on its command
+# ED-MORE main run configuration: every non-PFT setting. edmore reads the file named on its command
 # line (default ./ed_config_main.toml); [init].pft_config names the PFT file.
 #
 # This file lists every key ED-MORE reads from a main file. A key set below is a parameter or a choice
 # the run must state, and a missing one stops the run, unless its block says its keys are optional;
 # a key commented out is optional and shows its default. A key not listed here is not an ED-MORE key: a
 # run that sets one stops and names it. docs/configuration.md describes every block. Relative paths
-# resolve against the directory ed_main runs from.
+# resolve against the directory edmore runs from.
 
 [run]
 dt_slow    = "1d"              # slow step: "1d" | "7d" | "12h" | seconds
@@ -183,7 +183,7 @@ pft_config   = "ed_config_pft.toml"        # the PFT file
 # What a run writes. The state files: the model's whole state at an instant, to restart from
 # ([init].restart_file), <state_file_prefix>-S-<date>.nc. The diagnostics: netCDF files
 # <prefix>-<F|D|M|Y>[-<stamp>].nc, one per tier and time chunk (docs/science/diagnostics.md); each
-# variable is written at its default tiers unless io_config says otherwise, and `ed_main
+# variable is written at its default tiers unless io_config says otherwise, and `edmore
 # --dump-io-config` lists every variable, its default and the tiers it can be on.
 [output]
 state_write       = false         # write state files (the three keys below are required with it)
@@ -194,7 +194,7 @@ enabled       = false           # write the diagnostics
 dir           = "out"           # directory
 prefix        = "ed"            # file-name stem
 io_config     = ""              # what is written: a file of [variables] lines, each a name or a pattern
-                                #   ("*_co" = false, "mean_*_py" = "M Y"); "" = the defaults. `ed_main
+                                #   ("*_co" = false, "mean_*_py" = "M Y"); "" = the defaults. `edmore
                                 #   --dump-io-config` lists every variable (docs/science/diagnostics.md §5)
 cohort_max    = 4096            # the files' cohort axis (the run stops when the live count exceeds it)
 patch_max     = 256             # the files' patch axis

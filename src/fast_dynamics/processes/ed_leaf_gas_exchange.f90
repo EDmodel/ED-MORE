@@ -11,7 +11,7 @@ module ed_leaf_gas_exchange
    use ed_constants,       only : p_std, tiny_num, gsw_2_gsc, gbw_2_gbc, mol_2_umol
    use ed_leaf_params,     only : COLIM_QUADRATIC, SM_LEUNING, SM_KATUL
    use ed_pft_params,      only : PATH_C4
-   use ed_pft_params,  only :   leaf_photo_pft_t, leaf_photo_table_t
+   use ed_pft_params,  only : leaf_photo_pft_t, leaf_photo_table_t
    use ed_therm_lib,       only : temp_response, arrhenius_scale
    use ed_numerics,        only : quadratic_smaller_root, root_bracket_t, regula_falsi_point, illinois_narrow
    implicit none

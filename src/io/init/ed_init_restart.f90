@@ -22,7 +22,7 @@ module ed_init_restart
                                    nc_get_vara_double, nc_get_vara_int, nc_inq_dimlen, nc_inq_dimlen_f,           &
                                    nc_inq_varid_f, nc_open_f, nc_put_vara_double, nc_put_vara_int, NC_CLOBBER,    &
                                    NC_DOUBLE, NC_FILL_DOUBLE, NC_GLOBAL, NC_INT, NC_NETCDF4, NC_NOERR, NC_NOWRITE
-   use ed_netcdf_write,   only :   define_var, put_global_text, define_polygon_axis, write_polygon_axis,             &
+   use ed_netcdf_write,     only : define_var, put_global_text, define_polygon_axis, write_polygon_axis,             &
                                    define_site_statics, write_site_statics, RESTART_DEFLATE
    use ed_polygon_state_vars,           only : polygon_t, alloc_polygon, rebuild_patch_map, rebuild_cohort_map
    use ed_site_state_vars,              only : make_site_surface
@@ -156,7 +156,7 @@ contains
       type(ed_time_t),     intent(out) :: restart_time
       logical,             intent(out) :: found
       integer(ik),         intent(in)  :: polygon    !< its row (1-based)
-      type(ed_config_t),   optional, intent(in) :: site_cfg(:)   !< each site's configuration
+      type(ed_config_t), optional, intent(in) :: site_cfg(:)   !< each site's configuration
       character(len=:), allocatable, optional, intent(out) :: why  !< why found = .false.; '' when found
       character(len=:), allocatable :: msg
       type(file_row_t) :: r
@@ -450,7 +450,7 @@ contains
    subroutine get_polygon_vars(r, poly, cfg, restart_time, why, site_cfg)
       type(file_row_t),              intent(in)  :: r
       type(polygon_t),               intent(out) :: poly
-      type(ed_config_t),             intent(in)  :: cfg
+      type(ed_config_t),           intent(in)    :: cfg
       type(ed_time_t),               intent(out) :: restart_time
       character(len=:), allocatable, intent(out) :: why
       type(ed_config_t), intent(in), optional :: site_cfg(:)
@@ -482,7 +482,7 @@ contains
       poly%patch%n = meta_i(2)
       poly%next_cohort_id = meta_i(4)
       poly%next_patch_id = meta_i(5)
-      restart_time = ed_time_t(year=meta_i(6),   month=meta_i(7), day=meta_i(8),               &
+      restart_time = ed_time_t(year=meta_i(6), month=meta_i(7), day=meta_i(8),               &
                                  hour=meta_i(9), minute=meta_i(10), second=meta_i(11))
       !----- 3. Calendar: the restructuring owed (the ring's slot comes with the rings, section 2). !
       call nc_check(nc_get_att_text_f(r%ncid, NC_GLOBAL, 'restructure_pending', pending), 'state restructure_pending')
@@ -643,7 +643,7 @@ contains
    subroutine get_cohort_vars(r, poly, cfg, same_window)
       type(file_row_t),    intent(in)    :: r
       type(polygon_t),     intent(inout) :: poly
-      type(ed_config_t),   intent(in)    :: cfg
+      type(ed_config_t), intent(in)      :: cfg
       logical,             intent(out)   :: same_window
       integer(c_size_t) :: nwin_file
       integer(ik)       :: ncoh, nwin, i, gpos(1)

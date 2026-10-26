@@ -85,12 +85,12 @@ src/
 │   │              a map is read (ed_maps)
 │   └── output/    the diagnostic wall: derive → capture → reduce →
 │                  integrate → serialize
-├── c_api/         bind(c) shims → one libed.so: leaf, canopy, phenology,
+├── c_api/         bind(c) shims → one libedmore.so: leaf, canopy, phenology,
 │                  demography, and the full coupled run
 └── main/          ed_stepper (one polygon's slow step in the order of
                    processes, and its ledgers), ed_polygon (one
                    polygon's run record and step), ed_region (a run of
-                   one polygon or many: open / step / finalize), ed_main
+                   one polygon or many: open / step / finalize), edmore
                    (the program)
 ```
 
@@ -173,9 +173,9 @@ the last column is its `target_link_libraries` edges.
 | `ed_model` (interface) | the coupled model, as one name | `ed_stepper`, `ed_fast`, `ed_slow`, `ed_init` |
 | `ed_output_stream` | `io/output/ed_output_stream`, the writer | `ed_netcdf_c`, `ed_output` |
 | `ed_run` | `main/ed_polygon`, `main/ed_region` | `ed_model`, `ed_maps`, `ed_output_stream` |
-| `ed_main` (program) | `main/ed_main` | `ed_run` |
+| `edmore` (program) | `main/edmore` | `ed_run` |
 | `ed_c_api` (objects) | `c_api/` | `ed_run` |
-| `ed_py` (`libed.so`) | the `ed_c_api` objects | `ed_run` |
+| `ed_py` (`libedmore.so`) | the `ed_c_api` objects | `ed_run` |
 
 `ed_c_api` is built with the tests or with `-DED_BUILD_PYLIB=ON`; `ed_py` only with the option.
 

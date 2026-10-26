@@ -26,20 +26,20 @@ module ed_slow_dynamics
                                        SLOW_PHASE_ALLOCATE, SLOW_PHASE_GROW, SLOW_PHASE_RECRUIT,         &
                                        SLOW_PHASE_COHORT, SLOW_PHASE_DISTURB, SLOW_PHASE_PATCH,          &
                                        slow_co2_handoff, litter_carbon_total
-   use ed_slow_state,         only :   slow_step_data_t, decide_recruitment, decide_disturbance,         &
+   use ed_slow_state,           only : slow_step_data_t, decide_recruitment, decide_disturbance,         &
                                        kill_report_t, kill_litter, clear_litter,                         &
                                        advance_leaf_phenology, advance_plant_traits,                     &
                                        compute_carbon_allocation, shed_turnover_water,                   &
                                        compute_vital_rates, fill_new_leaf_water,                         &
                                        accumulate_mortality_litter, shed_mortality_water,                &
                                        shed_excess_tissue_water, advance_soil_carbon
-   use ed_slow_update,        only :   accumulate_recruit_pool, commit_vegetation_step, sort_cohorts,    &
+   use ed_slow_update,          only : accumulate_recruit_pool, commit_vegetation_step, sort_cohorts,    &
                                        update_overtopping_lai, age_patches, refresh_canopy_depth,        &
                                        apply_recruitment, fuse_cohorts, terminate_cohorts,               &
                                        split_cohorts, apply_patch_disturbance, sort_patches,             &
                                        fuse_patches, terminate_patches, commit_trait_carbon,             &
                                        commit_soil_carbon
-   use ed_slow_diag,          only :   open_slow_cohort_rows, write_slow_patch_rows
+   use ed_slow_diag,            only : open_slow_cohort_rows, write_slow_patch_rows
    implicit none
    private
 
@@ -58,9 +58,9 @@ contains
    !---------------------------------------------------------------------------------------!
    subroutine advance_slow_dynamics(poly, cfg, ledger, step_start)
       type(polygon_t),     intent(inout) :: poly
-      type(ed_config_t),   intent(in)    :: cfg
+      type(ed_config_t), intent(in)      :: cfg
       type(slow_ledger_t), intent(inout) :: ledger   !< the slow ledger; an inactive one books nothing
-      type(ed_time_t),     intent(in), optional :: step_start   !< the slow step's start (its day of year)
+      type(ed_time_t),   intent(in), optional :: step_start   !< the slow step's start (its day of year)
       type(soil_carbon_state_t), allocatable :: soil_pools(:)
 
       call slow_ledger_open(ledger, poly, cfg, step_start)
@@ -93,7 +93,7 @@ contains
    !---------------------------------------------------------------------------------------!
    subroutine vegetation_dynamics(poly, cfg, ledger, doy)
       type(polygon_t),     intent(inout) :: poly
-      type(ed_config_t),   intent(in)    :: cfg
+      type(ed_config_t), intent(in)      :: cfg
       type(slow_ledger_t), intent(inout) :: ledger   !< the slow ledger; an inactive one books nothing
       integer(ik),         intent(in), optional :: doy   !< day-of-year at the step start (drives phenology)
       type(slow_step_data_t) :: step
@@ -277,7 +277,7 @@ contains
    !---------------------------------------------------------------------------------------!
    subroutine settle_tissue_water(poly, cfg, ledger)
       type(polygon_t),     intent(inout) :: poly
-      type(ed_config_t),   intent(in)    :: cfg
+      type(ed_config_t), intent(in)      :: cfg
       type(slow_ledger_t), intent(inout) :: ledger   !< the slow ledger; an inactive one books nothing
       real(wp) :: water_shed
       if (.not. ledger%has_first) call slow_ledger_rebase(ledger, poly, cfg)

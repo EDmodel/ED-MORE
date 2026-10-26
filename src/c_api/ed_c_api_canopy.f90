@@ -1,6 +1,6 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! ed_c_api_canopy -- the C-API shim for the CANOPY kernels (`ed.canopy`): the leaf solve       !
+! ed_c_api_canopy -- the C-API shim for the CANOPY kernels (`edmore.canopy`): the leaf solve   !
 ! over many leaves and the two-stream over a frozen stand, with every parameter taken from a   !
 ! run's own configuration: the leaf table and the optics its loader derives on the PFT table    !
 ! (ed_pft_derive), so a caller outside the model computes what the fast loop computes.          !
@@ -22,7 +22,7 @@ module ed_c_api_canopy
    use ed_pft_params,             only : leaf_photo_pft_t, N_RAD_BAND_DEFAULT, RAD_VIS, RAD_NIR, RAD_LW
    use ed_leaf_gas_exchange,      only : solve_leaf_gas_exchange, leaf_params_at_capacity
    use ed_plant_traits,           only : light_plastic_traits
-   use ed_canopy_radiation, only : rad_env_t, rad_out_t,   ground_optics_env_t, alloc_rad_env
+   use ed_canopy_radiation, only : rad_env_t, rad_out_t, ground_optics_env_t, alloc_rad_env
    use ed_canopy_radiation,       only : canopy_radiation, ground_optics
    use ed_numerics,               only : ascending_order
    implicit none
@@ -98,7 +98,7 @@ contains
 
    !----- The leaf solve for n leaves, each with its own drivers and plastic capacities: the loop   !
    !      of leaf_gas_exchange_batch, with canopy-air CO2 and pressure per leaf rather than shared. --!
-   subroutine ed_canopy_leaf(n, pft, vcmax25, rd25,   par, leaf_temp, vpd, ca, pressure, psi_leaf,   &
+   subroutine ed_canopy_leaf(n, pft, vcmax25, rd25, par, leaf_temp, vpd, ca, pressure, psi_leaf,   &
                                gb, psi, a_gross, a_net, gs, ci) bind(c, name="ed_canopy_leaf")
       integer(c_int), value, intent(in)  :: n
       integer(c_int),        intent(in)  :: pft(n)

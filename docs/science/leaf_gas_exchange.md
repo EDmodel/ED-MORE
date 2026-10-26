@@ -79,7 +79,7 @@ The shipped `gstar25` = 4.275 Pa is Bernacchi et al. (2001)'s 42.75 µmol mol⁻
 as a partial pressure at 100 kPa, so $`\Gamma^*`$ at 25 °C is 42.75 µmol mol⁻¹ at any elevation.
 $`K_c`$ and $`K_o`$, the Michaelis constants of dissolved CO₂ and O₂, are partial pressures and are
 divided by the local pressure, so $`O/K_o`$ is the ratio of the two partial pressures
-(`rubisco_kinetics` in `ed_leaf_gas_exchange`; `ed.plant.leaf.rubisco_kinetics` in Python).
+(`rubisco_kinetics` in `ed_leaf_gas_exchange`; `edmore.plant.leaf.rubisco_kinetics` in Python).
 Dividing `gstar25` by the local pressure instead would raise $`\Gamma^*`$ with elevation and cut
 gross photosynthesis in dim light, where photorespiration sets the quantum yield.
 

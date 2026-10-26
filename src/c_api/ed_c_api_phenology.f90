@@ -1,11 +1,11 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! ed_c_api_phenology -- the C-API shim for the PHENOLOGY kernel (`ed.plant.pheno`).           !
+! ed_c_api_phenology -- the C-API shim for the PHENOLOGY kernel (`edmore.plant.pheno`).       !
 !                                                                                          !
-! One shim per subsystem, mirroring the Fortran tree (src/README.md).                         !
-! The bind(c) structs are an ABI contract with `python/ed/plant/pheno.py` and are compiled    !
-! by a mandatory ctest target (`test_plant_phenology`) so a field-order change breaks the     !
-! BUILD -- see the header of ed_c_api_leaf for why.                                           !
+! One shim per subsystem, mirroring the Fortran tree (src/README.md). The bind(c) structs are !
+! an ABI contract with `python/edmore/plant/pheno.py` and are compiled by a mandatory ctest   !
+! target (`test_plant_phenology`) so a field-order change breaks the BUILD -- see the header  !
+! of ed_c_api_leaf for why.                                                                   !
 !==========================================================================================!
 module ed_c_api_phenology
    use iso_c_binding,        only : c_double, c_int

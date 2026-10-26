@@ -15,7 +15,7 @@ module ed_plant_hydraulics
    use ed_pft_params,       only : hydraulics_pft_t, kirchhoff_table_t, KIRCHHOFF_TABLE_NTAB
    use ed_plant_hydr_lib,   only : root_fraction_profile, tissue_water_to_psi, conductance_retained_fraction,  &
                                    KEXP_TOL
-   use ed_numerics,       only :   smooth_max0
+   use ed_numerics,         only : smooth_max0
    implicit none
    private
 

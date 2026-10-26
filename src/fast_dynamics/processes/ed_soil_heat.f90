@@ -13,8 +13,8 @@ module ed_soil_heat
    use ed_constants,          only : rho_h2o, n_soil_layer_max, cp_liq, cp_ice, tsupercool_liq, t_3ple
    use ed_soil_params,        only : soil_profile_t, soil_params_t,                                    &
                                      ENERGY_BC_DIRICHLET
-   use ed_patch_state_vars,   only   : soil_energy_state_t
-   use ed_therm_lib,        only :   internal_energy_liquid, soil_thermal_conductivity,                         &
+   use ed_patch_state_vars,     only : soil_energy_state_t
+   use ed_therm_lib,          only : internal_energy_liquid, soil_thermal_conductivity,                         &
                                      soil_volumetric_heat_capacity
    use ed_soil_hydr_lib,      only : soil_layer_curve_t, soil_liquid_capacity
    use ed_linear_algebra,     only : thomas_solve

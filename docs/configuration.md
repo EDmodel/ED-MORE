@@ -27,13 +27,13 @@ A missing file is a hard error.
 ## Starting a run
 
 ```bash
-./build-dev/ed_main path/to/run_main.toml
+./build-dev/edmore path/to/run_main.toml
 ```
 
-With no argument, `ed_main` reads `./ed_config_main.toml`. Relative paths inside the configs resolve
+With no argument, `edmore` reads `./ed_config_main.toml`. Relative paths inside the configs resolve
 against the directory you launch from, not the config's own location.
 
-`ed_main --dump-io-config [main.toml]` writes `ed_io_config.toml`, listing every output variable,
+`edmore --dump-io-config [main.toml]` writes `ed_io_config.toml`, listing every output variable,
 and exits without running.
 
 ## The parameter philosophy
@@ -215,7 +215,7 @@ pass.
 ## How a run starts
 
 `[init].init_mode` selects one of three starts. The file a mode starts from is required by that mode and
-optional otherwise; the Python census start (`ed.demography.Site(census=True)`) reads `census_file`
+optional otherwise; the Python census start (`edmore.demography.Site(census=True)`) reads `census_file`
 whatever the mode.
 
 | Mode | Start from | Needs |
@@ -261,7 +261,7 @@ cannot be opened, a census with no row for the site or a malformed column or row
 without a row for each of the run's polygons or with a PFT, site or soil-layer count unlike the run's. A
 state file must hold every variable this ED-MORE reads; one from an older ED-MORE stops the run at the first
 it lacks, so start that run again from its census or bare ground. A run that asks for a stand never
-starts from bare ground instead. `ed_main` stops, and `ed.model.Run` raises `RuntimeError`.
+starts from bare ground instead. `edmore` stops, and `edmore.model.Run` raises `RuntimeError`.
 
 **The initial soil state** is `[init].soil_temp` [K] and `[init].soil_theta` [m³ m⁻³], both optional:
 every soil layer of every patch starts there, unless a state file restores the soil. They default to
@@ -459,7 +459,7 @@ row ([Regional runs](#regional-runs) gives the layout).
 
 ### Choosing variables
 
-`[output].io_config` names a TOML file with a `[variables]` table. `ed_main --dump-io-config` generates
+`[output].io_config` names a TOML file with a `[variables]` table. `edmore --dump-io-config` generates
 a file of this kind, [`ed_io_config.toml`](../ed_io_config.toml), listing every variable with its
 default tiers, axis and units; every line is commented out, so the generated file changes nothing. Each
 line names a variable, or a pattern with `*` (quoted: `"mean_*_py"`), and what is written:
@@ -556,7 +556,7 @@ cell_mask_min     = 0.5                              # ... and the value a cell 
 - **A failing polygon.** A polygon that fails (a NaN, a cohort or soil-carbon state out of bounds) stops
   at the failing step, and the others finish the month. The month's records are then written, with the
   fill value where the failed polygon has none, and so is a state file that falls due at the month's end
-  (the failed polygon as it stood); the log names the polygon and the date, and `ed_main` closes the
+  (the failed polygon as it stood); the log names the polygon and the date, and `edmore` closes the
   files and stops with an error. The region ends after the month in which a polygon failed: no later
   month runs, and no end-of-run state file is written.
 - **Cost.** Work and memory grow with the polygon count. Output is written between months, so a crash

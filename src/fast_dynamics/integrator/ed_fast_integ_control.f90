@@ -37,7 +37,7 @@ contains
    ! plant water outside its stages, so GRP_LEAF_W and GRP_WOOD_W act only under RK45.     !
    !---------------------------------------------------------------------------------------!
    pure function build_tol_set(cfg) result(tols)
-      type(ed_config_t), intent(in)   :: cfg
+      type(ed_config_t),   intent(in) :: cfg
       type(tol_set_t)                 :: tols
       tols%rtol             = cfg%rtol
       tols%atol(GRP_THETA)  = cfg%water_atol
@@ -50,7 +50,7 @@ contains
    !      stops (the soil heat's threshold, a budget closure rather than a tolerance, scaled by       !
    !      atol_scale directly). ------------------------------------------------------------------!
    pure function build_error_control(cfg) result(ec)
-      type(ed_config_t), intent(in)   :: cfg
+      type(ed_config_t),   intent(in) :: cfg
       type(error_control_t)           :: ec
       ec%tols       = build_tol_set(cfg)
       ec%debug_error = cfg%debug_error

@@ -23,7 +23,7 @@ module ed_met_era5land
    use ed_netcdf_c,         only : nc_open_f, nc_inq_varid_f, nc_inq_dimlen_f, nc_get_att_text_f,            &
                                    nc_get_att_double_f, nc_get_vara_double, nc_get_vara_float, nc_close,     &
                                    NC_NOERR, NC_NOWRITE
-   use ed_met_share,      only :   MET_OK, MET_ERR_ATTR_MISMATCH, MET_ERR_ARCHIVE, REC_MATCH_TOL,             &
+   use ed_met_share,        only : MET_OK, MET_ERR_ATTR_MISMATCH, MET_ERR_ARCHIVE, REC_MATCH_TOL,             &
                                    validate_recycle_window, file_lookup_sec, first_record_after,             &
                                    validate_file_against_config, add_line
    implicit none
@@ -91,7 +91,7 @@ contains
    !=======================================================================================!
    subroutine era5land_prefetch(src, step_start)
       type(met_source_t), intent(inout)  :: src
-      type(ed_time_t),    intent(in)    :: step_start
+      type(ed_time_t),  intent(in)    :: step_start
       real(wp)    :: s0
       integer(ik) :: r, k, kp, p
       logical     :: wrap
@@ -152,7 +152,7 @@ contains
    !=======================================================================================!
    subroutine open_archive(src, run_start, run_end, stat, why, cells)
       type(met_source_t),            intent(inout) :: src
-      type(ed_time_t), optional,     intent(in)    :: run_start, run_end
+      type(ed_time_t), optional,   intent(in)      :: run_start, run_end
       integer(ik),                   intent(out)   :: stat
       character(len=:), allocatable, intent(inout) :: why
       type(met_cells_t), optional,   intent(in)    :: cells

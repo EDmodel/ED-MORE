@@ -1,12 +1,12 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
 ! ed_c_api_demography -- the ISO_C_BINDING shim that exposes the DEMOGRAPHIC model to C /      !
-! Python (ctypes). It goes into the optional shared library libed.so (ED_BUILD_PYLIB) and       !
+! Python (ctypes). It goes into the optional shared library libedmore.so (ED_BUILD_PYLIB) and   !
 ! into a mandatory ctest target, so a signature change is a build failure in a default build.   !
 !                                                                                          !
 ! `polygon_t` (allocatable components, so not f2py-able) crosses as an OPAQUE HANDLE: a         !
 ! module-`save` registry of live sites indexed by a small integer the caller holds. Config is   !
-! likewise an opaque handle loaded from the same TOML `ed_main` uses. Only flat arrays          !
+! likewise an opaque handle loaded from the same TOML `edmore` uses. Only flat arrays           !
 ! (copied into caller buffers) and scalars cross the boundary; getters always COPY.             !
 !                                                                                          !
 ! WHY THIS IS ONE FILE, not a `site` / `demography` pair: that registry (g_poly / g_cfg /       !
@@ -29,15 +29,15 @@ module ed_c_api_demography
    use ed_config_io,                only : load_ed_config
    use ed_cohort_state_vars,         only : cohort_deriv_alloc
    use ed_polygon_state_vars,        only : polygon_t, free_polygon
-   use ed_init_bare_ground,   only : init_bare_ground
-   use ed_init_census, only   : init_from_census, restructure_census_stand
+   use ed_init_bare_ground, only : init_bare_ground
+   use ed_init_census, only : init_from_census, restructure_census_stand
    use ed_slow_dynamics,   only : vegetation_dynamics, restructure_stand
    use ed_slow_ledger,     only : slow_ledger_t
    use ed_slow_state,      only : clear_litter
-   use ed_slow_update, only :   accumulate_recruit_pool, update_cohort_states, fill_cohort_deriv,        &
+   use ed_slow_update,   only : accumulate_recruit_pool, update_cohort_states, fill_cohort_deriv,        &
                                 age_patches, update_overtopping_lai, sort_cohorts
-   use ed_output_reduce, only   : total_agb, total_lai, total_nplant, total_basal_area
-   use ed_allometry_lib,          only :   dbh_to_height, size_to_leaf_carbon, size_to_wood_carbon,  &
+   use ed_output_reduce,   only : total_agb, total_lai, total_nplant, total_basal_area
+   use ed_allometry_lib,            only : dbh_to_height, size_to_leaf_carbon, size_to_wood_carbon,  &
                                            storage_carbon_target
    implicit none
    private
@@ -46,8 +46,8 @@ module ed_c_api_demography
    !      as Fortran; the bind(c) names are exported at link level either way, but a private      !
    !      procedure is unreachable from a test, and a shim no test compiles can stop compiling     !
    !      without anyone noticing (see the header).  ---------------------------------------------!
-   public :: ed_config_load,   ed_config_n_pft, ed_config_dt_years
-   public :: ed_site_create,   ed_site_init_bare, ed_site_init_census, ed_site_free
+   public :: ed_config_load, ed_config_n_pft, ed_config_dt_years
+   public :: ed_site_create, ed_site_init_bare, ed_site_init_census, ed_site_free
    public :: ed_advance_slow, ed_apply_rates
    public :: ed_site_generation, ed_site_n_patch, ed_site_n_cohort
    public :: ed_site_total_agb, ed_site_total_lai, ed_site_total_nplant
@@ -75,7 +75,7 @@ contains
    end function f_string
 
    !----- Load a config from a TOML path -> opaque cfg handle (>=1), or -1 if the registry is full. -!
-   function ed_config_load(path, path_len) result(h)   bind(c, name="ed_config_load")
+   function ed_config_load(path, path_len) result(h) bind(c, name="ed_config_load")
       character(kind=c_char), intent(in) :: path(*)
       integer(c_int), value, intent(in)  :: path_len
       integer(c_int)                     :: h
@@ -93,7 +93,7 @@ contains
    end function ed_config_load
 
    !----- Create an empty site slot -> opaque site handle (>=1), or -1 if full. --------------!
-   function ed_site_create()   result(h) bind(c, name="ed_site_create")
+   function ed_site_create() result(h) bind(c, name="ed_site_create")
       integer(c_int) :: h
       integer :: i
       h = -1_c_int
@@ -107,18 +107,18 @@ contains
       end do
    end function ed_site_create
 
-   subroutine ed_site_init_bare(sh, ch, n_patch)   bind(c, name="ed_site_init_bare")
+   subroutine ed_site_init_bare(sh, ch, n_patch) bind(c, name="ed_site_init_bare")
       integer(c_int), value, intent(in) :: sh, ch, n_patch
       call init_bare_ground(g_poly(sh), g_cfg(ch), int(n_patch, ik))
       g_generation(sh) = g_generation(sh) + 1_c_long
    end subroutine ed_site_init_bare
 
    !----- Start the site from the census file named by the config's [init].census_file, and let  !
-   !      the slow step's own operators restructure it, as ed_main does: a census arrives with a    !
+   !      the slow step's own operators restructure it, as edmore does: a census arrives with a     !
    !      cohort per measured size and a patch per plot cell. Returns 1 when the file was read, 0   !
    !      when it could not be (the site is then left unbuilt). The overtopping LAI is computed    !
    !      for the restructured stand, so rates read on the first step see its canopy.  ---------- !
-   function ed_site_init_census(sh,   ch) result(ok) bind(c, name="ed_site_init_census")
+   function ed_site_init_census(sh, ch) result(ok) bind(c, name="ed_site_init_census")
       integer(c_int), value, intent(in) :: sh, ch
       integer(c_int) :: ok
       logical :: found
@@ -137,7 +137,7 @@ contains
    !       right after the step. The driver restructures at the start of the NEXT step instead,   !
    !       after its output has read this one, and then resizes the canopy air; with no fast loop  !
    !       and no output on this path, both orders leave the same stand.                           !
-   subroutine ed_advance_slow(sh, ch,   is_new_month, is_new_year) bind(c, name="ed_advance_slow")
+   subroutine ed_advance_slow(sh, ch, is_new_month, is_new_year) bind(c, name="ed_advance_slow")
       integer(c_int), value, intent(in) :: sh, ch, is_new_month, is_new_year
       type(slow_ledger_t) :: no_ledger   !< inactive: this path books no ledger
       !----- The litter this step accumulates lands in poly%patch%litter_in and is left there: this
@@ -158,7 +158,7 @@ contains
    ! fission; yearly treefall disturbance and patch fusion. `recr` is a flat column-major        !
    ! (PFT-fastest) npft*npatch array. is_new_month / is_new_year are 0/1.                        !
    !---------------------------------------------------------------------------------------!
-   subroutine ed_apply_rates(sh, ch,   growth, mortality, recr, is_new_month, is_new_year) &
+   subroutine ed_apply_rates(sh, ch, growth, mortality, recr, is_new_month, is_new_year) &
                                bind(c, name="ed_apply_rates")
       integer(c_int), value, intent(in) :: sh, ch, is_new_month, is_new_year
       real(c_double),        intent(in) :: growth(*), mortality(*), recr(*)
@@ -283,7 +283,7 @@ contains
       v = real(total_nplant(g_poly(sh)), c_double)
    end function ed_site_total_nplant
 
-   function ed_site_total_basal_area(sh)   result(v) bind(c, name="ed_site_total_basal_area")
+   function ed_site_total_basal_area(sh) result(v) bind(c, name="ed_site_total_basal_area")
       integer(c_int), value, intent(in) :: sh
       real(c_double)                    :: v
       v = real(total_basal_area(g_poly(sh)), c_double)

@@ -11,13 +11,13 @@
 module ed_met_share
    use iso_c_binding, only : c_int, c_double
    use ed_kinds, only : wp, ik
-   use ed_time, only :   ed_time_t, time_advance_seconds, seconds_between, is_leap_year,        &
+   use ed_time,   only : ed_time_t, time_advance_seconds, seconds_between, is_leap_year,        &
                          time_to_string, whole_years_between
    use ed_forcing_params,   only : MET_BACKEND_DEFAULT, METAVG_BEGIN, HEIGHT_ABOVE_GROUND, MAX_RECYCLE_YEARS
    use ed_radiation_lib,    only : SWPART_PASSTHROUGH
-   use ed_met_types, only   : met_source_t, HUMIDITY_RHAIR, HUMIDITY_TDEW, FLD_QAIR,          &
+   use ed_met_types, only : met_source_t, HUMIDITY_RHAIR, HUMIDITY_TDEW, FLD_QAIR,          &
                                   FLD_RHAIR, FLD_TDEW
-   use ed_netcdf_c, only :   nc_inq_varid_f, nc_get_att_text_f, nc_get_att_double_f, NC_NOERR,    &
+   use ed_netcdf_c,   only : nc_inq_varid_f, nc_get_att_text_f, nc_get_att_double_f, NC_NOERR,    &
                              NC_GLOBAL
    implicit none
    private
@@ -170,7 +170,7 @@ contains
    !----- Compare two instants on (month, day, hour, minute, second) only: their place in the    !
    !      calendar year, whatever the year. --------------------------------------------------------!
    pure logical function mdhms_at_or_after(a, b) result(yes)
-      type(ed_time_t),   intent(in) :: a, b
+      type(ed_time_t), intent(in) :: a, b
       integer(ik) :: ka, kb
       ka = ((a%month*32_ik + a%day)*24_ik + a%hour)*3600_ik + a%minute*60_ik + a%second
       kb = ((b%month*32_ik + b%day)*24_ik + b%hour)*3600_ik + b%minute*60_ik + b%second

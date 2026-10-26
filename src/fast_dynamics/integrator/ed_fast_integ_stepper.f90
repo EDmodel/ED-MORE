@@ -16,15 +16,15 @@ module ed_fast_integ_stepper
    use ed_config,             only : ed_config_t
    use ed_fast_params,        only : INTEG_ESDIRK2, INTEG_RK45
    use ed_site_state_vars,    only : site_surface_t
-   use ed_fast_integ_types,       only : fast_static_state_t, fast_dynamic_state_t,   fast_forcing_t, fast_output_t,     &
+   use ed_fast_integ_types,       only : fast_static_state_t, fast_dynamic_state_t, fast_forcing_t, fast_output_t,     &
                                      fast_workspace_t, step_exports_t, march_state_t, frozen_t,           &
                                      boundary_flux_t, error_control_t, WORK_INTEG_STEPS, WORK_INTEG_REJECT,        &
                                      WORK_RK45_RESCUE, WORK_CLAMP_STAGE, state_init, state_sub, zero_like,         &
                                      bflux_zero, bflux_add
    use ed_fast_integ_control,       only : build_error_control, state_wrms_grouped, step_control_factor
    use ed_fast_integ_frozen,        only : build_frozen, record_water_flows
-   use ed_fast_integ_backward_euler,    only   : water_step
-   use ed_fast_integ_esdirk2,         only :   esdirk2_step
+   use ed_fast_integ_backward_euler,    only : water_step
+   use ed_fast_integ_esdirk2,         only : esdirk2_step
    use ed_fast_integ_rk45,          only : rk45_step, rk45_state_railed, RK45_P_ORDER, RK45_WORK_CAP
    use ed_fast_integ_update,        only : commit_amounts_t, update_dynamic_state, close_ledgers
    use ed_plant_hydraulics, only : leaf_node_psi

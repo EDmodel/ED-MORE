@@ -23,13 +23,13 @@ module ed_slow_update
                                        cohort_water_enthalpy, cohort_tissue_water,                       &
                                        fuse_cohort_fast_state, set_cohort_tissue_temps,                  &
                                        cohort_deriv_alloc
-   use ed_patch_state_vars,   only :   patch_block, soil_carbon_state_t, blend_patch_stores,             &
+   use ed_patch_state_vars,     only : patch_block, soil_carbon_state_t, blend_patch_stores,             &
                                        add_shed_water, patch_physical_state, DIST_TREEFALL,              &
                                        expand_patch_block, reorder_patch_block, cas_set_depth
-   use ed_polygon_state_vars, only :   polygon_t, rebuild_cohort_map, assign_cohort_id,                  &
+   use ed_polygon_state_vars,   only : polygon_t, rebuild_cohort_map, assign_cohort_id,                  &
                                        patch_polygon_area, rebuild_patch_map, assign_patch_id
    use ed_allometry_lib,        only : height_to_dbh, carbon_to_structure
-   use ed_config,               only : ed_config_t,   growth_window_steps
+   use ed_config,               only : ed_config_t, growth_window_steps
    use ed_diag_vars,            only : fuse_cohort_diag, PA_MORT_C_CULL, blend_patch_diag,               &
                                        inherit_patch_diag, PA_DISTURB_AREA, PA_MORT_C_DISTURB,           &
                                        CO_DDBH_DT, CO_DAGB_DT, CO_MORT_RATE
@@ -64,7 +64,7 @@ contains
    !---------------------------------------------------------------------------------------!
    subroutine commit_vegetation_step(poly, cfg, step)
       type(polygon_t),        intent(inout) :: poly
-      type(ed_config_t),      intent(in)    :: cfg
+      type(ed_config_t),    intent(in)      :: cfg
       type(slow_step_data_t), intent(inout) :: step   !< reads the pools' changes and mortality; fills the *_before
       integer(ik) :: n_window
 
@@ -323,7 +323,7 @@ contains
    !---------------------------------------------------------------------------------------!
    subroutine refresh_canopy_depth(poly, cfg, ledger)
       type(polygon_t),     intent(inout) :: poly
-      type(ed_config_t),   intent(in)    :: cfg
+      type(ed_config_t), intent(in)      :: cfg
       type(slow_ledger_t), intent(inout) :: ledger   !< an inactive one books nothing
       real(wp)    :: h_top, depth_new, de, dw, dc
       integer(ik) :: ip, i0, i1, i
@@ -669,7 +669,7 @@ contains
    !---------------------------------------------------------------------------------------!
    subroutine fuse_cohorts(poly, cfg)
       type(polygon_t),  intent(inout) :: poly
-      type(ed_config_t), intent(in)      :: cfg
+      type(ed_config_t), intent(in)    :: cfg
       real(wp)    :: tol
       integer(ik) :: ifus
 
@@ -814,7 +814,7 @@ contains
    !---------------------------------------------------------------------------------------!
    subroutine split_cohorts(poly, cfg)
       type(polygon_t),  intent(inout) :: poly
-      type(ed_config_t),   intent(in)    :: cfg
+      type(ed_config_t), intent(in)    :: cfg
       integer(ik) :: iter, i, n0, m, nsplit
       real(wp)    :: eps, agb_before, agb_after, wc0
 
@@ -872,7 +872,7 @@ contains
    !---------------------------------------------------------------------------------------!
    subroutine terminate_cohorts(poly, cfg, water_shed, kills)
       type(polygon_t),  intent(inout) :: poly
-      type(ed_config_t),   intent(in)    :: cfg
+      type(ed_config_t), intent(in)    :: cfg
       !----- What the cull handed on, for the caller to declare to the slow ledger            !
       !      (conservation.md §3). ------------------------------------------------------------!
       real(wp),           intent(out) :: water_shed  !< [kg/m2 site] tissue + film water -> the ground
@@ -1008,7 +1008,7 @@ contains
    !---------------------------------------------------------------------------------------!
    subroutine fuse_patches(poly, cfg)
       type(polygon_t),  intent(inout) :: poly
-      type(ed_config_t), intent(in)      :: cfg
+      type(ed_config_t), intent(in)    :: cfg
       real(wp)    :: tol
       integer(ik) :: it
 
@@ -1157,7 +1157,7 @@ contains
    !---------------------------------------------------------------------------------------!
    subroutine terminate_patches(poly, cfg)
       type(polygon_t),  intent(inout) :: poly
-      type(ed_config_t),   intent(in)    :: cfg
+      type(ed_config_t), intent(in)    :: cfg
       logical, allocatable :: pkeep(:)
       integer(ik)          :: np, ip, imax, is, p0, p1, r0, r1
       real(wp)             :: s

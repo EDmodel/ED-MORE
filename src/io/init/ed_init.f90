@@ -153,7 +153,7 @@ contains
    !----- Each site's terrain: the polygon's elevation, flat, unless its [[sites]] table gives its own. !
    subroutine set_site_terrain(poly, cfg)
       type(polygon_t),     intent(inout) :: poly
-      type(ed_config_t),   intent(in)    :: cfg
+      type(ed_config_t), intent(in)      :: cfg
       integer(ik) :: is
       poly%site%surface(1:poly%site%n)%elevation_m = poly%elevation_m
       if (.not. allocated(cfg%sites)) return
@@ -174,7 +174,7 @@ contains
    !      the setup cohorts were born with); and the snowpack [fast].snow_init_swe asks for. ---!
    subroutine init_fast_state(poly, cfg)
       type(polygon_t),     intent(inout) :: poly
-      type(ed_config_t),   intent(in)    :: cfg
+      type(ed_config_t), intent(in)      :: cfg
       integer(ik) :: ip, i
       real(wp)    :: psi
       call seed_patch_stores(poly, cfg)
@@ -198,7 +198,7 @@ contains
    !----- The initial snowpack, [fast].snow_init_swe at [fast].snow_init_temp, one layer per patch. -!
    subroutine seed_snow(poly, cfg)
       type(polygon_t),      intent(inout) :: poly
-      type(ed_config_t),    intent(in)    :: cfg
+      type(ed_config_t),  intent(in)      :: cfg
       integer(ik) :: ipp
       do ipp = 1_ik, poly%patch%n
          poly%patch%snow(ipp)%swe(1)         = cfg%snow_init_swe

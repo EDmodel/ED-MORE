@@ -11,18 +11,18 @@ module ed_met_default
    use ed_time, only : ed_time_t, time_units_base, seconds_between
    use ed_radiation_lib,    only : SWPART_PASSTHROUGH
    use ed_forcing_params,   only : GRIDMATCH_NEAREST, LW_SYNTHESIZE
-   use ed_met_types, only   : met_record_t, met_source_t, HUMIDITY_QAIR, HUMIDITY_RHAIR,      &
+   use ed_met_types, only : met_record_t, met_source_t, HUMIDITY_QAIR, HUMIDITY_RHAIR,      &
                                   HUMIDITY_TDEW, N_ED_FIELD, ED_FIELD, FLD_TAIR, FLD_RHAIR,       &
                                   FLD_PSURF, FLD_WIND, FLD_U10, FLD_V10, FLD_RAINF, FLD_LWDOWN,   &
                                   FLD_SWDOWN, FLD_PAR_BEAM, FLD_PAR_DIFFUSE, FLD_NIR_BEAM,        &
                                   FLD_NIR_DIFFUSE
    use ed_met_grid, only : nearest_grid_index
    use, intrinsic :: ieee_arithmetic, only : ieee_is_nan
-   use ed_netcdf_c, only :   nc_open_f, nc_inq_varid_f, nc_inq_dimlen_f, nc_get_att_text_f,       &
+   use ed_netcdf_c,   only : nc_open_f, nc_inq_varid_f, nc_inq_dimlen_f, nc_get_att_text_f,       &
                              nc_get_vara_double, nc_close, nc_inq_var_chunking, nc_error_text,    &
                              nc_packing_t, nc_packing_of, nc_unpacked, NC_NOERR, NC_NOWRITE,      &
                              NC_CHUNKED
-   use ed_met_share, only :   MET_OK, MET_ERR_HUMIDITY, MET_ERR_FILE, validate_recycle_window,    &
+   use ed_met_share,   only : MET_OK, MET_ERR_HUMIDITY, MET_ERR_FILE, validate_recycle_window,    &
                               first_record_after, validate_file_against_config, humidity_field,   &
                               add_line
    implicit none
@@ -45,7 +45,7 @@ contains
       type(met_source_t),            intent(inout) :: src
       integer(ik),                   intent(out)   :: stat
       character(len=:), allocatable, intent(out)   :: why    !< what stops the run when stat /= MET_OK
-      type(ed_time_t), optional,     intent(in)    :: run_start, run_end
+      type(ed_time_t), optional,   intent(in)      :: run_start, run_end
       integer(c_int)    :: st, ncid
       integer(c_size_t) :: dlen
       character(len=256):: units
@@ -327,7 +327,7 @@ contains
          src%series_col(j) = n
          if (n == 1_ik) call note_one_record_chunks(ncid, vid(j), r1 - r0 + 1_ik, src%fcfg%path)
          st = nc_get_vara_double(ncid, vid(j), start2, count2, src%series(:, n))
-         call check_read(st, 'its '//trim(ED_FIELD(j)), src,   stat, why)
+         call check_read(st, 'its '//trim(ED_FIELD(j)), src, stat, why)
          if (stat /= MET_OK) return
          packing = nc_packing_of(ncid, vid(j))
          src%series(:, n) = nc_unpacked(packing, src%series(:, n))

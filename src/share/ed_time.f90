@@ -70,7 +70,7 @@ contains
    pure integer(ik) function day_of_year(t) result(doy)
       type(ed_time_t), intent(in) :: t
       type(ed_time_t) :: jan1
-      jan1 = ed_time_t(year = t%year)          ! 1 January, 00:00, of the same year
+      jan1 = ed_time_t(year = t%year)        ! 1 January, 00:00, of the same year
       doy  = int(to_jdn(t) - to_jdn(jan1), ik) + 1_ik
    end function day_of_year
 
@@ -205,7 +205,7 @@ contains
    ! after 68 years.                                                                       !
    !=======================================================================================!
    pure integer(lk) function to_jdn(t) result(jdn)
-      type(ed_time_t), intent(in) ::   t
+      type(ed_time_t), intent(in) :: t
       integer(lk) :: y, m, d
       y = int(t%year, lk)
       m = int(t%month, lk)
@@ -276,7 +276,7 @@ contains
 
    !----- b - a in decimal calendar years, for progress messages. -------------------------!
    pure real(wp) function years_between(a, b) result(y)
-      type(ed_time_t), intent(in)   :: a, b
+      type(ed_time_t), intent(in) :: a, b
       y = time_to_decimal_year(b) - time_to_decimal_year(a)
    end function years_between
 
@@ -284,7 +284,7 @@ contains
    ! Arithmetic to the second, across day boundaries (the forcing's interpolation window). !
    !=======================================================================================!
    pure integer(lk) function sec_of_day(t) result(s)
-      type(ed_time_t), intent(in)   :: t
+      type(ed_time_t), intent(in) :: t
       s = int(t%hour, lk) * 3600_lk + int(t%minute, lk) * 60_lk + int(t%second, lk)
    end function sec_of_day
 
@@ -296,7 +296,7 @@ contains
 
    !----- Seconds from a to b (positive if b is later). -----------------------------------!
    pure real(wp) function seconds_between(a, b) result(s)
-      type(ed_time_t), intent(in) ::   a, b
+      type(ed_time_t), intent(in) :: a, b
       s = real((to_jdn(b) - to_jdn(a)) * 86400_lk + sec_of_day(b) - sec_of_day(a), wp)
    end function seconds_between
 
@@ -320,7 +320,7 @@ contains
    ! Comparisons, on the full instant.                                                     !
    !=======================================================================================!
    pure logical function time_lt(a, b) result(yes)
-      type(ed_time_t),   intent(in) :: a, b
+      type(ed_time_t), intent(in) :: a, b
       integer(lk) :: ja, jb
       ja = to_jdn(a)
       jb = to_jdn(b)
@@ -332,7 +332,7 @@ contains
    end function time_lt
 
    pure logical function time_eq(a, b) result(yes)
-      type(ed_time_t),   intent(in) :: a, b
+      type(ed_time_t), intent(in) :: a, b
       yes = to_jdn(a) == to_jdn(b) .and. sec_of_day(a) == sec_of_day(b)
    end function time_eq
 
@@ -368,7 +368,7 @@ contains
    !----- True when the month, day, hour, minute and second are in range (a parsed config  !
    !      date); any year passes. ---------------------------------------------------------!
    pure logical function time_valid(t) result(ok)
-      type(ed_time_t),   intent(in) :: t
+      type(ed_time_t), intent(in) :: t
       ok = t%month >= 1_ik  .and. t%month <= 12_ik                                           &
            .and. t%day  >= 1_ik  .and. t%day   <= days_in_month(t%year, max(min(t%month,12_ik),1_ik)) &
            .and. t%hour   >= 0_ik .and. t%hour   <= 23_ik                                    &

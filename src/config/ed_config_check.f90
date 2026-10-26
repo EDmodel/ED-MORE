@@ -10,7 +10,7 @@
 ! 1 and 2 are reported with the missing required keys; 3 stops at the first bad value.     !
 !==========================================================================================!
 module ed_config_check
-   use ed_kinds,              only : wp,   ik
+   use ed_kinds,              only : wp, ik
    use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
    use ed_constants,            only : n_soil_layer_max, day_sec
    use ed_output_params,        only : STATE_DAYS
@@ -31,7 +31,7 @@ module ed_config_check
    use ed_pft_derive,           only : pft_wstress_psi_open, pft_wstress_psi_close
    use ed_soil_derive,          only : soil_layers, soil_layer_textures, build_soil_profile,          &
                                        SOIL_LAYER_TEMPLATE
-   use ed_fast_params,        only :   INTEG_ESDIRK2, INTEG_RK45, RK45_RTOL
+   use ed_fast_params,          only : INTEG_ESDIRK2, INTEG_RK45, RK45_RTOL
    implicit none
    private
 
@@ -387,7 +387,7 @@ contains
    !----- [demography]. A recruit must survive its own birth: the pool threshold exceeds the   !
    !      cull. An operator is turned off by its switch, not by a zero setting. ----------------!
    subroutine check_demography(cfg)
-      type(ed_config_t), intent(in)   :: cfg
+      type(ed_config_t), intent(in) :: cfg
       if (cfg%demography%max_cohort < 1_ik)                  error stop TAG//'max_cohort < 1'
       if (cfg%demography%max_patch < 1_ik)                   error stop TAG//'max_patch < 1'
       if (cfg%demography%cohort_size_tol_min <= 0.0_wp)                 error stop TAG//'cohort_size_tol_min <= 0'
@@ -561,7 +561,7 @@ contains
    !----- [maps]: on the ED_ERA5land grid, read at the forcing cell, so they need the archive; a     !
    !      chave_e map serves the Chave height allometry only. --------------------------------------!
    subroutine check_maps(cfg)
-      type(ed_config_t), intent(in)   :: cfg
+      type(ed_config_t), intent(in) :: cfg
       if (soil_maps_on(cfg%maps) .or. len_trim(cfg%maps%chave_e_map) > 0) then
          if (.not. (cfg%forcing%forcing_on .and. cfg%forcing%format == MET_BACKEND_ERA5LAND))           &
             error stop TAG//'the [maps] files need forcing.format = "ERA5land" (they are on its grid)'

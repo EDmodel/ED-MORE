@@ -143,7 +143,7 @@ contains
    !      caller's: it knows where the site is. --------------------------------------------!
    subroutine make_site_surface(surf, cfg)
       type(site_surface_t), intent(inout) :: surf
-      type(ed_config_t),    intent(in)    :: cfg
+      type(ed_config_t),  intent(in)      :: cfg
       surf%soil = cfg%soil
       call build_soil_profile(cfg%soil, surf%soil_profile)
       call soil_start_theta(cfg%soil, surf%soil_profile, cfg%init%soil_theta, surf%theta_start)

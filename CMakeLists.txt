@@ -25,7 +25,7 @@ endif()
 option(ED_BUILD_TESTS "Build the CTest test suite" ON)
 # The long runs (ctest label `long`): example 05's Palo Verde inventory and its 150-year regrowth,
 # which read the ED_ERA5land archive (ED_ERA5LAND_ARCHIVE). OFF by default: they take over half an hour.
-option(ED_TEST_LONG   "Register the long tests (label long): the Palo Verde inventory and 150-year regrowth" OFF)
+option(ED_TEST_LONG "Register the long tests (label long): the Palo Verde inventory and 150-year regrowth" OFF)
 # netCDF output + I/O are ALWAYS compiled: the standard (and only) build needs the netCDF C library.
 # Point CMake at it with -DCMAKE_PREFIX_PATH=<prefix> (find_package(netCDF CONFIG REQUIRED), below).
 
@@ -113,19 +113,19 @@ set(ED_AUTO_LOCALS ${ED_OPENMP_ACTIVE})
 #      that builds. Such a binary may not start on an older CPU.                                    #
 option(ED_IPO "Optimise across files, generating the code at the link at -O3 (the production kind)" OFF)
 set(ED_CPU_TARGET "" CACHE STRING "CPU family to generate code for: empty (any x86-64), cascadelake or host")
-set_property(CACHE ED_CPU_TARGET   PROPERTY STRINGS "" cascadelake host)
-if(ED_IPO OR NOT   ED_CPU_TARGET   STREQUAL "")
+set_property(CACHE ED_CPU_TARGET PROPERTY STRINGS "" cascadelake host)
+if(ED_IPO OR NOT ED_CPU_TARGET STREQUAL "")
    if(NOT (CMAKE_Fortran_COMPILER_ID MATCHES "^Intel" OR CMAKE_Fortran_COMPILER_ID STREQUAL "GNU"))
       message(FATAL_ERROR "ED-MORE: ED_IPO and ED_CPU_TARGET are offered for ifx and gfortran, not "
                           "${CMAKE_Fortran_COMPILER_ID}. Configure without them.")
    endif()
 endif()
 #      Each CPU target's flag: ifx's, then gfortran's.
-set(ed_cpu_cascadelake   -xCORE-AVX512 -march=cascadelake)
-set(ed_cpu_host          -xHost        -march=native)
+set(ed_cpu_cascadelake -xCORE-AVX512 -march=cascadelake)
+set(ed_cpu_host        -xHost        -march=native)
 set(ED_CPU_FLAG "")
 if(NOT ED_CPU_TARGET STREQUAL "")
-   if(NOT ED_CPU_TARGET   MATCHES "^(cascadelake|host)$")
+   if(NOT ED_CPU_TARGET MATCHES "^(cascadelake|host)$")
       message(FATAL_ERROR "ED-MORE: ED_CPU_TARGET=${ED_CPU_TARGET} is not a CPU target ED-MORE knows. Use "
                           "cascadelake or host, or leave it empty for a binary that runs on any x86-64 CPU.")
    endif()
@@ -273,7 +273,7 @@ ed_fortran_flags(ed_fast_kernels)
 #      so the two debit the same CENTURY matrix (docs/science/soil_carbon.md §7). Builds          #
 #      standalone.                                                                                 #
 file(GLOB SLOW_KERNEL_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/slow_dynamics/processes/*.f90)
-add_library(ed_slow_kernels   STATIC ${SLOW_KERNEL_SOURCES})
+add_library(ed_slow_kernels STATIC ${SLOW_KERNEL_SOURCES})
 target_link_libraries(ed_slow_kernels PUBLIC ed_state ed_config ed_fast_kernels)
 ed_fortran_flags(ed_slow_kernels)
 
@@ -298,7 +298,7 @@ ed_fortran_flags(ed_output)
 #      its CMake config pulls in HDF5 -> FindThreads, which needs the C language enabled.          #
 enable_language(C)
 find_package(netCDF CONFIG REQUIRED)
-add_library(ed_netcdf_c STATIC   ${CMAKE_CURRENT_SOURCE_DIR}/src/io/ed_netcdf_c.f90
+add_library(ed_netcdf_c   STATIC ${CMAKE_CURRENT_SOURCE_DIR}/src/io/ed_netcdf_c.f90
                                  ${CMAKE_CURRENT_SOURCE_DIR}/src/io/ed_netcdf_write.f90)
 target_link_libraries(ed_netcdf_c PUBLIC ed_share netCDF::netcdf)
 ed_fortran_flags(ed_netcdf_c)
@@ -372,7 +372,7 @@ target_link_libraries(ed_model INTERFACE ed_stepper ed_fast ed_slow ed_init)
 #      The option itself is declared beside ed_fortran_flags(), which is where its OTHER (and more   #
 #      important) half lives: the automatic-locals flag on every target.                             #
 if(ED_OPENMP_ACTIVE)
-   target_link_libraries(ed_fast   PUBLIC OpenMP::OpenMP_Fortran)
+   target_link_libraries(ed_fast PUBLIC OpenMP::OpenMP_Fortran)
    message(STATUS "ED-MORE: fast-loop OpenMP -> ${OpenMP_Fortran_FLAGS} (patch axis; [run].n_threads)")
 else()
    message(STATUS "ED-MORE: serial build; [run].n_threads has no effect")
@@ -383,7 +383,7 @@ endif()
 #      (The C-binding layer passes array temporaries to the netCDF C `(*)` dummies --                #
 #      correct for interop, but Intel Debug `-check all` emits a harmless arg_temp_created warning   #
 #      per call; a Release build, the default, is clean.)                                            #
-add_library(ed_output_stream STATIC   ${CMAKE_CURRENT_SOURCE_DIR}/src/io/output/ed_output_stream.f90)
+add_library(ed_output_stream STATIC ${CMAKE_CURRENT_SOURCE_DIR}/src/io/output/ed_output_stream.f90)
 target_link_libraries(ed_output_stream PUBLIC ed_netcdf_c ed_output)
 ed_fortran_flags(ed_output_stream)
 message(STATUS "ED-MORE: netCDF output (always compiled)")
@@ -394,17 +394,18 @@ message(STATUS "ED-MORE: netCDF output (always compiled)")
 #      src/c_api/ed_c_api_run.f90 that drives the full coupled model from Python. It sits above     #
 #      ed_model + the IO layer -- the one place that owns configuration, the calendar, the output   #
 #      files and the closing conservation reports together.                                         #
-add_library(ed_run   STATIC ${CMAKE_CURRENT_SOURCE_DIR}/src/main/ed_polygon.f90
+add_library(ed_run STATIC ${CMAKE_CURRENT_SOURCE_DIR}/src/main/ed_polygon.f90
                         ${CMAKE_CURRENT_SOURCE_DIR}/src/main/ed_region.f90)
 target_link_libraries(ed_run PUBLIC ed_model ed_maps ed_output_stream)
 ed_fortran_flags(ed_run)
 
-#----- The main entry point: parse the command line, drive the model, exit. ----------------#
+#----- The edmore executable: parse the command line, drive the model, exit. ---------------#
 add_executable(ed_main ${CMAKE_CURRENT_SOURCE_DIR}/src/main/ed_main.f90)
 target_link_libraries(ed_main PRIVATE ed_run)
+set_target_properties(ed_main PROPERTIES OUTPUT_NAME edmore)
 
 #----- The C-API shims (src/c_api): the bind(c) procedures Python calls, compiled ONCE, into an #
-#      object library that both of their users link: libed.so (below) and the C-API tests.      #
+#      object library that both of their users link: libedmore.so (below) and the C-API tests.  #
 #      Every source is compiled by exactly one target because a Fortran compile also writes the  #
 #      source's .mod files into the one shared module directory: two targets compiling the same  #
 #      source would write the same .mod at once, and a parallel build would fail at random. It   #
@@ -418,13 +419,13 @@ if(ED_BUILD_PYLIB OR ED_BUILD_TESTS)
    ed_fortran_flags(ed_c_api)
 endif()
 
-#----- THE Python C-API shared library (opt-in): ONE libed.so for the whole package.          #
+#----- THE Python C-API shared library (opt-in): ONE libedmore.so for the whole package.      #
 #                                                                                              #
 #      Per-subsystem independence lives at the CALL level (verbs, not libraries), not the LINK #
-#      level: `ed.plant`, `ed.canopy`, `ed.demography` and `ed.model` are sub-packages         #
-#      over one backend. A kernels-only library beside a site-driver one would force every     #
-#      domain kernel library to link ed_share ONLY, and the column state types into            #
-#      src/share/. The accepted cost: the library links ed_model + IO, so even the leaf        #
+#      level: `edmore.plant`, `edmore.canopy`, `edmore.demography` and `edmore.model` are      #
+#      sub-packages over one backend. A kernels-only library beside a site-driver one would    #
+#      force every domain kernel library to link ed_share ONLY, and the column state types     #
+#      into src/share/. The accepted cost: the library links ed_model + IO, so even the leaf   #
 #      shim carries the whole model, and the wheel declares netCDF4 a runtime dependency       #
 #      rather than vendoring it.                                                               #
 #                                                                                              #
@@ -432,23 +433,23 @@ endif()
 #      ed_fortran_flags gives its link the build kind's CPU target.                            #
 if(ED_BUILD_PYLIB)
    add_library(ed_py SHARED $<TARGET_OBJECTS:ed_c_api>)
-   set_target_properties(ed_py   PROPERTIES OUTPUT_NAME ed LINKER_LANGUAGE Fortran)
-   target_link_libraries(ed_py   PRIVATE ed_run)
+   set_target_properties(ed_py PROPERTIES OUTPUT_NAME edmore LINKER_LANGUAGE Fortran)
+   target_link_libraries(ed_py PRIVATE ed_run)
    ed_fortran_flags(ed_py)
-   #----- The same numbers as ed_main, in any process. An Intel build calls `exp`, `sin`, `pow`    #
-   #      and the rest by their C names, and ed_main finds them in Intel's math library. A         #
+   #----- The same numbers as edmore, in any process. An Intel build calls `exp`, `sin`, `pow`     #
+   #      and the rest by their C names, and edmore finds them in Intel's math library. A          #
    #      library loaded into Python would find glibc's first, because Python has already loaded  #
-   #      it, so without this a run through `ed.model` differs from the same run of ed_main        #
+   #      it, so without this a run through `edmore.model` differs from the same run of edmore     #
    #      in the last digits (BCI: up to 7e-4 W m-2 in LE over ten days). Linking Intel's          #
    #      runtime into the library and keeping its names inside it makes every call land where     #
-   #      ed_main's does.                                                                          #
+   #      edmore's does.                                                                           #
    #      gfortran builds use glibc's math in both, so they need nothing here.                    #
    if(CMAKE_Fortran_COMPILER_ID MATCHES "^Intel")
       target_link_options(ed_py PRIVATE -static-intel LINKER:--exclude-libs,ALL)
    endif()
    #----- RPATH so the INSTALLED library resolves its own dependencies.                         #
    #                                                                                            #
-   #      libed.so links netCDF, HDF5 and the Fortran runtime. Declaring netCDF4 rather than       #
+   #      libedmore.so links netCDF, HDF5 and the Fortran runtime. Declaring netCDF4 rather than   #
    #      vendoring the ~67 MB closure is necessary, but on its own NOT enough: the pip netCDF4    #
    #      wheel bundles its libnetcdf under a mangled soname inside its own package, so it cannot  #
    #      satisfy a `libnetcdf.so.19` NEEDED by a different .so. Freshly installed into a bare     #
@@ -473,12 +474,12 @@ if(ED_BUILD_PYLIB)
    set_target_properties(ed_py PROPERTIES
                          INSTALL_RPATH "$ORIGIN;${CMAKE_Fortran_IMPLICIT_LINK_DIRECTORIES}"
                          INSTALL_RPATH_USE_LINK_PATH TRUE)
-   #----- INSTALL it INTO the package directory, so a wheel carries ed/libed.so and             #
-   #      ed._libed finds it as a sibling of __init__.py -- the first entry in its search        #
-   #      order, needing no env var. The `pylib` component is what python/pyproject.toml         #
-   #      installs; nothing else in this project is part of the wheel.                            #
-   install(TARGETS ed_py LIBRARY DESTINATION ed     COMPONENT pylib)
-   message(STATUS "ED-MORE: Python C-API ENABLED -> libed.so (ed.plant, ed.canopy, ed.demography, ed.model)")
+   #----- INSTALL it INTO the package directory, so a wheel carries edmore/libedmore.so and     #
+   #      edmore._libedmore finds it as a sibling of __init__.py -- the first entry in its      #
+   #      search order, needing no env var. The `pylib` component is what python/pyproject.toml #
+   #      installs; nothing else in this project is part of the wheel.                          #
+   install(TARGETS ed_py LIBRARY DESTINATION edmore COMPONENT pylib)
+   message(STATUS "ED-MORE: Python C-API ENABLED -> libedmore.so (edmore.plant, edmore.canopy, edmore.demography, edmore.model)")
 endif()
 ed_fortran_flags(ed_main)
 

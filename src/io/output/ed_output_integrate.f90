@@ -10,14 +10,14 @@
 module ed_output_integrate
    use ed_kinds,            only : wp, ik
    use ed_time,             only : ed_time_t, calendar_step_t
-   use ed_output_params,      only : N_FREQ,   FREQ_FAST, TIER_FAST, TIER_DAILY, TIER_MONTHLY, TIER_ANNUAL
-   use ed_output_types,   only :   var_desc_t, integ_buffer_t, output_files_t, output_buffers_t,                  &
+   use ed_output_params,      only : N_FREQ, FREQ_FAST, TIER_FAST, TIER_DAILY, TIER_MONTHLY, TIER_ANNUAL
+   use ed_output_types,     only : var_desc_t, integ_buffer_t, output_files_t, output_buffers_t,                  &
                                    pending_record_t, record_queue_t, AGG_MEAN, AGG_RATE, AGG_LAST, AGG_TMEAN,     &
                                    DIM_SCALAR, DIM_COHORT, DIM_PATCH,                                             &
                                    DIM_SOIL, DIM_SOIL_PATCH, MISSING_VALUE, slab_col
-   use ed_polygon_state_vars,   only : polygon_t
-   use ed_constants,     only   : n_soil_layer_max
-   use ed_output_extract, only :   SRC_F_CO0, SRC_F_COH_GPP, SRC_F_COH_HEIGHT, SRC_F_PA0,                         &
+   use ed_polygon_state_vars, only : polygon_t
+   use ed_constants,     only : n_soil_layer_max
+   use ed_output_extract,   only : SRC_F_CO0, SRC_F_COH_GPP, SRC_F_COH_HEIGHT, SRC_F_PA0,                         &
                                    SRC_F_SOIL_WATER, SRC_NONE, FLD_C_DIAG0, extract_fast_scalar, extract_variable
    implicit none
    private

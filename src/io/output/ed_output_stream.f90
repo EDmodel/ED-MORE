@@ -13,16 +13,16 @@ module ed_output_stream
    use iso_c_binding, only : c_int, c_size_t, c_double
    use ed_kinds,      only : wp, ik
    use ed_time,       only : ed_time_t, time_to_decimal_year, time_eq
-   use ed_constants,       only : n_soil_layer_max
+   use ed_constants,     only : n_soil_layer_max
    use ed_soil_params,       only : SOIL_BC_DRAIN, SOIL_BC_AQUIFER
-   use ed_netcdf_c, only :   nc_check, nc_close, nc_create_f, nc_def_dim_f, nc_enddef, nc_put_att_double_f,       &
+   use ed_netcdf_c,   only : nc_check, nc_close, nc_create_f, nc_def_dim_f, nc_enddef, nc_put_att_double_f,       &
                              nc_put_att_int_f, nc_put_var1_double, nc_put_vara_double, nc_put_vara_int,           &
                              nc_sync, NC_CLOBBER, NC_DOUBLE, NC_INT, NC_NETCDF4, NC_UNLIMITED
-   use ed_netcdf_write,  only :   define_var, put_text_att, put_global_text, define_polygon_axis,               &
+   use ed_netcdf_write,    only : define_var, put_text_att, put_global_text, define_polygon_axis,               &
                                   write_polygon_axis, define_site_statics, write_site_statics, OUTPUT_DEFLATE
-   use ed_output_params, only :   FC_DAY, FC_MONTH, FC_YEAR, FC_RUN, SYNC_FLUSH, freq_letter, TIER_FAST, N_FREQ
+   use ed_output_params,   only : FC_DAY, FC_MONTH, FC_YEAR, FC_RUN, SYNC_FLUSH, freq_letter, TIER_FAST, N_FREQ
    use ed_output_integrate, only : close_tier
-   use ed_output_types,  only :   output_registry_t, stream_file_t, pending_record_t, var_desc_t, slab_col, &
+   use ed_output_types,    only : output_registry_t, stream_file_t, pending_record_t, var_desc_t, slab_col, &
                                   output_files_t, output_buffers_t,                                  &
                                   DIM_SCALAR, DIM_COHORT, DIM_PATCH, DIM_SOIL, DIM_PFT,            &
                                   DIM_SIZE, DIM_SOIL_PATCH, DIM_SITE, diag_setup_t,               &

@@ -37,7 +37,7 @@ module ed_config
    use ed_region_params,        only : region_params_t, RUN_MODE_SITE, RUN_MODE_REGION
    use ed_maps_params,          only : maps_params_t, soil_maps_on, map_inputs_t, MAP_BC_LEAKY,        &
                                        MAP_BC_SEALED, MAP_BC_AQUIFER
-   use ed_sites_params,       only :   site_spec_t
+   use ed_sites_params,         only : site_spec_t
    implicit none
    private
 
@@ -222,7 +222,7 @@ contains
    !----- Each [[sites]] table's configuration (site_config) and its share of the polygon, the     !
    !      shares made to sum to exactly 1. ---------------------------------------------------------!
    subroutine site_configs(cfg, site_cfg, site_area)
-      type(ed_config_t),                intent(in)  :: cfg
+      type(ed_config_t),              intent(in)    :: cfg
       type(ed_config_t),   allocatable, intent(out) :: site_cfg(:)
       real(wp),            allocatable, intent(out) :: site_area(:)
       integer(ik) :: is

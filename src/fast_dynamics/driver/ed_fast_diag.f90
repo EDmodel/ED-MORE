@@ -46,7 +46,7 @@ contains
       integer(ik),            intent(in)              :: nsub
       real(wp),               intent(in)              :: dt_fast
       logical,                intent(in)              :: do_fast
-      type(ed_time_t),        intent(in),    optional :: step_start   !< the slow step's start (the stamps)
+      type(ed_time_t),      intent(in),      optional :: step_start   !< the slow step's start (the stamps)
       type(output_buffers_t), intent(inout), optional :: out_bufs     !< present when do_fast
       integer(ik) :: ip, is, isub, ks, nl, npatch
       npatch = poly%patch%n

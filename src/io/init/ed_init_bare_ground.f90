@@ -18,7 +18,7 @@ module ed_init_bare_ground
    use ed_site_state_vars,         only : make_site_surface
    use ed_polygon_state_vars,      only : polygon_t, alloc_polygon, rebuild_patch_map, rebuild_cohort_map,      &
                                           assign_cohort_id, assign_patch_id
-   use ed_patch_state_vars,      only :   patch_physical_state, DIST_PRIMARY
+   use ed_patch_state_vars,        only : patch_physical_state, DIST_PRIMARY
    use ed_slow_update, only : sort_cohorts
    implicit none
    private
@@ -88,7 +88,7 @@ contains
    !      start). ---------------------------------------------------------------------------------!
    subroutine seed_patch_stores(poly, cfg)
       type(polygon_t),     intent(inout) :: poly
-      type(ed_config_t),   intent(in)    :: cfg
+      type(ed_config_t), intent(in)      :: cfg
       type(met_forcing_t) :: ref   !< the reference climate
       integer(ik) :: ip, k, nsl
       ref = met_forcing_t()
@@ -121,7 +121,7 @@ contains
    !---------------------------------------------------------------------------------------!
    subroutine seed_bare_ground(poly, cfg)
       type(polygon_t),     intent(inout) :: poly
-      type(ed_config_t),   intent(in)    :: cfg
+      type(ed_config_t), intent(in)      :: cfg
       real(wp)    :: dbh
       integer(ik) :: ip, ipft
       if (.not. any(cfg%pft%nbg_init_density > 0.0_wp)) return

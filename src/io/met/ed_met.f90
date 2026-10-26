@@ -15,23 +15,23 @@ module ed_met
    use iso_c_binding, only : c_int
    use ed_kinds, only : wp, ik
    use ed_numerics, only : linear_interpolate
-   use ed_therm_lib, only :   air_density, lapse_air_temperature, lapse_pressure, lapse_specific_humidity,        &
+   use ed_therm_lib,   only : air_density, lapse_air_temperature, lapse_pressure, lapse_specific_humidity,        &
                               dry_adiabat_temperature, sat_specific_humidity, rh_to_specific_humidity
-   use ed_time, only :   ed_time_t, time_advance_seconds, seconds_into_day,   time_to_string, solar_cosz_utc,     &
+   use ed_time,   only : ed_time_t, time_advance_seconds, seconds_into_day, time_to_string, solar_cosz_utc,     &
                          mean_solar_cosz
-   use ed_forcing_params, only :   forcing_params_t, MET_BACKEND_DEFAULT, MET_BACKEND_ERA5LAND,                   &
+   use ed_forcing_params,   only : forcing_params_t, MET_BACKEND_DEFAULT, MET_BACKEND_ERA5LAND,                   &
                                    METAVG_END, METAVG_BEGIN, CLAMP_ERROR, LW_SYNTHESIZE,                          &
                                    CO2_SOURCE_FILE, HEIGHT_ABOVE_ZERO_PLANE, WIND_EXPOSURE_OPEN_TERRAIN
-   use ed_radiation_lib,  only :   COSZ_MIN, SWPART_PASSTHROUGH, lapse_longwave, partition_shortwave, clearness_index,      &
+   use ed_radiation_lib,    only : COSZ_MIN, SWPART_PASSTHROUGH, lapse_longwave, partition_shortwave, clearness_index,      &
                                    synthesize_lwdown
    use ed_met_types, only : met_forcing_t, met_record_t, met_source_t, met_cursor_t,        &
                                   met_cells_t, HUMIDITY_RHAIR, HUMIDITY_TDEW, ED_FIELD
    use ed_met_co2, only : co2_series_read, co2_series_at, co2_series_covers,                 &
                                co2_series_end, co2_series_free
    use ed_netcdf_c, only : nc_close, nc_check
-   use ed_met_share, only :   MET_OK, MET_ERR_CO2_FILE, MET_ERR_CO2_NOT_COVERED, file_lookup_sec,    &
+   use ed_met_share,   only : MET_OK, MET_ERR_CO2_FILE, MET_ERR_CO2_NOT_COVERED, file_lookup_sec,    &
                               humidity_field, add_line
-   use ed_met_default, only   : default_file_open, default_file_record
+   use ed_met_default,   only : default_file_open, default_file_record
    use ed_met_era5land, only : era5land_open, era5land_prefetch,                     &
                                        era5land_record
    implicit none
@@ -133,7 +133,7 @@ contains
    !      tests. --------------------------------------------------------------------------------!
    subroutine open_co2(src, run_start, run_end, stat, why)
       type(met_source_t),            intent(inout) :: src
-      type(ed_time_t), optional,     intent(in)    :: run_start, run_end
+      type(ed_time_t), optional,   intent(in)      :: run_start, run_end
       integer(ik),                   intent(out)   :: stat
       character(len=:), allocatable, intent(inout) :: why
       character(len=512) :: msg
@@ -185,7 +185,7 @@ contains
    !=======================================================================================!
    subroutine met_prefetch(src, step_start)
       type(met_source_t), intent(inout)  :: src
-      type(ed_time_t),    intent(in)    :: step_start
+      type(ed_time_t),  intent(in)    :: step_start
       if (src%backend == MET_BACKEND_ERA5LAND) call era5land_prefetch(src, step_start)
    end subroutine met_prefetch
 
@@ -197,7 +197,7 @@ contains
    subroutine met_advance(src, cur, now)
       type(met_source_t), intent(in)  :: src
       type(met_cursor_t), intent(inout) :: cur
-      type(ed_time_t),    intent(in)    :: now
+      type(ed_time_t),  intent(in)      :: now
       real(wp)    :: now_sec
       integer(ik) :: i
       logical     :: at_seam, past_end
@@ -256,7 +256,7 @@ contains
    subroutine remember_clearness(src, cur, now)
       type(met_source_t), intent(in)  :: src
       type(met_cursor_t), intent(inout) :: cur
-      type(ed_time_t),    intent(in)    :: now
+      type(ed_time_t),  intent(in)      :: now
       real(wp) :: cosz_now, sw_total, kt
       type(met_record_t) :: r
       r = interval_mean_record(src, cur)

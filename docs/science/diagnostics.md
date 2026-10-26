@@ -392,7 +392,7 @@ F tier is off by default, and a tier whose `[output.<tier>].enabled` is false wr
 `io_config` says.
 
 ```bash
-ed_main --dump-io-config [main.toml]   # writes ed_io_config.toml: every variable, ready to uncomment
+edmore --dump-io-config [main.toml]   # writes ed_io_config.toml: every variable, ready to uncomment
 ```
 
 lists every variable under its group, with its default tiers (`false`: off) and the tiers it can be
@@ -516,7 +516,7 @@ things. They are written whatever `soil_carbon_on` says, since they are demograp
 
 ## 7. Variable inventory
 
-`ed_main --dump-io-config` writes the authoritative list, with units, groups, axes and default tiers.
+`edmore --dump-io-config` writes the authoritative list, with units, groups, axes and default tiers.
 It is generated from the registry, so it cannot drift; the page states no count for the same reason.
 
 | Group | What it holds |

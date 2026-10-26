@@ -280,7 +280,7 @@ The output is the largest usability difference ([diagnostics](science/diagnostic
 | Timescales | Four tiers, each enabled and chunked on its own: sub-daily (F), daily (D), monthly (M), annual (Y) | Per-file-type frequencies plus `FRQFAST`, `FRQSTATE` |
 | Axes | polygon, site, patch, cohort, soil layer, PFT, DBH size class, and patch × soil layer | polygon, site, patch, cohort |
 | Aggregation | Declared as data on each variable (a weight and mean versus sum), so one registry line emits a field's patch, site, PFT and size-class rollups | Hard-coded per variable |
-| Discovering variables | `ed_main --dump-io-config` lists every variable by group with its default and possible tiers | Read the source or the wiki |
+| Discovering variables | `edmore --dump-io-config` lists every variable by group with its default and possible tiers | Read the source or the wiki |
 | Empty sets | A mean over an empty set is `_FillValue`; a sum is a true 0 | |
 | State files | A separate stream, `[output].state_write`, every `state_interval` days, months or years: the raw prognostic state at an instant | `ISOUTPUT`, `FRQSTATE`, HDF5 histories |
 | Post-processing | `post_proc/` (`post_proc/README.md`) | Community scripts |
@@ -454,7 +454,7 @@ What it takes from ED2 is listed here.
   integration step (`DTLSM`): each step the canopy radiation and the integrator advance every site, a new day
   calls `veg_dynamics_driver`, a new month reads the meteorological drivers, and the output is written at its
   intervals.
-- **ED-MORE.** `ed_main` drives `ed_region`: `region_open` builds the run, `region_step_month` steps it a
+- **ED-MORE.** `edmore` drives `ed_region`: `region_open` builds the run, `region_step_month` steps it a
   month at a time, and `region_finalize` closes it. Each slow step of each polygon is `polygon_step`, and
   `ed_stepper`'s `advance_one_step` runs the fast loop's sub-steps inside it, then the slow dynamics
   ([order_of_processes](science/order_of_processes.md) §1–§2). The loop is the slow step, with the fast loop

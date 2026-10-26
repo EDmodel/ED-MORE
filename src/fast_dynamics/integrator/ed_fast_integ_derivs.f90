@@ -14,25 +14,25 @@
 !     (docs/science/soil_plant_water.md §1-§2).                                            !
 !==========================================================================================!
 module ed_fast_integ_derivs
-   use ed_kinds, only : wp,   ik
+   use ed_kinds, only : wp, ik
    use ed_constants,   only : tiny_num, rho_h2o, grav_head
    use ed_therm_lib,   only : cas_enthalpy_to_temp, sat_specific_humidity, sat_specific_humidity_temp_deriv
    use ed_soil_heat,   only : soil_heat_env_t, soil_energy_time_deriv, set_soil_heat_env, soil_layer_temp
-   use ed_surface, only :   surface_env_t, ground_surface_exchange
-   use ed_patch_state_vars,   only   : soil_energy_state_t
-   use ed_canopy_air_space, only :   cas_env_t, cas_box_time_deriv, cas_condensation
-   use ed_canopy_aerodynamics,   only : canopy_air_conductances
+   use ed_surface, only : surface_env_t, ground_surface_exchange
+   use ed_patch_state_vars,   only : soil_energy_state_t
+   use ed_canopy_air_space, only : cas_env_t, cas_box_time_deriv, cas_condensation
+   use ed_canopy_aerodynamics, only : canopy_air_conductances
    use ed_plant_energy,   only : plant_energy_env_t, canopy_tissue_energy
    use ed_canopy_water,   only : canopy_water_out_t
-   use ed_fast_integ_types, only : surface_state_t, surface_tend_t,   cas_boundary_t,                                  &
+   use ed_fast_integ_types, only : surface_state_t, surface_tend_t, cas_boundary_t,                                  &
                                march_state_t, frozen_t, march_tend_t, fast_static_state_t,                    &
                                water_drive_t, water_tend_t, water_work_t, ensure_water_capacity, POND, WOOD, LEAF
-   use ed_site_state_vars, only   : site_surface_t
-   use ed_soil_hydr_lib, only :   soil_water_relations, soil_theta_to_unknown, pond_water_relations,              &
+   use ed_site_state_vars, only : site_surface_t
+   use ed_soil_hydr_lib,   only : soil_water_relations, soil_theta_to_unknown, pond_water_relations,              &
                                   pond_water_to_head, soil_ice_t
-   use ed_plant_hydr_lib, only :   tissue_water_relations, tissue_water_to_rwc, tissue_rwc_to_unknown,            &
+   use ed_plant_hydr_lib,   only : tissue_water_relations, tissue_water_to_rwc, tissue_rwc_to_unknown,            &
                                    tissue_psi_to_rwc
-   use ed_plant_hydraulics, only   : supply_limited_transpiration, root_water_uptake_profile, xylem_sapflow
+   use ed_plant_hydraulics,   only : supply_limited_transpiration, root_water_uptake_profile, xylem_sapflow
    use ed_soil_water, only : soil_water_flux, ground_evaporation_rate, bottom_flux
    use ed_linear_algebra, only : arrowhead_system_t
    use ed_soil_params, only : soil_profile_t, soil_params_t

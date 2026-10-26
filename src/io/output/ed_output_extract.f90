@@ -10,17 +10,17 @@
 !==========================================================================================!
 module ed_output_extract
    use ed_kinds,          only : wp, ik
-   use ed_biogeochem_params, only :   IP_FAST_GRND, IP_FAST_SOIL, IP_STRUCT_GRND, IP_STRUCT_SOIL, &
+   use ed_biogeochem_params,   only : IP_FAST_GRND, IP_FAST_SOIL, IP_STRUCT_GRND, IP_STRUCT_SOIL, &
                                       IP_MICR, IP_SLOW, IP_PASSIVE
-   use ed_output_types,   only :   var_desc_t, diag_setup_t, DIM_COHORT, DIM_PATCH, DIM_SOIL, DIM_PFT,            &
+   use ed_output_types,     only : var_desc_t, diag_setup_t, DIM_COHORT, DIM_PATCH, DIM_SOIL, DIM_PFT,            &
                                    DIM_SIZE, DIM_SOIL_PATCH, DIM_SITE, MISSING_VALUE
    use ed_polygon_state_vars,   only : polygon_t
    use ed_diag_vars,            only : N_CO_FAST_ROWS, N_CO_ROWS, N_PA_ROWS, N_PY_ROWS, cohort_diag_value, patch_diag_value, &
                                        patch_diag_slow_row, polygon_diag_value, N_SI_ROWS, site_diag_value
    use ed_state_defaults,       only : is_unset_positive
-   use ed_constants,     only   : n_soil_layer_max
-   use ed_soil_hydr_lib,        only : soil_matric_potential, soil_theta_to_saturation
-   use ed_output_reduce,  only : reduce_cohort_to_polygon,   reduce_cohort_to_patch,             &
+   use ed_constants,     only : n_soil_layer_max
+   use ed_soil_hydr_lib,      only : soil_matric_potential, soil_theta_to_saturation
+   use ed_output_reduce,  only : reduce_cohort_to_polygon, reduce_cohort_to_patch,             &
                                        reduce_cohort_to_pft, reduce_cohort_to_size,               &
                                        reduce_patch_to_polygon, reduce_patch_columns_to_sites,       &
                                        gather_patch_columns

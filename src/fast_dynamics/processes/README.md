@@ -30,15 +30,15 @@ plasticity, the soil carbon pools and the vital-rate laws — are in `src/slow_d
 ## Python
 
 The `src/c_api/ed_c_api_*.f90` shims compile once, into the object library `ed_c_api`, which the
-optional `libed.so` (`-DED_BUILD_PYLIB=ON`) and the C-API ctest targets both link, so an ABI or
+optional `libedmore.so` (`-DED_BUILD_PYLIB=ON`) and the C-API ctest targets both link, so an ABI or
 signature change is a build failure in a default build rather than a silent break in an optional one.
 
-The fast kernels are exposed through process-oriented packages in `python/ed/`:
+The fast kernels are exposed through process-oriented packages in `python/edmore/`:
 
-- `ed.plant.leaf` — leaf gas exchange. `examples/example01_leaf_gas_exchange/`
+- `edmore.plant.leaf` — leaf gas exchange. `examples/example01_leaf_gas_exchange/`
   reproduces Slot & Winter (2017) with it.
-- `ed.canopy` — the leaf solve over many leaves and the two-stream over a frozen stand
+- `edmore.canopy` — the leaf solve over many leaves and the two-stream over a frozen stand
   (`ed_c_api_canopy`).
 
-The phenology kernel (`ed.plant.pheno`) is a slow-half module; see
+The phenology kernel (`edmore.plant.pheno`) is a slow-half module; see
 [`../../slow_dynamics/processes/README.md`](../../slow_dynamics/processes/README.md).

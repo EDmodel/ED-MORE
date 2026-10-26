@@ -15,7 +15,7 @@ each costs, and the test suite.
 
 ## Quick start
 
-`ed_main` is the single entry point: it reads a config, runs the simulation, writes netCDF output
+`edmore` is the single entry point: it reads a config, runs the simulation, writes netCDF output
 and exits. Three commands build it and check it:
 
 ```bash
@@ -24,10 +24,10 @@ conda activate ed
 source /opt/intel/oneapi/setvars.sh    # so CMake finds ifx
 
 FC=ifx cmake --preset dev              # 1. configure the dev kind, in build-dev/
-cmake --build build-dev -j             # 2. build ed_main, libed.so and the tests
+cmake --build build-dev -j             # 2. build edmore, libedmore.so and the tests
 ctest --test-dir build-dev --output-on-failure   # 3. run the suite
 
-./build-dev/ed_main examples/example03_demography/example_config_main.toml
+./build-dev/edmore examples/example03_demography/example_config_main.toml
 ```
 
 Run these from the repository root. The preset takes netCDF from the active conda environment
@@ -35,8 +35,8 @@ Run these from the repository root. The preset takes netCDF from the active cond
 same kind is
 `cmake -S . -B build-dev -DCMAKE_Fortran_COMPILER=ifx -DED_BUILD_PYLIB=ON -DCMAKE_PREFIX_PATH=<prefix>`.
 
-`build-dev` is where the example scripts look for `ed_main` and the Python package for
-`libed.so`. The other kinds and the presets that name them are under [Build kinds](#build-kinds).
+`build-dev` is where the example scripts look for `edmore` and the Python package for
+`libedmore.so`. The other kinds and the presets that name them are under [Build kinds](#build-kinds).
 
 If the run cannot find `libnetcdf` or the compiler runtime, put both on the loader path:
 `LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH`. Keep the `:$LD_LIBRARY_PATH`: replacing the
@@ -108,10 +108,10 @@ invisible to an ifx dev build:
 
 | Kind | Use it for | Build type and flags | Builds | Configure |
 |---|---|---|---|---|
-| `debug` | writing or fixing engine code: every bounds, uninitialised-value and floating-point check is on | `Debug`: `-O0 -g` and the compiler's runtime checks | `ed_main`, tests | `cmake --preset debug` |
-| `dev` | everyday work: the tests, short runs, the Python package, comparing outputs between commits | `Release`: `-O2`, any x86-64 CPU | `ed_main`, `libed.so`, tests | `cmake --preset dev` |
+| `debug` | writing or fixing engine code: every bounds, uninitialised-value and floating-point check is on | `Debug`: `-O0 -g` and the compiler's runtime checks | `edmore`, tests | `cmake --preset debug` |
+| `dev` | everyday work: the tests, short runs, the Python package, comparing outputs between commits | `Release`: `-O2`, any x86-64 CPU | `edmore`, `libedmore.so`, tests | `cmake --preset dev` |
 | `profile` | finding where the time goes (VTune, perf) | dev plus `-g` | as dev | `cmake --preset profile` |
-| `production` | long runs: the examples, calibration, regional runs | dev plus `ED_IPO=ON` and `ED_CPU_TARGET=cascadelake` | `ed_main`, `libed.so` | `cmake --preset production` |
+| `production` | long runs: the examples, calibration, regional runs | dev plus `ED_IPO=ON` and `ED_CPU_TARGET=cascadelake` | `edmore`, `libedmore.so` | `cmake --preset production` |
 
 Each preset builds in `build-<kind>` and takes netCDF from the active conda environment
 (`$CONDA_PREFIX`). Run it from the repository root, and choose the compiler with `FC=ifx` (or
@@ -122,18 +122,18 @@ A `-D` after `--preset` overrides the preset, and `-B` its directory:
 `cmake --preset dev -DCMAKE_PREFIX_PATH=<netCDF prefix>`. Without presets, the same kinds are
 `-DCMAKE_BUILD_TYPE=Debug|Release`, plus `-DCMAKE_Fortran_FLAGS=-g` for profile and
 `-DED_IPO=ON -DED_CPU_TARGET=cascadelake` for production, and `-DED_BUILD_PYLIB=ON` (which adds
-`libed.so`) for every kind but debug. **A configure that names no build type builds Release (dev)**,
-without `libed.so` unless it adds `-DED_BUILD_PYLIB=ON`. `-DED_BUILD_TESTS=OFF` skips the tests
+`libedmore.so`) for every kind but debug. **A configure that names no build type builds Release (dev)**,
+without `libedmore.so` unless it adds `-DED_BUILD_PYLIB=ON`. `-DED_BUILD_TESTS=OFF` skips the tests
 (the production preset does). The per-compiler flags live in the `ed_fortran_flags()` function in
 `CMakeLists.txt`.
 
-**`build-dev` is the default build.** dev builds `ed_main`, `libed.so` and the tests, and the
-example scripts run `build-dev/ed_main` and the Python package loads `build-dev/libed.so`, unless
-`--ed-main` (or `ED_MAIN`) or `ED_LIB` names another build. The library costs dev no
+**`build-dev` is the default build.** dev builds `edmore`, `libedmore.so` and the tests, and the
+example scripts run `build-dev/edmore` and the Python package loads `build-dev/libedmore.so`, unless
+`--edmore` (or `EDMORE_MAIN`) or `EDMORE_LIB` names another build. The library costs dev no
 measurable build time, because the tests compile its sources anyway and it adds one link: with or
 without it, a clean configure and build at `-j 16` takes 44–50 s with ifx and 52–56 s with gfortran,
 and the rebuild after an edit 3–4 s. It compiles every library position-independent (`-fPIC`),
-which leaves every output value of `ed_main` as it is, on ifx and gfortran, and its run time
+which leaves every output value of `edmore` as it is, on ifx and gfortran, and its run time
 within noise. The suite includes the Python package's tests: 86 tests.
 
 **dev is the reference.** It is the project's `-O2`, for any x86-64 CPU. Outputs are compared between
@@ -151,15 +151,15 @@ older CPU: build with `-DED_CPU_TARGET=` (empty) for a portable one, or `host` f
 build on. Use ifx: gfortran's production build is only 4–8 % faster than ifx dev. IPO and the CPU
 target are offered for ifx and gfortran; nvfortran builds debug and dev.
 
-**production builds `ed_main` and `libed.so`, not the tests.** Under IPO each of the 47 test
+**production builds `edmore` and `libedmore.so`, not the tests.** Under IPO each of the 47 test
 programs is a whole-program link of its own, and several tests assert results to the last bit, which
 a production build moves at round-off. With `-DED_BUILD_TESTS=ON`, 4 tests fail with ifx and 2 with
 gfortran ([The suite runs on dev](#the-suite-runs-on-dev)). Run the suite on dev. For the same
-reason `ed.model` and `ed_main` agree to round-off on a production build, not bit for bit: each
+reason `edmore.model` and `edmore` agree to round-off on a production build, not bit for bit: each
 is optimised as a whole program of its own.
 To run the examples or a calibration on a production build, point them at it: a script that runs
-`ed_main` takes `--ed-main` (or `ED_MAIN`) and otherwise runs `build-dev/ed_main`, and the
-Python API takes `ED_LIB=build-production/libed.so` and otherwise loads `build-dev/libed.so`.
+`edmore` takes `--edmore` (or `EDMORE_MAIN`) and otherwise runs `build-dev/edmore`, and the
+Python API takes `EDMORE_LIB=build-production/libedmore.so` and otherwise loads `build-dev/libedmore.so`.
 
 **Why development uses dev.** With ifx, a production build relinks the whole program at every link:
 an edit to one file takes ~35 s to rebuild instead of ~4 s, and rebuilding the tests ~85 s instead of
@@ -188,7 +188,7 @@ Output is **byte-identical at any thread count**, and the test suite asserts it.
   CMake warning.
 - A build directory whose CMake cache holds `ED_OPENMP=OFF` keeps it. Pass `-DED_OPENMP=ON` or
   configure a fresh directory.
-- The Python wheel builds serial (`python/pyproject.toml`), so `libed.so` never brings a second
+- The Python wheel builds serial (`python/pyproject.toml`), so `libedmore.so` never brings a second
   OpenMP runtime into a Python process.
 - gfortran with a conda netCDF prefix warns that the prefix's `libgomp.so.1` may hide the
   compiler's. That is harmless when the conda copy is the newer one, as it is in the `ed`
@@ -265,7 +265,7 @@ conda activate ed
 ```
 
 To drive the model from Python, `pip install python/` compiles the Fortran and bundles
-`libed.so` beside the package; from the source tree, `PYTHONPATH=python` and a dev build are
+`libedmore.so` beside the package; from the source tree, `PYTHONPATH=python` and a dev build are
 enough. See `python/README.md`.
 
 ## Running the tests
@@ -292,13 +292,13 @@ test programs in `<build>/test/`. Each test carries one label:
 
 | Label | What it holds | Tests (dev) | Time (dev, one core) |
 |---|---|---|---|
-| `unit` | each module's test, and `ed_main`'s refusals (`*_refused`, `main_failure_finalizes`) | 67 | 15 s |
+| `unit` | each module's test, and `edmore`'s refusals (`*_refused`, `main_failure_finalizes`) | 67 | 15 s |
 | `integration` | whole runs: `sites`, `region`, `fast_driver`, `c_api_run`, `restart_exact` | 5 | 44 s |
 | `lint` | the source-tree rules (`no_issue_refs`, `constants_named`, `kernels_patch_only`, ...) and the tracked copies (`io_config_example`, `license_copy`, `notice_copy`) | 10 | 2 s |
 | `python` | the Python tools' and the package's pytest suites (`prepare_flux_tower`, `calibrate_fast`, `python_api`, `prepare_census`) | 4 | 26 s |
 | `long` | opt-in: example 05's Palo Verde inventory and its 150-year regrowth | 2 | 34 min on 12 threads |
 
-A debug build has 84 tests: no `python_api` (it builds no `libed.so`), and no
+A debug build has 84 tests: no `python_api` (it builds no `libedmore.so`), and no
 `soil_nan_layer_refused` (it traps the NaN that case feeds the loader). A `-L` takes a regular
 expression, so `-L 'unit|lint'` runs both.
 
@@ -338,8 +338,8 @@ so the two sides of such a check can be compiled differently and part in the las
 | `plant_hydraulics` | ifx | a leaf above its closing water content transpires its demand | 1.9999999999999998e-5 against 2e-5: one unit in the last place (3e-21, 2e-16 relative); dev gives 2e-5 exactly | exact | IPO |
 | `plant_hydraulics` | ifx | transpiration's derivative matches finite differences | where the derivative is 0, the finite difference is 2.6e-14, from round-off in the two transpirations it differences 2e-7 apart; dev's is 0 | 1e-15 | IPO |
 | `plant_hydraulics` | gfortran | transpiration's derivative matches finite differences | the same, 5.8e-15 | 1e-15 | FMA under LTO |
-| `python_api` | ifx | `ed.model` writes `ed_main`'s output bit for bit | 101 of 301 variables differ, by up to 1.3e-12 of a variable's largest value (patch sensible heat), the near-zero conservation residuals aside | exact | IPO |
-| `python_api` | gfortran | `ed.model` writes `ed_main`'s output bit for bit | 104 of 301 variables differ, by up to 9.5e-14 (patch sensible heat), the residuals aside | exact | FMA under LTO |
+| `python_api` | ifx | `edmore.model` writes `edmore`'s output bit for bit | 101 of 301 variables differ, by up to 1.3e-12 of a variable's largest value (patch sensible heat), the near-zero conservation residuals aside | exact | IPO |
+| `python_api` | gfortran | `edmore.model` writes `edmore`'s output bit for bit | 104 of 301 variables differ, by up to 9.5e-14 (patch sensible heat), the residuals aside | exact | FMA under LTO |
 | `sites` | ifx | each of two identical sites holds the one-site stand's plant carbon | 9.696054 against 9.696198 kgC m⁻² after 60 days, 1.5e-5 relative; the two sites agree with each other to 2e-16 | 1e-12 relative | AVX-512 vectorisation |
 
 The causes come from building each part of production on its own: IPO alone, the CPU target alone,
@@ -347,7 +347,7 @@ and each with fused multiply-add (FMA) turned off (`-no-fma`, `-ffp-contract=off
 
 - **IPO**: the test fails with IPO alone and passes with the CPU target alone. Each program is
   optimised as a whole, so one routine compiles differently where it is inlined: in the test and in
-  the driver, or in `ed_main` and in `libed.so`. With ifx, turning FMA off leaves the same four
+  the driver, or in `edmore` and in `libedmore.so`. With ifx, turning FMA off leaves the same four
   failures.
 - **FMA under LTO**: gfortran fails only with LTO and the CPU target together, and passes with FMA
   off. Inlining across files lets FMA contract expressions that each file alone leaves apart.

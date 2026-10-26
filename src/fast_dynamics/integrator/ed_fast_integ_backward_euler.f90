@@ -12,13 +12,13 @@
 ! the step bound of ed_numerics.                                                           !
 !==========================================================================================!
 module ed_fast_integ_backward_euler
-   use ed_kinds, only : wp,   ik
+   use ed_kinds, only : wp, ik
    use ed_constants,   only : tiny_num, cp_air
    use ed_soil_heat,   only : soil_heat_env_t, soil_heat_out_t, soil_energy_step_implicit, set_soil_heat_env,     &
                               soil_layer_temp
    use ed_patch_state_vars,   only : soil_energy_state_t
    use ed_fast_integ_derivs, only : surface_derivs, cas_conductances, water_derivs
-   use ed_fast_integ_control, only   : water_scales
+   use ed_fast_integ_control, only : water_scales
    use ed_canopy_air_space,   only : cas_box_step_implicit, cas_env_t
    use ed_fast_integ_types,   only : march_state_t, frozen_t, surface_state_t, cas_boundary_t,                  &
                                surface_tend_t, stage_bflux_t, error_control_t, tol_set_t, fast_static_state_t,    &

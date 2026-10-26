@@ -1,19 +1,19 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! ed_c_api_run -- the ISO_C_BINDING shim that exposes the FULL COUPLED MODEL (`ed.model`).     !
+! ed_c_api_run -- the ISO_C_BINDING shim that exposes the FULL COUPLED MODEL (`edmore.model`). !
 !                                                                                          !
 ! The other shims expose pieces: `ed_c_api_leaf`, `ed_c_api_phenology` and                        !
 ! `ed_c_api_canopy` the kernels, and `ed_c_api_demography` the slow loop alone (no                !
-! biophysics, no forcing, no output streams). This one drives what the `ed_main` EXECUTABLE       !
+! biophysics, no forcing, no output streams). This one drives what the `edmore` EXECUTABLE        !
 ! drives -- coupled fast + slow, live met forcing, netCDF output, both conservation ledgers -- by !
 ! holding a run (`ed_region_t`) and handing the caller the OPEN / STEP / FINALIZE seam. The       !
 ! getters read the run's first polygon: the site of a one-polygon run.                            !
 !                                                                                          !
 ! The caller owns the time loop: a Python process opens a run, steps it, reads the site state as   !
-! it goes, and finalizes it. `python -m ed.model CONFIG` is that loop, and                         !
+! it goes, and finalizes it. `python -m edmore.model CONFIG` is that loop, and                     !
 ! scripts/calibrate_fast runs its trials through it. Nothing here re-implements the model --       !
 ! `region_step` takes one slow step of what the executable steps a month at a time, so a          !
-! Python-driven run and a `ed_main` run of the same config produce byte-identical output.          !
+! Python-driven run and an `edmore` run of the same config produce byte-identical output.          !
 !                                                                                          !
 ! Conventions match the other shims: `polygon_t` and friends never cross the boundary. A run is an  !
 ! opaque integer handle into a module-`save` registry; scalars return by value; arrays COPY into a  !
@@ -25,29 +25,29 @@
 !==========================================================================================!
 module ed_c_api_run
    use iso_c_binding
-   use ed_kinds,             only :   wp, ik
+   use ed_kinds,             only : wp, ik
    use, intrinsic :: ieee_arithmetic, only : ieee_value, ieee_quiet_nan
-   use ed_diag_vars,         only :   CO_NPP_LEAF, CO_NPP_FINEROOT, CO_NPP_WOOD, CO_NPP_STORAGE, CO_NPP_REPRO, CO_GROWTH_RESP, &
+   use ed_diag_vars,           only : CO_NPP_LEAF, CO_NPP_FINEROOT, CO_NPP_WOOD, CO_NPP_STORAGE, CO_NPP_REPRO, CO_GROWTH_RESP, &
                                       CO_EXUDATE
-   use ed_region,            only :   ed_region_t, region_open, region_step, region_finalize,  &
+   use ed_region,              only : ed_region_t, region_open, region_step, region_finalize,  &
                                       region_free, region_done
-   use ed_polygon_state_vars,   only : patch_polygon_area
-   use ed_output_reduce, only   : total_agb, total_lai, total_nplant, total_basal_area
+   use ed_polygon_state_vars, only : patch_polygon_area
+   use ed_output_reduce, only : total_agb, total_lai, total_nplant, total_basal_area
    implicit none
    private
 
-   public :: ed_run_open,   ed_run_step, ed_run_is_done, ed_run_finalize, ed_run_free
-   public :: ed_run_year,   ed_run_month, ed_run_day, ed_run_istep, ed_run_iyear
+   public :: ed_run_open, ed_run_step, ed_run_is_done, ed_run_finalize, ed_run_free
+   public :: ed_run_year, ed_run_month, ed_run_day, ed_run_istep, ed_run_iyear
    public :: ed_run_n_patch, ed_run_n_cohort, ed_run_n_site
    public :: ed_run_total_agb, ed_run_total_lai, ed_run_total_nplant
-   public :: ed_run_total_basal_area, ed_run_soil_carbon,     ed_run_get_real, ed_run_get_int
-   public :: ed_run_get_patch_real, ed_run_get_patch_int,     ed_run_get_site_real
+   public :: ed_run_total_basal_area, ed_run_soil_carbon, ed_run_get_real, ed_run_get_int
+   public :: ed_run_get_patch_real, ed_run_get_patch_int, ed_run_get_site_real
 
    !----- Small registry: a handful of concurrent runs is plenty (the example opens two, one per   !
    !      stage, and could hold both at once). Fixed-size and module-`save` for the same reason    !
    !      ed_c_api_demography's is: the handle has to survive across ctypes calls.                 !
    integer, parameter :: MAXR = 4
-   type(ed_region_t), target,   save :: g_run(MAXR)
+   type(ed_region_t), target, save :: g_run(MAXR)
    logical,                  save :: run_used(MAXR) = .false.
 
 contains
@@ -76,7 +76,7 @@ contains
    !=======================================================================================!
 
    !----- Open a run from a TOML config -> opaque handle (>=1); -1 registry full, -2 open failed. -!
-   !      `verbose` /= 0 keeps the progress lines ed_main prints on stdout.                        !
+   !      `verbose` /= 0 keeps the progress lines edmore prints on stdout.                         !
    function ed_run_open(path, path_len, verbose) result(h) bind(c, name="ed_run_open")
       character(kind=c_char), intent(in) :: path(*)
       integer(c_int), value,  intent(in) :: path_len, verbose
@@ -101,7 +101,7 @@ contains
 
    !----- Advance ONE slow step. Returns the run status (RUN_* in ed_polygon): 0 stepped,       !
    !      1 already finished, 2 NaN in the state, 4 a cohort or soil-carbon state out of bounds. -!
-   function ed_run_step(h)   result(status) bind(c, name="ed_run_step")
+   function ed_run_step(h) result(status) bind(c, name="ed_run_step")
       integer(c_int), value, intent(in) :: h
       integer(c_int)                    :: status
       integer(ik) :: st
@@ -149,14 +149,14 @@ contains
    !=======================================================================================!
    !  Where the calendar is                                                                 !
    !=======================================================================================!
-   function ed_run_year(h)   result(v) bind(c, name="ed_run_year")
+   function ed_run_year(h) result(v) bind(c, name="ed_run_year")
       integer(c_int), value, intent(in) :: h
       integer(c_int)                    :: v
       v = -1_c_int
       if (live(h)) v = int(g_run(h)%now%year, c_int)
    end function ed_run_year
 
-   function ed_run_month(h) result(v)   bind(c, name="ed_run_month")
+   function ed_run_month(h) result(v) bind(c, name="ed_run_month")
       integer(c_int), value, intent(in) :: h
       integer(c_int)                    :: v
       v = -1_c_int
@@ -170,14 +170,14 @@ contains
       if (live(h)) v = int(g_run(h)%now%day, c_int)
    end function ed_run_day
 
-   function ed_run_istep(h) result(v)   bind(c, name="ed_run_istep")
+   function ed_run_istep(h) result(v) bind(c, name="ed_run_istep")
       integer(c_int), value, intent(in) :: h
       integer(c_int)                    :: v
       v = -1_c_int
       if (live(h)) v = int(g_run(h)%istep, c_int)
    end function ed_run_istep
 
-   function ed_run_iyear(h) result(v)   bind(c, name="ed_run_iyear")
+   function ed_run_iyear(h) result(v) bind(c, name="ed_run_iyear")
       integer(c_int), value, intent(in) :: h
       integer(c_int)                    :: v
       v = -1_c_int
@@ -202,7 +202,7 @@ contains
       if (live(h)) v = int(g_run(h)%poly(1)%site%n, c_int)
    end function ed_run_n_site
 
-   function ed_run_n_cohort(h) result(v)   bind(c, name="ed_run_n_cohort")
+   function ed_run_n_cohort(h) result(v) bind(c, name="ed_run_n_cohort")
       integer(c_int), value, intent(in) :: h
       integer(c_int)                    :: v
       v = -1_c_int
@@ -241,7 +241,7 @@ contains
    !      Identically zero unless [soil_carbon].soil_carbon_on -- which is exactly what makes it    !
    !      worth watching from the driver loop, since with the feature off litter is DISCARDED       !
    !      rather than stored, and this number stays flat at zero while the stand grows.             !
-   function ed_run_soil_carbon(h) result(v)   bind(c, name="ed_run_soil_carbon")
+   function ed_run_soil_carbon(h) result(v) bind(c, name="ed_run_soil_carbon")
       integer(c_int), value, intent(in) :: h
       real(c_double)                    :: v
       real(wp)    :: tot
@@ -340,7 +340,7 @@ contains
       end associate
    end subroutine ed_run_get_real
 
-   subroutine ed_run_get_int(h, field_id,   buf) bind(c, name="ed_run_get_int")
+   subroutine ed_run_get_int(h, field_id, buf) bind(c, name="ed_run_get_int")
       integer(c_int), value, intent(in)  :: h, field_id
       integer(c_int),        intent(out) :: buf(*)
       integer(ik) :: n
@@ -363,7 +363,7 @@ contains
    !      owner_patch indexes them, so a polygon total of a cohort quantity is                 !
    !      sum(share(owner_patch) * nplant * x), the share being the patch's fraction of the     !
    !      polygon: its area in its site times the site's area. ----------------------------------!
-   subroutine ed_run_get_patch_real(h,   field_id, buf) bind(c, name="ed_run_get_patch_real")
+   subroutine ed_run_get_patch_real(h, field_id, buf) bind(c, name="ed_run_get_patch_real")
       integer(c_int), value, intent(in)  :: h, field_id
       real(c_double),        intent(out) :: buf(*)
       integer(ik) :: n, ip

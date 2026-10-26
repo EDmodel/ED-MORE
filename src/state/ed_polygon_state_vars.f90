@@ -8,7 +8,7 @@
 ! and ledgers.                                                                             !
 !==========================================================================================!
 module ed_polygon_state_vars
-   use ed_diag_vars,          only :   polygon_diag_block, reset_cohort_diag, reset_patch_diag,          &
+   use ed_diag_vars,            only : polygon_diag_block, reset_cohort_diag, reset_patch_diag,          &
                                        reset_polygon_diag, reset_site_diag
    use ed_kinds,                only : wp, ik
    use ed_pft_params,           only : pft_table_t

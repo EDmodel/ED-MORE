@@ -1,11 +1,11 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! ed_c_api_leaf -- the C-API shim for LEAF GAS EXCHANGE (`ed.plant.leaf`).                    !
+! ed_c_api_leaf -- the C-API shim for LEAF GAS EXCHANGE (`edmore.plant.leaf`).                !
 !                                                                                          !
 ! One shim per subsystem, mirroring the Fortran tree (src/README.md), so a change to one       !
 ! subsystem's ABI rebuilds and re-tests only that shim.                                        !
 !                                                                                          !
-! EVERY bind(c) struct here is an ABI CONTRACT with `python/ed/plant/_ffi.py`: the field       !
+! EVERY bind(c) struct here is an ABI CONTRACT with `python/edmore/plant/_ffi.py`: the field   !
 ! ORDER must match, member for member. It is compiled by a mandatory ctest target              !
 ! (`test_c_api_leaf`) precisely so a mismatch is a BUILD failure, not a silent wrong answer: a !
 ! component inserted mid-type in `leaf_photo_pft_t` breaks the C API while the rest of the    !
@@ -70,7 +70,7 @@ contains
    ! sm, temp_response_form and colim are the SM_*, TEMP_RESPONSE_* and COLIM_* integer      !
    ! codes; use_boundary_layer is 0/1.                                                       !
    !---------------------------------------------------------------------------------------!
-   subroutine ed_leaf_solve(env_c, p_c,   sm, temp_response_form, colim, use_boundary_layer, flux_c) bind(c, name="ed_leaf_solve")
+   subroutine ed_leaf_solve(env_c, p_c, sm, temp_response_form, colim, use_boundary_layer, flux_c) bind(c, name="ed_leaf_solve")
       type(leaf_env_c),    intent(in)  :: env_c
       type(leaf_args_c),   intent(in)  :: p_c
       integer(c_int), value, intent(in) :: sm, temp_response_form, colim, use_boundary_layer
@@ -170,7 +170,7 @@ contains
    !---------------------------------------------------------------------------------------!
    ! Peaked-Arrhenius temperature response (k25 anchored; Ea/Hd/dS in J/mol, T in K).       !
    !---------------------------------------------------------------------------------------!
-   function ed_peaked_arrhenius(k25, ea,   hd, ds, t_leaf) result(y) bind(c, name="ed_peaked_arrhenius")
+   function ed_peaked_arrhenius(k25, ea, hd, ds, t_leaf) result(y) bind(c, name="ed_peaked_arrhenius")
       real(c_double), value, intent(in) :: k25, ea, hd, ds, t_leaf
       real(c_double)                    :: y
       y = peaked_arrhenius_scale(k25, ea, hd, ds, t_leaf)
@@ -208,7 +208,7 @@ contains
       !      psi_onset and vpd_min, which carry defaults.                                              !
       !                                                                                          !
       !      psi_onset and vpd_min are absent from leaf_args_c and take their type defaults            !
-      !      (0 MPa, 0.05 kPa; ed.canopy builds its parameters from the run's config instead).         !
+      !      (0 MPa, 0.05 kPa; edmore.canopy builds its parameters from the run's config instead).     !
       !      Adding a field to a bind(c) struct breaks the ABI for every existing caller, so they stay !
       !      out. psi_open/psi_close do cross: the caller sets the ramp of the fast capacity limb      !
       !      (docs/science/leaf_gas_exchange.md §4.1, eq. (9)), which is always applied; sref_stomata  !

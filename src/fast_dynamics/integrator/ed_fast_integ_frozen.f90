@@ -18,7 +18,7 @@ module ed_fast_integ_frozen
    use ed_kinds,              only : wp, ik
    use ed_constants,          only : tiny_num, cp_air, rho_h2o, pi, r_gas,                      &
                                      kgcday_2_umols
-   use ed_diag_vars,        only :   CO_ANET, CO_AGROSS, CO_GSW, CO_GBW, CO_CI, CO_CS, CO_RD, CO_BETA_STOM,     &
+   use ed_diag_vars,          only : CO_ANET, CO_AGROSS, CO_GSW, CO_GBW, CO_CI, CO_CS, CO_RD, CO_BETA_STOM,     &
                                      CO_BETA_NONSTOM, CO_LEAF_TEMP, CO_WOOD_TEMP, CO_LEAF_VPD, CO_PSI_LEAF,      &
                                      CO_ABS_PAR, CO_ABS_SW, CO_ABS_LW, CO_WIND, CO_LEAF_WATER, CO_WOOD_WATER,    &
                                      CO_GPP_RATE, CO_LEAF_PAR, CO_GB_MOL, CO_PSI_PREDAWN, CO_CA, CO_PRESSURE,    &
@@ -42,20 +42,20 @@ module ed_fast_integ_frozen
    use ed_state_defaults,   only : is_unset_negative
    use ed_biophysics_params, only : aero_params_t
    use ed_patch_state_vars, only : cas_state_t, soil_carbon_state_t, cas_capacities
-   use ed_biogeochem_params, only :   N_SOIL_POOL
-   use ed_canopy_aerodynamics,   only : canopy_aerodynamics, cas_atm_conductances
-   use ed_plant_energy, only :   plant_energy_env_t, sensible_heat_coeff, leaf_transp_coeff, leaf_film_coeff, &
+   use ed_biogeochem_params, only : N_SOIL_POOL
+   use ed_canopy_aerodynamics, only : canopy_aerodynamics, cas_atm_conductances
+   use ed_plant_energy,   only : plant_energy_env_t, sensible_heat_coeff, leaf_transp_coeff, leaf_film_coeff, &
                                  tissue_hcap_per_dt, EFFAREA_HEAT, EFFAREA_TRANSP, EFFAREA_EVAP
-   use ed_canopy_water, only   : canopy_water_out_t, canopy_interception, limit_film_evaporation
-   use ed_leaf_gas_exchange,   only : leaf_gas_exchange_batch, cohort_leaf_par
-   use ed_respiration, only :   stem_maintenance_respiration, fine_root_maintenance_respiration, root_zone_temp_scale, &
+   use ed_canopy_water,   only : canopy_water_out_t, canopy_interception, limit_film_evaporation
+   use ed_leaf_gas_exchange, only : leaf_gas_exchange_batch, cohort_leaf_par
+   use ed_respiration,   only : stem_maintenance_respiration, fine_root_maintenance_respiration, root_zone_temp_scale, &
                                 decomposition_env_scalar, decomposition_transfer_matrix, heterotrophic_respiration
    use ed_surface, only : surface_env_t, prepare_snow_stage
    use ed_soil_water, only : pond_inflow
-   use ed_therm_lib,        only :   internal_energy_liquid, liquid_energy_to_temp,                              &
+   use ed_therm_lib,          only : internal_energy_liquid, liquid_energy_to_temp,                              &
                                      cas_enthalpy_to_temp, air_vpd,                                             &
                                      soil_thermal_conductivity, specific_humidity_to_vapor_pressure
-   use ed_numerics,         only :   weighted_mean
+   use ed_numerics,           only : weighted_mean
    implicit none
    private
 

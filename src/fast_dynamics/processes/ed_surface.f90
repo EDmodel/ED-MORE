@@ -16,7 +16,7 @@ module ed_surface
    use ed_kinds,                only : wp, ik
    use ed_constants,            only : t_3ple, tiny_num, cp_air, cp_ice, cp_liq, stefan_boltzmann, &
                                        latent_heat_fusion, tsupercool_liq
-   use ed_therm_lib,          only :   internal_energy_to_temp, sat_specific_humidity,                        &
+   use ed_therm_lib,            only : internal_energy_to_temp, sat_specific_humidity,                        &
                                        sat_specific_humidity_temp_deriv, enthalpy_vapor,           &
                                        internal_energy_liquid, precip_enthalpy, liquid_energy_to_temp
    use ed_patch_state_vars,     only : snow_state_t

@@ -69,7 +69,7 @@ endfunction()
 
 # ed_write_config_keys(<main toml> <pft toml> <include file>): write MAIN_KEYS and PFT_KEYS. The
 # file is rewritten only when its text changes, so a re-configure does not force a rebuild.
-function(ed_write_config_keys main_toml pft_toml   out_inc)
+function(ed_write_config_keys main_toml pft_toml out_inc)
    ed_toml_keys("${main_toml}" main_keys)
    ed_toml_keys("${pft_toml}" pft_keys)
    ed_fortran_key_array(MAIN_KEYS "${main_keys}" main_decl)

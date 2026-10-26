@@ -14,7 +14,7 @@
 module ed_slow_state
    use ed_kinds,                     only : wp, ik
    use ed_constants,                 only : day_sec, tiny_num, grav_head, kgc_2_umol
-   use ed_config,                    only : ed_config_t,   growth_window_steps
+   use ed_config,                    only : ed_config_t, growth_window_steps
    use ed_plant_hydr_lib,            only : water_curve_t, tissue_psi_to_water, tissue_water_to_psi,     &
                                             tissue_capped_water
    use ed_therm_lib,                 only : internal_energy_liquid
@@ -25,7 +25,7 @@ module ed_slow_state
    use ed_slow_ledger,               only : slow_ledger_t, slow_ledger_declare, slow_ledger_soil_check
    use ed_plant_carbon_allocation,   only : plant_carbon_allocation, cohort_carbon_demand,               &
                                             growth_window_so_far, growth_sink_limitation
-   use ed_diag_vars,               only :   CO_NPP_LEAF, CO_NPP_FINEROOT, CO_NPP_WOOD, CO_NPP_STORAGE,   &
+   use ed_diag_vars,                 only : CO_NPP_LEAF, CO_NPP_FINEROOT, CO_NPP_WOOD, CO_NPP_STORAGE,   &
                                             CO_NPP_REPRO, CO_GROWTH_RESP, CO_EXUDATE,   &
                                             PA_MORT_C_BACKGROUND
    use ed_leaf_params,               only : leaf_physiology_params_t
@@ -35,9 +35,9 @@ module ed_slow_state
    use ed_plant_phenology,           only : pheno_env_t, pheno_state_t, pheno_out_t, phenology_kernel
    use ed_plant_traits,              only : light_plastic_traits, update_plastic_trait,                  &
                                             acclimate_leaf_photo_table
-   use ed_soil_carbon,             only :   add_necromass, build_litter_input, soil_carbon_step,         &
+   use ed_soil_carbon,               only : add_necromass, build_litter_input, soil_carbon_step,         &
                                             soil_carbon_out_t
-   use ed_demography,              only :   founds_cohort, disturbed_fraction, survives_treefall,        &
+   use ed_demography,                only : founds_cohort, disturbed_fraction, survives_treefall,        &
                                             recruit_efficiency, npp_to_growth, camac_mortality,          &
                                             decline_to_floor_mortality, npp_to_recruitment
    implicit none
@@ -200,7 +200,7 @@ contains
    !---------------------------------------------------------------------------------------!
    subroutine reacclimate_plant_traits(poly, cfg, leaf_carbon_new, storage_new)
       type(polygon_t),       intent(inout) :: poly
-      type(ed_config_t),     intent(in)    :: cfg
+      type(ed_config_t),   intent(in)      :: cfg
       real(wp), allocatable, intent(out)   :: leaf_carbon_new(:)   !< [kgC/plant] (cohort)
       real(wp), allocatable, intent(out)   :: storage_new(:)       !< [kgC/plant] (cohort)
       integer(ik) :: j, pf
@@ -283,7 +283,7 @@ contains
    !---------------------------------------------------------------------------------------!
    subroutine compute_carbon_allocation(poly, cfg, step)
       type(polygon_t),         intent(inout) :: poly   !< no pool moves here; inout for the litter, rows and patch rates
-      type(ed_config_t),       intent(in)    :: cfg
+      type(ed_config_t),     intent(in)      :: cfg
       type(slow_step_data_t),  intent(inout) :: step
       integer(ik) :: n, j, pf, ip
       real(wp)    :: dt_yr
@@ -655,7 +655,7 @@ contains
    !---------------------------------------------------------------------------------------!
    subroutine shed_excess_tissue_water(poly, cfg, water_shed)
       type(polygon_t),     intent(inout) :: poly
-      type(ed_config_t),   intent(in)    :: cfg
+      type(ed_config_t), intent(in)      :: cfg
       real(wp),            intent(out)   :: water_shed     !< [kg/m2 site] the water shed
       type(water_curve_t) :: leaf_curve, wood_curve
       real(wp)    :: leaf_kept, wood_kept, excess, excess_enth

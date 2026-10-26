@@ -10,27 +10,27 @@
 module ed_config_io
    use ed_kinds,      only : wp, ik
    use ed_allometry_lib, only : HEIGHT_POWER, HEIGHT_CHAVE
-   use ed_config,     only :   ed_config_t, derive_parameters, alloc_pft_table, INIT_CENSUS,        &
+   use ed_config,       only : ed_config_t, derive_parameters, alloc_pft_table, INIT_CENSUS,        &
                                INIT_RESTART
-   use ed_pft_derive, only :   pft_stomata_psi_onset, pft_wstress_psi_open, pft_wstress_psi_close
+   use ed_pft_derive,   only : pft_stomata_psi_onset, pft_wstress_psi_open, pft_wstress_psi_close
    use ed_fast_params,     only : INTEG_ESDIRK2, INTEG_RK45, RK45_RTOL
    use ed_soil_params,     only : soil_params_t, ENERGY_BC_GEOTHERMAL, ENERGY_BC_DIRICHLET,           &
                                   SOIL_BC_DRAIN, SOIL_BC_AQUIFER
-   use ed_region_params, only :   RUN_MODE_SITE, RUN_MODE_REGION
-   use ed_soil_hydr_lib,   only   : SOIL_RETENTION_VG, SOIL_RETENTION_CAMPBELL
-   use ed_leaf_params,   only :   leaf_physiology_params_t, SM_LEUNING, SM_MEDLYN, SM_KATUL, COLIM_MIN,        &
+   use ed_region_params,   only : RUN_MODE_SITE, RUN_MODE_REGION
+   use ed_soil_hydr_lib,   only : SOIL_RETENTION_VG, SOIL_RETENTION_CAMPBELL
+   use ed_leaf_params,     only : leaf_physiology_params_t, SM_LEUNING, SM_MEDLYN, SM_KATUL, COLIM_MIN,        &
                                   COLIM_QUADRATIC
-   use ed_therm_lib,     only :   TEMP_RESPONSE_ARRHENIUS, TEMP_RESPONSE_PEAKED
-   use ed_radiation_lib,  only :   LW_CLEAR_BRUTSAERT, LW_CLEAR_IDSO, SWPART_PASSTHROUGH, SWPART_CLEARIDX,        &
+   use ed_therm_lib,       only : TEMP_RESPONSE_ARRHENIUS, TEMP_RESPONSE_PEAKED
+   use ed_radiation_lib,    only : LW_CLEAR_BRUTSAERT, LW_CLEAR_IDSO, SWPART_PASSTHROUGH, SWPART_CLEARIDX,        &
                                    SWPART_WEISS_NORMAN
-   use ed_forcing_params, only :   CO2_SOURCE_CONST, CO2_SOURCE_FILE, HEIGHT_ABOVE_ZERO_PLANE,                    &
+   use ed_forcing_params,   only : CO2_SOURCE_CONST, CO2_SOURCE_FILE, HEIGHT_ABOVE_ZERO_PLANE,                    &
                                    HEIGHT_ABOVE_GROUND, WIND_EXPOSURE_OPEN_TERRAIN, WIND_EXPOSURE_LOCAL,          &
                                    forcing_params_t, MET_BACKEND_DEFAULT, MET_BACKEND_ERA5LAND, METAVG_END,       &
                                    METAVG_BEGIN, LW_FILE, LW_SYNTHESIZE, CLAMP_ERROR, CLAMP_HOLD,                 &
                                    GRIDMATCH_EXPLICIT, GRIDMATCH_NEAREST
    use ed_output_params, only : output_params_t, MAX_DBH_EDGE, SYNC_FLUSH, SYNC_NEVER, FC_DAY, FC_MONTH,      &
                                  FC_YEAR, FC_RUN, STATE_DAYS, STATE_MONTHS, STATE_YEARS
-   use ed_time,       only :   ed_time_t, string_to_time
+   use ed_time,       only : ed_time_t, string_to_time
    use ed_biophysics_params,   only : snow_params_t, aero_params_t
    use ed_biogeochem_params,   only : soil_carbon_params_t, DECOMP_STEP_EULER, DECOMP_STEP_EXPM,   &
                                     DECOMP_SCHEME_ED2, DECOMP_SCHEME_CENTURY5
@@ -39,12 +39,12 @@ module ed_config_io
                               toml_int, toml_real, toml_table_count,                        &
                                toml_logical, toml_string, toml_real_array, toml_record_reset,  &
                                toml_is_array, toml_string_array
-   use ed_config_check, only   : key_report_t, check_config_keys, check_key_use, validate_config,     &
+   use ed_config_check,   only : key_report_t, check_config_keys, check_key_use, validate_config,     &
                                  MAIN_KEYS, PFT_KEYS, SITE_GROUND_KEYS
    implicit none
    private
 
-   public :: load_ed_config,   write_pft_params_csv
+   public :: load_ed_config, write_pft_params_csv
    public :: load_fast_params, load_soil, load_snow_params, load_aero_params   !< exposed for unit tests
 
    integer(ik), parameter :: MAXPFT  = 64_ik    !< largest PFT count the array buffers handle

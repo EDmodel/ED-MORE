@@ -1,16 +1,16 @@
 ! SPDX-License-Identifier: Apache-2.0
 !==========================================================================================!
-! ed_main -- the executable: parse the command line, drive the run, and turn a run         !
-! status into an exit code.                                                                !
+! ed_main -- the program behind the edmore executable: parse the command line, drive the   !
+! run, and turn a run status into an exit code.                                            !
 !                                                                                          !
 ! The model lives in ed_region (open / step / finalize), and this program is one of its    !
 ! two callers; the other is the C-API shim ed_c_api_run, which lets Python drive the       !
-! coupled model (ed.model). Anything added here is unreachable from Python, so the         !
+! coupled model (edmore.model). Anything added here is unreachable from Python, so the     !
 ! program stays this thin.                                                                 !
 !                                                                                          !
-! Usage:  ed_main [main.toml]      (default ./ed_config_main.toml; a missing file or       !
+! Usage:  edmore [main.toml]      (default ./ed_config_main.toml; a missing file or        !
 !                                     required key is an error: docs/configuration.md)     !
-!         ed_main --dump-io-config [main.toml]                                             !
+!         edmore --dump-io-config [main.toml]                                              !
 !                                     write ed_io_config.toml, listing every output        !
 !                                     variable with a comment, and exit                    !
 !==========================================================================================!

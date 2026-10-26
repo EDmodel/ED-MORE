@@ -3,7 +3,7 @@
 ! ed_region -- a run: one polygon or many, in one process                                  !
 ! (docs/science/order_of_processes.md §1; the configuration is docs/configuration.md).     !
 ! Every run goes through here: ed_main steps it a month at a time, and the C-API shim      !
-! ed_c_api_run (Python's ed.model) one slow step at a time.                                !
+! ed_c_api_run (Python's edmore.model) one slow step at a time.                            !
 !                                                                                          !
 ! [run].mode chooses the polygons: "site" (the default) is one polygon at the [site]       !
 ! location, on either forcing format; "region" is every selected cell of a box of the      !
@@ -627,7 +627,7 @@ contains
    !----- A year's summary: one polygon's stand every 5 years, or a line for the polygons' mean    !
    !      and range of AGB and LAI every year, with what the forcing reads cost. ------------------!
    subroutine year_summary(reg)
-      type(ed_region_t),   intent(in) :: reg
+      type(ed_region_t), intent(in) :: reg
       character(len=19) :: when
       real(wp)    :: agb(size(reg%poly)), lai(size(reg%poly))
       integer(ik) :: p

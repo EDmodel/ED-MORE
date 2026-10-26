@@ -232,7 +232,7 @@ contains
    !---------------------------------------------------------------------------------------!
    subroutine restructure_census_stand(poly, cfg)
       type(polygon_t),     intent(inout) :: poly
-      type(ed_config_t),   intent(in)    :: cfg
+      type(ed_config_t), intent(in)      :: cfg
       real(wp) :: water_shed, kill_carbon   !< what the cull handed on; a start books no ledger
       type(kill_report_t) :: kills
       if (.not. cfg%demography%demography_on) return

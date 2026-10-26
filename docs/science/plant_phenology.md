@@ -188,7 +188,7 @@ regrow under the flush cap.
 all fine-root loss to storage ([`plant_carbon_allocation.md`](plant_carbon_allocation.md) §1, eq. (2)).
 
 The same routine is exposed through the C API (`ed_leaf_turnover_step`), so the Python front end
-(`ed.plant.pheno.leaf_step`) applies exactly the carbon layer's rule.
+(`edmore.plant.pheno.leaf_step`) applies exactly the carbon layer's rule.
 
 ## 6. Leaf habits as parameter sets
 
@@ -308,7 +308,7 @@ per-cohort state and are written to the state file.
 | hours of light at each cohort's top | `ed_canopy_radiation`: `rad_out_t%incid_top`; `ed_fast_forcing` (`par_top`); `ed_fast_state`: `accumulate_fast_to_slow` (`light_hours_accum`) |
 | turnover-first carbon demand | `ed_plant_carbon_allocation`: `cohort_carbon_demand` (called from `ed_slow_state`: `compute_carbon_allocation`) |
 | C API | `ed_c_api_phenology`: `ed_phenology_step`, `ed_leaf_turnover_step`, `ed_daylength` |
-| Python front end + example | `ed.plant.pheno`; `examples/example02_canopy_phenology/` |
+| Python front end + example | `edmore.plant.pheno`; `examples/example02_canopy_phenology/` |
 
 ## References
 

@@ -5,8 +5,8 @@
 ! setup (make_site_surface, through site_config); the record itself is never state.        !
 !==========================================================================================!
 module ed_sites_params
-   use ed_kinds,                only : wp, ik
-   use ed_soil_params, only :   soil_params_t
+   use ed_kinds,              only : wp, ik
+   use ed_soil_params, only : soil_params_t
    implicit none
    private
 

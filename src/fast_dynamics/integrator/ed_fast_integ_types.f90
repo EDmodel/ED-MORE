@@ -15,25 +15,25 @@
 ! below every other integrator module (docs/science/numerical_scheme.md §2-§3).            !
 !==========================================================================================!
 module ed_fast_integ_types
-   use ed_kinds, only : wp,   ik
-   use ed_constants, only :   n_soil_layer_max
+   use ed_kinds, only : wp, ik
+   use ed_constants, only : n_soil_layer_max
    use ed_pft_params, only : leaf_photo_table_t
-   use ed_patch_state_vars,   only : cas_state_t,   soil_water_state_t, soil_energy_state_t, snow_state_t, soil_carbon_state_t
-   use ed_therm_lib, only : cas_temp_to_enthalpy,   cas_enthalpy_to_temp
+   use ed_patch_state_vars,   only : cas_state_t, soil_water_state_t, soil_energy_state_t, snow_state_t, soil_carbon_state_t
+   use ed_therm_lib, only : cas_temp_to_enthalpy, cas_enthalpy_to_temp
    use ed_biophysics_params,   only : aero_params_t
    use ed_biogeochem_params,   only : N_SOIL_POOL
-   use ed_budget_check, only   : budget_t
-   use ed_linear_algebra, only   : arrowhead_system_t
+   use ed_budget_check, only : budget_t
+   use ed_linear_algebra, only : arrowhead_system_t
    use ed_soil_water, only : ground_evap_env_t
    use ed_soil_hydr_lib, only : soil_ice_t
    use ed_canopy_aerodynamics, only : aero_env_t, aero_args_t, aero_out_t, ensure_aero_out_capacity
    use ed_canopy_air_space, only : cas_env_t
    use ed_plant_energy,   only : plant_energy_env_t
    use ed_canopy_water,   only : canopy_water_out_t
-   use ed_surface, only   : surface_env_t, snow_out_t
-   use ed_soil_heat, only   : soil_layer_temp
-   use ed_soil_params, only   : soil_profile_t
-   use ed_diag_vars, only :   N_CO_FAST_ROWS
+   use ed_surface, only : surface_env_t, snow_out_t
+   use ed_soil_heat, only : soil_layer_temp
+   use ed_soil_params, only : soil_profile_t
+   use ed_diag_vars, only : N_CO_FAST_ROWS
    use ed_state_defaults,    only : UNSET_NEGATIVE
    implicit none
    private

@@ -11,7 +11,7 @@
 module ed_netcdf_c
    use iso_c_binding, only : c_int, c_size_t, c_double, c_float, c_char, c_ptr, c_null_char,           &
                              c_f_pointer, c_associated
-   use ed_kinds,    only :   ik
+   use ed_kinds,      only : ik
    implicit none
    public
 

@@ -26,7 +26,7 @@ module ed_fast_dynamics
                                        WORK_WATER_NEWTON, WORK_WATER_REJECT, WORK_WATER_NFAIL, WORK_RK45_RESCUE, &
                                        WORK_CLAMP_STAGE
    use ed_fast_integ_stepper,          only : fast_step
-   use ed_fast_state,         only :   reset_fast_to_slow, gather_patch, scatter_patch, accumulate_fast_to_slow,  &
+   use ed_fast_state,           only : reset_fast_to_slow, gather_patch, scatter_patch, accumulate_fast_to_slow,  &
                                        seed_start_canopy_air
    use ed_fast_forcing,         only : sample_window, site_forcing, patch_forcing
    use ed_fast_diag,            only : size_staging, record_substep, fold_window
@@ -80,7 +80,7 @@ contains
                             n_budget_fail, out_bufs, run_energy_budget, run_water_budget,      &
                             run_face_budget, patch_threads)
       type(polygon_t),      intent(inout) :: poly
-      type(ed_config_t),    intent(in)    :: cfg
+      type(ed_config_t),  intent(in)      :: cfg
       type(met_source_t), optional, intent(in)    :: met_src       !< the run's forcing source (read-only here)
       type(met_cursor_t), optional, intent(inout) :: met_cur       !< this polygon's cursor (per-sub-step met)
       type(ed_time_t),    optional, intent(in)    :: step_start    !< calendar time at the start of this slow step

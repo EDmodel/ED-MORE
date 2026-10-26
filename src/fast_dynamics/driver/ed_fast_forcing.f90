@@ -16,7 +16,7 @@ module ed_fast_forcing
    use ed_radiation_lib,        only : slope_beam_factor
    use ed_polygon_state_vars,   only : polygon_t
    use ed_pft_params,           only : N_RAD_BAND_DEFAULT, RAD_VIS, RAD_NIR, RAD_LW
-   use ed_canopy_radiation, only :   rad_env_t, rad_out_t, alloc_rad_env, ground_optics_env_t
+   use ed_canopy_radiation, only : rad_env_t, rad_out_t, alloc_rad_env, ground_optics_env_t
    use ed_canopy_radiation,     only : canopy_radiation, ground_optics
    use ed_surface,              only : snow_blend_ground_optics, ground_tile_radiation
    use ed_fast_integ_types,         only : fast_static_state_t, fast_dynamic_state_t, fast_forcing_t

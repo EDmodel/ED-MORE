@@ -73,7 +73,7 @@ contains
    !      sample today keeps its value (psi_leaf <= 0, so the guard tests the reset value). ---------!
    subroutine reset_fast_to_slow(poly, cfg)
       type(polygon_t),     intent(inout) :: poly
-      type(ed_config_t),   intent(in)    :: cfg
+      type(ed_config_t), intent(in)      :: cfg
       poly%cohort%gpp_accum(1:poly%cohort%n)       = 0.0_wp
       poly%cohort%leaf_resp_accum(1:poly%cohort%n) = 0.0_wp
       poly%cohort%stem_resp_accum(1:poly%cohort%n) = 0.0_wp

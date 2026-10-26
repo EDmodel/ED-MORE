@@ -19,7 +19,7 @@ module ed_slow_ledger
    use ed_budget_check,         only : BUDGET_RTOL_FLUX
    use ed_soil_carbon,          only : soil_carbon_bad_pool, soil_carbon_out_t
    use ed_constants,            only : rho_air_ref, umol_2_kgc
-   use ed_time,                 only : ed_time_t,   time_to_string
+   use ed_time,                 only : ed_time_t, time_to_string
    use ed_biogeochem_params,    only : N_SOIL_POOL, SOIL_POOL_NAME
    implicit none
    private
@@ -109,7 +109,7 @@ contains
       type(slow_ledger_t), intent(inout) :: ledger
       type(polygon_t),     intent(in)    :: poly
       type(ed_config_t),   intent(in)    :: cfg
-      type(ed_time_t),     intent(in), optional :: step_start
+      type(ed_time_t),   intent(in), optional :: step_start
       ledger%step_label = ''
       if (present(step_start)) ledger%step_label = time_to_string(step_start)
       if (.not. ledger%active) return

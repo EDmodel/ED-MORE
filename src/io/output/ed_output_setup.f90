@@ -19,7 +19,7 @@ module ed_output_setup
                                    DIM_SOIL, DIM_PFT, DIM_SIZE, DIM_SOIL_PATCH, DIM_SITE, MISSING_VALUE,          &
                                    MISSING_INT, DIM_SCALAR
    use ed_constants,         only : n_soil_layer_max
-   use ed_output_registry,  only :   build_output_registry, freq_bit, parse_stream_mask, selection_t,           &
+   use ed_output_registry,    only : build_output_registry, freq_bit, parse_stream_mask, selection_t,           &
                                      apply_selections, resolve_streams, OVR_TRUE, OVR_FALSE, OVR_MASK
    use ed_output_integrate,   only : alloc_integ_buffer
    use ed_output_extract,     only : FLD_C_DIAG0, FLD_P_DIAG0, FLD_PY_DIAG0, FLD_SI_DIAG0, SRC_F_CO0, SRC_NONE
@@ -42,7 +42,7 @@ contains
    ! attach_output, which gives the files that polygon's own sites.                        !
    !---------------------------------------------------------------------------------------!
    subroutine open_output_files(cfg, files, verbose, polygon_id, n_site, lat, lon, row, col)
-      type(ed_config_t),    intent(in)    :: cfg
+      type(ed_config_t),  intent(in)      :: cfg
       type(output_files_t), intent(inout) :: files
       logical,              intent(in)    :: verbose
       integer(ik),          intent(in)    :: polygon_id(:)   !< the polygons' ids ...
@@ -62,7 +62,7 @@ contains
    !      variables, and its row of the per-polygon variables: each site's area, terrain, layers  !
    !      and soil column, and the height allometry's site index its cell's map gave it. ---------!
    subroutine attach_output(cfg, files, bufs, poly, p)
-      type(ed_config_t),      intent(in)    :: cfg
+      type(ed_config_t),    intent(in)      :: cfg
       type(output_files_t),   intent(inout) :: files
       type(output_buffers_t), intent(inout) :: bufs
       type(polygon_t),        intent(inout) :: poly
@@ -147,7 +147,7 @@ contains
    !=======================================================================================!
    subroutine setup_output_files(files, cfg)
       type(output_files_t),   intent(out) :: files
-      type(ed_config_t),      intent(in)  :: cfg
+      type(ed_config_t),    intent(in)    :: cfg
       integer(ik) :: ne
       files%enabled = cfg%output%enabled
       files%fast_loop_on = cfg%fast_biophysics_on

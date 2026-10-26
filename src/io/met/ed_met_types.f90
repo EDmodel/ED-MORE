@@ -18,7 +18,7 @@ module ed_met_types
    public :: met_forcing_t, met_record_t, met_source_t, met_cursor_t, met_grid_t, met_cells_t, met_month_t
    public :: co2_series_t
    public :: HUMIDITY_QAIR, HUMIDITY_RHAIR, HUMIDITY_TDEW
-   public :: N_ED_FIELD, ED_FIELD, FLD_TAIR, FLD_QAIR, FLD_RHAIR, FLD_TDEW,     FLD_PSURF, FLD_WIND
+   public :: N_ED_FIELD, ED_FIELD, FLD_TAIR, FLD_QAIR, FLD_RHAIR, FLD_TDEW, FLD_PSURF, FLD_WIND
    public :: FLD_U10, FLD_V10, FLD_RAINF, FLD_LWDOWN, FLD_SWDOWN, FLD_PAR_BEAM, FLD_PAR_DIFFUSE
    public :: FLD_NIR_BEAM, FLD_NIR_DIFFUSE
 
@@ -73,7 +73,7 @@ module ed_met_types
    !----- One record as ingested (read_record), before interpolation: converted, lapsed when the run !
    !      lapses, its shortwave in four streams. No CO2 (docs/science/forcing.md §12). ------------!
    type :: met_record_t
-      type(ed_time_t) ::   when
+      type(ed_time_t) :: when
       real(wp) :: air_temp = 288.0_wp, air_shv = 0.008_wp, air_pressure = 101325.0_wp
       real(wp) :: rain = 0.0_wp, wind = 2.0_wp, lw_down = 380.0_wp
       real(wp) :: wind_u = 2.0_wp, wind_v = 0.0_wp          !< wind vector (only when the source has it)
@@ -148,7 +148,7 @@ module ed_met_types
       integer(ik) :: nrec       = 0_ik                      !< total time records on the axis
       integer(ik) :: rec_first  = 1_ik                      !< the record a cursor's first bracket starts at
       real(wp)    :: dt_forcing  = 3600.0_wp                !< [s] native forcing interval
-      type(ed_time_t)  ::   base_time                       !< time-coordinate anchor ("seconds since base_time")
+      type(ed_time_t)  :: base_time                         !< time-coordinate anchor ("seconds since base_time")
       real(wp), allocatable :: time_sec(:)                  !< [s] cached time coordinate (seconds since base_time)
       !----- The declared recycle window, checked against the file at open (docs/science/forcing.md §9). !
       type(ed_time_t) :: cycle_anchor                       !< = fcfg%recycle_start; the cycle's first instant
@@ -173,7 +173,7 @@ module ed_met_types
       integer(ik) :: n_head    = 0_ik                       !< records in head (0 = none)
       integer(ik) :: n_loads   = 0_ik                       !< archive month loads so far (tests: none inside a step)
       real(wp),    allocatable :: series(:,:)               !< (record, column) ED-MORE forcing file at grid_index
-      integer(ik) :: series_col(N_ED_FIELD)   = 0_ik        !< each ED_FIELD's column in series (0 = absent)
+      integer(ik) :: series_col(N_ED_FIELD) = 0_ik          !< each ED_FIELD's column in series (0 = absent)
       !----- The prescribed CO2 (co2_source = "file"): one global series, read at open. ----------!
       type(co2_series_t) :: co2
    end type met_source_t
