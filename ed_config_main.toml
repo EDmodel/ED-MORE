@@ -171,7 +171,7 @@ growth_memory_days        = 365.0    # [day] the window of the growth average mo
 [init]
 # How the run starts (docs/configuration.md "How a run starts").
 init_mode    = 0                     # 0 near-bare ground | 1 a cohort census | 2 a state file
-# restart_file = "ed_output-S-22500101000000.nc"   # the state file: required by init_mode = 2
+# restart_file = "ED_output-S-22500101000000.nc"   # the state file: required by init_mode = 2
 census_file  = "data/census_example.csv"   # the cohort CSV: required by init_mode = 1, and read by the
                                            #   Python census start in any mode
 pft_config   = "ed_config_pft.toml"        # the PFT file
@@ -189,10 +189,10 @@ pft_config   = "ed_config_pft.toml"        # the PFT file
 state_write       = false         # write state files (the three keys below are required with it)
 state_interval    = "50 years"    # one every "N days", "N months" or "N years", and one at the end
 state_file_dir    = "."           # their directory, and that of <prefix>_pft_parameters.csv
-state_file_prefix = "ed_output"   # their file-name stem
+state_file_prefix = "ED_output"   # their file-name stem
 enabled       = false           # write the diagnostics
 dir           = "out"           # directory
-prefix        = "ed"            # file-name stem
+prefix        = "ED"            # file-name stem
 io_config     = ""              # what is written: a file of [variables] lines, each a name or a pattern
                                 #   ("*_co" = false, "mean_*_py" = "M Y"); "" = the defaults. `edmore
                                 #   --dump-io-config` lists every variable (docs/science/diagnostics.md §5)

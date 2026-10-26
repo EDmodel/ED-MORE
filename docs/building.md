@@ -191,7 +191,7 @@ Output is **byte-identical at any thread count**, and the test suite asserts it.
 - The Python wheel builds serial (`python/pyproject.toml`), so `libedmore.so` never brings a second
   OpenMP runtime into a Python process.
 - gfortran with a conda netCDF prefix warns that the prefix's `libgomp.so.1` may hide the
-  compiler's. That is harmless when the conda copy is the newer one, as it is in the `ed`
+  compiler's. That is harmless when the conda copy is the newer one, as it is in the `edmore`
   environment (GCC 16 against the system's GCC 11), and the test suite passes that way.
 
 **An OpenMP build does not reproduce a serial build bit for bit.** Compiling the patch loop as a

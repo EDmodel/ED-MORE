@@ -15,7 +15,7 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 ### Upgrading
 
 - MEDS is now ED-MORE. The config files are `ed_config_main.toml`, `ed_config_pft.toml` and
-  `ed_io_config.toml`, and output files start with `ed` instead of `meds`; config keys and output
+  `ed_io_config.toml`, and output files start with `ED` instead of `meds`; config keys and output
   variables keep their names. The executable is `edmore` (was `meds_main`), the library
   `libedmore.so` (was `libmeds.so`), the CMake options `ED_*` (were `MEDS_*`), and source files and
   modules start with `ed_` (were `meds_`). (#4)

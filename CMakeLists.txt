@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #==========================================================================================#
-# ED-MORE -- Modular Ecosystem Dynamics Simulator / Modern Ecosystem Demography Simulator     #
-#         (standalone demographic core).                                                     #
+# ED-MORE -- a Modular, Open, Reproducible, and Extensible Ecosystem Demography model.     #
 #                                                                                          #
 # CMake handles Fortran module-dependency ordering automatically (no hand-maintained object #
 # lists, no repeated-build hack).                                                            #
@@ -14,7 +13,7 @@
 #==========================================================================================#
 cmake_minimum_required(VERSION 3.20)
 project(ED-MORE VERSION 0.4.0 LANGUAGES Fortran
-        DESCRIPTION "Modular Ecosystem Dynamics Simulator (Modern Ecosystem Demography Simulator)")
+        DESCRIPTION "A Modular, Open, Reproducible, and Extensible Ecosystem Demography model")
 
 #      A configure that names no build type gets the dev kind (docs/building.md, "Build kinds"):
 #      Release, the project's -O2, code for any x86-64 CPU. The debug kind is asked for by name.

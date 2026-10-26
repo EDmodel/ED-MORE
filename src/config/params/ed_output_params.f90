@@ -72,7 +72,7 @@ module ed_output_params
    type :: output_params_t
       logical            :: enabled     = .false.               !< master switch
       character(len=256) :: dir         = '.'                   !< output directory
-      character(len=256) :: prefix      = 'ed'                  !< filename stem
+      character(len=256) :: prefix      = 'ED'                  !< filename stem
       character(len=256) :: io_config   = ''                    !< path to ed_io_config.toml ('' -> the defaults)
       integer(ik)        :: cohort_max  = 4096_ik               !< cohort slab size: a run stops if its live count exceeds it
       integer(ik)        :: patch_max   = 256_ik                !< patch slab size: likewise
@@ -87,7 +87,7 @@ module ed_output_params
       integer(ik)        :: state_every       = 1_ik
       integer(ik)        :: state_unit        = STATE_YEARS
       character(len=256) :: state_file_dir    = '.'            !< their directory, and the PFT table's
-      character(len=256) :: state_file_prefix = 'ed'           !< their file-name stem
+      character(len=256) :: state_file_prefix = 'ED'           !< their file-name stem
       !----- DBH class edges [cm]; empty here, setup_output_files installs the default. --------!
       integer(ik)        :: n_dbh_class = 0_ik
       real(wp)           :: dbh_class_edges(MAX_DBH_EDGE) = 0.0_wp

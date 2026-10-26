@@ -812,7 +812,7 @@ contains
       cfg%output%enabled = toml_logical(t, 'output.enabled', .false.)    ! off by default
       if (.not. cfg%output%enabled) return
       cfg%output%dir                 = toml_string (t, 'output.dir',                 '.')
-      cfg%output%prefix              = toml_string (t, 'output.prefix',              'ed')
+      cfg%output%prefix              = toml_string (t, 'output.prefix',              'ED')
       cfg%output%io_config           = toml_string (t, 'output.io_config',           '')
       cfg%output%cohort_max          = toml_int    (t, 'output.cohort_max',          4096_ik)
       cfg%output%patch_max           = toml_int    (t, 'output.patch_max',           256_ik)

@@ -449,7 +449,7 @@ row ([Regional runs](#regional-runs) gives the layout).
 | Key | Default | Meaning |
 |---|---|---|
 | `enabled` | `false` | write the diagnostics |
-| `dir`, `prefix` | `"."`, `"ed"` | directory and file-name stem of the diagnostics |
+| `dir`, `prefix` | `"."`, `"ED"` | directory and file-name stem of the diagnostics |
 | `io_config` | `""` | the output-selection file; `""` writes every variable at its default tiers |
 | `cohort_max`, `patch_max` | 4096, 256 | the files' cohort and patch axis lengths; the run stops when a live count exceeds one |
 | `fast_interval_steps` | 4 | fast steps one sub-daily record spans (4 × 900 s is hourly); must divide the fast steps in a slow step |
