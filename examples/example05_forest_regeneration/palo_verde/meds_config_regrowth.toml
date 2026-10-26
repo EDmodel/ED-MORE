@@ -1,0 +1,176 @@
+# SPDX-License-Identifier: Apache-2.0
+# MEDS example 05, Palo Verde: the dry forest regrowing from bare ground for 150 years, June 1871 - May
+# 2021, at its ERA5-Land cell, with the four leaf habits of pft_parameters.toml (set against the 2009
+# inventory: meds_config_inventory.toml). It starts from 3 recruits per m2 of each PFT at 1.5 m
+# (data/pv_bare_start.csv), as example 06's regional run does; full demography; ERA5-Land 2003-2022
+# repeated and the CO2 of its history. Paths are relative to this folder.
+
+[run]
+dt_slow    = "1d"
+start_time = "1871-06-01"     # the start of the wet season
+end_time   = "2021-06-01"     # 150 years
+n_threads  = 12                # threads over the patches; the output is the same at any count
+
+#----- The column (example 04). ---------------------------------------------------------------------
+[fast]
+fast_biophysics_on  = true
+dt_fast             = "900s"
+time_integrator     = "esdirk2"
+rtol                = 2.0e-3
+canopy_water_on     = true       # the canopy intercepts rain and its film evaporates (condensate goes to soil layer 1)
+
+# Each cohort's Vcmax25, Rd25, SLA and leaf turnover rate follow the leaf area above it.
+[trait_dynamics]
+trait_plasticity_on = true
+fineroot_turnover_plastic = true      # fine roots, like leaves, turn over more slowly in the shade
+
+#----- The demography (example 03). -------------------------------------------------------------------
+[demography]
+demography_on             = true
+recruitment_on            = true
+cohort_fusion_on          = true
+patch_disturbance_on      = true
+patch_fusion_on           = true
+max_cohort                = 60
+n_cohort_fusion_iter      = 6
+cohort_size_tol_min       = 0.02
+cohort_size_tol_max       = 0.10
+cohort_lai_cap            = 1.0
+min_cohort_agb            = 1.0e-6
+negligible_nplant         = 1.0e-8
+split_eps                 = 1.0e-4
+cohort_fission_on         = true
+n_height_layers           = 16
+max_patch                 = 25       # enough that gaps stay apart from the closed canopy
+n_patch_fusion_iter       = 6
+patch_light_tol           = 0.05
+patch_light_tol_max       = 0.10
+patch_light_maxdev_factor = 1.5
+min_patch_area            = 1.0e-4
+conservation_tol          = 0.001
+growth_memory_days        = 365.0
+
+patch_disturbance_rate    = 0.014
+disturbance_survive_height = 10.0
+min_recruit_size          = 1.0e-2
+[init]
+init_mode    = 1
+census_file  = "data/pv_bare_start.csv"
+pft_config   = "pft_parameters.toml"
+soil_temp    = 300.0              # [K]
+soil_theta   = 0.42               # [m3/m3] wet: wet-season start (87 % of the way from residual to saturation)
+
+[output]
+state_write       = false
+state_interval    = "20 years"
+state_file_dir    = "output"
+state_file_prefix = "regrowth"
+enabled       = true
+dir           = "output"
+prefix        = "regrowth"
+sync_every    = "flush"
+# Monthly and yearly site and PFT totals (io_config_regrowth.toml); trees above and below 10 cm.
+io_config     = "io_config_regrowth.toml"
+dbh_class_edges = [0.0, 10.0, 1000.0]
+
+[output.fast]
+enabled    = false
+file_chunk = "month"
+
+[output.daily]
+enabled    = false
+file_chunk = "run"
+
+[output.monthly]
+enabled    = true
+file_chunk = "run"
+
+[output.annual]
+enabled    = true
+file_chunk = "run"
+
+#----- Leaf physiology (example 04's calibrated configuration). ----------------------------------------
+[leaf_physiology]
+stomatal_model     = "medlyn"
+temp_response_form = "peaked"
+colimitation       = "quadratic"
+use_boundary_layer = false
+kc25    = 40.49
+ko25    = 27840.0
+gstar25 = 4.275
+ea_kc     = 79430.0
+ea_ko     = 36380.0
+ea_gstar  = 37830.0
+ea_vcmax  = 65330.0
+ea_jmax   = 43540.0
+ea_rd     = 46390.0
+hd_vcmax  = 200000.0
+hd_jmax   = 200000.0
+hd_rd     = 200000.0
+ds_vcmax  = 641.129
+ds_jmax   = 640.592
+ds_rd     = 490.0
+o2_mol_frac      = 0.209
+leaf_absorptance = 0.85
+phi_psii         = 0.74
+
+[aerodynamics]
+z0m_ratio = 0.0535721             # the Palo Verde set's own, from example 04's fit on a 1.4 m soil column
+
+#----- The site and its weather. ----------------------------------------------------------------------
+[site]
+latitude              = 10.35
+longitude             = -85.35
+elevation             = 10.0
+apply_elevation_lapse = false
+
+# ERA5-Land at the Palo Verde cell (10.40 N, 85.30 W, 7.8 km away); the CO2 follows its history.
+[forcing]
+forcing_on     = true
+# ERA5-Land at Palo Verde's cell, 2003-2022 (run_palo_verde.py cuts it from the archive), repeated: model
+# year Y reads 2003 + (Y - 2003) mod 20.
+format         = "default"
+path           = "data/pv_era5land_2003-2022.nc"
+grid_index     = 1
+grid_match     = "explicit"
+# ERA5-Land's own heights (2 m air, 10 m wind over open ground); each sample is moved to the top of
+# every patch's canopy air.
+tq_height            = 2.0
+wind_height          = 10.0
+height_above         = "zero_plane"
+wind_exposure        = "open_terrain"
+wind_exposure_z0     = 0.03
+wind_blending_height = 40.0
+timestep       = "3600s"
+avg_convention = "end"
+sw_partition   = "clearidx"
+lwdown_source  = "file"
+co2_source     = "file"
+co2_file       = "../../../data/co2/co2_cmip7_global_annual_1000-2022.txt"
+recycle        = true
+recycle_start  = "2003-01-01 01:00:00"
+recycle_end    = "2023-01-01 01:00:00"
+start_clamp    = "error"
+
+#----- The soil: the forcing cell (10.4 N, 85.3 W) of the ED soil maps v2 (docs/configuration.md, Input maps). --
+[soil_carbon]
+soil_carbon_on = true             # starts empty; the start file carries no soil pools
+
+# A Cambisol, ~40 % clay at every depth, 1.57 m deep (the map's soil depth). Each SoilGrids layer's curve is
+# MEDS's pedotransfer function (Hodnett & Tomasella 2002 + Ottoni 2019 ksat; docs/science/soil_biophysics.md
+# eqs. (6)-(7)); one van Genuchten curve is fitted to their thickness-weighted average over the column, ksat
+# is their geometric mean, and the thermal properties are CLM5's from the texture (eq. (9)). The layers are
+# MEDS's default SoilGrids cut at the depth.
+[soil]
+depth       = 1.5712           # [m]
+theta_sat   = 0.4456
+theta_res   = 0.2354
+curve_par_a = 1.9268           # [1/m]
+curve_par_n = 1.3696
+ksat        = 3.00e-6          # [m/s]
+solid_conductivity = 5.57      # [W/m/K]
+dry_conductivity   = 0.208     # [W/m/K]
+dry_heat_capacity  = 1.26e6    # [J/m3/K]
+thermal_bottom_bc = "dirichlet"
+deep_temp  = 300.0               # [K] the map's deep_temp at this cell is 299.99
+deep_depth = 2.68               # [m] bottom node (1.29 m) + 1.973/sqrt(2) (docs/science/soil_biophysics.md eq. (13))

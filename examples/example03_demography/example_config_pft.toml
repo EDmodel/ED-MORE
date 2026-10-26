@@ -1,0 +1,126 @@
+# MEDS PFT configuration -- every PFT-specific parameter, its allometry and hydraulics among them.
+# Named by [init].pft_config in the main config. EVERY key is REQUIRED; a missing key is a hard error.
+#
+# The number of PFTs is the length of [pft].wood_density; every per-PFT array must match it.
+
+[pft]
+wood_density       = [0.36, 0.50, 0.68]    # [g/cm3] basal-area means of the BCI wood-density classes
+# The mortality hazard, mort_gamma + mort_alpha*exp(-mort_beta*growth_avg) (unused here: mortality is a census law).
+mort_gamma         = [0.02405204866515945, 0.013144921634338494, 0.0074671218975402125]   # [1/yr]
+mort_alpha         = [0.08993749192134758, 0.06165566842575936, 0.04330088203962493]      # [1/yr]
+mort_beta          = [16.23176227388226, 17.790921380676103, 19.385745356710245]          # [yr/cm]
+# The four reproduction keys are required by the loader and unused here: recruitment is a census law.
+reproduction_investment_fraction = [0.3, 0.3, 0.3]      # [--] growth fraction diverted to reproduction
+recruit_carbon_efficiency          = [1.0e-3, 1.0e-3, 1.0e-3] # [--] reproduction carbon -> establishable recruits
+seed_rain_recruits = [0.01, 0.01, 0.01]    # [plant/m2/yr] baseline external seed rain
+include_pft        = [1, 1, 1]             # 1 = PFT may recruit, 0 = excluded
+min_cohort_height       = 2.435            # [m] = dbh 1 cm on the BCI height curve; recruits born here
+min_repro_height   = [20.0, 20.0, 20.0]   # [m] a cohort reproduces from this height
+# Leaf photosynthesis / stomatal traits (FvCB C3 + Collatz C4). pathway: 1 = C3, 2 = C4.
+# (Used by the leaf gas-exchange model, which this example does not run: growth is a census law.)
+photosynthetic_pathway = [1, 1, 2]                  # pioneer C3, climax C3, a C4 grass
+vcmax25            = [60.0, 45.0, 40.0]             # [umol/m2/s] max carboxylation at 25 degC
+jmax_vcmax_ratio   = [1.8, 1.7, 4.0]                # [--] Jmax25/Vcmax25 (C4 ratio high; J unused for C4)
+tpu_vcmax_ratio    = [0.167, 0.167, 0.167]          # [--] TPU25/Vcmax25 (C3 product limit)
+rd_vcmax_ratio     = [0.015, 0.015, 0.025]          # [--] Rd25/Vcmax25 (leaf respiration)
+kp25               = [1.0e-9, 1.0e-9, 0.7]          # [mol/m2/s] C4 PEPcase slope (>0; ~unused for C3)
+stomatal_g0        = [0.01, 0.01, 0.04]             # [mol/m2/s] cuticular/residual conductance
+stomatal_g1        = [4.0, 3.0, 1.6]                # Medlyn [kPa^0.5] (Leuning would use ~8-12)
+stomatal_d0        = [1500.0, 1500.0, 1500.0]       # [Pa] Leuning humidity sensitivity
+quantum_yield_c4   = [0.0, 0.0, 0.04]               # [mol CO2/mol photon] C4 light slope (0 for C3)
+theta_j            = [0.85, 0.90, 0.85]             # [--] curvature of the J hyperbola ONLY (C3 co-limitation is theta_*_c3)
+theta_cj_c3        = [0.98, 0.98, 0.98]            # [--] C3 Ac/Aj co-limitation curvature (NOT theta_j)
+theta_ip_c3        = [0.95, 0.95, 0.95]            # [--] C3 (Ac,Aj)/Ap co-limitation curvature
+theta_cj_c4        = [0.80, 0.80, 0.80]             # [--] C4 co-limitation curvature 1 (C4 only)
+theta_ic_c4        = [0.95, 0.95, 0.95]             # [--] C4 co-limitation curvature 2 (C4 only)
+katul_lambda25     = [600.0, 800.0, 350.0]          # [umol CO2/mol H2O] Katul marginal water-use efficiency
+wstress_lambda_exp = [1.0, 1.0, 1.0]                # [--] Katul lambda water-stress exponent
+wstress_sref_stomata = [2.0, 2.0, 2.0]              # [1/MPa] Sabot stomatal-stress sensitivity
+                                                    #      (beta_stomata=exp(sref*(psi-psi_onset)), psi=predawn leaf psi)
+
+#----- Required by the loader; most belong to processes this example does not run: per-PFT
+#      respiration and canopy optics, the wood geometry, the carbon-allocation and litter traits.
+#      Values follow the root meds_config_pft.toml, which has the same three PFTs, except where a
+#      line says.
+is_woody           = [1, 1, 1]     # 1 = woody (0 = grass: no stem respiration)
+stem_resp_factor25 = [0.06, 0.06, 0.06]  # [umol CO2/m2 stem/s @25C]
+root_resp_factor25 = [0.30, 0.30, 0.30]  # [umol CO2/kgC fine root/s @25C]
+leaf_reflect_vis   = [0.10, 0.10, 0.10]   # [--] leaf VIS reflectance
+leaf_transmit_vis  = [0.05, 0.05, 0.05]   # [--] leaf VIS transmittance
+leaf_reflect_nir   = [0.45, 0.45, 0.45]   # [--] leaf NIR reflectance
+leaf_transmit_nir  = [0.25, 0.25, 0.25]   # [--] leaf NIR transmittance
+leaf_emissivity    = [0.97, 0.97, 0.97]    # [--] leaf thermal emissivity
+wood_reflect_vis   = [0.11, 0.11, 0.11]   # [--] wood/bark VIS reflectance
+wood_transmit_vis  = [0.001, 0.001, 0.001]   # [--] wood/bark VIS transmittance (near-opaque)
+wood_reflect_nir   = [0.25, 0.25, 0.25]   # [--] wood/bark NIR reflectance
+wood_transmit_nir  = [0.001, 0.001, 0.001]   # [--] wood/bark NIR transmittance
+wood_emissivity    = [0.90, 0.90, 0.90]    # [--] wood thermal emissivity
+leaf_clumping      = [0.80, 0.80, 0.80]    # [--] leaf clumping factor in (0,1]
+wood_clumping      = [0.50, 0.50, 0.50]    # [--] wood clumping factor in (0,1]
+leaf_angle_mean    = [45.0, 45.0, 45.0]   # [deg] mean leaf inclination (spherical: mean 57.3, std 21.6)
+leaf_angle_std     = [20.0, 20.0, 20.0]   # [deg] its standard deviation
+sla                    = [16.0, 13.0, 10.0]         # [m2/kgC] specific leaf area (pioneer high -> climax low)
+leaf_width         = [0.04, 0.04, 0.04]     # [m]  characteristic leaf width
+branch_diameter    = [0.02, 0.02, 0.02]     # [m]  characteristic branch diameter
+root_to_leaf_ratio     = [1.0, 1.0, 1.0]            # [--] fine-root:leaf target ratio (ED2 q)
+storage_cushion        = [0.5, 0.5, 0.5]  # [--] storage target, x (leaf + fine-root target):
+                                          #      0.5 is the leaf carbon at root_to_leaf_ratio 1
+growth_resp_factor     = [0.3, 0.3, 0.3]            # [--] construction cost (fraction of metabolic NPP)
+retained_carbon_fraction = [0.0, 0.0, 0.0]   # [--] no resorption, as in examples 04 and 05 (default 0.3)
+leaf_turnover_rate_toc = [1.0, 0.5, 0.33]          # [1/yr] top-of-canopy baseline leaf turnover
+# Light plasticity: a trait is its top-of-canopy value times exp(k * LAI above it), k in 1/(m2/m2).
+kplastic_vcmax         = [-0.1459341188305866, -0.11760191025318557, -0.10943768264434321]
+kplastic_rd            = [-0.1459341188305866, -0.11760191025318557, -0.10943768264434321]
+kplastic_sla           = [0.15654750929099287, 0.12615477645341722, 0.11739678683665906]
+kplastic_leaf_turnover = [-0.058535787713143994, -0.015560662518427415, 0.0]
+fineroot_turnover_rate = [1.0, 0.8, 0.6]            # [1/yr] baseline fine-root turnover
+f_labile_leaf          = [0.80, 0.70, 0.60]         # [--] labile fraction of leaf/storage/fine-root necromass
+f_labile_stem          = [0.05, 0.05, 0.05]         # [--] labile fraction of wood/CWD necromass
+struct_lignin_frac     = [0.20, 0.25, 0.30]         # [--] lignin fraction of the structural-litter stream
+
+[allometry]
+# Pan-tropical (ED2 iallom==3) size allometry. height = exp(b1Ht + b2Ht*ln dbh) capped at the
+# PFT's hgt_max; agb = agb_c1 * rho^agb_c2 * (dbh^2*h)^agb_c2; leaf_area = lai_b1 * (dbh^2*h)^lai_b2;
+b1Ht       = 1.139963
+b2Ht       = 0.564899
+agb_c1     = 0.03365        # [kgC] AGB scale: Chave et al. (2014) eq. 4, 0.0673 / C2B (dry mass to carbon)
+agb_c2     = 0.976          # AGB exponent on rho and on dbh^2*h: Chave et al. (2014) eq. 4
+lai_b1     = 0.23384770     # per-stem leaf-area scale: ED2 c14f15_bl_xx / C2B (= ED2 SLA*bleaf)
+lai_b2     = 0.6410495      # per-stem leaf-area exponent
+hgt_max            = [46.0, 46.0, 46.0]     # [m] the shipped cap; the BCI height curve stays below it (44.6 m at 300 cm)
+wai_b1                 = [0.0096, 0.0096, 0.0096]   # [--] ED2 b1WAI = 0.0192*0.5, broadleaf
+wai_b2                 = [2.0947, 2.0947, 2.0947]   # [--] ED2 b2WAI, broadleaf
+sapwood_area_b1        = [1.582, 1.582, 1.582]      # [cm2/cm^b2] ED2 b1SA, tropical broadleaf
+sapwood_area_b2        = [1.764, 1.764, 1.764]      # [--]        ED2 b2SA, tropical broadleaf
+aboveground_frac       = [0.7, 0.7, 0.7]            # [--] aboveground fraction of woody carbon (ED2 agf_bs)
+# Barro Colorado's height curve: the log-quadratic fitted, uniformly in ln dbh over 1-300 cm, to Cano et
+# al. (2019, Biogeosciences 16:847)'s curve for 9884 trees of the Barro Colorado Nature Monument; within
+# 4.3 % of it everywhere. E is 0, and chave_rse 0 because the fit is to that curve, not to scattered heights.
+height_allometry = "chave2014"
+chave_a    = 0.8898
+chave_b    = 0.7908
+chave_c    = -0.04923
+chave_rse  = 0.0
+chave_e    = 0.0
+
+[hydraulics]
+# The PFT's plant-hydraulics traits (meds_config_pft.toml documents each key); one value for every PFT,
+# or one per PFT.
+leaf_pi0             = -1.5                                                         # [MPa]
+leaf_elastic_mod     = 12.0                                                         # [MPa]
+leaf_apoplast_frac   = 0.3                                                          # [-]
+leaf_water_sat       = 2.0                                                          # [kg H2O/kgC]
+wood_pi0             = -1.0                                                         # [MPa]
+wood_elastic_mod     = 8.0                                                          # [MPa]
+wood_apoplast_frac   = 0.2                                                          # [-]
+wood_water_sat       = 1.0                                                          # [kg H2O/kgC]
+wood_psi50           = -2.0                                                         # [MPa]
+wood_kexp            = 2.0                                                          # [-]
+wood_kmax            = [5.8914373491131515, 4.177863535653273, 2.685588809977599]   # [kg/m/s/MPa]
+vessel_curl          = 1.5                                                          # [-]
+root_beta            = 0.1                                                          # [-]
+root_depth_b1        = 1.114058                                                     # [m]
+root_depth_b2        = 0.4223014                                                    # [-]
+specific_root_length = 20000.0                                                      # [m/kgC]
+fine_root_radius     = 0.00025                                                      # [m]
+

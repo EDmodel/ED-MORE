@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: Apache-2.0
+# Output of meds_config_regrowth.toml: monthly (M) and yearly (Y) site and PFT totals, and no per-cohort or
+# per-patch record.
+[variables]
+"*_co"                 = false
+"*_pa"                 = false
+mean_lai_pft_py        = "M Y"
+mean_lai_py            = "M Y"
+mean_agb_pft_py        = "M Y"
+mean_nplant_pft_py     = "M Y"
+mean_basal_area_pft_py = "M Y"
+mean_nplant_size_py    = "M Y"
+mean_canopy_height_py  = "M Y"
+mean_gpp_py            = "M Y"
+mean_gpp_pft_py        = "M Y"
+mean_et_py             = "M Y"
+mean_litter_leaf_py    = "M Y"

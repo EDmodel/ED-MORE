@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+# The variables the ten-day window writes (run_example.py restarts it from the calibrated run, at
+# half-hourly records): each patch's canopy air and soil column and each cohort's leaf, beside the
+# forcing that drives them. Tiers: F = sub-daily (half-hourly here), D = daily. Every stamp is UTC.
+# "*" = false starts from nothing; each patch's first cohort slot and cohort count come with the patch
+# variables.
+[variables]
+"*"                      = false
+"mean_resid_*_py"        = "D"   # the energy and water budget residuals: is the run sane?
+mean_sw_in_py            = "F"   # incoming shortwave
+mean_precip_py           = "F"   # precipitation
+mean_air_temp_py         = "F"   # air temperature at the tower height (41 m)
+mean_cas_temp_pa         = "F"   # canopy-air temperature, per patch
+mean_cas_co2_pa          = "F"   # canopy-air CO2, per patch
+mean_soil_temp_layer_pa  = "F"   # soil temperature, per patch and layer
+mean_soil_water_layer_pa = "F"   # soil moisture, per patch and layer
+mean_height_co           = "F"   # cohort height: the top cohort is a patch's tallest
+mean_leaf_temp_co        = "F"   # leaf temperature, per cohort
+mean_psi_leaf_co         = "F"   # leaf water potential, per cohort
+area_pa                  = "D"   # patch area (fraction of the site)
+mean_lai_pa              = "D"   # patch leaf area index

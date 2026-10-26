@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: Apache-2.0
+# Example 06's output: monthly, one file set per region, each variable with a `polygon` axis. "*" = false starts
+# from nothing, so only these are written. nplant_size is on the run's dbh_class_edges, [0, 1, 5, 10, 20, 50,
+# 100, 1000] cm (run_regions.py).
+[variables]
+"*"                   = false
+mean_lai_py           = "M"
+mean_lai_pft_py       = "M"
+mean_agb_pft_py       = "M"
+mean_canopy_height_py = "M"
+mean_gpp_py           = "M"
+mean_gpp_pft_py       = "M"
+mean_nplant_size_py   = "M"
+mean_et_py            = "M"
+mean_runoff_py        = "M"
