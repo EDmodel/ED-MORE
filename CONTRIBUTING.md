@@ -1,9 +1,9 @@
 # Contributing to ED-MORE
 
 Thank you for helping build ED-MORE. This page describes the process: how to propose a change, how
-to send it, and how it is reviewed and merged. The coding and documentation rules are in the
-[developer guide](docs/developer_guide.md). AI coding agents read [`AGENTS.md`](AGENTS.md), the
-short form of the same rules.
+to send it, and how it is reviewed and merged. The principles behind the code are in the
+[README](README.md#developing-ed-more), and the rules that follow from them, written for people and
+AI agents alike, are in [`AGENTS.md`](AGENTS.md).
 
 ## Your contribution and its licence
 
@@ -31,7 +31,7 @@ short form of the same rules.
 1. Fork `EDmodel/ED-MORE`, and make a branch in your fork from `beta`.
 2. Make small, self-contained changes, one topic per pull request. A change that both moves code
    and changes what it does goes in two pull requests: the move (bit-for-bit), then the change.
-3. Follow the [developer guide](docs/developer_guide.md), and run the checks before you push:
+3. Follow the rules in [`AGENTS.md`](AGENTS.md), and run the checks before you push:
 
    ```bash
    python3 scripts/lint/run_checks.py        # the repository's lint checks
@@ -143,6 +143,5 @@ A release goes through a pull request from `beta` into `main` that follows the r
 
 ## Conduct and credit
 
-Everyone who takes part follows the [code of conduct](CODE_OF_CONDUCT.md). How decisions are made,
-who maintains what, and how to credit ED-MORE and its developers in a publication are in
-[`GOVERNANCE.md`](GOVERNANCE.md).
+Be respectful and constructive in every issue, discussion and review; maintainers may hide or remove
+what is not. To cite ED-MORE, use [`CITATION.cff`](CITATION.cff) with the version you ran.

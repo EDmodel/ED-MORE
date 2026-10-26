@@ -1,11 +1,10 @@
 # AGENTS.md
 
-Instructions for AI coding agents working in this repository. Claude Code reads this file through
-`CLAUDE.md`; Codex, Copilot, Cursor and other tools read it directly. People should start with
+The rules for changing ED-MORE's code and documentation. They are written so that AI coding agents
+can follow them (Claude Code reads this file through `CLAUDE.md`; Codex, Copilot, Cursor and other
+tools read it directly), and they apply to everyone. The principles behind them are in
+[`README.md`](README.md), "Developing ED-MORE"; the process (issues, pull requests, review) is in
 [`CONTRIBUTING.md`](CONTRIBUTING.md).
-
-This is the short form of [`docs/developer_guide.md`](docs/developer_guide.md), which gives the
-reasons and the examples. If the two disagree, the guide is right and this file needs a fix.
 
 ## What ED-MORE is
 
@@ -24,7 +23,7 @@ ED2's structure.
 | the equations and their rationale | `docs/science/` |
 | building, the build kinds, the tests, the compiler traps | `docs/building.md` |
 | the config files and every key | `docs/configuration.md` |
-| the coding and documentation rules in full | `docs/developer_guide.md` |
+| the principles behind these rules | `README.md`, "Developing ED-MORE" |
 | issues, pull requests, the changelog, review | `CONTRIBUTING.md` |
 
 ## Build and test
