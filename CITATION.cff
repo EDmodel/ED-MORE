@@ -10,6 +10,8 @@ authors:
     affiliation: Cornell University
 repository-code: https://github.com/EDmodel/ED-MORE
 license: Apache-2.0
+version: 0.4.1
+date-released: 2026-10-26
 abstract: >
   ED-MORE is a size- and age-structured terrestrial biosphere model, advanced on a fast (sub-daily)
   and a slow (daily and longer) timescale, whose science follows the Ecosystem Demography model.
