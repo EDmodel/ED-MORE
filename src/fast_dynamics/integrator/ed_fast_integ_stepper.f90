@@ -12,7 +12,7 @@
 !---~---
 module ed_fast_integ_stepper
    use ed_kinds,              only : wp, ik
-   use ed_constants,          only : latent_heat_vap, tiny_num
+   use ed_constants,          only : tiny_num
    use ed_config,             only : ed_config_t
    use ed_fast_params,        only : INTEG_ESDIRK2, INTEG_RK45
    use ed_site_state_vars,    only : site_surface_t
@@ -27,6 +27,7 @@ module ed_fast_integ_stepper
    use ed_fast_integ_esdirk2,         only : esdirk2_step
    use ed_fast_integ_rk45,          only : rk45_step, rk45_state_railed, RK45_P_ORDER, RK45_WORK_CAP
    use ed_fast_integ_update,        only : commit_amounts_t, update_dynamic_state, close_ledgers
+   use ed_therm_lib,          only : latent_heat_vap, cas_enthalpy_to_temp
    use ed_plant_hydraulics, only : leaf_node_psi
    implicit none
    private
@@ -142,7 +143,9 @@ contains
 
       call update_dynamic_state(dt_fast, cfg, site, static, frozen, acc, dt_warm, y_out, dynamic, out, moved)
       call close_ledgers(dt_fast, site, forcing, static, frozen, y, y_out, acc, moved, ec%debug_error, out%report)
-      call atm_fluxes(out%report%exports, dt_fast, out%le_flux, out%h_flux)
+      out%et_flux = out%report%exports%atm_vap_export / dt_fast
+      call atm_fluxes(out%report%exports, dt_fast, cas_enthalpy_to_temp(y_out%cas_enthalpy, y_out%cas_shv),  &
+                      out%le_flux, out%h_flux)
       out%rnet = acc%rad_net / dt_fast
       end associate
    end subroutine fast_step
@@ -285,15 +288,16 @@ contains
    !---~---
    !   atm_fluxes -- the canopy-air -> atmosphere fluxes the run reports, from the ledger's own
    ! boundary export over the step, so the reported ET is the conserved vapour export:
-   ! LE = L_v * vapour export / dt and H = sensible export / dt, the b-weighted
+   ! LE = L_v(T_cas) * vapour export / dt, at the step's final canopy-air temperature, and H = sensible export / dt, the b-weighted
    ! g_atm_heat*cp_air*(T_cas - theta_atm), not the enthalpy export minus LE
    ! (docs/science/numerical_scheme.md §5b).
    !---~---
-   pure subroutine atm_fluxes(exports, dt_fast, le_flux, h_flux)
+   pure subroutine atm_fluxes(exports, dt_fast, t_cas, le_flux, h_flux)
       type(step_exports_t), intent(in)  :: exports
       real(wp),             intent(in)  :: dt_fast
+      real(wp),             intent(in)  :: t_cas             ! [K] canopy-air temperature the vapour leaves at
       real(wp),             intent(out) :: le_flux, h_flux   ! [W/m2] step-mean CAS -> atmosphere
-      le_flux = exports%atm_vap_export  / dt_fast * latent_heat_vap
+      le_flux = exports%atm_vap_export  / dt_fast * latent_heat_vap(t_cas)
       h_flux  = exports%atm_heat_export / dt_fast
    end subroutine atm_fluxes
 

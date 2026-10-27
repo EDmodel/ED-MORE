@@ -41,19 +41,21 @@
 program test_therm_lib
    use ed_test_assert,   only : check, check_true, test_report
    use ed_kinds,         only : wp, ik
-   use ed_constants,     only : t_kelvin, t_3ple, cp_ice, latent_heat_fusion, k_water, k_ice, h2o_dry_ratio
+   use ed_constants,     only : t_kelvin, t_3ple, cp_ice, latent_heat_fusion, k_water, k_ice, h2o_dry_ratio,        &
+                                latent_heat_vap_3ple
    use ed_therm_lib,     only : arrhenius_scale, peaked_arrhenius_scale, kattge_knorr_entropy,                    &
                                 temp_to_internal_energy, internal_energy_to_temp, internal_energy_ice,            &
                                 sat_vapor_pressure, sat_vapor_pressure_temp_deriv, sat_specific_humidity,         &
                                 soil_thermal_conductivity, soil_texture_to_thermal, rh_to_specific_humidity,      &
                                 precip_phase, lapse_air_temperature, lapse_pressure, lapse_specific_humidity,     &
                                 specific_humidity_to_vpd, tissue_temp_to_energy, tissue_energy_to_temp,          &
-                                internal_energy_liquid
+                                internal_energy_liquid, latent_heat_vap, enthalpy_vapor
    implicit none
    real(wp), parameter :: SCAN_LO = 5.0_wp, SCAN_HI = 55.0_wp   ! [C] the optimum scan's range
 
    call test_temperature_response()
    call test_datum()
+   call test_latent_heat_vap()
    call test_clausius()
    call test_ice_saturation()
    call test_soil_conductivity()
@@ -335,6 +337,23 @@ contains
       call check_true('a site 500 m below its cell is warmer and holds more vapour', q1 > Q0, q1 - Q0)
       call check('dz = 0 leaves q unchanged', lapse_specific_humidity(Q0, T0, P0, T0, P0), Q0, 1.0e-15_wp)
    end subroutine test_lapse
+
+   !---~---
+   !   The latent heat of vaporization equals its t_3ple value there, and enthalpy_vapor less
+   ! internal_energy_liquid at every temperature: evaporating at T costs what the datum says.
+   !---~---
+   subroutine test_latent_heat_vap()
+      real(wp) :: t
+      integer  :: i
+      print '(a)', 'test_latent_heat_vap:'
+      call check('the constant is the value at t_3ple', latent_heat_vap(t_3ple), latent_heat_vap_3ple, 1.0e-9_wp)
+      do i = 0, 4
+         t = 240.0_wp + 20.0_wp * real(i, wp)
+         call check('L_v(T) = enthalpy_vapor - internal_energy_liquid', latent_heat_vap(t),                    &
+                    enthalpy_vapor(t) - internal_energy_liquid(t), 1.0e-6_wp)
+      end do
+      call check_true('L_v falls as the air warms', latent_heat_vap(303.15_wp) < latent_heat_vap(273.16_wp))
+   end subroutine test_latent_heat_vap
 
    !---~---
    !   9. A tissue of 5e4 J/K of dry matter holding 12 kg of water at 297.3 K, and 0.7 kg of water

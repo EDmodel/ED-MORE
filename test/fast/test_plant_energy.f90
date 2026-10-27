@@ -30,7 +30,7 @@
 program test_plant_energy
    use ed_test_assert,    only : check, check_true, test_report
    use ed_kinds,          only : wp, ik
-   use ed_constants,      only : cp_air, cp_liq, latent_heat_vap, stefan_boltzmann, pi
+   use ed_constants,      only : cp_air, cp_liq, latent_heat_vap_3ple, stefan_boltzmann, pi
    use ed_therm_lib,      only : enthalpy_vapor, internal_energy_liquid, sat_specific_humidity,                     &
                                  sat_specific_humidity_temp_deriv, tissue_temp_to_energy
    use ed_canopy_water,   only : canopy_water_out_t
@@ -208,7 +208,7 @@ contains
       !---~---
       !   3. PARTIAL wetting (f_wet=0.4): the energy balance must still close -- absorbed radiation
       ! net of LW emission (drnet) splits EXACTLY into sensible + BOTH latent pathways, each at the
-      ! pathway's h_vap (here the default, latent_heat_vap) -- the identity the surface path relies
+      ! pathway's h_vap (here the default, latent_heat_vap_3ple) -- the identity the surface path relies
       ! on to make the CAS's temperature-dependent vapour-enthalpy credit balance against a store's
       ! liquid-enthalpy debit (for transpiration the leaf pays the full vapour enthalpy itself; the
       ! surface-water accounting does the same for film_evap).
@@ -216,7 +216,7 @@ contains
       call tissue_energy_balance(ABS_SW, ABS_LW, 0.0_wp, H_COEFF, LW_SLOPE, DRY, WET, 0.4_wp,            &
                                  T_CAS, T_PARENT, 0.0_wp, T_CAS, dt_temp, t_store, transp, film_evap, dh, drnet)
       call check('partial f_wet: energy balance closes (drnet = dh + latent)', drnet,                  &
-                 dh + (transp + film_evap) * latent_heat_vap, 1.0e-9_wp)
+                 dh + (transp + film_evap) * latent_heat_vap_3ple, 1.0e-9_wp)
       call check_true('partial f_wet: film_evap > 0 (wet pathway active)', film_evap > 0.0_wp, film_evap)
       call check_true('partial f_wet: transp > 0 (dry pathway still active)', transp > 0.0_wp, transp)
    end subroutine test_veg_energy_diagnostic_wetted
@@ -259,7 +259,7 @@ contains
                ast = 0.0_wp
                if (is == 1_ik) ast = CAP_PER_AREA * ai / 900.0_wp
                call thin_tissue(ai, ast, is_leaf, dt_temp, t_store, transp, dh, drnet, film_evap)
-               resid = drnet + 25.0_wp*ai - dh - latent_heat_vap*(transp + film_evap) - ast * (t_store - T0)
+               resid = drnet + 25.0_wp*ai - dh - latent_heat_vap_3ple*(transp + film_evap) - ast * (t_store - T0)
                worst = max(worst, abs(resid) / (abs(drnet) + 25.0_wp*ai))
                call thin_tissue(0.5_wp*ai, 0.5_wp*ast, is_leaf, dt_h, t_h, transp_h, dh_h, drnet_h, film_h)
                worst_split = max(worst_split, abs(t_h - t_store), abs(2.0_wp*dh_h - dh) / abs(dh),          &

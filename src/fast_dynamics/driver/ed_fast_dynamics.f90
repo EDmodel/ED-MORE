@@ -10,7 +10,6 @@
 module ed_fast_dynamics
    use ed_kinds,                only : wp, ik, lk
    use ed_numerics,             only : ascending_order
-   use ed_constants,            only : latent_heat_vap
    use ed_config,               only : ed_config_t
    use ed_budget_check,         only : budget_t, budget_merge
    use ed_time,                 only : ed_time_t
@@ -242,7 +241,7 @@ contains
             !   The CAS -> atmosphere latent flux integrated into ET [kg/m2 = mm], the water leaving
             ! the soil column and the step's work, area-weighted.
             !---~---
-            red_site(RED_ET,          isub, ip) = area * (sd%out%le_flux / latent_heat_vap) * cfg%dt_fast
+            red_site(RED_ET,          isub, ip) = area * sd%out%et_flux * cfg%dt_fast
             red_site(RED_RUNOFF_SURF, isub, ip) = area * sd%out%report%exports%runoff_surf_export
             red_site(RED_DRAINAGE,    isub, ip) = area * sd%out%report%exports%drainage_export
             do k = 1_ik, N_WORK

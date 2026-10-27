@@ -363,6 +363,7 @@ module ed_fast_integ_types
       real(wp), allocatable :: root_resp_coh(:)   ! [umol CO2/plant/s] fine-root maintenance respiration
       real(wp), allocatable :: psi_leaf_coh(:)    ! [MPa] the leaf potential at state^n (daily-max accumulator)
       real(wp)              :: le_flux = 0.0_wp   ! [W/m2] CAS -> atmosphere latent heat (ET), the step's mean
+      real(wp)              :: et_flux = 0.0_wp   ! [kg/m2/s] CAS -> atmosphere vapour (ET), the step's mean
       real(wp)              :: h_flux  = 0.0_wp   ! [W/m2] CAS -> atmosphere sensible heat, the step's mean
       real(wp)              :: rnet    = 0.0_wp   ! [W/m2] net radiation the canopy and ground booked, the step's mean
       logical               :: capture = .false.  ! fill cdiag; off, nothing extra is computed

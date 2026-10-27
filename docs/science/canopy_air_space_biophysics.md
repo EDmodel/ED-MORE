@@ -73,7 +73,9 @@ four terms:
 The CAS temperature is diagnosed from $(H^{n+1},q^{n+1})$ at each step by inverting the specific
 enthalpy $`H = (1-q)\,c_{p,d}\,T + q\,c_{p,v}\,(T - T_{sc,v})`$ (`cas_temp_to_enthalpy`,
 `cas_enthalpy_to_temp`). Dry air is counted from 0 K, and vapour sits in the energy datum every store
-shares, in which ice at 0 K holds no energy, so a vapour flux carries its latent heat with it. All three
+shares, in which ice at 0 K holds no energy, so a vapour flux carries its latent heat with it. The latent heat of vaporization is that datum's difference, $`L_v(T) = L_{v,3ple} + (c_{p,v} - c_{p,l})\,(T - T_{3ple})`$
+(`latent_heat_vap`; Kirchhoff's law), so the heat a kilogram of water takes in evaporating depends on the
+temperature it evaporates at, and enthalpy closes; $`L_{v,3ple}`$ is the constant `latent_heat_vap_3ple`. All three
 variables share $`u_*`$ and the profile factor, which keeps them on one turbulence basis; CO₂ without
 the profile factor would be over-coupled to the free atmosphere and lose its nocturnal build-up (see
 [canopy_aerodynamics](canopy_aerodynamics.md) eq. (6)).
@@ -120,7 +122,7 @@ wrote it.
 | capacities $`W_{cap}`$, $`C_{cap}`$ | `ed_patch_state_vars`: `cas_capacities` (the frozen build and the slow ledger) |
 | conductances, eq. (6) of canopy_aerodynamics | `ed_canopy_aerodynamics`: `cas_atm_conductances`, `canopy_air_conductances` |
 | condensation sink | `ed_canopy_air_space`: `cas_condensation` |
-| temperature ↔ enthalpy | `ed_therm_lib`: `cas_temp_to_enthalpy`, `cas_enthalpy_to_temp`, `cas_molar_density` |
+| temperature ↔ enthalpy | `ed_therm_lib`: `cas_temp_to_enthalpy`, `cas_enthalpy_to_temp`, `cas_molar_density`, `latent_heat_vap` |
 | biotic CO₂ source $`F_{bio}`$ | `ed_fast_integ_frozen`: `build_frozen` |
 | CAS depth and open-volume exchange | `refresh_canopy_depth` (`ed_slow_update`), `cas_set_depth` (`ed_patch_state_vars`) |
 | the start's canopy air | `seed_patch_stores` (`ed_init_bare_ground`, the placeholder); `seed_start_canopy_air` (`ed_fast_state`), called by `fast_dynamics` at the first window |

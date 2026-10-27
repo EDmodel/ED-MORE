@@ -256,7 +256,7 @@ contains
       !   The canopy is energy-neutral. With no advected enthalpy and no heat store in this record,
       ! what the canopy absorbs (coh_rnet) must equal what it hands the canopy air: sensible heat
       ! plus the full enthalpy of the vapour it sheds. Handing the canopy air transp*h_vapour
-      ! while the leaf pays only latent_heat_vap, and charging the difference to the soil, breaks
+      ! while the leaf pays only latent_heat_vap_3ple, and charging the difference to the soil, breaks
       ! this by the proxy (~30 W/m2 at 3 mm/day) and makes the soil pay the transpired water's
       ! liquid enthalpy twice.
       !---~---

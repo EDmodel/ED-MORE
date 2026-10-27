@@ -8,7 +8,7 @@
 !---~---
 module ed_fast_diag
    use ed_kinds,                only : wp, ik
-   use ed_constants,            only : latent_heat_vap, stefan_boltzmann, n_soil_layer_max
+   use ed_constants,            only : stefan_boltzmann, n_soil_layer_max
    use ed_therm_lib,            only : specific_humidity_to_vpd
    use ed_time,                 only : ed_time_t, time_advance_seconds
    use ed_output_types,         only : output_buffers_t
@@ -135,7 +135,7 @@ contains
          lw_up     = forcing%lw_up + (rnet_ts - rnet)
          npp_patch = gpp_patch - sum((out%leaf_resp_coh(1:ncoh) + out%stem_resp_coh(1:ncoh)              &
                                       + out%root_resp_coh(1:ncoh)) * static%nplant(1:ncoh))
-         call patch_diag_row(prow, dt_fast, out%le_flux, out%h_flux, rnet,                              &
+         call patch_diag_row(prow, dt_fast, out%le_flux, out%et_flux, out%h_flux, rnet,                              &
                              forcing%abs_sw_ground, forcing%abs_lw_ground,                              &
                              out%aero%ustar, out%aero%ggnet, out%aero%rough, out%aero%displace,         &
                              dynamic%cas%can_temp, dynamic%cas%can_shv, dynamic%cas%can_co2,            &
@@ -228,7 +228,7 @@ contains
    !   The patch block's row for one (patch, sub-step): the numbers the physics used, none
    ! recomputed (docs/science/diagnostics.md §4, The patch row). The slow rows stay 0.
    !---~---
-   pure subroutine patch_diag_row(row, dt, le_flux, h_flux, rnet, sw_ground, lw_ground,             &
+   pure subroutine patch_diag_row(row, dt, le_flux, et_flux, h_flux, rnet, sw_ground, lw_ground,             &
                                   ustar, ggnet, rough, displace, cas_temp, cas_shv, cas_co2, gpp, nee, &
                                   npp, soil_temp_top, resid_energy, resid_water, wind_top, tair_top,  &
                                   z_top, sw_in_vis, sw_in_nir, sw_up_vis, sw_up_nir, lw_up, w_surface, &
@@ -236,6 +236,7 @@ contains
       real(wp), intent(out) :: row(N_PA_ROWS)
       real(wp), intent(in)  :: dt                        ! [s]        the sub-step
       real(wp), intent(in)  :: le_flux, h_flux           ! [W/m2]     CAS -> atmosphere
+      real(wp), intent(in)  :: et_flux                   ! [kg/m2/s]  CAS -> atmosphere vapour
       real(wp), intent(in)  :: rnet                      ! [W/m2]     net all-wave radiation absorbed
       real(wp), intent(in)  :: sw_ground, lw_ground      ! [W/m2]     ground SW / net LW
       real(wp), intent(in)  :: ustar, ggnet              ! [m/s]      friction velocity, ground conductance
@@ -286,7 +287,7 @@ contains
       !   The canopy air's whole evaporative flux to the atmosphere [kg/m2/s], not transpiration
       ! alone; each cohort's own transpiration is CO_TRANSP.
       !---~---
-      row(PA_TRANSP)       = le_flux / latent_heat_vap
+      row(PA_TRANSP)       = et_flux
       row(PA_SOIL_TEMP_TOP) = soil_temp_top
       !---~---
       !   The whole-column ledgers' signed residuals as leak rates [W/m2, kg/m2/s], positive when
