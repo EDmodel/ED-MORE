@@ -1,39 +1,39 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! test_sites -- a polygon of several sites (docs/configuration.md, Several sites).         !
-!                                                                                          !
-! 1. THE SITES FROM [[sites]] (ed_config_io: load_sites; ed_region: region_open): two      !
-!    sites, 0.25 of the polygon on its own 0.6 m soil and terrain, 0.75 on [soil]. The     !
-!    config holds them, the polygon is built with them, and they run three days.           !
-! 2. THE SITE AXIS IN THE FILES (ed_output_setup: attach_output): the daily file holds     !
-!    the two sites, each one's share, and the shallow site's soil coordinate filled below  !
-!    its bottom layer.                                                                     !
-! 3. A CENSUS BY census_site_id (ed_init_census: init_from_census): each site is built     !
-!    from its own rows.                                                                    !
-! 4. THE STANDS EVOLVE AS ONE-SITE POLYGONS (ed_stepper: advance_one_step). Two            !
-!    identical sites of areas 0.3 and 0.7 each evolve as a polygon of one site does, over  !
-!    31 days of fast and slow steps on a short calendar -- a month boundary every 15 days  !
-!    and a year boundary at day 30, which day 31's step performs, with a disturbance and   !
-!    patch fusion: every site's stand is the one-site stand, and the polygon totals are    !
-!    the one site's to round-off. Two sites on different soils each evolve as a one-site   !
-!    polygon on its own soil, and their soil columns differ.                               !
-! 5. THREADS (ed_stepper: advance_one_step's patch loop): the same polygon on one thread   !
-!    and on four.                                                                          !
-! 6. RESTART (ed_init_restart): the run of 1 restarts from its state file with the         !
-!    config's sites (region_open), and the two-soil stand of 4 comes back from a state     !
-!    file (read_restart_file) with each patch's site and each site's patches, plant carbon !
-!    and soil water.                                                                       !
-! 7. WHAT edmore REFUSES (ed_config_check: check_sites, check_key_use): shares that        !
-!    do not sum to 1, a table without area_fraction, a key no table takes, a census run    !
-!    without census_site_id, [[sites]] in a region, and a site's soil keys beside the soil !
-!    maps.                                                                                 !
-!                                                                                          !
-! The configs of 1-3, 6 and 7 are derived from example 04's ed_config_eval.toml (the       !
-! test runs from its directory) by derive_config: a case's own keys, then a run block that !
-! cuts the run to a few days without the fast loop or forcing, then the template, each key !
-! written once, at its first value. Everything the test writes goes under the work         !
-! directory, the first argument; edmore is the second.                                     !
-!==========================================================================================!
+!---~---
+!   test_sites -- a polygon of several sites (docs/configuration.md, Several sites).
+!
+!   1. THE SITES FROM [[sites]] (ed_config_io: load_sites; ed_region: region_open): two
+!    sites, 0.25 of the polygon on its own 0.6 m soil and terrain, 0.75 on [soil]. The
+!    config holds them, the polygon is built with them, and they run three days.
+! 2. THE SITE AXIS IN THE FILES (ed_output_setup: attach_output): the daily file holds
+!    the two sites, each one's share, and the shallow site's soil coordinate filled below
+!    its bottom layer.
+! 3. A CENSUS BY census_site_id (ed_init_census: init_from_census): each site is built
+!    from its own rows.
+! 4. THE STANDS EVOLVE AS ONE-SITE POLYGONS (ed_stepper: advance_one_step). Two
+!    identical sites of areas 0.3 and 0.7 each evolve as a polygon of one site does, over
+!    31 days of fast and slow steps on a short calendar -- a month boundary every 15 days
+!    and a year boundary at day 30, which day 31's step performs, with a disturbance and
+!    patch fusion: every site's stand is the one-site stand, and the polygon totals are
+!    the one site's to round-off. Two sites on different soils each evolve as a one-site
+!    polygon on its own soil, and their soil columns differ.
+! 5. THREADS (ed_stepper: advance_one_step's patch loop): the same polygon on one thread
+!    and on four.
+! 6. RESTART (ed_init_restart): the run of 1 restarts from its state file with the
+!    config's sites (region_open), and the two-soil stand of 4 comes back from a state
+!    file (read_restart_file) with each patch's site and each site's patches, plant carbon
+!    and soil water.
+! 7. WHAT edmore REFUSES (ed_config_check: check_sites, check_key_use): shares that
+!    do not sum to 1, a table without area_fraction, a key no table takes, a census run
+!    without census_site_id, [[sites]] in a region, and a site's soil keys beside the soil
+!    maps.
+!
+!   The configs of 1-3, 6 and 7 are derived from example 04's ed_config_eval.toml (the
+! test runs from its directory) by derive_config: a case's own keys, then a run block that
+! cuts the run to a few days without the fast loop or forcing, then the template, each key
+! written once, at its first value. Everything the test writes goes under the work
+! directory, the first argument; edmore is the second.
+!---~---
 program test_sites
    use iso_c_binding,           only : c_int, c_size_t, c_double
    use ed_kinds,                only : wp, ik
@@ -57,7 +57,7 @@ program test_sites
 
    character(len=*), parameter :: TEMPLATE = 'ed_config_eval.toml'
    integer(ik), parameter :: N_DAY = 31_ik            ! two 15-day months, and the step that turns the year
-   real(wp),    parameter :: RTOL  = 1.0e-12_wp       !< relative: check_close scales it by the expected value
+   real(wp),    parameter :: RTOL  = 1.0e-12_wp       !--- relative: check_close scales it by the expected value
    character(len=512) :: work, edmore
    character(len=:), allocatable :: cfg_path, nl
    type(ed_config_t)   :: cfg, cfg_shallow, sites_cfg
@@ -76,7 +76,7 @@ program test_sites
    nl = new_line('a')
    cfg_path = trim(work)//'/sites.toml'
 
-   !=== 1. Two sites from [[sites]]: the config, the polygon, a three-day run. =================!
+   !--- 1. Two sites from [[sites]]: the config, the polygon, a three-day run.
    call banner('the sites from [[sites]]')
    call derive(cfg_path, run_block('2024-07-01', '2024-07-04', 0_ik, '')//                      &
                          '[output]'//nl//'state_write = true'//nl//two_sites())
@@ -119,11 +119,11 @@ program test_sites
    call check(status == RUN_OK, 'the run finishes with its area conserved')
    call region_free(reg)
 
-   !=== 2. The site axis in the run's daily file (a cohort tier's files are monthly). ===========!
+   !--- 2. The site axis in the run's daily file (a cohort tier's files are monthly).
    call banner('the site axis in the files')
    call check_output(trim(work)//'/sites-D-202407.nc')
 
-   !=== 3. A census read by census_site_id. ==================================================!
+   !--- 3. A census read by census_site_id.
    call banner('a census by census_site_id')
    call write_census(trim(work)//'/sites_census.csv')
    call derive(cfg_path, run_block('2024-07-01', '2024-07-02', 1_ik, '')//                      &
@@ -145,14 +145,16 @@ program test_sites
    end if
    call region_free(reg)
 
-   !=== 4. The stands evolve as one-site polygons. ==========================================!
+   !--- 4. The stands evolve as one-site polygons.
    call banner('the stands evolve as one-site polygons')
    cfg = build_test_config()
    cfg%fast_biophysics_on = .true.
    cfg_shallow = cfg
    cfg_shallow%soil%depth = 0.6_wp
-   !----- Two identical sites, 0.3 and 0.7 of the polygon, against one; the same on four threads   !
-   !      for 5. -----------------------------------------------------------------------------------!
+   !---~---
+   !   Two identical sites, 0.3 and 0.7 of the polygon, against one; the same on four threads
+   ! for 5.
+   !---~---
    call stand(one, cfg, [cfg], [1.0_wp])
    call stand(two, cfg, [cfg, cfg], [0.3_wp, 0.7_wp])
    call stand(two_mt, cfg, [cfg, cfg], [0.3_wp, 0.7_wp])
@@ -182,7 +184,7 @@ program test_sites
                           'each site''s patch areas still sum to 1')
       end associate
    end do
-   !----- Two soils: each site evolves on its own. ------------------------------------------------!
+   !--- Two soils: each site evolves on its own.
    call stand(one_shallow, cfg_shallow, [cfg_shallow], [1.0_wp])
    call stand(mixed, cfg, [cfg, cfg_shallow], [0.5_wp, 0.5_wp])
    call run(one_shallow, 1_ik)
@@ -198,7 +200,7 @@ program test_sites
    call check_close(site_water(mixed, 2_ik), site_water(one_shallow, 1_ik), RTOL,                   &
                     'the shallow site keeps the one-site water on its soil')
 
-   !=== 5. One thread or four: the same polygon. ===========================================!
+   !--- 5. One thread or four: the same polygon.
    call banner('one thread or four')
    call check(all(two_mt%patch%area(1:two%patch%n) == two%patch%area(1:two%patch%n)) .and.        &
               site_carbon(two_mt, 1_ik) == site_carbon(two, 1_ik) .and.                             &
@@ -206,9 +208,9 @@ program test_sites
               site_water(two_mt, 2_ik) == site_water(two, 2_ik),                                    &
               'four patch threads give the polygon one thread gives, bit for bit')
 
-   !=== 6. Restart. ==========================================================================!
+   !--- 6. Restart.
    call banner('restart')
-   !----- The run of 1 from its state file, with the config's [[sites]]. ------------------------!
+   !--- The run of 1 from its state file, with the config's [[sites]].
    call derive(cfg_path, run_block('2024-07-04', '2024-07-05', 2_ik,                            &
                                    trim(work)//'/sites-S-20240704000000.nc')//two_sites())
    call region_open(cfg_path, reg, ok, verbose=.false.)
@@ -220,7 +222,7 @@ program test_sites
                  'each site keeps its soil column')
    end if
    call region_free(reg)
-   !----- The two-soil stand of 4, grown with cohorts, through a state file. ---------------------!
+   !--- The two-soil stand of 4, grown with cohorts, through a state file.
    call write_state(mixed, ed_time_t(year=2000, month=1, day=31))
    call read_restart_file(back, cfg, trim(work)//'/stands-S-20000131000000.nc', t_read, found,      &
                           polygon=1_ik, site_cfg=[cfg, cfg_shallow])
@@ -234,7 +236,7 @@ program test_sites
       call check(site_water(back, is) == site_water(mixed, is), 'each site keeps its soil water')
    end do
 
-   !=== 7. What edmore refuses. ===========================================================   !
+   !--- 7. What edmore refuses.
    call banner('what edmore refuses')
    call refused('shares that do not sum to 1',                                                  &
                 '[[sites]]'//nl//'area_fraction = 0.5'//nl//'[[sites]]'//nl//'area_fraction = 0.4'//nl, &
@@ -247,8 +249,10 @@ program test_sites
    call refused('a census run without census_site_id',                                          &
                 '[init]'//nl//'init_mode = 1'//nl//'[[sites]]'//nl//'area_fraction = 1.0'//nl,    &
                 'census_site_id')
-   !----- A region takes one site per cell, and with the soil maps a site takes its cell's soil.   !
-   !      The maps are never opened: the config is refused first. ---------------------------------!
+   !---~---
+   !   A region takes one site per cell, and with the soil maps a site takes its cell's soil.
+   ! The maps are never opened: the config is refused first.
+   !---~---
    call refused('[[sites]] in a region', '[run]'//nl//'mode = "region"'//nl//'[region]'//nl//       &
                 'box_nwse = [10.0, -80.0, 9.0, -79.0]'//nl//'[[sites]]'//nl//'area_fraction = 1.0'//nl, &
                 'a region refuses [[sites]]')
@@ -263,8 +267,10 @@ program test_sites
 
 contains
 
-   !----- The run block: a short run from `mode` (0 bare ground, 1 census, 2 restart), no fast      !
-   !      loop or forcing, daily water and structure output into the work directory. -------------!
+   !---~---
+   !   The run block: a short run from `mode` (0 bare ground, 1 census, 2 restart), no fast
+   ! loop or forcing, daily water and structure output into the work directory.
+   !---~---
    function run_block(start, end, mode, restart) result(s)
       character(len=*), intent(in) :: start, end, restart
       integer(ik),      intent(in) :: mode
@@ -283,22 +289,26 @@ contains
           'file_chunk = "run"'//nl
    end function run_block
 
-   !----- Two sites: a quarter of the polygon on 0.6 m of soil, at 400 m on a 12-degree slope      !
-   !      facing south-east; the rest on [soil]. -----------------------------------------------!
+   !---~---
+   !   Two sites: a quarter of the polygon on 0.6 m of soil, at 400 m on a 12-degree slope
+   ! facing south-east; the rest on [soil].
+   !---~---
    function two_sites() result(s)
       character(len=:), allocatable :: s
       s = '[[sites]]'//nl//'area_fraction = 0.25'//nl//'depth = 0.6'//nl//'elevation = 400.0'//nl//  &
           'slope = 12.0'//nl//'aspect = 135.0'//nl//'[[sites]]'//nl//'area_fraction = 0.75'//nl
    end function two_sites
 
-   !----- A config from these blocks and the template, each key once (ed_test_run). ------------  !
+   !--- A config from these blocks and the template, each key once (ed_test_run).
    subroutine derive(path, overrides)
       character(len=*), intent(in) :: path, overrides
       call derive_config(path, overrides, TEMPLATE)
    end subroutine derive
 
-   !----- edmore must stop on the config, saying `message`. The case's keys come first, so they      !
-   !      win over the run block's. ------------------------------------------------------------------!
+   !---~---
+   !   edmore must stop on the config, saying `message`. The case's keys come first, so they
+   ! win over the run block's.
+   !---~---
    subroutine refused(what, overrides, message)
       character(len=*), intent(in) :: what, overrides, message
       call derive(trim(work)//'/refused.toml', overrides//run_block('2024-07-01', '2024-07-02', 0_ik, ''))
@@ -306,7 +316,7 @@ contains
                  'edmore refuses '//what)
    end subroutine refused
 
-   !----- Census sites 7 and 9, two patches each; site 9 holds the one tree over 40 cm. ---------!
+   !--- Census sites 7 and 9, two patches each; site 9 holds the one tree over 40 cm.
    subroutine write_census(path)
       character(len=*), intent(in) :: path
       integer :: u
@@ -319,8 +329,10 @@ contains
       close(u)
    end subroutine write_census
 
-   !----- The daily file: a site axis of two, each site's share, and the shallow site's soil      !
-   !      coordinate filled below its bottom layer. --------------------------------------------!
+   !---~---
+   !   The daily file: a site axis of two, each site's share, and the shallow site's soil
+   ! coordinate filled below its bottom layer.
+   !---~---
    subroutine check_output(path)
       character(len=*), intent(in) :: path
       integer(c_int)    :: ncid, vid
@@ -340,8 +352,10 @@ contains
       call nc_check(nc_close(ncid), 'close')
    end subroutine check_output
 
-   !----- A two-patch stand in each site: a canopy tree and an understorey in one patch, a     !
-   !      sapling in the other. ---------------------------------------------------------------!
+   !---~---
+   !   A two-patch stand in each site: a canopy tree and an understorey in one patch, a
+   ! sapling in the other.
+   !---~---
    subroutine stand(poly, run_cfg, site_cfg, site_area)
       type(polygon_t),     intent(out) :: poly
       type(ed_config_t),   intent(in)  :: run_cfg, site_cfg(:)
@@ -358,8 +372,10 @@ contains
       call init_fast_state(poly, run_cfg)
    end subroutine stand
 
-   !----- N_DAY daily steps, a month's restructuring owed every 15 days and a year's every 30,   !
-   !      which the next step performs first, as a run does. -------------------------------------!
+   !---~---
+   !   N_DAY daily steps, a month's restructuring owed every 15 days and a year's every 30,
+   ! which the next step performs first, as a run does.
+   !---~---
    subroutine run(poly, patch_threads)
       type(polygon_t), intent(inout) :: poly
       integer(ik),     intent(in)    :: patch_threads
@@ -372,7 +388,7 @@ contains
       end do
    end subroutine run
 
-   !----- The polygon as the one polygon of a state file in the work directory (id 0, at 0 N 0 E). --!
+   !--- The polygon as the one polygon of a state file in the work directory (id 0, at 0 N 0 E).
    subroutine write_state(poly, t)
       type(polygon_t),   intent(in) :: poly
       type(ed_time_t),   intent(in) :: t
@@ -384,7 +400,7 @@ contains
       call restart_file_close(sf)
    end subroutine write_state
 
-   !----- Plant carbon [kgC/m2 of the site]: its patches' cohorts, weighted by patch area. ----!
+   !--- Plant carbon [kgC/m2 of the site]: its patches' cohorts, weighted by patch area.
    real(wp) function site_carbon(poly, is) result(c)
       type(polygon_t), intent(in) :: poly
       integer(ik),     intent(in) :: is
@@ -399,7 +415,7 @@ contains
       end do
    end function site_carbon
 
-   !----- Soil water [kg/m2 of the site] over its patches' active layers. ---------------------!
+   !--- Soil water [kg/m2 of the site] over its patches' active layers.
    real(wp) function site_water(poly, is) result(w)
       type(polygon_t), intent(in) :: poly
       integer(ik),     intent(in) :: is

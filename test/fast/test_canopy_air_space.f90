@@ -1,15 +1,15 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! test_canopy_air_space -- the canopy-air box (ed_canopy_air_space;                        !
-! docs/science/canopy_air_space_biophysics.md eqs. (1)-(2)), stepped by                    !
-! cas_box_step_implicit.                                                                   !
-!   1. ENTHALPY (eq. (2)): each step solves the box's backward-Euler enthalpy balance, and !
-!      the box warms toward a warmer atmosphere and its sources.                           !
-!   2. CO2 (eq. (1)): at the atmosphere's CO2 it holds still; displaced, it relaxes toward !
-!      the atmosphere without overshoot, more slowly over a weaker conductance; under a    !
-!      constant source it settles at co2_atm + source/conductance; uptake draws it down    !
-!      and respiration pushes it up.                                                       !
-!==========================================================================================!
+!---~---
+!   test_canopy_air_space -- the canopy-air box (ed_canopy_air_space;
+! docs/science/canopy_air_space_biophysics.md eqs. (1)-(2)), stepped by
+! cas_box_step_implicit.
+!   1. ENTHALPY (eq. (2)): each step solves the box's backward-Euler enthalpy balance, and
+!      the box warms toward a warmer atmosphere and its sources.
+!   2. CO2 (eq. (1)): at the atmosphere's CO2 it holds still; displaced, it relaxes toward
+!      the atmosphere without overshoot, more slowly over a weaker conductance; under a
+!      constant source it settles at co2_atm + source/conductance; uptake draws it down
+!      and respiration pushes it up.
+!---~---
 program test_canopy_air_space
    use ed_test_assert,        only : check, check_true, test_report
    use ed_kinds,              only : wp, ik
@@ -25,10 +25,12 @@ program test_canopy_air_space
 
 contains
 
-   !----- 1. The enthalpy twin (eq. (2)), the vapour and CO2 twins held inert (no sources and no   !
-   !      vapour conductance; a nonzero molar capacity avoids a 0/0 in the unused CO2 branch). Each  !
-   !      step's backward-Euler balance, M (h_new - h) = dt (S + g (h_atm - h_new)), is assembled  !
-   !      here from the step's result. ------------------------------------------------------------!
+   !---~---
+   !   1. The enthalpy twin (eq. (2)), the vapour and CO2 twins held inert (no sources and no
+   ! vapour conductance; a nonzero molar capacity avoids a 0/0 in the unused CO2 branch). Each
+   ! step's backward-Euler balance, M (h_new - h) = dt (S + g (h_atm - h_new)), is assembled
+   ! here from the step's result.
+   !---~---
    subroutine test_cas()
       type(cas_env_t) :: cas_env
       real(wp) :: enth, shv, temp, resid, enthalpy_atm, worst, enth_new, shv_new, co2_new
@@ -66,11 +68,13 @@ contains
       call check_true('CAS warms toward atmosphere + surfaces', temp > 295.0_wp, temp)
    end subroutine test_cas
 
-   !----- 2. The CO2 twin of the same box (docs/science/canopy_air_space_biophysics.md eq. (1)). At !
-   !      the atmosphere's CO2 with no source it holds still; displaced, it relaxes toward the     !
-   !      atmosphere without overshoot at any step, and more slowly over a weaker conductance;     !
-   !      under a constant source it settles at co2_atm + source/conductance; uptake draws it      !
-   !      down and respiration pushes it up. -------------------------------------------------------!
+   !---~---
+   !   2. The CO2 twin of the same box (docs/science/canopy_air_space_biophysics.md eq. (1)). At
+   ! the atmosphere's CO2 with no source it holds still; displaced, it relaxes toward the
+   ! atmosphere without overshoot at any step, and more slowly over a weaker conductance;
+   ! under a constant source it settles at co2_atm + source/conductance; uptake draws it
+   ! down and respiration pushes it up.
+   !---~---
    subroutine test_cas_co2()
       real(wp), parameter :: CO2_ATM = 400.0_wp, RHO_AIR = 1.2_wp, USTAR = 0.3_wp, SOURCE = 5.0_wp
       real(wp) :: g_co2, c, c_weak
@@ -97,8 +101,10 @@ contains
       call check_true('respiration pushes the canopy air above the atmosphere', c > CO2_ATM, c)
    end subroutine test_cas_co2
 
-   !----- One step of the CAS box's CO2, on a 20 m column of dry air at 1.2 kg/m3; the enthalpy and !
-   !      vapour twins are held inert (a nonzero mass capacity avoids their 0/0). ---------------!
+   !---~---
+   !   One step of the CAS box's CO2, on a 20 m column of dry air at 1.2 kg/m3; the enthalpy and
+   ! vapour twins are held inert (a nonzero mass capacity avoids their 0/0).
+   !---~---
    function cas_co2_after(co2, source, g_co2, dt) result(co2_new)
       real(wp), intent(in) :: co2, source, g_co2, dt
       real(wp) :: co2_new, enth_new, shv_new

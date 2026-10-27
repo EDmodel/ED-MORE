@@ -1,18 +1,18 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! ed_c_api_canopy -- the C-API shim for the CANOPY kernels (`edmore.canopy`): the leaf solve   !
-! over many leaves and the two-stream over a frozen stand, with every parameter taken from a   !
-! run's own configuration: the leaf table and the optics its loader derives on the PFT table    !
-! (ed_pft_derive), so a caller outside the model computes what the fast loop computes.          !
-!                                                                                          !
-! The fast calibration (scripts/calibrate_fast) uses it for its optics and photosynthesis       !
-! stages: the radiation solver alone against the tower's albedo, and a canopy of leaf solves     !
-! against its GPP, without running the coupled model.                                           !
-!                                                                                          !
-! ONE configuration is open at a time (ed_canopy_open replaces it), and the calls are not        !
-! thread-safe. A configuration with thermal acclimation on is refused: its leaf table depends on !
-! a growth temperature the model carries as state, which a caller here does not have.            !
-!==========================================================================================!
+!---~---
+!   ed_c_api_canopy -- the C-API shim for the CANOPY kernels (`edmore.canopy`): the leaf solve
+! over many leaves and the two-stream over a frozen stand, with every parameter taken from a
+! run's own configuration: the leaf table and the optics its loader derives on the PFT table
+! (ed_pft_derive), so a caller outside the model computes what the fast loop computes.
+!
+!   The fast calibration (scripts/calibrate_fast) uses it for its optics and photosynthesis
+! stages: the radiation solver alone against the tower's albedo, and a canopy of leaf solves
+! against its GPP, without running the coupled model.
+!
+!   ONE configuration is open at a time (ed_canopy_open replaces it), and the calls are not
+! thread-safe. A configuration with thermal acclimation on is refused: its leaf table depends on
+! a growth temperature the model carries as state, which a caller here does not have.
+!---~---
 module ed_c_api_canopy
    use iso_c_binding
    use ed_kinds,                  only : wp, ik
@@ -46,8 +46,10 @@ contains
       end do
    end function f_string
 
-   !----- Load a run's main configuration (and the PFT file it names), with the leaf table and the  !
-   !      radiation optics its loader derives. 0 on success; -1 when thermal acclimation is on. ----!
+   !---~---
+   !   Load a run's main configuration (and the PFT file it names), with the leaf table and the
+   ! radiation optics its loader derives. 0 on success; -1 when thermal acclimation is on.
+   !---~---
    function ed_canopy_open(path, path_len) result(status) bind(c, name="ed_canopy_open")
       character(kind=c_char), intent(in) :: path(*)
       integer(c_int), value,  intent(in) :: path_len
@@ -68,9 +70,11 @@ contains
       if (g_open) n = int(g_cfg%pft%n, c_int)
    end function ed_canopy_n_pft
 
-   !----- Each cohort's plastic Vcmax25 and Rd25 from its PFT and the leaf area above it, as a      !
-   !      restart re-acclimates them (reacclimate_plant_traits): the top-of-canopy value times the   !
-   !      light gradient with plasticity on, the PFT's value with it off. ------------------------!
+   !---~---
+   !   Each cohort's plastic Vcmax25 and Rd25 from its PFT and the leaf area above it, as a
+   ! restart re-acclimates them (reacclimate_plant_traits): the top-of-canopy value times the
+   ! light gradient with plasticity on, the PFT's value with it off.
+   !---~---
    subroutine ed_canopy_plastic(n, pft, lai_above, vcmax25, rd25) bind(c, name="ed_canopy_plastic")
       integer(c_int), value, intent(in)  :: n
       integer(c_int),        intent(in)  :: pft(n)
@@ -96,8 +100,10 @@ contains
       end associate
    end subroutine ed_canopy_plastic
 
-   !----- The leaf solve for n leaves, each with its own drivers and plastic capacities: the loop   !
-   !      of leaf_gas_exchange_batch, with canopy-air CO2 and pressure per leaf rather than shared. --!
+   !---~---
+   !   The leaf solve for n leaves, each with its own drivers and plastic capacities: the loop
+   ! of leaf_gas_exchange_batch, with canopy-air CO2 and pressure per leaf rather than shared.
+   !---~---
    subroutine ed_canopy_leaf(n, pft, vcmax25, rd25, par, leaf_temp, vpd, ca, pressure, psi_leaf,   &
                              gb, psi, a_gross, a_net, gs, ci) bind(c, name="ed_canopy_leaf")
       integer(c_int), value, intent(in)  :: n
@@ -131,11 +137,13 @@ contains
       end do
    end subroutine ed_canopy_leaf
 
-   !----- The two-stream for ONE patch over nh hours of shortwave, the stand fixed: per hour the     !
-   !      upwelling VIS and NIR at the canopy top, the VIS absorbed by leaves and by wood, the VIS     !
-   !      reaching the ground, and each cohort's leaf-absorbed VIS (nh x ncoh, hour fastest). Cohorts  !
-   !      come in any order and are sorted by height as the fast loop does (apply_rt_forcing). The     !
-   !      ground is the configuration's bare soil; no snow. ------------------------------------------!
+   !---~---
+   !   The two-stream for ONE patch over nh hours of shortwave, the stand fixed: per hour the
+   ! upwelling VIS and NIR at the canopy top, the VIS absorbed by leaves and by wood, the VIS
+   ! reaching the ground, and each cohort's leaf-absorbed VIS (nh x ncoh, hour fastest). Cohorts
+   ! come in any order and are sorted by height as the fast loop does (apply_rt_forcing). The
+   ! ground is the configuration's bare soil; no snow.
+   !---~---
    subroutine ed_canopy_two_stream(nh, cosz, vis_beam, vis_diff, nir_beam, nir_diff, ncoh, pft,    &
                                     height, lai, wai, up_vis, up_nir, leaf_vis, wood_vis, ground_vis, &
                                     coh_leaf_vis) bind(c, name="ed_canopy_two_stream")

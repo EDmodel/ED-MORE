@@ -1,23 +1,23 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! test_soil_carbon -- unit tests for the soil carbon pools' daily step (ed_soil_carbon;    !
-! docs/science/soil_carbon.md):                                                            !
-!   1. MASS CLOSURE  : dC == litter_in - Rh for one soil_carbon_step (EULER and EXPM),     !
-!                      with Rh recomputed INDEPENDENTLY from er*xi_int*K*X0. rh_today is   !
-!                      DEFINED as litter_in - dC, so a residual built from it is           !
-!                      identically zero for any inputs (docs/science/soil_carbon.md §9).   !
-!   2. SPIN-UP       : SASU active-block X_ss is an exact EULER fixed point; brute force   !
-!                      converges; inert pools held at 0; the singular full 7x7 is never    !
-!                      solved (default K5=K7=0).                                           !
-!   3. LITTER+LIGNIN : build_litter_input maps pre-split streams; lignin is a proportional !
-!                      passive tracer.                                                     !
-!   4. NECROMASS     : necromass_to_litter's split matches the hand formula and conserves  !
-!                      mass.                                                               !
-!  PLAUSIBILITY      : soil_carbon_bad_pool passes round-off and real soils, catches the   !
-!                      rest.                                                               !
-! The decomposition chemistry the step debits with (xi, A, K, er and Rh) is                !
-! ed_respiration's (test_respiration).                                                     !
-!==========================================================================================!
+!---~---
+!   test_soil_carbon -- unit tests for the soil carbon pools' daily step (ed_soil_carbon;
+! docs/science/soil_carbon.md):
+!   1. MASS CLOSURE  : dC == litter_in - Rh for one soil_carbon_step (EULER and EXPM),
+!                      with Rh recomputed INDEPENDENTLY from er*xi_int*K*X0. rh_today is
+!                      DEFINED as litter_in - dC, so a residual built from it is
+!                      identically zero for any inputs (docs/science/soil_carbon.md §9).
+!   2. SPIN-UP       : SASU active-block X_ss is an exact EULER fixed point; brute force
+!                      converges; inert pools held at 0; the singular full 7x7 is never
+!                      solved (default K5=K7=0).
+!   3. LITTER+LIGNIN : build_litter_input maps pre-split streams; lignin is a proportional
+!                      passive tracer.
+!   4. NECROMASS     : necromass_to_litter's split matches the hand formula and conserves
+!                      mass.
+!  PLAUSIBILITY      : soil_carbon_bad_pool passes round-off and real soils, catches the
+!                      rest.
+! The decomposition chemistry the step debits with (xi, A, K, er and Rh) is
+! ed_respiration's (test_respiration).
+!---~---
 program test_soil_carbon
    use, intrinsic :: ieee_arithmetic, only : ieee_value, ieee_quiet_nan
    use ed_test_assert, only : check, check_true, test_report
@@ -42,16 +42,16 @@ program test_soil_carbon
    call test_report('test_soil_carbon')
 
 contains
-   !----- a reproducible pseudo-random-ish filler (no Date/random; deterministic). ---------------!
+   !--- a reproducible pseudo-random-ish filler (no Date/random; deterministic).
    pure function frac(i) result(f)
       integer(ik), intent(in) :: i
       real(wp) :: f
       f = mod(real(i, wp) * 0.61803398875_wp, 1.0_wp)     ! golden-ratio low-discrepancy in (0,1)
    end function frac
-   !=======================================================================================!
-   ! 1. Mass closure -- dC == litter_in - Rh for one step under BOTH solvers, Rh recomputed          !
-   !    independently of the closure definition.                                                     !
-   !=======================================================================================!
+   !---~---
+   !   1. Mass closure -- dC == litter_in - Rh for one step under BOTH solvers, Rh recomputed
+   !    independently of the closure definition.
+   !---~---
    subroutine test_mass_closure()
       type(soil_carbon_state_t)  :: pools
       type(soil_carbon_params_t) :: opts
@@ -100,9 +100,11 @@ contains
          call soil_carbon_step(p, u, lignin_in, xi_int, opts, rh, audit)
          p = audit%pools
          call check_true('EULER lignin_resid ~ 0', abs(audit%lignin_resid) < 1.0e-12_wp*sx, audit%lignin_resid)
-         !----- LAMBDA, the freeze number: the fraction of a pool one step withdraws. It must be the  !
-         !      max over pools of xi_int*K, must name that pool, and -- the property that makes the   !
-         !      frozen-pool approximation sound at all -- must be well under 1 for a daily step.  ----!
+         !---~---
+         !   LAMBDA, the freeze number: the fraction of a pool one step withdraws. It must be the
+         ! max over pools of xi_int*K, must name that pool, and -- the property that makes the
+         ! frozen-pool approximation sound at all -- must be well under 1 for a daily step.
+         !---~---
          call check('lambda_max == max_j xi_int_j*k_j', audit%lambda_max,                          &
                     maxval(xi_int(1:N_SOIL_POOL)*k_diag(1:N_SOIL_POOL)), 1.0e-15_wp)
          call check_true('lambda_max is far below 1 for a daily step', audit%lambda_max < 0.1_wp,   &
@@ -110,9 +112,11 @@ contains
          call check_true('lambda_pool names a real pool', audit%lambda_pool >= 1_ik .and.          &
                          audit%lambda_pool <= N_SOIL_POOL, real(audit%lambda_pool, wp))
          call check_true('EULER rh_today >= 0', rh >= 0.0_wp, rh)
-         !----- INDEPENDENT (non-tautological) mass check: dC == litter_in - Rh, with Rh recomputed    !
-         !      from er*xi_int*K*X0 (NOT from rh_today = litter_in - dC, which is closure-by-definition).!
-         !      This catches a dropped-litter or misattributed-transfer bug that a residual cannot.    !
+         !---~---
+         !   INDEPENDENT (non-tautological) mass check: dC == litter_in - Rh, with Rh recomputed
+         ! from er*xi_int*K*X0 (NOT from rh_today = litter_in - dC, which is closure-by-definition).
+         ! This catches a dropped-litter or misattributed-transfer bug that a residual cannot.
+         !---~---
          x1 = p%carbon
          rh_indep = 0.0_wp
          do j = 1_ik, N_SOIL_POOL
@@ -131,10 +135,10 @@ contains
          call check_true('EXPM  rh_today >= 0', rh >= -1.0e-12_wp, rh)
       end block
    end subroutine test_mass_closure
-   !=======================================================================================!
-   ! 2. SASU spin-up: active-block X_ss is an exact EULER fixed point; brute force converges;       !
-   !    inert pools held at 0; default (K5=K7=0) solves despite the singular full matrix.            !
-   !=======================================================================================!
+   !---~---
+   !   2. SASU spin-up: active-block X_ss is an exact EULER fixed point; brute force converges;
+   !    inert pools held at 0; default (K5=K7=0) solves despite the singular full matrix.
+   !---~---
    subroutine test_spinup_steady_state()
       print '(a)', '-- test 2: SASU steady state (active block) --'
       call spinup_one_scheme(DECOMP_SCHEME_ED2, 'scheme0')
@@ -166,7 +170,7 @@ contains
          opts%er_micr_int=0.60_wp
          opts%er_micr_slp=0.17_wp
       end if
-      ! frozen climate scalar (constant), constant litter input to pools 1-4:
+      !--- frozen climate scalar (constant), constant litter input to pools 1-4:
       xi = [0.7_wp, 0.5_wp, 0.7_wp, 0.5_wp, 0.5_wp, 0.5_wp, 0.5_wp]
       u  = 0.0_wp
       u(IP_FAST_GRND)=0.03_wp
@@ -177,14 +181,16 @@ contains
       call decomposition_transfer_matrix(pools, opts, a_mat, k_diag, er)
       call solve_soil_carbon_steady_state(a_mat, k_diag, xi, u, pss)
       xss = pss%carbon
-      ! inert pools held at 0 (default scheme); finite everywhere:
+      !--- inert pools held at 0 (default scheme); finite everywhere:
       if (scheme == DECOMP_SCHEME_ED2) then
-         !----- Singular-system guard (docs/science/soil_carbon.md §8): the FULL 7x7 A*diag(xi*K) is        !
-         !      SINGULAR because the inert (micr, passive) COLUMNS are identically zero (K_micr=K_pass=0),  !
-         !      so a full solve would hit a zero pivot -- the active-block {K>0} solve is REQUIRED and      !
-         !      still returns a finite X_ss (checked just below). Asserting the inert columns vanish is     !
-         !      what proves the active-block path is genuinely exercised (a full-solve regression could not !
-         !      satisfy this).                                                                              !
+         !---~---
+         !   Singular-system guard (docs/science/soil_carbon.md §8): the FULL 7x7 A*diag(xi*K) is
+         ! SINGULAR because the inert (micr, passive) COLUMNS are identically zero (K_micr=K_pass=0),
+         ! so a full solve would hit a zero pivot -- the active-block {K>0} solve is REQUIRED and
+         ! still returns a finite X_ss (checked just below). Asserting the inert columns vanish is
+         ! what proves the active-block path is genuinely exercised (a full-solve regression could not
+         ! satisfy this).
+         !---~---
          block
             real(wp)    :: mcol_inert
             integer(ik) :: ii
@@ -199,7 +205,7 @@ contains
          call check('  '//tag//' inert pass = 0', xss(IP_PASSIVE), 0.0_wp, 0.0_wp)
       end if
       call check_true('  '//tag//' X_ss finite & >= 0', all(xss >= 0.0_wp) .and. all(xss == xss), sum(xss))
-      ! EXACT EULER fixed point: step from X_ss with xi_int=xi, u -> no change.
+      !--- EXACT EULER fixed point: step from X_ss with xi_int=xi, u -> no change.
       opts%step_solver = DECOMP_STEP_EULER
       p = pss
       call soil_carbon_step(p, u, lignin_in, xi, opts, rh, audit)
@@ -207,10 +213,12 @@ contains
       x1 = p%carbon
       worst = maxval(abs(x1 - xss))
       call check_true('  '//tag//' EULER fixed point dX~0', worst < 1.0e-10_wp*max(maxval(xss),1.0_wp), worst)
-      ! brute force from bare ground converges TOWARD X_ss (SASU vs brute force agree). The scheme-5
+      !---~---
+      !   brute force from bare ground converges TOWARD X_ss (SASU vs brute force agree). The scheme-5
       ! tolerance is looser BY DESIGN: its passive pool (k=0.012/yr => ~170 yr residence at xi~0.5) is
       ! millennial, so 400k days (~1100 yr) leaves an O(1e-3) tail -- brute-forcing that pool to round-off
       ! is exactly the multi-millennium integration SASU (the exact fixed point above, dX~0) replaces.
+      !---~---
       p = soil_carbon_state_t()
       do it = 1_ik, 400000_ik
          call soil_carbon_step(p, u, lignin_in, xi, opts, rh, audit)
@@ -224,9 +232,7 @@ contains
          call check_true('  '//tag//' brute force -> X_ss', relerr < 1.0e-6_wp, relerr)
       end if
    end subroutine spinup_one_scheme
-   !=======================================================================================!
-   ! 3. Litter mapping + lignin passive tracer.                                                    !
-   !=======================================================================================!
+   !--- 3. Litter mapping + lignin passive tracer.
    subroutine test_litter_and_lignin()
       type(soil_carbon_state_t)  :: pools, p
       type(soil_carbon_params_t) :: opts
@@ -234,7 +240,7 @@ contains
       type(soil_carbon_out_t)    :: audit
       real(wp) :: u(N_SOIL_POOL), lignin_in(2), xi_int(N_SOIL_POOL), rh
       real(wp) :: f_lig_before, f_lig_after, c_before, l_before, d_s
-      ! (a) driver-side per-cohort split demo (two PFTs) summed into a pool-destined litter_input_t:
+      !--- (a) driver-side per-cohort split demo (two PFTs) summed into a pool-destined litter_input_t:
       real(wp), parameter :: LEAF1=0.10_wp, ROOT1=0.06_wp, WOOD1=0.20_wp
       real(wp), parameter :: LEAF2=0.08_wp, ROOT2=0.05_wp, WOOD2=0.30_wp
       real(wp), parameter :: FLAB_LEAF1=0.7_wp, FLAB_STEM1=0.05_wp, AGF1=0.6_wp
@@ -242,8 +248,10 @@ contains
       real(wp) :: exp_lab_grnd, exp_lab_soil, exp_str_grnd, exp_str_soil
       print '(a)', '-- test 3: litter mapping + lignin tracer --'
 
-      ! per-cohort split: leaf splits labile/structural by f_labile_leaf and lies above ground;
+      !---~---
+      !   per-cohort split: leaf splits labile/structural by f_labile_leaf and lies above ground;
       ! fineroot is below-ground; wood (CWD) is mostly structural via f_labile_stem, split by agf.
+      !---~---
       exp_lab_grnd = LEAF1*FLAB_LEAF1 + WOOD1*FLAB_STEM1*AGF1                            &
                    + LEAF2*FLAB_LEAF2 + WOOD2*FLAB_STEM2*AGF2
       exp_lab_soil = ROOT1*FLAB_LEAF1 + WOOD1*FLAB_STEM1*(1.0_wp-AGF1)                    &
@@ -267,7 +275,7 @@ contains
       call check_true('no litter to inert/SOM pools', abs(u(IP_MICR))+abs(u(IP_SLOW))+abs(u(IP_PASSIVE))<1.0e-30_wp, &
                       u(IP_SLOW))
 
-      ! (b) lignin tracer: proportional decay conserves f_lignin under pure decomposition (no input).
+      !--- (b) lignin tracer: proportional decay conserves f_lignin under pure decomposition (no input).
       opts = soil_carbon_params_t()
       pools = soil_carbon_state_t()
       pools%carbon(IP_STRUCT_GRND) = 2.0_wp
@@ -289,7 +297,7 @@ contains
       call check_true('0 <= L <= C after decay', p%lignin(1) >= 0.0_wp .and. &
                       p%lignin(1) <= p%carbon(IP_STRUCT_GRND), p%lignin(1))
       call check_true('lignin_resid ~ 0', abs(audit%lignin_resid) < 1.0e-14_wp, audit%lignin_resid)
-      ! fresh lignin input raises f_lignin:
+      !--- fresh lignin input raises f_lignin:
       pools = soil_carbon_state_t()
       pools%carbon(IP_STRUCT_GRND) = 2.0_wp
       pools%lignin(1) = 0.4_wp
@@ -303,9 +311,11 @@ contains
       call check_true('lignin input raises f_lignin', &
                       p%lignin(1)/p%carbon(IP_STRUCT_GRND) > 0.2_wp, p%lignin(1)/p%carbon(IP_STRUCT_GRND))
 
-      ! (c) EXPM at a LARGE accelerated-spin-up step: lignin must decay in lockstep with its host
+      !---~---
+      !   (c) EXPM at a LARGE accelerated-spin-up step: lignin must decay in lockstep with its host
       ! carbon (exp(-d_s)), so f_lignin stays conserved and 0 <= L <= C. The linear survival (1 - d_s)
       ! would drive L NEGATIVE here (d_s = 3.0 => L = 0.8*(1-3) = -1.6; docs/science/soil_carbon.md §6).
+      !---~---
       opts = soil_carbon_params_t()
       opts%step_solver = DECOMP_STEP_EXPM
       pools = soil_carbon_state_t()
@@ -328,18 +338,18 @@ contains
                  p%lignin(1)/p%carbon(IP_STRUCT_GRND), f_lig_before, 1.0e-12_wp)
       call check_true('EXPM large step: lignin_resid ~ 0', abs(audit%lignin_resid) < 1.0e-12_wp, audit%lignin_resid)
    end subroutine test_litter_and_lignin
-   !=======================================================================================!
-   ! 4. NECROMASS_TO_LITTER (ed_soil_carbon; docs/science/soil_carbon.md §5):                      !
-   !     the driver-side (and core-side termination/disturbance) necromass -> litter-destination !
-   !     split. (a) reproduces test_litter_and_lignin's own two-cohort hand formula EXACTLY when   !
-   !     called per-cohort with storage_c=0 (no wood/storage in a turnover-shed call), catching any !
-   !     drift between the kernel and this helper. (b) EXHAUSTIVE MASS CONSERVATION: the six        !
-   !     outputs must sum to the total necromass in for an arbitrary (leaf,root,wood,storage) input  !
-   !     -- the split has nowhere else for carbon to go. (c) each tissue lies where it grew:        !
-   !     leaves all above ground; storage split by aboveground_frac like wood. (d) add_necromass    !
-   !     records the carbon by origin, fruit and seed falling with the canopy, and the origins sum to !
-   !     the pool streams.                                                                          !
-   !=======================================================================================!
+   !---~---
+   !   4. NECROMASS_TO_LITTER (ed_soil_carbon; docs/science/soil_carbon.md §5):
+   !     the driver-side (and core-side termination/disturbance) necromass -> litter-destination
+   !     split. (a) reproduces test_litter_and_lignin's own two-cohort hand formula EXACTLY when
+   !     called per-cohort with storage_c=0 (no wood/storage in a turnover-shed call), catching any
+   !     drift between the kernel and this helper. (b) EXHAUSTIVE MASS CONSERVATION: the six
+   !     outputs must sum to the total necromass in for an arbitrary (leaf,root,wood,storage) input
+   !     -- the split has nowhere else for carbon to go. (c) each tissue lies where it grew:
+   !     leaves all above ground; storage split by aboveground_frac like wood. (d) add_necromass
+   !     records the carbon by origin, fruit and seed falling with the canopy, and the origins sum to
+   !     the pool streams.
+   !---~---
    subroutine test_necromass_to_litter()
       real(wp), parameter :: LEAF1=0.10_wp, ROOT1=0.06_wp, WOOD1=0.20_wp
       real(wp), parameter :: LEAF2=0.08_wp, ROOT2=0.05_wp, WOOD2=0.30_wp
@@ -352,8 +362,10 @@ contains
       real(wp) :: lg, ls, sg, ss, lig_g, lig_s
       print '(a)', '-- test 4: necromass_to_litter (driver/core litter-split helper) --'
 
-      ! (a) per-cohort call reproduces test_litter_and_lignin's hand formula exactly (storage_c=0,
+      !---~---
+      !   (a) per-cohort call reproduces test_litter_and_lignin's hand formula exactly (storage_c=0,
       !     lignin_frac=0.3 matching that test's flat structural-stream lignin fraction).
+      !---~---
       call necromass_to_litter(LEAF1, ROOT1, WOOD1, 0.0_wp, FLAB_LEAF1, FLAB_STEM1, AGF1, 0.3_wp,   &
                                lg1, ls1, sg1, ss1, lig_g1, lig_s1)
       call necromass_to_litter(LEAF2, ROOT2, WOOD2, 0.0_wp, FLAB_LEAF2, FLAB_STEM2, AGF2, 0.3_wp,   &
@@ -373,9 +385,11 @@ contains
       call check('necromass_to_litter matches hand formula: lignin_grnd', lig_g1+lig_g2, 0.3_wp*exp_str_grnd, 1.0e-14_wp)
       call check('necromass_to_litter matches hand formula: lignin_soil', lig_s1+lig_s2, 0.3_wp*exp_str_soil, 1.0e-14_wp)
 
-      ! (b) exhaustive mass conservation: the four labile/structural destinations (lignin is a
+      !---~---
+      !   (b) exhaustive mass conservation: the four labile/structural destinations (lignin is a
       !     passive SUB-tracer of struct_grnd/struct_soil, not a fifth carbon pool) must sum to the
       !     total necromass in, for an arbitrary input including a nonzero storage term.
+      !---~---
       leaf_c = 0.37_wp
       root_c = 0.21_wp
       wood_c = 1.85_wp
@@ -388,7 +402,7 @@ contains
       call check_true('lignin_grnd <= struct_grnd', lig_g <= sg, sg - lig_g)
       call check_true('lignin_soil <= struct_soil', lig_s <= ss, ss - lig_s)
 
-      ! (c) a leaf lies above ground whatever aboveground_frac is; storage splits by it, like wood.
+      !--- (c) a leaf lies above ground whatever aboveground_frac is; storage splits by it, like wood.
       call necromass_to_litter(0.40_wp, 0.0_wp, 0.0_wp, 0.0_wp, 0.65_wp, 0.08_wp, 0.55_wp, 0.28_wp, &
                                lg1, ls1, sg1, ss1, lig_g1, lig_s1)
       call check('leaf litter is all above ground: labile_grnd', lg1, 0.40_wp*0.65_wp, 1.0e-14_wp)
@@ -399,8 +413,10 @@ contains
       call check('storage splits by aboveground_frac: labile_grnd', lg2, 0.15_wp*0.65_wp*0.55_wp, 1.0e-14_wp)
       call check('storage splits by aboveground_frac: labile_soil', ls2, 0.15_wp*0.65_wp*0.45_wp, 1.0e-14_wp)
 
-      ! (d) add_necromass: the pool streams of necromass_to_litter (fruit/seed in the canopy channel)
+      !---~---
+      !   (d) add_necromass: the pool streams of necromass_to_litter (fruit/seed in the canopy channel)
       !     plus the carbon by origin, and the origins sum to the pool streams.
+      !---~---
       block
          type(litter_input_t) :: lit
          lit = litter_input_t()
@@ -416,23 +432,23 @@ contains
                     lit%labile_grnd + lit%labile_soil + lit%struct_grnd + lit%struct_soil, 1.0e-14_wp)
       end block
    end subroutine test_necromass_to_litter
-   !---------------------------------------------------------------------------------------!
-   ! POOL PLAUSIBILITY -- the predicate that answers the question conservation cannot.            !
-   !                                                                                          !
-   ! A runaway that CONSERVES carbon closes every budget: a coupled spin-up can drive a patch !
-   ! to 7e7 kgC/m2 of litter carbon with NEGATIVE structural and slow pools while the         !
-   ! slow-loop ledger reports every phase closed on all three currencies                      !
-   ! (docs/science/soil_carbon.md §9).                                                        !
-   !                                                                                          !
-   ! These assertions are the guard against that class, so they check the BOUNDARIES rather than    !
-   ! the happy path: round-off negatives must pass (the daily Euler step produces them), real        !
-   ! negatives must fail, and the ceiling must sit far above any real soil.                          !
-   !---------------------------------------------------------------------------------------!
+   !---~---
+   !   POOL PLAUSIBILITY -- the predicate that answers the question conservation cannot.
+   !
+   !   A runaway that CONSERVES carbon closes every budget: a coupled spin-up can drive a patch
+   ! to 7e7 kgC/m2 of litter carbon with NEGATIVE structural and slow pools while the
+   ! slow-loop ledger reports every phase closed on all three currencies
+   ! (docs/science/soil_carbon.md §9).
+   !
+   !   These assertions are the guard against that class, so they check the BOUNDARIES rather than
+   ! the happy path: round-off negatives must pass (the daily Euler step produces them), real
+   ! negatives must fail, and the ceiling must sit far above any real soil.
+   !---~---
    subroutine test_pool_plausibility()
       type(soil_carbon_state_t) :: p
       integer(ik)         :: k
 
-      !----- A realistic temperate-forest profile is PLAUSIBLE. -------------------------------!
+      !--- A realistic temperate-forest profile is PLAUSIBLE.
       p = soil_carbon_state_t()
       p%carbon(IP_FAST_GRND)   = 1.5_wp
       p%carbon(IP_FAST_SOIL)   = 1.8_wp
@@ -444,20 +460,22 @@ contains
       call check_true('no offending pool is named (none)',                                          &
                       trim(SOIL_POOL_NAME(soil_carbon_bad_pool(p))) == '(none)')
 
-      !----- All-zero (bare ground, cold start) is PLAUSIBLE. It has to be: every run starts here. !
+      !--- All-zero (bare ground, cold start) is PLAUSIBLE. It has to be: every run starts here.
       p = soil_carbon_state_t()
       call check_true('an all-zero cold start passes', soil_carbon_bad_pool(p) == 0_ik,             &
                       real(soil_carbon_bad_pool(p), wp))
 
-      !----- ROUND-OFF negatives must PASS. The daily Euler step subtracts a computed loss from a  !
-      !      pool and lands a few ulp below zero routinely; a guard that fired on that would be     !
-      !      turned off within a day, which is worse than no guard.  --------------------------------!
+      !---~---
+      !   ROUND-OFF negatives must PASS. The daily Euler step subtracts a computed loss from a
+      ! pool and lands a few ulp below zero routinely; a guard that fired on that would be
+      ! turned off within a day, which is worse than no guard.
+      !---~---
       p = soil_carbon_state_t()
       p%carbon(IP_SLOW) = -0.1_wp * SOILC_NEG_TOL
       call check_true('a round-off negative is tolerated', soil_carbon_bad_pool(p) == 0_ik,         &
                       p%carbon(IP_SLOW))
 
-      !----- A REAL negative must FAIL, and name the right pool. --------------------------------!
+      !--- A REAL negative must FAIL, and name the right pool.
       p = soil_carbon_state_t()
       p%carbon(IP_STRUCT_GRND) = -5.6e3_wp                       ! the size of a runaway's negative pool
       k = soil_carbon_bad_pool(p)
@@ -465,18 +483,20 @@ contains
       call check_true('the offending pool is named', trim(SOIL_POOL_NAME(k)) == 'struct_grnd', &
                       real(k, wp))
 
-      !----- Above the divergence CEILING must fail. --------------------------------------------!
+      !--- Above the divergence CEILING must fail.
       p = soil_carbon_state_t()
       p%carbon(IP_FAST_GRND) = 7.15e7_wp                         ! the size of a runaway's litter pool
       k = soil_carbon_bad_pool(p)
       call check_true('a diverged pool is caught by the ceiling', k == IP_FAST_GRND, real(k, wp))
 
-      !----- The ceiling must sit FAR above any real soil, or it polices science instead of        !
-      !      catching divergence. 100 kgC/m2 is already richer than almost anything measured.      !
+      !---~---
+      !   The ceiling must sit FAR above any real soil, or it polices science instead of
+      ! catching divergence. 100 kgC/m2 is already richer than almost anything measured.
+      !---~---
       call check_true('the ceiling leaves real soils alone', SOILC_MAX_PLAUSIBLE > 1.0e2_wp,        &
                       SOILC_MAX_PLAUSIBLE)
 
-      !----- A NaN must fail. It is the other way a pool stops being a number. -------------------!
+      !--- A NaN must fail. It is the other way a pool stops being a number.
       p = soil_carbon_state_t()
       p%carbon(IP_MICR) = ieee_value(1.0_wp, ieee_quiet_nan)
       call check_true('a NaN pool is caught', soil_carbon_bad_pool(p) == IP_MICR,                   &

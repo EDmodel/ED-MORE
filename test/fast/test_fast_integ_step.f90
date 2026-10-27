@@ -1,39 +1,39 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! test_fast_integ_step -- one fast step of a column, end to end (ed_fast_integ_stepper:    !
-! fast_step; docs/science/numerical_scheme.md §2-§5), on the shared fast fixture: the      !
-! frozen record, the water network's step, the march under ESDIRK2 or RK45, the update and !
-! the seven ledgers. A scenario that both schemes take runs on both.                       !
-!   1. THE COLUMN (static_state_fixture, build_frozen): the gathered view brings the       !
-!      sapwood area in m2, the PFT's aboveground fraction and its leaf and wood            !
-!      emissivities to the step.                                                           !
-!   2. A DIURNAL DAY with a morning rain (ESDIRK2): every ledger closes; the canopy air,   !
-!      the leaf, the soil and the leaf potential follow the sun; midday is unstable and    !
-!      photosynthesis draws the canopy CO2 down; the soil's swing damps with depth.        !
-!   3. THE REFERENCE LEVEL: a dark column at the air's temperature reports almost no       !
-!      sensible heat, on both schemes.                                                     !
-!   4. ESDIRK2 AND RK45 AGREE on a forced day at the shipped 900 s: both close every       !
-!      ledger, and the day's sensible and latent heat, net radiation, GPP, NEE, ground     !
-!      heat and transpiration agree within what their error control allows.                 !
-!   5. THE LEDGERS ON EVERY PATH, on both schemes: a dry day, steady rain, shed water,     !
-!      canopy films; a sealed column saturating and ponding; a free-draining one          !
-!      saturating under a storm (ESDIRK2); an aquifer wetting a dry column from below.     !
-!   6. SNOW: a melting pack, shed water under a pack and snowfall each close the column's  !
-!      water and energy on both schemes; snowfall arrives in the column; snowfall too light !
-!      to start a pack reaches the ground as ice.                                           !
-!   7. PLANT WATER AND HEAT: the leaf potential converges in dt_fast; the wood's heat      !
-!      store lags the canopy air on both schemes; refilling wood takes no heat from water  !
-!      at its own temperature; the wood's heat capacity follows its water; the canopy      !
-!      films stay out of the tissues' heat capacity for the step; a new cohort's predawn   !
-!      potential follows a Campbell soil's curve.                                          !
-!   8. RK45 AT ITS EDGES: a drydown to theta_res, a just-recruited cohort, a dense canopy   !
-!      in a cold snap, and the dry soil's uptake seam.                                      !
-!   9. THE REPORTED NET RADIATION (fast_step's out%rnet) counts the wood: with the leaves  !
-!      and the ground dark, shortwave on the wood alone raises it by what the wood         !
-!      absorbs, less only the warmer wood's extra emission, on both schemes.               !
-! The building blocks are test_fast_integ_kernels'; the schemes' orders and the adaptive  !
-! march are test_fast_integ_schemes'.                                                       !
-!==========================================================================================!
+!---~---
+!   test_fast_integ_step -- one fast step of a column, end to end (ed_fast_integ_stepper:
+! fast_step; docs/science/numerical_scheme.md §2-§5), on the shared fast fixture: the
+! frozen record, the water network's step, the march under ESDIRK2 or RK45, the update and
+! the seven ledgers. A scenario that both schemes take runs on both.
+!   1. THE COLUMN (static_state_fixture, build_frozen): the gathered view brings the
+!      sapwood area in m2, the PFT's aboveground fraction and its leaf and wood
+!      emissivities to the step.
+!   2. A DIURNAL DAY with a morning rain (ESDIRK2): every ledger closes; the canopy air,
+!      the leaf, the soil and the leaf potential follow the sun; midday is unstable and
+!      photosynthesis draws the canopy CO2 down; the soil's swing damps with depth.
+!   3. THE REFERENCE LEVEL: a dark column at the air's temperature reports almost no
+!      sensible heat, on both schemes.
+!   4. ESDIRK2 AND RK45 AGREE on a forced day at the shipped 900 s: both close every
+!      ledger, and the day's sensible and latent heat, net radiation, GPP, NEE, ground
+!      heat and transpiration agree within what their error control allows.
+!   5. THE LEDGERS ON EVERY PATH, on both schemes: a dry day, steady rain, shed water,
+!      canopy films; a sealed column saturating and ponding; a free-draining one
+!      saturating under a storm (ESDIRK2); an aquifer wetting a dry column from below.
+!   6. SNOW: a melting pack, shed water under a pack and snowfall each close the column's
+!      water and energy on both schemes; snowfall arrives in the column; snowfall too light
+!      to start a pack reaches the ground as ice.
+!   7. PLANT WATER AND HEAT: the leaf potential converges in dt_fast; the wood's heat
+!      store lags the canopy air on both schemes; refilling wood takes no heat from water
+!      at its own temperature; the wood's heat capacity follows its water; the canopy
+!      films stay out of the tissues' heat capacity for the step; a new cohort's predawn
+!      potential follows a Campbell soil's curve.
+!   8. RK45 AT ITS EDGES: a drydown to theta_res, a just-recruited cohort, a dense canopy
+!      in a cold snap, and the dry soil's uptake seam.
+!   9. THE REPORTED NET RADIATION (fast_step's out%rnet) counts the wood: with the leaves
+!      and the ground dark, shortwave on the wood alone raises it by what the wood
+!      absorbs, less only the warmer wood's extra emission, on both schemes.
+! The building blocks are test_fast_integ_kernels'; the schemes' orders and the adaptive
+! march are test_fast_integ_schemes'.
+!---~---
 program test_fast_integ_step
    use ed_kinds,                only : wp, ik
    use ed_constants,            only : latent_heat_fusion, rho_h2o, grav, pio4, cp_liq, grav_head, mmh2o,          &
@@ -59,22 +59,24 @@ program test_fast_integ_step
 
    integer(ik), parameter :: SCHEMES(2) = [INTEG_ESDIRK2, INTEG_RK45]
 
-   !----- One day of the column (march_day): what drives it beyond the fixture's diurnal forcing, !
-   !      and what it records. ----------------------------------------------------------------!
+   !---~---
+   !   One day of the column (march_day): what drives it beyond the fixture's diurnal forcing,
+   ! and what it records.
+   !---~---
    type :: day_t
-      real(wp)    :: theta_seed   = THETA0   !< [m3/m3] the soil's starting water
-      integer(ik) :: hours        = 24_ik    !< the day's length
-      real(wp)    :: rain_pulse   = 0.0_wp   !< [kg/m2/s] rain over 03:00-07:00
-      real(wp)    :: rain_all_day = 0.0_wp   !< [kg/m2/s] rain all day
-      real(wp)    :: snowfall     = 0.0_wp   !< [kg/m2/s] snowfall all day, under sub-freezing air
-      logical     :: cold_air     = .false.  !< the snowfall's sub-freezing air, without the snowfall
-      real(wp)    :: snow_seed    = 0.0_wp   !< [kg/m2] a pack at the start
-      real(wp)    :: shed         = 0.0_wp   !< [kg/m2/s] the day's turnover shed water
-      real(wp)    :: shv_air      = SHV_AIR  !< [kg/kg] the air's humidity
-      logical     :: sealed       = .false.  !< a bedrock bottom: no drainage
-      logical     :: aquifer      = .false.  !< an aquifer bottom
-      logical     :: dark_step    = .false.  !< one dark step with the air at the column's temperature
-      !----- Recorded. ----------------------------------------------------------------------!
+      real(wp)    :: theta_seed   = THETA0   !--- [m3/m3] the soil's starting water
+      integer(ik) :: hours        = 24_ik    !--- the day's length
+      real(wp)    :: rain_pulse   = 0.0_wp   !--- [kg/m2/s] rain over 03:00-07:00
+      real(wp)    :: rain_all_day = 0.0_wp   !--- [kg/m2/s] rain all day
+      real(wp)    :: snowfall     = 0.0_wp   !--- [kg/m2/s] snowfall all day, under sub-freezing air
+      logical     :: cold_air     = .false.  !--- the snowfall's sub-freezing air, without the snowfall
+      real(wp)    :: snow_seed    = 0.0_wp   !--- [kg/m2] a pack at the start
+      real(wp)    :: shed         = 0.0_wp   !--- [kg/m2/s] the day's turnover shed water
+      real(wp)    :: shv_air      = SHV_AIR  !--- [kg/kg] the air's humidity
+      logical     :: sealed       = .false.  !--- a bedrock bottom: no drainage
+      logical     :: aquifer      = .false.  !--- an aquifer bottom
+      logical     :: dark_step    = .false.  !--- one dark step with the air at the column's temperature
+      !--- Recorded.
       real(wp) :: ct_noon = 0.0_wp, ct_night = 0.0_wp, co2_noon = 0.0_wp, co2_night = 0.0_wp
       real(wp) :: tleaf_noon = 0.0_wp, tleaf_night = 0.0_wp, ustar_noon = 0.0_wp, dtheta_noon = 0.0_wp
       real(wp) :: gpp_noon = 0.0_wp, nee_noon = 0.0_wp, psileaf_noon = 0.0_wp, psileaf_night = 0.0_wp
@@ -121,11 +123,9 @@ program test_fast_integ_step
 
 contains
 
-   !=======================================================================================!
-   ! Helpers.                                                                              !
-   !=======================================================================================!
+   !--- Helpers.
 
-   !----- Run the column on a scheme. --------------------------------------------------------------!
+   !--- Run the column on a scheme.
    subroutine use_scheme(scheme)
       integer(ik), intent(in) :: scheme
       col%cfg%time_integrator = scheme
@@ -136,9 +136,11 @@ contains
       nm = merge('ESDIRK2', 'RK45   ', scheme == INTEG_ESDIRK2)
    end function scheme_name
 
-   !----- One day of the column from a fresh state: the fixture's 21 June forcing, step i at          !
-   !      (i - 1/2)*DT_FAST after midnight, with the day's rain, snow, cold air, shed water and bottom  !
-   !      boundary, recording the noon (13:30) and night (00:30) states and the day's extremes. --------!
+   !---~---
+   !   One day of the column from a fresh state: the fixture's 21 June forcing, step i at
+   ! (i - 1/2)*DT_FAST after midnight, with the day's rain, snow, cold air, shed water and bottom
+   ! boundary, recording the noon (13:30) and night (00:30) states and the day's extremes.
+   !---~---
    subroutine march_day(d)
       type(day_t), intent(inout) :: d
       real(wp)    :: t_sec, cosz, qsat, psi, t_air
@@ -151,7 +153,7 @@ contains
       if (d%aquifer) col%site%soil%water_bottom_bc = SOIL_BC_AQUIFER
       col%static%shed_water_rate = d%shed
       col%static%shed_water_enth = d%shed * internal_energy_liquid(T0)   ! shed by tissues at T0
-      !----- A pack, seeded as the model seeds its first one (250 kg/m3), at 270 K. ----------------!
+      !--- A pack, seeded as the model seeds its first one (250 kg/m3), at 270 K.
       if (d%snow_seed > 0.0_wp) then
          col%dynamic%snow%swe(1)         = d%snow_seed
          col%dynamic%snow%snow_energy(1) = temp_to_internal_energy(0.0_wp, d%snow_seed, 270.0_wp, 0.0_wp)
@@ -232,45 +234,51 @@ contains
       end do
    end subroutine march_day
 
-   !----- The column's water at the day's end: the soil layers, the pond and the pack [kg/m2]. -------!
+   !--- The column's water at the day's end: the soil layers, the pond and the pack [kg/m2].
    real(wp) function column_water() result(w)
       w = col%dynamic%soil_water%w_surface + col%dynamic%snow%swe(1)                                            &
           + sum(col%dynamic%soil_water%theta(1:NSL) * col%site%soil_profile%dz(1:NSL)) * rho_h2o
    end function column_water
 
-   !----- The soil's and the pond's energy [J/m2]. -------------------------------------------------!
+   !--- The soil's and the pond's energy [J/m2].
    real(wp) function ground_energy() result(e)
       e = sum(col%dynamic%soil_energy%soil_energy(1:NSL) * col%site%soil_profile%dz(1:NSL))                    &
           + col%dynamic%soil_water%w_surface_energy
    end function ground_energy
 
-   !----- The heat a tissue gains per kelvin at T0 [J/m2/K], with dry heat capacity dry_hcap and     !
-   !      holding wmass of water: the slope of its energy in temperature (tissue_temp_to_energy). ---!
+   !---~---
+   !   The heat a tissue gains per kelvin at T0 [J/m2/K], with dry heat capacity dry_hcap and
+   ! holding wmass of water: the slope of its energy in temperature (tissue_temp_to_energy).
+   !---~---
    real(wp) function heat_per_kelvin(dry_hcap, wmass) result(c)
-      real(wp), intent(in) :: dry_hcap   !< [J/m2/K]
-      real(wp), intent(in) :: wmass      !< [kg/m2]
+      real(wp), intent(in) :: dry_hcap   !--- [J/m2/K]
+      real(wp), intent(in) :: wmass      !--- [kg/m2]
       c = tissue_temp_to_energy(dry_hcap, wmass, T0 + 1.0_wp) - tissue_temp_to_energy(dry_hcap, wmass, T0)
    end function heat_per_kelvin
 
-   !=======================================================================================!
-   ! 1. THE COLUMN: what the gathered view brings to the step.                               !
-   !=======================================================================================!
+   !--- 1. THE COLUMN: what the gathered view brings to the step.
    subroutine test_the_column()
       type(frozen_t)      :: fz
       type(march_state_t) :: ys
       real(wp) :: eps_leaf0(col%cfg%pft%n), eps_wood0(col%cfg%pft%n)
       print '(a)', 'test_the_column:'
-      !----- The hydraulics take the sapwood area in m2; the cohort keeps it in cm2. Passed through     !
-      !      unconverted it would be 10^4 times the stem's own cross-section. ------------------------!
+      !---~---
+      !   The hydraulics take the sapwood area in m2; the cohort keeps it in cm2. Passed through
+      ! unconverted it would be 10^4 times the stem's own cross-section.
+      !---~---
       call check_true('the sapwood area reaches the hydraulics in m2, within the stem',                          &
                       col%static%sap_area(1) > 0.0_wp .and. col%static%sap_area(1) <= pio4 * 0.2_wp ** 2,         &
                       col%static%sap_area(1))
-      !----- The PFT's aboveground fraction (stem respiration) reaches the view: PFT table ->          !
-      !      init_cohort -> the cohort block -> the gather. -----------------------------------------!
+      !---~---
+      !   The PFT's aboveground fraction (stem respiration) reaches the view: PFT table ->
+      ! init_cohort -> the cohort block -> the gather.
+      !---~---
       call check('the PFT''s aboveground fraction reaches the view', col%static%aboveground_frac(1),             &
                  col%cfg%pft%allom(1)%aboveground_frac, 1.0e-14_wp)
-      !----- The energy balance's emission slope 4 eps sigma T^3 takes each cohort's PFT leaf and wood   !
-      !      emissivity, the ones the radiation solver emits with. Distinct values catch a swap. -------!
+      !---~---
+      !   The energy balance's emission slope 4 eps sigma T^3 takes each cohort's PFT leaf and wood
+      ! emissivity, the ones the radiation solver emits with. Distinct values catch a swap.
+      !---~---
       eps_leaf0 = col%cfg%pft%leaf_emissivity
       eps_wood0 = col%cfg%pft%wood_emissivity
       col%cfg%pft%leaf_emissivity = 0.93_wp
@@ -288,9 +296,7 @@ contains
       call gather_column(col)
    end subroutine test_the_column
 
-   !=======================================================================================!
-   ! 2. A DIURNAL DAY with a morning rain pulse (03:00-07:00), on ESDIRK2.                   !
-   !=======================================================================================!
+   !--- 2. A DIURNAL DAY with a morning rain pulse (03:00-07:00), on ESDIRK2.
    subroutine test_diurnal_day()
       type(day_t) :: d
       print '(a)', 'test_diurnal_day:'
@@ -299,11 +305,13 @@ contains
       call march_day(d)
       call check_true('DAY: all seven ledgers close on every step', all_ledgers_closed(col%out%report))
       call check_true('DAY: canopy air warmer near noon than at night', d%ct_noon > d%ct_night, d%ct_noon - d%ct_night)
-      !----- The turbulence regime itself, which every invariant above passes in any regime: with the   !
-      !      air at its type default (298.15 K) instead of the forcing's 282-294 K, the surface layer    !
-      !      is stable all day. Correctly driven, midday is unstable (this fails by -0.56 K when the     !
-      !      frozen build stops handing the aerodynamics the forcing's air temperature) and u* sits     !
-      !      off its floor, which bounds the decoupled regime a fixed reference gives. ----------------!
+      !---~---
+      !   The turbulence regime itself, which every invariant above passes in any regime: with the
+      ! air at its type default (298.15 K) instead of the forcing's 282-294 K, the surface layer
+      ! is stable all day. Correctly driven, midday is unstable (this fails by -0.56 K when the
+      ! frozen build stops handing the aerodynamics the forcing's air temperature) and u* sits
+      ! off its floor, which bounds the decoupled regime a fixed reference gives.
+      !---~---
       call check_true('DAY: midday is unstable (canopy air warmer than the air)', d%dtheta_noon > 0.0_wp,          &
                       d%dtheta_noon)
       call check_true('DAY: midday u* is off the surface layer''s floor', d%ustar_noon > 1.5_wp * col%cfg%aero%ustmin, &
@@ -319,22 +327,24 @@ contains
       call check_true('DAY: the leaf water is under tension by day', d%psileaf_noon < 0.0_wp, d%psileaf_noon)
       call check_true('DAY: the leaf is under more tension at midday than at night', d%psileaf_noon < d%psileaf_night, &
                       d%psileaf_noon - d%psileaf_night)
-      !----- With the interior faces advecting the water's enthalpy, the soil stays bounded at both     !
-      !      ends; with the faces lumped this day reaches a 361 K soil surface while the whole-column   !
-      !      ledger still closes, the error being purely vertical (docs/science/numerical_scheme.md §5b, !
-      !      "Every soil-water flow comes from one solve"). -------------------------------------------!
+      !---~---
+      !   With the interior faces advecting the water's enthalpy, the soil stays bounded at both
+      ! ends; with the faces lumped this day reaches a 361 K soil surface while the whole-column
+      ! ledger still closes, the error being purely vertical (docs/science/numerical_scheme.md §5b,
+      ! "Every soil-water flow comes from one solve").
+      !---~---
       call check_true('DAY: the soil surface stays bounded', d%ss_min > 270.0_wp .and. d%ss_max < 330.0_wp, d%ss_max)
       call check_true('DAY: the deep soil stays bounded', d%sd_min > 270.0_wp .and. d%sd_max < 330.0_wp, d%sd_max)
    end subroutine test_diurnal_day
 
-   !=======================================================================================!
-   ! 3. THE REFERENCE LEVEL. The surface layer compares the canopy air with the air at the   !
-   ! canopy-air top (zref), both referenced to that level, and the reported sensible heat is !
-   ! the flux the whole-column ledger exchanges. A dark column at the air's own temperature  !
-   ! has nothing driving a sensible flux, so its first step reports |H| far below            !
-   ! g_atm_heat*g*zref; referencing only the air's potential temperature to the ground would !
-   ! report about -g_atm_heat*g*zref (docs/science/canopy_aerodynamics.md §2).               !
-   !=======================================================================================!
+   !---~---
+   !   3. THE REFERENCE LEVEL. The surface layer compares the canopy air with the air at the
+   ! canopy-air top (zref), both referenced to that level, and the reported sensible heat is
+   ! the flux the whole-column ledger exchanges. A dark column at the air's own temperature
+   ! has nothing driving a sensible flux, so its first step reports |H| far below
+   ! g_atm_heat*g*zref; referencing only the air's potential temperature to the ground would
+   ! report about -g_atm_heat*g*zref (docs/science/canopy_aerodynamics.md §2).
+   !---~---
    subroutine test_reference_level()
       type(day_t) :: d
       integer(ik) :: is
@@ -351,26 +361,26 @@ contains
       call use_scheme(INTEG_ESDIRK2)
    end subroutine test_reference_level
 
-   !=======================================================================================!
-   ! 4. ESDIRK2 AND RK45 AGREE on a forced day: the fixture's 21 June with a morning rain on  !
-   ! the canopy films, at the shipped dt_fast of 900 s, each scheme at RK45's shipped         !
-   ! tolerance. Both close every ledger, and the day's totals agree.                          !
-   !                                                                                          !
-   ! THE TOLERANCE. Both march the same frozen record, water network and update; they differ !
-   ! only in how the canopy air, the soil heat, the tissues and the films are integrated      !
-   ! within a step. Each holds every sub-step's local error in the canopy air and the soil    !
-   ! heat below one tolerance unit, atol + rtol|y| (eq. (3)): at rtol = 1e-4 that is          !
-   ! 50 + 1e-4 * 2.9e5 ~ 80 J/kg of canopy-air enthalpy, 0.08 K. The canopy air forgets an    !
-   ! error within its relaxation time (minutes), so the two trajectories stay within about    !
-   ! one unit of each other instead of adding up over the day's 96 steps. One unit moves the  !
-   ! sensible heat by g_atm cp * 0.08 K, ~7 W/m2 at this column's night-time coupling of      !
-   ! ~90 W/m2/K (more by day), 5-6 % of the day's mean |H| (~120 W/m2), and the other fluxes  !
-   ! in proportion. So each day's total may differ by up to 5 % of the day's integrated      !
-   ! |flux|, the bound asserted. The schemes in fact agree far closer (a few 1e-4), while a   !
-   ! wiring error in either (a dropped flux term, a stage fed the wrong input) moves a total  !
-   ! by tens of percent. ESDIRK2's films are advanced by a map and RK45's in its tableau, so  !
-   ! the latent heat and the transpiration are where the two differ most.                     !
-   !=======================================================================================!
+   !---~---
+   !   4. ESDIRK2 AND RK45 AGREE on a forced day: the fixture's 21 June with a morning rain on
+   ! the canopy films, at the shipped dt_fast of 900 s, each scheme at RK45's shipped
+   ! tolerance. Both close every ledger, and the day's totals agree.
+   !
+   !   THE TOLERANCE. Both march the same frozen record, water network and update; they differ
+   ! only in how the canopy air, the soil heat, the tissues and the films are integrated
+   ! within a step. Each holds every sub-step's local error in the canopy air and the soil
+   ! heat below one tolerance unit, atol + rtol|y| (eq. (3)): at rtol = 1e-4 that is
+   ! 50 + 1e-4 * 2.9e5 ~ 80 J/kg of canopy-air enthalpy, 0.08 K. The canopy air forgets an
+   ! error within its relaxation time (minutes), so the two trajectories stay within about
+   ! one unit of each other instead of adding up over the day's 96 steps. One unit moves the
+   ! sensible heat by g_atm cp * 0.08 K, ~7 W/m2 at this column's night-time coupling of
+   ! ~90 W/m2/K (more by day), 5-6 % of the day's mean |H| (~120 W/m2), and the other fluxes
+   ! in proportion. So each day's total may differ by up to 5 % of the day's integrated
+   ! |flux|, the bound asserted. The schemes in fact agree far closer (a few 1e-4), while a
+   ! wiring error in either (a dropped flux term, a stage fed the wrong input) moves a total
+   ! by tens of percent. ESDIRK2's films are advanced by a map and RK45's in its tableau, so
+   ! the latent heat and the transpiration are where the two differ most.
+   !---~---
    subroutine test_schemes_agree()
       real(wp),    parameter :: H = 900.0_wp, AGREE = 0.05_wp
       integer(ik), parameter :: NSTEP = nint(86400.0_wp / H, ik), NQ = 7_ik
@@ -395,8 +405,10 @@ contains
             if (t_sec >= 3.0_wp * 3600.0_wp .and. t_sec <= 7.0_wp * 3600.0_wp) col%forcing%rainfall = 1.5e-4_wp
             e_ground = ground_energy()
             call step_column(col, H)
-            !----- The step's amounts: sensible and latent heat and net radiation [J/m2], GPP and NEE     !
-            !      [umol/m2], the soil and pond's heat gain [J/m2], transpiration [kg/m2]. -----------!
+            !---~---
+            !   The step's amounts: sensible and latent heat and net radiation [J/m2], GPP and NEE
+            ! [umol/m2], the soil and pond's heat gain [J/m2], transpiration [kg/m2].
+            !---~---
             amount(1) = col%out%h_flux * H
             amount(2) = col%out%le_flux * H
             amount(3) = col%out%rnet * H
@@ -424,14 +436,14 @@ contains
       call use_scheme(INTEG_ESDIRK2)
    end subroutine test_schemes_agree
 
-   !=======================================================================================!
-   ! 5. THE LEDGERS ON EVERY PATH.                                                            !
-   !=======================================================================================!
+   !--- 5. THE LEDGERS ON EVERY PATH.
 
-   !----- A dry day over moist free-draining soil, at RK45's shipped tolerance, on ESDIRK2 and     !
-   !      RK45: all seven ledgers close on every dispatched step, the canopy air's energy and the   !
-   !      whole column's to round-off, and the state stays physical and the canopy air below       !
-   !      saturation all day. -------------------------------------------------------------------!
+   !---~---
+   !   A dry day over moist free-draining soil, at RK45's shipped tolerance, on ESDIRK2 and
+   ! RK45: all seven ledgers close on every dispatched step, the canopy air's energy and the
+   ! whole column's to round-off, and the state stays physical and the canopy air below
+   ! saturation all day.
+   !---~---
    subroutine test_dry_day()
       type(day_t) :: d
       character(len=16) :: tag
@@ -471,10 +483,12 @@ contains
       call use_scheme(INTEG_ESDIRK2)
    end subroutine test_dry_day
 
-   !----- Steady rain all day (8e-5 kg/m2/s, ~0.29 mm/h) over free-draining soil, on both schemes:    !
-   !      the boundary water-enthalpy advection under a real rainfall rate. Free drainage empties a   !
-   !      wet column whatever falls on it, so the rain wets the soil when the column ends wetter than !
-   !      the same day without it. ---------------------------------------------------------------!
+   !---~---
+   !   Steady rain all day (8e-5 kg/m2/s, ~0.29 mm/h) over free-draining soil, on both schemes:
+   ! the boundary water-enthalpy advection under a real rainfall rate. Free drainage empties a
+   ! wet column whatever falls on it, so the rain wets the soil when the column ends wetter than
+   ! the same day without it.
+   !---~---
    subroutine test_wet_day()
       type(day_t) :: d
       real(wp)    :: theta_dry
@@ -504,9 +518,11 @@ contains
       call use_scheme(INTEG_ESDIRK2)
    end subroutine test_wet_day
 
-   !----- The day's leaf and root turnover shed water (8e-5 kg/m2/s), a patch input distinct from     !
-   !      the rain, which stays 0: it alone wets the soil on both schemes, and both whole-column       !
-   !      ledgers close with no wiring of its own, its enthalpy riding the infiltration's. ---------!
+   !---~---
+   !   The day's leaf and root turnover shed water (8e-5 kg/m2/s), a patch input distinct from
+   ! the rain, which stays 0: it alone wets the soil on both schemes, and both whole-column
+   ! ledgers close with no wiring of its own, its enthalpy riding the infiltration's.
+   !---~---
    subroutine test_shed_water()
       type(day_t) :: d
       real(wp)    :: theta_dry
@@ -535,12 +551,14 @@ contains
       call use_scheme(INTEG_ESDIRK2)
    end subroutine test_shed_water
 
-   !----- The canopy films ([fast].canopy_water_on) under the morning rain, on both schemes: the      !
-   !      canopy intercepts some of it, and the whole column's water and energy close, each film     !
-   !      being part of its tissue's energy at the tissue's temperature, its capture brought in at   !
-   !      the rain's liquid enthalpy and its evaporation paying the vapour's. The wiring, from the    !
-   !      interception through the films to the canopy air and the ledgers; the films' own laws are  !
-   !      test_canopy_water's and test_plant_energy's. ------------------------------------------!
+   !---~---
+   !   The canopy films ([fast].canopy_water_on) under the morning rain, on both schemes: the
+   ! canopy intercepts some of it, and the whole column's water and energy close, each film
+   ! being part of its tissue's energy at the tissue's temperature, its capture brought in at
+   ! the rain's liquid enthalpy and its evaporation paying the vapour's. The wiring, from the
+   ! interception through the films to the canopy air and the ledgers; the films' own laws are
+   ! test_canopy_water's and test_plant_energy's.
+   !---~---
    subroutine test_canopy_films()
       type(day_t) :: d
       integer(ik) :: is
@@ -563,12 +581,14 @@ contains
       call use_scheme(INTEG_ESDIRK2)
    end subroutine test_canopy_films
 
-   !----- A sealed (bedrock) column seeded just below theta_sat under ~29 mm/h of rain, on both      !
-   !      schemes: it saturates (the water network raises the layer's potential and drives the       !
-   !      excess to the pond and the next layer) and overflows its pond (surface runoff), paths no    !
-   !      other scenario takes. Both move mass and enthalpy as a pair: the pond holds its own        !
-   !      enthalpy and runoff leaves at its temperature (docs/science/numerical_scheme.md §5b, "The  !
-   !      pond holds heat"). -----------------------------------------------------------------------!
+   !---~---
+   !   A sealed (bedrock) column seeded just below theta_sat under ~29 mm/h of rain, on both
+   ! schemes: it saturates (the water network raises the layer's potential and drives the
+   ! excess to the pond and the next layer) and overflows its pond (surface runoff), paths no
+   ! other scenario takes. Both move mass and enthalpy as a pair: the pond holds its own
+   ! enthalpy and runoff leaves at its temperature (docs/science/numerical_scheme.md §5b, "The
+   ! pond holds heat").
+   !---~---
    subroutine test_sealed_saturated()
       type(day_t) :: d
       integer(ik) :: is
@@ -583,39 +603,51 @@ contains
                          d%theta_peak >= 0.43_wp - 1.0e-12_wp, d%theta_peak)
          call check_true(trim(nm)//' sealed: the pond overflowed (the runoff path is live)',                       &
                          d%pond_peak >= col%site%soil%w_pond_max - 1.0e-9_wp, d%pond_peak)
-         !----- Energy as a bound: nothing clamps the committed state, but whether a stage clamp bites  !
-         !      depends on the trajectory and the compiler; a clamp that rebuilt the committed soil      !
-         !      energy with no ledger term would show here (1.5e5 J/m2 on nvfortran). ------------------!
+         !---~---
+         !   Energy as a bound: nothing clamps the committed state, but whether a stage clamp bites
+         ! depends on the trajectory and the compiler; a clamp that rebuilt the committed soil
+         ! energy with no ledger term would show here (1.5e5 J/m2 on nvfortran).
+         !---~---
          call check_true(trim(nm)//' sealed: whole-column energy closes (no unbooked clamp on the commit)',        &
                          col%out%report%ledgers%whole_energy%worst < 1.0e-3_wp, col%out%report%ledgers%whole_energy%worst)
-         !----- Water to machine precision: drainage, ponding and runoff come from the water network solve  !
-         !      whose theta both schemes commit, so every flow and the state it moves agree. ----------!
+         !---~---
+         !   Water to machine precision: drainage, ponding and runoff come from the water network solve
+         ! whose theta both schemes commit, so every flow and the state it moves agree.
+         !---~---
          call check_true(trim(nm)//' sealed: whole-column water closes', col%out%report%ledgers%whole_water%n_fail == 0_ik, &
                          real(col%out%report%ledgers%whole_water%n_fail, wp))
          call check_true(trim(nm)//' sealed: whole-column water closes to machine precision',                     &
                          col%out%report%ledgers%whole_water%worst < 1.0e-6_wp, col%out%report%ledgers%whole_water%worst)
-         !----- The vertical check the whole-column ledgers cannot make: each layer's water change against !
-         !      the faces the soil energy is charged for, the network's own per-layer closure at the       !
-         !      saturated corner where its pond and runoff paths are live. A misplacement between layers  !
-         !      still sums correctly against the boundary, even at a 345 K soil surface. ---------------!
+         !---~---
+         !   The vertical check the whole-column ledgers cannot make: each layer's water change against
+         ! the faces the soil energy is charged for, the network's own per-layer closure at the
+         ! saturated corner where its pond and runoff paths are live. A misplacement between layers
+         ! still sums correctly against the boundary, even at a 345 K soil surface.
+         !---~---
          call check_true(trim(nm)//' sealed: per-layer face closure holds',                                       &
                          col%out%report%ledgers%soil_face_mass%worst < 1.0e-8_wp,                                    &
                          col%out%report%ledgers%soil_face_mass%worst)
-         !----- The soil surface sees heat advected on faces that are not the scheme's own, which no ledger !
-         !      sees: one such error moves it by ~50 K; with the faces right it sits near 295 K. A 29 mm/h   !
-         !      rain cannot warm a soil surface past ~300 K, so 310 K has diagnostic power. --------------!
+         !---~---
+         !   The soil surface sees heat advected on faces that are not the scheme's own, which no ledger
+         ! sees: one such error moves it by ~50 K; with the faces right it sits near 295 K. A 29 mm/h
+         ! rain cannot warm a soil surface past ~300 K, so 310 K has diagnostic power.
+         !---~---
          call check_true(trim(nm)//' sealed: the soil surface stays physical (the faces on the committed theta)',    &
                          d%ss_min > 250.0_wp .and. d%ss_max < 310.0_wp, d%ss_max)
-         !----- A saturated layer holds more only through its specific storage, at a positive head, at most !
-         !      the hydrostatic one in a sealed column: the column's depth plus the pond (docs/science/      !
-         !      numerical_scheme.md §5b, "Saturation is the water network's"). ---------------------------!
+         !---~---
+         !   A saturated layer holds more only through its specific storage, at a positive head, at most
+         ! the hydrostatic one in a sealed column: the column's depth plus the pond (docs/science/
+         ! numerical_scheme.md §5b, "Saturation is the water network's").
+         !---~---
          call check_true(trim(nm)//' sealed: theta above theta_sat only through specific storage (hydrostatic head)', &
                          d%theta_peak <= 0.43_wp + SOIL_SPECIFIC_STORAGE                                             &
                                        * (-col%site%soil_profile%soil_layer_z(NSL + 1_ik)                            &
                                           + col%site%soil%w_pond_max / rho_h2o), d%theta_peak)
-         !----- How far an RK45 stage's starting theta lay outside [theta_res, theta_sat] (ESDIRK2 has no    !
-         !      explicit stage): under the water network only above saturation, by the specific storage,  !
-         !      so the bound is far looser than what is reached (below 1e-4). --------------------------!
+         !---~---
+         !   How far an RK45 stage's starting theta lay outside [theta_res, theta_sat] (ESDIRK2 has no
+         ! explicit stage): under the water network only above saturation, by the specific storage,
+         ! so the bound is far looser than what is reached (below 1e-4).
+         !---~---
          if (SCHEMES(is) == INTEG_RK45) then
             print '(a,es10.3)', '   RK45 sealed: worst stage excursion of theta ', d%ood_peak
             call check_true('RK45 sealed: the constitutive-domain excursion stays small', d%ood_peak < 2.0e-2_wp,       &
@@ -625,9 +657,11 @@ contains
       call use_scheme(INTEG_ESDIRK2)
    end subroutine test_sealed_saturated
 
-   !----- A free-draining column seeded just below theta_sat under ~29 mm/h of rain, far above its   !
-   !      drainage (ksat 2.89e-6 m/s, ~2.9e-3 kg/m2/s), saturates and overflows its pond too (on      !
-   !      ESDIRK2, the water network's route being the same on both). ----------------------------!
+   !---~---
+   !   A free-draining column seeded just below theta_sat under ~29 mm/h of rain, far above its
+   ! drainage (ksat 2.89e-6 m/s, ~2.9e-3 kg/m2/s), saturates and overflows its pond too (on
+   ! ESDIRK2, the water network's route being the same on both).
+   !---~---
    subroutine test_free_drain_saturated()
       type(day_t) :: d
       print '(a)', 'test_free_drain_saturated:'
@@ -644,9 +678,11 @@ contains
                       d%ss_max)
    end subroutine test_free_drain_saturated
 
-   !----- The aquifer bottom is a head-driven, two-way boundary with no state behind it, and both     !
-   !      schemes commit the water network's theta, so each takes it like any other face: a column    !
-   !      started dry (0.15) wets from below over 12 h with both whole-column ledgers closed. -------!
+   !---~---
+   !   The aquifer bottom is a head-driven, two-way boundary with no state behind it, and both
+   ! schemes commit the water network's theta, so each takes it like any other face: a column
+   ! started dry (0.15) wets from below over 12 h with both whole-column ledgers closed.
+   !---~---
    subroutine test_aquifer()
       type(day_t) :: d
       integer(ik) :: is, nb
@@ -671,21 +707,23 @@ contains
       call use_scheme(INTEG_ESDIRK2)
    end subroutine test_aquifer
 
-   !=======================================================================================!
-   ! 6. SNOW. The pack's coupling, integrated: the stage both schemes share                  !
-   ! (prepare_snow_stage: accumulate, then drain the meltwater), the surface balance against !
-   ! the live canopy air in the march, the snowfac-blended ground, sublimation into the       !
-   ! canopy air, the commit, and the pack's terms in the whole-column ledgers. The snow       !
-   ! kernels alone are test_surface's.                                                        !
-   !=======================================================================================!
+   !---~---
+   !   6. SNOW. The pack's coupling, integrated: the stage both schemes share
+   ! (prepare_snow_stage: accumulate, then drain the meltwater), the surface balance against
+   ! the live canopy air in the march, the snowfac-blended ground, sublimation into the
+   ! canopy air, the commit, and the pack's terms in the whole-column ledgers. The snow
+   ! kernels alone are test_surface's.
+   !---~---
 
-   !----- A 60 kg/m2 pack under 2e-5 kg/m2/s of snowfall in sub-freezing air, no rain: it melts over   !
-   !      the day (75 W/m2 of ground shortwave and no longwave loss beat the snowfall) without        !
-   !      vanishing, so the snowfac-blended surface is live all day and melt routes a paired mass and  !
-   !      enthalpy into the soil top. A scheme that imports the snow kernels but never calls them runs !
-   !      snow-free and passes its ledgers trivially; RK45's melt total agrees with ESDIRK2's, within  !
-   !      10 % for the schemes driving the surface along different canopy-air paths, while a stage    !
-   !      fed the wrong inputs is off by order 100 %. -----------------------------------------------!
+   !---~---
+   !   A 60 kg/m2 pack under 2e-5 kg/m2/s of snowfall in sub-freezing air, no rain: it melts over
+   ! the day (75 W/m2 of ground shortwave and no longwave loss beat the snowfall) without
+   ! vanishing, so the snowfac-blended surface is live all day and melt routes a paired mass and
+   ! enthalpy into the soil top. A scheme that imports the snow kernels but never calls them runs
+   ! snow-free and passes its ledgers trivially; RK45's melt total agrees with ESDIRK2's, within
+   ! 10 % for the schemes driving the surface along different canopy-air paths, while a stage
+   ! fed the wrong inputs is off by order 100 %.
+   !---~---
    subroutine test_snow_melt()
       type(day_t) :: d
       real(wp)    :: melt_esdirk2
@@ -719,11 +757,13 @@ contains
       call use_scheme(INTEG_ESDIRK2)
    end subroutine test_snow_melt
 
-   !----- The day's turnover shed water reaches the pond with the meltwater, at the melt temperature,  !
-   !      whenever a pack exists, and both whole-column ledgers book that inflow's enthalpy under the  !
-   !      pack too. Left unbooked it is a constant residual of shed*dt*u_liq(t_melt) every winter step  !
-   !      (~1.8 J/m2 at 150 s in the Ithaca example, +6.75 MJ/m2 over a 50-year spin-up), small enough  !
-   !      to pass the tolerance, so closure is asked to round-off, on both schemes. -----------------!
+   !---~---
+   !   The day's turnover shed water reaches the pond with the meltwater, at the melt temperature,
+   ! whenever a pack exists, and both whole-column ledgers book that inflow's enthalpy under the
+   ! pack too. Left unbooked it is a constant residual of shed*dt*u_liq(t_melt) every winter step
+   ! (~1.8 J/m2 at 150 s in the Ithaca example, +6.75 MJ/m2 over a 50-year spin-up), small enough
+   ! to pass the tolerance, so closure is asked to round-off, on both schemes.
+   !---~---
    subroutine test_shed_under_pack()
       type(day_t) :: d
       integer(ik) :: is
@@ -744,15 +784,17 @@ contains
       call use_scheme(INTEG_ESDIRK2)
    end subroutine test_shed_under_pack
 
-   !----- Snowfall is a boundary water input like rain, and every kilogram of it must end in the      !
-   !      column: the pack, the soil or the pond. A frozen build that routes only the rainfall loses   !
-   !      snowfall*dt every sub-freezing step while the whole-column ledger counts it as an input, and  !
-   !      per step that sits below the ledger's tolerance even as it adds up to a large seasonal error. !
-   !      So the assertion is a boundary-input identity, not a ledger residual: the same cold day with  !
-   !      a seeded pack, snowfall on and off, so melt, sublimation and drainage cancel in the           !
-   !      difference, and the column must gain what fell. A scheme that discards it gains ~0; 10 %      !
-   !      allows for the second-order response of melt and drainage to the deeper pack. RK45's gain    !
-   !      agrees with ESDIRK2's. -------------------------------------------------------------------!
+   !---~---
+   !   Snowfall is a boundary water input like rain, and every kilogram of it must end in the
+   ! column: the pack, the soil or the pond. A frozen build that routes only the rainfall loses
+   ! snowfall*dt every sub-freezing step while the whole-column ledger counts it as an input, and
+   ! per step that sits below the ledger's tolerance even as it adds up to a large seasonal error.
+   ! So the assertion is a boundary-input identity, not a ledger residual: the same cold day with
+   ! a seeded pack, snowfall on and off, so melt, sublimation and drainage cancel in the
+   ! difference, and the column must gain what fell. A scheme that discards it gains ~0; 10 %
+   ! allows for the second-order response of melt and drainage to the deeper pack. RK45's gain
+   ! agrees with ESDIRK2's.
+   !---~---
    subroutine test_snowfall_conserved()
       real(wp), parameter :: SNOWFALL = 2.0e-5_wp
       type(day_t) :: d
@@ -789,14 +831,16 @@ contains
       call use_scheme(INTEG_ESDIRK2)
    end subroutine test_snowfall_conserved
 
-   !----- Snowfall too light to start a pack (snowfall*dt below min_new_snow_mass) reaches the ground   !
-   !      with the rain, as ice at the air's temperature. Valued as liquid at the canopy air's, the   !
-   !      column would get the snow's fusion enthalpy from nowhere: consistent with its ledger (the    !
-   !      boundary term uses the same number), and wrong. The same cold day twice, the mass as light   !
-   !      snow and as rain: the soil and pond end the snow day poorer by about L_f per kilogram, the    !
-   !      ground paying for the melt; liquid valuation gives about 0. On this column the ratio is     !
-   !      ~0.5: the colder, wetter surface loses less to the air and recovers part of the melt's      !
-   !      cost. ---------------------------------------------------------------------------------!
+   !---~---
+   !   Snowfall too light to start a pack (snowfall*dt below min_new_snow_mass) reaches the ground
+   ! with the rain, as ice at the air's temperature. Valued as liquid at the canopy air's, the
+   ! column would get the snow's fusion enthalpy from nowhere: consistent with its ledger (the
+   ! boundary term uses the same number), and wrong. The same cold day twice, the mass as light
+   ! snow and as rain: the soil and pond end the snow day poorer by about L_f per kilogram, the
+   ! ground paying for the melt; liquid valuation gives about 0. On this column the ratio is
+   ! ~0.5: the colder, wetter surface loses less to the air and recovers part of the melt's
+   ! cost.
+   !---~---
    subroutine test_light_snowfall()
       real(wp), parameter :: SNOWFALL = 5.0e-6_wp   ! 7.5e-4 kg/m2 per 150 s step, below min_new_snow_mass (1e-3)
       type(day_t) :: d
@@ -821,22 +865,22 @@ contains
                       (e_rain - e_snow) / fusion)
    end subroutine test_light_snowfall
 
-   !=======================================================================================!
-   ! 7. PLANT WATER AND HEAT.                                                                !
-   !=======================================================================================!
+   !--- 7. PLANT WATER AND HEAT.
 
-   !----- The leaf potential converges in dt_fast, and the plant's total water stays dt-insensitive.  !
-   !      The leaf is the column's smallest store, so any mismatch between the transpiration charged   !
-   !      to it and the sapflow credited to it lands there and grows with dt: an explicit plant-water   !
-   !      step charging the end-of-step transpiration against the start-of-step sapflow takes the      !
-   !      midday leaf from -0.33 MPa at 5 s to -1.79 MPa at 900 s while every other state converges.   !
-   !      The water network solves the leaf implicitly with the soil, and the stages hold              !
-   !      transpiration at the network's, so the leaf is charged and credited the same step            !
-   !      (docs/science/numerical_scheme.md §5a). No ledger sees the defect: a plant store absorbing a  !
-   !      flux mismatch is a closed budget. The same 3 h from solar noon at 75 s and 900 s, each step   !
-   !      forced at its own mid-time so both see the same forcing: the defect parts them by ~1 MPa,    !
-   !      0.05 MPa is far looser than the ~0.005 achieved, and the window is in daylight, where the     !
-   !      transpiration that drives the defect is. --------------------------------------------------!
+   !---~---
+   !   The leaf potential converges in dt_fast, and the plant's total water stays dt-insensitive.
+   ! The leaf is the column's smallest store, so any mismatch between the transpiration charged
+   ! to it and the sapflow credited to it lands there and grows with dt: an explicit plant-water
+   ! step charging the end-of-step transpiration against the start-of-step sapflow takes the
+   ! midday leaf from -0.33 MPa at 5 s to -1.79 MPa at 900 s while every other state converges.
+   ! The water network solves the leaf implicitly with the soil, and the stages hold
+   ! transpiration at the network's, so the leaf is charged and credited the same step
+   ! (docs/science/numerical_scheme.md §5a). No ledger sees the defect: a plant store absorbing a
+   ! flux mismatch is a closed budget. The same 3 h from solar noon at 75 s and 900 s, each step
+   ! forced at its own mid-time so both see the same forcing: the defect parts them by ~1 MPa,
+   ! 0.05 MPa is far looser than the ~0.005 achieved, and the window is in daylight, where the
+   ! transpiration that drives the defect is.
+   !---~---
    subroutine test_psi_dt_convergence()
       real(wp) :: psi_short, psi_long, w_short, w_long
       print '(a)', 'test_psi_dt_convergence:'
@@ -867,11 +911,13 @@ contains
       w_out = sum(col%dynamic%leaf_water_mass(1:col%static%n) + col%dynamic%wood_water_mass(1:col%static%n))
    end subroutine run_window
 
-   !----- The wood's heat store: tissue_energy_balance relaxes it exactly (docs/science/              !
-   !      vegetation_energy_dynamics.md eqs. (3)-(4)) on both schemes; the whole-column energy closes   !
-   !      with its store change and its net radiation; the wood lags the canopy air through the day,    !
-   !      which is the feature; and the network's per-layer face closure holds on the faces both        !
-   !      schemes advect soil heat on. -------------------------------------------------------------!
+   !---~---
+   !   The wood's heat store: tissue_energy_balance relaxes it exactly (docs/science/
+   ! vegetation_energy_dynamics.md eqs. (3)-(4)) on both schemes; the whole-column energy closes
+   ! with its store change and its net radiation; the wood lags the canopy air through the day,
+   ! which is the feature; and the network's per-layer face closure holds on the faces both
+   ! schemes advect soil heat on.
+   !---~---
    subroutine test_prognostic_wood()
       type(day_t) :: d
       integer(ik) :: is
@@ -900,12 +946,14 @@ contains
       call use_scheme(INTEG_ESDIRK2)
    end subroutine test_prognostic_wood
 
-   !----- Wood refilling from the soil does not heat itself. Dried wood over moist soil at night, with !
-   !      the soil, the wood, the leaf and the air at one temperature, refills, and the water it takes !
-   !      arrives at its own temperature, so the wood's heat input is zero. Counting the water's whole  !
-   !      enthalpy (~4.4e5 J/kg from the liquid datum) as heat put the wood 13 K above the canopy air at !
-   !      a storm front (BCI, 2017-04-17). The water stores take that enthalpy instead, and what the    !
-   !      soil gives up is what the tissues and their water gain (build_frozen, record_water_flows). ---!
+   !---~---
+   !   Wood refilling from the soil does not heat itself. Dried wood over moist soil at night, with
+   ! the soil, the wood, the leaf and the air at one temperature, refills, and the water it takes
+   ! arrives at its own temperature, so the wood's heat input is zero. Counting the water's whole
+   ! enthalpy (~4.4e5 J/kg from the liquid datum) as heat put the wood 13 K above the canopy air at
+   ! a storm front (BCI, 2017-04-17). The water stores take that enthalpy instead, and what the
+   ! soil gives up is what the tissues and their water gain (build_frozen, record_water_flows).
+   !---~---
    subroutine test_refilling_wood()
       type(frozen_t)      :: fz
       type(march_state_t) :: ys
@@ -934,9 +982,11 @@ contains
                  1.0e-12_wp * abs(given))
    end subroutine test_refilling_wood
 
-   !----- The wood's heat capacity is its dry wood at the dry specific heat plus the water network's   !
-   !      wood store, its fine roots' share included (docs/science/vegetation_energy_dynamics.md eq.   !
-   !      (8)), so a store drained by a fifth holds a fifth less of that water's heat (build_frozen). -!
+   !---~---
+   !   The wood's heat capacity is its dry wood at the dry specific heat plus the water network's
+   ! wood store, its fine roots' share included (docs/science/vegetation_energy_dynamics.md eq.
+   ! (8)), so a store drained by a fifth holds a fifth less of that water's heat (build_frozen).
+   !---~---
    subroutine test_wood_capacity()
       type(frozen_t)      :: fz
       type(march_state_t) :: ys
@@ -959,16 +1009,18 @@ contains
                  0.2_wp * col%static%nplant(1) * w_store * cp_liq, 1.0e-9_wp * cap_full)
    end subroutine test_wood_capacity
 
-   !----- The canopy films stay out of the tissues' heat capacity for the step (build_frozen; docs/     !
-   !      science/vegetation_energy_dynamics.md, "The canopy's interception film"). A film is part of   !
-   !      its tissue's energy, but within a step the tissue's balance runs on the tissue's own heat     !
-   !      capacity, its dry matter and its internal water, and the commit reads the temperature back    !
-   !      with the end-of-step film. Counted in the step's capacity, a film far heavier than its tissue !
-   !      that evaporates within the step would leave its heat to the tissue alone: at Palo Verde a     !
-   !      nearly leafless cohort's leaf read back at 107 K. The column frozen dry and frozen with its   !
-   !      leaf and wood films half full gives the same two capacities, each the heat its tissue's dry   !
-   !      matter and internal water gain per kelvin; each film holds enough heat that counting it would !
-   !      show. ----------------------------------------------------------------------------------------!
+   !---~---
+   !   The canopy films stay out of the tissues' heat capacity for the step (build_frozen; docs/
+   ! science/vegetation_energy_dynamics.md, "The canopy's interception film"). A film is part of
+   ! its tissue's energy, but within a step the tissue's balance runs on the tissue's own heat
+   ! capacity, its dry matter and its internal water, and the commit reads the temperature back
+   ! with the end-of-step film. Counted in the step's capacity, a film far heavier than its tissue
+   ! that evaporates within the step would leave its heat to the tissue alone: at Palo Verde a
+   ! nearly leafless cohort's leaf read back at 107 K. The column frozen dry and frozen with its
+   ! leaf and wood films half full gives the same two capacities, each the heat its tissue's dry
+   ! matter and internal water gain per kelvin; each film holds enough heat that counting it would
+   ! show.
+   !---~---
    subroutine test_film_outside_capacity()
       real(wp), parameter :: FILL = 0.5_wp   ! the films' share of their capacity
       type(frozen_t)      :: fz
@@ -993,7 +1045,7 @@ contains
                  leaf_cap_no_film, 1.0e-12_wp * leaf_cap_no_film)
       call check('film: the wood''s capacity for the step leaves its film out', fz%tissue%wood_hcap_per_dt(1),       &
                  wood_cap_no_film, 1.0e-12_wp * wood_cap_no_film)
-      !----- Each is its tissue's own, the dry matter and the internal water, as the column made them. -!
+      !--- Each is its tissue's own, the dry matter and the internal water, as the column made them.
       leaf_own = heat_per_kelvin(tissue_dry_heat_capacity(col%static%nplant(1), col%static%bleaf(1), tissue_c_leaf),  &
                                  col%dynamic%leaf_water_mass(1) * col%static%nplant(1))
       wood_own = heat_per_kelvin(tissue_dry_heat_capacity(col%static%nplant(1), col%static%bwood(1),                 &
@@ -1003,7 +1055,7 @@ contains
                  fz%tissue%leaf_hcap_per_dt(1) * DT_FAST, leaf_own, 1.0e-12_wp * leaf_own)
       call check('film: the wood''s capacity is its dry matter''s and internal water''s',                          &
                  fz%tissue%wood_hcap_per_dt(1) * DT_FAST, wood_own, 1.0e-12_wp * wood_own)
-      !----- Counted, either film would move its capacity far beyond the tolerances above. ------------!
+      !--- Counted, either film would move its capacity far beyond the tolerances above.
       call check_true('film: the leaf film holds heat a capacity counting it would show',                         &
                       heat_per_kelvin(0.0_wp, leaf_film) > 1.0e-6_wp * leaf_own,                                    &
                       heat_per_kelvin(0.0_wp, leaf_film) / leaf_own)
@@ -1013,11 +1065,13 @@ contains
       col%cfg%canopy_water_on = .false.
    end subroutine test_film_outside_capacity
 
-   !----- A new cohort's predawn potential is seeded from the top soil layer's, which the leaf's        !
-   !      stomatal limb reads until the cohort has a day of its own. On a Campbell soil the seed comes  !
-   !      from the Campbell curve: the column's one parameter pair is (psi_sat, b) there, and read as   !
-   !      van Genuchten's it gives a wrong potential, or none. The soil is made through the site's      !
-   !      surface, as a run makes it. -----------------------------------------------------------!
+   !---~---
+   !   A new cohort's predawn potential is seeded from the top soil layer's, which the leaf's
+   ! stomatal limb reads until the cohort has a day of its own. On a Campbell soil the seed comes
+   ! from the Campbell curve: the column's one parameter pair is (psi_sat, b) there, and read as
+   ! van Genuchten's it gives a wrong potential, or none. The soil is made through the site's
+   ! surface, as a run makes it.
+   !---~---
    subroutine test_campbell_seed()
       real(wp), parameter :: THETA_SAT = 0.43_wp, THETA_RES = 0.0_wp, PSI_SAT = -0.26_wp, B = 5.65_wp
       type(soil_params_t) :: soil0
@@ -1048,16 +1102,16 @@ contains
                       abs(predawn - seed) <= 1.0e-12_wp * abs(seed), predawn)
    end subroutine test_campbell_seed
 
-   !=======================================================================================!
-   ! 8. RK45 AT ITS EDGES.                                                                   !
-   !=======================================================================================!
+   !--- 8. RK45 AT ITS EDGES.
 
-   !----- A drydown toward theta_res, the domain's other edge: two days from just above it (0.085      !
-   !      against 0.078) under air at half the humidity, so ground evaporation and transpiration both  !
-   !      pull hard. The water network solves each dry layer in effective saturation, which cannot go  !
-   !      below zero, and both sinks fall off before the floor (the root sink with the soil-root       !
-   !      conductance, evaporation with the dry surface layer), so theta never commits below          !
-   !      theta_res and nothing corrects it after the step; both whole-column ledgers close. ---------!
+   !---~---
+   !   A drydown toward theta_res, the domain's other edge: two days from just above it (0.085
+   ! against 0.078) under air at half the humidity, so ground evaporation and transpiration both
+   ! pull hard. The water network solves each dry layer in effective saturation, which cannot go
+   ! below zero, and both sinks fall off before the floor (the root sink with the soil-root
+   ! conductance, evaporation with the dry surface layer), so theta never commits below
+   ! theta_res and nothing corrects it after the step; both whole-column ledgers close.
+   !---~---
    subroutine test_rk45_drydown()
       type(day_t) :: d
       real(wp)    :: res_min
@@ -1076,15 +1130,17 @@ contains
       call use_scheme(INTEG_ESDIRK2)
    end subroutine test_rk45_drydown
 
-   !----- A just-recruited cohort (leaf and wood area, density and carbon at the magnitude of a 30-year !
-   !      Ithaca run's first recruitment) over 00:00-12:00, guarding two failures a mature canopy      !
-   !      never meets: the tissue temperature overflowing through a near-zero balance denominator,     !
-   !      which cannot happen because the forcing, the coupling and the heat capacity all scale with    !
-   !      the tissue's area (docs/science/vegetation_energy_dynamics.md eqs. (1), (8)); and the canopy  !
-   !      air or the soil leaving its domain within one explicit stage over a near-bare patch, which    !
-   !      the stage clamp and the frozen ground evaporation keep evaluable. The fixture hands every     !
-   !      cohort a full canopy's load; a 0.0027-LAI seedling intercepts ~0.1 % of it, so the radiation  !
-   !      is scaled by Beer's law, as the two-stream would. -----------------------------------------!
+   !---~---
+   !   A just-recruited cohort (leaf and wood area, density and carbon at the magnitude of a 30-year
+   ! Ithaca run's first recruitment) over 00:00-12:00, guarding two failures a mature canopy
+   ! never meets: the tissue temperature overflowing through a near-zero balance denominator,
+   ! which cannot happen because the forcing, the coupling and the heat capacity all scale with
+   ! the tissue's area (docs/science/vegetation_energy_dynamics.md eqs. (1), (8)); and the canopy
+   ! air or the soil leaving its domain within one explicit stage over a near-bare patch, which
+   ! the stage clamp and the frozen ground evaporation keep evaluable. The fixture hands every
+   ! cohort a full canopy's load; a 0.0027-LAI seedling intercepts ~0.1 % of it, so the radiation
+   ! is scaled by Beer's law, as the two-stream would.
+   !---~---
    subroutine test_rk45_tiny_cohort()
       real(wp)    :: rad_frac
       integer(ik) :: istep
@@ -1127,12 +1183,14 @@ contains
       call use_scheme(INTEG_ESDIRK2)
    end subroutine test_rk45_tiny_cohort
 
-   !----- A very dense canopy (LAI 8) in a hard cold snap at twice dt_fast: the operating point that  !
-   !      rails the explicit RK45 surface at scale. Whether the rescue onto ESDIRK2 fires here or the   !
-   !      stage clamps alone hold it, the committed state stays physical (canopy air, leaf and soil in   !
-   !      250-340 K, GPP a number). A 30-year Ithaca run collapses at LAI ~1 in its winter of 2050      !
-   !      without the rescue, a point no short march reproduces, so the rescue count is printed, not    !
-   !      asserted. ---------------------------------------------------------------------------!
+   !---~---
+   !   A very dense canopy (LAI 8) in a hard cold snap at twice dt_fast: the operating point that
+   ! rails the explicit RK45 surface at scale. Whether the rescue onto ESDIRK2 fires here or the
+   ! stage clamps alone hold it, the committed state stays physical (canopy air, leaf and soil in
+   ! 250-340 K, GPP a number). A 30-year Ithaca run collapses at LAI ~1 in its winter of 2050
+   ! without the rescue, a point no short march reproduces, so the rescue count is printed, not
+   ! asserted.
+   !---~---
    subroutine test_rk45_dense_cold()
       integer(ik) :: istep, rescues
       logical     :: physical
@@ -1163,10 +1221,12 @@ contains
       call use_scheme(INTEG_ESDIRK2)
    end subroutine test_rk45_dense_cold
 
-   !----- On moderately dry soil (theta 0.14, psi ~ -10 m) the wood-soil interface cancels to machine  !
-   !      precision: the soil loses exactly the uptake the wood gains, asked at the ledger's round-off  !
-   !      rather than at its relative tolerance. The drydown sits near theta_res and the other runs in  !
-   !      wet soil; this one sits between, on the RK45 path itself (no rescue). ---------------------!
+   !---~---
+   !   On moderately dry soil (theta 0.14, psi ~ -10 m) the wood-soil interface cancels to machine
+   ! precision: the soil loses exactly the uptake the wood gains, asked at the ledger's round-off
+   ! rather than at its relative tolerance. The drydown sits near theta_res and the other runs in
+   ! wet soil; this one sits between, on the RK45 path itself (no rescue).
+   !---~---
    subroutine test_rk45_dry_seam()
       type(day_t) :: d
       real(wp)    :: psi_top
@@ -1187,15 +1247,15 @@ contains
       call use_scheme(INTEG_ESDIRK2)
    end subroutine test_rk45_dry_seam
 
-   !=======================================================================================!
-   ! 9. THE REPORTED NET RADIATION. The step reports the net radiation the ground, the leaves  !
-   ! and the wood absorbed, as their balances booked it (out%rnet, the output's net radiation; !
-   ! docs/science/vegetation_energy_dynamics.md, "The emission base"). One step from the fresh !
-   ! column under the noon air, its leaves and ground given no radiation, twice: the wood      !
-   ! absorbing nothing, then 40 W/m2 of shortwave. The second reports 40 W/m2 more, less only  !
-   ! what the wood, warmed over the step, emits beyond the first (well under 2 %). Leaving the  !
-   ! wood out of the sum would report no change at all.                                       !
-   !=======================================================================================!
+   !---~---
+   !   9. THE REPORTED NET RADIATION. The step reports the net radiation the ground, the leaves
+   ! and the wood absorbed, as their balances booked it (out%rnet, the output's net radiation;
+   ! docs/science/vegetation_energy_dynamics.md, "The emission base"). One step from the fresh
+   ! column under the noon air, its leaves and ground given no radiation, twice: the wood
+   ! absorbing nothing, then 40 W/m2 of shortwave. The second reports 40 W/m2 more, less only
+   ! what the wood, warmed over the step, emits beyond the first (well under 2 %). Leaving the
+   ! wood out of the sum would report no change at all.
+   !---~---
    subroutine test_rnet_counts_wood()
       real(wp), parameter :: SW_WOOD = 40.0_wp, AGREE = 0.02_wp   ! [W/m2], [-]
       real(wp)    :: rnet(2)

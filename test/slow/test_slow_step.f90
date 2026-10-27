@@ -1,10 +1,10 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! Leaf phenology's wiring (ed_slow_state's advance_leaf_phenology): a two-cohort site      !
-! through one synthetic Ithaca year; a step with no air temperature is skipped; each cue   !
-! driver against a hand-computed value; a drought-deciduous and a light-exchanging PFT end !
-! to end.                                                                                  !
-!==========================================================================================!
+!---~---
+!   Leaf phenology's wiring (ed_slow_state's advance_leaf_phenology): a two-cohort site
+! through one synthetic Ithaca year; a step with no air temperature is skipped; each cue
+! driver against a hand-computed value; a drought-deciduous and a light-exchanging PFT end
+! to end.
+!---~---
 module test_slow_step_phenology
    use ed_kinds,                only : wp, ik
    use ed_config,               only : ed_config_t
@@ -32,8 +32,10 @@ module test_slow_step_phenology
 contains
 
    subroutine run_phenology_wiring()
-      !----- Config: PFT 1 temperate deciduous (warmth x light, cold x short days), the rest   !
-      !       with no cues. This test calls advance_leaf_phenology directly. ------------------!
+      !---~---
+      !   Config: PFT 1 temperate deciduous (warmth x light, cold x short days), the rest
+      ! with no cues. This test calls advance_leaf_phenology directly.
+      !---~---
       cfg = build_test_config()
       cfg%forcing%latitude               = 42.44_wp           ! Ithaca NY (northern hemisphere)
       cfg%pft%pheno(1)%flush_cue_mask        = CUE_TEMP + CUE_LIGHT
@@ -44,7 +46,7 @@ contains
       cfg%pft%pheno(1)%flush_light_hours     = 10.35_wp
       cfg%pft%pheno(1)%shed_light_hours      = 9.83_wp
 
-      !----- A site with two cohorts: cohort 1 = PFT 1 (deciduous), cohort 2 = PFT 2 (no cues). -!
+      !--- A site with two cohorts: cohort 1 = PFT 1 (deciduous), cohort 2 = PFT 2 (no cues).
       call init_bare_ground(poly, cfg, 1_ik)
       call add_cohort(poly, cfg, 1_ik, 1_ik, 0.5_wp, 10.0_wp)
       call add_cohort(poly, cfg, 1_ik, 2_ik, 0.5_wp, 10.0_wp)
@@ -52,7 +54,7 @@ contains
       call check_close('cohort 1 born flushing',      poly%cohort%leaf_flush_tendency(1), 1.0_wp, 1.0e-9_wp)
       call check_close('cohort 1 born not senescing', poly%cohort%leaf_shed_tendency(1),  0.0_wp, 1.0e-9_wp)
 
-      !----- Drive one synthetic year (dt_slow = 1 day). ------------------------------------!
+      !--- Drive one synthetic year (dt_slow = 1 day).
       do doy = 1_ik, 365_ik
          call set_daily_drivers(poly, daily_tair(doy), daylength(cfg%forcing%latitude, doy))
          call advance_leaf_phenology(poly, cfg, doy)
@@ -72,7 +74,7 @@ contains
       end do
 
 
-      !----- 3. A no-temperature step is skipped (tendencies + memory unchanged). -------------!
+      !--- 3. A no-temperature step is skipped (tendencies + memory unchanged).
       block
          real(wp) :: fl_before, sh_before, gdd_before
          fl_before  = poly%cohort%leaf_flush_tendency(1)
@@ -89,11 +91,13 @@ contains
                          abs(poly%cohort%growing_degree_days(1) - gdd_before) < tiny(1.0_wp))
       end block
 
-      !=== 4. THE CUE DRIVERS, each against a hand-computed value. ============================!
+      !--- 4. THE CUE DRIVERS, each against a hand-computed value.
 
-      !----- 4a. Temperature: 10 days at 288.15 K add 10 x (288.15 - 278.15) to the warmth sum;   !
-      !          before midsummer the cold sum stays 0, after it 10 days at 280.15 K add         !
-      !          10 x (290.37 - 280.15). -------------------------------------------------------!
+      !---~---
+      !   4a. Temperature: 10 days at 288.15 K add 10 x (288.15 - 278.15) to the warmth sum;
+      ! before midsummer the cold sum stays 0, after it 10 days at 280.15 K add
+      ! 10 x (290.37 - 280.15).
+      !---~---
       block
          call reset_pheno_memory(poly)
          do doy = 100_ik, 109_ik
@@ -112,8 +116,10 @@ contains
                           10.0_wp * (290.37_wp - 280.15_wp), 1.0e-9_wp)
       end block
 
-      !----- 4b. Water: the dry sum adds (psi_tlp - psi_pd) per day, against the PFT's DERIVED     !
-      !          turgor-loss point; one wet day adds wet credit without wiping it. -------------!
+      !---~---
+      !   4b. Water: the dry sum adds (psi_tlp - psi_pd) per day, against the PFT's DERIVED
+      ! turgor-loss point; one wet day adds wet credit without wiping it.
+      !---~---
       block
          real(wp) :: tlp, dry7
          poly%cohort%pft_table%pheno(1)%flush_cue_mask = CUE_NONE
@@ -134,10 +140,12 @@ contains
          call check_close('one wet day does not wipe the dry sum', poly%cohort%dry_psi_sum(1), dry7, 0.0_wp)
       end block
 
-      !----- 4c. Light: x += w*(h - x) with w = dt/window. From x = 0 with a constant input h     !
-      !          and w = 0.1, after n days x = h*(1 - 0.9^n) EXACTLY. Each cohort reads its OWN   !
-      !          hours of light (light_hours_accum, counted at its top): a shaded cohort's mean   !
-      !          stays lower. A cohort with no light memory starts from its first day's hours. ----!
+      !---~---
+      !   4c. Light: x += w*(h - x) with w = dt/window. From x = 0 with a constant input h
+      ! and w = 0.1, after n days x = h*(1 - 0.9^n) EXACTLY. Each cohort reads its OWN
+      ! hours of light (light_hours_accum, counted at its top): a shaded cohort's mean
+      ! stays lower. A cohort with no light memory starts from its first day's hours.
+      !---~---
       block
          real(wp) :: expect
          poly%cohort%pft_table%pheno(1:2)%shed_cue_mask = CUE_LIGHT
@@ -161,10 +169,12 @@ contains
          poly%cohort%pft_table%pheno(2)%shed_cue_mask = CUE_NONE
       end block
 
-      !=== 5. ACCEPTANCE: the drought-deciduous and light-exchanging habits, end to end. =======!
+      !--- 5. ACCEPTANCE: the drought-deciduous and light-exchanging habits, end to end.
 
-      !----- Drought deciduous (flush and shed both on water): full when watered, senescing under  !
-      !      sustained drought, flushing again on rewet. -----------------------------------------!
+      !---~---
+      !   Drought deciduous (flush and shed both on water): full when watered, senescing under
+      ! sustained drought, flushing again on rewet.
+      !---~---
       block
          real(wp) :: shed_wet, shed_dry, flush_dry, flush_rewet, tlp
          integer(ik) :: d
@@ -197,7 +207,7 @@ contains
          call check_true('drought-deciduous: flushes again on rewet',      flush_rewet > 0.8_wp, flush_rewet)
       end block
 
-      !----- Light-driven leaf exchange: flushing throughout, senescence rising with light. ----!
+      !--- Light-driven leaf exchange: flushing throughout, senescence rising with light.
       block
          real(wp) :: shed_dim, shed_bright, flush_bright
          integer(ik) :: d
@@ -224,9 +234,11 @@ contains
       end block
    end subroutine run_phenology_wiring
 
-   !----- Fill what the fast loop fills: the site air-temperature sum and, per cohort, the time !
-   !      [h] its top's PAR exceeded par_min over the step -- here `hours` a day at every cohort, !
-   !      so the driver's per-day value recovers it exactly. ------------------------------------!
+   !---~---
+   !   Fill what the fast loop fills: the site air-temperature sum and, per cohort, the time
+   ! [h] its top's PAR exceeded par_min over the step -- here `hours` a day at every cohort,
+   ! so the driver's per-day value recovers it exactly.
+   !---~---
    subroutine set_daily_drivers(poly, tair, hours)
       type(polygon_t), intent(inout) :: poly
       real(wp),     intent(in)    :: tair, hours
@@ -234,7 +246,7 @@ contains
       poly%site%pheno_tair_n(1) = 1_ik
       poly%cohort%light_hours_accum(1:poly%cohort%n) = hours * cfg%dt_slow / day_sec
    end subroutine set_daily_drivers
-   !----- Clear every phenology memory so each cue block starts from a known state. ---------!
+   !--- Clear every phenology memory so each cue block starts from a known state.
    subroutine reset_pheno_memory(poly)
       type(polygon_t), intent(inout) :: poly
       associate (n => poly%cohort%n)
@@ -247,7 +259,7 @@ contains
          poly%cohort%light_hours_mean(1:n)    = -1.0_wp      ! no light memory
       end associate
    end subroutine reset_pheno_memory
-   !----- Ithaca-like daily-mean air temperature [K]: ~270 in winter, ~297 in summer. --------!
+   !--- Ithaca-like daily-mean air temperature [K]: ~270 in winter, ~297 in summer.
    pure real(wp) function daily_tair(doy) result(t)
       integer(ik), intent(in) :: doy
       t = 283.15_wp + 14.0_wp * sin(TWOPI * (real(doy, wp) - 110.0_wp) / 365.0_wp)
@@ -255,13 +267,13 @@ contains
 
 end module test_slow_step_phenology
 
-!==========================================================================================!
-! Thermal acclimation's wiring (ed_slow_state's acclimate_site_leaf_tables, and its        !
-! switch in advance_one_step; docs/science/leaf_gas_exchange.md §2): each site's growth    !
-! temperature starts from its own first day and follows its own days as a running mean,   !
-! and each site's leaf table is the PFT table acclimated at its own mean; a site whose     !
-! fast loop did not run keeps both; with acclimation off every table stays the PFT's own.  !
-!==========================================================================================!
+!---~---
+!   Thermal acclimation's wiring (ed_slow_state's acclimate_site_leaf_tables, and its
+! switch in advance_one_step; docs/science/leaf_gas_exchange.md §2): each site's growth
+! temperature starts from its own first day and follows its own days as a running mean,
+! and each site's leaf table is the PFT table acclimated at its own mean; a site whose
+! fast loop did not run keeps both; with acclimation off every table stays the PFT's own.
+!---~---
 module test_slow_step_acclimation
    use ed_kinds,                only : wp, ik
    use ed_constants,            only : t_kelvin
@@ -279,16 +291,16 @@ module test_slow_step_acclimation
 
    public :: run_thermal_acclimation
 
-   real(wp), parameter :: T_COOL = t_kelvin + 10.0_wp   !< [K] the cool site's daily mean
-   real(wp), parameter :: T_WARM = t_kelvin + 30.0_wp   !< [K] the warm site's
-   real(wp), parameter :: WINDOW = 30.0_wp              !< [day] the running mean's window
+   real(wp), parameter :: T_COOL = t_kelvin + 10.0_wp   !--- [K] the cool site's daily mean
+   real(wp), parameter :: T_WARM = t_kelvin + 30.0_wp   !--- [K] the warm site's
+   real(wp), parameter :: WINDOW = 30.0_wp              !--- [day] the running mean's window
 
 contains
 
    subroutine run_thermal_acclimation()
       type(ed_config_t)        :: cfg
       type(polygon_t)          :: poly
-      type(run_ledgers_t)      :: ledgers   !< never activated: the steps book nothing
+      type(run_ledgers_t)      :: ledgers   !--- never activated: the steps book nothing
       type(leaf_photo_table_t) :: warm_table
       real(wp)    :: t_new, gap0
       integer(ik) :: iday, is
@@ -297,9 +309,11 @@ contains
       cfg%leaf_physiology%thermal_acclimation = .true.
       cfg%leaf_physiology%acclim_window_days  = WINDOW
 
-      !----- 1. A first day, 10 C at one site and 30 C at the other: each unset mean takes its own   !
-      !      site's day, and each site's table is the PFT table acclimated there, so the warm site's !
-      !      entropy term is the lower. ---------------------------------------------------------------!
+      !---~---
+      !   1. A first day, 10 C at one site and 30 C at the other: each unset mean takes its own
+      ! site's day, and each site's table is the PFT table acclimated there, so the warm site's
+      ! entropy term is the lower.
+      !---~---
       call two_sites(cfg, poly)
       call set_day(poly, [T_COOL, T_WARM])
       call acclimate_site_leaf_tables(poly, cfg%leaf_physiology, 1_ik)
@@ -310,9 +324,11 @@ contains
                       poly%site%leaf_photo(2)%pft(1)%ds_vcmax < poly%site%leaf_photo(1)%pft(1)%ds_vcmax,     &
                       poly%site%leaf_photo(1)%pft(1)%ds_vcmax - poly%site%leaf_photo(2)%pft(1)%ds_vcmax)
 
-      !----- 2. Thirty days at 20 C at the cool site, on a 30-day window: each day closes 1/30 of the !
-      !      gap to the day's temperature, so (29/30)**30 of the first gap is left. The warm site's    !
-      !      fast loop runs no sub-step: its mean and its table stay. ---------------------------------!
+      !---~---
+      !   2. Thirty days at 20 C at the cool site, on a 30-day window: each day closes 1/30 of the
+      ! gap to the day's temperature, so (29/30)**30 of the first gap is left. The warm site's
+      ! fast loop runs no sub-step: its mean and its table stay.
+      !---~---
       t_new = t_kelvin + 20.0_wp
       gap0  = poly%site%t_growth_avg(1) - t_new
       warm_table = poly%site%leaf_photo(2)
@@ -327,15 +343,17 @@ contains
       call check_close('a site with no sub-step keeps its mean', poly%site%t_growth_avg(2), T_WARM, 0.0_wp)
       call check_true('and its table', same_acclimated(poly%site%leaf_photo(2), warm_table))
 
-      !----- 3. A step longer than the window takes the day's mean outright. ----------------------!
+      !--- 3. A step longer than the window takes the day's mean outright.
       call set_day(poly, [T_WARM, T_WARM])
       call acclimate_site_leaf_tables(poly, cfg%leaf_physiology, 2_ik * nint(WINDOW, ik))
       call check_close('a step longer than the window takes the day''s mean', poly%site%t_growth_avg(1), T_WARM,  &
                        1.0e-12_wp)
 
-      !----- 4. Through advance_one_step, after a fast loop that saw 10 C and 30 C: with acclimation  !
-      !      off every site's mean stays unset and its table the PFT's own; on, the same step seeds    !
-      !      the means and acclimates the tables. -----------------------------------------------------!
+      !---~---
+      !   4. Through advance_one_step, after a fast loop that saw 10 C and 30 C: with acclimation
+      ! off every site's mean stays unset and its table the PFT's own; on, the same step seeds
+      ! the means and acclimates the tables.
+      !---~---
       cfg%leaf_physiology%thermal_acclimation = .false.
       call two_sites(cfg, poly)
       call set_day(poly, [T_COOL, T_WARM])
@@ -355,7 +373,7 @@ contains
       call check_tables_follow(poly, cfg, 'through the step')
    end subroutine run_thermal_acclimation
 
-   !----- A polygon of two bare sites, each half of it, on the run's config. --------------------!
+   !--- A polygon of two bare sites, each half of it, on the run's config.
    subroutine two_sites(cfg, poly)
       type(ed_config_t), intent(in)    :: cfg
       type(polygon_t),     intent(out) :: poly
@@ -363,7 +381,7 @@ contains
       call finalize_init(poly)
    end subroutine two_sites
 
-   !----- Each site's daily-mean air temperature [K], as the last fast loop's one sub-step. -----!
+   !--- Each site's daily-mean air temperature [K], as the last fast loop's one sub-step.
    subroutine set_day(poly, t_air)
       type(polygon_t), intent(inout) :: poly
       real(wp),        intent(in)    :: t_air(:)
@@ -371,7 +389,7 @@ contains
       poly%site%pheno_tair_n(1:2)   = 1_ik
    end subroutine set_day
 
-   !----- Each site's table is the PFT table acclimated at that site's running mean. ------------!
+   !--- Each site's table is the PFT table acclimated at that site's running mean.
    subroutine check_tables_follow(poly, cfg, tag)
       type(polygon_t),     intent(in) :: poly
       type(ed_config_t),   intent(in) :: cfg
@@ -390,7 +408,7 @@ contains
       end do
    end subroutine check_tables_follow
 
-   !----- Whether two tables hold the same entropy terms and Jmax:Vcmax ratios, every PFT. ------!
+   !--- Whether two tables hold the same entropy terms and Jmax:Vcmax ratios, every PFT.
    pure logical function same_acclimated(a, b)
       type(leaf_photo_table_t), intent(in) :: a, b
       same_acclimated = all(a%pft%ds_vcmax == b%pft%ds_vcmax) .and. all(a%pft%ds_jmax == b%pft%ds_jmax)       &
@@ -398,14 +416,14 @@ contains
    end function same_acclimated
 
 end module test_slow_step_acclimation
-!==========================================================================================!
-! The carbon step: a step without the fast loop grows wood and diameter, the driver's      !
-! guards see the fast loop's states, the cached wood geometry follows the growth, a shaded !
-! cohort acclimates and resorbs, its fine roots turn over with its leaves when             !
-! fineroot_turnover_plastic says so, the turnover sheds its water, a re-flushing cohort    !
-! fills its new leaves on its own PFT's water curves, and a restart's re-acclimation takes !
-! only the storage there is.                                                               !
-!==========================================================================================!
+!---~---
+!   The carbon step: a step without the fast loop grows wood and diameter, the driver's
+! guards see the fast loop's states, the cached wood geometry follows the growth, a shaded
+! cohort acclimates and resorbs, its fine roots turn over with its leaves when
+! fineroot_turnover_plastic says so, the turnover sheds its water, a re-flushing cohort
+! fills its new leaves on its own PFT's water curves, and a restart's re-acclimation takes
+! only the storage there is.
+!---~---
 module test_slow_step_carbon
    use ed_kinds,                    only : wp, ik
    use ed_constants,                only : grav_head
@@ -429,9 +447,9 @@ module test_slow_step_carbon
    private
 
    public :: run_carbon_step
-   real(wp), allocatable :: leaf_new(:), storage_new(:)   !< the traits' leaf and storage carbon
-   type(slow_ledger_t) :: no_ledger    !< inactive: a test step books nothing
-   type(run_ledgers_t) :: ledgers      !< never activated: the coupled steps book nothing
+   real(wp), allocatable :: leaf_new(:), storage_new(:)   !--- the traits' leaf and storage carbon
+   type(slow_ledger_t) :: no_ledger    !--- inactive: a test step books nothing
+   type(run_ledgers_t) :: ledgers      !--- never activated: the coupled steps book nothing
 
    type(ed_config_t)   :: cfg
    type(polygon_t)     :: poly
@@ -444,7 +462,7 @@ contains
       call banner('the carbon step: growth, its geometry, plasticity and the turnover shed')
       cfg = build_test_config()
 
-      !=== 2. A step without the fast loop grows wood_carbon -> dbh; leaf_area stays leaf_carbon*sla.!
+      !--- 2. A step without the fast loop grows wood_carbon -> dbh; leaf_area stays leaf_carbon*sla.
       cfg%gpp_ref = 0.5_wp
       call init_bare_ground(poly, cfg, 1_ik)
       call add_cohort(poly, cfg, 1_ik, 3_ik, 0.1_wp, 20.0_wp)       ! climax cohort
@@ -460,8 +478,10 @@ contains
                        1.0e-9_wp, 'leaf_area /= leaf_carbon*sla after a slow-only step')
       call check(cohort_bad_field(poly%cohort, 1_ik) == 0_ik, 'a slow-only step left the cohort out of bounds')
 
-      !----- The driver's checks see the fast loop's states too: a non-finite canopy air or tissue     !
-      !      energy is what the integrators commit when even their smallest step fails. ---------------!
+      !---~---
+      !   The driver's checks see the fast loop's states too: a non-finite canopy air or tissue
+      ! energy is what the integrators commit when even their smallest step fails.
+      !---~---
       block
          real(wp)    :: keep
          integer(ik) :: k
@@ -481,12 +501,14 @@ contains
          call check(cohort_bad_field(poly%cohort, 1_ik) == 0_ik, 'the restored cohort passes')
       end block
 
-      !=== 2b. The cached WOOD geometry must describe TODAY's tree, not the one 30 steps ago. ======!
-      !        wood_area / sapwood_carbon / sapwood_area are derived once per size change rather    !
-      !        than recomputed every dt_fast, so the fast loop reads them in place. That is only     !
-      !        safe while every path that moves dbh, basal_area or wood_carbon re-derives them,      !
-      !        growth included. Assert it directly: a stale cache is invisible in a conservation     !
-      !        ledger and shows up only as a slowly wrong tree.                                      !
+      !---~---
+      !   2b. The cached WOOD geometry must describe TODAY's tree, not the one 30 steps ago.
+      ! wood_area / sapwood_carbon / sapwood_area are derived once per size change rather
+      ! than recomputed every dt_fast, so the fast loop reads them in place. That is only
+      ! safe while every path that moves dbh, basal_area or wood_carbon re-derives them,
+      ! growth included. Assert it directly: a stale cache is invisible in a conservation
+      ! ledger and shows up only as a slowly wrong tree.
+      !---~---
       block
          real(wp) :: wa_fresh, fs_fresh
          associate (pft => poly%cohort%pft_table, pf => poly%cohort%pft(1))
@@ -502,7 +524,7 @@ contains
                           1.0e-13_wp, 'cached sapwood_area is stale after growth')
       end block
 
-      !=== 3. Trait plasticity: a SHADED cohort acclimates -- SLA up, Vcmax down, turnover down. =====!
+      !--- 3. Trait plasticity: a SHADED cohort acclimates -- SLA up, Vcmax down, turnover down.
       block
          real(wp) :: sla0, vc0, ll0, ns0
          cfg%trait_dynamics%trait_plasticity_on = .true.
@@ -517,22 +539,26 @@ contains
          end do
          call check(poly%cohort%sla(1)     > sla0, 'shaded cohort: SLA acclimates upward')
          call check(poly%cohort%vcmax25(1) < vc0,  'shaded cohort: Vcmax acclimates downward')
-         ! PFT 3 (climax) turns its leaves over at 0.33 /yr, below the ~0.39 /yr ED2 crossover, so
+         !---~---
+         !   PFT 3 (climax) turns its leaves over at 0.33 /yr, below the ~0.39 /yr ED2 crossover, so
          ! kplastic_leaf_turnover is capped at 0 (docs/science/plant_traits.md eq. (4)) => a
          ! slow-turnover PFT keeps ONE rate through the canopy (never faster in shade).
+         !---~---
          call check_close(poly%cohort%leaf_turnover_rate(1), ll0, 1.0e-12_wp,                       &
                           'slow-turnover PFT: leaf turnover rate is canopy-invariant (capped)')
-         ! SLA rose => the leaf pool overshot allometry; the excess was resorbed to storage.
+         !--- SLA rose => the leaf pool overshot allometry; the excess was resorbed to storage.
          call check(poly%cohort%nonstructural_carbon(1) > ns0, 'SLA overshoot resorbed to storage')
          call check_close(poly%cohort%leaf_area(1), poly%cohort%leaf_carbon(1) * poly%cohort%sla(1),   &
                           1.0e-9_wp, 'leaf_area stays leaf_carbon*sla after resorption')
       end block
 
-      !=== 3b. Plastic fine-root turnover (compute_carbon_allocation; docs/science/plant_traits.md   !
-      !    §4). With fineroot_turnover_plastic the fine roots turn over at the PFT's rate times the     !
-      !    cohort's leaf turnover over its top-of-canopy value; without it at the PFT's own rate,       !
-      !    whatever the leaves do. Read from the fine-root litter one carbon step sheds, for a cohort   !
-      !    at its top-of-canopy leaf turnover and at half of it. ====================================!
+      !---~---
+      !   3b. Plastic fine-root turnover (compute_carbon_allocation; docs/science/plant_traits.md
+      ! §4). With fineroot_turnover_plastic the fine roots turn over at the PFT's rate times the
+      ! cohort's leaf turnover over its top-of-canopy value; without it at the PFT's own rate,
+      ! whatever the leaves do. Read from the fine-root litter one carbon step sheds, for a cohort
+      ! at its top-of-canopy leaf turnover and at half of it.
+      !---~---
       block
          real(wp) :: gamma_toc, root_off_half, root_off_toc, root_on_half, root_on_toc
          call init_bare_ground(poly, cfg, 1_ik)
@@ -563,9 +589,11 @@ contains
                           'plastic, at half the top-of-canopy leaf turnover: half the fine-root litter')
       end block
 
-      !=== 4. shed_turnover_water: a NET leaf/root LOSS sheds water in the SAME proportion as the    !
-      !    carbon loss (remaining tissue's rwc unchanged), credited to the patch's shed_water_rate;   !
-      !    a NET GAIN touches nothing (the tissue keeps its water mass; its capacity grows). ========!
+      !---~---
+      !   4. shed_turnover_water: a NET leaf/root LOSS sheds water in the SAME proportion as the
+      ! carbon loss (remaining tissue's rwc unchanged), credited to the patch's shed_water_rate;
+      ! a NET GAIN touches nothing (the tissue keeps its water mass; its capacity grows).
+      !---~---
       block
          type(slow_step_data_t) :: step
          real(wp) :: leaf_water0, wood_water0, leaf_carbon0, fineroot_carbon0, nplant0
@@ -586,14 +614,16 @@ contains
          step%d_wood = 0.0_wp
          step%d_nonstructural = 0.0_wp
 
-         !----- (a) Net LOSS on both leaf and fine root: shed proportional to the carbon fraction lost. --!
+         !--- (a) Net LOSS on both leaf and fine root: shed proportional to the carbon fraction lost.
          step%d_leaf(1)     = -0.25_wp * leaf_carbon0        ! sheds 25% of the leaf pool this step
          step%d_fineroot(1) = -0.10_wp * fineroot_carbon0    ! sheds 10% of the fine-root pool
          call shed_turnover_water(poly, cfg, step, no_ledger)
          expect_leaf_shed = leaf_water0 * 0.25_wp
-         !----- The fine roots hold their carbon's share of the store they share with the sapwood, and   !
-         !      shed a tenth of that: the store's water per unit of its carbon is unchanged once the     !
-         !      fine roots have lost their tenth. ------------------------------------------------------!
+         !---~---
+         !   The fine roots hold their carbon's share of the store they share with the sapwood, and
+         ! shed a tenth of that: the store's water per unit of its carbon is unchanged once the
+         ! fine roots have lost their tenth.
+         !---~---
          expect_wood_shed = wood_water0 * 0.10_wp * fineroot_carbon0                                    &
                           / (poly%cohort%sapwood_carbon(1) + fineroot_carbon0)
          call check_close(poly%cohort%leaf_water_mass(1), leaf_water0 - expect_leaf_shed, 1.0e-9_wp, &
@@ -613,7 +643,7 @@ contains
                           / cfg%dt_slow, 1.0e-9_wp,                                                   &
                           'shed_turnover_water: the water leaves with its enthalpy at its tissue''s temperature')
 
-         !----- (b) Net GAIN: touches nothing (mass conserved; the larger capacity reads a lower rwc). !
+         !--- (b) Net GAIN: touches nothing (mass conserved; the larger capacity reads a lower rwc).
          poly%cohort%leaf_water_mass(1) = leaf_water0    ! reset
          poly%cohort%wood_water_mass(1) = wood_water0
          step%d_leaf(1)     = 0.01_wp * leaf_carbon0
@@ -626,7 +656,7 @@ contains
          call check_close(poly%patch%shed_water_rate(1), 0.0_wp, 1.0e-12_wp,                           &
                           'shed_turnover_water: net GAIN sets patch rate back to 0 (SET, not accumulated)')
 
-         !----- (c) Full snap-to-bare (net loss == the entire pool): sheds to EXACTLY 0. ---------------!
+         !--- (c) Full snap-to-bare (net loss == the entire pool): sheds to EXACTLY 0.
          poly%cohort%leaf_water_mass(1) = leaf_water0
          step%d_leaf(1)     = -leaf_carbon0
          step%d_fineroot(1) = 0.0_wp
@@ -635,11 +665,13 @@ contains
                           'shed_turnover_water: full leaf-carbon loss sheds ALL leaf water')
       end block
 
-      !=== 4b. fill_new_leaf_water reads the cohort's OWN water curves. A bare PFT 2 cohort re-flushes !
-      !    from a stem a tenth drier than at birth: its new leaves take the water that puts them at    !
-      !    the wood's potential less the crown's gravity head, the wood's potential and the leaves'    !
-      !    water both read on PFT 2's curves (docs/science/soil_plant_water.md §2). The fixture's PFTs !
-      !    differ in every curve parameter, so PFT 1's curves give the leaves another amount. =========!
+      !---~---
+      !   4b. fill_new_leaf_water reads the cohort's OWN water curves. A bare PFT 2 cohort re-flushes
+      ! from a stem a tenth drier than at birth: its new leaves take the water that puts them at
+      ! the wood's potential less the crown's gravity head, the wood's potential and the leaves'
+      ! water both read on PFT 2's curves (docs/science/soil_plant_water.md §2). The fixture's PFTs
+      ! differ in every curve parameter, so PFT 1's curves give the leaves another amount.
+      !---~---
       block
          integer(ik), parameter :: PFT = 2_ik
          type(slow_step_data_t) :: step
@@ -652,7 +684,7 @@ contains
          wood_own  = cfg%pft%hydro(PFT)%wood_curve
          leaf_pft1 = cfg%pft%hydro(1_ik)%leaf_curve
          wood_pft1 = cfg%pft%hydro(1_ik)%wood_curve
-         !----- Bare before the commit, so all its leaf carbon is new and holds no water yet. --------!
+         !--- Bare before the commit, so all its leaf carbon is new and holds no water yet.
          allocate(step%leaf_carbon_before(1))
          step%leaf_carbon_before(1)     = 0.0_wp
          poly%cohort%leaf_water_mass(1) = 0.0_wp
@@ -667,15 +699,17 @@ contains
          psi_leaf  = tissue_water_to_psi(leaf_water, leaf_own, poly%cohort%leaf_carbon(1))
          call check(abs(psi_leaf - (psi_wood0 - head)) <= 1.0e-9_wp,                                         &
                     'fill_new_leaf_water: PFT 2''s new leaves sit at its wood''s potential less the head, on its curves')
-         !----- What PFT 1's curves would put in the same leaves: the check above tells the two apart. -!
+         !--- What PFT 1's curves would put in the same leaves: the check above tells the two apart.
          leaf_water_pft1 = tissue_psi_to_water(tissue_water_to_psi(wood_water0, wood_pft1, wood_store) - head,    &
                                                leaf_pft1, poly%cohort%leaf_carbon(1))
          call check(abs(leaf_water_pft1 - leaf_water) > 0.01_wp * leaf_water,                                 &
                     'fill_new_leaf_water: PFT 1''s curves would give the leaves another amount')
       end block
 
-      !=== Re-acclimation to a lower SLA asks storage for more leaf carbon: it takes only what     !
-      !    storage holds, so the cohort's carbon is unchanged and its leaf area falls short. =======!
+      !---~---
+      !   Re-acclimation to a lower SLA asks storage for more leaf carbon: it takes only what
+      ! storage holds, so the cohort's carbon is unchanged and its leaf area falls short.
+      !---~---
       block
          real(wp) :: carbon0, leaf0, store0
          call init_bare_ground(poly, cfg, 1_ik)
@@ -696,8 +730,10 @@ contains
       end block
    end subroutine run_carbon_step
 
-   !----- The fine-root carbon [kgC/m2] one compute_carbon_allocation sheds to patch 1's litter,  !
-   !      from empty litter. The step moves no pool, so repeated calls see the same cohort. -----!
+   !---~---
+   !   The fine-root carbon [kgC/m2] one compute_carbon_allocation sheds to patch 1's litter,
+   ! from empty litter. The step moves no pool, so repeated calls see the same cohort.
+   !---~---
    real(wp) function fineroot_litter(poly, cfg) result(shed)
       type(polygon_t),     intent(inout) :: poly
       type(ed_config_t), intent(in)      :: cfg
@@ -709,11 +745,11 @@ contains
 
 end module test_slow_step_carbon
 
-!==========================================================================================!
-! The slow step's paths the ledger cannot see: what the allocator routes out of the slow   !
-! tier, mortality's water, the litter in lockstep with its patch and with soil carbon off, !
-! and reproduction reaching the recruit pool.                                              !
-!==========================================================================================!
+!---~---
+!   The slow step's paths the ledger cannot see: what the allocator routes out of the slow
+! tier, mortality's water, the litter in lockstep with its patch and with soil carbon off,
+! and reproduction reaching the recruit pool.
+!---~---
 module test_slow_step_ledger_paths
    use ed_kinds,                only : wp, ik
    use ed_biogeochem_params,    only : IP_SLOW
@@ -741,11 +777,11 @@ module test_slow_step_ledger_paths
    private
 
    public :: run_ledger_paths
-   type(slow_ledger_t) :: no_ledger    !< inactive: a test step books nothing
+   type(slow_ledger_t) :: no_ledger    !--- inactive: a test step books nothing
    real(wp)    :: soil_bottoms(n_soil_layer_max)   ! [m] the column's layer bottoms, as the ledger builds them
    integer(ik) :: n_soil_layer
 
-   real(wp), parameter  :: RHO = rho_air_ref    !< the density the canopy-air store is valued at
+   real(wp), parameter  :: RHO = rho_air_ref    !--- the density the canopy-air store is valued at
    type(ed_config_t)    :: cfg
    type(polygon_t)      :: poly
    type(soil_profile_t) :: soil
@@ -768,8 +804,10 @@ contains
                                      sc%ksat, sc%curve_par_a, sc%curve_par_n, sc%psi_fc, soil)
       end associate
 
-      !----- Give every reservoir a non-zero value, so a perturbation below is a change to a store !
-      !      that already exists rather than the creation of one. --------------------------------!
+      !---~---
+      !   Give every reservoir a non-zero value, so a perturbation below is a change to a store
+      ! that already exists rather than the creation of one.
+      !---~---
       poly%patch%soil_water(1)%theta(1:soil%n_active)      = 0.30_wp
       poly%patch%soil_energy(1)%soil_energy(1:soil%n_active) = 5.0e7_wp
       poly%patch%soil_water(1)%w_surface      = 2.0_wp
@@ -799,9 +837,11 @@ contains
    subroutine check_routing()
       real(wp) :: co2_on, co2_off, lit_lossy, lit_perfect, dummy
       real(wp) :: lab0, lab1, wood0, wood1, n0, dd, dty
-      !----- Each variant runs on a FRESH stand. vegetation_dynamics COMMITS growth, so calling it !
-      !      twice on one site compares two different forests and the second comparison passes for !
-      !      the wrong reason (a mutation that should fail it does not).  -------------------------!
+      !---~---
+      !   Each variant runs on a FRESH stand. vegetation_dynamics COMMITS growth, so calling it
+      ! twice on one site compares two different forests and the second comparison passes for
+      ! the wrong reason (a mutation that should fail it does not).
+      !---~---
       call run_variant(0.3_wp, 1.0_wp, co2_on,  dummy)
       call run_variant(0.0_wp, 1.0_wp, co2_off, dummy)
       call check(co2_on > 0.0_wp, 'routing: growth respiration reaches patch%slow_co2_rate')
@@ -813,17 +853,21 @@ contains
       call check(lit_lossy > lit_perfect,                                                          &
                  'routing: the unestablished seed fraction becomes litter, not nothing')
 
-      !----- STARVATION rides the same channel with the OPPOSITE sign. The fast loop has already   !
-      !      exhaled the full maintenance respiration; a stand that could not fund it means the    !
-      !      loop OVER-reported, so the correction owed to the canopy air is NEGATIVE. A sign      !
-      !      error here would quietly turn a starving forest into a CO2 source.  -----------------!
+      !---~---
+      !   STARVATION rides the same channel with the OPPOSITE sign. The fast loop has already
+      ! exhaled the full maintenance respiration; a stand that could not fund it means the
+      ! loop OVER-reported, so the correction owed to the canopy air is NEGATIVE. A sign
+      ! error here would quietly turn a starving forest into a CO2 source.
+      !---~---
       call run_variant(0.3_wp, 1.0_wp, co2_on, dummy, starve=.true.)
       call check(co2_on < 0.0_wp, 'routing: a starving stand OWES the canopy air a negative flux')
 
-      !----- SINK LIMIT: the wood a binding limit leaves unbuilt reaches the soil as exudate, one for !
-      !      one, and since exudate costs (1+g) like wood the CO2 owed does not change. Mortality is   !
-      !      off in both runs: it rises as growth falls, so the limited stand would also lose more     !
-      !      trees to litter. -------------------------------------------------------------------!
+      !---~---
+      !   SINK LIMIT: the wood a binding limit leaves unbuilt reaches the soil as exudate, one for
+      ! one, and since exudate costs (1+g) like wood the CO2 owed does not change. Mortality is
+      ! off in both runs: it rises as growth falls, so the limited stand would also lose more
+      ! trees to litter.
+      !---~---
       call run_variant(0.3_wp, 1.0_wp, co2_on, dummy, lab_soil=lab0, wood=wood0, nplant0=n0,       &
                        immortal=.true.)
       call run_variant(0.3_wp, 1.0_wp, co2_off, dummy, max_rgr=1.0e-3_wp, lab_soil=lab1, wood=wood1, &
@@ -833,24 +877,24 @@ contains
                        'sink limit: the unbuilt wood arrives as below-ground labile litter')
       call check_close(co2_off, co2_on, 1.0e-9_wp,                                                 &
                        'sink limit: the exudate pays the growth respiration the wood would have')
-      !----- An ABSOLUTE limit that binds grows the stem by exactly the limit: 0.2 cm/yr for a step. -!
+      !--- An ABSOLUTE limit that binds grows the stem by exactly the limit: 0.2 cm/yr for a step.
       call run_variant(0.3_wp, 1.0_wp, dummy, dummy, max_agr=0.2_wp, ddbh=dd, dt_yr=dty, immortal=.true.)
       call check_close(dd, 0.2_wp * dty, 1.0e-9_wp, 'sink limit: a binding absolute limit grows dbh by rate x dt')
    end subroutine check_routing
-   !----- One slow step on a FRESH stand, returning the two routed quantities (CO2 rate, litter). --!
+   !--- One slow step on a FRESH stand, returning the two routed quantities (CO2 rate, litter).
    subroutine run_variant(g_resp, repro_eff, co2_rate, litter_total, starve, max_rgr,              &
                           lab_soil, wood, nplant0, immortal, max_agr, ddbh, dt_yr)
       real(wp), intent(in)  :: g_resp, repro_eff
       real(wp), intent(out) :: co2_rate, litter_total
       logical, optional, intent(in) :: starve
-      real(wp), optional, intent(in)  :: max_rgr    !< pft.max_relative_growth_rate (default 0, no limit)
-      real(wp), optional, intent(out) :: lab_soil   !< patch 1's below-ground labile litter
-      real(wp), optional, intent(out) :: wood       !< the cohort's wood carbon after the step
-      real(wp), optional, intent(out) :: nplant0    !< the cohort's density before the step
-      logical,  optional, intent(in)  :: immortal   !< .true. => no background or low-growth mortality
-      real(wp), optional, intent(in)  :: max_agr    !< pft.max_absolute_growth_rate (default 0, no limit)
-      real(wp), optional, intent(out) :: ddbh       !< the cohort's dbh growth over the step
-      real(wp), optional, intent(out) :: dt_yr      !< the step's length [yr]
+      real(wp), optional, intent(in)  :: max_rgr    !--- pft.max_relative_growth_rate (default 0, no limit)
+      real(wp), optional, intent(out) :: lab_soil   !--- patch 1's below-ground labile litter
+      real(wp), optional, intent(out) :: wood       !--- the cohort's wood carbon after the step
+      real(wp), optional, intent(out) :: nplant0    !--- the cohort's density before the step
+      logical,  optional, intent(in)  :: immortal   !--- .true. => no background or low-growth mortality
+      real(wp), optional, intent(in)  :: max_agr    !--- pft.max_absolute_growth_rate (default 0, no limit)
+      real(wp), optional, intent(out) :: ddbh       !--- the cohort's dbh growth over the step
+      real(wp), optional, intent(out) :: dt_yr      !--- the step's length [yr]
       real(wp) :: dbh_start
       type(ed_config_t)   :: c
       type(polygon_t)     :: st
@@ -860,11 +904,13 @@ contains
       c%soil_carbon%soil_carbon_on     = .true.
       c%pft%growth_resp_factor(:)      = g_resp
       c%pft%recruit_carbon_efficiency(:) = repro_eff
-      !----- A SLOW leaf turnover, so turnover does not eat the whole supply before reproduction !
-      !      is reached. The allocator's priority order is leaf/root growth, then storage, then    !
-      !      reproduction, then wood -- with the default ~1 /yr turnover this cohort's daily leaf  !
-      !      replacement is 14x the photosynthate below and `avail` reaches zero before any seed   !
-      !      is made, so the seed-loss assertion would pass while asserting nothing.               !
+      !---~---
+      !   A SLOW leaf turnover, so turnover does not eat the whole supply before reproduction
+      ! is reached. The allocator's priority order is leaf/root growth, then storage, then
+      ! reproduction, then wood -- with the default ~1 /yr turnover this cohort's daily leaf
+      ! replacement is 14x the photosynthate below and `avail` reaches zero before any seed
+      ! is made, so the seed-loss assertion would pass while asserting nothing.
+      !---~---
       c%pft%leaf_turnover_rate_toc(:) = 0.01_wp
       if (present(max_rgr)) c%pft%max_relative_growth_rate(:) = max_rgr
       if (present(max_agr)) c%pft%max_absolute_growth_rate(:) = max_agr
@@ -876,8 +922,10 @@ contains
          end if
       end if
       call init_bare_ground(st, c, 1_ik)
-      !----- 40 cm => ~25 m, clear of the 13.9 m reproduction height: a cohort below it allocates  !
-      !      NOTHING to reproduction, and the seed-loss assertion would then be vacuously true.  --!
+      !---~---
+      !   40 cm => ~25 m, clear of the 13.9 m reproduction height: a cohort below it allocates
+      ! NOTHING to reproduction, and the seed-loss assertion would then be vacuously true.
+      !---~---
       call add_cohort(st, c, 1_ik, 1_ik, 0.3_wp, 40.0_wp)
       call finalize_init(st)
       st%cohort%gpp_accum(1:st%cohort%n)       = 1.0_wp      ! generous: a clear surplus to allocate
@@ -886,7 +934,7 @@ contains
       st%cohort%root_resp_accum(1:st%cohort%n) = 0.0_wp
       if (present(starve)) then
          if (starve) then
-            !----- No photosynthate, a real maintenance bill, and no reserves to pay it with. ----!
+            !--- No photosynthate, a real maintenance bill, and no reserves to pay it with.
             st%cohort%gpp_accum(1:st%cohort%n)            = 0.0_wp
             st%cohort%leaf_resp_accum(1:st%cohort%n)      = 1.0_wp
             st%cohort%nonstructural_carbon(1:st%cohort%n) = 0.0_wp
@@ -899,8 +947,10 @@ contains
       if (present(lab_soil)) lab_soil = st%patch%litter_in(1)%labile_soil
       if (present(wood))     wood     = st%cohort%wood_carbon(1)
       co2_rate     = st%patch%slow_co2_rate(1)
-      !----- The litter accumulator is patch state, so it is read off the site rather than
-      !      returned: st%patch%litter_in(1), in lockstep with patch 1.
+      !---~---
+      !   The litter accumulator is patch state, so it is read off the site rather than
+      ! returned: st%patch%litter_in(1), in lockstep with patch 1.
+      !---~---
       litter_total = st%patch%litter_in(1)%labile_grnd + st%patch%litter_in(1)%labile_soil          &
                    + st%patch%litter_in(1)%struct_grnd + st%patch%litter_in(1)%struct_soil
    end subroutine run_variant
@@ -953,23 +1003,23 @@ contains
          w = w + st%patch%area(ip) * st%patch%shed_water_rate(ip) * c%dt_slow
       end do
    end function shed_total
-   !---------------------------------------------------------------------------------------!
-   ! THE LITTER ACCUMULATOR MUST RIDE THE PATCH ARRAY.                                           !
-   !                                                                                          !
-   ! restructure_stand (apply_patch_disturbance) CREATES patches after vegetation_dynamics has   !
-   ! filled the step's litter, and the consumer (advance_soil_carbon) loops to the NEW           !
-   ! patch count. An accumulator sized to the patch count when it was filled is read past its    !
-   ! end, feeding undefined memory into the CENTURY litter input (1.8e9 kgC/m2 on a gap patch    !
-   ! born that step, over a 50-year spin-up).                                                    !
-   !                                                                                          !
-   ! The slow ledger cannot catch that: it DECLARES the same out-of-bounds read as a boundary    !
-   ! term and so balances perfectly against the garbage. Only `-check bounds` sees it.           !
-   !                                                                                          !
-   ! So the assertion is the INVARIANT -- the accumulator is patch state, at least as long as    !
-   ! the patch array after the operators that change the patch count have run -- plus the        !
-   ! quieter half: a FUSION must carry the litter across area-weighted rather than dropping or   !
-   ! duplicating it (a local array misattributes one patch's litter to another).                 !
-   !---------------------------------------------------------------------------------------!
+   !---~---
+   !   THE LITTER ACCUMULATOR MUST RIDE THE PATCH ARRAY.
+   !
+   !   restructure_stand (apply_patch_disturbance) CREATES patches after vegetation_dynamics has
+   ! filled the step's litter, and the consumer (advance_soil_carbon) loops to the NEW
+   ! patch count. An accumulator sized to the patch count when it was filled is read past its
+   ! end, feeding undefined memory into the CENTURY litter input (1.8e9 kgC/m2 on a gap patch
+   ! born that step, over a 50-year spin-up).
+   !
+   !   The slow ledger cannot catch that: it DECLARES the same out-of-bounds read as a boundary
+   ! term and so balances perfectly against the garbage. Only `-check bounds` sees it.
+   !
+   !   So the assertion is the INVARIANT -- the accumulator is patch state, at least as long as
+   ! the patch array after the operators that change the patch count have run -- plus the
+   ! quieter half: a FUSION must carry the litter across area-weighted rather than dropping or
+   ! duplicating it (a local array misattributes one patch's litter to another).
+   !---~---
    subroutine check_litter_patch_lockstep()
       type(ed_config_t)   :: c
       type(polygon_t)     :: st
@@ -994,15 +1044,19 @@ contains
       call vegetation_dynamics(st, c, no_ledger)
       call restructure_stand(st, c, .true., .true., no_ledger)   ! monthly + annual: every operator fires
 
-      !----- THE invariant. `>=` not `==`: the patch block is capacity-allocated, so the array is  !
-      !      allowed to be longer than the live patch count -- it must never be SHORTER.  ---------!
+      !---~---
+      !   THE invariant. `>=` not `==`: the patch block is capacity-allocated, so the array is
+      ! allowed to be longer than the live patch count -- it must never be SHORTER.
+      !---~---
       call check(size(st%patch%litter_in) >= st%patch%n,                                           &
                  'the litter accumulator is at least as long as the patch array')
       call check(allocated(st%patch%litter_in), 'the litter accumulator is patch state, not a local')
 
-      !----- A fusion must MOVE the litter, not lose it. Fusing two patches area-weighted leaves   !
-      !      the site-wide litter flux unchanged, which is the same rule blend_soil_carbon obeys    !
-      !      -- and has to, since this litter is on its way into those pools.  ---------------------!
+      !---~---
+      !   A fusion must MOVE the litter, not lose it. Fusing two patches area-weighted leaves
+      ! the site-wide litter flux unchanged, which is the same rule blend_soil_carbon obeys
+      ! -- and has to, since this litter is on its way into those pools.
+      !---~---
       if (st%patch%n >= 2_ik) then
          tot0 = litter_site_total(st)
          call fuse_2_patches(st, 1_ik, 2_ik)
@@ -1011,7 +1065,7 @@ contains
                           'patch fusion conserves the site-wide litter flux')
       end if
    end subroutine check_litter_patch_lockstep
-   !----- Area-weighted site total of today's litter [kgC/m2/day]. ---------------------------!
+   !--- Area-weighted site total of today's litter [kgC/m2/day].
    pure function litter_site_total(st) result(t)
       type(polygon_t), intent(in) :: st
       real(wp)    :: t
@@ -1024,9 +1078,11 @@ contains
                                     + st%patch%litter_in(ip)%struct_soil)
       end do
    end function litter_site_total
-   !----- With the soil-carbon pools off, the litter is still recorded and still declared leaving at !
-   !      the growth phase: the same litter, and the same growth-phase residual, as with them on.     !
-   !      Undeclared, the phase would read it as a carbon leak. -----------------------------------!
+   !---~---
+   !   With the soil-carbon pools off, the litter is still recorded and still declared leaving at
+   ! the growth phase: the same litter, and the same growth-phase residual, as with them on.
+   ! Undeclared, the phase would read it as a carbon leak.
+   !---~---
    subroutine check_litter_without_soil_carbon()
       real(wp) :: lit_on, lit_off, res_on, res_off
       call grow_one_step(.true.,  lit_on,  res_on)
@@ -1059,42 +1115,48 @@ contains
       litter        = litter_site_total(st)
       grow_residual = lg%resid_sum(SLOW_PHASE_GROW)%carbon
    end subroutine grow_one_step
-   !----- The recruit pool is credited EVERY step, and what it holds is the reproduction carbon   !
-   !       the parents were debited for. Two assertions, one per half of the contract: the       !
-   !       CADENCE (credited every step, not sampled on month boundaries from one day's rate      !
-   !       scaled up to stand for the month) and the CARBON LINK (the credit must follow          !
-   !       recruit_carbon_efficiency, which is what makes pool x carbon_min the debited carbon). ---!
-   !       A third: under recruit_shade_decay the credit falls as exp(-k * LAI) of the patch.      !
+   !---~---
+   !   The recruit pool is credited EVERY step, and what it holds is the reproduction carbon
+   ! the parents were debited for. Two assertions, one per half of the contract: the
+   ! CADENCE (credited every step, not sampled on month boundaries from one day's rate
+   ! scaled up to stand for the month) and the CARBON LINK (the credit must follow
+   ! recruit_carbon_efficiency, which is what makes pool x carbon_min the debited carbon).
+   ! A third: under recruit_shade_decay the credit falls as exp(-k * LAI) of the patch.
+   !---~---
    subroutine check_recruit_pool()
       real(wp) :: p1, p2, p_lo, p_hi, p_one, p_shade, lai
       call pool_after_steps(3_ik, 1.0e-3_wp, p1)
       call pool_after_steps(6_ik, 1.0e-3_wp, p2)
       call check(p1 > 0.0_wp, 'recruit pool: credited on an ordinary step, not only at month end')
-      !----- Six steps credit about twice what three do. NOT exactly twice: the stand grows       !
-      !      between steps, so later steps produce a little more reproduction carbon. The point   !
-      !      is that every step contributes -- a monthly sampling would leave p1 and p2 both      !
-      !      identically zero, since neither run crosses a month boundary.  --------------------!
+      !---~---
+      !   Six steps credit about twice what three do. NOT exactly twice: the stand grows
+      ! between steps, so later steps produce a little more reproduction carbon. The point
+      ! is that every step contributes -- a monthly sampling would leave p1 and p2 both
+      ! identically zero, since neither run crosses a month boundary.
+      !---~---
       call check(abs(p2 - 2.0_wp * p1) <= 0.01_wp * p2,                                            &
                  'recruit pool: six steps credit ~twice what three do (it integrates, not samples)')
       call pool_after_steps(3_ik, 1.0e-3_wp, p_lo)
       call pool_after_steps(3_ik, 2.0e-3_wp, p_hi)
       call check_close(p_hi, 2.0_wp * p_lo, 1.0e-9_wp,                                             &
                        'recruit pool: the credit follows recruit_carbon_efficiency')
-      !----- One step, so both runs see the same stand and its LAI exactly. ----------------------!
+      !--- One step, so both runs see the same stand and its LAI exactly.
       call pool_after_steps(1_ik, 1.0e-3_wp, p_one, lai=lai)
       call pool_after_steps(1_ik, 1.0e-3_wp, p_shade, shade_decay=0.5_wp)
       call check(lai > 0.1_wp, 'recruit pool: the shade test stand has leaves')
       call check_close(p_shade, p_one * exp(-0.5_wp * lai), 1.0e-9_wp,                             &
                        'recruit pool: the credit falls as exp(-recruit_shade_decay * patch LAI)')
    end subroutine check_recruit_pool
-   !----- Run `nstep` ordinary (non-month-boundary) slow steps on a fresh stand and return the    !
-   !       accumulated recruit pool. Seed rain is off, so what accumulates is reproduction alone. !
+   !---~---
+   !   Run `nstep` ordinary (non-month-boundary) slow steps on a fresh stand and return the
+   ! accumulated recruit pool. Seed rain is off, so what accumulates is reproduction alone.
+   !---~---
    subroutine pool_after_steps(nstep, repro_eff, pool, shade_decay, lai)
       integer(ik), intent(in)  :: nstep
       real(wp),    intent(in)  :: repro_eff
       real(wp),    intent(out) :: pool
-      real(wp), optional, intent(in)  :: shade_decay   !< pft.recruit_shade_decay (default 0)
-      real(wp), optional, intent(out) :: lai           !< the stand's LAI before the first step
+      real(wp), optional, intent(in)  :: shade_decay   !--- pft.recruit_shade_decay (default 0)
+      real(wp), optional, intent(out) :: lai           !--- the stand's LAI before the first step
       type(ed_config_t)   :: c
       type(polygon_t)     :: st
       integer(ik)         :: k
@@ -1121,10 +1183,10 @@ contains
 
 end module test_slow_step_ledger_paths
 
-!==========================================================================================!
-! Mortality's carbon by pathway: the cull, the treefall, background mortality and the      !
-! death of a cohort with no leaves and no storage, each on its own row.                    !
-!==========================================================================================!
+!---~---
+!   Mortality's carbon by pathway: the cull, the treefall, background mortality and the
+! death of a cohort with no leaves and no storage, each on its own row.
+!---~---
 module test_slow_step_mortality
    use ed_kinds,                 only : wp, ik
    use ed_constants,             only : yr_sec
@@ -1143,11 +1205,11 @@ module test_slow_step_mortality
    private
 
    public :: run_mortality_pathways
-   type(kill_report_t)  :: kills   !< what the cull and the treefall killed
-   real(wp)             :: dist_frac          !< the treefall decision's share
-   logical, allocatable :: dist_survives(:)   !< and its survivors
-   type(slow_ledger_t) :: no_ledger    !< inactive: a test step books nothing
-   real(wp)            :: shed_water   !< an operator's shed water, unread here
+   type(kill_report_t)  :: kills   !--- what the cull and the treefall killed
+   real(wp)             :: dist_frac          !--- the treefall decision's share
+   logical, allocatable :: dist_survives(:)   !--- and its survivors
+   type(slow_ledger_t) :: no_ledger    !--- inactive: a test step books nothing
+   real(wp)            :: shed_water   !--- an operator's shed water, unread here
 
 contains
 
@@ -1159,10 +1221,12 @@ contains
       call check_exhausted()
    end subroutine run_mortality_pathways
 
-   !----- Arm the per-patch diagnostic block the way a real run does, minus the registry: active, !
-   !      sized, `n` set to the patch count, and carrying the weight ONE SLOW STEP of fast         !
-   !      sub-steps accumulates. The weight is what patch_diag_value divides out, so a fixture     !
-   !      that leaves it at zero reads every slot as 0 and passes nothing.  ---------------------!
+   !---~---
+   !   Arm the per-patch diagnostic block the way a real run does, minus the registry: active,
+   ! sized, `n` set to the patch count, and carrying the weight ONE SLOW STEP of fast
+   ! sub-steps accumulates. The weight is what patch_diag_value divides out, so a fixture
+   ! that leaves it at zero reads every slot as 0 and passes nothing.
+   !---~---
    subroutine arm_patch_diag(poly, cfg)
       type(polygon_t),     intent(inout) :: poly
       type(ed_config_t), intent(in)      :: cfg
@@ -1170,17 +1234,21 @@ contains
       poly%patch%diag%n = poly%patch%n
       poly%patch%diag%w(1:poly%patch%diag%cap) = cfg%dt_slow
    end subroutine arm_patch_diag
-   !----- Total carbon one individual of cohort `i` carries. A whole-individual death takes every !
-   !      pool, which is what separates it from a turnover shed.  -------------------------------!
+   !---~---
+   !   Total carbon one individual of cohort `i` carries. A whole-individual death takes every
+   ! pool, which is what separates it from a turnover shed.
+   !---~---
    pure real(wp) function plant_carbon(poly, i) result(c)
       type(polygon_t), intent(in) :: poly
       integer(ik),  intent(in) :: i
       c = poly%cohort%leaf_carbon(i) + poly%cohort%fineroot_carbon(i)                              &
         + poly%cohort%wood_carbon(i) + poly%cohort%nonstructural_carbon(i)
    end function plant_carbon
-   !----- Site total of a patch diagnostic: Sum(area * value), the aggregation the output layer   !
-   !      performs, times the elapsed years to turn the declared [kgC/m2/yr] rate back into the    !
-   !      amount that flowed.  ------------------------------------------------------------------!
+   !---~---
+   !   Site total of a patch diagnostic: Sum(area * value), the aggregation the output layer
+   ! performs, times the elapsed years to turn the declared [kgC/m2/yr] rate back into the
+   ! amount that flowed.
+   !---~---
    real(wp) function site_amount(poly, cfg, slot) result(a)
       type(polygon_t),     intent(in) :: poly
       type(ed_config_t),   intent(in) :: cfg
@@ -1194,20 +1262,24 @@ contains
       end do
       a = a * (cfg%dt_slow / yr_sec)
    end function site_amount
-   !=== CULL: a cohort below the tracked size floor. ==========================================!
+   !--- CULL: a cohort below the tracked size floor.
    subroutine check_cull()
       type(ed_config_t)   :: cfg
       type(polygon_t)     :: poly
       real(wp)            :: expect
 
       cfg = build_test_config()
-      !----- soil_carbon_on OFF deliberately. Both this pathway's litter and the disturbance        !
-      !      pathway's sit behind that switch, and the diagnostic must not: how much biomass died   !
-      !      is demography. With the default (.true.) this part would pass even with the write on   !
-      !      the wrong side of the guard, which is the one placement error it exists to catch.      !
+      !---~---
+      !   soil_carbon_on OFF deliberately. Both this pathway's litter and the disturbance
+      ! pathway's sit behind that switch, and the diagnostic must not: how much biomass died
+      ! is demography. With the default (.true.) this part would pass even with the write on
+      ! the wrong side of the guard, which is the one placement error it exists to catch.
+      !---~---
       cfg%soil_carbon%soil_carbon_on    = .false.
-      !----- Raise the density floor so a NORMAL cohort is culled: the alternative is a cohort so  !
-      !      small its carbon is at the rounding floor, which would make the assertion vacuous.    !
+      !---~---
+      !   Raise the density floor so a NORMAL cohort is culled: the alternative is a cohort so
+      ! small its carbon is at the rounding floor, which would make the assertion vacuous.
+      !---~---
       cfg%demography%negligible_nplant = 0.30_wp
 
       call init_bare_ground(poly, cfg, 1_ik)
@@ -1228,7 +1300,7 @@ contains
       call check_close(site_amount(poly, cfg, PA_MORT_C_DISTURB), 0.0_wp, 1.0e-12_wp,              &
                        'a cull is not also counted as disturbance mortality')
    end subroutine check_cull
-   !=== DISTURBANCE: the canopy killed when a gap opens. ======================================!
+   !--- DISTURBANCE: the canopy killed when a gap opens.
    subroutine check_disturbance()
       type(ed_config_t)   :: cfg
       type(polygon_t)     :: poly
@@ -1246,8 +1318,10 @@ contains
                  'disturbance fixture: cohort 2 is understorey')
       call arm_patch_diag(poly, cfg)
 
-      !----- The oracle, on the state BEFORE the call, since the call removes the canopy cohort.   !
-      !      One patch of unit area, so the site amount is just frac x its density x its pools.    !
+      !---~---
+      !   The oracle, on the state BEFORE the call, since the call removes the canopy cohort.
+      ! One patch of unit area, so the site amount is just frac x its density x its pools.
+      !---~---
       frac   = 1.0_wp - exp(-cfg%demography%patch_disturbance_rate * 1.0_wp)
       expect = poly%patch%area(1) * frac * poly%cohort%nplant(1) * plant_carbon(poly, 1_ik)
       call check(expect > 0.0_wp, 'disturbance fixture: the canopy carries carbon')
@@ -1255,10 +1329,12 @@ contains
       call decide_disturbance(poly, cfg, 1.0_wp, dist_frac, dist_survives)
       call apply_patch_disturbance(poly, cfg, dist_frac, dist_survives, shed_water, kills)
 
-      !----- Asserted on the SITE AGGREGATE, not on the donor slot, because that is where the      !
-      !      donor's area shrink lands: the carbon died on the frac of the donor that became the   !
-      !      gap, and only Sum(area * value) after the shrink can show whether it was valued on    !
-      !      the right ground.  --------------------------------------------------------------!
+      !---~---
+      !   Asserted on the SITE AGGREGATE, not on the donor slot, because that is where the
+      ! donor's area shrink lands: the carbon died on the frac of the donor that became the
+      ! gap, and only Sum(area * value) after the shrink can show whether it was valued on
+      ! the right ground.
+      !---~---
       call check_close(site_amount(poly, cfg, PA_MORT_C_DISTURB), expect, 1.0e-12_wp,              &
                        'PA_MORT_C_DISTURB site total == the canopy carbon the gap consumed')
       call check_close(site_amount(poly, cfg, PA_MORT_C_BACKGROUND), 0.0_wp, 1.0e-12_wp,           &
@@ -1266,7 +1342,7 @@ contains
       call check_close(site_amount(poly, cfg, PA_MORT_C_CULL), 0.0_wp, 1.0e-12_wp,                 &
                        'disturbance is not also counted as a cull')
    end subroutine check_disturbance
-   !=== BACKGROUND: the continuous hazard, through the real slow driver. =======================!
+   !--- BACKGROUND: the continuous hazard, through the real slow driver.
    subroutine check_background()
       type(ed_config_t)   :: cfg
       type(polygon_t)     :: poly
@@ -1276,14 +1352,18 @@ contains
       cfg%fast_biophysics_on = .false.       ! the hazard is a state question, not a GPP one
       cfg%soil_carbon%soil_carbon_on     = .false.       ! and the split is emitted whatever the soil pools do
 
-      !----- ONE cohort, so the per-step sort_cohorts cannot permute the axis between the density  !
-      !      captured before the step and the pools read after it.  -------------------------!
+      !---~---
+      !   ONE cohort, so the per-step sort_cohorts cannot permute the axis between the density
+      ! captured before the step and the pools read after it.
+      !---~---
       call init_bare_ground(poly, cfg, 1_ik)
       call add_cohort(poly, cfg, 1_ik, 2_ik, 0.50_wp, 20.0_wp)
       call finalize_init(poly)
       call arm_patch_diag(poly, cfg)
-      !----- With the fast loop off, the slow step weights the block itself, so the fixture's         !
-      !      stand-in for the fast sub-steps' weight would count the step twice. --------------------!
+      !---~---
+      !   With the fast loop off, the slow step weights the block itself, so the fixture's
+      ! stand-in for the fast sub-steps' weight would count the step twice.
+      !---~---
       poly%patch%diag%w = 0.0_wp
 
       n0 = poly%cohort%nplant(1)
@@ -1291,10 +1371,12 @@ contains
       call check(poly%cohort%n == 1_ik, 'background fixture: the cohort survived the step')
       call check(n0 - poly%cohort%nplant(1) > 0.0_wp, 'the step actually killed some density')
 
-      !----- Valued on the density the applier REMOVED and the pools it LEFT: growth happens at the !
-      !      old density and mortality at the new pools, which is the decomposition                 !
-      !      accumulate_mortality_litter's header sets out. Reading the pools after the step is     !
-      !      therefore not a convenience -- it is the definition.  ------------------------------!
+      !---~---
+      !   Valued on the density the applier REMOVED and the pools it LEFT: growth happens at the
+      ! old density and mortality at the new pools, which is the decomposition
+      ! accumulate_mortality_litter's header sets out. Reading the pools after the step is
+      ! therefore not a convenience -- it is the definition.
+      !---~---
       expect = (n0 - poly%cohort%nplant(1)) * plant_carbon(poly, 1_ik)
       call check_close(site_amount(poly, cfg, PA_MORT_C_BACKGROUND), expect, 1.0e-12_wp,           &
                        'PA_MORT_C_BACKGROUND == the removed density x the pools it left')
@@ -1303,12 +1385,14 @@ contains
       call check_close(site_amount(poly, cfg, PA_MORT_C_DISTURB), 0.0_wp, 1.0e-12_wp,              &
                        'background mortality is not also counted as disturbance')
    end subroutine check_background
-   !=== A cohort with no leaves and no storage dies; one living on its storage does not. =========!
-   !    Both are leafless and dormant (no flush, so nothing grows) with a day's stem respiration    !
-   !    and no photosynthesis, as in a dry season; only their storage differs. The first cannot pay  !
-   !    its upkeep, so its density goes to the floor on its first step, through the background     !
-   !    pathway, and the next month boundary culls it. The second pays its upkeep from storage      !
-   !    through a 150-day dry season and loses density only at the growth-driven hazard.           !
+   !---~---
+   !   A cohort with no leaves and no storage dies; one living on its storage does not.
+   ! Both are leafless and dormant (no flush, so nothing grows) with a day's stem respiration
+   ! and no photosynthesis, as in a dry season; only their storage differs. The first cannot pay
+   ! its upkeep, so its density goes to the floor on its first step, through the background
+   ! pathway, and the next month boundary culls it. The second pays its upkeep from storage
+   ! through a 150-day dry season and loses density only at the growth-driven hazard.
+   !---~---
    subroutine check_exhausted()
       type(ed_config_t)   :: cfg
       type(polygon_t)     :: poly
@@ -1319,7 +1403,7 @@ contains
       cfg%fast_biophysics_on = .true.        ! the allocator reads the accumulators set below
       cfg%soil_carbon%soil_carbon_on     = .false.
 
-      !----- No storage: dead on the first step, at the floor, its carbon down the background path. -!
+      !--- No storage: dead on the first step, at the floor, its carbon down the background path.
       call leafless_stand(poly, cfg, 0.0_wp)
       call arm_patch_diag(poly, cfg)        ! fast loop on: the fixture's weight stands in for it
       n0     = poly%cohort%nplant(1)
@@ -1335,7 +1419,7 @@ contains
       call advance_boundary_dynamics(poly, cfg, .true., .false., no_ledger)
       call check(poly%cohort%n == 0_ik, 'no leaves, no storage: culled at the month boundary')
 
-      !----- Storage for the season: the cohort lives on it, leafless, for 150 days. --------------!
+      !--- Storage for the season: the cohort lives on it, leafless, for 150 days.
       call leafless_stand(poly, cfg, 0.5_wp)
       n0 = poly%cohort%nplant(1)
       do day = 1_ik, 150_ik
@@ -1348,13 +1432,15 @@ contains
       call check(poly%cohort%nplant(1) > 0.9_wp * n0,                                              &
                  'leafless with storage: only the growth-driven hazard thinned it')
    end subroutine check_exhausted
-   !----- One leafless, dormant cohort holding `storage` [kgC/plant], with a day's stem respiration !
-   !      and no photosynthesis on every step (there is no fast loop to overwrite the accumulators). -!
+   !---~---
+   !   One leafless, dormant cohort holding `storage` [kgC/plant], with a day's stem respiration
+   ! and no photosynthesis on every step (there is no fast loop to overwrite the accumulators).
+   !---~---
    subroutine leafless_stand(poly, cfg, storage)
       type(polygon_t),     intent(inout) :: poly
       type(ed_config_t),   intent(in)    :: cfg
       real(wp),            intent(in)    :: storage
-      real(wp), parameter :: STEM_RESP_DAY = 1.0e-3_wp   !< [kgC/plant] one day's stem respiration
+      real(wp), parameter :: STEM_RESP_DAY = 1.0e-3_wp   !--- [kgC/plant] one day's stem respiration
       call init_bare_ground(poly, cfg, 1_ik)
       call add_cohort(poly, cfg, 1_ik, 2_ik, 0.05_wp, 20.0_wp)
       call finalize_init(poly)
@@ -1370,11 +1456,11 @@ contains
 
 end module test_slow_step_mortality
 
-!==========================================================================================!
-! The soil-carbon seam through the real driver: the daily step's Rh is the fast loop's,    !
-! the pool moves and stays non-negative, and soil carbon off leaves it untouched; without  !
-! the fast loop the pools decay at spinup_xi and there is no seam.                         !
-!==========================================================================================!
+!---~---
+!   The soil-carbon seam through the real driver: the daily step's Rh is the fast loop's,
+! the pool moves and stays non-negative, and soil carbon off leaves it untouched; without
+! the fast loop the pools decay at spinup_xi and there is no seam.
+!---~---
 module test_slow_step_seam
    use ed_kinds,                 only : wp, ik
    use ed_biogeochem_params,     only : IP_FAST_GRND, IP_FAST_SOIL, IP_STRUCT_GRND, IP_STRUCT_SOIL, &
@@ -1398,16 +1484,16 @@ module test_slow_step_seam
    private
 
    public :: run_soil_seam
-   type(slow_ledger_t) :: no_ledger    !< inactive: a test step books nothing
+   type(slow_ledger_t) :: no_ledger    !--- inactive: a test step books nothing
    real(wp) :: test_bottoms(n_soil_layer_max)   ! the geometric layers these checks are computed on
 
    integer(ik)            :: n_budget_fail
    integer(ik), parameter :: NSL = 10_ik
    type(ed_config_t)    :: cfg
    type(polygon_t)      :: poly
-   type(soil_profile_t) :: test_profile   !< the site's soil column (use_test_column)
+   type(soil_profile_t) :: test_profile   !--- the site's soil column (use_test_column)
    real(wp) :: total0, total1
-   type(slow_ledger_t) :: seam   !< an inactive ledger, which keeps the run's seam worsts
+   type(slow_ledger_t) :: seam   !--- an inactive ledger, which keeps the run's seam worsts
    real(wp) :: we, ww
 
 contains
@@ -1434,7 +1520,7 @@ contains
       call finalize_init(poly)
       call init_fast_state(poly, cfg)
 
-      !----- Seed a nonzero starting pool so decomposition (and hence Rh) is actually active. -----!
+      !--- Seed a nonzero starting pool so decomposition (and hence Rh) is actually active.
       poly%patch%soil_carbon(1)%carbon(IP_FAST_GRND)   = 2.0_wp
       poly%patch%soil_carbon(1)%carbon(IP_FAST_SOIL)   = 1.0_wp
       poly%patch%soil_carbon(1)%carbon(IP_STRUCT_GRND) = 20.0_wp
@@ -1443,9 +1529,11 @@ contains
 
       total0 = sum(poly%patch%soil_carbon(1)%carbon)
 
-      !=== 1. Run one real slow step: fast loop (accumulates decomp_xi against the FROZEN          !
-      !    pool seeded above) THEN advance_slow_dynamics (vegetation turnover -> litter, then the       !
-      !    daily soil_carbon_step consuming that litter + xi_int). ====================================!
+      !---~---
+      !   1. Run one real slow step: fast loop (accumulates decomp_xi against the FROZEN
+      ! pool seeded above) THEN advance_slow_dynamics (vegetation turnover -> litter, then the
+      ! daily soil_carbon_step consuming that litter + xi_int).
+      !---~---
       call fast_dynamics(poly, cfg, worst_energy=we, worst_water=ww, n_budget_fail=n_budget_fail)
       call check(n_budget_fail == 0_ik, 'fast loop whole-column budgets closed (n_fail == 0)')
 
@@ -1458,9 +1546,11 @@ contains
 
          call check_true('rh_seam_gap ~ 0 (the double-count gate)',                                   &
                          seam%worst_rh_gap < 1.0e-9_wp * max(rh_fast_accum_ref, 1.0_wp), seam%worst_rh_gap)
-         !----- The other two seam numbers the same call accumulates. Lambda is the freeze number:     !
-         !      the fraction of a pool one slow step withdraws. It must be nonzero (the step DID        !
-         !      decompose) and far below 1 (or freezing the pool across the step is unsound).  ---------!
+         !---~---
+         !   The other two seam numbers the same call accumulates. Lambda is the freeze number:
+         ! the fraction of a pool one slow step withdraws. It must be nonzero (the step DID
+         ! decompose) and far below 1 (or freezing the pool across the step is unsound).
+         !---~---
          call check_true('lignin passive-tracer residual ~ 0', seam%worst_lignin < 1.0e-12_wp,        &
                          seam%worst_lignin)
          call check_true('lambda is nonzero -- the step actually decomposed', seam%worst_lambda > 0.0_wp, &
@@ -1471,18 +1561,20 @@ contains
 
       total1 = sum(poly%patch%soil_carbon(1)%carbon)
 
-      !----- Direction is not asserted (this cohort's turnover litter can outweigh or be outweighed by !
-      !      Rh depending on the seeded pool -- test_soil_carbon's INDEPENDENT mass check (Rh        !
-      !      recomputed from er*xi_int*K*X0, not from the closure definition) already guarantees          !
-      !      dC_pool == litter_in - rh_today to machine precision); this just checks the driver seam      !
-      !      actually moved the pool and stayed physical. --------------------------------------------!
+      !---~---
+      !   Direction is not asserted (this cohort's turnover litter can outweigh or be outweighed by
+      ! Rh depending on the seeded pool -- test_soil_carbon's INDEPENDENT mass check (Rh
+      ! recomputed from er*xi_int*K*X0, not from the closure definition) already guarantees
+      ! dC_pool == litter_in - rh_today to machine precision); this just checks the driver seam
+      ! actually moved the pool and stayed physical.
+      !---~---
       call check(abs(total1 - total0) > 1.0e-6_wp, 'pool total changed (the daily step actually ran)')
       call check(total1 > 0.0_wp, 'pool total stayed physical (non-negative)')
       write(*,'(a,es12.5,a,es12.5,a)') '   (pool total: ', total0, ' -> ', total1, ' kgC/m2)'
       write(*,'(a,es12.5,a,es12.5,a)') '   (rh_seam_gap: ', seam%worst_rh_gap,                       &
                                        '   lambda: ', seam%worst_lambda, ')'
 
-      !=== 2. OFF-PATH: soil_carbon_on = .false. must leave the pool exactly untouched. ==============!
+      !--- 2. OFF-PATH: soil_carbon_on = .false. must leave the pool exactly untouched.
       block
          type(polygon_t) :: poly2
          real(wp)     :: totalA, totalB
@@ -1500,9 +1592,11 @@ contains
          call check_close(totalB, totalA, 1.0e-12_wp, 'soil_carbon_on=.false.: pool exactly untouched')
       end block
 
-      !=== 3. WITHOUT THE FAST LOOP the pools decay at spinup_xi over the step and there is no seam  !
-      !    (soil_carbon.md §7). Lambda, the step's largest xi_int * k, is then spinup_xi times the   !
-      !    step's days times the largest decay rate; with xi_int left at zero it was 0. =============!
+      !---~---
+      !   3. WITHOUT THE FAST LOOP the pools decay at spinup_xi over the step and there is no seam
+      ! (soil_carbon.md §7). Lambda, the step's largest xi_int * k, is then spinup_xi times the
+      ! step's days times the largest decay rate; with xi_int left at zero it was 0.
+      !---~---
       block
          type(polygon_t)     :: poly3
          type(slow_ledger_t) :: seam3
@@ -1526,8 +1620,10 @@ contains
       end block
    end subroutine run_soil_seam
 
-   !----- The test's hand-built soil column is the site's, which the fast loop runs on, starting  !
-   !      at 0.30 in every layer. ------------------------------------------------------------!
+   !---~---
+   !   The test's hand-built soil column is the site's, which the fast loop runs on, starting
+   ! at 0.30 in every layer.
+   !---~---
    subroutine use_test_column(p)
       type(polygon_t), intent(inout) :: p
       p%site%surface(1)%soil_profile = test_profile
@@ -1536,10 +1632,10 @@ contains
 
 end module test_slow_step_seam
 
-!==========================================================================================!
-! The slow rows' units: each reported rate times the elapsed time is the amount the step   !
-! moved, with and without a fast loop.                                                     !
-!==========================================================================================!
+!---~---
+!   The slow rows' units: each reported rate times the elapsed time is the amount the step
+! moved, with and without a fast loop.
+!---~---
 module test_slow_step_diag
    use ed_kinds,                 only : wp, ik
    use ed_constants,             only : yr_sec, n_soil_layer_max
@@ -1562,13 +1658,13 @@ module test_slow_step_diag
    private
 
    public :: run_slow_rows
-   type(slow_ledger_t) :: no_ledger    !< inactive: a test step books nothing
+   type(slow_ledger_t) :: no_ledger    !--- inactive: a test step books nothing
    real(wp) :: test_bottoms(n_soil_layer_max)   ! the geometric layers these checks are computed on
 
    integer(ik), parameter :: NSL = 10_ik
    type(ed_config_t)    :: cfg
    type(polygon_t)      :: poly
-   type(soil_profile_t) :: test_profile   !< the site's soil column (use_test_column)
+   type(soil_profile_t) :: test_profile   !--- the site's soil column (use_test_column)
    real(wp)             :: x(8), pool0, pool1, elapsed_yr, frac_expected
    integer(ik)          :: np
 
@@ -1579,8 +1675,10 @@ contains
 
       cfg = build_test_config()
       cfg%fast_biophysics_on = .true.
-      !----- ONE full slow step of fast sub-steps: 96 x 900 s = 86400 s = cfg%dt_slow. This is the    !
-      !      property check 1 asserts; it is set here rather than inherited so the mirror is explicit.!
+      !---~---
+      !   ONE full slow step of fast sub-steps: 96 x 900 s = 86400 s = cfg%dt_slow. This is the
+      ! property check 1 asserts; it is set here rather than inherited so the mirror is explicit.
+      !---~---
       cfg%dt_fast            = 900.0_wp
       cfg%n_fast_per_slow    = 96_ik
       cfg%soil_carbon%soil_carbon_on     = .true.
@@ -1598,20 +1696,24 @@ contains
       call finalize_init(poly)
       call init_fast_state(poly, cfg)
 
-      !----- Turn the patch diagnostic block on by hand. In production ed_output_registry does this   !
-      !      from the enabled-variable set; a test has no registry, and the block is a no-op at every !
-      !      entry point until it is active. -----------------------------------------------------!
+      !---~---
+      !   Turn the patch diagnostic block on by hand. In production ed_output_registry does this
+      ! from the enabled-variable set; a test has no registry, and the block is a no-op at every
+      ! entry point until it is active.
+      !---~---
       call alloc_patch_diag(poly%patch%diag, max(poly%patch%cap, 1_ik), .true.)
 
-      !=== 1. THE FIXTURE MIRRORS THE DRIVER: one fast window weighs exactly one slow step. =========!
+      !--- 1. THE FIXTURE MIRRORS THE DRIVER: one fast window weighs exactly one slow step.
       call fast_dynamics(poly, cfg)
       call check_close(poly%patch%diag%w(1), cfg%dt_slow, 1.0e-9_wp,                                  &
                        'fast window accumulates exactly dt_slow of weight (the fixture mirrors the driver)')
       elapsed_yr = poly%patch%diag%w(1) / yr_sec
 
-      !=== 2. LITTER: reported rate x elapsed == the amount biogeochemistry consumed. ===============!
-      !    The cohorts' day writes the rows and fills the accumulator; the soil step would take    !
-      !    the litter up and clear it, so the check reads it before.                               !
+      !---~---
+      !   2. LITTER: reported rate x elapsed == the amount biogeochemistry consumed.
+      ! The cohorts' day writes the rows and fills the accumulator; the soil step would take
+      ! the litter up and clear it, so the check reads it before.
+      !---~---
       pool0 = sum(poly%patch%recruit_pool(:, 1))
       call vegetation_dynamics(poly, cfg, no_ledger)
       pool1 = sum(poly%patch%recruit_pool(:, 1))
@@ -1633,18 +1735,22 @@ contains
                        poly%patch%litter_in(1)%struct_grnd + poly%patch%litter_in(1)%struct_soil,     &
                        1.0e-10_wp, 'PA_LITTER_STRUCT rate x elapsed == the structural litter amount')
 
-      !=== 3. RECRUITMENT: the same identity against the pool the SAME step credits. The pool is     !
-      !    consumed only on a month boundary, and this step is not one, so its change IS the amount.  !
+      !---~---
+      !   3. RECRUITMENT: the same identity against the pool the SAME step credits. The pool is
+      ! consumed only on a month boundary, and this step is not one, so its change IS the amount.
+      !---~---
       call patch_diag_value(poly%patch%diag, PA_RECRUIT_NPLANT, x, np)
       call check(pool1 - pool0 > 0.0_wp, 'the step actually credited the recruit pool')
       call check_close(x(1) * elapsed_yr, pool1 - pool0, 1.0e-10_wp,                                  &
                        'PA_RECRUIT_NPLANT rate x elapsed == the recruit-pool credit')
 
-      !=== 4. DISTURBANCE: fires on a year boundary, in a different file with its own expression, so   !
-      !    it gets its own check. The amount is the area fraction its hazard removes over the one-     !
-      !    year PATCH_DYNAMICS_INTERVAL it is called with. As in the driver, the boundary comes after  !
-      !    the output has read the step and zeroed the block, so its event lands in the NEXT window,   !
-      !    which the next fast loop then weighs. ------------------------------------------------------!
+      !---~---
+      !   4. DISTURBANCE: fires on a year boundary, in a different file with its own expression, so
+      ! it gets its own check. The amount is the area fraction its hazard removes over the one-
+      ! year PATCH_DYNAMICS_INTERVAL it is called with. As in the driver, the boundary comes after
+      ! the output has read the step and zeroed the block, so its event lands in the NEXT window,
+      ! which the next fast loop then weighs.
+      !---~---
       block
          call reset_step_diagnostics(poly)                          ! the output has read step 1
          call advance_boundary_dynamics(poly, cfg, .true., .true., no_ledger)  ! new month AND new year
@@ -1661,9 +1767,11 @@ contains
                                           ' 1/yr  vs configured hazard ', cfg%demography%patch_disturbance_rate, ' 1/yr)'
       end block
 
-      !=== 5. A SLOW-ONLY RUN. No fast loop weighs the block or sets its patch count, so the         !
-      !    slow step does both: the slow rows read their rates exactly as with a fast loop, and the    !
-      !    fast rows are not slow rows (the output layer reports those as missing). ----------------!
+      !---~---
+      !   5. A SLOW-ONLY RUN. No fast loop weighs the block or sets its patch count, so the
+      ! slow step does both: the slow rows read their rates exactly as with a fast loop, and the
+      ! fast rows are not slow rows (the output layer reports those as missing).
+      !---~---
       block
          type(ed_config_t) :: cfg_slow
          cfg_slow = cfg
@@ -1689,8 +1797,10 @@ contains
       end block
    end subroutine run_slow_rows
 
-   !----- The test's hand-built soil column is the site's, which the fast loop runs on, starting  !
-   !      at 0.30 in every layer. ------------------------------------------------------------!
+   !---~---
+   !   The test's hand-built soil column is the site's, which the fast loop runs on, starting
+   ! at 0.30 in every layer.
+   !---~---
    subroutine use_test_column(p)
       type(polygon_t), intent(inout) :: p
       p%site%surface(1)%soil_profile = test_profile
@@ -1699,12 +1809,12 @@ contains
 
 end module test_slow_step_diag
 
-!==========================================================================================!
-! test_slow_step -- the slow step through ed_slow_state and ed_slow_dynamics               !
-! (docs/science/order_of_processes.md §4): leaf phenology's wiring, thermal acclimation's  !
-! wiring, the carbon step, the paths the ledger cannot see, mortality by pathway, the      !
-! soil-carbon seam and the slow rows' units. One module per section.                       !
-!==========================================================================================!
+!---~---
+!   test_slow_step -- the slow step through ed_slow_state and ed_slow_dynamics
+! (docs/science/order_of_processes.md §4): leaf phenology's wiring, thermal acclimation's
+! wiring, the carbon step, the paths the ledger cannot see, mortality by pathway, the
+! soil-carbon seam and the slow rows' units. One module per section.
+!---~---
 program test_slow_step
    use test_slow_step_phenology, only : run_phenology_wiring
    use test_slow_step_acclimation, only : run_thermal_acclimation

@@ -1,12 +1,12 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! ed_met_grid -- where on the Earth the met data are: the cells of a gridded product a     !
-! run reads, from the product's static file (met_grid_t), and whether another file lies on !
-! that grid (docs/science/forcing.md §1). select_site_cell takes a site's cell,            !
-! select_box_cells a region's, keep_cells drops the cells a mask leaves out, and same_grid !
-! checks a map's axes, since ED-MORE never regrids. It reads the static file, never        !
-! weather.                                                                                 !
-!==========================================================================================!
+!---~---
+!   ed_met_grid -- where on the Earth the met data are: the cells of a gridded product a
+! run reads, from the product's static file (met_grid_t), and whether another file lies on
+! that grid (docs/science/forcing.md §1). select_site_cell takes a site's cell,
+! select_box_cells a region's, keep_cells drops the cells a mask leaves out, and same_grid
+! checks a map's axes, since ED-MORE never regrids. It reads the static file, never
+! weather.
+!---~---
 module ed_met_grid
    use iso_c_binding,  only : c_int, c_size_t
    use ed_kinds,       only : wp, ik
@@ -21,24 +21,24 @@ module ed_met_grid
    public :: great_circle_distance, nearest_grid_index
    public :: GRID_OK, GRID_ERR_OPEN, GRID_ERR_LAYOUT, GRID_ERR_NO_CELL
 
-   real(wp), parameter :: EARTH_RADIUS_M = 6.371e6_wp  !< [m] mean Earth radius
-   real(wp), parameter :: GRID_TOL = 1.0e-4_wp         !< [deg] slack for "these coordinates are equal"
+   real(wp), parameter :: EARTH_RADIUS_M = 6.371e6_wp  !--- [m] mean Earth radius
+   real(wp), parameter :: GRID_TOL = 1.0e-4_wp         !--- [deg] slack for "these coordinates are equal"
 
-   !----- Status codes. --------------------------------------------------------------------------!
+   !--- Status codes.
    integer(ik), parameter :: GRID_OK          = 0_ik
-   integer(ik), parameter :: GRID_ERR_OPEN    = 1_ik   !< a file is missing or unreadable
-   integer(ik), parameter :: GRID_ERR_LAYOUT  = 2_ik   !< no regular lat/lon axes, another grid's, or a field missing
-   integer(ik), parameter :: GRID_ERR_NO_CELL = 3_ik   !< no valid cell within the distance limit / in the box
+   integer(ik), parameter :: GRID_ERR_OPEN    = 1_ik   !--- a file is missing or unreadable
+   integer(ik), parameter :: GRID_ERR_LAYOUT  = 2_ik   !--- no regular lat/lon axes, another grid's, or a field missing
+   integer(ik), parameter :: GRID_ERR_NO_CELL = 3_ik   !--- no valid cell within the distance limit / in the box
 
 contains
 
-   !=======================================================================================!
-   !  A SITE'S CELL (docs/science/forcing.md §1): the cell containing the site by          !
-   !  regular-grid arithmetic; if it has no data, the nearest valid cell by great-circle   !
-   !  distance, lowest (row-major) index on a tie, up to max_km. Rows farther than max_km  !
-   !  in latitude alone cannot qualify, so only the rows within that band are read, across !
-   !  all longitudes (which handles the antimeridian for free).                            !
-   !=======================================================================================!
+   !---~---
+   !   A SITE'S CELL (docs/science/forcing.md §1): the cell containing the site by
+   ! regular-grid arithmetic; if it has no data, the nearest valid cell by great-circle
+   ! distance, lowest (row-major) index on a tie, up to max_km. Rows farther than max_km
+   ! in latitude alone cannot qualify, so only the rows within that band are read, across
+   ! all longitudes (which handles the antimeridian for free).
+   !---~---
    subroutine select_site_cell(grid, site_lat, site_lon, max_km, cells, distance_km, stat)
       type(met_grid_t),  intent(in)  :: grid
       real(wp),          intent(in)  :: site_lat, site_lon, max_km
@@ -99,20 +99,22 @@ contains
       call group_by_chunk(cells)
    end subroutine select_site_cell
 
-   !=======================================================================================!
-   !  A REGION'S CELLS (docs/configuration.md, Regional runs): the valid cells whose       !
-   !  centres lie in [south, north] x [west, east], in row-major order north to south and  !
-   !  west to east. A box with west > east crosses the antimeridian: its columns run from  !
-   !  west to the grid's east edge, then on from the west edge to east. nwse = [north,     !
-   !  west, south, east] in degrees.                                                       !
-   !=======================================================================================!
+   !---~---
+   !   A REGION'S CELLS (docs/configuration.md, Regional runs): the valid cells whose
+   ! centres lie in [south, north] x [west, east], in row-major order north to south and
+   ! west to east. A box with west > east crosses the antimeridian: its columns run from
+   ! west to the grid's east edge, then on from the west edge to east. nwse = [north,
+   ! west, south, east] in degrees.
+   !---~---
    subroutine select_box_cells(grid, nwse, cells, stat, land_fraction_min)
       type(met_grid_t),  intent(in)  :: grid
       real(wp),          intent(in)  :: nwse(4)
       type(met_cells_t), intent(out) :: cells
       integer(ik),       intent(out) :: stat
-      !----- Keep only cells whose static land fraction is at least this (a region's selection      !
-      !      rule, docs/configuration.md, Regional runs); absent, every valid cell is kept. -------!
+      !---~---
+      !   Keep only cells whose static land fraction is at least this (a region's selection
+      ! rule, docs/configuration.md, Regional runs); absent, every valid cell is kept.
+      !---~---
       real(wp), optional, intent(in)  :: land_fraction_min
       integer(c_int) :: ncid, st
       real(wp), allocatable :: lat(:), lon(:), valid(:,:), elev(:,:), lfrac(:,:)
@@ -135,7 +137,7 @@ contains
       end do
       west = wrap_longitude(nwse(2), lon(1))
       east = wrap_longitude(nwse(4), lon(1))
-      !----- A named index array, not an implied-do inside pack (compiler trap, docs/building.md). -!
+      !--- A named index array, not an implied-do inside pack (compiler trap, docs/building.md).
       col_index = [(i, i = 0_ik, nlon - 1_ik)]
       if (west <= east) then
          cols = pack(col_index, lon >= west - GRID_TOL .and. lon <= east + GRID_TOL)
@@ -182,8 +184,10 @@ contains
       call group_by_chunk(cells)
    end subroutine select_box_cells
 
-   !----- Keep the cells where `keep` is true, in their order, and regroup them by chunk (a        !
-   !      region's cell mask, ed_maps). ---------------------------------------------------------  !
+   !---~---
+   !   Keep the cells where `keep` is true, in their order, and regroup them by chunk (a
+   ! region's cell mask, ed_maps).
+   !---~---
    subroutine keep_cells(cells, keep)
       type(met_cells_t), intent(inout) :: cells
       logical,           intent(in)    :: keep(:)
@@ -199,11 +203,11 @@ contains
       call group_by_chunk(cells)
    end subroutine keep_cells
 
-   !=======================================================================================!
-   !  ON THE GRID: GRID_OK when the file at `path` has the static file's lat and lon axes  !
-   !  (within GRID_TOL), so a cell's (row, col) indexes both. The static maps a run reads  !
-   !  (ed_maps) must be on this grid: ED-MORE never regrids.                               !
-   !=======================================================================================!
+   !---~---
+   !   ON THE GRID: GRID_OK when the file at `path` has the static file's lat and lon axes
+   ! (within GRID_TOL), so a cell's (row, col) indexes both. The static maps a run reads
+   ! (ed_maps) must be on this grid: ED-MORE never regrids.
+   !---~---
    subroutine same_grid(path, grid, stat)
       character(len=*), intent(in)  :: path
       type(met_grid_t), intent(in)  :: grid
@@ -222,11 +226,11 @@ contains
       stat = GRID_OK
    end subroutine same_grid
 
-   !=======================================================================================!
-   !  DISTANCE (docs/science/forcing.md §1): the great-circle distance, and the nearest of !
-   !  a list of points with a strict '<', so a tie keeps the lowest index. A site's cell   !
-   !  is held to [forcing].max_distance_km; the mean Earth radius keeps it within 0.5 %.   !
-   !=======================================================================================!
+   !---~---
+   !   DISTANCE (docs/science/forcing.md §1): the great-circle distance, and the nearest of
+   ! a list of points with a strict '<', so a tie keeps the lowest index. A site's cell
+   ! is held to [forcing].max_distance_km; the mean Earth radius keeps it within 0.5 %.
+   !---~---
    pure function great_circle_distance(lon1_deg, lat1_deg, lon2_deg, lat2_deg) result(dist_m)
       real(wp), intent(in) :: lon1_deg, lat1_deg, lon2_deg, lat2_deg
       real(wp) :: dist_m, lat1, lat2, dlon, x, y
@@ -254,16 +258,18 @@ contains
       end do
    end function nearest_grid_index
 
-   !----- A longitude moved into [lon0, lon0 + 360), the grid's own range. ------------------------!
+   !--- A longitude moved into [lon0, lon0 + 360), the grid's own range.
    pure real(wp) function wrap_longitude(x, lon0) result(y)
       real(wp), intent(in) :: x, lon0
       y = lon0 + modulo(x - lon0, 360.0_wp)
    end function wrap_longitude
 
-   !----- Group the cells by the grid's square chunk with a stable counting sort, so each touched  !
-   !      chunk column is read once per variable-month and the cells keep their order. Each chunk's !
-   !      read box is the rows and columns its cells occupy: HDF5 decompresses the whole chunk     !
-   !      either way, but a site then copies one cell instead of the whole chunk. -----------------!
+   !---~---
+   !   Group the cells by the grid's square chunk with a stable counting sort, so each touched
+   ! chunk column is read once per variable-month and the cells keep their order. Each chunk's
+   ! read box is the rows and columns its cells occupy: HDF5 decompresses the whole chunk
+   ! either way, but a site then copies one cell instead of the whole chunk.
+   !---~---
    subroutine group_by_chunk(cells)
       type(met_cells_t), intent(inout) :: cells
       integer(ik), allocatable :: id(:), cnt(:), next(:)
@@ -304,8 +310,10 @@ contains
       end do
    end subroutine group_by_chunk
 
-   !----- Open a file on the grid and read its (regular, 1-D) lat and lon axes; closed again unless  !
-   !      stat = GRID_OK. --------------------------------------------------------------------------!
+   !---~---
+   !   Open a file on the grid and read its (regular, 1-D) lat and lon axes; closed again unless
+   ! stat = GRID_OK.
+   !---~---
    subroutine open_grid_file(path, grid, ncid, lat, lon, stat)
       character(len=*),      intent(in)  :: path
       type(met_grid_t),      intent(in)  :: grid
@@ -345,7 +353,7 @@ contains
       st = nc_get_vara_double(ncid, vid, start1, count1, x)
    end subroutine read_axis
 
-   !----- rows r0 .. r0+nr-1 and columns c0 .. c0+nc-1 (0-based) of a (lat, lon) variable, as x(lon, lat). !
+   !--- rows r0 .. r0+nr-1 and columns c0 .. c0+nc-1 (0-based) of a (lat, lon) variable, as x(lon, lat).
    subroutine read_2d(ncid, name, r0, nr, c0, nc, x, stat)
       integer(c_int),        intent(in)  :: ncid
       character(len=*),      intent(in)  :: name

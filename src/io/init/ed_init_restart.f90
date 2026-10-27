@@ -1,14 +1,14 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! ed_init_restart -- the state (restart) file: every polygon's prognostic state at an      !
-! instant, in a netCDF-4 checkpoint a resumed run continues from exactly                   !
-! (docs/science/order_of_processes.md §6, The restart file). restart_file_open, _write and !
-! _close write a file a polygon's row at a time; read_restart_file reads a row, and        !
-! restart_file_slots checks a file before a run starts from it. A file holds every         !
-! variable, and the reader requires each one. Each level's variables are defined, written  !
-! and read in one place, in its state module's section order.                              !
-! Diagnostic output is ed_output_*.                                                        !
-!==========================================================================================!
+!---~---
+!   ed_init_restart -- the state (restart) file: every polygon's prognostic state at an
+! instant, in a netCDF-4 checkpoint a resumed run continues from exactly
+! (docs/science/order_of_processes.md §6, The restart file). restart_file_open, _write and
+! _close write a file a polygon's row at a time; read_restart_file reads a row, and
+! restart_file_slots checks a file before a run starts from it. A file holds every
+! variable, and the reader requires each one. Each level's variables are defined, written
+! and read in one place, in its state module's section order.
+! Diagnostic output is ed_output_*.
+!---~---
 module ed_init_restart
    use iso_c_binding,       only : c_int, c_size_t
    use ed_kinds,            only : wp, ik
@@ -35,24 +35,24 @@ module ed_init_restart
    public :: read_restart_file, restart_file_slots
 
    character(len=*), parameter :: STATE_TITLE = 'ED-MORE instantaneous state (restart) file'
-   !----- The layout written and read, a global attribute of every file; a change to it counts up. -!
+   !--- The layout written and read, a global attribute of every file; a change to it counts up.
    integer,          parameter :: N_META_INT = 11, N_META_REAL = 2
-   character(len=*), parameter :: FILM_UNITS  = 'kg/plant'   !< the canopy films' units attribute
+   character(len=*), parameter :: FILM_UNITS  = 'kg/plant'   !--- the canopy films' units attribute
 
-   !----- An open state file, its polygon axis ahead of every other. --------------------------------!
+   !--- An open state file, its polygon axis ahead of every other.
    type :: restart_file_t
       integer(c_int)     :: ncid   = -1_c_int
       character(len=512) :: path   = ''
    end type restart_file_t
 
-   !----- The dimensions of a file being defined. --------------------------------------------------!
+   !--- The dimensions of a file being defined.
    type :: file_dims_t
       integer(c_int) :: ncid = -1_c_int
       integer(c_int) :: polygon, cohort, patch, site, pft, meta_int, meta_real, soil_layer, snow_layer
       integer(c_int) :: growth_window
    end type file_dims_t
 
-   !----- One polygon's row (1-based) of an open file. ---------------------------------------------!
+   !--- One polygon's row (1-based) of an open file.
    type :: file_row_t
       integer(c_int) :: ncid = -1_c_int
       integer(ik)    :: row  = 1_ik
@@ -60,33 +60,33 @@ module ed_init_restart
 
 contains
 
-   !=======================================================================================!
-   !  0. THE FILE: open, write, close and read, the checks before a run starts from one,   !
-   !     and one variable defined, written or read at a polygon's row                      !
-   !=======================================================================================!
+   !---~---
+   !   0. THE FILE: open, write, close and read, the checks before a run starts from one,
+   !    and one variable defined, written or read at a polygon's row
+   !---~---
 
-   !---------------------------------------------------------------------------------------!
-   ! Create <dir>/<prefix>-S-YYYYMMDDHHMMSS.nc and define every dimension and variable.    !
-   ! The cohort and patch axes are n_cohort and n_patch long (at least 1), the largest of  !
-   ! the polygons'. A `polygon` axis leads every variable, `polygon_id` names its rows,    !
-   ! and the variables are compressed, since most polygons fill only part of the padded    !
-   ! axes. Why each group persists: docs/science/order_of_processes.md §6, The restart     !
-   ! file.                                                                                 !
-   !---------------------------------------------------------------------------------------!
+   !---~---
+   !   Create <dir>/<prefix>-S-YYYYMMDDHHMMSS.nc and define every dimension and variable.
+   ! The cohort and patch axes are n_cohort and n_patch long (at least 1), the largest of
+   ! the polygons'. A `polygon` axis leads every variable, `polygon_id` names its rows,
+   ! and the variables are compressed, since most polygons fill only part of the padded
+   ! axes. Why each group persists: docs/science/order_of_processes.md §6, The restart
+   ! file.
+   !---~---
    subroutine restart_file_open(sf, dir, prefix, now, n_pft, n_window, n_cohort, n_patch, n_site,     &
                               polygon_id, polygon_lat, polygon_lon, restructure_pending, restructure_new_year)
       type(restart_file_t),  intent(out) :: sf
       character(len=*),      intent(in)  :: dir, prefix
       type(ed_time_t),       intent(in)  :: now
       integer(ik),           intent(in)  :: n_pft, n_window, n_cohort, n_patch, n_site
-      integer(ik),           intent(in)  :: polygon_id(:)                  !< the polygons' ids ...
-      real(wp),              intent(in)  :: polygon_lat(:), polygon_lon(:)  !< ... and locations [deg]
+      integer(ik),           intent(in)  :: polygon_id(:)                  !--- the polygons' ids ...
+      real(wp),              intent(in)  :: polygon_lat(:), polygon_lon(:)  !--- ... and locations [deg]
       logical,     optional, intent(in)  :: restructure_pending, restructure_new_year
       type(file_dims_t) :: d
       character(len=5)  :: pending
       integer(c_int)    :: ncid
 
-      !----- The stamp is the simulated date: <prefix>-S-YYYYMMDDHHMMSS.nc. -----------------!
+      !--- The stamp is the simulated date: <prefix>-S-YYYYMMDDHHMMSS.nc.
       sf%path = trim(dir)//'/'//trim(prefix)//'-S-'//time_to_stamp(now)//'.nc'
       call nc_check(nc_create_f(trim(sf%path), ior(NC_NETCDF4, NC_CLOBBER), ncid), 'state nc_create')
       sf%ncid = ncid
@@ -118,9 +118,7 @@ contains
       call write_polygon_axis(ncid, polygon_id, polygon_lat, polygon_lon)
    end subroutine restart_file_open
 
-   !---------------------------------------------------------------------------------------!
-   ! Write one polygon's state into its row (1-based) of an open file.                     !
-   !---------------------------------------------------------------------------------------!
+   !--- Write one polygon's state into its row (1-based) of an open file.
    subroutine restart_file_write(sf, poly, now, polygon)
       type(restart_file_t), intent(in) :: sf
       type(polygon_t),      intent(in) :: poly
@@ -140,24 +138,24 @@ contains
       write(*,'(2a)') ' state : ', trim(sf%path)
    end subroutine restart_file_close
 
-   !---------------------------------------------------------------------------------------!
-   ! Reconstruct a polygon from row `polygon` (1-based) of a state file written by        !
-   ! restart_file_write. Each site's surface is made from `site_cfg` (else `cfg`) and the  !
-   ! geometry from the carbon pools; the maps and sort order are rebuilt, and the          !
-   ! restructuring owed is the file's restructure_pending                                  !
-   ! (docs/science/order_of_processes.md §5). found = .false. and `why` say the file       !
-   ! cannot be opened or has a PFT, site or soil-layer count unlike the run's; a file      !
-   ! without one of the variables stops the run, naming it.                                !
-   !---------------------------------------------------------------------------------------!
+   !---~---
+   !   Reconstruct a polygon from row `polygon` (1-based) of a state file written by
+   ! restart_file_write. Each site's surface is made from `site_cfg` (else `cfg`) and the
+   ! geometry from the carbon pools; the maps and sort order are rebuilt, and the
+   ! restructuring owed is the file's restructure_pending
+   ! (docs/science/order_of_processes.md §5). found = .false. and `why` say the file
+   ! cannot be opened or has a PFT, site or soil-layer count unlike the run's; a file
+   ! without one of the variables stops the run, naming it.
+   !---~---
    subroutine read_restart_file(poly, cfg, path, restart_time, found, polygon, site_cfg, why)
       type(polygon_t),     intent(out) :: poly
       type(ed_config_t),   intent(in)  :: cfg
       character(len=*),    intent(in)  :: path
       type(ed_time_t),     intent(out) :: restart_time
       logical,             intent(out) :: found
-      integer(ik),         intent(in)  :: polygon    !< its row (1-based)
-      type(ed_config_t), optional, intent(in) :: site_cfg(:)   !< each site's configuration
-      character(len=:), allocatable, optional, intent(out) :: why  !< why found = .false.; '' when found
+      integer(ik),         intent(in)  :: polygon    !--- its row (1-based)
+      type(ed_config_t), optional, intent(in) :: site_cfg(:)   !--- each site's configuration
+      character(len=:), allocatable, optional, intent(out) :: why  !--- why found = .false.; '' when found
       character(len=:), allocatable :: msg
       type(file_row_t) :: r
       integer(c_int)   :: ncid, st
@@ -183,9 +181,11 @@ contains
       found = .true.
    end subroutine read_restart_file
 
-   !----- Each polygon's row of the restart file at `path`, by its id. why = '' when the file can   !
-   !      start a run of these polygons, else the reason it cannot: it cannot be opened, or does   !
-   !      not hold one of them. -------------------------------------------------------------------!
+   !---~---
+   !   Each polygon's row of the restart file at `path`, by its id. why = '' when the file can
+   ! start a run of these polygons, else the reason it cannot: it cannot be opened, or does
+   ! not hold one of them.
+   !---~---
    subroutine restart_file_slots(path, ids, slot, why)
       character(len=*),              intent(in)  :: path
       integer(ik),                   intent(in)  :: ids(:)
@@ -213,7 +213,7 @@ contains
       end do
    end subroutine restart_file_slots
 
-   !----- An open state file's polygon ids, in its rows' order. ----------------------------------!
+   !--- An open state file's polygon ids, in its rows' order.
    subroutine file_polygon_ids(ncid, polygon_id)
       integer(c_int),           intent(in)  :: ncid
       integer(ik), allocatable, intent(out) :: polygon_id(:)
@@ -226,7 +226,7 @@ contains
                     'get polygon_id')
    end subroutine file_polygon_ids
 
-   !----- A per-polygon variable: one value per row, uncompressed, with its long_name. ------------!
+   !--- A per-polygon variable: one value per row, uncompressed, with its long_name.
    subroutine def_polygon_var(d, name, xtype, lname)
       type(file_dims_t), intent(in) :: d
       character(len=*),  intent(in) :: name, lname
@@ -235,9 +235,11 @@ contains
       call define_var(d%ncid, name, xtype, [d%polygon], v, long_name=lname)
    end subroutine def_polygon_var
 
-   !----- A state variable on its own dimensions, behind the polygon axis, with its long_name and,  !
-   !      where the reader needs it, its units; one polygon's row per chunk, since each polygon   !
-   !      writes its own. ----------------------------------------------------------------------!
+   !---~---
+   !   A state variable on its own dimensions, behind the polygon axis, with its long_name and,
+   ! where the reader needs it, its units; one polygon's row per chunk, since each polygon
+   ! writes its own.
+   !---~---
    subroutine def_var(d, name, xtype, dimids, lname, units)
       type(file_dims_t), intent(in) :: d
       character(len=*),  intent(in) :: name, lname
@@ -257,7 +259,7 @@ contains
                       deflate=RESTART_DEFLATE)
    end subroutine def_var
 
-   !----- A per-polygon value (n_cohort, n_patch, n_site, n_window), at the polygon's row. --------!
+   !--- A per-polygon value (n_cohort, n_patch, n_site, n_window), at the polygon's row.
    subroutine put_polygon_int(r, name, n)
       type(file_row_t), intent(in) :: r
       character(len=*), intent(in) :: name
@@ -304,9 +306,11 @@ contains
       n = x(1)
    end function get_polygon_int
 
-   !----- One vector into, or out of, the variable `name` at the polygon's row: its first entries  !
-   !      (a per-cohort, per-patch, per-site or meta vector), or with `item`, the layers of that    !
-   !      cohort or patch (1-based) of a variable with a second axis. ---------------------------!
+   !---~---
+   !   One vector into, or out of, the variable `name` at the polygon's row: its first entries
+   ! (a per-cohort, per-patch, per-site or meta vector), or with `item`, the layers of that
+   ! cohort or patch (1-based) of a variable with a second axis.
+   !---~---
    subroutine put_dbl(r, name, x, item)
       type(file_row_t),      intent(in) :: r
       character(len=*),      intent(in) :: name
@@ -355,8 +359,10 @@ contains
       call nc_check(nc_inq_varid_f(ncid, name, var_id), 'state inq '//name)
    end function var_id
 
-   !----- Where a polygon's n values sit: its row; then entry `item` (1-based) of the cohort or    !
-   !      patch axis, when given; then the first n entries. ---------------------------------------!
+   !---~---
+   !   Where a polygon's n values sit: its row; then entry `item` (1-based) of the cohort or
+   ! patch axis, when given; then the first n entries.
+   !---~---
    pure subroutine where_in_file(r, n, item, st, ct, nd)
       type(file_row_t),      intent(in)  :: r
       integer(ik),           intent(in)  :: n
@@ -376,15 +382,15 @@ contains
       ct(nd) = int(n, c_size_t)
    end subroutine where_in_file
 
-   !=======================================================================================!
-   !  1. THE POLYGON AND ITS SITES, in ed_polygon_state_vars' and ed_site_state_vars'      !
-   !     section order                                                                     !
-   !=======================================================================================!
+   !---~---
+   !   1. THE POLYGON AND ITS SITES, in ed_polygon_state_vars' and ed_site_state_vars'
+   !    section order
+   !---~---
 
    subroutine define_polygon_vars(d)
       type(file_dims_t), intent(in) :: d
-      !----- 1. Identity and location: the polygon axis (restart_file_open). ---------------------!
-      !----- 2. Dimensions and id counters, with the file's time in meta_int. -----------------!
+      !--- 1. Identity and location: the polygon axis (restart_file_open).
+      !--- 2. Dimensions and id counters, with the file's time in meta_int.
       call def_polygon_var(d, 'n_cohort',   NC_INT,    'the polygon''s live cohorts (the rest is fill)')
       call def_polygon_var(d, 'n_patch',    NC_INT,    'the polygon''s live patches (the rest is fill)')
       call def_polygon_var(d, 'n_site',     NC_INT,    'the polygon''s sites (the rest is fill)')
@@ -392,14 +398,18 @@ contains
       call def_var(d, 'meta_int',  NC_INT,    [d%meta_int],                                  &
                    '[n_cohort,n_patch,n_pft,next_cohort_id,next_patch_id,year,month,day,hour,minute,second]')
       call def_var(d, 'meta_real', NC_DOUBLE, [d%meta_real], '[area of the sites (1), decimal_year]')
-      !----- 3. Calendar: the cohorts' ring-buffer slot (the restructuring owed is a global      !
-      !      attribute). ----------------------------------------------------------------------!
+      !---~---
+      !   3. Calendar: the cohorts' ring-buffer slot (the restructuring owed is a global
+      ! attribute).
+      !---~---
       call def_var(d, 'growth_hist_pos_py', NC_INT, [d%meta_real], 'ring-buffer write slot (element 1)')
-      !----- 4. The forcing's memory. ------------------------------------------------------------!
+      !--- 4. The forcing's memory.
       call def_polygon_var(d, 'kt_last_day_py', NC_DOUBLE, 'the last daytime clearness index [-]')
-      !----- The sites: 1. each one's area and 3. the surface it was made with, as the diagnostic    !
-      !      files carry them (its layer count is checked on read); 4. thermal acclimation's       !
-      !      running mean (docs/science/leaf_gas_exchange.md §2). ------------------------------!
+      !---~---
+      !   The sites: 1. each one's area and 3. the surface it was made with, as the diagnostic
+      ! files carry them (its layer count is checked on read); 4. thermal acclimation's
+      ! running mean (docs/science/leaf_gas_exchange.md §2).
+      !---~---
       call define_site_statics(d%ncid, d%polygon, d%site, [SOIL_BC_DRAIN, SOIL_BC_AQUIFER], 'drain aquifer',    &
                                by_row=.true., deflate=RESTART_DEFLATE)
       call def_var(d, 't_growth_avg_si', NC_DOUBLE, [d%site], 'the site''s running-mean growth temperature [K]')
@@ -413,7 +423,7 @@ contains
       real(wp)    :: area(poly%site%n, 1), elev(poly%site%n, 1), slope(poly%site%n, 1), aspect(poly%site%n, 1)
       real(wp)    :: depth(poly%site%n, 1), drain(poly%site%n, 1), tdeep(poly%site%n, 1)
       ns = poly%site%n
-      !----- 2. Dimensions and id counters, and the time. ------------------------------------!
+      !--- 2. Dimensions and id counters, and the time.
       call put_polygon_int(r, 'n_cohort', poly%cohort%n)
       call put_polygon_int(r, 'n_patch',  poly%patch%n)
       call put_polygon_int(r, 'n_site',   ns)
@@ -422,11 +432,11 @@ contains
                                    poly%next_patch_id, now%year, now%month, now%day, now%hour, now%minute,     &
                                    now%second])
       call put_dbl(r, 'meta_real', [sum(poly%site%area(1:ns)), time_to_decimal_year(now)])
-      !----- 3. Calendar. --------------------------------------------------------------------!
+      !--- 3. Calendar.
       call put_int(r, 'growth_hist_pos_py', [poly%growth_hist_pos])
-      !----- 4. The forcing's memory. ---------------------------------------------------------!
+      !--- 4. The forcing's memory.
       call put_polygon_dbl(r, 'kt_last_day_py', poly%kt_last_day)
-      !----- The sites, the surface's numbers through contiguous buffers. --------------------!
+      !--- The sites, the surface's numbers through contiguous buffers.
       do is = 1_ik, ns
          associate (surf => poly%site%surface(is))
             area(is, 1)   = poly%site%area(is)
@@ -444,9 +454,11 @@ contains
       call put_dbl(r, 't_growth_avg_si', poly%site%t_growth_avg(1:ns))
    end subroutine put_polygon_vars
 
-   !----- The polygon, allocated to the file's counts, and its sites, each surface made from     !
-   !      site_cfg (else cfg). why = '' unless the file's PFT, site or soil-layer count is unlike !
-   !      the run's. -----------------------------------------------------------------------------!
+   !---~---
+   !   The polygon, allocated to the file's counts, and its sites, each surface made from
+   ! site_cfg (else cfg). why = '' unless the file's PFT, site or soil-layer count is unlike
+   ! the run's.
+   !---~---
    subroutine get_polygon_vars(r, poly, cfg, restart_time, why, site_cfg)
       type(file_row_t),              intent(in)  :: r
       type(polygon_t),               intent(out) :: poly
@@ -459,7 +471,7 @@ contains
       integer(ik) :: meta_i(N_META_INT), ns, is
 
       why = ''
-      !----- 2. Dimensions and id counters, and the file's time. -----------------------------!
+      !--- 2. Dimensions and id counters, and the file's time.
       call get_int(r, 'meta_int',  meta_i)
       if (meta_i(3) /= cfg%pft%n) then
          write(msg, '(a,i0,a,i0)') 'holds ', meta_i(3), ' PFTs and the configuration ', cfg%pft%n
@@ -484,12 +496,14 @@ contains
       poly%next_patch_id = meta_i(5)
       restart_time = ed_time_t(year=meta_i(6), month=meta_i(7), day=meta_i(8),               &
                                hour=meta_i(9), minute=meta_i(10), second=meta_i(11))
-      !----- 3. Calendar: the restructuring owed (the ring's slot comes with the rings, section 2). !
+      !--- 3. Calendar: the restructuring owed (the ring's slot comes with the rings, section 2).
       call nc_check(nc_get_att_text_f(r%ncid, NC_GLOBAL, 'restructure_pending', pending), 'state restructure_pending')
       poly%restructure_pending  = trim(pending) == 'month' .or. trim(pending) == 'year'
       poly%restructure_new_year = trim(pending) == 'year'
-      !----- The sites: 3. each surface; 1. each area, and each site's soil state is per layer of   !
-      !      the column it was written on. ----------------------------------------------------------!
+      !---~---
+      !   The sites: 3. each surface; 1. each area, and each site's soil state is per layer of
+      ! the column it was written on.
+      !---~---
       do is = 1_ik, ns
          if (present(site_cfg)) then
             call make_site_surface(poly%site%surface(is), site_cfg(is))
@@ -510,54 +524,56 @@ contains
             end if
          end do
       end block
-      !----- 4. Growth temperature. ----------------------------------------------------------!
+      !--- 4. Growth temperature.
       call get_dbl(r, 't_growth_avg_si', poly%site%t_growth_avg(1:ns))
    end subroutine get_polygon_vars
 
-   !=======================================================================================!
-   !  2. THE COHORTS, in ed_cohort_state_vars' section order                               !
-   !=======================================================================================!
+   !--- 2. THE COHORTS, in ed_cohort_state_vars' section order
 
    subroutine define_cohort_vars(d)
       type(file_dims_t), intent(in) :: d
-      !----- 1. Identity and density. --------------------------------------------------------!
+      !--- 1. Identity and density.
       call def_var(d, 'pft_co',              NC_INT,    [d%cohort], 'plant functional type index')
       call def_var(d, 'global_cohort_id', NC_INT,    [d%cohort], 'persistent cohort id')
       call def_var(d, 'owner_patch',      NC_INT,    [d%cohort], 'owning patch index (1-based)')
       call def_var(d, 'nplant_co',           NC_DOUBLE, [d%cohort], 'plant number density [plant/m2]')
-      !----- 2. The carbon pools, as the run holds them. -------------------------------------!
+      !--- 2. The carbon pools, as the run holds them.
       call def_var(d, 'leaf_carbon_co',          NC_DOUBLE, [d%cohort], 'leaf carbon per plant [kgC]')
       call def_var(d, 'fineroot_carbon_co',      NC_DOUBLE, [d%cohort], 'fine-root carbon per plant [kgC]')
       call def_var(d, 'wood_carbon_co',          NC_DOUBLE, [d%cohort], 'wood carbon per plant [kgC]')
       call def_var(d, 'nonstructural_carbon_co', NC_DOUBLE, [d%cohort], 'nonstructural carbon per plant [kgC]')
-      !----- 3. Size: the reader derives it from the pools, so dbh, height, basal_area, agb and   !
-      !      leaf_area are for readers of the file; overtopping_lai is the cohort's light. -------!
+      !---~---
+      !   3. Size: the reader derives it from the pools, so dbh, height, basal_area, agb and
+      ! leaf_area are for readers of the file; overtopping_lai is the cohort's light.
+      !---~---
       call def_var(d, 'dbh_co',             NC_DOUBLE, [d%cohort], 'diameter at breast height [cm]')
       call def_var(d, 'height_co',          NC_DOUBLE, [d%cohort], 'height [m]')
       call def_var(d, 'basal_area_co',      NC_DOUBLE, [d%cohort], 'basal area per plant [cm2]')
       call def_var(d, 'agb_co',             NC_DOUBLE, [d%cohort], 'aboveground biomass per plant [kgC]')
       call def_var(d, 'leaf_area_co',       NC_DOUBLE, [d%cohort], 'leaf area per plant [m2]')
       call def_var(d, 'overtopping_lai_co', NC_DOUBLE, [d%cohort], 'LAI of the taller cohorts in the patch [m2/m2]')
-      !----- 4. Water: the tissue water; the canopy interception films ([fast].canopy_water_on),  !
-      !      per plant and marked so; the stomatal feedback's predawn potential                    !
-      !      (docs/science/leaf_gas_exchange.md §4.2). ----------------------------------------!
+      !---~---
+      !   4. Water: the tissue water; the canopy interception films ([fast].canopy_water_on),
+      ! per plant and marked so; the stomatal feedback's predawn potential
+      ! (docs/science/leaf_gas_exchange.md §4.2).
+      !---~---
       call def_var(d, 'leaf_water_mass_co', NC_DOUBLE, [d%cohort], 'per-cohort internal leaf water [kg/plant]')
       call def_var(d, 'wood_water_mass_co', NC_DOUBLE, [d%cohort], 'per-cohort internal wood water [kg/plant]')
       call def_var(d, 'leaf_surf_water_co', NC_DOUBLE, [d%cohort], 'leaf interception film [kg/plant]', units=FILM_UNITS)
       call def_var(d, 'wood_surf_water_co', NC_DOUBLE, [d%cohort], 'wood interception film [kg/plant]', units=FILM_UNITS)
       call def_var(d, 'dmax_psi_leaf_co',   NC_DOUBLE, [d%cohort],                                                 &
                    'yesterday daily-max leaf water potential [MPa] (drives beta_stomata)')
-      !----- 5. Energy: the tissue energies, with their temperatures as twins. ----------------!
+      !--- 5. Energy: the tissue energies, with their temperatures as twins.
       call def_var(d, 'leaf_energy_co', NC_DOUBLE, [d%cohort], 'per-cohort leaf internal energy [J/plant] (prognostic)')
       call def_var(d, 'wood_energy_co', NC_DOUBLE, [d%cohort], 'per-cohort wood internal energy [J/plant] (prognostic)')
       call def_var(d, 'leaf_temp_co',   NC_DOUBLE, [d%cohort], 'per-cohort leaf temperature [K] (diagnosed twin)')
       call def_var(d, 'wood_temp_co',   NC_DOUBLE, [d%cohort], 'per-cohort wood temperature [K] (diagnosed twin)')
-      !----- 6. Plastic leaf traits. ---------------------------------------------------------!
+      !--- 6. Plastic leaf traits.
       call def_var(d, 'sla_co',                NC_DOUBLE, [d%cohort], 'specific leaf area [m2/kgC] (plastic)')
       call def_var(d, 'vcmax25_co',            NC_DOUBLE, [d%cohort], 'max carboxylation @25C [umol/m2/s] (plastic)')
       call def_var(d, 'rd25_co',               NC_DOUBLE, [d%cohort], 'leaf dark respiration @25C [umol/m2/s] (plastic)')
       call def_var(d, 'leaf_turnover_rate_co', NC_DOUBLE, [d%cohort], 'baseline leaf turnover rate [1/yr] (plastic)')
-      !----- 7. Leaf phenology: the season's cue sums and running light mean. -----------------!
+      !--- 7. Leaf phenology: the season's cue sums and running light mean.
       call def_var(d, 'leaf_flush_tendency_co', NC_DOUBLE, [d%cohort], 'smoothed flush signal [0,1]')
       call def_var(d, 'leaf_shed_tendency_co',  NC_DOUBLE, [d%cohort], 'smoothed senescence signal [0,1]')
       call def_var(d, 'growing_degree_days_co', NC_DOUBLE, [d%cohort], 'warmth sum since midwinter [K day]')
@@ -566,12 +582,12 @@ contains
       call def_var(d, 'wet_psi_sum_co',         NC_DOUBLE, [d%cohort], 'predawn leaf psi above the TLP, summed [MPa day]')
       call def_var(d, 'light_hours_avg_co',    NC_DOUBLE, [d%cohort],                                             &
                    'running-mean hours of light at the cohort top [h/day]')
-      !----- 8. Growth history: growth_avg (the mortality predictor) and the ring buffer behind it. !
+      !--- 8. Growth history: growth_avg (the mortality predictor) and the ring buffer behind it.
       call def_var(d, 'growth_avg_co',   NC_DOUBLE, [d%cohort], 'simple moving-average growth [cm/yr] (mortality predictor)')
       call def_var(d, 'growth_accum_co', NC_DOUBLE, [d%cohort], 'running sum of the growth window [cm/yr]')
       call def_var(d, 'growth_count_co', NC_INT,    [d%cohort], 'samples in the growth window')
       call def_var(d, 'growth_hist_co',  NC_DOUBLE, [d%cohort, d%growth_window], 'growth-rate ring buffer [cm/yr]')
-      !----- 9. Fast-to-slow accumulators: the day's running maximum leaf potential. -----------!
+      !--- 9. Fast-to-slow accumulators: the day's running maximum leaf potential.
       call def_var(d, 'dmax_psi_leaf_accum_co', NC_DOUBLE, [d%cohort],                                             &
                    'running daily-max leaf water potential accumulator [MPa]')
    end subroutine define_cohort_vars
@@ -583,40 +599,40 @@ contains
       ncoh = poly%cohort%n
       nwin = int(size(poly%cohort%growth_hist, 1), ik)
       associate (c => poly%cohort)
-         !----- 1. Identity and density. -----------------------------------------------------!
+         !--- 1. Identity and density.
          call put_int(r, 'pft_co',              c%pft(1:ncoh))
          call put_int(r, 'global_cohort_id', c%global_id(1:ncoh))
          call put_int(r, 'owner_patch',      c%owner_patch(1:ncoh))
          call put_dbl(r, 'nplant_co',           c%nplant(1:ncoh))
-         !----- 2. Carbon pools. --------------------------------------------------------------!
+         !--- 2. Carbon pools.
          call put_dbl(r, 'leaf_carbon_co',          c%leaf_carbon(1:ncoh))
          call put_dbl(r, 'fineroot_carbon_co',      c%fineroot_carbon(1:ncoh))
          call put_dbl(r, 'wood_carbon_co',          c%wood_carbon(1:ncoh))
          call put_dbl(r, 'nonstructural_carbon_co', c%nonstructural_carbon(1:ncoh))
-         !----- 3. Size. ----------------------------------------------------------------------!
+         !--- 3. Size.
          call put_dbl(r, 'dbh_co',             c%dbh(1:ncoh))
          call put_dbl(r, 'height_co',          c%height(1:ncoh))
          call put_dbl(r, 'basal_area_co',      c%basal_area(1:ncoh))
          call put_dbl(r, 'agb_co',             c%agb(1:ncoh))
          call put_dbl(r, 'leaf_area_co',       c%leaf_area(1:ncoh))
          call put_dbl(r, 'overtopping_lai_co', c%overtopping_lai(1:ncoh))
-         !----- 4. Water. ---------------------------------------------------------------------!
+         !--- 4. Water.
          call put_dbl(r, 'leaf_water_mass_co', c%leaf_water_mass(1:ncoh))
          call put_dbl(r, 'wood_water_mass_co', c%wood_water_mass(1:ncoh))
          call put_dbl(r, 'leaf_surf_water_co', c%leaf_surf_water(1:ncoh))
          call put_dbl(r, 'wood_surf_water_co', c%wood_surf_water(1:ncoh))
          call put_dbl(r, 'dmax_psi_leaf_co',   c%dmax_psi_leaf(1:ncoh))
-         !----- 5. Energy. --------------------------------------------------------------------!
+         !--- 5. Energy.
          call put_dbl(r, 'leaf_energy_co', c%leaf_energy(1:ncoh))
          call put_dbl(r, 'wood_energy_co', c%wood_energy(1:ncoh))
          call put_dbl(r, 'leaf_temp_co',   c%leaf_temp(1:ncoh))
          call put_dbl(r, 'wood_temp_co',   c%wood_temp(1:ncoh))
-         !----- 6. Plastic leaf traits. -------------------------------------------------------!
+         !--- 6. Plastic leaf traits.
          call put_dbl(r, 'sla_co',                c%sla(1:ncoh))
          call put_dbl(r, 'vcmax25_co',            c%vcmax25(1:ncoh))
          call put_dbl(r, 'rd25_co',               c%rd25(1:ncoh))
          call put_dbl(r, 'leaf_turnover_rate_co', c%leaf_turnover_rate(1:ncoh))
-         !----- 7. Leaf phenology. ------------------------------------------------------------!
+         !--- 7. Leaf phenology.
          call put_dbl(r, 'leaf_flush_tendency_co', c%leaf_flush_tendency(1:ncoh))
          call put_dbl(r, 'leaf_shed_tendency_co',  c%leaf_shed_tendency(1:ncoh))
          call put_dbl(r, 'growing_degree_days_co', c%growing_degree_days(1:ncoh))
@@ -624,7 +640,7 @@ contains
          call put_dbl(r, 'dry_psi_sum_co',         c%dry_psi_sum(1:ncoh))
          call put_dbl(r, 'wet_psi_sum_co',         c%wet_psi_sum(1:ncoh))
          call put_dbl(r, 'light_hours_avg_co',    c%light_hours_mean(1:ncoh))
-         !----- 8. Growth history. ------------------------------------------------------------!
+         !--- 8. Growth history.
          call put_dbl(r, 'growth_avg_co',   c%growth_avg(1:ncoh))
          call put_dbl(r, 'growth_accum_co', c%growth_accum(1:ncoh))
          call put_int(r, 'growth_count_co', c%growth_count(1:ncoh))
@@ -633,13 +649,15 @@ contains
                call put_dbl(r, 'growth_hist_co', c%growth_hist(1:nwin, ic), item=ic)
             end do
          end if
-         !----- 9. Fast-to-slow accumulators. -------------------------------------------------!
+         !--- 9. Fast-to-slow accumulators.
          call put_dbl(r, 'dmax_psi_leaf_accum_co', c%dmax_psi_leaf_accum(1:ncoh))
       end associate
    end subroutine put_cohort_vars
 
-   !----- The cohorts as the file holds them. same_window says the file's growth window is this     !
-   !      run's length, so its rings are read; otherwise section 4 seeds them from growth_avg. -----!
+   !---~---
+   !   The cohorts as the file holds them. same_window says the file's growth window is this
+   ! run's length, so its rings are read; otherwise section 4 seeds them from growth_avg.
+   !---~---
    subroutine get_cohort_vars(r, poly, cfg, same_window)
       type(file_row_t),    intent(in)    :: r
       type(polygon_t),     intent(inout) :: poly
@@ -649,36 +667,38 @@ contains
       integer(ik)       :: ncoh, nwin, i, gpos(1)
       ncoh = poly%cohort%n
       associate (c => poly%cohort)
-         !----- 1. Identity and density. -----------------------------------------------------!
+         !--- 1. Identity and density.
          call get_int(r, 'pft_co',              c%pft(1:ncoh))
          call get_int(r, 'global_cohort_id', c%global_id(1:ncoh))
          call get_int(r, 'owner_patch',      c%owner_patch(1:ncoh))
          call get_dbl(r, 'nplant_co',           c%nplant(1:ncoh))
-         !----- 2. Carbon pools. --------------------------------------------------------------!
+         !--- 2. Carbon pools.
          call get_dbl(r, 'leaf_carbon_co',          c%leaf_carbon(1:ncoh))
          call get_dbl(r, 'fineroot_carbon_co',      c%fineroot_carbon(1:ncoh))
          call get_dbl(r, 'wood_carbon_co',          c%wood_carbon(1:ncoh))
          call get_dbl(r, 'nonstructural_carbon_co', c%nonstructural_carbon(1:ncoh))
-         !----- 3. Size: derived from the pools in section 4; the overtopping LAI is the cohort's  !
-         !      light. ---------------------------------------------------------------------------!
+         !---~---
+         !   3. Size: derived from the pools in section 4; the overtopping LAI is the cohort's
+         ! light.
+         !---~---
          call get_dbl(r, 'overtopping_lai_co', c%overtopping_lai(1:ncoh))
-         !----- 4. Water. ---------------------------------------------------------------------!
+         !--- 4. Water.
          call get_dbl(r, 'leaf_water_mass_co', c%leaf_water_mass(1:ncoh))
          call get_dbl(r, 'wood_water_mass_co', c%wood_water_mass(1:ncoh))
          call get_dbl(r, 'leaf_surf_water_co', c%leaf_surf_water(1:ncoh))
          call get_dbl(r, 'wood_surf_water_co', c%wood_surf_water(1:ncoh))
          call get_dbl(r, 'dmax_psi_leaf_co',   c%dmax_psi_leaf(1:ncoh))
-         !----- 5. Energy. --------------------------------------------------------------------!
+         !--- 5. Energy.
          call get_dbl(r, 'leaf_energy_co', c%leaf_energy(1:ncoh))
          call get_dbl(r, 'wood_energy_co', c%wood_energy(1:ncoh))
          call get_dbl(r, 'leaf_temp_co',   c%leaf_temp(1:ncoh))
          call get_dbl(r, 'wood_temp_co',   c%wood_temp(1:ncoh))
-         !----- 6. Plastic leaf traits. -------------------------------------------------------!
+         !--- 6. Plastic leaf traits.
          call get_dbl(r, 'sla_co',                c%sla(1:ncoh))
          call get_dbl(r, 'vcmax25_co',            c%vcmax25(1:ncoh))
          call get_dbl(r, 'rd25_co',               c%rd25(1:ncoh))
          call get_dbl(r, 'leaf_turnover_rate_co', c%leaf_turnover_rate(1:ncoh))
-         !----- 7. Leaf phenology. ------------------------------------------------------------!
+         !--- 7. Leaf phenology.
          call get_dbl(r, 'leaf_flush_tendency_co', c%leaf_flush_tendency(1:ncoh))
          call get_dbl(r, 'leaf_shed_tendency_co',  c%leaf_shed_tendency(1:ncoh))
          call get_dbl(r, 'growing_degree_days_co', c%growing_degree_days(1:ncoh))
@@ -686,8 +706,10 @@ contains
          call get_dbl(r, 'dry_psi_sum_co',         c%dry_psi_sum(1:ncoh))
          call get_dbl(r, 'wet_psi_sum_co',         c%wet_psi_sum(1:ncoh))
          call get_dbl(r, 'light_hours_avg_co',    c%light_hours_mean(1:ncoh))
-         !----- 8. Growth history: the ring buffer, with the polygon's write slot, when the file's !
-         !      window is this run's length. ------------------------------------------------------!
+         !---~---
+         !   8. Growth history: the ring buffer, with the polygon's write slot, when the file's
+         ! window is this run's length.
+         !---~---
          call get_dbl(r, 'growth_avg_co', c%growth_avg(1:ncoh))
          nwin = growth_window_steps(cfg)
          call nc_check(nc_inq_dimlen_f(r%ncid, 'growth_window', nwin_file), 'inq growth_window')
@@ -701,26 +723,24 @@ contains
             call get_int(r, 'growth_hist_pos_py', gpos)
             poly%growth_hist_pos = gpos(1)
          end if
-         !----- 9. Fast-to-slow accumulators. -------------------------------------------------!
+         !--- 9. Fast-to-slow accumulators.
          call get_dbl(r, 'dmax_psi_leaf_accum_co', c%dmax_psi_leaf_accum(1:ncoh))
       end associate
    end subroutine get_cohort_vars
 
-   !=======================================================================================!
-   !  3. THE PATCHES, in ed_patch_state_vars' section order                                !
-   !=======================================================================================!
+   !--- 3. THE PATCHES, in ed_patch_state_vars' section order
 
    subroutine define_patch_vars(d)
       type(file_dims_t), intent(in) :: d
-      !----- 1. Identity and area. -----------------------------------------------------------!
+      !--- 1. Identity and area.
       call def_var(d, 'global_patch_id', NC_INT,    [d%patch], 'persistent patch id')
       call def_var(d, 'dist_type_pa',       NC_INT,    [d%patch], 'disturbance type (1=primary,2=treefall)')
       call def_var(d, 'owner_site',      NC_INT,    [d%patch], 'owning site index (1-based)')
       call def_var(d, 'area_pa',      NC_DOUBLE, [d%patch], 'patch area fraction of its site')
       call def_var(d, 'age_pa',       NC_DOUBLE, [d%patch], 'time since last disturbance [yr]')
-      !----- 3. Recruit bank. ----------------------------------------------------------------!
+      !--- 3. Recruit bank.
       call def_var(d, 'recruit_pool_pa', NC_DOUBLE, [d%patch, d%pft], 'carry-forward recruit pool [plant/m2]')
-      !----- 4-6. The fast reservoirs (canopy air, snow, soil, pond), with their diagnosed twins. !
+      !--- 4-6. The fast reservoirs (canopy air, snow, soil, pond), with their diagnosed twins.
       call def_var(d, 'cas_can_enthalpy_pa', NC_DOUBLE, [d%patch], 'CAS specific enthalpy [J/kg] (prognostic)')
       call def_var(d, 'cas_can_shv_pa',      NC_DOUBLE, [d%patch], 'CAS specific humidity [kg/kg] (prognostic)')
       call def_var(d, 'cas_can_co2_pa',      NC_DOUBLE, [d%patch], 'CAS CO2 mixing ratio [umol/mol] (prognostic)')
@@ -739,7 +759,7 @@ contains
       call def_var(d, 'soil_fliq_layer_pa',   NC_DOUBLE, [d%patch, d%soil_layer], 'soil liquid-water fraction [-] (diagnosed twin)')
       call def_var(d, 'soil_w_surface_pa',      NC_DOUBLE, [d%patch], 'ponded surface water [kg/m2]')
       call def_var(d, 'soil_w_surface_enth_pa', NC_DOUBLE, [d%patch], 'ponded-water internal energy [J/m2]')
-      !----- 7. Soil carbon (docs/science/soil_carbon.md §2). --------------------------------!
+      !--- 7. Soil carbon (docs/science/soil_carbon.md §2).
       call def_var(d, 'soilc_fast_grnd_pa',   NC_DOUBLE, [d%patch], 'fast/metabolic litter carbon, above-ground [kgC/m2]')
       call def_var(d, 'soilc_fast_soil_pa',   NC_DOUBLE, [d%patch], 'fast/metabolic litter carbon, below-ground [kgC/m2]')
       call def_var(d, 'soilc_struct_grnd_pa', NC_DOUBLE, [d%patch], 'structural litter + CWD carbon, above-ground [kgC/m2]')
@@ -749,16 +769,18 @@ contains
       call def_var(d, 'soilc_passive_pa',     NC_DOUBLE, [d%patch], 'passive SOM carbon [kgC/m2]')
       call def_var(d, 'soilc_lignin_grnd_pa', NC_DOUBLE, [d%patch], 'structural litter lignin, above-ground [kgC/m2]')
       call def_var(d, 'soilc_lignin_soil_pa', NC_DOUBLE, [d%patch], 'structural litter lignin, below-ground [kgC/m2]')
-      !----- 8. The daily slow-to-fast rates: the turnover shed water and the slow loop's CO2. --!
+      !--- 8. The daily slow-to-fast rates: the turnover shed water and the slow loop's CO2.
       call def_var(d, 'shed_water_rate_pa', NC_DOUBLE, [d%patch], 'turnover shed water to the ground [kg/m2/s]')
       call def_var(d, 'shed_water_enth_pa', NC_DOUBLE, [d%patch], 'the enthalpy that water carries [W/m2]')
       call def_var(d, 'slow_co2_rate_pa',   NC_DOUBLE, [d%patch], 'slow-loop CO2 flux the fast NEE adds [umol/m2/s]')
-      !----- 10. Solver memory: the step the fast controller last accepted, its warm start. ----!
+      !--- 10. Solver memory: the step the fast controller last accepted, its warm start.
       call def_var(d, 'adapt_dt_last_pa', NC_DOUBLE, [d%patch], 'fast-controller warm-start step [s] (0 = cold)')
    end subroutine define_patch_vars
 
-   !----- The patches. Each per-patch number of a store goes through a contiguous buffer: a     !
-   !      component section is never an actual argument (docs/building.md, "Compilers"). ------!
+   !---~---
+   !   The patches. Each per-patch number of a store goes through a contiguous buffer: a
+   ! component section is never an actual argument (docs/building.md, "Compilers").
+   !---~---
    subroutine put_patch_vars(r, poly)
       type(file_row_t), intent(in) :: r
       type(polygon_t),  intent(in) :: poly
@@ -767,17 +789,17 @@ contains
       npat = poly%patch%n
       npft = poly%n_pft
       associate (p => poly%patch)
-         !----- 1. Identity and area. ---------------------------------------------------------!
+         !--- 1. Identity and area.
          call put_int(r, 'global_patch_id', p%global_id(1:npat))
          call put_int(r, 'dist_type_pa',       p%dist_type(1:npat))
          call put_int(r, 'owner_site',      p%owner_site(1:npat))
          call put_dbl(r, 'area_pa',      p%area(1:npat))
          call put_dbl(r, 'age_pa',       p%age(1:npat))
-         !----- 3. Recruit bank. --------------------------------------------------------------!
+         !--- 3. Recruit bank.
          do ip = 1_ik, npat
             call put_dbl(r, 'recruit_pool_pa', p%recruit_pool(1:npft, ip), item=ip)
          end do
-         !----- 4. Canopy air. ----------------------------------------------------------------!
+         !--- 4. Canopy air.
          buf = p%cas(1:npat)%can_enthalpy
          call put_dbl(r, 'cas_can_enthalpy_pa', buf)
          buf = p%cas(1:npat)%can_shv
@@ -786,7 +808,7 @@ contains
          call put_dbl(r, 'cas_can_co2_pa', buf)
          buf = p%cas(1:npat)%can_temp
          call put_dbl(r, 'cas_can_temp_pa', buf)
-         !----- 5. Snow. ----------------------------------------------------------------------!
+         !--- 5. Snow.
          ibuf = p%snow(1:npat)%nlayer
          call put_int(r, 'snow_nlayer_pa', ibuf)
          do ip = 1_ik, npat
@@ -796,7 +818,7 @@ contains
             call put_dbl(r, 'snow_temp_layer_pa',   p%snow(ip)%snow_temp(1:n_snow_layer_max),   item=ip)
             call put_dbl(r, 'snow_fliq_layer_pa',   p%snow(ip)%snow_fliq(1:n_snow_layer_max),   item=ip)
          end do
-         !----- 6. Soil water and heat, and the pond. -----------------------------------------!
+         !--- 6. Soil water and heat, and the pond.
          do ip = 1_ik, npat
             call put_dbl(r, 'soil_theta_layer_pa',  p%soil_water(ip)%theta(1:n_soil_layer_max),        item=ip)
             call put_dbl(r, 'soil_energy_layer_pa', p%soil_energy(ip)%soil_energy(1:n_soil_layer_max), item=ip)
@@ -807,7 +829,7 @@ contains
          call put_dbl(r, 'soil_w_surface_pa', buf)
          buf = p%soil_water(1:npat)%w_surface_energy
          call put_dbl(r, 'soil_w_surface_enth_pa', buf)
-         !----- 7. Soil carbon: each pool by its name, then the structural pools' lignin. ------!
+         !--- 7. Soil carbon: each pool by its name, then the structural pools' lignin.
          do kp = 1_ik, N_SOIL_POOL
             buf = p%soil_carbon(1:npat)%carbon(kp)
             call put_dbl(r, 'soilc_'//trim(SOIL_POOL_NAME(kp))//'_pa', buf)
@@ -816,17 +838,19 @@ contains
          call put_dbl(r, 'soilc_lignin_grnd_pa', buf)
          buf = p%soil_carbon(1:npat)%lignin(2)
          call put_dbl(r, 'soilc_lignin_soil_pa', buf)
-         !----- 8. Daily slow-to-fast rates. --------------------------------------------------!
+         !--- 8. Daily slow-to-fast rates.
          call put_dbl(r, 'shed_water_rate_pa', p%shed_water_rate(1:npat))
          call put_dbl(r, 'shed_water_enth_pa', p%shed_water_enth(1:npat))
          call put_dbl(r, 'slow_co2_rate_pa',   p%slow_co2_rate(1:npat))
-         !----- 10. Solver memory. ------------------------------------------------------------!
+         !--- 10. Solver memory.
          call put_dbl(r, 'adapt_dt_last_pa', p%adapt_dt_last(1:npat))
       end associate
    end subroutine put_patch_vars
 
-   !----- The patches as the file holds them, each per-patch number of a store through a contiguous !
-   !      buffer. -----------------------------------------------------------------------------------!
+   !---~---
+   !   The patches as the file holds them, each per-patch number of a store through a contiguous
+   ! buffer.
+   !---~---
    subroutine get_patch_vars(r, poly)
       type(file_row_t), intent(in)    :: r
       type(polygon_t),  intent(inout) :: poly
@@ -835,17 +859,17 @@ contains
       npat = poly%patch%n
       npft = poly%n_pft
       associate (p => poly%patch)
-         !----- 1. Identity and area. ---------------------------------------------------------!
+         !--- 1. Identity and area.
          call get_int(r, 'global_patch_id', p%global_id(1:npat))
          call get_int(r, 'dist_type_pa',       p%dist_type(1:npat))
          call get_int(r, 'owner_site',      p%owner_site(1:npat))
          call get_dbl(r, 'area_pa',      p%area(1:npat))
          call get_dbl(r, 'age_pa',       p%age(1:npat))
-         !----- 3. Recruit bank. --------------------------------------------------------------!
+         !--- 3. Recruit bank.
          do ip = 1_ik, npat
             call get_dbl(r, 'recruit_pool_pa', p%recruit_pool(1:npft, ip), item=ip)
          end do
-         !----- 4. Canopy air. ----------------------------------------------------------------!
+         !--- 4. Canopy air.
          call get_dbl(r, 'cas_can_enthalpy_pa', buf)
          p%cas(1:npat)%can_enthalpy = buf
          call get_dbl(r, 'cas_can_shv_pa', buf)
@@ -854,7 +878,7 @@ contains
          p%cas(1:npat)%can_co2 = buf
          call get_dbl(r, 'cas_can_temp_pa', buf)
          p%cas(1:npat)%can_temp = buf
-         !----- 5. Snow. ----------------------------------------------------------------------!
+         !--- 5. Snow.
          call get_int(r, 'snow_nlayer_pa', ibuf)
          p%snow(1:npat)%nlayer = ibuf
          do ip = 1_ik, npat
@@ -864,7 +888,7 @@ contains
             call get_dbl(r, 'snow_temp_layer_pa',   p%snow(ip)%snow_temp(1:n_snow_layer_max),   item=ip)
             call get_dbl(r, 'snow_fliq_layer_pa',   p%snow(ip)%snow_fliq(1:n_snow_layer_max),   item=ip)
          end do
-         !----- 6. Soil water and heat, and the pond. -----------------------------------------!
+         !--- 6. Soil water and heat, and the pond.
          do ip = 1_ik, npat
             call get_dbl(r, 'soil_theta_layer_pa',  p%soil_water(ip)%theta(1:n_soil_layer_max),        item=ip)
             call get_dbl(r, 'soil_energy_layer_pa', p%soil_energy(ip)%soil_energy(1:n_soil_layer_max), item=ip)
@@ -875,7 +899,7 @@ contains
          p%soil_water(1:npat)%w_surface = buf
          call get_dbl(r, 'soil_w_surface_enth_pa', buf)
          p%soil_water(1:npat)%w_surface_energy = buf
-         !----- 7. Soil carbon: each pool by its name, then the structural pools' lignin. ------!
+         !--- 7. Soil carbon: each pool by its name, then the structural pools' lignin.
          do kp = 1_ik, N_SOIL_POOL
             call get_dbl(r, 'soilc_'//trim(SOIL_POOL_NAME(kp))//'_pa', buf)
             p%soil_carbon(1:npat)%carbon(kp) = buf
@@ -884,19 +908,19 @@ contains
          p%soil_carbon(1:npat)%lignin(1) = buf
          call get_dbl(r, 'soilc_lignin_soil_pa', buf)
          p%soil_carbon(1:npat)%lignin(2) = buf
-         !----- 8. Daily slow-to-fast rates. --------------------------------------------------!
+         !--- 8. Daily slow-to-fast rates.
          call get_dbl(r, 'shed_water_rate_pa', p%shed_water_rate(1:npat))
          call get_dbl(r, 'shed_water_enth_pa', p%shed_water_enth(1:npat))
          call get_dbl(r, 'slow_co2_rate_pa',   p%slow_co2_rate(1:npat))
-         !----- 10. Solver memory. ------------------------------------------------------------!
+         !--- 10. Solver memory.
          call get_dbl(r, 'adapt_dt_last_pa', p%adapt_dt_last(1:npat))
       end associate
    end subroutine get_patch_vars
 
-   !=======================================================================================!
-   !  4. AFTER THE READ: the geometry from the pools, the growth rings of another window   !
-   !     length, and the maps and sort order                                               !
-   !=======================================================================================!
+   !---~---
+   !   4. AFTER THE READ: the geometry from the pools, the growth rings of another window
+   !    length, and the maps and sort order
+   !---~---
 
    subroutine derive_after_read(poly, cfg, same_window)
       type(polygon_t),     intent(inout) :: poly
@@ -905,12 +929,14 @@ contains
       integer(ik) :: ncoh, nwin, i
       ncoh = poly%cohort%n
 
-      !----- The geometry from the pools, as the run derives it. -----------------------------!
+      !--- The geometry from the pools, as the run derives it.
       do i = 1_ik, ncoh
          call set_cohort_size_from_carbon(poly%cohort, i)
       end do
-      !----- The growth rings, when this run's window is another length than the file's: seeded !
-      !      full of the saved growth_avg. --------------------------------------------------------!
+      !---~---
+      !   The growth rings, when this run's window is another length than the file's: seeded
+      ! full of the saved growth_avg.
+      !---~---
       if (.not. same_window) then
          nwin = growth_window_steps(cfg)
          do i = 1_ik, ncoh

@@ -1,30 +1,30 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! test_c_api_leaf -- COVERAGE FOR THE LEAF C-API SHIM.                                     !
-!                                                                                          !
-! WHY THIS TEST EXISTS -- and why it is MANDATORY, not gated on the pylib option. Outside  !
-! this target the shim is compiled only by the optional shared library                     !
-! (`-DED_BUILD_PYLIB=ON`), which is in neither the default build nor ctest. So a change    !
-! to `leaf_env_t` or `leaf_photo_pft_t` -- a component inserted mid-type shifts every     !
-! trailing value of a POSITIONAL structure constructor -- could pass the whole suite on    !
-! both back ends while leaving the C API unable to compile. Every C-API shim is therefore  !
-! compiled into a ctest target, so an interface mismatch fails the build (docs/building.md !
-! §Running the tests).                                                                     !
-!                                                                                          !
-! The constructors in `to_env` and `to_params` are keyword-form, so the remaining failure  !
-! mode is a compile error, and this target makes it impossible to miss. The assertions     !
-! below then cover the part a compile cannot: that the bind(c) structs actually map onto   !
-! the Fortran types field-for-field.                                                       !
-!                                                                                          !
-! Deliberately does NOT need the .so, Python, or ED_BUILD_PYLIB -- it calls the bind(c) procedures   !
-! directly as Fortran.                                                                              !
-!                                                                                          !
-! It calls every entry point of the leaf shim (ed_c_api_leaf) -- the solve and its batch,   !
-! the scalar temperature responses, the C3 demand, the electron transport and the kinetics -- !
-! and of the canopy shim (ed_c_api_canopy) on the reference configuration, which it opens   !
-! from the source directory: its PFT count, the plastic capacities, the leaf solve over     !
-! many leaves and the two-stream over a stand, whose shortwave must close.                  !
-!==========================================================================================!
+!---~---
+!   test_c_api_leaf -- COVERAGE FOR THE LEAF C-API SHIM.
+!
+!   WHY THIS TEST EXISTS -- and why it is MANDATORY, not gated on the pylib option. Outside
+! this target the shim is compiled only by the optional shared library
+! (`-DED_BUILD_PYLIB=ON`), which is in neither the default build nor ctest. So a change
+! to `leaf_env_t` or `leaf_photo_pft_t` -- a component inserted mid-type shifts every
+! trailing value of a POSITIONAL structure constructor -- could pass the whole suite on
+! both back ends while leaving the C API unable to compile. Every C-API shim is therefore
+! compiled into a ctest target, so an interface mismatch fails the build (docs/building.md
+! §Running the tests).
+!
+!   The constructors in `to_env` and `to_params` are keyword-form, so the remaining failure
+! mode is a compile error, and this target makes it impossible to miss. The assertions
+! below then cover the part a compile cannot: that the bind(c) structs actually map onto
+! the Fortran types field-for-field.
+!
+!   Deliberately does NOT need the .so, Python, or ED_BUILD_PYLIB -- it calls the bind(c) procedures
+! directly as Fortran.
+!
+!   It calls every entry point of the leaf shim (ed_c_api_leaf) -- the solve and its batch,
+! the scalar temperature responses, the C3 demand, the electron transport and the kinetics
+! and of the canopy shim (ed_c_api_canopy) on the reference configuration, which it opens
+! from the source directory: its PFT count, the plastic capacities, the leaf solve over
+! many leaves and the two-stream over a stand, whose shortwave must close.
+!---~---
 program test_c_api_leaf
    use, intrinsic :: iso_c_binding, only : c_double, c_int
    use ed_kinds,        only : wp, ik
@@ -52,7 +52,7 @@ program test_c_api_leaf
 
    p = c3_defaults()
 
-   !=== 1. The shim solves at all -- i.e. to_env/to_params bound every component. ===========!
+   !--- 1. The shim solves at all -- i.e. to_env/to_params bound every component.
    env = make_env(0.0_c_double)
    call ed_leaf_solve(env, p, int(SM_MEDLYN, c_int), int(TEMP_RESPONSE_PEAKED, c_int),                 &
                       int(COLIM_QUADRATIC, c_int), 0_c_int, f0)
@@ -61,9 +61,11 @@ program test_c_api_leaf
    call check(f0%gs    > 0.0_wp,  'C-API gs > 0 when unstressed')
    call check(f0%ci > 0.0_wp .and. f0%ci < 400.0_wp, 'C-API ci is between 0 and ca')
 
-   !=== 2. `psi` actually reaches beta_stomata (docs/science/leaf_gas_exchange.md eq. (10)). =!
-   !      This is the ABI assertion a compile cannot make: if leaf_env_c's components were         !
-   !      mis-bound, `psi` would land on some other field and gs would not respond.                !
+   !---~---
+   !   2. `psi` actually reaches beta_stomata (docs/science/leaf_gas_exchange.md eq. (10)).
+   ! This is the ABI assertion a compile cannot make: if leaf_env_c's components were
+   ! mis-bound, `psi` would land on some other field and gs would not respond.
+   !---~---
    env = make_env(-1.0_c_double)
    call ed_leaf_solve(env, p, int(SM_MEDLYN, c_int), int(TEMP_RESPONSE_PEAKED, c_int),                 &
                       int(COLIM_QUADRATIC, c_int), 0_c_int, f1)
@@ -74,15 +76,17 @@ program test_c_api_leaf
    call check(f2%gs < f1%gs, 'C-API gs falls further at psi = -3 MPa (monotone in psi)')
    call check(f2%A_net < f0%A_net, 'C-API A_net falls with water stress')
 
-   !=== 3. A scalar entry point, to catch a by-value/by-reference regression. ===============!
-   !      ed_arrhenius takes its arguments BY VALUE; a binding slip here shows up as a wrong        !
-   !      number rather than a link error, so assert against the closed form at the reference        !
-   !      temperature, where the response must be exactly 1x k25. ---------------------------------!
+   !---~---
+   !   3. A scalar entry point, to catch a by-value/by-reference regression.
+   ! ed_arrhenius takes its arguments BY VALUE; a binding slip here shows up as a wrong
+   ! number rather than a link error, so assert against the closed form at the reference
+   ! temperature, where the response must be exactly 1x k25.
+   !---~---
    k25 = 60.0_wp
    arr = real(ed_arrhenius(real(k25, c_double), 65330.0_c_double, 298.15_c_double), wp)
    call check_close(arr, k25, 1.0e-9_wp, 'C-API ed_arrhenius returns k25 at the 25 C reference')
 
-   !=== 4. The boundary-layer switch is an int flag, not a logical -- assert it is honoured. =!
+   !--- 4. The boundary-layer switch is an int flag, not a logical -- assert it is honoured.
    env = make_env(0.0_c_double)
    env%gb = 0.5_c_double
    call ed_leaf_solve(env, p, int(SM_MEDLYN, c_int), int(TEMP_RESPONSE_PEAKED, c_int),                 &
@@ -90,9 +94,11 @@ program test_c_api_leaf
    call check(fb%converged /= 0_c_int, 'C-API solve converges with the boundary layer ON')
    call check(fb%cs < 400.0_wp, 'C-API boundary layer draws cs below ca (flag reached the kernel)')
 
-   !=== 5. The kinetics entry reads the parameters it is given: at 25 C and 21 % O2 Gamma* is    !
-   !      gstar25 at 100 kPa as a mole fraction (42.75 umol/mol), Kc and Ko are their partial     !
-   !      pressures over the air's pressure, and O2 is o2_mol_frac (leaf_gas_exchange.md eq. (3)). !
+   !---~---
+   !   5. The kinetics entry reads the parameters it is given: at 25 C and 21 % O2 Gamma* is
+   ! gstar25 at 100 kPa as a mole fraction (42.75 umol/mol), Kc and Ko are their partial
+   ! pressures over the air's pressure, and O2 is o2_mol_frac (leaf_gas_exchange.md eq. (3)).
+   !---~---
    call ed_rubisco_kinetics(p, 298.15_c_double, 101325.0_c_double, kin)
    call check_close(real(kin%gstar, wp), 42.75_wp, 1.0e-12_wp, 'C-API Gamma* is 42.75 umol/mol at 25 C')
    call check_close(real(kin%kc, wp), 40.49_wp / 101325.0_wp * 1.0e6_wp, 1.0e-12_wp,            &
@@ -101,8 +107,10 @@ program test_c_api_leaf
                     'C-API Ko is ko25 over the pressure at 25 C')
    call check_close(real(kin%o2, wp), 209000.0_wp, 1.0e-12_wp, 'C-API O2 is o2_mol_frac in umol/mol')
 
-   !=== 6. The batch entry is the single solve leaf by leaf, bit for bit: the three environments of !
-   !      checks 1 and 2 in one call. ------------------------------------------------------------!
+   !---~---
+   !   6. The batch entry is the single solve leaf by leaf, bit for bit: the three environments of
+   ! checks 1 and 2 in one call.
+   !---~---
    block
       type(leaf_env_c)  :: envs(3)
       type(leaf_flux_c) :: fs(3)
@@ -116,9 +124,11 @@ program test_c_api_leaf
                  'C-API batch: gs, ci and convergence are the single solve''s')
    end block
 
-   !=== 7. The C3 demand at a prescribed Ci, by value (docs/science/leaf_gas_exchange.md eq. (2)): the    !
-   !      hand-computed Ac = 100 x 260 / (300 + 400 (1 + 210000/275000)) = 25.8593, Aj = 120 x 260 /     !
-   !      (4 x 300 + 8 x 40) = 20.5263, Ap = 3 x 15 = 45, and the sharp minimum picks Aj. --------------!
+   !---~---
+   !   7. The C3 demand at a prescribed Ci, by value (docs/science/leaf_gas_exchange.md eq. (2)): the
+   ! hand-computed Ac = 100 x 260 / (300 + 400 (1 + 210000/275000)) = 25.8593, Aj = 120 x 260 /
+   ! (4 x 300 + 8 x 40) = 20.5263, Ap = 3 x 15 = 45, and the sharp minimum picks Aj.
+   !---~---
    block
       type(leaf_c3_demand_c) :: dem
       call ed_assimilation_demand_c3(300.0_c_double, 100.0_c_double, 120.0_c_double, 15.0_c_double,          &
@@ -130,9 +140,11 @@ program test_c_api_leaf
       call check_close(real(dem%A_gross, wp), real(dem%Aj, wp), 1.0e-12_wp, 'C-API C3 demand: min picks Aj')
    end block
 
-   !=== 8. The electron transport, by value: none without light; in full light it lies below both the  !
-   !      light PSII uses, I2 = phi absorptance PAR / 2, and Jmax, and is the smaller root of the      !
-   !      non-rectangular hyperbola theta J^2 - (I2 + Jmax) J + I2 Jmax = 0. --------------------------!
+   !---~---
+   !   8. The electron transport, by value: none without light; in full light it lies below both the
+   ! light PSII uses, I2 = phi absorptance PAR / 2, and Jmax, and is the smaller root of the
+   ! non-rectangular hyperbola theta J^2 - (I2 + Jmax) J + I2 Jmax = 0.
+   !---~---
    block
       real(wp), parameter :: PAR = 1500.0_wp, ABSORPTANCE = 0.85_wp, PHI = 0.85_wp, JMAX = 108.0_wp, THETA = 0.85_wp
       real(wp) :: j, i2
@@ -147,24 +159,26 @@ program test_c_api_leaf
                  'C-API electron transport: the non-rectangular hyperbola''s root')
    end block
 
-   !=== 9. The peaked response, by value: exactly k25 at the 25 C reference. ======================!
+   !--- 9. The peaked response, by value: exactly k25 at the 25 C reference.
    arr = real(ed_peaked_arrhenius(real(k25, c_double), 65330.0_c_double, 200000.0_c_double, 650.0_c_double,   &
                                   298.15_c_double), wp)
    call check_close(arr, k25, 1.0e-9_wp, 'C-API ed_peaked_arrhenius returns k25 at the 25 C reference')
 
-   !=== 10. The canopy shim on the reference configuration, read from the source directory. ==========!
+   !--- 10. The canopy shim on the reference configuration, read from the source directory.
    call test_canopy_shim()
 
    write(*,'(a)') '   PASS'
 
 contains
 
-   !----- The canopy shim (ed_c_api_canopy) on ed_config_main.toml and the PFT file it names: it       !
-   !      opens and reports the configuration's PFTs; the plastic capacities are positive and do not  !
-   !      rise with the leaf area above, and are the PFT's own with plasticity off; a lit leaf          !
-   !      assimilates through open stomata with Ci below Ca and a dark one respires; and the            !
-   !      two-stream over two cohorts reflects, absorbs or passes to the ground every photon of VIS,   !
-   !      absorbs nothing at night, and gives the taller cohort more light per unit of leaf area. -----!
+   !---~---
+   !   The canopy shim (ed_c_api_canopy) on ed_config_main.toml and the PFT file it names: it
+   ! opens and reports the configuration's PFTs; the plastic capacities are positive and do not
+   ! rise with the leaf area above, and are the PFT's own with plasticity off; a lit leaf
+   ! assimilates through open stomata with Ci below Ca and a dark one respires; and the
+   ! two-stream over two cohorts reflects, absorbs or passes to the ground every photon of VIS,
+   ! absorbs nothing at night, and gives the taller cohort more light per unit of leaf area.
+   !---~---
    subroutine test_canopy_shim()
       character(len=*), parameter :: CONFIG = 'ed_config_main.toml'
       type(ed_config_t)   :: cfg
@@ -184,7 +198,7 @@ contains
       call check(status == 0_c_int, 'C-API canopy: the reference configuration opens')
       call check(ed_canopy_n_pft() == int(cfg%pft%n, c_int), 'C-API canopy: it reports the configuration''s PFTs')
 
-      !----- Plastic capacities under 0, 2 and 5 m2/m2 of leaf area above. ---------------------------!
+      !--- Plastic capacities under 0, 2 and 5 m2/m2 of leaf area above.
       pft3      = 1_c_int
       lai_above = [0.0_c_double, 2.0_c_double, 5.0_c_double]
       call ed_canopy_plastic(3_c_int, pft3, lai_above, vc, rd)
@@ -195,7 +209,7 @@ contains
                     'C-API canopy: with plasticity off, the PFT''s own capacities')
       end if
 
-      !----- Two leaves of PFT 1 at its top-of-canopy capacities, 25 C, 1.5 kPa: lit and dark. --------!
+      !--- Two leaves of PFT 1 at its top-of-canopy capacities, 25 C, 1.5 kPa: lit and dark.
       pft2 = 1_c_int
       call ed_canopy_leaf(2_c_int, pft2, [vc(1), vc(1)], [rd(1), rd(1)], [1500.0_c_double, 0.0_c_double],           &
                           [298.15_c_double, 298.15_c_double], [1500.0_c_double, 1500.0_c_double],                   &
@@ -207,7 +221,7 @@ contains
                  'C-API canopy: a lit leaf has open stomata and Ci below Ca')
       call check(a_gross(2) == 0.0_c_double .and. a_net(2) < 0.0_c_double, 'C-API canopy: a dark leaf respires')
 
-      !----- The two-stream over three hours: night, a low sun and a high one; NIR at 1.1 x VIS. ------!
+      !--- The two-stream over three hours: night, a low sun and a high one; NIR at 1.1 x VIS.
       call ed_canopy_two_stream(3_c_int, COSZ, VB, VD, 1.1_c_double * VB, 1.1_c_double * VD, 2_c_int, pft2,    &
                                 HEIGHT, LAI, WAI, up_vis, up_nir, leaf_vis, wood_vis, ground_vis, coh_leaf_vis)
       albedo = cfg%soil%ground_albedo_vis
@@ -224,7 +238,7 @@ contains
                  'C-API canopy: the taller cohort absorbs more per unit of leaf area')
    end subroutine test_canopy_shim
 
-   !----- Env at full light / 25 C, parameterised only by the stress potential under test. ---!
+   !--- Env at full light / 25 C, parameterised only by the stress potential under test.
    pure function make_env(psi) result(e)
       real(c_double), intent(in) :: psi
       type(leaf_env_c) :: e
@@ -238,9 +252,11 @@ contains
       e%psi = psi                         ! supply-side: what beta_stomata keys on
    end function make_env
 
-   !----- A fixed C3 trait set for the shim's pass-through checks. The Python wrapper ships its !
-   !      own defaults (ed/plant/leaf.py), which differ in theta_j, psi_open, psi_close and     !
-   !      phi_psii. ------------------------------------------------------------------------------!
+   !---~---
+   !   A fixed C3 trait set for the shim's pass-through checks. The Python wrapper ships its
+   ! own defaults (ed/plant/leaf.py), which differ in theta_j, psi_open, psi_close and
+   ! phi_psii.
+   !---~---
    pure function c3_defaults() result(q)
       type(leaf_args_c)   :: q
       q%pathway = int(PATH_C3, c_int)

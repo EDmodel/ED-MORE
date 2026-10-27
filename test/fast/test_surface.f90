@@ -1,32 +1,32 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! test_surface -- the ground's surface and its snow store (ed_surface;                     !
-! docs/science/snow_biophysics.md). The pack steps as the integrator steps it: the ground  !
-! surface's exchange at the pack's state (ground_surface_exchange), then the pack takes the !
-! step's amounts (snow_take_exchange), with snow_accumulate and snow_drain_meltwater around !
-! them; its energy ledger is what the surroundings give up by the ground surface's balance. !
-!   1. COVER (snow_cover_fraction): 0 without snow, monotone in [0, 1], and Niu & Yang     !
-!      (2007)'s fraction for 1 cm of snow.                                                 !
-!   2. ACCUMULATION: a cold snap's pack grows below t_3ple, all ice; its mass and energy   !
-!      close against what fell, what it exchanged and what drained.                        !
-!   3. MELT: the pack pins at t_3ple, its liquid rises and drains to the pond, and it      !
-!      melts out; both ledgers close through the plateau.                                  !
-!   4. ISOTHERMAL: a pack at the temperature of its surroundings, under canopy air         !
-!      saturated over ice, stays as it is with no heat into the soil; under canopy air     !
-!      saturated over liquid it gains mass.                                                !
-!   5. RAIN ON SNOW (snow_accumulate): warm rain on a cold pack adds its mass and exactly  !
-!      its enthalpy.                                                                       !
-!   6. STIFF COUPLING: a thin pack under an open patch's bare-ground conductance relaxes   !
-!      toward its balance without overshooting it, over a step and a day of steps; both    !
-!      ledgers close.                                                                      !
-!   7. TILE RADIATION (ground_tile_radiation, snow_blend_ground_optics): on half-covered   !
-!      ground the snow and the soil each absorb at their own optics, and weighted by the   !
-!      cover they sum to what the blended ground absorbs.                                  !
-!   8. BARE GROUND (ground_surface_fluxes): no sensible flux without a temperature         !
-!      difference and no latent flux without evaporation; warm ground heats the canopy     !
-!      air, in proportion to the difference.                                               !
-! The energy datum the pack is held in is test_therm_lib's.                                !
-!==========================================================================================!
+!---~---
+!   test_surface -- the ground's surface and its snow store (ed_surface;
+! docs/science/snow_biophysics.md). The pack steps as the integrator steps it: the ground
+! surface's exchange at the pack's state (ground_surface_exchange), then the pack takes the
+! step's amounts (snow_take_exchange), with snow_accumulate and snow_drain_meltwater around
+! them; its energy ledger is what the surroundings give up by the ground surface's balance.
+!   1. COVER (snow_cover_fraction): 0 without snow, monotone in [0, 1], and Niu & Yang
+!      (2007)'s fraction for 1 cm of snow.
+!   2. ACCUMULATION: a cold snap's pack grows below t_3ple, all ice; its mass and energy
+!      close against what fell, what it exchanged and what drained.
+!   3. MELT: the pack pins at t_3ple, its liquid rises and drains to the pond, and it
+!      melts out; both ledgers close through the plateau.
+!   4. ISOTHERMAL: a pack at the temperature of its surroundings, under canopy air
+!      saturated over ice, stays as it is with no heat into the soil; under canopy air
+!      saturated over liquid it gains mass.
+!   5. RAIN ON SNOW (snow_accumulate): warm rain on a cold pack adds its mass and exactly
+!      its enthalpy.
+!   6. STIFF COUPLING: a thin pack under an open patch's bare-ground conductance relaxes
+!      toward its balance without overshooting it, over a step and a day of steps; both
+!      ledgers close.
+!   7. TILE RADIATION (ground_tile_radiation, snow_blend_ground_optics): on half-covered
+!      ground the snow and the soil each absorb at their own optics, and weighted by the
+!      cover they sum to what the blended ground absorbs.
+!   8. BARE GROUND (ground_surface_fluxes): no sensible flux without a temperature
+!      difference and no latent flux without evaporation; warm ground heats the canopy
+!      air, in proportion to the difference.
+! The energy datum the pack is held in is test_therm_lib's.
+!---~---
 program test_surface
    use ed_test_assert,        only : check, check_true, test_report
    use ed_kinds,              only : wp, ik
@@ -53,7 +53,7 @@ program test_surface
 
 contains
 
-   !----- Cold-night forcing (accumulation): no SW, net LW loss, cold dry CAS, warmer soil below. -!
+   !--- Cold-night forcing (accumulation): no SW, net LW loss, cold dry CAS, warmer soil below.
    subroutine cold_env(env)
       type(surface_env_t), intent(out) :: env
       env%sw_snow     = 0.0_wp
@@ -68,9 +68,9 @@ contains
       env%dz_soil_top = 0.05_wp
    end subroutine cold_env
 
-   !----- A pack of swe [kg/m2], all ice at temp, at the default snow density. ---------------------!
+   !--- A pack of swe [kg/m2], all ice at temp, at the default snow density.
    function cold_pack(swe, temp, p) result(snow)
-      real(wp),            intent(in) :: swe, temp   !< [kg/m2], [K]
+      real(wp),            intent(in) :: swe, temp   !--- [kg/m2], [K]
       type(snow_params_t), intent(in) :: p
       type(snow_state_t) :: snow
       snow = snow_state_t()
@@ -80,17 +80,19 @@ contains
       snow%snow_depth(1)  = swe / p%rho_snow
    end function cold_pack
 
-   !----- One step of the pack as the integrator takes it: the ground surface's exchange at the     !
-   !      pack's state and the given cover (ground_surface_exchange, the call the derivatives make), !
-   !      then the pack takes the step's amounts (snow_take_exchange, the update's). Returns the    !
-   !      energy the surroundings gave the pack [J/m2], by the ground surface's own balance -- its  !
-   !      net radiation less the sensible and latent heat to the canopy air and the heat into the  !
-   !      soil -- the vapour the pack lost [kg/m2], and the heat flux into the soil top [W/m2]. ----!
+   !---~---
+   !   One step of the pack as the integrator takes it: the ground surface's exchange at the
+   ! pack's state and the given cover (ground_surface_exchange, the call the derivatives make),
+   ! then the pack takes the step's amounts (snow_take_exchange, the update's). Returns the
+   ! energy the surroundings gave the pack [J/m2], by the ground surface's own balance -- its
+   ! net radiation less the sensible and latent heat to the canopy air and the heat into the
+   ! soil -- the vapour the pack lost [kg/m2], and the heat flux into the soil top [W/m2].
+   !---~---
    subroutine snow_step(snow, env, cover, dt, energy_gain, vapour_loss, g_top)
-      type(snow_state_t),  intent(inout) :: snow          !< the pack
-      type(surface_env_t), intent(in)    :: env           !< its surroundings; the pack and cover are set here
-      real(wp),            intent(in)    :: cover, dt     !< [-], [s]
-      real(wp),            intent(out)   :: energy_gain, vapour_loss, g_top   !< [J/m2], [kg/m2], [W/m2]
+      type(snow_state_t),  intent(inout) :: snow          !--- the pack
+      type(surface_env_t), intent(in)    :: env           !--- its surroundings; the pack and cover are set here
+      real(wp),            intent(in)    :: cover, dt     !--- [-], [s]
+      real(wp),            intent(out)   :: energy_gain, vapour_loss, g_top   !--- [J/m2], [kg/m2], [W/m2]
       type(surface_env_t) :: e
       real(wp) :: h_ground, le_ground, ground_rad, snow_energy_in, snow_vapour_out
       e = env
@@ -103,9 +105,8 @@ contains
       vapour_loss = dt * snow_vapour_out
    end subroutine snow_step
 
-   !=====================================================================================!
    subroutine test_snow_cover()
-      real(wp), parameter :: GROUND_ROUGH = 0.01_wp   !< [m] the [aerodynamics] soil_rough default
+      real(wp), parameter :: GROUND_ROUGH = 0.01_wp   !--- [m] the [aerodynamics] soil_rough default
       type(snow_params_t) :: p
       real(wp) :: f0, f1, f2
       print '(a)', 'test_snow_cover:'
@@ -115,12 +116,12 @@ contains
       call check('snowfac(0)=0', f0, 0.0_wp, 1.0e-12_wp)
       call check_true('snowfac monotone 0<f1<f2<=1', f1 > 0.0_wp .and. f1 < f2 .and. f2 <= 1.0_wp, f2)
       call check_true('deep pack fully covered (~1)', f2 > 0.99_wp, f2)
-      !----- 1 cm of snow on ground of 1 cm roughness covers about a sixth of it (Niu & Yang 2007). --!
+      !--- 1 cm of snow on ground of 1 cm roughness covers about a sixth of it (Niu & Yang 2007).
       f1 = snow_cover_fraction(2.5_wp, 2.5_wp/p%rho_snow, p, GROUND_ROUGH)
       call check('1 cm of snow covers tanh(0.16) of the ground', f1, tanh(0.16_wp), 1.0e-12_wp)
    end subroutine test_snow_cover
 
-   !----- Build a cold pack by accumulation; assert growth, sub-freezing, and closed ledgers. -----!
+   !--- Build a cold pack by accumulation; assert growth, sub-freezing, and closed ledgers.
    subroutine test_accumulate()
       type(snow_state_t)  :: snow
       type(surface_env_t) :: env
@@ -155,7 +156,7 @@ contains
       call check('ENERGY closure: energy = in - out', snow%snow_energy(1), e_in - e_out, 1.0e-4_wp)
    end subroutine test_accumulate
 
-   !----- Warm a cold pack: temp pins at t_3ple, fliq rises, melt drains, swe -> melt-out. --------!
+   !--- Warm a cold pack: temp pins at t_3ple, fliq rises, melt drains, swe -> melt-out.
    subroutine test_melt_event()
       type(snow_state_t)  :: snow
       type(surface_env_t) :: env
@@ -168,7 +169,7 @@ contains
       call cold_env(env)
       snow = cold_pack(20.0_wp, 270.0_wp, p)                 ! a 20 kg/m2 cold pack, all ice at 270 K
       swe0 = snow%swe(1)
-      !----- Strong warm radiative and canopy-air forcing to drive melt. -------------------------!
+      !--- Strong warm radiative and canopy-air forcing to drive melt.
       env%sw_snow    = 400.0_wp
       env%lw_down    = stefan_boltzmann * 270.0_wp ** 4 + 20.0_wp
       env%can_temp   = 280.0_wp
@@ -203,11 +204,13 @@ contains
       call check('ENERGY closure: 0 = in - out', 0.0_wp, e_in - e_out, 1.0e-2_wp)
    end subroutine test_melt_event
 
-   !----- A cold pack at the temperature of its surroundings: the sky emits what it does, the soil  !
-   !      is at its temperature, and the canopy air is saturated over ICE (fliq = 0), as the pack's !
-   !      surface saturates (docs/science/snow_biophysics.md eq. (1)); so nothing flows and it     !
-   !      stays as it is. Saturated over LIQUID instead, the canopy air holds more vapour than the  !
-   !      frozen surface, 3-8 % more at 268 K, and the pack gains mass by deposition. ------------!
+   !---~---
+   !   A cold pack at the temperature of its surroundings: the sky emits what it does, the soil
+   ! is at its temperature, and the canopy air is saturated over ICE (fliq = 0), as the pack's
+   ! surface saturates (docs/science/snow_biophysics.md eq. (1)); so nothing flows and it
+   ! stays as it is. Saturated over LIQUID instead, the canopy air holds more vapour than the
+   ! frozen surface, 3-8 % more at 268 K, and the pack gains mass by deposition.
+   !---~---
    subroutine test_isothermal()
       type(snow_state_t)  :: snow, probe
       type(surface_env_t) :: env
@@ -237,14 +240,14 @@ contains
       call check_true('swe steady (drift < 0.5 kg/m2)', abs(snow%swe(1) - swe0) < 0.5_wp, snow%swe(1) - swe0)
       call check_true('snow_temp steady (within 1 K)', abs(snow%snow_temp(1) - tsnow0) < 1.0_wp, snow%snow_temp(1))
       call check_true('stayed frozen (no spurious melt)', snow%snow_fliq(1) < 1.0e-6_wp, snow%snow_fliq(1))
-      !----- The same frozen pack under canopy air saturated over liquid: deposition. ------------!
+      !--- The same frozen pack under canopy air saturated over liquid: deposition.
       probe = cold_pack(15.0_wp, 268.0_wp, p)
       env%can_shv = sat_specific_humidity(268.0_wp, env%press)
       call snow_step(probe, env, 1.0_wp, 900.0_wp, gain, vapour, g_top)
       call check_true('frozen pack under a liquid-saturated CAS gains mass (deposition)', vapour < 0.0_wp, vapour)
    end subroutine test_isothermal
 
-   !----- Rain on a sub-freezing pack: adds mass + liquid enthalpy, refreezes (energy rises). -----!
+   !--- Rain on a sub-freezing pack: adds mass + liquid enthalpy, refreezes (energy rises).
    subroutine test_rain_on_snow()
       type(snow_state_t)  :: snow
       type(snow_params_t) :: p
@@ -260,9 +263,11 @@ contains
                  2.0e-3_wp * 900.0_wp * internal_energy_liquid(278.0_wp), 1.0e-6_wp)
    end subroutine test_rain_on_snow
 
-   !----- A thin pack (0.3 kg/m2, a fifth of the ground) under the bare-ground conductance of an     !
-   !      open patch: an explicit flux at t_3ple, or the nonlinear sublimation at a linearized       !
-   !      temperature, would drive it hundreds of kelvin past its balance. -------------------------!
+   !---~---
+   !   A thin pack (0.3 kg/m2, a fifth of the ground) under the bare-ground conductance of an
+   ! open patch: an explicit flux at t_3ple, or the nonlinear sublimation at a linearized
+   ! temperature, would drive it hundreds of kelvin past its balance.
+   !---~---
    subroutine test_stiff_coupling()
       type(snow_state_t)  :: snow
       type(surface_env_t) :: env
@@ -279,7 +284,7 @@ contains
       env%k_soil_top  = 1.5_wp
       env%dz_soil_top = 0.025_wp
 
-      !----- (a) A cold pack (243 K) under warm, moist canopy air: it warms toward the air, not past it. -!
+      !--- (a) A cold pack (243 K) under warm, moist canopy air: it warms toward the air, not past it.
       snow = cold_pack(SWE, 243.0_wp, p)
       env%sw_snow  = 0.0_wp
       env%lw_down  = stefan_boltzmann * 243.0_wp ** 4 + 20.0_wp
@@ -293,8 +298,10 @@ contains
       call check('its energy change is what its surroundings gave up', snow%snow_energy(1) - e0, gain,       &
                  1.0e-9_wp * abs(e0))
 
-      !----- (b) A melting pack (10 % liquid) under cold, dry canopy air: it freezes through the plateau and !
-      !      cools toward the air; over a day it stays near the air, and both ledgers close. --------------!
+      !---~---
+      !   (b) A melting pack (10 % liquid) under cold, dry canopy air: it freezes through the plateau and
+      ! cools toward the air; over a day it stays near the air, and both ledgers close.
+      !---~---
       snow = snow_state_t()
       snow%nlayer = 1_ik
       snow%swe(1) = SWE
@@ -327,7 +334,7 @@ contains
       call check('ENERGY closure', snow%snow_energy(1), e_in - e_out, 1.0e-6_wp * abs(e0))
    end subroutine test_stiff_coupling
 
-   !----- 7. Each tile's radiation at its own optics; the cover-weighted sum is the blended ground's. --!
+   !--- 7. Each tile's radiation at its own optics; the cover-weighted sum is the blended ground's.
    subroutine test_tile_radiation()
       type(snow_state_t)  :: snow
       type(snow_params_t) :: p
@@ -353,7 +360,7 @@ contains
                  1.0e-9_wp)
    end subroutine test_tile_radiation
 
-   !----- 8. The bare ground's skin fluxes to the canopy air. ---------------------------------------!
+   !--- 8. The bare ground's skin fluxes to the canopy air.
    subroutine test_ground_balance()
       real(wp), parameter :: GGNET = 0.02_wp, RHO = 1.2_wp, T_GROUND = 300.0_wp
       real(wp) :: h_bare, le_soil, h_2k

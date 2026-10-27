@@ -1,11 +1,11 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! ed_slow_diag -- the slow step's own diagnostic rows (docs/science/diagnostics.md §4,     !
-! "The slow rows"). open_slow_cohort_rows sizes and clears the slow cohort block for the   !
-! step; write_slow_patch_rows adds the step's litterfall and recruitment to the patch      !
-! rows. A routine that computes an amount the output reports writes its row where it       !
-! computes it: the allocation split, the tendencies, the mortality carbon by pathway.      !
-!==========================================================================================!
+!---~---
+!   ed_slow_diag -- the slow step's own diagnostic rows (docs/science/diagnostics.md §4,
+! "The slow rows"). open_slow_cohort_rows sizes and clears the slow cohort block for the
+! step; write_slow_patch_rows adds the step's litterfall and recruitment to the patch
+! rows. A routine that computes an amount the output reports writes its row where it
+! computes it: the allocation split, the tendencies, the mortality carbon by pathway.
+!---~---
 module ed_slow_diag
    use ed_kinds,                only : wp, ik
    use ed_config,               only : ed_config_t
@@ -20,7 +20,7 @@ module ed_slow_diag
 
 contains
 
-   !----- Size and zero the slow cohort block (one sample per step) before anything writes to it. !
+   !--- Size and zero the slow cohort block (one sample per step) before anything writes to it.
    subroutine open_slow_cohort_rows(poly)
       type(polygon_t), intent(inout) :: poly
       if (.not. poly%cohort%sdiag%active) return
@@ -29,23 +29,23 @@ contains
       poly%cohort%sdiag%n = poly%cohort%n
    end subroutine open_slow_cohort_rows
 
-   !---------------------------------------------------------------------------------------!
-   ! The slow patch rows: litterfall and recruitment, written before the restructuring     !
-   ! permutes the patch axis. Each adds its per-year rate times dt_slow in seconds, a      !
-   ! litter amount made a rate first; the litter rows and the soil's litter input are one  !
-   ! number (docs/science/diagnostics.md §4, "The slow rows").                             !
-   !---------------------------------------------------------------------------------------!
+   !---~---
+   !   The slow patch rows: litterfall and recruitment, written before the restructuring
+   ! permutes the patch axis. Each adds its per-year rate times dt_slow in seconds, a
+   ! litter amount made a rate first; the litter rows and the soil's litter input are one
+   ! number (docs/science/diagnostics.md §4, "The slow rows").
+   !---~---
    subroutine write_slow_patch_rows(poly, cfg, recruitment)
       type(polygon_t),     intent(inout) :: poly
       type(ed_config_t),   intent(in)    :: cfg
-      real(wp),            intent(in)    :: recruitment(:,:)   !< [plant/m2/yr] (pft, patch)
+      real(wp),            intent(in)    :: recruitment(:,:)   !--- [plant/m2/yr] (pft, patch)
       integer(ik) :: ip
 
       if (.not. poly%patch%diag%active) return
-      !----- Without the fast loop, the step sets the block's patch count itself. ------------!
+      !--- Without the fast loop, the step sets the block's patch count itself.
       if (.not. cfg%fast_biophysics_on) poly%patch%diag%n = poly%patch%n
       do ip = 1_ik, poly%patch%n
-         !----- Litter by the tissue it came from, not by the pool it reaches. ---------------!
+         !--- Litter by the tissue it came from, not by the pool it reaches.
          poly%patch%diag%v(PA_LITTER_LEAF,     ip) = poly%patch%diag%v(PA_LITTER_LEAF,     ip)    &
                                                    + (poly%patch%litter_in(ip)%leaf_c                &
                                                       / cfg%dt_years) * cfg%dt_slow
@@ -65,7 +65,7 @@ contains
                                                       / cfg%dt_years) * cfg%dt_slow
          poly%patch%diag%v(PA_RECRUIT_NPLANT,  ip) = poly%patch%diag%v(PA_RECRUIT_NPLANT,  ip)    &
                                                    + sum(recruitment(:, ip)) * cfg%dt_slow
-         !----- Without the fast loop, the step adds the block's weight itself, or every row reads 0. !
+         !--- Without the fast loop, the step adds the block's weight itself, or every row reads 0.
          if (.not. cfg%fast_biophysics_on) poly%patch%diag%w(ip) = poly%patch%diag%w(ip) + cfg%dt_slow
       end do
    end subroutine write_slow_patch_rows

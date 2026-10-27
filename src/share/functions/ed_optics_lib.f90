@@ -1,12 +1,12 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! ed_optics_lib -- the optical kernels of the canopy radiation: the leaf-inclination       !
-! distribution (LIDF), a Beta distribution on the SCOPE 13-class grid; its moments bf and  !
-! G(mu); and the single-scatter pair of a leaf or wood surface (Goel & Strebel 1984;       !
-! Verhoef 1984; van der Tol et al. 2009). The equations are                                !
-! docs/science/canopy_radiation_transfer.md §1-§2, eqs. (1)-(4); ed_pft_derive builds      !
-! the per-PFT optics from these kernels and ed_canopy_radiation the per-cohort.            !
-!==========================================================================================!
+!---~---
+!   ed_optics_lib -- the optical kernels of the canopy radiation: the leaf-inclination
+! distribution (LIDF), a Beta distribution on the SCOPE 13-class grid; its moments bf and
+! G(mu); and the single-scatter pair of a leaf or wood surface (Goel & Strebel 1984;
+! Verhoef 1984; van der Tol et al. 2009). The equations are
+! docs/science/canopy_radiation_transfer.md §1-§2, eqs. (1)-(4); ed_pft_derive builds
+! the per-PFT optics from these kernels and ed_canopy_radiation the per-cohort.
+!---~---
 module ed_optics_lib
    use ed_kinds,       only : wp, ik
    use ed_constants,   only : pi, pio2, tiny_num
@@ -17,25 +17,27 @@ module ed_optics_lib
    public :: beta_lidf, leaf_bf, gfun_direct
    public :: scatter_pair
 
-   !----- SCOPE's 13 inclination classes: 10 degrees wide to 80, then 2 degrees to 90. ----!
+   !--- SCOPE's 13 inclination classes: 10 degrees wide to 80, then 2 degrees to 90.
    integer(ik), parameter :: N_LEAF_CLASS = 13_ik
-   !----- Class midpoints [deg]. ----------------------------------------------------------!
+   !--- Class midpoints [deg].
    real(wp), parameter :: LEAF_CLASS_DEG(N_LEAF_CLASS) =                                      &
       [  5.0_wp, 15.0_wp, 25.0_wp, 35.0_wp, 45.0_wp, 55.0_wp, 65.0_wp, 75.0_wp,               &
         81.0_wp, 83.0_wp, 85.0_wp, 87.0_wp, 89.0_wp ]
-   !----- Class upper bounds [deg]; class 1 starts at 0. ----------------------------------!
+   !--- Class upper bounds [deg]; class 1 starts at 0.
    real(wp), parameter :: LEAF_BND_DEG(N_LEAF_CLASS) =                                        &
       [ 10.0_wp, 20.0_wp, 30.0_wp, 40.0_wp, 50.0_wp, 60.0_wp, 70.0_wp, 80.0_wp,               &
         82.0_wp, 84.0_wp, 86.0_wp, 88.0_wp, 90.0_wp ]
 
 contains
 
-   !----- The Beta LIDF: the leaf-area share of each inclination class, for shape          !
-   !      parameters (p, q) (docs/science/canopy_radiation_transfer.md eq. (1)), by a      !
-   !      midpoint rule: no special function, and the singular endpoints are never hit.    !
-   !      The density is summed relative to its largest value on the grid, so a narrow     !
-   !      distribution, whose unnormalized density underflows everywhere, still sums to    !
-   !      one; the Beta normalizing constant cancels. -------------------------------------!
+   !---~---
+   !   The Beta LIDF: the leaf-area share of each inclination class, for shape
+   ! parameters (p, q) (docs/science/canopy_radiation_transfer.md eq. (1)), by a
+   ! midpoint rule: no special function, and the singular endpoints are never hit.
+   ! The density is summed relative to its largest value on the grid, so a narrow
+   ! distribution, whose unnormalized density underflows everywhere, still sums to
+   ! one; the Beta normalizing constant cancels.
+   !---~---
    pure function beta_lidf(p, q) result(lidf)
       real(wp), intent(in) :: p, q
       real(wp)             :: lidf(N_LEAF_CLASS)
@@ -64,8 +66,10 @@ contains
       lidf = lidf / sum(lidf)                           ! the largest panel adds its whole dt
    end function beta_lidf
 
-   !----- The log of the unnormalized Beta density, (p-1) ln t + (q-1) ln(1-t), with t     !
-   !      kept off 0 and 1 so an integrable endpoint singularity stays finite. ------------!
+   !---~---
+   !   The log of the unnormalized Beta density, (p-1) ln t + (q-1) ln(1-t), with t
+   ! kept off 0 and 1 so an integrable endpoint singularity stays finite.
+   !---~---
    pure function beta_log_kernel(t, p, q) result(f)
       real(wp), intent(in) :: t, p, q
       real(wp)             :: f, tt
@@ -73,15 +77,17 @@ contains
       f  = (p - 1.0_wp) * log(tt) + (q - 1.0_wp) * log(1.0_wp - tt)
    end function beta_log_kernel
 
-   !----- The midpoint inclination of class k [rad]. --------------------------------------!
+   !--- The midpoint inclination of class k [rad].
    pure function leaf_class_angle(k) result(theta)
       integer(ik), intent(in) :: k
       real(wp)                :: theta
       theta = LEAF_CLASS_DEG(k) * pi / 180.0_wp
    end function leaf_class_angle
 
-   !----- bf = <cos^2 theta_leaf> over the LIDF (docs/science/canopy_radiation_transfer.md !
-   !      eq. (2)). -----------------------------------------------------------------------!
+   !---~---
+   !   bf = <cos^2 theta_leaf> over the LIDF (docs/science/canopy_radiation_transfer.md
+   ! eq. (2)).
+   !---~---
    pure function leaf_bf(lidf) result(bf)
       real(wp), intent(in) :: lidf(:)
       real(wp)             :: bf
@@ -92,9 +98,11 @@ contains
       end do
    end function leaf_bf
 
-   !----- The Ross G-function G(mu), the mean projection of leaf area toward the sun, by   !
-   !      SCOPE's volscatt projection (docs/science/canopy_radiation_transfer.md eq. (3)). !
-   !      cosz is mu, the cosine of the solar zenith angle. -------------------------------!
+   !---~---
+   !   The Ross G-function G(mu), the mean projection of leaf area toward the sun, by
+   ! SCOPE's volscatt projection (docs/science/canopy_radiation_transfer.md eq. (3)).
+   ! cosz is mu, the cosine of the solar zenith angle.
+   !---~---
    pure function gfun_direct(lidf, cosz) result(gee)
       real(wp), intent(in) :: lidf(:)
       real(wp), intent(in) :: cosz
@@ -117,9 +125,11 @@ contains
       end do
    end function gfun_direct
 
-   !----- Single-scatter albedo omega = rho + tau and asymmetry g = bf (rho - tau)/omega,  !
-   !      with g = 0 for a perfect absorber (docs/science/canopy_radiation_transfer.md eq. !
-   !      (4)). ---------------------------------------------------------------------------!
+   !---~---
+   !   Single-scatter albedo omega = rho + tau and asymmetry g = bf (rho - tau)/omega,
+   ! with g = 0 for a perfect absorber (docs/science/canopy_radiation_transfer.md eq.
+   ! (4)).
+   !---~---
    pure subroutine scatter_pair(rho, tau, bf, omega, g)
       real(wp), intent(in)  :: rho, tau, bf
       real(wp), intent(out) :: omega, g

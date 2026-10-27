@@ -1,28 +1,28 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! ed_c_api_run -- the ISO_C_BINDING shim that exposes the FULL COUPLED MODEL (`edmore.model`). !
-!                                                                                          !
-! The other shims expose pieces: `ed_c_api_leaf`, `ed_c_api_phenology` and                        !
-! `ed_c_api_canopy` the kernels, and `ed_c_api_demography` the slow loop alone (no                !
-! biophysics, no forcing, no output streams). This one drives what the `edmore` EXECUTABLE        !
-! drives -- coupled fast + slow, live met forcing, netCDF output, both conservation ledgers -- by !
-! holding a run (`ed_region_t`) and handing the caller the OPEN / STEP / FINALIZE seam. The       !
-! getters read the run's first polygon: the site of a one-polygon run.                            !
-!                                                                                          !
-! The caller owns the time loop: a Python process opens a run, steps it, reads the site state as   !
-! it goes, and finalizes it. `python -m edmore.model CONFIG` is that loop, and                     !
-! scripts/calibrate_fast runs its trials through it. Nothing here re-implements the model --       !
-! `region_step` takes one slow step of what the executable steps a month at a time, so a          !
-! Python-driven run and an `edmore` run of the same config produce byte-identical output.          !
-!                                                                                          !
-! Conventions match the other shims: `polygon_t` and friends never cross the boundary. A run is an  !
-! opaque integer handle into a module-`save` registry; scalars return by value; arrays COPY into a  !
-! caller-allocated buffer. The bind(c) entry points are also PUBLIC Fortran so `test_c_api_run`     !
-! can call them -- a shim no test calls can stop compiling without anyone noticing.                 !
-!                                                                                          !
-! `region_step` RETURNS a NaN status rather than `error stop`ping, which is what makes this safe to  !
-! call from an interpreter: a bad state surfaces as a Python exception, not a dead process.           !
-!==========================================================================================!
+!---~---
+!   ed_c_api_run -- the ISO_C_BINDING shim that exposes the FULL COUPLED MODEL (`edmore.model`).
+!
+!   The other shims expose pieces: `ed_c_api_leaf`, `ed_c_api_phenology` and
+! `ed_c_api_canopy` the kernels, and `ed_c_api_demography` the slow loop alone (no
+! biophysics, no forcing, no output streams). This one drives what the `edmore` EXECUTABLE
+! drives -- coupled fast + slow, live met forcing, netCDF output, both conservation ledgers -- by
+! holding a run (`ed_region_t`) and handing the caller the OPEN / STEP / FINALIZE seam. The
+! getters read the run's first polygon: the site of a one-polygon run.
+!
+!   The caller owns the time loop: a Python process opens a run, steps it, reads the site state as
+! it goes, and finalizes it. `python -m edmore.model CONFIG` is that loop, and
+! scripts/calibrate_fast runs its trials through it. Nothing here re-implements the model
+! `region_step` takes one slow step of what the executable steps a month at a time, so a
+! Python-driven run and an `edmore` run of the same config produce byte-identical output.
+!
+!   Conventions match the other shims: `polygon_t` and friends never cross the boundary. A run is an
+! opaque integer handle into a module-`save` registry; scalars return by value; arrays COPY into a
+! caller-allocated buffer. The bind(c) entry points are also PUBLIC Fortran so `test_c_api_run`
+! can call them -- a shim no test calls can stop compiling without anyone noticing.
+!
+!   `region_step` RETURNS a NaN status rather than `error stop`ping, which is what makes this safe to
+! call from an interpreter: a bad state surfaces as a Python exception, not a dead process.
+!---~---
 module ed_c_api_run
    use iso_c_binding
    use ed_kinds,             only : wp, ik
@@ -43,16 +43,18 @@ module ed_c_api_run
    public :: ed_run_total_basal_area, ed_run_soil_carbon, ed_run_get_real, ed_run_get_int
    public :: ed_run_get_patch_real, ed_run_get_patch_int, ed_run_get_site_real
 
-   !----- Small registry: a handful of concurrent runs is plenty (the example opens two, one per   !
-   !      stage, and could hold both at once). Fixed-size and module-`save` for the same reason    !
-   !      ed_c_api_demography's is: the handle has to survive across ctypes calls.                 !
+   !---~---
+   !   Small registry: a handful of concurrent runs is plenty (the example opens two, one per
+   ! stage, and could hold both at once). Fixed-size and module-`save` for the same reason
+   ! ed_c_api_demography's is: the handle has to survive across ctypes calls.
+   !---~---
    integer, parameter :: MAXR = 4
    type(ed_region_t), target, save :: g_run(MAXR)
    logical,                  save :: run_used(MAXR) = .false.
 
 contains
 
-   !----- Build a Fortran string from an explicit-length C char buffer (no strlen needed). -------!
+   !--- Build a Fortran string from an explicit-length C char buffer (no strlen needed).
    pure function f_string(cbuf, n) result(s)
       character(kind=c_char), intent(in) :: cbuf(*)
       integer(c_int),         intent(in) :: n
@@ -63,20 +65,22 @@ contains
       end do
    end function f_string
 
-   !----- Guard every accessor: a handle the caller never opened (or already freed) must return a  !
-   !      sentinel, not index a stale registry slot.  --------------------------------------------!
+   !---~---
+   !   Guard every accessor: a handle the caller never opened (or already freed) must return a
+   ! sentinel, not index a stale registry slot.
+   !---~---
    pure logical function live(h)
       integer(c_int), intent(in) :: h
       live = (h >= 1_c_int .and. h <= int(MAXR, c_int))
       if (live) live = run_used(h)
    end function live
 
-   !=======================================================================================!
-   !  Lifecycle                                                                             !
-   !=======================================================================================!
+   !--- Lifecycle
 
-   !----- Open a run from a TOML config -> opaque handle (>=1); -1 registry full, -2 open failed. -!
-   !      `verbose` /= 0 keeps the progress lines edmore prints on stdout.                         !
+   !---~---
+   !   Open a run from a TOML config -> opaque handle (>=1); -1 registry full, -2 open failed.
+   ! `verbose` /= 0 keeps the progress lines edmore prints on stdout.
+   !---~---
    function ed_run_open(path, path_len, verbose) result(h) bind(c, name="ed_run_open")
       character(kind=c_char), intent(in) :: path(*)
       integer(c_int), value,  intent(in) :: path_len, verbose
@@ -99,8 +103,10 @@ contains
       run_used(h) = .true.
    end function ed_run_open
 
-   !----- Advance ONE slow step. Returns the run status (RUN_* in ed_polygon): 0 stepped,       !
-   !      1 already finished, 2 NaN in the state, 4 a cohort or soil-carbon state out of bounds. -!
+   !---~---
+   !   Advance ONE slow step. Returns the run status (RUN_* in ed_polygon): 0 stepped,
+   ! 1 already finished, 2 NaN in the state, 4 a cohort or soil-carbon state out of bounds.
+   !---~---
    function ed_run_step(h) result(status) bind(c, name="ed_run_step")
       integer(c_int), value, intent(in) :: h
       integer(c_int)                    :: status
@@ -113,8 +119,10 @@ contains
       status = int(st, c_int)
    end function ed_run_step
 
-   !----- 1 when the calendar has reached end_time. The loop predicate, so the CALLER writes the   !
-   !      `while` -- Python owning the time loop is the point of this shim.  ---------------------!
+   !---~---
+   !   1 when the calendar has reached end_time. The loop predicate, so the CALLER writes the
+   ! `while` -- Python owning the time loop is the point of this shim.
+   !---~---
    function ed_run_is_done(h) result(d) bind(c, name="ed_run_is_done")
       integer(c_int), value, intent(in) :: h
       integer(c_int)                    :: d
@@ -125,8 +133,10 @@ contains
       d = merge(1_c_int, 0_c_int, region_done(g_run(h)))
    end function ed_run_is_done
 
-   !----- Terminal checkpoint + conservation reports + close the streams. The state stays readable !
-   !      afterwards (that is why free is separate).  --------------------------------------------!
+   !---~---
+   !   Terminal checkpoint + conservation reports + close the streams. The state stays readable
+   ! afterwards (that is why free is separate).
+   !---~---
    function ed_run_finalize(h) result(status) bind(c, name="ed_run_finalize")
       integer(c_int), value, intent(in) :: h
       integer(c_int)                    :: status
@@ -146,9 +156,7 @@ contains
       run_used(h) = .false.
    end subroutine ed_run_free
 
-   !=======================================================================================!
-   !  Where the calendar is                                                                 !
-   !=======================================================================================!
+   !--- Where the calendar is
    function ed_run_year(h) result(v) bind(c, name="ed_run_year")
       integer(c_int), value, intent(in) :: h
       integer(c_int)                    :: v
@@ -184,10 +192,10 @@ contains
       if (live(h)) v = int(g_run(h)%iyear, c_int)
    end function ed_run_iyear
 
-   !=======================================================================================!
-   !  Site aggregates -- the same reducers print_summary uses, so a Python progress line and !
-   !  the executable's own summary line report the same numbers.                             !
-   !=======================================================================================!
+   !---~---
+   !   Site aggregates -- the same reducers print_summary uses, so a Python progress line and
+   ! the executable's own summary line report the same numbers.
+   !---~---
    function ed_run_n_patch(h) result(v) bind(c, name="ed_run_n_patch")
       integer(c_int), value, intent(in) :: h
       integer(c_int)                    :: v
@@ -237,10 +245,12 @@ contains
       if (live(h)) v = real(total_basal_area(g_run(h)%poly(1)), c_double)
    end function ed_run_total_basal_area
 
-   !----- Site total soil carbon [kgC/m2], area-weighted over patches: all seven CENTURY pools.    !
-   !      Identically zero unless [soil_carbon].soil_carbon_on -- which is exactly what makes it    !
-   !      worth watching from the driver loop, since with the feature off litter is DISCARDED       !
-   !      rather than stored, and this number stays flat at zero while the stand grows.             !
+   !---~---
+   !   Site total soil carbon [kgC/m2], area-weighted over patches: all seven CENTURY pools.
+   ! Identically zero unless [soil_carbon].soil_carbon_on -- which is exactly what makes it
+   ! worth watching from the driver loop, since with the feature off litter is DISCARDED
+   ! rather than stored, and this number stays flat at zero while the stand grows.
+   !---~---
    function ed_run_soil_carbon(h) result(v) bind(c, name="ed_run_soil_carbon")
       integer(c_int), value, intent(in) :: h
       real(c_double)                    :: v
@@ -257,10 +267,10 @@ contains
       v = real(tot, c_double)
    end function ed_run_soil_carbon
 
-   !=======================================================================================!
-   !  Copy-out per-cohort getters (caller allocates buf of length n_cohort). Field ids match !
-   !  ed_c_api_demography's, so the two shims read the same way from Python.                 !
-   !=======================================================================================!
+   !---~---
+   !   Copy-out per-cohort getters (caller allocates buf of length n_cohort). Field ids match
+   ! ed_c_api_demography's, so the two shims read the same way from Python.
+   !---~---
    subroutine ed_run_get_real(h, field_id, buf) bind(c, name="ed_run_get_real")
       integer(c_int), value, intent(in)  :: h, field_id
       real(c_double),        intent(out) :: buf(*)
@@ -286,19 +296,21 @@ contains
             buf(1:n) = real(c%growth_avg(1:n),      c_double)
          case (7_c_int)
             buf(1:n) = real(c%wood_carbon(1:n),     c_double)
-         !----- Run only (a demography site has no fast loop): gross GPP over the last slow step. --!
+         !--- Run only (a demography site has no fast loop): gross GPP over the last slow step.
          case (8_c_int)
             buf(1:n) = real(c%gpp_accum(1:n),       c_double)
-         !----- Run only: the maintenance respiration over the last slow step [kgC/plant] the        !
-         !      allocator charged against that GPP -- leaves, stems (coarse roots included), fine     !
-         !      roots. ----------------------------------------------------------------------------!
+         !---~---
+         !   Run only: the maintenance respiration over the last slow step [kgC/plant] the
+         ! allocator charged against that GPP -- leaves, stems (coarse roots included), fine
+         ! roots.
+         !---~---
          case (11_c_int)
             buf(1:n) = real(c%leaf_resp_accum(1:n), c_double)
          case (12_c_int)
             buf(1:n) = real(c%stem_resp_accum(1:n), c_double)
          case (13_c_int)
             buf(1:n) = real(c%root_resp_accum(1:n), c_double)
-         !----- The live pools [kgC/plant] and the baseline leaf turnover rate [1/yr]. ----------!
+         !--- The live pools [kgC/plant] and the baseline leaf turnover rate [1/yr].
          case (14_c_int)
             buf(1:n) = real(c%leaf_carbon(1:n),          c_double)
          case (15_c_int)
@@ -307,10 +319,12 @@ contains
             buf(1:n) = real(c%nonstructural_carbon(1:n), c_double)
          case (17_c_int)
             buf(1:n) = real(c%leaf_turnover_rate(1:n),   c_double)
-         !----- The last slow step's allocation [kgC/plant/yr]: NPP (leaf, fine-root, wood,        !
-         !      reproduction and storage growth) and its parts, the growth respiration and the root  !
-         !      exudate; NaN unless the output needs the slow cohort diagnostics that hold them (a   !
-         !      site NPP total in the output list switches them on). --------------------------------!
+         !---~---
+         !   The last slow step's allocation [kgC/plant/yr]: NPP (leaf, fine-root, wood,
+         ! reproduction and storage growth) and its parts, the growth respiration and the root
+         ! exudate; NaN unless the output needs the slow cohort diagnostics that hold them (a
+         ! site NPP total in the output list switches them on).
+         !---~---
          case (9_c_int, 10_c_int, 18_c_int:23_c_int)
             if (.not. c%sdiag%active) then
                buf(1:n) = ieee_value(1.0_c_double, ieee_quiet_nan)
@@ -359,10 +373,12 @@ contains
       end associate
    end subroutine ed_run_get_int
 
-   !----- Copy-out per-patch getters (caller allocates buf of length n_patch). A cohort's     !
-   !      owner_patch indexes them, so a polygon total of a cohort quantity is                 !
-   !      sum(share(owner_patch) * nplant * x), the share being the patch's fraction of the     !
-   !      polygon: its area in its site times the site's area. ----------------------------------!
+   !---~---
+   !   Copy-out per-patch getters (caller allocates buf of length n_patch). A cohort's
+   ! owner_patch indexes them, so a polygon total of a cohort quantity is
+   ! sum(share(owner_patch) * nplant * x), the share being the patch's fraction of the
+   ! polygon: its area in its site times the site's area.
+   !---~---
    subroutine ed_run_get_patch_real(h, field_id, buf) bind(c, name="ed_run_get_patch_real")
       integer(c_int), value, intent(in)  :: h, field_id
       real(c_double),        intent(out) :: buf(*)
@@ -399,7 +415,7 @@ contains
       end associate
    end subroutine ed_run_get_patch_int
 
-   !----- Copy-out per-site getter (caller allocates buf of length n_site). ------------------!
+   !--- Copy-out per-site getter (caller allocates buf of length n_site).
    subroutine ed_run_get_site_real(h, field_id, buf) bind(c, name="ed_run_get_site_real")
       integer(c_int), value, intent(in)  :: h, field_id
       real(c_double),        intent(out) :: buf(*)

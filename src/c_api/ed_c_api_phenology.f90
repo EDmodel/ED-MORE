@@ -1,12 +1,12 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! ed_c_api_phenology -- the C-API shim for the PHENOLOGY kernel (`edmore.plant.pheno`).       !
-!                                                                                          !
-! One shim per subsystem, mirroring the Fortran tree (src/README.md). The bind(c) structs are !
-! an ABI contract with `python/edmore/plant/pheno.py` and are compiled by a mandatory ctest   !
-! target (`test_plant_phenology`) so a field-order change breaks the BUILD -- see the header  !
-! of ed_c_api_leaf for why.                                                                   !
-!==========================================================================================!
+!---~---
+!   ed_c_api_phenology -- the C-API shim for the PHENOLOGY kernel (`edmore.plant.pheno`).
+!
+!   One shim per subsystem, mirroring the Fortran tree (src/README.md). The bind(c) structs are
+! an ABI contract with `python/edmore/plant/pheno.py` and are compiled by a mandatory ctest
+! target (`test_plant_phenology`) so a field-order change breaks the BUILD -- see the header
+! of ed_c_api_leaf for why.
+!---~---
 module ed_c_api_phenology
    use iso_c_binding,        only : c_double, c_int
    use ed_kinds,             only : wp, ik
@@ -20,13 +20,13 @@ module ed_c_api_phenology
    public :: pheno_env_c, pheno_args_c, pheno_state_c, pheno_out_c
    public :: ed_phenology_step, ed_leaf_turnover_step, ed_daylength
 
-   !----- C mirror of pheno_env_t (3 doubles + 2 ints; hemis_north 0/1). --------------------!
+   !--- C mirror of pheno_env_t (3 doubles + 2 ints; hemis_north 0/1).
    type, bind(c) :: pheno_env_c
       real(c_double) :: temp_day, par_hours, predawn_leaf_psi
       integer(c_int) :: doy, hemis_north
    end type pheno_env_c
 
-   !----- C mirror of the kernel's PFT record, phenology_traits_t, less its leaf-cover pair. ---!
+   !--- C mirror of the kernel's PFT record, phenology_traits_t, less its leaf-cover pair.
    type, bind(c) :: pheno_args_c
       integer(c_int) :: flush_cue_mask, shed_cue_mask
       real(c_double) :: flush_cue_timescale, shed_cue_timescale, flush_rate_max, shed_rate_max
@@ -38,25 +38,25 @@ module ed_c_api_phenology
       real(c_double) :: shed_water_sum, shed_water_sharpness
    end type pheno_args_c
 
-   !----- C mirror of pheno_state_t (7 doubles; the prognostic memory, in/out). -------------!
+   !--- C mirror of pheno_state_t (7 doubles; the prognostic memory, in/out).
    type, bind(c) :: pheno_state_c
       real(c_double) :: leaf_flush_tendency, leaf_shed_tendency, growing_degree_days,     &
                         cold_degree_days, wet_psi_sum, dry_psi_sum, light_hours_mean
    end type pheno_state_c
 
-   !----- C mirror of pheno_out_t (2 doubles). -----------------------------------------------!
+   !--- C mirror of pheno_out_t (2 doubles).
    type, bind(c) :: pheno_out_c
       real(c_double) :: leaf_flush_potential, leaf_shed_potential
    end type pheno_out_c
 
 contains
 
-   !---------------------------------------------------------------------------------------!
-   ! Advance one cohort's phenology ONE step: unpack the C structs, call phenology_kernel     !
-   ! (docs/science/plant_phenology.md §1-§4; state advanced in place), pack the state and the !
-   ! potential rates back out. `state_c` is intent(inout): the caller keeps it across days    !
-   ! (the phenological memory).                                                              !
-   !---------------------------------------------------------------------------------------!
+   !---~---
+   !   Advance one cohort's phenology ONE step: unpack the C structs, call phenology_kernel
+   ! (docs/science/plant_phenology.md §1-§4; state advanced in place), pack the state and the
+   ! potential rates back out. `state_c` is intent(inout): the caller keeps it across days
+   ! (the phenological memory).
+   !---~---
    subroutine ed_phenology_step(env_c, p_c, dt, state_c, out_c) bind(c, name="ed_phenology_step")
       type(pheno_env_c),    intent(in)    :: env_c
       type(pheno_args_c),   intent(in)    :: p_c
@@ -119,11 +119,11 @@ contains
       out_c%leaf_shed_potential   = out%leaf_shed_potential
    end subroutine ed_phenology_step
 
-   !---------------------------------------------------------------------------------------!
-   ! One step of leaf loss and the flush cap (ed_plant_phenology::leaf_turnover_step,          !
-   ! docs/science/plant_phenology.md §5, eq. (9)), so Python applies the carbon layer's own    !
-   ! rule rather than a copy of it.                                                           !
-   !---------------------------------------------------------------------------------------!
+   !---~---
+   !   One step of leaf loss and the flush cap (ed_plant_phenology::leaf_turnover_step,
+   ! docs/science/plant_phenology.md §5, eq. (9)), so Python applies the carbon layer's own
+   ! rule rather than a copy of it.
+   !---~---
    subroutine ed_leaf_turnover_step(leaf, leaf_full, leaf_flush_tendency, leaf_shed_tendency,    &
                                     flush_rate_max, shed_rate_max, leaf_turnover_rate,           &
                                     min_leaf_cover, bare_leaf_cover, dt,                         &
@@ -144,10 +144,10 @@ contains
       flush_cap = cap
    end subroutine ed_leaf_turnover_step
 
-   !---------------------------------------------------------------------------------------!
-   ! Day length [h] at a latitude and day of year (ed_time::daylength), the light cue's       !
-   ! driver, so Python builds its forcing with the model's own formula.                       !
-   !---------------------------------------------------------------------------------------!
+   !---~---
+   !   Day length [h] at a latitude and day of year (ed_time::daylength), the light cue's
+   ! driver, so Python builds its forcing with the model's own formula.
+   !---~---
    real(c_double) function ed_daylength(latitude_deg, doy) bind(c, name="ed_daylength")
       real(c_double), value, intent(in) :: latitude_deg
       integer(c_int), value, intent(in) :: doy

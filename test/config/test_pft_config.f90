@@ -1,29 +1,29 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! test_pft_config -- the PFT file's loader (load_ed_config's PFT half) and the per-PFT     !
-! tables derive_parameters builds from it.                                                 !
-!   1. THE SHIPPED FILE: ed_config_pft.toml, loaded through ed_config_main.toml, gives      !
-!      as many PFTs as wood_density lists; each [pft] optics key and each [hydraulics] key  !
-!      reaches every PFT's field (one value broadcast, or one per PFT), and the two-stream  !
-!      table holds each shipped PFT's optics.                                               !
-!   2-5. On the test fixture: the optics, the clumping and the leaf angles, and the         !
-!      hydraulics arrive per PFT and DIFFERENTIATE the PFTs; the ground optics come from    !
-!      [soil]; a cohort is born with its water on its PFT's curve, and the slow tier caps   !
-!      it there.                                                                            !
-!   6. The PFT-parameter CSV has as many values as column headers.                          !
-!                                                                                          !
-! The fourteen optics traits are what lets two plant functional types differ in how they   !
-! intercept or scatter light -- the competition the two-stream solver exists to resolve.   !
-! They are only worth anything if the values arrive per PFT, and that wiring fails         !
-! silently: a mis-threaded index leaves every PFT on the first one's optics, the radiation !
-! still solves, the energy budget still closes, and the canopy is quietly one optical      !
-! type. So this asserts the values arrive AND that PFTs differ, not merely that the code   !
-! compiles. The same holds for the per-PFT hydraulics, down to a cohort's water at birth   !
-! and the slow tier's shed of water above capacity.                                       !
-!                                                                                          !
-! It runs from the source tree, where ed_config_main.toml names ed_config_pft.toml,        !
-! and writes only into the directory its first argument names.                             !
-!==========================================================================================!
+!---~---
+!   test_pft_config -- the PFT file's loader (load_ed_config's PFT half) and the per-PFT
+! tables derive_parameters builds from it.
+!   1. THE SHIPPED FILE: ed_config_pft.toml, loaded through ed_config_main.toml, gives
+!      as many PFTs as wood_density lists; each [pft] optics key and each [hydraulics] key
+!      reaches every PFT's field (one value broadcast, or one per PFT), and the two-stream
+!      table holds each shipped PFT's optics.
+!   2-5. On the test fixture: the optics, the clumping and the leaf angles, and the
+!      hydraulics arrive per PFT and DIFFERENTIATE the PFTs; the ground optics come from
+!      [soil]; a cohort is born with its water on its PFT's curve, and the slow tier caps
+!      it there.
+!   6. The PFT-parameter CSV has as many values as column headers.
+!
+!   The fourteen optics traits are what lets two plant functional types differ in how they
+! intercept or scatter light -- the competition the two-stream solver exists to resolve.
+! They are only worth anything if the values arrive per PFT, and that wiring fails
+! silently: a mis-threaded index leaves every PFT on the first one's optics, the radiation
+! still solves, the energy budget still closes, and the canopy is quietly one optical
+! type. So this asserts the values arrive AND that PFTs differ, not merely that the code
+! compiles. The same holds for the per-PFT hydraulics, down to a cohort's water at birth
+! and the slow tier's shed of water above capacity.
+!
+!   It runs from the source tree, where ed_config_main.toml names ed_config_pft.toml,
+! and writes only into the directory its first argument names.
+!---~---
 program test_pft_config
    use ed_kinds,            only : wp, ik
    use ed_config,           only : ed_config_t, derive_parameters
@@ -48,27 +48,31 @@ program test_pft_config
 
    type(ed_config_t)  :: cfg
    real(wp) :: om1, om2
-   character(len=1024) :: work_dir   !< where the CSV of section 6 is written
+   character(len=1024) :: work_dir   !--- where the CSV of section 6 is written
 
    call banner('the PFT file: its loader, and its per-PFT tables')
    call get_command_argument(1, work_dir)
    call check(len_trim(work_dir) > 0, 'the work directory was passed on the command line')
 
-   !=== 1. The shipped PFT file through its loader. ========================================!
+   !--- 1. The shipped PFT file through its loader.
    call test_shipped_pft_file()
 
    cfg = build_test_config()
 
-   !=== 2. Uniform traits => a uniform table. The control for test 3. The tables are the     !
-   !       configuration's, derived from its traits (derive_parameters), so each change below    !
-   !       derives them again. ------------------------------------------------------------------!
+   !---~---
+   !   2. Uniform traits => a uniform table. The control for test 3. The tables are the
+   ! configuration's, derived from its traits (derive_parameters), so each change below
+   ! derives them again.
+   !---~---
    call check(cfg%pft%optics%n_pft >= 2_ik, 'fixture must have at least two PFTs to differentiate')
    call check_close(cfg%pft%optics%omega_leaf(RAD_VIS,1), cfg%pft%optics%omega_leaf(RAD_VIS,2), 1.0e-14_wp,       &
                     'identical traits must give identical optics')
 
-   !=== 3. Differentiate ONE PFT and the table must follow it -- only that one. ==============!
-   !       Single-scatter albedo is reflectance + transmittance, so raising the reflectance    !
-   !       of PFT 2 must raise ITS omega and leave PFT 1 alone.                                !
+   !---~---
+   !   3. Differentiate ONE PFT and the table must follow it -- only that one.
+   ! Single-scatter albedo is reflectance + transmittance, so raising the reflectance
+   ! of PFT 2 must raise ITS omega and leave PFT 1 alone.
+   !---~---
    om1 = cfg%pft%optics%omega_leaf(RAD_VIS,1)
    cfg%pft%leaf_reflect_vis(2) = 0.30_wp
    call derive_parameters(cfg)
@@ -79,14 +83,16 @@ program test_pft_config
                     'leaf VIS omega must be reflectance + transmittance of THAT PFT')
    call check(om2 > om1, 'a more reflective PFT must have the larger single-scatter albedo')
 
-   !=== 4. Longwave is configured as EMISSIVITY: omega = 1 - emissivity, transmittance 0. ====!
+   !--- 4. Longwave is configured as EMISSIVITY: omega = 1 - emissivity, transmittance 0.
    cfg%pft%leaf_emissivity(2) = 0.80_wp
    call derive_parameters(cfg)
    call check_close(cfg%pft%optics%omega_leaf(RAD_LW,2), 1.0_wp - 0.80_wp, 1.0e-12_wp,                        &
                     'leaf LW omega must be 1 - emissivity (a leaf is opaque in the thermal band)')
 
-   !=== 4b. The ground optics come from [soil]: a bare patch reflects each shortwave band by its   !
-   !        albedo and returns the sky's longwave by 1 - emissivity, plus its own emission. =======!
+   !---~---
+   !   4b. The ground optics come from [soil]: a bare patch reflects each shortwave band by its
+   ! albedo and returns the sky's longwave by 1 - emissivity, plus its own emission.
+   !---~---
    cfg%soil%ground_albedo_vis = 0.11_wp
    cfg%soil%ground_albedo_nir = 0.22_wp
    cfg%soil%ground_emissivity = 0.93_wp
@@ -111,7 +117,7 @@ program test_pft_config
    cfg%soil%ground_albedo_nir = 0.30_wp
    cfg%soil%ground_emissivity = 0.95_wp
 
-   !=== 5. Clumping and the leaf-angle distribution are per PFT too. ========================!
+   !--- 5. Clumping and the leaf-angle distribution are per PFT too.
    cfg%pft%leaf_clumping(2)   = 0.40_wp
    cfg%pft%leaf_angle_mean(2) = 20.0_wp        ! erectophile against PFT 1's 45 deg (spherical is 57.3)
    call derive_parameters(cfg)
@@ -120,9 +126,11 @@ program test_pft_config
    call check(abs(cfg%pft%optics%bf(2) - cfg%pft%optics%bf(1)) > 1.0e-6_wp,                            &
               'a different leaf-angle mean must give a different angle distribution')
 
-   !=== 5b. PER-PFT HYDRAULIC TRAITS. Same shape as the optics checks above: each PFT's table   !
-   !        entry carries its own [hydraulics] record, and a different record CHANGES the answer,
-   !        not merely that it compiles.
+   !---~---
+   !   5b. PER-PFT HYDRAULIC TRAITS. Same shape as the optics checks above: each PFT's table
+   ! entry carries its own [hydraulics] record, and a different record CHANGES the answer,
+   ! not merely that it compiles.
+   !---~---
    block
       type(hydraulics_table_t)   :: tab
       real(wp) :: plc1, plc2
@@ -140,12 +148,14 @@ program test_pft_config
                        'PFT 1 keeps its own conductivity')
       call check_close(tab%pft(2)%vessel_curl, cfg%pft%hydro(2)%vessel_curl, 0.0_wp,              &
                        'every trait of the table is the PFT''s own')
-      !----- And it MATTERS: at the same potential the more vulnerable xylem has lost more. -----!
+      !--- And it MATTERS: at the same potential the more vulnerable xylem has lost more.
       plc1 = 1.0_wp - conductance_retained_fraction(-1.5_wp, tab%pft(1)%wood_psi50, tab%pft(1)%wood_kexp)
       plc2 = 1.0_wp - conductance_retained_fraction(-1.5_wp, tab%pft(2)%wood_psi50, tab%pft(2)%wood_kexp)
       call check(plc2 > plc1, 'a more vulnerable PFT loses more conductance at the same psi')
-      !----- The fast water-stress limb (the turgor-loss point to twice it) follows the PFT's OWN   !
-      !      pressure-volume curve, the one the plant-water solver stores its leaf water on. -------!
+      !---~---
+      !   The fast water-stress limb (the turgor-loss point to twice it) follows the PFT's OWN
+      ! pressure-volume curve, the one the plant-water solver stores its leaf water on.
+      !---~---
       call check_close(cfg%pft%leaf_photo%pft(2)%psi_open,                                   &
                        tissue_psi_tlp(-2.5_wp, cfg%pft%hydro(2)%leaf_curve%elastic_mod), 1.0e-12_wp,   &
                        'PFT 2 loses capacity from its own turgor-loss point')
@@ -159,8 +169,10 @@ program test_pft_config
                        'the phenology reads the same per-PFT turgor-loss point')
    end block
 
-   !=== A cohort is born with its tissue water on ITS PFT's curve, the one the fast loop reads    !
-   !    the water back on, and the slow tier caps a store on that curve too. ======================!
+   !---~---
+   !   A cohort is born with its tissue water on ITS PFT's curve, the one the fast loop reads
+   ! the water back on, and the slow tier caps a store on that curve too.
+   !---~---
    block
       type(hydraulics_table_t)   :: tab
       type(polygon_t) :: poly
@@ -182,20 +194,22 @@ program test_pft_config
                        'PFT 2 leaf water at birth is on its own curve')
       call check(abs(w_expect - tissue_psi_to_water(psi_birth, tab%pft(1)%leaf_curve, poly%cohort%leaf_carbon(i2))) &
                  > 1.0e-6_wp * w_expect, 'the two PFTs'' curves give different birth water (the fixture bites)')
-      !----- Capped on its own ceiling too: a supersaturated store falls to 3.0 x leaf carbon. ---!
+      !--- Capped on its own ceiling too: a supersaturated store falls to 3.0 x leaf carbon.
       poly%cohort%leaf_water_mass(i2) = 10.0_wp * poly%cohort%leaf_carbon(i2)
       call shed_excess_tissue_water(poly, cfg, w_shed)
       call check_close(poly%cohort%leaf_water_mass(i2), 3.0_wp * poly%cohort%leaf_carbon(i2), 1.0e-12_wp, &
                        'PFT 2 leaf water is capped at its own saturation')
    end block
 
-   !=== 6. The PFT-parameter CSV dump has as many values as it has column headers. ==========!
-   !        A Fortran format SHORTER than its output list does not fail: it REVERTS to the last  !
-   !        repeat group and keeps going, so an integer edit descriptor silently receives a real  !
-   !        and prints its bit pattern, and the trailing columns disappear. Adding PFT traits     !
-   !        without widening the format does exactly that, and nothing else in the suite notices, !
-   !        because the run completes and every budget still closes. Counting the two lines is   !
-   !        the whole test.                                                                       !
+   !---~---
+   !   6. The PFT-parameter CSV dump has as many values as it has column headers.
+   ! A Fortran format SHORTER than its output list does not fail: it REVERTS to the last
+   ! repeat group and keeps going, so an integer edit descriptor silently receives a real
+   ! and prints its bit pattern, and the trailing columns disappear. Adding PFT traits
+   ! without widening the format does exactly that, and nothing else in the suite notices,
+   ! because the run completes and every budget still closes. Counting the two lines is
+   ! the whole test.
+   !---~---
    block
       character(len=:), allocatable :: csvfile
       character(len=8192) :: head_line, val_line
@@ -212,8 +226,10 @@ program test_pft_config
       nval  = count_fields(val_line)
       call check(nhead == nval, 'PFT CSV: header column count must equal the value count')
       if (nhead /= nval) print '(a,i0,a,i0)', '   header fields = ', nhead, ', value fields = ', nval
-      !----- And no field may be a bit pattern: every value is either an integer or es15.8, so a  !
-      !      19-digit run of digits is the format-reversion signature, not a real number. --------!
+      !---~---
+      !   And no field may be a bit pattern: every value is either an integer or es15.8, so a
+      ! 19-digit run of digits is the format-reversion signature, not a real number.
+      !---~---
       call check(index(val_line, '4605380978949069210') == 0,                                     &
                  'PFT CSV: a real printed through an integer descriptor (format reversion)')
    end block
@@ -222,9 +238,11 @@ program test_pft_config
 
 contains
 
-   !----- 1. ed_config_main.toml and the PFT file it names, loaded as a run loads them, against    !
-   !      the PFT file read on its own: the PFT count, every optics key of [pft] and every key of  !
-   !      [hydraulics] for every PFT, and the two-stream table's optics for every PFT. ----------!
+   !---~---
+   !   1. ed_config_main.toml and the PFT file it names, loaded as a run loads them, against
+   ! the PFT file read on its own: the PFT count, every optics key of [pft] and every key of
+   ! [hydraulics] for every PFT, and the two-stream table's optics for every PFT.
+   !---~---
    subroutine test_shipped_pft_file()
       type(ed_config_t)   :: shipped
       type(toml_table_t)  :: t
@@ -268,9 +286,11 @@ contains
          call check_key(t, 'hydraulics.root_depth_b2',        p%hydro(1:p%n)%root_depth_b2,            p%n)
          call check_key(t, 'hydraulics.specific_root_length', p%hydro(1:p%n)%specific_root_length,     p%n)
          call check_key(t, 'hydraulics.fine_root_radius',     p%hydro(1:p%n)%fine_root_radius,         p%n)
-         !----- The two-stream table: a leaf's single-scatter albedo is its reflectance plus its   !
-         !      transmittance in each shortwave band and 1 - emissivity in the thermal one, and its  !
-         !      clumping is its own, for every shipped PFT. -------------------------------------!
+         !---~---
+         !   The two-stream table: a leaf's single-scatter albedo is its reflectance plus its
+         ! transmittance in each shortwave band and 1 - emissivity in the thermal one, and its
+         ! clumping is its own, for every shipped PFT.
+         !---~---
          do ip = 1_ik, p%n
             call check_close(p%optics%omega_leaf(RAD_VIS, ip), p%leaf_reflect_vis(ip) + p%leaf_transmit_vis(ip),   &
                              1.0e-12_wp, 'a shipped PFT''s VIS optics did not reach the two-stream table')
@@ -285,8 +305,10 @@ contains
       end associate
    end subroutine test_shipped_pft_file
 
-   !----- A per-PFT key of the PFT file against what the loader put in the configuration: a list    !
-   !      gives each PFT its own value, one value gives every PFT the same. --------------------!
+   !---~---
+   !   A per-PFT key of the PFT file against what the loader put in the configuration: a list
+   ! gives each PFT its own value, one value gives every PFT the same.
+   !---~---
    subroutine check_key(t, key, loaded, npft)
       type(toml_table_t), intent(in) :: t
       character(len=*),   intent(in) :: key

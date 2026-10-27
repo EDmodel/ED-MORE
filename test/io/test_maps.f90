@@ -1,22 +1,22 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! test_maps -- ed_maps, the one module that reads static per-cell maps (docs/configuration.md §Input   !
-! maps), on the synthetic archive's 4 x 18 grid.                                                      !
-!                                                                                          !
-! A 2-D map is read at a box's cells, each at its own (row, col); a cell the map leaves empty reads  !
-! as NaN. A layered map gives every layer at every cell. A map off the forcing grid, a missing       !
-! variable and a missing file are refused, each with its own status. The cell mask keeps the cells   !
-! at or above its threshold, drops the empty one, and leaves the kept cells grouped by chunk the way !
-! the forcing reader needs them.                                                                    !
-!                                                                                          !
-! The [maps] inputs: a run cell the soil maps leave empty is named, in a 2-D map and in a layered    !
-! one; every value is read at its own cell; a column layer takes the map layers it overlaps,         !
-! weighted by the overlap, and below the deepest map layer that layer's soil; the bottom boundary    !
-! and the thermal anchor follow the map (the anchor's distance is docs/science/soil_biophysics.md    !
-! eq. (13)): a leaky base drains at its cell's f_leak, a free one at 1 and a sealed one at 0, and a  !
-! leaky f_leak outside (0, 1] is refused.                                                            !
-! The work directory is the first argument.                                                          !
-!==========================================================================================!
+!---~---
+!   test_maps -- ed_maps, the one module that reads static per-cell maps (docs/configuration.md §Input
+! maps), on the synthetic archive's 4 x 18 grid.
+!
+!   A 2-D map is read at a box's cells, each at its own (row, col); a cell the map leaves empty reads
+! as NaN. A layered map gives every layer at every cell. A map off the forcing grid, a missing
+! variable and a missing file are refused, each with its own status. The cell mask keeps the cells
+! at or above its threshold, drops the empty one, and leaves the kept cells grouped by chunk the way
+! the forcing reader needs them.
+!
+!   The [maps] inputs: a run cell the soil maps leave empty is named, in a 2-D map and in a layered
+! one; every value is read at its own cell; a column layer takes the map layers it overlaps,
+! weighted by the overlap, and below the deepest map layer that layer's soil; the bottom boundary
+! and the thermal anchor follow the map (the anchor's distance is docs/science/soil_biophysics.md
+! eq. (13)): a leaky base drains at its cell's f_leak, a free one at 1 and a sealed one at 0, and a
+! leaky f_leak outside (0, 1] is refused.
+! The work directory is the first argument.
+!---~---
 program test_maps
    use, intrinsic :: ieee_arithmetic, only : ieee_is_nan
    use ed_kinds,                   only : wp, ik
@@ -60,11 +60,11 @@ program test_maps
    call write_static(static, .true.)
    grid = archive_grid(static)
 
-   !----- The box: rows 0-3 (45 .. 15 N) and columns 0-3 (180 .. 120 W), every cell valid. ---------!
+   !--- The box: rows 0-3 (45 .. 15 N) and columns 0-3 (180 .. 120 W), every cell valid.
    call select_box_cells(grid, [45.0_wp, -180.0_wp, 15.0_wp, -120.0_wp], cells, st)
    call check_true('the box selects its 16 cells', st == GRID_OK .and. cells%ncell == 16_ik)
 
-   !----- A 2-D map: 100 row + col, with (row 1, col 2) left empty. ----------------------------------!
+   !--- A 2-D map: 100 row + col, with (row 1, col 2) left empty.
    do r = 0_ik, NLAT - 1_ik
       do c = 0_ik, NLON - 1_ik
          grid2(c + 1_ik, r + 1_ik, 1) = 100.0_wp * real(r, wp) + real(c, wp)
@@ -84,7 +84,7 @@ program test_maps
    end do
    call check_true('each cell reads its own (row, col); the empty cell reads NaN', ok)
 
-   !----- A layered map: 1000 layer + 100 row + col. -----------------------------------------------!
+   !--- A layered map: 1000 layer + 100 row + col.
    do l = 1_ik, NL
       grid3(:, :, l) = grid2(:, :, 1) + 1000.0_wp * real(l, wp)
    end do
@@ -105,7 +105,7 @@ program test_maps
    end do
    call check_true('every layer of every cell, NaN where empty', ok)
 
-   !----- Refusals. ---------------------------------------------------------------------------------!
+   !--- Refusals.
    call write_map(trim(work)//'/offgrid.nc', 'value', grid2, FILL, lat_shift=0.05_wp)
    call map_values_at_cells(trim(work)//'/offgrid.nc', 'value', grid, cells, v, st)
    call check_true('a map off the forcing grid is refused', st == MAP_ERR_GRID)
@@ -116,7 +116,7 @@ program test_maps
    call map_values_at_cells(trim(work)//'/none.nc', 'value', grid, cells, v, st)
    call check_true('a missing file is refused', st == MAP_ERR_OPEN)
 
-   !----- The cell mask: keep the even columns at a 0.5 threshold; the empty cell is dropped. --------!
+   !--- The cell mask: keep the even columns at a 0.5 threshold; the empty cell is dropped.
    do c = 0_ik, NLON - 1_ik
       grid2(c + 1_ik, :, 1) = merge(1.0_wp, 0.0_wp, modulo(c, 2_ik) == 0_ik)
    end do
@@ -133,7 +133,7 @@ program test_maps
    call check_true('the kept cells keep their order', all(masked%row(2:) >= masked%row(:masked%ncell - 1_ik)))
    call check_true('the kept cells are regrouped by chunk', masked%chunk_first(masked%nchunk + 1_ik) - 1_ik  &
                    == masked%ncell .and. size(masked%by_chunk) == masked%ncell)
-   !----- A fraction and a threshold: 0.1 col, kept at >= 0.25, so columns 3 and up. -----------------!
+   !--- A fraction and a threshold: 0.1 col, kept at >= 0.25, so columns 3 and up.
    do c = 0_ik, NLON - 1_ik
       grid2(c + 1_ik, :, 1) = 0.1_wp * real(c, wp)
    end do
@@ -143,7 +143,7 @@ program test_maps
    call check_true('a fraction map with a threshold keeps column 3 only', st == MAP_OK .and.               &
                    masked%ncell == 4_ik .and. all(masked%col == 3_ik))
 
-   !----- The [maps] inputs. The box holds (row 2, col 0), which the maps leave empty: named. ------!
+   !--- The [maps] inputs. The box holds (row 2, col 0), which the maps leave empty: named.
    call write_surface_maps(trim(work)//'/surface')
    opts%soil_depth_map     = trim(work)//'/surface/soil_depth.nc'
    opts%soil_texture_map   = trim(work)//'/surface/soil_texture.nc'
@@ -171,7 +171,7 @@ program test_maps
    end do
    call check_true('every value is its own cell''s', ok)
 
-   !----- Cell (1, 0): 1.1 m deep, so 5 layers, the last 0.6-1.1 m: 0.4 m of map layer 5 and 0.1 m of 6. !
+   !--- Cell (1, 0): 1.1 m deep, so 5 layers, the last 0.6-1.1 m: 0.4 m of map layer 5 and 0.1 m of 6.
    do k = 1_ik, masked%ncell
       if (masked%row(k) == 1_ik .and. masked%col(k) == 0_ik) exit
    end do
@@ -210,8 +210,10 @@ program test_maps
                    close(cfg%soil%deep_depth, 0.85_wp + ANNUAL_DAMPING_DEPTH / sqrt(2.0_wp)))
    call check_true('Chave''s E is the cell''s', close(cfg%pft%allom(1)%chave_e, chave_e_at(1_ik, 0_ik)))
 
-   !----- Rows 2-3, columns 14-17: cell (3, 17) is 2.55 m deep, 8 layers, the last 2.0-2.55 m, below    !
-   !      the maps' 2 m: it takes the deepest map layer's soil. Its bottom is (3 + 17) mod 4 + 1 = 1. ---!
+   !---~---
+   !   Rows 2-3, columns 14-17: cell (3, 17) is 2.55 m deep, 8 layers, the last 2.0-2.55 m, below
+   ! the maps' 2 m: it takes the deepest map layer's soil. Its bottom is (3 + 17) mod 4 + 1 = 1.
+   !---~---
    call select_box_cells(grid, [26.0_wp, 99.0_wp, 14.0_wp, 161.0_wp], cells, st)
    call read_map_inputs(opts, grid, cells, inp, msg)
    do k = 1_ik, cells%ncell
@@ -238,8 +240,10 @@ program test_maps
    call apply_map_inputs(inp, k, cfg2)
    call check_true('an aquifer bottom is an aquifer', cfg2%soil%water_bottom_bc == SOIL_BC_AQUIFER)
 
-   !----- A leaky base's factor must be a fraction of free drainage: f_leak = 0 is refused, naming   !
-   !      the cell. ------------------------------------------------------------------------------------!
+   !---~---
+   !   A leaky base's factor must be a fraction of free drainage: f_leak = 0 is refused, naming
+   ! the cell.
+   !---~---
    call write_surface_maps(trim(work)//'/surface_f0', f_leak=0.0_wp)
    opts%soil_depth_map     = trim(work)//'/surface_f0/soil_depth.nc'
    call read_map_inputs(opts, grid, cells, inp, msg)
@@ -247,8 +251,10 @@ program test_maps
                    index(msg, 'f_leak is not in (0, 1] at the cell (25.00, 120.00) (row 2, col 15), '//   &
                          'whose base is leaky') > 0)
 
-   !----- A run cell a layered map leaves empty is named too: a texture map without sand at       !
-   !      (row 1, col 0), read at the first box's 15 cells, whose depths the depth map gives. -----!
+   !---~---
+   !   A run cell a layered map leaves empty is named too: a texture map without sand at
+   ! (row 1, col 0), read at the first box's 15 cells, whose depths the depth map gives.
+   !---~---
    call write_surface_maps(trim(work)//'/surface_gap', gap=[1_ik, 0_ik])
    opts%soil_depth_map   = trim(work)//'/surface/soil_depth.nc'
    opts%soil_texture_map = trim(work)//'/surface_gap/soil_texture.nc'

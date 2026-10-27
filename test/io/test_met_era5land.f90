@@ -1,13 +1,13 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! test_met_era5land -- the ED_ERA5land archive backend of the met reader                   !
-! (docs/science/forcing.md §1, §2 and §9). A tiny synthetic archive is written through the !
-! netCDF C API: a 4 x 18 grid (10 deg x 20 deg) spanning the antimeridian and two 16-cell  !
-! chunk columns wide, every month of 2021 and January 2022, two no-data cells, and values  !
-! that are analytic functions of cell and hour, so every check below has a known answer.   !
-! It is read back through met_open / met_advance / met_instant and through the reader's    !
-! own selection and month-load routines.                                                   !
-!==========================================================================================!
+!---~---
+!   test_met_era5land -- the ED_ERA5land archive backend of the met reader
+! (docs/science/forcing.md §1, §2 and §9). A tiny synthetic archive is written through the
+! netCDF C API: a 4 x 18 grid (10 deg x 20 deg) spanning the antimeridian and two 16-cell
+! chunk columns wide, every month of 2021 and January 2022, two no-data cells, and values
+! that are analytic functions of cell and hour, so every check below has a known answer.
+! It is read back through met_open / met_advance / met_instant and through the reader's
+! own selection and month-load routines.
+!---~---
 program test_met_era5land
    use ed_test_assert,       only : check, check_true, test_report
    use ed_kinds,             only : wp, ik
@@ -46,8 +46,10 @@ program test_met_era5land
 
 contains
 
-   !----- What the driver does around a step: prefetch the day's forcing (the step's I/O), then   !
-   !      advance and sample inside it with no file access. Returns the instantaneous forcing.  ----!
+   !---~---
+   !   What the driver does around a step: prefetch the day's forcing (the step's I/O), then
+   ! advance and sample inside it with no file access. Returns the instantaneous forcing.
+   !---~---
    function step_sample(src, cur, t) result(met)
       type(met_source_t), intent(inout) :: src
       type(met_cursor_t), intent(inout) :: cur
@@ -61,7 +63,7 @@ contains
       if (src%n_loads /= loads) error stop 'test_met_era5land: the reader loaded a month inside a step'
    end function step_sample
 
-   !----- The site's cursor into an opened source: cell 1, at the config's location. ---------------!
+   !--- The site's cursor into an opened source: cell 1, at the config's location.
    subroutine site_cursor(src, cur, fc)
       type(met_source_t),     intent(in)  :: src
       type(met_cursor_t),     intent(out) :: cur
@@ -70,9 +72,7 @@ contains
                            fc%elevation)
    end subroutine site_cursor
 
-   !=======================================================================================!
-   !  1. Templates.                                                                              !
-   !=======================================================================================!
+   !--- 1. Templates.
    subroutine test_paths()
       print '(a)', '-- era5land 1: path templates --'
       call check_true('default template',                                                        &
@@ -83,9 +83,7 @@ contains
          == '/d/2021/u10_202112.nc')
    end subroutine test_paths
 
-   !=======================================================================================!
-   !  2. Site -> cell: its own cell when valid, else the nearest valid one within the limit.     !
-   !=======================================================================================!
+   !--- 2. Site -> cell: its own cell when valid, else the nearest valid one within the limit.
    subroutine test_site_selection()
       type(met_cells_t) :: dom
       real(wp)    :: d
@@ -99,8 +97,10 @@ contains
       call check_true('a site reads a 1 x 1 box', dom%nchunk == 1_ik .and. dom%chunk_nrow(1) == 1_ik  &
                       .and. dom%chunk_ncol(1) == 1_ik .and. dom%chunk_row(1) == 1_ik .and. dom%chunk_col(1) == 3_ik)
 
-      !----- (0,5) has no data. Its nearest valid neighbour is (1,5), 10 deg of latitude south   !
-      !      (1112 km), not (0,4) or (0,6), 20 deg of longitude away at 45 N (about 1570 km). ------!
+      !---~---
+      !   (0,5) has no data. Its nearest valid neighbour is (1,5), 10 deg of latitude south
+      ! (1112 km), not (0,4) or (0,6), 20 deg of longitude away at 45 N (about 1570 km).
+      !---~---
       call select_site_cell(archive_grid(DIR//'/ED_ERA5land_static.nc'), 45.0_wp, -80.0_wp, 2000.0_wp, dom, d, st)
       call check_true('a no-data site takes the nearest valid cell', st == GRID_OK                &
                       .and. dom%row(1) == 1_ik .and. dom%col(1) == 5_ik)
@@ -109,10 +109,10 @@ contains
       call check_true('no valid cell within the limit is an error', st == GRID_ERR_NO_CELL)
    end subroutine test_site_selection
 
-   !=======================================================================================!
-   !  3. Box: valid cells in row-major order, across the antimeridian; and a month load of      !
-   !     them, which reads one chunk column per touched chunk.                                   !
-   !=======================================================================================!
+   !---~---
+   !   3. Box: valid cells in row-major order, across the antimeridian; and a month load of
+   !    them, which reads one chunk column per touched chunk.
+   !---~---
    subroutine test_box_selection()
       type(met_cells_t) :: dom
       type(met_month_t)  :: buf
@@ -122,22 +122,26 @@ contains
       print '(a)', '-- era5land 3: box selection and month load --'
       across = [40.0_wp, 150.0_wp, 20.0_wp, -150.0_wp]
       inside = [50.0_wp, -130.0_wp, 10.0_wp, -90.0_wp]
-      !----- [N, W, S, E] = [40, 150, 20, -150]: rows 35 and 25 N; columns 160 E, then -180 and  !
-      !      -160 across 180. (2,0) has no data, so 5 cells.                                        !
+      !---~---
+      !   [N, W, S, E] = [40, 150, 20, -150]: rows 35 and 25 N; columns 160 E, then -180 and
+      ! -160 across 180. (2,0) has no data, so 5 cells.
+      !---~---
       call select_box_cells(archive_grid(DIR//'/ED_ERA5land_static.nc'), across, dom, st)
       call check_true('box across 180: 5 valid cells', st == GRID_OK .and. dom%ncell == 5_ik)
       call check_true('row-major, west to east across 180',                                      &
                       all(dom%row == [1_ik, 1_ik, 1_ik, 2_ik, 2_ik]) .and.                        &
                       all(dom%col == [17_ik, 0_ik, 1_ik, 17_ik, 1_ik]))
       call check_true('two chunk columns touched', dom%nchunk == 2_ik)
-      !----- Each chunk reads only its cells' box: rows 1-2 x cols 0-1 west of 180, rows 1-2 x col 17 east. !
+      !--- Each chunk reads only its cells' box: rows 1-2 x cols 0-1 west of 180, rows 1-2 x col 17 east.
       call check_true('each chunk reads only the box of its cells',                                &
                       all(dom%chunk_row == [1_ik, 1_ik]) .and. all(dom%chunk_col == [0_ik, 17_ik]) .and. &
                       all(dom%chunk_nrow == [2_ik, 2_ik]) .and. all(dom%chunk_ncol == [2_ik, 1_ik]))
       call select_box_cells(archive_grid(DIR//'/ED_ERA5land_static.nc'), inside, dom, st)
       call check_true('box not across 180: 4 rows x 2 columns', st == GRID_OK .and. dom%ncell == 8_ik)
-      !----- A region's selection rule: column 1 is 30% land, so land_fraction_min = 0.5 drops     !
-      !      its two cells and keeps the order of the rest. -----------------------------------------!
+      !---~---
+      !   A region's selection rule: column 1 is 30% land, so land_fraction_min = 0.5 drops
+      ! its two cells and keeps the order of the rest.
+      !---~---
       call select_box_cells(archive_grid(DIR//'/ED_ERA5land_static.nc'), across, dom, st, land_fraction_min=0.5_wp)
       call check_true('land_fraction_min drops the mostly-water cells',                            &
                       st == GRID_OK .and. dom%ncell == 3_ik .and.                                   &
@@ -156,11 +160,11 @@ contains
                  field(ERA_PSURF, 1_ik, 1_ik, g + 299_ik), 1.0e-9_wp)
    end subroutine test_box_selection
 
-   !=======================================================================================!
-   !  4. ED-MORE never gap-fills (docs/science/forcing.md §10): a selected cell with no data !
-   !     is an error, never a fill. The second static file claims data at (0,5), where the !
-   !     month files hold NaN.                                                             !
-   !=======================================================================================!
+   !---~---
+   !   4. ED-MORE never gap-fills (docs/science/forcing.md §10): a selected cell with no data
+   !    is an error, never a fill. The second static file claims data at (0,5), where the
+   !    month files hold NaN.
+   !---~---
    subroutine test_nan_rejected()
       type(met_cells_t) :: dom
       type(met_month_t)  :: buf
@@ -174,9 +178,11 @@ contains
       call check_true('and the message names the variable', index(msg, 'Tair') > 0)
    end subroutine test_nan_rejected
 
-   !----- 4b. A missing value is recognised as NaN only, so a file whose _FillValue is a number would  !
-   !      pass that number off as data: it is refused. One month of every variable is                !
-   !      written again, into a directory of its own, declaring _FillValue = -9999. -----------------!
+   !---~---
+   !   4b. A missing value is recognised as NaN only, so a file whose _FillValue is a number would
+   ! pass that number off as data: it is refused. One month of every variable is
+   ! written again, into a directory of its own, declaring _FillValue = -9999.
+   !---~---
    subroutine test_fill_rejected()
       character(len=*), parameter :: DIR2 = 'era5land_test_fill_tmp'
       type(met_cells_t) :: dom
@@ -197,7 +203,7 @@ contains
       call check_true('the same month without the attribute loads', st == ERA_OK)
    end subroutine test_fill_rejected
 
-   !----- A reader config on the synthetic archive at the valid cell (1,3), 35 N 120 W. ----------!
+   !--- A reader config on the synthetic archive at the valid cell (1,3), 35 N 120 W.
    function archive_config() result(fc)
       type(forcing_params_t) :: fc
       fc%format = MET_BACKEND_ERA5LAND
@@ -212,10 +218,10 @@ contains
       fc%start_clamp = CLAMP_ERROR
    end function archive_config
 
-   !=======================================================================================!
-   !  5. The driver over a month boundary: conversions, the seam bracket, the wind vector, and  !
-   !     the static elevation.                                                                   !
-   !=======================================================================================!
+   !---~---
+   !   5. The driver over a month boundary: conversions, the seam bracket, the wind vector, and
+   !    the static elevation.
+   !---~---
    subroutine test_driver_months()
       type(met_source_t)     :: src
       type(met_cursor_t)     :: cur
@@ -235,7 +241,7 @@ contains
       call check('grid_elevation from the static file', cur%grid_elevation_m, 103.0_wp, 1.0e-6_wp)
       call check_true('the archive supplies the wind vector', src%has_wind_vector)
 
-      !----- At a stamp every weight is 0, so the record comes through untouched. ---------------!
+      !--- At a stamp every weight is 0, so the record comes through untouched.
       t = ed_time_t(2021_ik, 1_ik, 20_ik, 6_ik)
       g = hour_index(t)
       met = step_sample(src, cur, t)
@@ -250,14 +256,14 @@ contains
       call check('speed from the components', met%wind, sqrt(u1**2 + v1**2), 1.0e-12_wp)
       call check_true('the instant carries the vector', met%has_wind_vector)
 
-      !----- Inside January's file: 31 Jan 23:30 sits between 23:00 and 00:00 (both January). --!
+      !--- Inside January's file: 31 Jan 23:30 sits between 23:00 and 00:00 (both January).
       t = ed_time_t(2021_ik, 1_ik, 31_ik, 23_ik, 30_ik)
       g = hour_index(ed_time_t(2021_ik, 1_ik, 31_ik, 23_ik))
       met = step_sample(src, cur, t)
       call check('31 Jan 23:30 interpolates inside the January file', met%air_temp,                 &
                  0.5_wp * (field(ERA_TAIR, 1_ik, 3_ik, g) + field(ERA_TAIR, 1_ik, 3_ik, g + 1_ik)), 1.0e-9_wp)
 
-      !----- The seam: 1 Feb 00:00 is January's last record, 01:00 February's first. -----------!
+      !--- The seam: 1 Feb 00:00 is January's last record, 01:00 February's first.
       t = ed_time_t(2021_ik, 2_ik, 1_ik, 0_ik, 30_ik)
       g = hour_index(ed_time_t(2021_ik, 2_ik, 1_ik))
       met = step_sample(src, cur, t)
@@ -271,16 +277,20 @@ contains
       call check('the vector interpolates linearly (v)', met%wind_v, 0.5_wp * (v1 + v2), 1.0e-12_wp)
       call check_true('the energy-form speed is at least the vector''s length',                    &
                       met%wind >= sqrt(met%wind_u**2 + met%wind_v**2) - 1.0e-12_wp)
-      !----- January loaded at open, February at its first day's prefetch; the seam's 00:00          !
-      !      record came from January's buffer, not from a second read. -----------------------------!
+      !---~---
+      !   January loaded at open, February at its first day's prefetch; the seam's 00:00
+      ! record came from January's buffer, not from a second read.
+      !---~---
       call check_true('each month read once: January, then February', src%n_loads == 2_ik,          &
                       real(src%n_loads, wp))
       call met_close(src)
 
-      !----- The TERRAIN lapse (docs/science/forcing.md §8, eqs. (13)-(14)): a site 500 m above its  !
-      !      cell, in January, with twelve distinct monthly rates. T by January's rate, P               !
-      !      hydrostatically, q at constant relative humidity, file LW by eps*T^4. The reader leaves    !
-      !      the wind alone: the move to the canopy-air top is per patch, in the fast loop. ------------!
+      !---~---
+      !   The TERRAIN lapse (docs/science/forcing.md §8, eqs. (13)-(14)): a site 500 m above its
+      ! cell, in January, with twelve distinct monthly rates. T by January's rate, P
+      ! hydrostatically, q at constant relative humidity, file LW by eps*T^4. The reader leaves
+      ! the wind alone: the move to the canopy-air top is per patch, in the fast loop.
+      !---~---
       fc%apply_elevation_lapse = .true.
       fc%lapse_rate_tair = [(0.0040_wp + 0.0002_wp * real(k, wp), k = 1, 12)]   ! January: 0.0042 K/m
       call met_open(src, fc, stat=st, run_start=ed_time_t(2021_ik, 1_ik, 15_ik),               &
@@ -314,10 +324,10 @@ contains
       call met_close(src)
    end subroutine test_driver_months
 
-   !=======================================================================================!
-   !  6. Recycling across the months of a declared window, including the year-end seam, which   !
-   !     brackets December's last record (2022-01-01 00:00) and January's first.                 !
-   !=======================================================================================!
+   !---~---
+   !   6. Recycling across the months of a declared window, including the year-end seam, which
+   !    brackets December's last record (2022-01-01 00:00) and January's first.
+   !---~---
    subroutine test_driver_recycle()
       type(met_source_t)     :: src
       type(met_cursor_t)     :: cur
@@ -343,8 +353,10 @@ contains
       call check('the year-end seam brackets December''s last and January''s first record',       &
                  met%air_temp, 0.5_wp * (field(ERA_TAIR, 1_ik, 3_ik, 8759_ik) + field(ERA_TAIR, 1_ik, 3_ik, 0_ik)), &
                  1.0e-9_wp)
-      !----- Walk the model from 2036-12-30 across the wrap day by day: the wrap step needs December's  !
-      !      last record and January, and the reader reads January once more, not December again. ---!
+      !---~---
+      !   Walk the model from 2036-12-30 across the wrap day by day: the wrap step needs December's
+      ! last record and January, and the reader reads January once more, not December again.
+      !---~---
       block
          integer(ik) :: loads
          t = ed_time_t(2036_ik,   12_ik, 30_ik, 12_ik)
@@ -362,10 +374,10 @@ contains
       call met_close(src)
    end subroutine test_driver_recycle
 
-   !=======================================================================================!
-   !  7. Rejected at open: a month the archive lacks, total shortwave read as components, and  !
-   !     a site with no valid cell in reach.                                                     !
-   !=======================================================================================!
+   !---~---
+   !   7. Rejected at open: a month the archive lacks, total shortwave read as components, and
+   !    a site with no valid cell in reach.
+   !---~---
    subroutine test_driver_rejections()
       type(met_source_t)     :: src
       type(forcing_params_t) :: fc
@@ -387,11 +399,11 @@ contains
       call check_true('a site with no valid cell within max_distance_km is rejected', st == MET_ERR_ARCHIVE)
    end subroutine test_driver_rejections
 
-   !=======================================================================================!
-   !  8. One source, many cursors (docs/science/forcing.md §2): a region opens the archive       !
-   !     once for its cells, and each polygon walks it with its own cursor. Each cursor must read !
-   !     what a site run at its cell reads, bit for bit, and one prefetch must serve them all.    !
-   !=======================================================================================!
+   !---~---
+   !   8. One source, many cursors (docs/science/forcing.md §2): a region opens the archive
+   !    once for its cells, and each polygon walks it with its own cursor. Each cursor must read
+   !    what a site run at its cell reads, bit for bit, and one prefetch must serve them all.
+   !---~---
    subroutine test_region_cursors()
       integer(ik), parameter :: PICK(2) = [2_ik, 5_ik], PR(2) = [1_ik, 2_ik], PC(2) = [0_ik, 1_ik]
       type(met_source_t)     :: region, site(2)
@@ -403,8 +415,10 @@ contains
       integer(ik) :: st, k, j, loads
       logical     :: same
       print '(a)', '-- era5land 8: one region source, one cursor per polygon --'
-      !----- The box across 180 from test 3: (1,17), (1,0), (1,1), (2,17), (2,1). Polygons at the   !
-      !      second and fifth cells, (1,0) and (2,1); a site run at each cell for comparison. ------!
+      !---~---
+      !   The box across 180 from test 3: (1,17), (1,0), (1,1), (2,17), (2,1). Polygons at the
+      ! second and fifth cells, (1,0) and (2,1); a site run at each cell for comparison.
+      !---~---
       call select_box_cells(archive_grid(DIR//'/ED_ERA5land_static.nc'), [40.0_wp, 150.0_wp, 20.0_wp, -150.0_wp], &
                                cells, st)
       fc = archive_config()
@@ -424,7 +438,7 @@ contains
       call check('the first cursor takes its cell''s orography', cur(1)%grid_elevation_m, 100.0_wp, 1.0e-6_wp)
       call check('the second cursor takes its cell''s orography', cur(2)%grid_elevation_m, 201.0_wp, 1.0e-6_wp)
 
-      !----- A stamp, a mid-month interpolation and the February seam. ----------------------------!
+      !--- A stamp, a mid-month interpolation and the February seam.
       times = [ed_time_t(2021_ik, 1_ik, 20_ik, 6_ik), ed_time_t(2021_ik, 1_ik, 31_ik, 23_ik, 30_ik), &
                ed_time_t(2021_ik, 2_ik, 1_ik, 0_ik, 30_ik)]
       same = .true.
@@ -455,9 +469,11 @@ contains
       call met_close(region)
       call met_close(site(1))
 
-      !----- A source closed and opened again starts clean (the C API reuses a run's source): on the  !
-      !      second cell, a fresh cursor's first bracket at 1 Feb 00:30 needs January's last record,  !
-      !      which would be the first cell's if met_close left the carried record behind.  -------------!
+      !---~---
+      !   A source closed and opened again starts clean (the C API reuses a run's source): on the
+      ! second cell, a fresh cursor's first bracket at 1 Feb 00:30 needs January's last record,
+      ! which would be the first cell's if met_close left the carried record behind.
+      !---~---
       fc = archive_config()
       fc%latitude = cells%lat(PICK(2))
       fc%longitude = cells%lon(PICK(2))
@@ -473,14 +489,14 @@ contains
       call met_close(site(2))
    end subroutine test_region_cursors
 
-   !=======================================================================================!
-   !  9. Recycle windows starting at other record stamps. Only a window starting at 01:00 puts  !
-   !     the seam at the start of a daily step. A midnight anchor puts it at the end of one, and  !
-   !     any other hour inside one, whose remaining hours read the window's first day while the  !
-   !     buffer holds the window's last month. Neither may load inside the step. The third        !
-   !     window starts at 00:00 on the 1st, as a region's may: its first record is carried into   !
-   !     the next month without reading the month before it again.                               !
-   !=======================================================================================!
+   !---~---
+   !   9. Recycle windows starting at other record stamps. Only a window starting at 01:00 puts
+   !    the seam at the start of a daily step. A midnight anchor puts it at the end of one, and
+   !    any other hour inside one, whose remaining hours read the window's first day while the
+   !    buffer holds the window's last month. Neither may load inside the step. The third
+   !    window starts at 00:00 on the 1st, as a region's may: its first record is carried into
+   !    the next month without reading the month before it again.
+   !---~---
    subroutine test_driver_recycle_anchors()
       type(met_source_t)     :: src
       type(met_cursor_t)     :: cur
@@ -492,7 +508,7 @@ contains
       fc = archive_config()
       fc%recycle = .true.
 
-      !----- 2021-01-02 00:00 .. 2022-01-02 00:00: the seam, 2022-01-01 23:00 + 1 h, ends a step. ---!
+      !--- 2021-01-02 00:00 .. 2022-01-02 00:00: the seam, 2022-01-01 23:00 + 1 h, ends a step.
       fc%recycle_start = ed_time_t(2021_ik, 1_ik, 2_ik)
       fc%recycle_end = ed_time_t(2022_ik, 1_ik, 2_ik)
       call met_open(src, fc, stat=st)
@@ -511,8 +527,10 @@ contains
                       real(src%n_loads - loads, wp))
       call met_close(src)
 
-      !----- 2021-01-01 06:00 .. 2022-01-01 06:00: the seam, 2022-01-01 05:00 + 1 h, falls inside a day  !
-      !      whose last 18 hours are the window's first day. -------------------------------------------!
+      !---~---
+      !   2021-01-01 06:00 .. 2022-01-01 06:00: the seam, 2022-01-01 05:00 + 1 h, falls inside a day
+      ! whose last 18 hours are the window's first day.
+      !---~---
       fc%recycle_start = ed_time_t(2021_ik,   1_ik, 1_ik, 6_ik)
       fc%recycle_end   = ed_time_t(2022_ik,   1_ik, 1_ik, 6_ik)
       call met_open(src, fc, stat=st)
@@ -537,9 +555,11 @@ contains
       call check_true('... loaded once', src%n_loads == loads + 1_ik, real(src%n_loads - loads, wp))
       call met_close(src)
 
-      !----- 2021-02-01 00:00 .. 2022-02-01 00:00, walked as a region walks a month: one prefetch at  !
-      !      the month's start, and no later day of the month may load. The seam ends the month's last  !
-      !      day; the next month takes the window's first record from the kept day. -------------------!
+      !---~---
+      !   2021-02-01 00:00 .. 2022-02-01 00:00, walked as a region walks a month: one prefetch at
+      ! the month's start, and no later day of the month may load. The seam ends the month's last
+      ! day; the next month takes the window's first record from the kept day.
+      !---~---
       fc%recycle_start = ed_time_t(2021_ik, 2_ik, 1_ik)
       fc%recycle_end = ed_time_t(2022_ik, 2_ik, 1_ik)
       call met_open(src, fc, stat=st)
@@ -564,13 +584,13 @@ contains
       call met_close(src)
    end subroutine test_driver_recycle_anchors
 
-   !----- The site cell's Tair half an hour after stamp t: the mean of its record and the next. ----!
+   !--- The site cell's Tair half an hour after stamp t: the mean of its record and the next.
    real(wp) function pair_mean(t) result(x)
       type(ed_time_t), intent(in) :: t
       x = 0.5_wp * (field(ERA_TAIR, 1_ik, 3_ik, hour_index(t)) + field(ERA_TAIR, 1_ik, 3_ik, hour_index(t) + 1_ik))
    end function pair_mean
 
-   !----- Its Tair half an hour into the seam: the mean of the window's last record and its first. --!
+   !--- Its Tair half an hour into the seam: the mean of the window's last record and its first.
    real(wp) function seam_mean(t_last, t_first) result(x)
       type(ed_time_t), intent(in) :: t_last, t_first
       x = 0.5_wp * (field(ERA_TAIR, 1_ik, 3_ik, hour_index(t_last)) + field(ERA_TAIR, 1_ik, 3_ik, hour_index(t_first)))

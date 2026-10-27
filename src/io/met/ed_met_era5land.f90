@@ -1,13 +1,13 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! ed_met_era5land -- format = "ERA5land": the ERA5-Land archive, monthly files of          !
-! hourly fields over its global grid (docs/science/forcing.md §1-§2, with the files'       !
-! layout), laid end to end as one hourly axis over the months a run                        !
-! needs. era5land_open opens it, era5land_prefetch loads a month before the step that      !
-! reads it, and era5land_record hands the shared ingest one record's values as stored.     !
-! era5land_grid is its grid (ed_met_grid). A month load checks every file, and ED-MORE     !
-! never gap-fills: a NaN in a selected cell is an error, never a fill.                     !
-!==========================================================================================!
+!---~---
+!   ed_met_era5land -- format = "ERA5land": the ERA5-Land archive, monthly files of
+! hourly fields over its global grid (docs/science/forcing.md §1-§2, with the files'
+! layout), laid end to end as one hourly axis over the months a run
+! needs. era5land_open opens it, era5land_prefetch loads a month before the step that
+! reads it, and era5land_record hands the shared ingest one record's values as stored.
+! era5land_grid is its grid (ed_met_grid). A month load checks every file, and ED-MORE
+! never gap-fills: a NaN in a selected cell is an error, never a fill.
+!---~---
 module ed_met_era5land
    use, intrinsic :: ieee_arithmetic, only : ieee_is_nan
    use iso_c_binding,       only : c_int, c_size_t, c_double, c_float
@@ -35,7 +35,7 @@ module ed_met_era5land
    public :: ERA_VAR_NAME, ERA_VAR_UNITS, ERA_CHUNK
    public :: ERA_OK, ERA_ERR_OPEN, ERA_ERR_GRID, ERA_ERR_TIME, ERA_ERR_UNITS, ERA_ERR_NAN, ERA_ERR_FILL
 
-   !----- The archive's eight variables, their file names and the units the builder writes. -----!
+   !--- The archive's eight variables, their file names and the units the builder writes.
    integer(ik), parameter :: ERA_NVAR = 8_ik
    integer(ik), parameter :: ERA_TAIR = 1_ik, ERA_TDEW = 2_ik, ERA_PSURF = 3_ik, ERA_U10 = 4_ik,     &
                              ERA_V10 = 5_ik, ERA_RAINF = 6_ik, ERA_SWDOWN = 7_ik, ERA_LWDOWN = 8_ik
@@ -44,34 +44,34 @@ module ed_met_era5land
    character(len=10), parameter :: ERA_VAR_UNITS(ERA_NVAR) =                                       &
       ['K         ', 'K         ', 'Pa        ', 'm s-1     ', 'm s-1     ', 'kg m-2 s-1',           &
        'W m-2     ', 'W m-2     ']
-   !----- The archive's time coordinate is seconds since this instant. ---------------------------!
+   !--- The archive's time coordinate is seconds since this instant.
    type(ed_time_t), parameter :: ERA_EPOCH = ed_time_t(1970_ik, 1_ik, 1_ik, 0_ik, 0_ik, 0_ik)
-   integer(ik), parameter :: ERA_CHUNK = 16_ik     !< [cells] the files' chunk edge
-   real(wp),    parameter :: STAMP_TOL = 0.5_wp    !< [s] slack for "this record is that stamp"
+   integer(ik), parameter :: ERA_CHUNK = 16_ik     !--- [cells] the files' chunk edge
+   real(wp),    parameter :: STAMP_TOL = 0.5_wp    !--- [s] slack for "this record is that stamp"
 
-   !----- Status codes. --------------------------------------------------------------------------!
+   !--- Status codes.
    integer(ik), parameter :: ERA_OK          = 0_ik
-   integer(ik), parameter :: ERA_ERR_OPEN    = 1_ik   !< a file is missing or unreadable
-   integer(ik), parameter :: ERA_ERR_GRID    = 2_ik   !< a file's grid differs from the static file's
-   integer(ik), parameter :: ERA_ERR_TIME    = 3_ik   !< a month file's stamps are not that month's hours
-   integer(ik), parameter :: ERA_ERR_UNITS   = 4_ik   !< a variable's units attribute is not the expected one
-   integer(ik), parameter :: ERA_ERR_NAN     = 5_ik   !< a selected cell has a missing value
-   integer(ik), parameter :: ERA_ERR_FILL    = 6_ik   !< a variable's _FillValue is a number, not NaN
+   integer(ik), parameter :: ERA_ERR_OPEN    = 1_ik   !--- a file is missing or unreadable
+   integer(ik), parameter :: ERA_ERR_GRID    = 2_ik   !--- a file's grid differs from the static file's
+   integer(ik), parameter :: ERA_ERR_TIME    = 3_ik   !--- a month file's stamps are not that month's hours
+   integer(ik), parameter :: ERA_ERR_UNITS   = 4_ik   !--- a variable's units attribute is not the expected one
+   integer(ik), parameter :: ERA_ERR_NAN     = 5_ik   !--- a selected cell has a missing value
+   integer(ik), parameter :: ERA_ERR_FILL    = 6_ik   !--- a variable's _FillValue is a number, not NaN
 
 contains
 
-   !=======================================================================================!
-   !  OPEN the ED_ERA5land archive: its cells and month axis (open_archive), the           !
-   !  declared recycle window checked against that axis, and the axis's first month loaded,  !
-   !  with the window's first day kept for the recycle seam. A rejection returns its status   !
-   !  and the reason; the caller closes the source.                                        !
-   !=======================================================================================!
+   !---~---
+   !   OPEN the ED_ERA5land archive: its cells and month axis (open_archive), the
+   ! declared recycle window checked against that axis, and the axis's first month loaded,
+   ! with the window's first day kept for the recycle seam. A rejection returns its status
+   ! and the reason; the caller closes the source.
+   !---~---
    subroutine era5land_open(src, stat, why, run_start, run_end, cells)
       type(met_source_t),            intent(inout) :: src
       integer(ik),                   intent(out)   :: stat
-      character(len=:), allocatable, intent(out)   :: why    !< what stops the run when stat /= MET_OK
+      character(len=:), allocatable, intent(out)   :: why    !--- what stops the run when stat /= MET_OK
       type(ed_time_t),   optional,   intent(in)    :: run_start, run_end
-      type(met_cells_t), optional,   intent(in)    :: cells  !< a region's cells; absent: the site's
+      type(met_cells_t), optional,   intent(in)    :: cells  !--- a region's cells; absent: the site's
       why = ''
       call open_archive(src, run_start, run_end, stat, why, cells)
       if (stat == MET_OK) call validate_recycle_window(src, stat, why)
@@ -82,13 +82,13 @@ contains
       src%rec_first = 1_ik
    end subroutine era5land_open
 
-   !=======================================================================================!
-   !  PREFETCH from the archive: the month the step starting at `step_start` reads, and the    !
-   !  record before it (00:00 on the 1st, or the window's last record at the recycle wrap),     !
-   !  which comes from the outgoing month, so a run loads each month once                  !
-   !  (docs/science/forcing.md §2). It assumes the daily steps from midnight validate_config   !
-   !  requires of the archive.                                                             !
-   !=======================================================================================!
+   !---~---
+   !   PREFETCH from the archive: the month the step starting at `step_start` reads, and the
+   ! record before it (00:00 on the 1st, or the window's last record at the recycle wrap),
+   ! which comes from the outgoing month, so a run loads each month once
+   ! (docs/science/forcing.md §2). It assumes the daily steps from midnight validate_config
+   ! requires of the archive.
+   !---~---
    subroutine era5land_prefetch(src, step_start)
       type(met_source_t), intent(inout)  :: src
       type(ed_time_t),  intent(in)    :: step_start
@@ -122,9 +122,11 @@ contains
       if (.not. month_loaded(src, k)) call load_month_or_stop(src, k)
    end subroutine era5land_prefetch
 
-   !----- One record's values at the cursor's cell, as the archive stores them: the dewpoint    !
-   !      (converted in the shared ingest), the wind components with their speed, and the total  !
-   !      shortwave, never the four streams (open_archive refuses "passthrough"). ---------------!
+   !---~---
+   !   One record's values at the cursor's cell, as the archive stores them: the dewpoint
+   ! (converted in the shared ingest), the wind components with their speed, and the total
+   ! shortwave, never the four streams (open_archive refuses "passthrough").
+   !---~---
    subroutine era5land_record(src, cur, irec, rec, humidity_value, sw_total)
       type(met_source_t), intent(in)    :: src
       type(met_cursor_t), intent(in)    :: cur
@@ -144,12 +146,12 @@ contains
       sw_total     = archive_value(src, cur, h, ERA_SWDOWN)
    end subroutine era5land_record
 
-   !=======================================================================================!
-   !  ED_ERA5land OPEN: resolve the paths, take a region's cells or bind the site to its cell     !
-   !  (whose orography is the grid elevation the terrain lapse starts from), and lay the months   !
-   !  the run needs end to end as one hourly axis. Every month file is checked for existence      !
-   !  here, so a gap in the archive stops the run before it starts rather than decades into it.   !
-   !=======================================================================================!
+   !---~---
+   !   ED_ERA5land OPEN: resolve the paths, take a region's cells or bind the site to its cell
+   ! (whose orography is the grid elevation the terrain lapse starts from), and lay the months
+   ! the run needs end to end as one hourly axis. Every month file is checked for existence
+   ! here, so a gap in the archive stops the run before it starts rather than decades into it.
+   !---~---
    subroutine open_archive(src, run_start, run_end, stat, why, cells)
       type(met_source_t),            intent(inout) :: src
       type(ed_time_t), optional,   intent(in)      :: run_start, run_end
@@ -176,7 +178,7 @@ contains
          return
       end if
 
-      !----- The cells: a region's, selected by its caller, or the site's own. -------------------!
+      !--- The cells: a region's, selected by its caller, or the site's own.
       est = GRID_OK
       if (present(cells)) then
          src%cells = cells
@@ -202,12 +204,12 @@ contains
       src%ngrid = src%cells%ncell
       src%has_wind_vector = .true.
       src%humidity = HUMIDITY_TDEW                           ! the archive stores the 2 m dewpoint
-      !----- A caller that chose the cells reports them; the site's own choice is reported here. ---!
+      !--- A caller that chose the cells reports them; the site's own choice is reported here.
       if (.not. present(cells))                                                                 &
          write(*,'(a,f0.3,a,f0.3,a,f7.2,a,f0.1,a)') ' force : ED_ERA5land cell (', src%cells%lat(1), ', ',  &
                src%cells%lon(1), '), ', distance_km, ' km from the site; orography ', src%cells%elevation(1), ' m'
 
-      !----- The months: the declared recycle window, or the run period. ----------------------!
+      !--- The months: the declared recycle window, or the run period.
       if (f%recycle) then
          call archive_month_of(f%recycle_start, .false., y0, m0)
          call archive_month_of(time_advance_seconds(f%recycle_end, -src%dt_forcing), .false., y1, m1)
@@ -270,7 +272,7 @@ contains
          return
       end if
 
-      !----- The first month file describes the archive; check it against the config. ----------!
+      !--- The first month file describes the archive; check it against the config.
       path = era5land_path(src%file_template, f%data_path, 'Tair', y0, m0)
       st = nc_open_f(trim(path), NC_NOWRITE, ncid)
       if (st /= NC_NOERR) then
@@ -286,9 +288,11 @@ contains
       end associate
    end subroutine open_archive
 
-   !----- The archive month whose file holds the record at t, taken to the hour below (or above,   !
-   !      round_up) on the hourly grid. Files are end-stamped, so 00:00 on the 1st belongs to the   !
-   !      month before. -----------------------------------------------------------------------------!
+   !---~---
+   !   The archive month whose file holds the record at t, taken to the hour below (or above,
+   ! round_up) on the hourly grid. Files are end-stamped, so 00:00 on the 1st belongs to the
+   ! month before.
+   !---~---
    subroutine archive_month_of(t, round_up, year, month)
       type(ed_time_t),   intent(in)  :: t
       logical,           intent(in)  :: round_up
@@ -306,7 +310,7 @@ contains
       month = before%month
    end subroutine archive_month_of
 
-   !----- The axis month holding record irec (binary search: an axis can span decades). ----------!
+   !--- The axis month holding record irec (binary search: an axis can span decades).
    pure integer(ik) function axis_month_of(src, irec) result(k)
       type(met_source_t), intent(in)  :: src
       integer(ik),        intent(in) :: irec
@@ -336,10 +340,12 @@ contains
       yes = irec >= src%irec_cycle_first .and. irec < src%irec_cycle_first + src%n_head
    end function in_window_head
 
-   !----- Keep the recycle window's first day, from axis month 1 just loaded: its first record    !
-   !      through the next midnight, all in that month's file. The seam falls inside a daily step  !
-   !      unless the window starts at 01:00, and that step reads the window's last record, in the  !
-   !      axis's last month, and then these. A midnight anchor needs its one record.               !
+   !---~---
+   !   Keep the recycle window's first day, from axis month 1 just loaded: its first record
+   ! through the next midnight, all in that month's file. The seam falls inside a daily step
+   ! unless the window starts at 01:00, and that step reads the window's last record, in the
+   ! axis's last month, and then these. A midnight anchor needs its one record.
+   !---~---
    subroutine keep_window_head(src)
       type(met_source_t), intent(inout) :: src
       real(wp)    :: time_of_day
@@ -356,8 +362,10 @@ contains
       src%head = src%buffer%values(h1:h1 + src%n_head - 1_ik, :, :)
    end subroutine keep_window_head
 
-   !----- Read axis month k into the buffer: the only place the archive is read after open. A      !
-   !      month that fails its checks returns MET_ERR_ARCHIVE and the reason. -----------------------!
+   !---~---
+   !   Read axis month k into the buffer: the only place the archive is read after open. A
+   ! month that fails its checks returns MET_ERR_ARCHIVE and the reason.
+   !---~---
    subroutine load_axis_month(src, k, stat, why)
       type(met_source_t),            intent(inout) :: src
       integer(ik),                   intent(in)    :: k
@@ -376,8 +384,10 @@ contains
       src%n_loads = src%n_loads + 1_ik
    end subroutine load_axis_month
 
-   !----- A month a step needs, in the I/O phase: one that fails its checks stops the run, since   !
-   !      ED-MORE never gap-fills (docs/science/forcing.md §10). ------------------------------------!
+   !---~---
+   !   A month a step needs, in the I/O phase: one that fails its checks stops the run, since
+   ! ED-MORE never gap-fills (docs/science/forcing.md §10).
+   !---~---
    subroutine load_month_or_stop(src, k)
       type(met_source_t), intent(inout) :: src
       integer(ik),        intent(in)    :: k
@@ -391,9 +401,11 @@ contains
       end if
    end subroutine load_month_or_stop
 
-   !----- Where record irec's values are: its hour h > 0 in the loaded month, h = 0 for the carried !
-   !      record, h < 0 for the -h-th record of the window's first day. Anything else was not       !
-   !      prefetched, which is a programming error, not a data gap. -------------------------------!
+   !---~---
+   !   Where record irec's values are: its hour h > 0 in the loaded month, h = 0 for the carried
+   ! record, h < 0 for the -h-th record of the window's first day. Anything else was not
+   ! prefetched, which is a programming error, not a data gap.
+   !---~---
    subroutine locate_record(src, irec, h)
       type(met_source_t), intent(in)   :: src
       integer(ik),        intent(in)  :: irec
@@ -426,10 +438,10 @@ contains
       end if
    end function archive_value
 
-   !=======================================================================================!
-   !  Paths. Tokens {data_path}, {var}, {yyyy} and {mm}; the defaults are the archive's own    !
-   !  flat layout.                                                                         !
-   !=======================================================================================!
+   !---~---
+   !   Paths. Tokens {data_path}, {var}, {yyyy} and {mm}; the defaults are the archive's own
+   ! flat layout.
+   !---~---
    function era5land_path(template, data_path, var, year, month) result(path)
       character(len=*), intent(in) :: template, data_path, var
       integer(ik),      intent(in) :: year, month
@@ -456,8 +468,10 @@ contains
       t = '{data_path}/ED_ERA5land_static.nc'
    end function era5land_default_static
 
-   !----- The archive's grid: the static file a [forcing] block names (static_file, or the default, -!
-   !      in the archive's folder) and the files' 16 x 16 chunks. ---------------------------------!
+   !---~---
+   !   The archive's grid: the static file a [forcing] block names (static_file, or the default,
+   ! in the archive's folder) and the files' 16 x 16 chunks.
+   !---~---
    function era5land_grid(f) result(grid)
       type(forcing_params_t), intent(in) :: f
       type(met_grid_t) :: grid
@@ -467,7 +481,7 @@ contains
       grid%chunk = ERA_CHUNK
    end function era5land_grid
 
-   !----- Every occurrence of `token` in `s` replaced by `value`. ----------------------------------!
+   !--- Every occurrence of `token` in `s` replaced by `value`.
    pure function replace_all(s, token, value) result(out)
       character(len=*), intent(in)  :: s, token, value
       character(len=:), allocatable :: out
@@ -483,18 +497,18 @@ contains
       out = out // s(pos:)
    end function replace_all
 
-   !----- Records in an archive month file: 01:00 on the 1st .. 00:00 on the 1st of the next month. !
+   !--- Records in an archive month file: 01:00 on the 1st .. 00:00 on the 1st of the next month.
    elemental integer(ik) function era5land_month_hours(year, month) result(nt)
       integer(ik), intent(in) :: year, month
       nt = nint(day_sec / ARCHIVE_DT_SEC, ik) * days_in_month(year, month)
    end function era5land_month_hours
 
-   !=======================================================================================!
-   !  MONTH LOAD (docs/science/forcing.md §1): every variable of one archive month for every    !
-   !  domain cell. Each file's grid, stamps and units are checked against what the reader  !
-   !  assumes; each touched chunk column is one hyperslab read of (month hours, <=16, <=16).     !
-   !  `message` names the offending file, cell or hour on a nonzero status.                !
-   !=======================================================================================!
+   !---~---
+   !   MONTH LOAD (docs/science/forcing.md §1): every variable of one archive month for every
+   ! domain cell. Each file's grid, stamps and units are checked against what the reader
+   ! assumes; each touched chunk column is one hyperslab read of (month hours, <=16, <=16).
+   ! `message` names the offending file, cell or hour on a nonzero status.
+   !---~---
    subroutine era5land_load_month(template, data_path, dom, year, month, buf, stat, message)
       character(len=*),   intent(in)    :: template, data_path
       type(met_cells_t),  intent(in)    :: dom
@@ -542,9 +556,11 @@ contains
             message = trim(path)//': units "'//trim(units)//'", expected "'//trim(ERA_VAR_UNITS(v))//'"'
             return
          end if
-         !----- The reader recognises a missing value as NaN and nothing else (below). A file whose   !
-         !      _FillValue is a number would slip that number into the forcing as data, so it is     !
-         !      refused. The archive stores NaN, and a file without the attribute has no fill.  -----!
+         !---~---
+         !   The reader recognises a missing value as NaN and nothing else (below). A file whose
+         ! _FillValue is a number would slip that number into the forcing as data, so it is
+         ! refused. The archive stores NaN, and a file without the attribute has no fill.
+         !---~---
          st = nc_get_att_double_f(ncid, vid, '_FillValue', fill)
          if (st == NC_NOERR) then
             if (.not. ieee_is_nan(fill)) then
@@ -578,9 +594,11 @@ contains
          st = nc_close(ncid)
       end do
 
-      !----- ED-MORE never gap-fills (docs/science/forcing.md §10): the static mask promises data  !
-      !      in every selected cell. ieee_is_nan, because a -fpe0 build can trap x /= x on a NaN,    !
-      !      and findloc over an integer mask, not a logical one (compiler trap, docs/building.md). -!
+      !---~---
+      !   ED-MORE never gap-fills (docs/science/forcing.md §10): the static mask promises data
+      ! in every selected cell. ieee_is_nan, because a -fpe0 build can trap x /= x on a NaN,
+      ! and findloc over an integer mask, not a logical one (compiler trap, docs/building.md).
+      !---~---
       if (any(ieee_is_nan(buf%values))) then
          bad = int(findloc(merge(1, 0, ieee_is_nan(buf%values)), 1), ik)
          write(message, '(a,a,i4.4,a,i2.2,a,i0,a,f9.3,a,f9.3,a)') trim(ERA_VAR_NAME(bad(3))), ' ',         &
@@ -593,7 +611,7 @@ contains
       buf%nt = nt
    end subroutine era5land_load_month
 
-   !----- A month file must have the static grid and exactly the month's end-stamped hours. -------!
+   !--- A month file must have the static grid and exactly the month's end-stamped hours.
    subroutine check_month_file(ncid, dom, year, month, nt, stat)
       integer(c_int),     intent(in)  :: ncid
       type(met_cells_t),  intent(in)  :: dom

@@ -1,47 +1,47 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! test_output -- the diagnostic output's netCDF-free half (src/io/output;                  !
-! docs/science/diagnostics.md), one section per module:                                    !
-!   1. THE REGISTRY AND THE SELECTION (ed_output_registry: build_output_registry,           !
-!      apply_selections, resolve_streams, glob_match, apply_variable_override,              !
-!      parse_stream_mask; §5): the registration list and its defaults, the io_config lines  !
-!      (names and patterns, the most specific winning), the axes' bookkeeping, the tier     !
-!      switches, the unknown-key trap, and the snapshot each state has.                     !
-!   2. THE REDUCTION (ed_output_reduce: reduce_cohort_to_polygon, reduce_cohort_to_patch,   !
-!      reduce_cohort_to_pft, reduce_cohort_to_size, reduce_patch_columns_to_sites,          !
-!      gather_patch_columns, dbh_class_index; §2 eqs. (1)-(3)): the weighted aggregation,   !
-!      extensive against intensive, the PFT and size-class closure, empty sets, unsampled   !
-!      cohorts, the class edges and the soil columns.                                       !
-!   3. THE EXTRACT (ed_output_extract: extract_variable, extract_fast_scalar): a            !
-!      variable's live slab or site value from the state, and a sub-step's row from the     !
-!      staging.                                                                             !
-!   4. THE INTEGRATION (ed_output_integrate: integrate_scalar, integrate_slab,              !
-!      normalize_scalar, normalize_slab, output_integrate_fast, close_tier,                 !
-!      output_integrate; with ed_output_setup's sizing; §4): the operators and the          !
-!      zero-sample guard, a slab over a fixed-slot window, the FAST tier, a slab sized      !
-!      after the overrides, two polygons' buffers, the month boundary and the snapshots.    !
-!                                                                                          !
-! What section 2 is FOR. The reducer's whole job is to apply the right weight to the right   !
-! quantity, and the two ways that goes wrong are both silent: an EXTENSIVE quantity           !
-! aggregated as a mean (or an INTENSIVE one as a sum) produces a plausible number with no     !
-! error anywhere, and an empty bin reported as 0 is indistinguishable in the output file from  !
-! a real measurement of zero. So its assertions are chosen so that a wrong weight cannot pass: !
-! the fixture uses DIFFERENT nplant per cohort and different values per PFT and size class,   !
-! which makes the sum, the stem-weighted mean and the basal-area-weighted mean three distinct  !
-! numbers.                                                                                    !
-!                                                                                          !
-! nvfortran note: the slab tests mutate the site's agb through the OPAQUE setter below (a     !
-! separate module scope) between steps -- mirroring production, where state changes happen    !
-! deep inside commit_vegetation_step. Mutating an allocatable component INLINE between two     !
-! extract_variable() calls lets nvfortran -O2 wrongly CSE the reads (an allocatable-component  !
-! aliasing blind spot); an opaque mutation defeats it, as production does.                    !
-!==========================================================================================!
+!---~---
+!   test_output -- the diagnostic output's netCDF-free half (src/io/output;
+! docs/science/diagnostics.md), one section per module:
+!   1. THE REGISTRY AND THE SELECTION (ed_output_registry: build_output_registry,
+!      apply_selections, resolve_streams, glob_match, apply_variable_override,
+!      parse_stream_mask; §5): the registration list and its defaults, the io_config lines
+!      (names and patterns, the most specific winning), the axes' bookkeeping, the tier
+!      switches, the unknown-key trap, and the snapshot each state has.
+!   2. THE REDUCTION (ed_output_reduce: reduce_cohort_to_polygon, reduce_cohort_to_patch,
+!      reduce_cohort_to_pft, reduce_cohort_to_size, reduce_patch_columns_to_sites,
+!      gather_patch_columns, dbh_class_index; §2 eqs. (1)-(3)): the weighted aggregation,
+!      extensive against intensive, the PFT and size-class closure, empty sets, unsampled
+!      cohorts, the class edges and the soil columns.
+!   3. THE EXTRACT (ed_output_extract: extract_variable, extract_fast_scalar): a
+!      variable's live slab or site value from the state, and a sub-step's row from the
+!      staging.
+!   4. THE INTEGRATION (ed_output_integrate: integrate_scalar, integrate_slab,
+!      normalize_scalar, normalize_slab, output_integrate_fast, close_tier,
+!      output_integrate; with ed_output_setup's sizing; §4): the operators and the
+!      zero-sample guard, a slab over a fixed-slot window, the FAST tier, a slab sized
+!      after the overrides, two polygons' buffers, the month boundary and the snapshots.
+!
+!   What section 2 is FOR. The reducer's whole job is to apply the right weight to the right
+! quantity, and the two ways that goes wrong are both silent: an EXTENSIVE quantity
+! aggregated as a mean (or an INTENSIVE one as a sum) produces a plausible number with no
+! error anywhere, and an empty bin reported as 0 is indistinguishable in the output file from
+! a real measurement of zero. So its assertions are chosen so that a wrong weight cannot pass:
+! the fixture uses DIFFERENT nplant per cohort and different values per PFT and size class,
+! which makes the sum, the stem-weighted mean and the basal-area-weighted mean three distinct
+! numbers.
+!
+!   nvfortran note: the slab tests mutate the site's agb through the OPAQUE setter below (a
+! separate module scope) between steps -- mirroring production, where state changes happen
+! deep inside commit_vegetation_step. Mutating an allocatable component INLINE between two
+! extract_variable() calls lets nvfortran -O2 wrongly CSE the reads (an allocatable-component
+! aliasing blind spot); an opaque mutation defeats it, as production does.
+!---~---
 module test_output_support
    use ed_kinds,                only : wp, ik
    use ed_polygon_state_vars,   only : polygon_t
    implicit none
 contains
-   !----- Opaque per-cohort agb setter (separate compilation scope; nvfortran cannot CSE across it). !
+   !--- Opaque per-cohort agb setter (separate compilation scope; nvfortran cannot CSE across it).
    subroutine set_cohort_agb(poly, vals, n)
       type(polygon_t), intent(inout) :: poly
       real(wp),        intent(in)    :: vals(:)
@@ -84,20 +84,20 @@ program test_output
    implicit none
 
    call banner('output')
-   !----- 1. The registry and the selection. ------------------------------------------------!
+   !--- 1. The registry and the selection.
    call test_registry()
    call test_snapshot_registry()
-   !----- 2. The reduction. ----------------------------------------------------------------!
+   !--- 2. The reduction.
    call test_extensive_vs_intensive()
    call test_pft_and_size_closure()
    call test_empty_sets()
    call test_unsampled_cohorts()
    call test_class_edges()
    call test_soil_columns()
-   !----- 3. The extract. ------------------------------------------------------------------!
+   !--- 3. The extract.
    call test_extract()
    call test_fast_extract()
-   !----- 4. The integration. --------------------------------------------------------------!
+   !--- 4. The integration.
    call test_scalar_operators()
    call test_zero_sample_guard()
    call test_slab_window()
@@ -111,12 +111,12 @@ program test_output
 
 contains
 
-   !=======================================================================================!
-   !  1. THE REGISTRY AND THE SELECTION (ed_output_registry; docs/science/diagnostics.md     !
-   !  §5): build_output_registry's list and defaults, then the io_config lines through        !
-   !  apply_selections and resolve_streams, the tier switches, apply_variable_override and   !
-   !  parse_stream_mask.                                                                     !
-   !=======================================================================================!
+   !---~---
+   !   1. THE REGISTRY AND THE SELECTION (ed_output_registry; docs/science/diagnostics.md
+   ! §5): build_output_registry's list and defaults, then the io_config lines through
+   ! apply_selections and resolve_streams, the tier switches, apply_variable_override and
+   ! parse_stream_mask.
+   !---~---
    subroutine test_registry()
       type(ed_config_t)       :: cfg
       type(output_registry_t) :: reg
@@ -126,12 +126,14 @@ contains
 
       cfg = build_test_config(86400.0_wp)     ! 1-day slow step; cfg%output holds the [output] defaults
 
-      !----- Build with the defaults (freq_on=[F,T,T,T]). -----!
+      !--- Build with the defaults (freq_on=[F,T,T,T]).
       call build_output_registry(reg, cfg)
-      !----- Size sanity, not an exact count. A hard-coded total has to be edited every time a       !
-      !      variable is added, which trains the reader to update the number without checking what     !
-      !      changed -- the assertion then guards nothing. Bound it instead, and let the NAMED          !
-      !      presence checks below carry the real meaning.  ---------------------------------------!
+      !---~---
+      !   Size sanity, not an exact count. A hard-coded total has to be edited every time a
+      ! variable is added, which trains the reader to update the number without checking what
+      ! changed -- the assertion then guards nothing. Bound it instead, and let the NAMED
+      ! presence checks below carry the real meaning.
+      !---~---
       call check(reg%nvar > 80_ik .and. reg%nvar <= MAX_OUTPUT_VARS,                                 &
                  'registry populated and within MAX_OUTPUT_VARS')
       call check(find_var_index(reg, 'mean_agb_co') > 0_ik, 'mean_agb_co present')
@@ -141,9 +143,11 @@ contains
       call check(find_var_index(reg, 'mean_rh_py') > 0_ik, 'mean_rh_py (carbon) present')
       call check(find_var_index(reg, 'mean_soil_temp_layer_si') > 0_ik, 'mean_soil_temp_layer_si (energy) present')
       call check(find_var_index(reg, 'nope') == 0_ik, 'unknown name -> 0')
-      !----- The defaults (docs/science/diagnostics.md §5): the radiation and ecophys groups, the    !
-      !      soil-by-patch columns and the snapshots are off until a selection names them; the        !
-      !      axes' bookkeeping is written with the default cohort and patch variables. ---------------!
+      !---~---
+      !   The defaults (docs/science/diagnostics.md §5): the radiation and ecophys groups, the
+      ! soil-by-patch columns and the snapshots are off until a selection names them; the
+      ! axes' bookkeeping is written with the default cohort and patch variables.
+      !---~---
       call check(in_tier(reg, 'mean_soil_temp_layer_si', 3_ik),                                     &
                  'energy on by default -> mean_soil_temp_layer_si in MONTHLY')
       call check(.not. live(reg, 'mean_gsw_co'), 'the ecophys group off by default')
@@ -153,21 +157,25 @@ contains
       call check(in_tier(reg, 'global_cohort_id', 2_ik) .and. in_tier(reg, 'global_patch_id', 3_ik),         &
                  'the bookkeeping with the default cohort and patch variables')
 
-      !----- FAST tier off by default. The ANNUAL tier must contain NO cohort/patch-dimensioned      !
-      !      variable (docs/science/diagnostics.md §3) -- that invariant is what the check below     !
-      !      states, rather than a count that has to be re-derived on every registry edit. ----------!
+      !---~---
+      !   FAST tier off by default. The ANNUAL tier must contain NO cohort/patch-dimensioned
+      ! variable (docs/science/diagnostics.md §3) -- that invariant is what the check below
+      ! states, rather than a count that has to be re-derived on every registry edit.
+      !---~---
       call check(reg%nidx(1) == 0_ik, 'FAST tier empty by default (freq_on(FAST)=false)')
       call check(reg%nidx(2) > 0_ik,  'DAILY tier populated')
       call check(reg%nidx(4) > 0_ik,  'ANNUAL tier populated')
       call check(annual_is_site_level(reg), 'ANNUAL tier carries no cohort/patch variable')
-      !----- A pattern: "*_co" = false drops the cohort axis, its bookkeeping included, and nothing  !
-      !      else. -----------------------------------------------------------------------------------!
+      !---~---
+      !   A pattern: "*_co" = false drops the cohort axis, its bookkeeping included, and nothing
+      ! else.
+      !---~---
       call choose(reg, cfg, [selection_t('*_co', OVR_FALSE, FREQ_NONE)])
       call check(.not. live(reg, 'mean_agb_co'), '"*_co" = false -> mean_agb_co in no tier')
       call check(.not. live(reg, 'global_cohort_id'), '"*_co" = false -> no cohort bookkeeping')
       call check(in_tier(reg, 'mean_agb_py', 2_ik), '"*_co" = false leaves the polygon variables alone')
       call check(in_tier(reg, 'global_patch_id', 2_ik), '"*_co" = false leaves the patch axis alone')
-      !----- The most specific line wins: a name over a pattern, more literal characters over fewer. !
+      !--- The most specific line wins: a name over a pattern, more literal characters over fewer.
       call choose(reg, cfg, [selection_t('*', OVR_FALSE, FREQ_NONE),                                  &
                              selection_t('mean_*_py', OVR_MASK, FREQ_MONTHLY),                        &
                              selection_t('mean_gpp_py', OVR_MASK, ior(FREQ_DAILY, FREQ_ANNUAL))])
@@ -177,13 +185,13 @@ contains
                  .not. in_tier(reg, 'mean_gpp_py', 3_ik), 'a name wins over a pattern')
       call check(.not. live(reg, 'nplant_co') .and. .not. live(reg, 'owner_patch'),                             &
                  '"*" = false: no other variable, so no bookkeeping')
-      !----- A pattern gives each variable the tiers it asks that the variable can be on. -----!
+      !--- A pattern gives each variable the tiers it asks that the variable can be on.
       call choose(reg, cfg, [selection_t('mean_agb_*', OVR_MASK, ior(FREQ_MONTHLY, FREQ_ANNUAL))])
       call check(in_tier(reg, 'mean_agb_py', 4_ik) .and. in_tier(reg, 'mean_agb_co', 3_ik) .and.               &
                  .not. in_tier(reg, 'mean_agb_co', 4_ik), 'a pattern gives Y only off the cohort axis')
       call choose(reg, cfg, [selection_t('*', OVR_FALSE, FREQ_NONE), selection_t('mean_*_co', OVR_MASK, FREQ_FAST)])
       call check(.not. live(reg, 'mean_gsw_co'), 'the F tier switched off writes nothing')
-      !----- The bookkeeping follows its axis, tier by tier. -----!
+      !--- The bookkeeping follows its axis, tier by tier.
       call choose(reg, cfg, [selection_t('*', OVR_FALSE, FREQ_NONE),                                  &
                              selection_t('mean_agb_co', OVR_MASK, FREQ_MONTHLY)])
       call check(in_tier(reg, 'owner_patch', 3_ik) .and. .not. in_tier(reg, 'owner_patch', 2_ik),              &
@@ -192,11 +200,11 @@ contains
       call choose(reg, cfg, [selection_t('*', OVR_FALSE, FREQ_NONE),                                  &
                              selection_t('mean_soil_water_layer_pa', OVR_MASK, FREQ_DAILY)])
       call check(in_tier(reg, 'cohort_offset', 2_ik), 'the soil by patch is on the patch axis')
-      !----- `true`: a variable's default; a pattern's true leaves one off by default off. -----!
+      !--- `true`: a variable's default; a pattern's true leaves one off by default off.
       call choose(reg, cfg, [selection_t('*', OVR_FALSE, FREQ_NONE), selection_t('*_py', OVR_TRUE, FREQ_NONE)])
       call check(in_tier(reg, 'mean_agb_py', 4_ik) .and. .not. live(reg, 'agb_py'),                            &
                  'a pattern''s true restores each default, off included')
-      !----- The patterns (glob_match). -----!
+      !--- The patterns (glob_match).
       call check(glob_match('*_py', 'mean_gpp_py') .and. glob_match('mean_*_py', 'mean_gpp_pft_py') .and.      &
                  glob_match('*', 'x') .and. glob_match('a*b*c', 'axxbyyc') .and. glob_match('a*b', 'ab'),       &
                  'glob_match: a * matches any run of characters, none included')
@@ -204,7 +212,7 @@ contains
                  .not. glob_match('gpp_py', 'mean_gpp_py'), 'glob_match: the literal parts must match')
       call build_output_registry(reg, cfg)
 
-      !----- PFT + DBH-size axes are registered and live at the monthly cadence. -----!
+      !--- PFT + DBH-size axes are registered and live at the monthly cadence.
       call check(find_var_index(reg, 'mean_agb_pft_py')  > 0_ik, 'mean_agb_pft_py present')
       call check(find_var_index(reg, 'mean_agb_size_py') > 0_ik, 'mean_agb_size_py present')
       call check(in_tier(reg, 'mean_agb_pft_py',  3_ik), 'mean_agb_pft_py in MONTHLY')
@@ -216,8 +224,10 @@ contains
       call check(in_tier(reg, 'mean_agb_py', 4_ik),       'mean_agb_py in ANNUAL')
       call check(in_tier(reg, 'mean_gpp_py', 4_ik),       'mean_gpp_py in ANNUAL')
 
-      !----- Per-tier enable: turn DAILY off -> DAILY empties, MONTHLY unaffected, and a selection   !
-      !      cannot put a variable back on it. -----!
+      !---~---
+      !   Per-tier enable: turn DAILY off -> DAILY empties, MONTHLY unaffected, and a selection
+      ! cannot put a variable back on it.
+      !---~---
       cfg%output%freq_on(2) = .false.
       call build_output_registry(reg, cfg)
       call check(reg%nidx(2) == 0_ik, 'DAILY off -> empty')
@@ -226,14 +236,14 @@ contains
       call check(reg%nidx(2) == 0_ik, 'DAILY off -> a selection writes nothing there')
       cfg%output%freq_on(2) = .true.
 
-      !----- Per-variable override (apply_variable_override): OFF removes it from every tier. -----!
+      !--- Per-variable override (apply_variable_override): OFF removes it from every tier.
       call build_output_registry(reg, cfg)
       call apply_variable_override(reg, 'mean_growth_avg_co', OVR_FALSE, 0_ik, found)
       call check(found, 'override found mean_growth_avg_co')
       call build_freq_index(reg)
       call check(.not. in_tier(reg, 'mean_growth_avg_co', 3_ik), 'mean_growth_avg_co OFF -> absent from MONTHLY')
 
-      !----- Per-variable override: MASK re-targets streams (mean_basal_area_co M -> D M). -----!
+      !--- Per-variable override: MASK re-targets streams (mean_basal_area_co M -> D M).
       call build_output_registry(reg, cfg)
       call check(.not. in_tier(reg, 'mean_basal_area_co', 2_ik), 'mean_basal_area_co default NOT in DAILY')
       call parse_stream_mask('D M', mask, status, bad)
@@ -242,18 +252,20 @@ contains
       call build_freq_index(reg)
       call check(in_tier(reg, 'mean_basal_area_co', 2_ik), 'mean_basal_area_co override -> now in DAILY')
 
-      !----- Unknown-key trap: a typo matches no registry variable. -----!
+      !--- Unknown-key trap: a typo matches no registry variable.
       call apply_variable_override(reg, 'grwoth_avg_cohort', OVR_FALSE, 0_ik, found)
       call check(.not. found, 'typo key -> not found (unknown-key trap)')
 
-      !----- parse_stream_mask flags an unrecognized token. -----!
+      !--- parse_stream_mask flags an unrecognized token.
       call parse_stream_mask('D X', mask, status, bad)
       call check(status == 1_ik .and. trim(bad) == 'X', 'bad stream token flagged')
    end subroutine test_registry
 
-   !----- The snapshots (docs/science/diagnostics.md §4): each state's mean_<x> has its <x>, off by       !
-   !      default, and a flux or a rate none; a slow-step state's snapshot reads the state, a fast-loop    !
-   !      state's the staging; and a fast-loop row is staged, so it may be on the F tier. ----------------!
+   !---~---
+   !   The snapshots (docs/science/diagnostics.md §4): each state's mean_<x> has its <x>, off by
+   ! default, and a flux or a rate none; a slow-step state's snapshot reads the state, a fast-loop
+   ! state's the staging; and a fast-loop row is staged, so it may be on the F tier.
+   !---~---
    subroutine test_snapshot_registry()
       type(ed_config_t)    :: cfg
       type(output_files_t) :: files
@@ -288,7 +300,7 @@ contains
                                'cas_co2_pa reads the staging on every tier')
    end subroutine test_snapshot_registry
 
-   !----- The registry from the config, with these io_config lines applied. -------------------!
+   !--- The registry from the config, with these io_config lines applied.
    subroutine choose(reg, cfg, sel)
       type(output_registry_t), intent(inout) :: reg
       type(ed_config_t),       intent(in)    :: cfg
@@ -298,7 +310,7 @@ contains
       call resolve_streams(reg)
    end subroutine choose
 
-   !----- .true. if the variable is live in some tier. ---------------------------------------!
+   !--- .true. if the variable is live in some tier.
    logical function live(reg, name) result(yes)
       type(output_registry_t), intent(in) :: reg
       character(len=*),        intent(in) :: name
@@ -309,9 +321,11 @@ contains
       end do
    end function live
 
-   !----- The annual stream is SITE-LEVEL ONLY (docs/science/diagnostics.md §3). A cohort/patch   !
-   !      window longer than a month would straddle the annual disturbance restructuring, so the   !
-   !      slot set it averaged would not be the slot set present at flush.  ----------------------!
+   !---~---
+   !   The annual stream is SITE-LEVEL ONLY (docs/science/diagnostics.md §3). A cohort/patch
+   ! window longer than a month would straddle the annual disturbance restructuring, so the
+   ! slot set it averaged would not be the slot set present at flush.
+   !---~---
    logical function annual_is_site_level(reg) result(ok)
       type(output_registry_t), intent(in) :: reg
       integer(ik) :: j, k
@@ -322,7 +336,7 @@ contains
       end do
    end function annual_is_site_level
 
-   !----- .true. if the variable is on the tier. ---------------------------------------------!
+   !--- .true. if the variable is on the tier.
    logical function in_tier(reg, name, tier) result(yes)
       type(output_registry_t), intent(in) :: reg
       character(len=*),        intent(in) :: name
@@ -338,17 +352,17 @@ contains
       end do
    end function in_tier
 
-   !=======================================================================================!
-   !  2. THE REDUCTION (ed_output_reduce; docs/science/diagnostics.md §2, eqs. (1)-(3)).     !
-   !=======================================================================================!
+   !--- 2. THE REDUCTION (ed_output_reduce; docs/science/diagnostics.md §2, eqs. (1)-(3)).
 
-   !----- Two patches, three cohorts, deliberately unequal nplant / basal_area so that a SUM, a  !
-   !      stem-weighted MEAN and a basal-area-weighted MEAN are three different numbers.  -------!
+   !---~---
+   !   Two patches, three cohorts, deliberately unequal nplant / basal_area so that a SUM, a
+   ! stem-weighted MEAN and a basal-area-weighted MEAN are three different numbers.
+   !---~---
    subroutine build_fixture(poly)
       type(polygon_t), intent(out) :: poly
       call alloc_polygon(poly, 3_ik, 16_ik, 4_ik, 4_ik, test_pft_table())
       poly%n_pft = 3_ik
-      !----- patch 1 (area 0.75): cohorts 1,2 ; patch 2 (area 0.25): cohort 3. -----!
+      !--- patch 1 (area 0.75): cohorts 1,2 ; patch 2 (area 0.25): cohort 3.
       poly%patch%n = 2_ik
       poly%patch%area(1) = 0.75_wp
       poly%patch%area(2) = 0.25_wp
@@ -367,12 +381,12 @@ contains
       call rebuild_patch_map(poly)                                 ! both patches in the one site
    end subroutine build_fixture
 
-   !=======================================================================================!
-   !  EXTENSIVE vs INTENSIVE (reduce_cohort_to_polygon, reduce_cohort_to_patch). The same      !
-   !  field, reduced with the two different contracts, must give the two different right      !
-   !  answers -- and swapping the weight must CHANGE the answer, which is what makes the       !
-   !  assertion able to fail.                                                                  !
-   !=======================================================================================!
+   !---~---
+   !   EXTENSIVE vs INTENSIVE (reduce_cohort_to_polygon, reduce_cohort_to_patch). The same
+   ! field, reduced with the two different contracts, must give the two different right
+   ! answers -- and swapping the weight must CHANGE the answer, which is what makes the
+   ! assertion able to fail.
+   !---~---
    subroutine test_extensive_vs_intensive()
       type(polygon_t) :: poly
       real(wp) :: v, v2, out(8)
@@ -380,41 +394,51 @@ contains
       integer(ik) :: n
       call build_fixture(poly)
 
-      !----- EXTENSIVE: mean_agb_py = SUM area*nplant*agb                                        !
-      !      = 0.75*(2*10 + 1*20) + 0.25*(4*30) = 0.75*40 + 0.25*120 = 30 + 30 = 60.  --------!
+      !---~---
+      !   EXTENSIVE: mean_agb_py = SUM area*nplant*agb
+      ! = 0.75*(2*10 + 1*20) + 0.25*(4*30) = 0.75*40 + 0.25*120 = 30 + 30 = 60.
+      !---~---
       call reduce_cohort_to_polygon(poly, poly%cohort%agb, W_NPLANT, .false., v, ok)
       call check_close(v, 60.0_wp, 1.0e-12_wp, 'mean_agb_py = weighted SUM over nplant')
       call check(ok, 'extensive reduction is always valid')
       call check_close(total_agb(poly), 60.0_wp, 1.0e-12_wp, 'total_agb wrapper agrees')
 
-      !----- The same call with mean=.true. is a DIFFERENT number (mean per-plant agb):        !
-      !      60 / (0.75*3 + 0.25*4) = 60/3.25.  ---------------------------------------------!
+      !---~---
+      !   The same call with mean=.true. is a DIFFERENT number (mean per-plant agb):
+      ! 60 / (0.75*3 + 0.25*4) = 60/3.25.
+      !---~---
       call reduce_cohort_to_polygon(poly, poly%cohort%agb, W_NPLANT, .true., v2, ok)
       call check_close(v2, 60.0_wp/3.25_wp, 1.0e-12_wp, 'mean=.true. gives the per-plant mean')
       call check(abs(v - v2) > 1.0_wp, 'sum and mean are genuinely different (a wrong flag cannot pass)')
 
-      !----- INTENSIVE with a WEIGHT that matters: basal-area-weighted mean dbh                !
-      !      w = nplant*basal_area = [10, 1, 8]; area-weighted:                                 !
-      !      num = 0.75*(10*5 + 1*15) + 0.25*(8*45) = 0.75*65 + 0.25*360 = 48.75 + 90 = 138.75  !
-      !      den = 0.75*(10 + 1)      + 0.25*8      = 8.25 + 2 = 10.25                          !
+      !---~---
+      !   INTENSIVE with a WEIGHT that matters: basal-area-weighted mean dbh
+      ! w = nplant*basal_area = [10, 1, 8]; area-weighted:
+      ! num = 0.75*(10*5 + 1*15) + 0.25*(8*45) = 0.75*65 + 0.25*360 = 48.75 + 90 = 138.75
+      ! den = 0.75*(10 + 1)      + 0.25*8      = 8.25 + 2 = 10.25
+      !---~---
       call reduce_cohort_to_polygon(poly, poly%cohort%dbh, W_BASAL_AREA, .true., v, ok)
       call check_close(v, 138.75_wp/10.25_wp, 1.0e-12_wp, 'BA-weighted mean dbh')
-      !----- The STEM-weighted mean of the same field is a different number, so the weight kind  !
-      !      is doing real work rather than being decorative.  -------------------------------!
+      !---~---
+      !   The STEM-weighted mean of the same field is a different number, so the weight kind
+      ! is doing real work rather than being decorative.
+      !---~---
       call reduce_cohort_to_polygon(poly, poly%cohort%dbh, W_NPLANT, .true., v2, ok)
       call check(abs(v - v2) > 1.0_wp, 'BA-weighted /= stem-weighted mean dbh')
 
-      !----- LEAF-AREA weighting, the contract canopy temperatures and conductances use. -----!
+      !--- LEAF-AREA weighting, the contract canopy temperatures and conductances use.
       call reduce_cohort_to_polygon(poly, poly%cohort%dbh, W_LEAF_AREA, .true., v, ok)
       call check(abs(v - v2) > 0.1_wp, 'leaf-area-weighted /= stem-weighted mean dbh')
 
-      !----- W_NONE + SUM is the stem-density contract: 0.75*(2+1) + 0.25*4 = 2.25 + 1 = 3.25. !
+      !--- W_NONE + SUM is the stem-density contract: 0.75*(2+1) + 0.25*4 = 2.25 + 1 = 3.25.
       call reduce_cohort_to_polygon(poly, poly%cohort%nplant, W_NONE, .false., v, ok)
       call check_close(v, 3.25_wp, 1.0e-12_wp, 'mean_nplant_py = plain area-weighted sum')
       call check_close(total_nplant(poly), 3.25_wp, 1.0e-12_wp, 'total_nplant wrapper agrees')
 
-      !----- PATCH axis carries NO area factor (a patch value is per m2 of its OWN ground):    !
-      !      patch 1 agb = 2*10 + 1*20 = 40 ; patch 2 = 4*30 = 120.  -------------------------!
+      !---~---
+      !   PATCH axis carries NO area factor (a patch value is per m2 of its OWN ground):
+      ! patch 1 agb = 2*10 + 1*20 = 40 ; patch 2 = 4*30 = 120.
+      !---~---
       call reduce_cohort_to_patch(poly, poly%cohort%agb, W_NPLANT, .false., out, vld, n)
       call check(n == 2_ik, 'patch reduction length')
       call check_close(out(1),  40.0_wp, 1.0e-12_wp, 'mean_agb_pa(1) has no area factor')
@@ -423,12 +447,12 @@ contains
       call free_polygon(poly)
    end subroutine test_extensive_vs_intensive
 
-   !=======================================================================================!
-   !  CLOSURE (reduce_cohort_to_pft, reduce_cohort_to_size). sum over PFTs and sum over size   !
-   !  classes must both reproduce the site total EXACTLY -- that identity is the entire reason  !
-   !  those axes are trustworthy, and it is the one property a reader will assume without      !
-   !  checking.                                                                                !
-   !=======================================================================================!
+   !---~---
+   !   CLOSURE (reduce_cohort_to_pft, reduce_cohort_to_size). sum over PFTs and sum over size
+   ! classes must both reproduce the site total EXACTLY -- that identity is the entire reason
+   ! those axes are trustworthy, and it is the one property a reader will assume without
+   ! checking.
+   !---~---
    subroutine test_pft_and_size_closure()
       type(polygon_t) :: poly
       real(wp) :: site_val, pft_out(8), size_out(8), edges(8)
@@ -447,15 +471,15 @@ contains
       call check(n == 4_ik, 'size axis length = n_class')
       call check_close(sum(size_out(1:4)), site_val, 1.0e-12_wp, 'sum over DBH classes == mean_agb_py')
 
-      !----- The stem count must be conserved by the binning too: no cohort split, none dropped. !
+      !--- The stem count must be conserved by the binning too: no cohort split, none dropped.
       call reduce_cohort_to_polygon(poly, poly%cohort%nplant, W_NONE, .false., site_val, ok)
       call reduce_cohort_to_size(poly, poly%cohort%nplant, W_NONE, .false., edges, 4_ik,         &
                                  size_out, vld, n)
       call check_close(sum(size_out(1:4)), site_val, 1.0e-12_wp, 'sum over classes == mean_nplant_py')
-      !----- Each cohort landed in exactly ONE bin (dbh 5, 15, 45 -> classes 1, 2, 4).  -------!
+      !--- Each cohort landed in exactly ONE bin (dbh 5, 15, 45 -> classes 1, 2, 4).
       call check(size_out(3) == 0.0_wp, 'the empty class-3 bin holds nothing')
 
-      !----- LAI closes on both axes as well (a second field, so the test is not agb-specific). !
+      !--- LAI closes on both axes as well (a second field, so the test is not agb-specific).
       call reduce_cohort_to_polygon(poly, poly%cohort%leaf_area, W_NPLANT, .false., site_val, ok)
       call reduce_cohort_to_pft (poly, poly%cohort%leaf_area, W_NPLANT, .false., 3_ik, pft_out, vld, n)
       call check_close(sum(pft_out(1:3)), site_val, 1.0e-12_wp, 'sum over PFTs == mean_lai_py')
@@ -464,20 +488,20 @@ contains
       call free_polygon(poly)
    end subroutine test_pft_and_size_closure
 
-   !=======================================================================================!
-   !  EMPTY SETS. A patch with no cohorts, and a MEAN over a PFT with no members, must report   !
-   !  invalid (-> _FillValue), never 0/0 and never a bare 0 that a reader would take for data.   !
-   !  But an empty-PFT SUM is a true 0, because reporting fill there would break the closure     !
-   !  asserted above the moment a PFT went locally extinct. The two conventions are different    !
-   !  on purpose and both are pinned here.                                                       !
-   !=======================================================================================!
+   !---~---
+   !   EMPTY SETS. A patch with no cohorts, and a MEAN over a PFT with no members, must report
+   ! invalid (-> _FillValue), never 0/0 and never a bare 0 that a reader would take for data.
+   ! But an empty-PFT SUM is a true 0, because reporting fill there would break the closure
+   ! asserted above the moment a PFT went locally extinct. The two conventions are different
+   ! on purpose and both are pinned here.
+   !---~---
    subroutine test_empty_sets()
       type(polygon_t) :: poly
       real(wp) :: out(8), v
       logical  :: vld(8), ok
       integer(ik) :: n
       call build_fixture(poly)
-      !----- Make patch 2 empty (its cohort moves to patch 1). -----!
+      !--- Make patch 2 empty (its cohort moves to patch 1).
       poly%patch%cohort_count(1) = 3_ik
       poly%patch%cohort_count(2) = 0_ik
       poly%patch%cohort_offset(2) = 4_ik
@@ -488,7 +512,7 @@ contains
       call check(vld(1),         'occupied patch is valid')
       call check(.not. vld(2),   'EMPTY patch is invalid -> _FillValue, not 0')
 
-      !----- A MEAN over a PFT with no members is invalid; a SUM over it is a true 0. ---------!
+      !--- A MEAN over a PFT with no members is invalid; a SUM over it is a true 0.
       poly%n_pft = 4_ik                                   ! PFT 4 exists but has no cohorts
       call reduce_cohort_to_pft(poly, poly%cohort%dbh, W_NPLANT, .true., 4_ik, out, vld, n)
       call check(.not. vld(4), 'MEAN over an empty PFT is invalid')
@@ -496,7 +520,7 @@ contains
       call check(vld(4),            'SUM over an empty PFT is VALID (closure would break otherwise)')
       call check(out(4) == 0.0_wp,  'SUM over an empty PFT is exactly 0')
 
-      !----- A site with no cohorts at all: the extensive sum is 0, the mean is invalid. ------!
+      !--- A site with no cohorts at all: the extensive sum is 0, the mean is invalid.
       poly%cohort%n = 0_ik
       poly%patch%cohort_count(1:2) = 0_ik
       call reduce_cohort_to_polygon(poly, poly%cohort%agb, W_NPLANT, .false., v, ok)
@@ -507,13 +531,13 @@ contains
       call free_polygon(poly)
    end subroutine test_empty_sets
 
-   !=======================================================================================!
-   !  A cohort with NO SAMPLES (missing x: recruited after the fast loop) is left out: of a   !
-   !  mean's numerator AND denominator, so the mean is that of the sampled cohorts, and of a    !
-   !  sum, which it would only have added 0 to. A patch whose cohorts are all unsampled has     !
-   !  nothing to report. Counting it as 0 would pull a canopy temperature towards 0 K           !
-   !  (docs/science/diagnostics.md §2).                                                         !
-   !=======================================================================================!
+   !---~---
+   !   A cohort with NO SAMPLES (missing x: recruited after the fast loop) is left out: of a
+   ! mean's numerator AND denominator, so the mean is that of the sampled cohorts, and of a
+   ! sum, which it would only have added 0 to. A patch whose cohorts are all unsampled has
+   ! nothing to report. Counting it as 0 would pull a canopy temperature towards 0 K
+   ! (docs/science/diagnostics.md §2).
+   !---~---
    subroutine test_unsampled_cohorts()
       type(polygon_t) :: poly
       real(wp) :: x(3), out(8), v
@@ -521,7 +545,7 @@ contains
       integer(ik) :: n
       call build_fixture(poly)
       x = [300.0_wp, 310.0_wp, MISSING_VALUE]          ! cohort 3, alone in patch 2, has no samples
-      !----- Leaf-area weights nplant*leaf_area = 2, 3 (patch 1, area 0.75): (600 + 930) / 5. ---!
+      !--- Leaf-area weights nplant*leaf_area = 2, 3 (patch 1, area 0.75): (600 + 930) / 5.
       call reduce_cohort_to_polygon(poly, x, W_LEAF_AREA, .true., v, ok)
       call check(ok, 'mean over the sampled cohorts is valid')
       call check_close(v, 306.0_wp, 1.0e-12_wp, 'an unsampled cohort is out of the mean, not a 0')
@@ -536,12 +560,12 @@ contains
       call free_polygon(poly)
    end subroutine test_unsampled_cohorts
 
-   !=======================================================================================!
-   !  SIZE-CLASS EDGES (dbh_class_index). Half-open [lo, hi) except the last class, which is    !
-   !  CLOSED at the top so the largest tree in the stand is never dropped; below the first edge  !
-   !  clamps into bin 1 for the same reason. Both are closure-preserving choices, so both are    !
-   !  pinned.                                                                                    !
-   !=======================================================================================!
+   !---~---
+   !   SIZE-CLASS EDGES (dbh_class_index). Half-open [lo, hi) except the last class, which is
+   ! CLOSED at the top so the largest tree in the stand is never dropped; below the first edge
+   ! clamps into bin 1 for the same reason. Both are closure-preserving choices, so both are
+   ! pinned.
+   !---~---
    subroutine test_class_edges()
       real(wp) :: edges(5)
       edges = [0.0_wp, 10.0_wp, 20.0_wp, 30.0_wp, 100.0_wp]
@@ -554,15 +578,15 @@ contains
       call check(dbh_class_index(-1.0_wp, edges, 4_ik) == 1_ik, 'below the bottom edge -> bin 1 (never dropped)')
    end subroutine test_class_edges
 
-   !=======================================================================================!
-   !  SOIL COLUMNS (reduce_patch_columns_to_sites, gather_patch_columns). The area-weighted    !
-   !  site column, and the FLATTENED 2-D (layer, patch) slab whose stride is the COMPILE-TIME   !
-   !  layer ceiling. The closure below -- area-weighted mean over the patch axis of the 2-D     !
-   !  slab == the site column -- is the acceptance test, and it is what proves the flattening   !
-   !  index is right. Varying the ACTIVE layer count while the stride stays fixed is the        !
-   !  specific mis-mapping it has to rule out. Two sites on columns of different depths each    !
-   !  keep their own layers, at their own stride.                                               !
-   !=======================================================================================!
+   !---~---
+   !   SOIL COLUMNS (reduce_patch_columns_to_sites, gather_patch_columns). The area-weighted
+   ! site column, and the FLATTENED 2-D (layer, patch) slab whose stride is the COMPILE-TIME
+   ! layer ceiling. The closure below -- area-weighted mean over the patch axis of the 2-D
+   ! slab == the site column -- is the acceptance test, and it is what proves the flattening
+   ! index is right. Varying the ACTIVE layer count while the stride stays fixed is the
+   ! specific mis-mapping it has to rule out. Two sites on columns of different depths each
+   ! keep their own layers, at their own stride.
+   !---~---
    subroutine test_soil_columns()
       type(polygon_t) :: poly, two
       real(wp) :: col(n_soil_layer_max, 2), sitecol(2*n_soil_layer_max)
@@ -580,31 +604,35 @@ contains
       call reduce_patch_columns_to_sites(poly, col, sitecol, svld, n)
       call check(n == n_soil_layer_max, 'one site column = the layer ceiling')
       call check(all(svld(1:nlayer)) .and. .not. any(svld(nlayer + 1_ik:n)), 'only the active layers are valid')
-      !----- area-weighted: 0.75*0.1k + 0.25*0.5k = 0.2k  ------------------------------------!
+      !--- area-weighted: 0.75*0.1k + 0.25*0.5k = 0.2k
       do k = 1_ik, nlayer
          call check_close(sitecol(k), 0.2_wp*real(k,wp), 1.0e-12_wp, 'area-weighted site soil column')
       end do
 
       call gather_patch_columns(poly, col, flat, vld, n)
       call check(n == 2_ik*n_soil_layer_max, 'flat slab length = n_patch * n_soil_layer_max')
-      !----- The STRIDE is the compile-time ceiling, NOT nlayer: patch 2 layer 1 sits at         !
-      !      n_soil_layer_max + 1, not nlayer + 1. Striding by the live count is the mis-mapping  !
-      !      that would produce plausible shifted profiles instead of an error.  ---------------!
+      !---~---
+      !   The STRIDE is the compile-time ceiling, NOT nlayer: patch 2 layer 1 sits at
+      ! n_soil_layer_max + 1, not nlayer + 1. Striding by the live count is the mis-mapping
+      ! that would produce plausible shifted profiles instead of an error.
+      !---~---
       call check_close(flat(1),                       col(1, 1), 1.0e-12_wp, 'patch 1 layer 1')
       call check_close(flat(nlayer),                  col(nlayer, 1), 1.0e-12_wp, 'patch 1 last active layer')
       call check_close(flat(n_soil_layer_max + 1_ik), col(1, 2), 1.0e-12_wp, 'patch 2 starts at the CEILING stride')
       call check(.not. vld(nlayer + 1_ik), 'inactive layers of patch 1 are invalid -> _FillValue')
       call check(vld(n_soil_layer_max + 1_ik), 'patch 2 active layers are valid')
 
-      !----- The acceptance identity, computed the way a reader would.  -----------------------!
+      !--- The acceptance identity, computed the way a reader would.
       do k = 1_ik, nlayer
          wmean = poly%patch%area(1) * flat(k)                                                    &
                + poly%patch%area(2) * flat(n_soil_layer_max + k)
          call check_close(wmean, sitecol(k), 1.0e-12_wp, 'area-weighted 2-D slab == site column')
       end do
 
-      !----- Two sites, a patch each: site 1 on 5 layers, site 2 on 3. Each site's column is its  !
-      !      patch's, at the site's own stride, whatever the sites' areas. -----------------------!
+      !---~---
+      !   Two sites, a patch each: site 1 on 5 layers, site 2 on 3. Each site's column is its
+      ! patch's, at the site's own stride, whatever the sites' areas.
+      !---~---
       call alloc_polygon(two, 3_ik, 4_ik, 4_ik, 4_ik, test_pft_table(), n_site=2_ik)
       two%site%area(1:2) = [0.75_wp, 0.25_wp]
       two%site%surface(1)%soil_profile%n_active = 5_ik
@@ -627,11 +655,9 @@ contains
       call free_polygon(poly)
    end subroutine test_soil_columns
 
-   !=======================================================================================!
-   !  3. THE EXTRACT (ed_output_extract).                                                    !
-   !=======================================================================================!
+   !--- 3. THE EXTRACT (ed_output_extract).
 
-   !----- A fixed 3-cohort / 1-patch site (slot set constant across a window), agb 1, 2, 3. ----!
+   !--- A fixed 3-cohort / 1-patch site (slot set constant across a window), agb 1, 2, 3.
    subroutine extract_fixture(poly)
       type(polygon_t), intent(out) :: poly
       call alloc_polygon(poly, 2_ik, 64_ik, 8_ik, 4_ik, test_pft_table())
@@ -646,8 +672,10 @@ contains
       poly%patch%cohort_count(1)  = 3_ik
    end subroutine extract_fixture
 
-   !----- extract_variable: the live cohort slab and its count; the site twin of the same field,  !
-   !      reduced by its weight; and a cohort-block mean, where a cohort with no samples is fill.  !
+   !---~---
+   !   extract_variable: the live cohort slab and its count; the site twin of the same field,
+   ! reduced by its weight; and a cohort-block mean, where a cohort with no samples is fill.
+   !---~---
    subroutine test_extract()
       type(polygon_t)    :: poly
       type(var_desc_t)   :: v_agb_c, v_agb_s, v_lt
@@ -657,7 +685,7 @@ contains
       integer(ik)        :: n_out
       call extract_fixture(poly)
 
-      !----- extract_variable returns the live cohort slab + count. -----!
+      !--- extract_variable returns the live cohort slab + count.
       v_agb_c%name = 'mean_agb_co'
       v_agb_c%dim = DIM_COHORT
       v_agb_c%agg = AGG_TMEAN
@@ -666,9 +694,11 @@ contains
       call check(n_out == 3_ik, 'extract cohort n')
       call check_close(slab(2), 2.0_wp, 1.0e-12_wp, 'extract cohort agb(2)')
 
-      !----- Site scalar reduction via extract (total_agb = sum area*nplant*agb = 1*(1+2+3)). The   !
-      !      site twin is the SAME field with a different dim + weight: agb is EXTENSIVE, so it     !
-      !      reduces as a weighted SUM over nplant (W_NPLANT), landing in kgC/m2 ground.  ----------!
+      !---~---
+      !   Site scalar reduction via extract (total_agb = sum area*nplant*agb = 1*(1+2+3)). The
+      ! site twin is the SAME field with a different dim + weight: agb is EXTENSIVE, so it
+      ! reduces as a weighted SUM over nplant (W_NPLANT), landing in kgC/m2 ground.
+      !---~---
       v_agb_s%name = 'mean_agb_py'
       v_agb_s%dim = DIM_SCALAR
       v_agb_s%agg = AGG_MEAN
@@ -679,9 +709,11 @@ contains
       call check(n_out == 0_ik, 'scalar extract n_out=0')
       call check_close(scal, 6.0_wp, 1.0e-12_wp, 'extract site agb')
 
-      !----- Leaf temperature is the cohort block's within-step mean. A cohort with no         !
-      !      samples -- recruited after the fast loop -- is fill on the cohort axis and out of the !
-      !      leaf-area-weighted site mean; a mean over nothing is missing, not 0 K. -------------!
+      !---~---
+      !   Leaf temperature is the cohort block's within-step mean. A cohort with no
+      ! samples -- recruited after the fast loop -- is fill on the cohort axis and out of the
+      ! leaf-area-weighted site mean; a mean over nothing is missing, not 0 K.
+      !---~---
       call alloc_cohort_diag(poly%cohort%diag, 64_ik, .true.)
       poly%cohort%diag%n = 3_ik
       poly%cohort%leaf_area(1:3) = 1.0_wp
@@ -708,8 +740,10 @@ contains
       call free_polygon(poly)
    end subroutine test_extract
 
-   !----- extract_fast_scalar: a patch-block id reads its row of the sub-step's site mean, and a  !
-   !      forcing id its row of the sub-step's forcing table. -----------------------------------!
+   !---~---
+   !   extract_fast_scalar: a patch-block id reads its row of the sub-step's site mean, and a
+   ! forcing id its row of the sub-step's forcing table.
+   !---~---
    subroutine test_fast_extract()
       real(wp) :: f0(N_PY_ROWS), s(N_PA_ROWS)
       f0 = 0.0_wp
@@ -730,12 +764,12 @@ contains
       call check_close(extract_fast_scalar(SRC_F_PY0 + PY_CO2, s, f0), 415.0_wp, 1.0e-12_wp, 'fast extract forcing CO2')
    end subroutine test_fast_extract
 
-   !=======================================================================================!
-   !  4. THE INTEGRATION (ed_output_integrate, with ed_output_setup's sizing;                !
-   !  docs/science/diagnostics.md §4).                                                       !
-   !=======================================================================================!
+   !---~---
+   !   4. THE INTEGRATION (ed_output_integrate, with ed_output_setup's sizing;
+   ! docs/science/diagnostics.md §4).
+   !---~---
 
-   !----- Build a scalar buffer for one operator, fold a sequence, normalize. ---------------!
+   !--- Build a scalar buffer for one operator, fold a sequence, normalize.
    subroutine run_scalar(agg, x, dt, out, valid)
       integer(ik), intent(in)  :: agg
       real(wp),    intent(in)  :: x(:), dt(:)
@@ -753,39 +787,39 @@ contains
       call normalize_scalar(buf, out, valid)
    end subroutine run_scalar
 
-   !----- integrate_scalar + normalize_scalar, one operator at a time. -----------------------!
+   !--- integrate_scalar + normalize_scalar, one operator at a time.
    subroutine test_scalar_operators()
       real(wp) :: out
       logical  :: valid
-      !----- MEAN (equal weight). -----!
+      !--- MEAN (equal weight).
       call run_scalar(AGG_MEAN, [2.0_wp,4.0_wp,6.0_wp], [1.0_wp,1.0_wp,1.0_wp], out, valid)
       call check(valid, 'MEAN valid')
       call check_close(out, 4.0_wp, 1.0e-12_wp, 'AGG_MEAN')
-      !----- TMEAN on NON-uniform dt (17.5, not the plain mean 15). -----!
+      !--- TMEAN on NON-uniform dt (17.5, not the plain mean 15).
       call run_scalar(AGG_TMEAN, [10.0_wp,20.0_wp], [1.0_wp,3.0_wp], out, valid)
       call check_close(out, 17.5_wp, 1.0e-12_wp, 'AGG_TMEAN dt-weighted')
-      !----- RATE: amounts 1, 2 and 3 over steps of 1, 1 and 2 s -> 6 per 4 s, 1.5 per s. -----!
+      !--- RATE: amounts 1, 2 and 3 over steps of 1, 1 and 2 s -> 6 per 4 s, 1.5 per s.
       call run_scalar(AGG_RATE, [1.0_wp,2.0_wp,3.0_wp], [1.0_wp,1.0_wp,2.0_wp], out, valid)
       call check_close(out, 1.5_wp, 1.0e-12_wp, 'AGG_RATE: the amounts over the time they took')
-      !----- LAST. -----!
+      !--- LAST.
       call run_scalar(AGG_LAST, [7.0_wp,8.0_wp,9.0_wp], [1.0_wp,1.0_wp,1.0_wp], out, valid)
       call check_close(out, 9.0_wp, 1.0e-12_wp, 'AGG_LAST')
    end subroutine test_scalar_operators
 
-   !----- normalize_scalar on a buffer that saw nothing. --------------------------------------!
+   !--- normalize_scalar on a buffer that saw nothing.
    subroutine test_zero_sample_guard()
       type(var_desc_t)     :: v
       type(integ_buffer_t) :: buf
       real(wp) :: out
       logical  :: valid
-      !----- Never-touched MEAN buffer -> invalid, MISSING, no NaN / no huge leak. -----!
+      !--- Never-touched MEAN buffer -> invalid, MISSING, no NaN / no huge leak.
       v%dim = DIM_SCALAR
       v%agg = AGG_MEAN
       call alloc_integ_buffer(buf, v, FREQ_MONTHLY, 1_ik)
       call normalize_scalar(buf, out, valid)
       call check(.not. valid, 'zero-sample -> invalid')
       call check(out == MISSING_VALUE, 'zero-sample -> MISSING')
-      !----- A RATE buffer that saw no step reports nothing, not a 0/0. -----!
+      !--- A RATE buffer that saw no step reports nothing, not a 0/0.
       v%agg = AGG_RATE
       call alloc_integ_buffer(buf, v, FREQ_MONTHLY, 1_ik)
       call reset_buffer(buf)
@@ -793,10 +827,12 @@ contains
       call check(.not. valid .and. out == MISSING_VALUE, 'a RATE with no step -> MISSING')
    end subroutine test_zero_sample_guard
 
-   !----- integrate_slab + normalize_slab over a fixed-slot window: TMEAN per slot, dt-weighted,  !
-   !      of the slabs extract_variable reads. step1 agb=[1,2,3] dt=1 ; step2 agb=[3,4,5] dt=3 ->  !
-   !      slot1 = (1+9)/4 = 2.5. The agb mutation goes through the OPAQUE set_cohort_agb           !
-   !      (production mutates via veg dynamics). ------------------------------------------------!
+   !---~---
+   !   integrate_slab + normalize_slab over a fixed-slot window: TMEAN per slot, dt-weighted,
+   ! of the slabs extract_variable reads. step1 agb=[1,2,3] dt=1 ; step2 agb=[3,4,5] dt=3 ->
+   ! slot1 = (1+9)/4 = 2.5. The agb mutation goes through the OPAQUE set_cohort_agb
+   ! (production mutates via veg dynamics).
+   !---~---
    subroutine test_slab_window()
       type(polygon_t)      :: poly
       type(var_desc_t)     :: v_agb_c
@@ -823,14 +859,16 @@ contains
       call check_close(out(1), 2.5_wp, 1.0e-12_wp, 'slab TMEAN slot 1')
       call check_close(out(2), 3.5_wp, 1.0e-12_wp, 'slab TMEAN slot 2')
       call check_close(out(3), 4.5_wp, 1.0e-12_wp, 'slab TMEAN slot 3')
-      !----- Slots past the live count are invalid (fill tail). -----!
+      !--- Slots past the live count are invalid (fill tail).
       call check(.not. valid(4), 'fill-tail slot invalid')
       call free_polygon(poly)
    end subroutine test_slab_window
 
-   !----- The FAST (sub-daily) tier: a 2-sub-step window folded by output_integrate_fast +       !
-   !      close_tier(1) -> TMEAN in pending(1), across the scalar, soil-column, and per-cohort     !
-   !      slab paths. netCDF-free; mirrors what main's replay loop does.  -------------------------!
+   !---~---
+   !   The FAST (sub-daily) tier: a 2-sub-step window folded by output_integrate_fast +
+   ! close_tier(1) -> TMEAN in pending(1), across the scalar, soil-column, and per-cohort
+   ! slab paths. netCDF-free; mirrors what main's replay loop does.
+   !---~---
    subroutine test_fast_tier()
       type(ed_config_t)      :: cfg
       type(output_files_t)   :: files
@@ -838,8 +876,10 @@ contains
       integer(ik) :: k_cas, k_soil, k_air, k_hgt, k_cas_p, k_soil_p, nl, c_soil, c_hgt, c_cas_p, c_soil_p
       real(wp), parameter :: DT = 900.0_wp    ! uniform sub-step -> TMEAN == plain mean
 
-      !----- Build a manager with the FAST tier on (the defaults' F variables) and the soil by patch, !
-      !      then fold a 2-sub-step window and close it. -----!
+      !---~---
+      !   Build a manager with the FAST tier on (the defaults' F variables) and the soil by patch,
+      ! then fold a 2-sub-step window and close it.
+      !---~---
       cfg = build_test_config(86400.0_wp)
       cfg%output%enabled    = .true.
       cfg%output%freq_on(1) = .true.               ! FAST tier on
@@ -847,7 +887,7 @@ contains
       call alloc_output_set(files, bufs, cfg, [selection_t('mean_soil_temp_layer_pa', OVR_MASK, FREQ_FAST)])
       call check(files%reg%nidx(1) > 0_ik, 'FAST tier has live variables')
 
-      !----- Stage 2 sub-steps of two patches with known values (as fast_dynamics would). -----!
+      !--- Stage 2 sub-steps of two patches with known values (as fast_dynamics would).
       nl = n_soil_layer_max
       call alloc_fast_staging(bufs, 2_ik, 2_ik, 8_ik, 2_ik)
       bufs%fast_n_cohort = 2_ik
@@ -870,22 +910,24 @@ contains
       call output_integrate_fast(files, bufs, 2_ik, DT)
       call close_tier(files, bufs, 1_ik)
 
-      !----- Scalar path: mean_cas_temp_py = TMEAN(290,294) = 292. On the F tier a variable reads its   !
-      !      fast source, the staged sub-step samples, where the coarse tiers read live state. ---------!
+      !---~---
+      !   Scalar path: mean_cas_temp_py = TMEAN(290,294) = 292. On the F tier a variable reads its
+      ! fast source, the staged sub-step samples, where the coarse tiers read live state.
+      !---~---
       k_cas = find_var_index(files%reg, 'mean_cas_temp_py')
       call check(k_cas > 0_ik, 'mean_cas_temp_py registered')
       call check(bufs%pending(1)%svalid(k_cas), 'FAST cas_temp valid after close')
       call check_close(bufs%pending(1)%sval(k_cas), 292.0_wp, 1.0e-10_wp, 'FAST cas_temp TMEAN')
-      !----- Soil-column slab path: mean_soil_temp_layer_si slot means. -----!
+      !--- Soil-column slab path: mean_soil_temp_layer_si slot means.
       k_soil = find_var_index(files%reg, 'mean_soil_temp_layer_si')
       c_soil = slab_col(bufs%pending(1), k_soil)
       call check(bufs%pending(1)%nslab(k_soil) == nl .and. bufs%pending(1)%slabvalid(2,c_soil)          &
                  .and. .not. bufs%pending(1)%slabvalid(3,c_soil), 'FAST soil slab: the site''s 2 layers of nl')
       call check_close(bufs%pending(1)%slab(1,c_soil), 281.0_wp, 1.0e-10_wp, 'FAST soil_temp slot 1')
       call check_close(bufs%pending(1)%slab(2,c_soil), 282.0_wp, 1.0e-10_wp, 'FAST soil_temp slot 2')
-      !----- Per-cohort slab path: n_cohort (the slots are checked on mean_height_co below). -----!
+      !--- Per-cohort slab path: n_cohort (the slots are checked on mean_height_co below).
       call check(bufs%pending(1)%n_cohort == 2_ik, 'FAST n_cohort = 2')
-      !----- Forcing air-temp scalar path + per-cohort HEIGHT slab path (tallest-cohort post-proc). -----!
+      !--- Forcing air-temp scalar path + per-cohort HEIGHT slab path (tallest-cohort post-proc).
       k_air = find_var_index(files%reg, 'mean_air_temp_py')
       call check(k_air > 0_ik, 'mean_air_temp_py registered')
       call check_close(bufs%pending(1)%sval(k_air), 301.0_wp, 1.0e-10_wp, 'FAST air_temp TMEAN')
@@ -894,8 +936,10 @@ contains
       call check(k_hgt > 0_ik, 'mean_height_co registered')
       call check_close(bufs%pending(1)%slab(1,c_hgt), 10.0_wp, 1.0e-10_wp, 'FAST height cohort 1')
       call check_close(bufs%pending(1)%slab(2,c_hgt), 12.0_wp, 1.0e-10_wp, 'FAST height cohort 2')
-      !----- The patch axis: each patch's own mean, and each patch's soil column in the            !
-      !      soil-by-patch layout, with the inactive layers as fill. -----!
+      !---~---
+      !   The patch axis: each patch's own mean, and each patch's soil column in the
+      ! soil-by-patch layout, with the inactive layers as fill.
+      !---~---
       k_cas_p = find_var_index(files%reg, 'mean_cas_temp_pa')
       c_cas_p = slab_col(bufs%pending(1), k_cas_p)
       call check(k_cas_p > 0_ik, 'mean_cas_temp_pa registered')
@@ -912,9 +956,11 @@ contains
       call check(.not. bufs%pending(1)%slabvalid(3,c_soil_p), 'FAST soil patch 1 layer 3 is fill (inactive)')
    end subroutine test_fast_tier
 
-   !----- The driver's order: setup_output_files, then an [output].io_config override that switches on a  !
-   !      slab variable setup left off, then finalize_output_files and alloc_output_buffers. The slab must !
-   !      hold every soil layer, read from the QUEUED record through slab_col, as the writer reads it. !
+   !---~---
+   !   The driver's order: setup_output_files, then an [output].io_config override that switches on a
+   ! slab variable setup left off, then finalize_output_files and alloc_output_buffers. The slab must
+   ! hold every soil layer, read from the QUEUED record through slab_col, as the writer reads it.
+   !---~---
    subroutine test_slab_sized_after_overrides()
       type(ed_config_t)      :: cfg
       type(output_files_t)   :: files
@@ -958,9 +1004,11 @@ contains
       end associate
    end subroutine test_slab_sized_after_overrides
 
-   !----- A tier whose only patch output is soil by patch still records its patch count: the slab  !
-   !      is patch-major, so it holds nslab / n_soil_layer_max patches. If only a DIM_PATCH         !
-   !      variable set the count, such a record would write one patch and every value as fill. ---!
+   !---~---
+   !   A tier whose only patch output is soil by patch still records its patch count: the slab
+   ! is patch-major, so it holds nslab / n_soil_layer_max patches. If only a DIM_PATCH
+   ! variable set the count, such a record would write one patch and every value as fill.
+   !---~---
    subroutine test_soil_patch_record()
       type(ed_config_t)      :: cfg
       type(output_files_t)   :: files
@@ -989,9 +1037,11 @@ contains
       end associate
    end subroutine test_soil_patch_record
 
-   !----- Two polygons' buffers for one file set: each reduces only its own samples, and closing !
-   !      one leaves the other's window open. Folds are interleaved the way a region's month     !
-   !      loop would interleave its polygons. ---------------------------------------------------!
+   !---~---
+   !   Two polygons' buffers for one file set: each reduces only its own samples, and closing
+   ! one leaves the other's window open. Folds are interleaved the way a region's month
+   ! loop would interleave its polygons.
+   !---~---
    subroutine test_two_buffers()
       type(ed_config_t)      :: cfg
       type(output_files_t)   :: files
@@ -1021,11 +1071,13 @@ contains
       call check_close(a%queue(1)%rec(1)%sval(k_cas), 292.0_wp, 1.0e-10_wp, 'polygon a''s queued record is untouched')
    end subroutine test_two_buffers
 
-   !----- The slow tick across a month boundary (docs/science/diagnostics.md §4, Which steps a    !
-   !      record holds). The step from 31 January to 1 February is January's: it folds into       !
-   !      January, which then closes. The stand is restructured only after that tick              !
-   !      (the next step's start), so January's cohort slab holds one slot set, and February opens on  !
-   !      1 February with the new one. -----------------------------------------------------------!
+   !---~---
+   !   The slow tick across a month boundary (docs/science/diagnostics.md §4, Which steps a
+   ! record holds). The step from 31 January to 1 February is January's: it folds into
+   ! January, which then closes. The stand is restructured only after that tick
+   ! (the next step's start), so January's cohort slab holds one slot set, and February opens on
+   ! 1 February with the new one.
+   !---~---
    subroutine test_boundary_step()
       type(ed_config_t)      :: cfg
       type(output_files_t)   :: files
@@ -1055,8 +1107,10 @@ contains
       jan31 = time_advance_days(jan30, 1_ik)
       feb1  = time_advance_days(jan31, 1_ik)
 
-      !----- 30 and 31 January: one cohort, agb 10 then 12 at the ends of the two steps. The      !
-      !      second step ends on the month boundary. ---------------------------------------------!
+      !---~---
+      !   30 and 31 January: one cohort, agb 10 then 12 at the ends of the two steps. The
+      ! second step ends on the month boundary.
+      !---~---
       call set_cohorts(poly, [10.0_wp])
       call output_integrate(files, bufs, poly, jan30, DT, .true., .false., .false.)
       call set_cohorts(poly, [12.0_wp])
@@ -1074,8 +1128,10 @@ contains
                        'January''s cohort slab includes its last step too')
       call check(.not. bufs%has_data(3), 'nothing of the boundary step is left for February')
 
-      !----- The boundary: a recruit joins (restructure_stand runs here in the driver). Then 1    !
-      !      February's own step; close the month by hand. ---------------------------------------!
+      !---~---
+      !   The boundary: a recruit joins (restructure_stand runs here in the driver). Then 1
+      ! February's own step; close the month by hand.
+      !---~---
       call set_cohorts(poly, [20.0_wp, 5.0_wp])
       call output_integrate(files, bufs, poly, feb1, DT, .true., .false., .false.)
       call check(bufs%t_open(3)%month == 2_ik .and. bufs%t_open(3)%day == 1_ik, 'February opens on 1 February')
@@ -1087,10 +1143,12 @@ contains
       call free_polygon(poly)
    end subroutine test_boundary_step
 
-   !----- Snapshots on the tiers. Daily: the last staged sub-step of the step, for a polygon value  !
-   !      (cas_temp_py), a patch slab (cas_temp_pa), an F-only state (cas_co2_pa) and a cohort row  !
-   !      reduced as its mean is (leaf_temp_py, leaf-area-weighted); a step with nothing staged     !
-   !      reads as fill. F: a snapshot keeps the last sub-step where its mean averages them. ------!
+   !---~---
+   !   Snapshots on the tiers. Daily: the last staged sub-step of the step, for a polygon value
+   ! (cas_temp_py), a patch slab (cas_temp_pa), an F-only state (cas_co2_pa) and a cohort row
+   ! reduced as its mean is (leaf_temp_py, leaf-area-weighted); a step with nothing staged
+   ! reads as fill. F: a snapshot keeps the last sub-step where its mean averages them.
+   !---~---
    subroutine test_snapshots()
       type(ed_config_t)      :: cfg
       type(output_files_t)   :: files
@@ -1122,7 +1180,7 @@ contains
       k_r  = find_var_index(files%reg, 'cas_co2_pa')
       k_lt = find_var_index(files%reg, 'leaf_temp_py')
 
-      !----- One patch, two cohorts of leaf area 1 and 3, the cohort block on; two staged sub-steps. -!
+      !--- One patch, two cohorts of leaf area 1 and 3, the cohort block on; two staged sub-steps.
       call alloc_polygon(poly, 2_ik, 8_ik, 8_ik, 4_ik, cfg%pft)
       poly%patch%n = 1_ik
       poly%patch%area(1) = 1.0_wp
@@ -1161,14 +1219,14 @@ contains
       call free_polygon(poly)
    end subroutine test_snapshots
 
-   !----- `"*" = false`: nothing selected, the axes' bookkeeping included. ------------------------!
+   !--- `"*" = false`: nothing selected, the axes' bookkeeping included.
    subroutine select_nothing(files)
       type(output_files_t), intent(inout) :: files
       call apply_selections(files%reg, [selection_t('*', OVR_FALSE, FREQ_NONE)])
       call resolve_streams(files%reg)
    end subroutine select_nothing
 
-   !----- One patch holding `agb`'s cohorts, one plant each. ------------------------------------!
+   !--- One patch holding `agb`'s cohorts, one plant each.
    subroutine set_cohorts(poly, agb)
       type(polygon_t), intent(inout) :: poly
       real(wp),        intent(in)    :: agb(:)
@@ -1182,7 +1240,7 @@ contains
       call set_cohort_agb(poly, agb, n)
    end subroutine set_cohorts
 
-   !----- Stage two FAST sub-steps with the given CAS temperatures and zero everything else. -----!
+   !--- Stage two FAST sub-steps with the given CAS temperatures and zero everything else.
    subroutine stage_cas(bufs, cas)
       type(output_buffers_t), intent(inout) :: bufs
       real(wp),               intent(in)    :: cas(2)
@@ -1195,8 +1253,10 @@ contains
       bufs%fast_cohort_height = 10.0_wp
    end subroutine stage_cas
 
-   !----- One polygon's FAST staging as fast_dynamics sizes it (size_fast_staging): nsub sub-steps, !
-   !      np patches and nc cohort slots, all zero, in one site of n_soil layers. ------------------!
+   !---~---
+   !   One polygon's FAST staging as fast_dynamics sizes it (size_fast_staging): nsub sub-steps,
+   ! np patches and nc cohort slots, all zero, in one site of n_soil layers.
+   !---~---
    subroutine alloc_fast_staging(bufs, nsub, np, nc, n_soil)
       type(output_buffers_t), intent(inout) :: bufs
       integer(ik),            intent(in)    :: nsub, np, nc, n_soil

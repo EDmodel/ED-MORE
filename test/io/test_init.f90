@@ -1,27 +1,27 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! test_init -- how a run's polygon starts (src/io/init; docs/configuration.md, How a run     !
-! starts).                                                                                  !
-!   1. THE CENSUS READER (ed_init_census): a site is built from a cohort CSV -- the site       !
-!      filter, the patch map, the allometry from dbh, comment and blank lines, a header-less    !
-!      file read positionally, columns by name in any order, patch_area normalized to the site, !
-!      and restructure_census_stand conserving the stand's stems and biomass and honouring its  !
-!      switches. A missing file or a site with no row is reported, not a crash.                  !
-!   2. THE CENSUS REFUSALS: every reason the reader gives for a file it cannot use, each from a !
-!      file written to give exactly that reason. The driver stops the run with the reason.       !
-!   3. THE INITIAL SOIL STATE (ed_init_bare_ground, ed_init): [init].soil_temp and               !
-!      soil_theta reach every layer of every patch through build_soil_profile, with the         !
-!      defaults pinned (288 K, theta = 0.30); a start below freezing holds the liquid its        !
-!      freezing curve allows; a texture per layer starts each layer at its own field capacity;  !
-!      and bare ground is empty unless a PFT's nbg_init_density seeds it at min_cohort_height.  !
-!   4. THE INITIAL SNOWPACK (ed_init: init_fast_state; docs/science/snow_biophysics.md): no     !
-!      [fast].snow_init_swe seeds no pack; one seeds every patch with one frozen layer of that   !
-!      water equivalent at [fast].snow_init_temp, as deep as its water over the snow density,   !
-!      at a configured density too.                                                            !
-!   5. THE CANOPY AIR'S DEPTH (ed_init: init_polygon, which ends every start with the depth    !
-!      the stand sets): a bare-ground start, which has no stand, opens each patch's canopy air !
-!      at [aerodynamics].min_canopy_depth.                                                     !
-!==========================================================================================!
+!---~---
+!   test_init -- how a run's polygon starts (src/io/init; docs/configuration.md, How a run
+! starts).
+!   1. THE CENSUS READER (ed_init_census): a site is built from a cohort CSV -- the site
+!      filter, the patch map, the allometry from dbh, comment and blank lines, a header-less
+!      file read positionally, columns by name in any order, patch_area normalized to the site,
+!      and restructure_census_stand conserving the stand's stems and biomass and honouring its
+!      switches. A missing file or a site with no row is reported, not a crash.
+!   2. THE CENSUS REFUSALS: every reason the reader gives for a file it cannot use, each from a
+!      file written to give exactly that reason. The driver stops the run with the reason.
+!   3. THE INITIAL SOIL STATE (ed_init_bare_ground, ed_init): [init].soil_temp and
+!      soil_theta reach every layer of every patch through build_soil_profile, with the
+!      defaults pinned (288 K, theta = 0.30); a start below freezing holds the liquid its
+!      freezing curve allows; a texture per layer starts each layer at its own field capacity;
+!      and bare ground is empty unless a PFT's nbg_init_density seeds it at min_cohort_height.
+!   4. THE INITIAL SNOWPACK (ed_init: init_fast_state; docs/science/snow_biophysics.md): no
+!      [fast].snow_init_swe seeds no pack; one seeds every patch with one frozen layer of that
+!      water equivalent at [fast].snow_init_temp, as deep as its water over the snow density,
+!      at a configured density too.
+!   5. THE CANOPY AIR'S DEPTH (ed_init: init_polygon, which ends every start with the depth
+!      the stand sets): a bare-ground start, which has no stand, opens each patch's canopy air
+!      at [aerodynamics].min_canopy_depth.
+!---~---
 program test_init
    use ed_kinds,                only : wp, ik
    use ed_config,               only : ed_config_t
@@ -49,7 +49,7 @@ program test_init
 
 contains
 
-   !----- 1. The census reader. --------------------------------------------------------------!
+   !--- 1. The census reader.
    subroutine test_census()
       type(ed_config_t)   :: cfg
       type(polygon_t)     :: poly
@@ -62,7 +62,7 @@ contains
       call banner('the census reader')
       cfg = build_test_config()
 
-      !----- Write a small census file (with a comment + blank line to exercise skipping). ----!
+      !--- Write a small census file (with a comment + blank line to exercise skipping).
       open(newunit=u, file='test_census_tmp.csv', status='replace', action='write')
       write(u,'(a)') '# pseudo cohort census (two patches in site 1, one row for site 2)'
       write(u,'(a)') 'site_id,patch_id,cohort_id,dbh,height,pft,nplant'
@@ -73,25 +73,25 @@ contains
       write(u,'(a)') '2,1,1,40.0,27.0,3,0.02'
       close(u)
 
-      !=== Default: first site_id (1) selected; site 2 row excluded. ==========================!
+      !--- Default: first site_id (1) selected; site 2 row excluded.
       call init_from_census(poly, cfg, 'test_census_tmp.csv', found)
       call check(found, 'census file should be usable')
       call check(poly%patch%n  == 2_ik, 'site 1 should yield 2 patches')
       call check(poly%cohort%n == 3_ik, 'site 1 should yield 3 cohorts (site 2 row excluded)')
       call check(sum(poly%patch%cohort_count(1:poly%patch%n)) == poly%cohort%n, 'CSR count mismatch')
-      !----- dbh drove the allometry: every cohort has a positive derived height/agb/leaf area. !
+      !--- dbh drove the allometry: every cohort has a positive derived height/agb/leaf area.
       call check(all(poly%cohort%height(1:poly%cohort%n)    > 0.0_wp), 'derived height not positive')
       call check(all(poly%cohort%agb(1:poly%cohort%n)       > 0.0_wp), 'derived agb not positive')
       call check(all(poly%cohort%leaf_area(1:poly%cohort%n) > 0.0_wp), 'derived leaf area not positive')
 
-      !=== Explicit site selection: site 2 -> one patch, one (climax, pft 3) cohort. ==========!
+      !--- Explicit site selection: site 2 -> one patch, one (climax, pft 3) cohort.
       call init_from_census(poly, cfg, 'test_census_tmp.csv', found, use_site_id = 2_ik)
       call check(found, 'site 2 should be usable')
       call check(poly%patch%n  == 1_ik, 'site 2 should yield 1 patch')
       call check(poly%cohort%n == 1_ik, 'site 2 should yield 1 cohort')
       call check(poly%cohort%pft(1) == 3_ik, 'site 2 cohort should be pft 3')
 
-      !=== Header-LESS CSV: the first data line must be KEPT, not silently dropped as a header. ==!
+      !--- Header-LESS CSV: the first data line must be KEPT, not silently dropped as a header.
       open(newunit=u, file='test_census_nohdr.csv', status='replace', action='write')
       write(u,'(a)') '1,1,1,30.0,21.0,3,0.05'      ! no header row -> the first line is DATA
       write(u,'(a)') '1,1,2,10.0,12.0,2,0.20'
@@ -103,8 +103,10 @@ contains
       open(newunit=u, file='test_census_nohdr.csv', status='old', action='read')
       close(u, status='delete')
 
-      !=== Columns by NAME, in any order, with patch_area and without site_id. =================!
-      !    Patch 7 has three times the area of patch 9, so the site fractions are 0.75 and 0.25.  !
+      !---~---
+      !   Columns by NAME, in any order, with patch_area and without site_id.
+      ! Patch 7 has three times the area of patch 9, so the site fractions are 0.75 and 0.25.
+      !---~---
       open(newunit=u, file='test_census_named.csv', status='replace', action='write')
       write(u,'(a)') '# columns reordered, areas in m2'
       write(u,'(a)') 'nplant,pft,dbh,patch_area,patch_id'
@@ -127,8 +129,10 @@ contains
       end do
       open(newunit=u, file='test_census_named.csv', status='old', action='read')
       close(u, status='delete')
-      !=== Restructuring a census stand: 20 identical cells, each with two rows of the same size,   !
-      !    fuse to one patch and one cohort per size, conserving the site's stems and biomass.     !
+      !---~---
+      !   Restructuring a census stand: 20 identical cells, each with two rows of the same size,
+      ! fuse to one patch and one cohort per size, conserving the site's stems and biomass.
+      !---~---
       open(newunit=u, file='test_census_cells.csv', status='replace', action='write')
       write(u,'(a)') 'patch_id,patch_area,dbh,pft,nplant'
       do ip = 1_ik, 20_ik
@@ -149,7 +153,7 @@ contains
       call check_close(sum([(poly%patch%area(poly%cohort%owner_patch(i)) * poly%cohort%nplant(i)             &
                              * poly%cohort%agb(i), i = 1_ik, poly%cohort%n)]), agb0, 1.0e-12_wp,         &
                        'restructuring must conserve the site''s biomass')
-      !----- With demography off it leaves the stand alone. ----------------------------------!
+      !--- With demography off it leaves the stand alone.
       call init_from_census(poly, cfg, 'test_census_cells.csv', found)
       cfg%demography%demography_on = .false.
       call restructure_census_stand(poly, cfg)
@@ -157,8 +161,10 @@ contains
       cfg%demography%demography_on = .true.
       open(newunit=u, file='test_census_cells.csv', status='old', action='read')
       close(u, status='delete')
-      !=== A missing file, or a site the file has no row for, is reported (found=.false.) with  !
-      !    the reason, not a crash: the driver stops the run with it. ========================!
+      !---~---
+      !   A missing file, or a site the file has no row for, is reported (found=.false.) with
+      ! the reason, not a crash: the driver stops the run with it.
+      !---~---
       call init_from_census(poly, cfg, 'no_such_census_file.csv', found, why=why)
       call check(.not. found, 'missing census file should report found=.false.')
       call check(why == 'cannot be opened', 'a missing census file should say it cannot be opened')
@@ -171,9 +177,11 @@ contains
 
    end subroutine test_census
 
-   !----- 2. Every reason the census reader gives for a file it cannot use. Each case is a header !
-   !      and up to two rows written to give exactly that reason, and the reason is matched in  !
-   !      full: a file the reader accepted, or refused for another reason, fails. -------------!
+   !---~---
+   !   2. Every reason the census reader gives for a file it cannot use. Each case is a header
+   ! and up to two rows written to give exactly that reason, and the reason is matched in
+   ! full: a file the reader accepted, or refused for another reason, fails.
+   !---~---
    subroutine test_census_refusals()
       integer, parameter  :: N_CASE = 12
       character(len=64)   :: header(N_CASE), row1(N_CASE), row2(N_CASE)
@@ -239,24 +247,24 @@ contains
       close(u, status='delete')
    end subroutine test_census_refusals
 
-   !----- 3. The initial soil state. ---------------------------------------------------------!
+   !--- 3. The initial soil state.
    subroutine test_soil_state()
       type(ed_config_t)    :: cfg
       type(polygon_t)      :: poly
       type(soil_profile_t) :: prof
       integer(ik)          :: ip, nsl, k, n
       real(wp)             :: bottoms(n_soil_layer_max), tdiag, fdiag, theta_liq, dtheta
-      type(met_forcing_t)  :: ref   !< the reference climate a start's canopy air is seeded at
+      type(met_forcing_t)  :: ref   !--- the reference climate a start's canopy air is seeded at
 
 
       call banner('the initial soil state')
       cfg = build_test_config()
 
-      !=== 1. The defaults: 288 K and theta = 0.30. ===========================================!
+      !--- 1. The defaults: 288 K and theta = 0.30.
       call check_close(cfg%init%soil_temp,  288.0_wp, 1.0e-14_wp, 'default soil_temp changed (was 288 K)')
       call check_close(cfg%init%soil_theta, 0.30_wp,  1.0e-14_wp, 'default soil_theta changed (was 0.30)')
 
-      !=== 2. Set values reach the site, then every layer of every patch. ======================!
+      !--- 2. Set values reach the site, then every layer of every patch.
       cfg%init%soil_temp  = 298.65_wp
       cfg%init%soil_theta = 0.25_wp
       call build_soil_profile(cfg%soil, prof)
@@ -274,8 +282,10 @@ contains
                     'a laid-out patch''s canopy air is not at the reference climate')
       end do
 
-      !=== 2b. A start below freezing: the water starts as the liquid its freezing curve holds and  !
-      !        the rest ice, and the stored energy gives back the start temperature. ==================!
+      !---~---
+      !   2b. A start below freezing: the water starts as the liquid its freezing curve holds and
+      ! the rest ice, and the stored energy gives back the start temperature.
+      !---~---
       cfg%init%soil_temp = 260.0_wp
       call init_bare_ground(poly, cfg, 3_ik)
       associate (se => poly%patch%soil_energy(2), surf => poly%site%surface(1))
@@ -291,7 +301,7 @@ contains
       end associate
       cfg%init%soil_temp = 298.65_wp
 
-      !=== 3. A texture per layer: each layer's own curve, each starting at its field capacity. ======!
+      !--- 3. A texture per layer: each layer's own curve, each starting at its field capacity.
       call soil_layers(cfg%soil, bottoms, n)
       associate (sc => cfg%soil)
          sc%n_layer_values = n
@@ -325,7 +335,7 @@ contains
       call check(all(poly%patch%soil_water(2)%theta(1:n) == prof%theta_fc(1:n)),                                          &
                  'a patch''s soil did not start at field capacity')
 
-      !=== 4. Bare ground is empty by default; nbg_init_density seeds each patch with each PFT. ======!
+      !--- 4. Bare ground is empty by default; nbg_init_density seeds each patch with each PFT.
       call init_bare_ground(poly, cfg, 3_ik)
       call seed_bare_ground(poly, cfg)
       call check(poly%cohort%n == 0_ik, 'bare ground is not empty with nbg_init_density = 0')
@@ -340,9 +350,11 @@ contains
                  'a seeded cohort has the wrong PFT or density')
    end subroutine test_soil_state
 
-   !----- 4. The initial snowpack: none by default; [fast].snow_init_swe = 40 kg/m2 at 265 K lays one   !
-   !      frozen layer on every patch, whose energy gives back 265 K, as deep as the pack's water over  !
-   !      the snow density (depth = swe / rho_snow, the relation the pack keeps every step). ---------!
+   !---~---
+   !   4. The initial snowpack: none by default; [fast].snow_init_swe = 40 kg/m2 at 265 K lays one
+   ! frozen layer on every patch, whose energy gives back 265 K, as deep as the pack's water over
+   ! the snow density (depth = swe / rho_snow, the relation the pack keeps every step).
+   !---~---
    subroutine test_initial_snowpack()
       type(ed_config_t)   :: cfg
       type(polygon_t)     :: poly
@@ -372,9 +384,11 @@ contains
                              'a seeded pack is not as deep as its water over the snow density')
          end associate
       end do
-      !----- At another density: a seed at the default density's depth would disagree with its water   !
-      !      until the pack's first exchange, and the first window's canopy burial and snow cover     !
-      !      would read the wrong depth. -----------------------------------------------------------!
+      !---~---
+      !   At another density: a seed at the default density's depth would disagree with its water
+      ! until the pack's first exchange, and the first window's canopy burial and snow cover
+      ! would read the wrong depth.
+      !---~---
       cfg%snow%rho_snow = 350.0_wp
       call init_bare_ground(poly, cfg, 3_ik)
       call finalize_init(poly)
@@ -383,9 +397,11 @@ contains
                        'a pack seeded at [snow].rho_snow = 350 is as deep as its water over 350 kg/m3')
    end subroutine test_initial_snowpack
 
-   !----- 5. The canopy air's depth at a bare-ground start: the floor, not the type's default.     !
-   !      The floor is set above the freeboard over the tallest cohort (5 m by default), so a     !
-   !      depth taken from the freeboard on the empty stand would not pass. ----------------------!
+   !---~---
+   !   5. The canopy air's depth at a bare-ground start: the floor, not the type's default.
+   ! The floor is set above the freeboard over the tallest cohort (5 m by default), so a
+   ! depth taken from the freeboard on the empty stand would not pass.
+   !---~---
    subroutine test_canopy_air_floor()
       real(wp), parameter :: FLOOR = 7.0_wp   ! [m]
       type(ed_config_t)   :: cfg

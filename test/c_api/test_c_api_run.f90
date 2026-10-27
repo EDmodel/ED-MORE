@@ -1,32 +1,32 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! test_c_api_run -- COVERAGE FOR THE FULL-COUPLED-MODEL C-API SHIM (`ed.model`).             !
-!                                                                                          !
-! Two things here are load-bearing and neither is an assertion:                                !
-!                                                                                          !
-!   * `src/c_api/ed_c_api_run.f90` is COMPILED by a MANDATORY target, so a change to       !
-!     `ed_region`'s open/step/finalize seam is a build break rather than a silent rot in   !
-!     an optional library. Every C-API shim is compiled into a ctest target for this       !
-!     reason (docs/building.md §Running the tests).                                        !
-!                                                                                          !
-!   * this test runs from `examples/example04_column_biophysics/` and LOADS BOTH of that          !
-!     example's shipped configs, the default and the calibrated run. The example runs them with   !
-!     scripts the build knows nothing about, and a config nothing loads rots like a shim nothing   !
-!     compiles.                                                                                    !
-!                                                                                          !
-! The assertions cover the shim's own logic: the invalid-handle guard (every accessor has to      !
-! return a sentinel rather than index a stale registry slot), distinct handles, a real             !
-! open -> step -> finalize -> free cycle through the C boundary, and a failed open that leaves its  !
-! slot free for the next one.                                                                       !
-!                                                                                          !
-! The cycle runs on a config DERIVED from the shipped default one: fast biophysics and live met    !
-! forcing off (the forcing netCDF is not tracked in git), bare ground, three days. The derivation   !
-! writes an override block, then the original less the keys the block sets (derive_config), since  !
-! `ed_toml` refuses a key set twice. Deriving it, rather than writing a config from scratch,        !
-! means this test also proves the shipped file is complete enough to INITIALISE, not merely to      !
-! parse. The derived configs go into the work directory (the first argument), the only place the   !
-! test writes.                                                                                      !
-!==========================================================================================!
+!---~---
+!   test_c_api_run -- COVERAGE FOR THE FULL-COUPLED-MODEL C-API SHIM (`ed.model`).
+!
+!   Two things here are load-bearing and neither is an assertion:
+!
+!   * `src/c_api/ed_c_api_run.f90` is COMPILED by a MANDATORY target, so a change to
+!     `ed_region`'s open/step/finalize seam is a build break rather than a silent rot in
+!     an optional library. Every C-API shim is compiled into a ctest target for this
+!     reason (docs/building.md §Running the tests).
+!
+!   * this test runs from `examples/example04_column_biophysics/` and LOADS BOTH of that
+!     example's shipped configs, the default and the calibrated run. The example runs them with
+!     scripts the build knows nothing about, and a config nothing loads rots like a shim nothing
+!     compiles.
+!
+!   The assertions cover the shim's own logic: the invalid-handle guard (every accessor has to
+! return a sentinel rather than index a stale registry slot), distinct handles, a real
+! open -> step -> finalize -> free cycle through the C boundary, and a failed open that leaves its
+! slot free for the next one.
+!
+!   The cycle runs on a config DERIVED from the shipped default one: fast biophysics and live met
+! forcing off (the forcing netCDF is not tracked in git), bare ground, three days. The derivation
+! writes an override block, then the original less the keys the block sets (derive_config), since
+! `ed_toml` refuses a key set twice. Deriving it, rather than writing a config from scratch,
+! means this test also proves the shipped file is complete enough to INITIALISE, not merely to
+! parse. The derived configs go into the work directory (the first argument), the only place the
+! test writes.
+!---~---
 program test_c_api_run
    use, intrinsic :: iso_c_binding, only : c_double, c_int, c_char
    use ed_kinds,          only : wp
@@ -58,9 +58,11 @@ program test_c_api_run
    cfg_no_census = trim(work)//'/no_census.toml'
    pft_seeded    = trim(work)//'/pft_seeded.toml'
 
-   !=== 1. Both SHIPPED example04_column_biophysics configs load. ===========================!
-   !      The schema-drift guard: the example's scripts are outside the build, so nothing else !
-   !      here would notice its configs falling behind the config reader.                      !
+   !---~---
+   !   1. Both SHIPPED example04_column_biophysics configs load.
+   ! The schema-drift guard: the example's scripts are outside the build, so nothing else
+   ! here would notice its configs falling behind the config reader.
+   !---~---
    call load_ed_config(CFG_DEFAULT, cfg)
    call check(cfg%pft%n >= 1_c_int, 'the shipped default config loads and carries PFTs')
    npft     = int(cfg%pft%n)
@@ -72,16 +74,18 @@ program test_c_api_run
    call check(cfg%fast_biophysics_on, 'the calibrated config requests fast biophysics')
    call check(cfg%soil_carbon%soil_carbon_on, 'the calibrated config requests SOIL CARBON')
 
-   !=== 2. The invalid-handle guard. ========================================================!
-   !      Every accessor takes a bare integer from the caller. One that was never opened, or  !
-   !      already freed, must return a sentinel -- not index a stale registry slot.            !
+   !---~---
+   !   2. The invalid-handle guard.
+   ! Every accessor takes a bare integer from the caller. One that was never opened, or
+   ! already freed, must return a sentinel -- not index a stale registry slot.
+   !---~---
    call check(ed_run_step(99_c_int)        == -1_c_int, 'step on a bogus handle returns -1')
    call check(ed_run_is_done(99_c_int)     ==  1_c_int, 'is_done on a bogus handle reports done')
    call check(ed_run_finalize(0_c_int)     == -1_c_int, 'finalize on handle 0 returns -1')
    call check(ed_run_year(-3_c_int)        == -1_c_int, 'a negative handle yields the year sentinel')
    call check(ed_run_total_agb(99_c_int)   == 0.0_wp,   'aggregates on a bogus handle read 0')
 
-   !=== 3. A real open -> step -> finalize -> free cycle across the C boundary. ==============!
+   !--- 3. A real open -> step -> finalize -> free cycle across the C boundary.
    call write_seeded_pft(pft_seeded, pft_file, npft)
    call write_derived_config(cfg_derived, pft=pft_seeded)
    h = ed_run_open(to_c(cfg_derived), int(len(cfg_derived), c_int), 0_c_int)
@@ -103,7 +107,7 @@ program test_c_api_run
    call ed_run_free(h2)
    call check(ed_run_is_done(h2) == 1_c_int, 'a freed handle reads as done, not as a live run')
 
-   !----- Step to the end. The CALLER owns the loop -- that is the whole point of this shim. ---!
+   !--- Step to the end. The CALLER owns the loop -- that is the whole point of this shim.
    d0 = ed_run_day(h)
    nsteps = 0_c_int
    do while (ed_run_is_done(h) == 0_c_int)
@@ -117,17 +121,19 @@ program test_c_api_run
    call check(d1 /= d0, 'the calendar advanced')
    call check(ed_run_istep(h) == nsteps, 'the driver istep counter matches the steps taken')
 
-   !----- Stepping past the end is a STATUS, not a crash: the Python loop relies on it. -------!
+   !--- Stepping past the end is a STATUS, not a crash: the Python loop relies on it.
    call check(ed_run_step(h) == 1_c_int, 'a step past end_time returns RUN_FINISHED')
 
-   !=== 3b. A REUSED registry slot must not inherit the previous run's counters. =============!
-   !      The registry is module-`save`, so a freed handle is handed out again. `ed_region_t`'s     !
-   !      default initialisers apply to a fresh variable, not to a slot being reopened: what makes  !
-   !      the slot fresh is region_free, which leaves it as a run never opened.                     !
-   !                                                                                          !
-   !      A Python process that runs one config after another (a calibration's trials) reuses   !
-   !      slots this way. The step counter, which the C API reads, is what is checked: a slot     !
-   !      that kept it would have kept the rest of the old run too. -------------------------------!
+   !---~---
+   !   3b. A REUSED registry slot must not inherit the previous run's counters.
+   ! The registry is module-`save`, so a freed handle is handed out again. `ed_region_t`'s
+   ! default initialisers apply to a fresh variable, not to a slot being reopened: what makes
+   ! the slot fresh is region_free, which leaves it as a run never opened.
+   !
+   !   A Python process that runs one config after another (a calibration's trials) reuses
+   ! slots this way. The step counter, which the C API reads, is what is checked: a slot
+   ! that kept it would have kept the rest of the old run too.
+   !---~---
    call ed_run_free(h)
    h = ed_run_open(to_c(cfg_derived), int(len(cfg_derived), c_int), 0_c_int)
    call check(h > 0_c_int, 'a second run opens after the first is freed')
@@ -137,10 +143,12 @@ program test_c_api_run
    status = ed_run_step(h)
    call check(ed_run_istep(h) == 1_c_int, 'the second run counts its own steps from 1')
 
-   !=== 3c. A run that FAILS to open holds nothing. ==========================================!
-   !      A census start whose file is missing stops in the polygons' start, after the run has  !
-   !      allocated them. The slot it failed in is the next one handed out, so the open after   !
-   !      it must start clean rather than find the failed attempt's arrays still there. -------!
+   !---~---
+   !   3c. A run that FAILS to open holds nothing.
+   ! A census start whose file is missing stops in the polygons' start, after the run has
+   ! allocated them. The slot it failed in is the next one handed out, so the open after
+   ! it must start clean rather than find the failed attempt's arrays still there.
+   !---~---
    call write_derived_config(cfg_no_census, census='no_such_census.csv')
    h2 = ed_run_open(to_c(cfg_no_census), int(len(cfg_no_census), c_int), 0_c_int)
    call check(h2 == -2_c_int, 'a run whose census file is missing does not open')
@@ -149,12 +157,14 @@ program test_c_api_run
    call check(ed_run_step(h2) == 0_c_int, 'and steps from its own start')
    call ed_run_free(h2)
 
-   !=== 4. State is readable, and readable AFTER finalize (that is why free is separate). ====!
+   !--- 4. State is readable, and readable AFTER finalize (that is why free is separate).
    agb   = ed_run_total_agb(h)
    lai   = ed_run_total_lai(h)
    soilc = ed_run_soil_carbon(h)
-   !      The derived run's bare ground is seeded (write_seeded_pft), so the stepped stand has   !
-   !      cohorts, biomass, leaves and soil carbon for the shim to read back.                  !
+   !---~---
+   !   The derived run's bare ground is seeded (write_seeded_pft), so the stepped stand has
+   ! cohorts, biomass, leaves and soil carbon for the shim to read back.
+   !---~---
    call check(agb > 0.0_wp .and. lai > 0.0_wp, 'the seeded stand reads back its biomass and leaves')
    call check(soilc > 0.0_wp, 'and its soil carbon')
    call check(ed_run_n_cohort(h) > 0_c_int, 'and its cohorts')
@@ -169,12 +179,14 @@ program test_c_api_run
 
 contains
 
-   !----- The shipped default config under an override block, its own values of the block's keys  !
-   !      left out (derive_config). What is turned off: the fast loop and live met forcing (the    !
-   !      forcing netCDF is untracked), the output streams and the state checkpoint, and the window !
-   !      is cut to three days from bare ground, or from `census`, a census file. The shipped       !
-   !      config's own paths stay relative to the example's directory, the test's working          !
-   !      directory. ----------------------------------------------------------------------------!
+   !---~---
+   !   The shipped default config under an override block, its own values of the block's keys
+   ! left out (derive_config). What is turned off: the fast loop and live met forcing (the
+   ! forcing netCDF is untracked), the output streams and the state checkpoint, and the window
+   ! is cut to three days from bare ground, or from `census`, a census file. The shipped
+   ! config's own paths stay relative to the example's directory, the test's working
+   ! directory.
+   !---~---
    subroutine write_derived_config(path, census, pft)
       character(len=*),           intent(in) :: path
       character(len=*), optional, intent(in) :: census, pft
@@ -193,8 +205,10 @@ contains
                          '[output]'//NL//'state_write = false'//NL//'enabled = false', CFG_DEFAULT)
    end subroutine write_derived_config
 
-   !----- The example's PFT file with every PFT seeding a bare-ground start (pft.nbg_init_density, !
-   !      0.1 plants/m2 per patch), so the derived run's stand has cohorts. ----------------------!
+   !---~---
+   !   The example's PFT file with every PFT seeding a bare-ground start (pft.nbg_init_density,
+   ! 0.1 plants/m2 per patch), so the derived run's stand has cohorts.
+   !---~---
    subroutine write_seeded_pft(path, source, npft)
       character(len=*), intent(in) :: path, source
       integer,          intent(in) :: npft
@@ -213,7 +227,7 @@ contains
       close(uout)
    end subroutine write_seeded_pft
 
-   !----- A NUL-free c_char array; the shim takes (buffer, length), not a C string. ----------!
+   !--- A NUL-free c_char array; the shim takes (buffer, length), not a C string.
    function to_c(s) result(a)
       character(len=*), intent(in)        :: s
       character(kind=c_char), allocatable :: a(:)

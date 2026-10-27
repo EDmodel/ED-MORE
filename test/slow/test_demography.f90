@@ -1,20 +1,20 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! test_demography -- unit tests for the demographic laws (ed_demography;                   !
-! docs/science/demography.md §1-§4). Each law is checked by a property it must have, not   !
-! by its own formula typed again:                                                          !
-!   1. GROWTH        : the prospective rate inverts the wood allometry; no wood growth, no   !
-!                      diameter growth; a loss beyond the wood stops at no wood.             !
-!   2. MORTALITY     : the hazard is gamma + alpha at zero growth and falls to gamma as      !
-!                      growth rises; it reads the growth average once there is one.         !
-!   3. TO THE FLOOR  : the decline takes the density exactly to the floor over its window,  !
-!                      and is zero at or below the floor.                                   !
-!   4. RECRUITMENT   : the efficiency is the open value at no LAI and halves at ln2/k; a     !
-!                      cohort's recruitment is linear in its density and zero without seed.  !
-!   5. DECISIONS     : a pool founds a cohort at the threshold and not below; the disturbed  !
-!                      share composes over two half-intervals; a cohort at the survival     !
-!                      height dies in the gap.                                              !
-!==========================================================================================!
+!---~---
+!   test_demography -- unit tests for the demographic laws (ed_demography;
+! docs/science/demography.md §1-§4). Each law is checked by a property it must have, not
+! by its own formula typed again:
+!   1. GROWTH        : the prospective rate inverts the wood allometry; no wood growth, no
+!                      diameter growth; a loss beyond the wood stops at no wood.
+!   2. MORTALITY     : the hazard is gamma + alpha at zero growth and falls to gamma as
+!                      growth rises; it reads the growth average once there is one.
+!   3. TO THE FLOOR  : the decline takes the density exactly to the floor over its window,
+!                      and is zero at or below the floor.
+!   4. RECRUITMENT   : the efficiency is the open value at no LAI and halves at ln2/k; a
+!                      cohort's recruitment is linear in its density and zero without seed.
+!   5. DECISIONS     : a pool founds a cohort at the threshold and not below; the disturbed
+!                      share composes over two half-intervals; a cohort at the survival
+!                      height dies in the gap.
+!---~---
 program test_demography
    use ed_test_assert,     only : check_close, check_true, test_report
    use ed_kinds,           only : wp
@@ -37,8 +37,10 @@ program test_demography
 
 contains
 
-   !----- 1. The prospective growth rate: wood carbon for 20 cm plus the wood of 21 cm less 20 cm !
-   !      gives 1 cm over the step, through the allometry's own inverse. -----------------------!
+   !---~---
+   !   1. The prospective growth rate: wood carbon for 20 cm plus the wood of 21 cm less 20 cm
+   ! gives 1 cm over the step, through the allometry's own inverse.
+   !---~---
    subroutine test_growth()
       real(wp) :: w20, w21, w0
       w20 = size_to_wood_carbon(ALLOM, 20.0_wp, dbh_to_height(ALLOM, 20.0_wp), RHO)
@@ -49,14 +51,14 @@ contains
                        0.5_wp, RHO), 2.0_wp, 2.0e-6_wp)
       call check_close('growth: no wood growth, no diameter growth', npp_to_growth(ALLOM, w20, 0.0_wp, 20.0_wp,  &
                        1.0_wp, RHO), 0.0_wp, 1.0e-6_wp)
-      !----- A loss beyond the wood stops at no wood: the rate is that of losing all of it. ---!
+      !--- A loss beyond the wood stops at no wood: the rate is that of losing all of it.
       w0 = npp_to_growth(ALLOM, w20, -w20, 20.0_wp, 1.0_wp, RHO)
       call check_close('growth: a loss beyond the wood stops at no wood',                                    &
                        npp_to_growth(ALLOM, w20, -2.0_wp * w20, 20.0_wp, 1.0_wp, RHO), w0, 1.0e-12_wp)
       call check_true ('growth: losing wood shrinks the diameter', w0 < 0.0_wp)
    end subroutine test_growth
 
-   !----- 2. The Camac hazard: its two limits, its monotone fall, and which growth it reads. --!
+   !--- 2. The Camac hazard: its two limits, its monotone fall, and which growth it reads.
    subroutine test_mortality()
       real(wp), parameter :: GAMMA = 0.01_wp, ALPHA = 0.2_wp, BETA = 1.5_wp
       real(wp) :: m0, m1, m2
@@ -71,7 +73,7 @@ contains
                        camac_mortality(9.0_wp, 0.0_wp, .false., GAMMA, ALPHA, BETA), m0, 1.0e-14_wp)
    end subroutine test_mortality
 
-   !----- 3. The decline to the floor: n exp(-m window) is the floor; nothing at the floor. --!
+   !--- 3. The decline to the floor: n exp(-m window) is the floor; nothing at the floor.
    subroutine test_decline_to_floor()
       real(wp), parameter :: FLOOR = 1.0e-8_wp, WINDOW = 0.25_wp
       real(wp) :: m
@@ -84,7 +86,7 @@ contains
                        0.0_wp, 0.0_wp)
    end subroutine test_decline_to_floor
 
-   !----- 4. The recruit efficiency and a cohort's recruitment. -----------------------------!
+   !--- 4. The recruit efficiency and a cohort's recruitment.
    subroutine test_recruitment()
       real(wp), parameter :: E_OPEN = 0.3_wp, K = 0.5_wp
       real(wp) :: r1, r2
@@ -97,12 +99,12 @@ contains
       call check_close('recruit: twice the plants, twice the recruits', r2, 2.0_wp * r1, 1.0e-12_wp * r2)
       call check_close('recruit: no seed, no recruits', npp_to_recruitment(0.1_wp, 0.0_wp, 1.0_wp / 365.0_wp,  &
                        0.15_wp, 0.01_wp), 0.0_wp, 0.0_wp)
-      !----- The recruits carry the carbon the efficiency passes on: rec * dt * c_min. -------!
+      !--- The recruits carry the carbon the efficiency passes on: rec * dt * c_min.
       call check_close('recruit: the recruits carry the carbon passed on', r1 * (1.0_wp / 365.0_wp) * 0.01_wp,  &
                        0.1_wp * 0.02_wp * 0.15_wp, 1.0e-15_wp)
    end subroutine test_recruitment
 
-   !----- 5. The founding test, the disturbed share and treefall survival. --------------------!
+   !--- 5. The founding test, the disturbed share and treefall survival.
    subroutine test_decisions()
       real(wp) :: f1, fh
       call check_true ('founding: a pool at the threshold founds a cohort', founds_cohort(1.0e-2_wp, 1.0e-2_wp))

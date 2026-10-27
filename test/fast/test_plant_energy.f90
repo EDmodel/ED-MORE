@@ -1,32 +1,32 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! test_plant_energy -- a tissue's energy balance (ed_plant_energy: tissue_energy_balance;   !
-! docs/science/vegetation_energy_dynamics.md eqs. (1)-(8)).                                 !
-!   1. EXACT RELAXATION (eqs. (3)-(7)): the closed-form tissue step, its diagnostic and    !
-!      frozen limits, its energy identity and small-x branch, marched exactly against the  !
-!      analytic relaxation; a store with no coupling warms by its forcing.                 !
-!   2. LATENT PATHWAYS: the stomata's and the wetted film's; f_wet = 0 leaves no trace of  !
-!      the film, f_wet = 1 is the film alone, and partial wetting closes the balance.      !
-!   3. THIN TISSUE (eqs. (1), (8)): energy closes at every area index, halving the area    !
-!      halves every flux and keeps the temperature, and a tissue with no area takes the    !
-!      temperature of what it grows from.                                                  !
-!   4. THE CANOPY'S FILMS (canopy_tissue_energy, eq. (2)): energy is conserved across the  !
-!      canopy, its films capturing, passing between leaf and wood and evaporating, with    !
-!      heat stores and the plant water's heat; rain captured at a tissue's own temperature !
-!      brings it no heat and warmer rain warms it; a film passed from leaf to wood charges !
-!      the giver nothing and brings the receiver the giver's enthalpy; an evaporating film !
-!      costs its tissue the vapour's enthalpy at the canopy air less the liquid's at the   !
-!      tissue's start-of-step temperature.                                                 !
-!   5. THE TISSUE'S LONGWAVE (canopy_tissue_energy; "The emission base"): linearized about  !
-!      the tissue's own start-of-step temperature, it is the exact Stefan-Boltzmann        !
-!      balance when the tissue ends there, and second order in the distance from it.       !
-!   6. THE COMMIT (commit_tissue_energy; eqs. (9)-(10)): the energies gain exactly the     !
-!      heat each tissue relaxed through and its water's enthalpy, the gained water arrives !
-!      at the tissue's start-of-step temperature, and the committed temperatures give back !
-!      the energies, so the next step starts where this one ended; a film far heavier than !
-!      its tissue that evaporates within the step leaves the tissue at the step's          !
-!      temperature, its heat capacity over the step being the tissue's own.                !
-!==========================================================================================!
+!---~---
+!   test_plant_energy -- a tissue's energy balance (ed_plant_energy: tissue_energy_balance;
+! docs/science/vegetation_energy_dynamics.md eqs. (1)-(8)).
+!   1. EXACT RELAXATION (eqs. (3)-(7)): the closed-form tissue step, its diagnostic and
+!      frozen limits, its energy identity and small-x branch, marched exactly against the
+!      analytic relaxation; a store with no coupling warms by its forcing.
+!   2. LATENT PATHWAYS: the stomata's and the wetted film's; f_wet = 0 leaves no trace of
+!      the film, f_wet = 1 is the film alone, and partial wetting closes the balance.
+!   3. THIN TISSUE (eqs. (1), (8)): energy closes at every area index, halving the area
+!      halves every flux and keeps the temperature, and a tissue with no area takes the
+!      temperature of what it grows from.
+!   4. THE CANOPY'S FILMS (canopy_tissue_energy, eq. (2)): energy is conserved across the
+!      canopy, its films capturing, passing between leaf and wood and evaporating, with
+!      heat stores and the plant water's heat; rain captured at a tissue's own temperature
+!      brings it no heat and warmer rain warms it; a film passed from leaf to wood charges
+!      the giver nothing and brings the receiver the giver's enthalpy; an evaporating film
+!      costs its tissue the vapour's enthalpy at the canopy air less the liquid's at the
+!      tissue's start-of-step temperature.
+!   5. THE TISSUE'S LONGWAVE (canopy_tissue_energy; "The emission base"): linearized about
+!      the tissue's own start-of-step temperature, it is the exact Stefan-Boltzmann
+!      balance when the tissue ends there, and second order in the distance from it.
+!   6. THE COMMIT (commit_tissue_energy; eqs. (9)-(10)): the energies gain exactly the
+!      heat each tissue relaxed through and its water's enthalpy, the gained water arrives
+!      at the tissue's start-of-step temperature, and the committed temperatures give back
+!      the energies, so the next step starts where this one ended; a film far heavier than
+!      its tissue that evaporates within the step leaves the tissue at the step's
+!      temperature, its heat capacity over the step being the tissue's own.
+!---~---
 program test_plant_energy
    use ed_test_assert,    only : check, check_true, test_report
    use ed_kinds,          only : wp, ik
@@ -38,10 +38,12 @@ program test_plant_energy
                                  commit_tissue_energy, tissue_hcap_per_dt
    implicit none
 
-   !----- The canopy air the canopy tests run under. -------------------------------------------!
+   !--- The canopy air the canopy tests run under.
    real(wp), parameter :: T_CAS = 298.0_wp, Q_CAS = 0.012_wp, P_AIR = 101325.0_wp, RHO_AIR = 1.2_wp
-   !----- The longwave test's leaf: its shortwave, its area, emissivity and sensible coupling, and the  !
-   !      longwave it absorbs, two sides under 285 K surroundings. -----------------------------------!
+   !---~---
+   !   The longwave test's leaf: its shortwave, its area, emissivity and sensible coupling, and the
+   ! longwave it absorbs, two sides under 285 K surroundings.
+   !---~---
    real(wp), parameter :: LEAF_SW = 300.0_wp, LEAF_LAI = 2.0_wp, LEAF_EMISS = 0.97_wp, LEAF_H = 40.0_wp
    real(wp), parameter :: LEAF_LW_IN = 2.0_wp * 0.97_wp * stefan_boltzmann * 285.0_wp ** 4
 
@@ -60,21 +62,21 @@ program test_plant_energy
 
 contains
 
-   !=======================================================================================!
-   ! EXACT EXPONENTIAL RELAXATION in tissue_energy_balance.                               !
-   !                                                                                          !
-   ! Under the Category-0 freeze the tissue equation is linear with tau = cap/denom, so the     !
-   ! step has a closed form and the kernel uses it: endpoint weight exp(-x), flux weight        !
-   ! (1-exp(-x))/x, x = denom/store_hcap_per_dt (docs/science/vegetation_energy_dynamics.md     !
-   ! eqs. (3)-(7)). These checks pin the properties that make it usable -- the two limits, the  !
-   ! conservation identity, the small-x branch, and (the one that matters) that marching it is  !
-   ! EXACT, not merely convergent.                                                              !
-   !=======================================================================================!
+   !---~---
+   !   EXACT EXPONENTIAL RELAXATION in tissue_energy_balance.
+   !
+   !   Under the Category-0 freeze the tissue equation is linear with tau = cap/denom, so the
+   ! step has a closed form and the kernel uses it: endpoint weight exp(-x), flux weight
+   ! (1-exp(-x))/x, x = denom/store_hcap_per_dt (docs/science/vegetation_energy_dynamics.md
+   ! eqs. (3)-(7)). These checks pin the properties that make it usable -- the two limits, the
+   ! conservation identity, the small-x branch, and (the one that matters) that marching it is
+   ! EXACT, not merely convergent.
+   !---~---
    subroutine test_veg_exponential()
       real(wp) :: dtt, ts, tr, dh, drn, dt_diag_ref, ts_ref
       real(wp) :: t_cas, t0, sw, lw, h, les, lws, ler, cap, dt, denom, tau, a_st
       real(wp) :: t_exact, t_march, worst, fe
-      type(latent_pathway_t) :: dry, none   !< the stomata's pathway; none: no film
+      type(latent_pathway_t) :: dry, none   !--- the stomata's pathway; none: no film
       integer(ik) :: k, nstep
       print '(a)', 'test_veg_exponential:'
       t_cas = 295.0_wp
@@ -88,25 +90,29 @@ contains
       denom = h + les + lws
       dt    = 1800.0_wp
 
-      !----- (a) store_hcap_per_dt -> 0 is the DIAGNOSTIC limit, exactly. This is why there is no     !
-      !          diagnostic/prognostic selector: diagnostic is a limit of one formula, not a second   !
-      !          branch. -----------------------------------------------------------------------------!
+      !---~---
+      !   (a) store_hcap_per_dt -> 0 is the DIAGNOSTIC limit, exactly. This is why there is no
+      ! diagnostic/prognostic selector: diagnostic is a limit of one formula, not a second
+      ! branch.
+      !---~---
       call tissue_energy_balance(sw, lw, 0.0_wp, h, lws, dry, none, 0.0_wp, t_cas, t_cas, 0.0_wp, t_cas, &
                                  dtt, ts, tr, fe, dh, drn)
       dt_diag_ref = (sw + lw - ler) / denom
       call check('store_hcap_per_dt = 0 gives the exact diagnostic offset', dtt, dt_diag_ref, 1.0e-12_wp)
       ts_ref = t_cas + dt_diag_ref
 
-      !----- (b) store_hcap_per_dt -> huge FREEZES the store at its entry temperature. -----------------------!
+      !--- (b) store_hcap_per_dt -> huge FREEZES the store at its entry temperature.
       t0 = 288.0_wp
       call tissue_energy_balance(sw, lw, 0.0_wp, h, lws, dry, none, 0.0_wp, t_cas, t_cas, 1.0e12_wp, t0, &
                                  dtt, ts, tr, fe, dh, drn)
       call check('store_hcap_per_dt -> infinity holds the store at t_store0', ts, t0, 1.0e-6_wp)
 
-      !----- (c) THE CONSERVATION IDENTITY. The endpoint and step-average weights are different      !
-      !          numbers, and pairing them correctly is exactly what makes the balance close:        !
-      !            store_hcap_per_dt*(dt_end - dt_prev) + denom*dt_avg == numer.                     !
-      !          dt_avg is not returned, so recover it from dh = h*dt_avg. ------------------------!
+      !---~---
+      !   (c) THE CONSERVATION IDENTITY. The endpoint and step-average weights are different
+      ! numbers, and pairing them correctly is exactly what makes the balance close:
+      !   store_hcap_per_dt*(dt_end - dt_prev) + denom*dt_avg == numer.
+      ! dt_avg is not returned, so recover it from dh = h*dt_avg.
+      !---~---
       cap  = 4.0e4_wp                       ! a big cohort: tau = cap/denom is order dt
       a_st = cap / dt
       tau  = cap / denom
@@ -115,9 +121,11 @@ contains
       call check('energy balance closes with the endpoint/average pair',                            &
            a_st*(dtt - (t0 - t_cas)) + denom*(dh/h), sw + lw - ler, 1.0e-9_wp)
 
-      !----- (d) THE POINT: marching the kernel reproduces the analytic relaxation EXACTLY, not      !
-      !          approximately. A backward-Euler storage term would drift here; this does not.       !
-      !          T(t) = T_eq + (T0 - T_eq)*exp(-t/tau).                                              !
+      !---~---
+      !   (d) THE POINT: marching the kernel reproduces the analytic relaxation EXACTLY, not
+      ! approximately. A backward-Euler storage term would drift here; this does not.
+      ! T(t) = T_eq + (T0 - T_eq)*exp(-t/tau).
+      !---~---
       nstep = 20_ik
       t_march = t0
       worst = 0.0_wp
@@ -130,16 +138,20 @@ contains
       end do
       call check_true('marching 20 steps is EXACT against the analytic relaxation', worst < 1.0e-10_wp, worst)
 
-      !----- (e) The small-x series branch (a very large capacity) must not lose precision where     !
-      !          1 - exp(-x) would cancel. tau = 1e6 s against dt = 1800 s puts x ~ 2.7e-4. ---------!
+      !---~---
+      !   (e) The small-x series branch (a very large capacity) must not lose precision where
+      ! 1 - exp(-x) would cancel. tau = 1e6 s against dt = 1800 s puts x ~ 2.7e-4.
+      !---~---
       a_st = 1.0e6_wp * denom / dt
       call tissue_energy_balance(sw, lw, 0.0_wp, h, lws, dry, none, 0.0_wp, t_cas, t_cas, a_st, t0, &
                                  dtt, ts, tr, fe, dh, drn)
       call check('large-capacity limit stays accurate (series branch)',                             &
            a_st*(dtt - (t0 - t_cas)) + denom*(dh/h), sw + lw - ler, 1.0e-6_wp)
 
-      !----- (f) A store with NO coupling (x = 0) warms by its forcing over the step, numer*dt/cap,  !
-      !          and passes nothing on: the relaxation needs no division by the coupling. ---------!
+      !---~---
+      !   (f) A store with NO coupling (x = 0) warms by its forcing over the step, numer*dt/cap,
+      ! and passes nothing on: the relaxation needs no division by the coupling.
+      !---~---
       a_st = cap / dt
       call tissue_energy_balance(sw, lw, 0.0_wp, 0.0_wp, 0.0_wp, latent_pathway_t(ref=ler), none, 0.0_wp, t_cas, &
                                  t_cas, a_st, t0, dtt, ts, tr, fe, dh, drn)
@@ -148,11 +160,13 @@ contains
    end subroutine test_veg_exponential
 
    subroutine test_veg_energy_diagnostic_wetted()
-      !----- Direct unit test of tissue_energy_balance's two latent pathways (the column tests exercise  !
-      !      them only through the full integration). f_wet splits the latent flux into a (1-f_wet)     !
-      !      DRY (stomatal) share and an f_wet WET (boundary-layer film) share; DRY and WET carry two    !
-      !      DIFFERENT conductances, so the three properties below are non-trivial (a bug that swapped  !
-      !      or mixed them would still "look" plausible).                                               !
+      !---~---
+      !   Direct unit test of tissue_energy_balance's two latent pathways (the column tests exercise
+      ! them only through the full integration). f_wet splits the latent flux into a (1-f_wet)
+      ! DRY (stomatal) share and an f_wet WET (boundary-layer film) share; DRY and WET carry two
+      ! DIFFERENT conductances, so the three properties below are non-trivial (a bug that swapped
+      ! or mixed them would still "look" plausible).
+      !---~---
       real(wp) :: dt_temp, t_store, transp, dh, drnet, film_evap
       real(wp) :: dt_temp2, t_store2, transp2, dh2, drnet2, film_evap2
       real(wp), parameter :: ABS_SW = 400.0_wp, ABS_LW = -50.0_wp, H_COEFF = 12.0_wp
@@ -162,8 +176,10 @@ contains
       type(latent_pathway_t) :: none
       print '(a)', 'test_veg_energy_diagnostic_wetted:'
 
-      !----- 1. f_wet = 0 leaves no trace of the film's pathway: the same result, bit for bit, as no   !
-      !      film pathway at all. -----------------------------------------------------------------!
+      !---~---
+      !   1. f_wet = 0 leaves no trace of the film's pathway: the same result, bit for bit, as no
+      ! film pathway at all.
+      !---~---
       call tissue_energy_balance(ABS_SW, ABS_LW, 0.0_wp, H_COEFF, LW_SLOPE, DRY, none, 0.0_wp,           &
                                  T_CAS, T_PARENT, 0.0_wp, T_CAS, dt_temp, t_store, transp, film_evap, dh, drnet)
       call tissue_energy_balance(ABS_SW, ABS_LW, 0.0_wp, H_COEFF, LW_SLOPE, DRY, WET, 0.0_wp,            &
@@ -173,11 +189,13 @@ contains
       call check('f_wet=0 == no film pathway (transp)',  transp2,  transp,  1.0e-14_wp)
       call check_true('f_wet=0 -> film_evap = 0 exactly', film_evap2 == 0.0_wp, film_evap2)
 
-      !----- 2. FULLY WET (f_wet=1): the dry (stomatal) pathway must vanish -- a saturated film          !
-      !      transpires ~0 and evaporates its whole latent capacity through the wet pathway instead.      !
-      !      SWAP-EQUIVALENCE: this must be algebraically IDENTICAL to calling the kernel with the film's  !
-      !      pathway as the DRY one and no film -- not just approximately equal (both reduce to the same   !
-      !      2-unknown linear solve). ---------------------------------------------------------------------!
+      !---~---
+      !   2. FULLY WET (f_wet=1): the dry (stomatal) pathway must vanish -- a saturated film
+      ! transpires ~0 and evaporates its whole latent capacity through the wet pathway instead.
+      ! SWAP-EQUIVALENCE: this must be algebraically IDENTICAL to calling the kernel with the film's
+      ! pathway as the DRY one and no film -- not just approximately equal (both reduce to the same
+      ! 2-unknown linear solve).
+      !---~---
       call tissue_energy_balance(ABS_SW, ABS_LW, 0.0_wp, H_COEFF, LW_SLOPE, DRY, WET, 1.0_wp,            &
                                  T_CAS, T_PARENT, 0.0_wp, T_CAS, dt_temp, t_store, transp, film_evap, dh, drnet)
       call tissue_energy_balance(ABS_SW, ABS_LW, 0.0_wp, H_COEFF, LW_SLOPE, WET, none, 0.0_wp,           &
@@ -187,12 +205,14 @@ contains
       call check('f_wet=1: film_evap == swap-equivalent transp', film_evap, transp2, 1.0e-12_wp)
       call check('f_wet=1: dt_temp == swap-equivalent dt_temp',  dt_temp,   dt_temp2, 1.0e-12_wp)
 
-      !----- 3. PARTIAL wetting (f_wet=0.4): the energy balance must still close -- absorbed radiation     !
-      !      net of LW emission (drnet) splits EXACTLY into sensible + BOTH latent pathways, each at the    !
-      !      pathway's h_vap (here the default, latent_heat_vap) -- the identity the surface path relies    !
-      !      on to make the CAS's temperature-dependent vapour-enthalpy credit balance against a store's     !
-      !      liquid-enthalpy debit (for transpiration the leaf pays the full vapour enthalpy itself; the     !
-      !      surface-water accounting does the same for film_evap). -----------------------------------------!
+      !---~---
+      !   3. PARTIAL wetting (f_wet=0.4): the energy balance must still close -- absorbed radiation
+      ! net of LW emission (drnet) splits EXACTLY into sensible + BOTH latent pathways, each at the
+      ! pathway's h_vap (here the default, latent_heat_vap) -- the identity the surface path relies
+      ! on to make the CAS's temperature-dependent vapour-enthalpy credit balance against a store's
+      ! liquid-enthalpy debit (for transpiration the leaf pays the full vapour enthalpy itself; the
+      ! surface-water accounting does the same for film_evap).
+      !---~---
       call tissue_energy_balance(ABS_SW, ABS_LW, 0.0_wp, H_COEFF, LW_SLOPE, DRY, WET, 0.4_wp,            &
                                  T_CAS, T_PARENT, 0.0_wp, T_CAS, dt_temp, t_store, transp, film_evap, dh, drnet)
       call check('partial f_wet: energy balance closes (drnet = dh + latent)', drnet,                  &
@@ -203,28 +223,30 @@ contains
 
 
    subroutine test_veg_energy_thin_tissue()
-      !----- Every term of a tissue's balance -- absorbed radiation, the sapflow's enthalpy, the        !
-      !      conductances -- and its heat capacity scale with the tissue's own area                     !
-      !      (docs/science/vegetation_energy_dynamics.md eqs. (1), (8)), so a thin tissue is simply a    !
-      !      small one. Three properties, swept over an area index from 1e-6 to 10 for leaf and wood,    !
-      !      with and without a heat store:                                                             !
-      !                                                                                          !
-      !        * CONSERVATION: within the step everything that enters leaves or is stored,               !
-      !            drnet + q_extra == dh + Lv*(transp + film_evap) + store_hcap_per_dt*(t_store - t0),   !
-      !          to round-off. surface_derivs relies on it: the whole-column ledger books coh_rnet on    !
-      !          the input side and coh_h/coh_qw as they reach the CAS, and nothing re-checks the        !
-      !          tissue in between.                                                                      !
-      !        * SPLIT INVARIANCE: halving the area (one cohort of two at half density) keeps the        !
-      !          temperature and halves every flux. A floor in ground units on the coupling or the       !
-      !          capacity breaks this for a thin tissue, pulling it toward the canopy air.               !
-      !        * NO AREA: a tissue with no coupling and no heat capacity takes the temperature of what   !
-      !          it grows from (t_parent) and carries no flux. -------------------------------------------!
+      !---~---
+      !   Every term of a tissue's balance -- absorbed radiation, the sapflow's enthalpy, the
+      ! conductances -- and its heat capacity scale with the tissue's own area
+      ! (docs/science/vegetation_energy_dynamics.md eqs. (1), (8)), so a thin tissue is simply a
+      ! small one. Three properties, swept over an area index from 1e-6 to 10 for leaf and wood,
+      ! with and without a heat store:
+      !
+      !   * CONSERVATION: within the step everything that enters leaves or is stored,
+      !       drnet + q_extra == dh + Lv*(transp + film_evap) + store_hcap_per_dt*(t_store - t0),
+      !     to round-off. surface_derivs relies on it: the whole-column ledger books coh_rnet on
+      !     the input side and coh_h/coh_qw as they reach the CAS, and nothing re-checks the
+      !     tissue in between.
+      !   * SPLIT INVARIANCE: halving the area (one cohort of two at half density) keeps the
+      !     temperature and halves every flux. A floor in ground units on the coupling or the
+      !     capacity breaks this for a thin tissue, pulling it toward the canopy air.
+      !   * NO AREA: a tissue with no coupling and no heat capacity takes the temperature of what
+      !     it grows from (t_parent) and carries no flux.
+      !---~---
       real(wp) :: dt_temp, t_store, transp, dh, drnet, film_evap
       real(wp) :: dt_h, t_h, transp_h, dh_h, drnet_h, film_h
       real(wp) :: ai, ast, resid, worst, worst_split
       integer(ik) :: ia, il, is
       real(wp), parameter :: T_CAS = 298.0_wp, T0 = T_CAS - 0.5_wp, T_PARENT = 301.0_wp
-      real(wp), parameter :: CAP_PER_AREA = 1500.0_wp   !< [J/m2 tissue/K] a leaf's dry tissue and water
+      real(wp), parameter :: CAP_PER_AREA = 1500.0_wp   !--- [J/m2 tissue/K] a leaf's dry tissue and water
       logical :: is_leaf
       print '(a)', 'test_veg_energy_thin_tissue:'
       worst = 0.0_wp
@@ -248,15 +270,17 @@ contains
       call check_true('a thin tissue conserves energy at every area index (60 cases)', worst < 1.0e-12_wp, worst)
       call check_true('half the area: the same temperature, half of every flux', worst_split < 1.0e-12_wp,       &
                       worst_split)
-      !----- No area: no coupling and no heat capacity. -----------------------------------------!
+      !--- No area: no coupling and no heat capacity.
       call thin_tissue(0.0_wp, 0.0_wp, .true., dt_temp, t_store, transp, dh, drnet, film_evap)
       call check('a tissue with no area takes the temperature of what it grows from', t_store, T_PARENT, 0.0_wp)
       call check_true('a tissue with no area carries no flux',                                                  &
                       dh == 0.0_wp .and. drnet == 0.0_wp .and. transp == 0.0_wp .and. film_evap == 0.0_wp, dh)
    end subroutine test_veg_energy_thin_tissue
 
-   !----- One tissue of area index a at 298 K canopy air, starting 0.5 K below it, whose parent sits at  !
-   !      301 K: every coupling and forcing term proportional to a. -----------------------------------!
+   !---~---
+   !   One tissue of area index a at 298 K canopy air, starting 0.5 K below it, whose parent sits at
+   ! 301 K: every coupling and forcing term proportional to a.
+   !---~---
    subroutine thin_tissue(a, a_store, leaf, dtt, ts, tr, h_out, rn, fe)
       real(wp), intent(in)  :: a, a_store
       logical,  intent(in)  :: leaf
@@ -273,21 +297,23 @@ contains
                                  a_store, T0, dtt, ts, tr, fe, h_out, rn)
    end subroutine thin_tissue
 
-   !=======================================================================================!
-   ! 4. THE CANOPY'S FILMS (canopy_tissue_energy). A film is part of its tissue's energy, at  !
-   ! the tissue's start-of-step liquid enthalpy u0 (as the commit values its change); its     !
-   ! capture brings the rain's liquid enthalpy, its evaporation takes the vapour's at the     !
-   ! canopy air's temperature, and water passed between a cohort's two films leaves the giver !
-   ! at the giver's enthalpy. Then film, tissue and canopy air close with no slack           !
-   ! (docs/science/vegetation_energy_dynamics.md eq. (2)).                                    !
-   !=======================================================================================!
+   !---~---
+   !   4. THE CANOPY'S FILMS (canopy_tissue_energy). A film is part of its tissue's energy, at
+   ! the tissue's start-of-step liquid enthalpy u0 (as the commit values its change); its
+   ! capture brings the rain's liquid enthalpy, its evaporation takes the vapour's at the
+   ! canopy air's temperature, and water passed between a cohort's two films leaves the giver
+   ! at the giver's enthalpy. Then film, tissue and canopy air close with no slack
+   ! (docs/science/vegetation_energy_dynamics.md eq. (2)).
+   !---~---
 
-   !----- Two cohorts with everything on: radiation, sensible heat, heat stores, the plant water's  !
-   !      heat, partly wet films capturing rain and passing water leaf to wood in one cohort and   !
-   !      wood to leaf in the other, transpiration held at the network's or free. What enters (the !
-   !      net radiation, the plant water's heat, the captured rain's liquid enthalpy) less what    !
-   !      leaves into the canopy air (sensible heat, the vapour's enthalpy) is what the tissues    !
-   !      store: their heat, cap*(T - T0), and their films' change at u0. ------------------------!
+   !---~---
+   !   Two cohorts with everything on: radiation, sensible heat, heat stores, the plant water's
+   ! heat, partly wet films capturing rain and passing water leaf to wood in one cohort and
+   ! wood to leaf in the other, transpiration held at the network's or free. What enters (the
+   ! net radiation, the plant water's heat, the captured rain's liquid enthalpy) less what
+   ! leaves into the canopy air (sensible heat, the vapour's enthalpy) is what the tissues
+   ! store: their heat, cap*(T - T0), and their films' change at u0.
+   !---~---
    subroutine test_canopy_energy_closes()
       type(plant_energy_env_t) :: env
       type(canopy_water_out_t) :: film
@@ -328,7 +354,7 @@ contains
                       '(transpiration held and free)', worst < 1.0e-12_wp, worst)
    end subroutine test_canopy_energy_closes
 
-   !----- The canopy's energy residual: what entered less what left less what was stored. -------!
+   !--- The canopy's energy residual: what entered less what left less what was stored.
    subroutine canopy_closure(env, film, resid, scale)
       type(plant_energy_env_t), intent(in)  :: env
       type(canopy_water_out_t), intent(in)  :: film
@@ -348,9 +374,11 @@ contains
               + sum(abs(film%intercept_leaf) + abs(film%intercept_wood)) * film%rain_liquid_enthalpy
    end subroutine canopy_closure
 
-   !----- Rain captured at a tissue's own temperature brings it no heat: capture on both tissues of a   !
-   !      cohort at 300 K, the rain at 300 K, leaves both temperatures as they are with no capture,   !
-   !      only the films growing; rain at 310 K warms both. ------------------------------------------!
+   !---~---
+   !   Rain captured at a tissue's own temperature brings it no heat: capture on both tissues of a
+   ! cohort at 300 K, the rain at 300 K, leaves both temperatures as they are with no capture,
+   ! only the films growing; rain at 310 K warms both.
+   !---~---
    subroutine test_film_capture()
       type(plant_energy_env_t) :: env
       type(canopy_water_out_t) :: film
@@ -370,9 +398,11 @@ contains
                       tl(1) > tl0(1) .and. tw(1) > tw0(1), min(tl(1) - tl0(1), tw(1) - tw0(1)))
    end subroutine test_film_capture
 
-   !----- A film passed from leaf to wood (no net capture) leaves the leaf at the leaf's enthalpy and   !
-   !      reaches the wood at the leaf's: with leaf and wood at one temperature it moves neither, and   !
-   !      from a warmer leaf it leaves the leaf as it was and warms the wood. ----------------------!
+   !---~---
+   !   A film passed from leaf to wood (no net capture) leaves the leaf at the leaf's enthalpy and
+   ! reaches the wood at the leaf's: with leaf and wood at one temperature it moves neither, and
+   ! from a warmer leaf it leaves the leaf as it was and warms the wood.
+   !---~---
    subroutine test_film_transfer()
       type(plant_energy_env_t) :: env
       type(canopy_water_out_t) :: film
@@ -396,17 +426,19 @@ contains
 
    subroutine pass_leaf_to_wood(film, rate)
       type(canopy_water_out_t), intent(inout) :: film
-      real(wp),                 intent(in)    :: rate   !< [kg/m2/s]
+      real(wp),                 intent(in)    :: rate   !--- [kg/m2/s]
       film%transfer_lw    = rate
       film%intercept_leaf = -rate
       film%intercept_wood = rate
    end subroutine pass_leaf_to_wood
 
-   !----- An evaporating film costs its tissue the vapour's enthalpy at the canopy air less the liquid's !
-   !      at the tissue's start-of-step temperature, the rest being the film's own: a wood with only its !
-   !      film's pathway (no radiation, no sensible heat), fully wet, loses heat cap*(T - T0) per       !
-   !      kilogram evaporated of exactly h_vapour(T_cas) - u_liquid(T0), from 2 K above the canopy air  !
-   !      and 3 K below it. ---------------------------------------------------------------------!
+   !---~---
+   !   An evaporating film costs its tissue the vapour's enthalpy at the canopy air less the liquid's
+   ! at the tissue's start-of-step temperature, the rest being the film's own: a wood with only its
+   ! film's pathway (no radiation, no sensible heat), fully wet, loses heat cap*(T - T0) per
+   ! kilogram evaporated of exactly h_vapour(T_cas) - u_liquid(T0), from 2 K above the canopy air
+   ! and 3 K below it.
+   !---~---
    subroutine test_film_evaporation()
       type(plant_energy_env_t) :: env
       type(canopy_water_out_t) :: film
@@ -431,17 +463,17 @@ contains
                       worst < 1.0e-10_wp, worst)
    end subroutine test_film_evaporation
 
-   !=======================================================================================!
-   ! 5. THE TISSUE'S LONGWAVE. The two-stream's abs_lw is the tissue's net longwave with it   !
-   ! emitting at its start-of-step temperature t0, abs_lw = LW_in - eps sigma A t0^4, and the !
-   ! balance carries the emission's change linearized about t0. One leaf (LAI 2, no latent,   !
-   ! no heat store) in sun and a 298 K canopy air: when the tissue ends at t0, the            !
-   ! linearization is exact and its temperature solves the Stefan-Boltzmann balance           !
-   !   abs_sw + LW_in - eps sigma A T^4 - h (T - T_cas) = 0,                                  !
-   ! found here by bisection, independently; t0 a distance d from there gives a temperature   !
-   ! off by O(d^2), the linearization's error. A linearization about the canopy air's         !
-   ! temperature instead is off at first order, and not exact anywhere but at T_cas.          !
-   !=======================================================================================!
+   !---~---
+   !   5. THE TISSUE'S LONGWAVE. The two-stream's abs_lw is the tissue's net longwave with it
+   ! emitting at its start-of-step temperature t0, abs_lw = LW_in - eps sigma A t0^4, and the
+   ! balance carries the emission's change linearized about t0. One leaf (LAI 2, no latent,
+   ! no heat store) in sun and a 298 K canopy air: when the tissue ends at t0, the
+   ! linearization is exact and its temperature solves the Stefan-Boltzmann balance
+   !   abs_sw + LW_in - eps sigma A T^4 - h (T - T_cas) = 0,
+   ! found here by bisection, independently; t0 a distance d from there gives a temperature
+   ! off by O(d^2), the linearization's error. A linearization about the canopy air's
+   ! temperature instead is off at first order, and not exact anywhere but at T_cas.
+   !---~---
    subroutine test_tissue_longwave()
       real(wp) :: t_star, t_fix, t, e(3), p1, p2, rnet, lo, hi, mid
       integer(ik) :: k
@@ -457,7 +489,7 @@ contains
          end if
       end do
       t_star = 0.5_wp * (lo + hi)
-      !----- Start the emission at the canopy air and let it follow the tissue to where they meet. ------!
+      !--- Start the emission at the canopy air and let it follow the tissue to where they meet.
       t_fix = T_CAS
       do k = 1_ik, 20_ik
          call leaf_in_sun(t_fix, t, rnet)
@@ -479,12 +511,12 @@ contains
                       abs(p1 - 2.0_wp) < 0.2_wp .and. abs(p2 - 2.0_wp) < 0.2_wp, p2)
    end subroutine test_tissue_longwave
 
-   !=======================================================================================!
-   ! 6. THE COMMIT (commit_tissue_energy). One cohort, one plant per m2, whose leaf and wood  !
-   ! gain water over a 900 s step and relax from 300 K and 296 K towards 301.5 K and 296.8 K, !
-   ! each at its heat capacity over the step (tissue_hcap_per_dt: its dry matter and its      !
-   ! start-of-step water).                                                                     !
-   !=======================================================================================!
+   !---~---
+   !   6. THE COMMIT (commit_tissue_energy). One cohort, one plant per m2, whose leaf and wood
+   ! gain water over a 900 s step and relax from 300 K and 296 K towards 301.5 K and 296.8 K,
+   ! each at its heat capacity over the step (tissue_hcap_per_dt: its dry matter and its
+   ! start-of-step water).
+   !---~---
    subroutine test_commit()
       real(wp), parameter :: DT = 900.0_wp
       real(wp), parameter :: DL = 2.0e3_wp, DW = 4.0e4_wp          ! [J/K] dry heat capacities
@@ -520,11 +552,13 @@ contains
                             <= 1.0e-12_wp * abs(e_wood(1)))
    end subroutine test_commit
 
-   !----- A nearly leafless cohort at Palo Verde's first rains (one plant per m2): its leaf holds a   !
-   !      film of a thousand times its own heat capacity, which evaporates within the step while the !
-   !      leaf cools from 298 K to 297.5 K. The leaf's heat capacity over the step is its own, the    !
-   !      film left out, and the commit reads the temperature back with the end-of-step film, so the !
-   !      leaf reads back at the step's temperature. --------------------------------------------!
+   !---~---
+   !   A nearly leafless cohort at Palo Verde's first rains (one plant per m2): its leaf holds a
+   ! film of a thousand times its own heat capacity, which evaporates within the step while the
+   ! leaf cools from 298 K to 297.5 K. The leaf's heat capacity over the step is its own, the
+   ! film left out, and the commit reads the temperature back with the end-of-step film, so the
+   ! leaf reads back at the step's temperature.
+   !---~---
    subroutine test_commit_heavy_film()
       real(wp), parameter :: DT = 900.0_wp
       real(wp), parameter :: DL = 3.4e-8_wp, WL = 1.0e-11_wp, F0 = 8.4e-9_wp   ! [J/K], [kg], [kg]
@@ -544,9 +578,11 @@ contains
                  'the tissue at the step''s temperature', t_leaf(1), TL_AVG, 1.0e-6_wp)
    end subroutine test_commit_heavy_film
 
-   !----- The commit's inputs for one cohort: each tissue's dry heat capacity, its heat capacity over  !
-   !      the step (tissue_hcap_per_dt on its start-of-step water) and its start-of-step temperature, !
-   !      with no water arriving. ------------------------------------------------------------------!
+   !---~---
+   !   The commit's inputs for one cohort: each tissue's dry heat capacity, its heat capacity over
+   ! the step (tissue_hcap_per_dt on its start-of-step water) and its start-of-step temperature,
+   ! with no water arriving.
+   !---~---
    subroutine commit_env(env, dry_leaf, w_leaf, dry_wood, w_wood, t_leaf0, t_wood0, dt)
       type(plant_energy_env_t), intent(out) :: env
       real(wp),                 intent(in)  :: dry_leaf, w_leaf, dry_wood, w_wood, t_leaf0, t_wood0, dt
@@ -562,13 +598,13 @@ contains
       env%wood_water_enth  = 0.0_wp
    end subroutine commit_env
 
-   !----- The exact balance's residual at T. -----------------------------------------------------!
+   !--- The exact balance's residual at T.
    pure real(wp) function exact_balance(t) result(g)
       real(wp), intent(in) :: t
       g = LEAF_SW + LEAF_LW_IN - LEAF_EMISS * stefan_boltzmann * LEAF_LAI * t ** 4 - LEAF_H * (t - T_CAS)
    end function exact_balance
 
-   !----- The leaf emitting at t0: its temperature and net radiation from canopy_tissue_energy. --------!
+   !--- The leaf emitting at t0: its temperature and net radiation from canopy_tissue_energy.
    subroutine leaf_in_sun(t0, t_leaf, rnet)
       real(wp), intent(in)  :: t0
       real(wp), intent(out) :: t_leaf, rnet
@@ -586,8 +622,10 @@ contains
       t_leaf = tl(1)
    end subroutine leaf_in_sun
 
-   !----- One cohort, partly wet, with leaf and wood exchanging sensible heat and longwave and holding  !
-   !      heat, at the given start-of-step temperatures; no capture. ------------------------------!
+   !---~---
+   !   One cohort, partly wet, with leaf and wood exchanging sensible heat and longwave and holding
+   ! heat, at the given start-of-step temperatures; no capture.
+   !---~---
    subroutine one_wet_cohort(env, film, t_leaf0, t_wood0)
       type(plant_energy_env_t), intent(out) :: env
       type(canopy_water_out_t), intent(out) :: film
@@ -612,8 +650,10 @@ contains
       film%rain_liquid_enthalpy = internal_energy_liquid(290.0_wp)
    end subroutine one_wet_cohort
 
-   !----- n cohorts with nothing on: every coefficient, flux, film and heat store zero, the tissues at  !
-   !      the canopy air's temperature with the shipped emissivities, transpiration free. ----------!
+   !---~---
+   !   n cohorts with nothing on: every coefficient, flux, film and heat store zero, the tissues at
+   ! the canopy air's temperature with the shipped emissivities, transpiration free.
+   !---~---
    subroutine canopy_inputs(n, env, film)
       integer(ik),              intent(in)  :: n
       type(plant_energy_env_t), intent(out) :: env
@@ -632,7 +672,7 @@ contains
       film%rain_liquid_enthalpy = internal_energy_liquid(T_CAS)
    end subroutine canopy_inputs
 
-   !----- canopy_tissue_energy under the test canopy air. ------------------------------------------!
+   !--- canopy_tissue_energy under the test canopy air.
    subroutine run_canopy(env, film, tl, tw, tr, fl, fw, h, qw, transp, fe, rnet)
       type(plant_energy_env_t), intent(in)  :: env
       type(canopy_water_out_t), intent(in)  :: film

@@ -1,14 +1,14 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! ed_maps -- every static per-cell map a run reads; no other module opens a map            !
-! (docs/configuration.md, Input maps). A map is on the forcing grid, so a cell's value     !
-! sits at its own (row, col) and ED-MORE never regrids; a value the map does not hold      !
-! reads as NaN. map_values_at_cells and map_layers_at_cells read one variable at a list of !
-! cells; apply_cell_mask keeps a region's cells; read_map_inputs reads every [maps] map at !
-! a run's cells, which ed_config's apply_map_inputs turns into each polygon's soil column, !
-! bottom boundary and Chave E (docs/science/soil_biophysics.md §The column from the soil   !
-! maps).                                                                                   !
-!==========================================================================================!
+!---~---
+!   ed_maps -- every static per-cell map a run reads; no other module opens a map
+! (docs/configuration.md, Input maps). A map is on the forcing grid, so a cell's value
+! sits at its own (row, col) and ED-MORE never regrids; a value the map does not hold
+! reads as NaN. map_values_at_cells and map_layers_at_cells read one variable at a list of
+! cells; apply_cell_mask keeps a region's cells; read_map_inputs reads every [maps] map at
+! a run's cells, which ed_config's apply_map_inputs turns into each polygon's soil column,
+! bottom boundary and Chave E (docs/science/soil_biophysics.md §The column from the soil
+! maps).
+!---~---
 module ed_maps
    use, intrinsic :: ieee_arithmetic, only : ieee_value, ieee_quiet_nan, ieee_is_nan
    use iso_c_binding,         only : c_int, c_size_t, c_double
@@ -27,16 +27,16 @@ module ed_maps
    public :: read_map_inputs
 
    integer(ik), parameter :: MAP_OK       = 0_ik
-   integer(ik), parameter :: MAP_ERR_OPEN = 1_ik   !< the file (or the grid's static file) cannot be opened
-   integer(ik), parameter :: MAP_ERR_GRID = 2_ik   !< the file is not on the forcing grid
-   integer(ik), parameter :: MAP_ERR_VAR  = 3_ik   !< the variable (or its layer dimension) is not there
+   integer(ik), parameter :: MAP_ERR_OPEN = 1_ik   !--- the file (or the grid's static file) cannot be opened
+   integer(ik), parameter :: MAP_ERR_GRID = 2_ik   !--- the file is not on the forcing grid
+   integer(ik), parameter :: MAP_ERR_VAR  = 3_ik   !--- the variable (or its layer dimension) is not there
 
-   !----- The soil maps' layers (ED-SoilMaps v2: SoilGrids 2.0's six depths, to 2 m). ------------!
+   !--- The soil maps' layers (ED-SoilMaps v2: SoilGrids 2.0's six depths, to 2 m).
    character(len=*), parameter :: SOIL_LAYER_DIM = 'depth', SOIL_LAYER_BOUNDS = 'depth_bnds'
 
 contains
 
-   !----- A 2-D (lat, lon) map variable at every cell: values(cell), NaN where the map is empty. -----!
+   !--- A 2-D (lat, lon) map variable at every cell: values(cell), NaN where the map is empty.
    subroutine map_values_at_cells(path, var, grid, cells, values, stat)
       character(len=*),      intent(in)  :: path, var
       type(met_grid_t),      intent(in)  :: grid
@@ -48,8 +48,10 @@ contains
       if (stat == MAP_OK) values = v(1, :)
    end subroutine map_values_at_cells
 
-   !----- A layered (layer, lat, lon) map variable at every cell: values(layer, cell), NaN where the  !
-   !      map is empty. `layer_dim` names the variable's first dimension. ------------------------------!
+   !---~---
+   !   A layered (layer, lat, lon) map variable at every cell: values(layer, cell), NaN where the
+   ! map is empty. `layer_dim` names the variable's first dimension.
+   !---~---
    subroutine map_layers_at_cells(path, var, layer_dim, grid, cells, values, stat)
       character(len=*),      intent(in)  :: path, var, layer_dim
       type(met_grid_t),      intent(in)  :: grid
@@ -59,8 +61,10 @@ contains
       call read_cells(path, var, layer_dim, grid, cells, values, stat)
    end subroutine map_layers_at_cells
 
-   !----- The cell mask of a region (docs/configuration.md, Regional runs): keep the cells whose    !
-   !      mask value is at least mask_min, not those it leaves empty; n_dropped counts the rest. ----!
+   !---~---
+   !   The cell mask of a region (docs/configuration.md, Regional runs): keep the cells whose
+   ! mask value is at least mask_min, not those it leaves empty; n_dropped counts the rest.
+   !---~---
    subroutine apply_cell_mask(cells, mask_path, mask_var, mask_min, grid, n_dropped, stat)
       type(met_cells_t), intent(inout) :: cells
       character(len=*),  intent(in)    :: mask_path, mask_var
@@ -78,7 +82,7 @@ contains
       call keep_cells(cells, keep)
    end subroutine apply_cell_mask
 
-   !----- What a status code means, for the caller's message. ------------------------------------!
+   !--- What a status code means, for the caller's message.
    function map_status_message(stat) result(msg)
       integer(ik), intent(in)       :: stat
       character(len=:), allocatable :: msg
@@ -96,13 +100,13 @@ contains
       end select
    end function map_status_message
 
-   !=======================================================================================!
-   ! read_map_inputs -- every [maps] map at every cell of a run: the soil depth map's four !
-   ! variables, the texture and chemistry maps' layers, and the Chave map's E. msg says    !
-   ! what fails, naming the map, the variable and any cell: a failed read, a gap, a        !
-   ! bc_class not 1-4, or a leaky base's f_leak outside (0, 1]; it is '' when every value  !
-   ! is there.                                                                             !
-   !=======================================================================================!
+   !---~---
+   !   read_map_inputs -- every [maps] map at every cell of a run: the soil depth map's four
+   ! variables, the texture and chemistry maps' layers, and the Chave map's E. msg says
+   ! what fails, naming the map, the variable and any cell: a failed read, a gap, a
+   ! bc_class not 1-4, or a leaky base's f_leak outside (0, 1]; it is '' when every value
+   ! is there.
+   !---~---
    subroutine read_map_inputs(opts, grid, cells, inp, msg)
       type(maps_params_t),           intent(in)  :: opts
       type(met_grid_t),              intent(in)  :: grid
@@ -141,7 +145,7 @@ contains
          if (len(msg) > 0) return
          inp%deep_temp = v(1, :)
 
-         !----- The layers: the texture and the chemistry maps must share them. ------------------!
+         !--- The layers: the texture and the chemistry maps must share them.
          call layer_bounds(opts%soil_texture_map, inp%layer_top, inp%layer_bottom)
          if (len(msg) > 0) return
          call layer_bounds(opts%soil_chemistry_map, top_chem, bottom_chem)
@@ -191,7 +195,7 @@ contains
 
    contains
 
-      !----- One variable at every cell, and every layer of it; msg on a failed read or a gap. ----!
+      !--- One variable at every cell, and every layer of it; msg on a failed read or a gap.
       subroutine need(path, var, layer_dim, values)
          character(len=*),      intent(in)  :: path, var, layer_dim
          real(wp), allocatable, intent(out) :: values(:,:)
@@ -209,7 +213,7 @@ contains
          end do
       end subroutine need
 
-      !----- A soil map's layers: the tops and bottoms [m] of its depth_bnds(depth, nv). ----------!
+      !--- A soil map's layers: the tops and bottoms [m] of its depth_bnds(depth, nv).
       subroutine layer_bounds(path, top, bottom)
          character(len=*),      intent(in)  :: path
          real(wp), allocatable, intent(out) :: top(:), bottom(:)
@@ -234,7 +238,7 @@ contains
          msg = ''
       end subroutine layer_bounds
 
-      !----- A cell, as a message names it. ----------------------------------------------------!
+      !--- A cell, as a message names it.
       function cell_name(c) result(name)
          integer(ik), intent(in) :: c
          character(len=:), allocatable :: name
@@ -246,12 +250,12 @@ contains
 
    end subroutine read_map_inputs
 
-   !=======================================================================================!
-   ! The read: check the grid, read the band of rows the cells span (every column and      !
-   ! layer, in one read per variable, which also serves a box across 180 degrees), then    !
-   ! pick each cell's values. _FillValue, missing_value and NaN read as NaN, and packed    !
-   ! values are unpacked. layer_dim = '' reads a 2-D variable as one layer.                !
-   !=======================================================================================!
+   !---~---
+   !   The read: check the grid, read the band of rows the cells span (every column and
+   ! layer, in one read per variable, which also serves a box across 180 degrees), then
+   ! pick each cell's values. _FillValue, missing_value and NaN read as NaN, and packed
+   ! values are unpacked. layer_dim = '' reads a 2-D variable as one layer.
+   !---~---
    subroutine read_cells(path, var, layer_dim, grid, cells, values, stat)
       character(len=*),      intent(in)  :: path, var, layer_dim
       type(met_grid_t),      intent(in)  :: grid
@@ -297,7 +301,7 @@ contains
          return
       end if
 
-      !----- The band of rows the cells span, every column: one hyperslab, x(lon, lat, layer). ------!
+      !--- The band of rows the cells span, every column: one hyperslab, x(lon, lat, layer).
       r0 = minval(cells%row)
       nr = maxval(cells%row) - r0 + 1_ik
       allocate(band(cells%nlon, nr, nlayer))
@@ -319,7 +323,7 @@ contains
 
       deallocate(values)
       allocate(values(nlayer, cells%ncell))
-      !----- Empty where the map says so; what is there, unpacked. ------------------------------------!
+      !--- Empty where the map says so; what is there, unpacked.
       do k = 1_ik, cells%ncell
          do l = 1_ik, nlayer
             values(l, k) = nc_unpacked(packing, band(cells%col(k) + 1_ik, cells%row(k) - r0 + 1_ik, l))

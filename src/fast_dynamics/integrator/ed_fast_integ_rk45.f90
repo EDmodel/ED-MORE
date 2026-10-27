@@ -1,13 +1,13 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! ed_fast_integ_rk45 -- the explicit fast-loop scheme a run can choose ("rk45"):           !
-! rk45_step is one Cash-Karp 5(4) step over the whole march state (canopy air, soil energy !
-! and water, plant water, films) through the shared right-hand side march_derivs, from the !
-! same frozen record as ESDIRK2, with its embedded error and b-weighted boundary-flux      !
-! amounts; rk45_state_railed checks the march's end. It is also the explicit reference the !
-! tests compare ESDIRK2 against. The stepper marches it, and marches the step again with   !
-! ESDIRK2 when it cannot resolve it (docs/science/numerical_scheme.md §3 `rk45`, §5b).     !
-!==========================================================================================!
+!---~---
+!   ed_fast_integ_rk45 -- the explicit fast-loop scheme a run can choose ("rk45"):
+! rk45_step is one Cash-Karp 5(4) step over the whole march state (canopy air, soil energy
+! and water, plant water, films) through the shared right-hand side march_derivs, from the
+! same frozen record as ESDIRK2, with its embedded error and b-weighted boundary-flux
+! amounts; rk45_state_railed checks the march's end. It is also the explicit reference the
+! tests compare ESDIRK2 against. The stepper marches it, and marches the step again with
+! ESDIRK2 when it cannot resolve it (docs/science/numerical_scheme.md §3 `rk45`, §5b).
+!---~---
 module ed_fast_integ_rk45
    use ed_kinds,              only : wp, ik
    use ed_constants,          only : cp_air
@@ -23,8 +23,10 @@ module ed_fast_integ_rk45
    public :: rk45_step, rk45_state_railed
    public :: RK45_P_ORDER, RK45_WORK_CAP
 
-   !----- Cash-Karp 5(4) tableau (Cash & Karp 1990, ACM TOMS 16:201; Numerical Recipes' rkck). The    !
-   !      frozen record has no explicit time dependence, so the stage times never enter. ------------!
+   !---~---
+   !   Cash-Karp 5(4) tableau (Cash & Karp 1990, ACM TOMS 16:201; Numerical Recipes' rkck). The
+   ! frozen record has no explicit time dependence, so the stage times never enter.
+   !---~---
    real(wp), parameter :: A21 = 0.2_wp
    real(wp), parameter :: A31 = 3.0_wp/40.0_wp,      A32 = 9.0_wp/40.0_wp
    real(wp), parameter :: A41 = 0.3_wp,               A42 = -0.9_wp,             A43 = 1.2_wp
@@ -32,32 +34,34 @@ module ed_fast_integ_rk45
                           A54 = 35.0_wp/27.0_wp
    real(wp), parameter :: A61 = 1631.0_wp/55296.0_wp, A62 = 175.0_wp/512.0_wp,   A63 = 575.0_wp/13824.0_wp, &
                           A64 = 44275.0_wp/110592.0_wp, A65 = 253.0_wp/4096.0_wp
-   !----- 5th-order (committed) and embedded 4th-order weights; b2 = 0 in both, b5 = 0 at 5th order. !
+   !--- 5th-order (committed) and embedded 4th-order weights; b2 = 0 in both, b5 = 0 at 5th order.
    real(wp), parameter :: B1 = 37.0_wp/378.0_wp,    B3 = 250.0_wp/621.0_wp, B4 = 125.0_wp/594.0_wp, &
                           B6 = 512.0_wp/1771.0_wp
    real(wp), parameter :: BS1 = 2825.0_wp/27648.0_wp, BS3 = 18575.0_wp/48384.0_wp,                &
                           BS4 = 13525.0_wp/55296.0_wp, BS5 = 277.0_wp/14336.0_wp, BS6 = 0.25_wp
-   !----- The embedded estimate's order, p in docs/science/numerical_scheme.md eq. (4). ----------------!
+   !--- The embedded estimate's order, p in docs/science/numerical_scheme.md eq. (4).
    integer(ik), parameter :: RK45_P_ORDER = 4_ik
 
-   !----- Work cap per dt_fast. A healthy step takes a few sub-steps (docs/science/numerical_scheme.md   !
-   !      §3 `rk45`); on a dense, cold canopy the explicit march instead thrashes and still rails, and   !
-   !      the stepper marches the step again with ESDIRK2, so stopping at the cap bounds the wasted     !
-   !      work. -------------------------------------------------------------------------------------!
+   !---~---
+   !   Work cap per dt_fast. A healthy step takes a few sub-steps (docs/science/numerical_scheme.md
+   ! §3 `rk45`); on a dense, cold canopy the explicit march instead thrashes and still rails, and
+   ! the stepper marches the step again with ESDIRK2, so stopping at the cap bounds the wasted
+   ! work.
+   !---~---
    integer(ik), parameter :: RK45_WORK_CAP = 64_ik
 
 contains
 
-   !---------------------------------------------------------------------------------------!
-   ! explicit_stage_bflux -- one explicit stage's boundary-flux rates, the counterpart of     !
-   ! backward_euler_stage's: the state is the stage input y_stage, and k and surf_tend are     !
-   ! march_derivs' tendency and surface diagnostic there, condensation included at the       !
-   ! stage's own canopy-air temperature. The canopy air is charged at the conductances the    !
-   ! tendency used, re-solved at the stage's state (docs/science/numerical_scheme.md §5b);     !
-   ! cas_conductances is pure, so this matches march_derivs, and carrying them on            !
-   ! surface_tend_t instead would perturb ifx's inlining and FMA choices in surface_derivs.   !
-   ! The soil's and the column's bottom face is k%g_bottom, positive up.                      !
-   !---------------------------------------------------------------------------------------!
+   !---~---
+   !   explicit_stage_bflux -- one explicit stage's boundary-flux rates, the counterpart of
+   ! backward_euler_stage's: the state is the stage input y_stage, and k and surf_tend are
+   ! march_derivs' tendency and surface diagnostic there, condensation included at the
+   ! stage's own canopy-air temperature. The canopy air is charged at the conductances the
+   ! tendency used, re-solved at the stage's state (docs/science/numerical_scheme.md §5b);
+   ! cas_conductances is pure, so this matches march_derivs, and carrying them on
+   ! surface_tend_t instead would perturb ifx's inlining and FMA choices in surface_derivs.
+   ! The soil's and the column's bottom face is k%g_bottom, positive up.
+   !---~---
    pure subroutine explicit_stage_bflux(y_stage, frozen, k, surf_tend, bf)
       type(march_state_t),  intent(in)  :: y_stage
       type(frozen_t), intent(in)  :: frozen
@@ -76,9 +80,11 @@ contains
       bf%cas_co2_out   = gac*y_stage%cas_co2
       bf%soil_enth_in  = k%g_top + k%g_bottom + e_infil
       bf%soil_enth_out = sum(frozen%roots%root_heat) + frozen%hydrology%exfil_enth + e_drain
-      !----- Soil water's storage change and flows are the network's, booked once per step by        !
-      !      close_ledgers: the per-stage soil-water amounts are zero, and the whole-column water      !
-      !      here is only the canopy-air vapour exchange. --------------------------------------------!
+      !---~---
+      !   Soil water's storage change and flows are the network's, booked once per step by
+      ! close_ledgers: the per-stage soil-water amounts are zero, and the whole-column water
+      ! here is only the canopy-air vapour exchange.
+      !---~---
       bf%soil_wat_in   = 0.0_wp
       bf%soil_wat_out  = 0.0_wp
       bf%whole_enth_in = surf_tend%coh_rnet + surf_tend%ground_rad + k%g_bottom
@@ -95,17 +101,17 @@ contains
       bf%rad_net       = surf_tend%coh_rnet + surf_tend%ground_rad
    end subroutine explicit_stage_bflux
 
-   !---------------------------------------------------------------------------------------!
-   ! rk45_step -- one Cash-Karp 5(4) step over march_derivs, committing the 5th-order  !
-   ! solution; y_err is the 5th - 4th difference, and bf the step's boundary-flux amounts,     !
-   ! b-weighted like the commit, with the tissue-temperature time integrals and each cohort's  !
-   ! transpiration. Each stage input's canopy air is clamped (clamp_cas) so that an oversized  !
-   ! trial gives a finite derivative, which the embedded error then rejects. Soil energy needs !
-   ! no clamp: any finite energy has a temperature, and a stage reads it only through terms    !
-   ! linear in it. The committed state is not clamped: at the floor a step is committed with  !
-   ! the controller out of moves, and a clamp there would move mass or energy with no ledger   !
-   ! entry; a railed commit is caught by rk45_state_railed.                                    !
-   !---------------------------------------------------------------------------------------!
+   !---~---
+   !   rk45_step -- one Cash-Karp 5(4) step over march_derivs, committing the 5th-order
+   ! solution; y_err is the 5th - 4th difference, and bf the step's boundary-flux amounts,
+   ! b-weighted like the commit, with the tissue-temperature time integrals and each cohort's
+   ! transpiration. Each stage input's canopy air is clamped (clamp_cas) so that an oversized
+   ! trial gives a finite derivative, which the embedded error then rejects. Soil energy needs
+   ! no clamp: any finite energy has a temperature, and a stage reads it only through terms
+   ! linear in it. The committed state is not clamped: at the floor a step is committed with
+   ! the controller out of moves, and a clamp there would move mass or energy with no ledger
+   ! entry; a railed commit is caught by rk45_state_railed.
+   !---~---
    pure subroutine rk45_step(y, frozen, site, n, nsl, dt, y_out, y_err, bf, clamp_stage_n)
       type(march_state_t),  intent(in)  :: y
       type(frozen_t), intent(in)  :: frozen
@@ -113,16 +119,18 @@ contains
       integer(ik),           intent(in)  :: n, nsl
       real(wp),              intent(in)  :: dt
       type(march_state_t),  intent(out) :: y_out, y_err
-      type(boundary_flux_t), optional, intent(out) :: bf   !< b-weighted boundary-flux amounts over dt (ledger)
-      !----- Stage-clamp count (the report's WORK_CLAMP_STAGE), expected on an oversized trial. ------!
+      type(boundary_flux_t), optional, intent(out) :: bf   !--- b-weighted boundary-flux amounts over dt (ledger)
+      !--- Stage-clamp count (the report's WORK_CLAMP_STAGE), expected on an oversized trial.
       integer(ik), optional, intent(inout) :: clamp_stage_n
 
       type(march_tend_t)  :: k1, k2, k3, k4, k5, k6
       type(march_state_t) :: y_stage, y_4th
       type(surface_tend_t) :: surf_tend
       type(stage_bflux_t)  :: s(6)
-      !----- Per-stage tissue temperatures and transpiration, for the time integrals the tissues'   !
-      !      energy and the diagnostics are set from. -------------------------------------------!
+      !---~---
+      !   Per-stage tissue temperatures and transpiration, for the time integrals the tissues'
+      ! energy and the diagnostics are set from.
+      !---~---
       real(wp) :: tleaf_s(n,6), twood_s(n,6), transp_s(n,6)
 
       call march_derivs(y, frozen, site, n, nsl, k1, sf_out=surf_tend)
@@ -186,14 +194,16 @@ contains
       twood_s(1:n,6) = surf_tend%wood_temp(1:n)
       transp_s(1:n,6) = surf_tend%transp_c(1:n)
 
-      !----- y_out = y + dt*(B1*k1 + B3*k3 + B4*k4 + B6*k6), the 5th-order solution. -----------!
+      !--- y_out = y + dt*(B1*k1 + B3*k3 + B4*k4 + B6*k6), the 5th-order solution.
       call state_init(y, n, nsl, y_out)
       call state_accum(y_out, dt*B1, k1, n, nsl)
       call state_accum(y_out, dt*B3, k3, n, nsl)
       call state_accum(y_out, dt*B4, k4, n, nsl)
       call state_accum(y_out, dt*B6, k6, n, nsl)
-      !----- y_4th, the embedded 4th-order solution, is its own temporary: passing y_err as both      !
-      !      state_sub's b and out would alias two dummies, one modified, which Fortran forbids. -----!
+      !---~---
+      !   y_4th, the embedded 4th-order solution, is its own temporary: passing y_err as both
+      ! state_sub's b and out would alias two dummies, one modified, which Fortran forbids.
+      !---~---
       call state_init(y, n, nsl, y_4th)
       call state_accum(y_4th, dt*BS1, k1, n, nsl)
       call state_accum(y_4th, dt*BS3, k3, n, nsl)
@@ -214,8 +224,10 @@ contains
       end if
    end subroutine rk45_step
 
-   !----- The step's boundary-flux amounts over dt: the stage rates b-weighted like the commit        !
-   !      (b2 = b5 = 0), summed over the four stages in order. -------------------------------------!
+   !---~---
+   !   The step's boundary-flux amounts over dt: the stage rates b-weighted like the commit
+   ! (b2 = b5 = 0), summed over the four stages in order.
+   !---~---
    pure subroutine bflux_cash_karp(s, dt, acc)
       type(stage_bflux_t),  intent(in)    :: s(6)
       real(wp),             intent(in)    :: dt
@@ -264,10 +276,12 @@ contains
                             + B6*s(6)%rad_net) * dt
    end subroutine bflux_cash_karp
 
-   !----- Did the explicit march end on a railed state? Its 5th- and 4th-order solutions can rail  !
-   !      together, so the controller sees err ~ 0 and accepts an impossible temperature; the     !
-   !      stepper then marches the step again with ESDIRK2. The canopy air's and each soil layer's !
-   !      temperature at the march's end, at or beyond the bounds the stage clamp holds. ----------!
+   !---~---
+   !   Did the explicit march end on a railed state? Its 5th- and 4th-order solutions can rail
+   ! together, so the controller sees err ~ 0 and accepts an impossible temperature; the
+   ! stepper then marches the step again with ESDIRK2. The canopy air's and each soil layer's
+   ! temperature at the march's end, at or beyond the bounds the stage clamp holds.
+   !---~---
    pure function rk45_state_railed(y_out, site, nsl) result(railed)
       type(march_state_t), intent(in) :: y_out
       type(site_surface_t), intent(in) :: site

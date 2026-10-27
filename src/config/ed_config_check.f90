@@ -1,14 +1,14 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! ed_config_check -- the checks a configuration passes before a run starts                 !
-! (docs/configuration.md), in the order a load meets them:                                 !
-!   1. key names (check_config_keys): each key is one its reference lists, else it is      !
-!      reported with the listed key it most likely meant;                                  !
-!   2. keys a setting makes inapplicable (check_key_use), refused as unknown keys are;     !
-!   3. values (validate_config): at load, after the soil maps fill a polygon's ground,     !
-!      and for each region polygon.                                                        !
-! 1 and 2 are reported with the missing required keys; 3 stops at the first bad value.     !
-!==========================================================================================!
+!---~---
+!   ed_config_check -- the checks a configuration passes before a run starts
+! (docs/configuration.md), in the order a load meets them:
+!   1. key names (check_config_keys): each key is one its reference lists, else it is
+!      reported with the listed key it most likely meant;
+!   2. keys a setting makes inapplicable (check_key_use), refused as unknown keys are;
+!   3. values (validate_config): at load, after the soil maps fill a polygon's ground,
+!      and for each region polygon.
+! 1 and 2 are reported with the missing required keys; 3 stops at the first bad value.
+!---~---
 module ed_config_check
    use ed_kinds,              only : wp, ik
    use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
@@ -39,27 +39,27 @@ module ed_config_check
    public :: MAIN_KEYS, PFT_KEYS, SITE_GROUND_KEYS
    public :: validate_config
 
-   !=======================================================================================!
-   !  1. Key names                                                                          !
-   !=======================================================================================!
-   integer, parameter :: KEY_LEN = 64            !< ed_toml's key length
+   !--- 1. Key names
+   integer, parameter :: KEY_LEN = 64            !--- ed_toml's key length
    include 'ed_config_keys.inc'                  ! MAIN_KEYS, PFT_KEYS, from the two references
 
-   !----- The [soil] keys a [[sites]] table may set, under the same names: the site's soil column !
-   !      and its bottom. The ground's surface and its thermal boundary are the run's. -----------!
+   !---~---
+   !   The [soil] keys a [[sites]] table may set, under the same names: the site's soil column
+   ! and its bottom. The ground's surface and its thermal boundary are the run's.
+   !---~---
    character(len=*), parameter :: SITE_GROUND_KEYS(15) = [character(len=24) ::                     &
       'depth', 'layer_bottoms', 'retention', 'theta_sat', 'theta_res', 'ksat', 'curve_par_a',        &
       'curve_par_n', 'psi_fc', 'solid_conductivity', 'dry_conductivity', 'dry_heat_capacity',         &
       'water_bottom_bc', 'deep_temp', 'deep_depth']
 
-   !----- The keys the soil maps provide, refused while they are set. -----------------------------!
+   !--- The keys the soil maps provide, refused while they are set.
    character(len=*), parameter :: SOIL_MAP_KEYS(15) = [character(len=32) ::                          &
       'soil.depth', 'soil.layer_bottoms', 'soil.theta_sat', 'soil.theta_res', 'soil.ksat',             &
       'soil.curve_par_a', 'soil.curve_par_n', 'soil.solid_conductivity', 'soil.dry_conductivity',       &
       'soil.dry_heat_capacity', 'soil.retention', 'soil.water_bottom_bc', 'soil.deep_temp',             &
       'soil.deep_depth', 'init.soil_theta']
 
-   !----- What the key checks found, one line per key, reported with the missing required keys. -!
+   !--- What the key checks found, one line per key, reported with the missing required keys.
    integer, parameter :: MAX_REPORT = 256
    type :: key_report_t
       integer(ik)        :: n = 0_ik
@@ -70,10 +70,12 @@ module ed_config_check
 
 contains
 
-   !----- Check every key of `t` against `known`, the keys its reference lists (MAIN_KEYS or    !
-   !      PFT_KEYS), adding a line to `report` for each unknown one. A key of an array's table,  !
-   !      `sites.2.depth`, is checked as `sites.depth`; a [[sites]] table also takes             !
-   !      SITE_GROUND_KEYS. -------------------------------------------------------------------!
+   !---~---
+   !   Check every key of `t` against `known`, the keys its reference lists (MAIN_KEYS or
+   ! PFT_KEYS), adding a line to `report` for each unknown one. A key of an array's table,
+   ! `sites.2.depth`, is checked as `sites.depth`; a [[sites]] table also takes
+   ! SITE_GROUND_KEYS.
+   !---~---
    subroutine check_config_keys(t, known, report)
       type(toml_table_t), intent(in)    :: t
       character(len=*),   intent(in)    :: known(:)
@@ -100,7 +102,7 @@ contains
       report%line(report%n) = line
    end subroutine add_line
 
-   !----- A key without its table's number: `sites.2.depth` is `sites.depth`. ------------------!
+   !--- A key without its table's number: `sites.2.depth` is `sites.depth`.
    pure function table_key(key) result(k)
       character(len=*), intent(in) :: key
       character(len=KEY_LEN) :: k
@@ -113,10 +115,12 @@ contains
       if (verify(key(d1 + 1:d1 + d2 - 1), '0123456789') == 0) k = key(1:d1)//key(d1 + d2 + 1:)
    end function table_key
 
-   !----- The listed key an unknown one most likely meant. First the same name under another    !
-   !      section (a key in the wrong block, like state.cohort_max for output.cohort_max),      !
-   !      the closest in spelling if there are several; else the closest spelling within a      !
-   !      third of the key's length (a typo). Blank when nothing is that close. ----------------!
+   !---~---
+   !   The listed key an unknown one most likely meant. First the same name under another
+   ! section (a key in the wrong block, like state.cohort_max for output.cohort_max),
+   ! the closest in spelling if there are several; else the closest spelling within a
+   ! third of the key's length (a typo). Blank when nothing is that close.
+   !---~---
    pure function nearest_key(key, known) result(best)
       character(len=*), intent(in) :: key, known(:)
       character(len=KEY_LEN) :: best
@@ -142,15 +146,17 @@ contains
       end do
    end function nearest_key
 
-   !----- A key's name without its section: what follows the last dot. -------------------------!
+   !--- A key's name without its section: what follows the last dot.
    pure function leaf(key) result(name)
       character(len=*), intent(in) :: key
       character(len=len(key)) :: name
       name = key(index(trim(key), '.', back=.true.) + 1:)
    end function leaf
 
-   !----- The number of single-character insertions, deletions and substitutions that turn a   !
-   !      into b (Levenshtein), by the two-row recurrence. ------------------------------------!
+   !---~---
+   !   The number of single-character insertions, deletions and substitutions that turn a
+   ! into b (Levenshtein), by the two-row recurrence.
+   !---~---
    pure integer function edit_distance(a, b) result(d)
       character(len=*), intent(in) :: a, b
       integer :: prev(0:len(b)), cur(0:len(b)), i, j
@@ -165,12 +171,12 @@ contains
       d = prev(len(b))
    end function edit_distance
 
-   !=======================================================================================!
-   !  2. Keys a setting makes inapplicable                                                  !
-   !=======================================================================================!
+   !--- 2. Keys a setting makes inapplicable
 
-   !----- Report every key of the main file `tm` or the PFT file `tp` that the loaded `cfg`    !
-   !      gives nothing to do: it would parse and change nothing. --------------------------------!
+   !---~---
+   !   Report every key of the main file `tm` or the PFT file `tp` that the loaded `cfg`
+   ! gives nothing to do: it would parse and change nothing.
+   !---~---
    subroutine check_key_use(tm, tp, cfg, report)
       type(toml_table_t),  intent(in)    :: tm, tp
       type(ed_config_t),   intent(in)    :: cfg
@@ -183,8 +189,10 @@ contains
       integer(ik) :: i
       if (cfg%mode /= RUN_MODE_REGION .and. toml_has_section(tm, 'region'))                       &
          call add_line(report, '[region] (in '//trim(tm%source)//') needs [run].mode = "region"')
-      !----- [forcing]/[site]: the keys of the other source, location or mode. The CO2 keys apply   !
-      !      with forcing on or off. -----------------------------------------------------------------!
+      !---~---
+      !   [forcing]/[site]: the keys of the other source, location or mode. The CO2 keys apply
+      ! with forcing on or off.
+      !---~---
       if (cfg%forcing%co2_source == CO2_SOURCE_CONST)                                                 &
          call refuse(report, tm, 'forcing.co2_file', 'needs forcing.co2_source = "file"')
       if (cfg%forcing%co2_source == CO2_SOURCE_FILE)                                                  &
@@ -214,7 +222,7 @@ contains
                            'applies only with site.apply_elevation_lapse = true')
          end if
       end if
-      !----- [maps]: a key the maps provide; a site's own soil. ---------------------------------------!
+      !--- [maps]: a key the maps provide; a site's own soil.
       if (soil_maps_on(cfg%maps)) then
          do i = 1_ik, size(SOIL_MAP_KEYS, kind=ik)
             call refuse(report, tm, trim(SOIL_MAP_KEYS(i)), 'comes from the [maps] soil maps')
@@ -225,7 +233,7 @@ contains
                                      'maps: every site takes its cell''s soil')
          end if
       end if
-      !----- [allometry]: the log-quadratic's keys need a PFT on it; its E comes from a map when set. -!
+      !--- [allometry]: the log-quadratic's keys need a PFT on it; its E comes from a map when set.
       if (.not. any(cfg%pft%allom(1:cfg%pft%n)%height_allometry == HEIGHT_CHAVE)) then
          call refuse(report, tp, 'allometry.chave_a', CHAVE)
          call refuse(report, tp, 'allometry.chave_b', CHAVE)
@@ -244,14 +252,12 @@ contains
       if (toml_has(t, key)) call add_line(report, key//' (in '//trim(t%source)//') '//why)
    end subroutine refuse
 
-   !=======================================================================================!
-   !  3. Values                                                                             !
-   !=======================================================================================!
+   !--- 3. Values
 
-   !---------------------------------------------------------------------------------------!
-   ! Validate a configuration; halt on a setting that would corrupt the run. Each site     !
-   ! with its own ground is validated as the run with that ground.                         !
-   !---------------------------------------------------------------------------------------!
+   !---~---
+   !   Validate a configuration; halt on a setting that would corrupt the run. Each site
+   ! with its own ground is validated as the run with that ground.
+   !---~---
    recursive subroutine validate_config(cfg)
       type(ed_config_t), intent(in) :: cfg
       call check_sites(cfg)
@@ -271,7 +277,7 @@ contains
       call check_hydraulics(cfg)
    end subroutine validate_config
 
-   !----- [run]: a span, a step and a thread count. --------------------------------------------!
+   !--- [run]: a span, a step and a thread count.
    subroutine check_run(cfg)
       type(ed_config_t), intent(in) :: cfg
       if (.not. time_lt(cfg%start_time, cfg%end_time)) error stop TAG//'end_time must be after start_time'
@@ -279,9 +285,11 @@ contains
       if (cfg%n_threads < 1_ik)                        error stop TAG//'n_threads < 1'
    end subroutine check_run
 
-   !----- [fast]: dt_fast is an accuracy setting, measured to 900 s (docs/science/numerical_scheme.md !
-   !      §5a, §6), and divides dt_slow. The sub-daily probe holds one shared, order-significant CSV, !
-   !      so it runs single-threaded (§6a). ------------------------------------------------------------!
+   !---~---
+   !   [fast]: dt_fast is an accuracy setting, measured to 900 s (docs/science/numerical_scheme.md
+   ! §5a, §6), and divides dt_slow. The sub-daily probe holds one shared, order-significant CSV,
+   ! so it runs single-threaded (§6a).
+   !---~---
    subroutine check_fast(cfg)
       type(ed_config_t), intent(in) :: cfg
       if (.not. cfg%fast_biophysics_on) return
@@ -308,8 +316,10 @@ contains
          error stop TAG//'forcing_sample_frac outside [0,1]'
    end subroutine check_fast
 
-   !----- [soil]: the ground's optics, its column and its thermal bottom. Each column fault     !
-   !      gives a silently wrong column rather than a crash (docs/science/soil_biophysics.md). ---!
+   !---~---
+   !   [soil]: the ground's optics, its column and its thermal bottom. Each column fault
+   ! gives a silently wrong column rather than a crash (docs/science/soil_biophysics.md).
+   !---~---
    subroutine check_soil(cfg)
       type(ed_config_t), intent(in) :: cfg
       type(soil_texture_layers_t) :: tex
@@ -336,19 +346,25 @@ contains
          if (sc%n_layer_values > 0_ik .and. sc%n_layer_values /= n)                                     &
             error stop TAG//'soil: the per-layer texture does not match the column''s layers'
          call soil_layer_textures(sc, tex)
-         !----- Each layer check states what must hold, so a NaN fails it: a map layer with no sand !
-         !      or clay (pure silt, or zero-filled) gives NaN thermal properties. ------------------!
+         !---~---
+         !   Each layer check states what must hold, so a NaN fails it: a map layer with no sand
+         ! or clay (pure silt, or zero-filled) gives NaN thermal properties.
+         !---~---
          if (.not. all(tex%theta_sat(1:n) > tex%theta_res(1:n))) error stop TAG//'soil.theta_sat <= theta_res'
          if (.not. all(tex%theta_res(1:n) >= 0.0_wp))            error stop TAG//'soil.theta_res < 0'
-         !----- With a texture per layer each layer starts at its field capacity, so init.soil_theta !
-         !      does not apply. ----------------------------------------------------------------------!
+         !---~---
+         !   With a texture per layer each layer starts at its field capacity, so init.soil_theta
+         ! does not apply.
+         !---~---
          if (sc%n_layer_values == 0_ik) then
             if (cfg%init%soil_theta <= sc%theta_res .or. cfg%init%soil_theta > sc%theta_sat)            &
                error stop TAG//'init.soil_theta must lie in (soil.theta_res, theta_sat]'
          end if
          if (.not. all(tex%ksat(1:n) > 0.0_wp)) error stop TAG//'soil.ksat <= 0'
-         !----- curve_par_a and curve_par_n are van Genuchten's alpha [1/m] > 0 and n > 1, or        !
-         !      Campbell's air-entry head psi_sat [m] < 0 and exponent b > 0. -----------------------!
+         !---~---
+         !   curve_par_a and curve_par_n are van Genuchten's alpha [1/m] > 0 and n > 1, or
+         ! Campbell's air-entry head psi_sat [m] < 0 and exponent b > 0.
+         !---~---
          if (sc%retention == SOIL_RETENTION_VG) then
             if (.not. all(tex%par_a(1:n) > 0.0_wp))                                                     &
                error stop TAG//'soil.curve_par_a (van Genuchten alpha, 1/m) must be > 0'
@@ -365,10 +381,12 @@ contains
             error stop TAG//'soil conductivities must be positive (a map layer needs sand or clay)'
          if (.not. all(tex%dry_cvol(1:n) > 0.0_wp)) error stop TAG//'soil.dry_heat_capacity <= 0'
       end associate
-      !----- The Dirichlet thermal bottom needs the site's deep temperature and an anchor below the  !
-      !      bottom node (docs/science/soil_biophysics.md, "The bottom thermal boundary"). With the    !
-      !      soil maps a polygon's anchor comes from its cell, so a configuration the maps have not   !
-      !      filled yet has none to check. ----------------------------------------------------------!
+      !---~---
+      !   The Dirichlet thermal bottom needs the site's deep temperature and an anchor below the
+      ! bottom node (docs/science/soil_biophysics.md, "The bottom thermal boundary"). With the
+      ! soil maps a polygon's anchor comes from its cell, so a configuration the maps have not
+      ! filled yet has none to check.
+      !---~---
       if (cfg%soil%thermal_bottom_bc == ENERGY_BC_DIRICHLET .and.                                              &
           .not. (soil_maps_on(cfg%maps) .and. cfg%soil%n_layer_values == 0_ik)) then
          if (cfg%soil%deep_temp <= 0.0_wp)                                                             &
@@ -384,8 +402,10 @@ contains
       end if
    end subroutine check_soil
 
-   !----- [demography]. A recruit must survive its own birth: the pool threshold exceeds the   !
-   !      cull. An operator is turned off by its switch, not by a zero setting. ----------------!
+   !---~---
+   !   [demography]. A recruit must survive its own birth: the pool threshold exceeds the
+   ! cull. An operator is turned off by its switch, not by a zero setting.
+   !---~---
    subroutine check_demography(cfg)
       type(ed_config_t), intent(in) :: cfg
       if (cfg%demography%max_cohort < 1_ik)                  error stop TAG//'max_cohort < 1'
@@ -408,7 +428,7 @@ contains
          error stop TAG//'min_recruit_size must exceed negligible_nplant'
    end subroutine check_demography
 
-   !----- [init]. --------------------------------------------------------------------------------!
+   !--- [init].
    subroutine check_init(cfg)
       type(ed_config_t), intent(in) :: cfg
       if (cfg%init%soil_temp < 233.0_wp .or. cfg%init%soil_temp > 333.0_wp)                           &
@@ -417,9 +437,11 @@ contains
          error stop TAG//'init.reacclimate_traits applies to a restart (init.init_mode = 2) only'
    end subroutine check_init
 
-   !----- [output]: a state file every N days falls on a step's end, and a fast-tier window does not !
-   !      straddle two slow steps, whose restructuring would move the cohort and patch slots it      !
-   !      opened with. ---------------------------------------------------------------------------!
+   !---~---
+   !   [output]: a state file every N days falls on a step's end, and a fast-tier window does not
+   ! straddle two slow steps, whose restructuring would move the cohort and patch slots it
+   ! opened with.
+   !---~---
    subroutine check_output(cfg)
       type(ed_config_t), intent(in) :: cfg
       if (cfg%output%state_write .and. cfg%output%state_unit == STATE_DAYS) then
@@ -433,16 +455,18 @@ contains
                          '(dt_slow / dt_fast), so no fast-tier window straddles two slow steps'
    end subroutine check_output
 
-   !----- [trait_dynamics]. ----------------------------------------------------------------------!
+   !--- [trait_dynamics].
    subroutine check_trait_dynamics(cfg)
       type(ed_config_t), intent(in) :: cfg
       if (cfg%trait_dynamics%fineroot_turnover_plastic .and. .not. cfg%trait_dynamics%trait_plasticity_on)    &
          error stop TAG//'trait_dynamics.fineroot_turnover_plastic needs trait_plasticity_on = true'
    end subroutine check_trait_dynamics
 
-   !----- [leaf_physiology]: Kc, Ko and Gamma* are denominators; thermal acclimation shifts the     !
-   !      peaked form's entropy term, which the Arrhenius form does not have                       !
-   !      (docs/science/leaf_gas_exchange.md eq. (4)). ----------------------------------------------!
+   !---~---
+   !   [leaf_physiology]: Kc, Ko and Gamma* are denominators; thermal acclimation shifts the
+   ! peaked form's entropy term, which the Arrhenius form does not have
+   ! (docs/science/leaf_gas_exchange.md eq. (4)).
+   !---~---
    subroutine check_leaf_physiology(cfg)
       type(ed_config_t), intent(in) :: cfg
       associate (lp => cfg%leaf_physiology)
@@ -461,9 +485,11 @@ contains
       end associate
    end subroutine check_leaf_physiology
 
-   !----- [forcing]/[site] (docs/science/forcing.md). The archive is hourly, end-stamped and holds    !
-   !      total shortwave, and its reader loads a month at a time (§1); a recycle window is declared   !
-   !      and spans whole calendar years, or every wrap drifts the hour and the season (§9). ---------!
+   !---~---
+   !   [forcing]/[site] (docs/science/forcing.md). The archive is hourly, end-stamped and holds
+   ! total shortwave, and its reader loads a month at a time (§1); a recycle window is declared
+   ! and spans whole calendar years, or every wrap drifts the hour and the season (§9).
+   !---~---
    subroutine check_forcing(cfg)
       type(ed_config_t), intent(in) :: cfg
       if (.not. cfg%forcing%forcing_on) return
@@ -517,9 +543,11 @@ contains
       end if
    end subroutine check_forcing
 
-   !----- [region] (docs/configuration.md, "Regional runs"): every polygon reads its own cell of the !
-   !      archive and the maps, starts from bare ground or a region state file, and loads a month's  !
-   !      forcing once, so a recycle seam falls on a month boundary. ------------------------------------!
+   !---~---
+   !   [region] (docs/configuration.md, "Regional runs"): every polygon reads its own cell of the
+   ! archive and the maps, starts from bare ground or a region state file, and loads a month's
+   ! forcing once, so a recycle seam falls on a month boundary.
+   !---~---
    subroutine check_region(cfg)
       type(ed_config_t), intent(in) :: cfg
       if (cfg%mode /= RUN_MODE_REGION) return
@@ -558,8 +586,10 @@ contains
       end if
    end subroutine check_region
 
-   !----- [maps]: on the ED_ERA5land grid, read at the forcing cell, so they need the archive; a     !
-   !      chave_e map serves the Chave height allometry only. --------------------------------------!
+   !---~---
+   !   [maps]: on the ED_ERA5land grid, read at the forcing cell, so they need the archive; a
+   ! chave_e map serves the Chave height allometry only.
+   !---~---
    subroutine check_maps(cfg)
       type(ed_config_t), intent(in) :: cfg
       if (soil_maps_on(cfg%maps) .or. len_trim(cfg%maps%chave_e_map) > 0) then
@@ -571,9 +601,11 @@ contains
          error stop TAG//'maps.chave_e_map needs a PFT with allometry.height_allometry = "chave2014"'
    end subroutine check_maps
 
-   !----- [[sites]]: shares of the polygon that sum to 1, a terrain that is a surface, the census    !
-   !      rows of each site in a census run, and a valid ground for each site that has its own. A     !
-   !      region takes one site per cell until a site map gives its sites. ------------------------------!
+   !---~---
+   !   [[sites]]: shares of the polygon that sum to 1, a terrain that is a surface, the census
+   ! rows of each site in a census run, and a valid ground for each site that has its own. A
+   ! region takes one site per cell until a site map gives its sites.
+   !---~---
    recursive subroutine check_sites(cfg)
       type(ed_config_t), intent(in) :: cfg
       type(ed_config_t) :: scfg
@@ -606,11 +638,13 @@ contains
       end do
    end subroutine check_sites
 
-   !----- [pft]: the photosynthesis curvatures lie in (0, 1], or the smoothing quadratic has no     !
-   !      root in the physical branch; reflectance + transmittance is the single-scatter albedo,    !
-   !      below 1 for a two-stream that conserves energy                                            !
-   !      (docs/science/canopy_radiation_transfer.md); a leaf turnover rate of 0 would keep         !
-   !      every leaf, and the plasticity slope divides by it. --------------------------------------!
+   !---~---
+   !   [pft]: the photosynthesis curvatures lie in (0, 1], or the smoothing quadratic has no
+   ! root in the physical branch; reflectance + transmittance is the single-scatter albedo,
+   ! below 1 for a two-stream that conserves energy
+   ! (docs/science/canopy_radiation_transfer.md); a leaf turnover rate of 0 would keep
+   ! every leaf, and the plasticity slope divides by it.
+   !---~---
    subroutine check_pft(cfg)
       type(ed_config_t), intent(in) :: cfg
       integer(ik) :: pf
@@ -688,8 +722,10 @@ contains
       end associate
    end subroutine check_pft
 
-   !----- [phenology]: each cue mask is a set of TEMP(1), LIGHT(2), WATER(4); a sharpness of 0     !
-   !      would make its switch a constant 0.5 (docs/science/plant_phenology.md eq. (2)). ----------!
+   !---~---
+   !   [phenology]: each cue mask is a set of TEMP(1), LIGHT(2), WATER(4); a sharpness of 0
+   ! would make its switch a constant 0.5 (docs/science/plant_phenology.md eq. (2)).
+   !---~---
    subroutine check_phenology(cfg)
       type(ed_config_t), intent(in) :: cfg
       associate (p => cfg%pft, n => cfg%pft%n)
@@ -716,11 +752,13 @@ contains
       end associate
    end subroutine check_phenology
 
-   !----- [hydraulics]: the rooting traits set the root profile over the soil column, the sapwood   !
-   !      conductance needs a positive conductivity and path factor, and each tissue's              !
-   !      pressure-volume curve and the xylem's vulnerability curve need their signs: with          !
-   !      elastic_mod <= |pi0| the turgor-loss point pi0 eps / (pi0 + eps) is not negative          !
-   !      (docs/science/plant_hydraulics.md). ------------------------------------------------------!
+   !---~---
+   !   [hydraulics]: the rooting traits set the root profile over the soil column, the sapwood
+   ! conductance needs a positive conductivity and path factor, and each tissue's
+   ! pressure-volume curve and the xylem's vulnerability curve need their signs: with
+   ! elastic_mod <= |pi0| the turgor-loss point pi0 eps / (pi0 + eps) is not negative
+   ! (docs/science/plant_hydraulics.md).
+   !---~---
    subroutine check_hydraulics(cfg)
       type(ed_config_t), intent(in) :: cfg
       integer(ik) :: ipft
@@ -734,10 +772,12 @@ contains
          if (any(hydro%fine_root_radius <= 0.0_wp)) error stop TAG//'hydraulics.fine_root_radius must be > 0'
          if (any(hydro%vessel_curl <= 0.0_wp))      error stop TAG//'hydraulics.vessel_curl must be > 0'
          if (any(hydro%wood_kmax <= 0.0_wp))        error stop TAG//'hydraulics.wood_kmax must be > 0'
-         !----- The curves one PFT at a time: an array expression over hydro%leaf_curve%<key>,      !
-         !      a key of a record inside each element of the PFT array, reads other PFTs' keys      !
-         !      in ifx 2026.1's AVX-512 code (the production build) and refused every multi-PFT     !
-         !      file. ------------------------------------------------------------------------------!
+         !---~---
+         !   The curves one PFT at a time: an array expression over hydro%leaf_curve%<key>,
+         ! a key of a record inside each element of the PFT array, reads other PFTs' keys
+         ! in ifx 2026.1's AVX-512 code (the production build) and refused every multi-PFT
+         ! file.
+         !---~---
          do ipft = 1_ik, cfg%pft%n
             associate (leaf => cfg%pft%hydro(ipft)%leaf_curve, wood => cfg%pft%hydro(ipft)%wood_curve)
                if (.not. (leaf%pi0 < 0.0_wp .and. wood%pi0 < 0.0_wp))                                   &

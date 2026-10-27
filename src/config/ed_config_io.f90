@@ -1,12 +1,12 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! ed_config_io -- load a run configuration: the main TOML file and the PFT file it names   !
-! (docs/configuration.md). A required key that is absent or unreadable is noted in a       !
-! presence map, and once both files are read every such key is reported at once; an        !
-! optional key falls back to its default. derive_parameters then computes the derived      !
-! quantities and validate_config checks the values. No external dependency, so it is       !
-! always compiled.                                                                         !
-!==========================================================================================!
+!---~---
+!   ed_config_io -- load a run configuration: the main TOML file and the PFT file it names
+! (docs/configuration.md). A required key that is absent or unreadable is noted in a
+! presence map, and once both files are read every such key is reported at once; an
+! optional key falls back to its default. derive_parameters then computes the derived
+! quantities and validate_config checks the values. No external dependency, so it is
+! always compiled.
+!---~---
 module ed_config_io
    use ed_kinds,      only : wp, ik
    use ed_allometry_lib, only : HEIGHT_POWER, HEIGHT_CHAVE
@@ -45,13 +45,13 @@ module ed_config_io
    private
 
    public :: load_ed_config, write_pft_params_csv
-   public :: load_fast_params, load_soil, load_snow_params, load_aero_params   !< exposed for unit tests
+   public :: load_fast_params, load_soil, load_snow_params, load_aero_params   !--- exposed for unit tests
 
-   integer(ik), parameter :: MAXPFT  = 64_ik    !< largest PFT count the array buffers handle
-   integer,     parameter :: MAXMISS = 256       !< largest missing-key list
-   integer,     parameter :: NAME_LEN = 16       !< longest selector name
+   integer(ik), parameter :: MAXPFT  = 64_ik    !--- largest PFT count the array buffers handle
+   integer,     parameter :: MAXMISS = 256       !--- largest missing-key list
+   integer,     parameter :: NAME_LEN = 16       !--- longest selector name
 
-   !----- The presence map: the required keys found absent or unreadable. ---------------------!
+   !--- The presence map: the required keys found absent or unreadable.
    type :: keymiss_t
       integer(ik)        :: n = 0_ik
       character(len=200) :: key(MAXMISS) = ''
@@ -59,9 +59,7 @@ module ed_config_io
 
 contains
 
-   !=======================================================================================!
-   !  Presence-map helpers: read a required key, or record it as missing.                  !
-   !=======================================================================================!
+   !--- Presence-map helpers: read a required key, or record it as missing.
    subroutine note_missing(m, key)
       type(keymiss_t),  intent(inout) :: m
       character(len=*), intent(in)    :: key
@@ -172,8 +170,10 @@ contains
       end if
    end subroutine req_dur
 
-   !----- A state-file interval, "N days", "N months" or "N years" (the singular too), into N and its  !
-   !      unit (STATE_*). Absent, it is recorded missing; unreadable, recorded with what it may be. ------!
+   !---~---
+   !   A state-file interval, "N days", "N months" or "N years" (the singular too), into N and its
+   ! unit (STATE_*). Absent, it is recorded missing; unreadable, recorded with what it may be.
+   !---~---
    subroutine req_interval(t, key, n, unit, m)
       type(toml_table_t), intent(in)    :: t
       character(len=*),   intent(in)    :: key
@@ -208,10 +208,12 @@ contains
          call note_missing(m, key//' = "'//trim(s)//'" is not "N days", "N months" or "N years", N >= 1')
    end subroutine req_interval
 
-   !----- A selector: a string key naming one of `names`, read into the matching code of `codes`.  !
-   !      Absent, a required one is recorded missing and an optional one keeps `out`. A name not in   !
-   !      the list is recorded with the names it may take, or, with no presence map to record it in   !
-   !      (the stand-alone block readers), stops the run. ------------------------------------------!
+   !---~---
+   !   A selector: a string key naming one of `names`, read into the matching code of `codes`.
+   ! Absent, a required one is recorded missing and an optional one keeps `out`. A name not in
+   ! the list is recorded with the names it may take, or, with no presence map to record it in
+   ! (the stand-alone block readers), stops the run.
+   !---~---
    subroutine req_choice(t, key, names, codes, out, m)
       type(toml_table_t), intent(in)    :: t
       character(len=*),   intent(in)    :: key, names(:)
@@ -234,7 +236,7 @@ contains
       character(len=:), allocatable :: kept
       integer :: i
       if (.not. toml_has(t, key)) then
-         !----- Absent: `out` stands, and the parameter record lists its name as the default. -----!
+         !--- Absent: `out` stands, and the parameter record lists its name as the default.
          kept = ''
          do i = 1, size(codes)
             if (codes(i) == out) kept = trim(names(i))
@@ -269,14 +271,16 @@ contains
    end subroutine read_choice
 
 
-   !=======================================================================================!
-   !  Fast-loop biophysics loaders, public for unit tests: [fast], [soil], [snow] and      !
-   !  [aerodynamics]. Every key is optional, its fallback the value the record holds, so   !
-   !  an absent key or block keeps the record's default; a selector naming no listed value !
-   !  stops the run.                                                                       !
-   !=======================================================================================!
-   !----- [fast]'s optional keys: the integrator, its tolerances and budget stops, the       !
-   !      forcing's sampling, the canopy films and the starting snow. ---------------------!
+   !---~---
+   !   Fast-loop biophysics loaders, public for unit tests: [fast], [soil], [snow] and
+   ! [aerodynamics]. Every key is optional, its fallback the value the record holds, so
+   ! an absent key or block keeps the record's default; a selector naming no listed value
+   ! stops the run.
+   !---~---
+   !---~---
+   !   [fast]'s optional keys: the integrator, its tolerances and budget stops, the
+   ! forcing's sampling, the canopy films and the starting snow.
+   !---~---
    subroutine load_fast_params(tm, cfg, m)
       type(toml_table_t),        intent(in)    :: tm
       type(ed_config_t),         intent(inout) :: cfg
@@ -286,27 +290,33 @@ contains
       cfg%canopy_water_on     = toml_logical(tm, 'fast.canopy_water_on', .false.)
       cfg%intercept_alpha     = toml_real(tm, 'fast.intercept_alpha', cfg%intercept_alpha)
       cfg%intercept_k         = toml_real(tm, 'fast.intercept_k',     cfg%intercept_k)
-      !----- The fast-loop time integrator: ESDIRK2 when absent                                         !
-      !      (docs/science/numerical_scheme.md §3). -----------------------------------------------------!
+      !---~---
+      !   The fast-loop time integrator: ESDIRK2 when absent
+      ! (docs/science/numerical_scheme.md §3).
+      !---~---
       call opt_choice(tm, 'fast.time_integrator', [character(len=NAME_LEN) :: 'esdirk2', 'rk45'],          &
                       [INTEG_ESDIRK2, INTEG_RK45], cfg%time_integrator, m)
-      !----- rtol's default is the integrator's: RK45 takes its own (ed_fast_params). ------------  !
+      !--- rtol's default is the integrator's: RK45 takes its own (ed_fast_params).
       cfg%rtol              = toml_real   (tm, 'fast.rtol',                                            &
                                            merge(RK45_RTOL, cfg%rtol, cfg%time_integrator == INTEG_RK45))
-      !----- Optional error-control settings. -------------------------------------------------!
+      !--- Optional error-control settings.
       cfg%atol_scale        = toml_real   (tm, 'fast.atol_scale',        1.0_wp)
       cfg%water_atol        = toml_real   (tm, 'fast.water_atol',        cfg%water_atol)
       cfg%forcing_sample_frac = toml_real (tm, 'fast.forcing_sample_frac', 0.5_wp)
       cfg%soil_energy_budget_atol = toml_real(tm, 'fast.soil_energy_budget_atol', cfg%soil_energy_budget_atol)
-      !----- fast.debug_error: true stops the run on a budget that does not close (the               !
-      !      integrators' budget checks and the soil heat's closure check), false reports the        !
-      !      breach and runs on (docs/science/numerical_scheme.md §6). Keep this reader: without     !
-      !      it no configured run can stop on a breach. ---------------------------------------------!
+      !---~---
+      !   fast.debug_error: true stops the run on a budget that does not close (the
+      ! integrators' budget checks and the soil heat's closure check), false reports the
+      ! breach and runs on (docs/science/numerical_scheme.md §6). Keep this reader: without
+      ! it no configured run can stop on a breach.
+      !---~---
       cfg%debug_error = toml_logical(tm, 'fast.debug_error', cfg%debug_error)
    end subroutine load_fast_params
 
-   !----- [soil]: the ground. Its column and bottom boundaries (load_soil_ground), its surface  !
-   !      (the pond, the dry surface layer, the bare-soil optics) and its thermal bottom. -----!
+   !---~---
+   !   [soil]: the ground. Its column and bottom boundaries (load_soil_ground), its surface
+   ! (the pond, the dry surface layer, the bare-soil optics) and its thermal bottom.
+   !---~---
    subroutine load_soil(tm, s)
       type(toml_table_t),  intent(in)    :: tm
       type(soil_params_t), intent(inout) :: s
@@ -321,12 +331,14 @@ contains
                       [ENERGY_BC_GEOTHERMAL, ENERGY_BC_DIRICHLET], s%thermal_bottom_bc)
    end subroutine load_soil
 
-   !----- The [soil] keys a [[sites]] table may set as well (SITE_GROUND_KEYS): the column's layers, !
-   !      its hydraulic and thermal texture, the water bottom boundary and the thermal anchor. -----!
+   !---~---
+   !   The [soil] keys a [[sites]] table may set as well (SITE_GROUND_KEYS): the column's layers,
+   ! its hydraulic and thermal texture, the water bottom boundary and the thermal anchor.
+   !---~---
    subroutine load_soil_ground(tm, s)
       type(toml_table_t),  intent(in)    :: tm
       type(soil_params_t), intent(inout) :: s
-      !----- A layer_bottoms list without a depth sets the column to end at its last bottom. ---!
+      !--- A layer_bottoms list without a depth sets the column to end at its last bottom.
       call toml_real_array(tm, 'soil.layer_bottoms', s%layer_bottoms, s%n_layer_bottoms)
       if (s%n_layer_bottoms > 0_ik) s%depth = s%layer_bottoms(s%n_layer_bottoms)
       s%depth       = toml_real(tm, 'soil.depth',       s%depth)
@@ -346,8 +358,10 @@ contains
       s%deep_depth  = toml_real(tm, 'soil.deep_depth',  s%deep_depth)
    end subroutine load_soil_ground
 
-   !----- [soil].water_bottom_bc: the column's water boundary and its drainage factor, kept when   !
-   !      the key is absent. ----------------------------------------------------------------------!
+   !---~---
+   !   [soil].water_bottom_bc: the column's water boundary and its drainage factor, kept when
+   ! the key is absent.
+   !---~---
    subroutine load_water_bottom_bc(tm, bc, drain_factor)
       type(toml_table_t), intent(in)    :: tm
       integer(ik),        intent(inout) :: bc
@@ -358,8 +372,10 @@ contains
       choice = FREE_DRAIN
       call opt_choice(tm, 'soil.water_bottom_bc', [character(len=NAME_LEN) :: 'free_drain', 'bedrock', 'aquifer'], &
                       [FREE_DRAIN, BEDROCK, AQUIFER], choice)
-      !----- free_drain and bedrock are the drainage boundary's two ends, f = 1 and f = 0 !
-      !      (docs/science/soil_biophysics.md §Boundary conditions). ---------------------!
+      !---~---
+      !   free_drain and bedrock are the drainage boundary's two ends, f = 1 and f = 0
+      ! (docs/science/soil_biophysics.md §Boundary conditions).
+      !---~---
       bc = merge(SOIL_BC_AQUIFER, SOIL_BC_DRAIN, choice == AQUIFER)
       if (choice == FREE_DRAIN) drain_factor = 1.0_wp
       if (choice == BEDROCK)    drain_factor = 0.0_wp
@@ -410,8 +426,10 @@ contains
       a%t_ref_air        = toml_real(tm, 'aerodynamics.t_ref_air',        a%t_ref_air)
    end subroutine load_aero_params
 
-   !----- [leaf_physiology]: the model selectors and the biochemistry every PFT shares. An absent     !
-   !      optional key keeps the type's default. -----------------------------------------------------!
+   !---~---
+   !   [leaf_physiology]: the model selectors and the biochemistry every PFT shares. An absent
+   ! optional key keeps the type's default.
+   !---~---
    subroutine load_leaf_physiology_params(tm, lp, m)
       type(toml_table_t),             intent(in)    :: tm
       type(leaf_physiology_params_t), intent(inout) :: lp
@@ -435,9 +453,11 @@ contains
       call req_r(tm, 'leaf_physiology.hd_vcmax', lp%hd_vcmax, m)
       call req_r(tm, 'leaf_physiology.hd_jmax',  lp%hd_jmax,  m)
       call req_r(tm, 'leaf_physiology.hd_rd',    lp%hd_rd,    m)
-      !----- Thermal acclimation (docs/science/leaf_gas_exchange.md eq. (4)): off by default,     !
-      !      every key optional, the six Kattge & Knorr coefficients at their published           !
-      !      values. -----------------------------------------------------------------------------!
+      !---~---
+      !   Thermal acclimation (docs/science/leaf_gas_exchange.md eq. (4)): off by default,
+      ! every key optional, the six Kattge & Knorr coefficients at their published
+      ! values.
+      !---~---
       lp%thermal_acclimation = toml_logical(tm, 'leaf_physiology.thermal_acclimation', lp%thermal_acclimation)
       lp%acclim_ds_vcmax_a  = toml_real(tm, 'leaf_physiology.acclim_ds_vcmax_a',  lp%acclim_ds_vcmax_a)
       lp%acclim_ds_vcmax_b  = toml_real(tm, 'leaf_physiology.acclim_ds_vcmax_b',  lp%acclim_ds_vcmax_b)
@@ -455,8 +475,10 @@ contains
       lp%vpd_min = toml_real(tm, 'leaf_physiology.vpd_min', lp%vpd_min)
    end subroutine load_leaf_physiology_params
 
-   !----- [soil_carbon]: the switch, the decomposition selectors and rates, and the cold start.        !
-   !      Each absent key keeps the type's default, so the type, not the reader, decides it. ----------!
+   !---~---
+   !   [soil_carbon]: the switch, the decomposition selectors and rates, and the cold start.
+   ! Each absent key keeps the type's default, so the type, not the reader, decides it.
+   !---~---
    subroutine load_soil_carbon_params(tm, s, m)
       type(toml_table_t),         intent(in)    :: tm
       type(soil_carbon_params_t), intent(inout) :: s
@@ -500,9 +522,11 @@ contains
       s%resp_water_above_opt  = toml_real(tm, 'soil_carbon.resp_water_above_opt',  s%resp_water_above_opt)
    end subroutine load_soil_carbon_params
 
-   !----- [demography] (docs/science/demography.md; docs/configuration.md, "Cohort and patch     !
-   !      fusion"): every key required but the extinction of the light profiles and the patch     !
-   !      tolerance's ceiling. -------------------------------------------------------------------!
+   !---~---
+   !   [demography] (docs/science/demography.md; docs/configuration.md, "Cohort and patch
+   ! fusion"): every key required but the extinction of the light profiles and the patch
+   ! tolerance's ceiling.
+   !---~---
    subroutine load_demography_params(tm, d, m)
       type(toml_table_t), intent(in)    :: tm
       type(demography_params_t), intent(inout) :: d
@@ -529,8 +553,10 @@ contains
       call req_i(tm, 'demography.n_height_layers',            d%n_height_layers,            m)
       call req_r(tm, 'demography.patch_light_tol',            d%patch_light_tol,            m)
       call req_r(tm, 'demography.patch_light_maxdev_factor',  d%patch_light_maxdev_factor,  m)
-      !----- The ceiling is optional: absent, 0.15, or patch_light_tol if larger, so it never       !
-      !      falls below the first pass's tolerance. --------------------------------------------!
+      !---~---
+      !   The ceiling is optional: absent, 0.15, or patch_light_tol if larger, so it never
+      ! falls below the first pass's tolerance.
+      !---~---
       d%patch_light_tol_max = 0.15_wp
       if (toml_has(tm, 'demography.patch_light_tol'))                                               &
          d%patch_light_tol_max = max(0.15_wp, d%patch_light_tol)   ! clamp-ok: the setting's default
@@ -542,9 +568,11 @@ contains
    end subroutine load_demography_params
 
 
-   !----- [allometry].height_allometry, one name for every PFT or one per PFT, and for        !
-   !      "chave2014" its coefficients and the site's chave_e (docs/configuration.md, "The    !
-   !      PFT file"). ------------------------------------------------------------------------!
+   !---~---
+   !   [allometry].height_allometry, one name for every PFT or one per PFT, and for
+   ! "chave2014" its coefficients and the site's chave_e (docs/configuration.md, "The
+   ! PFT file").
+   !---~---
    subroutine opt_height_allometry(t, cfg, npft, m)
       type(toml_table_t), intent(in) :: t
       type(ed_config_t), intent(inout) :: cfg
@@ -577,8 +605,10 @@ contains
             call opt_pa_bcast(t, 'allometry.chave_b',   allom%chave_b,   npft, m)
             call opt_pa_bcast(t, 'allometry.chave_c',   allom%chave_c,   npft, m)
             call opt_pa_bcast(t, 'allometry.chave_rse', allom%chave_rse, npft, m)
-            !----- E is the site's, the same for every PFT: from [maps].chave_e_map at each       !
-            !      polygon's cell, or set here. ------------------------------------------------!
+            !---~---
+            !   E is the site's, the same for every PFT: from [maps].chave_e_map at each
+            ! polygon's cell, or set here.
+            !---~---
             if (len_trim(cfg%maps%chave_e_map) == 0) then
                call req_r(t, 'allometry.chave_e', chave_e, m)
                allom(1:npft)%chave_e = chave_e
@@ -588,10 +618,12 @@ contains
    end subroutine opt_height_allometry
 
 
-   !----- [forcing] and [site] (docs/configuration.md, "The forcing file"). forcing.forcing_on    !
-   !      is off by default (constant forcing), which reads only the CO2 keys; on, the keys the     !
-   !      source, the location and the switches pick are required, and check_key_use refuses the   !
-   !      rest. ----------------------------------------------------------------------------------!
+   !---~---
+   !   [forcing] and [site] (docs/configuration.md, "The forcing file"). forcing.forcing_on
+   ! is off by default (constant forcing), which reads only the CO2 keys; on, the keys the
+   ! source, the location and the switches pick are required, and check_key_use refuses the
+   ! rest.
+   !---~---
    subroutine load_forcing_params(t, cfg, m)
       type(toml_table_t),  intent(in)    :: t
       type(ed_config_t),   intent(inout) :: cfg
@@ -604,11 +636,13 @@ contains
       if (.not. cfg%forcing%forcing_on) return
       call req_choice(t, 'forcing.format', [character(len=NAME_LEN) :: 'default', 'ERA5land'],                   &
                       [MET_BACKEND_DEFAULT, MET_BACKEND_ERA5LAND], cfg%forcing%format, m)
-      !----- The ED_ERA5land archive (format = "ERA5land"; docs/science/forcing.md §1) finds the site's cell !
-      !      and its orography itself; a forcing file is named, with its grid slot. -----------------!
+      !---~---
+      !   The ED_ERA5land archive (format = "ERA5land"; docs/science/forcing.md §1) finds the site's cell
+      ! and its orography itself; a forcing file is named, with its grid slot.
+      !---~---
       if (cfg%forcing%format == MET_BACKEND_ERA5LAND) then
          call req_s(t, 'forcing.data_path', cfg%forcing%data_path, m)
-         !----- A region's polygons sit on their cells, so no site-to-cell distance exists. ------!
+         !--- A region's polygons sit on their cells, so no site-to-cell distance exists.
          if (cfg%mode /= RUN_MODE_REGION)                                                     &
             call req_r(t, 'forcing.max_distance_km', cfg%forcing%max_distance_km, m)
          cfg%forcing%file_template = toml_string(t, 'forcing.file_template', '')
@@ -620,7 +654,7 @@ contains
                          [GRIDMATCH_EXPLICIT, GRIDMATCH_NEAREST], cfg%forcing%grid_match, m)
       end if
       call req_dur(t, 'forcing.timestep', cfg%forcing%timestep, m)
-      !----- Only the end- and begin-stamped conventions have a disaggregation (forcing.md §5). ----!
+      !--- Only the end- and begin-stamped conventions have a disaggregation (forcing.md §5).
       call req_choice(t, 'forcing.avg_convention', [character(len=NAME_LEN) :: 'end', 'begin'],                &
                       [METAVG_END, METAVG_BEGIN], cfg%forcing%avg_convention, m)
       call req_choice(t, 'forcing.sw_partition',                                                     &
@@ -628,25 +662,25 @@ contains
                       [SWPART_PASSTHROUGH, SWPART_CLEARIDX, SWPART_WEISS_NORMAN], cfg%forcing%sw_partition, m)
       call req_choice(t, 'forcing.lwdown_source', [character(len=NAME_LEN) :: 'file', 'synthesize'],           &
                       [LW_FILE, LW_SYNTHESIZE], cfg%forcing%lwdown_source, m)
-      !----- Longwave-synthesis parameters (docs/science/forcing.md §11), optional. ---------------!
+      !--- Longwave-synthesis parameters (docs/science/forcing.md §11), optional.
       call opt_choice(t, 'forcing.lw_clear_form', [character(len=NAME_LEN) :: 'brutsaert', 'idso'],            &
                       [LW_CLEAR_BRUTSAERT, LW_CLEAR_IDSO], cfg%forcing%lw_clear_form, m)
       cfg%forcing%lw_cloud_a = toml_real(t, 'forcing.lw_cloud_a', cfg%forcing%lw_cloud_a)
       call req_choice(t, 'forcing.start_clamp', [character(len=NAME_LEN) :: 'error', 'hold'],                  &
                       [CLAMP_ERROR, CLAMP_HOLD], cfg%forcing%start_clamp, m)
       call req_l(t, 'forcing.recycle', cfg%forcing%recycle, m)
-      !----- The recycle window is declared, not inferred (docs/science/forcing.md §9). -----------!
+      !--- The recycle window is declared, not inferred (docs/science/forcing.md §9).
       if (cfg%forcing%recycle) then
          call req_date(t, 'forcing.recycle_start', cfg%forcing%recycle_start, m)
          call req_date(t, 'forcing.recycle_end',   cfg%forcing%recycle_end,   m)
       end if
-      !----- The location: a region's polygons each take theirs from their cell. -----------------!
+      !--- The location: a region's polygons each take theirs from their cell.
       if (cfg%mode /= RUN_MODE_REGION) then
          call req_r(t, 'site.latitude',  cfg%forcing%latitude,  m)
          call req_r(t, 'site.longitude', cfg%forcing%longitude, m)
          call req_r(t, 'site.elevation', cfg%forcing%elevation,   m)
       end if
-      !----- The forcing's own vertical frame (docs/science/forcing.md §8). ---------------------!
+      !--- The forcing's own vertical frame (docs/science/forcing.md §8).
       call req_r(t, 'forcing.tq_height',   cfg%forcing%tq_height,   m)
       call req_r(t, 'forcing.wind_height', cfg%forcing%wind_height, m)
       call req_choice(t, 'forcing.height_above', [character(len=NAME_LEN) :: 'zero_plane', 'ground'],          &
@@ -657,8 +691,10 @@ contains
          call req_r(t, 'forcing.wind_exposure_z0',     cfg%forcing%wind_exposure_z0,     m)
          call req_r(t, 'forcing.wind_blending_height', cfg%forcing%wind_blending_height, m)
       end if
-      !----- The terrain lapse (docs/science/forcing.md §8, eqs. (13)-(14)): one lapse rate for     !
-      !      the year, or twelve (January .. December), read only when the lapse is on. -----------!
+      !---~---
+      !   The terrain lapse (docs/science/forcing.md §8, eqs. (13)-(14)): one lapse rate for
+      ! the year, or twelve (January .. December), read only when the lapse is on.
+      !---~---
       call req_l(t, 'site.apply_elevation_lapse', cfg%forcing%apply_elevation_lapse, m)
       if (.not. cfg%forcing%apply_elevation_lapse) return
       if (toml_is_array(t, 'site.lapse_rate_tair')) then
@@ -677,9 +713,11 @@ contains
          call req_r(t, 'site.grid_elevation', cfg%forcing%grid_elevation, m)
    end subroutine load_forcing_params
 
-   !----- CO2 (docs/science/forcing.md §12): one source for every run, forced or not, and every   !
-   !      backend, never the met file. A forced run with co2_source = "const" names its co2_const; !
-   !      a run without forcing may leave it at met_forcing_t's 420 umol/mol. ----------------------!
+   !---~---
+   !   CO2 (docs/science/forcing.md §12): one source for every run, forced or not, and every
+   ! backend, never the met file. A forced run with co2_source = "const" names its co2_const;
+   ! a run without forcing may leave it at met_forcing_t's 420 umol/mol.
+   !---~---
    subroutine load_co2_params(t, cfg, m)
       type(toml_table_t),  intent(in)    :: t
       type(ed_config_t),   intent(inout) :: cfg
@@ -695,8 +733,10 @@ contains
       end if
    end subroutine load_co2_params
 
-   !----- [maps] (docs/configuration.md, "Input maps"): the static maps' paths. The three soil      !
-   !      maps go together, and check_key_use refuses each key they provide. -----------------------!
+   !---~---
+   !   [maps] (docs/configuration.md, "Input maps"): the static maps' paths. The three soil
+   ! maps go together, and check_key_use refuses each key they provide.
+   !---~---
    subroutine load_maps_params(t, cfg)
       type(toml_table_t),  intent(in)    :: t
       type(ed_config_t),   intent(inout) :: cfg
@@ -712,10 +752,12 @@ contains
                     'soil_chemistry_map together'
    end subroutine load_maps_params
 
-   !----- [[sites]] (docs/configuration.md, "Several sites"), after [soil] and [maps]: a table       !
-   !      that sets a [soil] column key gives its site its own ground, [soil]'s values filling       !
-   !      the rest. Each table is read through a view under [soil]'s names (site_view), so the       !
-   !      [soil] readers serve it and the parameter record names the table as the source. -----------!
+   !---~---
+   !   [[sites]] (docs/configuration.md, "Several sites"), after [soil] and [maps]: a table
+   ! that sets a [soil] column key gives its site its own ground, [soil]'s values filling
+   ! the rest. Each table is read through a view under [soil]'s names (site_view), so the
+   ! [soil] readers serve it and the parameter record names the table as the source.
+   !---~---
    subroutine load_sites(t, cfg, m)
       type(toml_table_t),  intent(in)    :: t
       type(ed_config_t),   intent(inout) :: cfg
@@ -743,8 +785,10 @@ contains
       end do
    end subroutine load_sites
 
-   !----- Table `is` of [[sites]] as its own table: its [soil] keys (SITE_GROUND_KEYS) as            !
-   !      soil.<key>, the rest as sites.<key>, its source the file and the table's place. -----------!
+   !---~---
+   !   Table `is` of [[sites]] as its own table: its [soil] keys (SITE_GROUND_KEYS) as
+   ! soil.<key>, the rest as sites.<key>, its source the file and the table's place.
+   !---~---
    subroutine site_view(t, is, v)
       type(toml_table_t), intent(in)  :: t
       integer(ik),        intent(in)  :: is
@@ -769,9 +813,11 @@ contains
       end do
    end subroutine site_view
 
-   !----- [run].mode, "site" by default, and the [region] block (docs/configuration.md,             !
-   !      "Regional runs"). A region requires its box; the land-fraction rule and the cell mask     !
-   !      are optional. ----------------------------------------------------------------------------!
+   !---~---
+   !   [run].mode, "site" by default, and the [region] block (docs/configuration.md,
+   ! "Regional runs"). A region requires its box; the land-fraction rule and the cell mask
+   ! are optional.
+   !---~---
    subroutine load_region_params(t, cfg, m)
       type(toml_table_t),  intent(in)    :: t
       type(ed_config_t),   intent(inout) :: cfg
@@ -793,16 +839,18 @@ contains
       cfg%region%cell_mask_min     = toml_real(t, 'region.cell_mask_min', 0.5_wp)
    end subroutine load_region_params
 
-   !----- [output] (docs/science/diagnostics.md §5), off by default: a config with no [output]    !
-   !      block writes no diagnostics. Every key is optional; output.io_config names the          !
-   !      per-variable overrides, which the driver applies. --------------------------------------!
+   !---~---
+   !   [output] (docs/science/diagnostics.md §5), off by default: a config with no [output]
+   ! block writes no diagnostics. Every key is optional; output.io_config names the
+   ! per-variable overrides, which the driver applies.
+   !---~---
    subroutine load_output_params(t, cfg, m)
       type(toml_table_t),  intent(in)    :: t
       type(ed_config_t),   intent(inout) :: cfg
       type(keymiss_t),     intent(inout) :: m
       character(len=NAME_LEN), parameter :: CHUNKS(4) = [character(len=NAME_LEN) :: 'day', 'month', 'year', 'run']
       cfg%output = output_params_t()                                     ! defaults
-      !----- The state files, whatever the diagnostics: state_write is required, and the rest with it. !
+      !--- The state files, whatever the diagnostics: state_write is required, and the rest with it.
       call req_l(t, 'output.state_write', cfg%output%state_write, m)
       if (cfg%output%state_write) then
          call req_interval(t, 'output.state_interval', cfg%output%state_every, cfg%output%state_unit, m)
@@ -819,10 +867,12 @@ contains
       cfg%output%fast_interval_steps = toml_int    (t, 'output.fast_interval_steps', 4_ik)
       call opt_choice(t, 'output.sync_every', [character(len=NAME_LEN) :: 'flush', 'never'],               &
                       [SYNC_FLUSH, SYNC_NEVER], cfg%output%sync_every, m)
-      !----- DBH size-class edges (DIM_SIZE), ascending, n_class+1 of them. Absent -> setup_output_files !
-      !      installs the built-in inventory default. ----------------------------------------------!
+      !---~---
+      !   DBH size-class edges (DIM_SIZE), ascending, n_class+1 of them. Absent -> setup_output_files
+      ! installs the built-in inventory default.
+      !---~---
       call load_dbh_edges(t, cfg%output)
-      !----- Per-tier switch and file chunk, in tier order: fast, daily, monthly, annual. --------!
+      !--- Per-tier switch and file chunk, in tier order: fast, daily, monthly, annual.
       cfg%output%freq_on(1) = toml_logical(t, 'output.fast.enabled',    .false.)
       cfg%output%freq_on(2) = toml_logical(t, 'output.daily.enabled',   .true.)
       cfg%output%freq_on(3) = toml_logical(t, 'output.monthly.enabled', .true.)
@@ -837,11 +887,13 @@ contains
                       cfg%output%file_chunk(4), m)
    end subroutine load_output_params
 
-   !----- [phenology], per PFT, from the PFT file (docs/science/plant_phenology.md). Absent,      !
-   !      every PFT keeps the alloc_pft_table defaults (no cues); present, every key is           !
-   !      required except the water cue's. The gate is the section, not a key in it               !
-   !      (toml_has_section), so a block that misspells one key still has its missing keys        !
-   !      reported. ------------------------------------------------------------------------------!
+   !---~---
+   !   [phenology], per PFT, from the PFT file (docs/science/plant_phenology.md). Absent,
+   ! every PFT keeps the alloc_pft_table defaults (no cues); present, every key is
+   ! required except the water cue's. The gate is the section, not a key in it
+   ! (toml_has_section), so a block that misspells one key still has its missing keys
+   ! reported.
+   !---~---
    subroutine load_phenology_pft(t, cfg, npft, m)
       type(toml_table_t),  intent(in)    :: t
       type(ed_config_t),   intent(inout) :: cfg
@@ -868,8 +920,10 @@ contains
       call req_pa(t, 'phenology.shed_light_hours',        cfg%pft%pheno%shed_light_hours,      npft, m)
       call req_pa(t, 'phenology.shed_light_sharpness',    cfg%pft%pheno%shed_light_sharpness,  npft, m)
       call req_pa(t, 'phenology.light_window',            cfg%pft%pheno%light_window,          npft, m)
-      !----- Optional: the water cue, which a PFT turns on through its masks. An absent key        !
-      !      keeps the phenology_traits_t default. -----------------------------------------------!
+      !---~---
+      !   Optional: the water cue, which a PFT turns on through its masks. An absent key
+      ! keeps the phenology_traits_t default.
+      !---~---
       call opt_pa(t, 'phenology.flush_water_sum',         cfg%pft%pheno%flush_water_sum,       npft, m)
       call opt_pa(t, 'phenology.flush_water_sharpness',   cfg%pft%pheno%flush_water_sharpness, npft, m)
       call opt_pa(t, 'phenology.shed_water_sum',          cfg%pft%pheno%shed_water_sum,        npft, m)
@@ -893,7 +947,7 @@ contains
       if (.not. ok) call note_missing(m, key)         ! present but unparseable
    end subroutine req_date
 
-   !----- Required per-PFT real array of length npft (record missing / length-mismatch). ---!
+   !--- Required per-PFT real array of length npft (record missing / length-mismatch).
    subroutine req_pa(t, key, out, npft, m)
       type(toml_table_t), intent(in)    :: t
       character(len=*),   intent(in)    :: key
@@ -910,9 +964,11 @@ contains
       end if
    end subroutine req_pa
 
-   !----- An optional per-PFT array: absent, `out` keeps what it holds (the alloc_pft_table       !
-   !      default). A wrong-length array is still recorded missing, as for a required one: a      !
-   !      one-value list in a three-PFT run is a typo. -------------------------------------------!
+   !---~---
+   !   An optional per-PFT array: absent, `out` keeps what it holds (the alloc_pft_table
+   ! default). A wrong-length array is still recorded missing, as for a required one: a
+   ! one-value list in a three-PFT run is a typo.
+   !---~---
    subroutine opt_pa(t, key, out, npft, m)
       type(toml_table_t), intent(in)    :: t
       character(len=*),   intent(in)    :: key
@@ -930,7 +986,7 @@ contains
       end if
    end subroutine opt_pa
 
-   !----- A required per-PFT real given as one value, for every PFT, or as an array of npft. --!
+   !--- A required per-PFT real given as one value, for every PFT, or as an array of npft.
    subroutine req_pa_bcast(t, key, out, npft, m)
       type(toml_table_t), intent(in)    :: t
       character(len=*),   intent(in)    :: key
@@ -944,7 +1000,7 @@ contains
       call read_pa_bcast(t, key, out, npft, m)
    end subroutine req_pa_bcast
 
-   !----- An optional req_pa_bcast: absent, `out` keeps what it holds. ---------------------!
+   !--- An optional req_pa_bcast: absent, `out` keeps what it holds.
    subroutine opt_pa_bcast(t, key, out, npft, m)
       type(toml_table_t), intent(in)    :: t
       character(len=*),   intent(in)    :: key
@@ -991,8 +1047,10 @@ contains
       end if
    end subroutine req_pa_int
 
-   !----- A per-PFT logical array, written 0/1 (`is_woody = [1, 1, 0]`) so the real-array         !
-   !      parser serves it. Any value other than 0 is true, so a typo cannot read as false. ------!
+   !---~---
+   !   A per-PFT logical array, written 0/1 (`is_woody = [1, 1, 0]`) so the real-array
+   ! parser serves it. Any value other than 0 is true, so a typo cannot read as false.
+   !---~---
    subroutine req_pa_log(t, key, out, npft, m)
       type(toml_table_t), intent(in)    :: t
       character(len=*),   intent(in)    :: key
@@ -1009,10 +1067,10 @@ contains
       end if
    end subroutine req_pa_log
 
-   !=======================================================================================!
-   !  Load the configuration from `path`, the main file. Both files are mandatory; a       !
-   !  missing file or a missing required key stops the run.                                !
-   !=======================================================================================!
+   !---~---
+   !   Load the configuration from `path`, the main file. Both files are mandatory; a
+   ! missing file or a missing required key stops the run.
+   !---~---
    subroutine load_ed_config(path, cfg)
       character(len=*),    intent(in)  :: path
       type(ed_config_t),   intent(out) :: cfg
@@ -1023,13 +1081,17 @@ contains
       integer(ik)        :: npft, nout, i
       real(wp)           :: buf(MAXPFT)
 
-      !----- The parameter record is this config's alone: rows from a config loaded earlier in    !
-      !      the same process (the Python API runs one after another) would otherwise stay in it. !
+      !---~---
+      !   The parameter record is this config's alone: rows from a config loaded earlier in
+      ! the same process (the Python API runs one after another) would otherwise stay in it.
+      !---~---
       call toml_record_reset()
 
-      !----- The main file. Every key it holds must be one its reference lists                   !
-      !      (ed_config_keys.inc); an unknown key is reported with the missing required          !
-      !      keys below. ------------------------------------------------------------------------!
+      !---~---
+      !   The main file. Every key it holds must be one its reference lists
+      ! (ed_config_keys.inc); an unknown key is reported with the missing required
+      ! keys below.
+      !---~---
       call toml_parse_file(path, tm, found)
       if (.not. found) error stop 'ed_config: main config file not found: '//trim(path)
       call check_config_keys(tm, MAIN_KEYS, unknown)
@@ -1037,35 +1099,39 @@ contains
       call req_dur (tm, 'run.dt_slow',    cfg%dt_slow,    miss)
       call req_date(tm, 'run.start_time', cfg%start_time, miss)
       call req_date(tm, 'run.end_time',   cfg%end_time,   miss)
-      !----- The slow-tier switch and the slow ledger, both on by default. -----------------------!
+      !--- The slow-tier switch and the slow ledger, both on by default.
       cfg%slow_on = toml_logical(tm, 'run.slow_on', .true.)
       cfg%slow_ledger_on = toml_logical(tm, 'run.slow_ledger_on', .true.)
-      !----- Host threads, 1 (serial) by default. Read here and not from OMP_NUM_THREADS, so the    !
-      !      config of a run records its thread count. ---------------------------------------------!
+      !---~---
+      !   Host threads, 1 (serial) by default. Read here and not from OMP_NUM_THREADS, so the
+      ! config of a run records its thread count.
+      !---~---
       cfg%n_threads = toml_int(tm, 'run.n_threads', 1_ik)
-      !----- [run].mode ("site" by default) and, for a region, the [region] block. ---------------!
+      !--- [run].mode ("site" by default) and, for a region, the [region] block.
       call load_region_params(tm, cfg, miss)
 
-      !----- Fast (sub-daily) biophysics loop. --------------------------------------------!
+      !--- Fast (sub-daily) biophysics loop.
       call req_l     (tm, 'fast.fast_biophysics_on', cfg%fast_biophysics_on, miss)
       call req_dur   (tm, 'fast.dt_fast',            cfg%dt_fast,            miss)
-      !----- Optional fast-loop settings, at their defaults when absent. -------------------------!
+      !--- Optional fast-loop settings, at their defaults when absent.
       call load_fast_params(tm, cfg, miss)
 
-      !----- [soil], [snow], [aerodynamics], every key optional. ---------------------------------!
+      !--- [soil], [snow], [aerodynamics], every key optional.
       call load_soil       (tm, cfg%soil)
       call load_snow_params(tm, cfg%snow)
       call load_aero_params   (tm, cfg%aero)
 
-      !----- [soil_carbon] (docs/science/soil_carbon.md): every key optional, at its type default. ---!
+      !--- [soil_carbon] (docs/science/soil_carbon.md): every key optional, at its type default.
       call load_soil_carbon_params(tm, cfg%soil_carbon, miss)
 
-      !----- [demography]: the switches and settings of the stand's operators. ---------------!
+      !--- [demography]: the switches and settings of the stand's operators.
       call load_demography_params(tm, cfg%demography, miss)
 
       call req_i(tm, 'init.init_mode',     cfg%init%init_mode,         miss)
-      !----- The state file and the census file are required by the mode that starts from them,     !
-      !      and optional otherwise: the Python census start reads census_file in any mode. ---------!
+      !---~---
+      !   The state file and the census file are required by the mode that starts from them,
+      ! and optional otherwise: the Python census start reads census_file in any mode.
+      !---~---
       if (cfg%init%init_mode == INIT_RESTART) then
          call req_s(tm, 'init.restart_file', cfg%init%restart_file, miss)
       else
@@ -1082,38 +1148,40 @@ contains
       cfg%init%reacclimate_traits = toml_logical(tm, 'init.reacclimate_traits', cfg%init%reacclimate_traits)
 
 
-      !----- [fast].gpp_ref, the stub GPP of a run without the fast loop: required there only. ---!
+      !--- [fast].gpp_ref, the stub GPP of a run without the fast loop: required there only.
       if (.not. cfg%fast_biophysics_on) then
          call req_r(tm, 'fast.gpp_ref', cfg%gpp_ref, miss)
       else
          cfg%gpp_ref = toml_real(tm, 'fast.gpp_ref', cfg%gpp_ref)
       end if
 
-      !----- [trait_dynamics]: light trait plasticity, off by default. --------------------------!
+      !--- [trait_dynamics]: light trait plasticity, off by default.
       cfg%trait_dynamics%trait_plasticity_on       = toml_logical(tm, 'trait_dynamics.trait_plasticity_on', .false.)
       cfg%trait_dynamics%fineroot_turnover_plastic =                                                    &
          toml_logical(tm, 'trait_dynamics.fineroot_turnover_plastic', .false.)
 
-      !----- Meteorological forcing, off unless forcing.forcing_on. ------------------------!
+      !--- Meteorological forcing, off unless forcing.forcing_on.
       call load_forcing_params(tm, cfg, miss)
-      !----- [maps]: the maps a run takes its soil (and its Chave site index) from. ----------!
+      !--- [maps]: the maps a run takes its soil (and its Chave site index) from.
       call load_maps_params(tm, cfg)
-      !----- [[sites]]: the polygon's sites, after the [soil] they inherit and the maps that    !
-      !      refuse their soil. ----------------------------------------------------------------!
+      !---~---
+      !   [[sites]]: the polygon's sites, after the [soil] they inherit and the maps that
+      ! refuse their soil.
+      !---~---
       call load_sites(tm, cfg, miss)
 
-      !----- Diagnostic output, off unless output.enabled. -----------------------------------!
+      !--- Diagnostic output, off unless output.enabled.
       call load_output_params(tm, cfg, miss)
 
-      !----- Leaf physiology: model selectors + shared biochemistry (non-PFT). ------------!
+      !--- Leaf physiology: model selectors + shared biochemistry (non-PFT).
       call load_leaf_physiology_params(tm, cfg%leaf_physiology, miss)
 
-      !----- PFT file (named in the main file). -------------------------------------------!
+      !--- PFT file (named in the main file).
       call toml_parse_file(trim(cfg%init%pft_config), tp, found)
       if (.not. found) error stop 'ed_config: PFT config file not found: '//trim(cfg%init%pft_config)
       call check_config_keys(tp, PFT_KEYS, unknown)
 
-      !----- PFT count comes from the length of the wood_density array. -------------------!
+      !--- PFT count comes from the length of the wood_density array.
       call toml_real_array(tp, 'pft.wood_density', buf, nout)
       if (nout < 1_ik) error stop 'ed_config: pft.wood_density missing/empty in '//trim(cfg%init%pft_config)
       if (nout > MAXPFT) error stop 'ed_config: pft.wood_density lists more than MAXPFT PFTs in '//trim(cfg%init%pft_config)
@@ -1130,7 +1198,7 @@ contains
       call req_r(tp, 'pft.min_cohort_height',       cfg%pft%min_cohort_height,       miss)
       call req_pa(tp, 'pft.min_repro_height',                 cfg%pft%min_repro_height,                 npft, miss)
 
-      !----- Leaf-photosynthesis per-PFT traits. ------------------------------------------!
+      !--- Leaf-photosynthesis per-PFT traits.
       call req_pa_int(tp, 'pft.photosynthetic_pathway', cfg%pft%photosynthetic_pathway, npft, miss)
       call req_pa_log(tp, 'pft.is_woody',           cfg%pft%is_woody,           npft, miss)
       call req_pa(tp,     'pft.stem_resp_factor25', cfg%pft%stem_resp_factor25, npft, miss)
@@ -1139,8 +1207,10 @@ contains
       call opt_pa(tp,     'pft.max_absolute_growth_rate', cfg%pft%max_absolute_growth_rate, npft, miss)
       call opt_pa(tp,     'pft.max_absolute_growth_exponent', cfg%pft%max_absolute_growth_exponent, npft, miss)
       call req_pa(tp,     'pft.root_resp_factor25', cfg%pft%root_resp_factor25, npft, miss)
-      !----- Canopy optics: shortwave as reflectance and transmittance per band, longwave as     !
-      !      emissivity. ------------------------------------------------------------------------!
+      !---~---
+      !   Canopy optics: shortwave as reflectance and transmittance per band, longwave as
+      ! emissivity.
+      !---~---
       call req_pa(tp, 'pft.leaf_reflect_vis',  cfg%pft%leaf_reflect_vis,  npft, miss)
       call req_pa(tp, 'pft.leaf_transmit_vis', cfg%pft%leaf_transmit_vis, npft, miss)
       call req_pa(tp, 'pft.leaf_reflect_nir',  cfg%pft%leaf_reflect_nir,  npft, miss)
@@ -1178,14 +1248,14 @@ contains
       call opt_pa(tp, 'pft.leaf_surf_water_max', cfg%pft%leaf_surf_water_max, npft, miss)
       call opt_pa(tp, 'pft.wood_surf_water_max', cfg%pft%wood_surf_water_max, npft, miss)
 
-      !----- Carbon-allocation per-PFT traits (ed_plant_carbon_allocation). --------------  !
+      !--- Carbon-allocation per-PFT traits (ed_plant_carbon_allocation).
       call req_pa(tp, 'pft.sla',                    cfg%pft%sla,                    npft, miss)
       call req_pa(tp, 'pft.leaf_width',              cfg%pft%leaf_width,              npft, miss)
       call req_pa(tp, 'pft.branch_diameter',         cfg%pft%branch_diameter,         npft, miss)
       call req_pa(tp, 'pft.root_to_leaf_ratio',     cfg%pft%root_to_leaf_ratio,     npft, miss)
       call req_pa(tp, 'pft.storage_cushion',        cfg%pft%storage_cushion,        npft, miss)
       call req_pa(tp, 'pft.growth_resp_factor',     cfg%pft%growth_resp_factor,     npft, miss)
-      !----- Leaf and fine-root resorption: optional, 0.3 by default. --------------------!
+      !--- Leaf and fine-root resorption: optional, 0.3 by default.
       call opt_pa(tp, 'pft.retained_carbon_fraction', cfg%pft%retained_carbon_fraction, npft, miss)
       call req_pa(tp, 'pft.leaf_turnover_rate_toc', cfg%pft%leaf_turnover_rate_toc, npft, miss)
       call req_pa(tp, 'pft.fineroot_turnover_rate', cfg%pft%fineroot_turnover_rate, npft, miss)
@@ -1193,11 +1263,13 @@ contains
       call req_pa(tp, 'pft.f_labile_stem',          cfg%pft%f_labile_stem,          npft, miss)
       call req_pa(tp, 'pft.struct_lignin_frac',     cfg%pft%struct_lignin_frac,     npft, miss)
 
-      !----- Leaf-phenology per-PFT cue params (required only if this PFT file has a          !
-      !      [phenology] section; see load_phenology_pft). ------------------------------------!
+      !---~---
+      !   Leaf-phenology per-PFT cue params (required only if this PFT file has a
+      ! [phenology] section; see load_phenology_pft).
+      !---~---
       call load_phenology_pft(tp, cfg, npft, miss)
 
-      !----- The mortality hazard and the light-plasticity slopes, per PFT. -------------------!
+      !--- The mortality hazard and the light-plasticity slopes, per PFT.
       call req_pa(tp, 'pft.mort_gamma',             cfg%pft%mort_gamma,             npft, miss)
       call req_pa(tp, 'pft.mort_alpha',             cfg%pft%mort_alpha,             npft, miss)
       call req_pa(tp, 'pft.mort_beta',              cfg%pft%mort_beta,              npft, miss)
@@ -1206,7 +1278,7 @@ contains
       call req_pa(tp, 'pft.kplastic_sla',           cfg%pft%kplastic_sla,           npft, miss)
       call req_pa(tp, 'pft.kplastic_leaf_turnover', cfg%pft%kplastic_leaf_turnover, npft, miss)
 
-      !----- Each PFT's hydraulic traits: every key one value for all PFTs, or one per PFT. ---!
+      !--- Each PFT's hydraulic traits: every key one value for all PFTs, or one per PFT.
       associate (hydro => cfg%pft%hydro)
          call req_pa_bcast(tp, 'hydraulics.leaf_pi0',             hydro%leaf_curve%pi0,           npft, miss)
          call req_pa_bcast(tp, 'hydraulics.leaf_elastic_mod',     hydro%leaf_curve%elastic_mod,   npft, miss)
@@ -1227,7 +1299,7 @@ contains
          call req_pa_bcast(tp, 'hydraulics.fine_root_radius',     hydro%fine_root_radius,         npft, miss)
       end associate
 
-      !----- Each PFT's allometry: every key one value for all PFTs, or one per PFT. ---------!
+      !--- Each PFT's allometry: every key one value for all PFTs, or one per PFT.
       associate (allom => cfg%pft%allom)
          call req_pa_bcast(tp, 'allometry.hgt_max',          allom%hgt_max,          npft, miss)
          call req_pa_bcast(tp, 'allometry.b1Ht',             allom%b1Ht,             npft, miss)
@@ -1244,8 +1316,10 @@ contains
       end associate
       call opt_height_allometry(tp, cfg, npft, miss)
 
-      !----- Key check: stop with the full list of the missing required keys and of the keys     !
-      !      ED-MORE does not read or that do not apply, from both files at once. ---------------!
+      !---~---
+      !   Key check: stop with the full list of the missing required keys and of the keys
+      ! ED-MORE does not read or that do not apply, from both files at once.
+      !---~---
       if (miss%n > 0_ik) then
          write(*,'(a,i0,a)') ' ed_config: ', miss%n, ' required parameter(s) missing or unreadable:'
          do i = 1_ik, miss%n
@@ -1264,16 +1338,16 @@ contains
       if (miss%n > 0_ik .or. unknown%n > 0_ik)                                                     &
          error stop 'ed_config: the configuration has missing, unknown or inapplicable keys (see above)'
 
-      !----- Install allometry + compute every derived quantity (one consolidation point). -----!
+      !--- Install allometry + compute every derived quantity (one consolidation point).
       call derive_parameters(cfg)
 
       call validate_config(cfg)
    end subroutine load_ed_config
 
-   !---------------------------------------------------------------------------------------!
-   ! Write every per-PFT model parameter (one row per PFT) to a CSV at `path`. netCDF-free,  !
-   ! a provenance record of what the run actually used. A failed open warns, does not stop.   !
-   !---------------------------------------------------------------------------------------!
+   !---~---
+   !   Write every per-PFT model parameter (one row per PFT) to a CSV at `path`. netCDF-free,
+   ! a provenance record of what the run actually used. A failed open warns, does not stop.
+   !---~---
    subroutine write_pft_params_csv(cfg, path)
       type(ed_config_t),   intent(in) :: cfg
       character(len=*),    intent(in) :: path
@@ -1308,9 +1382,11 @@ contains
            //'root_depth_b1,root_depth_b2,specific_root_length,fine_root_radius'
       associate (p => cfg%pft)
          do pf = 1_ik, p%n
-            !----- 91 items: i0 + 8 + i0 + 2 + i0 + 45 + i0 + 32. Keep the format in step with       !
-            !      the header and the list: a shorter format reuses its last group, printing a       !
-            !      real into an integer slot and dropping the trailing columns. ---------------------!
+            !---~---
+            !   91 items: i0 + 8 + i0 + 2 + i0 + 45 + i0 + 32. Keep the format in step with
+            ! the header and the list: a shorter format reuses its last group, printing a
+            ! real into an integer slot and dropping the trailing columns.
+            !---~---
             write(u,'(i0,8(",",es15.8),",",i0,2(",",es15.8),",",i0,45(",",es15.8),",",i0,32(",",es15.8))') &
                  pf, p%wood_density(pf), p%allom(pf)%hgt_max,                                           &
                  p%reproduction_investment_fraction(pf), p%recruit_carbon_efficiency(pf),                &
@@ -1354,8 +1430,10 @@ contains
       write(*,'(2a)') ' pft   : ', trim(path)
    end subroutine write_pft_params_csv
 
-   !----- [output].dbh_class_edges: a list given needs at least two edges (one class), since a    !
-   !      user who set the key meant to control the binning. -------------------------------------!
+   !---~---
+   !   [output].dbh_class_edges: a list given needs at least two edges (one class), since a
+   ! user who set the key meant to control the binning.
+   !---~---
    subroutine load_dbh_edges(t, out_cfg)
       type(toml_table_t),    intent(in)    :: t
       type(output_params_t), intent(inout) :: out_cfg

@@ -1,23 +1,23 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! test_state_file -- the state (restart) file of ed_init_restart                             !
-! (docs/science/order_of_processes.md §6, The restart file):                                  !
-!   1. a polygon of two sites, three patches and four cohorts, every store stamped with a     !
-!      value of its own, is written (A), read back and written again (B): every variable of   !
-!      B is A's, bit for bit;                                                                  !
-!   2. every variable of A differs from what a reader that skipped it would hold (Z, the      !
-!      polygon the reader allocates before it reads a store), so (1) cannot pass on a store   !
-!      left at its default. The few that cannot differ are the polygon's structure and what   !
-!      the configuration gives, listed in MADE_BY_THE_RUN;                                     !
-!   3. the restructuring owed is recorded: a year's, a month's, none;                          !
-!   4. a run of another growth-window length seeds each cohort's rings full of its growth_avg; !
-!   5. the reader refuses a file it cannot start from, and says why; and a run whose polygons  !
-!      the file does not each hold a row for is refused (restart_file_slots, as region_open    !
-!      matches them): a site run (polygon 0) a region's file, a region a site's file.          !
-! A store a restart drops comes back at its default: stomata reopened mid-drought, phenology  !
-! reborn at flush 1 and shed 0, soil bone dry at 0 K. Section 1 catches it for every variable !
-! the file holds, and section 2 makes sure a new variable is stamped here before it counts.   !
-!==========================================================================================!
+!---~---
+!   test_state_file -- the state (restart) file of ed_init_restart
+! (docs/science/order_of_processes.md §6, The restart file):
+!   1. a polygon of two sites, three patches and four cohorts, every store stamped with a
+!      value of its own, is written (A), read back and written again (B): every variable of
+!      B is A's, bit for bit;
+!   2. every variable of A differs from what a reader that skipped it would hold (Z, the
+!      polygon the reader allocates before it reads a store), so (1) cannot pass on a store
+!      left at its default. The few that cannot differ are the polygon's structure and what
+!      the configuration gives, listed in MADE_BY_THE_RUN;
+!   3. the restructuring owed is recorded: a year's, a month's, none;
+!   4. a run of another growth-window length seeds each cohort's rings full of its growth_avg;
+!   5. the reader refuses a file it cannot start from, and says why; and a run whose polygons
+!      the file does not each hold a row for is refused (restart_file_slots, as region_open
+!      matches them): a site run (polygon 0) a region's file, a region a site's file.
+! A store a restart drops comes back at its default: stomata reopened mid-drought, phenology
+! reborn at flush 1 and shed 0, soil bone dry at 0 K. Section 1 catches it for every variable
+! the file holds, and section 2 makes sure a new variable is stamped here before it counts.
+!---~---
 program test_state_file
    use iso_c_binding,           only : c_int, c_size_t, c_double, c_char, c_null_char
    use iso_fortran_env,         only : int64
@@ -52,9 +52,11 @@ program test_state_file
       end function nc_inq_var
    end interface
 
-   !----- The variables a reader that skipped them would still hold: the polygon's structure,   !
-   !      which the reader allocates to, the file's time and the polygon axis, and what each     !
-   !      site's surface takes from the configuration (it is written for readers of the file).   !
+   !---~---
+   !   The variables a reader that skipped them would still hold: the polygon's structure,
+   ! which the reader allocates to, the file's time and the polygon axis, and what each
+   ! site's surface takes from the configuration (it is written for readers of the file).
+   !---~---
    character(len=*), parameter :: MADE_BY_THE_RUN(*) = [character(len=16) ::                        &
       'polygon_id', 'lat', 'lon', 'n_cohort', 'n_patch', 'n_site', 'n_window',                      &
       'meta_real', 'elevation_si', 'slope_si', 'aspect_si', 'n_soil_si', 'soil_depth_si',             &
@@ -62,7 +64,7 @@ program test_state_file
    character(len=*), parameter :: FILE_A = './test_sf_a-S-20000101000000.nc'
    character(len=*), parameter :: FILE_B = './test_sf_b-S-20000101000000.nc'
    character(len=*), parameter :: FILE_Z = './test_sf_z-S-20000101000000.nc'
-   character(len=*), parameter :: FILE_R = './test_sf_r-S-20000101000000.nc'   !< a region's: polygons 35, 18, 53
+   character(len=*), parameter :: FILE_R = './test_sf_r-S-20000101000000.nc'   !--- a region's: polygons 35, 18, 53
 
    type(ed_config_t)   :: cfg
    type(polygon_t)     :: poly, back
@@ -83,7 +85,7 @@ program test_state_file
 
 contains
 
-   !----- 1. A, read back and written again, is B, variable for variable. ----------------------!
+   !--- 1. A, read back and written again, is B, variable for variable.
    subroutine test_write_read_write()
       character(len=64), allocatable :: names(:)
       logical,           allocatable :: same(:)
@@ -102,7 +104,7 @@ contains
       end do
    end subroutine test_write_read_write
 
-   !----- 2. A reader that skipped a variable would hold Z's: A must differ from it. ------------!
+   !--- 2. A reader that skipped a variable would hold Z's: A must differ from it.
    subroutine test_not_at_defaults()
       type(polygon_t) :: z
       character(len=64), allocatable :: names(:)
@@ -110,7 +112,7 @@ contains
       integer(ik) :: is
       integer     :: k
       print '(a)', '-- 2. every variable away from the reader''s default --'
-      !----- What get_polygon_vars makes before it reads a store. -----------------------------!
+      !--- What get_polygon_vars makes before it reads a store.
       call alloc_polygon(z, cfg%pft%n, poly%cohort%n, poly%patch%n, growth_window_steps(cfg), cfg%pft,      &
                          n_site=poly%site%n)
       z%cohort%n = poly%cohort%n
@@ -126,7 +128,7 @@ contains
       end do
    end subroutine test_not_at_defaults
 
-   !----- 3. The restructuring owed: the driver's yearly checkpoint is written with it pending. -!
+   !--- 3. The restructuring owed: the driver's yearly checkpoint is written with it pending.
    subroutine test_restructuring_owed()
       print '(a)', '-- 3. the restructuring owed --'
       call read_restart_file(back, cfg, FILE_A, rt, found, polygon=1_ik)
@@ -143,7 +145,7 @@ contains
       call check_true('the file''s time is read', rt%year == 2000 .and. rt%month == 1 .and. rt%day == 1)
    end subroutine test_restructuring_owed
 
-   !----- 4. A run of another growth-window length: each cohort's rings full of its average. ---!
+   !--- 4. A run of another growth-window length: each cohort's rings full of its average.
    subroutine test_other_window()
       type(ed_config_t) :: cfg_short
       integer(ik) :: nwin, i
@@ -164,7 +166,7 @@ contains
       end do
    end subroutine test_other_window
 
-   !----- 5. The files a run cannot start from. ------------------------------------------------!
+   !--- 5. The files a run cannot start from.
    subroutine test_refusals()
       type(ed_config_t) :: cfg_pft
       character(len=:), allocatable :: why
@@ -181,7 +183,7 @@ contains
       call read_restart_file(back, cfg, FILE_A, rt, found, polygon=1_ik, site_cfg=[cfg], why=why)
       call check_true('another site count: refused, naming both', .not. found .and.                       &
                       index(why, 'holds 2 sites and the configuration 1') > 0)
-      !----- A region's file in a site run, and a site's file (FILE_A, polygon 0) in a region. ---------!
+      !--- A region's file in a site run, and a site's file (FILE_A, polygon 0) in a region.
       call write_region_state('test_sf_r', [35_ik, 18_ik, 53_ik])
       call restart_file_slots(FILE_R, [0_ik], slot, why)
       call check_true('a site run refuses a region state file', index(why, 'does not hold polygon 0') > 0)
@@ -189,9 +191,11 @@ contains
       call check_true('a region refuses a site state file', index(why, 'does not hold polygon 35') > 0)
    end subroutine test_refusals
 
-   !----- The fixture: two sites (0.3 and 0.7 of the polygon) of one and two patches, four   !
-   !      cohorts, and every store the file holds set to a value of its own, away from its     !
-   !      default. The geometry is then derived from the pools, as the reader derives it. ------!
+   !---~---
+   !   The fixture: two sites (0.3 and 0.7 of the polygon) of one and two patches, four
+   ! cohorts, and every store the file holds set to a value of its own, away from its
+   ! default. The geometry is then derived from the pools, as the reader derives it.
+   !---~---
    subroutine stamped_polygon(p)
       type(polygon_t), intent(out) :: p
       integer(ik) :: i, ip, k, nwin
@@ -214,7 +218,7 @@ contains
             c%wood_water_mass(i)     = 0.0456_wp + x
             c%leaf_surf_water(i)     = 0.020_wp + x
             c%wood_surf_water(i)     = 0.007_wp + x
-            !----- Negative and distinct: both sentinels have the other sign. -------------------!
+            !--- Negative and distinct: both sentinels have the other sign.
             c%dmax_psi_leaf(i)       = -0.75_wp - x
             c%dmax_psi_leaf_accum(i) = -0.40_wp - x
             c%leaf_temp(i)           = 291.5_wp + real(i, wp)
@@ -235,7 +239,7 @@ contains
             c%growth_accum(i)        = sum(c%growth_hist(1:nwin - i, i))
             c%growth_avg(i)          = c%growth_accum(i) / real(nwin - i, wp)
          end associate
-         !----- The energies the stamped temperatures and waters give, and the geometry. -------!
+         !--- The energies the stamped temperatures and waters give, and the geometry.
          call hold_cohort_tissue_temps(p%cohort, i)
          call set_cohort_size_from_carbon(p%cohort, i)
       end do
@@ -261,7 +265,7 @@ contains
             pa%soil_energy(ip)%soil_temp(1:n_soil_layer_max) = [(284.0_wp + 0.1_wp * real(k, wp) + x,             &
                                                                  k = 1_ik, n_soil_layer_max)]
             pa%soil_energy(ip)%soil_fliq(1:n_soil_layer_max) = 0.9_wp + x
-            !----- A ponded store with its enthalpy, and the daily slow-to-fast rates. ----------!
+            !--- A ponded store with its enthalpy, and the daily slow-to-fast rates.
             pa%soil_water(ip)%w_surface        = 1.5_wp + x
             pa%soil_water(ip)%w_surface_energy = (1.5_wp + x) * 9.0e5_wp
             pa%shed_water_rate(ip) = 3.0e-8_wp + 1.0e-9_wp * x
@@ -274,7 +278,7 @@ contains
       end do
    end subroutine stamped_polygon
 
-   !----- A polygon's state, as the one polygon of a state file (id 0, at 0 N 0 E). ---------!
+   !--- A polygon's state, as the one polygon of a state file (id 0, at 0 N 0 E).
    subroutine write_state(s, prefix, pending, new_year)
       type(polygon_t),  intent(in) :: s
       character(len=*), intent(in) :: prefix
@@ -287,7 +291,7 @@ contains
       call restart_file_close(sf)
    end subroutine write_state
 
-   !----- A region's state file: the fixture's polygon in each row, the rows the polygons `ids`. --!
+   !--- A region's state file: the fixture's polygon in each row, the rows the polygons `ids`.
    subroutine write_region_state(prefix, ids)
       character(len=*), intent(in) :: prefix
       integer(ik),      intent(in) :: ids(:)
@@ -303,7 +307,7 @@ contains
       call restart_file_close(sf)
    end subroutine write_region_state
 
-   !----- Every variable of file a, and whether file b holds the same values, bit for bit. -----!
+   !--- Every variable of file a, and whether file b holds the same values, bit for bit.
    subroutine compare_files(a, b, names, same)
       character(len=*),               intent(in)  :: a, b
       character(len=64), allocatable, intent(out) :: names(:)
@@ -328,7 +332,7 @@ contains
       st = nc_close(ncb)
    end subroutine compare_files
 
-   !----- One variable, whole, as doubles (an integer variable converts exactly). ---------------!
+   !--- One variable, whole, as doubles (an integer variable converts exactly).
    subroutine read_var(ncid, varid, name, x)
       integer(c_int),              intent(in)    :: ncid, varid
       character(len=64),           intent(inout) :: name
