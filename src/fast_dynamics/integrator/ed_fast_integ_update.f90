@@ -185,6 +185,16 @@ contains
 
       report%exports%atm_heat_export = acc%atm_heat_out
       report%exports%atm_vap_export  = acc%atm_vap_out
+      !---~---
+      !   The vapour sources the canopy air was credited (surface_derivs' src_vap): transpiration,
+      ! the films', the ground's at the network's rate held over the step, and the snow pack's;
+      ! and the condensate it was debited.
+      !---~---
+      report%exports%transp_export      = 0.0_wp
+      if (allocated(acc%transp_coh)) report%exports%transp_export = sum(acc%transp_coh(1:n))
+      report%exports%film_evap_export   = acc%film_evap
+      report%exports%ground_evap_export = frozen%ground%soil_evap * dt_fast + acc%snow_vap_out
+      report%exports%cond_export        = acc%whole_cond
       call budget_check(report%ledgers%cas_energy,                                                           &
                         cas_mass_capacity*enth0, cas_mass_capacity*enth1, acc%cas_enth_in, acc%cas_enth_out, &
                         dt_fast, BUDGET_ENERGY_RATE_FLOOR, 'cas_energy', halt)

@@ -14,7 +14,9 @@
 !      sensible heat, on both schemes.
 !   4. ESDIRK2 AND RK45 AGREE on a forced day at the shipped 900 s: both close every
 !      ledger, and the day's sensible and latent heat, net radiation, GPP, NEE, ground
-!      heat and transpiration agree within what their error control allows.
+!      heat, transpiration and canopy and ground evaporation agree within what their error
+!      control allows; on both, each step's ET sources less its dew are its ET plus the
+!      canopy air's vapour gain, to round-off.
 !   5. THE LEDGERS ON EVERY PATH, on both schemes: a dry day, steady rain, shed water,
 !      canopy films; a sealed column saturating and ponding; a free-draining one
 !      saturating under a storm (ESDIRK2); an aquifer wetting a dry column from below.
@@ -379,14 +381,19 @@ contains
    ! |flux|, the bound asserted. The schemes in fact agree far closer (a few 1e-4), while a
    ! wiring error in either (a dropped flux term, a stage fed the wrong input) moves a total
    ! by tens of percent. ESDIRK2's films are advanced by a map and RK45's in its tableau, so
-   ! the latent heat and the transpiration are where the two differ most.
+   ! the latent heat and the transpiration are where the two differ most. ET's sources
+   ! (step_exports_t) are checked against the canopy air's vapour ledger on every step: the
+   ! sources less the dew, less ET, are its net inflow, to round-off.
    !---~---
    subroutine test_schemes_agree()
       real(wp),    parameter :: H = 900.0_wp, AGREE = 0.05_wp
-      integer(ik), parameter :: NSTEP = nint(86400.0_wp / H, ik), NQ = 7_ik
+      real(wp),    parameter :: SOURCES_RTOL = 1.0e-12_wp
+      integer(ik), parameter :: NSTEP = nint(86400.0_wp / H, ik), NQ = 9_ik
       character(len=*), parameter :: QNAME(NQ) = [character(len=24) :: 'sensible heat', 'latent heat',             &
-                                                   'net radiation', 'GPP', 'NEE', 'ground heat', 'transpiration']
-      real(wp)    :: total(NQ, 2), gross(NQ, 2), amount(NQ), e_ground, t_sec, rtol0
+                                                   'net radiation', 'GPP', 'NEE', 'ground heat', 'transpiration',  &
+                                                   'canopy evaporation', 'ground evaporation']
+      real(wp)    :: total(NQ, 2), gross(NQ, 2), amount(NQ), e_ground, t_sec, rtol0, gap, gap_scale
+      real(wp)    :: gap_worst(2)
       integer(ik) :: is, istep, q, n
       print '(a)', 'test_schemes_agree:'
       n = col%static%n
@@ -396,6 +403,7 @@ contains
       call ensure_output_capacity(col%out, n, .true.)
       total = 0.0_wp
       gross = 0.0_wp
+      gap_worst = 0.0_wp
       do is = 1_ik, 2_ik
          call use_scheme(SCHEMES(is))
          call reset_column(col)
@@ -407,7 +415,8 @@ contains
             call step_column(col, H)
             !---~---
             !   The step's amounts: sensible and latent heat and net radiation [J/m2], GPP and NEE
-            ! [umol/m2], the soil and pond's heat gain [J/m2], transpiration [kg/m2].
+            ! [umol/m2], the soil and pond's heat gain [J/m2], transpiration and the canopy's and
+            ! the ground's evaporation [kg/m2].
             !---~---
             amount(1) = col%out%h_flux * H
             amount(2) = col%out%le_flux * H
@@ -417,12 +426,26 @@ contains
             amount(6) = ground_energy() - e_ground
             amount(7) = sum(col%out%cdiag(CO_TRANSP, 1:n) * col%static%nplant(1:n) * col%static%leaf_area(1:n))   &
                         * mmh2o * H
+            amount(8) = col%out%report%exports%film_evap_export
+            amount(9) = col%out%report%exports%ground_evap_export
             total(:, is) = total(:, is) + amount
             gross(:, is) = gross(:, is) + abs(amount)
+            !--- ET's sources less the dew, less ET, against the canopy air's net vapour inflow.
+            associate (ex => col%out%report%exports, cw => col%out%report%ledgers%cas_water)
+               gap = ex%transp_export + ex%film_evap_export + ex%ground_evap_export - ex%cond_export        &
+                     - ex%atm_vap_export - (cw%influx - cw%outflux)
+               gap_scale = abs(ex%transp_export) + abs(ex%film_evap_export) + abs(ex%ground_evap_export)    &
+                           + abs(ex%cond_export) + abs(cw%influx) + abs(cw%outflux)
+               gap_worst(is) = max(gap_worst(is), abs(gap) / max(gap_scale, tiny(1.0_wp)))
+            end associate
          end do
+         call check_true(trim(scheme_name(SCHEMES(is)))//' at 900 s: ET''s sources less the dew close on the '//     &
+                         'canopy air''s vapour on every step', gap_worst(is) <= SOURCES_RTOL, gap_worst(is))
          call check_true(trim(scheme_name(SCHEMES(is)))//' at 900 s: all seven ledgers close on every step',          &
                          all_ledgers_closed(col%out%report))
       end do
+      call check_true('the morning rain''s films evaporate on both schemes (canopy evaporation > 0)',              &
+                      minval(total(8, :)) > 0.0_wp, minval(total(8, :)))
       do q = 1_ik, NQ
          print '(a,a24,a,es12.4,a,es12.4,a,f8.4)', '   ', QNAME(q), ' ESDIRK2 ', total(q, 1), ' RK45 ', total(q, 2),   &
                ' diff / |flux| ', abs(total(q, 1) - total(q, 2)) / max(gross(q, 1), gross(q, 2), tiny(1.0_wp))

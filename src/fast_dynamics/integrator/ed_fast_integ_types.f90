@@ -328,6 +328,17 @@ module ed_fast_integ_types
       real(wp)       :: runoff_surf_export = 0.0_wp   ! [kg/m2] over this dt_fast
       real(wp)       :: drainage_export    = 0.0_wp   ! [kg/m2] over this dt_fast
       !---~---
+      !   The canopy air's vapour sources over the step, as its ledger booked them: the cohorts'
+      ! transpiration, the canopy films' evaporation (net of dew onto them), the ground's (bare
+      ! soil and snow pack), and the condensate (dew, fog) it lost to soil layer 1. ET
+      ! (atm_vap_export) is the first three less the condensate, less the canopy air's own
+      ! vapour gain.
+      !---~---
+      real(wp)       :: transp_export      = 0.0_wp   ! [kg/m2] over this dt_fast
+      real(wp)       :: film_evap_export   = 0.0_wp   ! [kg/m2] over this dt_fast
+      real(wp)       :: ground_evap_export = 0.0_wp   ! [kg/m2] over this dt_fast
+      real(wp)       :: cond_export        = 0.0_wp   ! [kg/m2] over this dt_fast
+      !---~---
       !   Soil-carbon Rh diagnostics (docs/science/soil_carbon.md §7), set by the frozen build when
       ! soil carbon is on (else 0). The fast driver accumulates them into the patch's day
       ! integrals, decomp_xi.
@@ -664,6 +675,7 @@ module ed_fast_integ_types
       real(wp) :: whole_cond_enth = 0.0_wp                       ! [W/m2] its liquid enthalpy at the stage CAS temperature
       real(wp) :: snow_enth_in = 0.0_wp                          ! [W/m2]    energy into the snow pack
       real(wp) :: snow_vap_out = 0.0_wp                          ! [kg/m2/s] vapour from it to the CAS
+      real(wp) :: film_evap    = 0.0_wp                          ! [kg/m2/s] the canopy films' evaporation to the CAS (dew < 0)
       !---~---
       !   Net CAS -> atmosphere export at the ledger's own stage states and conductances: the
       ! reported H and LE (ed_fast_integ_stepper%atm_fluxes; docs/science/numerical_scheme.md §5b).
@@ -698,6 +710,7 @@ module ed_fast_integ_types
       !--- The snow pack's exchange over the step, which the update commits to the pack.
       real(wp) :: snow_enth_in = 0.0_wp    ! [J/m2]  energy into the pack
       real(wp) :: snow_vap_out = 0.0_wp    ! [kg/m2] vapour from it to the CAS
+      real(wp) :: film_evap    = 0.0_wp    ! [kg/m2] the canopy films' evaporation to the CAS (dew < 0)
       real(wp) :: atm_heat_out = 0.0_wp    ! [J/m2]  net CAS -> atmosphere sensible-heat export (reported H)
       real(wp) :: atm_vap_out  = 0.0_wp    ! [kg/m2] net CAS -> atmosphere vapour export (reported LE / L_v)
       real(wp) :: rad_net      = 0.0_wp    ! [J/m2]  net radiation the canopy and the ground booked (reported)
@@ -1113,6 +1126,7 @@ contains
       acc%whole_cond_enth = b2*s2%whole_cond_enth + b3*s3%whole_cond_enth
       acc%snow_enth_in  = b2*s2%snow_enth_in  + b3*s3%snow_enth_in
       acc%snow_vap_out  = b2*s2%snow_vap_out  + b3*s3%snow_vap_out
+      acc%film_evap     = b2*s2%film_evap     + b3*s3%film_evap
       acc%atm_heat_out  = b2*s2%atm_heat_out  + b3*s3%atm_heat_out
       acc%atm_vap_out   = b2*s2%atm_vap_out   + b3*s3%atm_vap_out
       acc%rad_net       = b2*s2%rad_net       + b3*s3%rad_net
@@ -1151,6 +1165,7 @@ contains
       acc%whole_cond_enth = acc%whole_cond_enth + s%whole_cond_enth
       acc%snow_enth_in  = acc%snow_enth_in  + s%snow_enth_in
       acc%snow_vap_out  = acc%snow_vap_out  + s%snow_vap_out
+      acc%film_evap     = acc%film_evap     + s%film_evap
       acc%atm_heat_out  = acc%atm_heat_out  + s%atm_heat_out
       acc%atm_vap_out   = acc%atm_vap_out   + s%atm_vap_out
       acc%rad_net       = acc%rad_net       + s%rad_net

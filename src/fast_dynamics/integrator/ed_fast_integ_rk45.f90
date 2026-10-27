@@ -95,6 +95,7 @@ contains
       bf%whole_cond_enth = surf_tend%cond_enth   ! exactly what surface_derivs debited from the CAS
       bf%snow_enth_in  = surf_tend%snow_enth_in
       bf%snow_vap_out  = surf_tend%snow_vap_out
+      bf%film_evap     = sum(surf_tend%film_evap_leaf) + sum(surf_tend%film_evap_wood)
       bf%atm_heat_out  = gah*cp_air*(cas_enthalpy_to_temp(y_stage%cas_enthalpy, y_stage%cas_shv)          &
                                      - frozen%cas%env%theta_atm)
       bf%atm_vap_out   = gaw*(y_stage%cas_shv - frozen%cas%box%atm_specific_humidity)
@@ -268,6 +269,8 @@ contains
                             + B6*s(6)%snow_enth_in) * dt
       acc%snow_vap_out   = (B1*s(1)%snow_vap_out   + B3*s(3)%snow_vap_out   + B4*s(4)%snow_vap_out             &
                             + B6*s(6)%snow_vap_out) * dt
+      acc%film_evap      = (B1*s(1)%film_evap      + B3*s(3)%film_evap      + B4*s(4)%film_evap                &
+                            + B6*s(6)%film_evap) * dt
       acc%atm_heat_out   = (B1*s(1)%atm_heat_out   + B3*s(3)%atm_heat_out   + B4*s(4)%atm_heat_out             &
                             + B6*s(6)%atm_heat_out) * dt
       acc%atm_vap_out    = (B1*s(1)%atm_vap_out    + B3*s(3)%atm_vap_out    + B4*s(4)%atm_vap_out              &

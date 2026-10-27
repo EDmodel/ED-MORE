@@ -233,7 +233,14 @@ module ed_diag_vars
    integer(ik), parameter, public :: PA_NPP               = 21_ik  ! [umol CO2/m2/s] GPP net of maintenance respiration
    integer(ik), parameter, public :: PA_RECO              = 22_ik  ! [umol CO2/m2/s] ecosystem respiration, NEE + GPP
    integer(ik), parameter, public :: PA_NEE               = 23_ik  ! [umol CO2/m2/s] net ecosystem exchange
+   !---~---
+   !   The canopy air's vapour sources, as its ledger booked them: ET (PA_LE) is the first three
+   ! less PA_DEW, less the canopy air's own vapour gain.
+   !---~---
    integer(ik), parameter, public :: PA_TRANSP            = 24_ik  ! [kg/m2/s] canopy transpiration
+   integer(ik), parameter, public :: PA_EVAP_CANOPY       = 25_ik  ! [kg/m2/s] the canopy films' evaporation (dew onto them < 0)
+   integer(ik), parameter, public :: PA_EVAP_GROUND       = 26_ik  ! [kg/m2/s] the ground's evaporation: bare soil and snow pack
+   integer(ik), parameter, public :: PA_DEW               = 27_ik  ! [kg/m2/s] condensate (dew, fog) to soil layer 1
    !--- 6. Canopy air and ground state
    !---~---
    !   Fast-varying CAS / surface state, accumulated dt-weighted rather than read at the
@@ -242,35 +249,35 @@ module ed_diag_vars
    ! function of the site's longitude -- measured at +1.4 K for the top soil layer at
    ! Ithaca.
    !---~---
-   integer(ik), parameter, public :: PA_CAS_TEMP          = 25_ik  ! [K]
-   integer(ik), parameter, public :: PA_CAS_SHV           = 26_ik  ! [kg/kg]
-   integer(ik), parameter, public :: PA_CAS_CO2           = 27_ik  ! [umol/mol]
-   integer(ik), parameter, public :: PA_CAS_VPD           = 28_ik  ! [Pa]
-   integer(ik), parameter, public :: PA_SOIL_TEMP_TOP     = 29_ik  ! [K] top soil layer (the ground surface when snow-free)
-   integer(ik), parameter, public :: PA_W_SURFACE         = 30_ik  ! [kg/m2] ponded surface water
+   integer(ik), parameter, public :: PA_CAS_TEMP          = 28_ik  ! [K]
+   integer(ik), parameter, public :: PA_CAS_SHV           = 29_ik  ! [kg/kg]
+   integer(ik), parameter, public :: PA_CAS_CO2           = 30_ik  ! [umol/mol]
+   integer(ik), parameter, public :: PA_CAS_VPD           = 31_ik  ! [Pa]
+   integer(ik), parameter, public :: PA_SOIL_TEMP_TOP     = 32_ik  ! [K] top soil layer (the ground surface when snow-free)
+   integer(ik), parameter, public :: PA_W_SURFACE         = 33_ik  ! [kg/m2] ponded surface water
    !--- 7. Budget residuals
-   integer(ik), parameter, public :: PA_RESID_ENERGY      = 31_ik  ! [W/m2] whole-column energy residual
-   integer(ik), parameter, public :: PA_RESID_WATER       = 32_ik  ! [kg/m2/s] whole-column water residual
-   integer(ik), parameter, public :: N_PA_FAST_ROWS         = 32_ik  ! the fast loop's last row; the slow rows follow
+   integer(ik), parameter, public :: PA_RESID_ENERGY      = 34_ik  ! [W/m2] whole-column energy residual
+   integer(ik), parameter, public :: PA_RESID_WATER       = 35_ik  ! [kg/m2/s] whole-column water residual
+   integer(ik), parameter, public :: N_PA_FAST_ROWS         = 35_ik  ! the fast loop's last row; the slow rows follow
    !--- 8. SLOW rows: litter
    !---~---
    !   SLOW-loop patch diagnostics. They share this block (and its weight) with the fast rows
    ! above because the reader normalizes by w either way, and the slow driver writes them as
    ! a dt-weighted contribution over the same slow step the fast rows span.
    !---~---
-   integer(ik), parameter, public :: PA_LITTER_LEAF       = 33_ik  ! [kgC/m2/yr] leaf litterfall (after resorption)
-   integer(ik), parameter, public :: PA_LITTER_FINEROOT   = 34_ik  ! [kgC/m2/yr] fine-root litter (after resorption)
+   integer(ik), parameter, public :: PA_LITTER_LEAF       = 36_ik  ! [kgC/m2/yr] leaf litterfall (after resorption)
+   integer(ik), parameter, public :: PA_LITTER_FINEROOT   = 37_ik  ! [kgC/m2/yr] fine-root litter (after resorption)
    !---~---
    !   Litter by the tissue it came from, completing PA_LITTER_LEAF / PA_LITTER_FINEROOT:
    ! with mean_root_exudate_py they sum to the carbon entering the soil pools
    ! (docs/science/soil_carbon.md §5).
    !---~---
-   integer(ik), parameter, public :: PA_LITTER_WOOD       = 35_ik  ! [kgC/m2/yr] wood + storage of dead plants
-   integer(ik), parameter, public :: PA_LITTER_REPRO      = 36_ik  ! [kgC/m2/yr] fruit and seed that made no recruit
-   integer(ik), parameter, public :: PA_LITTER_STRUCT     = 37_ik  ! [kgC/m2/yr] structural litter + CWD
+   integer(ik), parameter, public :: PA_LITTER_WOOD       = 38_ik  ! [kgC/m2/yr] wood + storage of dead plants
+   integer(ik), parameter, public :: PA_LITTER_REPRO      = 39_ik  ! [kgC/m2/yr] fruit and seed that made no recruit
+   integer(ik), parameter, public :: PA_LITTER_STRUCT     = 40_ik  ! [kgC/m2/yr] structural litter + CWD
    !--- 9. SLOW rows: demography
-   integer(ik), parameter, public :: PA_RECRUIT_NPLANT    = 38_ik  ! [plant/m2/yr] recruitment density flux
-   integer(ik), parameter, public :: PA_DISTURB_AREA      = 39_ik  ! [1/yr] area fraction disturbed
+   integer(ik), parameter, public :: PA_RECRUIT_NPLANT    = 41_ik  ! [plant/m2/yr] recruitment density flux
+   integer(ik), parameter, public :: PA_DISTURB_AREA      = 42_ik  ! [1/yr] area fraction disturbed
    !---~---
    !   MORTALITY CARBON BY PATHWAY: the three ways an ED-MORE plant can die, kept apart so a
    ! user can tell a stand thinning continuously from one being knocked over. The three
@@ -285,10 +292,10 @@ module ed_diag_vars
    ! are switched off. Whole-individual death carries every pool (leaf + fine root +
    ! wood + storage), as the litter partitioning does.
    !---~---
-   integer(ik), parameter, public :: PA_MORT_C_BACKGROUND = 40_ik  ! [kgC/m2/yr] continuous hazard mortality
-   integer(ik), parameter, public :: PA_MORT_C_CULL       = 41_ik  ! [kgC/m2/yr] cohorts culled below the tracking floor
-   integer(ik), parameter, public :: PA_MORT_C_DISTURB    = 42_ik  ! [kgC/m2/yr] canopy killed by patch disturbance
-   integer(ik), parameter, public :: N_PA_ROWS              = 42_ik
+   integer(ik), parameter, public :: PA_MORT_C_BACKGROUND = 43_ik  ! [kgC/m2/yr] continuous hazard mortality
+   integer(ik), parameter, public :: PA_MORT_C_CULL       = 44_ik  ! [kgC/m2/yr] cohorts culled below the tracking floor
+   integer(ik), parameter, public :: PA_MORT_C_DISTURB    = 45_ik  ! [kgC/m2/yr] canopy killed by patch disturbance
+   integer(ik), parameter, public :: N_PA_ROWS              = 45_ik
 
    !---~---
    !   PER-POLYGON diagnostic fields: quantities that are the same everywhere in the polygon,

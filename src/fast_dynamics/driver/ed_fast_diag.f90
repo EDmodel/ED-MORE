@@ -8,7 +8,7 @@
 !---~---
 module ed_fast_diag
    use ed_kinds,                only : wp, ik
-   use ed_constants,            only : latent_heat_vap, stefan_boltzmann, n_soil_layer_max
+   use ed_constants,            only : stefan_boltzmann, n_soil_layer_max
    use ed_therm_lib,            only : specific_humidity_to_vpd
    use ed_time,                 only : ed_time_t, time_advance_seconds
    use ed_output_types,         only : output_buffers_t, W_NPLANT, W_LEAF_AREA, W_BASAL_AREA, W_AGB, N_WEIGHT
@@ -17,6 +17,7 @@ module ed_fast_diag
                                        PA_LW_GROUND, PA_SW_IN_VIS, PA_SW_IN_NIR, PA_SW_UP_VIS, PA_SW_UP_NIR,     &
                                        PA_LW_UP, PA_USTAR, PA_GGNET, PA_ROUGH, PA_DISPLACE, PA_CAS_TEMP,         &
                                        PA_CAS_SHV, PA_CAS_CO2, PA_GPP, PA_NEE, PA_TRANSP, PA_NPP, PA_RECO,       &
+                                       PA_EVAP_CANOPY, PA_EVAP_GROUND, PA_DEW,                                    &
                                        PA_SW_UP, PA_SKIN_TEMP, PA_SOIL_TEMP_TOP, PA_CAS_VPD, PA_W_SURFACE,       &
                                        PA_RESID_ENERGY, PA_RESID_WATER, PA_WIND_CAS_TOP, PA_TAIR_CAS_TOP,        &
                                        PA_Z_CAS_TOP, PY_SW_IN, PY_PRECIP, PY_TAIR, PY_QAIR, PY_PSURF, PY_WIND,   &
@@ -156,7 +157,9 @@ contains
                              out%report%ledgers%whole_water%resid, forcing%wind, forcing%air_temp,      &
                              static%z_top, forcing%sw_in_vis, forcing%sw_in_nir, forcing%sw_up_vis,     &
                              forcing%sw_up_nir, lw_up, dynamic%soil_water%w_surface,                    &
-                             forcing%press)
+                             forcing%press, out%report%exports%transp_export,                           &
+                             out%report%exports%film_evap_export, out%report%exports%ground_evap_export, &
+                             out%report%exports%cond_export)
       end if
       !--- FAST-tier staging in the patch's and its cohorts' own slots.
       if (do_fast) then
@@ -244,7 +247,7 @@ contains
                                   ustar, ggnet, rough, displace, cas_temp, cas_shv, cas_co2, gpp, nee, &
                                   npp, soil_temp_top, resid_energy, resid_water, wind_top, tair_top,  &
                                   z_top, sw_in_vis, sw_in_nir, sw_up_vis, sw_up_nir, lw_up, w_surface, &
-                                  press)
+                                  press, transp, evap_canopy, evap_ground, dew)
       real(wp), intent(out) :: row(N_PA_ROWS)
       real(wp), intent(in)  :: dt                        ! [s]        the sub-step
       real(wp), intent(in)  :: le_flux, h_flux           ! [W/m2]     CAS -> atmosphere
@@ -262,6 +265,8 @@ contains
       real(wp), intent(in)  :: sw_in_vis, sw_in_nir, sw_up_vis, sw_up_nir, lw_up
       real(wp), intent(in)  :: w_surface                 ! [kg/m2]   ponded surface water
       real(wp), intent(in)  :: press                     ! [Pa]      air pressure
+      !--- The canopy air's vapour sources over the sub-step (step_exports_t).
+      real(wp), intent(in)  :: transp, evap_canopy, evap_ground, dew   ! [kg/m2]
       row = 0.0_wp
       row(PA_LE)           = le_flux
       row(PA_H)            = h_flux
@@ -294,11 +299,11 @@ contains
       row(PA_NEE)          = nee
       row(PA_NPP)          = npp
       row(PA_RECO)         = nee + gpp
-      !---~---
-      !   The canopy air's whole evaporative flux to the atmosphere [kg/m2/s], not transpiration
-      ! alone; each cohort's own transpiration is CO_TRANSP.
-      !---~---
-      row(PA_TRANSP)       = le_flux / latent_heat_vap
+      !--- ET's sources, as rates [kg/m2/s]: ET = transp + evap_canopy + evap_ground - dew - d(CAS vapour).
+      row(PA_TRANSP)       = transp / dt
+      row(PA_EVAP_CANOPY)  = evap_canopy / dt
+      row(PA_EVAP_GROUND)  = evap_ground / dt
+      row(PA_DEW)          = dew / dt
       row(PA_SOIL_TEMP_TOP) = soil_temp_top
       !---~---
       !   The whole-column ledgers' signed residuals as leak rates [W/m2, kg/m2/s], positive when

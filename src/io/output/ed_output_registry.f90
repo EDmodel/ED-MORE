@@ -53,6 +53,7 @@ module ed_output_registry
                                     PA_RNET, PA_SW_GROUND, PA_LW_GROUND, PA_SW_IN_VIS, PA_SW_IN_NIR,              &
                                     PA_SW_UP_VIS, PA_SW_UP_NIR, PA_LW_UP, PA_USTAR, PA_GGNET, PA_ROUGH,           &
                                     PA_DISPLACE, PA_GPP, PA_NEE, PA_TRANSP, PA_SOIL_TEMP_TOP, PA_RESID_ENERGY,    &
+                                    PA_EVAP_CANOPY, PA_EVAP_GROUND, PA_DEW,                                        &
                                     PA_CAS_VPD, PA_W_SURFACE, PA_CAS_TEMP, PA_CAS_SHV, PA_CAS_CO2,                &
                                     PA_WIND_CAS_TOP, PA_TAIR_CAS_TOP, PA_Z_CAS_TOP, PA_RESID_WATER, PA_NPP,       &
                                     PA_RECO, PA_SW_UP, PA_SKIN_TEMP, PY_SW_IN, PY_PRECIP, PY_TAIR, PY_QAIR,       &
@@ -715,6 +716,18 @@ contains
       !--- water
       call add_variable(reg, 'mean_precip_py', 'total precipitation', 'kg/m2/s', DIM_SCALAR, AGG_TMEAN, GRP_FORCING,             &
                         ior(FAST, DAY_MON_YR), FLD_PY_DIAG0 + PY_PRECIP, flux=.true.)
+      !---~---
+      !   ET's sources, as the canopy air's vapour ledger booked them: mean_et_py is the first three
+      ! less the dew, less the canopy air's own vapour gain (docs/science/diagnostics.md §4).
+      !---~---
+      call add_variable(reg, 'mean_transp_py', 'canopy transpiration', 'kg/m2/s', DIM_SCALAR, AGG_TMEAN, GRP_WATER,             &
+                        DAY_MON_YR, FLD_P_DIAG0 + PA_TRANSP, flux=.true.)
+      call add_variable(reg, 'mean_evap_canopy_py', 'evaporation of the canopy''s intercepted water (dew onto it < 0)',          &
+                        'kg/m2/s', DIM_SCALAR, AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_EVAP_CANOPY, flux=.true.)
+      call add_variable(reg, 'mean_evap_ground_py', 'ground evaporation: bare soil and snow pack', 'kg/m2/s', DIM_SCALAR,       &
+                        AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_EVAP_GROUND, flux=.true.)
+      call add_variable(reg, 'mean_dew_py', 'condensation from the canopy air (dew, fog), to the soil', 'kg/m2/s', DIM_SCALAR,  &
+                        AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_DEW, flux=.true.)
       !--- budget health (GRP_NUMERICS): the numbers that say whether anything above is real.
       call add_variable(reg, 'mean_resid_energy_py', 'signed whole-column energy-budget residual (+ = appearing)', 'W/m2',       &
                         DIM_SCALAR, AGG_TMEAN, GRP_NUMERICS, DAY_MON_YR, FLD_P_DIAG0 + PA_RESID_ENERGY, flux=.true.)

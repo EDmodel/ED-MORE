@@ -19,6 +19,13 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - A run stops before its first step if a diagnostic file it would write exists: remove the old files,
   or give `[output].dir` or `prefix` another value. In Python, `RunConfig.remove_diagnostics()`
   removes a configuration's files, as the examples' scripts now do before they run again. (#55)
+### Added
+
+- Four output variables split evapotranspiration by where the vapour comes from:
+  `mean_transp_py` (transpiration), `mean_evap_canopy_py` (evaporation of the rain the canopy
+  intercepted), `mean_evap_ground_py` (bare soil and snow) and `mean_dew_py` (condensation). ET is
+  the first three less the dew. They are written daily, monthly and yearly by default, and hourly
+  on request. Results are bit for bit. (#TBD)
 
 ### Changed
 

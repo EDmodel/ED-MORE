@@ -373,6 +373,12 @@ entries are formed there for a reason:
   $`R_{eco} = \mathrm{NEE} + \mathrm{GPP}`$, not summed a second way.
 - **NPP** is GPP net of the maintenance respiration of leaves, stems and roots, on every tier. The
   slow allocator charges growth respiration once a day, and it is not in NPP.
+- **ET's sources** are the vapour the canopy air was credited over the sub-step, as its ledger
+  booked them: transpiration (`mean_transp_py`), the evaporation of the water the canopy
+  intercepted (`mean_evap_canopy_py`, negative when dew forms on it), the ground's evaporation, bare
+  soil and snow pack (`mean_evap_ground_py`), and the condensate that left the canopy air for the
+  soil (`mean_dew_py`). ET (`mean_et_py`, `mean_le_py`) is the first three less the dew, less the
+  canopy air's own vapour gain, which is small beyond a few hours.
 - **The budget residuals** (`mean_resid_energy_py`, `mean_resid_water_py`) are each sub-step's signed
   whole-column imbalance over the sub-step: a leak rate in W m⁻² or kg m⁻² s⁻¹, positive when a store
   appears from nowhere.
