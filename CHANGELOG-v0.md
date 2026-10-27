@@ -14,7 +14,9 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ### Answer changes
 
-- The reported latent heat flux and evapotranspiration move by <how much> at <site>; the model
+- The latent heat flux (`mean_le_pa`, `mean_le_py`) rises by 0.6 % on average, and by at most
+  0.24 W/m2, in the region test's synthetic January 2021 run, where the canopy air is mostly below
+  freezing; above freezing it falls. Evapotranspiration changes only at round-off, and the model
   state is unchanged. (#N)
 
 ### Changed
