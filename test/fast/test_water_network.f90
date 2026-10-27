@@ -1,45 +1,45 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! test_water_network -- the soil-plant water network: its state (set_water_state), flows   !
-! (water_derivs) and step (water_step) (docs/science/soil_plant_water.md).                 !
-!                                                                                          !
-!   1. ARROWHEAD SOLVE : the Schur solve equals dense elimination on a random arrowhead system. !
-!   2. JACOBIAN        : the assembled Jacobian equals the residual's derivative (wet, dry,      !
-!                        ponded, leafless).                                                       !
-!   3. CONSERVATION    : two days of rain, transpiration, evaporation and drainage close to       !
-!                        round-off, step by step.                                                 !
-!   4. PLANT ONLY      : a soil too deep for the stand to draw down: under a steady demand the    !
-!                        plant's steady state carries the transpiration through every path.        !
-!   5. SOIL ONLY       : no cohorts, a sealed bottom: the column drains nothing and relaxes to      !
-!                        hydrostatic equilibrium.                                                  !
-!   6. STIFF EXCHANGE  : a wet, densely rooted stand whose wood-soil exchange takes a fraction of   !
-!                        a second costs a handful of sub-steps, not thousands.                     !
-!   7. INFEASIBLE DEMAND: a leaf asked for many times the water it and its xylem can supply stays  !
-!                        above empty and transpires less than asked.                               !
-!   8. LEAFLESS        : a cohort with no leaves: its leaf sits at the wood less the crown head.    !
-!   9. DRY-LAYER STORM : a thin top layer near residual, a stand refilling its wood, then a       !
-!                        storm: converges, no store leaves its range.                              !
-!  10. SATURATED       : rain on a saturated column ponds, spills, and conserves.                   !
-!  11. ACCURACY        : the default tolerances track a tight-tolerance run.                       !
-!  12. VANISHING STORES: a near-leafless leaf and a trace pond stay in range, and water closes.   !
-!  13. CAMPBELL        : on a Campbell clay the soil potentials are the Campbell curve's, finite  !
-!                        and below zero; the stand takes up water, and every step closes.         !
-! The soil column alone, on a 2 m loam (docs/science/soil_biophysics.md §The soil water column  !
-! and §Boundary conditions):                                                                 !
-!  14. DRAINAGE        : a wet column drains freely, and through a leaky base about f of that;    !
-!                        its water closes against the drainage.                                    !
-!  15. DOWNPOUR        : rain beyond a wet clay's infiltration ponds, and runs off past the pond.  !
-!  16. REWETTING       : a dried top layer re-wets within 12 h of rain, with little runoff.        !
-!  17. SUB-FREEZING    : rain below the triple point: the pond's enthalpy closes, and what         !
-!                        infiltrates carries its own enthalpy.                                     !
-!  18. AQUIFER         : the head-driven bottom is two-way and settles to hydrostatic equilibrium. !
-!  19. FROZEN TOP      : the ice impedes the rain's infiltration; the freezing curve's suction      !
-!                        fills a frozen layer to saturation, not past it; the water closes.        !
-!  20. FROZEN SURFACE  : the dry surface layer reads the liquid and dsl_theta_init of the ice     !
-!                        (water_derivs), so it forms below dsl_theta_init of the pores the ice     !
-!                        leaves (CLM5's effective porosity); above that the layer evaporates as    !
-!                        one with no dry surface layer, at its liquid's potential.                 !
-!==========================================================================================!
+!---~---
+!   test_water_network -- the soil-plant water network: its state (set_water_state), flows
+! (water_derivs) and step (water_step) (docs/science/soil_plant_water.md).
+!
+!   1. ARROWHEAD SOLVE : the Schur solve equals dense elimination on a random arrowhead system.
+!   2. JACOBIAN        : the assembled Jacobian equals the residual's derivative (wet, dry,
+!                        ponded, leafless).
+!   3. CONSERVATION    : two days of rain, transpiration, evaporation and drainage close to
+!                        round-off, step by step.
+!   4. PLANT ONLY      : a soil too deep for the stand to draw down: under a steady demand the
+!                        plant's steady state carries the transpiration through every path.
+!   5. SOIL ONLY       : no cohorts, a sealed bottom: the column drains nothing and relaxes to
+!                        hydrostatic equilibrium.
+!   6. STIFF EXCHANGE  : a wet, densely rooted stand whose wood-soil exchange takes a fraction of
+!                        a second costs a handful of sub-steps, not thousands.
+!   7. INFEASIBLE DEMAND: a leaf asked for many times the water it and its xylem can supply stays
+!                        above empty and transpires less than asked.
+!   8. LEAFLESS        : a cohort with no leaves: its leaf sits at the wood less the crown head.
+!   9. DRY-LAYER STORM : a thin top layer near residual, a stand refilling its wood, then a
+!                        storm: converges, no store leaves its range.
+!  10. SATURATED       : rain on a saturated column ponds, spills, and conserves.
+!  11. ACCURACY        : the default tolerances track a tight-tolerance run.
+!  12. VANISHING STORES: a near-leafless leaf and a trace pond stay in range, and water closes.
+!  13. CAMPBELL        : on a Campbell clay the soil potentials are the Campbell curve's, finite
+!                        and below zero; the stand takes up water, and every step closes.
+! The soil column alone, on a 2 m loam (docs/science/soil_biophysics.md §The soil water column
+! and §Boundary conditions):
+!  14. DRAINAGE        : a wet column drains freely, and through a leaky base about f of that;
+!                        its water closes against the drainage.
+!  15. DOWNPOUR        : rain beyond a wet clay's infiltration ponds, and runs off past the pond.
+!  16. REWETTING       : a dried top layer re-wets within 12 h of rain, with little runoff.
+!  17. SUB-FREEZING    : rain below the triple point: the pond's enthalpy closes, and what
+!                        infiltrates carries its own enthalpy.
+!  18. AQUIFER         : the head-driven bottom is two-way and settles to hydrostatic equilibrium.
+!  19. FROZEN TOP      : the ice impedes the rain's infiltration; the freezing curve's suction
+!                        fills a frozen layer to saturation, not past it; the water closes.
+!  20. FROZEN SURFACE  : the dry surface layer reads the liquid and dsl_theta_init of the ice
+!                        (water_derivs), so it forms below dsl_theta_init of the pores the ice
+!                        leaves (CLM5's effective porosity); above that the layer evaporates as
+!                        one with no dry surface layer, at its liquid's potential.
+!---~---
 program test_water_network
    use ed_test_assert, only : check_true, check_close, check_int, test_report
    use, intrinsic :: iso_fortran_env, only : int64
@@ -64,8 +64,10 @@ program test_water_network
    use ed_soil_water,    only : ground_evap_env_t, ground_evaporation_setup
    implicit none
 
-   !----- A stand on the fixture soil: its cohorts (the static state the gather would build), what !
-   !      drives the network, the network itself, its tolerances and the work it last reported. ---!
+   !---~---
+   !   A stand on the fixture soil: its cohorts (the static state the gather would build), what
+   ! drives the network, the network itself, its tolerances and the work it last reported.
+   !---~---
    type :: stand_t
       type(fast_static_state_t) :: static
       type(water_drive_t)       :: drive
@@ -78,7 +80,7 @@ program test_water_network
    type(soil_profile_t)       :: soil
    type(soil_params_t)        :: sopts
    type(ground_evap_env_t)    :: forc
-   !----- The water network's tolerances: [fast].rtol and water_atol at their defaults. ---------!
+   !--- The water network's tolerances: [fast].rtol and water_atol at their defaults.
    real(wp), parameter :: WATER_RTOL = 1.0e-3_wp, WATER_ATOL = 1.0e-4_wp
 
    call make_pft(hyd)
@@ -106,12 +108,12 @@ program test_water_network
 
 contains
 
-   !=======================================================================================!
-   !     Fixtures.                                                                          !
-   !=======================================================================================!
+   !--- Fixtures.
 
-   !----- One PFT with the shipped [hydraulics] values and a tropical wood conductivity; the     !
-   !      stomata shut at twice the leaf's turgor-loss potential. -------------------------------!
+   !---~---
+   !   One PFT with the shipped [hydraulics] values and a tropical wood conductivity; the
+   ! stomata shut at twice the leaf's turgor-loss potential.
+   !---~---
    subroutine make_pft(h)
       type(hydraulics_table_t),   intent(out) :: h
       h%n_pft = 1_ik
@@ -133,7 +135,7 @@ contains
       call build_kirchhoff_table(h%pft(1)%vuln_table, h%pft(1)%wood_kexp)
    end subroutine make_pft
 
-   !----- BCI's clay (example 04), on a grid whose top layer is 2.6 cm. ----------------------!
+   !--- BCI's clay (example 04), on a grid whose top layer is 2.6 cm.
    subroutine make_soil(s, nsl, depth, growth)
       type(soil_profile_t), intent(out) :: s
       integer(ik),          intent(in)  :: nsl
@@ -144,9 +146,11 @@ contains
                                   0.7607_wp, 1.3554_wp, -3.37_wp, s)
    end subroutine make_soil
 
-   !----- A stand of n cohorts on the fixture soil, a canopy tree first and smaller ones after,   !
-   !      with the roots and water paths the gather derives for them, each cohort's demand its     !
-   !      share of e_total by leaf, and the network started from the given water. ---------------!
+   !---~---
+   !   A stand of n cohorts on the fixture soil, a canopy tree first and smaller ones after,
+   ! with the roots and water paths the gather derives for them, each cohort's demand its
+   ! share of e_total by leaf, and the network started from the given water.
+   !---~---
    subroutine make_stand(st, n, theta, w_pond, leaf_rwc, wood_rwc, e_total, leafless)
       type(stand_t),     intent(out) :: st
       integer(ik),       intent(in)  :: n
@@ -184,7 +188,7 @@ contains
       call set_water_state(st%static, soil, hyd, theta, st%drive%ice, w_pond, 0.0_wp, leaf_w, wood_w, st%water)
    end subroutine make_stand
 
-   !----- One fast step of the stand's network on the fixture soil, with the column's options. --!
+   !--- One fast step of the stand's network on the fixture soil, with the column's options.
    subroutine advance(st, opts, dt)
       type(stand_t),       intent(inout) :: st
       type(soil_params_t), intent(in)    :: opts
@@ -192,13 +196,13 @@ contains
       call water_step(dt, st%static, soil, opts, hyd, st%drive, st%tols, st%water, st%work)
    end subroutine advance
 
-   !----- All the water the network holds [kg/m2]. ---------------------------------------!
+   !--- All the water the network holds [kg/m2].
    real(wp) function total_water(st)
       type(stand_t), intent(in) :: st
       total_water = sum(st%water%state%water_soil) + sum(st%water%state%water_coh)
    end function total_water
 
-   !----- The water that crossed the network's boundary over its last step [kg/m2]. ------------!
+   !--- The water that crossed the network's boundary over its last step [kg/m2].
    real(wp) function boundary_water(st, dt)
       type(stand_t), intent(in) :: st
       real(wp),      intent(in) :: dt
@@ -207,7 +211,6 @@ contains
       end associate
    end function boundary_water
 
-   !=======================================================================================!
    subroutine test_arrowhead_solve()
       type(arrowhead_system_t) :: s
       integer(ik), parameter :: NC = 7, NG = 5, MG = 2, NT = NC + NG*MG
@@ -244,7 +247,7 @@ contains
             end do
          end do
       end do
-      !----- Additions to the blocks' diagonals, as a Newton matrix's storage terms are added. --------!
+      !--- Additions to the blocks' diagonals, as a Newton matrix's storage terms are added.
       do i = 1_ik, NC
          add_c(i) = 1.5_wp + 0.1_wp * real(i, wp)
          full(i, i) = full(i, i) + add_c(i)
@@ -270,7 +273,6 @@ contains
                       maxval(abs([x_c, reshape(x_g, [NG*MG])] - x_ref)) < 1.0e-12_wp * maxval(abs(x_ref)))
    end subroutine test_arrowhead_solve
 
-   !=======================================================================================!
    subroutine test_jacobian()
       type(stand_t) :: st
       real(wp) :: theta(soil%n_active), err
@@ -294,7 +296,6 @@ contains
       call check_true('jacobian: a leafless cohort', err < 1.0e-5_wp, err)
    end subroutine test_jacobian
 
-   !=======================================================================================!
    subroutine test_conservation()
       type(stand_t) :: st
       real(wp) :: theta(soil%n_active), w0, w1, dt, hour, resid, worst, worst_coh
@@ -318,7 +319,7 @@ contains
          call advance(st, sopts, dt)
          w1 = total_water(st)
          wc1 = sum(st%water%state%water_coh, dim=1)
-         !----- Each cohort's leaf + wood water changes by its own uptake less its transpiration. ------!
+         !--- Each cohort's leaf + wood water changes by its own uptake less its transpiration.
          worst_coh = max(worst_coh, maxval(abs((wc1 - wc0) - (sum(st%water%flows%uptake, dim=1)               &
                                                               - st%water%flows%transp))) / max(maxval(wc0), 1.0e-6_wp))
          resid = abs((w1 - w0) - boundary_water(st, dt))
@@ -331,12 +332,13 @@ contains
       call check_int('conservation: no sub-step forced through', nfail, 0_ik)
    end subroutine test_conservation
 
-   !=======================================================================================!
-   !----- One cohort on a single soil layer 100 m deep, sealed and under still air, which a day's   !
-   !      transpiration barely draws down. Under a steady demand the plant reaches its steady state, !
-   !      where every path carries the transpiration: root uptake = sapflow = transpiration, and   !
-   !      the stores stop changing -- to within what the soil's slow drying still moves. The       !
-   !      fixture's soil is swapped for the test and put back after it. -------------------------!
+   !---~---
+   !   One cohort on a single soil layer 100 m deep, sealed and under still air, which a day's
+   ! transpiration barely draws down. Under a steady demand the plant reaches its steady state,
+   ! where every path carries the transpiration: root uptake = sapflow = transpiration, and
+   ! the stores stop changing -- to within what the soil's slow drying still moves. The
+   ! fixture's soil is swapped for the test and put back after it.
+   !---~---
    subroutine test_plant_only()
       type(stand_t)          :: st
       type(soil_profile_t)   :: shallow
@@ -372,9 +374,10 @@ contains
                       st%water%state%psi_coh(LEAF, 1))
    end subroutine test_plant_only
 
-   !=======================================================================================!
-   !----- No cohorts, a sealed bottom, no rain and no evaporation: the column relaxes to hydrostatic !
-   !      equilibrium, the total head (matric head plus elevation) the same in every layer. ---------!
+   !---~---
+   !   No cohorts, a sealed bottom, no rain and no evaporation: the column relaxes to hydrostatic
+   ! equilibrium, the total head (matric head plus elevation) the same in every layer.
+   !---~---
    subroutine test_soil_only()
       type(stand_t)       :: st
       type(soil_params_t) :: sealed
@@ -401,7 +404,6 @@ contains
       call check_true('soil only: a sealed bottom drains nothing', drain_max < 1.0e-30_wp, drain_max)
    end subroutine test_soil_only
 
-   !=======================================================================================!
    subroutine test_stiff_exchange()
       type(stand_t) :: st
       real(wp) :: theta(soil%n_active)
@@ -419,7 +421,6 @@ contains
       call check_true('stiff exchange: demand jumps cost at most 6 sub-steps a step', nsub <= 48_ik, real(nsub, wp))
    end subroutine test_stiff_exchange
 
-   !=======================================================================================!
    subroutine test_infeasible_demand()
       type(stand_t) :: st
       real(wp) :: theta(soil%n_active), demand
@@ -445,7 +446,6 @@ contains
       end associate
    end subroutine test_infeasible_demand
 
-   !=======================================================================================!
    subroutine test_leafless()
       type(stand_t) :: st
       real(wp) :: theta(soil%n_active)
@@ -459,9 +459,10 @@ contains
                        1.0e-12_wp)
    end subroutine test_leafless
 
-   !=======================================================================================!
-   !----- A dry-layer storm, from a BCI regrowth stand: the top 2.6 cm a hair above residual, a !
-   !      stand whose wood is half empty and refilling, then 30 mm/h of rain for two steps. ----!
+   !---~---
+   !   A dry-layer storm, from a BCI regrowth stand: the top 2.6 cm a hair above residual, a
+   ! stand whose wood is half empty and refilling, then 30 mm/h of rain for two steps.
+   !---~---
    subroutine test_dry_layer_storm()
       type(stand_t) :: st
       real(wp) :: theta(soil%n_active), w0, flows, theta_min
@@ -493,7 +494,6 @@ contains
                       st%water%state%tau_coh(WOOD, 1))
    end subroutine test_dry_layer_storm
 
-   !=======================================================================================!
    subroutine test_saturated()
       type(stand_t) :: st
       real(wp) :: theta(soil%n_active), w0, flows, spill, over
@@ -521,9 +521,10 @@ contains
       call check_close('saturated: water conserved', total_water(st) - w0, flows, 1.0e-10_wp * w0)
    end subroutine test_saturated
 
-   !=======================================================================================!
-   !----- A transpiring day with a midday storm at the default tolerances, against the same day at  !
-   !      tolerances a thousand times tighter. ------------------------------------------------!
+   !---~---
+   !   A transpiring day with a midday storm at the default tolerances, against the same day at
+   ! tolerances a thousand times tighter.
+   !---~---
    subroutine test_accuracy()
       type(stand_t) :: st, ref
       real(wp) :: theta(soil%n_active), hour, worst_theta, worst_rwc
@@ -555,12 +556,13 @@ contains
       print '(a,i6)', '  info : sub-steps over the day at the default tolerances: ', isub
    end subroutine test_accuracy
 
-   !=======================================================================================!
-   !----- Two stores a BCI regrowth stand reaches: a cohort with 1e-22 kgC of leaves,              !
-   !      whose leaf store holds 1e-26 kg/m2 against its plant's 1e-9 tolerance, and a pond holding a !
-   !      trace of water over a dry top layer in light rain, which drains tens of millimetres an hour. !
-   !      A day of them: no sub-step forced, the leaf never above saturation, the pond never below  !
-   !      empty. --------------------------------------------------------------------------------!
+   !---~---
+   !   Two stores a BCI regrowth stand reaches: a cohort with 1e-22 kgC of leaves,
+   ! whose leaf store holds 1e-26 kg/m2 against its plant's 1e-9 tolerance, and a pond holding a
+   ! trace of water over a dry top layer in light rain, which drains tens of millimetres an hour.
+   ! A day of them: no sub-step forced, the leaf never above saturation, the pond never below
+   ! empty.
+   !---~---
    subroutine test_vanishing_stores()
       type(stand_t) :: st
       real(wp) :: theta(soil%n_active), leaf_w(3), wood_w(3), w0, flows, rwc_max, pond_min
@@ -593,14 +595,15 @@ contains
       call check_close('vanishing stores: water conserved', total_water(st) - w0, flows, 1.0e-10_wp * w0)
    end subroutine test_vanishing_stores
 
-   !=======================================================================================!
-   !----- Two transpiring days without rain on a Campbell clay (psi_sat = -0.26 m, b = 5.65), on   !
-   !      the van Genuchten clay's layers. The column carries one parameter pair whose meaning the !
-   !      family sets, so the network must read (psi_sat, b) through it: each layer's potential is !
-   !      the Campbell curve's at its water content, finite and below zero, the stand draws water  !
-   !      from the soil, and every step closes. No layer reaches saturation, where the curve reads !
-   !      zero and the network a head above air entry. The fixture's soil is swapped for the test  !
-   !      and put back after it. ------------------------------------------------------------!
+   !---~---
+   !   Two transpiring days without rain on a Campbell clay (psi_sat = -0.26 m, b = 5.65), on
+   ! the van Genuchten clay's layers. The column carries one parameter pair whose meaning the
+   ! family sets, so the network must read (psi_sat, b) through it: each layer's potential is
+   ! the Campbell curve's at its water content, finite and below zero, the stand draws water
+   ! from the soil, and every step closes. No layer reaches saturation, where the curve reads
+   ! zero and the network a head above air entry. The fixture's soil is swapped for the test
+   ! and put back after it.
+   !---~---
    subroutine test_campbell()
       type(stand_t)        :: st
       type(soil_profile_t) :: vg_soil
@@ -633,8 +636,10 @@ contains
          worst = max(worst, abs((w1 - w0) - boundary_water(st, dt)) / max(w0, 1.0_wp))
          nfail = nfail + st%work(WORK_WATER_NFAIL)
          uptake = uptake + sum(st%water%flows%uptake)
-         !----- Each layer's potential against the Campbell curve at the water it holds, which the  !
-         !      sub-step commits from its flows: the two agree to the Newton tolerance. ------------!
+         !---~---
+         !   Each layer's potential against the Campbell curve at the water it holds, which the
+         ! sub-step commits from its flows: the two agree to the Newton tolerance.
+         !---~---
          associate (state => st%water%state)
             theta = state%water_soil(2:nsl+1) / (rho_h2o * soil%dz(1:nsl))
             psi_curve = grav_head * soil_theta_to_head(SOIL_RETENTION_CAMPBELL, theta, THETA_SAT, THETA_RES,  &
@@ -652,12 +657,12 @@ contains
       call check_int('Campbell: no sub-step forced through', nfail, 0_ik)
    end subroutine test_campbell
 
-   !=======================================================================================!
-   !     The soil column alone.                                                             !
-   !=======================================================================================!
+   !--- The soil column alone.
 
-   !----- The column's own scenarios, run with no stand on a 2 m loam of ten layers in place of the    !
-   !      fixture's clay, which is put back after them. -------------------------------------------!
+   !---~---
+   !   The column's own scenarios, run with no stand on a 2 m loam of ten layers in place of the
+   ! fixture's clay, which is put back after them.
+   !---~---
    subroutine test_column_scenarios()
       type(soil_profile_t) :: clay
       real(wp) :: bottoms(n_soil_layer_max)
@@ -675,8 +680,10 @@ contains
       soil = clay
    end subroutine test_column_scenarios
 
-   !----- No cohorts on the current soil at water content theta, an empty pond, the water it gives up  !
-   !      and its rain at 290 K, under air wetter than any surface, so nothing evaporates. -----------!
+   !---~---
+   !   No cohorts on the current soil at water content theta, an empty pond, the water it gives up
+   ! and its rain at 290 K, under air wetter than any surface, so nothing evaporates.
+   !---~---
    subroutine make_column(st, theta)
       type(stand_t), intent(out) :: st
       real(wp),      intent(in)  :: theta(:)
@@ -689,7 +696,7 @@ contains
       st%drive%ground%r_aero   = 100.0_wp
    end subroutine make_column
 
-   !----- make_column's, with the soil's evaporation suppressed by a huge aerodynamic resistance. ---!
+   !--- make_column's, with the soil's evaporation suppressed by a huge aerodynamic resistance.
    subroutine aquifer_column(st, theta)
       type(stand_t), intent(out) :: st
       real(wp),      intent(in)  :: theta(:)
@@ -697,8 +704,10 @@ contains
       st%drive%ground%r_aero = 1.0e6_wp
    end subroutine aquifer_column
 
-   !----- Freeze the column's top nfrozen layers at temperature temp: each keeps the liquid its    !
-   !      freezing curve holds there, the rest ice, and the network restarts from that state. ----!
+   !---~---
+   !   Freeze the column's top nfrozen layers at temperature temp: each keeps the liquid its
+   ! freezing curve holds there, the rest ice, and the network restarts from that state.
+   !---~---
    subroutine freeze_top(st, theta, temp, nfrozen)
       type(stand_t), intent(inout) :: st
       real(wp),      intent(in)    :: theta(:), temp
@@ -712,11 +721,12 @@ contains
       call set_water_state(st%static, soil, hyd, theta, st%drive%ice, 0.0_wp, 0.0_wp, dum, dum, st%water)
    end subroutine freeze_top
 
-   !=======================================================================================!
-   !----- A wet column draining through its base (docs/science/soil_biophysics.md §Boundary         !
-   !      conditions): freely, where its water closes against the drainage, and through a leaky     !
-   !      base at f = 0.05, the ED soil maps' factor, where it drains about f of what the free one   !
-   !      does and closes as well. -------------------------------------------------------------!
+   !---~---
+   !   A wet column draining through its base (docs/science/soil_biophysics.md §Boundary
+   ! conditions): freely, where its water closes against the drainage, and through a leaky
+   ! base at f = 0.05, the ED soil maps' factor, where it drains about f of what the free one
+   ! does and closes as well.
+   !---~---
    subroutine test_column_drainage()
       type(soil_params_t) :: opts
       type(stand_t)       :: col
@@ -725,7 +735,7 @@ contains
       integer(ik) :: step
       opts%water_bottom_bc = SOIL_BC_DRAIN
       theta = 0.40_wp
-      !----- Free drainage. ---------------------------------------------------------------------!
+      !--- Free drainage.
       opts%drain_factor = 1.0_wp
       call make_column(col, theta)
       w0 = total_water(col)
@@ -737,7 +747,7 @@ contains
       call check_true('free drain: a wet column drains', drained_free > 0.0_wp, drained_free)
       call check_close('free drain: its water closes against the drainage', w0 - total_water(col), drained_free,  &
                        1.0e-10_wp * w0)
-      !----- A leaky base. ----------------------------------------------------------------------!
+      !--- A leaky base.
       opts%drain_factor = F_LEAK
       call make_column(col, theta)
       drained = 0.0_wp
@@ -752,10 +762,11 @@ contains
                        1.0e-10_wp * w0)
    end subroutine test_column_drainage
 
-   !=======================================================================================!
-   !----- WET clay (low Ksat, small suction) under a downpour: infiltration is limited by the     !
-   !      clay's conductivity, so the excess ponds and, past the pond's capacity, runs off       !
-   !      (Hortonian). A bone-dry clay would instead take it up by suction (Green-Ampt). --------!
+   !---~---
+   !   WET clay (low Ksat, small suction) under a downpour: infiltration is limited by the
+   ! clay's conductivity, so the excess ponds and, past the pond's capacity, runs off
+   ! (Hortonian). A bone-dry clay would instead take it up by suction (Green-Ampt).
+   !---~---
    subroutine test_downpour()
       type(soil_profile_t) :: loam
       type(soil_params_t)  :: opts
@@ -790,11 +801,12 @@ contains
       soil = loam
    end subroutine test_downpour
 
-   !=======================================================================================!
-   !----- A top layer dried to residual takes up 2 mm/h of rain: within 12 h it has re-wetted     !
-   !      and almost none of the rain has run off. The pond face's conductivity is the geometric  !
-   !      mean of the saturated pond's and the top layer's, and the dry layer's suction drives it;  !
-   !      the top layer's conductivity alone would seal a dried surface against rain. -----------!
+   !---~---
+   !   A top layer dried to residual takes up 2 mm/h of rain: within 12 h it has re-wetted
+   ! and almost none of the rain has run off. The pond face's conductivity is the geometric
+   ! mean of the saturated pond's and the top layer's, and the dry layer's suction drives it;
+   ! the top layer's conductivity alone would seal a dried surface against rain.
+   !---~---
    subroutine test_dried_surface_rewets()
       type(soil_params_t)    :: opts
       type(stand_t)          :: col
@@ -818,11 +830,12 @@ contains
       call check_true('rewetting: and under 5 % of the rain runs off', runoff < 0.05_wp * rain, runoff / rain)
    end subroutine test_dried_surface_rewets
 
-   !=======================================================================================!
-   !----- Rain (or sub-threshold snow routed to the ground) below the triple point joins the pond:  !
-   !      what the pond received in enthalpy is what it gave the soil, kept, and lost as runoff,    !
-   !      and the water that infiltrated carried its own enthalpy -- an effective temperature below  !
-   !      the melt plateau, not u_liq at the plateau, which would create energy all winter. -------!
+   !---~---
+   !   Rain (or sub-threshold snow routed to the ground) below the triple point joins the pond:
+   ! what the pond received in enthalpy is what it gave the soil, kept, and lost as runoff,
+   ! and the water that infiltrated carried its own enthalpy -- an effective temperature below
+   ! the melt plateau, not u_liq at the plateau, which would create energy all winter.
+   !---~---
    subroutine test_pond_subfreezing_inflow()
       type(soil_params_t)    :: opts
       type(stand_t)          :: col
@@ -849,11 +862,12 @@ contains
                       t_infil < 273.0_wp, t_infil)
    end subroutine test_pond_subfreezing_inflow
 
-   !=======================================================================================!
-   !----- The aquifer bottom is head-driven against a saturated zone at the column base: a dry     !
-   !      column draws water UP (free drainage never can), a wet one still drains down, the water   !
-   !      closes with the flux running upward, and the column relaxes to hydrostatic equilibrium    !
-   !      with the base (the bottom node's head -> minus half its thickness). -------------------!
+   !---~---
+   !   The aquifer bottom is head-driven against a saturated zone at the column base: a dry
+   ! column draws water UP (free drainage never can), a wet one still drains down, the water
+   ! closes with the flux running upward, and the column relaxes to hydrostatic equilibrium
+   ! with the base (the bottom node's head -> minus half its thickness).
+   !---~---
    subroutine test_aquifer()
       type(soil_params_t)    :: opts
       type(stand_t)          :: col
@@ -896,12 +910,13 @@ contains
                       abs(col%water%flows%drain / 3600.0_wp) < 1.0e-5_wp, col%water%flows%drain / 3600.0_wp)
    end subroutine test_aquifer
 
-   !=======================================================================================!
-   !----- A loam column with its top two layers at -7 C (docs/science/soil_biophysics.md, "Frozen  !
-   !      soil"). Rain of 10 mm/h for two hours on a moist column: the ice's impedance lets in a   !
-   !      tenth of what the thawed column takes, or less. Then a dry frozen top over wet soil and   !
-   !      no rain for four days: the freezing curve's suction draws water up into the frozen layer, !
-   !      which fills to saturation and no further. The water closes in both. ------------------!
+   !---~---
+   !   A loam column with its top two layers at -7 C (docs/science/soil_biophysics.md, "Frozen
+   ! soil"). Rain of 10 mm/h for two hours on a moist column: the ice's impedance lets in a
+   ! tenth of what the thawed column takes, or less. Then a dry frozen top over wet soil and
+   ! no rain for four days: the freezing curve's suction draws water up into the frozen layer,
+   ! which fills to saturation and no further. The water closes in both.
+   !---~---
    subroutine test_frozen_top()
       type(soil_params_t)  :: opts
       type(stand_t)        :: thawed, frozen
@@ -933,7 +948,7 @@ contains
       call check_close('frozen top: rain = change in store + runoff + drainage', total_water(frozen) - w0,         &
                        rain - runoff - drained, 1.0e-10_wp * rain)
 
-      !----- A dry frozen top over wet soil: cryosuction, up to saturation. ----------------------!
+      !--- A dry frozen top over wet soil: cryosuction, up to saturation.
       theta = 0.40_wp
       theta(1) = 0.20_wp
       call make_column(frozen, theta)
@@ -954,16 +969,17 @@ contains
                        1.0e-10_wp * w0)
    end subroutine test_frozen_top
 
-   !=======================================================================================!
-   !----- The loam's top layer frozen, holding 0.20 of ice, under dry air at 268 K (docs/science/     !
-   !      soil_biophysics.md, "Frozen soil"). The dry surface layer reads the liquid and            !
-   !      dsl_theta_init of the ice, so it forms once the liquid falls below dsl_theta_init of the  !
-   !      pores the ice leaves, d (theta_sat - theta_ice). With the liquid 0.02 above that, the     !
-   !      layer evaporates as one with no dry surface layer, rho (alpha q_sat - q_air) / r_aero,     !
-   !      alpha being Philip's humidity at its liquid's potential on the full pore space and q_sat  !
-   !      over liquid; 0.02 below it, a dry surface layer holds it back. Reading the liquid alone,  !
-   !      a dry surface layer would already form at the first; reading all the water, none at the  !
-   !      second. ------------------------------------------------------------------------------!
+   !---~---
+   !   The loam's top layer frozen, holding 0.20 of ice, under dry air at 268 K (docs/science/
+   ! soil_biophysics.md, "Frozen soil"). The dry surface layer reads the liquid and
+   ! dsl_theta_init of the ice, so it forms once the liquid falls below dsl_theta_init of the
+   ! pores the ice leaves, d (theta_sat - theta_ice). With the liquid 0.02 above that, the
+   ! layer evaporates as one with no dry surface layer, rho (alpha q_sat - q_air) / r_aero,
+   ! alpha being Philip's humidity at its liquid's potential on the full pore space and q_sat
+   ! over liquid; 0.02 below it, a dry surface layer holds it back. Reading the liquid alone,
+   ! a dry surface layer would already form at the first; reading all the water, none at the
+   ! second.
+   !---~---
    subroutine test_frozen_surface_evaporation()
       type(soil_params_t)  :: opts
       type(stand_t)        :: col
@@ -995,10 +1011,8 @@ contains
                       e(2) / e_free(2))
    end subroutine test_frozen_surface_evaporation
 
-   !=======================================================================================!
-   !     Small helpers.                                                                     !
-   !=======================================================================================!
-   !----- A linear congruential generator, in 64-bit arithmetic so the product cannot overflow. ---!
+   !--- Small helpers.
+   !--- A linear congruential generator, in 64-bit arithmetic so the product cannot overflow.
    real(wp) function pseudo(seed)
       integer(ik), intent(inout) :: seed
       integer(int64) :: s

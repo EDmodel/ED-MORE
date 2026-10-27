@@ -1,29 +1,29 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! test_canopy_radiation -- the canopy two-stream (ed_canopy_radiation;                     !
-! docs/science/canopy_radiation_transfer.md).                                              !
-!                                                                                          !
-! Checks the physical invariants that a correct two-stream must satisfy (canopy_radiation,   !
-! ground_optics, and layer_beam_sources for a thin layer's scattering):                     !
-!   1. ENERGY CONSERVATION  (per shortwave band): absorbed + net-ground + reflected = incident.!
-!   2. BEER'S LAW           : a single black cohort under a direct beam attenuates as exp(-k L).!
-!   3. ZERO-LAI ALBEDO      : an empty canopy has albedo = ground albedo.                       !
-!   4. MULTI-PFT PATCH       : energy conserves, and each cohort's diffuse light follows its OWN    !
-!                              PFT's optics, not the top cohort's (the guard against ED2 bug B1 of  !
-!                              docs/ed2_comparison.md).                                              !
-!   5. LONGWAVE EQUILIBRIUM  : an isothermal canopy+ground+sky has ~zero net thermal absorption.    !
-!   6. COHORT ORDER          : the upper of two equal cohorts absorbs more and sees the top light.  !
-!   7. TIED COHORTS          : equal-height cohorts share one layer, whatever their order.          !
-!   8. CUTTING              : one LAI-5 cohort and five LAI-1 cohorts of a PFT give the same light; !
-!                             a thin layer's scattered beam is the single-scatter split.            !
-!   9. TISSUE LONGWAVE      : leaves and wood, or two tied cohorts, exchange longwave reciprocally,  !
-!                             each charged its own emission.                                        !
-!  10. NO COHORTS           : a patch with no cohort (ncoh = 0): the ground takes what its albedo   !
-!                             leaves of the shortwave and its emissivity's share of the sky less its !
-!                             emission, the canopy nothing, every band closes, and the light is a   !
-!                             cohort of no leaf or wood area's.                                     !
-! The leaf-angle distribution and its moments are test_optics_lib's.                       !
-!==========================================================================================!
+!---~---
+!   test_canopy_radiation -- the canopy two-stream (ed_canopy_radiation;
+! docs/science/canopy_radiation_transfer.md).
+!
+!   Checks the physical invariants that a correct two-stream must satisfy (canopy_radiation,
+! ground_optics, and layer_beam_sources for a thin layer's scattering):
+!   1. ENERGY CONSERVATION  (per shortwave band): absorbed + net-ground + reflected = incident.
+!   2. BEER'S LAW           : a single black cohort under a direct beam attenuates as exp(-k L).
+!   3. ZERO-LAI ALBEDO      : an empty canopy has albedo = ground albedo.
+!   4. MULTI-PFT PATCH       : energy conserves, and each cohort's diffuse light follows its OWN
+!                              PFT's optics, not the top cohort's (the guard against ED2 bug B1 of
+!                              docs/ed2_comparison.md).
+!   5. LONGWAVE EQUILIBRIUM  : an isothermal canopy+ground+sky has ~zero net thermal absorption.
+!   6. COHORT ORDER          : the upper of two equal cohorts absorbs more and sees the top light.
+!   7. TIED COHORTS          : equal-height cohorts share one layer, whatever their order.
+!   8. CUTTING              : one LAI-5 cohort and five LAI-1 cohorts of a PFT give the same light;
+!                             a thin layer's scattered beam is the single-scatter split.
+!   9. TISSUE LONGWAVE      : leaves and wood, or two tied cohorts, exchange longwave reciprocally,
+!                             each charged its own emission.
+!  10. NO COHORTS           : a patch with no cohort (ncoh = 0): the ground takes what its albedo
+!                             leaves of the shortwave and its emissivity's share of the sky less its
+!                             emission, the canopy nothing, every band closes, and the light is a
+!                             cohort of no leaf or wood area's.
+! The leaf-angle distribution and its moments are test_optics_lib's.
+!---~---
 program test_canopy_radiation
    use ed_test_assert, only : check, check_true, test_report
    use ed_kinds,            only : wp, ik
@@ -52,7 +52,7 @@ program test_canopy_radiation
 
 contains
 
-   !----- Build a 2-PFT, 3-band optics table (VIS/NIR/LW) with a chosen leaf-angle mean. ------!
+   !--- Build a 2-PFT, 3-band optics table (VIS/NIR/LW) with a chosen leaf-angle mean.
    subroutine build_optics(mean_deg, opt)
       real(wp),               intent(in)  :: mean_deg
       type(rad_pft_optics_t), intent(out) :: opt
@@ -62,7 +62,7 @@ contains
       logical  :: hb(NB), he(NB)
       integer(ik) :: p
       real(wp) :: emiss_leaf, emiss_wood
-      !----- Leaf spectral: PFT 1 darker (low VIS reflectance), PFT 2 brighter. -------------!
+      !--- Leaf spectral: PFT 1 darker (low VIS reflectance), PFT 2 brighter.
       rl(RAD_VIS,:) = [0.09_wp, 0.14_wp]
       tl(RAD_VIS,:) = [0.05_wp, 0.08_wp]
       rl(RAD_NIR,:) = [0.45_wp, 0.50_wp]
@@ -70,7 +70,7 @@ contains
       emiss_leaf = 0.97_wp
       rl(RAD_LW,:)  = 1.0_wp - emiss_leaf
       tl(RAD_LW,:) = 0.0_wp
-      !----- Wood spectral (near-opaque). ---------------------------------------------------!
+      !--- Wood spectral (near-opaque).
       rw(RAD_VIS,:) = 0.11_wp
       tw(RAD_VIS,:) = 0.001_wp
       rw(RAD_NIR,:) = 0.25_wp
@@ -88,7 +88,7 @@ contains
       call derive_rad_optics(NB, NP, rl, tl, rw, tw, cl, cw, bp, bq, hb, he, opt)
    end subroutine build_optics
 
-   !----- Fill shortwave + longwave forcing from a surface state. ----------------------------!
+   !--- Fill shortwave + longwave forcing from a surface state.
    subroutine build_forcing(cosz, t_sky, t_soil, f)
       real(wp),            intent(in)  :: cosz, t_sky, t_soil
       type(rad_env_t), intent(out) :: f
@@ -111,7 +111,6 @@ contains
       call ground_optics(surf, N_RAD_BAND_DEFAULT, he, f%grnd_refl, f%grnd_emiss)
    end subroutine build_forcing
 
-   !=======================================================================================!
    subroutine test_energy_conservation()
       type(rad_pft_optics_t) :: opt
       type(rad_env_t)    :: f
@@ -142,11 +141,12 @@ contains
       end do
    end subroutine test_energy_conservation
 
-   !=======================================================================================!
-   !  Cohort ORDER: two EQUAL-LAI cohorts stacked BOTTOM(1)->TOP(2). The top cohort intercepts !
-   !  the incoming beam+diffuse first, so per band it must absorb strictly MORE than the shaded  !
-   !  bottom cohort. This vertical-gradient property is exactly what the fast loop's              !
-   !  apply_rt_forcing `perm` relies on to route the higher absorbed PAR to the taller cohort.     !
+   !---~---
+   !   Cohort ORDER: two EQUAL-LAI cohorts stacked BOTTOM(1)->TOP(2). The top cohort intercepts
+   ! the incoming beam+diffuse first, so per band it must absorb strictly MORE than the shaded
+   ! bottom cohort. This vertical-gradient property is exactly what the fast loop's
+   ! apply_rt_forcing `perm` relies on to route the higher absorbed PAR to the taller cohort.
+   !---~---
    subroutine test_cohort_order()
       type(rad_pft_optics_t) :: opt
       type(rad_env_t)    :: f
@@ -170,8 +170,10 @@ contains
       call check_true('NIR: top cohort (idx2) absorbs more than bottom (idx1)',                 &
                       flux%abs_leaf(RAD_NIR,2) > flux%abs_leaf(RAD_NIR,1),                       &
                       flux%abs_leaf(RAD_NIR,2) - flux%abs_leaf(RAD_NIR,1))
-      !----- The light REACHING each cohort's top (the phenology PAR cue's driver): the top     !
-      !      cohort sees exactly the canopy-top incident, the one below it less. ---------------!
+      !---~---
+      !   The light REACHING each cohort's top (the phenology PAR cue's driver): the top
+      ! cohort sees exactly the canopy-top incident, the one below it less.
+      !---~---
       call check('VIS reaching the top cohort = canopy-top incident', flux%incid_top(RAD_VIS,2), &
                  f%incid_beam(RAD_VIS) + f%incid_diff(RAD_VIS), 1.0e-12_wp)
       call check_true('VIS reaching the lower cohort is less than at the top',                   &
@@ -179,17 +181,17 @@ contains
                       flux%incid_top(RAD_VIS,1) / flux%incid_top(RAD_VIS,2))
    end subroutine test_cohort_order
 
-   !=======================================================================================!
-   !  EXACTLY-TIED cohorts are CO-DOMINANT, not stacked: cohorts of equal height share one RT      !
-   !  layer (docs/science/canopy_radiation_transfer.md §4, eq. (14)), as `update_overtopping_lai`  !
-   !  treats them. Recruits tie BIT-EXACTLY -- one scalar `recruit_dbh` for every PFT -- and the   !
-   !  sort is stable, so stacking them would put the lower PFT INDEX on top: the lower slot then   !
-   !  absorbs 12.6 % less shortwave at zero overstory, rising to 15.1 % under LAI 6.               !
-   !                                                                                               !
-   !  Asserted two ways, because either alone is weak. Equal absorption for optically identical    !
-   !  twins could be met by a broken solver returning zeros; permutation invariance could be met   !
-   !  by ignoring PFT. Together they pin it.                                                       !
-   !=======================================================================================!
+   !---~---
+   !   EXACTLY-TIED cohorts are CO-DOMINANT, not stacked: cohorts of equal height share one RT
+   ! layer (docs/science/canopy_radiation_transfer.md §4, eq. (14)), as `update_overtopping_lai`
+   ! treats them. Recruits tie BIT-EXACTLY -- one scalar `recruit_dbh` for every PFT -- and the
+   ! sort is stable, so stacking them would put the lower PFT INDEX on top: the lower slot then
+   ! absorbs 12.6 % less shortwave at zero overstory, rising to 15.1 % under LAI 6.
+   !
+   !   Asserted two ways, because either alone is weak. Equal absorption for optically identical
+   ! twins could be met by a broken solver returning zeros; permutation invariance could be met
+   ! by ignoring PFT. Together they pin it.
+   !---~---
    subroutine test_tied_cohorts_codominant()
       type(rad_pft_optics_t) :: opt
       type(rad_env_t)    :: f
@@ -201,14 +203,16 @@ contains
       print '(a)', '[7] exactly-tied cohorts are co-dominant, not stacked'
       call build_optics(45.0_wp, opt)
       call build_forcing(0.7_wp, 290.0_wp, 298.0_wp, f)
-      !----- slots 1,2 tie exactly; slot 3 is a real overstory, the regime where the bias is worst. -!
+      !--- slots 1,2 tie exactly; slot 3 is a real overstory, the regime where the bias is worst.
       hgt  = [2.0_wp, 2.0_wp, 20.0_wp]
       lai  = [0.25_wp, 0.25_wp, 4.0_wp]
       wai  = [0.02_wp, 0.02_wp, 0.40_wp]
       tcan = 298.0_wp
 
-      !----- (a) two OPTICALLY IDENTICAL tied cohorts must absorb equally. Same PFT, so any         !
-      !      difference is positional and nothing else. -----------------------------------------!
+      !---~---
+      !   (a) two OPTICALLY IDENTICAL tied cohorts must absorb equally. Same PFT, so any
+      ! difference is positional and nothing else.
+      !---~---
       pft = [1_ik, 1_ik, 1_ik]
       call canopy_radiation(opt, f, NC, pft, hgt, lai, wai, tcan, tcan, flux)
       call check('tied twins absorb equally (VIS)', flux%abs_leaf(RAD_VIS,1),                    &
@@ -218,9 +222,11 @@ contains
       call check_true('tied twins absorb a non-trivial amount', flux%abs_leaf(RAD_NIR,1) > 1.0_wp, &
                       flux%abs_leaf(RAD_NIR,1))
 
-      !----- (b) PERMUTING the PFT order of the tied pair must not move either one's absorption.    !
-      !      This is the defect it guards: creation order is `do pf = 1, n_pft`, so a stacking sort  !
-      !      hands PFT 1 the upper slot at every recruitment event. -------------------------------!
+      !---~---
+      !   (b) PERMUTING the PFT order of the tied pair must not move either one's absorption.
+      ! This is the defect it guards: creation order is `do pf = 1, n_pft`, so a stacking sort
+      ! hands PFT 1 the upper slot at every recruitment event.
+      !---~---
       pft = [1_ik, 2_ik, 1_ik]
       call canopy_radiation(opt, f, NC, pft, hgt, lai, wai, tcan, tcan, flux)
       a_pft1 = flux%abs_leaf(RAD_NIR,1)
@@ -239,11 +245,11 @@ contains
                  1.0e-12_wp * max(total_a, 1.0e-12_wp))
    end subroutine test_tied_cohorts_codominant
 
-   !=======================================================================================!
-   !  CUTTING: a uniform canopy's light does not depend on how it is cut into cohorts, since     !
-   !  each layer's scattered beam is solved through its depth. And a thin layer's scattered beam !
-   !  is the single-scatter split of what it intercepts.                                        !
-   !=======================================================================================!
+   !---~---
+   !   CUTTING: a uniform canopy's light does not depend on how it is cut into cohorts, since
+   ! each layer's scattered beam is solved through its depth. And a thin layer's scattered beam
+   ! is the single-scatter split of what it intercepts.
+   !---~---
    subroutine test_cutting_invariance()
       type(rad_pft_optics_t) :: opt
       type(rad_env_t)        :: f
@@ -282,7 +288,6 @@ contains
                  1.0e-4_wp * dn)
    end subroutine test_cutting_invariance
 
-   !=======================================================================================!
    subroutine test_beers_law()
       type(rad_pft_optics_t) :: opt
       type(rad_env_t)    :: f
@@ -295,7 +300,7 @@ contains
       print '(a)', '[2] Beers law (single black cohort, direct beam)'
       call build_optics(45.0_wp, opt)
       call build_forcing(1.0_wp, 290.0_wp, 298.0_wp, f)
-      !----- Black leaves: force VIS single-scatter albedo to ~0 by zeroing spectra. --------!
+      !--- Black leaves: force VIS single-scatter albedo to ~0 by zeroing spectra.
       opt%omega_leaf(RAD_VIS,:) = 0.0_wp
       opt%g_leaf(RAD_VIS,:) = 0.0_wp
       opt%omega_wood(RAD_VIS,:) = 0.0_wp
@@ -318,7 +323,6 @@ contains
                  f%incid_beam(RAD_VIS) * exp(-kdir * elai), 1.0e-7_wp)
    end subroutine test_beers_law
 
-   !=======================================================================================!
    subroutine test_zero_lai_albedo()
       type(rad_pft_optics_t) :: opt
       type(rad_env_t)    :: f
@@ -340,7 +344,6 @@ contains
       call check('albedo(NIR) = soil albedo', flux%albedo(RAD_NIR), f%grnd_refl(RAD_NIR), 1.0e-9_wp)
    end subroutine test_zero_lai_albedo
 
-   !=======================================================================================!
    subroutine test_multi_pft()
       type(rad_pft_optics_t) :: opt
       type(rad_env_t)    :: f
@@ -369,12 +372,14 @@ contains
       resid      = incid - (absorbed + net_ground + reflected)
       call check('energy residual (2 PFT)', resid, 0.0_wp, 1.0e-8_wp * incid)
 
-      !----- ED2 bug B1 gave every cohort's DIFFUSE light the top cohort's PFT optics. Under      !
-      !      diffuse light only, cohort 1 (2 m) sits below cohort 2 (4 m). (a) Changing only the   !
-      !      lower cohort's PFT must change its absorption: under B1 it would not. (b) Changing   !
-      !      only the PFT of a top cohort too thin to shade must leave the lower cohort's          !
-      !      absorption alone: under B1 it would move with the top's optics. Conservation alone   !
-      !      cannot see this, since B1 conserves energy. ---------------------------------------!
+      !---~---
+      !   ED2 bug B1 gave every cohort's DIFFUSE light the top cohort's PFT optics. Under
+      ! diffuse light only, cohort 1 (2 m) sits below cohort 2 (4 m). (a) Changing only the
+      ! lower cohort's PFT must change its absorption: under B1 it would not. (b) Changing
+      ! only the PFT of a top cohort too thin to shade must leave the lower cohort's
+      ! absorption alone: under B1 it would move with the top's optics. Conservation alone
+      ! cannot see this, since B1 conserves energy.
+      !---~---
       f%incid_beam = 0.0_wp
       lai = [1.5_wp, 0.5_wp]
       wai = [0.15_wp, 0.05_wp]
@@ -394,7 +399,6 @@ contains
                       abs(a_top2 - a_top1) < 1.0e-4_wp * a_top1, (a_top2 - a_top1) / a_top1)
    end subroutine test_multi_pft
 
-   !=======================================================================================!
    subroutine test_longwave_equilibrium()
       type(rad_pft_optics_t) :: opt
       type(rad_env_t)    :: f
@@ -424,15 +428,15 @@ contains
       call check('max |net LW| of a tissue at equilibrium', max_tissue, 0.0_wp, 1.0e-7_wp * stefan_boltzmann * TEQ ** 4)
    end subroutine test_longwave_equilibrium
 
-   !=======================================================================================!
-   !  TISSUE LONGWAVE: a cohort's leaves and wood meet the same radiation, share what it takes  !
-   !  in by leaf_frac and are each charged their own emission, as tied cohorts share their    !
-   !  layer's (docs/science/canopy_radiation_transfer.md §4, eqs. (14)-(15)). With sky and     !
-   !  ground at the leaves' temperature, wood 10 K warmer warms the leaves, and by reciprocity !
-   !  it gives them exactly what leaves 10 K warmer give the wood; likewise between two tied   !
-   !  cohorts. Charged a share of the cohort's net instead, the cool leaves lost to the warm   !
-   !  wood.                                                                                    !
-   !=======================================================================================!
+   !---~---
+   !   TISSUE LONGWAVE: a cohort's leaves and wood meet the same radiation, share what it takes
+   ! in by leaf_frac and are each charged their own emission, as tied cohorts share their
+   ! layer's (docs/science/canopy_radiation_transfer.md §4, eqs. (14)-(15)). With sky and
+   ! ground at the leaves' temperature, wood 10 K warmer warms the leaves, and by reciprocity
+   ! it gives them exactly what leaves 10 K warmer give the wood; likewise between two tied
+   ! cohorts. Charged a share of the cohort's net instead, the cool leaves lost to the warm
+   ! wood.
+   !---~---
    subroutine test_tissue_longwave()
       type(rad_pft_optics_t) :: opt
       type(rad_env_t)        :: f
@@ -456,15 +460,19 @@ contains
                       hot_wood%abs_wood(RAD_LW,1))
       call check('leaves gain from warm wood what wood gains from warm leaves', hot_wood%abs_leaf(RAD_LW,1), &
                  hot_leaf%abs_wood(RAD_LW,1), 1.0e-9_wp * abs(hot_leaf%abs_wood(RAD_LW,1)))
-      !----- The tissues' nets add up to the band's: in at the top less out, less what the ground   !
-      !      takes. --------------------------------------------------------------------------------!
+      !---~---
+      !   The tissues' nets add up to the band's: in at the top less out, less what the ground
+      ! takes.
+      !---~---
       net = f%incid_diff(RAD_LW) * (1.0_wp - hot_wood%albedo(RAD_LW))                                 &
             - (hot_wood%dn_ground(RAD_LW) - hot_wood%up_ground(RAD_LW))
       call check('leaf + wood longwave = the band''s in - out', hot_wood%abs_leaf(RAD_LW,1)                &
                  + hot_wood%abs_wood(RAD_LW,1), net, 1.0e-9_wp * stefan_boltzmann * T_WARM ** 4)
 
-      !----- Two tied cohorts of different PFT and area: the cool one gains from the warm one   !
-      !      exactly what it would give were the temperatures swapped. -------------------------!
+      !---~---
+      !   Two tied cohorts of different PFT and area: the cool one gains from the warm one
+      ! exactly what it would give were the temperatures swapped.
+      !---~---
       pft2 = [1_ik, 2_ik]
       hgt2 = 4.0_wp
       lai2 = [1.0_wp, 2.5_wp]
@@ -477,13 +485,13 @@ contains
       call check('tied cohorts exchange reciprocally', gain_b, gain_a, 1.0e-9_wp * abs(gain_a))
    end subroutine test_tissue_longwave
 
-   !=======================================================================================!
-   !  NO COHORTS (canopy_radiation, ncoh = 0): a bare patch under the sun at cos(z) = 0.7, a 280 K  !
-   !  sky and 295 K soil of albedo 0.15 / 0.30 and emissivity 0.95. The ground absorbs (1 - albedo) !
-   !  of each shortwave band and, by Kirchhoff, eps (L_sky - sigma T^4) of the longwave; the canopy  !
-   !  has nothing to absorb; what reaches the ground and what it returns close each band. A single !
-   !  cohort of no leaf or wood area must give the same light, so the branch is the canopy's limit.  !
-   !=======================================================================================!
+   !---~---
+   !   NO COHORTS (canopy_radiation, ncoh = 0): a bare patch under the sun at cos(z) = 0.7, a 280 K
+   ! sky and 295 K soil of albedo 0.15 / 0.30 and emissivity 0.95. The ground absorbs (1 - albedo)
+   ! of each shortwave band and, by Kirchhoff, eps (L_sky - sigma T^4) of the longwave; the canopy
+   ! has nothing to absorb; what reaches the ground and what it returns close each band. A single
+   ! cohort of no leaf or wood area must give the same light, so the branch is the canopy's limit.
+   !---~---
    subroutine test_no_cohorts()
       type(rad_pft_optics_t) :: opt
       type(rad_env_t)        :: f
@@ -514,7 +522,7 @@ contains
       call check('no cohorts: the sky''s longwave in = the ground''s net + what leaves the top',                    &
                  l_sky, (bare%dn_ground(RAD_LW) - bare%up_ground(RAD_LW)) + bare%albedo(RAD_LW) * l_sky,          &
                  1.0e-12_wp * l_sky)
-      !----- The canopy's limit: one cohort with no leaf and no wood. ---------------------------------!
+      !--- The canopy's limit: one cohort with no leaf and no wood.
       call canopy_radiation(opt, f, 1_ik, [1_ik], [5.0_wp], [0.0_wp], [0.0_wp], [T_SOIL], [T_SOIL], empty)
       do b = RAD_VIS, RAD_LW
          call check('no cohorts = a cohort with no leaf or wood area: the light reaching the ground',               &

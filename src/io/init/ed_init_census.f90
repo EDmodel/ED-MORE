@@ -1,11 +1,11 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! ed_init_census -- init_mode 1, a start from a cohort census CSV (docs/configuration.md,   !
-! How a run starts). read_census_file reads the file into a census_table_t, one row per    !
-! cohort; init_from_census builds the polygon's patches and cohorts from it, on the        !
-! bare-ground builders; restructure_census_stand then fuses and splits the stand with the  !
-! slow step's own operators before the first step.                                         !
-!==========================================================================================!
+!---~---
+!   ed_init_census -- init_mode 1, a start from a cohort census CSV (docs/configuration.md,
+! How a run starts). read_census_file reads the file into a census_table_t, one row per
+! cohort; init_from_census builds the polygon's patches and cohorts from it, on the
+! bare-ground builders; restructure_census_stand then fuses and splits the stand with the
+! slow step's own operators before the first step.
+!---~---
 module ed_init_census
    use ed_kinds,        only : wp, ik
    use ed_config,       only : ed_config_t
@@ -19,40 +19,40 @@ module ed_init_census
 
    public :: census_table_t, read_census_file, init_from_census, restructure_census_stand
 
-   !----- The census file's limits: columns in the header, characters in a field. ---------!
+   !--- The census file's limits: columns in the header, characters in a field.
    integer, parameter :: CENSUS_MAX_COLS = 32, CENSUS_FIELD_LEN = 64
-   !----- Two rows of one patch agree on its area within this fraction of it. -------------!
+   !--- Two rows of one patch agree on its area within this fraction of it.
    real(wp), parameter :: PATCH_AREA_RTOL = 1.0e-9_wp
-   !----- The census file's columns: each one's position in a row, 0 if absent. -----------!
+   !--- The census file's columns: each one's position in a row, 0 if absent.
    type :: census_columns_t
       logical :: header = .false.
       integer :: n = 0
       integer :: site = 0, patch = 0, cohort = 0, dbh = 0, height = 0, pft = 0, nplant = 0, area = 0
    end type census_columns_t
 
-   !----- A census file's rows, in file order: one cohort each. ------------------------------!
+   !--- A census file's rows, in file order: one cohort each.
    type :: census_table_t
-      integer(ik) :: n = 0_ik                           !< rows
-      logical     :: has_area = .false.                 !< the file has a patch_area column
-      integer(ik), allocatable :: site_id(:)            !< 1 where the file has no site_id column
+      integer(ik) :: n = 0_ik                           ! rows
+      logical     :: has_area = .false.                 ! the file has a patch_area column
+      integer(ik), allocatable :: site_id(:)            ! 1 where the file has no site_id column
       integer(ik), allocatable :: patch_id(:)
       integer(ik), allocatable :: pft(:)
-      real(wp),    allocatable :: dbh(:)                !< [cm]
-      real(wp),    allocatable :: nplant(:)             !< [plants per m2 of the patch]
-      real(wp),    allocatable :: patch_area(:)         !< [any unit]; 1 without the column
+      real(wp),    allocatable :: dbh(:)                ! [cm]
+      real(wp),    allocatable :: nplant(:)             ! [plants per m2 of the patch]
+      real(wp),    allocatable :: patch_area(:)         ! [any unit]; 1 without the column
    end type census_table_t
 
 contains
 
-   !---------------------------------------------------------------------------------------!
-   ! Read a census CSV into `table` (docs/configuration.md, How a run starts). Columns are  !
-   ! matched by header name: patch_id, dbh [cm], pft and nplant required; patch_area,      !
-   ! site_id, cohort_id and height [m] optional. A first data line of seven numbers is     !
-   ! read positionally as site_id, patch_id, cohort_id, dbh, height, pft, nplant. Blank    !
-   ! and '#' lines are skipped. why says what is wrong with the file, '' when it reads: it  !
-   ! cannot be opened, or has an unknown, repeated or missing column, a malformed row or a !
-   ! non-positive value.                                                                   !
-   !---------------------------------------------------------------------------------------!
+   !---~---
+   !   Read a census CSV into `table` (docs/configuration.md, How a run starts). Columns are
+   ! matched by header name: patch_id, dbh [cm], pft and nplant required; patch_area,
+   ! site_id, cohort_id and height [m] optional. A first data line of seven numbers is
+   ! read positionally as site_id, patch_id, cohort_id, dbh, height, pft, nplant. Blank
+   ! and '#' lines are skipped. why says what is wrong with the file, '' when it reads: it
+   ! cannot be opened, or has an unknown, repeated or missing column, a malformed row or a
+   ! non-positive value.
+   !---~---
    subroutine read_census_file(path, table, why)
       character(len=*),              intent(in)  :: path
       type(census_table_t),          intent(out) :: table
@@ -96,25 +96,25 @@ contains
       table%has_area = cols%area > 0
    end subroutine read_census_file
 
-   !---------------------------------------------------------------------------------------!
-   ! Build a polygon from a cohort census CSV (read_census_file). Each (site_id, patch_id)  !
-   ! is a primary patch of age 0, first seen first within its site; with patch_area a      !
-   ! site's patches take the file's areas normalized to the site, else equal shares. One   !
-   ! site is built from use_site_id (else the first site_id seen); with site_ids, site k   !
-   ! from the rows of site_ids(k), with site_cfg(k) and site_area(k). found = .false. and  !
-   ! `why` say what is wrong with the file (read_census_file), that it has no row for the  !
-   ! site, a patch whose rows disagree on patch_area, or a pft out of range.               !
-   !---------------------------------------------------------------------------------------!
+   !---~---
+   !   Build a polygon from a cohort census CSV (read_census_file). Each (site_id, patch_id)
+   ! is a primary patch of age 0, first seen first within its site; with patch_area a
+   ! site's patches take the file's areas normalized to the site, else equal shares. One
+   ! site is built from use_site_id (else the first site_id seen); with site_ids, site k
+   ! from the rows of site_ids(k), with site_cfg(k) and site_area(k). found = .false. and
+   ! `why` say what is wrong with the file (read_census_file), that it has no row for the
+   ! site, a patch whose rows disagree on patch_area, or a pft out of range.
+   !---~---
    subroutine init_from_census(poly, cfg, path, found, use_site_id, why, site_ids, site_cfg, site_area)
       type(polygon_t),     intent(out) :: poly
       type(ed_config_t),   intent(in)  :: cfg
       character(len=*),    intent(in)  :: path
       logical,             intent(out) :: found
       integer(ik), intent(in), optional :: use_site_id
-      character(len=:), allocatable, intent(out), optional :: why   !< why found = .false.; '' when found
-      integer(ik),         intent(in), optional :: site_ids(:)      !< several sites: each one's census site_id,
-      type(ed_config_t),   intent(in), optional :: site_cfg(:)      !< configuration
-      real(wp),            intent(in), optional :: site_area(:)     !< and share of the polygon
+      character(len=:), allocatable, intent(out), optional :: why   ! why found = .false.; '' when found
+      integer(ik),         intent(in), optional :: site_ids(:)      ! several sites: each one's census site_id,
+      type(ed_config_t),   intent(in), optional :: site_cfg(:)      ! configuration
+      real(wp),            intent(in), optional :: site_area(:)     ! and share of the polygon
       type(census_table_t)     :: table
       integer(ik)              :: npatch, ip, k, i, j, r
       integer(ik), allocatable :: sel(:), site_of(:), patch_id_of(:), slot_of(:), n_patch(:)
@@ -130,7 +130,7 @@ contains
       end if
       if (present(why)) why = 'holds no cohort for the site'
 
-      !----- The census site of each site built: the given ones, or the first one the file names. -!
+      !--- The census site of each site built: the given ones, or the first one the file names.
       if (present(site_ids)) then
          sel = site_ids
       else if (present(use_site_id)) then
@@ -141,7 +141,7 @@ contains
          allocate(sel(0))
       end if
 
-      !----- The distinct patches of the selected sites, first seen first, and their areas. ----!
+      !--- The distinct patches of the selected sites, first seen first, and their areas.
       allocate(site_of(0), patch_id_of(0), patch_area_of(0))
       do r = 1_ik, table%n
          k = int(findloc(sel, table%site_id(r), dim=1), ik)
@@ -162,8 +162,10 @@ contains
       npatch = int(size(patch_id_of), ik)
       if (npatch == 0_ik) return                           ! no rows for the selected sites
 
-      !----- The patches, site by site, first seen first within a site: equal areas, or the file's   !
-      !      areas normalized to their site. -------------------------------------------------------!
+      !---~---
+      !   The patches, site by site, first seen first within a site: equal areas, or the file's
+      ! areas normalized to their site.
+      !---~---
       allocate(slot_of(npatch), n_patch(size(sel)))
       j = 0_ik
       do k = 1_ik, int(size(sel), ik)
@@ -192,7 +194,7 @@ contains
          end do
       end if
 
-      !----- Every cohort of the selected sites, into its patch, in file order. ------------------!
+      !--- Every cohort of the selected sites, into its patch, in file order.
       do r = 1_ik, table%n
          k = int(findloc(sel, table%site_id(r), dim=1), ik)
          if (k == 0_ik) cycle
@@ -210,7 +212,7 @@ contains
 
    contains
 
-      !----- The patch of site k with census patch_id pid, in first-seen order (0 if new). ----!
+      !--- The patch of site k with census patch_id pid, in first-seen order (0 if new).
       integer(ik) function census_patch(k, pid) result(ip)
          integer(ik), intent(in) :: k, pid
          integer(ik) :: i
@@ -224,16 +226,16 @@ contains
       end function census_patch
    end subroutine init_from_census
 
-   !---------------------------------------------------------------------------------------!
-   ! Restructure a census stand before the first step with the slow step's own operators   !
-   ! and switches: its monthly cohort block, then its yearly patch block, less recruitment !
-   ! and disturbance. A census carries a cohort per measured size and a patch per plot     !
-   ! cell, far more than a step should carry (docs/configuration.md, How a run starts).    !
-   !---------------------------------------------------------------------------------------!
+   !---~---
+   !   Restructure a census stand before the first step with the slow step's own operators
+   ! and switches: its monthly cohort block, then its yearly patch block, less recruitment
+   ! and disturbance. A census carries a cohort per measured size and a patch per plot
+   ! cell, far more than a step should carry (docs/configuration.md, How a run starts).
+   !---~---
    subroutine restructure_census_stand(poly, cfg)
       type(polygon_t),     intent(inout) :: poly
       type(ed_config_t), intent(in)      :: cfg
-      real(wp) :: water_shed, kill_carbon   !< what the cull handed on; a start books no ledger
+      real(wp) :: water_shed, kill_carbon   ! what the cull handed on; a start books no ledger
       type(kill_report_t) :: kills
       if (.not. cfg%demography%demography_on) return
       if (cfg%demography%cohort_fusion_on) call fuse_cohorts(poly, cfg)
@@ -250,7 +252,7 @@ contains
       call sort_cohorts(poly)
    end subroutine restructure_census_stand
 
-   !----- A line carries data unless it is blank or a '#' comment. ------------------------!
+   !--- A line carries data unless it is blank or a '#' comment.
    logical function is_data_line(line)
       character(len=*), intent(in) :: line
       character(len=len(line))     :: s
@@ -258,14 +260,14 @@ contains
       is_data_line = (len_trim(s) > 0) .and. (s(1:1) /= '#')
    end function is_data_line
 
-   !---------------------------------------------------------------------------------------!
-   ! The file's layout, from its first data line: seven numbers are a header-less row read   !
-   ! positionally; anything else is the header, and each name is mapped to its column.       !
-   !---------------------------------------------------------------------------------------!
+   !---~---
+   !   The file's layout, from its first data line: seven numbers are a header-less row read
+   ! positionally; anything else is the header, and each name is mapped to its column.
+   !---~---
    subroutine census_layout(line, cols, why)
       character(len=*),              intent(in)    :: line
       type(census_columns_t),        intent(out)   :: cols
-      character(len=:), allocatable, intent(inout) :: why   !< what is wrong with the header ('' if nothing)
+      character(len=:), allocatable, intent(inout) :: why   ! what is wrong with the header ('' if nothing)
       character(len=CENSUS_FIELD_LEN) :: names(CENSUS_MAX_COLS)
       integer(ik) :: sid, pid, cid, ipft
       real(wp)    :: dbh, height, nplant
@@ -329,13 +331,13 @@ contains
       end subroutine claim
    end subroutine census_layout
 
-   !----- One data row under the layout; an absent site, area or height is 1. -------------!
+   !--- One data row under the layout; an absent site, area or height is 1.
    subroutine parse_census_line(line, cols, sid, pid, dbh, height, ipft, nplant, area, why)
       character(len=*),              intent(in)    :: line
       type(census_columns_t),        intent(in)    :: cols
       integer(ik),                   intent(out)   :: sid, pid, ipft
       real(wp),                      intent(out)   :: dbh, height, nplant, area
-      character(len=:), allocatable, intent(inout) :: why   !< what is wrong with the row ('' if nothing)
+      character(len=:), allocatable, intent(inout) :: why   ! what is wrong with the row ('' if nothing)
       character(len=CENSUS_FIELD_LEN) :: f(CENSUS_MAX_COLS)
       integer(ik) :: cid
       integer     :: nf, ios
@@ -373,7 +375,7 @@ contains
          why = 'has a row with a non-positive dbh, height, nplant or patch_area'
    end subroutine parse_census_line
 
-   !----- Parse one comma-separated census row (commas -> blanks, then list-directed read). !
+   !--- Parse one comma-separated census row (commas -> blanks, then list-directed read).
    subroutine parse_census_row(line, sid, pid, cid, dbh, height, ipft, nplant, ok)
       character(len=*), intent(in)  :: line
       integer(ik),      intent(out) :: sid, pid, cid, ipft
@@ -389,8 +391,10 @@ contains
       ok = (ios == 0)
    end subroutine parse_census_row
 
-   !----- Split a comma-separated line into its fields, each left-adjusted. nf counts them  !
-   !      all, so a caller can tell a line with more fields than `fields` holds.  ----------!
+   !---~---
+   !   Split a comma-separated line into its fields, each left-adjusted. nf counts them
+   ! all, so a caller can tell a line with more fields than `fields` holds.
+   !---~---
    subroutine split_csv(line, fields, nf)
       character(len=*), intent(in)  :: line
       character(len=*), intent(out) :: fields(:)
@@ -412,7 +416,7 @@ contains
       end do
    end subroutine split_csv
 
-   !----- Lower-case copy of an ASCII string (column names are matched case-blind). -------!
+   !--- Lower-case copy of an ASCII string (column names are matched case-blind).
    pure function lower(s) result(t)
       character(len=*), intent(in) :: s
       character(len=len(s))        :: t

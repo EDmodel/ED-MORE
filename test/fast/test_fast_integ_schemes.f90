@@ -1,21 +1,21 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! test_fast_integ_schemes -- the fast loop's two schemes and the march that drives them    !
-! (ed_fast_integ_esdirk2, ed_fast_integ_rk45, ed_fast_integ_stepper::adaptive_march;       !
-! docs/science/numerical_scheme.md §3, eqs. (1)-(4)).                                      !
-!   1. ESDIRK2 (esdirk2_step) on the kernel record: second order on the decoupled CO2      !
-!      twin; at least first order on the coupled soil-top temperature; plant water         !
-!      physical and the embedded estimate bounded at the shipped 900 s; a day of the       !
-!      adaptive march stays bounded.                                                       !
-!   2. ESDIRK2's ADAPTIVE MARCH (adaptive_march): a tighter rtol takes more steps, both    !
-!      agree with a fine fixed march, and the adaptive march is the cheaper.               !
-!   3. RK45 (rk45_step) on the kernel record: fifth order on the CO2 twin and on the       !
-!      coupled soil-top temperature.                                                       !
-!   4. RK45's ADAPTIVE MARCH (adaptive_march's RK45 branch) on the fixture's frozen record, !
-!      as fast_step drives it: the error follows the tolerance, a tighter one takes more    !
-!      steps, and only accepted steps reach the boundary-flux amounts, which close the     !
-!      canopy air's three ledgers to round-off across a rejected trial.                     !
-!==========================================================================================!
+!---~---
+!   test_fast_integ_schemes -- the fast loop's two schemes and the march that drives them
+! (ed_fast_integ_esdirk2, ed_fast_integ_rk45, ed_fast_integ_stepper::adaptive_march;
+! docs/science/numerical_scheme.md §3, eqs. (1)-(4)).
+!   1. ESDIRK2 (esdirk2_step) on the kernel record: second order on the decoupled CO2
+!      twin; at least first order on the coupled soil-top temperature; plant water
+!      physical and the embedded estimate bounded at the shipped 900 s; a day of the
+!      adaptive march stays bounded.
+!   2. ESDIRK2's ADAPTIVE MARCH (adaptive_march): a tighter rtol takes more steps, both
+!      agree with a fine fixed march, and the adaptive march is the cheaper.
+!   3. RK45 (rk45_step) on the kernel record: fifth order on the CO2 twin and on the
+!      coupled soil-top temperature.
+!   4. RK45's ADAPTIVE MARCH (adaptive_march's RK45 branch) on the fixture's frozen record,
+!      as fast_step drives it: the error follows the tolerance, a tighter one takes more
+!      steps, and only accepted steps reach the boundary-flux amounts, which close the
+!      canopy air's three ledgers to round-off across a rejected trial.
+!---~---
 program test_fast_integ_schemes
    use ed_kinds,                only : wp, ik
    use ed_constants,            only : tiny_num
@@ -34,9 +34,9 @@ program test_fast_integ_schemes
    use ed_test_assert,          only : check_true, test_report
    implicit none
 
-   integer(ik), parameter :: N = 2_ik            !< the kernel record's cohorts
-   type(fast_column_t)    :: col                 !< the fixture column: its site's soil, and section 4's record
-   type(error_control_t)  :: ec_default          !< the type's defaults: no budget stop
+   integer(ik), parameter :: N = 2_ik            ! the kernel record's cohorts
+   type(fast_column_t)    :: col                 ! the fixture column: its site's soil, and section 4's record
+   type(error_control_t)  :: ec_default          ! the type's defaults: no budget stop
    integer(ik)            :: nsl
 
    call make_fast_column(col)
@@ -51,16 +51,16 @@ program test_fast_integ_schemes
 
 contains
 
-   !=======================================================================================!
-   ! 1. ESDIRK2 (ARS(2,2,2), gamma = 1 - 1/sqrt(2); docs/science/numerical_scheme.md eqs.   !
-   !    (1)-(2)). Its tableau is second order. On the canopy air's CO2 twin of the kernel    !
-   !    record, whose biotic source and atmospheric conductance are both held, nothing lags, !
-   !    and the second order shows. The soil-top temperature is coupled to the canopy air    !
-   !    through the backward-Euler stage, which holds the ground temperature, and the        !
-   !    canopy-air conductances, at their values at the stage's start while its surface      !
-   !    Newton solves the canopy air (ed_fast_integ_backward_euler): the surface sees the    !
-   !    soil a stage late, and the observed order there is about one.                         !
-   !=======================================================================================!
+   !---~---
+   !   1. ESDIRK2 (ARS(2,2,2), gamma = 1 - 1/sqrt(2); docs/science/numerical_scheme.md eqs.
+   !    (1)-(2)). Its tableau is second order. On the canopy air's CO2 twin of the kernel
+   !    record, whose biotic source and atmospheric conductance are both held, nothing lags,
+   !    and the second order shows. The soil-top temperature is coupled to the canopy air
+   !    through the backward-Euler stage, which holds the ground temperature, and the
+   !    canopy-air conductances, at their values at the stage's start while its surface
+   !    Newton solves the canopy air (ed_fast_integ_backward_euler): the surface sees the
+   !    soil a stage late, and the observed order there is about one.
+   !---~---
    subroutine test_esdirk2()
       type(march_state_t)   :: y, yref, y1, y2, y4, ynew, yerr, ylo, ytmp
       type(frozen_t)        :: frozen
@@ -71,8 +71,10 @@ contains
       print '(a)', 'test_esdirk2:'
       call kernel_record(col%site, col%cfg%pft%hydraulics, N, y, frozen)
 
-      !----- Self-convergence on the CO2 twin over 1800 s: the reference at 1800/64 s, the solutions at !
-      !      450, 225 and 112.5 s. ---------------------------------------------------------------!
+      !---~---
+      !   Self-convergence on the CO2 twin over 1800 s: the reference at 1800/64 s, the solutions at
+      ! 450, 225 and 112.5 s.
+      !---~---
       call march_esdirk2(y, frozen, 1800.0_wp / 64.0_wp, 64_ik, yref)
       tref = yref%cas_co2
       call march_esdirk2(y, frozen, 450.0_wp, 4_ik, y1)
@@ -87,9 +89,11 @@ contains
       call check_true('esdirk2_step: second order on the decoupled CO2 twin (p >= 1.9)',                          &
                       p_lo >= 1.9_wp .and. p_hi >= 1.9_wp, p_hi)
 
-      !----- The same on the soil-top temperature. The first-order backward-Euler step's error at 225 s !
-      !      is printed beside it; its constant is the record's and can nearly cancel (it does with the  !
-      !      longwave about the tissue's emission temperature), so it bounds nothing. -----------------!
+      !---~---
+      !   The same on the soil-top temperature. The first-order backward-Euler step's error at 225 s
+      ! is printed beside it; its constant is the record's and can nearly cancel (it does with the
+      ! longwave about the tissue's emission temperature), so it bounds nothing.
+      !---~---
       call march_esdirk2(y, frozen, 1800.0_wp / 64.0_wp, 64_ik, yref)
       tref = soil_top_temp(yref)
       call march_esdirk2(y, frozen, 450.0_wp, 4_ik, y1)
@@ -106,7 +110,7 @@ contains
       call check_true('esdirk2_step: at least first order on the coupled soil-top temperature (p >= 0.9)',        &
                       p_lo >= 0.9_wp .and. p_hi >= 0.9_wp, min(p_lo, p_hi))
 
-      !----- Plant water stays finite and positive at the shipped 900 s over 6 h. ------------------------!
+      !--- Plant water stays finite and positive at the shipped 900 s over 6 h.
       call state_init(y, N, nsl, y1)
       physical = .true.
       do step = 1_ik, 24_ik
@@ -118,9 +122,11 @@ contains
       end do
       call check_true('esdirk2_step: plant water stays physical at dt = 900 s', physical, minval(y1%leaf_water_mass(1:N)))
 
-      !----- The embedded estimate at 900 s, in the production norm the march accepts a step by, is      !
-      !      bounded (not detonating): measured against the first-order embedded solution, relative to   !
-      !      the step's start (adaptive_march). --------------------------------------------------------!
+      !---~---
+      !   The embedded estimate at 900 s, in the production norm the march accepts a step by, is
+      ! bounded (not detonating): measured against the first-order embedded solution, relative to
+      ! the step's start (adaptive_march).
+      !---~---
       ec = default_error_control(1.0e-3_wp)
       call esdirk2_step(y, frozen, col%site, ec_default, N, nsl, 900.0_wp, ynew, yerr, col%ws%stages)
       call state_sub(ynew, yerr, N, nsl, ylo)
@@ -129,7 +135,7 @@ contains
       call check_true('esdirk2_step: the embedded estimate is bounded at dt = 900 s (< 50 tolerance units)',       &
                       errnorm < 50.0_wp, errnorm)
 
-      !----- Stiffness: a day of the adaptive march stays physical and bounded. -----------------------!
+      !--- Stiffness: a day of the adaptive march stays physical and bounded.
       ec = default_error_control(1.0e-3_wp)
       call adaptive_march(INTEG_ESDIRK2, y, frozen, col%site, N, nsl, 86400.0_wp, ec, 300.0_wp, ytmp, col%ws, ns, nr)
       tcas = cas_enthalpy_to_temp(ytmp%cas_enthalpy, ytmp%cas_shv)
@@ -138,13 +144,13 @@ contains
                       tcas > 280.0_wp .and. tcas < 320.0_wp, tcas)
    end subroutine test_esdirk2
 
-   !=======================================================================================!
-   ! 2. ESDIRK2's ADAPTIVE MARCH under the production controller (adaptive_march), so the     !
-   !    test fails for the reasons a run would: over 30 min from cool, dry canopy air, a       !
-   !    tighter rtol takes more steps, both agree with a fixed march at 2 s, and the adaptive  !
-   !    march takes fewer steps than that fixed one. The canopy is ventilated four times as    !
-   !    strongly as the kernel record's.                                                       !
-   !=======================================================================================!
+   !---~---
+   !   2. ESDIRK2's ADAPTIVE MARCH under the production controller (adaptive_march), so the
+   !    test fails for the reasons a run would: over 30 min from cool, dry canopy air, a
+   !    tighter rtol takes more steps, both agree with a fixed march at 2 s, and the adaptive
+   !    march takes fewer steps than that fixed one. The canopy is ventilated four times as
+   !    strongly as the kernel record's.
+   !---~---
    subroutine test_esdirk2_adaptive()
       type(march_state_t)   :: y, y1, y2, yr
       type(frozen_t)        :: frozen
@@ -176,17 +182,17 @@ contains
       call check_true('adaptive_march (ESDIRK2): the march made progress (steps > 0)', ns1 > 0_ik, real(ns1, wp))
    end subroutine test_esdirk2_adaptive
 
-   !=======================================================================================!
-   ! 3. RK45 (Cash-Karp 5(4)): observed order. RK45 evaluates the surface and the soil heat   !
-   !    together in every stage (docs/science/numerical_scheme.md §3), so the fifth order    !
-   !    shows on the coupled soil-top temperature too, not only on the decoupled CO2 twin.   !
-   !    A fifth-order error ~ C h^5 falls to round-off at a much coarser h than a second-     !
-   !    order one, so h stays large enough for truncation to dominate at the finest point:    !
-   !    over 2400 s, steps of 300, 150 and 75 s (300 s is under the ~360 s explicit limit the !
-   !    canopy air's ~130 s time scale sets; this compares accuracy, not stability), against  !
-   !    a reference at 2400/1024 s, 32 times finer than the finest point. p = log2(e(h) /    !
-   !    e(h/2)) approaches 5 as h shrinks; p >= 4.5 allows for pre-asymptotic effects.        !
-   !=======================================================================================!
+   !---~---
+   !   3. RK45 (Cash-Karp 5(4)): observed order. RK45 evaluates the surface and the soil heat
+   !    together in every stage (docs/science/numerical_scheme.md §3), so the fifth order
+   !    shows on the coupled soil-top temperature too, not only on the decoupled CO2 twin.
+   !    A fifth-order error ~ C h^5 falls to round-off at a much coarser h than a second-
+   !    order one, so h stays large enough for truncation to dominate at the finest point:
+   !    over 2400 s, steps of 300, 150 and 75 s (300 s is under the ~360 s explicit limit the
+   !    canopy air's ~130 s time scale sets; this compares accuracy, not stability), against
+   !    a reference at 2400/1024 s, 32 times finer than the finest point. p = log2(e(h) /
+   !    e(h/2)) approaches 5 as h shrinks; p >= 4.5 allows for pre-asymptotic effects.
+   !---~---
    subroutine test_rk45_order()
       type(march_state_t) :: y, yref, y1, y2, y4, y8
       type(frozen_t)      :: frozen
@@ -194,7 +200,7 @@ contains
       print '(a)', 'test_rk45_order:'
       call kernel_record(col%site, col%cfg%pft%hydraulics, N, y, frozen)
 
-      !----- The CO2 twin: the tableau itself is fifth order on this right-hand side. ------------------!
+      !--- The CO2 twin: the tableau itself is fifth order on this right-hand side.
       call march_rk45(y, frozen, 2400.0_wp / 1024.0_wp, 1024_ik, yref)
       tref = yref%cas_co2
       call march_rk45(y, frozen, 300.0_wp, 8_ik, y1)
@@ -209,12 +215,14 @@ contains
       call check_true('rk45_step: fifth order on the decoupled CO2 twin (p >= 4.5)',                              &
                       p_lo >= 4.5_wp .and. p_hi >= 4.5_wp, p_hi)
 
-      !----- The coupled soil-top temperature, ESDIRK2's first-order variable. Four points, and the     !
-      !      order asserted on the two finest pairs: the most strongly coupled variable carries a        !
-      !      visible h^6 term at the coarsest h, so p across the coarsest pair is not asymptotic and     !
-      !      reads below or above 5 by whichever way that term points. The soil water moves at the      !
-      !      network's steady rate, so the soil-top temperature is smooth and its error reaches the     !
-      !      reference's own round-off (~1e3 eps T) by 75 s; the order is asserted above that floor. ----!
+      !---~---
+      !   The coupled soil-top temperature, ESDIRK2's first-order variable. Four points, and the
+      ! order asserted on the two finest pairs: the most strongly coupled variable carries a
+      ! visible h^6 term at the coarsest h, so p across the coarsest pair is not asymptotic and
+      ! reads below or above 5 by whichever way that term points. The soil water moves at the
+      ! network's steady rate, so the soil-top temperature is smooth and its error reaches the
+      ! reference's own round-off (~1e3 eps T) by 75 s; the order is asserted above that floor.
+      !---~---
       call march_rk45(y, frozen, 2400.0_wp / 1024.0_wp, 1024_ik, yref)
       tref = soil_top_temp(yref)
       call march_rk45(y, frozen, 300.0_wp, 8_ik, y1)
@@ -234,17 +242,17 @@ contains
                       (p_hi >= 4.5_wp .or. e4 < noise) .and. (p_fine >= 4.5_wp .or. e8 < noise), p_fine)
    end subroutine test_rk45_order
 
-   !=======================================================================================!
-   ! 4. RK45's ADAPTIVE MARCH, as fast_step drives it: the fixture's frozen record for a       !
-   !    900 s step at noon (live canopy-air conductances, the tissue heat store, the water     !
-   !    network's flows), the run's error control at RK45's estimate order, from a first trial !
-   !    over the whole step. Its accuracy follows the tolerance: rtol 1e-4 (RK45's shipped     !
-   !    one) and 1e-7, with atol_scale tightened alike so the absolute floor does not mask     !
-   !    rtol, against 900 fixed 1 s steps. And the boundary-flux amounts sum only the accepted !
-   !    steps: then the canopy air's energy, water and CO2 change by exactly what crossed its  !
-   !    boundary, across the first, rejected trial; summing a rejected trial breaks that by    !
-   !    the trial's whole flux.                                                                 !
-   !=======================================================================================!
+   !---~---
+   !   4. RK45's ADAPTIVE MARCH, as fast_step drives it: the fixture's frozen record for a
+   !    900 s step at noon (live canopy-air conductances, the tissue heat store, the water
+   !    network's flows), the run's error control at RK45's estimate order, from a first trial
+   !    over the whole step. Its accuracy follows the tolerance: rtol 1e-4 (RK45's shipped
+   !    one) and 1e-7, with atol_scale tightened alike so the absolute floor does not mask
+   !    rtol, against 900 fixed 1 s steps. And the boundary-flux amounts sum only the accepted
+   !    steps: then the canopy air's energy, water and CO2 change by exactly what crossed its
+   !    boundary, across the first, rejected trial; summing a rejected trial breaks that by
+   !    the trial's whole flux.
+   !---~---
    subroutine test_rk45_adaptive()
       real(wp), parameter :: H = 900.0_wp
       type(march_state_t)   :: ys, y1, y2, yr
@@ -294,7 +302,7 @@ contains
                       abs(r_co2) < 1.0e-9_wp * max(abs(acc%cas_co2_in), 1.0_wp), r_co2)
    end subroutine test_rk45_adaptive
 
-   !----- The soil-top temperature of a march state. --------------------------------------------!
+   !--- The soil-top temperature of a march state.
    function soil_top_temp(y) result(t)
       type(march_state_t), intent(in) :: y
       real(wp) :: t, fl
@@ -302,7 +310,7 @@ contains
                            col%site%soil_profile%layer_curve(1), t, fl)
    end function soil_top_temp
 
-   !----- Canopy air at a temperature and humidity. ---------------------------------------------!
+   !--- Canopy air at a temperature and humidity.
    subroutine set_cas(y, t, q)
       type(march_state_t), intent(inout) :: y
       real(wp),            intent(in)    :: t, q
@@ -310,7 +318,7 @@ contains
       y%cas_enthalpy = cas_temp_to_enthalpy(t, q)
    end subroutine set_cas
 
-   !----- nstep fixed ESDIRK2 steps of dt on the kernel record, the embedded estimate discarded. -----!
+   !--- nstep fixed ESDIRK2 steps of dt on the kernel record, the embedded estimate discarded.
    subroutine march_esdirk2(y0, frozen, dt, nstep, y_out)
       type(march_state_t), intent(in)    :: y0
       type(frozen_t),      intent(in)    :: frozen
@@ -327,8 +335,10 @@ contains
       call state_init(y, N, nsl, y_out)
    end subroutine march_esdirk2
 
-   !----- nstep first-order backward-Euler steps of dt: the gamma = 1 degraded ESDIRK2, one stage and  !
-   !      the plant-water split on its own transpiration (test_fast_integ_kernels' probe). ----------!
+   !---~---
+   !   nstep first-order backward-Euler steps of dt: the gamma = 1 degraded ESDIRK2, one stage and
+   ! the plant-water split on its own transpiration (test_fast_integ_kernels' probe).
+   !---~---
    subroutine march_be_euler(y0, frozen, dt, nstep, y_out)
       type(march_state_t), intent(in)    :: y0
       type(frozen_t),      intent(in)    :: frozen
@@ -347,7 +357,7 @@ contains
       call state_init(y, N, nsl, y_out)
    end subroutine march_be_euler
 
-   !----- nstep fixed Cash-Karp steps of dt on the kernel record, the fifth-order solution kept. -----!
+   !--- nstep fixed Cash-Karp steps of dt on the kernel record, the fifth-order solution kept.
    subroutine march_rk45(y0, frozen, dt, nstep, y_out)
       type(march_state_t), intent(in)    :: y0
       type(frozen_t),      intent(in)    :: frozen

@@ -1,21 +1,21 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! test_met_file -- the "default" forcing file and what ed_met does with it                   !
-! (docs/science/forcing.md):                                                                 !
-!   - its reader: a netCDF round trip, gaps marked by _FillValue or missing_value and a      !
-!     packed variable, the interval that contains an instant, the sunrise                     !
-!     interval's shortwave, the file and the [forcing] block agreeing, start-hold and the     !
-!     window edges, recycling a window over many years (Feb 29 included), and the nearest     !
-!     grid point;                                                                             !
-!   - the cosz reconstruction that conserves an interval's mean shortwave;                    !
-!   - the vertical moves: a site above its polygon (met_at_site) and the forcing height to a   !
-!     canopy-air top (met_to_cas_top);                                                         !
-!   - the CO2 series: its file, its period middles and every refusal;                         !
-!   - the contract a flux-tower file relies on: the three humidity forms, UTC, the heights it   !
-!     states, rain and shortwave read from the interval that contains the instant on an end-   !
-!     and a begin-stamped file, and the model's relative humidity returning the file's RHair.   !
-! The laws it reads with are the libraries' tests': test_therm_lib, test_radiation_lib.        !
-!==========================================================================================!
+!---~---
+!   test_met_file -- the "default" forcing file and what ed_met does with it
+! (docs/science/forcing.md):
+!   - its reader: a netCDF round trip, gaps marked by _FillValue or missing_value and a
+!     packed variable, the interval that contains an instant, the sunrise
+!     interval's shortwave, the file and the [forcing] block agreeing, start-hold and the
+!     window edges, recycling a window over many years (Feb 29 included), and the nearest
+!     grid point;
+!   - the cosz reconstruction that conserves an interval's mean shortwave;
+!   - the vertical moves: a site above its polygon (met_at_site) and the forcing height to a
+!     canopy-air top (met_to_cas_top);
+!   - the CO2 series: its file, its period middles and every refusal;
+!   - the contract a flux-tower file relies on: the three humidity forms, UTC, the heights it
+!     states, rain and shortwave read from the interval that contains the instant on an end-
+!     and a begin-stamped file, and the model's relative humidity returning the file's RHair.
+! The laws it reads with are the libraries' tests': test_therm_lib, test_radiation_lib.
+!---~---
 program test_met_file
    use ed_test_assert,        only : check, check_true, test_report
    use ed_kinds,              only : wp, ik
@@ -42,24 +42,26 @@ program test_met_file
    implicit none
 
    character(len=*), parameter :: NCFILE = 'test_met_file_tmp.nc'
-   !----- The file of test 7c: Tair's record GAP_REC at its _FillValue, Qair's next record at its     !
-   !      missing_value, and PSurf (98000 Pa) stored packed. ----------------------------------------!
+   !---~---
+   !   The file of test 7c: Tair's record GAP_REC at its _FillValue, Qair's next record at its
+   ! missing_value, and PSurf (98000 Pa) stored packed.
+   !---~---
    integer,  parameter :: GAP_REC      = 20
    real(wp), parameter :: TAIR_FILL    = -9999.0_wp
    real(wp), parameter :: QAIR_MISSING = -1.0_wp
    real(wp), parameter :: PSURF_SCALE  = 10.0_wp, PSURF_OFFSET = 500.0_wp
-   !----- The forcing file the CO2 tests open: 365 daily records of 2021 (write_yearfile). ------!
+   !--- The forcing file the CO2 tests open: 365 daily records of 2021 (write_yearfile).
    character(len=*), parameter :: CO2_MET_FILE = 'test_met_co2_year_tmp.nc'
    character(len=1024) :: co2_default_file = ''
 
    character(len=*), parameter :: TOWER_FILE = 'test_met_file_tower_tmp.nc'
-   real(wp),    parameter :: DT           = 1800.0_wp    !< [s] half-hourly, as a tower reports
-   integer,     parameter :: NT           = 96           !< two days of records
-   integer,     parameter :: RAIN_REC     = 30           !< the one record with rain
-   real(wp),    parameter :: RAIN_RATE    = 2.0e-3_wp    !< [kg/m2/s] its rate
-   integer,     parameter :: SATURATED_REC = 10          !< the record whose RHair is exactly 1
-   real(wp),    parameter :: TOWER_HEIGHT = 41.0_wp      !< [m] above the ground (BCI)
-   real(wp),    parameter :: PSURF        = 98800.0_wp   !< [Pa]
+   real(wp),    parameter :: DT           = 1800.0_wp    ! [s] half-hourly, as a tower reports
+   integer,     parameter :: NT           = 96           ! two days of records
+   integer,     parameter :: RAIN_REC     = 30           ! the one record with rain
+   real(wp),    parameter :: RAIN_RATE    = 2.0e-3_wp    ! [kg/m2/s] its rate
+   integer,     parameter :: SATURATED_REC = 10          ! the record whose RHair is exactly 1
+   real(wp),    parameter :: TOWER_HEIGHT = 41.0_wp      ! [m] above the ground (BCI)
+   real(wp),    parameter :: PSURF        = 98800.0_wp   ! [Pa]
    type(ed_time_t)        :: base
 
 
@@ -88,8 +90,10 @@ program test_met_file
 
 contains
 
-   !----- The site's cursor into an opened source: record-by-record access goes through a cursor   !
-   !      (docs/science/forcing.md §2); a site run has one, at cell 1 and the [site] location. ------!
+   !---~---
+   !   The site's cursor into an opened source: record-by-record access goes through a cursor
+   ! (docs/science/forcing.md §2); a site run has one, at cell 1 and the [site] location.
+   !---~---
    subroutine site_cursor(src, cur, fc)
       type(met_source_t),     intent(in)  :: src
       type(met_cursor_t),     intent(out) :: cur
@@ -104,7 +108,7 @@ contains
 
 
 
-   !----- 5. cosz reconstruction conserves the interval mean (the load-bearing method). -----!
+   !--- 5. cosz reconstruction conserves the interval mean (the load-bearing method).
    subroutine test_cosz_reconstruction()
       type(ed_time_t) :: t
       real(wp) :: factor, f_avg, win_start, dt_win, dt_sub, sec, cosz, fsum
@@ -112,15 +116,17 @@ contains
       real(wp), parameter :: LAT = 42.44_wp, LON = -76.50_wp
       print '(a)', '-- test 5: cosz reconstruction (interval-mean conserving) --'
       t = ed_time_t(year=2020_ik, month=7_ik, day=1_ik)
-      ! A SUNRISE window (10-11 UTC ~ 05-06 local at Ithaca), where cosz rises steeply from ~0.07 --
+      !---~---
+      !   A SUNRISE window (10-11 UTC ~ 05-06 local at Ithaca), where cosz rises steeply from ~0.07
       ! this is where ED2's <sec z> mistake is worst (docs/science/forcing.md §5). Solar noon is ~17 UTC here.
+      !---~---
       f_avg = 500.0_wp
       win_start = 10.0_wp*3600.0_wp
       dt_win = 3600.0_wp
       n = 12_ik
       dt_sub = dt_win / real(n, wp)
       factor = cosz_reconstruct_factor(t, win_start, dt_sub, dt_win, LAT, LON)  ! = 1/<cosz>
-      ! (a) the CORRECT 1/<cosz> factor conserves the interval mean EXACTLY over the same subsamples:
+      !--- (a) the CORRECT 1/<cosz> factor conserves the interval mean EXACTLY over the same subsamples:
       fsum = 0.0_wp
       do i = 1_ik, n
          sec  = win_start + (real(i,wp)-0.5_wp)*dt_sub
@@ -128,12 +134,12 @@ contains
          fsum = fsum + disaggregate_sw(f_avg, cosz, factor)
       end do
       call check('1/<cosz> conserves interval mean (sunrise window)', fsum/real(n,wp), f_avg, 1.0e-8_wp)
-      ! (b) a fully-night window -> factor 0 -> all SW routes to 0
+      !--- (b) a fully-night window -> factor 0 -> all SW routes to 0
       factor = cosz_reconstruct_factor(t, 4.0_wp*3600.0_wp, dt_sub, dt_win, LAT, LON) ! 04-05 UTC = night
       call check('night window -> factor 0', factor, 0.0_wp, 1.0e-30_wp)
    end subroutine test_cosz_reconstruction
 
-   !----- 7. NetCDF round-trip: write a (time=25, grid=2) file, read it back. ----------------!
+   !--- 7. NetCDF round-trip: write a (time=25, grid=2) file, read it back.
    subroutine test_netcdf_roundtrip()
       type(met_source_t)     :: src
       type(met_cursor_t)     :: cur
@@ -160,7 +166,7 @@ contains
       call check_true('opened file: ngrid=2', src%ngrid == 2_ik, real(src%ngrid, wp))
       call check_true('a file with Wind only supplies no wind vector', .not. src%has_wind_vector)
 
-      ! noon (17 UTC): SW positive, Tair follows the diurnal input
+      !--- noon (17 UTC): SW positive, Tair follows the diurnal input
       now = time_advance_seconds(base, 17.0_wp*3600.0_wp)
       call met_advance(src, cur, now)
       met_noon = met_instant(src, cur, now)
@@ -169,7 +175,7 @@ contains
       call check_true('Tair in [285,305]', met_noon%air_temp > 285.0_wp .and. met_noon%air_temp < 305.0_wp, met_noon%air_temp)
       sw_g1 = met_noon%sw_down()
 
-      ! night (04 UTC): SW exactly 0
+      !--- night (04 UTC): SW exactly 0
       now = time_advance_seconds(base, 4.0_wp*3600.0_wp)
       call met_advance(src, cur, now)
       met_night = met_instant(src, cur, now)
@@ -177,8 +183,10 @@ contains
       call check_true('an instant from a Wind-only file has no vector', .not. met_night%has_wind_vector)
       call met_close(src)
 
-      !----- A file carrying u10 and v10 supplies the vector, and the speed comes from it         !
-      !      (docs/science/forcing.md §1). ----------------------------------------------------!
+      !---~---
+      !   A file carrying u10 and v10 supplies the vector, and the speed comes from it
+      ! (docs/science/forcing.md §1).
+      !---~---
       call write_synthetic_forcing(NCFILE, base, with_components=.true.)
       fc%grid_index = 1_ik
       call met_open(src, fc)
@@ -193,7 +201,7 @@ contains
       call met_close(src)
       call write_synthetic_forcing(NCFILE, base)
 
-      ! multi-grid: grid_index=2 carries a distinct (scaled) SW series
+      !--- multi-grid: grid_index=2 carries a distinct (scaled) SW series
       fc%grid_index = 2_ik
       call met_open(src, fc)
       call site_cursor(src, cur, fc)
@@ -206,9 +214,11 @@ contains
       call test_edge_paths(base)
    end subroutine test_netcdf_roundtrip
 
-   !----- 7c. A file's gaps and packing, by the netCDF attribute conventions: a value at its        !
-   !      variable's _FillValue or missing_value is a gap (NaN), which stops the step that reads it  !
-   !      (docs/science/forcing.md §10), and a packed variable is unpacked. ----------------------!
+   !---~---
+   !   7c. A file's gaps and packing, by the netCDF attribute conventions: a value at its
+   ! variable's _FillValue or missing_value is a gap (NaN), which stops the step that reads it
+   ! (docs/science/forcing.md §10), and a packed variable is unpacked.
+   !---~---
    subroutine test_fill_and_packing()
       type(met_source_t)     :: src
       type(met_cursor_t)     :: cur
@@ -248,11 +258,13 @@ contains
       call write_synthetic_forcing(NCFILE, base)
    end subroutine test_fill_and_packing
 
-   !----- 7b. A SUNRISE HOUR KEEPS ITS LIGHT. The shortwave partition's sun is the interval's mean    !
-   !      cosz, so an hour that is lit only after its midpoint still splits its shortwave into the    !
-   !      four streams, and the instants inside it average back to the hour's mean                    !
-   !      (docs/science/forcing.md §5-§6). The site longitude is searched so that one hour of the     !
-   !      file has a dark midpoint and a lit end. ----------------------------------------------------!
+   !---~---
+   !   7b. A SUNRISE HOUR KEEPS ITS LIGHT. The shortwave partition's sun is the interval's mean
+   ! cosz, so an hour that is lit only after its midpoint still splits its shortwave into the
+   ! four streams, and the instants inside it average back to the hour's mean
+   ! (docs/science/forcing.md §5-§6). The site longitude is searched so that one hour of the
+   ! file has a dark midpoint and a lit end.
+   !---~---
    subroutine test_sunrise_interval()
       type(met_source_t)     :: src
       type(met_cursor_t)     :: cur
@@ -302,10 +314,12 @@ contains
       call write_synthetic_forcing(NCFILE, base)
    end subroutine test_sunrise_interval
 
-   !----- 13. THE FILE AND THE CONFIG MUST AGREE. The reader checks three things against the        !
-   !      config: the record spacing (dt_forcing), and the two self-describing global attributes the !
-   !      prep script writes. A file that disagrees with its config would be silently mis-timed or   !
-   !      mis-partitioned -- no later check can see either, because both produce a plausible run.    !
+   !---~---
+   !   13. THE FILE AND THE CONFIG MUST AGREE. The reader checks three things against the
+   ! config: the record spacing (dt_forcing), and the two self-describing global attributes the
+   ! prep script writes. A file that disagrees with its config would be silently mis-timed or
+   ! mis-partitioned -- no later check can see either, because both produce a plausible run.
+   !---~---
    subroutine test_file_config_agreement()
       type(met_source_t)     :: src
       type(forcing_params_t) :: fc
@@ -325,30 +339,32 @@ contains
       fc%longitude = -76.50_wp
       fc%recycle = .false.
 
-      !----- the honest config opens cleanly. A validator that rejects the good case is useless. --!
+      !--- the honest config opens cleanly. A validator that rejects the good case is useless.
       call met_open(src, fc, stat=st)
       call check_true('a matching config opens (MET_OK)', st == MET_OK, real(st, wp))
       call met_close(src)
 
-      !----- dt_forcing lying about the cadence. It matters everywhere: dt_forcing places          !
-      !      interval midpoints, disaggregates shortwave and brackets the recycle seam. -------------!
+      !---~---
+      !   dt_forcing lying about the cadence. It matters everywhere: dt_forcing places
+      ! interval midpoints, disaggregates shortwave and brackets the recycle seam.
+      !---~---
       fc%timestep = 1800.0_wp
       call met_open(src, fc, stat=st)
       call check_true('a half-hourly config against an hourly file is rejected',                   &
                       st == MET_ERR_DT_MISMATCH, real(st, wp))
-      !----- A rejected open leaves nothing open: a caller's met_close must not close the file twice. !
+      !--- A rejected open leaves nothing open: a caller's met_close must not close the file twice.
       call check_true('a rejected open releases the file', src%ncid < 0_ik, real(src%ncid, wp))
       call met_close(src)
       fc%timestep = 3600.0_wp
 
-      !----- the file says its flux means end at the stamp; the config says they begin there. ------!
+      !--- the file says its flux means end at the stamp; the config says they begin there.
       fc%avg_convention = METAVG_BEGIN
       call met_open(src, fc, stat=st)
       call check_true('avg_convention contradicting the file attribute is rejected',               &
                       st == MET_ERR_ATTR_MISMATCH, real(st, wp))
       fc%avg_convention = METAVG_END
 
-      !----- the file carries TOTAL shortwave; passthrough would read component fields it lacks. ---!
+      !--- the file carries TOTAL shortwave; passthrough would read component fields it lacks.
       fc%sw_partition = SWPART_PASSTHROUGH
       call met_open(src, fc, stat=st)
       call check_true('passthrough against a total-shortwave file is rejected',                    &
@@ -356,7 +372,7 @@ contains
       fc%sw_partition = SWPART_CLEARIDX
    end subroutine test_file_config_agreement
 
-   !----- 8. Edge paths: the CLAMP_HOLD start and the recycle-window checks. ---------------------!
+   !--- 8. Edge paths: the CLAMP_HOLD start and the recycle-window checks.
    subroutine test_edge_paths(base)
       type(ed_time_t), intent(in) :: base
       type(met_source_t)     :: src
@@ -375,12 +391,14 @@ contains
       fc%sw_partition = SWPART_CLEARIDX
       fc%latitude = 42.44_wp
       fc%longitude = -76.50_wp
-      ! synthetic Tair(hh) = 288 + 8 sin(2 pi (hh-15)/24)  -- reproduce the file's values for the checks:
+      !--- synthetic Tair(hh) = 288 + 8 sin(2 pi (hh-15)/24)  -- reproduce the file's values for the checks:
       tair0 = 288.0_wp + 8.0_wp*sin(2.0_wp*3.14159265_wp*(0.0_wp-15.0_wp)/24.0_wp)
       tair1 = 288.0_wp + 8.0_wp*sin(2.0_wp*3.14159265_wp*(1.0_wp-15.0_wp)/24.0_wp)
 
-      ! (a) CLAMP_HOLD: start before the first record holds rec1; then MARCHING into [t0,t1) must
+      !---~---
+      !   (a) CLAMP_HOLD: start before the first record holds rec1; then MARCHING into [t0,t1) must
       !     interpolate, not hold rec1 for the whole first interval.
+      !---~---
       fc%start_clamp = CLAMP_HOLD
       fc%recycle = .false.
       call met_open(src, fc)
@@ -396,10 +414,12 @@ contains
       call check('march into [t0,t1) interpolates (not stuck at rec1)', met%air_temp, expect_hold, 1.0e-4_wp)
       call met_close(src)
 
-      ! (b) A 25-record (24 h span) file CANNOT be recycled: a sub-year window drifts both
+      !---~---
+      !   (b) A 25-record (24 h span) file CANNOT be recycled: a sub-year window drifts both
       !     hour-of-day and day-of-year on every wrap: an absolute-seconds span-wrap would
       !     SILENTLY drive a multi-decade run with sub-daily shortwave ~10 h out of phase. It must
       !     be REJECTED (docs/science/forcing.md §9).
+      !---~---
       fc%start_clamp = CLAMP_ERROR
       fc%recycle = .true.
       fc%recycle_start = base
@@ -408,16 +428,18 @@ contains
       call check_true('sub-year recycle window rejected (not silently span-wrapped)',            &
                       st == MET_ERR_WINDOW_NOT_WHOLE_YEARS, real(st, wp))
 
-      ! (c) A whole-year window whose start does NOT match a record stamp is rejected too --
+      !---~---
+      !   (c) A whole-year window whose start does NOT match a record stamp is rejected too
       !     ED-MORE never guesses the start of the day (e.g. a config saying 00:00 against an
       !     end-of-interval ERA5-Land file whose records are stamped 01:00).
+      !---~---
       fc%recycle_start = time_advance_seconds(base, 1800.0_wp)           ! 00:30, between records
       fc%recycle_end   = ed_time_t(2021_ik, 7_ik, 1_ik, 0_ik, 30_ik)
       call met_open(src, fc, stat=st)
       call check_true('recycle_start off the record grid rejected',                              &
                       st == MET_ERR_START_NOT_A_RECORD, real(st, wp))
 
-      ! (d) A whole-year window ON the record grid, but the file only holds 24 h of it.
+      !--- (d) A whole-year window ON the record grid, but the file only holds 24 h of it.
       fc%recycle_start = base
       fc%recycle_end   = ed_time_t(2021_ik, 7_ik, 1_ik)
       call met_open(src, fc, stat=st)
@@ -426,10 +448,12 @@ contains
       call met_close(src)
    end subroutine test_edge_paths
 
-   !----- The recycle mapping must preserve hour-of-day and day-of-year EXACTLY, for an anchor    !
-   !      anywhere in the calendar -- not only Jan-1. A classifier that accepts only Jan-1 00:00    !
-   !      files and span-wraps everything else shifts hour-of-day whenever the span is not a whole  !
-   !      number of days (docs/science/forcing.md §9, eq. (16)).                                     !
+   !---~---
+   !   The recycle mapping must preserve hour-of-day and day-of-year EXACTLY, for an anchor
+   ! anywhere in the calendar -- not only Jan-1. A classifier that accepts only Jan-1 00:00
+   ! files and span-wraps everything else shifts hour-of-day whenever the span is not a whole
+   ! number of days (docs/science/forcing.md §9, eq. (16)).
+   !---~---
    subroutine test_recycle_anchor_phase()
       character(len=*), parameter :: YF = 'test_met_anchorfile_tmp.nc'
       type(met_source_t)     :: src
@@ -447,18 +471,22 @@ contains
       fc%sw_partition = SWPART_CLEARIDX
       fc%recycle = .true.
 
-      !----- A MID-YEAR window: 2021-03-01 .. 2022-03-01. Plain year substitution would map a
-      !      January instant to 2021-01, which is OUTSIDE this window; the anchored form sends it
-      !      to 2022-01 instead. The file only reaches 2021-12-31, so this window is (correctly)
-      !      rejected as not covered -- which is itself the check that the coverage test bites.
+      !---~---
+      !   A MID-YEAR window: 2021-03-01 .. 2022-03-01. Plain year substitution would map a
+      ! January instant to 2021-01, which is OUTSIDE this window; the anchored form sends it
+      ! to 2022-01 instead. The file only reaches 2021-12-31, so this window is (correctly)
+      ! rejected as not covered -- which is itself the check that the coverage test bites.
+      !---~---
       fc%recycle_start = ed_time_t(2021_ik,   3_ik, 1_ik)
       fc%recycle_end   = ed_time_t(2022_ik,   3_ik, 1_ik)
       call met_open(src, fc, stat=st)
       call check_true('mid-year window beyond the file is rejected',                             &
                       st == MET_ERR_WINDOW_NOT_COVERED, real(st, wp))
 
-      !----- Whole-year window on the file: every model year must read the SAME calendar day, for
-      !      model years both before and after the window (the modulo must not go negative).
+      !---~---
+      !   Whole-year window on the file: every model year must read the SAME calendar day, for
+      ! model years both before and after the window (the modulo must not go negative).
+      !---~---
       fc%recycle_start = ed_time_t(2021_ik,   1_ik, 1_ik)
       fc%recycle_end   = ed_time_t(2022_ik,   1_ik, 1_ik)
       call met_open(src, fc, stat=st)
@@ -475,14 +503,14 @@ contains
       call met_close(src)
    end subroutine test_recycle_anchor_phase
 
-   !----- Write a synthetic (time=25 hourly, grid=2) ED-MORE forcing NetCDF via ed_netcdf_c. ---- !
+   !--- Write a synthetic (time=25 hourly, grid=2) ED-MORE forcing NetCDF via ed_netcdf_c.
    subroutine write_synthetic_forcing(path, base, with_components, with_co2air, sw_flat, conventions)
       character(len=*),  intent(in) :: path
       type(ed_time_t),   intent(in) :: base
-      logical, optional, intent(in) :: with_components   !< also write u10 = 3, v10 = -4 (speed 5, not Wind's 3)
-      logical, optional, intent(in) :: with_co2air       !< also write CO2air, which the reader rejects
-      real(wp), optional, intent(in) :: sw_flat          !< every record's SWdown [W/m2], night and day
-      logical, optional, intent(in) :: conventions       !< the gaps and packing of test 7c
+      logical, optional, intent(in) :: with_components   ! also write u10 = 3, v10 = -4 (speed 5, not Wind's 3)
+      logical, optional, intent(in) :: with_co2air       ! also write CO2air, which the reader rejects
+      real(wp), optional, intent(in) :: sw_flat          ! every record's SWdown [W/m2], night and day
+      logical, optional, intent(in) :: conventions       ! the gaps and packing of test 7c
       integer, parameter :: NT = 25, NG = 2
       integer(c_int) :: st, ncid, td, gd, vt, vla, vlo, vv(7), vu, vw, vc
       integer(c_int) :: dims2(2), dims1(1)
@@ -544,11 +572,13 @@ contains
             call nc_check(st, 'write: var v10')
          end if
       end if
-      !----- The two SELF-DESCRIBING global attributes the prep script writes. The fixture has to      !
-      !      carry them or it is not the file the reader validates against, and the file/config        !
-      !      agreement checks would be skipped here while firing in production -- the                  !
-      !      fixture-must-mirror-the-driver trap. This file is hourly, ERA5-Land-style, with total     !
-      !      shortwave.                                                                                !
+      !---~---
+      !   The two SELF-DESCRIBING global attributes the prep script writes. The fixture has to
+      ! carry them or it is not the file the reader validates against, and the file/config
+      ! agreement checks would be skipped here while firing in production -- the
+      ! fixture-must-mirror-the-driver trap. This file is hourly, ERA5-Land-style, with total
+      ! shortwave.
+      !---~---
       st = nc_put_att_text_f(ncid, NC_GLOBAL, 'avg_convention', int(len_trim('end'), c_size_t), 'end')
       call nc_check(st, 'write: avg_convention')
       st = nc_put_att_text_f(ncid, NC_GLOBAL, 'sw_input_kind', int(len_trim('total'), c_size_t), 'total')
@@ -632,7 +662,7 @@ contains
       call nc_check(st, 'write: close')
    end subroutine write_synthetic_forcing
 
-   !----- Nearest-grid match: pure kernel (argmin + great-circle) and the reader override. --------!
+   !--- Nearest-grid match: pure kernel (argmin + great-circle) and the reader override.
    subroutine test_nearest_grid()
       type(met_source_t)     :: src
       type(met_cursor_t)     :: cur
@@ -646,7 +676,7 @@ contains
       call check('argmin picks the SW cell',         real(nearest_grid_index(-79.0_wp,40.5_wp,lon,lat),wp), 1.0_wp, 0.5_wp)
       call check('great-circle self-distance = 0', great_circle_distance(-76.5_wp,42.44_wp,-76.5_wp,42.44_wp), 0.0_wp, 1.0e-6_wp)
       call check('great-circle 1 deg lat ~ 111 km', great_circle_distance(0.0_wp,0.0_wp,0.0_wp,1.0_wp), 111195.0_wp, 500.0_wp)
-      !----- reader override: the 2-grid file has lon/lat cells (-76.6,42.5) and (-76.5,42.4). ---!
+      !--- reader override: the 2-grid file has lon/lat cells (-76.6,42.5) and (-76.5,42.4).
       call write_synthetic_forcing(NCFILE, ed_time_t(2020_ik,7_ik,1_ik))
       fc%format = MET_BACKEND_DEFAULT
       fc%path = NCFILE
@@ -667,15 +697,17 @@ contains
       call met_close(src)
    end subroutine test_nearest_grid
 
-   !----- The move to a patch's canopy-air top (docs/science/forcing.md §8). A 25 m canopy:         !
-   !      d = 15.75 m, z0 = 3.25 m, top z_c = 30 m.                                                !
+   !---~---
+   !   The move to a patch's canopy-air top (docs/science/forcing.md §8). A 25 m canopy:
+   ! d = 15.75 m, z0 = 3.25 m, top z_c = 30 m.
+   !---~---
    subroutine test_cas_top()
       real(wp), parameter :: ZC = 30.0_wp, D = 15.75_wp, Z0 = 3.25_wp, GC = grav / cp_air
       type(forcing_params_t) :: f
       type(met_forcing_t)    :: m, top
       real(wp) :: fac, rain_top, snow_top, rain_ref, snow_ref
       print '(a)', '-- test: forcing to the canopy-air top --'
-      !----- ERA5-Land: open-terrain 10 m wind, heights above the zero plane. -------------------!
+      !--- ERA5-Land: open-terrain 10 m wind, heights above the zero plane.
       f%tq_height = 2.0_wp
       f%wind_height = 10.0_wp
       f%height_above = HEIGHT_ABOVE_ZERO_PLANE
@@ -691,7 +723,7 @@ contains
       call check('temperature conserves theta from d + 2 m', top%air_temp, 290.0_wp - GC * (ZC - (D + 2.0_wp)), 1.0e-12_wp)
       call check('theta at the top equals theta at the forcing height',                            &
                  top%air_temp + GC * ZC, 290.0_wp + GC * (D + 2.0_wp), 1.0e-9_wp)
-      !----- A flux tower: local wind at 40 m above the ground; the 2 z0 floor on a tall stand. --!
+      !--- A flux tower: local wind at 40 m above the ground; the 2 z0 floor on a tall stand.
       f%height_above = HEIGHT_ABOVE_GROUND
       f%wind_exposure = WIND_EXPOSURE_LOCAL
       f%tq_height = 40.0_wp
@@ -703,7 +735,7 @@ contains
       call check('tower at the top: no change', cas_top_wind_factor(f, 40.0_wp, D, Z0), 1.0_wp, 1.0e-15_wp)
       call check('heights floored at 2 z0 above d', cas_top_wind_factor(f, D + 1.0_wp, D, Z0),       &
                  log(2.0_wp) / log((40.0_wp - D)/Z0), 1.0e-12_wp)
-      !----- The whole record: wind and vector scaled, temperature moved, rho re-derived, the rest kept. -!
+      !--- The whole record: wind and vector scaled, temperature moved, rho re-derived, the rest kept.
       f%height_above = HEIGHT_ABOVE_ZERO_PLANE
       f%wind_exposure = WIND_EXPOSURE_OPEN_TERRAIN
       f%tq_height = 2.0_wp
@@ -725,9 +757,11 @@ contains
       call check('record: pressure stays at the ground', top%air_pressure, 98000.0_wp, 1.0e-12_wp)
       call check('record: shortwave unchanged', top%sw_down(), m%sw_down(), 1.0e-12_wp)
       call check('record: air density re-derived', top%air_density, air_density(top%air_temp, 98000.0_wp, 0.009_wp), 1.0e-12_wp)
-      !----- The record carries total precipitation, unchanged by the move; the rain/snow split is made  !
-      !      from the moved temperature where the column's forcing is filled. At freezing, the cooler top  !
-      !      air turns some of the rain to snow. ---------------------------------------------------------!
+      !---~---
+      !   The record carries total precipitation, unchanged by the move; the rain/snow split is made
+      ! from the moved temperature where the column's forcing is filled. At freezing, the cooler top
+      ! air turns some of the rain to snow.
+      !---~---
       m%air_temp = t_3ple
       m%precip = 1.0e-3_wp
       top = met_to_cas_top(m, f, ZC, D, Z0)
@@ -738,7 +772,7 @@ contains
                       snow_top - snow_ref)
    end subroutine test_cas_top
 
-   !----- Multi-year CALENDAR recycling + Feb-29 reconciliation (whole-year daily file). ----------!
+   !--- Multi-year CALENDAR recycling + Feb-29 reconciliation (whole-year daily file).
    subroutine test_multiyear_cycling()
       character(len=*), parameter :: YF = 'test_met_yearfile_tmp.nc'
       type(met_source_t)     :: src
@@ -754,7 +788,7 @@ contains
       fc%avg_convention = METAVG_END
       fc%sw_partition = SWPART_CLEARIDX
       fc%recycle = .true.
-      !----- The cycle is DECLARED, never inferred from the file. --------------------------------!
+      !--- The cycle is DECLARED, never inferred from the file.
       fc%recycle_start = ed_time_t(2021_ik,   1_ik, 1_ik)
       fc%recycle_end   = ed_time_t(2022_ik,   1_ik, 1_ik)
       call met_open(src, fc)
@@ -762,13 +796,13 @@ contains
       call check('n_cycle_years = 1', real(src%n_cycle_years,wp), 1.0_wp, 0.5_wp)
       call check('cycle anchor year = 2021', real(src%cycle_anchor%year,wp), 2021.0_wp, 0.5_wp)
       call check('cycle first record = record 1', real(src%irec_cycle_first,wp), 1.0_wp, 0.5_wp)
-      !----- recycle identity: model 2023-07-01 reads the 2021-07-01 record (day-of-year exact). --!
+      !--- recycle identity: model 2023-07-01 reads the 2021-07-01 record (day-of-year exact).
       call met_advance(src, cur, ed_time_t(2021_ik,7_ik,1_ik))
       m_ref = met_instant(src, cur, ed_time_t(2021_ik,7_ik,1_ik))
       call met_advance(src, cur, ed_time_t(2023_ik,7_ik,1_ik))
       m_map = met_instant(src, cur, ed_time_t(2023_ik,7_ik,1_ik))
       call check('recycle: 2023-07-01 reads the 2021-07-01 record', m_map%air_temp, m_ref%air_temp, 1.0e-9_wp)
-      !----- Feb-29 reconciliation: model 2024-02-29 (leap) maps to file 2021-02-28. --------------!
+      !--- Feb-29 reconciliation: model 2024-02-29 (leap) maps to file 2021-02-28.
       call met_advance(src, cur, ed_time_t(2021_ik,2_ik,28_ik))
       m_ref = met_instant(src, cur, ed_time_t(2021_ik,2_ik,28_ik))
       call met_advance(src, cur, ed_time_t(2024_ik,2_ik,29_ik))
@@ -777,12 +811,14 @@ contains
       call met_close(src)
    end subroutine test_multiyear_cycling
 
-   !----- 15. Prescribed CO2 (docs/science/forcing.md §12, eq. (18)): co2_const on every backend,   !
-   !      or an ED-MORE CO2 file read on MODEL time -- each value at its period's middle, linear    !
-   !      between middles, the end values held over the outer half-periods, a run the file does not !
-   !      cover rejected at open.                                                                   !
+   !---~---
+   !   15. Prescribed CO2 (docs/science/forcing.md §12, eq. (18)): co2_const on every backend,
+   ! or an ED-MORE CO2 file read on MODEL time -- each value at its period's middle, linear
+   ! between middles, the end values held over the outer half-periods, a run the file does not
+   ! cover rejected at open.
+   !---~---
    subroutine test_co2_series(default_file)
-      character(len=*), intent(in) :: default_file      !< the shipped series ('' -> its check is skipped)
+      character(len=*), intent(in) :: default_file      ! the shipped series ('' -> its check is skipped)
       character(len=*), parameter :: CF = 'test_met_co2_tmp.txt'
       type(met_source_t)     :: src
       type(met_cursor_t)     :: cur
@@ -791,7 +827,7 @@ contains
       integer(ik)            :: st
       print '(a)', '-- test 15: prescribed CO2 --'
 
-      !----- "const": co2_const (not the type's 420 default). --------------------------------------!
+      !--- "const": co2_const (not the type's 420 default).
       call write_yearfile(CO2_MET_FILE, 2021_ik)
       fc = co2_test_forcing()
       fc%co2_const = 284.3_wp
@@ -801,8 +837,10 @@ contains
       call check('const: CO2 = co2_const', met%co2, 284.3_wp, 1.0e-12_wp)
       call met_close(src)
 
-      !----- Annual means, with comments and a blank line. 2000 is a leap year, so its middle is   !
-      !      Jul 2 00:00; 2001's is Jul 2 12:00. On 2001-01-01 the weight is 183 d / 365.5 d. -------!
+      !---~---
+      !   Annual means, with comments and a blank line. 2000 is a leap year, so its middle is
+      ! Jul 2 00:00; 2001's is Jul 2 12:00. On 2001-01-01 the weight is 183 d / 365.5 d.
+      !---~---
       call write_text(CF, [character(len=48) :: '# a comment', 'timestep  1 year', 'units umol/mol', &
                            '2000  300.0   # a trailing comment', '2001  310.0', '', '2002  330.0'])
       call open_file_co2(CF, ed_time_t(2000_ik,1_ik,1_ik), ed_time_t(2003_ik,1_ik,1_ik), src, cur, st)
@@ -821,8 +859,10 @@ contains
       call open_file_co2(CF, ed_time_t(2000_ik,1_ik,1_ik), ed_time_t(2003_ik,1_ik,1_ik,1_ik), src, cur, st)
       call check_true('year: a run ending after the file is rejected', st == MET_ERR_CO2_NOT_COVERED, real(st, wp))
 
-      !----- Monthly, across a leap February: Jan's middle is the 16th 12:00 (15.5 d), Feb's the   !
-      !      15th 12:00 (14.5 d), so Feb 1 00:00 is 15.5/30 of the way. -----------------------------!
+      !---~---
+      !   Monthly, across a leap February: Jan's middle is the 16th 12:00 (15.5 d), Feb's the
+      ! 15th 12:00 (14.5 d), so Feb 1 00:00 is 15.5/30 of the way.
+      !---~---
       call write_text(CF, [character(len=48) :: 'timestep 1 month', 'units umol/mol', '2024-01 400', &
                            '2024-02 410', '2024-03 420'])
       call open_file_co2(CF, ed_time_t(2024_ik,1_ik,1_ik), ed_time_t(2024_ik,4_ik,1_ik), src, cur, st)
@@ -833,7 +873,7 @@ contains
                  ed_time_t(2024_ik,2_ik,1_ik)), 400.0_wp + 10.0_wp * 15.5_wp / 30.0_wp, 1.0e-9_wp)
       call met_close(src)
 
-      !----- 5-year means from the year 1000: both spans are 1826 d, so 1005-01-01 is halfway. -----!
+      !--- 5-year means from the year 1000: both spans are 1826 d, so 1005-01-01 is halfway.
       call write_text(CF, [character(len=48) :: 'timestep 5 year', 'units umol/mol', '1000 280', '1005 290'])
       call open_file_co2(CF, ed_time_t(1000_ik,1_ik,1_ik), ed_time_t(1010_ik,1_ik,1_ik), src, cur, st)
       call check_true('5 year: opens and covers 1000 .. 1010', st == MET_OK, real(st, wp))
@@ -841,7 +881,7 @@ contains
                  ed_time_t(1005_ik,1_ik,1_ik)), 285.0_wp, 1.0e-9_wp)
       call met_close(src)
 
-      !----- Daily, and 30-minute (a flux tower's cadence). ------------------------------------!
+      !--- Daily, and 30-minute (a flux tower's cadence).
       call write_text(CF, [character(len=48) :: 'timestep 1 day', 'units umol/mol', '2024-02-28 400', &
                            '2024-02-29 402'])
       call open_file_co2(CF, ed_time_t(2024_ik,2_ik,28_ik), ed_time_t(2024_ik,3_ik,1_ik), src, cur, st)
@@ -861,7 +901,7 @@ contains
       call open_file_co2(CF, ed_time_t(2024_ik,7_ik,1_ik), ed_time_t(2024_ik,7_ik,1_ik,1_ik,31_ik), src, cur, st)
       call check_true('30 minute: a run past 01:30 is rejected', st == MET_ERR_CO2_NOT_COVERED, real(st, wp))
 
-      !----- Files that break format 1 are rejected, never guessed at. ------------------------!
+      !--- Files that break format 1 are rejected, never guessed at.
       call expect_bad('no timestep line', [character(len=48) :: 'units umol/mol', '2000 300', '2001 310'])
       call expect_bad('a second timestep line', [character(len=48) :: 'timestep 1 year', 'timestep 1 year', &
                       'units umol/mol', '2000 300', '2001 310'])
@@ -887,8 +927,10 @@ contains
                          ed_time_t(2001_ik,1_ik,1_ik), src, cur, st)
       call check_true('bad file: a missing file is rejected', st == MET_ERR_CO2_FILE, real(st, wp))
 
-      !----- The point of reading CO2 on model time: recycled met repeats, the CO2 does not. Model !
-      !      2023-07-02 12:00 reads the 2021 met record but the 2023 CO2. ---------------------------!
+      !---~---
+      !   The point of reading CO2 on model time: recycled met repeats, the CO2 does not. Model
+      ! 2023-07-02 12:00 reads the 2021 met record but the 2023 CO2.
+      !---~---
       call write_text(CF, [character(len=48) :: 'timestep 1 year', 'units umol/mol', '2021 400',    &
                            '2022 410', '2023 420', '2024 430'])
       fc = co2_test_forcing()
@@ -912,7 +954,7 @@ contains
          call met_close(src)
       end if
 
-      !----- A met file that carries CO2air is rejected: nothing would read it. ---------------!
+      !--- A met file that carries CO2air is rejected: nothing would read it.
       call write_synthetic_forcing(NCFILE, ed_time_t(year=2020_ik, month=7_ik, day=1_ik), with_co2air=.true.)
       fc = forcing_params_t()
       fc%format = MET_BACKEND_DEFAULT
@@ -926,8 +968,10 @@ contains
       call check_true('CO2air: a met file carrying it is rejected', st == MET_ERR_CO2_IN_MET_FILE, real(st, wp))
       call write_synthetic_forcing(NCFILE, ed_time_t(year=2020_ik, month=7_ik, day=1_ik))
 
-      !----- The shipped default series (data/co2/): it loads, covers 1000 .. 2023, and reads   !
-      !      back the CMIP7 values at the years' middles (1700 and 1850 are not leap years). --------!
+      !---~---
+      !   The shipped default series (data/co2/): it loads, covers 1000 .. 2023, and reads
+      ! back the CMIP7 values at the years' middles (1700 and 1850 are not leap years).
+      !---~---
       if (len_trim(default_file) == 0) then
          print '(a)', '   NOTE: no path to the shipped CO2 file was given; its check is skipped'
       else
@@ -947,7 +991,7 @@ contains
       end if
    end subroutine test_co2_series
 
-   !----- Open CO2_MET_FILE with co2_file = path over the run [t0, t1]; `st` is met_open's. ------!
+   !--- Open CO2_MET_FILE with co2_file = path over the run [t0, t1]; `st` is met_open's.
    subroutine open_file_co2(path, t0, t1, src, cur, st)
       character(len=*),   intent(in)    :: path
       type(ed_time_t),    intent(in)    :: t0, t1
@@ -962,8 +1006,10 @@ contains
       if (st == MET_OK) call site_cursor(src, cur, fc)
    end subroutine open_file_co2
 
-   !----- The CO2 tests' [forcing]: CO2_MET_FILE, read whole, not recycled. The CO2 is read on model !
-   !      time, so the file's year need not be the run's. ---------------------------------------!
+   !---~---
+   !   The CO2 tests' [forcing]: CO2_MET_FILE, read whole, not recycled. The CO2 is read on model
+   ! time, so the file's year need not be the run's.
+   !---~---
    function co2_test_forcing() result(fc)
       type(forcing_params_t) :: fc
       fc%format = MET_BACKEND_DEFAULT
@@ -980,9 +1026,11 @@ contains
       type(met_cursor_t), intent(in) :: cur
       type(ed_time_t),    intent(in) :: t
       type(met_forcing_t) :: met
-      !----- A series that failed to open has no rows. -1 fails every check that follows, where    !
-      !      met_instant would read its unallocated arrays and the segfault would swallow the       !
-      !      buffered output that says why the open failed. ---------------------------------------!
+      !---~---
+      !   A series that failed to open has no rows. -1 fails every check that follows, where
+      ! met_instant would read its unallocated arrays and the segfault would swallow the
+      ! buffered output that says why the open failed.
+      !---~---
       if (src%co2%n < 2_ik) then
          co2 = -1.0_wp
          return
@@ -991,7 +1039,7 @@ contains
       co2 = met%co2
    end function co2_now
 
-   !----- A CO2 file with `lines` must be rejected at open (MET_ERR_CO2_FILE). ----------------!
+   !--- A CO2 file with `lines` must be rejected at open (MET_ERR_CO2_FILE).
    subroutine expect_bad(what, lines)
       character(len=*), intent(in) :: what, lines(:)
       character(len=*), parameter  :: BF = 'test_met_co2_bad_tmp.txt'
@@ -1014,7 +1062,7 @@ contains
       close(u)
    end subroutine write_text
 
-   !----- Write a whole-year DAILY (365 records, grid=1) forcing file; Tair encodes the day index. !
+   !--- Write a whole-year DAILY (365 records, grid=1) forcing file; Tair encodes the day index.
    subroutine write_yearfile(path, year)
       character(len=*), intent(in) :: path
       integer(ik),      intent(in) :: year
@@ -1096,8 +1144,10 @@ contains
    end subroutine write_yearfile
 
 
-   !----- The [forcing] block a tower file is read with: BCI's location, 41 m heights above the   !
-   !      ground, a wind measured over this canopy. --------------------------------------------!
+   !---~---
+   !   The [forcing] block a tower file is read with: BCI's location, 41 m heights above the
+   ! ground, a wind measured over this canopy.
+   !---~---
    function tower_config(convention) result(fc)
       integer(ik), intent(in) :: convention
       type(forcing_params_t)  :: fc
@@ -1117,7 +1167,7 @@ contains
       fc%wind_exposure = WIND_EXPOSURE_LOCAL
    end function tower_config
 
-   !----- The fixture's values at record k (1-based), so a test can name what it expects. ---------!
+   !--- The fixture's values at record k (1-based), so a test can name what it expects.
    pure real(wp) function tair_at(k) result(v)
       integer, intent(in) :: k
       v = 299.0_wp + 3.0_wp * sin(2.0_wp * 3.14159265_wp * (0.5_wp * real(k - 1, wp) - 13.0_wp) / 24.0_wp)
@@ -1129,8 +1179,10 @@ contains
       if (k == SATURATED_REC) v = 1.0_wp
    end function rh_at
 
-   !----- Distinct daytime means, rising record by record, so a read from the wrong interval is off  !
-   !      by 10 W/m2 rather than by a rounding error. The daylit records at BCI are 11:00-23:30 UTC. -!
+   !---~---
+   !   Distinct daytime means, rising record by record, so a read from the wrong interval is off
+   ! by 10 W/m2 rather than by a rounding error. The daylit records at BCI are 11:00-23:30 UTC.
+   !---~---
    pure real(wp) function sw_at(k) result(v)
       integer, intent(in) :: k
       real(wp) :: hh
@@ -1144,9 +1196,11 @@ contains
       s = real(k - 1, wp) * DT
    end function stamp_seconds
 
-   !----- A one-point ED-MORE forcing file, half-hourly from 2020-07-01 00:00 UTC. `humidity` names the !
-   !      variable(s) it carries ('RHair', 'Tdew', 'Qair', 'RHair+Qair' or 'none'); an empty         !
-   !      `time_zone` or `height_above` leaves that attribute out, and so does stated_height <= 0.    !
+   !---~---
+   !   A one-point ED-MORE forcing file, half-hourly from 2020-07-01 00:00 UTC. `humidity` names the
+   ! variable(s) it carries ('RHair', 'Tdew', 'Qair', 'RHair+Qair' or 'none'); an empty
+   ! `time_zone` or `height_above` leaves that attribute out, and so does stated_height <= 0.
+   !---~---
    subroutine write_tower_file(convention, humidity, time_zone, rh_scale, stated_height, height_above)
       character(len=*), intent(in) :: convention, humidity, time_zone, height_above
       real(wp),         intent(in) :: rh_scale, stated_height
@@ -1194,8 +1248,10 @@ contains
          st = nc_def_var_f(ncid, trim(names(j)), NC_DOUBLE, 2, dims2, vid(j))
          call nc_check(st, 'tower: var')
       end do
-      !----- The global attributes make_tower_forcing.py writes; the fixture must carry them or the  !
-      !      checks under test would be skipped here and fire in production. ---------------------!
+      !---~---
+      !   The global attributes make_tower_forcing.py writes; the fixture must carry them or the
+      ! checks under test would be skipped here and fire in production.
+      !---~---
       st = nc_put_att_text_f(ncid, NC_GLOBAL, 'avg_convention', int(len(convention), c_size_t), convention)
       call nc_check(st, 'tower: avg_convention')
       st = nc_put_att_text_f(ncid, NC_GLOBAL, 'sw_input_kind', 5_c_size_t, 'total')
@@ -1263,7 +1319,7 @@ contains
       call nc_check(st, 'tower: close')
    end subroutine write_tower_file
 
-   !----- The forcing at an instant `sec` seconds after the file's first stamp. --------------------!
+   !--- The forcing at an instant `sec` seconds after the file's first stamp.
    function sample(src, cur, sec) result(met)
       type(met_source_t), intent(in)    :: src
       type(met_cursor_t), intent(inout) :: cur
@@ -1275,8 +1331,10 @@ contains
       met = met_instant(src, cur, now)
    end function sample
 
-   !----- 1. Each humidity form becomes q through the model's own conversion, at the record's own   !
-   !      temperature and pressure; a file with none, with two, or with RHair in percent is refused. -!
+   !---~---
+   !   1. Each humidity form becomes q through the model's own conversion, at the record's own
+   ! temperature and pressure; a file with none, with two, or with RHair in percent is refused.
+   !---~---
    subroutine test_humidity_forms()
       type(met_source_t)     :: src
       type(met_cursor_t)     :: cur
@@ -1329,7 +1387,7 @@ contains
       call met_close(src)
    end subroutine test_humidity_forms
 
-   !----- 2. ED-MORE runs in UTC: a file that does not say time_zone = "UTC" is refused. ----------- !
+   !--- 2. ED-MORE runs in UTC: a file that does not say time_zone = "UTC" is refused.
    subroutine test_utc_required()
       type(met_source_t)     :: src
       type(forcing_params_t) :: fc
@@ -1350,7 +1408,7 @@ contains
       call met_close(src)
    end subroutine test_utc_required
 
-   !----- 3. The heights a file states must be the ones [forcing] moves the forcing from. ---------!
+   !--- 3. The heights a file states must be the ones [forcing] moves the forcing from.
    subroutine test_stated_heights()
       type(met_source_t)     :: src
       type(forcing_params_t) :: fc
@@ -1381,11 +1439,13 @@ contains
       call met_close(src)
    end subroutine test_stated_heights
 
-   !----- 4. Rain and shortwave are interval means, read from the record whose interval CONTAINS   !
-   !      the instant: record k covers [t_k, t_k+dt) on a begin-stamped file and (t_k-dt, t_k] on an !
-   !      end-stamped one. A read one record off puts every storm in the wrong half-hour; the       !
-   !      shortwave check averages the instantaneous flux over the reconstruction's own ten         !
-   !      midpoints, which returns the interval mean exactly when the right record is used.         !
+   !---~---
+   !   4. Rain and shortwave are interval means, read from the record whose interval CONTAINS
+   ! the instant: record k covers [t_k, t_k+dt) on a begin-stamped file and (t_k-dt, t_k] on an
+   ! end-stamped one. A read one record off puts every storm in the wrong half-hour; the
+   ! shortwave check averages the instantaneous flux over the reconstruction's own ten
+   ! midpoints, which returns the interval mean exactly when the right record is used.
+   !---~---
    subroutine test_flux_interval(convention)
       integer(ik), intent(in) :: convention
       type(met_source_t)     :: src
@@ -1417,7 +1477,7 @@ contains
       met = sample(src, cur, t0 + 1.5_wp * DT)
       call check('no rain in the interval after', met%precip, 0.0_wp, 1.0e-15_wp)
 
-      !----- A midday interval, 17:00-17:30 UTC (about solar noon at BCI). -------------------------!
+      !--- A midday interval, 17:00-17:30 UTC (about solar noon at BCI).
       t0 = 17.0_wp * 3600.0_wp
       k_sw = nint(t0 / DT) + 1                               ! begin: the record stamped 17:00
       if (convention == METAVG_END) k_sw = k_sw + 1          ! end:   the record stamped 17:30
@@ -1429,8 +1489,10 @@ contains
       call check('the shortwave of the interval is its own record''s mean', sw_mean, sw_at(k_sw), 1.0e-9_wp)
       call met_close(src)
 
-      !----- The clearness index the longwave synthesis holds through the night is the containing   !
-      !      interval's too: on a begin file, the next record's would be the dark one after sunset.  !
+      !---~---
+      !   The clearness index the longwave synthesis holds through the night is the containing
+      ! interval's too: on a begin file, the next record's would be the dark one after sunset.
+      !---~---
       fc%lwdown_source = LW_SYNTHESIZE
       call met_open(src, fc, stat=st)
       call met_cursor_init(src, cur, 1_ik, fc%latitude, fc%longitude, fc%elevation)
@@ -1441,7 +1503,7 @@ contains
       call met_close(src)
    end subroutine test_flux_interval
 
-   !----- 5. The round trip of a tower file. -----------------------------------------------------!
+   !--- 5. The round trip of a tower file.
    subroutine test_tower_round_trip()
       type(met_source_t)     :: src
       type(met_cursor_t)     :: cur
@@ -1457,8 +1519,10 @@ contains
       call check_true('the tower file opens', st == MET_OK, real(st, wp))
       call met_cursor_init(src, cur, 1_ik, fc%latitude, fc%longitude, fc%elevation)
 
-      !----- At every stamp the model's own inverse returns the tower's relative humidity. This is  !
-      !      what storing RHair buys: the provider's saturation curve never enters. ----------------!
+      !---~---
+      !   At every stamp the model's own inverse returns the tower's relative humidity. This is
+      ! what storing RHair buys: the provider's saturation curve never enters.
+      !---~---
       worst = 0.0_wp
       do k = 1, NT - 1
          if (k == SATURATED_REC) cycle
@@ -1475,15 +1539,17 @@ contains
       call met_close(src)
    end subroutine test_tower_round_trip
 
-   !----- A site's forcing within its polygon (ed_met::met_at_site; docs/science/forcing.md §8): a    !
-   !      site above its polygon is colder by the lapse rate times the height, at a lower pressure  !
-   !      and the same relative humidity, under less longwave; one at the polygon's elevation on    !
-   !      level ground keeps the polygon's forcing exactly; without the lapse only the beam scales.  !
+   !---~---
+   !   A site's forcing within its polygon (ed_met::met_at_site; docs/science/forcing.md §8): a
+   ! site above its polygon is colder by the lapse rate times the height, at a lower pressure
+   ! and the same relative humidity, under less longwave; one at the polygon's elevation on
+   ! level ground keeps the polygon's forcing exactly; without the lapse only the beam scales.
+   !---~---
    subroutine test_met_at_site()
       type(forcing_params_t) :: f
       type(met_forcing_t)    :: met, site
       print '(a)', '-- a site within its polygon --'
-      !=== 3. A site above its polygon. ===========================================================!
+      !--- 3. A site above its polygon.
       f%apply_elevation_lapse = .true.
       f%lapse_rate_tair = 0.0065_wp
       met%air_temp = 290.0_wp
@@ -1520,7 +1586,7 @@ contains
 
    end subroutine test_met_at_site
 
-   !----- Relative humidity of a forcing sample: its vapour pressure over saturation. ----------!
+   !--- Relative humidity of a forcing sample: its vapour pressure over saturation.
    real(wp) function relative_humidity(m)
       type(met_forcing_t), intent(in) :: m
       relative_humidity = m%air_shv * m%air_pressure / (h2o_dry_ratio + (1.0_wp - h2o_dry_ratio) * m%air_shv)  &

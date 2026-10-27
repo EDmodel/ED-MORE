@@ -1,12 +1,12 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! ed_output_integrate -- stage [4] of the diagnostic output, the temporal reduction: fold a    !
-! variable's value (ed_output_extract) into its (variable, tier) running reduction             !
-! (integrate_scalar, integrate_slab), close a period (normalize_*,                             !
-! close_tier) and re-seed (reset_buffer). output_integrate is the per-step tick and            !
-! output_integrate_fast the FAST tier's replay. netCDF-free. Each tier integrates raw state    !
-! on its own, which for these operators equals chaining (docs/science/diagnostics.md §1, §4).  !
-!==========================================================================================!
+!---~---
+!   ed_output_integrate -- stage [4] of the diagnostic output, the temporal reduction: fold a
+! variable's value (ed_output_extract) into its (variable, tier) running reduction
+! (integrate_scalar, integrate_slab), close a period (normalize_*,
+! close_tier) and re-seed (reset_buffer). output_integrate is the per-step tick and
+! output_integrate_fast the FAST tier's replay. netCDF-free. Each tier integrates raw state
+! on its own, which for these operators equals chaining (docs/science/diagnostics.md §1, §4).
+!---~---
 module ed_output_integrate
    use ed_kinds,            only : wp, ik
    use ed_time,             only : ed_time_t, calendar_step_t
@@ -28,18 +28,18 @@ module ed_output_integrate
 
 contains
 
-   !=======================================================================================!
-   !  A polygon's output tick after a slow step: replay the FAST samples its fast loop      !
-   !  staged, closing that tier every fast_interval_steps of them over the run, then fold   !
-   !  the step into the slower tiers (output_integrate), whose snapshots of fast-loop values !
-   !  read the last staged sub-step. Closed records are queued for the I/O phase.          !
-   !=======================================================================================!
+   !---~---
+   !   A polygon's output tick after a slow step: replay the FAST samples its fast loop
+   ! staged, closing that tier every fast_interval_steps of them over the run, then fold
+   ! the step into the slower tiers (output_integrate), whose snapshots of fast-loop values
+   ! read the last staged sub-step. Closed records are queued for the I/O phase.
+   !---~---
    subroutine output_tick(files, bufs, poly, step, dt_slow, dt_fast)
       type(output_files_t),   intent(in)    :: files
       type(output_buffers_t), intent(inout) :: bufs
       type(polygon_t),        intent(in)    :: poly
       type(calendar_step_t),  intent(in)    :: step
-      real(wp),               intent(in)    :: dt_slow, dt_fast   !< [s] the slow step, a fast sub-step
+      real(wp),               intent(in)    :: dt_slow, dt_fast   ! [s] the slow step, a fast sub-step
       integer(ik) :: isub
       if (bufs%fast_ready .and. files%reg%nidx(TIER_FAST) > 0_ik) then
          do isub = 1_ik, bufs%n_fast_sub
@@ -54,12 +54,12 @@ contains
       bufs%fast_ready = .false.
    end subroutine output_tick
 
-   !=======================================================================================!
-   !  Buffer lifecycle                                                                      !
-   !=======================================================================================!
+   !--- Buffer lifecycle
 
-   !----- Allocate + seed one (variable, tier) buffer. slab arrays sized to `cap` for a       !
-   !      non-scalar dim; scalar dims allocate none.                                            !
+   !---~---
+   !   Allocate + seed one (variable, tier) buffer. slab arrays sized to `cap` for a
+   ! non-scalar dim; scalar dims allocate none.
+   !---~---
    subroutine alloc_integ_buffer(buf, v, freq, cap)
       type(integ_buffer_t), intent(out) :: buf
       type(var_desc_t),     intent(in)  :: v
@@ -67,8 +67,10 @@ contains
       buf%var_id = 0_ik      ! set by the caller (registry index)
       buf%freq   = freq
       buf%agg    = v%agg
-      !----- The F tier folds staged sub-step samples, rates and states alike: a mean variable their  !
-      !      dt-weighted mean, a snapshot the last. ------------------------------------------------!
+      !---~---
+      !   The F tier folds staged sub-step samples, rates and states alike: a mean variable their
+      ! dt-weighted mean, a snapshot the last.
+      !---~---
       if (freq == FREQ_FAST .and. v%agg /= AGG_LAST) buf%agg = AGG_TMEAN
       buf%dim    = v%dim
       buf%active = .true.
@@ -78,7 +80,7 @@ contains
       call reset_buffer(buf)
    end subroutine alloc_integ_buffer
 
-   !----- Re-seed a buffer for the next period. ---------------------------------------------!
+   !--- Re-seed a buffer for the next period.
    subroutine reset_buffer(buf)
       type(integ_buffer_t), intent(inout) :: buf
       buf%scal  = 0.0_wp
@@ -93,11 +95,9 @@ contains
    end subroutine reset_buffer
 
 
-   !=======================================================================================!
-   !  Integrate (fold one step)                                                             !
-   !=======================================================================================!
+   !--- Integrate (fold one step)
 
-   !----- Fold one scalar sample x over a step of length dt [s] into a scalar buffer. ------!
+   !--- Fold one scalar sample x over a step of length dt [s] into a scalar buffer.
    elemental subroutine integrate_scalar(buf, x, dt)
       type(integ_buffer_t), intent(inout) :: buf
       real(wp),             intent(in)    :: x, dt
@@ -118,10 +118,12 @@ contains
       end select
    end subroutine integrate_scalar
 
-   !----- Fold a slab of n samples by direct slot index. `valid` (optional) marks the slots with  !
-   !      something to report this step; the rest (an empty patch, PFT or class, a layer below the !
-   !      column) are skipped and close as _FillValue, not as a 0 a reader would take for a        !
-   !      measurement (docs/science/diagnostics.md §2). Without `valid` every slot is folded. -----!
+   !---~---
+   !   Fold a slab of n samples by direct slot index. `valid` (optional) marks the slots with
+   ! something to report this step; the rest (an empty patch, PFT or class, a layer below the
+   ! column) are skipped and close as _FillValue, not as a 0 a reader would take for a
+   ! measurement (docs/science/diagnostics.md §2). Without `valid` every slot is folded.
+   !---~---
    subroutine integrate_slab(buf, x, n, dt, valid)
       type(integ_buffer_t), intent(inout) :: buf
       real(wp),             intent(in)    :: x(:)
@@ -155,9 +157,7 @@ contains
       end do
    end subroutine integrate_slab
 
-   !=======================================================================================!
-   !  Normalize (close a period). valid=.false. -> emit MISSING_VALUE (no NaN, no ±huge).     !
-   !=======================================================================================!
+   !--- Normalize (close a period). valid=.false. -> emit MISSING_VALUE (no NaN, no ±huge).
    subroutine normalize_scalar(buf, out, valid)
       type(integ_buffer_t), intent(in)  :: buf
       real(wp),             intent(out) :: out
@@ -186,7 +186,7 @@ contains
       end select
    end subroutine normalize_scalar
 
-   !----- Slab normalize: one value + validity per live slot [1:n_out]. --------------------!
+   !--- Slab normalize: one value + validity per live slot [1:n_out].
    subroutine normalize_slab(buf, out, valid, n_out)
       type(integ_buffer_t), intent(in)  :: buf
       real(wp),             intent(out) :: out(:)
@@ -194,8 +194,10 @@ contains
       integer(ik),          intent(out) :: n_out
       integer(ik) :: i
       n_out = buf%n_slab
-      !----- A record row per live slot. A shorter record means the slab was sized before the      !
-      !      registry was final, and the loop below would write past this column into the next. --!
+      !---~---
+      !   A record row per live slot. A shorter record means the slab was sized before the
+      ! registry was final, and the loop below would write past this column into the next.
+      !---~---
       if (n_out > size(out, kind=ik))                                                            &
          error stop 'ed_output_integrate: a slab is longer than its record (max_slab sized too early)'
       out(:)   = MISSING_VALUE
@@ -221,31 +223,35 @@ contains
       end do
    end subroutine normalize_slab
 
-   !=======================================================================================!
-   !  The per-step tick. The slow step just taken covers [prev, now): it is folded into the  !
-   !  window that holds prev, and only then is each window that now has left closed, so a   !
-   !  step belongs to the period it starts in (docs/science/diagnostics.md §4, Which steps  !
-   !  a record holds). Closed records go to bufs%queue. The calendar restructuring runs     !
-   !  after this tick, at the next step's start (ed_stepper).                               !
-   !=======================================================================================!
+   !---~---
+   !   The per-step tick. The slow step just taken covers [prev, now): it is folded into the
+   ! window that holds prev, and only then is each window that now has left closed, so a
+   ! step belongs to the period it starts in (docs/science/diagnostics.md §4, Which steps
+   ! a record holds). Closed records go to bufs%queue. The calendar restructuring runs
+   ! after this tick, at the next step's start (ed_stepper).
+   !---~---
    subroutine output_integrate(files, bufs, poly, prev, dt, is_new_day, is_new_month, is_new_year)
       type(output_files_t),   intent(in)    :: files
       type(output_buffers_t), intent(inout) :: bufs
       type(polygon_t),        intent(in)    :: poly
-      type(ed_time_t),        intent(in)    :: prev          !< the start of the step just taken
+      type(ed_time_t),        intent(in)    :: prev          ! the start of the step just taken
       real(wp),               intent(in)    :: dt
-      logical,                intent(in)    :: is_new_day, is_new_month, is_new_year  !< its end left prev's period
+      logical,                intent(in)    :: is_new_day, is_new_month, is_new_year  ! its end left prev's period
       integer(ik) :: t, j, k, n_out
       real(wp)    :: scal
       real(wp)    :: slab(max(files%max_slab, 1_ik))
       logical     :: vslab(max(files%max_slab, 1_ik))
       if (.not. files%enabled) return
-      !----- The cohort and patch slabs are output.cohort_max and patch_max long. Stop at the step the  !
-      !      stand outgrows one, not when its record is written, up to a month later. ------------------!
+      !---~---
+      !   The cohort and patch slabs are output.cohort_max and patch_max long. Stop at the step the
+      ! stand outgrows one, not when its record is written, up to a month later.
+      !---~---
       if (files%cohort_axis .and. poly%cohort%n > files%cohort_max) call cap_exceeded('cohort', poly%cohort%n, files%cohort_max)
       if (files%patch_axis  .and. poly%patch%n  > files%patch_max)  call cap_exceeded('patch',  poly%patch%n,  files%patch_max)
-      !----- Fold the step into the daily, monthly and annual tiers. The FAST tier is fed from the !
-      !      staged sub-steps (output_integrate_fast). -------------------------------------------!
+      !---~---
+      !   Fold the step into the daily, monthly and annual tiers. The FAST tier is fed from the
+      ! staged sub-steps (output_integrate_fast).
+      !---~---
       do t = TIER_DAILY, N_FREQ
          if (files%reg%nidx(t) == 0_ik) cycle
          if (.not. bufs%has_data(t)) bufs%t_open(t) = prev
@@ -264,13 +270,13 @@ contains
          end do
          bufs%has_data(t) = .true.
       end do
-      !----- then close the periods the step's end has left (tiers independent). ----------------!
+      !--- then close the periods the step's end has left (tiers independent).
       if (is_new_year  .and. bufs%has_data(TIER_ANNUAL))  call close_tier(files, bufs, TIER_ANNUAL)
       if (is_new_month .and. bufs%has_data(TIER_MONTHLY)) call close_tier(files, bufs, TIER_MONTHLY)
       if (is_new_day   .and. bufs%has_data(TIER_DAILY))   call close_tier(files, bufs, TIER_DAILY)
    end subroutine output_integrate
 
-   !----- A live count past its output cap: say which, by how much, and what to raise. -----------!
+   !--- A live count past its output cap: say which, by how much, and what to raise.
    subroutine cap_exceeded(axis, n, cap)
       character(len=*), intent(in) :: axis
       integer(ik),      intent(in) :: n, cap
@@ -279,7 +285,7 @@ contains
       error stop 'output: a live count exceeds its output cap (see the message above)'
    end subroutine cap_exceeded
 
-   !----- Normalize a tier's buffers into its pending record + reset them (staging). ----------!
+   !--- Normalize a tier's buffers into its pending record + reset them (staging).
    subroutine close_tier(files, bufs, t)
       type(output_files_t),   intent(in)    :: files
       type(output_buffers_t), intent(inout) :: bufs
@@ -304,8 +310,10 @@ contains
             call normalize_slab(bufs%buf(k,t), bufs%pending(t)%slab(:,c),                          &
                                 bufs%pending(t)%slabvalid(:,c), ns)
             bufs%pending(t)%nslab(k) = ns
-            !----- The record's axis lengths. A soil-by-patch slab is patch-major, strided by the  !
-            !      layer ceiling, so it holds ns / n_soil_layer_max patches. ---------------------!
+            !---~---
+            !   The record's axis lengths. A soil-by-patch slab is patch-major, strided by the
+            ! layer ceiling, so it holds ns / n_soil_layer_max patches.
+            !---~---
             select case (files%reg%var(k)%dim)
             case (DIM_COHORT)
                bufs%pending(t)%n_cohort = max(bufs%pending(t)%n_cohort, ns)
@@ -330,10 +338,12 @@ contains
       bufs%pending(t)%used = .false.
    end subroutine close_tier
 
-   !----- Append a copy of the scratch record to the tier's queue. Only what the writer reads is   !
-   !      copied: the tier's slab variables (`slab_k`), each to its nslab rows, or the whole patch x !
-   !      layer block (n_patch * n_soil_layer_max) for a soil-patch variable. The copy is exact, so  !
-   !      a queued record writes exactly what an immediate write from the scratch would have. -----!
+   !---~---
+   !   Append a copy of the scratch record to the tier's queue. Only what the writer reads is
+   ! copied: the tier's slab variables (`slab_k`), each to its nslab rows, or the whole patch x
+   ! layer block (n_patch * n_soil_layer_max) for a soil-patch variable. The copy is exact, so
+   ! a queued record writes exactly what an immediate write from the scratch would have.
+   !---~---
    subroutine enqueue_record(q, src, slab_k, soil_patch)
       type(record_queue_t),   intent(inout) :: q
       type(pending_record_t), intent(in)    :: src
@@ -381,12 +391,12 @@ contains
       end associate
    end subroutine enqueue_record
 
-   !=======================================================================================!
-   !  Fold one staged sub-step (isub) into the FAST tier's buffers. output_tick calls it   !
-   !  once per staged sub-step and closes the tier every fast_interval_steps folds. It     !
-   !  reads only the buffers' staging, never the polygon's live state (the end of the slow !
-   !  step by now).                                                                        !
-   !=======================================================================================!
+   !---~---
+   !   Fold one staged sub-step (isub) into the FAST tier's buffers. output_tick calls it
+   ! once per staged sub-step and closes the tier every fast_interval_steps folds. It
+   ! reads only the buffers' staging, never the polygon's live state (the end of the slow
+   ! step by now).
+   !---~---
    subroutine output_integrate_fast(files, bufs, isub, dt)
       type(output_files_t),   intent(in)    :: files
       type(output_buffers_t), intent(inout) :: bufs
@@ -398,8 +408,10 @@ contains
       logical     :: valid(max(files%max_slab, 1_ik))
       if (.not. files%enabled) return
       if (files%reg%nidx(TIER_FAST) == 0_ik) return
-      !----- The staging follows the stand; the slabs are output.cohort_max and patch_max long. The  !
-      !      same check as the coarse tiers' (output_integrate), before this tier writes into them. --!
+      !---~---
+      !   The staging follows the stand; the slabs are output.cohort_max and patch_max long. The
+      ! same check as the coarse tiers' (output_integrate), before this tier writes into them.
+      !---~---
       if (files%cohort_axis .and. bufs%fast_n_cohort > files%cohort_max)                           &
          call cap_exceeded('cohort', bufs%fast_n_cohort, files%cohort_max)
       if (files%patch_axis .and. bufs%fast_n_patch > files%patch_max)                              &
@@ -417,10 +429,12 @@ contains
       bufs%has_data(TIER_FAST) = .true.
    end subroutine output_integrate_fast
 
-   !----- One staged source's value in sub-step isub, on the variable's axis: the polygon mean of  !
-   !      the patch rows or a forcing row, each patch's row, a soil column, or the per-cohort      !
-   !      values. Every slot is valid but a layer below its column. A per-cohort diagnostic row    !
-   !      is staged only while the block is on (a fast loop that ran); else it has no slots. ------!
+   !---~---
+   !   One staged source's value in sub-step isub, on the variable's axis: the polygon mean of
+   ! the patch rows or a forcing row, each patch's row, a soil column, or the per-cohort
+   ! values. Every slot is valid but a layer below its column. A per-cohort diagnostic row
+   ! is staged only while the block is on (a fast loop that ran); else it has no slots.
+   !---~---
    subroutine staged_value(bufs, src, dm, isub, scal, slab, valid, n)
       type(output_buffers_t), intent(in)  :: bufs
       integer(ik),            intent(in)  :: src, dm, isub
@@ -470,10 +484,12 @@ contains
       end select
    end subroutine staged_value
 
-   !----- A snapshot of a fast-loop diagnostic: its value over the last fast step of the slow step  !
-   !      just taken, the last staged sub-step (docs/science/diagnostics.md §3). A per-cohort row   !
-   !      reduced to a coarser axis is that sub-step's row, reduced as its mean is. With nothing    !
-   !      staged this step (no fast loop) it is missing, and the period keeps its last value. -----!
+   !---~---
+   !   A snapshot of a fast-loop diagnostic: its value over the last fast step of the slow step
+   ! just taken, the last staged sub-step (docs/science/diagnostics.md §3). A per-cohort row
+   ! reduced to a coarser axis is that sub-step's row, reduced as its mean is. With nothing
+   ! staged this step (no fast loop) it is missing, and the period keeps its last value.
+   !---~---
    subroutine staged_snapshot(bufs, poly, v, scal, slab, valid, n)
       type(output_buffers_t), intent(in)  :: bufs
       type(polygon_t),        intent(in)  :: poly

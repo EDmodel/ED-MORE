@@ -1,43 +1,43 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! test_therm_lib -- the thermodynamics the stores share (ed_therm_lib).                    !
-!   1. TEMPERATURE RESPONSE (arrhenius_scale, peaked_arrhenius_scale,                      !
-!      kattge_knorr_entropy; docs/science/plant_respiration.md eq. (5),                    !
-!      docs/science/leaf_gas_exchange.md eq. (4)): each form is k25 at 25 C; Arrhenius     !
-!      rises with temperature and the peaked form has an interior optimum; a warm-grown    !
-!      plant's entropy shift keeps more capacity in heat and moves the optimum up.         !
-!   2. DATUM (internal_energy_to_temp, temp_to_internal_energy, internal_energy_ice): the  !
-!      phase-change inverter round-trips liquid and ice, is continuous at the ends of the  !
-!      melt plateau and sits at t_3ple on it; ice holds internal_energy_ice per kilogram,  !
-!      and melting it at t_3ple costs the latent heat of fusion                            !
-!      (docs/science/coupled_biophysics.md, principle 1).                                  !
-!   3. CLAUSIUS-CLAPEYRON (sat_vapor_pressure_temp_deriv): the slope of e_sat against a    !
-!      finite difference.                                                                  !
-!   4. ICE SATURATION (sat_vapor_pressure; docs/science/snow_biophysics.md eq. (1)): an    !
-!      absent liquid fraction is the liquid curve to the bit; the branches meet at the     !
-!      triple point; over ice e_sat is Murphy & Koop (2005)'s; at 268 K the air saturated  !
-!      over ice holds 3-8 % less vapour than over liquid.                                  !
-!   5. SOIL CONDUCTIVITY (soil_thermal_conductivity; docs/science/soil_biophysics.md eq.   !
-!      (11)): frozen soil conducts more than thawed; the Kersten number is Johansen's log  !
-!      form thawed and the linear form frozen.                                             !
-!   6. SOIL TEXTURE (soil_texture_to_thermal; soil_biophysics.md eq. (9)): CLM5's solids'  !
-!      and dry soil's conductivities and the solids' heat capacity, computed apart.        !
-!   7. MOIST AIR (sat_specific_humidity, rh_to_specific_humidity, specific_humidity_to_vpd,  !
-!      precip_phase; docs/science/forcing.md): the humidity of a dewpoint is                 !
-!      eps e / (p - (1 - eps) e) and RH = 1 at the dewpoint gives it again; the VPD is read  !
-!      at the air's pressure: air half saturated at 70 kPa has half e_sat of it there, and a !
-!      humidity at 70 kPa holds 0.7 of the vapour pressure it holds at 1 atm; the            !
-!      rain/snow split keeps the total, all rain when warm, all snow when cold, part of each !
-!      at the triple point.                                                                  !
-!   8. THE AIR AT ANOTHER HEIGHT (lapse_air_temperature, lapse_pressure,                     !
-!      lapse_specific_humidity; forcing.md §8): the temperature falls at the rate given, the !
-!      pressure drops, barometrically when isothermal, the humidity keeps its relative       !
-!      humidity, and nothing changes at dz = 0.                                              !
-!   9. A TISSUE'S ENERGY (tissue_temp_to_energy, tissue_energy_to_temp;                      !
-!      docs/science/vegetation_energy_dynamics.md eqs. (9)-(10)): it is                      !
-!      temp_to_internal_energy with liquid water, tissue_energy_to_temp inverts it, and      !
-!      water that comes or goes at the tissue's temperature leaves the temperature there.    !
-!==========================================================================================!
+!---~---
+!   test_therm_lib -- the thermodynamics the stores share (ed_therm_lib).
+!   1. TEMPERATURE RESPONSE (arrhenius_scale, peaked_arrhenius_scale,
+!      kattge_knorr_entropy; docs/science/plant_respiration.md eq. (5),
+!      docs/science/leaf_gas_exchange.md eq. (4)): each form is k25 at 25 C; Arrhenius
+!      rises with temperature and the peaked form has an interior optimum; a warm-grown
+!      plant's entropy shift keeps more capacity in heat and moves the optimum up.
+!   2. DATUM (internal_energy_to_temp, temp_to_internal_energy, internal_energy_ice): the
+!      phase-change inverter round-trips liquid and ice, is continuous at the ends of the
+!      melt plateau and sits at t_3ple on it; ice holds internal_energy_ice per kilogram,
+!      and melting it at t_3ple costs the latent heat of fusion
+!      (docs/science/coupled_biophysics.md, principle 1).
+!   3. CLAUSIUS-CLAPEYRON (sat_vapor_pressure_temp_deriv): the slope of e_sat against a
+!      finite difference.
+!   4. ICE SATURATION (sat_vapor_pressure; docs/science/snow_biophysics.md eq. (1)): an
+!      absent liquid fraction is the liquid curve to the bit; the branches meet at the
+!      triple point; over ice e_sat is Murphy & Koop (2005)'s; at 268 K the air saturated
+!      over ice holds 3-8 % less vapour than over liquid.
+!   5. SOIL CONDUCTIVITY (soil_thermal_conductivity; docs/science/soil_biophysics.md eq.
+!      (11)): frozen soil conducts more than thawed; the Kersten number is Johansen's log
+!      form thawed and the linear form frozen.
+!   6. SOIL TEXTURE (soil_texture_to_thermal; soil_biophysics.md eq. (9)): CLM5's solids'
+!      and dry soil's conductivities and the solids' heat capacity, computed apart.
+!   7. MOIST AIR (sat_specific_humidity, rh_to_specific_humidity, specific_humidity_to_vpd,
+!      precip_phase; docs/science/forcing.md): the humidity of a dewpoint is
+!      eps e / (p - (1 - eps) e) and RH = 1 at the dewpoint gives it again; the VPD is read
+!      at the air's pressure: air half saturated at 70 kPa has half e_sat of it there, and a
+!      humidity at 70 kPa holds 0.7 of the vapour pressure it holds at 1 atm; the
+!      rain/snow split keeps the total, all rain when warm, all snow when cold, part of each
+!      at the triple point.
+!   8. THE AIR AT ANOTHER HEIGHT (lapse_air_temperature, lapse_pressure,
+!      lapse_specific_humidity; forcing.md §8): the temperature falls at the rate given, the
+!      pressure drops, barometrically when isothermal, the humidity keeps its relative
+!      humidity, and nothing changes at dz = 0.
+!   9. A TISSUE'S ENERGY (tissue_temp_to_energy, tissue_energy_to_temp;
+!      docs/science/vegetation_energy_dynamics.md eqs. (9)-(10)): it is
+!      temp_to_internal_energy with liquid water, tissue_energy_to_temp inverts it, and
+!      water that comes or goes at the tissue's temperature leaves the temperature there.
+!---~---
 program test_therm_lib
    use ed_test_assert,   only : check, check_true, test_report
    use ed_kinds,         only : wp, ik
@@ -50,7 +50,7 @@ program test_therm_lib
                                 specific_humidity_to_vpd, tissue_temp_to_energy, tissue_energy_to_temp,          &
                                 internal_energy_liquid
    implicit none
-   real(wp), parameter :: SCAN_LO = 5.0_wp, SCAN_HI = 55.0_wp   !< [C] the optimum scan's range
+   real(wp), parameter :: SCAN_LO = 5.0_wp, SCAN_HI = 55.0_wp   ! [C] the optimum scan's range
 
    call test_temperature_response()
    call test_datum()
@@ -66,10 +66,12 @@ program test_therm_lib
 
 contains
 
-   !----- 1. The temperature response of enzyme rates, at Vcmax's activation, deactivation and     !
-   !      entropy (60 at 25 C; Ea 65330 J/mol, Hd 200000 J/mol, dS 650 J/mol/K). Kattge & Knorr    !
-   !      (2007)'s acclimation shifts dS by the growth temperature; what it is for is moving where  !
-   !      the response peaks, measured here from the function by a scan. --------------------------!
+   !---~---
+   !   1. The temperature response of enzyme rates, at Vcmax's activation, deactivation and
+   ! entropy (60 at 25 C; Ea 65330 J/mol, Hd 200000 J/mol, dS 650 J/mol/K). Kattge & Knorr
+   ! (2007)'s acclimation shifts dS by the growth temperature; what it is for is moving where
+   ! the response peaks, measured here from the function by a scan.
+   !---~---
    subroutine test_temperature_response()
       real(wp), parameter :: VC25 = 60.0_wp, EA = 65330.0_wp, HD = 200000.0_wp, DS = 650.0_wp
       real(wp), parameter :: T_COLD = t_kelvin + 10.0_wp, T_WARM = t_kelvin + 30.0_wp
@@ -85,8 +87,10 @@ contains
       k45 = peaked_arrhenius_scale(VC25, EA, HD, DS, t_kelvin + 45.0_wp)
       call check('peaked is k25 at 25 C', k25, VC25, 1.0e-12_wp * VC25)
       call check_true('peaked has an interior thermal optimum', k32 > k25 .and. k32 > k45, k32)
-      !----- At a hot leaf temperature the warm-acclimated plant keeps more capacity than the      !
-      !      cold-acclimated one, and its optimum sits higher. ------------------------------------!
+      !---~---
+      !   At a hot leaf temperature the warm-acclimated plant keeps more capacity than the
+      ! cold-acclimated one, and its optimum sits higher.
+      !---~---
       ds_cold = kattge_knorr_entropy(668.39_wp, 1.07_wp, T_COLD)
       ds_warm = kattge_knorr_entropy(668.39_wp, 1.07_wp, T_WARM)
       k_cold  = peaked_arrhenius_scale(VC25, EA, HD, ds_cold, t_kelvin + 38.0_wp)
@@ -102,11 +106,13 @@ contains
                       topt_warm - t_kelvin)
    end subroutine test_temperature_response
 
-   !----- The peak of the peaked response [K] by a scan at 0.05 K over [SCAN_LO, SCAN_HI] C, so the  !
-   !      optimum is measured from the function rather than derived from a formula the test would  !
-   !      check against itself; the scan reaches well past a warm-grown stand's optimum (38 C). ----!
+   !---~---
+   !   The peak of the peaked response [K] by a scan at 0.05 K over [SCAN_LO, SCAN_HI] C, so the
+   ! optimum is measured from the function rather than derived from a formula the test would
+   ! check against itself; the scan reaches well past a warm-grown stand's optimum (38 C).
+   !---~---
    pure real(wp) function peak_temperature(ds) result(t_opt)
-      real(wp), intent(in) :: ds   !< [J/mol/K] the entropy term
+      real(wp), intent(in) :: ds   ! [J/mol/K] the entropy term
       real(wp)    :: t, k, k_best
       integer(ik) :: j
       k_best = -1.0_wp
@@ -121,10 +127,12 @@ contains
       end do
    end function peak_temperature
 
-   !----- 2. The phase-change inverter, per m3 of soil with 1000 J/m3/K of dry matter and 0.3 kg of  !
-   !      water: liquid and ice round-trip; at both ends of the melt plateau it reads t_3ple, and    !
-   !      half way along it t_3ple and half liquid. And 5 kg of snow, with no dry matter: all ice,  !
-   !      it holds internal_energy_ice per kilogram, and melting it at t_3ple costs 5 x 3.34e5 J.   !
+   !---~---
+   !   2. The phase-change inverter, per m3 of soil with 1000 J/m3/K of dry matter and 0.3 kg of
+   ! water: liquid and ice round-trip; at both ends of the melt plateau it reads t_3ple, and
+   ! half way along it t_3ple and half liquid. And 5 kg of snow, with no dry matter: all ice,
+   ! it holds internal_energy_ice per kilogram, and melting it at t_3ple costs 5 x 3.34e5 J.
+   !---~---
    subroutine test_datum()
       real(wp), parameter :: DH = 1000.0_wp, WM = 0.3_wp, SWE = 5.0_wp
       real(wp) :: uext, t, fl, u_freeze, u_melt, u_ice, u_liq
@@ -153,7 +161,7 @@ contains
       call check('melting at t_3ple costs the latent heat of fusion', u_liq - u_ice, SWE * 3.34e5_wp, 1.0e-3_wp)
    end subroutine test_datum
 
-   !----- 3. The Clausius-Clapeyron slope of the liquid curve against a central difference. ----!
+   !--- 3. The Clausius-Clapeyron slope of the liquid curve against a central difference.
    subroutine test_clausius()
       real(wp), parameter :: DT = 1.0e-3_wp
       real(wp) :: ana, fd
@@ -163,31 +171,33 @@ contains
       call check('d(e_sat)/dT vs FD', ana, fd, 1.0e-3_wp * abs(fd) + 1.0e-6_wp)
    end subroutine test_clausius
 
-   !---------------------------------------------------------------------------------------!
-   ! 4. SATURATION OVER ICE (docs/science/snow_biophysics.md eq. (1)). The liquid curve over a !
-   ! frozen surface overstates e_sat by 10 % at -10 C and 34 % at -30 C, which would overdrive   !
-   ! sublimation from the snow pack and from frozen soil. Three things must hold:                !
-   !   (a) an ABSENT fliq gives the liquid curve (fliq = 1) BIT-IDENTICALLY;                     !
-   !   (b) the two branches meet EXACTLY at the triple point, so the blend puts no jump into the !
-   !       right-hand side an adaptive controller integrates;                                    !
-   !   (c) the ice branch is actually accurate -- checked against Murphy & Koop (2005).          !
-   !---------------------------------------------------------------------------------------!
+   !---~---
+   !   4. SATURATION OVER ICE (docs/science/snow_biophysics.md eq. (1)). The liquid curve over a
+   ! frozen surface overstates e_sat by 10 % at -10 C and 34 % at -30 C, which would overdrive
+   ! sublimation from the snow pack and from frozen soil. Three things must hold:
+   !   (a) an ABSENT fliq gives the liquid curve (fliq = 1) BIT-IDENTICALLY;
+   !   (b) the two branches meet EXACTLY at the triple point, so the blend puts no jump into the
+   !       right-hand side an adaptive controller integrates;
+   !   (c) the ice branch is actually accurate -- checked against Murphy & Koop (2005).
+   !---~---
    subroutine test_ice_saturation()
       real(wp), parameter :: DT = 1.0e-3_wp
       real(wp) :: e_liq, e_ice, e_mix, fd, an
       print '(a)', 'test_ice_saturation:'
 
-      !----- (a) absent fliq == fliq = 1 == the liquid curve, to the last bit. ----------------!
+      !--- (a) absent fliq == fliq = 1 == the liquid curve, to the last bit.
       call check_true('absent fliq is bit-identical to fliq = 1 at 283 K',                        &
                       sat_vapor_pressure(283.15_wp) == sat_vapor_pressure(283.15_wp, 1.0_wp), 0.0_wp)
       call check_true('absent fliq is bit-identical to fliq = 1 at 253 K',                        &
                       sat_vapor_pressure(253.15_wp) == sat_vapor_pressure(253.15_wp, 1.0_wp), 0.0_wp)
 
-      !----- (b) the two branches share the 611.2 Pa constant, so they cross EXACTLY at tc = 0,   !
-      !      i.e. at 273.15 K. (t_3ple is 273.16 K, one hundredth of a degree above, where they   !
-      !      differ by 0.06 Pa = 0.01 % -- checked below.) The blend is a convex combination of     !
-      !      two smooth curves, so it is continuous in BOTH temperature and fliq regardless; what  !
-      !      this pins is that a surface crossing the phase boundary sees no step.  --------------!
+      !---~---
+      !   (b) the two branches share the 611.2 Pa constant, so they cross EXACTLY at tc = 0,
+      ! i.e. at 273.15 K. (t_3ple is 273.16 K, one hundredth of a degree above, where they
+      ! differ by 0.06 Pa = 0.01 % -- checked below.) The blend is a convex combination of
+      ! two smooth curves, so it is continuous in BOTH temperature and fliq regardless; what
+      ! this pins is that a surface crossing the phase boundary sees no step.
+      !---~---
       call check('ice and liquid branches cross exactly at 273.15 K',                             &
                  sat_vapor_pressure(273.15_wp, 0.0_wp), sat_vapor_pressure(273.15_wp, 1.0_wp),    &
                  1.0e-12_wp)
@@ -198,7 +208,7 @@ contains
                       < 5.0e-4_wp * sat_vapor_pressure(t_3ple, 1.0_wp),                           &
                       sat_vapor_pressure(t_3ple, 0.0_wp) / sat_vapor_pressure(t_3ple, 1.0_wp))
 
-      !----- (c) accuracy against Murphy & Koop (2005) over ice, and the liquid curve's error. --!
+      !--- (c) accuracy against Murphy & Koop (2005) over ice, and the liquid curve's error.
       call check('e_sat over ice at -10 C (Murphy-Koop 259.892 Pa)',                              &
                  sat_vapor_pressure(t_3ple - 10.0_wp, 0.0_wp), 259.892_wp, 0.4_wp)
       call check('e_sat over ice at -20 C (Murphy-Koop 103.252 Pa)',                              &
@@ -214,13 +224,13 @@ contains
                       0.92_wp * sat_specific_humidity(268.0_wp, 101325.0_wp),                             &
                       sat_specific_humidity(268.0_wp, 101325.0_wp, 0.0_wp) / sat_specific_humidity(268.0_wp, 101325.0_wp))
 
-      !----- The blend is monotone in fliq and bracketed by the two pure branches. -------------!
+      !--- The blend is monotone in fliq and bracketed by the two pure branches.
       e_mix = sat_vapor_pressure(t_3ple - 15.0_wp, 0.4_wp)
       call check_true('blend lies between the ice and liquid curves',                             &
                       e_mix > sat_vapor_pressure(t_3ple - 15.0_wp, 0.0_wp) .and.                  &
                       e_mix < sat_vapor_pressure(t_3ple - 15.0_wp, 1.0_wp), e_mix)
 
-      !----- The derivative follows the same branch as the value. ------------------------------!
+      !--- The derivative follows the same branch as the value.
       fd = (sat_vapor_pressure(t_3ple - 20.0_wp + DT, 0.0_wp)                                     &
           - sat_vapor_pressure(t_3ple - 20.0_wp - DT, 0.0_wp)) / (2.0_wp * DT)
       an = sat_vapor_pressure_temp_deriv(t_3ple - 20.0_wp, 0.0_wp)
@@ -230,9 +240,11 @@ contains
                       sat_vapor_pressure_temp_deriv(253.15_wp, 1.0_wp), 0.0_wp)
    end subroutine test_ice_saturation
 
-   !----- 5. Ice-aware conductivity: frozen saturated soil conducts more, as k_ice > k_water; and the !
-   !      Kersten number recovered from the conductivity is Johansen's log10 form thawed and         !
-   !      Farouki's linear form in the relative saturation frozen. --------------------------------!
+   !---~---
+   !   5. Ice-aware conductivity: frozen saturated soil conducts more, as k_ice > k_water; and the
+   ! Kersten number recovered from the conductivity is Johansen's log10 form thawed and
+   ! Farouki's linear form in the relative saturation frozen.
+   !---~---
    subroutine test_soil_conductivity()
       real(wp), parameter :: TS = 0.5_wp, TH = 0.15_wp, KSOL = 3.0_wp, KDRY = 0.15_wp
       real(wp) :: k_liq, k_frz, ksat_liq, ksat_frz, ke_liq, ke_frz, sr
@@ -249,11 +261,13 @@ contains
       call check('frozen Kersten is the linear s_r form', ke_frz, sr,               1.0e-9_wp)
    end subroutine test_soil_conductivity
 
-   !----- 6. CLM5's mineral soil at Palo Verde's column (sand 33 %, clay 40 %, porosity 0.4456),      !
-   !      computed apart from ED-MORE: solids (8.80 x 33 + 2.92 x 40) / 73 = 5.57808 W/m/K; dry bulk !
-   !      density 1496.88 kg/m3, so dry soil (0.135 x 1496.88 + 64.7) / (2700 - 0.947 x 1496.88)   !
-   !      = 0.208022 W/m/K; and the solids' heat capacity (2.128 x 33 + 2.385 x 40) / 73 x 1e6 x    !
-   !      0.5544 = 1.257835e6 J/m3/K. -------------------------------------------------------------!
+   !---~---
+   !   6. CLM5's mineral soil at Palo Verde's column (sand 33 %, clay 40 %, porosity 0.4456),
+   ! computed apart from ED-MORE: solids (8.80 x 33 + 2.92 x 40) / 73 = 5.57808 W/m/K; dry bulk
+   ! density 1496.88 kg/m3, so dry soil (0.135 x 1496.88 + 64.7) / (2700 - 0.947 x 1496.88)
+   ! = 0.208022 W/m/K; and the solids' heat capacity (2.128 x 33 + 2.385 x 40) / 73 x 1e6 x
+   ! 0.5544 = 1.257835e6 J/m3/K.
+   !---~---
    subroutine test_soil_texture()
       real(wp) :: k_solid, k_dry, dry_cvol
       print '(a)', 'test_soil_texture:'
@@ -263,10 +277,12 @@ contains
       call check('CLM5 solids heat capacity', dry_cvol, 1.2578349e6_wp, 1.0_wp)
    end subroutine test_soil_texture
 
-   !----- 7. Moist air: the humidity of a dewpoint, the VPD at the air's pressure, and the rain/snow  !
-   !      split. The VPD reads the vapour pressure a specific humidity holds at the air's pressure,   !
-   !      which is proportional to it (Dalton): at 70 kPa, about 3,000 m, a humidity holds 0.7 of the  !
-   !      vapour pressure it holds at 1 atm, so read at p_std its VPD would be low by 0.3 of that.     !
+   !---~---
+   !   7. Moist air: the humidity of a dewpoint, the VPD at the air's pressure, and the rain/snow
+   ! split. The VPD reads the vapour pressure a specific humidity holds at the air's pressure,
+   ! which is proportional to it (Dalton): at 70 kPa, about 3,000 m, a humidity holds 0.7 of the
+   ! vapour pressure it holds at 1 atm, so read at p_std its VPD would be low by 0.3 of that.
+   !---~---
    subroutine test_moist_air()
       real(wp), parameter :: TD = 285.0_wp, P = 98000.0_wp, TOT = 1.0e-4_wp
       real(wp), parameter :: T_AIR = 293.0_wp, Q_AIR = 0.006_wp, P_LOW = 0.7_wp * 101325.0_wp
@@ -295,7 +311,7 @@ contains
       call check_true('partial snow at t_3ple', snow > 0.0_wp .and. snow < TOT, snow)
    end subroutine test_moist_air
 
-   !----- 8. The air at another height: a site 500 m above (dz > 0) or below (dz < 0) its cell. ---!
+   !--- 8. The air at another height: a site 500 m above (dz > 0) or below (dz < 0) its cell.
    subroutine test_lapse()
       real(wp), parameter :: DZ = 500.0_wp, G = 0.0065_wp
       real(wp), parameter :: T0 = 285.0_wp, P0 = 95000.0_wp, Q0 = 0.007_wp
@@ -309,7 +325,7 @@ contains
       call check('lapse dz=0 -> P unchanged', lapse_pressure(101325.0_wp, 290.0_wp, 0.0_wp, G), 101325.0_wp, 1.0e-6_wp)
       call check('isothermal (gamma=0) = barometric', lapse_pressure(101325.0_wp, 290.0_wp, DZ, 0.0_wp),        &
                  101325.0_wp*exp(-9.80665_wp*DZ/(287.04_wp*290.0_wp)), 1.0e-2_wp)
-      !----- A site 500 m below its cell keeps the cell's relative humidity. ------------------!
+      !--- A site 500 m below its cell keeps the cell's relative humidity.
       t1 = lapse_air_temperature(T0, -DZ, G)
       p1 = lapse_pressure(P0, T0, -DZ, G)
       q1 = lapse_specific_humidity(Q0, T0, P0, t1, p1)
@@ -320,8 +336,10 @@ contains
       call check('dz = 0 leaves q unchanged', lapse_specific_humidity(Q0, T0, P0, T0, P0), Q0, 1.0e-15_wp)
    end subroutine test_lapse
 
-   !----- 9. A tissue of 5e4 J/K of dry matter holding 12 kg of water at 297.3 K, and 0.7 kg of water  !
-   !      arriving or leaving at that temperature, carrying internal_energy_liquid per kilogram. ----!
+   !---~---
+   !   9. A tissue of 5e4 J/K of dry matter holding 12 kg of water at 297.3 K, and 0.7 kg of water
+   ! arriving or leaving at that temperature, carrying internal_energy_liquid per kilogram.
+   !---~---
    subroutine test_tissue_energy()
       real(wp), parameter :: DRY = 5.0e4_wp, WATER = 12.0_wp, T_TISSUE = 297.3_wp, DW = 0.7_wp
       real(wp) :: e

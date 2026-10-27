@@ -1,13 +1,13 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! ed_output_reduce -- stage [3] of the diagnostic output (docs/science/diagnostics.md    !
-! §1-§2): one weighted reduction of a per-cohort field to each patch, the polygon, each PFT  !
-! or each DBH class, and of a per-patch field to the polygon or to each site's soil column.  !
-! The weight kind and the sum or mean come from the variable's descriptor. An empty set is   !
-! not valid (the caller writes _FillValue), except a sum over a PFT or class, a true 0.      !
-! Also the polygon totals the driver and the C API read. Keep each sum(array-expression) as  !
-! written: a loop may associate differently and move every reported total in its last bit.   !
-!==========================================================================================!
+!---~---
+!   ed_output_reduce -- stage [3] of the diagnostic output (docs/science/diagnostics.md
+! §1-§2): one weighted reduction of a per-cohort field to each patch, the polygon, each PFT
+! or each DBH class, and of a per-patch field to the polygon or to each site's soil column.
+! The weight kind and the sum or mean come from the variable's descriptor. An empty set is
+! not valid (the caller writes _FillValue), except a sum over a PFT or class, a true 0.
+! Also the polygon totals the driver and the C API read. Keep each sum(array-expression) as
+! written: a loop may associate differently and move every reported total in its last bit.
+!---~---
 module ed_output_reduce
    use ed_kinds,       only : wp, ik
    use ed_constants,   only : tiny_num, cm2_to_m2, n_soil_layer_max
@@ -17,36 +17,38 @@ module ed_output_reduce
    implicit none
    private
 
-   !----- The generic API (stage 3). -------------------------------------------------------!
+   !--- The generic API (stage 3).
    public :: W_NONE, W_NPLANT, W_LEAF_AREA, W_BASAL_AREA, W_AGB
    public :: reduce_cohort_to_polygon, reduce_cohort_to_patch
    public :: reduce_cohort_to_pft, reduce_cohort_to_size
    public :: reduce_patch_to_polygon, reduce_patch_columns_to_sites, gather_patch_columns
-   !----- Polygon totals for the callers that want one number (the driver's summaries, the C  !
-   !      API, the tests). ------------------------------------------------------------------!
+   !---~---
+   !   Polygon totals for the callers that want one number (the driver's summaries, the C
+   ! API, the tests).
+   !---~---
    public :: total_nplant, total_basal_area, total_agb, total_lai, total_area
    public :: print_summary
    public :: dbh_class_index
 
-   !=======================================================================================!
-   !  Weight kinds: a per-cohort weight w_i. Patch area enters only at the patch -> polygon   !
-   !  step, so one w serves every scale (docs/science/diagnostics.md eqs. (1)-(2)).          !
-   !=======================================================================================!
-   integer(ik), parameter :: W_NONE       = 0_ik  !< w = 1        (count-like; x already per ground area)
-   integer(ik), parameter :: W_NPLANT     = 1_ik  !< w = nplant   (the standard extensive per-plant weight)
-   integer(ik), parameter :: W_LEAF_AREA  = 2_ik  !< w = nplant*leaf_area (canopy-flux / leaf-state weighting)
-   integer(ik), parameter :: W_BASAL_AREA = 3_ik  !< w = nplant*basal_area (structural weighting; dbh)
-   integer(ik), parameter :: W_AGB        = 4_ik  !< w = nplant*agb (biomass weighting)
+   !---~---
+   !   Weight kinds: a per-cohort weight w_i. Patch area enters only at the patch -> polygon
+   ! step, so one w serves every scale (docs/science/diagnostics.md eqs. (1)-(2)).
+   !---~---
+   integer(ik), parameter :: W_NONE       = 0_ik  ! w = 1        (count-like; x already per ground area)
+   integer(ik), parameter :: W_NPLANT     = 1_ik  ! w = nplant   (the standard extensive per-plant weight)
+   integer(ik), parameter :: W_LEAF_AREA  = 2_ik  ! w = nplant*leaf_area (canopy-flux / leaf-state weighting)
+   integer(ik), parameter :: W_BASAL_AREA = 3_ik  ! w = nplant*basal_area (structural weighting; dbh)
+   integer(ik), parameter :: W_AGB        = 4_ik  ! w = nplant*agb (biomass weighting)
 
 contains
 
-   !=======================================================================================!
-   !  Weights                                                                               !
-   !=======================================================================================!
+   !--- Weights
 
-   !----- Fill w(1:n) with the per-cohort weight of `wkind` over the polygon's whole cohort    !
-   !      array. A cohort whose x is missing (one recruited after the fast loop has no samples  !
-   !      yet) carries no weight, so it is left out of a sum and of both halves of a mean. ----!
+   !---~---
+   !   Fill w(1:n) with the per-cohort weight of `wkind` over the polygon's whole cohort
+   ! array. A cohort whose x is missing (one recruited after the fast loop has no samples
+   ! yet) carries no weight, so it is left out of a sum and of both halves of a mean.
+   !---~---
    pure subroutine cohort_weight(poly, wkind, x, w, n)
       type(polygon_t), intent(in) :: poly
       integer(ik),  intent(in)  :: wkind
@@ -70,13 +72,13 @@ contains
       where (x(1:n) == MISSING_VALUE) w(1:n) = 0.0_wp
    end subroutine cohort_weight
 
-   !=======================================================================================!
-   !  cohort -> polygon                                                                     !
-   !=======================================================================================!
+   !--- cohort -> polygon
 
-   !----- Reduce a per-cohort field x(1:ncohort) to one polygon scalar, each patch weighted by !
-   !      its share of the polygon. `scale` multiplies each patch's contribution before it is  !
-   !      summed; applying it once at the end would change the rounding of every total. ------!
+   !---~---
+   !   Reduce a per-cohort field x(1:ncohort) to one polygon scalar, each patch weighted by
+   ! its share of the polygon. `scale` multiplies each patch's contribution before it is
+   ! summed; applying it once at the end would change the rounding of every total.
+   !---~---
    pure subroutine reduce_cohort_to_polygon(poly, x, wkind, mean, val, valid, scale)
       type(polygon_t),    intent(in)  :: poly
       real(wp),           intent(in)  :: x(:)
@@ -110,12 +112,12 @@ contains
       end if
    end subroutine reduce_cohort_to_polygon
 
-   !=======================================================================================!
-   !  cohort -> patch                                                                       !
-   !=======================================================================================!
+   !--- cohort -> patch
 
-   !----- Reduce a per-cohort field to one value per patch, with no area factor: a patch value !
-   !      is per unit of its own ground. An empty patch is not valid (_FillValue). ------------!
+   !---~---
+   !   Reduce a per-cohort field to one value per patch, with no area factor: a patch value
+   ! is per unit of its own ground. An empty patch is not valid (_FillValue).
+   !---~---
    pure subroutine reduce_cohort_to_patch(poly, x, wkind, mean, out, valid, n_out, scale)
       type(polygon_t),    intent(in)  :: poly
       real(wp),           intent(in)  :: x(:)
@@ -151,12 +153,12 @@ contains
       end do
    end subroutine reduce_cohort_to_patch
 
-   !=======================================================================================!
-   !  cohort -> PFT   (DIM_PFT)                                                             !
-   !=======================================================================================!
+   !--- cohort -> PFT   (DIM_PFT)
 
-   !----- Reduce a per-cohort field onto the PFT axis, each patch weighted by its share of the  !
-   !      polygon, so a value is per m2 of polygon ground and the PFTs sum to the polygon total. !
+   !---~---
+   !   Reduce a per-cohort field onto the PFT axis, each patch weighted by its share of the
+   ! polygon, so a value is per m2 of polygon ground and the PFTs sum to the polygon total.
+   !---~---
    pure subroutine reduce_cohort_to_pft(poly, x, wkind, mean, n_pft, out, valid, n_out, scale)
       type(polygon_t),    intent(in)  :: poly
       real(wp),           intent(in)  :: x(:)
@@ -192,20 +194,22 @@ contains
             out(k)   = 0.0_wp
             if (valid(k)) out(k) = num(k) / den(k)
          else
-            !----- A sum over a PFT with no members is a true 0, so the closure of             !
-            !      docs/science/diagnostics.md eq. (3) holds when a PFT goes locally extinct. --!
+            !---~---
+            !   A sum over a PFT with no members is a true 0, so the closure of
+            ! docs/science/diagnostics.md eq. (3) holds when a PFT goes locally extinct.
+            !---~---
             valid(k) = .true.
             out(k) = num(k)
          end if
       end do
    end subroutine reduce_cohort_to_pft
 
-   !=======================================================================================!
-   !  cohort -> DBH size class   (DIM_SIZE)                                                 !
-   !=======================================================================================!
+   !--- cohort -> DBH size class   (DIM_SIZE)
 
-   !----- Reduce a per-cohort field onto the DBH-class axis: each cohort whole in the class of !
-   !      its mean dbh, weighted and closed over empty classes as on the PFT axis above. ------!
+   !---~---
+   !   Reduce a per-cohort field onto the DBH-class axis: each cohort whole in the class of
+   ! its mean dbh, weighted and closed over empty classes as on the PFT axis above.
+   !---~---
    pure subroutine reduce_cohort_to_size(poly, x, wkind, mean, edges, n_class, out, valid,     &
                                          n_out, scale)
       type(polygon_t),    intent(in)  :: poly
@@ -248,14 +252,14 @@ contains
       end do
    end subroutine reduce_cohort_to_size
 
-   !=======================================================================================!
-   !  patch -> polygon                                                                      !
-   !=======================================================================================!
+   !--- patch -> polygon
 
-   !----- Reduce a per-patch field to one polygon scalar, each patch weighted by its share of  !
-   !      the polygon. mean = .false. gives the plain weighted sum, already the mean of a        !
-   !      per-ground-area quantity since the shares sum to 1 (the driver checks it at the end of !
-   !      a run); mean = .true. divides by their sum too, which holds even where they do not. -!
+   !---~---
+   !   Reduce a per-patch field to one polygon scalar, each patch weighted by its share of
+   ! the polygon. mean = .false. gives the plain weighted sum, already the mean of a
+   ! per-ground-area quantity since the shares sum to 1 (the driver checks it at the end of
+   ! a run); mean = .true. divides by their sum too, which holds even where they do not.
+   !---~---
    pure subroutine reduce_patch_to_polygon(poly, x, mean, val, valid)
       type(polygon_t), intent(in) :: poly
       real(wp),     intent(in)  :: x(:)
@@ -281,12 +285,14 @@ contains
       end if
    end subroutine reduce_patch_to_polygon
 
-   !----- Area-weight each site's per-patch soil columns into the site's column, flattened at      !
-   !      (is-1)*n_soil_layer_max + k (DIM_SOIL). A site's layers are its own column's; the slots  !
-   !      below its bottom layer are not valid. ---------------------------------------------------!
+   !---~---
+   !   Area-weight each site's per-patch soil columns into the site's column, flattened at
+   ! (is-1)*n_soil_layer_max + k (DIM_SOIL). A site's layers are its own column's; the slots
+   ! below its bottom layer are not valid.
+   !---~---
    pure subroutine reduce_patch_columns_to_sites(poly, col, out, valid, n_out)
       type(polygon_t), intent(in) :: poly
-      real(wp),     intent(in)  :: col(:,:)   !< (layer, patch)
+      real(wp),     intent(in)  :: col(:,:)   ! (layer, patch)
       real(wp),     intent(out) :: out(:)
       logical,      intent(out) :: valid(:)
       integer(ik),  intent(out) :: n_out
@@ -311,12 +317,14 @@ contains
       end do
    end subroutine reduce_patch_columns_to_sites
 
-   !----- Flatten per-patch columns into the (layer, patch) slab at (ip-1)*n_soil_layer_max + k, !
-   !      with no reduction (DIM_SOIL_PATCH). Each patch's layers are its site's; the stride is  !
-   !      the layer ceiling, never a live count (docs/science/diagnostics.md §3). --------------!
+   !---~---
+   !   Flatten per-patch columns into the (layer, patch) slab at (ip-1)*n_soil_layer_max + k,
+   ! with no reduction (DIM_SOIL_PATCH). Each patch's layers are its site's; the stride is
+   ! the layer ceiling, never a live count (docs/science/diagnostics.md §3).
+   !---~---
    pure subroutine gather_patch_columns(poly, col, out, valid, n_out)
       type(polygon_t), intent(in) :: poly
-      real(wp),     intent(in)  :: col(:,:)   !< (layer, patch)
+      real(wp),     intent(in)  :: col(:,:)   ! (layer, patch)
       real(wp),     intent(out) :: out(:)
       logical,      intent(out) :: valid(:)
       integer(ik),  intent(out) :: n_out
@@ -333,18 +341,16 @@ contains
       end do
    end subroutine gather_patch_columns
 
-   !=======================================================================================!
-   !  Polygon totals (thin wrappers over the reduction).                                    !
-   !=======================================================================================!
+   !--- Polygon totals (thin wrappers over the reduction).
 
-   !----- Polygon plant number [plant m-2 ground]. ----------------------------------------!
+   !--- Polygon plant number [plant m-2 ground].
    pure real(wp) function total_nplant(poly) result(tot)
       type(polygon_t), intent(in) :: poly
       logical :: ok
       call reduce_cohort_to_polygon(poly, poly%cohort%nplant, W_NONE, .false., tot, ok)
    end function total_nplant
 
-   !----- Polygon basal area [m2 m-2]: per-plant cm2 -> per-ground m2. ---------------------!
+   !--- Polygon basal area [m2 m-2]: per-plant cm2 -> per-ground m2.
    pure real(wp) function total_basal_area(poly) result(tot)
       type(polygon_t), intent(in) :: poly
       logical :: ok
@@ -352,21 +358,21 @@ contains
                                  scale=cm2_to_m2)
    end function total_basal_area
 
-   !----- Polygon aboveground biomass [kgC m-2 ground]. -----------------------------------!
+   !--- Polygon aboveground biomass [kgC m-2 ground].
    pure real(wp) function total_agb(poly) result(tot)
       type(polygon_t), intent(in) :: poly
       logical :: ok
       call reduce_cohort_to_polygon(poly, poly%cohort%agb, W_NPLANT, .false., tot, ok)
    end function total_agb
 
-   !----- Polygon leaf area index [m2 m-2 ground]. ----------------------------------------!
+   !--- Polygon leaf area index [m2 m-2 ground].
    pure real(wp) function total_lai(poly) result(tot)
       type(polygon_t), intent(in) :: poly
       logical :: ok
       call reduce_cohort_to_polygon(poly, poly%cohort%leaf_area, W_NPLANT, .false., tot, ok)
    end function total_lai
 
-   !----- The patches' shares of the polygon, summed: 1 while no patch area is lost. -----------!
+   !--- The patches' shares of the polygon, summed: 1 while no patch area is lost.
    pure real(wp) function total_area(poly) result(tot)
       type(polygon_t), intent(in) :: poly
       real(wp) :: share(max(poly%patch%n, 1_ik))
@@ -374,7 +380,7 @@ contains
       tot = sum(share(1:poly%patch%n))
    end function total_area
 
-   !----- Basal-area-weighted mean diameter [cm] (a simple structural index). --------------!
+   !--- Basal-area-weighted mean diameter [cm] (a simple structural index).
    pure real(wp) function mean_dbh(poly) result(dm)
       type(polygon_t), intent(in) :: poly
       logical :: ok
@@ -382,12 +388,10 @@ contains
    end function mean_dbh
 
 
-   !=======================================================================================!
-   !  Health checks / reporting                                                              !
-   !=======================================================================================!
+   !--- Health checks / reporting
 
 
-   !----- Human-readable one-line summary. ------------------------------------------------!
+   !--- Human-readable one-line summary.
    subroutine print_summary(poly, label)
       type(polygon_t), intent(in) :: poly
       character(len=*), intent(in) :: label
@@ -397,13 +401,15 @@ contains
          '  AGB=', total_agb(poly), '  Dmean=', mean_dbh(poly)
    end subroutine print_summary
 
-   !----- 1-based DBH class of a dbh (docs/science/diagnostics.md §3). Over n_class+1 ascending !
-   !      edges, bin k is [edges(k), edges(k+1)); the last bin also takes every dbh above its  !
-   !      top edge, and a dbh below edges(1) falls in bin 1, so no plant is dropped and        !
-   !      sum(mean_nplant_size_py) == mean_nplant_py holds. ----------------------------------------------!
+   !---~---
+   !   1-based DBH class of a dbh (docs/science/diagnostics.md §3). Over n_class+1 ascending
+   ! edges, bin k is [edges(k), edges(k+1)); the last bin also takes every dbh above its
+   ! top edge, and a dbh below edges(1) falls in bin 1, so no plant is dropped and
+   ! sum(mean_nplant_size_py) == mean_nplant_py holds.
+   !---~---
    pure integer(ik) function dbh_class_index(dbh, edges, n_class) result(k)
       real(wp),    intent(in) :: dbh
-      real(wp),    intent(in) :: edges(:)   !< (n_class+1) ascending
+      real(wp),    intent(in) :: edges(:)   ! (n_class+1) ascending
       integer(ik), intent(in) :: n_class
       integer(ik) :: j
       k = 1_ik

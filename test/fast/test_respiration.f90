@@ -1,38 +1,38 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! test_respiration -- the respiration of ed_respiration: the plants' maintenance           !
-! respiration (docs/science/plant_respiration.md eqs. (3)-(5)) and the soil's              !
-! heterotrophic respiration from its carbon pools (docs/science/soil_carbon.md §3-§4).     !
-!   1. 25 C (root_zone_temp_scale, fine_root_maintenance_respiration,                      !
-!      stem_maintenance_respiration): the temperature response is 1 at 25 C, so the roots  !
-!      respire their rate times their carbon and the sapwood its rate times its volume.    !
-!   2. LAYERS (root_zone_temp_scale, eq. (4)): the response summed over the root layers is !
-!      the mean temperature's on a uniform profile, and higher on a profile spread about  !
-!      the same mean, the response being convex below its optimum.                         !
-!   3. SAPWOOD (stem_maintenance_respiration, eq. (3)): the sapwood term adds to the       !
-!      surface term.                                                                       !
-!   4. GRASS (stem_maintenance_respiration): a cohort that is not woody respires no stem.  !
-!   5. ABOVEGROUND FRACTION (stem_maintenance_respiration): the stem area is the plant's   !
-!      above ground over its aboveground fraction, so halving the fraction doubles it.     !
-!   6. SCHEME TOPOLOGY (decomposition_transfer_matrix, soil_carbon.md §3): the default     !
-!      scheme sends only the structural pools to slow and holds microbial and passive      !
-!      inert; scheme 5 routes by soil texture, at the hand values for sand 0.35, clay 0.25. !
-!   7. Rh COMPLEMENT (heterotrophic_respiration, decomposition_transfer_matrix, eq. (2)):   !
-!      Rh = sum_j er_j xi_j K_j X_j, and every column of A sums to -er_j with a_jj = -1.    !
-!   8. SCALAR PLACEMENT (heterotrophic_respiration, §4): the network's loss with each      !
-!      pool's scalar on its donor, A (xi K X), is Rh; on the receiver, xi (A K X), it is   !
-!      not.                                                                                !
-!   9. TEMPERATURE AND MOISTURE (decomposition_env_scalar, eqs. (3)-(4)): scheme 5's Q10   !
-!      doubles xi per 10 K at Q10 = 2; the default scheme caps its temperature factor at 1 !
-!      (47 C); xi peaks at resp_opt_water; with no lignin a structural pool's xi is its    !
-!      layer's.                                                                            !
-!  10. FAST/SLOW SEAM (decomposition_env_scalar, heterotrophic_respiration, §6-§7): Rh is  !
-!      linear in xi, so Rh at the day's integral of xi is the integral of the sub-step Rh; !
-!      under a diurnal cycle xi at the daily-mean temperature falls short of the day's     !
-!      mean xi (Jensen: the Q10 response is convex), so the day must integrate xi.         !
-! Growth respiration is the daily allocator's (test_plant_carbon_allocation), and the      !
-! pools' daily step ed_soil_carbon's (test_soil_carbon).                                   !
-!==========================================================================================!
+!---~---
+!   test_respiration -- the respiration of ed_respiration: the plants' maintenance
+! respiration (docs/science/plant_respiration.md eqs. (3)-(5)) and the soil's
+! heterotrophic respiration from its carbon pools (docs/science/soil_carbon.md §3-§4).
+!   1. 25 C (root_zone_temp_scale, fine_root_maintenance_respiration,
+!      stem_maintenance_respiration): the temperature response is 1 at 25 C, so the roots
+!      respire their rate times their carbon and the sapwood its rate times its volume.
+!   2. LAYERS (root_zone_temp_scale, eq. (4)): the response summed over the root layers is
+!      the mean temperature's on a uniform profile, and higher on a profile spread about
+!      the same mean, the response being convex below its optimum.
+!   3. SAPWOOD (stem_maintenance_respiration, eq. (3)): the sapwood term adds to the
+!      surface term.
+!   4. GRASS (stem_maintenance_respiration): a cohort that is not woody respires no stem.
+!   5. ABOVEGROUND FRACTION (stem_maintenance_respiration): the stem area is the plant's
+!      above ground over its aboveground fraction, so halving the fraction doubles it.
+!   6. SCHEME TOPOLOGY (decomposition_transfer_matrix, soil_carbon.md §3): the default
+!      scheme sends only the structural pools to slow and holds microbial and passive
+!      inert; scheme 5 routes by soil texture, at the hand values for sand 0.35, clay 0.25.
+!   7. Rh COMPLEMENT (heterotrophic_respiration, decomposition_transfer_matrix, eq. (2)):
+!      Rh = sum_j er_j xi_j K_j X_j, and every column of A sums to -er_j with a_jj = -1.
+!   8. SCALAR PLACEMENT (heterotrophic_respiration, §4): the network's loss with each
+!      pool's scalar on its donor, A (xi K X), is Rh; on the receiver, xi (A K X), it is
+!      not.
+!   9. TEMPERATURE AND MOISTURE (decomposition_env_scalar, eqs. (3)-(4)): scheme 5's Q10
+!      doubles xi per 10 K at Q10 = 2; the default scheme caps its temperature factor at 1
+!      (47 C); xi peaks at resp_opt_water; with no lignin a structural pool's xi is its
+!      layer's.
+!  10. FAST/SLOW SEAM (decomposition_env_scalar, heterotrophic_respiration, §6-§7): Rh is
+!      linear in xi, so Rh at the day's integral of xi is the integral of the sub-step Rh;
+!      under a diurnal cycle xi at the daily-mean temperature falls short of the day's
+!      mean xi (Jensen: the Q10 response is convex), so the day must integrate xi.
+! Growth respiration is the daily allocator's (test_plant_carbon_allocation), and the
+! pools' daily step ed_soil_carbon's (test_soil_carbon).
+!---~---
 program test_respiration
    use ed_test_assert,         only : check_close, check_true, test_report
    use ed_kinds,               only : wp, ik
@@ -45,13 +45,13 @@ program test_respiration
                                       root_zone_temp_scale, decomposition_env_scalar, decomposition_transfer_matrix, &
                                       heterotrophic_respiration
    implicit none
-   !----- Leaf Rd's peaked response, as the reference configuration sets it ([leaf_physiology]). -!
+   !--- Leaf Rd's peaked response, as the reference configuration sets it ([leaf_physiology]).
    real(wp), parameter :: EA_RD = 46390.0_wp, HD_RD = 200000.0_wp, DS_RD = 490.0_wp
-   real(wp), parameter :: AGF  = 0.7_wp    !< [-] the PFT aboveground fraction, passed per cohort
-   real(wp), parameter :: SRF  = 0.06_wp   !< [umol/m2 stem/s @25C] the PFT stem baseline
-   real(wp), parameter :: RRF  = 0.30_wp   !< [umol/kgC root/s @25C] the PFT root baseline
-   real(wp), parameter :: RSAP = 40.0_wp   !< [umol/m3 sapwood/s @25C] the PFT sapwood rate
-   real(wp), parameter :: VSAP = 0.05_wp   !< [m3/plant] a cohort's sapwood volume
+   real(wp), parameter :: AGF  = 0.7_wp    ! [-] the PFT aboveground fraction, passed per cohort
+   real(wp), parameter :: SRF  = 0.06_wp   ! [umol/m2 stem/s @25C] the PFT stem baseline
+   real(wp), parameter :: RRF  = 0.30_wp   ! [umol/kgC root/s @25C] the PFT root baseline
+   real(wp), parameter :: RSAP = 40.0_wp   ! [umol/m3 sapwood/s @25C] the PFT sapwood rate
+   real(wp), parameter :: VSAP = 0.05_wp   ! [m3/plant] a cohort's sapwood volume
    logical,  parameter :: WOODY = .true.
 
    call test_reference_temperature()
@@ -69,8 +69,10 @@ program test_respiration
 
 contains
 
-   !----- 1. At 25 C the peaked response is 1: the roots respire their 25 C rate times their      !
-   !      carbon, and the sapwood, with no surface rate, its rate times its volume. --------------!
+   !---~---
+   !   1. At 25 C the peaked response is 1: the roots respire their 25 C rate times their
+   ! carbon, and the sapwood, with no surface rate, its rate times its volume.
+   !---~---
    subroutine test_reference_temperature()
       real(wp) :: r_root, r_sap
       call fine_root_maintenance_respiration(root_zone_temp_scale([t_ref_photo], [1.0_wp], 1_ik, EA_RD, HD_RD, DS_RD), &
@@ -81,11 +83,13 @@ contains
       call check_close('sapwood @25C = rate x volume', r_sap, RSAP * VSAP)
    end subroutine test_reference_temperature
 
-   !----- 2. The response is summed OVER LAYERS (eq. (4)), not taken at a mean temperature. A      !
-   !      UNIFORM profile must give exactly the mean-temperature answer (the layer sum is inert     !
-   !      where there is no gradient), and a SPLIT profile with the same root-weighted mean (285 K, !
-   !      over a 40 K range) must NOT: below the optimum the response is convex, so the layered sum !
-   !      is higher, which a mean-temperature formulation cannot express. --------------------------!
+   !---~---
+   !   2. The response is summed OVER LAYERS (eq. (4)), not taken at a mean temperature. A
+   ! UNIFORM profile must give exactly the mean-temperature answer (the layer sum is inert
+   ! where there is no gradient), and a SPLIT profile with the same root-weighted mean (285 K,
+   ! over a 40 K range) must NOT: below the optimum the response is convex, so the layered sum
+   ! is higher, which a mean-temperature formulation cannot express.
+   !---~---
    subroutine test_root_layers()
       real(wp), parameter :: FRAC(4) = [0.4_wp, 0.3_wp, 0.2_wp, 0.1_wp]
       real(wp), parameter :: T_UNIFORM(4) = [285.0_wp, 285.0_wp, 285.0_wp, 285.0_wp]
@@ -101,7 +105,7 @@ contains
                       f_layer > f_mean, f_layer / f_mean)
    end subroutine test_root_layers
 
-   !----- 3. The surface and sapwood terms share the temperature response and add. ----------------!
+   !--- 3. The surface and sapwood terms share the temperature response and add.
    subroutine test_sapwood_adds()
       real(wp) :: r_sap, r_surf, r_both
       call stem_maintenance_respiration(305.0_wp, 20.0_wp, 15.0_wp, 1.0_wp, 0.1_wp, AGF, WOODY,      &
@@ -113,7 +117,7 @@ contains
       call check_close('surface and sapwood terms add', r_both, r_surf + r_sap)
    end subroutine test_sapwood_adds
 
-   !----- 4. is_woody is a per-PFT trait: a grass cohort respires no stem, surface or sapwood. ----!
+   !--- 4. is_woody is a per-PFT trait: a grass cohort respires no stem, surface or sapwood.
    subroutine test_grass()
       real(wp) :: r_grass
       call stem_maintenance_respiration(305.0_wp, 20.0_wp, 15.0_wp, 1.0_wp, 0.1_wp, AGF, .false.,    &
@@ -121,10 +125,12 @@ contains
       call check_true('a grass cohort respires no stem', r_grass == 0.0_wp, r_grass)
    end subroutine test_grass
 
-   !----- 5. The aboveground fraction is a per-cohort trait and must scale the stem area. A        !
-   !      run-uniform value would make two PFTs with different allocation respire identically      !
-   !      while demography used their real values. The kernel divides the stem area by it, so      !
-   !      halving the fraction must double the respiration exactly. -------------------------------!
+   !---~---
+   !   5. The aboveground fraction is a per-cohort trait and must scale the stem area. A
+   ! run-uniform value would make two PFTs with different allocation respire identically
+   ! while demography used their real values. The kernel divides the stem area by it, so
+   ! halving the fraction must double the respiration exactly.
+   !---~---
    subroutine test_aboveground_frac()
       real(wp) :: r_high, r_low
       call stem_maintenance_respiration(305.0_wp, 20.0_wp, 15.0_wp, 1.0_wp, 0.1_wp, 0.7_wp,  WOODY, SRF, 0.0_wp,      &
@@ -134,10 +140,12 @@ contains
       call check_close('aboveground_frac scales stem respiration inversely', r_low, 2.0_wp * r_high)
    end subroutine test_aboveground_frac
 
-   !----- 6. The routing of decayed carbon, against hand values. The default scheme's only        !
-   !      transfers are the structural pools' 0.7 to slow (er_struct 0.3), the rest is respired,   !
-   !      and microbial and passive are inert (K = 0). Scheme 5 routes by texture: microbial's     !
-   !      respired share rises with sand, and microbial and slow send clay's share to passive. ----!
+   !---~---
+   !   6. The routing of decayed carbon, against hand values. The default scheme's only
+   ! transfers are the structural pools' 0.7 to slow (er_struct 0.3), the rest is respired,
+   ! and microbial and passive are inert (K = 0). Scheme 5 routes by texture: microbial's
+   ! respired share rises with sand, and microbial and slow send clay's share to passive.
+   !---~---
    subroutine test_scheme_topology()
       type(soil_carbon_state_t)  :: pools
       type(soil_carbon_params_t) :: opts
@@ -152,7 +160,7 @@ contains
       call check_close('scheme0 a(slow,struct_soil)=0.7', a_mat(IP_SLOW,IP_STRUCT_SOIL), 0.7_wp, 1.0e-14_wp)
       call check_close('scheme0 er(struct_grnd)=0.3', er(IP_STRUCT_GRND), 0.3_wp, 1.0e-14_wp)
       call check_close('scheme0 er(fast_soil)=1.0',   er(IP_FAST_SOIL),   1.0_wp, 1.0e-14_wp)
-      !----- Everything but those two transfers and the -1 diagonal is 0. ----------------------!
+      !--- Everything but those two transfers and the -1 diagonal is 0.
       offsum = 0.0_wp
       do j = 1_ik, N_SOIL_POOL
          do i = 1_ik, N_SOIL_POOL
@@ -163,7 +171,7 @@ contains
       end do
       call check_true('scheme0 no other transfers', offsum < 1.0e-14_wp, offsum)
 
-      !----- Scheme 5 at sand 0.35 and clay 0.25, no lignin. ------------------------------------!
+      !--- Scheme 5 at sand 0.35 and clay 0.25, no lignin.
       opts = century5_params()
       opts%xsand = 0.35_wp
       opts%xclay = 0.25_wp
@@ -181,9 +189,11 @@ contains
       call check_close('scheme5 er(micr)=er_micr', er(IP_MICR), er_micr, 1.0e-13_wp)
    end subroutine test_scheme_topology
 
-   !----- 7. Rh is the carbon the pools lose that A passes to no other pool: the sum over pools of  !
-   !      er_j xi_j K_j X_j, at er from the routine that builds A. And A's columns say the same     !
-   !      thing: each sums to -er_j, its diagonal -1 removing the donor's whole loss. --------------!
+   !---~---
+   !   7. Rh is the carbon the pools lose that A passes to no other pool: the sum over pools of
+   ! er_j xi_j K_j X_j, at er from the routine that builds A. And A's columns say the same
+   ! thing: each sums to -er_j, its diagonal -1 removing the donor's whole loss.
+   !---~---
    subroutine test_rh_complement()
       real(wp), parameter :: XI(N_SOIL_POOL) = [0.585_wp, 0.471_wp, 0.656_wp, 0.542_wp, 0.427_wp, 0.612_wp, 0.498_wp]
       type(soil_carbon_state_t)  :: pools
@@ -208,9 +218,11 @@ contains
       call check_true('column identity sum_i a_ij = -er_j, a_jj=-1', worst < 1.0e-14_wp, worst)
    end subroutine test_rh_complement
 
-   !----- 8. Each pool's scalar belongs to the DONOR: dX_i = sum_j a_ij (xi_j K_j X_j). With a      !
-   !      surface scalar unlike the soil's, the network then loses exactly Rh; putting the scalar  !
-   !      on the receiver, xi_i (sum_j a_ij K_j X_j), does not conserve carbon to it. --------------!
+   !---~---
+   !   8. Each pool's scalar belongs to the DONOR: dX_i = sum_j a_ij (xi_j K_j X_j). With a
+   ! surface scalar unlike the soil's, the network then loses exactly Rh; putting the scalar
+   ! on the receiver, xi_i (sum_j a_ij K_j X_j), does not conserve carbon to it.
+   !---~---
    subroutine test_scalar_placement()
       real(wp), parameter :: XI(N_SOIL_POOL) = [0.9_wp, 0.3_wp, 0.9_wp, 0.3_wp, 0.3_wp, 0.3_wp, 0.3_wp]
       type(soil_carbon_state_t)  :: pools
@@ -239,10 +251,12 @@ contains
       call check_true('receiver scalar: it does not', abs(-sum(d_receiver) - rh) > 1.0e-6_wp, -sum(d_receiver) - rh)
    end subroutine test_scalar_placement
 
-   !----- 9. The environmental scalar's laws. Scheme 5's Q10 is uncapped, so at Q10 = 2 xi doubles  !
-   !      over 10 K. The default scheme's exponential is capped at 1 from 45 C, so at 47 C and the   !
-   !      moisture optimum xi is 1. The moisture factor peaks at resp_opt_water. And with no lignin  !
-   !      there is no brake, so a structural pool's xi is the fast pool's in its layer. -------------!
+   !---~---
+   !   9. The environmental scalar's laws. Scheme 5's Q10 is uncapped, so at Q10 = 2 xi doubles
+   ! over 10 K. The default scheme's exponential is capped at 1 from 45 C, so at 47 C and the
+   ! moisture optimum xi is 1. The moisture factor peaks at resp_opt_water. And with no lignin
+   ! there is no brake, so a structural pool's xi is the fast pool's in its layer.
+   !---~---
    subroutine test_temperature_moisture()
       type(soil_carbon_state_t)  :: pools
       type(soil_carbon_params_t) :: opts
@@ -254,7 +268,7 @@ contains
       call decomposition_env_scalar(298.15_wp, 298.15_wp, 0.5_wp, 0.1_wp, 0.6_wp, pools, opts, xi_a)
       call decomposition_env_scalar(308.15_wp, 308.15_wp, 0.5_wp, 0.1_wp, 0.6_wp, pools, opts, xi_b)
       call check_close('Q10=2 doubling per 10K', xi_b(IP_FAST_SOIL) / xi_a(IP_FAST_SOIL), 2.0_wp, 1.0e-12_wp)
-      !----- The default scheme, at the water content whose relative saturation is the optimum. --!
+      !--- The default scheme, at the water content whose relative saturation is the optimum.
       opts = soil_carbon_params_t()
       theta_opt = 0.1_wp + opts%resp_opt_water * (0.6_wp - 0.1_wp)
       call decomposition_env_scalar(320.15_wp, 320.15_wp, theta_opt, 0.1_wp, 0.6_wp, pools, opts, xi_opt)
@@ -266,12 +280,14 @@ contains
       call check_close('no lignin: struct xi == fast xi', xi_opt(IP_STRUCT_SOIL), xi_opt(IP_FAST_SOIL), 1.0e-14_wp)
    end subroutine test_temperature_moisture
 
-   !----- 10. The fast/slow seam (soil_carbon.md §6-§7). The fast loop respires each sub-step at its !
-   !       own xi; the daily step debits the pools with the day's integral of xi. The two agree only !
-   !       because Rh is linear in xi, so Rh at that integral must be the integral of the sub-step   !
-   !       Rh. Over a diurnal cycle of 16 K the day's mean xi exceeds xi at the daily-mean           !
-   !       temperature, the Q10 response being convex (Jensen), so a step that took xi from the      !
-   !       daily mean would debit the pools by less than the air received. ---------------------------!
+   !---~---
+   !   10. The fast/slow seam (soil_carbon.md §6-§7). The fast loop respires each sub-step at its
+   ! own xi; the daily step debits the pools with the day's integral of xi. The two agree only
+   ! because Rh is linear in xi, so Rh at that integral must be the integral of the sub-step
+   ! Rh. Over a diurnal cycle of 16 K the day's mean xi exceeds xi at the daily-mean
+   ! temperature, the Q10 response being convex (Jensen), so a step that took xi from the
+   ! daily mean would debit the pools by less than the air received.
+   !---~---
    subroutine test_fast_slow_seam()
       integer(ik), parameter :: NSUB   = 48_ik                     ! sub-steps in the day
       real(wp),    parameter :: DT_SUB = 1.0_wp / real(NSUB, wp)   ! [day]
@@ -298,7 +314,7 @@ contains
       end do
       call check_close('Rh at the day''s integral of xi == the integral of the sub-step Rh',                     &
                        heterotrophic_respiration(a_mat, k_diag, xi_int, pools), rh_fast, 1.0e-13_wp * rh_fast)
-      !----- Over one day the integral of xi [day] is the day's mean xi. -----------------------!
+      !--- Over one day the integral of xi [day] is the day's mean xi.
       call decomposition_env_scalar(t_mean, t_mean - 2.0_wp, THETA, 0.1_wp, 0.6_wp, pools, opts, xi_at_mean)
       call check_true('every pool''s xi at the daily-mean temperature is below its mean xi (Jensen)',            &
                       all(xi_at_mean < xi_int), minval(xi_int - xi_at_mean))
@@ -307,8 +323,10 @@ contains
                       rh_fast - rh_at_mean)
    end subroutine test_fast_slow_seam
 
-   !----- The CENTURY scheme with five active pools, at the rates [1/yr] and respired fractions    !
-   !      the soil sections share. ---------------------------------------------------------------!
+   !---~---
+   !   The CENTURY scheme with five active pools, at the rates [1/yr] and respired fractions
+   ! the soil sections share.
+   !---~---
    function century5_params() result(opts)
       type(soil_carbon_params_t) :: opts
       opts = soil_carbon_params_t()
@@ -327,7 +345,7 @@ contains
       opts%er_micr_slp      = 0.17_wp
    end function century5_params
 
-   !----- Carbon [kgC/m2] in all seven pools, no lignin. --------------------------------------!
+   !--- Carbon [kgC/m2] in all seven pools, no lignin.
    function century5_pools() result(pools)
       type(soil_carbon_state_t) :: pools
       pools = soil_carbon_state_t()

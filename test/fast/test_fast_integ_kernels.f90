@@ -1,37 +1,37 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! test_fast_integ_kernels -- the integrator's building blocks, below the schemes            !
-! (src/fast_dynamics/integrator; docs/science/numerical_scheme.md §2-§3, eqs. (3)-(4)).     !
-!   1. THE SURFACE RIGHT-HAND SIDE (surface_derivs): the diagnosed leaf temperature zeroes  !
-!      the linearized leaf balance it was solved from; a hand-computable leaf with no       !
-!      latent and no longwave forcing; a falling leaf that passes its film to its wood is   !
-!      charged nothing for it.                                                              !
-!   2. THE ASSEMBLER (march_derivs): every tendency is finite; its canopy-air part is       !
-!      surface_derivs at the state's soil-top temperature; the canopy hands the canopy air  !
-!      what it absorbs; its soil-heat part is soil_energy_time_deriv on the water network's !
-!      flows, every term live.                                                              !
-!   3. DOMAIN SAFETY (march_derivs): off [theta_res, theta_sat] the tendencies stay finite, !
-!      the water tendency is the network's rate to the bit, and the soil-energy tendency    !
-!      responds to the extra water only through its temperature.                           !
-!   4. THE BACKWARD-EULER STAGE (backward_euler_stage, advance_plant_water): stable and     !
-!      physical at 900 s; close to the explicit RK45 reference at 4 s; its surface Newton    !
-!      keeps the canopy air physical and below saturation under a harsh noon and from a     !
-!      99 %-saturated start.                                                                !
-!   5. THE STATE VECTOR (state_init, state_sub, zero_like, state_err_diff, state_accum,     !
-!      state_extrap, unpack_column_state, state_to_array, state_entry_rules): every field,  !
-!      every layer and every cohort, through every operation; what each leaves out on       !
-!      purpose is asserted left out.                                                        !
-!   6. THE ERROR CONTROL (build_tol_set, build_error_control, state_wrms_grouped,           !
-!      step_control_factor): the config's dials reach every tolerance group; the grouped    !
-!      norm reads 1 at one tolerance unit in every entry it counts, leaves out what the      !
-!      march does not integrate, and is not diluted by the cohorts; the step factor takes   !
-!      the order and the limits from the error control.                                     !
-!   7. THE WATER NETWORK'S STORES (set_water_state, water_derivs): on a column of a PFT 1   !
-!      and a PFT 2 tree, each cohort's wood and leaves sit at the potential their water     !
-!      has on its own PFT's curves, and hold that water.                                    !
-! The scheme-level properties (observed orders, the adaptive march) are                    !
-! test_fast_integ_schemes'; whole steps are test_fast_integ_step's.                        !
-!==========================================================================================!
+!---~---
+!   test_fast_integ_kernels -- the integrator's building blocks, below the schemes
+! (src/fast_dynamics/integrator; docs/science/numerical_scheme.md §2-§3, eqs. (3)-(4)).
+!   1. THE SURFACE RIGHT-HAND SIDE (surface_derivs): the diagnosed leaf temperature zeroes
+!      the linearized leaf balance it was solved from; a hand-computable leaf with no
+!      latent and no longwave forcing; a falling leaf that passes its film to its wood is
+!      charged nothing for it.
+!   2. THE ASSEMBLER (march_derivs): every tendency is finite; its canopy-air part is
+!      surface_derivs at the state's soil-top temperature; the canopy hands the canopy air
+!      what it absorbs; its soil-heat part is soil_energy_time_deriv on the water network's
+!      flows, every term live.
+!   3. DOMAIN SAFETY (march_derivs): off [theta_res, theta_sat] the tendencies stay finite,
+!      the water tendency is the network's rate to the bit, and the soil-energy tendency
+!      responds to the extra water only through its temperature.
+!   4. THE BACKWARD-EULER STAGE (backward_euler_stage, advance_plant_water): stable and
+!      physical at 900 s; close to the explicit RK45 reference at 4 s; its surface Newton
+!      keeps the canopy air physical and below saturation under a harsh noon and from a
+!      99 %-saturated start.
+!   5. THE STATE VECTOR (state_init, state_sub, zero_like, state_err_diff, state_accum,
+!      state_extrap, unpack_column_state, state_to_array, state_entry_rules): every field,
+!      every layer and every cohort, through every operation; what each leaves out on
+!      purpose is asserted left out.
+!   6. THE ERROR CONTROL (build_tol_set, build_error_control, state_wrms_grouped,
+!      step_control_factor): the config's dials reach every tolerance group; the grouped
+!      norm reads 1 at one tolerance unit in every entry it counts, leaves out what the
+!      march does not integrate, and is not diluted by the cohorts; the step factor takes
+!      the order and the limits from the error control.
+!   7. THE WATER NETWORK'S STORES (set_water_state, water_derivs): on a column of a PFT 1
+!      and a PFT 2 tree, each cohort's wood and leaves sit at the potential their water
+!      has on its own PFT's curves, and hold that water.
+! The scheme-level properties (observed orders, the adaptive march) are
+! test_fast_integ_schemes'; whole steps are test_fast_integ_step's.
+!---~---
 program test_fast_integ_kernels
    use ed_kinds,               only : wp, ik
    use ed_constants,           only : stefan_boltzmann, cp_air, tiny_num, rho_h2o, h2o_dry_ratio, n_soil_layer_max
@@ -59,8 +59,8 @@ program test_fast_integ_kernels
    use ed_test_assert,         only : check, check_true, test_report
    implicit none
 
-   type(fast_column_t)   :: col          !< the fixture column: its config and its site's soil
-   type(error_control_t) :: ec_default   !< the type's defaults: no budget stop
+   type(fast_column_t)   :: col          ! the fixture column: its config and its site's soil
+   type(error_control_t) :: ec_default   ! the type's defaults: no budget stop
 
    call make_fast_column(col)
 
@@ -82,15 +82,17 @@ program test_fast_integ_kernels
 
 contains
 
-   !=======================================================================================!
-   ! 1. THE SURFACE RIGHT-HAND SIDE (surface_derivs) on the kernel record, its tissues with  !
-   !    no heat capacity, transpiring at the canopy air's humidity (not held).               !
-   !=======================================================================================!
+   !---~---
+   !   1. THE SURFACE RIGHT-HAND SIDE (surface_derivs) on the kernel record, its tissues with
+   !    no heat capacity, transpiring at the canopy air's humidity (not held).
+   !---~---
 
-   !----- The diagnosed leaf temperature zeroes the linearized leaf balance it was solved from, for !
-   !      each of three cohorts: shortwave and longwave in, sensible heat, the full vapour        !
-   !      enthalpy of the transpiration (docs/science/vegetation_energy_dynamics.md eq. (2)) and   !
-   !      the emission about the leaf's start-of-step temperature out. ---------------------------!
+   !---~---
+   !   The diagnosed leaf temperature zeroes the linearized leaf balance it was solved from, for
+   ! each of three cohorts: shortwave and longwave in, sensible heat, the full vapour
+   ! enthalpy of the transpiration (docs/science/vegetation_energy_dynamics.md eq. (2)) and
+   ! the emission about the leaf's start-of-step temperature out.
+   !---~---
    subroutine test_leaf_closure()
       integer(ik), parameter :: N = 3_ik
       type(march_state_t)   :: y
@@ -129,9 +131,11 @@ contains
                       minval(f%leaf_temp) > 270.0_wp .and. maxval(f%leaf_temp) < 330.0_wp, f%leaf_temp(1))
    end subroutine test_leaf_closure
 
-   !----- No latent (g_transp_leaf = 0) and no longwave forcing (abs_lw = 0): the leaf balances its  !
-   !      shortwave against sensible heat and its emission about its start temperature t_leaf0,     !
-   !      dtl = (abs_sw + lw_slope*(t_leaf0 - tcas)) / (h + lw_slope). ----------------------------!
+   !---~---
+   !   No latent (g_transp_leaf = 0) and no longwave forcing (abs_lw = 0): the leaf balances its
+   ! shortwave against sensible heat and its emission about its start temperature t_leaf0,
+   ! dtl = (abs_sw + lw_slope*(t_leaf0 - tcas)) / (h + lw_slope).
+   !---~---
    subroutine test_leaf_analytic()
       type(march_state_t)   :: y
       type(frozen_t)        :: frozen
@@ -158,10 +162,12 @@ contains
                  expect, 1.0e-10_wp)
    end subroutine test_leaf_analytic
 
-   !----- A falling leaf's film passed to its wood (Palo Verde's dry season): the leaf, nearly gone, !
-   !      hands its whole film to the wood as the cohort's film is re-shared by capacity. The giver  !
-   !      is charged nothing for the water it passes, so the leaf balances its sensible heat        !
-   !      against its emission about t_leaf0 alone; charged the rain's valuation, it sat 4e10 K off. -!
+   !---~---
+   !   A falling leaf's film passed to its wood (Palo Verde's dry season): the leaf, nearly gone,
+   ! hands its whole film to the wood as the cohort's film is re-shared by capacity. The giver
+   ! is charged nothing for the water it passes, so the leaf balances its sensible heat
+   ! against its emission about t_leaf0 alone; charged the rain's valuation, it sat 4e10 K off.
+   !---~---
    subroutine test_falling_leaf_film()
       type(march_state_t)   :: y
       type(frozen_t)        :: frozen
@@ -197,13 +203,13 @@ contains
                       abs(f%leaf_temp(1) - expect) < 1.0e-8_wp, f%leaf_temp(1) - expect)
    end subroutine test_falling_leaf_film
 
-   !=======================================================================================!
-   ! 2. THE ASSEMBLER (march_derivs): two cohorts on the kernel record, the water network's  !
-   !    flows set nonzero so that every term of the wiring check is live: a downward drift    !
-   !    through every face, drainage, infiltration, the uptake's enthalpy leaving each layer, !
-   !    and water pushed up into the pond from the top layer. A check that omits a term is    !
-   !    only green while that term is zero.                                                   !
-   !=======================================================================================!
+   !---~---
+   !   2. THE ASSEMBLER (march_derivs): two cohorts on the kernel record, the water network's
+   !    flows set nonzero so that every term of the wiring check is live: a downward drift
+   !    through every face, drainage, infiltration, the uptake's enthalpy leaving each layer,
+   !    and water pushed up into the pond from the top layer. A check that omits a term is
+   !    only green while that term is zero.
+   !---~---
    subroutine test_assembler()
       integer(ik), parameter :: N = 2_ik
       type(march_state_t)       :: y
@@ -236,7 +242,7 @@ contains
       finite = finite .and. all(ieee_ok(f%d_leaf_water_mass(1:N))) .and. all(ieee_ok(f%d_wood_water_mass(1:N)))
       call check_true('march_derivs: every tendency finite', finite)
 
-      !----- The canopy-air part is surface_derivs at the state's diagnosed soil-top temperature. ------!
+      !--- The canopy-air part is surface_derivs at the state's diagnosed soil-top temperature.
       call soil_layer_temp(y%soil_energy(1), y%theta(1), col%site%soil_profile%dry_heat_capacity(1),             &
                            col%site%soil_profile%layer_curve(1), t_ground, fliq)
       y_stage%cas_enthalpy = y%cas_enthalpy
@@ -246,12 +252,14 @@ contains
       call check('march_derivs: its canopy-air enthalpy tendency is surface_derivs''', f%d_cas_enthalpy,          &
                  surf_tend%d_cas_enthalpy, 1.0e-12_wp)
 
-      !----- The canopy is energy-neutral. With no advected enthalpy and no heat store in this record, !
-      !      what the canopy absorbs (coh_rnet) must equal what it hands the canopy air: sensible heat  !
-      !      plus the full enthalpy of the vapour it sheds. Handing the canopy air transp*h_vapour     !
-      !      while the leaf pays only latent_heat_vap, and charging the difference to the soil, breaks !
-      !      this by the proxy (~30 W/m2 at 3 mm/day) and makes the soil pay the transpired water's    !
-      !      liquid enthalpy twice. ---------------------------------------------------------------!
+      !---~---
+      !   The canopy is energy-neutral. With no advected enthalpy and no heat store in this record,
+      ! what the canopy absorbs (coh_rnet) must equal what it hands the canopy air: sensible heat
+      ! plus the full enthalpy of the vapour it sheds. Handing the canopy air transp*h_vapour
+      ! while the leaf pays only latent_heat_vap, and charging the difference to the soil, breaks
+      ! this by the proxy (~30 W/m2 at 3 mm/day) and makes the soil pay the transpired water's
+      ! liquid enthalpy twice.
+      !---~---
       tcas = cas_enthalpy_to_temp(y_stage%cas_enthalpy, y_stage%cas_shv)
       canopy_to_cas = surf_tend%src_enth - surf_tend%h_ground - surf_tend%le_ground                              &
                       + surf_tend%cond * internal_energy_liquid(tcas)
@@ -260,9 +268,11 @@ contains
       call check('march_derivs: the canopy hands the canopy air what it absorbs (no soil proxy)', canopy_to_cas,   &
                  surf_tend%coh_rnet, 1.0e-9_wp * max(abs(surf_tend%coh_rnet), 1.0_wp))
 
-      !----- The soil-heat part is soil_energy_time_deriv on the same surface coupling (g_top) and the  !
-      !      water network's flows: the enthalpy leaving each layer with the uptake, the time-mean      !
-      !      faces, the infiltration at the pond's temperature and the drainage at the bottom's. ------!
+      !---~---
+      !   The soil-heat part is soil_energy_time_deriv on the same surface coupling (g_top) and the
+      ! water network's flows: the enthalpy leaving each layer with the uptake, the time-mean
+      ! faces, the infiltration at the pond's temperature and the drainage at the bottom's.
+      !---~---
       se%soil_energy(1:nsl) = y%soil_energy(1:nsl)
       eforc%g_top = surf_tend%g_top
       do k = 1_ik, nsl
@@ -280,17 +290,17 @@ contains
                  maxval(abs(f%dedt(1:nsl) - dedt(1:nsl))), 0.0_wp, 1.0e-9_wp)
    end subroutine test_assembler
 
-   !=======================================================================================!
-   ! 3. DOMAIN SAFETY (march_derivs). An explicit stage's theta can sit above theta_sat:     !
-   ! theta is never clamped (theta_ood_max reports the excursion). Soil psi and K evaluated  !
-   ! there must not steer the trajectory, and they cannot: a stage's water tendency is the   !
-   ! water network's steady rate over the step, which does not read the stage's theta. So    !
-   ! the water tendency at theta_sat + 0.05, far beyond any excursion the suite produces,    !
-   ! equals the one at theta_sat to the bit. The soil-energy tendency is a flux divergence   !
-   ! over internal energy, which theta reaches only through the temperature it diagnoses     !
-   ! and the self-clamped Kersten number: it should respond to the extra water, whose heat   !
-   ! capacity is real, so it is asserted finite and responsive.                              !
-   !=======================================================================================!
+   !---~---
+   !   3. DOMAIN SAFETY (march_derivs). An explicit stage's theta can sit above theta_sat:
+   ! theta is never clamped (theta_ood_max reports the excursion). Soil psi and K evaluated
+   ! there must not steer the trajectory, and they cannot: a stage's water tendency is the
+   ! water network's steady rate over the step, which does not read the stage's theta. So
+   ! the water tendency at theta_sat + 0.05, far beyond any excursion the suite produces,
+   ! equals the one at theta_sat to the bit. The soil-energy tendency is a flux divergence
+   ! over internal energy, which theta reaches only through the temperature it diagnoses
+   ! and the self-clamped Kersten number: it should respond to the extra water, whose heat
+   ! capacity is real, so it is asserted finite and responsive.
+   !---~---
    subroutine test_domain_safety()
       integer(ik), parameter :: N = 2_ik
       real(wp),    parameter :: EPS_OOD = 0.05_wp
@@ -324,9 +334,11 @@ contains
       call check('march_derivs: the water tendency below residual is the residual one, to the bit',                &
                  maxval(abs(f_lo%dtheta_dt(1:nsl) - f_res%dtheta_dt(1:nsl))), 0.0_wp, 0.0_wp)
 
-      !----- Two all-liquid states at 290 K's internal energy, one saturated and one 0.05 above: the    !
-      !      soil-energy tendency's response is asserted where the temperature depends on the water,   !
-      !      not on a phase plateau, where it would be the same to the bit for the wrong reason. -----!
+      !---~---
+      !   Two all-liquid states at 290 K's internal energy, one saturated and one 0.05 above: the
+      ! soil-energy tendency's response is asserted where the temperature depends on the water,
+      ! not on a phase plateau, where it would be the same to the bit for the wrong reason.
+      !---~---
       call state_init(y, N, nsl, y_sat)
       call state_init(y, N, nsl, y_hi)
       do k = 1_ik, nsl
@@ -346,20 +358,22 @@ contains
                  maxval(abs(f_hi%dtheta_dt(1:nsl) - f_sat%dtheta_dt(1:nsl))), 0.0_wp, 0.0_wp)
    end subroutine test_domain_safety
 
-   !=======================================================================================!
-   ! 4. THE BACKWARD-EULER STAGE. be_euler_step is the gamma = 1 degraded form of ESDIRK2,   !
-   ! built from the two kernels esdirk2_step composes: one backward_euler_stage, then the    !
-   ! closed-form plant-water split over the whole step on that stage's own transpiration     !
-   ! (weight 1, the one stage). It is a probe, not an oracle: it shares backward_euler_stage !
-   ! with the scheme it degrades, so it is independent in the tableau only, and it belongs   !
-   ! in the test that degrades it, not in the shipped source.                                !
-   !=======================================================================================!
+   !---~---
+   !   4. THE BACKWARD-EULER STAGE. be_euler_step is the gamma = 1 degraded form of ESDIRK2,
+   ! built from the two kernels esdirk2_step composes: one backward_euler_stage, then the
+   ! closed-form plant-water split over the whole step on that stage's own transpiration
+   ! (weight 1, the one stage). It is a probe, not an oracle: it shares backward_euler_stage
+   ! with the scheme it degrades, so it is independent in the tableau only, and it belongs
+   ! in the test that degrades it, not in the shipped source.
+   !---~---
 
-   !----- Stable and physical at 900 s, where an explicit step blows up, over 6 h; and close to the  !
-   !      explicit RK45 reference at 4 s over 4 min, which shares only the right-hand side with the  !
-   !      stage, so agreement checks the implicit machinery against it. The canopy is ventilated    !
-   !      four times as strongly as the kernel record's, so the source held over the full 900 s     !
-   !      does not out-run the venting into supersaturation (test_be_coupled is the harsh case). --!
+   !---~---
+   !   Stable and physical at 900 s, where an explicit step blows up, over 6 h; and close to the
+   ! explicit RK45 reference at 4 s over 4 min, which shares only the right-hand side with the
+   ! stage, so agreement checks the implicit machinery against it. The canopy is ventilated
+   ! four times as strongly as the kernel record's, so the source held over the full 900 s
+   ! does not out-run the venting into supersaturation (test_be_coupled is the harsh case).
+   !---~---
    subroutine test_be_stable_and_accurate()
       integer(ik), parameter :: N = 2_ik
       type(march_state_t) :: y, yi, yr, ytmp
@@ -398,10 +412,12 @@ contains
                       dmass)
    end subroutine test_be_stable_and_accurate
 
-   !----- The leaf <-> canopy-air Newton keeps the canopy air physical and below saturation under a   !
-   !      harsh constant noon at 900 s with modest venting, where an uncoupled pass over-humidifies.  !
-   !      The leaves transpire at the canopy air's humidity, as the stages do whenever transpiration  !
-   !      is not held at the network's: that leaf-vapour feedback is the coupling the Newton solves. -!
+   !---~---
+   !   The leaf <-> canopy-air Newton keeps the canopy air physical and below saturation under a
+   ! harsh constant noon at 900 s with modest venting, where an uncoupled pass over-humidifies.
+   ! The leaves transpire at the canopy air's humidity, as the stages do whenever transpiration
+   ! is not held at the network's: that leaf-vapour feedback is the coupling the Newton solves.
+   !---~---
    subroutine test_be_coupled()
       integer(ik), parameter :: N = 2_ik
       type(march_state_t) :: y, yc, ytmp
@@ -425,9 +441,11 @@ contains
                       yc%cas_shv <= qsat + 1.0e-4_wp, yc%cas_shv - qsat)
    end subroutine test_be_coupled
 
-   !----- The stage's surface Newton is robust near saturation (its line search): from canopy air at  !
-   !      99 % of saturation under the harsh noon it stays physical and below saturation at 900 s;    !
-   !      and at 4 s it converges to the coupled solution the RK45 reference reaches. --------------!
+   !---~---
+   !   The stage's surface Newton is robust near saturation (its line search): from canopy air at
+   ! 99 % of saturation under the harsh noon it stays physical and below saturation at 900 s;
+   ! and at 4 s it converges to the coupled solution the RK45 reference reaches.
+   !---~---
    subroutine test_be_near_saturation()
       integer(ik), parameter :: N = 2_ik
       type(march_state_t) :: y, yi, yr, ytmp
@@ -469,7 +487,7 @@ contains
                       dcas < 5.0e-2_wp, dcas)
    end subroutine test_be_near_saturation
 
-   !----- One first-order backward-Euler column step (see section 4's header). -------------------!
+   !--- One first-order backward-Euler column step (see section 4's header).
    subroutine be_euler_step(y, frozen, n, nsl, dt, y_out)
       type(march_state_t), intent(in)    :: y
       type(frozen_t),      intent(in)    :: frozen
@@ -481,7 +499,7 @@ contains
       call advance_plant_water(y, frozen, n, dt, surf_tend%transp_c(1:n), y_out)
    end subroutine be_euler_step
 
-   !----- The explicit reference: nstep fixed Cash-Karp steps of dt, the 5th-order solution kept. ----!
+   !--- The explicit reference: nstep fixed Cash-Karp steps of dt, the 5th-order solution kept.
    subroutine march_rk45(y0, frozen, n, nsl, dt, nstep, y_out)
       type(march_state_t), intent(in)    :: y0
       type(frozen_t),      intent(in)    :: frozen
@@ -498,7 +516,7 @@ contains
       call state_init(y, n, nsl, y_out)
    end subroutine march_rk45
 
-   !----- Scale the canopy air's three conductances to the atmosphere. ---------------------------!
+   !--- Scale the canopy air's three conductances to the atmosphere.
    subroutine ventilate(frozen, factor)
       type(frozen_t), intent(inout) :: frozen
       real(wp),       intent(in)    :: factor
@@ -507,19 +525,19 @@ contains
       frozen%cas%box%atm_conductance_co2      = factor * frozen%cas%box%atm_conductance_co2
    end subroutine ventilate
 
-   !=======================================================================================!
-   ! 5. THE STATE VECTOR. Its fields are enumerated in four routines (state_to_array,         !
-   ! array_to_state, tend_to_array, state_entry_rules) and the combinators work on the flat  !
-   ! array, so an omitted field is invisible three ways over: the compiler is silent, the    !
-   ! ledgers still close (a field left at its default is a consistent zero), and the step    !
-   ! controller reads a smaller error and takes a longer step. Fortran cannot enumerate a    !
-   ! type's components, so each field, at every layer and every cohort, gets a distinct      !
-   ! value and each operation's contract is asserted field by field. A new state field means !
-   ! new rows in same_state, fill_state and fill_tend.                                       !
-   !=======================================================================================!
+   !---~---
+   !   5. THE STATE VECTOR. Its fields are enumerated in four routines (state_to_array,
+   ! array_to_state, tend_to_array, state_entry_rules) and the combinators work on the flat
+   ! array, so an omitted field is invisible three ways over: the compiler is silent, the
+   ! ledgers still close (a field left at its default is a consistent zero), and the step
+   ! controller reads a smaller error and takes a longer step. Fortran cannot enumerate a
+   ! type's components, so each field, at every layer and every cohort, gets a distinct
+   ! value and each operation's contract is asserted field by field. A new state field means
+   ! new rows in same_state, fill_state and fill_tend.
+   !---~---
    subroutine test_state_vector()
       integer(ik), parameter :: N = 2_ik, NL = 3_ik
-      integer(ik), parameter :: NV = 5_ik + 2_ik*NL + 4_ik*N   !< the flat layout's length
+      integer(ik), parameter :: NV = 5_ik + 2_ik*NL + 4_ik*N   ! the flat layout's length
       real(wp),    parameter :: BB = 0.25_wp
       type(march_state_t) :: a, b, out, expect
       type(march_tend_t)  :: k
@@ -531,20 +549,22 @@ contains
       call fill_state(a, 1.0_wp)
       call fill_state(b, 0.25_wp)
 
-      !----- state_init copies every field. -------------------------------------------------------!
+      !--- state_init copies every field.
       call state_init(a, N, NL, out)
       call same_state('state_init', out, a)
-      !----- ... into an output already sized, keeping its arrays. ---------------------------------!
+      !--- ... into an output already sized, keeping its arrays.
       call state_init(b, N, NL, out)
       call same_state('state_init into a reused output', out, b)
 
-      !----- state_sub differences every field: a - b = fill(1 - 0.25). ------------------------------!
+      !--- state_sub differences every field: a - b = fill(1 - 0.25).
       call state_sub(a, b, N, NL, out)
       call fill_state(expect, 0.75_wp)
       call same_state('state_sub', out, expect)
 
-      !----- zero_like allocates and zeroes every field: a film left unallocated is a field the norm  !
-      !      cannot read, so the allocation is asserted, not just the values. -----------------------!
+      !---~---
+      !   zero_like allocates and zeroes every field: a film left unallocated is a field the norm
+      ! cannot read, so the allocation is asserted, not just the values.
+      !---~---
       out = zero_like(a, N, NL)
       call check_true('zero_like: the tissue-water and film fields allocated',                                    &
                       allocated(out%leaf_water_mass) .and. allocated(out%wood_water_mass)                          &
@@ -552,9 +572,11 @@ contains
       call fill_state(expect, 0.0_wp)
       call same_state('zero_like', out, expect)
 
-      !----- state_err_diff: (a - b) - (b - a) = 2 (a - b) in the canopy air and the soil heat, which   !
-      !      the march integrates; zero in the soil water, the tissue water, the films and the pond,    !
-      !      which move by the water network's or the films' maps and are left out on purpose. --------!
+      !---~---
+      !   state_err_diff: (a - b) - (b - a) = 2 (a - b) in the canopy air and the soil heat, which
+      ! the march integrates; zero in the soil water, the tissue water, the films and the pond,
+      ! which move by the water network's or the films' maps and are left out on purpose.
+      !---~---
       call state_err_diff(a, b, b, a, N, NL, out)
       call fill_state(expect, 1.5_wp)
       expect%theta = 0.0_wp
@@ -566,8 +588,10 @@ contains
       expect%w_surface_energy = 0.0_wp
       call same_state('state_err_diff', out, expect)
 
-      !----- state_accum adds a*k to every field that has a stage tendency, and leaves the pond, which   !
-      !      has none (it is committed from the water network), as it was rather than zeroed. ---------!
+      !---~---
+      !   state_accum adds a*k to every field that has a stage tendency, and leaves the pond, which
+      ! has none (it is committed from the water network), as it was rather than zeroed.
+      !---~---
       call fill_state(out, 1.0_wp)
       call fill_tend(k)
       call state_accum(out, 2.0_wp, k, N, NL)
@@ -583,15 +607,17 @@ contains
       expect%wood_surf_water = expect%wood_surf_water + 2.0_wp * k%d_wood_surf_water
       call same_state('state_accum (the pond passed through)', out, expect)
 
-      !----- state_extrap blends every field, the pond included: (1 - b) a + b b = fill(0.8125). ------!
+      !--- state_extrap blends every field, the pond included: (1 - b) a + b b = fill(0.8125).
       call state_extrap(a, BB, b, N, NL, out)
       call fill_state(expect, (1.0_wp - BB) * 1.0_wp + BB * 0.25_wp)
       call same_state('state_extrap', out, expect)
 
-      !----- unpack_column_state, the commit: a field it omits never reaches the patch state at all.   !
-      !      It writes 9 of the 11 fields, and leaves the pond, which each scheme commits from the     !
-      !      water network, as it found it. can_temp is re-diagnosed from the committed enthalpy and   !
-      !      humidity, whatever that is: the synthetic fill is not physical. -------------------------!
+      !---~---
+      !   unpack_column_state, the commit: a field it omits never reaches the patch state at all.
+      ! It writes 9 of the 11 fields, and leaves the pond, which each scheme commits from the
+      ! water network, as it found it. can_temp is re-diagnosed from the committed enthalpy and
+      ! humidity, whatever that is: the synthetic fill is not physical.
+      !---~---
       allocate(dyn%leaf_water_mass(N), dyn%wood_water_mass(N), dyn%leaf_surf_water(N), dyn%wood_surf_water(N))
       dyn%leaf_water_mass = 0.0_wp
       dyn%wood_water_mass = 0.0_wp
@@ -620,9 +646,11 @@ contains
       call check_true('unpack: the pond left as it was (the water network commits it)',                           &
                       dyn%soil_water%w_surface == -1.0_wp .and. dyn%soil_water%w_surface_energy == -2.0_wp)
 
-      !----- The layout: state_to_array places each field where state_entry_rules reads it, and the   !
-      !      rules count the canopy air, the soil and the plant water in the step-size norm's groups   !
-      !      (3 + 2*NL + 2*N entries) and the canopy air and the soil heat in the embedded error. -----!
+      !---~---
+      !   The layout: state_to_array places each field where state_entry_rules reads it, and the
+      ! rules count the canopy air, the soil and the plant water in the step-size norm's groups
+      ! (3 + 2*NL + 2*N entries) and the canopy air and the soil heat in the embedded error.
+      !---~---
       call state_to_array(a, N, NL, v)
       call check('state_to_array: the canopy air first',                                                          &
                  maxval(abs(v(1:3) - [a%cas_enthalpy, a%cas_shv, a%cas_co2])), 0.0_wp, 0.0_wp)
@@ -647,9 +675,11 @@ contains
                  real(3_ik + NL, wp), 0.0_wp)
    end subroutine test_state_vector
 
-   !----- Every field, at every layer and every cohort, a distinct non-zero multiple of s, so an     !
-   !      operation that copies the wrong field, or leaves one at its default, cannot pass by        !
-   !      coincidence. The values are quarters, so the combinations above are exact. ------------!
+   !---~---
+   !   Every field, at every layer and every cohort, a distinct non-zero multiple of s, so an
+   ! operation that copies the wrong field, or leaves one at its default, cannot pass by
+   ! coincidence. The values are quarters, so the combinations above are exact.
+   !---~---
    subroutine fill_state(y, s)
       type(march_state_t), intent(out) :: y
       real(wp),            intent(in)  :: s
@@ -697,8 +727,10 @@ contains
       end do
    end subroutine fill_tend
 
-   !----- x equals y in every field, every layer and every cohort (to round-off on the fill's      !
-   !      magnitudes). Layers past the state's own are zero in both. ---------------------------!
+   !---~---
+   !   x equals y in every field, every layer and every cohort (to round-off on the fill's
+   ! magnitudes). Layers past the state's own are zero in both.
+   !---~---
    subroutine same_state(tag, x, y)
       character(len=*),    intent(in) :: tag
       type(march_state_t), intent(in) :: x, y
@@ -720,16 +752,16 @@ contains
       call check(tag//': w_surface_energy (the pond)', x%w_surface_energy, y%w_surface_energy, TOL)
    end subroutine same_state
 
-   !=======================================================================================!
-   ! 6. THE ERROR CONTROL (ed_fast_integ_control).                                           !
-   !=======================================================================================!
+   !--- 6. THE ERROR CONTROL (ed_fast_integ_control).
 
-   !----- One tolerance set for every adaptive error estimate in the fast loop: build_tol_set is the  !
-   !      single authority, the schemes take their error control from it (build_error_control) and  !
-   !      the water network its GRP_THETA pair. A whole-model comparison cannot see this wiring (a    !
-   !      tolerance change that flips no sub-step decision is byte-identical), so it is asserted     !
-   !      directly, the atol_scale dial included: rtol alone saturates once atol dominates the       !
-   !      atol + rtol|y| denominator. ------------------------------------------------------------!
+   !---~---
+   !   One tolerance set for every adaptive error estimate in the fast loop: build_tol_set is the
+   ! single authority, the schemes take their error control from it (build_error_control) and
+   ! the water network its GRP_THETA pair. A whole-model comparison cannot see this wiring (a
+   ! tolerance change that flips no sub-step decision is byte-identical), so it is asserted
+   ! directly, the atol_scale dial included: rtol alone saturates once atol dominates the
+   ! atol + rtol|y| denominator.
+   !---~---
    subroutine test_tolerance_set()
       type(ed_config_t)     :: c
       type(tol_set_t)       :: t, t1
@@ -746,18 +778,22 @@ contains
       call check_true('build_tol_set: rtol sets every group', all(t%rtol == 1.0e-7_wp), maxval(abs(t%rtol - 1.0e-7_wp)))
       call check_true('build_tol_set: atol_scale multiplies every group''s atol', all(t%atol == 1.0e-2_wp * t1%atol), &
                       maxval(abs(t%atol - 1.0e-2_wp * t1%atol)))
-      !----- The soil heat has no integrator tolerance: its solve is one backward-Euler step and its    !
-      !      accuracy is GRP_SE's. What the dial must still reach is the soil heat's budget stop, a     !
-      !      closure threshold outside the groups, which atol_scale scales directly. ----------------!
+      !---~---
+      !   The soil heat has no integrator tolerance: its solve is one backward-Euler step and its
+      ! accuracy is GRP_SE's. What the dial must still reach is the soil heat's budget stop, a
+      ! closure threshold outside the groups, which atol_scale scales directly.
+      !---~---
       ec = build_error_control(c)
       call check_true('build_error_control: atol_scale reaches the soil heat''s budget stop',                      &
                       ec%soil_energy_budget_atol == c%soil_energy_budget_atol * 1.0e-2_wp, ec%soil_energy_budget_atol)
    end subroutine test_tolerance_set
 
-   !----- The grouped error norm (state_wrms_grouped, docs/science/numerical_scheme.md eq. (3)): the  !
-   !      RMS over the entries the march integrates, the canopy air and the soil heat, of each       !
-   !      entry's difference in units of its group's tolerance, atol + rtol*|y_ref|. On the kernel   !
-   !      record's state, whose magnitudes are physical, so a one-atol difference is well resolved. -!
+   !---~---
+   !   The grouped error norm (state_wrms_grouped, docs/science/numerical_scheme.md eq. (3)): the
+   ! RMS over the entries the march integrates, the canopy air and the soil heat, of each
+   ! entry's difference in units of its group's tolerance, atol + rtol*|y_ref|. On the kernel
+   ! record's state, whose magnitudes are physical, so a one-atol difference is well resolved.
+   !---~---
    subroutine test_error_norm()
       integer(ik), parameter :: N = 2_ik, N_MANY = 6_ik
       type(march_state_t) :: y, a, y_neg, y_many, a_many
@@ -778,8 +814,10 @@ contains
 
       call check('state_wrms_grouped: no difference, no error', state_wrms_grouped(y, y, y, N, nsl, t_abs), 0.0_wp, &
                  0.0_wp)
-      !----- What the march does not integrate is left out: the soil water and the plant water move at   !
-      !      the water network's rate, the films and the pond by their maps. -----------------------!
+      !---~---
+      !   What the march does not integrate is left out: the soil water and the plant water move at
+      ! the water network's rate, the films and the pond by their maps.
+      !---~---
       call state_init(y, N, nsl, a)
       a%theta = 0.5_wp * a%theta
       a%leaf_water_mass = 0.5_wp * a%leaf_water_mass
@@ -790,8 +828,10 @@ contains
       a%w_surface_energy = 0.5_wp * a%w_surface_energy
       call check('state_wrms_grouped: the soil and plant water, the films and the pond are left out',              &
                  state_wrms_grouped(a, y, y, N, nsl, t_abs), 0.0_wp, 0.0_wp)
-      !----- One tolerance unit in every counted entry is an error of 1, with each group's own unit: the  !
-      !      groups' atols span nine orders of magnitude, so a group read with another's is far off. ---!
+      !---~---
+      !   One tolerance unit in every counted entry is an error of 1, with each group's own unit: the
+      ! groups' atols span nine orders of magnitude, so a group read with another's is far off.
+      !---~---
       call state_init(y, N, nsl, a)
       a%cas_enthalpy = y%cas_enthalpy + t_abs%atol(GRP_ENTH)
       a%cas_shv      = y%cas_shv      - t_abs%atol(GRP_SHV)
@@ -806,12 +846,14 @@ contains
       a%soil_energy(1:nsl) = y%soil_energy(1:nsl) * (1.0_wp + t_rel%rtol(GRP_SE))
       e1 = state_wrms_grouped(a, y, y, N, nsl, t_rel)
       call check('state_wrms_grouped: one rtol of |y_ref| in every counted entry is 1', e1, 1.0_wp, 1.0e-9_wp)
-      !----- The relative part scales with y_ref's magnitude, whatever its sign. --------------------------!
+      !--- The relative part scales with y_ref's magnitude, whatever its sign.
       call state_sub(zero_like(y, N, nsl), y, N, nsl, y_neg)
       call check('state_wrms_grouped: the relative scale is |y_ref|', state_wrms_grouped(a, y, y_neg, N, nsl, t_rel), &
                  e1, 1.0e-12_wp)
-      !----- Six cohorts do not dilute the same canopy-air and soil-heat error: their entries are not   !
-      !      counted. ----------------------------------------------------------------------------!
+      !---~---
+      !   Six cohorts do not dilute the same canopy-air and soil-heat error: their entries are not
+      ! counted.
+      !---~---
       call kernel_record(col%site, col%cfg%pft%hydraulics, N_MANY, y_many, frozen)
       call state_init(y_many, N_MANY, nsl, a_many)
       a_many%cas_enthalpy = a%cas_enthalpy
@@ -820,7 +862,7 @@ contains
       a_many%soil_energy  = a%soil_energy
       call check('state_wrms_grouped: six cohorts do not dilute the error',                                        &
                  state_wrms_grouped(a_many, y_many, y_many, N_MANY, nsl, t_rel), e1, 1.0e-12_wp)
-      !----- Twice the difference, twice the error. ----------------------------------------------------!
+      !--- Twice the difference, twice the error.
       call state_init(y, N, nsl, a)
       do j = 1_ik, nsl
          a%soil_energy(j) = y%soil_energy(j) + 2.0_wp * real(j, wp) * t_abs%atol(GRP_SE)
@@ -833,12 +875,14 @@ contains
                  state_wrms_grouped(a, y, y, N, nsl, t_abs), 2.0_wp * e1, 1.0e-9_wp * e1)
    end subroutine test_error_norm
 
-   !----- The step factor (step_control_factor, docs/science/numerical_scheme.md eq. (4)) takes the  !
-   !      embedded estimate's order and the growth limits from the error control: a step whose       !
-   !      local error, of order p + 1 in the step, is 2^(p+1) tolerances is halved (times the        !
-   !      safety factor), for ESDIRK2's first-order estimate and RK45's fourth-order one; an exact   !
-   !      step grows by the control's fmax and a wild one shrinks by its fmin; and a larger error    !
-   !      never gives a larger step. The I controller's own law is test_numerics'. ----------------!
+   !---~---
+   !   The step factor (step_control_factor, docs/science/numerical_scheme.md eq. (4)) takes the
+   ! embedded estimate's order and the growth limits from the error control: a step whose
+   ! local error, of order p + 1 in the step, is 2^(p+1) tolerances is halved (times the
+   ! safety factor), for ESDIRK2's first-order estimate and RK45's fourth-order one; an exact
+   ! step grows by the control's fmax and a wild one shrinks by its fmin; and a larger error
+   ! never gives a larger step. The I controller's own law is test_numerics'.
+   !---~---
    subroutine test_step_factor()
       type(error_control_t) :: ec
       real(wp)    :: fac(40), err
@@ -864,17 +908,17 @@ contains
                       maxval(fac(2:) - fac(:39)))
    end subroutine test_step_factor
 
-   !=======================================================================================!
-   ! 7. THE WATER NETWORK'S STORES (ed_fast_integ_derivs: set_water_state, water_derivs)   !
-   !=======================================================================================!
+   !--- 7. THE WATER NETWORK'S STORES (ed_fast_integ_derivs: set_water_state, water_derivs)
 
-   !----- Each cohort's wood and leaves are read on its own PFT's pressure-volume curves (docs/        !
-   !      science/soil_plant_water.md §1). The fixture's 20 cm tree, once of PFT 1 and once of PFT 2,  !
-   !      in one column, each holding the water of PSI_WOOD in its wood and of PSI_LEAF in its leaves  !
-   !      on its own curves: the network's state made from that water and evaluated there puts every   !
-   !      store at its potential, holding its water. The fixture's PFTs differ in every curve          !
-   !      parameter, so PFT 2's wood water read on PFT 1's curve sits at another potential. The step's !
-   !      drive (the soil's ice, the ground, the stomata's demand) is the frozen build's. -------------!
+   !---~---
+   !   Each cohort's wood and leaves are read on its own PFT's pressure-volume curves (docs/
+   ! science/soil_plant_water.md §1). The fixture's 20 cm tree, once of PFT 1 and once of PFT 2,
+   ! in one column, each holding the water of PSI_WOOD in its wood and of PSI_LEAF in its leaves
+   ! on its own curves: the network's state made from that water and evaluated there puts every
+   ! store at its potential, holding its water. The fixture's PFTs differ in every curve
+   ! parameter, so PFT 2's wood water read on PFT 1's curve sits at another potential. The step's
+   ! drive (the soil's ice, the ground, the stomata's demand) is the frozen build's.
+   !---~---
    subroutine test_water_curves_per_pft()
       integer(ik), parameter :: N = 2_ik
       integer(ik), parameter :: PFTS(N) = [1_ik, 2_ik]

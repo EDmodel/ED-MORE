@@ -1,13 +1,13 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! ed_netcdf_c -- a thin ISO_C_BINDING layer over the netCDF C library, for the state       !
-! file, the forcing and map readers and the output streams. netCDF-Fortran's .mod files    !
-! are compiler-specific, while the C library links from any compiler, so ED-MORE binds the !
-! C entry points it uses directly. C counts from 0 (callers pass 0-based starts), lists    !
-! dimensions slowest-varying first ([time, cohort]), and takes sizes as size_t and         !
-! NUL-terminated strings (cstr); the `_f` wrappers take Fortran strings. The readers share !
-! one rule for a variable's gaps and packing (nc_packing_of, nc_unpacked).                 !
-!==========================================================================================!
+!---~---
+!   ed_netcdf_c -- a thin ISO_C_BINDING layer over the netCDF C library, for the state
+! file, the forcing and map readers and the output streams. netCDF-Fortran's .mod files
+! are compiler-specific, while the C library links from any compiler, so ED-MORE binds the
+! C entry points it uses directly. C counts from 0 (callers pass 0-based starts), lists
+! dimensions slowest-varying first ([time, cohort]), and takes sizes as size_t and
+! NUL-terminated strings (cstr); the `_f` wrappers take Fortran strings. The readers share
+! one rule for a variable's gaps and packing (nc_packing_of, nc_unpacked).
+!---~---
 module ed_netcdf_c
    use iso_c_binding, only : c_int, c_size_t, c_double, c_float, c_char, c_ptr, c_null_char,           &
                              c_f_pointer, c_associated
@@ -15,7 +15,7 @@ module ed_netcdf_c
    implicit none
    public
 
-   !----- netCDF constants (values from netcdf.h, v4.9.2). --------------------------------!
+   !--- netCDF constants (values from netcdf.h, v4.9.2).
    integer(c_int), parameter :: NC_NOERR     = 0_c_int
    integer(c_int), parameter :: NC_NETCDF4   = 4096_c_int   ! 0x1000: HDF5-backed format
    integer(c_int), parameter :: NC_CLOBBER   = 0_c_int
@@ -27,16 +27,16 @@ module ed_netcdf_c
    integer(c_int), parameter :: NC_DOUBLE    = 6_c_int
    integer(c_int), parameter :: NC_CHUNKED   = 0_c_int      ! storage mode, nc_def/inq_var_chunking
    integer(c_size_t), parameter :: NC_UNLIMITED = 0_c_size_t
-   !----- netCDF's default fill values: what a variable holds where nothing was written. --------!
+   !--- netCDF's default fill values: what a variable holds where nothing was written.
    real(c_double),    parameter :: NC_FILL_DOUBLE = 9.9692099683868690e+36_c_double
    integer(c_int),    parameter :: NC_FILL_INT    = -2147483647_c_int
 
-   !----- A variable's gap and packing attributes, NaN where it has none (nc_packing_of). ----------!
+   !--- A variable's gap and packing attributes, NaN where it has none (nc_packing_of).
    type :: nc_packing_t
-      real(c_double) :: fill     !< _FillValue
-      real(c_double) :: missing  !< missing_value
-      real(c_double) :: scale    !< scale_factor
-      real(c_double) :: offset   !< add_offset
+      real(c_double) :: fill     ! _FillValue
+      real(c_double) :: missing  ! missing_value
+      real(c_double) :: scale    ! scale_factor
+      real(c_double) :: offset   ! add_offset
    end type nc_packing_t
 
    interface
@@ -153,7 +153,7 @@ module ed_netcdf_c
          integer(c_int), value, intent(in) :: ncid
       end function nc_close
 
-      !----- Read side (the state reader, the forcing and map readers). --------------------!
+      !--- Read side (the state reader, the forcing and map readers).
       integer(c_int) function nc_open(path, omode, ncidp) bind(c, name="nc_open")
          import :: c_char, c_int
          character(kind=c_char), intent(in)  :: path(*)
@@ -184,7 +184,7 @@ module ed_netcdf_c
          real(c_double),        intent(out) :: vals(*)
       end function nc_get_vara_double
 
-      !----- Float reads, for files that store float32 (the ED_ERA5land archive): no conversion. !
+      !--- Float reads, for files that store float32 (the ED_ERA5land archive): no conversion.
       integer(c_int) function nc_get_vara_float(ncid, varid, startp, countp, vals)           &
                               bind(c, name="nc_get_vara_float")
          import :: c_int, c_size_t, c_float
@@ -193,7 +193,7 @@ module ed_netcdf_c
          real(c_float),         intent(out) :: vals(*)
       end function nc_get_vara_float
 
-      !----- Dimension + attribute inquiry (the forcing, map and state readers). -----------!
+      !--- Dimension + attribute inquiry (the forcing, map and state readers).
       integer(c_int) function nc_inq_dimid(ncid, name, idp) bind(c, name="nc_inq_dimid")
          import :: c_char, c_int
          integer(c_int), value,  intent(in)  :: ncid
@@ -236,7 +236,7 @@ module ed_netcdf_c
 
 contains
 
-   !----- Build a NUL-terminated C string from a Fortran string. --------------------------!
+   !--- Build a NUL-terminated C string from a Fortran string.
    pure function cstr(f) result(c)
       character(len=*), intent(in)  :: f
       character(kind=c_char) :: c(len_trim(f) + 1)
@@ -248,11 +248,11 @@ contains
       c(n + 1) = c_null_char
    end function cstr
 
-   !---------------------------------------------------------------------------------------!
-   ! String-argument wrappers, for plain character(len=*) arguments; the raw bind(c) forms !
-   ! stay for the numeric calls. Each binds cstr() to a named local before the C call:     !
-   ! no function result goes straight into a call (docs/building.md, "Compilers").         !
-   !---------------------------------------------------------------------------------------!
+   !---~---
+   !   String-argument wrappers, for plain character(len=*) arguments; the raw bind(c) forms
+   ! stay for the numeric calls. Each binds cstr() to a named local before the C call:
+   ! no function result goes straight into a call (docs/building.md, "Compilers").
+   !---~---
    integer(c_int) function nc_create_f(path, cmode, ncidp) result(st)
       character(len=*), intent(in)  :: path
       integer(c_int),   intent(in)  :: cmode
@@ -293,7 +293,7 @@ contains
       st = nc_put_att_text(ncid, varid, cname, length, ctp)
    end function nc_put_att_text_f
 
-   !----- A one-value numeric attribute (e.g. _FillValue), through named locals as above. --!
+   !--- A one-value numeric attribute (e.g. _FillValue), through named locals as above.
    integer(c_int) function nc_put_att_double_f(ncid, varid, name, xtype, val) result(st)
       integer(c_int),   intent(in) :: ncid, varid, xtype
       character(len=*), intent(in) :: name
@@ -347,8 +347,10 @@ contains
       st = nc_inq_dimlen(ncid, dimid, length)
    end function nc_inq_dimlen_f
 
-   !----- Read a text attribute into a Fortran string (netCDF text attrs are not NUL-       !
-   !      terminated, so inquire the length first, then copy exactly that many chars).      !
+   !---~---
+   !   Read a text attribute into a Fortran string (netCDF text attrs are not NUL-
+   ! terminated, so inquire the length first, then copy exactly that many chars).
+   !---~---
    integer(c_int) function nc_get_att_text_f(ncid, varid, name, text) result(st)
       integer(c_int),   intent(in)  :: ncid, varid
       character(len=*), intent(in)  :: name
@@ -370,8 +372,10 @@ contains
       end do
    end function nc_get_att_text_f
 
-   !----- A one-value numeric attribute, converted to double by the library whatever its stored  !
-   !      type. A missing or longer attribute returns the error status and leaves `value` at 0.    !
+   !---~---
+   !   A one-value numeric attribute, converted to double by the library whatever its stored
+   ! type. A missing or longer attribute returns the error status and leaves `value` at 0.
+   !---~---
    integer(c_int) function nc_get_att_double_f(ncid, varid, name, value) result(st)
       integer(c_int),   intent(in)  :: ncid, varid
       character(len=*), intent(in)  :: name
@@ -391,9 +395,11 @@ contains
       if (st == NC_NOERR) value = buf(1)
    end function nc_get_att_double_f
 
-   !----- A variable's gaps and packing, as the netCDF attribute conventions declare them: a value !
-   !      equal to _FillValue or missing_value is a gap, and scale_factor and add_offset unpack the !
-   !      rest. Read once per variable here; nc_unpacked applies it value by value. -------------!
+   !---~---
+   !   A variable's gaps and packing, as the netCDF attribute conventions declare them: a value
+   ! equal to _FillValue or missing_value is a gap, and scale_factor and add_offset unpack the
+   ! rest. Read once per variable here; nc_unpacked applies it value by value.
+   !---~---
    function nc_packing_of(ncid, varid) result(packing)
       integer(c_int), intent(in) :: ncid, varid
       type(nc_packing_t)         :: packing
@@ -411,8 +417,10 @@ contains
       end function attribute_or_nan
    end function nc_packing_of
 
-   !----- One stored value as data: NaN for a gap, otherwise unpacked. An attribute the variable  !
-   !      lacks (NaN in the record) does nothing, so a plain variable reads as stored. ------------!
+   !---~---
+   !   One stored value as data: NaN for a gap, otherwise unpacked. An attribute the variable
+   ! lacks (NaN in the record) does nothing, so a plain variable reads as stored.
+   !---~---
    elemental real(c_double) function nc_unpacked(packing, raw) result(x)
       use, intrinsic :: ieee_arithmetic, only : ieee_value, ieee_quiet_nan, ieee_is_nan
       type(nc_packing_t), intent(in) :: packing
@@ -428,7 +436,7 @@ contains
       if (.not. ieee_is_nan(packing%offset)) x = x + packing%offset
    end function nc_unpacked
 
-   !----- The netCDF library's text for a status ('' when it has none). ---------------------!
+   !--- The netCDF library's text for a status ('' when it has none).
    function nc_error_text(status) result(text)
       integer(c_int), intent(in) :: status
       character(len=256)         :: text
@@ -445,7 +453,7 @@ contains
       end do
    end function nc_error_text
 
-   !----- Abort with the netCDF error message if `status` is not NC_NOERR. ----------------!
+   !--- Abort with the netCDF error message if `status` is not NC_NOERR.
    subroutine nc_check(status, context)
       integer(c_int),   intent(in) :: status
       character(len=*), intent(in) :: context

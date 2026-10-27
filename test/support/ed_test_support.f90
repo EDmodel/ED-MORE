@@ -1,10 +1,10 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! ed_test_support -- the in-code test CONFIGURATION fixture, plus a re-export of the        !
-! assertion helpers so a test needs one `use` rather than two. The assertions themselves live !
-! in ed_test_assert, which depends on nothing but a kind; see that module for why, and for    !
-! the two assertion families (fatal and accumulating).                                     !
-!==========================================================================================!
+!---~---
+!   ed_test_support -- the in-code test CONFIGURATION fixture, plus a re-export of the
+! assertion helpers so a test needs one `use` rather than two. The assertions themselves live
+! in ed_test_assert, which depends on nothing but a kind; see that module for why, and for
+! the two assertion families (fatal and accumulating).
+!---~---
 module ed_test_support
    use ed_kinds,        only : wp, ik
    use ed_constants,    only : day_sec
@@ -19,31 +19,31 @@ module ed_test_support
    implicit none
    private
 
-   !----- Re-exported, so a test that links the full support library needs one `use`. -----!
+   !--- Re-exported, so a test that links the full support library needs one `use`.
    public :: check, check_close, check_true, check_int, banner
    public :: test_report, test_reset, test_failures
    public :: build_test_config, test_pft_table
 
 contains
 
-   !---------------------------------------------------------------------------------------!
-   ! The tests' configuration FIXTURE: a complete configuration built in code, so that     !
-   ! no test reads a TOML file. Every value it sets is the shipped config's                !
-   ! (ed_config_main.toml, ed_config_pft.toml), dt_fast (900 s) and                        !
-   ! growth_memory_days (365 days) among them, except on purpose:                          !
-   !   * no files: the start is bare ground from no census, and nothing is written;        !
-   !   * allometry and hydraulics differ by PFT. Where the PFT file gives one value        !
-   !     for every PFT, PFT 1 keeps it and PFTs 2 and 3 step away from it (shorter         !
-   !     and stouter, with less sapwood, tougher leaves, safer xylem and deeper            !
-   !     roots), so a check that reads another PFT's record sees another number;           !
-   !     where the file lists a value per PFT (wood_kmax), the fixture takes it.           !
-   !     wood_kexp is 2, 1 and 3, so the Kirchhoff integral's two closed forms and         !
-   !     its lookup table each have a PFT.                                                 !
-   ! The blocks it does not set ([soil], [snow], [aerodynamics], [soil_carbon], the        !
-   ! solver settings of [fast]) keep their types' initializers, which are the shipped      !
-   ! values. A test that needs another value (a shorter dt_fast for an integrator          !
-   ! scenario) sets it itself and says why. Pass dt_slow [s] to vary the slow step.        !
-   !---------------------------------------------------------------------------------------!
+   !---~---
+   !   The tests' configuration FIXTURE: a complete configuration built in code, so that
+   ! no test reads a TOML file. Every value it sets is the shipped config's
+   ! (ed_config_main.toml, ed_config_pft.toml), dt_fast (900 s) and
+   ! growth_memory_days (365 days) among them, except on purpose:
+   !   * no files: the start is bare ground from no census, and nothing is written;
+   !   * allometry and hydraulics differ by PFT. Where the PFT file gives one value
+   !     for every PFT, PFT 1 keeps it and PFTs 2 and 3 step away from it (shorter
+   !     and stouter, with less sapwood, tougher leaves, safer xylem and deeper
+   !     roots), so a check that reads another PFT's record sees another number;
+   !     where the file lists a value per PFT (wood_kmax), the fixture takes it.
+   !     wood_kexp is 2, 1 and 3, so the Kirchhoff integral's two closed forms and
+   !     its lookup table each have a PFT.
+   ! The blocks it does not set ([soil], [snow], [aerodynamics], [soil_carbon], the
+   ! solver settings of [fast]) keep their types' initializers, which are the shipped
+   ! values. A test that needs another value (a shorter dt_fast for an integrator
+   ! scenario) sets it itself and says why. Pass dt_slow [s] to vary the slow step.
+   !---~---
    function build_test_config(dt_slow) result(cfg)
       real(wp), intent(in), optional :: dt_slow
       type(ed_config_t)              :: cfg
@@ -95,7 +95,7 @@ contains
       cfg%output%state_write       = .false.
       cfg%gpp_ref = 0.3_wp
 
-      !----- Leaf physiology: the model selectors and the biochemistry the PFTs share. ----!
+      !--- Leaf physiology: the model selectors and the biochemistry the PFTs share.
       associate (lp => cfg%leaf_physiology)
          lp%stomatal_model     = SM_MEDLYN
          lp%temp_response_form = TEMP_RESPONSE_PEAKED
@@ -130,7 +130,7 @@ contains
          p%include_pft = [ 1_ik, 1_ik, 1_ik ]
          p%min_cohort_height = 2.0_wp
          p%min_repro_height  = [ 13.912064431085485_wp, 13.912064431085485_wp, 13.912064431085485_wp ]
-         !----- The mortality hazard and the plasticity slopes. ---------------------------!
+         !--- The mortality hazard and the plasticity slopes.
          p%mort_gamma = [ 0.019815037439806053_wp, 0.0094_wp, 0.004953547651645506_wp ]
          p%mort_alpha = [ 0.07968043353213256_wp, 0.05_wp, 0.0335056513529311_wp ]
          p%mort_beta  = [ 16.71633880800162_wp, 18.72_wp, 20.631926375047502_wp ]
@@ -138,7 +138,7 @@ contains
          p%kplastic_rd    = p%kplastic_vcmax
          p%kplastic_sla   = [ 0.15654750929099287_wp, 0.12615477645341722_wp, 0.11739678683665906_wp ]
          p%kplastic_leaf_turnover = [ -0.058535787713143994_wp, -0.015560662518427415_wp, 0.0_wp ]
-         !----- Leaf-photosynthesis per-PFT traits (PFT 3 is C4). -------------------------!
+         !--- Leaf-photosynthesis per-PFT traits (PFT 3 is C4).
          p%photosynthetic_pathway = [ PATH_C3, PATH_C3, PATH_C4 ]
          p%vcmax25          = [ 60.0_wp, 45.0_wp, 40.0_wp ]
          p%jmax_vcmax_ratio = [ 1.8_wp, 1.7_wp, 4.0_wp ]
@@ -157,17 +157,17 @@ contains
          p%katul_lambda25   = [ 600.0_wp, 800.0_wp, 350.0_wp ]
          p%wstress_lambda_exp = [ 1.0_wp, 1.0_wp, 1.0_wp ]
          p%wstress_sref_stomata = [ 2.0_wp, 2.0_wp, 2.0_wp ]
-         !----- Carbon-dynamics traits. ---------------------------------------------------!
+         !--- Carbon-dynamics traits.
          p%sla                    = [ 16.0_wp, 13.0_wp, 10.0_wp ]
-         !----- Canopy-element geometry. --------------------------------------------------!
+         !--- Canopy-element geometry.
          p%leaf_width             = [ 0.04_wp, 0.04_wp, 0.04_wp ]
          p%branch_diameter        = [ 0.02_wp, 0.02_wp, 0.02_wp ]
          p%root_to_leaf_ratio     = [ 1.0_wp, 1.0_wp, 1.0_wp ]
-         !----- Non-leaf maintenance respiration. -----------------------------------------!
+         !--- Non-leaf maintenance respiration.
          p%is_woody               = [ .true., .true., .true. ]
          p%stem_resp_factor25     = [ 0.06_wp, 0.06_wp, 0.06_wp ]
          p%root_resp_factor25     = [ 0.30_wp, 0.30_wp, 0.30_wp ]
-         !----- Canopy optics. ------------------------------------------------------------!
+         !--- Canopy optics.
          p%leaf_reflect_vis  = [ 0.10_wp, 0.10_wp, 0.10_wp ]
          p%leaf_transmit_vis = [ 0.05_wp, 0.05_wp, 0.05_wp ]
          p%leaf_reflect_nir  = [ 0.45_wp, 0.45_wp, 0.45_wp ]
@@ -191,8 +191,10 @@ contains
          p%struct_lignin_frac     = [ 0.20_wp, 0.25_wp, 0.30_wp ]
       end associate
 
-      !----- Each PFT's allometry, all on the power-law height curve: PFT 1 on the         !
-      !      shipped values, PFTs 2 and 3 shorter, stouter and with less sapwood. ---------!
+      !---~---
+      !   Each PFT's allometry, all on the power-law height curve: PFT 1 on the
+      ! shipped values, PFTs 2 and 3 shorter, stouter and with less sapwood.
+      !---~---
       associate (a => cfg%pft%allom)
          a%hgt_max          = [ 46.0_wp, 42.0_wp, 38.0_wp ]
          a%b1Ht             = [ 1.139963_wp, 1.09_wp, 1.04_wp ]
@@ -207,9 +209,11 @@ contains
          a%sapwood_area_b2  = [ 1.764_wp, 1.780_wp, 1.800_wp ]
          a%aboveground_frac = [ 0.70_wp, 0.72_wp, 0.74_wp ]
       end associate
-      !----- ... and its hydraulics: PFT 1 on the shipped values, PFTs 2 and 3 with        !
-      !      tougher leaves (a lower turgor-loss point), safer xylem and deeper roots;     !
-      !      wood_kmax is the PFT file's own per-PFT fit to wood density. -----------------!
+      !---~---
+      !   ... and its hydraulics: PFT 1 on the shipped values, PFTs 2 and 3 with
+      ! tougher leaves (a lower turgor-loss point), safer xylem and deeper roots;
+      ! wood_kmax is the PFT file's own per-PFT fit to wood density.
+      !---~---
       associate (h => cfg%pft%hydro)
          h%leaf_curve%pi0           = [ -1.5_wp, -1.7_wp, -1.9_wp ]
          h%leaf_curve%elastic_mod   = [ 12.0_wp, 14.0_wp, 16.0_wp ]
@@ -232,7 +236,7 @@ contains
       call derive_parameters(cfg)
    end function build_test_config
 
-   !----- The test configuration's PFT table, for a fixture site that has no config of its own. --!
+   !--- The test configuration's PFT table, for a fixture site that has no config of its own.
    function test_pft_table() result(pft)
       type(pft_table_t)   :: pft
       type(ed_config_t)   :: cfg

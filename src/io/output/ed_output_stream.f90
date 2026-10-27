@@ -1,14 +1,14 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! ed_output_stream -- stage [5] of the diagnostic output, the netCDF writer: open a per-tier,   !
-! per-time-chunk file (dims, coordinates, the tier's variables, CF metadata), append a record, !
-! and roll to a new file at a chunk boundary (write_record). Every file has a polygon axis     !
-! after time; a record is packed over the polygons, with the fill value for a polygon without  !
-! it (one that failed earlier in the month) and past a polygon's live cohort and patch counts  !
-! (docs/science/diagnostics.md §1, §3). output_serialize drains the queued records in the     !
-! run's I/O phase, and output_close writes the final partial periods and closes the files. The !
-! only diagnostic module that calls netCDF.                                                    !
-!==========================================================================================!
+!---~---
+!   ed_output_stream -- stage [5] of the diagnostic output, the netCDF writer: open a per-tier,
+! per-time-chunk file (dims, coordinates, the tier's variables, CF metadata), append a record,
+! and roll to a new file at a chunk boundary (write_record). Every file has a polygon axis
+! after time; a record is packed over the polygons, with the fill value for a polygon without
+! it (one that failed earlier in the month) and past a polygon's live cohort and patch counts
+! (docs/science/diagnostics.md §1, §3). output_serialize drains the queued records in the
+! run's I/O phase, and output_close writes the final partial periods and closes the files. The
+! only diagnostic module that calls netCDF.
+!---~---
 module ed_output_stream
    use iso_c_binding, only : c_int, c_size_t, c_double
    use ed_kinds,      only : wp, ik
@@ -37,11 +37,11 @@ module ed_output_stream
 
 contains
 
-   !=======================================================================================!
-   !  Write record i of tier t -- one closed period -- opening or rolling the tier's file as     !
-   !  needed. `bufs` holds every polygon's buffers. Every polygon that holds record i holds the  !
-   !  same period.                                                                               !
-   !=======================================================================================!
+   !---~---
+   !   Write record i of tier t -- one closed period -- opening or rolling the tier's file as
+   ! needed. `bufs` holds every polygon's buffers. Every polygon that holds record i holds the
+   ! same period.
+   !---~---
    subroutine write_record(files, bufs, t, i)
       type(output_files_t),   intent(inout) :: files
       type(output_buffers_t), intent(in)    :: bufs(:)
@@ -61,10 +61,12 @@ contains
             if (.not. time_eq(bufs(p)%queue(t)%rec(i)%t_open, r1%t_open))                      &
                error stop 'write_record: the polygons'' records are not the same period'
          end do
-         !----- The cohort and patch counts are fixed only within a month, so a tier with a cohort or !
-         !      patch variable caps its files at a month (a day for the FAST tier) and trims the axes !
-         !      to the live counts (docs/science/diagnostics.md §3). Other tiers keep their           !
-         !      configured chunk. -----------------------------------------------------------------!
+         !---~---
+         !   The cohort and patch counts are fixed only within a month, so a tier with a cohort or
+         ! patch variable caps its files at a month (a day for the FAST tier) and trims the axes
+         ! to the live counts (docs/science/diagnostics.md §3). Other tiers keep their
+         ! configured chunk.
+         !---~---
          fc = files%file_chunk(t)
          if (tier_has_cohort_or_patch(files%reg, t)) then
             fc = min(fc, FC_MONTH)
@@ -72,7 +74,7 @@ contains
          end if
          bucket = bucket_key(r1%t_open, fc)
          if (files%stream(t)%ncid < 0_ik .or. bucket /= files%stream(t)%chunk_bucket) then
-            !----- The file's cohort and patch axes: the largest live count among the polygons. ----!
+            !--- The file's cohort and patch axes: the largest live count among the polygons.
             n_cohort = 0_ik
             n_patch = 0_ik
             do p = p1, np
@@ -85,8 +87,10 @@ contains
          end if
       end associate
       call write_one(files, bufs, t, i, p1)
-      !----- No per-record nc_sync for the FAST tier: ~n_fast_per_slow records a day would each      !
-      !      fsync. The chunk-boundary nc_close still flushes the file. Coarse tiers honour sync.     !
+      !---~---
+      !   No per-record nc_sync for the FAST tier: ~n_fast_per_slow records a day would each
+      ! fsync. The chunk-boundary nc_close still flushes the file. Coarse tiers honour sync.
+      !---~---
       if (files%sync_every == SYNC_FLUSH .and. t /= TIER_FAST)                                            &
          call nc_check(nc_sync(int(files%stream(t)%ncid, c_int)), 'nc_sync')
    end subroutine write_record
@@ -101,9 +105,11 @@ contains
       stream%patch_dim = 0_ik
    end subroutine stream_close_file
 
-   !----- .true. if the tier defines a variable on a ragged axis -- cohort, patch or soil by patch  !
-   !      (drives the ≤1-month file-chunk cap, since those axes are invariant only within a month; !
-   !      docs/science/diagnostics.md §3). --------------------------------------------------------!
+   !---~---
+   !   .true. if the tier defines a variable on a ragged axis -- cohort, patch or soil by patch
+   ! (drives the ≤1-month file-chunk cap, since those axes are invariant only within a month;
+   ! docs/science/diagnostics.md §3).
+   !---~---
    pure logical function tier_has_cohort_or_patch(reg, tier) result(yes)
       type(output_registry_t), intent(in) :: reg
       integer(ik),             intent(in) :: tier
@@ -118,7 +124,7 @@ contains
       end do
    end function tier_has_cohort_or_patch
 
-   !----- Integer bucket key identifying the time-chunk a period belongs to. ----------------!
+   !--- Integer bucket key identifying the time-chunk a period belongs to.
    pure integer(ik) function bucket_key(t, file_chunk) result(b)
       type(ed_time_t),   intent(in) :: t
       integer(ik),       intent(in) :: file_chunk
@@ -134,7 +140,7 @@ contains
       end select
    end function bucket_key
 
-   !----- Filename stamp for the time-chunk (empty for FC_RUN -> stampless -Y.nc). -----------!
+   !--- Filename stamp for the time-chunk (empty for FC_RUN -> stampless -Y.nc).
    pure function chunk_stamp(t, file_chunk) result(s)
       type(ed_time_t),   intent(in) :: t
       integer(ik),       intent(in) :: file_chunk
@@ -161,16 +167,16 @@ contains
       end select
    end function cell_methods_of
 
-   !=======================================================================================!
-   !  Create a file: dims, the polygon and site axes and their coordinates, the tier's     !
-   !  variables and CF metadata. The cohort/patch axes are trimmed to the live counts of   !
-   !  the record that opens it, the largest among a region's polygons.                     !
-   !=======================================================================================!
+   !---~---
+   !   Create a file: dims, the polygon and site axes and their coordinates, the tier's
+   ! variables and CF metadata. The cohort/patch axes are trimmed to the live counts of
+   ! the record that opens it, the largest among a region's polygons.
+   !---~---
    subroutine open_file(files, tier, pr, file_chunk, bucket, n_cohort, n_patch)
       type(output_files_t),   intent(inout) :: files
       integer(ik),            intent(in)    :: tier, file_chunk, bucket
       type(pending_record_t), intent(in)    :: pr
-      integer(ik),            intent(in)    :: n_cohort, n_patch   !< the opening record's live counts
+      integer(ik),            intent(in)    :: n_cohort, n_patch   ! the opening record's live counts
       character(len=512) :: path
       character(len=16)  :: stamp
       integer(c_int)     :: ncid, dt, dpo, dsi, dc, dp, ds, dpf, dsz, dnv, vid, dims1(1), dims2(2), dims3(3)
@@ -182,8 +188,10 @@ contains
       associate (stream => files%stream(tier), reg => files%reg, setup => files%diag)
       np   = files%n_polygon
 
-      !----- Which trailing dims does this tier need? A 2-D (soil layer x patch) variable needs     !
-      !      both the patch and soil dims, which is why DIM_SOIL_PATCH sets two flags.  ------------!
+      !---~---
+      !   Which trailing dims does this tier need? A 2-D (soil layer x patch) variable needs
+      ! both the patch and soil dims, which is why DIM_SOIL_PATCH sets two flags.
+      !---~---
       hasc = .false.
       hasp = .false.
       hass = .false.
@@ -208,10 +216,12 @@ contains
          end select
       end do
 
-      !----- Trim the cohort/patch axes to the live counts of the record that opens this file. A     !
-      !      polygon's count is fixed within a file of a month or less (write_record caps the chunk), !
-      !      so the axis fits every record; write_one asserts it. max(.,1) avoids a zero-length    !
-      !      axis on bare ground. ---------------------------------------------------------------!
+      !---~---
+      !   Trim the cohort/patch axes to the live counts of the record that opens this file. A
+      ! polygon's count is fixed within a file of a month or less (write_record caps the chunk),
+      ! so the axis fits every record; write_one asserts it. max(.,1) avoids a zero-length
+      ! axis on bare ground.
+      !---~---
       if (hasc .and. n_cohort > files%cohort_max) error stop 'ed_output_stream: n_cohort exceeds cohort_max buffer'
       if (hasp .and. n_patch  > files%patch_max)  error stop 'ed_output_stream: n_patch exceeds patch_max buffer'
       cohort_dim = max(n_cohort, 1_ik)
@@ -241,13 +251,15 @@ contains
       if (hassz) call nc_check(nc_def_dim_f(ncid, 'dbh_class',                                       &
                                int(max(setup%n_dbh_class,1_ik), c_size_t), dsz), 'dim dbh_class')
 
-      !----- time coordinate + calendar companions (period-start stamp). ---!
+      !--- time coordinate + calendar companions (period-start stamp).
       stream%v_time  = int(def_scalar_var(ncid, dt, 'time',  NC_DOUBLE, 'year', 'decimal calendar year (period start)'), ik)
       stream%v_year  = int(def_scalar_var(ncid, dt, 'year',  NC_INT,    '1', 'calendar year (period start)'), ik)
       stream%v_month = int(def_scalar_var(ncid, dt, 'month', NC_INT,    '1', 'calendar month (period start)'), ik)
       stream%v_day   = int(def_scalar_var(ncid, dt, 'day',   NC_INT,    '1', 'calendar day (period start)'), ik)
-      !----- The FAST tier: clock companions, so a reader can group by hour without decoding the        !
-      !      decimal `time`; the period-start stamp, as the calendar companions above. ---------------!
+      !---~---
+      !   The FAST tier: clock companions, so a reader can group by hour without decoding the
+      ! decimal `time`; the period-start stamp, as the calendar companions above.
+      !---~---
       stream%v_hour = -1_ik
       stream%v_minute = -1_ik
       stream%v_second = -1_ik
@@ -256,7 +268,7 @@ contains
          stream%v_minute = int(def_scalar_var(ncid, dt, 'minute', NC_INT, '1', 'clock minute (period start)'), ik)
          stream%v_second = int(def_scalar_var(ncid, dt, 'second', NC_INT, '1', 'clock second (period start)'), ik)
       end if
-      !----- The live counts, per record and polygon. ------------------------------------------------!
+      !--- The live counts, per record and polygon.
       if (hasc .or. hasp) then
          dims2 = [dt, dpo]
          if (hasc) then
@@ -273,22 +285,26 @@ contains
          end if
       end if
 
-      !----- The polygon axis (define_polygon_axis: its id and cell centre) and its grid indices, so a  !
-      !      region maps back onto the lat/lon grid in one step. ---------------------------------------!
+      !---~---
+      !   The polygon axis (define_polygon_axis: its id and cell centre) and its grid indices, so a
+      ! region maps back onto the lat/lon grid in one step.
+      !---~---
       dims1 = [dpo]
       call define_var(ncid, 'row', NC_INT, dims1, v_row, long_name='0-based latitude index on the forcing grid')
       call define_var(ncid, 'col', NC_INT, dims1, v_col, long_name='0-based longitude index on the forcing grid')
       call define_var(ncid, 'n_site', NC_INT, dims1, v_nsite,                                         &
                       long_name='the polygon''s sites (the rest of the site axis is fill)')
-      !----- Each polygon's sites, as it runs them: area, terrain and soil column. ---------------!
+      !--- Each polygon's sites, as it runs them: area, terrain and soil column.
       call define_site_statics(ncid, dpo, dsi, [SOIL_BC_DRAIN, SOIL_BC_AQUIFER], 'drain aquifer', by_row=.false.)
       if (allocated(files%polygon_chave_e)) then
          call define_var(ncid, 'chave_e_py', NC_DOUBLE, dims1, v_chave, units='1',                       &
                          long_name='Chave et al. (2014) environmental stress index E')
       end if
 
-      !----- Axis coordinates: the pft and dbh_class axes have run-dependent lengths, so each file   !
-      !      carries its own coordinates and stands on its own (docs/science/diagnostics.md §3). ---!
+      !---~---
+      !   Axis coordinates: the pft and dbh_class axes have run-dependent lengths, so each file
+      ! carries its own coordinates and stands on its own (docs/science/diagnostics.md §3).
+      !---~---
       stream%v_pft = -1_ik
       stream%v_dbh_lower = -1_ik
       stream%v_dbh_upper = -1_ik
@@ -298,8 +314,10 @@ contains
          call define_var(ncid, 'pft', NC_INT, dims1, vid, long_name='plant functional type index')
          stream%v_pft = int(vid, ik)
       end if
-      !----- Each site has its own layers: the coordinate is per site, with each layer's top and        !
-      !      bottom as its CF bounds, and the fill value below the site's bottom. ----------------------!
+      !---~---
+      !   Each site has its own layers: the coordinate is per site, with each layer's top and
+      ! bottom as its CF bounds, and the fill value below the site's bottom.
+      !---~---
       if (hass) then
          call nc_check(nc_def_dim_f(ncid, 'nv', 2_c_size_t, dnv), 'dim nv')
          dims3 = [dpo, dsi, ds]
@@ -323,7 +341,7 @@ contains
          stream%v_dbh_upper = int(vid, ik)
       end if
 
-      !----- registry-driven variable definitions (dims per DIM_*, chunk+deflate + CF attrs). ---!
+      !--- registry-driven variable definitions (dims per DIM_*, chunk+deflate + CF attrs).
       stream%vid = -1_ik
       do j = 1_ik, reg%nidx(tier)
          k = reg%idx_freq(j, tier)
@@ -337,7 +355,7 @@ contains
       if (len_trim(files%forcing_qair) > 0) call put_global_text(ncid, 'forcing_qair', trim(files%forcing_qair))
       call nc_check(nc_enddef(ncid), 'stream enddef')
 
-      !----- Write the axis coordinates once, right after enddef (they do not vary by record). --!
+      !--- Write the axis coordinates once, right after enddef (they do not vary by record).
       st1 = [0_c_size_t]
       cn1 = [int(np, c_size_t)]
       call write_polygon_axis(ncid, files%polygon_id, files%polygon_lat, files%polygon_lon)
@@ -376,10 +394,12 @@ contains
       end associate
    end subroutine open_file
 
-   !----- The soil coordinate: each site's own layer node depths and, as their bounds, each         !
-   !      layer's top and bottom [m], negative downward, so its bottom layer ends at its own soil   !
-   !      depth. Below a site's bottom layer, and for a polygon's missing sites, both are the fill  !
-   !      value, as its data are. ------------------------------------------------------------------!
+   !---~---
+   !   The soil coordinate: each site's own layer node depths and, as their bounds, each
+   ! layer's top and bottom [m], negative downward, so its bottom layer ends at its own soil
+   ! depth. Below a site's bottom layer, and for a polygon's missing sites, both are the fill
+   ! value, as its data are.
+   !---~---
    subroutine write_site_soil_coord(ncid, v_z, v_bnds, files)
       integer(c_int),       intent(in) :: ncid, v_z, v_bnds
       type(output_files_t), intent(in) :: files
@@ -407,7 +427,7 @@ contains
       call nc_check(nc_put_vara_double(ncid, v_bnds, st4, cn4, b), 'put soil_z_bnds')
    end subroutine write_site_soil_coord
 
-   !----- The pft coordinate: the 1-based PFT indices this run carries. ----------------------!
+   !--- The pft coordinate: the 1-based PFT indices this run carries.
    subroutine write_pft_coord(ncid, vid_ik, n_pft)
       integer(c_int), intent(in) :: ncid
       integer(ik),    intent(in) :: vid_ik, n_pft
@@ -422,8 +442,10 @@ contains
       call nc_check(nc_put_vara_int(ncid, int(vid_ik, c_int), st, cn, iarr), 'put pft coord')
    end subroutine write_pft_coord
 
-   !----- The dbh_class coordinates: the lower and upper edge of each class, so a reader can    !
-   !      label the axis without knowing the run's TOML.                                         !
+   !---~---
+   !   The dbh_class coordinates: the lower and upper edge of each class, so a reader can
+   ! label the axis without knowing the run's TOML.
+   !---~---
    subroutine write_size_coord(ncid, vlo_ik, vhi_ik, setup)
       integer(c_int),      intent(in) :: ncid
       integer(ik),         intent(in) :: vlo_ik, vhi_ik
@@ -442,24 +464,26 @@ contains
       call nc_check(nc_put_vara_double(ncid, int(vhi_ik, c_int), st, cn, hi), 'put dbh_upper')
    end subroutine write_size_coord
 
-   !----- Define a 1-D record variable (time) + units/long_name; returns its varid. ----------!
+   !--- Define a 1-D record variable (time) + units/long_name; returns its varid.
    integer(c_int) function def_scalar_var(ncid, dt, name, xtype, units, lname) result(vid)
       integer(c_int),   intent(in) :: ncid, dt, xtype
       character(len=*), intent(in) :: name, units, lname
       call define_var(ncid, name, xtype, [dt], vid, units=units, long_name=lname)
    end function def_scalar_var
 
-   !----- Define one registry variable: (time, polygon[, axis...]), chunked one record at a time  !
-   !      and deflated, with CF attributes and _FillValue. A soil-by-patch variable is (time,     !
-   !      polygon, patch, soil) and a site soil column (time, polygon, site, soil): the slab is   !
-   !      patch- or site-major and strided by n_soil_layer_max, netCDF's row-major order. ------!
+   !---~---
+   !   Define one registry variable: (time, polygon[, axis...]), chunked one record at a time
+   ! and deflated, with CF attributes and _FillValue. A soil-by-patch variable is (time,
+   ! polygon, patch, soil) and a site soil column (time, polygon, site, soil): the slab is
+   ! patch- or site-major and strided by n_soil_layer_max, netCDF's row-major order.
+   !---~---
    integer(c_int) function def_registry_var(ncid, dt, dpo, dsi, dc, dp, ds, dpf, dsz, v, np, ns,    &
                                             cohort_dim, patch_dim, setup) result(vid)
       integer(c_int),      intent(in) :: ncid, dt, dpo, dsi, dc, dp, ds, dpf, dsz
       type(var_desc_t),    intent(in) :: v
-      integer(ik),         intent(in) :: np                     !< polygons
-      integer(ik),         intent(in) :: ns                     !< the site axis's length
-      integer(ik),         intent(in) :: cohort_dim, patch_dim  !< the file's trimmed (live-count) axis lengths
+      integer(ik),         intent(in) :: np                     ! polygons
+      integer(ik),         intent(in) :: ns                     ! the site axis's length
+      integer(ik),         intent(in) :: cohort_dim, patch_dim  ! the file's trimmed (live-count) axis lengths
       type(diag_setup_t),  intent(in) :: setup
       integer(c_int)    :: xt, dims(4), rank
       integer(c_size_t) :: chunk(4)
@@ -515,11 +539,11 @@ contains
       end if
    end function def_registry_var
 
-   !=======================================================================================!
-   !  Append record i: the calendar and the live counts from polygon p1 (the first that holds  !
-   !  it), then each variable, packed over the polygons into one array the length of the file's !
-   !  axis, the fill value past a polygon's live length and for a polygon without the record.  !
-   !=======================================================================================!
+   !---~---
+   !   Append record i: the calendar and the live counts from polygon p1 (the first that holds
+   ! it), then each variable, packed over the polygons into one array the length of the file's
+   ! axis, the fill value past a polygon's live length and for a polygon without the record.
+   !---~---
    subroutine write_one(files, bufs, t, i, p1)
       type(output_files_t),   intent(inout) :: files
       type(output_buffers_t), intent(in)    :: bufs(:)
@@ -534,9 +558,11 @@ contains
       t0 = int(stream%nrec, c_size_t)
       i1 = [t0]
       np  = size(bufs, kind=ik)
-      !----- The cohort/patch axes were trimmed to the opening record's live counts; every record in a !
-      !      <=1-month file shares each polygon's count. Assert it rather than silently               !
-      !      overflow the slab. ----------------------------------------------------------------------!
+      !---~---
+      !   The cohort/patch axes were trimmed to the opening record's live counts; every record in a
+      ! <=1-month file shares each polygon's count. Assert it rather than silently
+      ! overflow the slab.
+      !---~---
       do p = 1_ik, np
          if (bufs(p)%queue(t)%n < i) cycle
          if (stream%has_cohort .and. bufs(p)%queue(t)%rec(i)%n_cohort > stream%cohort_dim)            &
@@ -544,7 +570,7 @@ contains
          if (stream%has_patch .and. bufs(p)%queue(t)%rec(i)%n_patch > stream%patch_dim)               &
             error stop 'ed_output_stream: patch count grew within a file (patch output needs file_chunk <= month)'
       end do
-      !----- calendar (period start) + live counts. ---!
+      !--- calendar (period start) + live counts.
       call nc_check(nc_put_var1_double(ncid, int(stream%v_time, c_int), i1, time_to_decimal_year(r1%t_open)), 'put time')
       call put_int_rec(ncid, stream%v_year,  t0, int(r1%t_open%year,  c_int))
       call put_int_rec(ncid, stream%v_month, t0, int(r1%t_open%month, c_int))
@@ -557,7 +583,7 @@ contains
 
       do j = 1_ik, reg%nidx(t)
          k = reg%idx_freq(j, t)
-         !----- The variable's axis length in this file, and the hyperslab: (time, polygon[, axis]). --!
+         !--- The variable's axis length in this file, and the hyperslab: (time, polygon[, axis]).
          select case (reg%var(k)%dim)
          case (DIM_SCALAR)
             n = 1_ik
@@ -638,7 +664,7 @@ contains
       end associate
 
    contains
-      !----- A record's live counts, one per polygon; the fill value for a polygon without it. ------!
+      !--- A record's live counts, one per polygon; the fill value for a polygon without it.
       subroutine put_count_rec(vid_ik, cohorts)
          integer(ik), intent(in) :: vid_ik
          logical,     intent(in) :: cohorts
@@ -660,8 +686,10 @@ contains
       end subroutine put_count_rec
    end subroutine write_one
 
-   !----- How many slab entries of variable k a record holds: its live length, or for the soil-by- !
-   !      patch slab (patch-major, strided by n_soil_layer_max) every layer of its live patches. ---!
+   !---~---
+   !   How many slab entries of variable k a record holds: its live length, or for the soil-by-
+   ! patch slab (patch-major, strided by n_soil_layer_max) every layer of its live patches.
+   !---~---
    pure integer(ik) function record_length(r, dim, k) result(ns)
       type(pending_record_t), intent(in) :: r
       integer(ik),            intent(in) :: dim, k
@@ -673,7 +701,7 @@ contains
    end function record_length
 
 
-   !----- Map a normalized real (with validity) to an int record value (MISSING_INT if invalid). !
+   !--- Map a normalized real (with validity) to an int record value (MISSING_INT if invalid).
    pure integer(c_int) function real_to_int(x, valid) result(iv)
       real(wp), intent(in) :: x
       logical,  intent(in) :: valid
@@ -698,11 +726,13 @@ contains
    end subroutine put_int_rec
 
 
-   !----- Drain every polygon's queued records to the per-tier files, in closing order, then empty  !
-   !      the queues; called from the I/O phase at month boundaries and at the end of the run.     !
-   !      Record i of tier t is one period across the polygons. A polygon that failed earlier in   !
-   !      the month closed fewer, so the longest queue sets the count and the others get the fill  !
-   !      value: a failure loses no other polygon's month. ----------------------------------------!
+   !---~---
+   !   Drain every polygon's queued records to the per-tier files, in closing order, then empty
+   ! the queues; called from the I/O phase at month boundaries and at the end of the run.
+   ! Record i of tier t is one period across the polygons. A polygon that failed earlier in
+   ! the month closed fewer, so the longest queue sets the count and the others get the fill
+   ! value: a failure loses no other polygon's month.
+   !---~---
    subroutine output_serialize(files, bufs)
       type(output_files_t),   intent(inout) :: files
       type(output_buffers_t), intent(inout) :: bufs(:)
@@ -722,8 +752,10 @@ contains
       end do
    end subroutine output_serialize
 
-   !----- End of run: optionally close every polygon's final partial windows (the FAST tier's too) !
-   !      and write them, then close the files. ------------------------------------------------!
+   !---~---
+   !   End of run: optionally close every polygon's final partial windows (the FAST tier's too)
+   ! and write them, then close the files.
+   !---~---
    subroutine output_close(files, bufs, flush_partial)
       type(output_files_t),   intent(inout) :: files
       type(output_buffers_t), intent(inout) :: bufs(:)

@@ -12,6 +12,12 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ## [Unreleased]
 
+### Changed
+
+- The Fortran sources use one comment format: `!--- text` for a comment line, a comment of
+  several lines between two `!---~---` lines, and a plain `! text` after a statement. Results are
+  bit for bit; only comments change. (#48)
+
 ## [0.4.1] - 2026-10-26
 
 The first ED-MORE release: MEDS v0.4.0 renamed and moved to the EDmodel organization, with its

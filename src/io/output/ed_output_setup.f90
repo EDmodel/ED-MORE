@@ -1,12 +1,12 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! ed_output_setup -- a run's output file set, laid out once: open_output_files builds      !
-! the registry from the config, applies [output].io_config's per-variable overrides, lays  !
-! out the polygon axis and sizes the records; attach_output gives each polygon its         !
-! buffers, switches on the diagnostic blocks the set's variables read                      !
-! (activate_polygon_diag) and fills its row of the per-polygon variables. netCDF-free      !
-! (docs/science/diagnostics.md §5).                                                        !
-!==========================================================================================!
+!---~---
+!   ed_output_setup -- a run's output file set, laid out once: open_output_files builds
+! the registry from the config, applies [output].io_config's per-variable overrides, lays
+! out the polygon axis and sizes the records; attach_output gives each polygon its
+! buffers, switches on the diagnostic blocks the set's variables read
+! (activate_polygon_diag) and fills its row of the per-polygon variables. netCDF-free
+! (docs/science/diagnostics.md §5).
+!---~---
 module ed_output_setup
    use ed_kinds,            only : wp, ik
    use ed_config,           only : ed_config_t
@@ -35,20 +35,20 @@ module ed_output_setup
 
 contains
 
-   !---------------------------------------------------------------------------------------!
-   ! open_output_files -- lay out one output file set: the registry from the config, the   !
-   ! per-variable overrides of [output].io_config, and the polygon axis with each          !
-   ! polygon's cell and site count. Each polygon that writes into the set then calls       !
-   ! attach_output, which gives the files that polygon's own sites.                        !
-   !---------------------------------------------------------------------------------------!
+   !---~---
+   !   open_output_files -- lay out one output file set: the registry from the config, the
+   ! per-variable overrides of [output].io_config, and the polygon axis with each
+   ! polygon's cell and site count. Each polygon that writes into the set then calls
+   ! attach_output, which gives the files that polygon's own sites.
+   !---~---
    subroutine open_output_files(cfg, files, verbose, polygon_id, n_site, lat, lon, row, col)
       type(ed_config_t),  intent(in)      :: cfg
       type(output_files_t), intent(inout) :: files
       logical,              intent(in)    :: verbose
-      integer(ik),          intent(in)    :: polygon_id(:)   !< the polygons' ids ...
-      integer(ik),          intent(in)    :: n_site(:)       !< ... their site counts ...
-      real(wp),             intent(in)    :: lat(:), lon(:)  !< ... their cells' centres [deg] ...
-      integer(ik),          intent(in)    :: row(:), col(:)  !< ... and grid indices (0-based)
+      integer(ik),          intent(in)    :: polygon_id(:)   ! the polygons' ids ...
+      integer(ik),          intent(in)    :: n_site(:)       ! ... their site counts ...
+      real(wp),             intent(in)    :: lat(:), lon(:)  ! ... their cells' centres [deg] ...
+      integer(ik),          intent(in)    :: row(:), col(:)  ! ... and grid indices (0-based)
       call setup_output_files(files, cfg)
       if (len_trim(cfg%output%io_config) > 0)                                                     &
          call apply_io_overrides(files, trim(cfg%output%io_config), verbose)
@@ -57,16 +57,18 @@ contains
       call finalize_output_files(files)
    end subroutine open_output_files
 
-   !----- A polygon's share of an output file set: its buffers, which read the soil diagnostics   !
-   !      when its fast loop runs, the diagnostic blocks it must accumulate for the set's         !
-   !      variables, and its row of the per-polygon variables: each site's area, terrain, layers  !
-   !      and soil column, and the height allometry's site index its cell's map gave it. ---------!
+   !---~---
+   !   A polygon's share of an output file set: its buffers, which read the soil diagnostics
+   ! when its fast loop runs, the diagnostic blocks it must accumulate for the set's
+   ! variables, and its row of the per-polygon variables: each site's area, terrain, layers
+   ! and soil column, and the height allometry's site index its cell's map gave it.
+   !---~---
    subroutine attach_output(cfg, files, bufs, poly, p)
       type(ed_config_t),    intent(in)      :: cfg
       type(output_files_t),   intent(inout) :: files
       type(output_buffers_t), intent(inout) :: bufs
       type(polygon_t),        intent(inout) :: poly
-      integer(ik),            intent(in)    :: p      !< the polygon's row of the file set
+      integer(ik),            intent(in)    :: p      ! the polygon's row of the file set
       integer(ik) :: is
       call alloc_output_buffers(files, bufs)
       bufs%diag%soil_ready = cfg%fast_biophysics_on
@@ -87,13 +89,15 @@ contains
             files%site_deep_temp(is, p)    = surf%soil%deep_temp
          end associate
       end do
-      !----- E is the polygon's, the same in every PFT's record. -----------------------------!
+      !--- E is the polygon's, the same in every PFT's record.
       if (allocated(files%polygon_chave_e)) files%polygon_chave_e(p) = poly%cohort%pft_table%allom(1)%chave_e
    end subroutine attach_output
 
-   !----- Apply [output].io_config's [variables] lines to the file set's registry (the grammar and  !
-   !      the rules: docs/science/diagnostics.md §5). A key is a variable's name or a pattern with   !
-   !      `*`, quoted or not; a value true, false or a quoted "F D M Y" string. --------------------!
+   !---~---
+   !   Apply [output].io_config's [variables] lines to the file set's registry (the grammar and
+   ! the rules: docs/science/diagnostics.md §5). A key is a variable's name or a pattern with
+   ! `*`, quoted or not; a value true, false or a quoted "F D M Y" string.
+   !---~---
    subroutine apply_io_overrides(files, tomlpath, verbose)
       type(output_files_t),   intent(inout) :: files
       character(len=*),       intent(in)    :: tomlpath
@@ -140,11 +144,11 @@ contains
       if (verbose) write(*,'(3a)') ' output: applied the selection in ', trim(tomlpath), ''
    end subroutine apply_io_overrides
 
-   !=======================================================================================!
-   !  Build a file set's registry and settings, with no buffers yet, so a caller can apply the !
-   !  ed_io_config.toml overrides (which change the buffers needed) before                     !
-   !  finalize_output_files and alloc_output_buffers.                                          !
-   !=======================================================================================!
+   !---~---
+   !   Build a file set's registry and settings, with no buffers yet, so a caller can apply the
+   ! ed_io_config.toml overrides (which change the buffers needed) before
+   ! finalize_output_files and alloc_output_buffers.
+   !---~---
    subroutine setup_output_files(files, cfg)
       type(output_files_t),   intent(out) :: files
       type(ed_config_t),    intent(in)    :: cfg
@@ -164,10 +168,12 @@ contains
                             'pressure P: q = 0.62196 e / (P - 0.37804 e), e = e_sat(Td), the Bolton (1980) '// &
                             'liquid-water saturation vapour pressure of ed_therm_lib'
 
-      !----- The derived diagnostics' parameters (diag_setup_t). n_pft is the run-time PFT count,  !
-      !      so the files carry a pft coordinate (docs/science/diagnostics.md §3). ---------------!
+      !---~---
+      !   The derived diagnostics' parameters (diag_setup_t). n_pft is the run-time PFT count,
+      ! so the files carry a pft coordinate (docs/science/diagnostics.md §3).
+      !---~---
       files%diag%n_pft  = cfg%pft%n
-      !----- DBH size classes: TOML edges if given, else the built-in inventory set. -----------!
+      !--- DBH size classes: TOML edges if given, else the built-in inventory set.
       if (cfg%output%n_dbh_class > 0_ik) then
          files%diag%n_dbh_class = min(cfg%output%n_dbh_class, MAX_DBH_CLASS)
          ne = files%diag%n_dbh_class + 1_ik
@@ -177,12 +183,14 @@ contains
          files%diag%dbh_edges(1:N_DBH_CLASS_DEFAULT + 1_ik) = DBH_EDGES_DEFAULT
       end if
       call check_dbh_edges(files%diag%dbh_edges, files%diag%n_dbh_class)
-      !----- attach_output sets soil_ready on a polygon's buffers when its fast loop runs; until !
-      !      then the psi/wetness diagnostics emit _FillValue. ----------------------------------!
+      !---~---
+      !   attach_output sets soil_ready on a polygon's buffers when its fast loop runs; until
+      ! then the psi/wetness diagnostics emit _FillValue.
+      !---~---
       files%diag%soil_ready = .false.
    end subroutine setup_output_files
 
-   !----- Largest slab length any live variable can produce (see finalize_output_files). ------------!
+   !--- Largest slab length any live variable can produce (see finalize_output_files).
    pure integer(ik) function live_max_slab(files) result(cap)
       type(output_files_t),   intent(in) :: files
       integer(ik) :: k
@@ -194,7 +202,7 @@ contains
       end do
    end function live_max_slab
 
-   !----- Slab capacity of one axis. ---------------------------------------------------------!
+   !--- Slab capacity of one axis.
    pure integer(ik) function dim_capacity(files, dm) result(cap)
       type(output_files_t),   intent(in) :: files
       integer(ik),            intent(in) :: dm
@@ -218,8 +226,10 @@ contains
       end select
    end function dim_capacity
 
-   !----- The size-class edges must be strictly ascending, or dbh_class_index mis-bins without a !
-   !      word and the closure of docs/science/diagnostics.md eq. (3) fails; stop at start-up. --!
+   !---~---
+   !   The size-class edges must be strictly ascending, or dbh_class_index mis-bins without a
+   ! word and the closure of docs/science/diagnostics.md eq. (3) fails; stop at start-up.
+   !---~---
    subroutine check_dbh_edges(edges, n_class)
       real(wp),    intent(in) :: edges(:)
       integer(ik), intent(in) :: n_class
@@ -230,8 +240,10 @@ contains
       end do
    end subroutine check_dbh_edges
 
-   !----- Finish the file set once the registry is final (after setup_output_files and any       !
-   !      per-variable overrides): the per-tier stream handles and the slab size. -------------------!
+   !---~---
+   !   Finish the file set once the registry is final (after setup_output_files and any
+   ! per-variable overrides): the per-tier stream handles and the slab size.
+   !---~---
    subroutine finalize_output_files(files)
       type(output_files_t),  intent(inout) :: files
       integer(ik) :: t
@@ -240,17 +252,21 @@ contains
          allocate(files%stream(t)%vid(files%reg%nvar))
          files%stream(t)%vid = -1_ik
       end do
-      !----- Size the records' slab to the largest live axis, not the largest that exists, so a  !
-      !      run pays no memory for an axis it switched off. It is sized here, after every         !
-      !      override, since an override can switch on a longer slab variable. -----------------!
+      !---~---
+      !   Size the records' slab to the largest live axis, not the largest that exists, so a
+      ! run pays no memory for an axis it switched off. It is sized here, after every
+      ! override, since an override can switch on a longer slab variable.
+      !---~---
       files%max_slab = live_max_slab(files)
-      !----- Whether the cohort and patch caps bind: only a live variable on that axis fills a slab of  !
-      !      that size. ------------------------------------------------------------------------------!
+      !---~---
+      !   Whether the cohort and patch caps bind: only a live variable on that axis fills a slab of
+      ! that size.
+      !---~---
       files%cohort_axis = live_axis(files, [DIM_COHORT])
       files%patch_axis  = live_axis(files, [DIM_PATCH, DIM_SOIL_PATCH])
    end subroutine finalize_output_files
 
-   !----- Does any live variable have one of these axes? ---------------------------------------!
+   !--- Does any live variable have one of these axes?
    pure logical function live_axis(files, dims) result(yes)
       type(output_files_t), intent(in) :: files
       integer(ik),          intent(in) :: dims(:)
@@ -266,8 +282,10 @@ contains
       end do
    end function live_axis
 
-   !----- Allocate one polygon's buffers for a finalized file set: the integrator buffers of       !
-   !      every live (variable, tier) pair and the per-tier scratch records. ------------------------!
+   !---~---
+   !   Allocate one polygon's buffers for a finalized file set: the integrator buffers of
+   ! every live (variable, tier) pair and the per-tier scratch records.
+   !---~---
    subroutine alloc_output_buffers(files, bufs)
       type(output_files_t),  intent(in)  :: files
       type(output_buffers_t), intent(out) :: bufs
@@ -284,8 +302,10 @@ contains
             end if
          end do
       end do
-      !----- Each tier's scratch record: every variable's scalar, and a slab column for each of the  !
-      !      tier's live slab variables only, so a variable nobody writes costs nothing here. --------!
+      !---~---
+      !   Each tier's scratch record: every variable's scalar, and a slab column for each of the
+      ! tier's live slab variables only, so a variable nobody writes costs nothing here.
+      !---~---
       do t = 1_ik, N_FREQ
          bit = freq_bit(t)
          allocate(bufs%pending(t)%sval(nv), bufs%pending(t)%svalid(nv), bufs%pending(t)%nslab(nv))
@@ -302,8 +322,10 @@ contains
                   bufs%pending(t)%slabvalid(files%max_slab, max(cap, 1_ik)))
          bufs%pending(t)%used = .false.
       end do
-      !----- The fast loop stages its sub-steps for the F tier and for the snapshots the coarse     !
-      !      tiers take from the last one. ---------------------------------------------------------!
+      !---~---
+      !   The fast loop stages its sub-steps for the F tier and for the snapshots the coarse
+      ! tiers take from the last one.
+      !---~---
       bufs%fast_on = files%reg%nidx(TIER_FAST) > 0_ik
       do t = TIER_FAST + 1_ik, N_FREQ
          do k = 1_ik, files%reg%nidx(t)
@@ -314,13 +336,15 @@ contains
       bufs%diag = files%diag
    end subroutine alloc_output_buffers
 
-   !----- Convenience: registry, stream handles and one polygon's buffers in one call, with an   !
-   !      optional selection in place of an io_config file. ---------------------------------------!
+   !---~---
+   !   Convenience: registry, stream handles and one polygon's buffers in one call, with an
+   ! optional selection in place of an io_config file.
+   !---~---
    subroutine alloc_output_set(files, bufs, cfg, sel)
       type(output_files_t),  intent(out) :: files
       type(output_buffers_t), intent(out) :: bufs
       type(ed_config_t),   intent(in)  :: cfg
-      type(selection_t), optional, intent(in) :: sel(:)   !< io_config lines, as apply_io_overrides reads them
+      type(selection_t), optional, intent(in) :: sel(:)   ! io_config lines, as apply_io_overrides reads them
       call setup_output_files(files, cfg)
       if (present(sel)) then
          call apply_selections(files%reg, sel)
@@ -331,15 +355,17 @@ contains
       call alloc_output_buffers(files, bufs)
    end subroutine alloc_output_set
 
-   !----- The file set's polygon and site axes: one row per polygon, its id, location, grid indices !
-   !      and site count; the site axis is the largest polygon's. The rest of a row -- its sites'   !
-   !      areas, terrain and soil columns -- is filled when the polygon attaches to the set         !
-   !      (attach_output); a polygon's missing sites keep the fill value. --------------------------!
+   !---~---
+   !   The file set's polygon and site axes: one row per polygon, its id, location, grid indices
+   ! and site count; the site axis is the largest polygon's. The rest of a row -- its sites'
+   ! areas, terrain and soil columns -- is filled when the polygon attaches to the set
+   ! (attach_output); a polygon's missing sites keep the fill value.
+   !---~---
    subroutine set_output_polygons(files, polygon_id, n_site, lat, lon, row, col, with_chave_e)
       type(output_files_t), intent(inout) :: files
       integer(ik),          intent(in)    :: polygon_id(:), n_site(:), row(:), col(:)
       real(wp),             intent(in)    :: lat(:), lon(:)
-      logical,              intent(in)    :: with_chave_e   !< the Chave height allometry's index E, per polygon
+      logical,              intent(in)    :: with_chave_e   ! the Chave height allometry's index E, per polygon
       integer(ik) :: n, ns
       n  = size(polygon_id, kind=ik)
       ns = max(maxval(n_site), 1_ik)
@@ -361,11 +387,11 @@ contains
       if (with_chave_e) allocate(files%polygon_chave_e(n), source=0.0_wp)
    end subroutine set_output_polygons
 
-   !=======================================================================================!
-   !  Switch each diagnostic block (cohort, slow cohort, patch, polygon, site) on iff a live  !
-   !  variable of the final registry reads it. A block that is off stays unallocated and its  !
-   !  ed_diag_vars entry points do nothing, so a run pays nothing for what it does not report.   !
-   !=======================================================================================!
+   !---~---
+   !   Switch each diagnostic block (cohort, slow cohort, patch, polygon, site) on iff a live
+   ! variable of the final registry reads it. A block that is off stays unallocated and its
+   ! ed_diag_vars entry points do nothing, so a run pays nothing for what it does not report.
+   !---~---
    subroutine activate_polygon_diag(files, poly)
       type(output_files_t),   intent(in)    :: files
       type(polygon_t),        intent(inout) :: poly
@@ -380,8 +406,10 @@ contains
          do t = 1_ik, N_FREQ
             do j = 1_ik, files%reg%nidx(t)
                k   = files%reg%idx_freq(j, t)
-               !----- The F tier, and a snapshot that reads the staging, need the block that stages  !
-               !      their source, not the one the coarse means accumulate in. -----------------------!
+               !---~---
+               !   The F tier, and a snapshot that reads the staging, need the block that stages
+               ! their source, not the one the coarse means accumulate in.
+               !---~---
                src = files%reg%var(k)%source_id
                if (t == TIER_FAST .or. (files%reg%var(k)%snap_staged .and.                           &
                                         files%reg%var(k)%source_fast /= SRC_NONE))                   &
@@ -395,13 +423,15 @@ contains
             end do
          end do
       end if
-      !----- Only the fast loop fills the per-cohort and polygon blocks, and the fast rows of the     !
-      !      patch block: in a slow-only run they stay off, and their variables read as missing. -----!
+      !---~---
+      !   Only the fast loop fills the per-cohort and polygon blocks, and the fast rows of the
+      ! patch block: in a slow-only run they stay off, and their variables read as missing.
+      !---~---
       need_c = need_c .and. files%fast_loop_on
       need_y = need_y .and. files%fast_loop_on
       need_si = (need_si .and. files%fast_loop_on) .or. poly%site%diag%active
       poly%patch%diag%fast_rows = files%fast_loop_on
-      !----- Additive: a block already on stays on. -----------------------------------------------!
+      !--- Additive: a block already on stays on.
       need_c = need_c .or. poly%cohort%diag%active
       need_s = need_s .or. poly%cohort%sdiag%active
       need_p = need_p .or. poly%patch%diag%active

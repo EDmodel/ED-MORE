@@ -1,14 +1,14 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! ed_test_archive -- a tiny synthetic ED_ERA5land archive for the tests, written                 !
-! through the netCDF C API: a 4 x 18 grid (10 deg x 20 deg) spanning the antimeridian and two     !
-! 16-cell chunk columns wide, every month of 2021 and January 2022 (so a recycle window may start  !
-! after January 1st), two no-data cells, a mostly-water column, and values that are analytic       !
-! functions of cell and hour, so every check has a known answer. Shared by test_met_era5land (the  !
-! reader) and test_region (a region against site runs). write_surface_maps adds the [maps] maps:  !
-! soil depth, texture and chemistry on SoilGrids' six layers, and Chave's E, each a function of the  !
-! cell (soil_depth_at, ..., texture_at), empty at the no-data cells.                                  !
-!==========================================================================================!
+!---~---
+!   ed_test_archive -- a tiny synthetic ED_ERA5land archive for the tests, written
+! through the netCDF C API: a 4 x 18 grid (10 deg x 20 deg) spanning the antimeridian and two
+! 16-cell chunk columns wide, every month of 2021 and January 2022 (so a recycle window may start
+! after January 1st), two no-data cells, a mostly-water column, and values that are analytic
+! functions of cell and hour, so every check has a known answer. Shared by test_met_era5land (the
+! reader) and test_region (a region against site runs). write_surface_maps adds the [maps] maps:
+! soil depth, texture and chemistry on SoilGrids' six layers, and Chave's E, each a function of the
+! cell (soil_depth_at, ..., texture_at), empty at the no-data cells.
+!---~---
 module ed_test_archive
    use, intrinsic :: ieee_arithmetic, only : ieee_value, ieee_quiet_nan
    use ed_kinds,             only : wp, sp, ik
@@ -32,28 +32,28 @@ module ed_test_archive
    integer(ik), parameter :: NLAT = 4_ik, NLON = 18_ik
    real(wp),    parameter :: LAT0 = 45.0_wp, DLAT = -10.0_wp, LON0 = -180.0_wp, DLON = 20.0_wp
    real(wp),    parameter :: TWO_PI = 6.283185307179586_wp
-   !----- The archive's first stamp; g below counts hours from it (0-based). ---------------------!
+   !--- The archive's first stamp; g below counts hours from it (0-based).
    type(ed_time_t), parameter :: T0 = ed_time_t(2021_ik, 1_ik, 1_ik, 1_ik, 0_ik, 0_ik)
-   !----- The soil maps' layers: SoilGrids 2.0's depths [m]. ---------------------------------------!
+   !--- The soil maps' layers: SoilGrids 2.0's depths [m].
    real(wp), parameter :: SG_TOP(6)    = [0.0_wp, 0.05_wp, 0.15_wp, 0.30_wp, 0.60_wp, 1.00_wp]
    real(wp), parameter :: SG_BOTTOM(6) = [0.05_wp, 0.15_wp, 0.30_wp, 0.60_wp, 1.00_wp, 2.00_wp]
 
 contains
 
-   !----- The archive's grid, from one of its static files. -----------------------------------------!
+   !--- The archive's grid, from one of its static files.
    function archive_grid(static) result(grid)
       character(len=*), intent(in) :: static
       type(met_grid_t) :: grid
       grid = met_grid_t(static_file=static, chunk=ERA_CHUNK)
    end function archive_grid
 
-   !----- No data at (row 0, col 5) and (row 2, col 0); everything else is valid. ----------------!
+   !--- No data at (row 0, col 5) and (row 2, col 0); everything else is valid.
    pure logical function is_valid(r, c)
       integer(ik), intent(in) :: r, c
       is_valid = .not. ((r == 0_ik .and. c == 5_ik) .or. (r == 2_ik .and. c == 0_ik))
    end function is_valid
 
-   !----- The value of variable v at grid (row r, col c) and hour g, as the archive stores it. ---!
+   !--- The value of variable v at grid (row r, col c) and hour g, as the archive stores it.
    pure real(wp) function field(v, r, c, g) result(x)
       integer(ik), intent(in) :: v, r, c, g
       real(wp) :: hr, day
@@ -86,15 +86,13 @@ contains
       x = 260.0_wp + 0.002_wp * hr + real(r, wp) + 0.1_wp * real(c, wp)
    end function air_temperature
 
-   !----- Hours from T0 to t. -----------------------------------------------------------------------!
+   !--- Hours from T0 to t.
    integer(ik) function hour_index(t) result(g)
       type(ed_time_t), intent(in) :: t
       g = nint(seconds_between(T0, t) / 3600.0_wp, ik)
    end function hour_index
 
-   !=======================================================================================!
-   !  The synthetic archive.                                                                     !
-   !=======================================================================================!
+   !--- The synthetic archive.
    subroutine write_archive(dir)
       character(len=*), intent(in) :: dir
       integer(ik) :: m, v
@@ -185,9 +183,11 @@ contains
       call nc_check(st, 'close static')
    end subroutine write_static
 
-   !----- A static map on the archive's grid (ed_maps): values(lon, lat, layer) as a 2-D      !
-   !      (lat, lon) variable, or, with layer_dim, a layered (layer, lat, lon) one, with a _FillValue.  !
-   !      lat_shift moves the file's lat axis, to make a map that is off the grid. -----------------------!
+   !---~---
+   !   A static map on the archive's grid (ed_maps): values(lon, lat, layer) as a 2-D
+   ! (lat, lon) variable, or, with layer_dim, a layered (layer, lat, lon) one, with a _FillValue.
+   ! lat_shift moves the file's lat axis, to make a map that is off the grid.
+   !---~---
    subroutine write_map(path, name, values, fill, layer_dim, lat_shift)
       character(len=*),           intent(in) :: path, name
       real(wp),                   intent(in) :: values(:,:,:)
@@ -240,13 +240,13 @@ contains
       call nc_check(st, 'close map')
    end subroutine write_map
 
-   !=======================================================================================!
-   !  The [maps] files, each value a function of its cell (and layer):                         !
-   !  dir/soil_depth.nc (soil_depth, bc_class, f_leak, deep_temp), dir/soil_texture.nc and       !
-   !  dir/soil_chemistry.nc (on SoilGrids' layers, with depth_bnds), dir/chave_e.nc. The no-data  !
-   !  cells are empty; gap = [row, col] also leaves sand empty at that cell, and f_leak sets     !
-   !  every cell's leaky drainage factor to one value.                                           !
-   !=======================================================================================!
+   !---~---
+   !   The [maps] files, each value a function of its cell (and layer):
+   ! dir/soil_depth.nc (soil_depth, bc_class, f_leak, deep_temp), dir/soil_texture.nc and
+   ! dir/soil_chemistry.nc (on SoilGrids' layers, with depth_bnds), dir/chave_e.nc. The no-data
+   ! cells are empty; gap = [row, col] also leaves sand empty at that cell, and f_leak sets
+   ! every cell's leaky drainage factor to one value.
+   !---~---
    pure real(wp) function soil_depth_at(r, c) result(x)
       integer(ik), intent(in) :: r, c
       x = 0.8_wp + 0.3_wp * real(r, wp) + 0.05_wp * real(c, wp)
@@ -257,8 +257,10 @@ contains
       k = 1_ik + modulo(r + c, 4_ik)
    end function bc_class_at
 
-   !----- A leaky base's drainage factor, in (0, 1] and different between cells (the ED soil maps   !
-   !      hold 0.05 everywhere). --------------------------------------------------------------------!
+   !---~---
+   !   A leaky base's drainage factor, in (0, 1] and different between cells (the ED soil maps
+   ! hold 0.05 everywhere).
+   !---~---
    pure real(wp) function f_leak_at(r, c) result(x)
       integer(ik), intent(in) :: r, c
       x = 0.02_wp + 0.01_wp * real(modulo(r + 2_ik * c, 5_ik), wp)
@@ -324,8 +326,10 @@ contains
       call write_fields(dir//'/chave_e.nc', [character(len=16) :: 'chave_e'], ve, FILL, .false.)
    end subroutine write_surface_maps
 
-   !----- Several map variables in one file: values(lon, lat, layer, variable), 2-D (lat, lon) or, !
-   !      layered, (depth, lat, lon) with SoilGrids' depth_bnds. ------------------------------------!
+   !---~---
+   !   Several map variables in one file: values(lon, lat, layer, variable), 2-D (lat, lon) or,
+   ! layered, (depth, lat, lon) with SoilGrids' depth_bnds.
+   !---~---
    subroutine write_fields(path, names, values, fill, layered)
       character(len=*), intent(in) :: path, names(:)
       real(wp),         intent(in) :: values(:,:,:,:)
@@ -391,7 +395,7 @@ contains
    subroutine write_month(dir, v, y, m, fill)
       character(len=*), intent(in) :: dir
       integer(ik),      intent(in) :: v, y, m
-      real(c_double), optional, intent(in) :: fill   !< a numeric _FillValue to declare (a bad file)
+      real(c_double), optional, intent(in) :: fill   ! a numeric _FillValue to declare (a bad file)
       character(len=:), allocatable :: path
       integer(c_int)    :: st, ncid, dt, dla, dlo, vt, vx, dims1(1), dims3(3)
       integer(c_size_t) :: start1(1), count1(1), start3(3), count3(3)

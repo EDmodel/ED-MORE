@@ -1,15 +1,15 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! ed_init -- the start of a polygon: init_polygon runs the start [init].init_mode names    !
-! (bare ground, a census or a restart file; docs/configuration.md, How a run starts) and   !
-! that start's own finishing: a census stand is restructured and its plastic traits        !
-! acclimated at once, a restart's traits re-acclimated when [init].reacclimate_traits asks !
-! (docs/science/order_of_processes.md §1, setup step 3). Bare ground and a census then     !
-! settle their cohorts in their patches (init_fast_state); a restart read them from its    !
-! file. Every start ends with its sites' terrain, the canopy-air depth, and the            !
-! soil-carbon spin-up a new stand asks for, so the polygon's state is complete when        !
-! init_polygon returns.                                                                    !
-!==========================================================================================!
+!---~---
+!   ed_init -- the start of a polygon: init_polygon runs the start [init].init_mode names
+! (bare ground, a census or a restart file; docs/configuration.md, How a run starts) and
+! that start's own finishing: a census stand is restructured and its plastic traits
+! acclimated at once, a restart's traits re-acclimated when [init].reacclimate_traits asks
+! (docs/science/order_of_processes.md §1, setup step 3). Bare ground and a census then
+! settle their cohorts in their patches (init_fast_state); a restart read them from its
+! file. Every start ends with its sites' terrain, the canopy-air depth, and the
+! soil-carbon spin-up a new stand asks for, so the polygon's state is complete when
+! init_polygon returns.
+!---~---
 module ed_init
    use ed_kinds,                 only : wp, ik
    use ed_time,                  only : ed_time_t, time_to_string
@@ -36,33 +36,33 @@ module ed_init
 
 contains
 
-   !---------------------------------------------------------------------------------------!
-   ! Start `poly` as cfg%init%init_mode says, at its place (polygon_id and location, set   !
-   ! once the start has allocated it). A restart reads row `restart_row` of the restart    !
-   ! file and sets `now` to the file's time; a census reads the census file's rows for the !
-   ! polygon's site(s); bare ground lays out N_PATCH_INIT patches per site and seeds them. !
-   ! Then each site's terrain, the canopy-air depth and the soil-carbon spin-up. site_cfg  !
-   ! and site_area give each site of a polygon of several. ok = .false. (with the reason   !
-   ! printed, naming `label`) when the start's file cannot serve it.                       !
-   !---------------------------------------------------------------------------------------!
+   !---~---
+   !   Start `poly` as cfg%init%init_mode says, at its place (polygon_id and location, set
+   ! once the start has allocated it). A restart reads row `restart_row` of the restart
+   ! file and sets `now` to the file's time; a census reads the census file's rows for the
+   ! polygon's site(s); bare ground lays out N_PATCH_INIT patches per site and seeds them.
+   ! Then each site's terrain, the canopy-air depth and the soil-carbon spin-up. site_cfg
+   ! and site_area give each site of a polygon of several. ok = .false. (with the reason
+   ! printed, naming `label`) when the start's file cannot serve it.
+   !---~---
    subroutine init_polygon(poly, cfg, label, verbose, restart_row, now, ok, polygon_id, latitude_deg,     &
                            longitude_deg, elevation_m, site_cfg, site_area)
       type(polygon_t),     intent(inout) :: poly
       type(ed_config_t),   intent(in)    :: cfg
-      character(len=*),    intent(in)    :: label        !< the polygon's name, for messages
-      integer(ik),         intent(in)    :: polygon_id   !< the polygon's id: its cell's index, 0 for a site
-      real(wp),            intent(in)    :: latitude_deg, longitude_deg, elevation_m   !< its location
-      logical,             intent(in)    :: verbose      !< report the start
-      integer(ik),         intent(in)    :: restart_row  !< the polygon's row of the restart file
-      type(ed_time_t),     intent(inout) :: now          !< the run's start; a restart's time on return
+      character(len=*),    intent(in)    :: label        ! the polygon's name, for messages
+      integer(ik),         intent(in)    :: polygon_id   ! the polygon's id: its cell's index, 0 for a site
+      real(wp),            intent(in)    :: latitude_deg, longitude_deg, elevation_m   ! its location
+      logical,             intent(in)    :: verbose      ! report the start
+      integer(ik),         intent(in)    :: restart_row  ! the polygon's row of the restart file
+      type(ed_time_t),     intent(inout) :: now          ! the run's start; a restart's time on return
       logical,             intent(out)   :: ok
-      type(ed_config_t),   intent(in), optional :: site_cfg(:)   !< each site's configuration ...
-      real(wp),            intent(in), optional :: site_area(:)  !< ... and share of the polygon
+      type(ed_config_t),   intent(in), optional :: site_cfg(:)   ! each site's configuration ...
+      real(wp),            intent(in), optional :: site_area(:)  ! ... and share of the polygon
       character(len=:), allocatable :: msg
       type(ed_time_t)   :: restart_time
       logical           :: found
-      real(wp), allocatable :: leaf_carbon_new(:), storage_new(:)   !< [kgC/plant] the traits' leaf and storage
-      type(slow_ledger_t)       :: no_ledger   !< inactive: the start books nothing
+      real(wp), allocatable :: leaf_carbon_new(:), storage_new(:)   ! [kgC/plant] the traits' leaf and storage
+      type(slow_ledger_t)       :: no_ledger   ! inactive: the start books nothing
       type(soil_carbon_state_t) :: pools
 
       ok = .false.
@@ -92,8 +92,10 @@ contains
             write(*,'(2a)') ' init  : census (mode 1) ', trim(cfg%init%census_file)
             write(*,'(a,i0,a,i0,a)') '         read ', poly%patch%n, ' patches, ', poly%cohort%n, ' cohorts'
          end if
-         !----- A census stand is restructured by the slow step's own operators before the first  !
-         !      step: it arrives with a cohort per measured size and a patch per plot cell.  -------!
+         !---~---
+         !   A census stand is restructured by the slow step's own operators before the first
+         ! step: it arrives with a cohort per measured size and a patch per plot cell.
+         !---~---
          call restructure_census_stand(poly, cfg)
          if (verbose) write(*,'(a,i0,a,i0,a,i0,a)') '         restructured to ', poly%patch%n,          &
                                                      ' patches, ', poly%cohort%n, ' cohorts (at most ',   &
@@ -107,16 +109,18 @@ contains
          call seed_bare_ground(poly, cfg)
          if (verbose) write(*,'(a)') ' init  : bare ground (mode 0)'
       end select
-      !----- The polygon's place, on the stand the start built (allocating it reset the polygon). -----!
+      !--- The polygon's place, on the stand the start built (allocating it reset the polygon).
       poly%id            = polygon_id
       poly%latitude_deg  = latitude_deg
       poly%longitude_deg = longitude_deg
       poly%elevation_m   = elevation_m
 
-      !----- Census cohorts sit in an established stand but carry no trait history, so with      !
-      !      plasticity on their leaf traits acclimate to their light at once. Bare ground starts !
-      !      at top of canopy; a restart keeps the traits it read, unless                         !
-      !      [init].reacclimate_traits asks for this run's PFT file instead.                      !
+      !---~---
+      !   Census cohorts sit in an established stand but carry no trait history, so with
+      ! plasticity on their leaf traits acclimate to their light at once. Bare ground starts
+      ! at top of canopy; a restart keeps the traits it read, unless
+      ! [init].reacclimate_traits asks for this run's PFT file instead.
+      !---~---
       if (cfg%trait_dynamics%trait_plasticity_on .and. cfg%init%init_mode == INIT_CENSUS) then
          call update_overtopping_lai(poly)
          call advance_plant_traits(poly, cfg%dt_years, leaf_carbon_new, storage_new, instantaneous=.true.)
@@ -127,17 +131,21 @@ contains
          call commit_trait_carbon(poly, leaf_carbon_new, storage_new)
          if (verbose) write(*,'(a)') ' init  : plastic traits re-acclimated to this run''s PFT file'
       end if
-      !----- The final stand's cohorts in their patches, and the snowpack, with the fast loop on or   !
-      !      off, and the canopy air owed the first forcing sample; a restart read them instead. -----!
+      !---~---
+      !   The final stand's cohorts in their patches, and the snowpack, with the fast loop on or
+      ! off, and the canopy air owed the first forcing sample; a restart read them instead.
+      !---~---
       if (cfg%init%init_mode /= INIT_RESTART) then
          call init_fast_state(poly, cfg)
          poly%seed_canopy_air = .true.
          if (verbose .and. cfg%snow_init_swe > 0.0_wp)                                             &
             write(*,'(a,f6.1,a)') ' snow  : seeded initial pack SWE = ', cfg%snow_init_swe, ' kg/m2'
       end if
-      !----- What every start ends with: each site's terrain, the canopy-air depth the stand sets (a   !
-      !      plain geometry update, so no ledger books it), and, unless a restart restored them, the  !
-      !      soil-carbon pools at their spin-up steady state when [soil_carbon].spinup_steady asks. --!
+      !---~---
+      !   What every start ends with: each site's terrain, the canopy-air depth the stand sets (a
+      ! plain geometry update, so no ledger books it), and, unless a restart restored them, the
+      ! soil-carbon pools at their spin-up steady state when [soil_carbon].spinup_steady asks.
+      !---~---
       call set_site_terrain(poly, cfg)
       call refresh_canopy_depth(poly, cfg, no_ledger)
       if (cfg%soil_carbon%soil_carbon_on .and. cfg%soil_carbon%spinup_steady .and.                  &
@@ -150,7 +158,7 @@ contains
       ok = .true.
    end subroutine init_polygon
 
-   !----- Each site's terrain: the polygon's elevation, flat, unless its [[sites]] table gives its own. !
+   !--- Each site's terrain: the polygon's elevation, flat, unless its [[sites]] table gives its own.
    subroutine set_site_terrain(poly, cfg)
       type(polygon_t),     intent(inout) :: poly
       type(ed_config_t), intent(in)      :: cfg
@@ -166,12 +174,14 @@ contains
       end do
    end subroutine set_site_terrain
 
-   !----- The final stand's fast stores: each patch's soil and canopy air seeded again             !
-   !      (seed_patch_stores, as init_bare_sites did when it laid the patches out, so a census       !
-   !      stand's fusion leaves no blend behind); each cohort settled in its patch as a recruit is  !
-   !      born, its tissues at the canopy-air temperature holding the water they hold at the top   !
-   !      soil layer's potential (the restructuring and the traits' acclimation change the tissues !
-   !      the setup cohorts were born with); and the snowpack [fast].snow_init_swe asks for. ---!
+   !---~---
+   !   The final stand's fast stores: each patch's soil and canopy air seeded again
+   ! (seed_patch_stores, as init_bare_sites did when it laid the patches out, so a census
+   ! stand's fusion leaves no blend behind); each cohort settled in its patch as a recruit is
+   ! born, its tissues at the canopy-air temperature holding the water they hold at the top
+   ! soil layer's potential (the restructuring and the traits' acclimation change the tissues
+   ! the setup cohorts were born with); and the snowpack [fast].snow_init_swe asks for.
+   !---~---
    subroutine init_fast_state(poly, cfg)
       type(polygon_t),     intent(inout) :: poly
       type(ed_config_t), intent(in)      :: cfg
@@ -195,7 +205,7 @@ contains
       if (cfg%snow_init_swe > 0.0_wp) call seed_snow(poly, cfg)
    end subroutine init_fast_state
 
-   !----- The initial snowpack, [fast].snow_init_swe at [fast].snow_init_temp, one layer per patch. -!
+   !--- The initial snowpack, [fast].snow_init_swe at [fast].snow_init_temp, one layer per patch.
    subroutine seed_snow(poly, cfg)
       type(polygon_t),      intent(inout) :: poly
       type(ed_config_t),  intent(in)      :: cfg
@@ -213,7 +223,7 @@ contains
       end do
    end subroutine seed_snow
 
-   !----- What a restart read: its file and time, and a restructuring the stand still owes. ------!
+   !--- What a restart read: its file and time, and a restructuring the stand still owes.
    subroutine report_restart(cfg, now, pending)
       type(ed_config_t),   intent(in) :: cfg
       type(ed_time_t),     intent(in) :: now

@@ -1,18 +1,18 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! test_params_config -- the config blocks reach the records the model runs on.             !
-!   1. THE BLOCK LOADERS (ed_config_io): [soil], [fast], [snow] and [aerodynamics] from a    !
-!      small TOML file. String selectors map to their codes, scalar keys override, keys absent !
-!      from a block keep their type default, a file with no [soil] block keeps the geothermal  !
-!      bottom, the drainage boundary's two named ends, and the parameter record lists every key !
-!      the loaders read, set or defaulted, and none they did not.                             !
-!   2. THE [soil] COLUMN (ed_soil_derive::build_soil_profile): the default column is          !
-!      SOIL_LAYER_TEMPLATE (SoilGrids' depths, then deeper) cut at the 2 m default depth; depth !
-!      cuts the same list; a short remainder joins the layer above; layer_bottoms replaces the  !
-!      list; and the texture, retention and thermal keys reach every layer of the profile       !
-!      (docs/science/soil_biophysics.md, The soil layers). A mis-threaded key leaves the model  !
-!      running on a default with every budget closed, so these assert that the keys turn.      !
-!==========================================================================================!
+!---~---
+!   test_params_config -- the config blocks reach the records the model runs on.
+!   1. THE BLOCK LOADERS (ed_config_io): [soil], [fast], [snow] and [aerodynamics] from a
+!      small TOML file. String selectors map to their codes, scalar keys override, keys absent
+!      from a block keep their type default, a file with no [soil] block keeps the geothermal
+!      bottom, the drainage boundary's two named ends, and the parameter record lists every key
+!      the loaders read, set or defaulted, and none they did not.
+!   2. THE [soil] COLUMN (ed_soil_derive::build_soil_profile): the default column is
+!      SOIL_LAYER_TEMPLATE (SoilGrids' depths, then deeper) cut at the 2 m default depth; depth
+!      cuts the same list; a short remainder joins the layer above; layer_bottoms replaces the
+!      list; and the texture, retention and thermal keys reach every layer of the profile
+!      (docs/science/soil_biophysics.md, The soil layers). A mis-threaded key leaves the model
+!      running on a default with every budget closed, so these assert that the keys turn.
+!---~---
 program test_params_config
    use ed_test_assert,         only : check, check_true, test_report
    use ed_kinds,               only : wp, ik
@@ -34,7 +34,7 @@ program test_params_config
 
 contains
 
-   !----- 1. The block loaders. -------------------------------------------------------------!
+   !--- 1. The block loaders.
    subroutine test_block_loaders()
       character(len=*), parameter :: TOMLFILE = 'test_params_config_tmp.toml'
       type(toml_table_t)   :: tm
@@ -45,7 +45,7 @@ contains
       integer(ik) :: u
       logical     :: ok
 
-      !----- Write a fixture that overrides a SUBSET of each block (leaving others to default). ----!
+      !--- Write a fixture that overrides a SUBSET of each block (leaving others to default).
       open(newunit=u, file=TOMLFILE, status='replace', action='write')
       write(u,'(a)') '[soil]'
       write(u,'(a)') 'water_bottom_bc   = "aquifer"'
@@ -78,7 +78,7 @@ contains
 
       print '(a)', 'test_block_loaders:'
 
-      !----- [soil] and [fast]: string selectors -> enums, scalar overrides, and absent-keeps-default. -!
+      !--- [soil] and [fast]: string selectors -> enums, scalar overrides, and absent-keeps-default.
       call check_true('soil.water_bottom_bc "aquifer" -> SOIL_BC_AQUIFER', s%water_bottom_bc == SOIL_BC_AQUIFER,   &
                       real(s%water_bottom_bc, wp))
       call check('fast.water_atol overridden', c%water_atol,     2.5e-5_wp, 1.0e-12_wp)
@@ -88,27 +88,31 @@ contains
       call check('soil.ground_emissivity absent -> default 0.95', s%ground_emissivity, 0.95_wp, 0.0_wp)
       call check('soil.dsl_dmax absent -> default 0.015', s%dsl_dmax, 0.015_wp, 0.0_wp)
 
-      !----- The soil heat's budget-closure threshold, for the debug halt. The soil-thermal solve is   !
-      !      one backward-Euler step, so there are no substep keys. ---------------------------------------!
+      !---~---
+      !   The soil heat's budget-closure threshold, for the debug halt. The soil-thermal solve is
+      ! one backward-Euler step, so there are no substep keys.
+      !---~---
       call check('fast.soil_energy_budget_atol overridden', c%soil_energy_budget_atol, 0.05_wp, 1.0e-12_wp)
-      !----- The [soil] thermal bottom BC: selector -> enum, anchor temperature read, and the         !
-      !      anchor DEPTH left at its derived default when the key is absent. -------------------------!
+      !---~---
+      !   The [soil] thermal bottom BC: selector -> enum, anchor temperature read, and the
+      ! anchor DEPTH left at its derived default when the key is absent.
+      !---~---
       call check_true('soil.thermal_bottom_bc "dirichlet" -> ENERGY_BC_DIRICHLET',                    &
                       s%thermal_bottom_bc == ENERGY_BC_DIRICHLET, real(s%thermal_bottom_bc, wp))
       call check('soil.deep_temp overridden', s%deep_temp, 283.24_wp, 1.0e-9_wp)
       call check('soil.deep_depth absent -> derived default 3.145', s%deep_depth, 3.145_wp, 1.0e-12_wp)
 
-      !----- [snow]: overrides + default. ---------------------------------------------------------!
+      !--- [snow]: overrides + default.
       call check('snow.rho_snow overridden',   sn%rho_snow,   300.0_wp, 1.0e-9_wp)
       call check('snow.snow_emiss overridden', sn%snow_emiss, 0.95_wp,  1.0e-12_wp)
       call check('snow.k_snow absent -> default', sn%k_snow,  0.15_wp,  1.0e-12_wp)
 
-      !----- [aerodynamics]: override (real + int) + default. -------------------------------------!
+      !--- [aerodynamics]: override (real + int) + default.
       call check('aero.z0m_ratio overridden',   a%z0m_ratio, 0.10_wp, 1.0e-12_wp)
       call check('aero.n_iter_mo overridden',   real(a%n_iter_mo, wp), 6.0_wp, 0.0_wp)
       call check('aero.d_ratio absent -> default', a%d_ratio, 0.63_wp, 1.0e-12_wp)
 
-      !----- A table with NO [soil] block keeps the compiled default bottom boundary, geothermal. -----!
+      !--- A table with NO [soil] block keeps the compiled default bottom boundary, geothermal.
       block
          type(toml_table_t)  :: tm2
          type(soil_params_t) :: s2
@@ -126,8 +130,10 @@ contains
          close(u, status='delete')
       end block
 
-      !----- The drainage boundary's two named ends (docs/science/soil_biophysics.md §Boundary         !
-      !      conditions): free_drain is drainage at f = 1, the default, and bedrock at f = 0. ------------!
+      !---~---
+      !   The drainage boundary's two named ends (docs/science/soil_biophysics.md §Boundary
+      ! conditions): free_drain is drainage at f = 1, the default, and bedrock at f = 0.
+      !---~---
       block
          type(toml_table_t)  :: tb
          type(soil_params_t) :: s_free, s_rock, s_default
@@ -153,8 +159,10 @@ contains
                          s_rock%water_bottom_bc == SOIL_BC_DRAIN .and. s_rock%drain_factor == 0.0_wp)
       end block
 
-      !----- The parameter record: every key the loaders read, set or defaulted, and no key they did   !
-      !      not read. A calibration trial checks the keys it set against it. ------------------------!
+      !---~---
+      !   The parameter record: every key the loaders read, set or defaulted, and no key they did
+      ! not read. A calibration trial checks the keys it set against it.
+      !---~---
       block
          character(len=*), parameter :: RECFILE = 'test_parameter_record_tmp.csv'
          character(len=1024) :: line, z0m_line
@@ -185,13 +193,13 @@ contains
          call check_true('record: a misspelt key that nothing reads is absent', .not. typo_seen, 0.0_wp)
       end block
 
-      !----- Clean up the fixture. ----------------------------------------------------------------!
+      !--- Clean up the fixture.
       open(newunit=u, file=TOMLFILE, status='old', action='write')
       close(u, status='delete')
 
    end subroutine test_block_loaders
 
-   !----- 2. The [soil] column, through the production build_soil_profile. ------------------!
+   !--- 2. The [soil] column, through the production build_soil_profile.
    subroutine test_soil_column()
       type(soil_params_t)  :: sc
       type(soil_profile_t) :: p, p2
@@ -200,15 +208,17 @@ contains
       real(wp), parameter  :: SOILGRIDS_BOTTOMS(5) = [0.05_wp, 0.15_wp, 0.30_wp, 0.60_wp, 1.00_wp]
       print '(a)', 'test_soil_column:'
 
-      !----- The defaults: a 2 m van Genuchten column on the template layers. ---------------!
+      !--- The defaults: a 2 m van Genuchten column on the template layers.
       call check_true('the default layers are the template', sc%n_layer_bottoms == 0_ik)
       call check('the default depth is 2 m', sc%depth, 2.0_wp, 0.0_wp)
       call check('the default theta_sat', sc%theta_sat, 0.43_wp, 0.0_wp)
       call check('the default ksat', sc%ksat, 2.89e-6_wp, 0.0_wp)
       call check_true('the default retention is van Genuchten', sc%retention == SOIL_RETENTION_VG)
 
-      !----- The default column is the template cut at 2 m: seven layers, a 5 cm top layer,  !
-      !      SoilGrids' bottoms to 1 m, and the base at -depth exactly. ---------------------!
+      !---~---
+      !   The default column is the template cut at 2 m: seven layers, a 5 cm top layer,
+      ! SoilGrids' bottoms to 1 m, and the base at -depth exactly.
+      !---~---
       call build_soil_profile(sc, p)
       call check_true('the default 2 m column is 7 layers', p%n_active == 7_ik, real(p%n_active, wp))
       call check('the top layer is 5 cm', p%dz(1), 0.05_wp, 1.0e-12_wp)
@@ -217,8 +227,10 @@ contains
       end do
       call check('the column base is at -depth', p%soil_layer_z(p%n_active + 1_ik), -sc%depth, 1.0e-12_wp)
 
-      !----- depth cuts the same list: 0.3 m is 5, 10 and 15 cm; 4 m is nine layers whose top is  !
-      !      still 5 cm, the last running from 3 to 4 m. -------------------------------------!
+      !---~---
+      !   depth cuts the same list: 0.3 m is 5, 10 and 15 cm; 4 m is nine layers whose top is
+      ! still 5 cm, the last running from 3 to 4 m.
+      !---~---
       sc%depth = 0.3_wp
       call build_soil_profile(sc, p2)
       call check_true('a 0.3 m column is 5, 10 and 15 cm', p2%n_active == 3_ik .and. abs(p2%dz(3) - 0.15_wp) < 1.0e-12_wp)
@@ -228,8 +240,10 @@ contains
       call check('a deeper column keeps the 5 cm top layer', p2%dz(1), 0.05_wp, 1.0e-12_wp)
       call check('the 4 m column ends in a 3-4 m layer', p2%dz(9), 1.0_wp, 1.0e-12_wp)
 
-      !----- A remainder under half of the list layer it falls in joins the layer above: 0.65 m  !
-      !      ends in a 30-65 cm layer, while 0.85 m keeps a 60-85 cm layer of its own. ---------!
+      !---~---
+      !   A remainder under half of the list layer it falls in joins the layer above: 0.65 m
+      ! ends in a 30-65 cm layer, while 0.85 m keeps a 60-85 cm layer of its own.
+      !---~---
       sc%depth = 0.65_wp
       call soil_layers(sc, bottoms, n_layer)
       call check_true('a 5 cm remainder joins the layer above', n_layer == 4_ik .and.                      &
@@ -239,7 +253,7 @@ contains
       call check_true('a 25 cm remainder, over half its layer, stays a layer',                              &
                       n_layer == 5_ik .and. abs(bottoms(5) - 0.85_wp) < 1.0e-12_wp)
 
-      !----- layer_bottoms replaces the list, and depth still cuts it. -----------------------!
+      !--- layer_bottoms replaces the list, and depth still cuts it.
       sc%n_layer_bottoms = 3_ik
       sc%layer_bottoms(1:3) = [0.2_wp, 0.5_wp, 1.0_wp]
       sc%depth = 1.0_wp
@@ -253,7 +267,7 @@ contains
       sc%layer_bottoms = 0.0_wp
       sc%depth = 2.0_wp
 
-      !----- Texture reaches the layers, and the derived field capacity follows it. -----------!
+      !--- Texture reaches the layers, and the derived field capacity follows it.
       sc%theta_sat = 0.55_wp
       sc%theta_res = 0.02_wp
       call build_soil_profile(sc, p2)
@@ -264,8 +278,10 @@ contains
       sc%theta_sat = 0.43_wp
       sc%theta_res = 0.078_wp
 
-      !----- The retention family selects what curve_par_a/n mean: for Campbell, the air-entry    !
-      !      suction psi_sat [m] (< 0) and the exponent b, as validate_config requires. ---------!
+      !---~---
+      !   The retention family selects what curve_par_a/n mean: for Campbell, the air-entry
+      ! suction psi_sat [m] (< 0) and the exponent b, as validate_config requires.
+      !---~---
       sc%retention = SOIL_RETENTION_CAMPBELL
       sc%curve_par_a = -0.26_wp
       sc%curve_par_n = 5.65_wp
@@ -277,7 +293,7 @@ contains
       sc%curve_par_a = 3.6_wp                                   ! the van Genuchten defaults
       sc%curve_par_n = 1.56_wp
 
-      !----- The thermal keys reach every layer of the profile. -------------------------------!
+      !--- The thermal keys reach every layer of the profile.
       sc%solid_conductivity = 2.5_wp
       sc%dry_conductivity = 0.20_wp
       sc%dry_heat_capacity = 1.5e6_wp

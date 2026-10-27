@@ -1,29 +1,29 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! ed_test_run -- the configs a test derives from a template config, and the edmore         !
-! runs it expects to be refused.                                                           !
-!                                                                                          !
-! derive_config writes a config from override blocks and a template. The blocks come       !
-! first and are layered: the first value a block gives a key is the one written, and a     !
-! later block's value for it is left out. Then the template follows, less every key the    !
-! blocks set and any key the caller drops. Each key is written once, as ed_toml requires:   !
-! it refuses a key set twice. Keys are named as ed_toml names them: `section.key`, and     !
-! `name.<i>.key` in the i-th `[[name]]` table, so two tables may each set a key.           !
-!                                                                                          !
-! main_refuses runs edmore on a config and tells whether it stopped and its report         !
-! holds a message.                                                                         !
-!==========================================================================================!
+!---~---
+!   ed_test_run -- the configs a test derives from a template config, and the edmore
+! runs it expects to be refused.
+!
+!   derive_config writes a config from override blocks and a template. The blocks come
+! first and are layered: the first value a block gives a key is the one written, and a
+! later block's value for it is left out. Then the template follows, less every key the
+! blocks set and any key the caller drops. Each key is written once, as ed_toml requires:
+! it refuses a key set twice. Keys are named as ed_toml names them: `section.key`, and
+! `name.<i>.key` in the i-th `[[name]]` table, so two tables may each set a key.
+!
+!   main_refuses runs edmore on a config and tells whether it stopped and its report
+! holds a message.
+!---~---
 module ed_test_run
    implicit none
    private
 
    public :: derive_config, main_refuses
 
-   integer, parameter :: LINE_LEN = 2048    !< longest config line read
-   integer, parameter :: KEY_LEN  = 128     !< longest qualified key
-   integer, parameter :: MAX_ARRAYS = 8     !< [[name]] arrays in one config
+   integer, parameter :: LINE_LEN = 2048    ! longest config line read
+   integer, parameter :: KEY_LEN  = 128     ! longest qualified key
+   integer, parameter :: MAX_ARRAYS = 8     ! [[name]] arrays in one config
 
-   !----- The keys written so far and the [[name]] tables met, as ed_toml counts them. --------  !
+   !--- The keys written so far and the [[name]] tables met, as ed_toml counts them.
    type :: key_set_t
       integer :: n = 0
       character(len=KEY_LEN), allocatable :: key(:)
@@ -35,12 +35,12 @@ module ed_test_run
 
 contains
 
-   !---------------------------------------------------------------------------------------!
-   ! Write `path`: the lines of `overrides` (one string, its lines split by new_line), each  !
-   ! key at its first value, then the lines of the file `template` whose keys the overrides !
-   ! do not set and `drop` (keys as section.key) does not name. Comments and headers pass    !
-   ! through.                                                                               !
-   !---------------------------------------------------------------------------------------!
+   !---~---
+   !   Write `path`: the lines of `overrides` (one string, its lines split by new_line), each
+   ! key at its first value, then the lines of the file `template` whose keys the overrides
+   ! do not set and `drop` (keys as section.key) does not name. Comments and headers pass
+   ! through.
+   !---~---
    subroutine derive_config(path, overrides, template, drop)
       character(len=*),           intent(in) :: path, overrides, template
       character(len=*), optional, intent(in) :: drop(:)
@@ -50,7 +50,7 @@ contains
       integer :: uin, uout, ios, i0, i1
       allocate(set%key(64))
       open(newunit=uout, file=path, status='replace', action='write')
-      !----- The override blocks, line by line. -----------------------------------------------!
+      !--- The override blocks, line by line.
       i0 = 1
       do while (i0 <= len(overrides))
          i1 = index(overrides(i0:), new_line('a'))
@@ -68,9 +68,11 @@ contains
          end if
          write(uout, '(a)') trim(line)
       end do
-      !----- The template, less the keys set above and those dropped. Its keys are not added to   !
-      !      the set: a key the template itself sets twice is written twice, for ed_toml to        !
-      !      refuse, as it would refuse the template. ------------------------------------------!
+      !---~---
+      !   The template, less the keys set above and those dropped. Its keys are not added to
+      ! the set: a key the template itself sets twice is written twice, for ed_toml to
+      ! refuse, as it would refuse the template.
+      !---~---
       open(newunit=uin, file=template, status='old', action='read')
       do
          read(uin, '(a)', iostat=ios) line
@@ -89,8 +91,10 @@ contains
       close(uout)
    end subroutine derive_config
 
-   !----- Run edmore on `config`, its output into `log`: true when it stopped with an error     !
-   !      and a line of the log holds `message`. ------------------------------------------------!
+   !---~---
+   !   Run edmore on `config`, its output into `log`: true when it stopped with an error
+   ! and a line of the log holds `message`.
+   !---~---
    logical function main_refuses(edmore, config, log, message) result(refused)
       character(len=*), intent(in) :: edmore, config, log, message
       character(len=LINE_LEN) :: line
@@ -108,8 +112,10 @@ contains
       refused = es /= 0 .and. said
    end function main_refuses
 
-   !----- The qualified key a line sets, or '' for a comment, a blank or a header. A header     !
-   !      moves the section; a [[name]] header opens that array's next table. ------------------!
+   !---~---
+   !   The qualified key a line sets, or '' for a comment, a blank or a header. A header
+   ! moves the section; a [[name]] header opens that array's next table.
+   !---~---
    function line_key(set, raw) result(key)
       type(key_set_t),  intent(inout) :: set
       character(len=*), intent(in)    :: raw
@@ -148,7 +154,7 @@ contains
       end if
    end function line_key
 
-   !----- A line without its trailing `# comment`, a `#` inside a quoted string kept. ---------!
+   !--- A line without its trailing `# comment`, a `#` inside a quoted string kept.
    pure function strip_comment(s) result(out)
       character(len=*), intent(in) :: s
       character(len=len(s)) :: out

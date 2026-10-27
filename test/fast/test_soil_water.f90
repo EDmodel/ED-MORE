@@ -1,31 +1,31 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! test_soil_water -- the soil's water flows (ed_soil_water;                                !
-! docs/science/soil_biophysics.md, docs/science/soil_plant_water.md §3).                   !
-!   1. DARCY (soil_water_flux, soil_biophysics.md eq. (3)): its four derivatives against   !
-!      central differences; the pond face at zero head is the infiltration capacity.       !
-!   2. EVAPORATION (ground_evaporation_rate, ground_evaporation_setup): its derivatives     !
-!      against central differences, and the closed form where no dry surface layer forms. !
-!   3. SNOW-FREE SHARE (ground_evaporation_rate): evaporation is a tile flux, linear in     !
-!      the snow-free share and zero under full cover.                                      !
-!   4. MOISTURE (ground_evaporation_rate): a wetter soil evaporates more, approaching the  !
-!      limit with no dry surface layer continuously.                                       !
-!   5. BOTTOM FACE (bottom_flux; soil_biophysics.md §Boundary conditions): a leaky base     !
-!      drains f K(theta_N), free drainage and sealed bedrock at its ends exactly; the       !
-!      aquifer's face is smooth through zero gradient, with derivatives that match finite  !
-!      differences, and carries the rise of a dry column across the geometric-mean face.  !
-!   6. FROZEN GROUND (ground_evaporation_setup, ground_evaporation_rate;                   !
-!      soil_biophysics.md "Frozen soil"): a frozen layer's liquid, at the content its      !
-!      freezing curve holds, evaporates at about the ice's saturation humidity, from -1 to !
-!      -20 C: saturation is taken over liquid, since the freezing curve already puts the   !
-!      liquid at the ice's vapour pressure.                                                !
-!   7. THE AIR'S PRESSURE (ground_evaporation_setup): at 70 kPa the ground's saturation    !
-!      humidity holds the same saturation vapour pressure as at 1 atm, and the evaporation !
-!      rises by the saturation curve's ratio at that pressure.                             !
-!   8. ICE ON THE AQUIFER FACE (bottom_flux; soil_biophysics.md "Frozen soil"): a frozen   !
-!      bottom layer's ice impedes the face to the table in full, both ways; a draining     !
-!      base counts it once, in K(theta_N).                                                 !
-!==========================================================================================!
+!---~---
+!   test_soil_water -- the soil's water flows (ed_soil_water;
+! docs/science/soil_biophysics.md, docs/science/soil_plant_water.md §3).
+!   1. DARCY (soil_water_flux, soil_biophysics.md eq. (3)): its four derivatives against
+!      central differences; the pond face at zero head is the infiltration capacity.
+!   2. EVAPORATION (ground_evaporation_rate, ground_evaporation_setup): its derivatives
+!      against central differences, and the closed form where no dry surface layer forms.
+!   3. SNOW-FREE SHARE (ground_evaporation_rate): evaporation is a tile flux, linear in
+!      the snow-free share and zero under full cover.
+!   4. MOISTURE (ground_evaporation_rate): a wetter soil evaporates more, approaching the
+!      limit with no dry surface layer continuously.
+!   5. BOTTOM FACE (bottom_flux; soil_biophysics.md §Boundary conditions): a leaky base
+!      drains f K(theta_N), free drainage and sealed bedrock at its ends exactly; the
+!      aquifer's face is smooth through zero gradient, with derivatives that match finite
+!      differences, and carries the rise of a dry column across the geometric-mean face.
+!   6. FROZEN GROUND (ground_evaporation_setup, ground_evaporation_rate;
+!      soil_biophysics.md "Frozen soil"): a frozen layer's liquid, at the content its
+!      freezing curve holds, evaporates at about the ice's saturation humidity, from -1 to
+!      -20 C: saturation is taken over liquid, since the freezing curve already puts the
+!      liquid at the ice's vapour pressure.
+!   7. THE AIR'S PRESSURE (ground_evaporation_setup): at 70 kPa the ground's saturation
+!      humidity holds the same saturation vapour pressure as at 1 atm, and the evaporation
+!      rises by the saturation curve's ratio at that pressure.
+!   8. ICE ON THE AQUIFER FACE (bottom_flux; soil_biophysics.md "Frozen soil"): a frozen
+!      bottom layer's ice impedes the face to the table in full, both ways; a draining
+!      base counts it once, in K(theta_N).
+!---~---
 program test_soil_water
    use ed_test_assert,     only : check_true, check_close, test_report
    use ed_kinds,           only : wp, ik
@@ -53,14 +53,16 @@ program test_soil_water
 
 contains
 
-   !----- Relative agreement of an analytic derivative with a central difference. -----------!
+   !--- Relative agreement of an analytic derivative with a central difference.
    logical function fd_agrees(analytic, numeric, rtol, atol)
       real(wp), intent(in) :: analytic, numeric, rtol, atol
       fd_agrees = abs(analytic - numeric) <= rtol * max(abs(analytic), abs(numeric)) + atol
    end function fd_agrees
 
-   !----- 1. Darcy flow across the face between two layers 0.4 m apart (the geometric-mean face),  !
-   !      and the pond's face at zero head. ----------------------------------------------------!
+   !---~---
+   !   1. Darcy flow across the face between two layers 0.4 m apart (the geometric-mean face),
+   ! and the pond's face at zero head.
+   !---~---
    subroutine test_soil_water_flux()
       real(wp) :: q, qa, qb, dqa, dqb, dka, dkb, dum, h, ka, kb, pa, pb, psi1, k1, ks, z1, q_ref
       logical  :: ok
@@ -86,8 +88,10 @@ contains
       call soil_water_flux(ka, kb - h, 0.4_wp, pa, pb, 0.07_wp, 0.07_wp, qb, dum, dum, dum, dum)
       if (.not. fd_agrees(dkb, (qa - qb) / (2*h), 1.0e-6_wp, 0.0_wp)) ok = .false.
       call check_true('darcy: derivatives match finite differences', ok)
-      !----- The pond face at zero head: the infiltration capacity,                               !
-      !      sqrt(K1 Ksat) (1 + (-psi1)/(-z1)), times the water density. -------------------------!
+      !---~---
+      !   The pond face at zero head: the infiltration capacity,
+      ! sqrt(K1 Ksat) (1 + (-psi1)/(-z1)), times the water density.
+      !---~---
       psi1 = -3.0_wp
       k1 = 2.0e-9_wp
       ks = 4.5e-6_wp
@@ -97,8 +101,10 @@ contains
       call check_close('darcy: pond face at zero head = infiltration capacity', q, q_ref, 1.0e-12_wp * q_ref)
    end subroutine test_soil_water_flux
 
-   !----- 2. Ground evaporation from BCI's clay top layer, over water contents from 0.11 to 0.43, at  !
-   !      the potential its retention curve gives. ---------------------------------------------!
+   !---~---
+   !   2. Ground evaporation from BCI's clay top layer, over water contents from 0.11 to 0.43, at
+   ! the potential its retention curve gives.
+   !---~---
    subroutine test_evaporation()
       type(soil_profile_t)   :: sp
       type(ground_evap_env_t) :: f
@@ -135,8 +141,10 @@ contains
          call ground_evaporation_rate(theta, psi + h, f, o, ep, dum, dum)
          call ground_evaporation_rate(theta, psi - h, f, o, em, dum, dum)
          if (.not. fd_agrees(dep, (ep - em) / (2*h), 1.0e-4_wp, 1.0e-14_wp)) ok_d = .false.
-         !----- Moist enough that no dry surface layer forms: the closed form rho (alpha q_sat - q_air) !
-         !      / r_aero, with Philip's alpha = exp(psi g / (R_v T)). --------------------------------!
+         !---~---
+         !   Moist enough that no dry surface layer forms: the closed form rho (alpha q_sat - q_air)
+         ! / r_aero, with Philip's alpha = exp(psi g / (R_v T)).
+         !---~---
          if (theta > o%dsl_theta_init * 0.4314_wp + 0.01_wp) then
             ref = f%rho_air * (exp(head * grav / (r_wv * f%t_ground)) * sat_specific_humidity(f%t_ground, p_std, 1.0_wp) &
                                - f%q_air) / f%r_aero
@@ -147,7 +155,7 @@ contains
       call check_true('evaporation: the closed form where no dry surface layer forms', ok_v)
    end subroutine test_evaporation
 
-   !----- A 10-layer loam column, 2 m deep. ------------------------------------------------------!
+   !--- A 10-layer loam column, 2 m deep.
    subroutine loam_params(params)
       type(soil_profile_t), intent(out) :: params
       real(wp) :: bottoms(n_soil_layer_max)
@@ -156,11 +164,12 @@ contains
            2.89e-6_wp, 3.6_wp, 1.56_wp, -3.37_wp, params)
    end subroutine loam_params
 
-   !=======================================================================================!
-   !----- 3. Ground evaporation is an AREA-weighted tile flux, E = snow_free_frac rho dq / (r_aero +   !
-   !      r_soil): linear in the snow-free share and exactly 0 under full cover, with a dry surface    !
-   !      layer present (theta_1 = 0.30 is below dsl_theta_init * theta_sat = 0.344), where dividing    !
-   !      r_aero by (1 - snowfac) instead would not be linear. ---------------------------------------!
+   !---~---
+   !   3. Ground evaporation is an AREA-weighted tile flux, E = snow_free_frac rho dq / (r_aero +
+   ! r_soil): linear in the snow-free share and exactly 0 under full cover, with a dry surface
+   ! layer present (theta_1 = 0.30 is below dsl_theta_init * theta_sat = 0.344), where dividing
+   ! r_aero by (1 - snowfac) instead would not be linear.
+   !---~---
    subroutine test_snow_free_evap()
       type(soil_profile_t)    :: params
       type(soil_params_t)     :: opts
@@ -186,12 +195,13 @@ contains
       call check_close('full snow cover gives exactly zero soil evaporation', e_none, 0.0_wp, 1.0e-30_wp)
    end subroutine test_snow_free_evap
 
-   !=======================================================================================!
-   !----- 4. A wetter soil evaporates MORE. The dry-surface-layer resistance d_sl/(D_v tau) is built on  !
-   !      the air-dry water content's tortuosity, so it falls as the layer wets and the response is   !
-   !      monotone, approaching the no-DSL limit continuously at theta_init. Built from the bulk       !
-   !      layer's air-filled porosity instead, the tortuosity would fall faster than the layer thins  !
-   !      and a wetter soil would evaporate less. ------------------------------------------------!
+   !---~---
+   !   4. A wetter soil evaporates MORE. The dry-surface-layer resistance d_sl/(D_v tau) is built on
+   ! the air-dry water content's tortuosity, so it falls as the layer wets and the response is
+   ! monotone, approaching the no-DSL limit continuously at theta_init. Built from the bulk
+   ! layer's air-filled porosity instead, the tortuosity would fall faster than the layer thins
+   ! and a wetter soil would evaporate less.
+   !---~---
    subroutine test_evap_moisture_response()
       type(soil_profile_t)    :: params
       type(soil_params_t)     :: opts
@@ -222,7 +232,7 @@ contains
                       e_below > 0.8_wp * e_sat, e_below / max(e_sat, 1.0e-30_wp))
    end subroutine test_evap_moisture_response
 
-   !----- Ground evaporation of the loam's top layer at water content th, under f set up for it. --!
+   !--- Ground evaporation of the loam's top layer at water content th, under f set up for it.
    real(wp) function loam_evap(th, f, opts) result(e)
       real(wp),                intent(in) :: th
       type(ground_evap_env_t), intent(in) :: f
@@ -232,13 +242,14 @@ contains
                                    3.6_wp, 1.56_wp), f, opts, e, de1, de2)
    end function loam_evap
 
-   !=======================================================================================!
-   !----- 5. The bottom face of the loam's deepest layer. A leaky base drains f K(theta_N), the     !
-   !      factor's ends being free drainage and sealed bedrock bit for bit. The aquifer's face is   !
-   !      head-driven against a saturated table at the column's base: smooth through zero gradient  !
-   !      (hydrostatic equilibrium, the bottom node's head minus half its thickness), with both     !
-   !      derivatives against finite differences, and a dry column's rise at -2 m of head crossing  !
-   !      the geometric-mean face. ----------------------------------------------------------------!
+   !---~---
+   !   5. The bottom face of the loam's deepest layer. A leaky base drains f K(theta_N), the
+   ! factor's ends being free drainage and sealed bedrock bit for bit. The aquifer's face is
+   ! head-driven against a saturated table at the column's base: smooth through zero gradient
+   ! (hydrostatic equilibrium, the bottom node's head minus half its thickness), with both
+   ! derivatives against finite differences, and a dry column's rise at -2 m of head crossing
+   ! the geometric-mean face.
+   !---~---
    subroutine test_bottom_face()
       type(soil_profile_t) :: params
       type(soil_params_t)  :: opts
@@ -262,7 +273,7 @@ contains
       call bottom_flux(params, opts, n, PSI_N, K_N, 1.0_wp, q, dq_dpsi, dq_dk)
       call check_close('a leaky base drains f K(theta_N)', q, F_LEAK * K_N, 0.0_wp)
       call check_close('and its flux moves with K(theta_N) by f', dq_dk, F_LEAK, 0.0_wp)
-      !----- The aquifer's face. -------------------------------------------------------------------!
+      !--- The aquifer's face.
       opts%water_bottom_bc = SOIL_BC_AQUIFER
       delta  = 0.5_wp * params%dz(n)
       psi_eq = -delta * grav_head
@@ -280,16 +291,17 @@ contains
                        q_m, sqrt(1.0e-7_wp * params%ksat(n)) * (-2.0_wp / delta + 1.0_wp), 1.0e-12_wp * abs(q_m))
    end subroutine test_bottom_face
 
-   !=======================================================================================!
-   !----- 6. A frozen loam top layer (docs/science/soil_biophysics.md, "Frozen soil"). Its liquid sits  !
-   !      at the content its freezing curve holds at the ground's temperature (soil_liquid_capacity),  !
-   !      at the head its retention curve gives that content; the ice fills the rest of its pores,     !
-   !      so no dry surface layer forms. Into dry air its evaporation is rho alpha q_sat / r_aero.     !
-   !      On the freezing curve the liquid's vapour pressure is the ice's (Clausius-Clapeyron), so     !
-   !      alpha q_sat must be the ice's saturation humidity, to the error of the curve's constant      !
-   !      latent heat and of the two saturation fits: within a fifth of the liquid-ice gap from -1 to  !
-   !      -20 C (a twentieth at -10 C). Taking q_sat over ice as well would count the ice twice and    !
-   !      land the whole gap below. ------------------------------------------------------------------!
+   !---~---
+   !   6. A frozen loam top layer (docs/science/soil_biophysics.md, "Frozen soil"). Its liquid sits
+   ! at the content its freezing curve holds at the ground's temperature (soil_liquid_capacity),
+   ! at the head its retention curve gives that content; the ice fills the rest of its pores,
+   ! so no dry surface layer forms. Into dry air its evaporation is rho alpha q_sat / r_aero.
+   ! On the freezing curve the liquid's vapour pressure is the ice's (Clausius-Clapeyron), so
+   ! alpha q_sat must be the ice's saturation humidity, to the error of the curve's constant
+   ! latent heat and of the two saturation fits: within a fifth of the liquid-ice gap from -1 to
+   ! -20 C (a twentieth at -10 C). Taking q_sat over ice as well would count the ice twice and
+   ! land the whole gap below.
+   !---~---
    subroutine test_frozen_ground_evap()
       type(soil_profile_t)    :: params
       type(soil_params_t)     :: opts
@@ -320,12 +332,13 @@ contains
                       'within a fifth of the liquid-ice gap (-1 to -20 C)', worst < 0.2_wp, worst)
    end subroutine test_frozen_ground_evap
 
-   !=======================================================================================!
-   !----- 7. The ground and the air over it at 70 kPa, about 3,000 m, against the same at 1 atm, at  !
-   !      one density and conductance, the loam moist enough that no dry surface layer forms, into    !
-   !      dry air. The ground's saturation humidity at the air's pressure holds the saturation vapour !
-   !      pressure, a function of the temperature alone, so evaporation rises by q_sat(p)/q_sat(p_std) !
-   !      = (p_std - (1 - eps) e_s)/(p - (1 - eps) e_s); taken at p_std it would not move. -----------!
+   !---~---
+   !   7. The ground and the air over it at 70 kPa, about 3,000 m, against the same at 1 atm, at
+   ! one density and conductance, the loam moist enough that no dry surface layer forms, into
+   ! dry air. The ground's saturation humidity at the air's pressure holds the saturation vapour
+   ! pressure, a function of the temperature alone, so evaporation rises by q_sat(p)/q_sat(p_std)
+   ! = (p_std - (1 - eps) e_s)/(p - (1 - eps) e_s); taken at p_std it would not move.
+   !---~---
    subroutine test_evap_at_pressure()
       type(soil_profile_t)    :: params
       type(soil_params_t)     :: opts
@@ -355,13 +368,14 @@ contains
                        e_low / e_std, ratio, 1.0e-6_wp * ratio)
    end subroutine test_evap_at_pressure
 
-   !=======================================================================================!
-   !----- 8. The loam's deepest layer frozen, its ice 0.15 of 0.43, which impedes its conductivity by  !
-   !      I = 10^(-6 theta_ice/theta_sat) (soil_ice_state). The face to the table lies inside the    !
-   !      layer, so the table's side takes the impedance too and the face, their geometric mean,      !
-   !      carries I times the thawed layer's flux at the same liquid potential, drawing up from a     !
-   !      dry layer and draining a wet one. Impeding the node alone would leave sqrt(I). A draining   !
-   !      base passes f K(theta_N) of the impeded conductivity: the ice counted once. -------------!
+   !---~---
+   !   8. The loam's deepest layer frozen, its ice 0.15 of 0.43, which impedes its conductivity by
+   ! I = 10^(-6 theta_ice/theta_sat) (soil_ice_state). The face to the table lies inside the
+   ! layer, so the table's side takes the impedance too and the face, their geometric mean,
+   ! carries I times the thawed layer's flux at the same liquid potential, drawing up from a
+   ! dry layer and draining a wet one. Impeding the node alone would leave sqrt(I). A draining
+   ! base passes f K(theta_N) of the impeded conductivity: the ice counted once.
+   !---~---
    subroutine test_aquifer_face_ice()
       type(soil_profile_t) :: params
       type(soil_params_t)  :: opts

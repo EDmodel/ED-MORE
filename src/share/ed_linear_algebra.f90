@@ -1,15 +1,15 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! ed_linear_algebra -- the linear solvers and the matrix exponential every layer shares     !
-! (docs/science/numerical_scheme.md §9):                                                    !
-!   thomas_solve          a tridiagonal system (the soil heat column)                       !
-!   lu_factor, lu_solve   a small dense system (the soil-carbon steady state)               !
-!   arrowhead_*           a block arrowhead system (the soil-plant water network)           !
-!   matrix_exp            exp(A) (the soil-carbon step)                                     !
-!                                                                                          !
-! Sizes are passed, not taken from the arrays, so a caller can hand over fixed-size storage  !
-! longer than the system it solves.                                                         !
-!==========================================================================================!
+!---~---
+!   ed_linear_algebra -- the linear solvers and the matrix exponential every layer shares
+! (docs/science/numerical_scheme.md §9):
+!   thomas_solve          a tridiagonal system (the soil heat column)
+!   lu_factor, lu_solve   a small dense system (the soil-carbon steady state)
+!   arrowhead_*           a block arrowhead system (the soil-plant water network)
+!   matrix_exp            exp(A) (the soil-carbon step)
+!
+!   Sizes are passed, not taken from the arrays, so a caller can hand over fixed-size storage
+! longer than the system it solves.
+!---~---
 module ed_linear_algebra
    use ed_kinds,       only : wp, ik
    use ed_constants,   only : tiny_num
@@ -21,25 +21,27 @@ module ed_linear_algebra
    public :: arrowhead_system_t, arrowhead_allocate, arrowhead_factor, arrowhead_solve
    public :: matrix_exp
 
-   !----- A block arrowhead system, filled by the caller, and its factorisation. --------------!
+   !--- A block arrowhead system, filled by the caller, and its factorisation.
    type :: arrowhead_system_t
-      integer(ik) :: nc = 0_ik                !< core unknowns
-      integer(ik) :: nb = 0_ik                !< blocks
-      integer(ik) :: mb = 0_ik                !< unknowns per block
-      real(wp),    allocatable :: a(:,:)      !< (nc, nc)     core block
-      real(wp),    allocatable :: b(:,:)      !< (nc, nb)     core rows, each block's first column
-      real(wp),    allocatable :: c(:,:)      !< (nc, nb)     each block's first row, over the core columns
-      real(wp),    allocatable :: d(:,:,:)    !< (mb, mb, nb) the diagonal blocks
-      real(wp),    allocatable :: lu(:,:)     !< (nc, nc)     the LU of the core after the blocks are folded in
-      real(wp),    allocatable :: dinv(:,:,:) !< (mb, mb, nb) the inverses of the diagonal blocks
-      integer(ik), allocatable :: piv(:)      !< (nc)         the core LU's row interchanges
+      integer(ik) :: nc = 0_ik                ! core unknowns
+      integer(ik) :: nb = 0_ik                ! blocks
+      integer(ik) :: mb = 0_ik                ! unknowns per block
+      real(wp),    allocatable :: a(:,:)      ! (nc, nc)     core block
+      real(wp),    allocatable :: b(:,:)      ! (nc, nb)     core rows, each block's first column
+      real(wp),    allocatable :: c(:,:)      ! (nc, nb)     each block's first row, over the core columns
+      real(wp),    allocatable :: d(:,:,:)    ! (mb, mb, nb) the diagonal blocks
+      real(wp),    allocatable :: lu(:,:)     ! (nc, nc)     the LU of the core after the blocks are folded in
+      real(wp),    allocatable :: dinv(:,:,:) ! (mb, mb, nb) the inverses of the diagonal blocks
+      integer(ik), allocatable :: piv(:)      ! (nc)         the core LU's row interchanges
    end type arrowhead_system_t
 
 contains
 
-   !----- Solve a(k) x(k-1) + b(k) x(k) + c(k) x(k+1) = d(k), k = 1..n, by the Thomas sweep   !
-   !      (a(1) and c(n) are not used). No pivoting: the systems it solves are diagonally      !
-   !      dominant. A pivot is kept away from zero, so a degenerate input gives a finite x. ---!
+   !---~---
+   !   Solve a(k) x(k-1) + b(k) x(k) + c(k) x(k+1) = d(k), k = 1..n, by the Thomas sweep
+   ! (a(1) and c(n) are not used). No pivoting: the systems it solves are diagonally
+   ! dominant. A pivot is kept away from zero, so a degenerate input gives a finite x.
+   !---~---
    pure subroutine thomas_solve(a, b, c, d, x, n)
       integer(ik), intent(in)  :: n
       real(wp),    intent(in)  :: a(n), b(n), c(n), d(n)
@@ -62,12 +64,14 @@ contains
       end do
    end subroutine thomas_solve
 
-   !----- LU factorisation with partial pivoting, in place: L unit lower triangular below the   !
-   !      diagonal, U upper triangular on and above it. ok is false on a zero or NaN pivot. ---!
+   !---~---
+   !   LU factorisation with partial pivoting, in place: L unit lower triangular below the
+   ! diagonal, U upper triangular on and above it. ok is false on a zero or NaN pivot.
+   !---~---
    pure subroutine lu_factor(a, piv, n, ok)
       integer(ik), intent(in)    :: n
       real(wp),    intent(inout) :: a(n, n)
-      integer(ik), intent(out)   :: piv(n)    !< the row interchanged with row k at step k
+      integer(ik), intent(out)   :: piv(n)    ! the row interchanged with row k at step k
       logical,     intent(out)   :: ok
       integer(ik) :: i, j, k, p
       real(wp)    :: row(n), f
@@ -98,8 +102,10 @@ contains
       end do
    end subroutine lu_factor
 
-   !----- Solve with lu_factor's result: x is the right-hand side on entry, the solution on   !
-   !      exit. ----------------------------------------------------------------------------!
+   !---~---
+   !   Solve with lu_factor's result: x is the right-hand side on entry, the solution on
+   ! exit.
+   !---~---
    pure subroutine lu_solve(a, piv, n, x)
       integer(ik), intent(in)    :: n
       real(wp),    intent(in)    :: a(n, n)
@@ -127,8 +133,10 @@ contains
       end do
    end subroutine lu_solve
 
-   !----- Size a system for nc core unknowns and nb blocks of mb, keeping the storage when the  !
-   !      shape is unchanged, and zero its blocks. -----------------------------------------!
+   !---~---
+   !   Size a system for nc core unknowns and nb blocks of mb, keeping the storage when the
+   ! shape is unchanged, and zero its blocks.
+   !---~---
    pure subroutine arrowhead_allocate(s, nc, nb, mb)
       type(arrowhead_system_t), intent(inout) :: s
       integer(ik),              intent(in)    :: nc, nb, mb
@@ -146,13 +154,15 @@ contains
       s%d = 0.0_wp
    end subroutine arrowhead_allocate
 
-   !----- Factor the system with add_core and add_block added to the diagonals: invert each     !
-   !      block, fold it into the core, and LU-factor the core. The blocks are left as they     !
-   !      were, so they can be factored again with other additions. ok is false if a block or  !
-   !      the core is singular. -----------------------------------------------------------!
+   !---~---
+   !   Factor the system with add_core and add_block added to the diagonals: invert each
+   ! block, fold it into the core, and LU-factor the core. The blocks are left as they
+   ! were, so they can be factored again with other additions. ok is false if a block or
+   ! the core is singular.
+   !---~---
    pure subroutine arrowhead_factor(s, add_core, add_block, ok)
       type(arrowhead_system_t), intent(inout) :: s
-      real(wp),                 intent(in)    :: add_core(:), add_block(:, :)   !< (nc), (mb, nb)
+      real(wp),                 intent(in)    :: add_core(:), add_block(:, :)   ! (nc), (mb, nb)
       logical,                  intent(out)   :: ok
       integer(ik) :: ib, i, j
       real(wp)    :: e11, cj
@@ -180,15 +190,15 @@ contains
       call lu_factor(s%lu, s%piv, s%nc, ok)
    end subroutine arrowhead_factor
 
-   !----- Solve the factored system for one right-hand side (r_core, r_block). ---------------!
+   !--- Solve the factored system for one right-hand side (r_core, r_block).
    pure subroutine arrowhead_solve(s, r_core, r_block, x_core, x_block)
       type(arrowhead_system_t), intent(in)  :: s
-      real(wp),                 intent(in)  :: r_core(:), r_block(:, :)   !< (nc), (mb, nb)
+      real(wp),                 intent(in)  :: r_core(:), r_block(:, :)   ! (nc), (mb, nb)
       real(wp),                 intent(out) :: x_core(:), x_block(:, :)
       real(wp)    :: rc(s%nc), cx
       integer(ik) :: ib, i, l
       rc = r_core(1:s%nc)
-      !----- Each block's own solution, folded onto the core through its first unknown. -------!
+      !--- Each block's own solution, folded onto the core through its first unknown.
       do ib = 1_ik, s%nb
          do i = 1_ik, s%mb
             x_block(i, ib) = 0.0_wp
@@ -200,15 +210,17 @@ contains
       end do
       call lu_solve(s%lu, s%piv, s%nc, rc)
       x_core(1:s%nc) = rc
-      !----- Back to the blocks, through the core's solution. ---------------------------------!
+      !--- Back to the blocks, through the core's solution.
       do ib = 1_ik, s%nb
          cx = sum(s%c(:, ib) * rc)
          x_block(1:s%mb, ib) = x_block(1:s%mb, ib) - s%dinv(1:s%mb, 1, ib) * cx
       end do
    end subroutine arrowhead_solve
 
-   !----- Invert a small block in place: closed form for 1x1 and 2x2, Gauss-Jordan otherwise.  !
-   !      ok is false if it is singular. ---------------------------------------------------!
+   !---~---
+   !   Invert a small block in place: closed form for 1x1 and 2x2, Gauss-Jordan otherwise.
+   ! ok is false if it is singular.
+   !---~---
    pure subroutine invert_small(m, n, ok)
       integer(ik), intent(in)    :: n
       real(wp),    intent(inout) :: m(n, n)
@@ -274,8 +286,10 @@ contains
       m = aug(:, n+1:2*n)
    end subroutine invert_gauss_jordan
 
-   !----- exp(A) by scaling and squaring: halve A s times until its largest row sum is at most  !
-   !      1/2, then exp_scaled_squared. --------------------------------------------------!
+   !---~---
+   !   exp(A) by scaling and squaring: halve A s times until its largest row sum is at most
+   ! 1/2, then exp_scaled_squared.
+   !---~---
    pure subroutine matrix_exp(a_in, e, m)
       integer(ik), intent(in)  :: m
       real(wp),    intent(in)  :: a_in(m, m)
@@ -299,7 +313,7 @@ contains
       call exp_scaled_squared(a_in, e, m, s)
    end subroutine matrix_exp
 
-   !----- exp(A) as the 12-term Taylor series of A/2^s, squared s times. -------------------!
+   !--- exp(A) as the 12-term Taylor series of A/2^s, squared s times.
    pure subroutine exp_scaled_squared(a_in, e, m, s)
       integer(ik), intent(in)  :: m, s
       real(wp),    intent(in)  :: a_in(m, m)
@@ -325,8 +339,10 @@ contains
       end do
    end subroutine exp_scaled_squared
 
-   !----- c = a b for square matrices, written out so no array temporary is made              !
-   !      (docs/building.md). ------------------------------------------------------------!
+   !---~---
+   !   c = a b for square matrices, written out so no array temporary is made
+   ! (docs/building.md).
+   !---~---
    pure subroutine matmul_square(a, b, c, m)
       integer(ik), intent(in)  :: m
       real(wp),    intent(in)  :: a(m, m), b(m, m)

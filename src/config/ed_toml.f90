@@ -1,13 +1,13 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! ed_toml -- a minimal TOML reader for the ED-MORE configuration: `# comments`,            !
-! `[section]` headers, `[[name]]` tables (keys `name.<i>.key`), scalar                     !
-! int/real/bool/string values and `[a, b, c]` arrays, each key stored as `section.key`.    !
-! toml-f is not used: its compiled .mod is compiler-specific, as netCDF-Fortran's is       !
-! (docs/building.md). A getter returns its default only for an absent key; a present value !
-! it cannot parse stops the run, so a typo in a required value cannot pass as zero; and a  !
-! key set twice stops the parse, so a second value cannot be ignored in silence.           !
-!==========================================================================================!
+!---~---
+!   ed_toml -- a minimal TOML reader for the ED-MORE configuration: `# comments`,
+! `[section]` headers, `[[name]]` tables (keys `name.<i>.key`), scalar
+! int/real/bool/string values and `[a, b, c]` arrays, each key stored as `section.key`.
+! toml-f is not used: its compiled .mod is compiler-specific, as netCDF-Fortran's is
+! (docs/building.md). A getter returns its default only for an absent key; a present value
+! it cannot parse stops the run, so a typo in a required value cannot pass as zero; and a
+! key set twice stops the parse, so a second value cannot be ignored in silence.
+!---~---
 module ed_toml
    use ed_kinds, only : wp, ik
    implicit none
@@ -19,40 +19,44 @@ module ed_toml
    public :: toml_table_count
    public :: toml_write_record, toml_record_reset
 
-   !----- VALLEN is also the line buffer, so it bounds a whole `key = value` line. 1024 holds     !
-   !      the forcing path fields (MET_PATH_LEN) with room for the key. --------------------------!
+   !---~---
+   !   VALLEN is also the line buffer, so it bounds a whole `key = value` line. 1024 holds
+   ! the forcing path fields (MET_PATH_LEN) with room for the key.
+   !---~---
    integer, parameter :: KEYLEN = 64, VALLEN = 1024, MAXKEYS = 512, MAXARRAYS = 8
 
    type :: toml_table_t
       integer(ik)                     :: n = 0_ik
       character(len=KEYLEN), allocatable :: key(:)
       character(len=VALLEN), allocatable :: val(:)
-      character(len=256)              :: source = ''   !< the file read into it (the record's label)
-      !----- The arrays of tables, `[[name]]`, and how many tables each holds. ------------------!
+      character(len=256)              :: source = ''   ! the file read into it (the record's label)
+      !--- The arrays of tables, `[[name]]`, and how many tables each holds.
       integer(ik)           :: n_array = 0_ik
       character(len=KEYLEN) :: array_name(MAXARRAYS) = ''
       integer(ik)           :: array_count(MAXARRAYS) = 0_ik
    end type toml_table_t
 
-   !----- The parameter record (docs/configuration.md, "The parameter philosophy"): every         !
-   !      value a toml_* getter returns, with its file and whether the file sets the key or       !
-   !      the default stands. A key never read has no row, so a caller can check that a key it    !
-   !      set is read. A re-read replaces its row; toml_record_reset starts a new record for      !
-   !      each config a process loads. -----------------------------------------------------------!
+   !---~---
+   !   The parameter record (docs/configuration.md, "The parameter philosophy"): every
+   ! value a toml_* getter returns, with its file and whether the file sets the key or
+   ! the default stands. A key never read has no row, so a caller can check that a key it
+   ! set is read. A re-read replaces its row; toml_record_reset starts a new record for
+   ! each config a process loads.
+   !---~---
    integer, parameter :: MAXREC = 4096, RECVAL = 512
    integer(ik), save :: rec_n = 0_ik
    character(len=256),    save :: rec_source(MAXREC)
    character(len=KEYLEN), save :: rec_key(MAXREC)
-   integer(ik),           save :: rec_index(MAXREC)      !< 0 for a scalar, else the array element
-   logical,               save :: rec_present(MAXREC)    !< .true. = set in the file, .false. = default
+   integer(ik),           save :: rec_index(MAXREC)      ! 0 for a scalar, else the array element
+   logical,               save :: rec_present(MAXREC)    ! .true. = set in the file, .false. = default
    character(len=RECVAL), save :: rec_value(MAXREC)
 
 contains
 
-   !---------------------------------------------------------------------------------------!
-   ! Parse a TOML file into the (section.key -> raw-value) table; ok = .false. if it       !
-   ! cannot be opened.                                                                     !
-   !---------------------------------------------------------------------------------------!
+   !---~---
+   !   Parse a TOML file into the (section.key -> raw-value) table; ok = .false. if it
+   ! cannot be opened.
+   !---~---
    subroutine toml_parse_file(path, t, ok)
       character(len=*),    intent(in)  :: path
       type(toml_table_t),  intent(out) :: t
@@ -111,9 +115,11 @@ contains
             t%key(t%n) = trim(adjustl(line(1:ieq-1)))
          end if
          t%val(t%n) = adjustl(line(ieq+1:))
-         !----- TOML forbids setting a key twice, and a getter would read only the first value, so a !
-         !      second one would be ignored in silence. A [[name]] table's keys carry its index, so  !
-         !      two tables may each set a key. ------------------------------------------------------!
+         !---~---
+         !   TOML forbids setting a key twice, and a getter would read only the first value, so a
+         ! second one would be ignored in silence. A [[name]] table's keys carry its index, so
+         ! two tables may each set a key.
+         !---~---
          if (find_key(t, t%key(t%n)) < t%n) then
             write(*,'(4a)') ' ed_toml: key "', trim(t%key(t%n)), '" is set twice in ', trim(path)
             error stop 'ed_toml: a key set twice'
@@ -122,7 +128,7 @@ contains
       close(unit)
    end subroutine toml_parse_file
 
-   !----- Strip a trailing `# comment` that is not inside a quoted string. ----------------!
+   !--- Strip a trailing `# comment` that is not inside a quoted string.
    pure function strip_comment(s) result(out)
       character(len=*), intent(in) :: s
       character(len=len(s))        :: out
@@ -138,7 +144,7 @@ contains
       end do
    end function strip_comment
 
-   !----- Index of a fully-qualified key, or 0 if absent. ---------------------------------!
+   !--- Index of a fully-qualified key, or 0 if absent.
    pure integer(ik) function find_key(t, key) result(idx)
       type(toml_table_t), intent(in) :: t
       character(len=*),   intent(in) :: key
@@ -158,7 +164,7 @@ contains
       yes = find_key(t, key) > 0_ik
    end function toml_has
 
-   !----- How many tables the array `[[name]]` holds (0 when the file has none). -----------------!
+   !--- How many tables the array `[[name]]` holds (0 when the file has none).
    pure integer(ik) function toml_table_count(t, name) result(n)
       type(toml_table_t), intent(in) :: t
       character(len=*),   intent(in) :: name
@@ -169,10 +175,12 @@ contains
       end do
    end function toml_table_count
 
-   !----- Is there any key under `[section]`? Keys are stored flattened (section.key), so a       !
-   !      header leaves no entry for toml_has to find. The gate for an optional block whose       !
-   !      keys are required once it is present: gating on one key inside it would skip, in        !
-   !      silence, a block that misspells that key. ----------------------------------------------!
+   !---~---
+   !   Is there any key under `[section]`? Keys are stored flattened (section.key), so a
+   ! header leaves no entry for toml_has to find. The gate for an optional block whose
+   ! keys are required once it is present: gating on one key inside it would skip, in
+   ! silence, a block that misspells that key.
+   !---~---
    pure logical function toml_has_section(t, section) result(yes)
       type(toml_table_t), intent(in) :: t
       character(len=*),   intent(in) :: section
@@ -191,7 +199,7 @@ contains
       end do
    end function toml_has_section
 
-   !----- A present value that cannot be parsed: print its key and raw text, and stop. ---------!
+   !--- A present value that cannot be parsed: print its key and raw text, and stop.
    subroutine toml_parse_error(key, raw, what)
       character(len=*), intent(in) :: key, raw, what
       write(*,'(5a)') ' ed_toml: cannot parse ', trim(what), ' for key "', trim(key), '"'
@@ -240,8 +248,10 @@ contains
          return
       end if
       s = adjustl(t%val(idx))
-      !----- Exact match (documented lowercase true/false + common Fortran/case variants),       !
-      !      not a prefix test: 'trueish' is an error, and '.true.' is .true. -------------------!
+      !---~---
+      !   Exact match (documented lowercase true/false + common Fortran/case variants),
+      ! not a prefix test: 'trueish' is an error, and '.true.' is .true.
+      !---~---
       select case (trim(s))
       case ('true', '.true.', 'True', 'TRUE')
          v = .true.
@@ -253,7 +263,7 @@ contains
       call record_value(t, key, 0_ik, .true., merge('true ', 'false', v))
    end function toml_logical
 
-   !----- String value with surrounding double quotes stripped. ---------------------------!
+   !--- String value with surrounding double quotes stripped.
    function toml_string(t, key, default) result(v)
       type(toml_table_t), intent(in) :: t
       character(len=*),   intent(in) :: key, default
@@ -274,7 +284,7 @@ contains
       call record_value(t, key, 0_ik, idx /= 0_ik, v)
    end function toml_string
 
-   !----- True when the key's value is an array literal, [...]. -----------------------------!
+   !--- True when the key's value is an array literal, [...].
    pure logical function toml_is_array(t, key) result(yes)
       type(toml_table_t), intent(in) :: t
       character(len=*),   intent(in) :: key
@@ -284,7 +294,7 @@ contains
       if (idx /= 0_ik) yes = index(adjustl(t%val(idx)), '[') == 1
    end function toml_is_array
 
-   !----- A string array, ["a", "b", ...], or one string, which counts as one entry. ------!
+   !--- A string array, ["a", "b", ...], or one string, which counts as one entry.
    subroutine toml_string_array(t, key, out, nout)
       type(toml_table_t), intent(in)  :: t
       character(len=*),   intent(in)  :: key
@@ -319,7 +329,7 @@ contains
       end do
    end subroutine toml_string_array
 
-   !----- Parse `[a, b, c]` into out(:) reals; nout = the count read (0 if absent). --------!
+   !--- Parse `[a, b, c]` into out(:) reals; nout = the count read (0 if absent).
    subroutine toml_real_array(t, key, out, nout)
       type(toml_table_t), intent(in)  :: t
       character(len=*),   intent(in)  :: key
@@ -343,8 +353,10 @@ contains
          integer(ik) :: k, ntok
          ntok = count_tokens(s)
          if (ntok == 0_ik) return                   ! empty [] -> nout = 0
-         !----- Bound by the receiving buffer before reading, so an over-long list stops         !
-         !      instead of overrunning it. ------------------------------------------------------!
+         !---~---
+         !   Bound by the receiving buffer before reading, so an over-long list stops
+         ! instead of overrunning it.
+         !---~---
          if (ntok > size(out, kind=ik)) call toml_parse_error(key, t%val(idx), 'real array (too many entries)')
          tmp = 0.0_wp
          read(s, *, iostat=ios) (tmp(k), k = 1_ik, ntok)
@@ -357,7 +369,7 @@ contains
       end block
    end subroutine toml_real_array
 
-   !----- The parameter record (see the module-level note). ------------------------------------!
+   !--- The parameter record (see the module-level note).
    subroutine record_value(t, key, index, present, text)
       type(toml_table_t), intent(in) :: t
       character(len=*),   intent(in) :: key, text
@@ -383,12 +395,12 @@ contains
       rec_value(slot) = adjustl(text)
    end subroutine record_value
 
-   !----- Empty the record: what a run reads from here on is the whole of its record. -------!
+   !--- Empty the record: what a run reads from here on is the whole of its record.
    subroutine toml_record_reset()
       rec_n = 0_ik
    end subroutine toml_record_reset
 
-   !----- 17 significant digits: the value the run used, to the last bit of a double. -------!
+   !--- 17 significant digits: the value the run used, to the last bit of a double.
    function real_text(x) result(s)
       real(wp), intent(in) :: x
       character(len=RECVAL) :: s
@@ -402,8 +414,10 @@ contains
       write(s, '(i0)') i
    end function int_text
 
-   !----- Write the record as CSV: source,key,index,present,value, one row per scalar key and one  !
-   !      per array element. Text fields are quoted. A failed open warns and returns. ------------!
+   !---~---
+   !   Write the record as CSV: source,key,index,present,value, one row per scalar key and one
+   ! per array element. Text fields are quoted. A failed open warns and returns.
+   !---~---
    subroutine toml_write_record(path)
       character(len=*), intent(in) :: path
       integer     :: u, ios
@@ -436,7 +450,7 @@ contains
       q = q // '"'
    end function csv_quote
 
-   !----- Number of whitespace-separated tokens in a string. ------------------------------!
+   !--- Number of whitespace-separated tokens in a string.
    pure integer(ik) function count_tokens(s) result(nt)
       character(len=*), intent(in) :: s
       integer(ik) :: i

@@ -1,10 +1,10 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! ed_met_default -- the ED-MORE forcing file source (format = "default",                   !
-! docs/science/forcing.md §1): a multi-grid netCDF file whose records the run needs are        !
-! read into memory at open, so no step reads the file. It opens the file (default_file_open)   !
-! and hands the shared ingest one record's values as stored (default_file_record).             !
-!==========================================================================================!
+!---~---
+!   ed_met_default -- the ED-MORE forcing file source (format = "default",
+! docs/science/forcing.md §1): a multi-grid netCDF file whose records the run needs are
+! read into memory at open, so no step reads the file. It opens the file (default_file_open)
+! and hands the shared ingest one record's values as stored (default_file_record).
+!---~---
 module ed_met_default
    use iso_c_binding, only : c_int, c_size_t
    use ed_kinds, only : wp, ik
@@ -30,21 +30,21 @@ module ed_met_default
 
    public :: default_file_open, default_file_record
 
-   !----- RHair is a fraction; a value above this is a percentage written into a fractional field. !
+   !--- RHair is a fraction; a value above this is a percentage written into a fractional field.
    real(wp), parameter :: RH_FRACTION_MAX = 1.5_wp
 
 contains
 
-   !=======================================================================================!
-   !  OPEN an ED-MORE forcing file ("default"): the grid and time dims, the time axis and its  !
-   !  base time from the `time:units` attribute, the checks of the file against the config and !
-   !  the declared recycle window, and the records the run needs, read into memory. A         !
-   !  rejection returns its status and the reason; the caller closes the source.              !
-   !=======================================================================================!
+   !---~---
+   !   OPEN an ED-MORE forcing file ("default"): the grid and time dims, the time axis and its
+   ! base time from the `time:units` attribute, the checks of the file against the config and
+   ! the declared recycle window, and the records the run needs, read into memory. A
+   ! rejection returns its status and the reason; the caller closes the source.
+   !---~---
    subroutine default_file_open(src, stat, why, run_start, run_end)
       type(met_source_t),            intent(inout) :: src
       integer(ik),                   intent(out)   :: stat
-      character(len=:), allocatable, intent(out)   :: why    !< what stops the run when stat /= MET_OK
+      character(len=:), allocatable, intent(out)   :: why    ! what stops the run when stat /= MET_OK
       type(ed_time_t), optional,   intent(in)      :: run_start, run_end
       integer(c_int)    :: st, ncid
       integer(c_size_t) :: dlen
@@ -63,7 +63,7 @@ contains
       call check_read(st, 'its grid dimension', src, stat, why)
       if (stat /= MET_OK) return
       src%ngrid = int(dlen, ik)
-      !----- The grid column: grid_index as given, or the nearest to the [site] location. -------!
+      !--- The grid column: grid_index as given, or the nearest to the [site] location.
       if (src%fcfg%grid_match == GRIDMATCH_NEAREST) then
          call resolve_grid_index(src, stat, why)             ! sets src%grid_index in 1..ngrid
          if (stat /= MET_OK) return
@@ -86,7 +86,7 @@ contains
          return
       end if
 
-      !----- The base time, from the "seconds since <base>" units attribute. -----------------!
+      !--- The base time, from the "seconds since <base>" units attribute.
       block
          integer(c_int) :: vid
          st = nc_inq_varid_f(ncid, 'time', vid)
@@ -103,33 +103,37 @@ contains
          end if
       end block
 
-      !----- The whole time axis (seconds since base_time). ----------------------------------!
+      !--- The whole time axis (seconds since base_time).
       call read_time_axis(src, stat, why)
       if (stat /= MET_OK) return
 
-      !----- The wind vector: a file carrying u10 and v10 supplies it, and the speed comes from   !
-      !      the components; a file with Wind alone gives the speed only. -----------------------!
+      !---~---
+      !   The wind vector: a file carrying u10 and v10 supplies it, and the speed comes from
+      ! the components; a file with Wind alone gives the speed only.
+      !---~---
       block
          integer(c_int) :: vu, vv
          src%has_wind_vector = nc_inq_varid_f(ncid, 'u10', vu) == NC_NOERR .and.                  &
                                nc_inq_varid_f(ncid, 'v10', vv) == NC_NOERR
       end block
 
-      !----- The humidity the file carries: exactly one of RHair, Tdew and Qair. ------------------!
+      !--- The humidity the file carries: exactly one of RHair, Tdew and Qair.
       call detect_humidity(src, ncid, stat, why)
       if (stat /= MET_OK) return
 
-      !----- The file's record spacing and global attributes against [forcing]. -------------------!
+      !--- The file's record spacing and global attributes against [forcing].
       call validate_file_against_config(src, ncid, stat, why)
       if (stat /= MET_OK) return
 
-      !----- The declared recycle window against the file's record stamps, known only here. -----!
+      !--- The declared recycle window against the file's record stamps, known only here.
       call validate_recycle_window(src, stat, why)
       if (stat /= MET_OK) return
 
-      !----- The records the run can read, into memory: the recycle window, or the run period (the  !
-      !      whole file when neither is known, as in unit tests). Only those, because a file in 1 x 1  !
-      !      chunks makes a whole-file read cost HDF5 metadata for every chunk. ----------------------!
+      !---~---
+      !   The records the run can read, into memory: the recycle window, or the run period (the
+      ! whole file when neither is known, as in unit tests). Only those, because a file in 1 x 1
+      ! chunks makes a whole-file read cost HDF5 metadata for every chunk.
+      !---~---
       block
          integer(ik) :: r0, r1
          r0 = 1_ik
@@ -149,9 +153,11 @@ contains
          src%rec_first = r0                          ! a cursor's first bracket: the first records in range
       end block
 
-      !----- RHair is a fraction. Written as a percentage it would clip every record to saturation, !
-      !      a silent 100 % sky, so a value no fraction can reach stops the run here. A gap is left  !
-      !      to the step that reads it, which names its record. --------------------------------------!
+      !---~---
+      !   RHair is a fraction. Written as a percentage it would clip every record to saturation,
+      ! a silent 100 % sky, so a value no fraction can reach stops the run here. A gap is left
+      ! to the step that reads it, which names its record.
+      !---~---
       if (src%humidity == HUMIDITY_RHAIR) then
          block
             integer(ik) :: j
@@ -169,9 +175,11 @@ contains
       end if
    end subroutine default_file_open
 
-   !----- One record's values at the cell, as the file stores them: the humidity in its own form,  !
-   !      and the shortwave total, or its four streams under sw_partition = "passthrough". The    !
-   !      shared ingest (ed_met's read_record) converts, checks and lapses them. -------  !
+   !---~---
+   !   One record's values at the cell, as the file stores them: the humidity in its own form,
+   ! and the shortwave total, or its four streams under sw_partition = "passthrough". The
+   ! shared ingest (ed_met's read_record) converts, checks and lapses them.
+   !---~---
    subroutine default_file_record(src, irec, rec, humidity_value, sw_total)
       type(met_source_t), intent(in)    :: src
       integer(ik),        intent(in)    :: irec
@@ -188,8 +196,10 @@ contains
          rec%wind   = series_value(src, FLD_WIND,  irec)
       end if
       rec%rain    = series_value(src, FLD_RAINF, irec)              ! total rainfall rate [kg/m2/s]
-      !----- LWdown is optional under lwdown_source = "synthesize", which replaces it             !
-      !      (docs/science/forcing.md §11). ------------------------------------------------------!
+      !---~---
+      !   LWdown is optional under lwdown_source = "synthesize", which replaces it
+      ! (docs/science/forcing.md §11).
+      !---~---
       if (src%fcfg%lwdown_source == LW_SYNTHESIZE) then
          rec%lw_down = series_value(src, FLD_LWDOWN, irec, default=0.0_wp)
       else
@@ -206,8 +216,10 @@ contains
       end if
    end subroutine default_file_record
 
-   !----- Resolve src%grid_index by nearest great-circle distance from [site] lat/lon to the file's !
-   !      latitude(grid)/longitude(grid) coordinate vectors.                                        !
+   !---~---
+   !   Resolve src%grid_index by nearest great-circle distance from [site] lat/lon to the file's
+   ! latitude(grid)/longitude(grid) coordinate vectors.
+   !---~---
    subroutine resolve_grid_index(src, stat, why)
       type(met_source_t),            intent(inout) :: src
       integer(ik),                   intent(inout) :: stat
@@ -232,10 +244,8 @@ contains
       deallocate(lat_grid, lon_grid)
    end subroutine resolve_grid_index
 
-   !=======================================================================================!
-   !  Helpers (NetCDF backend).                                                                 !
-   !=======================================================================================!
-   !----- Read the whole time coordinate (seconds since base_time) into src%time_sec. ---------!
+   !--- Helpers (NetCDF backend).
+   !--- Read the whole time coordinate (seconds since base_time) into src%time_sec.
    subroutine read_time_axis(src, stat, why)
       type(met_source_t),            intent(inout) :: src
       integer(ik),                   intent(inout) :: stat
@@ -251,8 +261,10 @@ contains
       call check_read(st, 'its time values', src, stat, why)
    end subroutine read_time_axis
 
-   !----- A netCDF call of the open that failed: MET_ERR_FILE, and the reason, naming what was being !
-   !      read and the library's text. ------------------------------------------------------------!
+   !---~---
+   !   A netCDF call of the open that failed: MET_ERR_FILE, and the reason, naming what was being
+   ! read and the library's text.
+   !---~---
    subroutine check_read(st, what, src, stat, why)
       integer(c_int),                intent(in)    :: st
       character(len=*),              intent(in)    :: what
@@ -265,10 +277,12 @@ contains
       stat = MET_ERR_FILE
    end subroutine check_read
 
-   !----- The humidity form of an ED-MORE forcing file: exactly one of its three variables        !
-   !      (docs/science/forcing.md §1). A file with none cannot drive the canopy air; a file with   !
-   !      two leaves the reader to pick one, and the two may disagree through the provider's own    !
-   !      saturation curve. -----------------------------------------------------------------------!
+   !---~---
+   !   The humidity form of an ED-MORE forcing file: exactly one of its three variables
+   ! (docs/science/forcing.md §1). A file with none cannot drive the canopy air; a file with
+   ! two leaves the reader to pick one, and the two may disagree through the provider's own
+   ! saturation curve.
+   !---~---
    subroutine detect_humidity(src, ncid, stat, why)
       type(met_source_t),            intent(inout) :: src
       integer(c_int),                intent(in)    :: ncid
@@ -296,11 +310,13 @@ contains
       end if
    end subroutine detect_humidity
 
-   !----- An ED-MORE forcing file's fields at the cell, records r0..r1, read at open. Each        !
-   !      field's column in the series is found here, once (series_col, 0 for a field the file      !
-   !      lacks). A value equal to the variable's _FillValue or missing_value is a gap, NaN, which  !
-   !      stops the step that reads it (docs/science/forcing.md §10); a packed variable is          !
-   !      unpacked. --------------------------------------------------------------------------------!
+   !---~---
+   !   An ED-MORE forcing file's fields at the cell, records r0..r1, read at open. Each
+   ! field's column in the series is found here, once (series_col, 0 for a field the file
+   ! lacks). A value equal to the variable's _FillValue or missing_value is a gap, NaN, which
+   ! stops the step that reads it (docs/science/forcing.md §10); a packed variable is
+   ! unpacked.
+   !---~---
    subroutine read_series(src, ncid, r0, r1, stat, why)
       type(met_source_t),            intent(inout) :: src
       integer(c_int),                intent(in)    :: ncid
@@ -334,9 +350,11 @@ contains
       end do
    end subroutine read_series
 
-   !----- A file stored one time record per chunk is read chunk by chunk at open: about 3 s for  !
-   !      BCI's 90,528 records, most of a short run's start-up. Say so once, with the fix. The     !
-   !      values are the same either way. ------------------------------------------------------!
+   !---~---
+   !   A file stored one time record per chunk is read chunk by chunk at open: about 3 s for
+   ! BCI's 90,528 records, most of a short run's start-up. Say so once, with the fix. The
+   ! values are the same either way.
+   !---~---
    subroutine note_one_record_chunks(ncid, varid, nrec, path)
       integer(c_int),   intent(in) :: ncid, varid
       integer(ik),      intent(in) :: nrec
@@ -351,8 +369,10 @@ contains
       write(*,'(a)')  '       "nccopy -c time/8760,grid/1 <file> <new file>" keeps every value and reads fast.'
    end subroutine note_one_record_chunks
 
-   !----- Field fld at record irec. A field the file does not carry stops the run, unless the     !
-   !      caller gives a default (LWdown when it is synthesized). -------------------------------!
+   !---~---
+   !   Field fld at record irec. A field the file does not carry stops the run, unless the
+   ! caller gives a default (LWdown when it is synthesized).
+   !---~---
    function series_value(src, fld, irec, default) result(val)
       type(met_source_t), intent(in) :: src
       integer(ik),        intent(in) :: fld, irec
@@ -372,7 +392,7 @@ contains
       val = src%series(irec, j)
    end function series_value
 
-   !----- A record outside the range read at open was not prefetched: a programming error. ------!
+   !--- A record outside the range read at open was not prefetched: a programming error.
    subroutine check_in_series(src, irec)
       type(met_source_t), intent(in)  :: src
       integer(ik),        intent(in) :: irec

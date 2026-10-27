@@ -1,10 +1,10 @@
 ! SPDX-License-Identifier: Apache-2.0
-!==========================================================================================!
-! The commit: the applier advances only the carbon and derives the geometry from it and   !
-! holds each tissue's temperature through its change of mass, the driver's tendency       !
-! follows the applier's rule, a decline aimed at the floor ends on it, and the cull        !
-! removes the cohort there.                                                                !
-!==========================================================================================!
+!---~---
+!   The commit: the applier advances only the carbon and derives the geometry from it and
+! holds each tissue's temperature through its change of mass, the driver's tendency
+! follows the applier's rule, a decline aimed at the floor ends on it, and the cull
+! removes the cohort there.
+!---~---
 module test_slow_update_commit
    use ed_kinds,                only : wp, ik
    use ed_constants,            only : tissue_c_wood_dry
@@ -23,8 +23,8 @@ module test_slow_update_commit
    private
 
    public :: run_commit
-   type(kill_report_t)  :: kills   !< what the cull and the treefall killed
-   real(wp)            :: shed_water   !< an operator's shed water, unread here
+   type(kill_report_t)  :: kills   ! what the cull and the treefall killed
+   real(wp)            :: shed_water   ! an operator's shed water, unread here
 
    type(ed_config_t)   :: cfg
    type(polygon_t)     :: poly
@@ -35,9 +35,11 @@ contains
       call banner('the commit: the applier, the held temperatures, the tendency rule, the floor and the cull')
       cfg = build_test_config()
 
-      !=== The applier advances only the carbon and derives the geometry from it: a cohort         !
-      !    that sheds every leaf ends with leaf area exactly 0, never a round-off negative, and its     !
-      !    dbh and AGB are the allometry of its committed wood carbon.  ===============================!
+      !---~---
+      !   The applier advances only the carbon and derives the geometry from it: a cohort
+      ! that sheds every leaf ends with leaf area exactly 0, never a round-off negative, and its
+      ! dbh and AGB are the allometry of its committed wood carbon.
+      !---~---
       block
          real(wp) :: dt, dbh_c, h_c, ba_c, agb_c, la_c
          dt = 1.0_wp / 365.0_wp
@@ -45,7 +47,7 @@ contains
          call add_cohort(poly, cfg, 1_ik, 2_ik, 0.5_wp, 3.0_wp)
          call finalize_init(poly)
          call cohort_deriv_alloc(poly%deriv, poly%cohort%n)
-         !----- Shed a hair more leaf carbon than there is, as a rounded loss rate can. ------------!
+         !--- Shed a hair more leaf carbon than there is, as a rounded loss rate can.
          poly%deriv%d_leaf_carbon_dt(1)          = -poly%cohort%leaf_carbon(1) / dt * (1.0_wp + 1.0e-15_wp)
          poly%deriv%d_fineroot_carbon_dt(1)      = 0.0_wp
          poly%deriv%d_wood_carbon_dt(1)          = 0.01_wp
@@ -60,8 +62,10 @@ contains
          call check(poly%cohort%dbh(1) == dbh_c .and. poly%cohort%height(1) == h_c                     &
                     .and. poly%cohort%agb(1) == agb_c, 'applier: geometry is the allometry of the carbon')
 
-         !----- An overdraw beyond round-off is an operator bug: the applier does not floor it (a   !
-         !      floor would create the carbon it took), and the bounds guard names the pool. --------!
+         !---~---
+         !   An overdraw beyond round-off is an operator bug: the applier does not floor it (a
+         ! floor would create the carbon it took), and the bounds guard names the pool.
+         !---~---
          call init_bare_ground(poly, cfg, 1_ik)
          call add_cohort(poly, cfg, 1_ik, 2_ik, 0.5_wp, 3.0_wp)
          call finalize_init(poly)
@@ -78,12 +82,14 @@ contains
                     'applier: the bounds guard names the overdrawn pool')
       end block
 
-      !=== The applier holds each tissue's temperature through its change of mass                   !
-      !    (update_cohort_states, through hold_cohort_tissue_temps; docs/science/                      !
-      !    vegetation_energy_dynamics.md eqs. (9)-(10)): the tissue made or lost came or went at the    !
-      !    tissue's temperature. Wood that grows keeps its temperature, its energy rising by the new    !
-      !    dry wood's heat at that temperature; a crown that sheds its last leaf, its water gone,       !
-      !    holds no energy and takes its wood's temperature. =========================================!
+      !---~---
+      !   The applier holds each tissue's temperature through its change of mass
+      ! (update_cohort_states, through hold_cohort_tissue_temps; docs/science/
+      ! vegetation_energy_dynamics.md eqs. (9)-(10)): the tissue made or lost came or went at the
+      ! tissue's temperature. Wood that grows keeps its temperature, its energy rising by the new
+      ! dry wood's heat at that temperature; a crown that sheds its last leaf, its water gone,
+      ! holds no energy and takes its wood's temperature.
+      !---~---
       block
          real(wp) :: dt, tl, tw, t_wood, e_wood, c_wood
          dt = 1.0_wp / 365.0_wp
@@ -109,7 +115,7 @@ contains
                         - tissue_dry_heat_capacity(1.0_wp, poly%cohort%wood_carbon(1) - c_wood, tissue_c_wood_dry) &
                           * t_wood) <= 1.0e-9_wp * e_wood,                                             &
                     'held temperatures: and its energy rises by the new dry wood''s heat at that temperature')
-         !----- The last leaf shed, as a rounded full shed is (it lands on 0), its water gone. -----!
+         !--- The last leaf shed, as a rounded full shed is (it lands on 0), its water gone.
          poly%cohort%leaf_water_mass(1)          = 0.0_wp
          poly%deriv%d_leaf_carbon_dt(1)          = -poly%cohort%leaf_carbon(1) / dt * (1.0_wp + 1.0e-15_wp)
          poly%deriv%d_wood_carbon_dt(1)          = 0.0_wp
@@ -119,9 +125,11 @@ contains
                     'held temperatures: and takes its wood''s temperature')
       end block
 
-      !=== The driver's tendency follows the applier's rule: a step that empties a pool lands it on  !
-      !    0, and an overdraw reaches the applier as an overdraw, which the bounds guard names. A     !
-      !    floor on the driver's tentative pool would create the carbon before the guard could see it. =!
+      !---~---
+      !   The driver's tendency follows the applier's rule: a step that empties a pool lands it on
+      ! 0, and an overdraw reaches the applier as an overdraw, which the bounds guard names. A
+      ! floor on the driver's tentative pool would create the carbon before the guard could see it.
+      !---~---
       block
          type(slow_step_data_t) :: step
          real(wp) :: dt
@@ -145,16 +153,18 @@ contains
                     'driver + applier: the bounds guard names the overdrawn pool')
       end block
 
-      !=== A density that declines to the floor ends ON it, and the cull removes a cohort there. ====!
-      !    nplant * exp(log(floor/nplant)) is the floor only to an epsilon either side; a cohort an   !
-      !    epsilon above the floor would never be culled, and would decline no further. ===========!
+      !---~---
+      !   A density that declines to the floor ends ON it, and the cull removes a cohort there.
+      ! nplant * exp(log(floor/nplant)) is the floor only to an epsilon either side; a cohort an
+      ! epsilon above the floor would never be culled, and would decline no further.
+      !---~---
       block
          real(wp)    :: dt, n0
          integer(ik) :: k, n_on, n_cut
          dt = 1.0_wp / 365.0_wp
          n_on = 0_ik
          do k = 1_ik, 200_ik
-            !----- 200 starting densities across six decades, each aimed exactly at the floor. -------!
+            !--- 200 starting densities across six decades, each aimed exactly at the floor.
             n0 = cfg%demography%negligible_nplant * 10.0_wp ** (6.0_wp * real(k, wp) / 200.0_wp)
             call init_bare_ground(poly, cfg, 1_ik)
             call add_cohort(poly, cfg, 1_ik, 2_ik, n0, 3.0_wp)
@@ -170,7 +180,7 @@ contains
          end do
          call check(n_on == 200_ik, 'applier: a decline aimed at the floor ends exactly on it')
 
-         !----- Two cohorts of a tracked size: one at the floor (culled), one a hair above (kept). ---!
+         !--- Two cohorts of a tracked size: one at the floor (culled), one a hair above (kept).
          call init_bare_ground(poly, cfg, 1_ik)
          call add_cohort(poly, cfg, 1_ik, 2_ik, 1.0_wp, 60.0_wp)
          call add_cohort(poly, cfg, 1_ik, 2_ik, 1.0_wp, 61.0_wp)
@@ -189,11 +199,11 @@ contains
 
 end module test_slow_update_commit
 
-!==========================================================================================!
-! Cohort fusion and fission: what each conserves, the tolerance, the lockstep sort, carbon !
-! and leaf area through a fusion, geometry's one writer, the bounds guard and the growth   !
-! window.                                                                                  !
-!==========================================================================================!
+!---~---
+!   Cohort fusion and fission: what each conserves, the tolerance, the lockstep sort, carbon
+! and leaf area through a fusion, geometry's one writer, the bounds guard and the growth
+! window.
+!---~---
 module test_slow_update_cohorts
    use ed_kinds,             only : wp, ik
    use ed_constants,         only : pio4
@@ -230,20 +240,22 @@ contains
       call banner('cohort fusion/fission conservation')
       cfg = build_test_config()
 
-      !=== 1. fuse_2_cohorts conserves N and AGB; DBH is re-derived, not averaged. ============!
+      !--- 1. fuse_2_cohorts conserves N and AGB; DBH is re-derived, not averaged.
       call init_bare_ground(poly, cfg, 1_ik)
       call add_cohort(poly, cfg, 1_ik, 1_ik, 0.5_wp, 10.0_wp)
       call add_cohort(poly, cfg, 1_ik, 1_ik, 0.3_wp, 12.0_wp)
       call finalize_init(poly)                          ! sorted: index 1 = taller (dbh 12)
       agb_tot = poly%cohort%nplant(1)*poly%cohort%agb(1) + poly%cohort%nplant(2)*poly%cohort%agb(2)
       dbh_avg = 0.5_wp*(poly%cohort%dbh(1) + poly%cohort%dbh(2))
-      !----- Seed distinct fast state + predict the merge. The tissue TEMPERATURES are intensive per   !
-      !      unit HEAT CAPACITY, so they fuse on the capacity that carries them -- what that conserves  !
-      !      is the tissue ENERGY, which is asserted directly below as well as through the formula.     !
-      !      A leaf-area weighting is roughly right for leaves and wrong for wood (whose capacity       !
-      !      follows wood carbon and the sapwood ring, not leaf area).                                  !
-      !      leaf_water_mass/wood_water_mass are EXTENSIVE like AGB (nplant-weighted, so the fused      !
-      !      site-TOTAL water is conserved -- leaf-area-weighting them would not conserve it). ---------!
+      !---~---
+      !   Seed distinct fast state + predict the merge. The tissue TEMPERATURES are intensive per
+      ! unit HEAT CAPACITY, so they fuse on the capacity that carries them -- what that conserves
+      ! is the tissue ENERGY, which is asserted directly below as well as through the formula.
+      ! A leaf-area weighting is roughly right for leaves and wrong for wood (whose capacity
+      ! follows wood carbon and the sapwood ring, not leaf area).
+      ! leaf_water_mass/wood_water_mass are EXTENSIVE like AGB (nplant-weighted, so the fused
+      ! site-TOTAL water is conserved -- leaf-area-weighting them would not conserve it).
+      !---~---
       poly%cohort%leaf_water_mass(1) = 2.0_wp
       poly%cohort%leaf_water_mass(2) = 5.0_wp
       poly%cohort%wood_water_mass(1) = 3.0_wp
@@ -252,19 +264,23 @@ contains
       poly%cohort%leaf_temp(2) = 305.0_wp
       poly%cohort%wood_temp(1) = 298.0_wp
       poly%cohort%wood_temp(2) = 306.0_wp
-      !----- And the canopy films [kg/plant]: nplant-weighted like the tissue water, and part of the  !
-      !      tissues' heat capacity, so set before the energies. ------------------------------------!
+      !---~---
+      !   And the canopy films [kg/plant]: nplant-weighted like the tissue water, and part of the
+      ! tissues' heat capacity, so set before the energies.
+      !---~---
       poly%cohort%leaf_surf_water(1) = 0.02_wp
       poly%cohort%leaf_surf_water(2) = 0.06_wp
       poly%cohort%wood_surf_water(1) = 0.01_wp
       poly%cohort%wood_surf_water(2) = 0.00_wp
-      !----- ...through their energies, the state: each tissue holds what it does at those temperatures. !
+      !--- ...through their energies, the state: each tissue holds what it does at those temperatures.
       call hold_cohort_tissue_temps(poly%cohort, 1_ik)
       call hold_cohort_tissue_temps(poly%cohort, 2_ik)
       e_sum0 = poly%cohort%nplant(1) * (poly%cohort%leaf_energy(1) + poly%cohort%wood_energy(1))         &
              + poly%cohort%nplant(2) * (poly%cohort%leaf_energy(2) + poly%cohort%wood_energy(2))
-      !----- The four per-plant flux accumulators are EXTENSIVE too. Assert them, so the declared     !
-      !      policy in fuse_cohort_fast_state has a witness for every kind it names.                  !
+      !---~---
+      !   The four per-plant flux accumulators are EXTENSIVE too. Assert them, so the declared
+      ! policy in fuse_cohort_fast_state has a witness for every kind it names.
+      !---~---
       poly%cohort%gpp_accum(1)       = 1.0_wp
       poly%cohort%gpp_accum(2)       = 4.0_wp
       poly%cohort%leaf_resp_accum(1) = 0.2_wp
@@ -287,8 +303,10 @@ contains
       wtemp_exp = (cw1*298.0_wp + cw2*306.0_wp) / (cw1 + cw2)
       e_leaf0   = cl1*300.0_wp + cl2*305.0_wp
       e_wood0   = cw1*298.0_wp + cw2*306.0_wp
-      !----- The cohort DIAGNOSTIC block, holding one sample of the same tissue temperatures, must fuse  !
-      !      them on the same weights as the prognostic state, so the two agree after the merge. --------!
+      !---~---
+      !   The cohort DIAGNOSTIC block, holding one sample of the same tissue temperatures, must fuse
+      ! them on the same weights as the prognostic state, so the two agree after the merge.
+      !---~---
       call alloc_cohort_diag(poly%cohort%diag, poly%cohort%cap, .true.)
       poly%cohort%diag%n = 2_ik
       poly%cohort%diag%v(CO_LEAF_TEMP, 1:2) = [300.0_wp, 305.0_wp]
@@ -319,11 +337,13 @@ contains
       call cohort_diag_value(poly%cohort%diag, CO_WOOD_TEMP, xdiag, ndiag, 0.0_wp)
       call check_close(xdiag(1), poly%cohort%wood_temp(1), 1.0e-9_wp,                                  &
                        'diagnostic wood temperature fuses as the prognostic one (wood heat capacity)')
-      !----- The formulae above are the MEANS to this end: the merged tissue must hold the energy the  !
-      !      two cohorts held. Asserted separately so a future change of weighting is judged on what   !
-      !      it conserves, not on whether it matches today's expression. Both capacities are additive  !
-      !      through the merge (the carbon pools and the tissue waters are all nplant-weighted), so    !
-      !      both energies close exactly. -----------------------------------------------------------!
+      !---~---
+      !   The formulae above are the MEANS to this end: the merged tissue must hold the energy the
+      ! two cohorts held. Asserted separately so a future change of weighting is judged on what
+      ! it conserves, not on whether it matches today's expression. Both capacities are additive
+      ! through the merge (the carbon pools and the tissue waters are all nplant-weighted), so
+      ! both energies close exactly.
+      !---~---
       call cohort_tissue_heat_capacity(poly%cohort, 1_ik, clf, cwf)
       call check_close(clf*poly%cohort%leaf_temp(1), e_leaf0, 1.0e-12_wp,                              &
                        'cohort fusion must conserve LEAF tissue energy exactly')
@@ -344,10 +364,10 @@ contains
                           'root_resp_accum not nplant-weighted (extensive) on cohort fusion')
       end block
 
-      !=== 2. fuse_cohorts reduces count to <= max_cohort, conserving N and AGB. ==========!
+      !--- 2. fuse_cohorts reduces count to <= max_cohort, conserving N and AGB.
       call init_bare_ground(poly, cfg, 1_ik)
       do j = 1_ik, 200_ik
-         !----- Low density so per-cohort LAI stays well under cohort_lai_cap (realistic). ---!
+         !--- Low density so per-cohort LAI stays well under cohort_lai_cap (realistic).
          call add_cohort(poly, cfg, 1_ik, 1_ik, 2.0e-4_wp, 2.0_wp + 0.55_wp*real(j-1_ik, wp))  ! 2..111 cm
       end do
       call finalize_init(poly)
@@ -358,9 +378,11 @@ contains
       call check_close(total_nplant(poly), n0,   1.0e-10_wp, 'fusion broke nplant conservation')
       call check_close(total_agb(poly),    agb0, cfg%demography%conservation_tol, 'fusion broke AGB conservation')
 
-      !=== 2b. The fusion tolerance is a share of the patch's top height. Two saplings 1.0 and 1.1 cm  !
-      !        wide (about 0.15 m apart) stay apart in a stand of saplings, where 0.02 of the top is   !
-      !        about 5 cm, and merge once the patch holds a 60 cm tree, where it is about 0.6 m. -----!
+      !---~---
+      !   2b. The fusion tolerance is a share of the patch's top height. Two saplings 1.0 and 1.1 cm
+      ! wide (about 0.15 m apart) stay apart in a stand of saplings, where 0.02 of the top is
+      ! about 5 cm, and merge once the patch holds a 60 cm tree, where it is about 0.6 m.
+      !---~---
       call init_bare_ground(poly, cfg, 1_ik)
       call add_cohort(poly, cfg, 1_ik, 1_ik, 0.05_wp, 1.0_wp)
       call add_cohort(poly, cfg, 1_ik, 1_ik, 0.05_wp, 1.1_wp)
@@ -375,20 +397,24 @@ contains
       call fuse_cohorts(poly, cfg)
       call check(poly%cohort%n == 2_ik, 'saplings 0.15 m apart not merged under a 60 cm tree')
 
-      !=== 3. split_cohorts conserves N and AGB and increases the count. =====================!
+      !--- 3. split_cohorts conserves N and AGB and increases the count.
       call init_bare_ground(poly, cfg, 1_ik)
       call add_cohort(poly, cfg, 1_ik, 3_ik, 2.0_wp, 50.0_wp)   ! nplant*leaf_area >> cohort_lai_cap
       call finalize_init(poly)
       n0   = total_nplant(poly)
       agb0 = total_agb(poly)
-      !----- The interception films are per plant: each daughter keeps its parent's, so the patch's     !
-      !      film water is what it was. -------------------------------------------------------------!
+      !---~---
+      !   The interception films are per plant: each daughter keeps its parent's, so the patch's
+      ! film water is what it was.
+      !---~---
       poly%cohort%leaf_surf_water(1) = 0.30_wp
       poly%cohort%wood_surf_water(1) = 0.05_wp
       film0 = poly%cohort%nplant(1) * 0.35_wp
-      !----- The tissues away from their birth temperature, held to their energies, films included:   !
-      !      each daughter keeps its parent's temperatures (the wood carbon it gained or lost held at  !
-      !      them), and together they hold the parent's tissue energy. ------------------------------!
+      !---~---
+      !   The tissues away from their birth temperature, held to their energies, films included:
+      ! each daughter keeps its parent's temperatures (the wood carbon it gained or lost held at
+      ! them), and together they hold the parent's tissue energy.
+      !---~---
       poly%cohort%leaf_temp(1) = 301.0_wp
       poly%cohort%wood_temp(1) = 296.0_wp
       call hold_cohort_tissue_temps(poly%cohort, 1_ik)
@@ -411,10 +437,12 @@ contains
                                                                 + poly%cohort%wood_energy(1:poly%cohort%n))),       &
                        e_sum0, 1.0e-12_wp, 'split broke tissue energy conservation')
 
-      !=== 4. Carbon pools/traits thread correctly through the lockstep sort reorder. ==========!
-      !     3 PFTs (sla 16/13/10) are inserted then height-sorted (reordered); re-deriving with   !
-      !     each cohort's THREADED p_sla / p_aboveground_frac must reproduce its own PFT's         !
-      !     on-allometry pools -- a mis-threaded per-cohort trait would misalign them.             !
+      !---~---
+      !   4. Carbon pools/traits thread correctly through the lockstep sort reorder.
+      ! 3 PFTs (sla 16/13/10) are inserted then height-sorted (reordered); re-deriving with
+      ! each cohort's THREADED p_sla / p_aboveground_frac must reproduce its own PFT's
+      ! on-allometry pools -- a mis-threaded per-cohort trait would misalign them.
+      !---~---
       call init_bare_ground(poly, cfg, 1_ik)
       call add_cohort(poly, cfg, 1_ik, 1_ik, 1.0e-3_wp,  8.0_wp)   ! PFT 1 (shortest)
       call add_cohort(poly, cfg, 1_ik, 2_ik, 1.0e-3_wp, 40.0_wp)   ! PFT 2 (tallest -> sorts first)
@@ -429,16 +457,18 @@ contains
                           1.0e-9_wp, 'wood_carbon*aboveground_frac(pft) /= agb after reorder')
       end do
 
-      !=== 5. Fusion conserves the FOUR prognostic carbon pools: the storage buffer is            !
-      !     nplant-weighted and CARRIED, not snapped back onto allometry (set_cohort_size_from_carbon !
-      !     path); the empirical set_cohort_size would reset the pools from size. ====================!
+      !---~---
+      !   5. Fusion conserves the FOUR prognostic carbon pools: the storage buffer is
+      ! nplant-weighted and CARRIED, not snapped back onto allometry (set_cohort_size_from_carbon
+      ! path); the empirical set_cohort_size would reset the pools from size.
+      !---~---
       block
          real(wp) :: lc_t, fc_t, wc_t, nc_t, nr5, nd5, alloc_store
          call init_bare_ground(poly, cfg, 1_ik)
          call add_cohort(poly, cfg, 1_ik, 1_ik, 0.5_wp, 10.0_wp)
          call add_cohort(poly, cfg, 1_ik, 1_ik, 0.3_wp, 12.0_wp)
          call finalize_init(poly)
-         !----- Push one cohort's storage OFF allometry (the starvation buffer a reset would lose). -!
+         !--- Push one cohort's storage OFF allometry (the starvation buffer a reset would lose).
          poly%cohort%nonstructural_carbon(1) = 3.0_wp * poly%cohort%nonstructural_carbon(1)
          nr5 = poly%cohort%nplant(1)
          nd5 = poly%cohort%nplant(2)
@@ -455,19 +485,21 @@ contains
                           'carbon fuse: wood_carbon not conserved')
          call check_close(poly%cohort%nplant(1)*poly%cohort%nonstructural_carbon(1), nc_t, 1.0e-9_wp, &
                           'carbon fuse: nonstructural (storage) not conserved')
-         !----- Prove storage was CARRIED, not reset to the allometric storage target. -------------!
+         !--- Prove storage was CARRIED, not reset to the allometric storage target.
          alloc_store = storage_carbon_target(cfg%pft%storage_cushion(1), poly%cohort%leaf_carbon(1),   &
                                              poly%cohort%fineroot_carbon(1))
          call check(abs(poly%cohort%nonstructural_carbon(1) - alloc_store) > 1.0e-6_wp,               &
                     'carbon fuse must CARRY off-allometry storage, not snap it to allometry')
       end block
 
-      !=== 6. Fusion of cohorts with different SLA conserves leaf AREA: sla blends on leaf          !
-      !     carbon, the quantity it converts, so sum(nplant*leaf_carbon*sla) is what the fused        !
-      !     cohort shows. A leaf-area-weighted sla would give sum(LA*sla)/sum(LA) instead. The leaf    !
-      !     turnover rate is the share of the leaf carbon lost a year, so it too blends on leaf        !
-      !     carbon, and the fused cohort loses the leaf carbon its two parents did; with the two      !
-      !     SLAs differing, a leaf-area weight would not. =============================================!
+      !---~---
+      !   6. Fusion of cohorts with different SLA conserves leaf AREA: sla blends on leaf
+      ! carbon, the quantity it converts, so sum(nplant*leaf_carbon*sla) is what the fused
+      ! cohort shows. A leaf-area-weighted sla would give sum(LA*sla)/sum(LA) instead. The leaf
+      ! turnover rate is the share of the leaf carbon lost a year, so it too blends on leaf
+      ! carbon, and the fused cohort loses the leaf carbon its two parents did; with the two
+      ! SLAs differing, a leaf-area weight would not.
+      !---~---
       block
          real(wp) :: lai0, loss0
          call init_bare_ground(poly, cfg, 1_ik)
@@ -488,8 +520,10 @@ contains
                           'fusion of cohorts with different SLA must conserve leaf area')
          call check_close(poly%cohort%nplant(1)*poly%cohort%leaf_carbon(1)*poly%cohort%leaf_turnover_rate(1), &
                           loss0, 1.0e-12_wp, 'fusion must conserve the leaf carbon turned over a year')
-         !----- The same at any size: two LEAFLESS cohorts, whose leaf carbon has decayed to ~1e-193   !
-         !      (as in a BCI run). A blend that skipped weights below 1e-30 would keep one SLA here. -!
+         !---~---
+         !   The same at any size: two LEAFLESS cohorts, whose leaf carbon has decayed to ~1e-193
+         ! (as in a BCI run). A blend that skipped weights below 1e-30 would keep one SLA here.
+         !---~---
          call init_bare_ground(poly, cfg, 1_ik)
          call add_cohort(poly, cfg, 1_ik, 1_ik, 0.5_wp, 10.0_wp)
          call add_cohort(poly, cfg, 1_ik, 1_ik, 0.3_wp, 12.0_wp)
@@ -506,8 +540,10 @@ contains
                     'fusion of leafless cohorts with different SLA must conserve their leaf area too')
       end block
 
-      !=== 7. Geometry has ONE writer: a cohort placed on the allometry from its dbh carries        !
-      !     exactly the geometry its carbon gives, so a restart that re-derives it gets the same bits. !
+      !---~---
+      !   7. Geometry has ONE writer: a cohort placed on the allometry from its dbh carries
+      ! exactly the geometry its carbon gives, so a restart that re-derives it gets the same bits.
+      !---~---
       block
          real(wp) :: g0(5)
          call init_bare_ground(poly, cfg, 1_ik)
@@ -520,7 +556,7 @@ contains
                          poly%cohort%agb(1), poly%cohort%leaf_area(1)] == g0),                          &
                     'birth geometry must be the geometry derived from the birth carbon, bit for bit')
 
-         !=== 8. The bounds guard names the first field out of bounds, and passes a sound cohort. ==!
+         !--- 8. The bounds guard names the first field out of bounds, and passes a sound cohort.
          call check(cohort_bad_field(poly%cohort, 1_ik) == 0_ik, 'a fresh cohort is in bounds')
          poly%cohort%leaf_surf_water(1) = -1.0e-30_wp
          call check(trim(cohort_field_name(cohort_bad_field(poly%cohort, 1_ik))) == 'leaf_surf_water',  &
@@ -530,8 +566,10 @@ contains
                     'a NaN density is out of bounds, and checked first')
       end block
 
-      !=== 9. The growth window's sum is the buffer's: once a large sample has been evicted, a       !
-      !     window of zeros averages exactly zero; and a recruit in a reused slot starts empty. ======!
+      !---~---
+      !   9. The growth window's sum is the buffer's: once a large sample has been evicted, a
+      ! window of zeros averages exactly zero; and a recruit in a reused slot starts empty.
+      !---~---
       block
          type(cohort_deriv_block) :: deriv
          integer(ik) :: k, pos, nwin
@@ -556,7 +594,7 @@ contains
                     'a window of zero growth averages exactly zero after a large sample left it')
          call check(poly%cohort%growth_accum(1) == sum(poly%cohort%growth_hist(1:nwin, 1)),             &
                     'the window''s sum is the buffer''s')
-         !----- Any birth state: the window is the point. ---------------------------------------!
+         !--- Any birth state: the window is the point.
          call init_cohort(poly%cohort, 1_ik, cfg%pft, 1_ik, 1_ik, 0.1_wp, 1.0_wp, 288.15_wp, -0.1_wp)
          call check(all(poly%cohort%growth_hist(1:nwin, 1) == 0.0_wp) .and.                             &
                     poly%cohort%growth_count(1) == 0_ik, 'a recruit in a reused slot starts with an empty window')
@@ -566,10 +604,10 @@ contains
 
 end module test_slow_update_cohorts
 
-!==========================================================================================!
-! Treefall gaps: one gap per site, the survivors' density, the donors' remainder, the area !
-! conserved and the diagnostic rows.                                                       !
-!==========================================================================================!
+!---~---
+!   Treefall gaps: one gap per site, the survivors' density, the donors' remainder, the area
+! conserved and the diagnostic rows.
+!---~---
 module test_slow_update_gaps
    use ed_kinds,              only : wp, ik
    use ed_config,             only : ed_config_t
@@ -586,10 +624,10 @@ module test_slow_update_gaps
    private
 
    public :: run_treefall_gaps
-   type(kill_report_t)  :: kills   !< what the cull and the treefall killed
-   real(wp)             :: dist_frac          !< the treefall decision's share
-   logical, allocatable :: dist_survives(:)   !< and its survivors
-   real(wp)            :: shed_water   !< an operator's shed water, unread here
+   type(kill_report_t)  :: kills   ! what the cull and the treefall killed
+   real(wp)             :: dist_frac          ! the treefall decision's share
+   logical, allocatable :: dist_survives(:)   ! and its survivors
+   real(wp)            :: shed_water   ! an operator's shed water, unread here
 
    type(ed_config_t) :: cfg
    type(polygon_t)  :: poly
@@ -604,7 +642,7 @@ contains
       call banner('treefall patch disturbance')
       cfg = build_test_config()
 
-      !----- One patch with a tall canopy cohort and a short understorey cohort. -------------!
+      !--- One patch with a tall canopy cohort and a short understorey cohort.
       call init_bare_ground(poly, cfg, 1_ik)
       call add_cohort(poly, cfg, 1_ik, 2_ik, 0.20_wp, 40.0_wp)   ! tall  (height >> threshold)
       call add_cohort(poly, cfg, 1_ik, 2_ik, 0.50_wp,  3.0_wp)   ! short (height <  threshold)
@@ -614,17 +652,23 @@ contains
       call check(h_tall  >= cfg%demography%disturbance_survive_height, 'tall cohort should exceed threshold')
       call check(h_short <  cfg%demography%disturbance_survive_height, 'short cohort should be below threshold')
       n_before = total_nplant(poly)
-      !----- The survivor's film [kg/plant] goes into the gap with it; the site total of the        !
-      !      SURVIVOR's film is conserved across the split. -----------------------------------------!
+      !---~---
+      !   The survivor's film [kg/plant] goes into the gap with it; the site total of the
+      ! SURVIVOR's film is conserved across the split.
+      !---~---
       poly%cohort%leaf_surf_water(poly%cohort%n) = 0.25_wp
       film_before = poly%patch%area(1) * poly%cohort%nplant(poly%cohort%n) * 0.25_wp
 
-      !----- Turn the per-patch diagnostic block ON. It defaults OFF (a run with no diagnostics    !
-      !      allocates nothing and every entry point no-ops), so a test that wants to read a slot     !
-      !      must ask for it: a slot nothing reads can sit at a silent zero unseen. -------------------!
+      !---~---
+      !   Turn the per-patch diagnostic block ON. It defaults OFF (a run with no diagnostics
+      ! allocates nothing and every entry point no-ops), so a test that wants to read a slot
+      ! must ask for it: a slot nothing reads can sit at a silent zero unseen.
+      !---~---
       call alloc_patch_diag(poly%patch%diag, poly%patch%n + 1_ik, .true.)
-      !----- The donor's own shed rate, which the gap must not inherit, and the tissue water the dying  !
-      !      canopy holds, which it must receive. ------------------------------------------------------!
+      !---~---
+      !   The donor's own shed rate, which the gap must not inherit, and the tissue water the dying
+      ! canopy holds, which it must receive.
+      !---~---
       poly%patch%shed_water_rate(1) = 7.0_wp
       w_canopy = poly%cohort%nplant(1) * (poly%cohort%leaf_water_mass(1) + poly%cohort%wood_water_mass(1))
       call check(w_canopy > 0.0_wp, 'the dying canopy holds tissue water')
@@ -632,22 +676,24 @@ contains
       call decide_disturbance(poly, cfg, 1.0_wp, dist_frac, dist_survives)
       call apply_patch_disturbance(poly, cfg, dist_frac, dist_survives, shed_water, kills)
 
-      !----- A new age-0 treefall gap patch was opened; area is conserved. --------------------!
+      !--- A new age-0 treefall gap patch was opened; area is conserved.
       call check(poly%patch%n == 2_ik, 'disturbance should add exactly one gap patch')
       call check(poly%site%n == 1_ik .and. poly%site%patch_count(1) == 2_ik .and.                             &
                  all(poly%patch%owner_site(1:2) == 1_ik), 'the gap patch is in the polygon''s one site')
       call check_close(total_area(poly), 1.0_wp, 1.0e-9_wp, 'disturbance broke area conservation')
 
-      !----- The disturbed-area flux is REPORTED. A slot declared and never written reads as a       !
-      !      silent zero -- which no conservation check can see, because zero disturbed area is a    !
-      !      perfectly conservative answer. Assert the VALUE, not merely that it is finite.          !
-      !                                                                                              !
-      !      Asserted through patch_diag_value -- the SAME reader the output layer uses -- and not   !
-      !      off the raw accumulator. The block is (value, weight) and the reader returns            !
-      !      value/weight, so reading `v` directly tests the contribution rather than the number the !
-      !      variable emits, and can pass a contribution that is a factor yr_sec wrong. The weight   !
-      !      is what a year of fast steps accumulates, because that is the window a once-a-year      !
-      !      disturbance is normalized over; the answer is then the declared [1/yr] rate.            !
+      !---~---
+      !   The disturbed-area flux is REPORTED. A slot declared and never written reads as a
+      ! silent zero -- which no conservation check can see, because zero disturbed area is a
+      ! perfectly conservative answer. Assert the VALUE, not merely that it is finite.
+      !
+      !   Asserted through patch_diag_value -- the SAME reader the output layer uses -- and not
+      ! off the raw accumulator. The block is (value, weight) and the reader returns
+      ! value/weight, so reading `v` directly tests the contribution rather than the number the
+      ! variable emits, and can pass a contribution that is a factor yr_sec wrong. The weight
+      ! is what a year of fast steps accumulates, because that is the window a once-a-year
+      ! disturbance is normalized over; the answer is then the declared [1/yr] rate.
+      !---~---
       poly%patch%diag%n      = poly%patch%n
       poly%patch%diag%w(1:poly%patch%n) = yr_sec
       frac_expect = 1.0_wp - exp(-cfg%demography%patch_disturbance_rate * 1.0_wp)
@@ -665,7 +711,7 @@ contains
       call check_close(poly%patch%shed_water_rate(ig), w_canopy / cfg%dt_slow, 1.0e-12_wp,             &
                        'gap patch starts a fresh shed_water_rate, like age, and receives the dead canopy''s water')
 
-      !----- The gap holds ONLY survivors (height < threshold): the short cohort. -------------!
+      !--- The gap holds ONLY survivors (height < threshold): the short cohort.
       i0 = poly%patch%cohort_offset(ig)
       i1 = i0 + poly%patch%cohort_count(ig) - 1_ik
       n_gap_cohorts = poly%patch%cohort_count(ig)
@@ -687,12 +733,14 @@ contains
                     'tall canopy cohort must not survive in the gap')
       end do
 
-      !----- Net plant number drops (the disturbed canopy fraction is killed). ----------------!
+      !--- Net plant number drops (the disturbed canopy fraction is killed).
       call check(total_nplant(poly) < n_before, 'canopy mortality should reduce plant number')
 
-      !----- TWO donors of unequal area and unequal film: the gap's survivor copies take their donors'  !
-      !      densities diluted by frac*area(d)/new_area and keep their per-plant films, so the site's   !
-      !      survivor film water is what it was. -------------------------------------------------------!
+      !---~---
+      !   TWO donors of unequal area and unequal film: the gap's survivor copies take their donors'
+      ! densities diluted by frac*area(d)/new_area and keep their per-plant films, so the site's
+      ! survivor film water is what it was.
+      !---~---
       call init_bare_ground(poly, cfg, 2_ik)
       poly%patch%area(1) = 0.6_wp
       poly%patch%area(2) = 0.4_wp
@@ -712,11 +760,13 @@ contains
             end if
          end do
       end do
-      !----- Inside a step (the C API's patch operators), the step's patch diagnostics must survive the !
-      !      carving: the gap's ground was donor ground for the step so far, so the site mean          !
-      !      Sum(area * value) is unchanged and the gap reads the donors' area-weighted value; a        !
-      !      cleared gap slot would read 0 there and pull the site mean low by the disturbed fraction.  !
-      !      Donor latent heat 100 and 300 W/m2 on areas 0.6 and 0.4: 180 W/m2 before and after. -------!
+      !---~---
+      !   Inside a step (the C API's patch operators), the step's patch diagnostics must survive the
+      ! carving: the gap's ground was donor ground for the step so far, so the site mean
+      ! Sum(area * value) is unchanged and the gap reads the donors' area-weighted value; a
+      ! cleared gap slot would read 0 there and pull the site mean low by the disturbed fraction.
+      ! Donor latent heat 100 and 300 W/m2 on areas 0.6 and 0.4: 180 W/m2 before and after.
+      !---~---
       call alloc_patch_diag(poly%patch%diag, poly%patch%n + 1_ik, .true.)
       poly%patch%diag%n = poly%patch%n
       poly%patch%diag%w(1:2) = cfg%dt_slow
@@ -746,9 +796,11 @@ contains
       call check_close(film_after, film_before, 1.0e-12_wp,                                            &
                        'two-donor disturbance: survivor films go into the gap with their plants')
 
-      !----- At a calendar boundary, as a run does it: the step's diagnostics were read and reset, so  !
-      !      every weight is 0 and the slots hold only this boundary's events, here a cull. The gap     !
-      !      takes its area-weighted share, so the stand total Sum(area * v) is unchanged. -------------!
+      !---~---
+      !   At a calendar boundary, as a run does it: the step's diagnostics were read and reset, so
+      ! every weight is 0 and the slots hold only this boundary's events, here a cull. The gap
+      ! takes its area-weighted share, so the stand total Sum(area * v) is unchanged.
+      !---~---
       poly%patch%diag%w(1:poly%patch%n) = 0.0_wp
       poly%patch%diag%v(:, 1:poly%patch%n) = 0.0_wp
       do ip = 1_ik, poly%patch%n
@@ -766,10 +818,10 @@ contains
 
 end module test_slow_update_gaps
 
-!==========================================================================================!
-! Patch fusion and termination: plant number and area conserved, a sliver merged rather    !
-! than dropped, the stores riding the patch lockstep, the tolerance ceiling.               !
-!==========================================================================================!
+!---~---
+!   Patch fusion and termination: plant number and area conserved, a sliver merged rather
+! than dropped, the stores riding the patch lockstep, the tolerance ceiling.
+!---~---
 module test_slow_update_patches
    use ed_kinds,            only : wp, ik
    use ed_config,           only : ed_config_t, derive_parameters
@@ -796,7 +848,7 @@ contains
       call banner('patch fusion & termination conservation')
       cfg = build_test_config()
 
-      !=== Two identical patches must fuse, conserving the polygon's N and total area. =========!
+      !--- Two identical patches must fuse, conserving the polygon's N and total area.
       call init_bare_ground(poly, cfg, 2_ik)   ! area 0.5 each
       call add_cohort(poly, cfg, 1_ik, 2_ik, 0.4_wp, 18.0_wp)
       call add_cohort(poly, cfg, 1_ik, 1_ik, 0.7_wp,  6.0_wp)
@@ -804,8 +856,10 @@ contains
       call add_cohort(poly, cfg, 2_ik, 1_ik, 0.7_wp,  6.0_wp)
       call finalize_init(poly)
       n0 = total_nplant(poly)
-      !----- Films are per plant: fusion rescales the densities and leaves the films alone, and the   !
-      !      site's film water, the area- and nplant-weighted sum, is what it was. -------------------!
+      !---~---
+      !   Films are per plant: fusion rescales the densities and leaves the films alone, and the
+      ! site's film water, the area- and nplant-weighted sum, is what it was.
+      !---~---
       poly%cohort%leaf_surf_water(1) = 0.20_wp
       poly%cohort%wood_surf_water(2) = 0.10_wp                                              ! patch 1
       poly%cohort%leaf_surf_water(3) = 0.40_wp                                               ! patch 2
@@ -818,9 +872,11 @@ contains
                  'the site map covers the fused patch block')
       call check_close(site_film(poly), film0, 1.0e-12_wp, 'patch fusion broke canopy film water conservation')
 
-      !=== A negligible-area patch is removed and the remaining areas renormalize to 1. ======!
-      !----- TWO doomed patches, not one: the merge loop reads the survivor's CSR slice, so a       !
-      !      second sliver is the case a stale map would corrupt.  ----------------------------------!
+      !--- A negligible-area patch is removed and the remaining areas renormalize to 1.
+      !---~---
+      !   TWO doomed patches, not one: the merge loop reads the survivor's CSR slice, so a
+      ! second sliver is the case a stale map would corrupt.
+      !---~---
       call init_bare_ground(poly, cfg, 4_ik)
       poly%patch%area(1) = 0.6_wp
       poly%patch%area(2) = 0.4_wp - 2.0e-6_wp
@@ -830,10 +886,12 @@ contains
       call add_cohort(poly, cfg, 3_ik, 1_ik, 0.4_wp,  8.0_wp)
       call add_cohort(poly, cfg, 4_ik, 1_ik, 0.3_wp, 15.0_wp)   ! taller than the survivor's own cohort
       call finalize_init(poly)
-      !----- Give the doomed patch content UNLIKE its neighbours', which is the realistic case (a    !
-      !      sliver is usually a fresh gap). Dropping it and renormalizing the survivors would       !
-      !      destroy that content outright; it is merged into the largest survivor, so the site      !
-      !      total must come through untouched. ------------------------------------------------------!
+      !---~---
+      !   Give the doomed patch content UNLIKE its neighbours', which is the realistic case (a
+      ! sliver is usually a fresh gap). Dropping it and renormalizing the survivors would
+      ! destroy that content outright; it is merged into the largest survivor, so the site
+      ! total must come through untouched.
+      !---~---
       poly%patch%soil_water(1)%theta(1) = 0.20_wp
       poly%patch%soil_water(2)%theta(1) = 0.20_wp
       poly%patch%soil_water(3)%theta(1) = 0.45_wp        ! the slivers are much wetter
@@ -852,9 +910,11 @@ contains
       call check(tallest_first(poly), 'terminate_patches leaves each patch''s cohorts tallest first, '  &
                  // 'the order the cohort fusion after it scans in')
 
-      !=== Fast-biophysics reservoirs ride the patch lockstep. ================================!
-      !    (a) area-weighted MERGE on fusion conserves the area-extensive store; (b) SORT keeps  !
-      !    each reservoir bound to its patch. Both are silent-wrong if the lockstep misses them. !
+      !---~---
+      !   Fast-biophysics reservoirs ride the patch lockstep.
+      ! (a) area-weighted MERGE on fusion conserves the area-extensive store; (b) SORT keeps
+      ! each reservoir bound to its patch. Both are silent-wrong if the lockstep misses them.
+      !---~---
       call init_bare_ground(poly, cfg, 2_ik)
       poly%patch%area(1) = 0.75_wp
       poly%patch%area(2) = 0.25_wp
@@ -867,11 +927,13 @@ contains
       poly%patch%cas(2)%can_enthalpy      = 2000.0_wp
       poly%patch%soil_energy(1)%soil_energy(3) = 1.0e6_wp
       poly%patch%soil_energy(2)%soil_energy(3) = 3.0e6_wp
-      !----- DIFFERENT canopy depths, or this fixture cannot tell the two weightings apart. The      !
-      !      canopy air is intensive per kg of AIR, and the air mass is area x depth, so the merged  !
-      !      value is mass-weighted: (0.75*30*1000 + 0.25*10*2000)/(0.75*30 + 0.25*10) = 1100, not   !
-      !      the 1250 an area weighting gives. Equal depths are exactly the case where the wrong     !
-      !      answer and the right one agree. ---------------------------------------------------------!
+      !---~---
+      !   DIFFERENT canopy depths, or this fixture cannot tell the two weightings apart. The
+      ! canopy air is intensive per kg of AIR, and the air mass is area x depth, so the merged
+      ! value is mass-weighted: (0.75*30*1000 + 0.25*10*2000)/(0.75*30 + 0.25*10) = 1100, not
+      ! the 1250 an area weighting gives. Equal depths are exactly the case where the wrong
+      ! answer and the right one agree.
+      !---~---
       poly%patch%cas(1)%can_depth = 30.0_wp
       poly%patch%cas(2)%can_depth = 10.0_wp
       cas_before = poly%patch%area(1) * poly%patch%cas(1)%can_depth * poly%patch%cas(1)%can_enthalpy  &
@@ -882,7 +944,7 @@ contains
       call check_close(poly%patch%soil_energy(1)%soil_energy(3), 1.5e6_wp,  1.0e-3_wp, 'soil energy not area-weighted on fusion')
       call check_close(poly%patch%cas(1)%can_depth,         25.0_wp,   1.0e-9_wp, 'CAS depth not area-weighted on fusion')
       call check_close(poly%patch%cas(1)%can_enthalpy,      1100.0_wp, 1.0e-9_wp, 'CAS enthalpy not AIR-MASS-weighted on fusion')
-      !----- and the point of that weighting: the extensive content survives the merge. -------------!
+      !--- and the point of that weighting: the extensive content survives the merge.
       cas_after = poly%patch%area(1) * poly%patch%cas(1)%can_depth * poly%patch%cas(1)%can_enthalpy
       call check_close(cas_after, cas_before, 1.0e-12_wp, 'patch fusion must conserve canopy-air energy')
 
@@ -896,10 +958,12 @@ contains
       call check_close(poly%patch%age(1), 5.0_wp, 1.0e-12_wp, 'sort did not put the older patch first')
       call check_close(poly%patch%soil_water(1)%theta(1), 0.55_wp, 1.0e-12_wp, 'reservoir did not follow its patch through sort')
 
-      !=== The tolerance ceiling: dissimilar patches stay apart even above max_patch. ===========!
-      !    A closed stand and a sparse understory, and max_patch = 1 asking for one patch. Under the !
-      !    shipped ceiling (0.15) they stay two; under an uncapped schedule, 0.10 x 1.5 per pass     !
-      !    (0.76 by the sixth pass), they fuse.                                                      !
+      !---~---
+      !   The tolerance ceiling: dissimilar patches stay apart even above max_patch.
+      ! A closed stand and a sparse understory, and max_patch = 1 asking for one patch. Under the
+      ! shipped ceiling (0.15) they stay two; under an uncapped schedule, 0.10 x 1.5 per pass
+      ! (0.76 by the sixth pass), they fuse.
+      !---~---
       cfg = build_test_config()
       cfg%demography%max_patch = 1_ik
       call check_close(cfg%demography%patch_light_tol                                                    &
@@ -915,7 +979,7 @@ contains
                  'fixture: the two light profiles must differ by between 0.3 and 0.7 on average')
       call fuse_patches(poly, cfg)
       call check(poly%patch%n == 2_ik, 'patches more different than the ceiling must stay apart above max_patch')
-      !----- The uncapped schedule, spelled as a ceiling: 0.10 * 1.5**5 over six passes is a step of 1.5. -!
+      !--- The uncapped schedule, spelled as a ceiling: 0.10 * 1.5**5 over six passes is a step of 1.5.
       cfg%demography%patch_light_tol_max = 0.10_wp * 1.5_wp**5
       call derive_parameters(cfg)
       call check_close(cfg%demography%patch_light_tol_mult, 1.5_wp, 1.0e-12_wp, 'ceiling 0.759375 must give the old 1.5 step')
@@ -924,7 +988,7 @@ contains
       call check(poly%patch%n == 1_ik, 'without the ceiling the same two patches fuse down to max_patch')
    end subroutine run_patch_operators
 
-   !----- Each patch's cohorts in height order, tallest first. -------------------------------!
+   !--- Each patch's cohorts in height order, tallest first.
    logical function tallest_first(p)
       type(polygon_t), intent(in) :: p
       integer(ik) :: q, i
@@ -935,14 +999,14 @@ contains
          end do
       end do
    end function tallest_first
-   !----- Two equal-area patches: a closed stand of 30 cm trees, and 5 cm saplings alone. ------!
+   !--- Two equal-area patches: a closed stand of 30 cm trees, and 5 cm saplings alone.
    subroutine two_unlike_patches()
       call init_bare_ground(poly, cfg, 2_ik)
       call add_cohort(poly, cfg, 1_ik, 1_ik, 0.012_wp, 30.0_wp)
       call add_cohort(poly, cfg, 2_ik, 1_ik, 0.050_wp,  5.0_wp)
       call finalize_init(poly)
    end subroutine two_unlike_patches
-   !----- The site's canopy film water [kg/m2 of site]: each cohort's, area-weighted by its patch. -!
+   !--- The site's canopy film water [kg/m2 of site]: each cohort's, area-weighted by its patch.
    real(wp) function site_film(p) result(w)
       type(polygon_t), intent(in) :: p
       integer(ik) :: i
@@ -954,10 +1018,10 @@ contains
 
 end module test_slow_update_patches
 
-!==========================================================================================!
-! A recruit is born in its patch's state: the canopy air's temperature and the top soil    !
-! layer's potential, not a global constant.                                                !
-!==========================================================================================!
+!---~---
+!   A recruit is born in its patch's state: the canopy air's temperature and the top soil
+! layer's potential, not a global constant.
+!---~---
 module test_slow_update_birth
    use ed_kinds,                only : wp, ik
    use ed_config,               only : ed_config_t
@@ -987,8 +1051,10 @@ contains
       call check_birth_temp()
    end subroutine run_birth_state
 
-   !----- A cohort is born in its patch's state (patch_physical_state): at the canopy-air temperature, !
-   !      its tissues at the top soil layer's potential. -------------------------------------------!
+   !---~---
+   !   A cohort is born in its patch's state (patch_physical_state): at the canopy-air temperature,
+   ! its tissues at the top soil layer's potential.
+   !---~---
    subroutine check_birth_temp()
       integer(ik) :: m
       real(wp)    :: t_birth, psi_birth, t_save
@@ -1015,13 +1081,13 @@ contains
 
 end module test_slow_update_birth
 
-!==========================================================================================!
-! The restructuring through the slow ledger, with soil carbon on: one month-and-year       !
-! boundary and the step after it. Every phase runs and closes on all three currencies by   !
-! the report's own test (slow_ledger_failures), each operator declares the carbon it       !
-! moves, ids stay distinct and a new id is never an old one, and the boundary's dead       !
-! carbon reaches the soil with the next step (docs/science/conservation.md §3, §5).        !
-!==========================================================================================!
+!---~---
+!   The restructuring through the slow ledger, with soil carbon on: one month-and-year
+! boundary and the step after it. Every phase runs and closes on all three currencies by
+! the report's own test (slow_ledger_failures), each operator declares the carbon it
+! moves, ids stay distinct and a new id is never an old one, and the boundary's dead
+! carbon reaches the soil with the next step (docs/science/conservation.md §3, §5).
+!---~---
 module test_slow_update_ledger
    use ed_kinds,                only : wp, ik
    use ed_config,               only : ed_config_t
@@ -1061,8 +1127,10 @@ contains
       cfg%soil_carbon%soil_carbon_on = .true.
       cfg%demography%patch_disturbance_rate = 0.2_wp   ! a gap large enough to kill canopy trees
 
-      !----- Canopy trees the treefall kills, understory it spares, a cohort at the density   !
-      !      floor the cull removes, and a recruit pool that founds a cohort. ----------------!
+      !---~---
+      !   Canopy trees the treefall kills, understory it spares, a cohort at the density
+      ! floor the cull removes, and a recruit pool that founds a cohort.
+      !---~---
       call init_bare_ground(poly, cfg, 3_ik)
       call add_cohort(poly, cfg, 1_ik, 2_ik, 0.05_wp, 40.0_wp)
       call add_cohort(poly, cfg, 1_ik, 1_ik, 0.50_wp,  3.0_wp)
@@ -1075,7 +1143,7 @@ contains
       patch_id0  = poly%patch%global_id(1:poly%patch%n)
       cohort_id0 = poly%cohort%global_id(1:poly%cohort%n)
 
-      !----- The boundary: every phase runs and closes, and each operator declared what it moved. !
+      !--- The boundary: every phase runs and closes, and each operator declared what it moved.
       led%active = .true.
       call slow_ledger_open(led, poly, cfg)
       call advance_boundary_dynamics(poly, cfg, .true., .true., led)
@@ -1088,7 +1156,7 @@ contains
       call check(led%decl_gross(SLOW_PHASE_COHORT)%carbon > 0.0_wp, 'the cull''s dead carbon is declared')
       call check(led%decl_gross(SLOW_PHASE_DISTURB)%carbon > 0.0_wp, 'the treefall''s dead carbon is declared')
 
-      !----- Persistent ids: distinct, and a new one is never one used before. ----------------!
+      !--- Persistent ids: distinct, and a new one is never one used before.
       call check(all_distinct(poly%patch%global_id(1:poly%patch%n)), 'every patch has a distinct id')
       call check(all_distinct(poly%cohort%global_id(1:poly%cohort%n)), 'every cohort has a distinct id')
       call check(new_ids_are_new(poly%patch%global_id(1:poly%patch%n), patch_id0),                      &
@@ -1097,7 +1165,7 @@ contains
                  'a recruit or a split takes an id never used before')
       call check(.not. any(poly%cohort%global_id(1:poly%cohort%n) == culled_id), 'the culled cohort''s id is gone')
 
-      !----- The step after: the boundary's dead carbon reaches the soil, and its phases close. !
+      !--- The step after: the boundary's dead carbon reaches the soil, and its phases close.
       litter0 = litter_carbon_total(poly, poly%patch%litter_in)
       call check(litter0 > 0.0_wp, 'the boundary''s dead carbon waits in the litter')
       soil0 = soil_carbon_total(poly)
@@ -1121,7 +1189,7 @@ contains
       end do
    end function all_distinct
 
-   !----- Every id not in `old` exceeds all of them: ids are never reused. -----------------!
+   !--- Every id not in `old` exceeds all of them: ids are never reused.
    logical function new_ids_are_new(ids, old)
       integer(ik), intent(in) :: ids(:), old(:)
       integer(ik) :: i
@@ -1131,7 +1199,7 @@ contains
       end do
    end function new_ids_are_new
 
-   !----- The CENTURY pools over the polygon [kgC/m2]. --------------------------------------!
+   !--- The CENTURY pools over the polygon [kgC/m2].
    real(wp) function soil_carbon_total(poly)
       type(polygon_t), intent(in) :: poly
       real(wp)    :: x(N_SOIL_POOL)
@@ -1145,12 +1213,12 @@ contains
 
 end module test_slow_update_ledger
 
-!==========================================================================================!
-! test_slow_update -- the operators of ed_slow_update, the one writer of the stand's       !
-! carbon and structure (docs/science/demography.md §2-§4): the commit, cohort fusion and   !
-! fission, the treefall gaps, patch fusion and termination, a recruit's birth state, and   !
-! the restructuring through the slow ledger with soil carbon on. One module per section.   !
-!==========================================================================================!
+!---~---
+!   test_slow_update -- the operators of ed_slow_update, the one writer of the stand's
+! carbon and structure (docs/science/demography.md §2-§4): the commit, cohort fusion and
+! fission, the treefall gaps, patch fusion and termination, a recruit's birth state, and
+! the restructuring through the slow ledger with soil carbon on. One module per section.
+!---~---
 program test_slow_update
    use test_slow_update_commit, only : run_commit
    use test_slow_update_cohorts, only : run_cohort_operators
