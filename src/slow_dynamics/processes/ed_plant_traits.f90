@@ -31,9 +31,9 @@ contains
    elemental pure subroutine light_plastic_traits(cum_lai_above, sla_toc, vcmax25_toc, rd25_toc,  &
             turnover_toc, kplastic_sla, kplastic_vcmax, kplastic_rd, kplastic_turnover,              &
             sla_target, vcmax25_target, rd25_target, turnover_target)
-      real(wp), intent(in)  :: cum_lai_above                                 !--- [m2/m2] LAI above the cohort
-      real(wp), intent(in)  :: sla_toc, vcmax25_toc, rd25_toc, turnover_toc  !--- top-of-canopy trait values
-      real(wp), intent(in)  :: kplastic_sla, kplastic_vcmax, kplastic_rd, kplastic_turnover  !--- light-response slopes
+      real(wp), intent(in)  :: cum_lai_above                                 ! [m2/m2] LAI above the cohort
+      real(wp), intent(in)  :: sla_toc, vcmax25_toc, rd25_toc, turnover_toc  ! top-of-canopy trait values
+      real(wp), intent(in)  :: kplastic_sla, kplastic_vcmax, kplastic_rd, kplastic_turnover  ! light-response slopes
       real(wp), intent(out) :: sla_target, vcmax25_target, rd25_target, turnover_target
       sla_target      = sla_toc      * light_gradient(kplastic_sla,      cum_lai_above)
       vcmax25_target  = vcmax25_toc  * light_gradient(kplastic_vcmax,      cum_lai_above)
@@ -72,7 +72,7 @@ contains
    !---~---
    pure subroutine acclimate_leaf_photo_table(t_growth, ds_vcmax_a, ds_vcmax_b, ds_jmax_a, ds_jmax_b,   &
                                               jv_a, jv_b, table)
-      real(wp),                 intent(in)    :: t_growth     !--- [K] running-mean growth temperature
+      real(wp),                 intent(in)    :: t_growth     ! [K] running-mean growth temperature
       real(wp),                 intent(in)    :: ds_vcmax_a, ds_vcmax_b, ds_jmax_a, ds_jmax_b, jv_a, jv_b
       type(leaf_photo_table_t), intent(inout) :: table
       integer(ik) :: ipft

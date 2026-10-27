@@ -21,14 +21,14 @@ module ed_met_grid
    public :: great_circle_distance, nearest_grid_index
    public :: GRID_OK, GRID_ERR_OPEN, GRID_ERR_LAYOUT, GRID_ERR_NO_CELL
 
-   real(wp), parameter :: EARTH_RADIUS_M = 6.371e6_wp  !--- [m] mean Earth radius
-   real(wp), parameter :: GRID_TOL = 1.0e-4_wp         !--- [deg] slack for "these coordinates are equal"
+   real(wp), parameter :: EARTH_RADIUS_M = 6.371e6_wp  ! [m] mean Earth radius
+   real(wp), parameter :: GRID_TOL = 1.0e-4_wp         ! [deg] slack for "these coordinates are equal"
 
    !--- Status codes.
    integer(ik), parameter :: GRID_OK          = 0_ik
-   integer(ik), parameter :: GRID_ERR_OPEN    = 1_ik   !--- a file is missing or unreadable
-   integer(ik), parameter :: GRID_ERR_LAYOUT  = 2_ik   !--- no regular lat/lon axes, another grid's, or a field missing
-   integer(ik), parameter :: GRID_ERR_NO_CELL = 3_ik   !--- no valid cell within the distance limit / in the box
+   integer(ik), parameter :: GRID_ERR_OPEN    = 1_ik   ! a file is missing or unreadable
+   integer(ik), parameter :: GRID_ERR_LAYOUT  = 2_ik   ! no regular lat/lon axes, another grid's, or a field missing
+   integer(ik), parameter :: GRID_ERR_NO_CELL = 3_ik   ! no valid cell within the distance limit / in the box
 
 contains
 

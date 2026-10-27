@@ -47,11 +47,11 @@ module ed_therm_lib
    ! conductivity and heat capacity per sand and clay, and the dry soil's
    ! conductivity from its bulk density (Johansen 1975); grains are 2700 kg/m3.
    !---~---
-   real(wp), parameter :: K_QUARTZ          = 8.80_wp     !--- [W/m/K]    sand grains
-   real(wp), parameter :: K_CLAY_MINERAL    = 2.92_wp     !--- [W/m/K]    clay grains
-   real(wp), parameter :: CV_SAND           = 2.128e6_wp  !--- [J/m3/K]   sand grains
-   real(wp), parameter :: CV_CLAY           = 2.385e6_wp  !--- [J/m3/K]   clay grains
-   real(wp), parameter :: CLM_GRAIN_DENSITY = 2700.0_wp   !--- [kg/m3]
+   real(wp), parameter :: K_QUARTZ          = 8.80_wp     ! [W/m/K]    sand grains
+   real(wp), parameter :: K_CLAY_MINERAL    = 2.92_wp     ! [W/m/K]    clay grains
+   real(wp), parameter :: CV_SAND           = 2.128e6_wp  ! [J/m3/K]   sand grains
+   real(wp), parameter :: CV_CLAY           = 2.385e6_wp  ! [J/m3/K]   clay grains
+   real(wp), parameter :: CLM_GRAIN_DENSITY = 2700.0_wp   ! [kg/m3]
    !--- [-] Floor on the relative saturation, where Johansen's log10 form holds.
    real(wp), parameter :: SR_FLOOR = 0.05_wp
 
@@ -59,8 +59,8 @@ module ed_therm_lib
    real(wp), parameter :: PHASE_BAND_K = 1.0_wp
 
    !--- The forms [leaf_physiology].temp_response_form selects.
-   integer(ik), parameter :: TEMP_RESPONSE_ARRHENIUS = 1_ik  !--- plain Arrhenius
-   integer(ik), parameter :: TEMP_RESPONSE_PEAKED    = 2_ik  !--- Arrhenius with high-temperature deactivation
+   integer(ik), parameter :: TEMP_RESPONSE_ARRHENIUS = 1_ik  ! plain Arrhenius
+   integer(ik), parameter :: TEMP_RESPONSE_PEAKED    = 2_ik  ! Arrhenius with high-temperature deactivation
 
 contains
 
@@ -143,8 +143,8 @@ contains
    ! (docs/science/forcing.md §8). Rates give [W/m2], amounts [J/m2].
    !---~---
    elemental function precip_enthalpy(rain, snow, t_air) result(h)
-      real(wp), intent(in) :: rain, snow   !--- [kg/m2/s] or [kg/m2]
-      real(wp), intent(in) :: t_air        !--- [K] air temperature above the canopy
+      real(wp), intent(in) :: rain, snow   ! [kg/m2/s] or [kg/m2]
+      real(wp), intent(in) :: t_air        ! [K] air temperature above the canopy
       real(wp)             :: h
       h = snow * internal_energy_ice(min(t_3ple, t_air)) + rain * internal_energy_liquid(t_air)
    end function precip_enthalpy
@@ -175,7 +175,7 @@ contains
    !---~---
    elemental function sat_vapor_pressure(t_k, fliq) result(esat)
       real(wp), intent(in)           :: t_k
-      real(wp), intent(in), optional :: fliq    !--- liquid fraction of the surface (absent = 1, all liquid)
+      real(wp), intent(in), optional :: fliq    ! liquid fraction of the surface (absent = 1, all liquid)
       real(wp)                       :: esat, tc, fl
       tc   = t_k - t_kelvin
       esat = 611.2_wp * exp(17.67_wp * tc / (tc + 243.5_wp))
@@ -271,8 +271,8 @@ contains
 
    !--- VPD [Pa] from temperature and the actual vapour pressure.
    pure elemental real(wp) function air_vpd(temp, e_vap) result(vpd)
-      real(wp), intent(in) :: temp    !--- [K]
-      real(wp), intent(in) :: e_vap   !--- [Pa] actual vapour pressure
+      real(wp), intent(in) :: temp    ! [K]
+      real(wp), intent(in) :: e_vap   ! [Pa] actual vapour pressure
       vpd = max(0.0_wp, sat_vapor_pressure(temp) - e_vap)
    end function air_vpd
 
@@ -282,9 +282,9 @@ contains
    ! (11), so a saturated forcing record reads back as VPD = 0.
    !---~---
    pure elemental real(wp) function specific_humidity_to_vpd(temp, shv, pressure) result(vpd)
-      real(wp), intent(in) :: temp      !--- [K]
-      real(wp), intent(in) :: shv       !--- [kg/kg] specific humidity
-      real(wp), intent(in) :: pressure  !--- [Pa]
+      real(wp), intent(in) :: temp      ! [K]
+      real(wp), intent(in) :: shv       ! [kg/kg] specific humidity
+      real(wp), intent(in) :: pressure  ! [Pa]
       real(wp) :: e_vap
       e_vap = specific_humidity_to_vapor_pressure(shv, pressure)
       vpd   = air_vpd(temp, e_vap)
@@ -387,10 +387,10 @@ contains
    ! (docs/science/vegetation_energy_dynamics.md eq. (8)).
    !---~---
    elemental pure real(wp) function tissue_heat_capacity(nplant, carbon, c_dry, water) result(cap)
-      real(wp), intent(in) :: nplant   !--- [plant/m2]
-      real(wp), intent(in) :: carbon   !--- [kgC/plant] the tissue's carbon
-      real(wp), intent(in) :: c_dry    !--- [J/kg/K]    specific heat of its dry matter
-      real(wp), intent(in) :: water    !--- [kg/plant]  the water it holds
+      real(wp), intent(in) :: nplant   ! [plant/m2]
+      real(wp), intent(in) :: carbon   ! [kgC/plant] the tissue's carbon
+      real(wp), intent(in) :: c_dry    ! [J/kg/K]    specific heat of its dry matter
+      real(wp), intent(in) :: water    ! [kg/plant]  the water it holds
       cap = tissue_dry_heat_capacity(nplant, carbon, c_dry) + water * nplant * cp_liq
    end function tissue_heat_capacity
 
@@ -399,9 +399,9 @@ contains
    ! its dry specific heat (tissue_c_leaf or tissue_c_wood_dry).
    !---~---
    elemental pure real(wp) function tissue_dry_heat_capacity(nplant, carbon, c_dry) result(cap)
-      real(wp), intent(in) :: nplant   !--- [plant/m2]
-      real(wp), intent(in) :: carbon   !--- [kgC/plant] the tissue's carbon
-      real(wp), intent(in) :: c_dry    !--- [J/kg/K]    specific heat of its dry matter
+      real(wp), intent(in) :: nplant   ! [plant/m2]
+      real(wp), intent(in) :: carbon   ! [kgC/plant] the tissue's carbon
+      real(wp), intent(in) :: c_dry    ! [J/kg/K]    specific heat of its dry matter
       cap = carbon * nplant * c2b_wood * c_dry
    end function tissue_dry_heat_capacity
 
@@ -411,9 +411,9 @@ contains
    ! (docs/science/vegetation_energy_dynamics.md eq. (9)).
    !---~---
    elemental pure real(wp) function tissue_temp_to_energy(dry_hcap, wmass, temp) result(e)
-      real(wp), intent(in) :: dry_hcap   !--- [J/K]  dry heat capacity
-      real(wp), intent(in) :: wmass      !--- [kg]   the water it holds
-      real(wp), intent(in) :: temp       !--- [K]
+      real(wp), intent(in) :: dry_hcap   ! [J/K]  dry heat capacity
+      real(wp), intent(in) :: wmass      ! [kg]   the water it holds
+      real(wp), intent(in) :: temp       ! [K]
       e = dry_hcap * temp + wmass * cp_liq * (temp - tsupercool_liq)
    end function tissue_temp_to_energy
 
@@ -423,9 +423,9 @@ contains
    ! gives it its parent's.
    !---~---
    elemental pure real(wp) function tissue_energy_to_temp(e, wmass, dry_hcap) result(temp)
-      real(wp), intent(in) :: e          !--- [J]
-      real(wp), intent(in) :: wmass      !--- [kg]
-      real(wp), intent(in) :: dry_hcap   !--- [J/K]
+      real(wp), intent(in) :: e          ! [J]
+      real(wp), intent(in) :: wmass      ! [kg]
+      real(wp), intent(in) :: dry_hcap   ! [J/K]
       temp = (e + wmass * cp_liq * tsupercool_liq) / (dry_hcap + wmass * cp_liq)
    end function tissue_energy_to_temp
 
@@ -438,12 +438,12 @@ contains
    ! and clay alone, so a layer needs some of either: check_soil refuses one without.
    !---~---
    elemental subroutine soil_texture_to_thermal(sand, clay, theta_sat, k_solid, k_dry, dry_cvol)
-      real(wp), intent(in)  :: sand       !--- [%]      sand share of the fine earth
-      real(wp), intent(in)  :: clay       !--- [%]      clay share of the fine earth
-      real(wp), intent(in)  :: theta_sat  !--- [m3/m3]  porosity of the layer
-      real(wp), intent(out) :: k_solid    !--- [W/m/K]  conductivity of the soil solids
-      real(wp), intent(out) :: k_dry      !--- [W/m/K]  conductivity of the dry soil
-      real(wp), intent(out) :: dry_cvol   !--- [J/m3/K] heat capacity of the solids per layer volume
+      real(wp), intent(in)  :: sand       ! [%]      sand share of the fine earth
+      real(wp), intent(in)  :: clay       ! [%]      clay share of the fine earth
+      real(wp), intent(in)  :: theta_sat  ! [m3/m3]  porosity of the layer
+      real(wp), intent(out) :: k_solid    ! [W/m/K]  conductivity of the soil solids
+      real(wp), intent(out) :: k_dry      ! [W/m/K]  conductivity of the dry soil
+      real(wp), intent(out) :: dry_cvol   ! [J/m3/K] heat capacity of the solids per layer volume
       real(wp) :: bulk_density
       k_solid      = (K_QUARTZ*sand + K_CLAY_MINERAL*clay) / (sand + clay)
       bulk_density = CLM_GRAIN_DENSITY * (1.0_wp - theta_sat)
@@ -486,9 +486,9 @@ contains
 
    !--- Plain Arrhenius: k25 exp[Ea/(R Tref) (1 - Tref/T)], Tref = t_ref_photo.
    elemental pure function arrhenius_scale(k25, ea, t_leaf) result(k)
-      real(wp), intent(in) :: k25       !--- value at the reference temperature
-      real(wp), intent(in) :: ea        !--- [J/mol] activation energy
-      real(wp), intent(in) :: t_leaf    !--- [K] tissue temperature
+      real(wp), intent(in) :: k25       ! value at the reference temperature
+      real(wp), intent(in) :: ea        ! [J/mol] activation energy
+      real(wp), intent(in) :: t_leaf    ! [K] tissue temperature
       real(wp)             :: k
       k = k25 * safe_exp(ea / (r_gas * t_ref_photo) * (1.0_wp - t_ref_photo / t_leaf))
    end function arrhenius_scale
@@ -498,11 +498,11 @@ contains
    ! normalised so k(t_ref_photo) = k25.
    !---~---
    elemental pure function peaked_arrhenius_scale(k25, ea, hd, ds, t_leaf) result(k)
-      real(wp), intent(in) :: k25       !--- value at the reference temperature
-      real(wp), intent(in) :: ea        !--- [J/mol]   activation energy
-      real(wp), intent(in) :: hd        !--- [J/mol]   deactivation energy
-      real(wp), intent(in) :: ds        !--- [J/mol/K] entropy term
-      real(wp), intent(in) :: t_leaf    !--- [K] tissue temperature
+      real(wp), intent(in) :: k25       ! value at the reference temperature
+      real(wp), intent(in) :: ea        ! [J/mol]   activation energy
+      real(wp), intent(in) :: hd        ! [J/mol]   deactivation energy
+      real(wp), intent(in) :: ds        ! [J/mol/K] entropy term
+      real(wp), intent(in) :: t_leaf    ! [K] tissue temperature
       real(wp)             :: k, fh_ref, fh_leaf
       fh_ref  = 1.0_wp + safe_exp((ds * t_ref_photo - hd) / (r_gas * t_ref_photo))
       fh_leaf = 1.0_wp + safe_exp((ds * t_leaf      - hd) / (r_gas * t_leaf))
@@ -515,23 +515,23 @@ contains
    ! running mean of air temperature, the quantity the fit was made on.
    !---~---
    elemental pure function kattge_knorr_entropy(a_coef, b_coef, t_growth) result(ds)
-      real(wp), intent(in) :: a_coef, b_coef   !--- [J/mol/K], [J/mol/K2] intercept and slope
-      real(wp), intent(in) :: t_growth         !--- [K] growth temperature
+      real(wp), intent(in) :: a_coef, b_coef   ! [J/mol/K], [J/mol/K2] intercept and slope
+      real(wp), intent(in) :: t_growth         ! [K] growth temperature
       real(wp)             :: ds
       ds = a_coef - b_coef * (t_growth - t_kelvin)
    end function kattge_knorr_entropy
 
    !--- Kattge & Knorr (2007) acclimation of Jmax25/Vcmax25 = a - b T_growth[degC].
    elemental pure function kattge_knorr_jv_ratio(a_coef, b_coef, t_growth) result(jv)
-      real(wp), intent(in) :: a_coef, b_coef   !--- [-], [1/K] intercept and slope
-      real(wp), intent(in) :: t_growth         !--- [K] growth temperature
+      real(wp), intent(in) :: a_coef, b_coef   ! [-], [1/K] intercept and slope
+      real(wp), intent(in) :: t_growth         ! [K] growth temperature
       real(wp)             :: jv
       jv = max(0.1_wp, a_coef - b_coef * (t_growth - t_kelvin))   ! clamp-ok: positive far outside the 11-35 C fit
    end function kattge_knorr_jv_ratio
 
    !--- The configured form; the Arrhenius form ignores hd and ds.
    elemental pure function temp_response(form, k25, ea, hd, ds, t_leaf) result(k)
-      integer(ik), intent(in) :: form   !--- TEMP_RESPONSE_ARRHENIUS | TEMP_RESPONSE_PEAKED
+      integer(ik), intent(in) :: form   ! TEMP_RESPONSE_ARRHENIUS | TEMP_RESPONSE_PEAKED
       real(wp),    intent(in) :: k25, ea, hd, ds, t_leaf
       real(wp)                :: k
       select case (form)

@@ -44,7 +44,7 @@ contains
    subroutine default_file_open(src, stat, why, run_start, run_end)
       type(met_source_t),            intent(inout) :: src
       integer(ik),                   intent(out)   :: stat
-      character(len=:), allocatable, intent(out)   :: why    !--- what stops the run when stat /= MET_OK
+      character(len=:), allocatable, intent(out)   :: why    ! what stops the run when stat /= MET_OK
       type(ed_time_t), optional,   intent(in)      :: run_start, run_end
       integer(c_int)    :: st, ncid
       integer(c_size_t) :: dlen

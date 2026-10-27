@@ -37,19 +37,19 @@ module ed_soil_carbon
    ! carbon-mass checks (soil_carbon.md §7, §9).
    !---~---
    type :: soil_carbon_out_t
-      type(soil_carbon_state_t) :: pools     !--- the pools and lignin after the step
+      type(soil_carbon_state_t) :: pools     ! the pools and lignin after the step
       !---~---
       !   rh_seam_gap: zero by construction on every step, since the patch structure
       ! changes before the fast window opens; do not widen a tolerance for it (§7).
       !---~---
-      real(wp) :: rh_seam_gap  = 0.0_wp   !--- [kgC/m2/day] the step's Rh less the fast loop's (set by the caller)
-      real(wp) :: lignin_resid = 0.0_wp   !--- [kgC/m2/day] max_s |dL_s - (lignin_in_s - (1-surv_s)*L_s)|; tracer check
+      real(wp) :: rh_seam_gap  = 0.0_wp   ! [kgC/m2/day] the step's Rh less the fast loop's (set by the caller)
+      real(wp) :: lignin_resid = 0.0_wp   ! [kgC/m2/day] max_s |dL_s - (lignin_in_s - (1-surv_s)*L_s)|; tracer check
       !---~---
       !   lambda, the largest fraction of any pool the step withdraws, says whether
       ! freezing the pool is sound; past 1 forward Euler goes negative (§6).
       !---~---
-      real(wp)    :: lambda_max  = 0.0_wp   !--- [-] max_j dvec_j = max_j (xi_int_j * K_j)
-      integer(ik) :: lambda_pool = 0_ik     !--- which pool attained it (IP_* index)
+      real(wp)    :: lambda_max  = 0.0_wp   ! [-] max_j dvec_j = max_j (xi_int_j * K_j)
+      integer(ik) :: lambda_pool = 0_ik     ! which pool attained it (IP_* index)
    end type soil_carbon_out_t
 
    !---~---
@@ -57,8 +57,8 @@ module ed_soil_carbon
    ! is never negative beyond round-off, and 1e4 kgC/m2 (~500x the richest real soil)
    ! catches divergence, not implausible science.
    !---~---
-   real(wp), parameter :: SOILC_NEG_TOL       = 1.0e-9_wp   !--- [kgC/m2] round-off allowance below zero
-   real(wp), parameter :: SOILC_MAX_PLAUSIBLE = 1.0e4_wp    !--- [kgC/m2] per-pool divergence ceiling
+   real(wp), parameter :: SOILC_NEG_TOL       = 1.0e-9_wp   ! [kgC/m2] round-off allowance below zero
+   real(wp), parameter :: SOILC_MAX_PLAUSIBLE = 1.0e4_wp    ! [kgC/m2] per-pool divergence ceiling
 
 contains
 
@@ -128,8 +128,8 @@ contains
    !---~---
    pure subroutine build_litter_input(litter, u, lignin_in)
       type(litter_input_t), intent(in)  :: litter
-      real(wp),             intent(out) :: u(N_SOIL_POOL)   !--- [kgC/m2/day] input to each pool (1-4 nonzero)
-      real(wp),             intent(out) :: lignin_in(2)     !--- [kgC/m2/day] lignin flux to struct_grnd/struct_soil
+      real(wp),             intent(out) :: u(N_SOIL_POOL)   ! [kgC/m2/day] input to each pool (1-4 nonzero)
+      real(wp),             intent(out) :: lignin_in(2)     ! [kgC/m2/day] lignin flux to struct_grnd/struct_soil
       u = 0.0_wp
       u(IP_FAST_GRND)   = litter%labile_grnd
       u(IP_FAST_SOIL)   = litter%labile_soil
@@ -152,10 +152,10 @@ contains
    subroutine soil_carbon_step(pools, u, lignin_in, xi_int, params, rh_today, out)
       type(soil_carbon_state_t),  intent(in)    :: pools
       real(wp),                   intent(in)    :: u(N_SOIL_POOL), lignin_in(2)
-      real(wp),                   intent(in)    :: xi_int(N_SOIL_POOL)   !--- [day] INT_day xi_j dt (fast accumulator)
+      real(wp),                   intent(in)    :: xi_int(N_SOIL_POOL)   ! [day] INT_day xi_j dt (fast accumulator)
       type(soil_carbon_params_t), intent(in)    :: params
-      real(wp),                   intent(out)   :: rh_today              !--- [kgC/m2/day] actual pool loss = fast loop's Rh
-      type(soil_carbon_out_t),    intent(out)   :: out                   !--- the new pools and the checks
+      real(wp),                   intent(out)   :: rh_today              ! [kgC/m2/day] actual pool loss = fast loop's Rh
+      type(soil_carbon_out_t),    intent(out)   :: out                   ! the new pools and the checks
       real(wp) :: a_mat(N_SOIL_POOL, N_SOIL_POOL), k_diag(N_SOIL_POOL), er(N_SOIL_POOL)
       real(wp) :: x0(N_SOIL_POOL), x1(N_SOIL_POOL), dvec(N_SOIL_POOL), loss(N_SOIL_POOL)
       real(wp) :: lig0(2), lig1(2), d_s(2), surv(2), litter_in, dc_pool, lig_resid
@@ -320,7 +320,7 @@ contains
    !---~---
    pure subroutine step_expm(a_mat, dvec, u, x0, x1)
       real(wp), intent(in)  :: a_mat(N_SOIL_POOL, N_SOIL_POOL)
-      real(wp), intent(in)  :: dvec(N_SOIL_POOL)          !--- day-integrated decay fraction xi_int*K [-]
+      real(wp), intent(in)  :: dvec(N_SOIL_POOL)          ! day-integrated decay fraction xi_int*K [-]
       real(wp), intent(in)  :: u(N_SOIL_POOL), x0(N_SOIL_POOL)
       real(wp), intent(out) :: x1(N_SOIL_POOL)
       integer(ik), parameter :: M = N_SOIL_POOL + 1_ik

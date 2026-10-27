@@ -291,16 +291,16 @@ module test_slow_step_acclimation
 
    public :: run_thermal_acclimation
 
-   real(wp), parameter :: T_COOL = t_kelvin + 10.0_wp   !--- [K] the cool site's daily mean
-   real(wp), parameter :: T_WARM = t_kelvin + 30.0_wp   !--- [K] the warm site's
-   real(wp), parameter :: WINDOW = 30.0_wp              !--- [day] the running mean's window
+   real(wp), parameter :: T_COOL = t_kelvin + 10.0_wp   ! [K] the cool site's daily mean
+   real(wp), parameter :: T_WARM = t_kelvin + 30.0_wp   ! [K] the warm site's
+   real(wp), parameter :: WINDOW = 30.0_wp              ! [day] the running mean's window
 
 contains
 
    subroutine run_thermal_acclimation()
       type(ed_config_t)        :: cfg
       type(polygon_t)          :: poly
-      type(run_ledgers_t)      :: ledgers   !--- never activated: the steps book nothing
+      type(run_ledgers_t)      :: ledgers   ! never activated: the steps book nothing
       type(leaf_photo_table_t) :: warm_table
       real(wp)    :: t_new, gap0
       integer(ik) :: iday, is
@@ -447,9 +447,9 @@ module test_slow_step_carbon
    private
 
    public :: run_carbon_step
-   real(wp), allocatable :: leaf_new(:), storage_new(:)   !--- the traits' leaf and storage carbon
-   type(slow_ledger_t) :: no_ledger    !--- inactive: a test step books nothing
-   type(run_ledgers_t) :: ledgers      !--- never activated: the coupled steps book nothing
+   real(wp), allocatable :: leaf_new(:), storage_new(:)   ! the traits' leaf and storage carbon
+   type(slow_ledger_t) :: no_ledger    ! inactive: a test step books nothing
+   type(run_ledgers_t) :: ledgers      ! never activated: the coupled steps book nothing
 
    type(ed_config_t)   :: cfg
    type(polygon_t)     :: poly
@@ -777,11 +777,11 @@ module test_slow_step_ledger_paths
    private
 
    public :: run_ledger_paths
-   type(slow_ledger_t) :: no_ledger    !--- inactive: a test step books nothing
+   type(slow_ledger_t) :: no_ledger    ! inactive: a test step books nothing
    real(wp)    :: soil_bottoms(n_soil_layer_max)   ! [m] the column's layer bottoms, as the ledger builds them
    integer(ik) :: n_soil_layer
 
-   real(wp), parameter  :: RHO = rho_air_ref    !--- the density the canopy-air store is valued at
+   real(wp), parameter  :: RHO = rho_air_ref    ! the density the canopy-air store is valued at
    type(ed_config_t)    :: cfg
    type(polygon_t)      :: poly
    type(soil_profile_t) :: soil
@@ -887,14 +887,14 @@ contains
       real(wp), intent(in)  :: g_resp, repro_eff
       real(wp), intent(out) :: co2_rate, litter_total
       logical, optional, intent(in) :: starve
-      real(wp), optional, intent(in)  :: max_rgr    !--- pft.max_relative_growth_rate (default 0, no limit)
-      real(wp), optional, intent(out) :: lab_soil   !--- patch 1's below-ground labile litter
-      real(wp), optional, intent(out) :: wood       !--- the cohort's wood carbon after the step
-      real(wp), optional, intent(out) :: nplant0    !--- the cohort's density before the step
-      logical,  optional, intent(in)  :: immortal   !--- .true. => no background or low-growth mortality
-      real(wp), optional, intent(in)  :: max_agr    !--- pft.max_absolute_growth_rate (default 0, no limit)
-      real(wp), optional, intent(out) :: ddbh       !--- the cohort's dbh growth over the step
-      real(wp), optional, intent(out) :: dt_yr      !--- the step's length [yr]
+      real(wp), optional, intent(in)  :: max_rgr    ! pft.max_relative_growth_rate (default 0, no limit)
+      real(wp), optional, intent(out) :: lab_soil   ! patch 1's below-ground labile litter
+      real(wp), optional, intent(out) :: wood       ! the cohort's wood carbon after the step
+      real(wp), optional, intent(out) :: nplant0    ! the cohort's density before the step
+      logical,  optional, intent(in)  :: immortal   ! .true. => no background or low-growth mortality
+      real(wp), optional, intent(in)  :: max_agr    ! pft.max_absolute_growth_rate (default 0, no limit)
+      real(wp), optional, intent(out) :: ddbh       ! the cohort's dbh growth over the step
+      real(wp), optional, intent(out) :: dt_yr      ! the step's length [yr]
       real(wp) :: dbh_start
       type(ed_config_t)   :: c
       type(polygon_t)     :: st
@@ -1155,8 +1155,8 @@ contains
       integer(ik), intent(in)  :: nstep
       real(wp),    intent(in)  :: repro_eff
       real(wp),    intent(out) :: pool
-      real(wp), optional, intent(in)  :: shade_decay   !--- pft.recruit_shade_decay (default 0)
-      real(wp), optional, intent(out) :: lai           !--- the stand's LAI before the first step
+      real(wp), optional, intent(in)  :: shade_decay   ! pft.recruit_shade_decay (default 0)
+      real(wp), optional, intent(out) :: lai           ! the stand's LAI before the first step
       type(ed_config_t)   :: c
       type(polygon_t)     :: st
       integer(ik)         :: k
@@ -1205,11 +1205,11 @@ module test_slow_step_mortality
    private
 
    public :: run_mortality_pathways
-   type(kill_report_t)  :: kills   !--- what the cull and the treefall killed
-   real(wp)             :: dist_frac          !--- the treefall decision's share
-   logical, allocatable :: dist_survives(:)   !--- and its survivors
-   type(slow_ledger_t) :: no_ledger    !--- inactive: a test step books nothing
-   real(wp)            :: shed_water   !--- an operator's shed water, unread here
+   type(kill_report_t)  :: kills   ! what the cull and the treefall killed
+   real(wp)             :: dist_frac          ! the treefall decision's share
+   logical, allocatable :: dist_survives(:)   ! and its survivors
+   type(slow_ledger_t) :: no_ledger    ! inactive: a test step books nothing
+   real(wp)            :: shed_water   ! an operator's shed water, unread here
 
 contains
 
@@ -1440,7 +1440,7 @@ contains
       type(polygon_t),     intent(inout) :: poly
       type(ed_config_t),   intent(in)    :: cfg
       real(wp),            intent(in)    :: storage
-      real(wp), parameter :: STEM_RESP_DAY = 1.0e-3_wp   !--- [kgC/plant] one day's stem respiration
+      real(wp), parameter :: STEM_RESP_DAY = 1.0e-3_wp   ! [kgC/plant] one day's stem respiration
       call init_bare_ground(poly, cfg, 1_ik)
       call add_cohort(poly, cfg, 1_ik, 2_ik, 0.05_wp, 20.0_wp)
       call finalize_init(poly)
@@ -1484,16 +1484,16 @@ module test_slow_step_seam
    private
 
    public :: run_soil_seam
-   type(slow_ledger_t) :: no_ledger    !--- inactive: a test step books nothing
+   type(slow_ledger_t) :: no_ledger    ! inactive: a test step books nothing
    real(wp) :: test_bottoms(n_soil_layer_max)   ! the geometric layers these checks are computed on
 
    integer(ik)            :: n_budget_fail
    integer(ik), parameter :: NSL = 10_ik
    type(ed_config_t)    :: cfg
    type(polygon_t)      :: poly
-   type(soil_profile_t) :: test_profile   !--- the site's soil column (use_test_column)
+   type(soil_profile_t) :: test_profile   ! the site's soil column (use_test_column)
    real(wp) :: total0, total1
-   type(slow_ledger_t) :: seam   !--- an inactive ledger, which keeps the run's seam worsts
+   type(slow_ledger_t) :: seam   ! an inactive ledger, which keeps the run's seam worsts
    real(wp) :: we, ww
 
 contains
@@ -1658,13 +1658,13 @@ module test_slow_step_diag
    private
 
    public :: run_slow_rows
-   type(slow_ledger_t) :: no_ledger    !--- inactive: a test step books nothing
+   type(slow_ledger_t) :: no_ledger    ! inactive: a test step books nothing
    real(wp) :: test_bottoms(n_soil_layer_max)   ! the geometric layers these checks are computed on
 
    integer(ik), parameter :: NSL = 10_ik
    type(ed_config_t)    :: cfg
    type(polygon_t)      :: poly
-   type(soil_profile_t) :: test_profile   !--- the site's soil column (use_test_column)
+   type(soil_profile_t) :: test_profile   ! the site's soil column (use_test_column)
    real(wp)             :: x(8), pool0, pool1, elapsed_yr, frac_expected
    integer(ik)          :: np
 

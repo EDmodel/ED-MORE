@@ -38,19 +38,19 @@ module ed_patch_state_vars
    public :: DIST_PRIMARY, DIST_TREEFALL
 
    !--- A patch's disturbance class (patch_block%dist_type).
-   integer(ik), parameter :: DIST_PRIMARY  = 1_ik   !--- undisturbed / primary stand
-   integer(ik), parameter :: DIST_TREEFALL = 2_ik   !--- treefall-gap (age-0) patch
+   integer(ik), parameter :: DIST_PRIMARY  = 1_ik   ! undisturbed / primary stand
+   integer(ik), parameter :: DIST_TREEFALL = 2_ik   ! treefall-gap (age-0) patch
 
    !---~---
    !   The canopy air: three prognostic twins, and the depth that sizes the box
    ! (docs/science/canopy_air_space_biophysics.md).
    !---~---
    type :: cas_state_t
-      real(wp) :: can_enthalpy = 0.0_wp                     !--- [J/kg]     specific enthalpy (prognostic)
-      real(wp) :: can_shv      = 0.0_wp                     !--- [kg/kg]    specific humidity (prognostic)
-      real(wp) :: can_co2      = CAN_CO2_UNSEEDED           !--- [umol/mol] CO2 mixing ratio in dry air (prognostic)
-      real(wp) :: can_temp     = UNSET_POSITIVE             !--- [K]        diagnosed; unset until a start seeds it
-      real(wp) :: can_depth    = CAN_DEPTH_UNSET            !--- [m]        tallest cohort + freeboard, set by the slow step
+      real(wp) :: can_enthalpy = 0.0_wp                     ! [J/kg]     specific enthalpy (prognostic)
+      real(wp) :: can_shv      = 0.0_wp                     ! [kg/kg]    specific humidity (prognostic)
+      real(wp) :: can_co2      = CAN_CO2_UNSEEDED           ! [umol/mol] CO2 mixing ratio in dry air (prognostic)
+      real(wp) :: can_temp     = UNSET_POSITIVE             ! [K]        diagnosed; unset until a start seeds it
+      real(wp) :: can_depth    = CAN_DEPTH_UNSET            ! [m]        tallest cohort + freeboard, set by the slow step
    end type cas_state_t
 
    !---~---
@@ -59,12 +59,12 @@ module ed_patch_state_vars
    ! (docs/science/snow_biophysics.md).
    !---~---
    type :: snow_state_t
-      real(wp) :: swe(n_snow_layer_max)         = 0.0_wp   !--- [kg/m2] water-equivalent mass (prognostic)
-      real(wp) :: snow_energy(n_snow_layer_max) = 0.0_wp   !--- [J/m2]  internal energy (prognostic)
-      real(wp) :: snow_depth(n_snow_layer_max)  = 0.0_wp   !--- [m]     swe over the snow density
-      real(wp) :: snow_temp(n_snow_layer_max)   = t_3ple   !--- [K]     diagnosed
-      real(wp) :: snow_fliq(n_snow_layer_max)   = 0.0_wp   !--- [-]     liquid fraction, diagnosed
-      integer(ik) :: nlayer                     = 0_ik     !--- layers in use (0 = no snow)
+      real(wp) :: swe(n_snow_layer_max)         = 0.0_wp   ! [kg/m2] water-equivalent mass (prognostic)
+      real(wp) :: snow_energy(n_snow_layer_max) = 0.0_wp   ! [J/m2]  internal energy (prognostic)
+      real(wp) :: snow_depth(n_snow_layer_max)  = 0.0_wp   ! [m]     swe over the snow density
+      real(wp) :: snow_temp(n_snow_layer_max)   = t_3ple   ! [K]     diagnosed
+      real(wp) :: snow_fliq(n_snow_layer_max)   = 0.0_wp   ! [-]     liquid fraction, diagnosed
+      integer(ik) :: nlayer                     = 0_ik     ! layers in use (0 = no snow)
    end type snow_state_t
 
    !---~---
@@ -73,9 +73,9 @@ module ed_patch_state_vars
    ! "The pond holds heat").
    !---~---
    type :: soil_water_state_t
-      real(wp) :: theta(n_soil_layer_max) = 0.0_wp   !--- [m3/m3] volumetric water content (prognostic)
-      real(wp) :: w_surface = 0.0_wp                 !--- [kg/m2] ponded water (prognostic)
-      real(wp) :: w_surface_energy = 0.0_wp          !--- [J/m2]  ponded water's internal energy (prognostic)
+      real(wp) :: theta(n_soil_layer_max) = 0.0_wp   ! [m3/m3] volumetric water content (prognostic)
+      real(wp) :: w_surface = 0.0_wp                 ! [kg/m2] ponded water (prognostic)
+      real(wp) :: w_surface_energy = 0.0_wp          ! [J/m2]  ponded water's internal energy (prognostic)
    end type soil_water_state_t
 
    !---~---
@@ -83,9 +83,9 @@ module ed_patch_state_vars
    ! fraction read off it.
    !---~---
    type :: soil_energy_state_t
-      real(wp) :: soil_energy(n_soil_layer_max) = 0.0_wp    !--- [J/m3] internal energy (prognostic)
-      real(wp) :: soil_temp(n_soil_layer_max)   = 0.0_wp    !--- [K]    diagnosed
-      real(wp) :: soil_fliq(n_soil_layer_max)   = 1.0_wp    !--- [-]    liquid fraction, diagnosed
+      real(wp) :: soil_energy(n_soil_layer_max) = 0.0_wp    ! [J/m3] internal energy (prognostic)
+      real(wp) :: soil_temp(n_soil_layer_max)   = 0.0_wp    ! [K]    diagnosed
+      real(wp) :: soil_fliq(n_soil_layer_max)   = 1.0_wp    ! [-]    liquid fraction, diagnosed
    end type soil_energy_state_t
 
    !---~---
@@ -94,7 +94,7 @@ module ed_patch_state_vars
    ! loop's heterotrophic respiration.
    !---~---
    type :: soil_carbon_state_t
-      real(wp) :: carbon(N_SOIL_POOL) = 0.0_wp   !--- [kgC/m2] by IP_* index, litter -> SOM -> passive
+      real(wp) :: carbon(N_SOIL_POOL) = 0.0_wp   ! [kgC/m2] by IP_* index, litter -> SOM -> passive
       !---~---
       !   lignin of the structural pools [kgC/m2], above (1) and below (2) ground, 0 <= L <= C:
       ! its fraction slows their decay
@@ -108,8 +108,8 @@ module ed_patch_state_vars
    ! by pool (IP_*).
    !---~---
    type :: decomp_xi_t
-      real(wp) :: xi_days(N_SOIL_POOL) = 0.0_wp   !--- [day] INT_day xi_j dt
-      real(wp) :: rh_fast = 0.0_wp   !--- [kgC/m2] today's fast-loop Rh, a check on soil_carbon_step's own
+      real(wp) :: xi_days(N_SOIL_POOL) = 0.0_wp   ! [day] INT_day xi_j dt
+      real(wp) :: rh_fast = 0.0_wp   ! [kgC/m2] today's fast-loop Rh, a check on soil_carbon_step's own
    end type decomp_xi_t
 
    !---~---
@@ -117,22 +117,22 @@ module ed_patch_state_vars
    ! (docs/science/soil_carbon.md §5).
    !---~---
    type :: litter_input_t
-      real(wp) :: labile_grnd  = 0.0_wp      !--- -> X(1) fast_grnd  (labile leaf, fruit; above-ground storage + wood)
-      real(wp) :: labile_soil  = 0.0_wp      !--- -> X(2) fast_soil  (labile fine root; below-ground storage + wood)
-      real(wp) :: struct_grnd  = 0.0_wp      !--- -> X(3) struct_grnd (structural leaf + CWD, above)
-      real(wp) :: struct_soil  = 0.0_wp      !--- -> X(4) struct_soil (structural fineroot + belowground CWD)
-      real(wp) :: lignin_grnd  = 0.0_wp      !--- lignin flux to struct_grnd (sets f_lignin of incoming litter)
-      real(wp) :: lignin_soil  = 0.0_wp      !--- lignin flux to struct_soil
+      real(wp) :: labile_grnd  = 0.0_wp      ! -> X(1) fast_grnd  (labile leaf, fruit; above-ground storage + wood)
+      real(wp) :: labile_soil  = 0.0_wp      ! -> X(2) fast_soil  (labile fine root; below-ground storage + wood)
+      real(wp) :: struct_grnd  = 0.0_wp      ! -> X(3) struct_grnd (structural leaf + CWD, above)
+      real(wp) :: struct_soil  = 0.0_wp      ! -> X(4) struct_soil (structural fineroot + belowground CWD)
+      real(wp) :: lignin_grnd  = 0.0_wp      ! lignin flux to struct_grnd (sets f_lignin of incoming litter)
+      real(wp) :: lignin_soil  = 0.0_wp      ! lignin flux to struct_soil
       !---~---
       !   the same carbon by the tissue it came from, for output; they sum to the four pool streams.
       ! Leaf litter is counted after resorption, as a litter trap collects it.
       !---~---
-      real(wp) :: leaf_c     = 0.0_wp      !--- leaves (turnover, drop, dead plants)
-      real(wp) :: fineroot_c = 0.0_wp      !--- fine roots
-      real(wp) :: wood_c     = 0.0_wp      !--- wood of dead plants (stem + coarse roots)
-      real(wp) :: storage_c  = 0.0_wp      !--- non-structural carbon of dead plants
-      real(wp) :: repro_c    = 0.0_wp      !--- reproduction carbon that made no recruit (fruit, seed)
-      real(wp) :: exudate_c  = 0.0_wp      !--- root exudate (carbon the growth sink could not use)
+      real(wp) :: leaf_c     = 0.0_wp      ! leaves (turnover, drop, dead plants)
+      real(wp) :: fineroot_c = 0.0_wp      ! fine roots
+      real(wp) :: wood_c     = 0.0_wp      ! wood of dead plants (stem + coarse roots)
+      real(wp) :: storage_c  = 0.0_wp      ! non-structural carbon of dead plants
+      real(wp) :: repro_c    = 0.0_wp      ! reproduction carbon that made no recruit (fruit, seed)
+      real(wp) :: exudate_c  = 0.0_wp      ! root exudate (carbon the growth sink could not use)
    end type litter_input_t
 
    !---~---
@@ -141,52 +141,52 @@ module ed_patch_state_vars
    !---~---
    type :: patch_block
       !--- 0. BLOCK RECORD
-      integer(ik) :: n   = 0_ik       !--- patches in use
-      integer(ik) :: cap = 0_ik       !--- allocated capacity
+      integer(ik) :: n   = 0_ik       ! patches in use
+      integer(ik) :: cap = 0_ik       ! allocated capacity
       !--- 1. IDENTITY AND AREA
-      integer(ik), allocatable :: global_id(:)      !--- persistent id, never reused
-      integer(ik), allocatable :: dist_type(:)      !--- disturbance/land-use class
-      integer(ik), allocatable :: owner_site(:)     !--- its site in the polygon's site block
-      real(wp),    allocatable :: area(:)           !--- fraction of its site, sum = 1 (kept real64)
-      real(wp),    allocatable :: age(:)            !--- [yr]
+      integer(ik), allocatable :: global_id(:)      ! persistent id, never reused
+      integer(ik), allocatable :: dist_type(:)      ! disturbance/land-use class
+      integer(ik), allocatable :: owner_site(:)     ! its site in the polygon's site block
+      real(wp),    allocatable :: area(:)           ! fraction of its site, sum = 1 (kept real64)
+      real(wp),    allocatable :: age(:)            ! [yr]
       !--- 2. COHORT MAP: a CSR map into the cohort block (rebuild_cohort_map derives it)
-      integer(ik), allocatable :: cohort_offset(:)  !--- first cohort of the patch (1-based)
-      integer(ik), allocatable :: cohort_count(:)   !--- cohorts in the patch
+      integer(ik), allocatable :: cohort_offset(:)  ! first cohort of the patch (1-based)
+      integer(ik), allocatable :: cohort_count(:)   ! cohorts in the patch
       !--- 3. RECRUIT BANK
-      real(wp),    allocatable :: recruit_pool(:,:)  !--- [plant/m2] (pft, patch) recruits waiting to reach min_recruit_size
+      real(wp),    allocatable :: recruit_pool(:,:)  ! [plant/m2] (pft, patch) recruits waiting to reach min_recruit_size
       !--- 4. CANOPY AIR
-      type(cas_state_t),          allocatable :: cas(:)          !--- canopy air
+      type(cas_state_t),          allocatable :: cas(:)          ! canopy air
       !--- 5. SNOW
-      type(snow_state_t),         allocatable :: snow(:)         !--- snow, or temporary surface water
+      type(snow_state_t),         allocatable :: snow(:)         ! snow, or temporary surface water
       !--- 6. SOIL WATER AND HEAT
-      type(soil_water_state_t),   allocatable :: soil_water(:)   !--- soil water and the pond
-      type(soil_energy_state_t),  allocatable :: soil_energy(:)  !--- soil heat
+      type(soil_water_state_t),   allocatable :: soil_water(:)   ! soil water and the pond
+      type(soil_energy_state_t),  allocatable :: soil_energy(:)  ! soil heat
       !--- 7. SOIL CARBON
-      type(soil_carbon_state_t),  allocatable :: soil_carbon(:)  !--- soil-carbon pools
+      type(soil_carbon_state_t),  allocatable :: soil_carbon(:)  ! soil-carbon pools
       !--- 8. DAILY SLOW-TO-FAST RATES (set once per slow step, held fixed all day)
-      real(wp),    allocatable :: shed_water_rate(:)   !--- [kg/m2/s] water of shed tissue, to the ground (soil_plant_water.md)
-      real(wp),    allocatable :: shed_water_enth(:)   !--- [W/m2] its enthalpy, at the temperatures of the tissues it left
-      real(wp),    allocatable :: slow_co2_rate(:)    !--- [umol/m2/s] growth respiration less starvation deficit, to the canopy air
+      real(wp),    allocatable :: shed_water_rate(:)   ! [kg/m2/s] water of shed tissue, to the ground (soil_plant_water.md)
+      real(wp),    allocatable :: shed_water_enth(:)   ! [W/m2] its enthalpy, at the temperatures of the tissues it left
+      real(wp),    allocatable :: slow_co2_rate(:)     ! [umol/m2/s] growth respiration less starvation deficit, to the canopy air
       !--- 9. WITHIN-STEP ACCUMULATORS (reset each step, never restarted)
       !---~---
       !   On the patch, not local to the slow driver, so a patch made or fused partway
       ! through the step keeps its own sums.
       !---~---
-      type(decomp_xi_t),          allocatable :: decomp_xi(:)  !--- the day's decomposition scalars
-      type(litter_input_t),       allocatable :: litter_in(:)  !--- [kgC/m2/day] this step's litter
+      type(decomp_xi_t),          allocatable :: decomp_xi(:)  ! the day's decomposition scalars
+      type(litter_input_t),       allocatable :: litter_in(:)  ! [kgC/m2/day] this step's litter
       !--- 10. SOLVER MEMORY
       !---~---
       !   Per patch, so a patch's first sub-step does not depend on which patch ran before
       ! it, or on the thread schedule (docs/science/numerical_scheme.md §3).
       !---~---
-      real(wp),    allocatable :: adapt_dt_last(:)     !--- [s] last accepted fast-loop sub-step
+      real(wp),    allocatable :: adapt_dt_last(:)     ! [s] last accepted fast-loop sub-step
       !---~---
       !   The patch's wall time in the last fast window, which orders the next window's patch
       ! loop costliest first. Scheduling only: no result reads it, and it is never restarted.
       !---~---
-      real(wp),    allocatable :: fast_cost(:)         !--- [s]
+      real(wp),    allocatable :: fast_cost(:)         ! [s]
       !--- 11. OUTPUT ACCUMULATORS (ed_diag_vars; never restarted)
-      type(patch_diag_block) :: diag   !--- the fast loop's rows, then the slow step's
+      type(patch_diag_block) :: diag   ! the fast loop's rows, then the slow step's
    end type patch_block
 
 contains
@@ -236,11 +236,11 @@ contains
    !---~---
    pure subroutine cas_set_depth(cas, depth_new, rho_air, de_open, dw_open, dc_open)
       type(cas_state_t),  intent(inout) :: cas
-      real(wp),           intent(in)    :: depth_new  !--- [m] new CAS depth
-      real(wp), optional, intent(in)    :: rho_air    !--- [kg/m3]
-      real(wp), optional, intent(out)   :: de_open    !--- [J/m2]     energy    entrained (+) / detrained (-)
-      real(wp), optional, intent(out)   :: dw_open    !--- [kg/m2]    vapour    entrained (+) / detrained (-)
-      real(wp), optional, intent(out)   :: dc_open    !--- [umol/m2]  CO2       entrained (+) / detrained (-)
+      real(wp),           intent(in)    :: depth_new  ! [m] new CAS depth
+      real(wp), optional, intent(in)    :: rho_air    ! [kg/m3]
+      real(wp), optional, intent(out)   :: de_open    ! [J/m2]     energy    entrained (+) / detrained (-)
+      real(wp), optional, intent(out)   :: dw_open    ! [kg/m2]    vapour    entrained (+) / detrained (-)
+      real(wp), optional, intent(out)   :: dc_open    ! [umol/m2]  CO2       entrained (+) / detrained (-)
       real(wp) :: dmass, dmol
       dmass = 0.0_wp
       dmol = 0.0_wp
@@ -261,12 +261,12 @@ contains
    ! both take them from here.
    !---~---
    elemental subroutine cas_capacities(rho_air, shv, depth, molar_density, mass_capacity, molar_capacity)
-      real(wp), intent(in)  :: rho_air          !--- [kg/m3]  air density
-      real(wp), intent(in)  :: shv              !--- [kg/kg]  specific humidity
-      real(wp), intent(in)  :: depth            !--- [m]      canopy-air depth
-      real(wp), intent(out) :: molar_density    !--- [mol/m3] dry-air molar density
-      real(wp), intent(out) :: mass_capacity    !--- [kg/m2]
-      real(wp), intent(out) :: molar_capacity   !--- [mol/m2]
+      real(wp), intent(in)  :: rho_air          ! [kg/m3]  air density
+      real(wp), intent(in)  :: shv              ! [kg/kg]  specific humidity
+      real(wp), intent(in)  :: depth            ! [m]      canopy-air depth
+      real(wp), intent(out) :: molar_density    ! [mol/m3] dry-air molar density
+      real(wp), intent(out) :: mass_capacity    ! [kg/m2]
+      real(wp), intent(out) :: molar_capacity   ! [mol/m2]
       molar_density  = cas_molar_density(rho_air, shv)
       mass_capacity  = rho_air * depth
       molar_capacity = molar_density * depth
@@ -558,8 +558,8 @@ contains
    ! restart's file, a gap's donors). `surf` is the patch's site's surface.
    !---~---
    pure subroutine patch_physical_state(cas, soil_water, surf, temp, psi)
-      type(cas_state_t),         intent(in)  :: cas          !--- the patch's canopy air
-      type(soil_water_state_t), intent(in)  :: soil_water   !--- the patch's soil water
+      type(cas_state_t),         intent(in)  :: cas          ! the patch's canopy air
+      type(soil_water_state_t), intent(in)  :: soil_water   ! the patch's soil water
       type(site_surface_t),      intent(in)  :: surf
       real(wp),                  intent(out) :: temp, psi
       temp = cas%can_temp

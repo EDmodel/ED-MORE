@@ -27,7 +27,7 @@ contains
    ! current diameter, over the step. The mortality hazard reads it (eq. (3)).
    !---~---
    elemental pure function npp_to_growth(allom, wood_carbon, npp_wood, dbh, dt_yr, rho) result(dbh_rate)
-      type(allometry_t), intent(in) :: allom   !--- the cohort's PFT's allometry
+      type(allometry_t), intent(in) :: allom   ! the cohort's PFT's allometry
       real(wp), intent(in) :: wood_carbon, npp_wood, dbh, dt_yr, rho
       real(wp)             :: dbh_rate, dbh_new
       dbh_new  = wood_to_dbh(allom, max(wood_carbon + npp_wood, 0.0_wp), rho)
@@ -53,9 +53,9 @@ contains
    ! and zero for a cohort already at the floor.
    !---~---
    elemental pure function decline_to_floor_mortality(nplant, nplant_floor, window) result(mort)
-      real(wp), intent(in) :: nplant         !--- [plant/m2] the cohort's density
-      real(wp), intent(in) :: nplant_floor   !--- [plant/m2] the density floor (> 0)
-      real(wp), intent(in) :: window         !--- [yr] how long the decline takes (> 0)
+      real(wp), intent(in) :: nplant         ! [plant/m2] the cohort's density
+      real(wp), intent(in) :: nplant_floor   ! [plant/m2] the density floor (> 0)
+      real(wp), intent(in) :: window         ! [yr] how long the decline takes (> 0)
       real(wp)             :: mort
       mort = log(max(nplant, nplant_floor) / max(nplant_floor, tiny_num)) / max(window, tiny_num)
    end function decline_to_floor_mortality
@@ -65,9 +65,9 @@ contains
    ! PFT's efficiency in the open, reduced by the shade of its patch's LAI.
    !---~---
    elemental pure function recruit_efficiency(efficiency_open, shade_decay, patch_lai) result(eff)
-      real(wp), intent(in) :: efficiency_open   !--- [-] the efficiency in the open
-      real(wp), intent(in) :: shade_decay       !--- [m2/m2 per LAI] k of exp(-k LAI)
-      real(wp), intent(in) :: patch_lai         !--- [m2/m2] the patch's LAI
+      real(wp), intent(in) :: efficiency_open   ! [-] the efficiency in the open
+      real(wp), intent(in) :: shade_decay       ! [m2/m2 per LAI] k of exp(-k LAI)
+      real(wp), intent(in) :: patch_lai         ! [m2/m2] the patch's LAI
       real(wp)             :: eff
       eff = efficiency_open * exp(-shade_decay * patch_lai)
    end function recruit_efficiency
@@ -90,16 +90,16 @@ contains
    ! plants per m2; a smaller pool carries over (demography.md §3).
    !---~---
    elemental pure function founds_cohort(recruit_pool, min_recruit_size) result(found)
-      real(wp), intent(in) :: recruit_pool       !--- [plant/m2]
-      real(wp), intent(in) :: min_recruit_size   !--- [plant/m2]
+      real(wp), intent(in) :: recruit_pool       ! [plant/m2]
+      real(wp), intent(in) :: min_recruit_size   ! [plant/m2]
       logical              :: found
       found = recruit_pool >= min_recruit_size
    end function founds_cohort
 
    !--- The share of a site's area a treefall disturbance at `rate` opens over dt_yr, eq. (7).
    elemental pure function disturbed_fraction(rate, dt_yr) result(frac)
-      real(wp), intent(in) :: rate    !--- [1/yr]
-      real(wp), intent(in) :: dt_yr   !--- [yr]
+      real(wp), intent(in) :: rate    ! [1/yr]
+      real(wp), intent(in) :: dt_yr   ! [yr]
       real(wp)             :: frac
       frac = 1.0_wp - exp(-rate * dt_yr)
    end function disturbed_fraction
@@ -109,8 +109,8 @@ contains
    ! (demography.md §4).
    !---~---
    elemental pure function survives_treefall(height, survive_height) result(survives)
-      real(wp), intent(in) :: height           !--- [m]
-      real(wp), intent(in) :: survive_height   !--- [m]
+      real(wp), intent(in) :: height           ! [m]
+      real(wp), intent(in) :: survive_height   ! [m]
       logical              :: survives
       survives = height < survive_height
    end function survives_treefall

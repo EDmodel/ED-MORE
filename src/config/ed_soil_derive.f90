@@ -33,7 +33,7 @@ module ed_soil_derive
    ! joins the layer above, so no profile ends in a sliver.
    !---~---
    real(wp), parameter :: LAYER_MERGE_SHARE = 0.5_wp
-   real(wp), parameter :: GRID_TOL = 1.0e-6_wp     !--- [m] a depth this close to a list bottom ends on it
+   real(wp), parameter :: GRID_TOL = 1.0e-6_wp     ! [m] a depth this close to a list bottom ends on it
 
 contains
 
@@ -108,7 +108,7 @@ contains
    pure subroutine soil_start_theta(soil, profile, init_soil_theta, theta)
       type(soil_params_t),  intent(in)  :: soil
       type(soil_profile_t), intent(in)  :: profile
-      real(wp),             intent(in)  :: init_soil_theta   !--- [m3/m3] [init].soil_theta
+      real(wp),             intent(in)  :: init_soil_theta   ! [m3/m3] [init].soil_theta
       real(wp),             intent(out) :: theta(n_soil_layer_max)
       if (soil%n_layer_values > 0_ik) then
          theta = profile%theta_fc
@@ -124,7 +124,7 @@ contains
    !---~---
    pure real(wp) function top_soil_psi(profile, theta_top) result(psi)
       type(soil_profile_t), intent(in) :: profile
-      real(wp),             intent(in) :: theta_top   !--- [m3/m3]
+      real(wp),             intent(in) :: theta_top   ! [m3/m3]
       psi = soil_matric_potential(profile%retention, theta_top, profile%theta_sat(1), profile%theta_res(1),   &
                                   profile%curve_par_a(1), profile%curve_par_n(1))
    end function top_soil_psi
@@ -223,7 +223,7 @@ contains
    pure subroutine build_profile_hydraulics_layers(n_active, retention, layer_bottoms, theta_sat,       &
                                                    theta_res, ksat, par_a, par_n, psi_fc_m, profile)
       integer(ik),          intent(in)  :: n_active, retention
-      real(wp),             intent(in)  :: layer_bottoms(:)    !--- [m] bottoms of the active layers, positive down
+      real(wp),             intent(in)  :: layer_bottoms(:)    ! [m] bottoms of the active layers, positive down
       real(wp),             intent(in)  :: theta_sat(:), theta_res(:), ksat(:), par_a(:), par_n(:)
       real(wp),             intent(in)  :: psi_fc_m
       type(soil_profile_t), intent(out) :: profile
@@ -269,7 +269,7 @@ contains
    pure subroutine build_profile_hydraulics(n_active, retention, layer_bottoms, theta_sat, theta_res,  &
                                             ksat, par_a, par_n, psi_fc_m, profile)
       integer(ik),          intent(in)  :: n_active, retention
-      real(wp),             intent(in)  :: layer_bottoms(:)    !--- [m] bottoms of the active layers, positive down
+      real(wp),             intent(in)  :: layer_bottoms(:)    ! [m] bottoms of the active layers, positive down
       real(wp),             intent(in)  :: theta_sat, theta_res, ksat, par_a, par_n, psi_fc_m
       type(soil_profile_t), intent(out) :: profile
       real(wp) :: ts(n_active), tr(n_active), ks(n_active), pa(n_active), pn(n_active)

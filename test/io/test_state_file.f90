@@ -64,7 +64,7 @@ program test_state_file
    character(len=*), parameter :: FILE_A = './test_sf_a-S-20000101000000.nc'
    character(len=*), parameter :: FILE_B = './test_sf_b-S-20000101000000.nc'
    character(len=*), parameter :: FILE_Z = './test_sf_z-S-20000101000000.nc'
-   character(len=*), parameter :: FILE_R = './test_sf_r-S-20000101000000.nc'   !--- a region's: polygons 35, 18, 53
+   character(len=*), parameter :: FILE_R = './test_sf_r-S-20000101000000.nc'   ! a region's: polygons 35, 18, 53
 
    type(ed_config_t)   :: cfg
    type(polygon_t)     :: poly, back

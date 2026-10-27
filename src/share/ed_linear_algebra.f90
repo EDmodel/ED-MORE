@@ -23,16 +23,16 @@ module ed_linear_algebra
 
    !--- A block arrowhead system, filled by the caller, and its factorisation.
    type :: arrowhead_system_t
-      integer(ik) :: nc = 0_ik                !--- core unknowns
-      integer(ik) :: nb = 0_ik                !--- blocks
-      integer(ik) :: mb = 0_ik                !--- unknowns per block
-      real(wp),    allocatable :: a(:,:)      !--- (nc, nc)     core block
-      real(wp),    allocatable :: b(:,:)      !--- (nc, nb)     core rows, each block's first column
-      real(wp),    allocatable :: c(:,:)      !--- (nc, nb)     each block's first row, over the core columns
-      real(wp),    allocatable :: d(:,:,:)    !--- (mb, mb, nb) the diagonal blocks
-      real(wp),    allocatable :: lu(:,:)     !--- (nc, nc)     the LU of the core after the blocks are folded in
-      real(wp),    allocatable :: dinv(:,:,:) !--- (mb, mb, nb) the inverses of the diagonal blocks
-      integer(ik), allocatable :: piv(:)      !--- (nc)         the core LU's row interchanges
+      integer(ik) :: nc = 0_ik                ! core unknowns
+      integer(ik) :: nb = 0_ik                ! blocks
+      integer(ik) :: mb = 0_ik                ! unknowns per block
+      real(wp),    allocatable :: a(:,:)      ! (nc, nc)     core block
+      real(wp),    allocatable :: b(:,:)      ! (nc, nb)     core rows, each block's first column
+      real(wp),    allocatable :: c(:,:)      ! (nc, nb)     each block's first row, over the core columns
+      real(wp),    allocatable :: d(:,:,:)    ! (mb, mb, nb) the diagonal blocks
+      real(wp),    allocatable :: lu(:,:)     ! (nc, nc)     the LU of the core after the blocks are folded in
+      real(wp),    allocatable :: dinv(:,:,:) ! (mb, mb, nb) the inverses of the diagonal blocks
+      integer(ik), allocatable :: piv(:)      ! (nc)         the core LU's row interchanges
    end type arrowhead_system_t
 
 contains
@@ -71,7 +71,7 @@ contains
    pure subroutine lu_factor(a, piv, n, ok)
       integer(ik), intent(in)    :: n
       real(wp),    intent(inout) :: a(n, n)
-      integer(ik), intent(out)   :: piv(n)    !--- the row interchanged with row k at step k
+      integer(ik), intent(out)   :: piv(n)    ! the row interchanged with row k at step k
       logical,     intent(out)   :: ok
       integer(ik) :: i, j, k, p
       real(wp)    :: row(n), f
@@ -162,7 +162,7 @@ contains
    !---~---
    pure subroutine arrowhead_factor(s, add_core, add_block, ok)
       type(arrowhead_system_t), intent(inout) :: s
-      real(wp),                 intent(in)    :: add_core(:), add_block(:, :)   !--- (nc), (mb, nb)
+      real(wp),                 intent(in)    :: add_core(:), add_block(:, :)   ! (nc), (mb, nb)
       logical,                  intent(out)   :: ok
       integer(ik) :: ib, i, j
       real(wp)    :: e11, cj
@@ -193,7 +193,7 @@ contains
    !--- Solve the factored system for one right-hand side (r_core, r_block).
    pure subroutine arrowhead_solve(s, r_core, r_block, x_core, x_block)
       type(arrowhead_system_t), intent(in)  :: s
-      real(wp),                 intent(in)  :: r_core(:), r_block(:, :)   !--- (nc), (mb, nb)
+      real(wp),                 intent(in)  :: r_core(:), r_block(:, :)   ! (nc), (mb, nb)
       real(wp),                 intent(out) :: x_core(:), x_block(:, :)
       real(wp)    :: rc(s%nc), cx
       integer(ik) :: ib, i, l

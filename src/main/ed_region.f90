@@ -71,8 +71,8 @@ module ed_region
    !---~---
    type :: ed_region_t
       type(ed_config_t)     :: cfg
-      type(met_source_t)    :: met_src          !--- one reader for every polygon (opened only if forcing_on)
-      type(output_files_t)  :: out_files           !--- the run's files (built only if output.enabled)
+      type(met_source_t)    :: met_src          ! one reader for every polygon (opened only if forcing_on)
+      type(output_files_t)  :: out_files           ! the run's files (built only if output.enabled)
       !---~---
       !   Each polygon as its state (the stand) and what the run keeps to step and check it
       ! (ed_polygon).
@@ -88,9 +88,9 @@ module ed_region
       type(output_buffers_t), allocatable :: out_bufs(:)
       type(ed_time_t)       :: now
       integer(ik)           :: step_days = 1_ik
-      integer(ik)           :: istep = 0_ik       !--- slow steps taken
-      integer(ik)           :: iyear = 0_ik       !--- year boundaries stepped across, for the state files
-      integer(ik)           :: imonth = 0_ik      !--- month boundaries stepped across, likewise
+      integer(ik)           :: istep = 0_ik       ! slow steps taken
+      integer(ik)           :: iyear = 0_ik       ! year boundaries stepped across, for the state files
+      integer(ik)           :: imonth = 0_ik      ! month boundaries stepped across, likewise
       !---~---
       !   The forcing's load time (met_prefetch) over the run and this year, and the archive
       ! month files read before this year, for the summaries.
@@ -211,9 +211,9 @@ contains
    logical function choose_polygons(cfg, verbose, cells, places, distance_km, inputs, have_maps) result(ok)
       type(ed_config_t),   intent(in)  :: cfg
       logical,             intent(in)  :: verbose
-      type(met_cells_t),   intent(out) :: cells        !--- the archive cells the run reads (none: ncell = 0)
-      type(met_cells_t),   intent(out) :: places       !--- each polygon's location and grid indices
-      real(wp),            intent(out) :: distance_km  !--- a site's distance to its cell
+      type(met_cells_t),   intent(out) :: cells        ! the archive cells the run reads (none: ncell = 0)
+      type(met_cells_t),   intent(out) :: places       ! each polygon's location and grid indices
+      real(wp),            intent(out) :: distance_km  ! a site's distance to its cell
       type(map_inputs_t),  intent(out) :: inputs
       logical,             intent(out) :: have_maps
       type(met_grid_t)              :: grid
@@ -336,8 +336,8 @@ contains
       type(map_inputs_t),  intent(in)    :: inputs
       logical,             intent(in)    :: have_maps
       type(ed_config_t)                :: pcfg
-      type(ed_config_t),   allocatable :: site_cfg(:)     !--- [[sites]]: each site's configuration ...
-      real(wp),            allocatable :: site_area(:)    !--- ... and share of the polygon
+      type(ed_config_t),   allocatable :: site_cfg(:)     ! [[sites]]: each site's configuration ...
+      real(wp),            allocatable :: site_area(:)    ! ... and share of the polygon
       integer(ik) :: p, n
       ok = .false.
       n = places%ncell

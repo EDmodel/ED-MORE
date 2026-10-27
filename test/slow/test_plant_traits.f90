@@ -80,10 +80,10 @@ contains
    ! on a two-PFT table with the reference configuration's Vcmax and Jmax responses.
    !---~---
    subroutine test_thermal_acclimation()
-      real(wp), parameter :: DSV_A = 668.39_wp, DSV_B = 1.07_wp   !--- [J/mol/K], [J/mol/K2] dS of Vcmax
-      real(wp), parameter :: DSJ_A = 659.70_wp, DSJ_B = 0.75_wp   !--- [J/mol/K], [J/mol/K2] dS of Jmax
-      real(wp), parameter :: JV_A  = 2.59_wp,   JV_B  = 0.035_wp  !--- [-], [1/K] Jmax25:Vcmax25
-      real(wp), parameter :: T_COLD = t_kelvin + 10.0_wp          !--- [K] growth temperatures
+      real(wp), parameter :: DSV_A = 668.39_wp, DSV_B = 1.07_wp   ! [J/mol/K], [J/mol/K2] dS of Vcmax
+      real(wp), parameter :: DSJ_A = 659.70_wp, DSJ_B = 0.75_wp   ! [J/mol/K], [J/mol/K2] dS of Jmax
+      real(wp), parameter :: JV_A  = 2.59_wp,   JV_B  = 0.035_wp  ! [-], [1/K] Jmax25:Vcmax25
+      real(wp), parameter :: T_COLD = t_kelvin + 10.0_wp          ! [K] growth temperatures
       real(wp), parameter :: T_WARM = t_kelvin + 30.0_wp
       real(wp), parameter :: T_REF  = t_kelvin + 25.0_wp
       type(leaf_photo_table_t) :: own, cold, warm, table
@@ -168,7 +168,7 @@ contains
    ! 50 C, so the optimum is measured from the response rather than derived.
    !---~---
    pure real(wp) function peak_temperature(ea, hd, ds) result(t_opt)
-      real(wp), intent(in) :: ea, hd, ds   !--- [J/mol], [J/mol], [J/mol/K]
+      real(wp), intent(in) :: ea, hd, ds   ! [J/mol], [J/mol], [J/mol/K]
       real(wp)    :: t, k, k_best
       integer(ik) :: j
       k_best = -1.0_wp

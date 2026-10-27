@@ -36,43 +36,43 @@ module ed_slow_ledger
    !   The phases of a slow step (conservation.md §3), each marked at the end of the
    ! operators that own it, so a residual names the operator that produced it.
    !---~---
-   integer(ik), parameter :: SLOW_PHASE_ALLOCATE = 1_ik  !--- phenology, traits, carbon allocation, turnover shed
-   integer(ik), parameter :: SLOW_PHASE_GROW     = 2_ik  !--- tendency build + state commit (growth and mortality)
-   integer(ik), parameter :: SLOW_PHASE_RECRUIT  = 3_ik  !--- apply_recruitment
-   integer(ik), parameter :: SLOW_PHASE_COHORT   = 4_ik  !--- cohort fuse / terminate / split
-   integer(ik), parameter :: SLOW_PHASE_DISTURB  = 5_ik  !--- apply_patch_disturbance
-   integer(ik), parameter :: SLOW_PHASE_PATCH    = 6_ik  !--- patch sort / fuse / terminate (+ trailing cohort ops)
-   integer(ik), parameter :: SLOW_PHASE_CANOPY   = 7_ik  !--- refresh_canopy_depth (the open CAS control volume)
-   integer(ik), parameter :: SLOW_PHASE_SOILC    = 8_ik  !--- the CENTURY daily step
-   integer(ik), parameter :: SLOW_PHASE_TISSUE_WATER = 9_ik  !--- tissue water above capacity shed, before the fast loop
+   integer(ik), parameter :: SLOW_PHASE_ALLOCATE = 1_ik  ! phenology, traits, carbon allocation, turnover shed
+   integer(ik), parameter :: SLOW_PHASE_GROW     = 2_ik  ! tendency build + state commit (growth and mortality)
+   integer(ik), parameter :: SLOW_PHASE_RECRUIT  = 3_ik  ! apply_recruitment
+   integer(ik), parameter :: SLOW_PHASE_COHORT   = 4_ik  ! cohort fuse / terminate / split
+   integer(ik), parameter :: SLOW_PHASE_DISTURB  = 5_ik  ! apply_patch_disturbance
+   integer(ik), parameter :: SLOW_PHASE_PATCH    = 6_ik  ! patch sort / fuse / terminate (+ trailing cohort ops)
+   integer(ik), parameter :: SLOW_PHASE_CANOPY   = 7_ik  ! refresh_canopy_depth (the open CAS control volume)
+   integer(ik), parameter :: SLOW_PHASE_SOILC    = 8_ik  ! the CENTURY daily step
+   integer(ik), parameter :: SLOW_PHASE_TISSUE_WATER = 9_ik  ! tissue water above capacity shed, before the fast loop
    integer(ik), parameter :: N_SLOW_PHASE        = 9_ik
 
    !---~---
    !   The tolerance, eq. (2) of conservation.md §5: an absolute floor per mark, plus
    ! the relative test on the declared flux that the fast budgets use.
    !---~---
-   real(wp), parameter :: SLOW_ATOL_CARBON = 1.0e-12_wp   !--- [kgC/m2] per mark
-   real(wp), parameter :: SLOW_ATOL_WATER  = 1.0e-9_wp    !--- [kg/m2]  per mark
-   real(wp), parameter :: SLOW_ATOL_ENERGY = 1.0e-3_wp    !--- [J/m2]   per mark
+   real(wp), parameter :: SLOW_ATOL_CARBON = 1.0e-12_wp   ! [kgC/m2] per mark
+   real(wp), parameter :: SLOW_ATOL_WATER  = 1.0e-9_wp    ! [kg/m2]  per mark
+   real(wp), parameter :: SLOW_ATOL_ENERGY = 1.0e-3_wp    ! [J/m2]   per mark
    !---~---
    !   ...plus a round-off allowance on the store (§5): a phase that declares nothing
    ! still rearranges a large store.
    !---~---
-   real(wp), parameter :: SLOW_ROUNDOFF_FRAC = 1.0e-11_wp !--- [-] of the store, per mark
+   real(wp), parameter :: SLOW_ROUNDOFF_FRAC = 1.0e-11_wp ! [-] of the store, per mark
 
    !--- One total per currency, per m2 of site, area-weighted over the patches (§2).
    type :: slow_store_t
-      real(wp) :: carbon = 0.0_wp   !--- [kgC/m2] live pools + necromass + canopy air + recruit pool
-      real(wp) :: water  = 0.0_wp   !--- [kg/m2]  soil + pond + snow + canopy vapour + tissue + film
-      real(wp) :: energy = 0.0_wp   !--- [J/m2]   soil + pond + snow + canopy air + tissue heat
+      real(wp) :: carbon = 0.0_wp   ! [kgC/m2] live pools + necromass + canopy air + recruit pool
+      real(wp) :: water  = 0.0_wp   ! [kg/m2]  soil + pond + snow + canopy vapour + tissue + film
+      real(wp) :: energy = 0.0_wp   ! [J/m2]   soil + pond + snow + canopy air + tissue heat
    end type slow_store_t
 
    !--- The run's accumulator, held in the polygon's run record (polygon_run_t).
    type :: slow_ledger_t
-      logical             :: active = .false.       !--- off => every entry point is a no-op
+      logical             :: active = .false.       ! off => every entry point is a no-op
       !--- Rolling state within the current step.
-      type(slow_store_t)  :: at_mark                !--- store when the current phase opened
-      type(slow_store_t)  :: decl_in, decl_out      !--- declared boundary terms for the current phase
+      type(slow_store_t)  :: at_mark                ! store when the current phase opened
+      type(slow_store_t)  :: decl_in, decl_out      ! declared boundary terms for the current phase
       !---~---
       !   Per-phase sums over the run; the signed sum shows a one-signed drift that a
       ! running maximum misses (§5).
@@ -90,25 +90,25 @@ module ed_slow_ledger
       !   Plausibility (§6): the first phase that left a CENTURY pool that cannot
       ! exist, and where; everything after it is downstream of that state.
       !---~---
-      integer(ik)         :: bad_phase = 0_ik      !--- phase that first left an impossible store
-      integer(ik)         :: bad_patch = 0_ik      !--- which patch
-      integer(ik)         :: bad_pool  = 0_ik      !--- which CENTURY pool (index)
-      real(wp)            :: bad_value = 0.0_wp    !--- its value
-      integer(ik)         :: n_bad     = 0_ik      !--- how many marks saw an impossible store
+      integer(ik)         :: bad_phase = 0_ik      ! phase that first left an impossible store
+      integer(ik)         :: bad_patch = 0_ik      ! which patch
+      integer(ik)         :: bad_pool  = 0_ik      ! which CENTURY pool (index)
+      real(wp)            :: bad_value = 0.0_wp    ! its value
+      integer(ik)         :: n_bad     = 0_ik      ! how many marks saw an impossible store
       !--- A thermal-mass bracket's opening tissue energy [J/m2] (slow_ledger_heat_open).
       real(wp)            :: heat_at_open = 0.0_wp
       !---~---
       !   The run's worst soil-carbon checks (soil_carbon.md §7, §9), kept whether or not
       ! the ledger is active, with the step and patch count where the Rh gap peaked.
       !---~---
-      integer(ik)         :: n_seam       = 0_ik     !--- soil-carbon steps checked
-      real(wp)            :: worst_rh_gap = 0.0_wp   !--- [kgC/m2/day] max |the step's Rh - the fast loop's|
-      character(len=19)   :: worst_rh_gap_when   = ''   !--- the step it peaked on (its start)
-      integer(ik)         :: worst_rh_gap_npatch = 0_ik !--- and the patch count then
-      real(wp)            :: worst_lignin = 0.0_wp   !--- [kgC/m2/day] max |lignin passive-tracer residual|
-      real(wp)            :: worst_lambda = 0.0_wp   !--- [-] max fraction of any pool withdrawn in one step
-      integer(ik)         :: lambda_pool  = 0_ik     !--- the pool that attained it
-      character(len=19)   :: step_label   = ''       !--- the current step's start, for the dates above
+      integer(ik)         :: n_seam       = 0_ik     ! soil-carbon steps checked
+      real(wp)            :: worst_rh_gap = 0.0_wp   ! [kgC/m2/day] max |the step's Rh - the fast loop's|
+      character(len=19)   :: worst_rh_gap_when   = ''   ! the step it peaked on (its start)
+      integer(ik)         :: worst_rh_gap_npatch = 0_ik ! and the patch count then
+      real(wp)            :: worst_lignin = 0.0_wp   ! [kgC/m2/day] max |lignin passive-tracer residual|
+      real(wp)            :: worst_lambda = 0.0_wp   ! [-] max fraction of any pool withdrawn in one step
+      integer(ik)         :: lambda_pool  = 0_ik     ! the pool that attained it
+      character(len=19)   :: step_label   = ''       ! the current step's start, for the dates above
    end type slow_ledger_t
 
 contains
@@ -559,7 +559,7 @@ contains
    !---~---
    pure integer(ik) function slow_ledger_failures(ledger, p) result(nbad)
       type(slow_ledger_t), intent(in) :: ledger
-      integer(ik),         intent(in) :: p   !--- the phase (SLOW_PHASE_*)
+      integer(ik),         intent(in) :: p   ! the phase (SLOW_PHASE_*)
       nbad = 0_ik
       if (ledger%n_mark(p) == 0_ik) return
       nbad = breaches(ledger%resid_sum(p)%carbon, ledger%decl_gross(p)%carbon, SLOW_ATOL_CARBON,      &

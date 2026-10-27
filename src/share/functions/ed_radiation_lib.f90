@@ -19,35 +19,35 @@ module ed_radiation_lib
    public :: COSZ_MIN
 
    !--- sw_partition: total SW into four streams (docs/science/forcing.md §6).
-   integer(ik), parameter :: SWPART_PASSTHROUGH  = 0_ik   !--- file already carries the four streams
-   integer(ik), parameter :: SWPART_CLEARIDX     = 1_ik   !--- clearness-index (Erbs) split, eq. (7)
-   integer(ik), parameter :: SWPART_WEISS_NORMAN = 2_ik   !--- Weiss-Norman (1985) band-specific split, eqs. (8)-(10)
+   integer(ik), parameter :: SWPART_PASSTHROUGH  = 0_ik   ! file already carries the four streams
+   integer(ik), parameter :: SWPART_CLEARIDX     = 1_ik   ! clearness-index (Erbs) split, eq. (7)
+   integer(ik), parameter :: SWPART_WEISS_NORMAN = 2_ik   ! Weiss-Norman (1985) band-specific split, eqs. (8)-(10)
    !--- The clear-sky emissivity's forms ([forcing].lw_clear_form).
-   integer(ik), parameter :: LW_CLEAR_BRUTSAERT = 0_ik   !--- Brutsaert (1975), vapour-pressure power law
-   integer(ik), parameter :: LW_CLEAR_IDSO      = 1_ik   !--- Idso & Jackson (1969), temperature only
+   integer(ik), parameter :: LW_CLEAR_BRUTSAERT = 0_ik   ! Brutsaert (1975), vapour-pressure power law
+   integer(ik), parameter :: LW_CLEAR_IDSO      = 1_ik   ! Idso & Jackson (1969), temperature only
 
-   real(wp), parameter :: SOLAR_CONSTANT = 1361.0_wp   !--- [W/m2] TOA normal irradiance (mean; eccentricity ~+-3% ignored)
-   real(wp), parameter :: COSZ_MIN       = 1.0e-3_wp   !--- [-] cosz floor: below this it is night (SW = 0)
-   real(wp), parameter :: FPAR_BEAM      = 0.43_wp     !--- [-] PAR fraction of direct-beam SW energy
-   real(wp), parameter :: FPAR_DIFFUSE   = 0.52_wp     !--- [-] PAR fraction of diffuse SW energy (diffuse is PAR-enriched)
+   real(wp), parameter :: SOLAR_CONSTANT = 1361.0_wp   ! [W/m2] TOA normal irradiance (mean; eccentricity ~+-3% ignored)
+   real(wp), parameter :: COSZ_MIN       = 1.0e-3_wp   ! [-] cosz floor: below this it is night (SW = 0)
+   real(wp), parameter :: FPAR_BEAM      = 0.43_wp     ! [-] PAR fraction of direct-beam SW energy
+   real(wp), parameter :: FPAR_DIFFUSE   = 0.52_wp     ! [-] PAR fraction of diffuse SW energy (diffuse is PAR-enriched)
 
    !---~---
    !   The Weiss & Norman (1985) partition's constants, as WN85 publish them. With them the
    ! scheme's PPFD is within 4 % of three towers' quantum sensors (docs/science/forcing.md §6).
    !---~---
-   real(wp), parameter :: WN_VIS_TOA = 600.0_wp    !--- [W/m2] visible beam above the atmosphere (WN85 eq. 1)
-   real(wp), parameter :: WN_NIR_TOA = 720.0_wp    !--- [W/m2] near-infrared beam above the atmosphere (WN85 eq. 4)
-   real(wp), parameter :: WN_W10_TOA = 1320.0_wp   !--- [W/m2] scale of the NIR water-vapour absorption (WN85 eq. 6)
-   real(wp), parameter :: WN_PAR_BEAM_EXPEXT = -0.185_wp   !--- visible-beam atmospheric extinction (WN85 eq. 1)
-   real(wp), parameter :: WN_NIR_BEAM_EXPEXT = -0.060_wp   !--- NIR-beam atmospheric extinction (WN85 eq. 4)
-   real(wp), parameter :: WN_PAR2DIFF_SUN    = 0.400_wp    !--- visible beam->diffuse potential fraction (WN85 eq. 3)
-   real(wp), parameter :: WN_NIR2DIFF_SUN    = 0.600_wp    !--- NIR beam->diffuse potential fraction (WN85 eq. 5)
-   real(wp), parameter :: WN_W10_A = -1.1950_wp, WN_W10_B = 0.4459_wp, WN_W10_C = -0.0345_wp  !--- NIR water absorption (WN85 eq. 6)
-   real(wp), parameter :: WN_PAR_ACT_A = 0.90_wp, WN_PAR_ACT_B = 0.70_wp   !--- visible actual-beam fraction (WN85 eq. 11)
-   real(wp), parameter :: WN_NIR_ACT_A = 0.88_wp, WN_NIR_ACT_B = 0.68_wp   !--- NIR actual-beam fraction (WN85 eq. 12)
-   real(wp), parameter :: WN_FVIS_DIFF = 0.52_wp, WN_FNIR_DIFF = 0.48_wp   !--- dawn all-diffuse visible/NIR fractions
+   real(wp), parameter :: WN_VIS_TOA = 600.0_wp    ! [W/m2] visible beam above the atmosphere (WN85 eq. 1)
+   real(wp), parameter :: WN_NIR_TOA = 720.0_wp    ! [W/m2] near-infrared beam above the atmosphere (WN85 eq. 4)
+   real(wp), parameter :: WN_W10_TOA = 1320.0_wp   ! [W/m2] scale of the NIR water-vapour absorption (WN85 eq. 6)
+   real(wp), parameter :: WN_PAR_BEAM_EXPEXT = -0.185_wp   ! visible-beam atmospheric extinction (WN85 eq. 1)
+   real(wp), parameter :: WN_NIR_BEAM_EXPEXT = -0.060_wp   ! NIR-beam atmospheric extinction (WN85 eq. 4)
+   real(wp), parameter :: WN_PAR2DIFF_SUN    = 0.400_wp    ! visible beam->diffuse potential fraction (WN85 eq. 3)
+   real(wp), parameter :: WN_NIR2DIFF_SUN    = 0.600_wp    ! NIR beam->diffuse potential fraction (WN85 eq. 5)
+   real(wp), parameter :: WN_W10_A = -1.1950_wp, WN_W10_B = 0.4459_wp, WN_W10_C = -0.0345_wp  ! NIR water absorption (WN85 eq. 6)
+   real(wp), parameter :: WN_PAR_ACT_A = 0.90_wp, WN_PAR_ACT_B = 0.70_wp   ! visible actual-beam fraction (WN85 eq. 11)
+   real(wp), parameter :: WN_NIR_ACT_A = 0.88_wp, WN_NIR_ACT_B = 0.68_wp   ! NIR actual-beam fraction (WN85 eq. 12)
+   real(wp), parameter :: WN_FVIS_DIFF = 0.52_wp, WN_FNIR_DIFF = 0.48_wp   ! dawn all-diffuse visible/NIR fractions
    real(wp), parameter :: WN_TWOTHIRDS = 2.0_wp / 3.0_wp
-   real(wp), parameter :: WN_COSZ_MIN  = 0.017452406437_wp  !--- cos(89 deg): below this the sun is grazing -> all diffuse
+   real(wp), parameter :: WN_COSZ_MIN  = 0.017452406437_wp  ! cos(89 deg): below this the sun is grazing -> all diffuse
 
 contains
 
@@ -191,7 +191,7 @@ contains
    ! pressure comes from q; a saturation curve at Tair would assume saturation.
    !---~---
    pure function clear_sky_emissivity(form, tair_k, qair, psurf_pa) result(eps)
-      integer(ik), intent(in) :: form                   !--- LW_CLEAR_BRUTSAERT | LW_CLEAR_IDSO
+      integer(ik), intent(in) :: form                   ! LW_CLEAR_BRUTSAERT | LW_CLEAR_IDSO
       real(wp),    intent(in) :: tair_k, qair, psurf_pa
       real(wp) :: eps, e_hpa, dt
       select case (form)
@@ -212,8 +212,8 @@ contains
    pure function synthesize_lwdown(form, tair_k, qair, psurf_pa, kt, cloud_a) result(lw)
       integer(ik), intent(in) :: form
       real(wp),    intent(in) :: tair_k, qair, psurf_pa
-      real(wp),    intent(in) :: kt                     !--- [-] clearness index in [0,1]
-      real(wp),    intent(in) :: cloud_a                !--- [-] cloud-correction coefficient
+      real(wp),    intent(in) :: kt                     ! [-] clearness index in [0,1]
+      real(wp),    intent(in) :: cloud_a                ! [-] cloud-correction coefficient
       real(wp) :: lw, eps, kt_use
       eps    = clear_sky_emissivity(form, tair_k, qair, psurf_pa)
       kt_use = min(1.0_wp, max(0.0_wp, kt))
@@ -240,8 +240,8 @@ contains
    ! longwave synthesis uses.
    !---~---
    pure function lapse_longwave(lw_grid, form, t_grid, q_grid, p_grid, t_site, q_site, p_site) result(lw_site)
-      real(wp),    intent(in) :: lw_grid                   !--- [W/m2] downward longwave at the cell
-      integer(ik), intent(in) :: form                      !--- LW_CLEAR_BRUTSAERT | LW_CLEAR_IDSO
+      real(wp),    intent(in) :: lw_grid                   ! [W/m2] downward longwave at the cell
+      integer(ik), intent(in) :: form                      ! LW_CLEAR_BRUTSAERT | LW_CLEAR_IDSO
       real(wp),    intent(in) :: t_grid, q_grid, p_grid, t_site, q_site, p_site
       real(wp) :: lw_site
       lw_site = lw_grid * (clear_sky_emissivity(form, t_site, q_site, p_site) * t_site**4)      &
@@ -255,9 +255,9 @@ contains
    ! receives. 1 with no beam to scale.
    !---~---
    pure real(wp) function slope_beam_factor(beam, cosz, cosi) result(f)
-      real(wp), intent(in) :: beam   !--- [W/m2] direct beam on level ground (all bands)
-      real(wp), intent(in) :: cosz   !--- [-] cosine of the solar zenith angle
-      real(wp), intent(in) :: cosi   !--- [-] cosine of the incidence on the slope
+      real(wp), intent(in) :: beam   ! [W/m2] direct beam on level ground (all bands)
+      real(wp), intent(in) :: cosz   ! [-] cosine of the solar zenith angle
+      real(wp), intent(in) :: cosi   ! [-] cosine of the incidence on the slope
       f = 1.0_wp
       if (beam <= 0.0_wp .or. cosz <= COSZ_MIN) return
       f = min(cosi / cosz, SOLAR_CONSTANT * cosi / beam)

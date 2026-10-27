@@ -29,7 +29,7 @@ module ed_polygon_state_vars
       type(patch_block)  :: patch
       type(cohort_block) :: cohort
       !--- 1. IDENTITY AND LOCATION
-      integer(ik)        :: id = 0_ik       !--- global id: the cell's row-major index (0 for a site run)
+      integer(ik)        :: id = 0_ik       ! global id: the cell's row-major index (0 for a site run)
       !---~---
       !   Where it is: the cell centre and orography of a region's polygon, the [site] of a site
       ! run. The forcing cursor, the leaf phenology's day length and the output all read it.
@@ -104,17 +104,17 @@ module ed_polygon_state_vars
       ! never restarted). Real-valued so the output integrators can average them over a
       ! period like any other diagnostic.
       !---~---
-      real(wp)           :: work_integ_steps = 0.0_wp   !--- accepted integrator sub-steps
-      real(wp)           :: work_integ_rej   = 0.0_wp   !--- rejected integrator steps
+      real(wp)           :: work_integ_steps = 0.0_wp   ! accepted integrator sub-steps
+      real(wp)           :: work_integ_rej   = 0.0_wp   ! rejected integrator steps
       !---~---
       !   The soil-plant water network's work. A nonzero work_water_nfail is also a correctness
       ! flag: a sub-step taken at the shortest length although Newton had not converged keeps
       ! water exactly but leaves the stores off their curves.
       !---~---
-      real(wp)           :: work_water_nsub   = 0.0_wp   !--- accepted sub-steps
-      real(wp)           :: work_water_newton = 0.0_wp   !--- Newton iterations
-      real(wp)           :: work_water_reject = 0.0_wp   !--- rejected sub-steps
-      real(wp)           :: work_water_nfail  = 0.0_wp   !--- sub-steps taken although unconverged
+      real(wp)           :: work_water_nsub   = 0.0_wp   ! accepted sub-steps
+      real(wp)           :: work_water_newton = 0.0_wp   ! Newton iterations
+      real(wp)           :: work_water_reject = 0.0_wp   ! rejected sub-steps
+      real(wp)           :: work_water_nfail  = 0.0_wp   ! sub-steps taken although unconverged
       !---~---
       !   INTEGRATOR-HEALTH accumulators. Same cadence and area weighting as the work
       ! counters above, but these measure CORRECTNESS rather than cost: how often a scheme
@@ -123,8 +123,8 @@ module ed_polygon_state_vars
       ! actually ran the integrator it was configured for (docs/science/numerical_scheme.md
       ! §3, `rk45`).
       !---~---
-      real(wp)           :: work_rk45_rescue = 0.0_wp   !--- dt_fast steps RK45 abandoned and redid with the ESDIRK2
-      real(wp)           :: work_clamp_stage = 0.0_wp   !--- stage-input clamp activations (throwaway states)
+      real(wp)           :: work_rk45_rescue = 0.0_wp   ! dt_fast steps RK45 abandoned and redid with the ESDIRK2
+      real(wp)           :: work_clamp_stage = 0.0_wp   ! stage-input clamp activations (throwaway states)
    end type polygon_t
 
 contains
@@ -135,8 +135,8 @@ contains
    subroutine alloc_polygon(poly, n_pft, coh_cap, pat_cap, n_growth_window, pft, n_site)
       type(polygon_t),   intent(out) :: poly
       integer(ik),       intent(in)  :: n_pft, coh_cap, pat_cap, n_growth_window
-      type(pft_table_t), intent(in)  :: pft     !--- the polygon's PFT traits and allometry (cfg%pft of its config)
-      integer(ik), optional, intent(in) :: n_site   !--- its sites (1 when absent)
+      type(pft_table_t), intent(in)  :: pft     ! the polygon's PFT traits and allometry (cfg%pft of its config)
+      integer(ik), optional, intent(in) :: n_site   ! its sites (1 when absent)
       integer(ik) :: ns
       poly%n_pft = n_pft
       poly%cohort%pft_table = pft

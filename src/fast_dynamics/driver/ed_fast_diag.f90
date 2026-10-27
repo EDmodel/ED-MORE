@@ -46,8 +46,8 @@ contains
       integer(ik),            intent(in)              :: nsub
       real(wp),               intent(in)              :: dt_fast
       logical,                intent(in)              :: do_fast
-      type(ed_time_t),      intent(in),      optional :: step_start   !--- the slow step's start (the stamps)
-      type(output_buffers_t), intent(inout), optional :: out_bufs     !--- present when do_fast
+      type(ed_time_t),      intent(in),      optional :: step_start   ! the slow step's start (the stamps)
+      type(output_buffers_t), intent(inout), optional :: out_bufs     ! present when do_fast
       integer(ik) :: ip, is, isub, ks, nl, npatch
       npatch = poly%patch%n
       if (poly%cohort%diag%active) then
@@ -109,8 +109,8 @@ contains
       type(fast_forcing_t),       intent(in)              :: forcing
       type(fast_output_t),        intent(in)              :: out
       logical,                    intent(in)              :: do_fast
-      type(output_buffers_t),     intent(inout), optional :: out_bufs   !--- present when do_fast
-      real(wp)    :: prow(N_PA_ROWS)                !--- the patch block's row for this (patch, sub-step)
+      type(output_buffers_t),     intent(inout), optional :: out_bufs   ! present when do_fast
+      real(wp)    :: prow(N_PA_ROWS)                ! the patch block's row for this (patch, sub-step)
       real(wp)    :: gpp_patch, npp_patch, rnet, rnet_ts, lw_up
       integer(ik) :: ncoh, i0, i, j, kb, nl
       logical     :: do_cdiag, do_pdiag
@@ -179,11 +179,11 @@ contains
    subroutine fold_window(poly, dt_fast, met_sample, met_site, rain_sub, snow_sub, do_fast, out_bufs)
       type(polygon_t),        intent(inout)           :: poly
       real(wp),               intent(in)              :: dt_fast
-      type(met_forcing_t),    intent(in)              :: met_sample(:)        !--- (sub-step) the polygon's samples
-      type(met_forcing_t),    intent(in)              :: met_site(:,:)        !--- (sub-step, site)
-      real(wp),               intent(in)              :: rain_sub(:), snow_sub(:)   !--- (sub-step) [kg/m2/s]
+      type(met_forcing_t),    intent(in)              :: met_sample(:)        ! (sub-step) the polygon's samples
+      type(met_forcing_t),    intent(in)              :: met_site(:,:)        ! (sub-step, site)
+      real(wp),               intent(in)              :: rain_sub(:), snow_sub(:)   ! (sub-step) [kg/m2/s]
       logical,                intent(in)              :: do_fast
-      type(output_buffers_t), intent(inout), optional :: out_bufs   !--- present when do_fast
+      type(output_buffers_t), intent(inout), optional :: out_bufs   ! present when do_fast
       real(wp)    :: echo(N_PY_ROWS)
       integer(ik) :: ip, is, isub, kb, ks, nl, nsub
       nsub = size(met_sample, kind=ik)
@@ -234,22 +234,22 @@ contains
                                   z_top, sw_in_vis, sw_in_nir, sw_up_vis, sw_up_nir, lw_up, w_surface, &
                                   press)
       real(wp), intent(out) :: row(N_PA_ROWS)
-      real(wp), intent(in)  :: dt                        !--- [s]        the sub-step
-      real(wp), intent(in)  :: le_flux, h_flux           !--- [W/m2]     CAS -> atmosphere
-      real(wp), intent(in)  :: rnet                      !--- [W/m2]     net all-wave radiation absorbed
-      real(wp), intent(in)  :: sw_ground, lw_ground      !--- [W/m2]     ground SW / net LW
-      real(wp), intent(in)  :: ustar, ggnet              !--- [m/s]      friction velocity, ground conductance
-      real(wp), intent(in)  :: rough, displace           !--- [m]        roughness, displacement height
-      real(wp), intent(in)  :: cas_temp, cas_shv, cas_co2 !--- [K],[kg/kg],[umol/mol] canopy air
-      real(wp), intent(in)  :: gpp, nee, npp             !--- [umol/m2/s] gross uptake, net exchange (+ to atm), NPP
-      real(wp), intent(in)  :: soil_temp_top             !--- [K]        top soil-node temperature
-      real(wp), intent(in)  :: resid_energy, resid_water !--- [J/m2],[kg/m2] this step's signed ledger residuals
-      real(wp), intent(in)  :: wind_top, tair_top        !--- [m/s],[K] the forcing at the canopy-air top
-      real(wp), intent(in)  :: z_top                     !--- [m]   that top (the canopy-air depth)
+      real(wp), intent(in)  :: dt                        ! [s]        the sub-step
+      real(wp), intent(in)  :: le_flux, h_flux           ! [W/m2]     CAS -> atmosphere
+      real(wp), intent(in)  :: rnet                      ! [W/m2]     net all-wave radiation absorbed
+      real(wp), intent(in)  :: sw_ground, lw_ground      ! [W/m2]     ground SW / net LW
+      real(wp), intent(in)  :: ustar, ggnet              ! [m/s]      friction velocity, ground conductance
+      real(wp), intent(in)  :: rough, displace           ! [m]        roughness, displacement height
+      real(wp), intent(in)  :: cas_temp, cas_shv, cas_co2 ! [K],[kg/kg],[umol/mol] canopy air
+      real(wp), intent(in)  :: gpp, nee, npp             ! [umol/m2/s] gross uptake, net exchange (+ to atm), NPP
+      real(wp), intent(in)  :: soil_temp_top             ! [K]        top soil-node temperature
+      real(wp), intent(in)  :: resid_energy, resid_water ! [J/m2],[kg/m2] this step's signed ledger residuals
+      real(wp), intent(in)  :: wind_top, tair_top        ! [m/s],[K] the forcing at the canopy-air top
+      real(wp), intent(in)  :: z_top                     ! [m]   that top (the canopy-air depth)
       !--- Top-of-canopy radiative fluxes per band.
       real(wp), intent(in)  :: sw_in_vis, sw_in_nir, sw_up_vis, sw_up_nir, lw_up
-      real(wp), intent(in)  :: w_surface                 !--- [kg/m2]   ponded surface water
-      real(wp), intent(in)  :: press                     !--- [Pa]      air pressure
+      real(wp), intent(in)  :: w_surface                 ! [kg/m2]   ponded surface water
+      real(wp), intent(in)  :: press                     ! [Pa]      air pressure
       row = 0.0_wp
       row(PA_LE)           = le_flux
       row(PA_H)            = h_flux
@@ -300,7 +300,7 @@ contains
    subroutine accumulate_patch_diag(pd, ip, dt, row)
       type(patch_diag_block), intent(inout) :: pd
       integer(ik),            intent(in)    :: ip
-      real(wp),               intent(in)    :: dt        !--- [s] sample weight
+      real(wp),               intent(in)    :: dt        ! [s] sample weight
       real(wp),               intent(in)    :: row(N_PA_ROWS)
       pd%v(:, ip) = pd%v(:, ip) + row * dt
       pd%w(ip)    = pd%w(ip)    + dt
@@ -314,7 +314,7 @@ contains
    subroutine size_fast_staging(b, nsub, npatch, nsite, ncohort, with_cdiag)
       type(output_buffers_t), intent(inout) :: b
       integer(ik),            intent(in)    :: nsub, npatch, nsite, ncohort
-      logical,                intent(in)    :: with_cdiag   !--- the per-cohort diagnostic block is on
+      logical,                intent(in)    :: with_cdiag   ! the per-cohort diagnostic block is on
       integer(ik) :: nl, np, nc, ns
       nl = n_soil_layer_max
       ns = max(nsite, 1_ik)
@@ -353,8 +353,8 @@ contains
    !--- The polygon's forcing for one sub-step as the fast loop used it (docs/science/forcing.md).
    subroutine accumulate_polygon_diag(d, dt, f)
       type(polygon_diag_block), intent(inout) :: d
-      real(wp),                 intent(in)    :: dt     !--- [s] sample weight
-      real(wp),                 intent(in)    :: f(N_PY_ROWS)   !--- the sub-step's forcing echo
+      real(wp),                 intent(in)    :: dt     ! [s] sample weight
+      real(wp),                 intent(in)    :: f(N_PY_ROWS)   ! the sub-step's forcing echo
       d%v = d%v + f * dt
       d%w = d%w + dt
    end subroutine accumulate_polygon_diag
@@ -363,8 +363,8 @@ contains
    subroutine accumulate_site_diag(d, is, dt, met)
       type(site_diag_block), intent(inout) :: d
       integer(ik),           intent(in)    :: is
-      real(wp),              intent(in)    :: dt     !--- [s] sample weight
-      type(met_forcing_t),   intent(in)    :: met    !--- the site's forcing
+      real(wp),              intent(in)    :: dt     ! [s] sample weight
+      type(met_forcing_t),   intent(in)    :: met    ! the site's forcing
       real(wp) :: f(N_SI_ROWS)
       f(SI_SW_IN)    = met%sw_down()
       f(SI_PAR_BEAM) = met%par_beam
@@ -384,7 +384,7 @@ contains
    !---~---
    pure subroutine forcing_echo(met, rainf, snowfall, f)
       type(met_forcing_t), intent(in)  :: met
-      real(wp),            intent(in)  :: rainf, snowfall   !--- [kg/m2/s] the split the patches used, area-weighted
+      real(wp),            intent(in)  :: rainf, snowfall   ! [kg/m2/s] the split the patches used, area-weighted
       real(wp),            intent(out) :: f(N_PY_ROWS)
       f(PY_SW_IN)       = met%sw_down()
       f(PY_PRECIP)      = met%precip

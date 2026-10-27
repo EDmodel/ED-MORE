@@ -176,7 +176,7 @@ contains
       type(output_files_t),   intent(inout) :: files
       integer(ik),            intent(in)    :: tier, file_chunk, bucket
       type(pending_record_t), intent(in)    :: pr
-      integer(ik),            intent(in)    :: n_cohort, n_patch   !--- the opening record's live counts
+      integer(ik),            intent(in)    :: n_cohort, n_patch   ! the opening record's live counts
       character(len=512) :: path
       character(len=16)  :: stamp
       integer(c_int)     :: ncid, dt, dpo, dsi, dc, dp, ds, dpf, dsz, dnv, vid, dims1(1), dims2(2), dims3(3)
@@ -481,9 +481,9 @@ contains
                                             cohort_dim, patch_dim, setup) result(vid)
       integer(c_int),      intent(in) :: ncid, dt, dpo, dsi, dc, dp, ds, dpf, dsz
       type(var_desc_t),    intent(in) :: v
-      integer(ik),         intent(in) :: np                     !--- polygons
-      integer(ik),         intent(in) :: ns                     !--- the site axis's length
-      integer(ik),         intent(in) :: cohort_dim, patch_dim  !--- the file's trimmed (live-count) axis lengths
+      integer(ik),         intent(in) :: np                     ! polygons
+      integer(ik),         intent(in) :: ns                     ! the site axis's length
+      integer(ik),         intent(in) :: cohort_dim, patch_dim  ! the file's trimmed (live-count) axis lengths
       type(diag_setup_t),  intent(in) :: setup
       integer(c_int)    :: xt, dims(4), rank
       integer(c_size_t) :: chunk(4)

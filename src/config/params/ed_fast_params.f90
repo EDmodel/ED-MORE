@@ -13,8 +13,8 @@ module ed_fast_params
    public :: RK45_RTOL
 
    !--- [fast].time_integrator (docs/science/numerical_scheme.md §3).
-   integer(ik), parameter :: INTEG_ESDIRK2 = 2_ik   !--- "esdirk2": the coupled implicit column (default)
-   integer(ik), parameter :: INTEG_RK45    = 3_ik   !--- "rk45": adaptive Cash-Karp, the explicit alternative
+   integer(ik), parameter :: INTEG_ESDIRK2 = 2_ik   ! "esdirk2": the coupled implicit column (default)
+   integer(ik), parameter :: INTEG_RK45    = 3_ik   ! "rk45": adaptive Cash-Karp, the explicit alternative
 
    !---~---
    !   RK45's [fast].rtol when the key is absent, and the loosest it accepts. Its step is set

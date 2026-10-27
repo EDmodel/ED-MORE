@@ -38,7 +38,7 @@ contains
    subroutine write_slow_patch_rows(poly, cfg, recruitment)
       type(polygon_t),     intent(inout) :: poly
       type(ed_config_t),   intent(in)    :: cfg
-      real(wp),            intent(in)    :: recruitment(:,:)   !--- [plant/m2/yr] (pft, patch)
+      real(wp),            intent(in)    :: recruitment(:,:)   ! [plant/m2/yr] (pft, patch)
       integer(ik) :: ip
 
       if (.not. poly%patch%diag%active) return

@@ -39,22 +39,22 @@ contains
    elemental pure subroutine stem_maintenance_respiration(wood_temp, dbh, height, wai, nplant,          &
                                                          aboveground_frac, is_woody, resp_factor25,     &
                                                          sap_volume, resp_sapwood25, ea, hd, ds, stem_resp)
-      real(wp),            intent(in)  :: wood_temp   !--- [K]  woody-tissue temperature
-      real(wp),            intent(in)  :: dbh         !--- [cm] stem diameter at breast height
-      real(wp),            intent(in)  :: height      !--- [m]  cohort height
-      real(wp),            intent(in)  :: wai         !--- [m2/m2 ground] wood area index
-      real(wp),            intent(in)  :: nplant      !--- [plant/m2] stem density
-      real(wp),            intent(in)  :: aboveground_frac  !--- [-] cohort PFT's aboveground fraction
-      logical,             intent(in)  :: is_woody          !--- cohort PFT is woody (grass => 0)
-      real(wp),            intent(in)  :: resp_factor25     !--- [umol CO2/m2 stem/s @25C] cohort PFT's surface rate
+      real(wp),            intent(in)  :: wood_temp   ! [K]  woody-tissue temperature
+      real(wp),            intent(in)  :: dbh         ! [cm] stem diameter at breast height
+      real(wp),            intent(in)  :: height      ! [m]  cohort height
+      real(wp),            intent(in)  :: wai         ! [m2/m2 ground] wood area index
+      real(wp),            intent(in)  :: nplant      ! [plant/m2] stem density
+      real(wp),            intent(in)  :: aboveground_frac  ! [-] cohort PFT's aboveground fraction
+      logical,             intent(in)  :: is_woody          ! cohort PFT is woody (grass => 0)
+      real(wp),            intent(in)  :: resp_factor25     ! [umol CO2/m2 stem/s @25C] cohort PFT's surface rate
       !--- Sapwood term: the living wood respires by volume, coarse roots included (§2).
-      real(wp),            intent(in)  :: sap_volume        !--- [m3/plant] sapwood volume
-      real(wp),            intent(in)  :: resp_sapwood25    !--- [umol CO2/m3 sapwood/s @25C] cohort PFT's sapwood rate
+      real(wp),            intent(in)  :: sap_volume        ! [m3/plant] sapwood volume
+      real(wp),            intent(in)  :: resp_sapwood25    ! [umol CO2/m3 sapwood/s @25C] cohort PFT's sapwood rate
       !--- Leaf Rd's temperature parameters, always peaked (plant_respiration.md §4).
-      real(wp),            intent(in)  :: ea          !--- [J/mol]   activation energy
-      real(wp),            intent(in)  :: hd          !--- [J/mol]   deactivation energy
-      real(wp),            intent(in)  :: ds          !--- [J/mol/K] entropy term
-      real(wp),            intent(out) :: stem_resp   !--- [umol CO2/plant/s]
+      real(wp),            intent(in)  :: ea          ! [J/mol]   activation energy
+      real(wp),            intent(in)  :: hd          ! [J/mol]   deactivation energy
+      real(wp),            intent(in)  :: ds          ! [J/mol/K] entropy term
+      real(wp),            intent(out) :: stem_resp   ! [umol CO2/plant/s]
       real(wp) :: tscale, stem_area
 
       if (.not. is_woody) then
@@ -85,10 +85,10 @@ contains
    !---~---
    elemental pure subroutine fine_root_maintenance_respiration(tscale_root, broot, resp_factor25,      &
                                                               root_resp)
-      real(wp),            intent(in)  :: tscale_root !--- [-] root-weighted temperature scale (root_zone_temp_scale)
-      real(wp),            intent(in)  :: broot       !--- [kgC/plant] fine-root biomass
-      real(wp),            intent(in)  :: resp_factor25 !--- [umol CO2/kgC root/s @25C] cohort PFT's baseline
-      real(wp),            intent(out) :: root_resp   !--- [umol CO2/plant/s]
+      real(wp),            intent(in)  :: tscale_root ! [-] root-weighted temperature scale (root_zone_temp_scale)
+      real(wp),            intent(in)  :: broot       ! [kgC/plant] fine-root biomass
+      real(wp),            intent(in)  :: resp_factor25 ! [umol CO2/kgC root/s @25C] cohort PFT's baseline
+      real(wp),            intent(out) :: root_resp   ! [umol CO2/plant/s]
       root_resp = resp_factor25 * tscale_root * broot
    end subroutine fine_root_maintenance_respiration
 
@@ -99,11 +99,11 @@ contains
    ! same for every cohort of a patch.
    !---~---
    pure function root_zone_temp_scale(soil_temp, root_frac, n, ea, hd, ds) result(tscale)
-      real(wp),            intent(in) :: soil_temp(:)  !--- [K] per-layer soil temperature
-      real(wp),            intent(in) :: root_frac(:)  !--- [-] per-layer root fraction (sums to 1)
-      integer(ik),         intent(in) :: n             !--- [-] active layers
-      real(wp),            intent(in) :: ea, hd, ds    !--- [J/mol], [J/mol], [J/mol/K] leaf Rd's response
-      real(wp)    :: tscale                            !--- [-]
+      real(wp),            intent(in) :: soil_temp(:)  ! [K] per-layer soil temperature
+      real(wp),            intent(in) :: root_frac(:)  ! [-] per-layer root fraction (sums to 1)
+      integer(ik),         intent(in) :: n             ! [-] active layers
+      real(wp),            intent(in) :: ea, hd, ds    ! [J/mol], [J/mol], [J/mol/K] leaf Rd's response
+      real(wp)    :: tscale                            ! [-]
       integer(ik) :: k
       tscale = 0.0_wp
       do k = 1_ik, n
@@ -124,11 +124,11 @@ contains
    !---~---
    pure subroutine decomposition_env_scalar(soil_temp_surf, soil_temp_active, theta_active, theta_dry, &
                                        theta_sat, pools, params, xi)
-      real(wp),                   intent(in)  :: soil_temp_surf, soil_temp_active     !--- [K] ground surface, soil
-      real(wp),                   intent(in)  :: theta_active, theta_dry, theta_sat   !--- [m3/m3]
-      type(soil_carbon_state_t),  intent(in)  :: pools                               !--- [kgC/m2] for f_lignin
-      type(soil_carbon_params_t), intent(in)  :: params                              !--- the [soil_carbon] parameters
-      real(wp),                   intent(out) :: xi(N_SOIL_POOL)                     !--- [-] diagonal scalar, > 0
+      real(wp),                   intent(in)  :: soil_temp_surf, soil_temp_active     ! [K] ground surface, soil
+      real(wp),                   intent(in)  :: theta_active, theta_dry, theta_sat   ! [m3/m3]
+      type(soil_carbon_state_t),  intent(in)  :: pools                               ! [kgC/m2] for f_lignin
+      type(soil_carbon_params_t), intent(in)  :: params                              ! the [soil_carbon] parameters
+      real(wp),                   intent(out) :: xi(N_SOIL_POOL)                     ! [-] diagonal scalar, > 0
       real(wp) :: f_temp_surf, f_temp_active, f_water, rel, f_lig_g, f_lig_s, brake_g, brake_s
 
       f_temp_surf   = decomp_temperature_factor(soil_temp_surf,   params)
@@ -152,9 +152,9 @@ contains
 
    !--- f_T of eq. (3): scheme 5's Q10, uncapped; otherwise ED2's exponential, capped at 1.
    pure function decomp_temperature_factor(soil_temp, params) result(f_temp)
-      real(wp),                   intent(in) :: soil_temp   !--- [K]
+      real(wp),                   intent(in) :: soil_temp   ! [K]
       type(soil_carbon_params_t), intent(in) :: params
-      real(wp) :: f_temp                                    !--- [-]
+      real(wp) :: f_temp                                    ! [-]
       if (params%decomp_scheme == DECOMP_SCHEME_CENTURY5) then         ! Collatz/K13 Q10 (uncapped, > 1 above ref)
          f_temp = params%rh_q10 ** ((soil_temp - params%rh_t_ref) * 0.1_wp)
       else                                                           ! ED2 scheme-0 capped exp, min(1, .)
@@ -167,9 +167,9 @@ contains
    ! on the dry side and anoxia on the wet side.
    !---~---
    pure function decomp_water_factor(rel, params) result(f_water)
-      real(wp),                   intent(in) :: rel         !--- [-] relative saturation m, in [0, 1]
+      real(wp),                   intent(in) :: rel         ! [-] relative saturation m, in [0, 1]
       type(soil_carbon_params_t), intent(in) :: params
-      real(wp) :: f_water                                   !--- [-]
+      real(wp) :: f_water                                   ! [-]
       if (rel <= params%resp_opt_water) then
          f_water = exp((rel - params%resp_opt_water) * params%resp_water_below_opt)      ! dry side
       else
@@ -179,8 +179,8 @@ contains
 
    !--- A structural pool's lignin share of its carbon, f_lignin = L/C in [0, 1].
    pure function lignin_fraction(lignin, carbon) result(f_lignin)
-      real(wp), intent(in) :: lignin, carbon                          !--- [kgC/m2]
-      real(wp) :: f_lignin                                            !--- [-]
+      real(wp), intent(in) :: lignin, carbon                          ! [kgC/m2]
+      real(wp) :: f_lignin                                            ! [-]
       if (carbon > tiny_num) then
          f_lignin = min(1.0_wp, max(0.0_wp, lignin / carbon))
       else
@@ -197,11 +197,11 @@ contains
    ! 5 (Bolker/Koven) routes by soil texture, with back-transfers.
    !---~---
    pure subroutine decomposition_transfer_matrix(pools, params, a_mat, k_diag, er)
-      type(soil_carbon_state_t),  intent(in)  :: pools                             !--- [kgC/m2] for the lignin fractions
-      type(soil_carbon_params_t), intent(in)  :: params                            !--- the [soil_carbon] parameters
-      real(wp),                   intent(out) :: a_mat(N_SOIL_POOL, N_SOIL_POOL)   !--- [-] a_ii=-1, a_ij transfer frac
-      real(wp),                   intent(out) :: k_diag(N_SOIL_POOL)               !--- [1/day] baseline decay rates
-      real(wp),                   intent(out) :: er(N_SOIL_POOL)                   !--- [-] respired fraction 1 - sum_i a_ij
+      type(soil_carbon_state_t),  intent(in)  :: pools                             ! [kgC/m2] for the lignin fractions
+      type(soil_carbon_params_t), intent(in)  :: params                            ! the [soil_carbon] parameters
+      real(wp),                   intent(out) :: a_mat(N_SOIL_POOL, N_SOIL_POOL)   ! [-] a_ii=-1, a_ij transfer frac
+      real(wp),                   intent(out) :: k_diag(N_SOIL_POOL)               ! [1/day] baseline decay rates
+      real(wp),                   intent(out) :: er(N_SOIL_POOL)                   ! [-] respired fraction 1 - sum_i a_ij
       real(wp)    :: f_lig_g, f_lig_s, er_stg, er_sts, er_micr, ex_mp, ex_sp
       integer(ik) :: j
 
@@ -267,10 +267,10 @@ contains
    ! flux and the pools' loss agree (§7). kgcday_2_umols converts it to umol/m2/s.
    !---~---
    pure function heterotrophic_respiration(a_mat, k_diag, xi, pools) result(rh)
-      real(wp),            intent(in) :: a_mat(N_SOIL_POOL, N_SOIL_POOL), k_diag(N_SOIL_POOL)   !--- [-], [1/day]
-      real(wp),            intent(in) :: xi(N_SOIL_POOL)                                       !--- [-]
-      type(soil_carbon_state_t), intent(in) :: pools                                                 !--- [kgC/m2]
-      real(wp) :: rh, x(N_SOIL_POOL), er_j                                                     !--- [kgC/m2/day] Rh
+      real(wp),            intent(in) :: a_mat(N_SOIL_POOL, N_SOIL_POOL), k_diag(N_SOIL_POOL)   ! [-], [1/day]
+      real(wp),            intent(in) :: xi(N_SOIL_POOL)                                       ! [-]
+      type(soil_carbon_state_t), intent(in) :: pools                                                 ! [kgC/m2]
+      real(wp) :: rh, x(N_SOIL_POOL), er_j                                                     ! [kgC/m2/day] Rh
       integer(ik) :: j
       x = pools%carbon
       rh = 0.0_wp

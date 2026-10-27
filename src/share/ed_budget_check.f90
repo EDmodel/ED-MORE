@@ -18,23 +18,23 @@ module ed_budget_check
    public :: BUDGET_RTOL_FLUX, BUDGET_ENERGY_RATE_FLOOR, BUDGET_WATER_RATE_FLOOR, BUDGET_CO2_RATE_FLOOR
 
    !--- Closure tolerances of every ledger (docs/science/numerical_scheme.md §5b).
-   real(wp), parameter :: BUDGET_RTOL_FLUX         = 1.0e-6_wp  !--- [-] relative to the gross boundary flux
-   real(wp), parameter :: BUDGET_ENERGY_RATE_FLOOR = 1.0e-3_wp  !--- [W/m2] absolute floor, as a rate
-   real(wp), parameter :: BUDGET_WATER_RATE_FLOOR  = 1.0e-9_wp  !--- [kg/m2/s] absolute floor (~1e-4 mm/day)
-   real(wp), parameter :: BUDGET_CO2_RATE_FLOOR    = 1.0e-6_wp  !--- [umol/m2/s] absolute floor
+   real(wp), parameter :: BUDGET_RTOL_FLUX         = 1.0e-6_wp  ! [-] relative to the gross boundary flux
+   real(wp), parameter :: BUDGET_ENERGY_RATE_FLOOR = 1.0e-3_wp  ! [W/m2] absolute floor, as a rate
+   real(wp), parameter :: BUDGET_WATER_RATE_FLOOR  = 1.0e-9_wp  ! [kg/m2/s] absolute floor (~1e-4 mm/day)
+   real(wp), parameter :: BUDGET_CO2_RATE_FLOOR    = 1.0e-6_wp  ! [umol/m2/s] absolute floor
 
    !--- One store's ledger over a series of checks (fast steps, days, a run).
    type :: budget_t
-      real(wp)    :: influx  = 0.0_wp    !--- inflow of the last check (an amount, from budget_check)
-      real(wp)    :: outflux = 0.0_wp    !--- outflow of the last check
-      real(wp)    :: resid   = 0.0_wp    !--- [store-unit/m2] residual of the last check
-      real(wp)    :: worst   = 0.0_wp    !--- [store-unit/m2] largest |resid| of any check
-      real(wp)    :: resid_sum  = 0.0_wp !--- [store-unit/m2] signed sum of resid (> 0: the store gains from nowhere)
-      real(wp)    :: abs_sum    = 0.0_wp !--- [store-unit/m2] sum of |resid|
-      real(wp)    :: flux_gross = 0.0_wp !--- [store-unit/m2] sum of |influx| + |outflux|
-      real(wp)    :: elapsed    = 0.0_wp !--- [s] simulated time the checks span (when callers pass it)
-      integer(ik) :: n_check = 0_ik      !--- checks made
-      integer(ik) :: n_fail  = 0_ik      !--- checks that breached the tolerance
+      real(wp)    :: influx  = 0.0_wp    ! inflow of the last check (an amount, from budget_check)
+      real(wp)    :: outflux = 0.0_wp    ! outflow of the last check
+      real(wp)    :: resid   = 0.0_wp    ! [store-unit/m2] residual of the last check
+      real(wp)    :: worst   = 0.0_wp    ! [store-unit/m2] largest |resid| of any check
+      real(wp)    :: resid_sum  = 0.0_wp ! [store-unit/m2] signed sum of resid (> 0: the store gains from nowhere)
+      real(wp)    :: abs_sum    = 0.0_wp ! [store-unit/m2] sum of |resid|
+      real(wp)    :: flux_gross = 0.0_wp ! [store-unit/m2] sum of |influx| + |outflux|
+      real(wp)    :: elapsed    = 0.0_wp ! [s] simulated time the checks span (when callers pass it)
+      integer(ik) :: n_check = 0_ik      ! checks made
+      integer(ik) :: n_fail  = 0_ik      ! checks that breached the tolerance
    end type budget_t
 
 contains
@@ -102,10 +102,10 @@ contains
    subroutine budget_check(b, store0, store1, influx, outflux, dt_window, rate_floor, label, halt)
       type(budget_t),   intent(inout) :: b
       real(wp),         intent(in)    :: store0, store1, influx, outflux
-      real(wp),         intent(in)    :: dt_window    !--- [s] time the amounts span
-      real(wp),         intent(in)    :: rate_floor   !--- [store-unit/m2/s] absolute tolerance floor, as a rate
+      real(wp),         intent(in)    :: dt_window    ! [s] time the amounts span
+      real(wp),         intent(in)    :: rate_floor   ! [store-unit/m2/s] absolute tolerance floor, as a rate
       character(len=*), intent(in)    :: label
-      logical,          intent(in)    :: halt         !--- stop the run on a breach (Debug)
+      logical,          intent(in)    :: halt         ! stop the run on a breach (Debug)
       real(wp) :: scale, atol
       scale = abs(influx) + abs(outflux)
       atol  = rate_floor * dt_window

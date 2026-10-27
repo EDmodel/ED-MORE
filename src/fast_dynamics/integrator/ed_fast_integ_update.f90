@@ -37,13 +37,13 @@ module ed_fast_integ_update
    ! its exchange.
    !---~---
    type :: commit_amounts_t
-      real(wp) :: surf_overflow = 0.0_wp, surf_deficit = 0.0_wp   !--- [kg/m2]
-      real(wp) :: surf_net_enth = 0.0_wp                          !--- [J/m2] (overflow - deficit) x u_liq
-      real(wp) :: cond_mass     = 0.0_wp                          !--- [kg/m2]
-      real(wp) :: cond_enth     = 0.0_wp                          !--- [J/m2]
-      real(wp) :: tissue_store0 = 0.0_wp, tissue_store1 = 0.0_wp  !--- [J/m2]
-      real(wp) :: snow_swe1     = 0.0_wp                          !--- [kg/m2] the pack's mass at the step's end
-      real(wp) :: snow_enth1    = 0.0_wp                          !--- [J/m2]  its internal energy then
+      real(wp) :: surf_overflow = 0.0_wp, surf_deficit = 0.0_wp   ! [kg/m2]
+      real(wp) :: surf_net_enth = 0.0_wp                          ! [J/m2] (overflow - deficit) x u_liq
+      real(wp) :: cond_mass     = 0.0_wp                          ! [kg/m2]
+      real(wp) :: cond_enth     = 0.0_wp                          ! [J/m2]
+      real(wp) :: tissue_store0 = 0.0_wp, tissue_store1 = 0.0_wp  ! [J/m2]
+      real(wp) :: snow_swe1     = 0.0_wp                          ! [kg/m2] the pack's mass at the step's end
+      real(wp) :: snow_enth1    = 0.0_wp                          ! [J/m2]  its internal energy then
    end type commit_amounts_t
 
 contains
@@ -66,9 +66,9 @@ contains
       type(site_surface_t),       intent(in)    :: site
       type(fast_static_state_t),  intent(in)    :: static
       type(frozen_t),      intent(in)    :: frozen
-      type(boundary_flux_t),       intent(in)    :: acc       !--- the march's boundary-flux amounts
-      real(wp),                   intent(in)    :: dt_warm   !--- [s] the step the next march starts from
-      type(march_state_t),       intent(inout) :: y_out     !--- the march's end state, committed as stored
+      type(boundary_flux_t),       intent(in)    :: acc       ! the march's boundary-flux amounts
+      real(wp),                   intent(in)    :: dt_warm   ! [s] the step the next march starts from
+      type(march_state_t),       intent(inout) :: y_out     ! the march's end state, committed as stored
       type(fast_dynamic_state_t), intent(inout) :: dynamic
       type(fast_output_t),        intent(inout) :: out
       type(commit_amounts_t),     intent(out)   :: moved
@@ -243,10 +243,10 @@ contains
    ! diagnostics report [mol H2O/m2 leaf/s]; zero for a leafless cohort.
    !---~---
    elemental pure function transp_per_leaf_area(amount, dt, nplant, leaf_area) result(rate)
-      real(wp), intent(in) :: amount      !--- [kg/m2 ground] over dt
-      real(wp), intent(in) :: dt          !--- [s]
-      real(wp), intent(in) :: nplant      !--- [plant/m2]
-      real(wp), intent(in) :: leaf_area   !--- [m2 leaf/plant]
+      real(wp), intent(in) :: amount      ! [kg/m2 ground] over dt
+      real(wp), intent(in) :: dt          ! [s]
+      real(wp), intent(in) :: nplant      ! [plant/m2]
+      real(wp), intent(in) :: leaf_area   ! [m2 leaf/plant]
       real(wp) :: rate
       rate = 0.0_wp
       if (nplant * leaf_area > tiny_num) rate = amount / dt / (nplant * leaf_area) / mmh2o

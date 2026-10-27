@@ -33,10 +33,10 @@ module ed_netcdf_c
 
    !--- A variable's gap and packing attributes, NaN where it has none (nc_packing_of).
    type :: nc_packing_t
-      real(c_double) :: fill     !--- _FillValue
-      real(c_double) :: missing  !--- missing_value
-      real(c_double) :: scale    !--- scale_factor
-      real(c_double) :: offset   !--- add_offset
+      real(c_double) :: fill     ! _FillValue
+      real(c_double) :: missing  ! missing_value
+      real(c_double) :: scale    ! scale_factor
+      real(c_double) :: offset   ! add_offset
    end type nc_packing_t
 
    interface

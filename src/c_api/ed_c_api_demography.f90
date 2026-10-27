@@ -145,7 +145,7 @@ contains
    !---~---
    subroutine ed_advance_slow(sh, ch, is_new_month, is_new_year) bind(c, name="ed_advance_slow")
       integer(c_int), value, intent(in) :: sh, ch, is_new_month, is_new_year
-      type(slow_ledger_t) :: no_ledger   !--- inactive: this path books no ledger
+      type(slow_ledger_t) :: no_ledger   ! inactive: this path books no ledger
       !---~---
       !   The litter this step accumulates lands in poly%patch%litter_in and is left there: this
       ! path steps the stand's demography alone and runs no soil step. The accumulator starts
@@ -175,7 +175,7 @@ contains
       real(wp)              :: seed_c
       real(wp) :: dbh_new, height_new
       real(wp) :: lc_new, fc_new, wc_new, nc_new
-      type(slow_ledger_t) :: no_ledger   !--- inactive: this path books no ledger
+      type(slow_ledger_t) :: no_ledger   ! inactive: this path books no ledger
 
       associate (poly => g_poly(sh), cfg => g_cfg(ch))
          n = poly%cohort%n

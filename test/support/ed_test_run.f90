@@ -19,9 +19,9 @@ module ed_test_run
 
    public :: derive_config, main_refuses
 
-   integer, parameter :: LINE_LEN = 2048    !--- longest config line read
-   integer, parameter :: KEY_LEN  = 128     !--- longest qualified key
-   integer, parameter :: MAX_ARRAYS = 8     !--- [[name]] arrays in one config
+   integer, parameter :: LINE_LEN = 2048    ! longest config line read
+   integer, parameter :: KEY_LEN  = 128     ! longest qualified key
+   integer, parameter :: MAX_ARRAYS = 8     ! [[name]] arrays in one config
 
    !--- The keys written so far and the [[name]] tables met, as ed_toml counts them.
    type :: key_set_t

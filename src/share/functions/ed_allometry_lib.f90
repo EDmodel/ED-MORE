@@ -36,25 +36,25 @@ module ed_allometry_lib
    !---~---
    type :: allometry_t
       !--- Height: the curve, and the cap on every curve.
-      integer(ik) :: height_allometry = HEIGHT_POWER   !--- the height curve: power law or log-quadratic
-      real(wp)    :: hgt_max     = 46.0_wp        !--- [m]   the largest height
-      real(wp)    :: b1Ht        = 1.139963_wp    !--- [--]  power law: intercept of ln H on ln dbh
-      real(wp)    :: b2Ht        = 0.564899_wp    !--- [--]  power law: slope of ln H on ln dbh
-      real(wp)    :: chave_a     = 0.893_wp       !--- [--]  log-quadratic: intercept (Chave et al. 2014 eq. 6a)
-      real(wp)    :: chave_b     = 0.760_wp       !--- [--]  log-quadratic: slope on ln dbh
-      real(wp)    :: chave_c     = -0.0340_wp     !--- [--]  log-quadratic: coefficient of (ln dbh)^2
-      real(wp)    :: chave_rse   = 0.243_wp       !--- [--]  log-quadratic: residual standard error of the fit
-      real(wp)    :: chave_e     = 0.0_wp         !--- [--]  the site's stress index E: the larger, the shorter
+      integer(ik) :: height_allometry = HEIGHT_POWER   ! the height curve: power law or log-quadratic
+      real(wp)    :: hgt_max     = 46.0_wp        ! [m]   the largest height
+      real(wp)    :: b1Ht        = 1.139963_wp    ! [--]  power law: intercept of ln H on ln dbh
+      real(wp)    :: b2Ht        = 0.564899_wp    ! [--]  power law: slope of ln H on ln dbh
+      real(wp)    :: chave_a     = 0.893_wp       ! [--]  log-quadratic: intercept (Chave et al. 2014 eq. 6a)
+      real(wp)    :: chave_b     = 0.760_wp       ! [--]  log-quadratic: slope on ln dbh
+      real(wp)    :: chave_c     = -0.0340_wp     ! [--]  log-quadratic: coefficient of (ln dbh)^2
+      real(wp)    :: chave_rse   = 0.243_wp       ! [--]  log-quadratic: residual standard error of the fit
+      real(wp)    :: chave_e     = 0.0_wp         ! [--]  the site's stress index E: the larger, the shorter
       !--- Biomass, leaf area, wood area and sapwood.
-      real(wp)    :: agb_c1      = 0.03365_wp     !--- [kgC] AGB scale: Chave et al. (2014) eq. 4, halved to carbon
-      real(wp)    :: agb_c2      = 0.976_wp       !--- [--]  AGB exponent on rho and on dbh^2*h
-      real(wp)    :: lai_b1      = 0.23384770_wp  !--- [--]  per-stem leaf-area scale
-      real(wp)    :: lai_b2      = 0.6410495_wp   !--- [--]  per-stem leaf-area exponent
-      real(wp)    :: wai_b1      = 0.0096_wp      !--- [--]  per-stem wood-area scale
-      real(wp)    :: wai_b2      = 2.0947_wp      !--- [--]  per-stem wood-area exponent
-      real(wp)    :: sapwood_area_b1 = 1.582_wp   !--- [cm2/cm^b2] sapwood-area scale
-      real(wp)    :: sapwood_area_b2 = 1.764_wp   !--- [--]  sapwood-area exponent
-      real(wp)    :: aboveground_frac = 0.7_wp    !--- [--]  share of the wood carbon above ground
+      real(wp)    :: agb_c1      = 0.03365_wp     ! [kgC] AGB scale: Chave et al. (2014) eq. 4, halved to carbon
+      real(wp)    :: agb_c2      = 0.976_wp       ! [--]  AGB exponent on rho and on dbh^2*h
+      real(wp)    :: lai_b1      = 0.23384770_wp  ! [--]  per-stem leaf-area scale
+      real(wp)    :: lai_b2      = 0.6410495_wp   ! [--]  per-stem leaf-area exponent
+      real(wp)    :: wai_b1      = 0.0096_wp      ! [--]  per-stem wood-area scale
+      real(wp)    :: wai_b2      = 2.0947_wp      ! [--]  per-stem wood-area exponent
+      real(wp)    :: sapwood_area_b1 = 1.582_wp   ! [cm2/cm^b2] sapwood-area scale
+      real(wp)    :: sapwood_area_b2 = 1.764_wp   ! [--]  sapwood-area exponent
+      real(wp)    :: aboveground_frac = 0.7_wp    ! [--]  share of the wood carbon above ground
    end type allometry_t
 
 contains
@@ -187,9 +187,9 @@ contains
    !---~---
    elemental pure function dbh_to_wai(allom, dbh, nplant) result(wai)
       type(allometry_t), intent(in) :: allom
-      real(wp),          intent(in) :: dbh      !--- [cm]    diameter at breast height
-      real(wp),          intent(in) :: nplant   !--- [pl/m2] plant density
-      real(wp)                      :: wai      !--- [m2/m2] wood area index
+      real(wp),          intent(in) :: dbh      ! [cm]    diameter at breast height
+      real(wp),          intent(in) :: nplant   ! [pl/m2] plant density
+      real(wp)                      :: wai      ! [m2/m2] wood area index
       wai = nplant * allom%wai_b1 * max(dbh, tiny_num) ** allom%wai_b2
    end function dbh_to_wai
 
@@ -200,8 +200,8 @@ contains
    !---~---
    elemental pure function sapwood_fraction(allom, dbh) result(f_sap)
       type(allometry_t), intent(in) :: allom
-      real(wp),          intent(in) :: dbh      !--- [cm] diameter at breast height
-      real(wp)                      :: f_sap    !--- [--] sapwood area / basal area, in (0,1]
+      real(wp),          intent(in) :: dbh      ! [cm] diameter at breast height
+      real(wp)                      :: f_sap    ! [--] sapwood area / basal area, in (0,1]
       real(wp) :: d, sapw_area, basal_area
       d          = max(dbh, tiny_num)
       sapw_area  = allom%sapwood_area_b1 * d ** allom%sapwood_area_b2
@@ -218,8 +218,8 @@ contains
    !---~---
    elemental pure function size_to_leaf_carbon(allom, dbh, h, sla) result(leaf_carbon)
       type(allometry_t), intent(in) :: allom
-      real(wp),          intent(in) :: dbh, h, sla        !--- [cm],[m],[m2/kgC]
-      real(wp)                      :: leaf_carbon         !--- [kgC/plant]
+      real(wp),          intent(in) :: dbh, h, sla        ! [cm],[m],[m2/kgC]
+      real(wp)                      :: leaf_carbon         ! [kgC/plant]
       leaf_carbon = dbh_to_leaf_area(allom, dbh, h) / max(sla, tiny_num)
    end function size_to_leaf_carbon
 
@@ -230,7 +230,7 @@ contains
    elemental pure function size_to_wood_carbon(allom, dbh, h, rho) result(wood_carbon)
       type(allometry_t), intent(in) :: allom
       real(wp),          intent(in) :: dbh, h, rho
-      real(wp)                      :: wood_carbon         !--- [kgC/plant] total woody (above + belowground)
+      real(wp)                      :: wood_carbon         ! [kgC/plant] total woody (above + belowground)
       wood_carbon = dbh_to_agb(allom, dbh, h, rho) / max(allom%aboveground_frac, tiny_num)
    end function size_to_wood_carbon
 
@@ -241,7 +241,7 @@ contains
    elemental pure function wood_to_dbh(allom, wood_carbon, rho) result(dbh)
       type(allometry_t), intent(in) :: allom
       real(wp),          intent(in) :: wood_carbon, rho
-      real(wp)                      :: dbh                 !--- [cm]
+      real(wp)                      :: dbh                 ! [cm]
       dbh = agb_to_dbh(allom, wood_carbon * allom%aboveground_frac, rho)
    end function wood_to_dbh
 
@@ -253,8 +253,8 @@ contains
    pure subroutine carbon_to_structure(allom, wood_carbon, leaf_carbon, rho, sla, dbh, height, basal_area,  &
                                        agb, leaf_area)
       type(allometry_t), intent(in)  :: allom
-      real(wp),          intent(in)  :: wood_carbon, leaf_carbon    !--- [kgC/plant] prognostic pools
-      real(wp),          intent(in)  :: rho, sla                    !--- [g/cm3], [m2/kgC]
+      real(wp),          intent(in)  :: wood_carbon, leaf_carbon    ! [kgC/plant] prognostic pools
+      real(wp),          intent(in)  :: rho, sla                    ! [g/cm3], [m2/kgC]
       real(wp),          intent(out) :: dbh, height, basal_area, agb, leaf_area
       dbh        = wood_to_dbh(allom, wood_carbon, rho)
       height     = dbh_to_height(allom, dbh)
@@ -269,9 +269,9 @@ contains
    ! cohort set on allometry.
    !---~---
    elemental pure function storage_carbon_target(storage_cushion, leaf_carbon, fineroot_carbon) result(storage)
-      real(wp), intent(in) :: storage_cushion              !--- [--]
-      real(wp), intent(in) :: leaf_carbon, fineroot_carbon !--- [kgC/plant]
-      real(wp)             :: storage                      !--- [kgC/plant]
+      real(wp), intent(in) :: storage_cushion              ! [--]
+      real(wp), intent(in) :: leaf_carbon, fineroot_carbon ! [kgC/plant]
+      real(wp)             :: storage                      ! [kgC/plant]
       storage = storage_cushion * (leaf_carbon + fineroot_carbon)
    end function storage_carbon_target
 

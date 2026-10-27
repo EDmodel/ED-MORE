@@ -52,7 +52,7 @@ contains
    !---~---
    subroutine seed_start_canopy_air(poly, met_first)
       type(polygon_t),     intent(inout) :: poly
-      type(met_forcing_t), intent(in)    :: met_first(:)   !--- (site) each site's first sub-step sample
+      type(met_forcing_t), intent(in)    :: met_first(:)   ! (site) each site's first sub-step sample
       integer(ik) :: ip, i
       do ip = 1_ik, poly%patch%n
          associate (cas => poly%patch%cas(ip), m => met_first(poly%patch%owner_site(ip)))
@@ -101,8 +101,8 @@ contains
       type(polygon_t),            intent(in)    :: poly
       type(ed_config_t),          intent(in)    :: cfg
       integer(ik),                intent(in)    :: ip
-      type(fast_static_state_t),  intent(inout) :: static    !--- sized to the largest patch (ensure_static_capacity)
-      type(fast_dynamic_state_t), intent(inout) :: dynamic   !--- sized to the largest patch (ensure_dynamic_capacity)
+      type(fast_static_state_t),  intent(inout) :: static    ! sized to the largest patch (ensure_static_capacity)
+      type(fast_dynamic_state_t), intent(inout) :: dynamic   ! sized to the largest patch (ensure_dynamic_capacity)
       real(wp)    :: sum_lai, sum_wai, t_leaf_e, t_wood_e
       integer(ik) :: i0, ncoh, i, j
 
@@ -278,8 +278,8 @@ contains
    subroutine gather_cohorts(static, cohort, i0, ncoh)
       type(fast_static_state_t), intent(inout) :: static
       type(cohort_block),        intent(in)    :: cohort
-      integer(ik),               intent(in)    :: i0      !--- first cohort of the patch (CSR offset)
-      integer(ik),               intent(in)    :: ncoh    !--- cohorts in the patch
+      integer(ik),               intent(in)    :: i0      ! first cohort of the patch (CSR offset)
+      integer(ik),               intent(in)    :: ncoh    ! cohorts in the patch
       integer(ik) :: i, j, pf
       call ensure_static_capacity(static, ncoh)
       associate (pft => cohort%pft_table)
@@ -344,7 +344,7 @@ contains
       type(hydraulics_table_t),  intent(in)    :: hyd
       type(soil_profile_t),      intent(in)    :: profile
       real(wp)    :: z_top(profile%n_active), z_bot(profile%n_active), root_carbon, half_spacing
-      real(wp)    :: root_len(profile%n_active, static%n)   !--- [m/plant] each cohort's fine roots by layer
+      real(wp)    :: root_len(profile%n_active, static%n)   ! [m/plant] each cohort's fine roots by layer
       integer(ik) :: i, k, n, nsl
       n   = static%n
       nsl = profile%n_active
@@ -392,9 +392,9 @@ contains
    subroutine static_state_fixture(static, pft, ipft, dbh, nplant, profile)
       type(fast_static_state_t), intent(inout) :: static
       type(pft_table_t),         intent(in)    :: pft
-      integer(ik),               intent(in)    :: ipft(:)    !--- (n) PFT index per cohort
-      real(wp),                  intent(in)    :: dbh(:)     !--- (n) [cm]       diameter
-      real(wp),                  intent(in)    :: nplant(:)  !--- (n) [plant/m2] density
+      integer(ik),               intent(in)    :: ipft(:)    ! (n) PFT index per cohort
+      real(wp),                  intent(in)    :: dbh(:)     ! (n) [cm]       diameter
+      real(wp),                  intent(in)    :: nplant(:)  ! (n) [plant/m2] density
       type(soil_profile_t),      intent(in)    :: profile
       type(cohort_block) :: block
       integer(ik)        :: j, n

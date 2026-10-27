@@ -49,20 +49,20 @@ contains
                            longitude_deg, elevation_m, site_cfg, site_area)
       type(polygon_t),     intent(inout) :: poly
       type(ed_config_t),   intent(in)    :: cfg
-      character(len=*),    intent(in)    :: label        !--- the polygon's name, for messages
-      integer(ik),         intent(in)    :: polygon_id   !--- the polygon's id: its cell's index, 0 for a site
-      real(wp),            intent(in)    :: latitude_deg, longitude_deg, elevation_m   !--- its location
-      logical,             intent(in)    :: verbose      !--- report the start
-      integer(ik),         intent(in)    :: restart_row  !--- the polygon's row of the restart file
-      type(ed_time_t),     intent(inout) :: now          !--- the run's start; a restart's time on return
+      character(len=*),    intent(in)    :: label        ! the polygon's name, for messages
+      integer(ik),         intent(in)    :: polygon_id   ! the polygon's id: its cell's index, 0 for a site
+      real(wp),            intent(in)    :: latitude_deg, longitude_deg, elevation_m   ! its location
+      logical,             intent(in)    :: verbose      ! report the start
+      integer(ik),         intent(in)    :: restart_row  ! the polygon's row of the restart file
+      type(ed_time_t),     intent(inout) :: now          ! the run's start; a restart's time on return
       logical,             intent(out)   :: ok
-      type(ed_config_t),   intent(in), optional :: site_cfg(:)   !--- each site's configuration ...
-      real(wp),            intent(in), optional :: site_area(:)  !--- ... and share of the polygon
+      type(ed_config_t),   intent(in), optional :: site_cfg(:)   ! each site's configuration ...
+      real(wp),            intent(in), optional :: site_area(:)  ! ... and share of the polygon
       character(len=:), allocatable :: msg
       type(ed_time_t)   :: restart_time
       logical           :: found
-      real(wp), allocatable :: leaf_carbon_new(:), storage_new(:)   !--- [kgC/plant] the traits' leaf and storage
-      type(slow_ledger_t)       :: no_ledger   !--- inactive: the start books nothing
+      real(wp), allocatable :: leaf_carbon_new(:), storage_new(:)   ! [kgC/plant] the traits' leaf and storage
+      type(slow_ledger_t)       :: no_ledger   ! inactive: the start books nothing
       type(soil_carbon_state_t) :: pools
 
       ok = .false.

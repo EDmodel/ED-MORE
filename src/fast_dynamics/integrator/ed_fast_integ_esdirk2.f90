@@ -30,12 +30,12 @@ contains
       type(march_state_t),  intent(in)  :: y
       type(frozen_t), intent(in)  :: frozen
       type(site_surface_t),  intent(in)  :: site
-      type(error_control_t), intent(in)  :: ec     !--- its budget stop (backward_euler_stage)
+      type(error_control_t), intent(in)  :: ec     ! its budget stop (backward_euler_stage)
       integer(ik),           intent(in)  :: n, nsl
       real(wp),              intent(in)  :: dt
-      type(march_state_t),  intent(inout) :: y_out, y_err   !--- filled in place
-      type(esdirk2_stages_t),    intent(inout) :: stages    !--- this thread's stage storage, filled in place
-      type(boundary_flux_t), optional, intent(out) :: bf   !--- b-weighted boundary-flux AMOUNTS over dt (ledger)
+      type(march_state_t),  intent(inout) :: y_out, y_err   ! filled in place
+      type(esdirk2_stages_t),    intent(inout) :: stages    ! this thread's stage storage, filled in place
+      type(boundary_flux_t), optional, intent(out) :: bf   ! b-weighted boundary-flux AMOUNTS over dt (ledger)
       !--- Stage-clamp count (the report's WORK_CLAMP_STAGE): only the stage-3 base is clamped.
       integer(ik), optional, intent(inout) :: clamp_n
       real(wp), parameter :: GAMMA = 0.2928932188134524_wp   ! 1 - 1/sqrt(2)

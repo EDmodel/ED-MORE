@@ -48,7 +48,7 @@ program test_pft_config
 
    type(ed_config_t)  :: cfg
    real(wp) :: om1, om2
-   character(len=1024) :: work_dir   !--- where the CSV of section 6 is written
+   character(len=1024) :: work_dir   ! where the CSV of section 6 is written
 
    call banner('the PFT file: its loader, and its per-PFT tables')
    call get_command_argument(1, work_dir)

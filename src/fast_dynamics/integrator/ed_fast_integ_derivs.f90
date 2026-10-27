@@ -89,11 +89,11 @@ contains
    !---~---
    pure subroutine surface_derivs(y, cas, tissue, film, ground, t_ground, n, f)
       type(surface_state_t),        intent(in)  :: y
-      type(cas_boundary_t),         intent(in)  :: cas      !--- CAS <-> atmosphere boundary (a stage may pass its own conductances)
-      type(plant_energy_env_t),     intent(in)  :: tissue   !--- per-cohort leaf/wood energy coefficients
-      type(canopy_water_out_t),     intent(in)  :: film     !--- interception film
-      type(surface_env_t),          intent(in)  :: ground   !--- what the ground surface reads, the snow pack among it
-      real(wp),               intent(in)  :: t_ground   !--- [K] soil-top temperature at this evaluation (live, not frozen)
+      type(cas_boundary_t),         intent(in)  :: cas      ! CAS <-> atmosphere boundary (a stage may pass its own conductances)
+      type(plant_energy_env_t),     intent(in)  :: tissue   ! per-cohort leaf/wood energy coefficients
+      type(canopy_water_out_t),     intent(in)  :: film     ! interception film
+      type(surface_env_t),          intent(in)  :: ground   ! what the ground surface reads, the snow pack among it
+      real(wp),               intent(in)  :: t_ground   ! [K] soil-top temperature at this evaluation (live, not frozen)
       integer(ik),            intent(in)  :: n
       !---~---
       !   Filled in place; the per-cohort arrays are allocated only when missing or resized, so a
@@ -102,9 +102,9 @@ contains
       type(surface_tend_t),   intent(inout) :: f
 
       real(wp)    :: tcas, qcas, qsat_c, dqdt
-      real(wp)    :: coh_h, coh_qw, coh_transp, coh_rnet, coh_film_evap   !--- the canopy's, into the canopy air
-      type(surface_env_t) :: senv      !--- the ground surface's surroundings at this evaluation
-      real(wp)    :: gah_l, gaw_l, gac_l      !--- the conductances this evaluation uses
+      real(wp)    :: coh_h, coh_qw, coh_transp, coh_rnet, coh_film_evap   ! the canopy's, into the canopy air
+      type(surface_env_t) :: senv      ! the ground surface's surroundings at this evaluation
+      real(wp)    :: gah_l, gaw_l, gac_l      ! the conductances this evaluation uses
       type(cas_env_t) :: cas_env
 
       call ensure_surface_tend(f, n)
@@ -196,8 +196,8 @@ contains
       type(march_state_t),  intent(in)  :: y
       type(frozen_t), intent(in)  :: frozen
       type(site_surface_t),  intent(in)  :: site
-      integer(ik),           intent(in)  :: n      !--- number of cohorts
-      integer(ik),           intent(in)  :: nsl    !--- number of active soil layers
+      integer(ik),           intent(in)  :: n      ! number of cohorts
+      integer(ik),           intent(in)  :: nsl    ! number of active soil layers
       type(march_tend_t),   intent(out) :: f
       !---~---
       !   This stage's own surface tendencies, for RK45's whole-column boundary-flux ledger (as
@@ -288,10 +288,10 @@ contains
       type(fast_static_state_t), intent(in)    :: static
       type(soil_profile_t),      intent(in)    :: profile
       type(hydraulics_table_t),  intent(in)    :: hyd
-      real(wp),                  intent(in)    :: theta(:)                       !--- (nsl) [m3/m3] liquid and ice
-      type(soil_ice_t),          intent(in)    :: ice(:)                         !--- (nsl) each layer's ice
-      real(wp),                  intent(in)    :: w_pond, e_pond                 !--- [kg/m2], [J/m2]
-      real(wp),                  intent(in)    :: leaf_water(:), wood_water(:)   !--- (ncoh) [kg/plant]
+      real(wp),                  intent(in)    :: theta(:)                       ! (nsl) [m3/m3] liquid and ice
+      type(soil_ice_t),          intent(in)    :: ice(:)                         ! (nsl) each layer's ice
+      real(wp),                  intent(in)    :: w_pond, e_pond                 ! [kg/m2], [J/m2]
+      real(wp),                  intent(in)    :: leaf_water(:), wood_water(:)   ! (ncoh) [kg/plant]
       type(water_work_t),        intent(inout) :: water
       integer(ik) :: k, i
       real(wp)    :: psi, dpsi, w, dw, kk, dk, head1
@@ -346,7 +346,7 @@ contains
       type(water_drive_t),       intent(in)    :: drive
       real(wp),                  intent(in)    :: tau_soil(:), tau_coh(:,:)
       type(water_tend_t),        intent(inout) :: ev
-      type(arrowhead_system_t),  intent(inout) :: sys   !--- the flows' Jacobian, written when with_jacobian
+      type(arrowhead_system_t),  intent(inout) :: sys   ! the flows' Jacobian, written when with_jacobian
       logical,                   intent(in)    :: with_jacobian
       integer(ik) :: k, i, ca, cb, c, nsl, nsoil
       real(wp) :: q, dq_pa, dq_pb, dq_ka, dq_kb, dqa, dqb, u, s, ds_w, ds_l

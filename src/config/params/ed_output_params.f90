@@ -31,7 +31,7 @@ module ed_output_params
    integer(ik), parameter :: FREQ_DAILY   = 2_ik
    integer(ik), parameter :: FREQ_MONTHLY = 4_ik
    integer(ik), parameter :: FREQ_ANNUAL  = 8_ik
-   integer(ik), parameter :: N_FREQ       = 4_ik   !--- number of temporal tiers (FAST/DAILY/MONTHLY/ANNUAL)
+   integer(ik), parameter :: N_FREQ       = 4_ik   ! number of temporal tiers (FAST/DAILY/MONTHLY/ANNUAL)
    !--- Each tier's index into the per-tier arrays (bit FREQ_* = 2**(index - 1)).
    integer(ik), parameter :: TIER_FAST = 1_ik, TIER_DAILY = 2_ik, TIER_MONTHLY = 3_ik, TIER_ANNUAL = 4_ik
 
@@ -39,25 +39,25 @@ module ed_output_params
    !   Variable groups, the headings of the --dump-io-config list (docs/science/diagnostics.md
    ! §5).
    !---~---
-   integer(ik), parameter :: GRP_STRUCTURE = 1_ik  !--- demography/size: nplant, dbh, agb, patch geometry, ids
-   integer(ik), parameter :: GRP_CARBON    = 2_ik  !--- GPP, NPP, Ra, allocation, vegetation carbon stocks
-   integer(ik), parameter :: GRP_WATER     = 3_ik  !--- ET, soil moisture and potential, snow, surface water
-   integer(ik), parameter :: GRP_ENERGY    = 4_ik  !--- LE, H, net radiation, temperatures, canopy-air state
-   integer(ik), parameter :: GRP_NUMERICS  = 5_ik  !--- integrator work counters and the energy and water budget residuals
-   integer(ik), parameter :: GRP_RADIATION  = 6_ik  !--- albedo, absorbed SW, PAR and LW, ground radiation
-   integer(ik), parameter :: GRP_ECOPHYS    = 7_ik  !--- per-cohort leaf gas exchange and hydraulics (the highest volume)
-   integer(ik), parameter :: GRP_BIOGEOCHEM = 8_ik  !--- soil-carbon pools, Rh, litterfall
-   integer(ik), parameter :: GRP_FORCING    = 9_ik  !--- the forcing the run used, after the reader's partitions
+   integer(ik), parameter :: GRP_STRUCTURE = 1_ik  ! demography/size: nplant, dbh, agb, patch geometry, ids
+   integer(ik), parameter :: GRP_CARBON    = 2_ik  ! GPP, NPP, Ra, allocation, vegetation carbon stocks
+   integer(ik), parameter :: GRP_WATER     = 3_ik  ! ET, soil moisture and potential, snow, surface water
+   integer(ik), parameter :: GRP_ENERGY    = 4_ik  ! LE, H, net radiation, temperatures, canopy-air state
+   integer(ik), parameter :: GRP_NUMERICS  = 5_ik  ! integrator work counters and the energy and water budget residuals
+   integer(ik), parameter :: GRP_RADIATION  = 6_ik  ! albedo, absorbed SW, PAR and LW, ground radiation
+   integer(ik), parameter :: GRP_ECOPHYS    = 7_ik  ! per-cohort leaf gas exchange and hydraulics (the highest volume)
+   integer(ik), parameter :: GRP_BIOGEOCHEM = 8_ik  ! soil-carbon pools, Rh, litterfall
+   integer(ik), parameter :: GRP_FORCING    = 9_ik  ! the forcing the run used, after the reader's partitions
    integer(ik), parameter :: N_GRP          = 9_ik
 
    !--- DBH size-class edge ceiling (n_class <= MAX_DBH_EDGE-1).
    integer(ik), parameter :: MAX_DBH_EDGE = 33_ik
 
    !--- File-chunk buckets: how many records per file for a stream (the time-chunk).
-   integer(ik), parameter :: FC_DAY   = 1_ik  !--- one file per sim-day
-   integer(ik), parameter :: FC_MONTH = 2_ik  !--- one file per sim-month
-   integer(ik), parameter :: FC_YEAR  = 3_ik  !--- one file per sim-year
-   integer(ik), parameter :: FC_RUN   = 4_ik  !--- one file for the whole run (annual default)
+   integer(ik), parameter :: FC_DAY   = 1_ik  ! one file per sim-day
+   integer(ik), parameter :: FC_MONTH = 2_ik  ! one file per sim-month
+   integer(ik), parameter :: FC_YEAR  = 3_ik  ! one file per sim-year
+   integer(ik), parameter :: FC_RUN   = 4_ik  ! one file for the whole run (annual default)
 
    !---~---
    !   The unit of [output].state_interval: a state file every N days, N month boundaries or N
@@ -68,22 +68,22 @@ module ed_output_params
    integer(ik), parameter :: STATE_YEARS  = 3_ik
 
    !--- nc_sync durability policy: never, or after every flush.
-   integer(ik), parameter :: SYNC_NEVER = 0_ik  !--- no nc_sync (fastest; crash forfeits the open chunk)
-   integer(ik), parameter :: SYNC_FLUSH = 1_ik  !--- nc_sync after each flush (durable; default)
+   integer(ik), parameter :: SYNC_NEVER = 0_ik  ! no nc_sync (fastest; crash forfeits the open chunk)
+   integer(ik), parameter :: SYNC_FLUSH = 1_ik  ! nc_sync after each flush (durable; default)
 
    !---~---
    !   The [output] block: plain scalars and fixed arrays. What is written is the registry's
    ! defaults and the lines of [output].io_config (docs/science/diagnostics.md §5).
    !---~---
    type :: output_params_t
-      logical            :: enabled     = .false.               !--- master switch
-      character(len=256) :: dir         = '.'                   !--- output directory
-      character(len=256) :: prefix      = 'ED'                  !--- filename stem
-      character(len=256) :: io_config   = ''                    !--- path to ed_io_config.toml ('' -> the defaults)
-      integer(ik)        :: cohort_max  = 4096_ik               !--- cohort slab size: a run stops if its live count exceeds it
-      integer(ik)        :: patch_max   = 256_ik                !--- patch slab size: likewise
-      integer(ik)        :: sync_every  = SYNC_FLUSH            !--- nc_sync policy: SYNC_NEVER | SYNC_FLUSH
-      integer(ik)        :: fast_interval_steps = 4_ik          !--- fast tier flushes every N*dt_fast
+      logical            :: enabled     = .false.               ! master switch
+      character(len=256) :: dir         = '.'                   ! output directory
+      character(len=256) :: prefix      = 'ED'                  ! filename stem
+      character(len=256) :: io_config   = ''                    ! path to ed_io_config.toml ('' -> the defaults)
+      integer(ik)        :: cohort_max  = 4096_ik               ! cohort slab size: a run stops if its live count exceeds it
+      integer(ik)        :: patch_max   = 256_ik                ! patch slab size: likewise
+      integer(ik)        :: sync_every  = SYNC_FLUSH            ! nc_sync policy: SYNC_NEVER | SYNC_FLUSH
+      integer(ik)        :: fast_interval_steps = 4_ik          ! fast tier flushes every N*dt_fast
       !--- Per-tier enable and file chunk, indexed FAST, DAILY, MONTHLY, ANNUAL.
       logical            :: freq_on(N_FREQ)    = [.false., .true., .true., .true.]
       integer(ik)        :: file_chunk(N_FREQ) = [FC_DAY, FC_MONTH, FC_YEAR, FC_RUN]
@@ -94,8 +94,8 @@ module ed_output_params
       logical            :: state_write       = .false.
       integer(ik)        :: state_every       = 1_ik
       integer(ik)        :: state_unit        = STATE_YEARS
-      character(len=256) :: state_file_dir    = '.'            !--- their directory, and the PFT table's
-      character(len=256) :: state_file_prefix = 'ED'           !--- their file-name stem
+      character(len=256) :: state_file_dir    = '.'            ! their directory, and the PFT table's
+      character(len=256) :: state_file_prefix = 'ED'           ! their file-name stem
       !--- DBH class edges [cm]; empty here, setup_output_files installs the default.
       integer(ik)        :: n_dbh_class = 0_ik
       real(wp)           :: dbh_class_edges(MAX_DBH_EDGE) = 0.0_wp

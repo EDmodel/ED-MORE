@@ -41,9 +41,9 @@ module ed_met_types
    !   The humidity a source carries, as its source measured it, converted with the model's own
    ! saturation curve (docs/science/forcing.md §7). Qair is for a model-made source.
    !---~---
-   integer(ik), parameter :: HUMIDITY_QAIR  = 0_ik          !--- specific humidity [kg/kg], used as is
-   integer(ik), parameter :: HUMIDITY_RHAIR = 1_ik          !--- relative humidity over liquid water [1]
-   integer(ik), parameter :: HUMIDITY_TDEW  = 2_ik          !--- dewpoint temperature [K]
+   integer(ik), parameter :: HUMIDITY_QAIR  = 0_ik          ! specific humidity [kg/kg], used as is
+   integer(ik), parameter :: HUMIDITY_RHAIR = 1_ik          ! relative humidity over liquid water [1]
+   integer(ik), parameter :: HUMIDITY_TDEW  = 2_ik          ! dewpoint temperature [K]
 
    !---~---
    !   met_forcing_t -- the instantaneous atmospheric state the fast loop reads: a polygon's
@@ -52,26 +52,26 @@ module ed_met_types
    ! without forcing reads at every sub-step (the four streams sum to 400 W/m2).
    !---~---
    type :: met_forcing_t
-      real(wp) :: air_temp     = 288.0_wp     !--- [K]        air temperature at reference height
-      real(wp) :: air_shv      = 0.008_wp     !--- [kg/kg]    specific humidity
-      real(wp) :: air_pressure = 101325.0_wp  !--- [Pa]       surface pressure
+      real(wp) :: air_temp     = 288.0_wp     ! [K]        air temperature at reference height
+      real(wp) :: air_shv      = 0.008_wp     ! [kg/kg]    specific humidity
+      real(wp) :: air_pressure = 101325.0_wp  ! [Pa]       surface pressure
       !--- Total precipitation, split into rain and snow per patch (docs/science/forcing.md §7).
-      real(wp) :: precip       = 0.0_wp       !--- [kg/m2/s]  total precipitation rate
-      real(wp) :: wind         = 2.0_wp       !--- [m/s]      wind speed at reference height
+      real(wp) :: precip       = 0.0_wp       ! [kg/m2/s]  total precipitation rate
+      real(wp) :: wind         = 2.0_wp       ! [m/s]      wind speed at reference height
       !--- The wind vector, when the source has components (docs/science/forcing.md §1).
-      real(wp) :: wind_u       = 2.0_wp       !--- [m/s]      eastward component at reference height
-      real(wp) :: wind_v       = 0.0_wp       !--- [m/s]      northward component at reference height
-      logical  :: has_wind_vector = .false.   !--- .true. when the source supplied components, not just speed
-      real(wp) :: lw_down      = 380.0_wp     !--- [W/m2]     downwelling longwave (positive down)
-      real(wp) :: par_beam     = 180.0_wp     !--- [W/m2]     direct-beam PAR at canopy top
-      real(wp) :: par_diffuse  = 40.0_wp      !--- [W/m2]     diffuse PAR
-      real(wp) :: nir_beam     = 150.0_wp     !--- [W/m2]     direct-beam NIR
-      real(wp) :: nir_diffuse  = 30.0_wp      !--- [W/m2]     diffuse NIR   (Sigma = 400 W/m2)
-      real(wp) :: co2          = 420.0_wp     !--- [umol/mol] free-atmosphere CO2 ([forcing].co2_source)
-      real(wp) :: cosz         = 0.5_wp       !--- [-]        cos(solar zenith); derived each sub-step
-      real(wp) :: air_density  = 1.2_wp       !--- [kg/m3]    derived from air_temp, air_pressure and air_shv
+      real(wp) :: wind_u       = 2.0_wp       ! [m/s]      eastward component at reference height
+      real(wp) :: wind_v       = 0.0_wp       ! [m/s]      northward component at reference height
+      logical  :: has_wind_vector = .false.   ! .true. when the source supplied components, not just speed
+      real(wp) :: lw_down      = 380.0_wp     ! [W/m2]     downwelling longwave (positive down)
+      real(wp) :: par_beam     = 180.0_wp     ! [W/m2]     direct-beam PAR at canopy top
+      real(wp) :: par_diffuse  = 40.0_wp      ! [W/m2]     diffuse PAR
+      real(wp) :: nir_beam     = 150.0_wp     ! [W/m2]     direct-beam NIR
+      real(wp) :: nir_diffuse  = 30.0_wp      ! [W/m2]     diffuse NIR   (Sigma = 400 W/m2)
+      real(wp) :: co2          = 420.0_wp     ! [umol/mol] free-atmosphere CO2 ([forcing].co2_source)
+      real(wp) :: cosz         = 0.5_wp       ! [-]        cos(solar zenith); derived each sub-step
+      real(wp) :: air_density  = 1.2_wp       ! [kg/m3]    derived from air_temp, air_pressure and air_shv
    contains
-      procedure :: sw_down        => met_sw_down         !--- total downward SW = sum of the four streams
+      procedure :: sw_down        => met_sw_down         ! total downward SW = sum of the four streams
    end type met_forcing_t
 
    !---~---
@@ -82,7 +82,7 @@ module ed_met_types
       type(ed_time_t) :: when
       real(wp) :: air_temp = 288.0_wp, air_shv = 0.008_wp, air_pressure = 101325.0_wp
       real(wp) :: rain = 0.0_wp, wind = 2.0_wp, lw_down = 380.0_wp
-      real(wp) :: wind_u = 2.0_wp, wind_v = 0.0_wp          !--- wind vector (only when the source has it)
+      real(wp) :: wind_u = 2.0_wp, wind_v = 0.0_wp          ! wind vector (only when the source has it)
       real(wp) :: par_beam = 180.0_wp, par_diffuse = 40.0_wp, nir_beam = 150.0_wp, nir_diffuse = 30.0_wp
    end type met_record_t
 
@@ -95,7 +95,7 @@ module ed_met_types
       character(len=MET_PATH_LEN) :: static_file = ''
       character(len=32) :: lat_var = 'lat', lon_var = 'lon'
       character(len=32) :: valid_var = 'valid', elevation_var = 'elevation', land_fraction_var = 'land_fraction'
-      integer(ik)       :: chunk = 1_ik                     !--- [cells] the data files' chunk edge
+      integer(ik)       :: chunk = 1_ik                     ! [cells] the data files' chunk edge
    end type met_grid_t
 
    !---~---
@@ -105,17 +105,17 @@ module ed_met_types
    !---~---
    type :: met_cells_t
       integer(ik) :: ncell = 0_ik
-      integer(ik) :: nlat = 0_ik, nlon = 0_ik               !--- grid size
-      integer(ik) :: chunk = 1_ik                           !--- [cells] the chunk edge they are grouped by
-      integer(ik), allocatable :: row(:), col(:)            !--- 0-based (lat, lon) index of each cell
-      real(wp),    allocatable :: lat(:), lon(:)            !--- [deg] cell centre
-      real(wp),    allocatable :: elevation(:)              !--- [m] static-file orography
-      real(wp),    allocatable :: land_fraction(:)          !--- [-] static-file land fraction (box selection only)
+      integer(ik) :: nlat = 0_ik, nlon = 0_ik               ! grid size
+      integer(ik) :: chunk = 1_ik                           ! [cells] the chunk edge they are grouped by
+      integer(ik), allocatable :: row(:), col(:)            ! 0-based (lat, lon) index of each cell
+      real(wp),    allocatable :: lat(:), lon(:)            ! [deg] cell centre
+      real(wp),    allocatable :: elevation(:)              ! [m] static-file orography
+      real(wp),    allocatable :: land_fraction(:)          ! [-] static-file land fraction (box selection only)
       integer(ik) :: nchunk = 0_ik
-      integer(ik), allocatable :: chunk_row(:), chunk_col(:)!--- 0-based first row/col of the box read in each chunk
-      integer(ik), allocatable :: chunk_nrow(:), chunk_ncol(:) !--- that box's extent (1 x 1 for a site)
-      integer(ik), allocatable :: chunk_first(:)            !--- by_chunk(chunk_first(k):chunk_first(k+1)-1)
-      integer(ik), allocatable :: by_chunk(:)               !--- cell numbers grouped by chunk
+      integer(ik), allocatable :: chunk_row(:), chunk_col(:)! 0-based first row/col of the box read in each chunk
+      integer(ik), allocatable :: chunk_nrow(:), chunk_ncol(:) ! that box's extent (1 x 1 for a site)
+      integer(ik), allocatable :: chunk_first(:)            ! by_chunk(chunk_first(k):chunk_first(k+1)-1)
+      integer(ik), allocatable :: by_chunk(:)               ! cell numbers grouped by chunk
    end type met_cells_t
 
    !---~---
@@ -133,11 +133,11 @@ module ed_met_types
    ! period's start.
    !---~---
    type :: co2_series_t
-      integer(ik)       :: n = 0_ik                         !--- rows (periods)
-      type(ed_time_t)   :: first_start                      !--- start of the first period: the time origin
-      real(wp)          :: span_end_sec = 0.0_wp            !--- [s] end of the last period, after first_start
-      real(wp), allocatable :: mid_sec(:)                   !--- [s] each period's middle, after first_start
-      real(wp), allocatable :: co2(:)                       !--- [umol/mol] each period's mean
+      integer(ik)       :: n = 0_ik                         ! rows (periods)
+      type(ed_time_t)   :: first_start                      ! start of the first period: the time origin
+      real(wp)          :: span_end_sec = 0.0_wp            ! [s] end of the last period, after first_start
+      real(wp), allocatable :: mid_sec(:)                   ! [s] each period's middle, after first_start
+      real(wp), allocatable :: co2(:)                       ! [umol/mol] each period's mean
    end type co2_series_t
 
    !---~---
@@ -147,47 +147,47 @@ module ed_met_types
    ! can share it across threads.
    !---~---
    type :: met_source_t
-      type(forcing_params_t)  :: fcfg                       !--- [forcing]/[site] config
-      integer(ik) :: backend    = MET_BACKEND_DEFAULT    !--- MET_BACKEND_*: ED_DEFAULT | ED_ERA5LAND
-      integer(ik) :: humidity   = HUMIDITY_TDEW             !--- the humidity the source carries (HUMIDITY_*)
-      integer(ik) :: ncid       = -1_ik                     !--- NetCDF handle (via ed_netcdf_c), -1 if closed
-      integer(ik) :: grid_index = 1_ik                      !--- ED-MORE forcing file: the location (1..ngrid) read
-      integer(ik) :: ngrid      = 1_ik                      !--- total locations in the file (cells for the archive)
-      integer(ik) :: nrec       = 0_ik                      !--- total time records on the axis
-      integer(ik) :: rec_first  = 1_ik                      !--- the record a cursor's first bracket starts at
-      real(wp)    :: dt_forcing  = 3600.0_wp                !--- [s] native forcing interval
-      type(ed_time_t)  :: base_time                         !--- time-coordinate anchor ("seconds since base_time")
-      real(wp), allocatable :: time_sec(:)                  !--- [s] cached time coordinate (seconds since base_time)
+      type(forcing_params_t)  :: fcfg                       ! [forcing]/[site] config
+      integer(ik) :: backend    = MET_BACKEND_DEFAULT    ! MET_BACKEND_*: ED_DEFAULT | ED_ERA5LAND
+      integer(ik) :: humidity   = HUMIDITY_TDEW             ! the humidity the source carries (HUMIDITY_*)
+      integer(ik) :: ncid       = -1_ik                     ! NetCDF handle (via ed_netcdf_c), -1 if closed
+      integer(ik) :: grid_index = 1_ik                      ! ED-MORE forcing file: the location (1..ngrid) read
+      integer(ik) :: ngrid      = 1_ik                      ! total locations in the file (cells for the archive)
+      integer(ik) :: nrec       = 0_ik                      ! total time records on the axis
+      integer(ik) :: rec_first  = 1_ik                      ! the record a cursor's first bracket starts at
+      real(wp)    :: dt_forcing  = 3600.0_wp                ! [s] native forcing interval
+      type(ed_time_t)  :: base_time                         ! time-coordinate anchor ("seconds since base_time")
+      real(wp), allocatable :: time_sec(:)                  ! [s] cached time coordinate (seconds since base_time)
       !--- The declared recycle window, checked against the file at open (docs/science/forcing.md §9).
-      type(ed_time_t) :: cycle_anchor                       !--- = fcfg%recycle_start; the cycle's first instant
-      integer(ik) :: n_cycle_years   = 0_ik                 !--- whole calendar years the declared window spans
-      integer(ik) :: irec_cycle_first = 0_ik                !--- record index of cycle_anchor (exact match, 1-based)
-      integer(ik) :: irec_cycle_last  = 0_ik                !--- record index of the last record strictly inside the window
-      logical     :: has_wind_vector = .false.              !--- the source supplies u10/v10
+      type(ed_time_t) :: cycle_anchor                       ! = fcfg%recycle_start; the cycle's first instant
+      integer(ik) :: n_cycle_years   = 0_ik                 ! whole calendar years the declared window spans
+      integer(ik) :: irec_cycle_first = 0_ik                ! record index of cycle_anchor (exact match, 1-based)
+      integer(ik) :: irec_cycle_last  = 0_ik                ! record index of the last record strictly inside the window
+      logical     :: has_wind_vector = .false.              ! the source supplies u10/v10
       !---~---
       !   The archive: its months laid end to end on time_sec (seconds since 1970-01-01); month k
       ! holds records month_rec0(k)+1 .. month_rec0(k)+hours, and one month sits in `buffer`.
       !---~---
-      character(len=MET_PATH_LEN) :: file_template = ''     !--- resolved file template
-      type(met_grid_t)  :: grid                             !--- the archive's grid
-      type(met_cells_t) :: cells                            !--- the cells read: one for a site, many for a region
+      character(len=MET_PATH_LEN) :: file_template = ''     ! resolved file template
+      type(met_grid_t)  :: grid                             ! the archive's grid
+      type(met_cells_t) :: cells                            ! the cells read: one for a site, many for a region
       integer(ik), allocatable :: month_year(:), month_month(:), month_rec0(:)
-      type(met_month_t) :: buffer                           !--- the loaded month (year = 0 before the first)
+      type(met_month_t) :: buffer                           ! the loaded month (year = 0 before the first)
       !---~---
       !   What a step reads beyond the loaded month, in memory before the step
       ! (docs/science/forcing.md §2 and §9).
       !---~---
-      real(sp),    allocatable :: carry(:,:)                !--- (cell, variable) the record before the loaded month
-      integer(ik) :: carry_rec = 0_ik                       !--- its record index on the axis (0 = none)
+      real(sp),    allocatable :: carry(:,:)                ! (cell, variable) the record before the loaded month
+      integer(ik) :: carry_rec = 0_ik                       ! its record index on the axis (0 = none)
       !---~---
       !   The recycle window's first day, which a step across the seam reads after the window's
       ! last record, a month the buffer does not hold.
       !---~---
-      real(sp),    allocatable :: head(:,:,:)               !--- (record, cell, variable) from irec_cycle_first on
-      integer(ik) :: n_head    = 0_ik                       !--- records in head (0 = none)
-      integer(ik) :: n_loads   = 0_ik                       !--- archive month loads so far (tests: none inside a step)
-      real(wp),    allocatable :: series(:,:)               !--- (record, column) ED-MORE forcing file at grid_index
-      integer(ik) :: series_col(N_ED_FIELD) = 0_ik          !--- each ED_FIELD's column in series (0 = absent)
+      real(sp),    allocatable :: head(:,:,:)               ! (record, cell, variable) from irec_cycle_first on
+      integer(ik) :: n_head    = 0_ik                       ! records in head (0 = none)
+      integer(ik) :: n_loads   = 0_ik                       ! archive month loads so far (tests: none inside a step)
+      real(wp),    allocatable :: series(:,:)               ! (record, column) ED-MORE forcing file at grid_index
+      integer(ik) :: series_col(N_ED_FIELD) = 0_ik          ! each ED_FIELD's column in series (0 = absent)
       !--- The prescribed CO2 (co2_source = "file"): one global series, read at open.
       type(co2_series_t) :: co2
    end type met_source_t
@@ -199,19 +199,19 @@ module ed_met_types
    ! the solar geometry and the elevation lapse.
    !---~---
    type :: met_cursor_t
-      integer(ik) :: cell = 1_ik                            !--- this polygon's cell in the source (1 for a site run)
-      real(wp)    :: latitude_deg     = 0.0_wp              !--- [deg +N] solar geometry
-      real(wp)    :: longitude_deg    = 0.0_wp              !--- [deg +E] local solar time from the UTC clock
-      real(wp)    :: elevation_m      = 0.0_wp              !--- [m] the polygon's elevation (lapse target)
-      real(wp)    :: grid_elevation_m = 0.0_wp              !--- [m] forcing-cell elevation (lapse origin)
-      integer(ik) :: irec_prev  = 0_ik                      !--- cursor: index of the "previous" bracketing record
-      type(met_record_t) :: rec_prev, rec_next              !--- the two records bracketing the model time
-      logical     :: at_wrap_seam    = .false.              !--- current bracket is the cycle-boundary seam (last -> first)
+      integer(ik) :: cell = 1_ik                            ! this polygon's cell in the source (1 for a site run)
+      real(wp)    :: latitude_deg     = 0.0_wp              ! [deg +N] solar geometry
+      real(wp)    :: longitude_deg    = 0.0_wp              ! [deg +E] local solar time from the UTC clock
+      real(wp)    :: elevation_m      = 0.0_wp              ! [m] the polygon's elevation (lapse target)
+      real(wp)    :: grid_elevation_m = 0.0_wp              ! [m] forcing-cell elevation (lapse origin)
+      integer(ik) :: irec_prev  = 0_ik                      ! cursor: index of the "previous" bracketing record
+      type(met_record_t) :: rec_prev, rec_next              ! the two records bracketing the model time
+      logical     :: at_wrap_seam    = .false.              ! current bracket is the cycle-boundary seam (last -> first)
       !---~---
       !   The longwave synthesis holds the last daytime clearness index through the night, from
       ! clear sky at the start (docs/science/forcing.md §11).
       !---~---
-      real(wp)    :: kt_last_day    = 1.0_wp                !--- [-] last daytime clearness index
+      real(wp)    :: kt_last_day    = 1.0_wp                ! [-] last daytime clearness index
    end type met_cursor_t
 
 contains

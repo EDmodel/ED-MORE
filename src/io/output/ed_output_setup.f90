@@ -45,10 +45,10 @@ contains
       type(ed_config_t),  intent(in)      :: cfg
       type(output_files_t), intent(inout) :: files
       logical,              intent(in)    :: verbose
-      integer(ik),          intent(in)    :: polygon_id(:)   !--- the polygons' ids ...
-      integer(ik),          intent(in)    :: n_site(:)       !--- ... their site counts ...
-      real(wp),             intent(in)    :: lat(:), lon(:)  !--- ... their cells' centres [deg] ...
-      integer(ik),          intent(in)    :: row(:), col(:)  !--- ... and grid indices (0-based)
+      integer(ik),          intent(in)    :: polygon_id(:)   ! the polygons' ids ...
+      integer(ik),          intent(in)    :: n_site(:)       ! ... their site counts ...
+      real(wp),             intent(in)    :: lat(:), lon(:)  ! ... their cells' centres [deg] ...
+      integer(ik),          intent(in)    :: row(:), col(:)  ! ... and grid indices (0-based)
       call setup_output_files(files, cfg)
       if (len_trim(cfg%output%io_config) > 0)                                                     &
          call apply_io_overrides(files, trim(cfg%output%io_config), verbose)
@@ -68,7 +68,7 @@ contains
       type(output_files_t),   intent(inout) :: files
       type(output_buffers_t), intent(inout) :: bufs
       type(polygon_t),        intent(inout) :: poly
-      integer(ik),            intent(in)    :: p      !--- the polygon's row of the file set
+      integer(ik),            intent(in)    :: p      ! the polygon's row of the file set
       integer(ik) :: is
       call alloc_output_buffers(files, bufs)
       bufs%diag%soil_ready = cfg%fast_biophysics_on
@@ -344,7 +344,7 @@ contains
       type(output_files_t),  intent(out) :: files
       type(output_buffers_t), intent(out) :: bufs
       type(ed_config_t),   intent(in)  :: cfg
-      type(selection_t), optional, intent(in) :: sel(:)   !--- io_config lines, as apply_io_overrides reads them
+      type(selection_t), optional, intent(in) :: sel(:)   ! io_config lines, as apply_io_overrides reads them
       call setup_output_files(files, cfg)
       if (present(sel)) then
          call apply_selections(files%reg, sel)
@@ -365,7 +365,7 @@ contains
       type(output_files_t), intent(inout) :: files
       integer(ik),          intent(in)    :: polygon_id(:), n_site(:), row(:), col(:)
       real(wp),             intent(in)    :: lat(:), lon(:)
-      logical,              intent(in)    :: with_chave_e   !--- the Chave height allometry's index E, per polygon
+      logical,              intent(in)    :: with_chave_e   ! the Chave height allometry's index E, per polygon
       integer(ik) :: n, ns
       n  = size(polygon_id, kind=ik)
       ns = max(maxval(n_site), 1_ik)

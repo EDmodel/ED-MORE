@@ -46,17 +46,17 @@ module ed_met_era5land
        'W m-2     ', 'W m-2     ']
    !--- The archive's time coordinate is seconds since this instant.
    type(ed_time_t), parameter :: ERA_EPOCH = ed_time_t(1970_ik, 1_ik, 1_ik, 0_ik, 0_ik, 0_ik)
-   integer(ik), parameter :: ERA_CHUNK = 16_ik     !--- [cells] the files' chunk edge
-   real(wp),    parameter :: STAMP_TOL = 0.5_wp    !--- [s] slack for "this record is that stamp"
+   integer(ik), parameter :: ERA_CHUNK = 16_ik     ! [cells] the files' chunk edge
+   real(wp),    parameter :: STAMP_TOL = 0.5_wp    ! [s] slack for "this record is that stamp"
 
    !--- Status codes.
    integer(ik), parameter :: ERA_OK          = 0_ik
-   integer(ik), parameter :: ERA_ERR_OPEN    = 1_ik   !--- a file is missing or unreadable
-   integer(ik), parameter :: ERA_ERR_GRID    = 2_ik   !--- a file's grid differs from the static file's
-   integer(ik), parameter :: ERA_ERR_TIME    = 3_ik   !--- a month file's stamps are not that month's hours
-   integer(ik), parameter :: ERA_ERR_UNITS   = 4_ik   !--- a variable's units attribute is not the expected one
-   integer(ik), parameter :: ERA_ERR_NAN     = 5_ik   !--- a selected cell has a missing value
-   integer(ik), parameter :: ERA_ERR_FILL    = 6_ik   !--- a variable's _FillValue is a number, not NaN
+   integer(ik), parameter :: ERA_ERR_OPEN    = 1_ik   ! a file is missing or unreadable
+   integer(ik), parameter :: ERA_ERR_GRID    = 2_ik   ! a file's grid differs from the static file's
+   integer(ik), parameter :: ERA_ERR_TIME    = 3_ik   ! a month file's stamps are not that month's hours
+   integer(ik), parameter :: ERA_ERR_UNITS   = 4_ik   ! a variable's units attribute is not the expected one
+   integer(ik), parameter :: ERA_ERR_NAN     = 5_ik   ! a selected cell has a missing value
+   integer(ik), parameter :: ERA_ERR_FILL    = 6_ik   ! a variable's _FillValue is a number, not NaN
 
 contains
 
@@ -69,9 +69,9 @@ contains
    subroutine era5land_open(src, stat, why, run_start, run_end, cells)
       type(met_source_t),            intent(inout) :: src
       integer(ik),                   intent(out)   :: stat
-      character(len=:), allocatable, intent(out)   :: why    !--- what stops the run when stat /= MET_OK
+      character(len=:), allocatable, intent(out)   :: why    ! what stops the run when stat /= MET_OK
       type(ed_time_t),   optional,   intent(in)    :: run_start, run_end
-      type(met_cells_t), optional,   intent(in)    :: cells  !--- a region's cells; absent: the site's
+      type(met_cells_t), optional,   intent(in)    :: cells  ! a region's cells; absent: the site's
       why = ''
       call open_archive(src, run_start, run_end, stat, why, cells)
       if (stat == MET_OK) call validate_recycle_window(src, stat, why)

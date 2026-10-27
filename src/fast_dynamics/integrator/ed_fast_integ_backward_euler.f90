@@ -77,7 +77,7 @@ contains
       type(march_state_t),  intent(in)  :: y
       type(frozen_t), intent(in)  :: frozen
       type(site_surface_t),  intent(in)  :: site
-      type(error_control_t), intent(in)  :: ec     !--- its budget stop ([fast].debug_error)
+      type(error_control_t), intent(in)  :: ec     ! its budget stop ([fast].debug_error)
       integer(ik),           intent(in)  :: n, nsl
       real(wp),              intent(in)  :: dt
       !---~---
@@ -87,10 +87,10 @@ contains
       !---~---
       type(march_state_t),  intent(inout) :: y_out
       type(surface_tend_t),  intent(inout) :: surf_tend
-      type(stage_bflux_t), optional, intent(out) :: bf  !--- per-stage boundary-flux rates for the ESDIRK2 ledger
+      type(stage_bflux_t), optional, intent(out) :: bf  ! per-stage boundary-flux rates for the ESDIRK2 ledger
 
       type(surface_state_t)      :: y_stage
-      type(cas_boundary_t)       :: cas_stage   !--- the CAS boundary with this stage's conductances
+      type(cas_boundary_t)       :: cas_stage   ! the CAS boundary with this stage's conductances
       type(soil_energy_state_t) :: se
       type(soil_heat_env_t)     :: eforc
       type(soil_heat_out_t)        :: eflux
@@ -239,12 +239,12 @@ contains
    subroutine newton_surface_solve(y, cas, frozen, t_ground, n, dt, cas_mass_capacity, g_atm_heat, g_atm_vapour, &
                                    surf_tend, nfeval, ok)
       type(march_state_t),   intent(in)    :: y
-      type(cas_boundary_t),   intent(in)    :: cas      !--- the stage's CAS boundary (its own conductances)
-      type(frozen_t),  intent(in)    :: frozen   !--- tissue / film / ground / snow for surface_derivs
+      type(cas_boundary_t),   intent(in)    :: cas      ! the stage's CAS boundary (its own conductances)
+      type(frozen_t),  intent(in)    :: frozen   ! tissue / film / ground / snow for surface_derivs
       real(wp),               intent(in)    :: t_ground
       integer(ik),            intent(in)    :: n
       real(wp),               intent(in)    :: dt, cas_mass_capacity, g_atm_heat, g_atm_vapour
-      type(surface_tend_t),   intent(inout) :: surf_tend   !--- the evaluation at the solution, on return
+      type(surface_tend_t),   intent(inout) :: surf_tend   ! the evaluation at the solution, on return
       integer(ik),            intent(out)   :: nfeval
       logical,                intent(out)   :: ok
 
@@ -330,7 +330,7 @@ contains
    pure subroutine cas_box_commit(h0, q0, c0, surf_tend, cas, dt, h1, q1, c1)
       real(wp),               intent(in)  :: h0, q0, c0, dt
       type(surface_tend_t),   intent(in)  :: surf_tend
-      type(cas_boundary_t),   intent(in)  :: cas        !--- the stage's boundary: its box carries the stage's conductances
+      type(cas_boundary_t),   intent(in)  :: cas        ! the stage's boundary: its box carries the stage's conductances
       real(wp),               intent(out) :: h1, q1, c1
       type(cas_env_t) :: env
       env = cas%box
@@ -390,7 +390,7 @@ contains
       type(frozen_t), intent(in)    :: frozen
       integer(ik),           intent(in)    :: n
       real(wp),              intent(in)    :: dt
-      real(wp),              intent(in)    :: transp_c_bw(n)  !--- [kg/m2 ground/s] per cohort, b-weighted over the step
+      real(wp),              intent(in)    :: transp_c_bw(n)  ! [kg/m2 ground/s] per cohort, b-weighted over the step
       type(march_state_t),  intent(inout) :: y_out
       integer(ik) :: i
       do i = 1_ik, n
@@ -449,7 +449,7 @@ contains
       type(water_drive_t),       intent(inout) :: drive
       type(tol_set_t),           intent(in)    :: tols
       type(water_work_t),        intent(inout) :: water
-      integer(ik),               intent(inout) :: work_count(:)   !--- the step report's work counters
+      integer(ik),               intent(inout) :: work_count(:)   ! the step report's work counters
       real(wp)    :: t, h, h_min, err, rtol, atol
       real(wp)    :: scale_soil(water%nsoil), scale_coh(COHORT_STORES, water%ncoh)
       real(wp)    :: tau_soil(water%nsoil), tau_coh(COHORT_STORES, water%ncoh)
@@ -535,11 +535,11 @@ contains
       type(hydraulics_table_t),  intent(in)    :: hyd
       type(water_drive_t),       intent(in)    :: drive
       real(wp),                  intent(in)    :: h, atol, scale_soil(:), scale_coh(:,:)
-      real(wp),                  intent(inout) :: tau_soil(:), tau_coh(:,:)   !--- start of sub-step in, solution out
+      real(wp),                  intent(inout) :: tau_soil(:), tau_coh(:,:)   ! start of sub-step in, solution out
       type(water_work_t),        intent(inout) :: water
       logical,                   intent(out)   :: converged
       integer(ik),               intent(out)   :: iters
-      integer(ik),               intent(out)   :: i_sol   !--- which of water%ev holds the solution
+      integer(ik),               intent(out)   :: i_sol   ! which of water%ev holds the solution
       real(wp) :: res_soil(water%nsoil), res_coh(COHORT_STORES, water%ncoh)
       real(wp) :: step_soil(water%nsoil), step_coh(COHORT_STORES, water%ncoh)
       real(wp) :: try_soil(water%nsoil), try_coh(COHORT_STORES, water%ncoh)
@@ -708,9 +708,9 @@ contains
    ! evaluation wrote: close to the matrix at the end, which is all a filter needs.
    !---~---
    pure real(wp) function water_substep_error(sys, h, ev0, ev1, scale_soil, scale_coh, rtol, atol) result(err)
-      type(arrowhead_system_t), intent(in) :: sys        !--- the Newton matrix, factored at the last iteration
+      type(arrowhead_system_t), intent(in) :: sys        ! the Newton matrix, factored at the last iteration
       real(wp),                 intent(in) :: h
-      type(water_tend_t),       intent(in) :: ev0, ev1   !--- the network at the sub-step's start and end
+      type(water_tend_t),       intent(in) :: ev0, ev1   ! the network at the sub-step's start and end
       real(wp),                 intent(in) :: scale_soil(:), scale_coh(:,:), rtol, atol
       real(wp) :: v_soil(size(ev1%water_soil)), v_coh(COHORT_STORES, size(ev1%water_coh, 2))
       real(wp) :: y_soil(size(ev1%water_soil)), y_coh(COHORT_STORES, size(ev1%water_coh, 2))
@@ -742,7 +742,7 @@ contains
       type(water_tend_t),  intent(in)    :: ev
       type(water_state_t), intent(inout) :: state
       type(water_flows_t), intent(inout) :: flows
-      logical,             intent(out)   :: spilled   !--- the pond spilled, so its unknown moved
+      logical,             intent(out)   :: spilled   ! the pond spilled, so its unknown moved
       real(wp) :: w_mix, e_mix, t_mix, u_mix, amount, spill, t_pond, pond_flux, sap(size(tau_coh, 2))
       integer(ik) :: i, nsl
 

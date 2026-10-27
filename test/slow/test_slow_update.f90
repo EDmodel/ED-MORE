@@ -23,8 +23,8 @@ module test_slow_update_commit
    private
 
    public :: run_commit
-   type(kill_report_t)  :: kills   !--- what the cull and the treefall killed
-   real(wp)            :: shed_water   !--- an operator's shed water, unread here
+   type(kill_report_t)  :: kills   ! what the cull and the treefall killed
+   real(wp)            :: shed_water   ! an operator's shed water, unread here
 
    type(ed_config_t)   :: cfg
    type(polygon_t)     :: poly
@@ -624,10 +624,10 @@ module test_slow_update_gaps
    private
 
    public :: run_treefall_gaps
-   type(kill_report_t)  :: kills   !--- what the cull and the treefall killed
-   real(wp)             :: dist_frac          !--- the treefall decision's share
-   logical, allocatable :: dist_survives(:)   !--- and its survivors
-   real(wp)            :: shed_water   !--- an operator's shed water, unread here
+   type(kill_report_t)  :: kills   ! what the cull and the treefall killed
+   real(wp)             :: dist_frac          ! the treefall decision's share
+   logical, allocatable :: dist_survives(:)   ! and its survivors
+   real(wp)            :: shed_water   ! an operator's shed water, unread here
 
    type(ed_config_t) :: cfg
    type(polygon_t)  :: poly

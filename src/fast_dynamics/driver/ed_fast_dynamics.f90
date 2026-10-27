@@ -41,18 +41,18 @@ module ed_fast_dynamics
    ! order after the loop, so the sums do not move with the thread count
    ! (docs/science/numerical_scheme.md §6a).
    !---~---
-   integer(ik), parameter :: RED_ET          = 1_ik   !--- polygon ET [kg/m2], area-weighted
-   integer(ik), parameter :: RED_PHENO_TAIR  = 2_ik   !--- daily-mean air-temperature accumulator [K]
+   integer(ik), parameter :: RED_ET          = 1_ik   ! polygon ET [kg/m2], area-weighted
+   integer(ik), parameter :: RED_PHENO_TAIR  = 2_ik   ! daily-mean air-temperature accumulator [K]
    !--- The step report's work counters, area-weighted: slot RED_WORK + WORK_*.
    integer(ik), parameter :: RED_WORK        = 2_ik
    !---~---
    !   Rain and snow as split at each patch's canopy-air top, area-weighted (docs/science/forcing.md §7),
    ! and the water leaving the soil column.
    !---~---
-   integer(ik), parameter :: RED_RAINF       = RED_WORK + N_WORK + 1_ik   !--- rain [kg/m2/s]
-   integer(ik), parameter :: RED_SNOWFALL    = RED_WORK + N_WORK + 2_ik   !--- snow [kg/m2/s]
-   integer(ik), parameter :: RED_RUNOFF_SURF = RED_WORK + N_WORK + 3_ik   !--- surface runoff [kg/m2]
-   integer(ik), parameter :: RED_DRAINAGE    = RED_WORK + N_WORK + 4_ik   !--- drainage at the column's bottom [kg/m2]
+   integer(ik), parameter :: RED_RAINF       = RED_WORK + N_WORK + 1_ik   ! rain [kg/m2/s]
+   integer(ik), parameter :: RED_SNOWFALL    = RED_WORK + N_WORK + 2_ik   ! snow [kg/m2/s]
+   integer(ik), parameter :: RED_RUNOFF_SURF = RED_WORK + N_WORK + 3_ik   ! surface runoff [kg/m2]
+   integer(ik), parameter :: RED_DRAINAGE    = RED_WORK + N_WORK + 4_ik   ! drainage at the column's bottom [kg/m2]
    integer(ik), parameter :: N_RED           = RED_DRAINAGE
 
    !---~---
@@ -89,12 +89,12 @@ contains
                             run_face_budget, patch_threads)
       type(polygon_t),      intent(inout) :: poly
       type(ed_config_t),  intent(in)      :: cfg
-      type(met_source_t), optional, intent(in)    :: met_src       !--- the run's forcing source (read-only here)
-      type(met_cursor_t), optional, intent(inout) :: met_cur       !--- this polygon's cursor (per-sub-step met)
-      type(ed_time_t),    optional, intent(in)    :: step_start    !--- calendar time at the start of this slow step
+      type(met_source_t), optional, intent(in)    :: met_src       ! the run's forcing source (read-only here)
+      type(met_cursor_t), optional, intent(inout) :: met_cur       ! this polygon's cursor (per-sub-step met)
+      type(ed_time_t),    optional, intent(in)    :: step_start    ! calendar time at the start of this slow step
       real(wp),    optional, intent(out)  :: worst_energy, worst_water
       integer(ik), optional, intent(out)  :: n_budget_fail
-      type(output_buffers_t), optional, intent(inout) :: out_bufs  !--- this polygon's FAST-tier staging (when on)
+      type(output_buffers_t), optional, intent(inout) :: out_bufs  ! this polygon's FAST-tier staging (when on)
       !---~---
       !   Run-level whole-column ledgers, which take the step's area-weighted ledgers: their signed
       ! cumulative residual shows a one-signed bias below the per-step tolerance.
@@ -109,20 +109,20 @@ contains
       !   The window's samples, each site's after its terrain, and their times: the same for every
       ! patch, made before the patch loop. Without forcing, every one is the fixed record.
       !---~---
-      type(met_forcing_t), allocatable :: met_sample(:)     !--- (sub-step)
-      type(met_forcing_t), allocatable :: met_site(:,:)     !--- (sub-step, site)
-      type(ed_time_t),     allocatable :: t_sample(:)       !--- (sub-step)
-      type(met_forcing_t) :: met_ref                        !--- the air every sub-step reads without forcing
+      type(met_forcing_t), allocatable :: met_sample(:)     ! (sub-step)
+      type(met_forcing_t), allocatable :: met_site(:,:)     ! (sub-step, site)
+      type(ed_time_t),     allocatable :: t_sample(:)       ! (sub-step)
+      type(met_forcing_t) :: met_ref                        ! the air every sub-step reads without forcing
       !---~---
       !   Reduction staging: one cell per (slot, sub-step, patch), assigned once in the patch loop
       ! (so never zeroed) and folded into the polygon in patch order after it.
       !---~---
-      real(wp),       allocatable :: red_site(:,:,:)                           !--- (N_RED, sub-step, patch)
-      real(wp),       allocatable :: red_worst_energy(:), red_worst_water(:)   !--- (patch); max-folded
-      type(budget_t), allocatable :: red_budget_energy(:), red_budget_water(:) !--- (patch); area-merged
-      type(budget_t), allocatable :: red_budget_face(:)                        !--- (patch); area-merged
-      integer(ik),    allocatable :: red_nfail(:)                              !--- (patch) budget-failure counts
-      real(wp),       allocatable :: rain_sub(:), snow_sub(:)                  !--- (sub-step) the patches' split
+      real(wp),       allocatable :: red_site(:,:,:)                           ! (N_RED, sub-step, patch)
+      real(wp),       allocatable :: red_worst_energy(:), red_worst_water(:)   ! (patch); max-folded
+      type(budget_t), allocatable :: red_budget_energy(:), red_budget_water(:) ! (patch); area-merged
+      type(budget_t), allocatable :: red_budget_face(:)                        ! (patch); area-merged
+      integer(ik),    allocatable :: red_nfail(:)                              ! (patch) budget-failure counts
+      real(wp),       allocatable :: rain_sub(:), snow_sub(:)                  ! (sub-step) the patches' split
       type(budget_t) :: site_energy_budget, site_water_budget, site_face_budget
       !---~---
       !   The step data: one per thread, indexed by thread number and aliased with `associate`
@@ -132,7 +132,7 @@ contains
       type(fast_step_data_t), allocatable :: step_data(:)
       real(wp)    :: area
       integer(ik) :: ip, isub, npatch, ncoh_max, nsub, n_thread, ith, is_p, k, iv
-      integer(ik), allocatable :: visit(:)          !--- the patch loop's order, costliest first
+      integer(ik), allocatable :: visit(:)          ! the patch loop's order, costliest first
       real(wp),    allocatable :: neg_cost(:)
       integer(lk) :: tick0, tick1, tick_rate
       logical     :: do_forcing, do_fast

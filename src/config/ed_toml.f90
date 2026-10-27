@@ -29,7 +29,7 @@ module ed_toml
       integer(ik)                     :: n = 0_ik
       character(len=KEYLEN), allocatable :: key(:)
       character(len=VALLEN), allocatable :: val(:)
-      character(len=256)              :: source = ''   !--- the file read into it (the record's label)
+      character(len=256)              :: source = ''   ! the file read into it (the record's label)
       !--- The arrays of tables, `[[name]]`, and how many tables each holds.
       integer(ik)           :: n_array = 0_ik
       character(len=KEYLEN) :: array_name(MAXARRAYS) = ''
@@ -47,8 +47,8 @@ module ed_toml
    integer(ik), save :: rec_n = 0_ik
    character(len=256),    save :: rec_source(MAXREC)
    character(len=KEYLEN), save :: rec_key(MAXREC)
-   integer(ik),           save :: rec_index(MAXREC)      !--- 0 for a scalar, else the array element
-   logical,               save :: rec_present(MAXREC)    !--- .true. = set in the file, .false. = default
+   integer(ik),           save :: rec_index(MAXREC)      ! 0 for a scalar, else the array element
+   logical,               save :: rec_present(MAXREC)    ! .true. = set in the file, .false. = default
    character(len=RECVAL), save :: rec_value(MAXREC)
 
 contains

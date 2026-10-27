@@ -31,19 +31,19 @@ module ed_met_share
 
    !--- met_open status codes (see the `stat` argument).
    integer(ik), parameter :: MET_OK                          = 0_ik
-   integer(ik), parameter :: MET_ERR_WINDOW_NOT_WHOLE_YEARS  = 1_ik   !--- recycle_end - recycle_start /= N years
-   integer(ik), parameter :: MET_ERR_START_NOT_A_RECORD      = 2_ik   !--- recycle_start is not a record stamp
-   integer(ik), parameter :: MET_ERR_WINDOW_NOT_COVERED      = 3_ik   !--- file stops short of recycle_end
-   integer(ik), parameter :: MET_ERR_DT_MISMATCH             = 4_ik   !--- [forcing].timestep /= the file's record spacing
-   integer(ik), parameter :: MET_ERR_AXIS_NOT_UNIFORM        = 5_ik   !--- the file's time axis is ragged
-   integer(ik), parameter :: MET_ERR_ATTR_MISMATCH           = 6_ik   !--- a file global attribute contradicts the config
-   integer(ik), parameter :: MET_ERR_ARCHIVE                 = 7_ik   !--- archive: static file, site cell or a month missing
-   integer(ik), parameter :: MET_ERR_CO2_FILE                = 8_ik   !--- the CO2 file is unreadable or breaks format 1
-   integer(ik), parameter :: MET_ERR_CO2_NOT_COVERED         = 9_ik   !--- the CO2 file does not cover the run
-   integer(ik), parameter :: MET_ERR_CO2_IN_MET_FILE         = 10_ik  !--- the met file carries CO2air
-   integer(ik), parameter :: MET_ERR_NOT_UTC                 = 11_ik  !--- the file does not say time_zone = "UTC"
-   integer(ik), parameter :: MET_ERR_HUMIDITY                = 12_ik  !--- no, two, or out-of-range humidity variables
-   integer(ik), parameter :: MET_ERR_FILE                    = 13_ik  !--- the file cannot be read as an ED-MORE forcing file
+   integer(ik), parameter :: MET_ERR_WINDOW_NOT_WHOLE_YEARS  = 1_ik   ! recycle_end - recycle_start /= N years
+   integer(ik), parameter :: MET_ERR_START_NOT_A_RECORD      = 2_ik   ! recycle_start is not a record stamp
+   integer(ik), parameter :: MET_ERR_WINDOW_NOT_COVERED      = 3_ik   ! file stops short of recycle_end
+   integer(ik), parameter :: MET_ERR_DT_MISMATCH             = 4_ik   ! [forcing].timestep /= the file's record spacing
+   integer(ik), parameter :: MET_ERR_AXIS_NOT_UNIFORM        = 5_ik   ! the file's time axis is ragged
+   integer(ik), parameter :: MET_ERR_ATTR_MISMATCH           = 6_ik   ! a file global attribute contradicts the config
+   integer(ik), parameter :: MET_ERR_ARCHIVE                 = 7_ik   ! archive: static file, site cell or a month missing
+   integer(ik), parameter :: MET_ERR_CO2_FILE                = 8_ik   ! the CO2 file is unreadable or breaks format 1
+   integer(ik), parameter :: MET_ERR_CO2_NOT_COVERED         = 9_ik   ! the CO2 file does not cover the run
+   integer(ik), parameter :: MET_ERR_CO2_IN_MET_FILE         = 10_ik  ! the met file carries CO2air
+   integer(ik), parameter :: MET_ERR_NOT_UTC                 = 11_ik  ! the file does not say time_zone = "UTC"
+   integer(ik), parameter :: MET_ERR_HUMIDITY                = 12_ik  ! no, two, or out-of-range humidity variables
+   integer(ik), parameter :: MET_ERR_FILE                    = 13_ik  ! the file cannot be read as an ED-MORE forcing file
 
    !---~---
    !   Tolerance for "this record stamp is that instant" [s]: the axis is float seconds, so an
@@ -63,7 +63,7 @@ contains
    subroutine validate_recycle_window(src, stat, why)
       type(met_source_t),            intent(inout) :: src
       integer(ik),                   intent(out)   :: stat
-      character(len=:), allocatable, intent(inout) :: why     !--- the reason, when stat /= MET_OK
+      character(len=:), allocatable, intent(inout) :: why     ! the reason, when stat /= MET_OK
       character(len=320) :: buf
       real(wp)    :: start_sec, end_sec
       integer(ik) :: i
@@ -232,7 +232,7 @@ contains
       type(met_source_t),            intent(in)    :: src
       integer(c_int),                intent(in)    :: ncid
       integer(ik),                   intent(out)   :: vstat
-      character(len=:), allocatable, intent(inout) :: why     !--- the reason, when vstat /= MET_OK
+      character(len=:), allocatable, intent(inout) :: why     ! the reason, when vstat /= MET_OK
       character(len=320) :: buf
       character(len=64) :: attr
       real(wp)          :: dt_file

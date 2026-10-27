@@ -21,8 +21,8 @@ program test_containers
    use ed_test_support, only : banner, build_test_config, check, check_close
    use ed_slow_state,  only : kill_report_t
    implicit none
-   type(kill_report_t)  :: kills   !--- what the cull and the treefall killed
-   real(wp)            :: shed_water   !--- an operator's shed water, unread here
+   type(kill_report_t)  :: kills   ! what the cull and the treefall killed
+   real(wp)            :: shed_water   ! an operator's shed water, unread here
 
    type(ed_config_t) :: cfg
    type(polygon_t)  :: poly

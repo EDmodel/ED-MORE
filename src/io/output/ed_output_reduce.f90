@@ -34,11 +34,11 @@ module ed_output_reduce
    !   Weight kinds: a per-cohort weight w_i. Patch area enters only at the patch -> polygon
    ! step, so one w serves every scale (docs/science/diagnostics.md eqs. (1)-(2)).
    !---~---
-   integer(ik), parameter :: W_NONE       = 0_ik  !--- w = 1        (count-like; x already per ground area)
-   integer(ik), parameter :: W_NPLANT     = 1_ik  !--- w = nplant   (the standard extensive per-plant weight)
-   integer(ik), parameter :: W_LEAF_AREA  = 2_ik  !--- w = nplant*leaf_area (canopy-flux / leaf-state weighting)
-   integer(ik), parameter :: W_BASAL_AREA = 3_ik  !--- w = nplant*basal_area (structural weighting; dbh)
-   integer(ik), parameter :: W_AGB        = 4_ik  !--- w = nplant*agb (biomass weighting)
+   integer(ik), parameter :: W_NONE       = 0_ik  ! w = 1        (count-like; x already per ground area)
+   integer(ik), parameter :: W_NPLANT     = 1_ik  ! w = nplant   (the standard extensive per-plant weight)
+   integer(ik), parameter :: W_LEAF_AREA  = 2_ik  ! w = nplant*leaf_area (canopy-flux / leaf-state weighting)
+   integer(ik), parameter :: W_BASAL_AREA = 3_ik  ! w = nplant*basal_area (structural weighting; dbh)
+   integer(ik), parameter :: W_AGB        = 4_ik  ! w = nplant*agb (biomass weighting)
 
 contains
 
@@ -292,7 +292,7 @@ contains
    !---~---
    pure subroutine reduce_patch_columns_to_sites(poly, col, out, valid, n_out)
       type(polygon_t), intent(in) :: poly
-      real(wp),     intent(in)  :: col(:,:)   !--- (layer, patch)
+      real(wp),     intent(in)  :: col(:,:)   ! (layer, patch)
       real(wp),     intent(out) :: out(:)
       logical,      intent(out) :: valid(:)
       integer(ik),  intent(out) :: n_out
@@ -324,7 +324,7 @@ contains
    !---~---
    pure subroutine gather_patch_columns(poly, col, out, valid, n_out)
       type(polygon_t), intent(in) :: poly
-      real(wp),     intent(in)  :: col(:,:)   !--- (layer, patch)
+      real(wp),     intent(in)  :: col(:,:)   ! (layer, patch)
       real(wp),     intent(out) :: out(:)
       logical,      intent(out) :: valid(:)
       integer(ik),  intent(out) :: n_out
@@ -409,7 +409,7 @@ contains
    !---~---
    pure integer(ik) function dbh_class_index(dbh, edges, n_class) result(k)
       real(wp),    intent(in) :: dbh
-      real(wp),    intent(in) :: edges(:)   !--- (n_class+1) ascending
+      real(wp),    intent(in) :: edges(:)   ! (n_class+1) ascending
       integer(ik), intent(in) :: n_class
       integer(ik) :: j
       k = 1_ik

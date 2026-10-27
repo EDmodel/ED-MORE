@@ -50,12 +50,12 @@ contains
    subroutine fast_step(dt_fast, cfg, site, static, forcing, dynamic, out, work)
       real(wp),                   intent(in)    :: dt_fast
       type(ed_config_t),          intent(in)    :: cfg
-      type(site_surface_t),       intent(in)    :: site      !--- the patch's site: its soil and its ground
+      type(site_surface_t),       intent(in)    :: site      ! the patch's site: its soil and its ground
       type(fast_static_state_t),  intent(in)    :: static
       type(fast_forcing_t),       intent(in)    :: forcing
       type(fast_dynamic_state_t), intent(inout) :: dynamic
-      type(fast_output_t),        intent(inout) :: out       !--- sized by the caller (ensure_output_capacity)
-      type(fast_workspace_t),     intent(inout) :: work      !--- this thread's step storage, reused step to step
+      type(fast_output_t),        intent(inout) :: out       ! sized by the caller (ensure_output_capacity)
+      type(fast_workspace_t),     intent(inout) :: work      ! this thread's step storage, reused step to step
       type(march_state_t)   :: y, y_out
       type(boundary_flux_t)   :: acc
       type(commit_amounts_t) :: moved
@@ -165,11 +165,11 @@ contains
       type(site_surface_t),  intent(in)  :: site
       integer(ik),           intent(in)  :: n, nsl
       real(wp),              intent(in)  :: t_end, dt_init
-      type(error_control_t), intent(in)  :: ec       !--- tolerances and controller (ed_fast_integ_control)
-      type(march_state_t),  intent(inout) :: y_out  !--- filled in place
-      type(fast_workspace_t), intent(inout) :: work  !--- this thread's march and stage storage
+      type(error_control_t), intent(in)  :: ec       ! tolerances and controller (ed_fast_integ_control)
+      type(march_state_t),  intent(inout) :: y_out  ! filled in place
+      type(fast_workspace_t), intent(inout) :: work  ! this thread's march and stage storage
       integer(ik),           intent(out) :: nsteps, nrej
-      type(boundary_flux_t), optional, intent(out) :: acc  !--- accumulated boundary-flux amounts (ledger)
+      type(boundary_flux_t), optional, intent(out) :: acc  ! accumulated boundary-flux amounts (ledger)
       !---~---
       !   Warm start (docs/science/numerical_scheme.md §3 `esdirk2`): the last accepted step that the
       ! interval's end did not cut short, or larger, what an end-cut step's controller proposes,
@@ -292,7 +292,7 @@ contains
    pure subroutine atm_fluxes(exports, dt_fast, le_flux, h_flux)
       type(step_exports_t), intent(in)  :: exports
       real(wp),             intent(in)  :: dt_fast
-      real(wp),             intent(out) :: le_flux, h_flux   !--- [W/m2] step-mean CAS -> atmosphere
+      real(wp),             intent(out) :: le_flux, h_flux   ! [W/m2] step-mean CAS -> atmosphere
       le_flux = exports%atm_vap_export  / dt_fast * latent_heat_vap
       h_flux  = exports%atm_heat_export / dt_fast
    end subroutine atm_fluxes

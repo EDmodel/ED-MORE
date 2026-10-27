@@ -62,25 +62,25 @@ module ed_test_fast_fixture
    !---~---
    integer(ik), parameter :: N_COH = 1_ik
    integer(ik), parameter :: NSL   = 10_ik
-   real(wp),    parameter :: DT_FAST = 150.0_wp           !--- [s]
+   real(wp),    parameter :: DT_FAST = 150.0_wp           ! [s]
    integer(ik), parameter :: STEPS_PER_HOUR = nint(3600.0_wp / DT_FAST, ik)
    integer(ik), parameter :: STEPS_PER_DAY  = 24_ik * STEPS_PER_HOUR
-   real(wp),    parameter :: T0     = 288.0_wp            !--- [K] the column's starting temperature
-   real(wp),    parameter :: THETA0 = 0.30_wp             !--- [m3/m3] the soil's starting water content
-   real(wp),    parameter :: LAT    = 40.0_wp             !--- [deg N]
-   real(wp),    parameter :: SHV_AIR = 0.008_wp           !--- [kg/kg] the air's humidity
+   real(wp),    parameter :: T0     = 288.0_wp            ! [K] the column's starting temperature
+   real(wp),    parameter :: THETA0 = 0.30_wp             ! [m3/m3] the soil's starting water content
+   real(wp),    parameter :: LAT    = 40.0_wp             ! [deg N]
+   real(wp),    parameter :: SHV_AIR = 0.008_wp           ! [kg/kg] the air's humidity
    type(ed_time_t), parameter :: SIM_DATE = ed_time_t(2001_ik, 6_ik, 21_ik)
-   real(wp),    parameter :: PSI_START = -0.1_wp          !--- [MPa] the tissues' starting potential, a mild tension
+   real(wp),    parameter :: PSI_START = -0.1_wp          ! [MPa] the tissues' starting potential, a mild tension
 
    !--- Everything one fast step takes, as a run holds it for a patch.
    type :: fast_column_t
       type(ed_config_t)          :: cfg
-      type(site_surface_t)       :: site      !--- the column's soil and its boundaries
-      type(fast_static_state_t)  :: static    !--- the cohort, the canopy geometry and its top
+      type(site_surface_t)       :: site      ! the column's soil and its boundaries
+      type(fast_static_state_t)  :: static    ! the cohort, the canopy geometry and its top
       type(fast_dynamic_state_t) :: dynamic
       type(fast_forcing_t)       :: forcing
       type(fast_output_t)        :: out
-      type(fast_workspace_t)     :: ws        !--- the fast step's storage, reused step to step
+      type(fast_workspace_t)     :: ws        ! the fast step's storage, reused step to step
    end type fast_column_t
 
 contains
@@ -144,7 +144,7 @@ contains
    !---~---
    subroutine reset_column(col, theta_seed)
       type(fast_column_t), intent(inout) :: col
-      real(wp), optional,  intent(in)    :: theta_seed   !--- [m3/m3] default THETA0
+      real(wp), optional,  intent(in)    :: theta_seed   ! [m3/m3] default THETA0
       real(wp)    :: theta
       integer(ik) :: i, k
       theta = THETA0
@@ -176,7 +176,7 @@ contains
    !--- One fast step of the column.
    subroutine step_column(col, dt)
       type(fast_column_t), intent(inout) :: col
-      real(wp),            intent(in)    :: dt   !--- [s]
+      real(wp),            intent(in)    :: dt   ! [s]
       call fast_step(dt, col%cfg, col%site, col%static, col%forcing, col%dynamic, col%out, col%ws)
    end subroutine step_column
 
@@ -187,7 +187,7 @@ contains
    !---~---
    subroutine set_diurnal_forcing(col, t_sec)
       type(fast_column_t), intent(inout) :: col
-      real(wp),            intent(in)    :: t_sec   !--- [s] after midnight
+      real(wp),            intent(in)    :: t_sec   ! [s] after midnight
       real(wp) :: cosz
       cosz = solar_cosz(SIM_DATE, t_sec, LAT)
       call set_light(col%forcing, 500.0_wp * cosz, 75.0_wp * cosz)
@@ -209,7 +209,7 @@ contains
    !---~---
    subroutine set_coldsnap_forcing(col, t_sec)
       type(fast_column_t), intent(inout) :: col
-      real(wp),            intent(in)    :: t_sec   !--- [s] after midnight
+      real(wp),            intent(in)    :: t_sec   ! [s] after midnight
       real(wp) :: cosz
       cosz = solar_cosz(SIM_DATE, t_sec, LAT)
       call set_light(col%forcing, 120.0_wp * cosz, 20.0_wp * cosz)
@@ -223,7 +223,7 @@ contains
    !---~---
    subroutine set_light(forcing, sw_leaf, sw_ground)
       type(fast_forcing_t), intent(inout) :: forcing
-      real(wp),             intent(in)    :: sw_leaf, sw_ground   !--- [W/m2]
+      real(wp),             intent(in)    :: sw_leaf, sw_ground   ! [W/m2]
       forcing%abs_sw        = sw_leaf
       forcing%abs_par       = sw_leaf
       forcing%abs_lw        = 0.0_wp
@@ -239,8 +239,8 @@ contains
    !---~---
    subroutine set_air(forcing, t_air, shv)
       type(fast_forcing_t), intent(inout) :: forcing
-      real(wp),             intent(in)    :: t_air   !--- [K]
-      real(wp),             intent(in)    :: shv     !--- [kg/kg]
+      real(wp),             intent(in)    :: t_air   ! [K]
+      real(wp),             intent(in)    :: shv     ! [kg/kg]
       forcing%air_temp     = t_air
       forcing%shv_atm      = shv
       forcing%enthalpy_atm = cas_temp_to_enthalpy(t_air, shv)
@@ -268,7 +268,7 @@ contains
       type(fast_column_t), intent(inout) :: col
       type(frozen_t),      intent(out)   :: fz
       type(march_state_t), intent(out)   :: ys
-      real(wp), optional,  intent(in)    :: dt   !--- [s]
+      real(wp), optional,  intent(in)    :: dt   ! [s]
       type(error_control_t) :: ec
       real(wp) :: h
       h = DT_FAST
@@ -316,8 +316,8 @@ contains
       integer(ik),              intent(in)  :: n
       type(march_state_t),      intent(out) :: y
       type(frozen_t),           intent(out) :: frozen
-      real(wp), parameter :: BOX_DEPTH = 20.0_wp      !--- [m] the canopy air's depth
-      real(wp), parameter :: G_EXCHANGE = 0.3_wp * 0.02_wp   !--- [m/s] u* times the heat transfer factor
+      real(wp), parameter :: BOX_DEPTH = 20.0_wp      ! [m] the canopy air's depth
+      real(wp), parameter :: G_EXCHANGE = 0.3_wp * 0.02_wp   ! [m/s] u* times the heat transfer factor
       real(wp) :: rho, molar_density, root(site%soil_profile%n_active)
       integer(ik) :: i, k, nsl_s
       nsl_s = site%soil_profile%n_active

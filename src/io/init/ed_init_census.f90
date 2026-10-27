@@ -32,14 +32,14 @@ module ed_init_census
 
    !--- A census file's rows, in file order: one cohort each.
    type :: census_table_t
-      integer(ik) :: n = 0_ik                           !--- rows
-      logical     :: has_area = .false.                 !--- the file has a patch_area column
-      integer(ik), allocatable :: site_id(:)            !--- 1 where the file has no site_id column
+      integer(ik) :: n = 0_ik                           ! rows
+      logical     :: has_area = .false.                 ! the file has a patch_area column
+      integer(ik), allocatable :: site_id(:)            ! 1 where the file has no site_id column
       integer(ik), allocatable :: patch_id(:)
       integer(ik), allocatable :: pft(:)
-      real(wp),    allocatable :: dbh(:)                !--- [cm]
-      real(wp),    allocatable :: nplant(:)             !--- [plants per m2 of the patch]
-      real(wp),    allocatable :: patch_area(:)         !--- [any unit]; 1 without the column
+      real(wp),    allocatable :: dbh(:)                ! [cm]
+      real(wp),    allocatable :: nplant(:)             ! [plants per m2 of the patch]
+      real(wp),    allocatable :: patch_area(:)         ! [any unit]; 1 without the column
    end type census_table_t
 
 contains
@@ -111,10 +111,10 @@ contains
       character(len=*),    intent(in)  :: path
       logical,             intent(out) :: found
       integer(ik), intent(in), optional :: use_site_id
-      character(len=:), allocatable, intent(out), optional :: why   !--- why found = .false.; '' when found
-      integer(ik),         intent(in), optional :: site_ids(:)      !--- several sites: each one's census site_id,
-      type(ed_config_t),   intent(in), optional :: site_cfg(:)      !--- configuration
-      real(wp),            intent(in), optional :: site_area(:)     !--- and share of the polygon
+      character(len=:), allocatable, intent(out), optional :: why   ! why found = .false.; '' when found
+      integer(ik),         intent(in), optional :: site_ids(:)      ! several sites: each one's census site_id,
+      type(ed_config_t),   intent(in), optional :: site_cfg(:)      ! configuration
+      real(wp),            intent(in), optional :: site_area(:)     ! and share of the polygon
       type(census_table_t)     :: table
       integer(ik)              :: npatch, ip, k, i, j, r
       integer(ik), allocatable :: sel(:), site_of(:), patch_id_of(:), slot_of(:), n_patch(:)
@@ -235,7 +235,7 @@ contains
    subroutine restructure_census_stand(poly, cfg)
       type(polygon_t),     intent(inout) :: poly
       type(ed_config_t), intent(in)      :: cfg
-      real(wp) :: water_shed, kill_carbon   !--- what the cull handed on; a start books no ledger
+      real(wp) :: water_shed, kill_carbon   ! what the cull handed on; a start books no ledger
       type(kill_report_t) :: kills
       if (.not. cfg%demography%demography_on) return
       if (cfg%demography%cohort_fusion_on) call fuse_cohorts(poly, cfg)
@@ -267,7 +267,7 @@ contains
    subroutine census_layout(line, cols, why)
       character(len=*),              intent(in)    :: line
       type(census_columns_t),        intent(out)   :: cols
-      character(len=:), allocatable, intent(inout) :: why   !--- what is wrong with the header ('' if nothing)
+      character(len=:), allocatable, intent(inout) :: why   ! what is wrong with the header ('' if nothing)
       character(len=CENSUS_FIELD_LEN) :: names(CENSUS_MAX_COLS)
       integer(ik) :: sid, pid, cid, ipft
       real(wp)    :: dbh, height, nplant
@@ -337,7 +337,7 @@ contains
       type(census_columns_t),        intent(in)    :: cols
       integer(ik),                   intent(out)   :: sid, pid, ipft
       real(wp),                      intent(out)   :: dbh, height, nplant, area
-      character(len=:), allocatable, intent(inout) :: why   !--- what is wrong with the row ('' if nothing)
+      character(len=:), allocatable, intent(inout) :: why   ! what is wrong with the row ('' if nothing)
       character(len=CENSUS_FIELD_LEN) :: f(CENSUS_MAX_COLS)
       integer(ik) :: cid
       integer     :: nf, ios

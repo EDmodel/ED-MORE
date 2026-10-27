@@ -13,12 +13,12 @@ module ed_region_params
    public :: region_params_t, RUN_MODE_SITE, RUN_MODE_REGION
 
    !--- [run].mode.
-   integer(ik), parameter :: RUN_MODE_SITE   = 1_ik   !--- one location, the [site] block
-   integer(ik), parameter :: RUN_MODE_REGION = 2_ik   !--- every selected cell of [region].box_nwse
+   integer(ik), parameter :: RUN_MODE_SITE   = 1_ik   ! one location, the [site] block
+   integer(ik), parameter :: RUN_MODE_REGION = 2_ik   ! every selected cell of [region].box_nwse
 
    type :: region_params_t
-      real(wp)    :: box_nwse(4) = 0.0_wp           !--- [deg] N, W, S, E; W > E crosses 180 degrees
-      real(wp)    :: land_fraction_min = 0.5_wp     !--- [-] cells of less static land are skipped
+      real(wp)    :: box_nwse(4) = 0.0_wp           ! [deg] N, W, S, E; W > E crosses 180 degrees
+      real(wp)    :: land_fraction_min = 0.5_wp     ! [-] cells of less static land are skipped
       !--- Cell mask: a cell runs where cell_mask_var >= cell_mask_min ('' = all).
       character(len=512) :: cell_mask     = ''
       character(len=64)  :: cell_mask_var = 'mask'

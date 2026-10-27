@@ -40,7 +40,7 @@ module ed_config_check
    public :: validate_config
 
    !--- 1. Key names
-   integer, parameter :: KEY_LEN = 64            !--- ed_toml's key length
+   integer, parameter :: KEY_LEN = 64            ! ed_toml's key length
    include 'ed_config_keys.inc'                  ! MAIN_KEYS, PFT_KEYS, from the two references
 
    !---~---

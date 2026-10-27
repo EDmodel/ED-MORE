@@ -82,7 +82,7 @@ contains
    ! solar_cosz and daylength both use it.
    !---~---
    elemental real(wp) function solar_declination(doy) result(decl)
-      integer(ik), intent(in) :: doy          !--- day of year (1 = 1 January)
+      integer(ik), intent(in) :: doy          ! day of year (1 = 1 January)
       decl = 23.45_wp * pi / 180.0_wp * sin(2.0_wp * pi * (284.0_wp + real(doy, wp)) / 365.0_wp)
    end function solar_declination
 
@@ -93,8 +93,8 @@ contains
    !---~---
    pure real(wp) function solar_cosz(t, t_sec, latitude_deg) result(cosz)
       type(ed_time_t),   intent(in) :: t
-      real(wp),          intent(in) :: t_sec          !--- [s] local solar seconds into the day (0 = midnight)
-      real(wp),          intent(in) :: latitude_deg   !--- [deg] site latitude (+N)
+      real(wp),          intent(in) :: t_sec          ! [s] local solar seconds into the day (0 = midnight)
+      real(wp),          intent(in) :: latitude_deg   ! [deg] site latitude (+N)
       real(wp) :: deg2rad, lat, decl, hourangle, frac_day
       deg2rad   = pi / 180.0_wp
       lat       = latitude_deg * deg2rad
@@ -120,8 +120,8 @@ contains
    ! eqs. (2)-(3)). Every forcing clock is UTC.
    !---~---
    pure function utc_to_solar_seconds(t, sec_utc, longitude_deg) result(s)
-      type(ed_time_t),   intent(in) :: t              !--- record/model time (for declination + EoT via doy)
-      real(wp),          intent(in) :: sec_utc        !--- [s] seconds into the UTC day
+      type(ed_time_t),   intent(in) :: t              ! record/model time (for declination + EoT via doy)
+      real(wp),          intent(in) :: sec_utc        ! [s] seconds into the UTC day
       real(wp),          intent(in) :: longitude_deg
       real(wp) :: s
       s = sec_utc + longitude_deg * 240.0_wp + equation_of_time(t)

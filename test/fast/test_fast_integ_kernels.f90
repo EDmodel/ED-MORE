@@ -59,8 +59,8 @@ program test_fast_integ_kernels
    use ed_test_assert,         only : check, check_true, test_report
    implicit none
 
-   type(fast_column_t)   :: col          !--- the fixture column: its config and its site's soil
-   type(error_control_t) :: ec_default   !--- the type's defaults: no budget stop
+   type(fast_column_t)   :: col          ! the fixture column: its config and its site's soil
+   type(error_control_t) :: ec_default   ! the type's defaults: no budget stop
 
    call make_fast_column(col)
 
@@ -537,7 +537,7 @@ contains
    !---~---
    subroutine test_state_vector()
       integer(ik), parameter :: N = 2_ik, NL = 3_ik
-      integer(ik), parameter :: NV = 5_ik + 2_ik*NL + 4_ik*N   !--- the flat layout's length
+      integer(ik), parameter :: NV = 5_ik + 2_ik*NL + 4_ik*N   ! the flat layout's length
       real(wp),    parameter :: BB = 0.25_wp
       type(march_state_t) :: a, b, out, expect
       type(march_tend_t)  :: k

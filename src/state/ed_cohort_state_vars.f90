@@ -48,69 +48,69 @@ module ed_cohort_state_vars
    !---~---
    type :: cohort_block
       !--- 0. BLOCK RECORD: one per block, not per cohort
-      integer(ik) :: n   = 0_ik            !--- cohorts in use
-      integer(ik) :: cap = 0_ik            !--- allocated slots
-      type(pft_table_t) :: pft_table       !--- the site's PFT traits (cfg%pft), read as pft_table%x(pft(i));
-                                           !    its allometry records carry the polygon's chave_e
+      integer(ik) :: n   = 0_ik            ! cohorts in use
+      integer(ik) :: cap = 0_ik            ! allocated slots
+      type(pft_table_t) :: pft_table       ! the site's PFT traits (cfg%pft), read as pft_table%x(pft(i));
+                                           ! its allometry records carry the polygon's chave_e
       !--- 1. IDENTITY AND DENSITY
-      integer(ik), allocatable :: pft(:)          !--- PFT index
-      integer(ik), allocatable :: global_id(:)    !--- persistent id, never reused
-      integer(ik), allocatable :: owner_patch(:)  !--- the patch it belongs to
-      real(wp),    allocatable :: nplant(:)       !--- [plant/m2] plant density
+      integer(ik), allocatable :: pft(:)          ! PFT index
+      integer(ik), allocatable :: global_id(:)    ! persistent id, never reused
+      integer(ik), allocatable :: owner_patch(:)  ! the patch it belongs to
+      real(wp),    allocatable :: nplant(:)       ! [plant/m2] plant density
       !--- 2. CARBON POOLS
-      real(wp),    allocatable :: leaf_carbon(:)          !--- [kgC/plant]
-      real(wp),    allocatable :: fineroot_carbon(:)      !--- [kgC/plant]
-      real(wp),    allocatable :: wood_carbon(:)          !--- [kgC/plant] the size anchor
-      real(wp),    allocatable :: nonstructural_carbon(:) !--- [kgC/plant] storage
+      real(wp),    allocatable :: leaf_carbon(:)          ! [kgC/plant]
+      real(wp),    allocatable :: fineroot_carbon(:)      ! [kgC/plant]
+      real(wp),    allocatable :: wood_carbon(:)          ! [kgC/plant] the size anchor
+      real(wp),    allocatable :: nonstructural_carbon(:) ! [kgC/plant] storage
       !--- 3. SIZE, DERIVED FROM THE CARBON POOLS (never integrated)
-      real(wp),    allocatable :: dbh(:)              !--- [cm]
-      real(wp),    allocatable :: height(:)           !--- [m]
-      real(wp),    allocatable :: basal_area(:)       !--- [cm2/plant]
-      real(wp),    allocatable :: agb(:)              !--- [kgC/plant] aboveground biomass
-      real(wp),    allocatable :: leaf_area(:)        !--- [m2/plant]  LAI = nplant * leaf_area
-      real(wp),    allocatable :: wood_area(:)        !--- [m2/plant]  WAI = nplant * wood_area
-      real(wp),    allocatable :: sapwood_carbon(:)   !--- [kgC/plant]
-      real(wp),    allocatable :: sapwood_area(:)     !--- [cm2/plant]
-      real(wp),    allocatable :: overtopping_lai(:)  !--- [m2/m2] LAI of the taller cohorts in its patch
+      real(wp),    allocatable :: dbh(:)              ! [cm]
+      real(wp),    allocatable :: height(:)           ! [m]
+      real(wp),    allocatable :: basal_area(:)       ! [cm2/plant]
+      real(wp),    allocatable :: agb(:)              ! [kgC/plant] aboveground biomass
+      real(wp),    allocatable :: leaf_area(:)        ! [m2/plant]  LAI = nplant * leaf_area
+      real(wp),    allocatable :: wood_area(:)        ! [m2/plant]  WAI = nplant * wood_area
+      real(wp),    allocatable :: sapwood_carbon(:)   ! [kgC/plant]
+      real(wp),    allocatable :: sapwood_area(:)     ! [cm2/plant]
+      real(wp),    allocatable :: overtopping_lai(:)  ! [m2/m2] LAI of the taller cohorts in its patch
       !--- 4. WATER
-      real(wp),    allocatable :: leaf_water_mass(:)  !--- [kg/plant] water inside the leaves
-      real(wp),    allocatable :: wood_water_mass(:)  !--- [kg/plant] water inside the sapwood and fine roots
-      real(wp),    allocatable :: leaf_surf_water(:)  !--- [kg/plant] intercepted water on the leaves
-      real(wp),    allocatable :: wood_surf_water(:)  !--- [kg/plant] intercepted water on the wood
-      real(wp),    allocatable :: dmax_psi_leaf(:)    !--- [MPa] yesterday's daily-max (predawn) leaf potential
+      real(wp),    allocatable :: leaf_water_mass(:)  ! [kg/plant] water inside the leaves
+      real(wp),    allocatable :: wood_water_mass(:)  ! [kg/plant] water inside the sapwood and fine roots
+      real(wp),    allocatable :: leaf_surf_water(:)  ! [kg/plant] intercepted water on the leaves
+      real(wp),    allocatable :: wood_surf_water(:)  ! [kg/plant] intercepted water on the wood
+      real(wp),    allocatable :: dmax_psi_leaf(:)    ! [MPa] yesterday's daily-max (predawn) leaf potential
       !--- 5. ENERGY
-      real(wp),    allocatable :: leaf_energy(:)      !--- [J/plant] the leaves' internal energy
-      real(wp),    allocatable :: wood_energy(:)      !--- [J/plant] the wood's internal energy
-      real(wp),    allocatable :: leaf_temp(:)        !--- [K] derived from leaf_energy
-      real(wp),    allocatable :: wood_temp(:)        !--- [K] derived from wood_energy
+      real(wp),    allocatable :: leaf_energy(:)      ! [J/plant] the leaves' internal energy
+      real(wp),    allocatable :: wood_energy(:)      ! [J/plant] the wood's internal energy
+      real(wp),    allocatable :: leaf_temp(:)        ! [K] derived from leaf_energy
+      real(wp),    allocatable :: wood_temp(:)        ! [K] derived from wood_energy
       !--- 6. PLASTIC LEAF TRAITS (acclimate to light)
-      real(wp),    allocatable :: sla(:)                !--- [m2/kgC]    specific leaf area
-      real(wp),    allocatable :: vcmax25(:)            !--- [umol/m2/s] at 25 degC
-      real(wp),    allocatable :: rd25(:)               !--- [umol/m2/s] leaf dark respiration at 25 degC
-      real(wp),    allocatable :: leaf_turnover_rate(:) !--- [1/yr]
+      real(wp),    allocatable :: sla(:)                ! [m2/kgC]    specific leaf area
+      real(wp),    allocatable :: vcmax25(:)            ! [umol/m2/s] at 25 degC
+      real(wp),    allocatable :: rd25(:)               ! [umol/m2/s] leaf dark respiration at 25 degC
+      real(wp),    allocatable :: leaf_turnover_rate(:) ! [1/yr]
       !--- 7. LEAF PHENOLOGY
-      real(wp),    allocatable :: leaf_flush_tendency(:)  !--- [-]       smoothed flush signal, 0-1
-      real(wp),    allocatable :: leaf_shed_tendency(:)   !--- [-]       smoothed shed signal, 0-1
-      real(wp),    allocatable :: growing_degree_days(:)  !--- [K day]   warmth since midwinter
-      real(wp),    allocatable :: cold_degree_days(:)     !--- [K day]   cold since midsummer
-      real(wp),    allocatable :: dry_psi_sum(:)          !--- [MPa day] predawn potential below the turgor-loss point
-      real(wp),    allocatable :: wet_psi_sum(:)          !--- [MPa day] predawn potential above it
-      real(wp),    allocatable :: light_hours_mean(:)     !--- [h/day]   running mean of the hours of light
+      real(wp),    allocatable :: leaf_flush_tendency(:)  ! [-]       smoothed flush signal, 0-1
+      real(wp),    allocatable :: leaf_shed_tendency(:)   ! [-]       smoothed shed signal, 0-1
+      real(wp),    allocatable :: growing_degree_days(:)  ! [K day]   warmth since midwinter
+      real(wp),    allocatable :: cold_degree_days(:)     ! [K day]   cold since midsummer
+      real(wp),    allocatable :: dry_psi_sum(:)          ! [MPa day] predawn potential below the turgor-loss point
+      real(wp),    allocatable :: wet_psi_sum(:)          ! [MPa day] predawn potential above it
+      real(wp),    allocatable :: light_hours_mean(:)     ! [h/day]   running mean of the hours of light
       !--- 8. GROWTH HISTORY (the mortality law reads growth_avg)
-      real(wp),    allocatable :: growth_avg(:)       !--- [cm/yr] moving-average dbh growth, read once growth_count > 0
-      real(wp),    allocatable :: growth_accum(:)     !--- [cm/yr] sum of the samples in the window
-      integer(ik), allocatable :: growth_count(:)     !--- samples in the window
-      real(wp),    allocatable :: growth_hist(:,:)    !--- [cm/yr] (window, cohort) ring buffer of samples
+      real(wp),    allocatable :: growth_avg(:)       ! [cm/yr] moving-average dbh growth, read once growth_count > 0
+      real(wp),    allocatable :: growth_accum(:)     ! [cm/yr] sum of the samples in the window
+      integer(ik), allocatable :: growth_count(:)     ! samples in the window
+      real(wp),    allocatable :: growth_hist(:,:)    ! [cm/yr] (window, cohort) ring buffer of samples
       !--- 9. FAST-TO-SLOW ACCUMULATORS (summed by the fast loop, then read and reset)
-      real(wp),    allocatable :: gpp_accum(:)            !--- [kgC/plant] gross GPP
-      real(wp),    allocatable :: leaf_resp_accum(:)      !--- [kgC/plant] leaf dark respiration
-      real(wp),    allocatable :: stem_resp_accum(:)      !--- [kgC/plant] stem maintenance respiration
-      real(wp),    allocatable :: root_resp_accum(:)      !--- [kgC/plant] fine-root maintenance respiration
-      real(wp),    allocatable :: light_hours_accum(:)    !--- [h] time the PAR at its top exceeded par_min
-      real(wp),    allocatable :: dmax_psi_leaf_accum(:)  !--- [MPa] today's running max leaf potential
+      real(wp),    allocatable :: gpp_accum(:)            ! [kgC/plant] gross GPP
+      real(wp),    allocatable :: leaf_resp_accum(:)      ! [kgC/plant] leaf dark respiration
+      real(wp),    allocatable :: stem_resp_accum(:)      ! [kgC/plant] stem maintenance respiration
+      real(wp),    allocatable :: root_resp_accum(:)      ! [kgC/plant] fine-root maintenance respiration
+      real(wp),    allocatable :: light_hours_accum(:)    ! [h] time the PAR at its top exceeded par_min
+      real(wp),    allocatable :: dmax_psi_leaf_accum(:)  ! [MPa] today's running max leaf potential
       !--- 10. OUTPUT ACCUMULATORS (ed_diag_vars; never restarted)
-      type(cohort_diag_block) :: diag    !--- fast-loop diagnostics
-      type(cohort_diag_block) :: sdiag   !--- slow-step diagnostics: growth, mortality, NPP allocation
+      type(cohort_diag_block) :: diag    ! fast-loop diagnostics
+      type(cohort_diag_block) :: sdiag   ! slow-step diagnostics: growth, mortality, NPP allocation
    end type cohort_block
 
    !---~---
@@ -641,7 +641,7 @@ contains
    ! fine roots, one store in the plant-water network (docs/science/soil_plant_water.md §1).
    !---~---
    elemental pure real(wp) function cohort_wood_store_carbon(sapwood_carbon, fineroot_carbon) result(c)
-      real(wp), intent(in) :: sapwood_carbon, fineroot_carbon   !--- [kgC/plant]
+      real(wp), intent(in) :: sapwood_carbon, fineroot_carbon   ! [kgC/plant]
       c = sapwood_carbon + fineroot_carbon
    end function cohort_wood_store_carbon
 
@@ -652,7 +652,7 @@ contains
    pure subroutine set_cohort_tissue_water(cohort, i, psi, leaf_curve, wood_curve)
       type(cohort_block),  intent(inout) :: cohort
       integer(ik),         intent(in)    :: i
-      real(wp),            intent(in)    :: psi                    !--- [MPa]
+      real(wp),            intent(in)    :: psi                    ! [MPa]
       type(water_curve_t), intent(in)    :: leaf_curve, wood_curve
       cohort%leaf_water_mass(i) = tissue_psi_to_water(psi, leaf_curve, cohort%leaf_carbon(i))
       cohort%wood_water_mass(i) = tissue_psi_to_water(psi, wood_curve,                                     &
@@ -703,7 +703,7 @@ contains
    pure subroutine cohort_tissue_heat_capacity(cohort, i, cap_leaf, cap_wood)
       type(cohort_block), intent(in)  :: cohort
       integer(ik),        intent(in)  :: i
-      real(wp),           intent(out) :: cap_leaf, cap_wood             !--- [J/m2 ground/K]
+      real(wp),           intent(out) :: cap_leaf, cap_wood             ! [J/m2 ground/K]
       cap_leaf = tissue_heat_capacity(cohort%nplant(i), cohort%leaf_carbon(i), tissue_c_leaf,           &
                                       max(cohort%leaf_water_mass(i), 0.0_wp) + cohort%leaf_surf_water(i))
       cap_wood = tissue_heat_capacity(cohort%nplant(i), cohort%wood_carbon(i), tissue_c_wood_dry,       &
@@ -733,7 +733,7 @@ contains
    pure subroutine cohort_tissue_temps(cohort, i, t_leaf, t_wood)
       type(cohort_block), intent(in)  :: cohort
       integer(ik),        intent(in)  :: i
-      real(wp),           intent(out) :: t_leaf, t_wood   !--- [K]
+      real(wp),           intent(out) :: t_leaf, t_wood   ! [K]
       real(wp) :: dry_leaf, w_leaf, dry_wood, w_wood
       call cohort_tissue_masses(cohort, i, dry_leaf, w_leaf, dry_wood, w_wood)
       t_wood = cohort%wood_temp(i)
@@ -792,8 +792,8 @@ contains
       ! start at birth_temp, holding the water their tissues hold at birth_psi, and with the
       ! energy those tissues then hold.
       !---~---
-      real(wp),           intent(in)    :: birth_temp   !--- [K]
-      real(wp),           intent(in)    :: birth_psi    !--- [MPa]
+      real(wp),           intent(in)    :: birth_temp   ! [K]
+      real(wp),           intent(in)    :: birth_psi    ! [MPa]
       cohort%pft(m)              = ipft
       cohort%owner_patch(m)      = owner_patch
       cohort%nplant(m)           = nplant
@@ -865,8 +865,8 @@ contains
    !---~---
    pure subroutine fuse_cohort_fast_state(cohort, recc, donc, np_r, np_d)
       type(cohort_block), intent(inout) :: cohort
-      integer(ik),        intent(in)    :: recc, donc   !--- survivor, donor
-      real(wp),           intent(in)    :: np_r, np_d   !--- nplant weights
+      integer(ik),        intent(in)    :: recc, donc   ! survivor, donor
+      real(wp),           intent(in)    :: np_r, np_d   ! nplant weights
       !---~---
       !   The tissue energies [J/plant]: nplant-weighted, so the merged tissue holds the
       ! energy the two cohorts held, exactly. Its temperatures follow from it once its
@@ -1021,8 +1021,8 @@ contains
       type(cohort_block), intent(in)  :: cohort
       integer(ik),        intent(in)  :: i
       logical,            intent(in)  :: fast_biophysics_on
-      real(wp),           intent(in)  :: gpp_ref      !--- [kgC/m2 leaf/yr] the fast-off stub's GPP
-      real(wp),           intent(in)  :: dt_yr        !--- [yr] the slow step
+      real(wp),           intent(in)  :: gpp_ref      ! [kgC/m2 leaf/yr] the fast-off stub's GPP
+      real(wp),           intent(in)  :: dt_yr        ! [yr] the slow step
       real(wp),           intent(out) :: gross_gpp, resp_maint
       if (fast_biophysics_on) then
          gross_gpp  = cohort%gpp_accum(i)

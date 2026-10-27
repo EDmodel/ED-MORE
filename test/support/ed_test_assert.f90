@@ -38,13 +38,13 @@ module ed_test_assert
    integer(ik) :: n_fail = 0_ik
 
    interface check
-      module procedure check_cond          !--- (cond, msg)                -- fatal
-      module procedure check_named         !--- (name, got, expect, atol)  -- accumulating
+      module procedure check_cond          ! (cond, msg)                -- fatal
+      module procedure check_named         ! (name, got, expect, atol)  -- accumulating
    end interface check
 
    interface check_close
-      module procedure check_close_rtol    !--- (got, expect, rtol, msg)     -- fatal
-      module procedure check_close_named   !--- (name, got, expect [, atol]) -- accumulating
+      module procedure check_close_rtol    ! (got, expect, rtol, msg)     -- fatal
+      module procedure check_close_named   ! (name, got, expect [, atol]) -- accumulating
    end interface check_close
 
 contains

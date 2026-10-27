@@ -65,7 +65,7 @@ contains
    subroutine commit_vegetation_step(poly, cfg, step)
       type(polygon_t),        intent(inout) :: poly
       type(ed_config_t),    intent(in)      :: cfg
-      type(slow_step_data_t), intent(inout) :: step   !--- reads the pools' changes and mortality; fills the *_before
+      type(slow_step_data_t), intent(inout) :: step   ! reads the pools' changes and mortality; fills the *_before
       integer(ik) :: n_window
 
       n_window = growth_window_steps(cfg)
@@ -84,8 +84,8 @@ contains
    ! the allometry's inverse at the tentative pools (docs/science/demography.md §1-§2).
    !---~---
    subroutine update_cohort_derivatives(poly, step, dt_yr, n_window, hist_pos)
-      type(polygon_t),          intent(inout) :: poly       !--- fills poly%deriv and the growth history
-      type(slow_step_data_t),   intent(in)    :: step       !--- reads the pools' changes and mortality
+      type(polygon_t),          intent(inout) :: poly       ! fills poly%deriv and the growth history
+      type(slow_step_data_t),   intent(in)    :: step       ! reads the pools' changes and mortality
       real(wp),                 intent(in)    :: dt_yr
       integer(ik),              intent(in)    :: n_window, hist_pos
       integer(ik) :: i
@@ -190,9 +190,9 @@ contains
    ! the floor is not taken lower. The `1 +` counts the quotient's own rounding.
    !---~---
    elemental pure real(wp) function advance_density(nplant, dln, floor) result(nplant_new)
-      real(wp), intent(in) :: nplant   !--- [plant/m2] the density
-      real(wp), intent(in) :: dln      !--- [-] its change in log space over the step, -mortality*dt
-      real(wp), intent(in) :: floor    !--- [plant/m2] the density floor, negligible_nplant
+      real(wp), intent(in) :: nplant   ! [plant/m2] the density
+      real(wp), intent(in) :: dln      ! [-] its change in log space over the step, -mortality*dt
+      real(wp), intent(in) :: floor    ! [plant/m2] the density floor, negligible_nplant
       real(wp) :: floor_dln
       floor_dln = min(0.0_wp, log(max(floor, tiny_num) / max(nplant, tiny_num)))
       if (floor_dln < 0.0_wp .and. dln - floor_dln <= ROUNDOFF_EPSILONS * epsilon(dln)              &
@@ -210,7 +210,7 @@ contains
    ! the run and names the pool (demography.md §2).
    !---~---
    elemental pure real(wp) function advance_pool(pool, change) result(pool_new)
-      real(wp), intent(in) :: pool, change    !--- [kgC/plant] the pool, and its change over the step
+      real(wp), intent(in) :: pool, change    ! [kgC/plant] the pool, and its change over the step
       pool_new = pool + change
       if (pool_new < 0.0_wp .and.                                                                  &
           -pool_new <= ROUNDOFF_EPSILONS * epsilon(pool_new) * (abs(pool) + abs(change))) pool_new = 0.0_wp
@@ -225,9 +225,9 @@ contains
    subroutine accumulate_recruit_pool(poly, cfg, recruitment, dt_yr, seed_rain_carbon)
       type(polygon_t),     intent(inout) :: poly
       type(ed_config_t),   intent(in)    :: cfg
-      real(wp),            intent(in)    :: recruitment(:,:)  !--- [plant/m2/yr] (pft, patch)
+      real(wp),            intent(in)    :: recruitment(:,:)  ! [plant/m2/yr] (pft, patch)
       real(wp),            intent(in)    :: dt_yr
-      real(wp),            intent(out)   :: seed_rain_carbon  !--- [kgC/m2 site] the external part
+      real(wp),            intent(out)   :: seed_rain_carbon  ! [kgC/m2 site] the external part
       integer(ik) :: ip, pf
 
       seed_rain_carbon = 0.0_wp
@@ -259,7 +259,7 @@ contains
    !---~---
    subroutine commit_soil_carbon(patch, pools_new)
       type(patch_block),         intent(inout) :: patch
-      type(soil_carbon_state_t), intent(in)    :: pools_new(:)   !--- (patch)
+      type(soil_carbon_state_t), intent(in)    :: pools_new(:)   ! (patch)
       patch%soil_carbon(1:patch%n) = pools_new(1:patch%n)
    end subroutine commit_soil_carbon
 
@@ -271,8 +271,8 @@ contains
    !---~---
    subroutine commit_trait_carbon(poly, leaf_carbon_new, storage_new)
       type(polygon_t), intent(inout) :: poly
-      real(wp),        intent(in)    :: leaf_carbon_new(:)   !--- [kgC/plant] (cohort)
-      real(wp),        intent(in)    :: storage_new(:)       !--- [kgC/plant] (cohort)
+      real(wp),        intent(in)    :: leaf_carbon_new(:)   ! [kgC/plant] (cohort)
+      real(wp),        intent(in)    :: storage_new(:)       ! [kgC/plant] (cohort)
       integer(ik) :: j
       do j = 1_ik, poly%cohort%n
          poly%cohort%leaf_carbon(j)          = leaf_carbon_new(j)
@@ -330,7 +330,7 @@ contains
    subroutine refresh_canopy_depth(poly, cfg, ledger)
       type(polygon_t),     intent(inout) :: poly
       type(ed_config_t), intent(in)      :: cfg
-      type(slow_ledger_t), intent(inout) :: ledger   !--- an inactive one books nothing
+      type(slow_ledger_t), intent(inout) :: ledger   ! an inactive one books nothing
       real(wp)    :: h_top, depth_new, de, dw, dc
       integer(ik) :: ip, i0, i1, i
       logical     :: book
@@ -368,7 +368,7 @@ contains
    subroutine apply_recruitment(poly, cfg, found, carbon_drawn, heat_drawn, water_drawn)
       type(polygon_t),     intent(inout) :: poly
       type(ed_config_t),   intent(in)    :: cfg
-      logical,             intent(in)    :: found(:,:)   !--- (pft, patch) the pools that found a cohort
+      logical,             intent(in)    :: found(:,:)   ! (pft, patch) the pools that found a cohort
       !---~---
       !   What the recruits drew from outside the model, for the caller to declare to the
       ! slow ledger: their carbon beyond the carbon_min per plant the pool paid for, and
@@ -376,9 +376,9 @@ contains
       ! min_cohort_height, which the model does not represent, so the draw comes from the
       ! free atmosphere, not the canopy air (demography.md §3; conservation.md §3).
       !---~---
-      real(wp),            intent(out)   :: carbon_drawn  !--- [kgC/m2 site]
-      real(wp),            intent(out)   :: heat_drawn    !--- [J/m2 site]
-      real(wp),            intent(out)   :: water_drawn   !--- [kg/m2 site]
+      real(wp),            intent(out)   :: carbon_drawn  ! [kgC/m2 site]
+      real(wp),            intent(out)   :: heat_drawn    ! [J/m2 site]
+      real(wp),            intent(out)   :: water_drawn   ! [kg/m2 site]
       integer(ik) :: ip, pf, np, m, nspawn, n_before, k
       real(wp)    :: recruit_dbh, endow, t_birth, psi_birth, c_tot, e_tot, w_tot
 
@@ -463,11 +463,11 @@ contains
    subroutine apply_patch_disturbance(poly, cfg, frac, survives, water_shed, kills)
       type(polygon_t),       intent(inout) :: poly
       type(ed_config_t),   intent(in)    :: cfg
-      real(wp),            intent(in)    :: frac          !--- [-] the disturbed share (decide_disturbance)
-      logical,             intent(in)    :: survives(:)   !--- (cohort) survives into the gap
+      real(wp),            intent(in)    :: frac          ! [-] the disturbed share (decide_disturbance)
+      logical,             intent(in)    :: survives(:)   ! (cohort) survives into the gap
       !--- What the killed canopy handed on, for the caller to declare to the slow ledger.
-      real(wp),            intent(out)   :: water_shed  !--- [kg/m2 polygon] tissue + film water -> the gaps' ground
-      type(kill_report_t), intent(out)   :: kills       !--- the killed canopy's carbon (kill_litter)
+      real(wp),            intent(out)   :: water_shed  ! [kg/m2 polygon] tissue + film water -> the gaps' ground
+      type(kill_report_t), intent(out)   :: kills       ! the killed canopy's carbon (kill_litter)
       integer(ik) :: np0, newp, d, i, i0, i1, m, m0, nsurv, is, p0, p1
       real(wp)    :: new_area, atot
       real(wp), allocatable :: donor_area(:)
@@ -762,9 +762,9 @@ contains
       integer(ik),     intent(in)    :: recc, donc
       real(wp),        intent(in)    :: conservation_tol
       real(wp) :: nr, nd, ntot, agb_tot, agb_new, wr, wd, wtot
-      real(wp) :: lc_tot, fc_tot, wc_tot, nc_tot                !--- pre-merge pool totals [kgC/m2]
-      real(wp) :: cr, cd                                        !--- the two cohorts' leaf carbon [kgC/m2]
-      real(wp) :: hlr, hld, hwr, hwd                            !--- their leaf and wood heat capacities [J/m2/K]
+      real(wp) :: lc_tot, fc_tot, wc_tot, nc_tot                ! pre-merge pool totals [kgC/m2]
+      real(wp) :: cr, cd                                        ! the two cohorts' leaf carbon [kgC/m2]
+      real(wp) :: hlr, hld, hwr, hwd                            ! their leaf and wood heat capacities [J/m2/K]
 
       associate (cohort => poly%cohort)
          nr      = cohort%nplant(recc)
@@ -921,8 +921,8 @@ contains
       !   What the cull handed on, for the caller to declare to the slow ledger
       ! (conservation.md §3).
       !---~---
-      real(wp),           intent(out) :: water_shed  !--- [kg/m2 site] tissue + film water -> the ground
-      type(kill_report_t), intent(out) :: kills      !--- the culled cohorts' carbon (kill_litter)
+      real(wp),           intent(out) :: water_shed  ! [kg/m2 site] tissue + film water -> the ground
+      type(kill_report_t), intent(out) :: kills      ! the culled cohorts' carbon (kill_litter)
       logical, allocatable :: keep(:)
       integer(ik)          :: i, n, ip
       real(wp)             :: w_tot, w_cohort
@@ -1081,7 +1081,7 @@ contains
       real(wp),            intent(in)    :: tol
       logical,     allocatable :: alive(:)
       real(wp),    allocatable :: prof(:,:), lr(:), ld(:)
-      integer(ik), allocatable :: last(:), ncoh(:)   !--- each patch's last cohort position and its count
+      integer(ik), allocatable :: last(:), ncoh(:)   ! each patch's last cohort position and its count
       real(wp)    :: davg, dmax, dif
       integer(ik) :: np, recp, donp, ihgt, npop, nl
       logical     :: similar, both_empty

@@ -34,9 +34,9 @@ program test_fast_integ_schemes
    use ed_test_assert,          only : check_true, test_report
    implicit none
 
-   integer(ik), parameter :: N = 2_ik            !--- the kernel record's cohorts
-   type(fast_column_t)    :: col                 !--- the fixture column: its site's soil, and section 4's record
-   type(error_control_t)  :: ec_default          !--- the type's defaults: no budget stop
+   integer(ik), parameter :: N = 2_ik            ! the kernel record's cohorts
+   type(fast_column_t)    :: col                 ! the fixture column: its site's soil, and section 4's record
+   type(error_control_t)  :: ec_default          ! the type's defaults: no budget stop
    integer(ik)            :: nsl
 
    call make_fast_column(col)

@@ -92,7 +92,7 @@ contains
    subroutine write_polygon_axis(ncid, polygon_id, lat, lon)
       integer(c_int), intent(in) :: ncid
       integer(ik),    intent(in) :: polygon_id(:)
-      real(wp),       intent(in) :: lat(:), lon(:)   !--- [deg]
+      real(wp),       intent(in) :: lat(:), lon(:)   ! [deg]
       integer(c_size_t) :: start1(1), count1(1)
       integer(c_int)    :: v, ids(size(polygon_id))
       real(c_double)    :: x(size(lat))

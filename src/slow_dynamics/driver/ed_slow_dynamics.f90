@@ -47,7 +47,7 @@ module ed_slow_dynamics
    public :: vegetation_dynamics, restructure_stand
 
    !--- Patch disturbance runs once a year, so it integrates its yearly rate over this interval.
-   real(wp), parameter :: PATCH_DYNAMICS_INTERVAL = 1.0_wp   !--- [yr]
+   real(wp), parameter :: PATCH_DYNAMICS_INTERVAL = 1.0_wp   ! [yr]
 
 contains
 
@@ -59,8 +59,8 @@ contains
    subroutine advance_slow_dynamics(poly, cfg, ledger, step_start)
       type(polygon_t),     intent(inout) :: poly
       type(ed_config_t), intent(in)      :: cfg
-      type(slow_ledger_t), intent(inout) :: ledger   !--- the slow ledger; an inactive one books nothing
-      type(ed_time_t),   intent(in), optional :: step_start   !--- the slow step's start (its day of year)
+      type(slow_ledger_t), intent(inout) :: ledger   ! the slow ledger; an inactive one books nothing
+      type(ed_time_t),   intent(in), optional :: step_start   ! the slow step's start (its day of year)
       type(soil_carbon_state_t), allocatable :: soil_pools(:)
 
       call slow_ledger_open(ledger, poly, cfg, step_start)
@@ -96,8 +96,8 @@ contains
    subroutine vegetation_dynamics(poly, cfg, ledger, doy)
       type(polygon_t),     intent(inout) :: poly
       type(ed_config_t), intent(in)      :: cfg
-      type(slow_ledger_t), intent(inout) :: ledger   !--- the slow ledger; an inactive one books nothing
-      integer(ik),         intent(in), optional :: doy   !--- day-of-year at the step start (drives phenology)
+      type(slow_ledger_t), intent(inout) :: ledger   ! the slow ledger; an inactive one books nothing
+      integer(ik),         intent(in), optional :: doy   ! day-of-year at the step start (drives phenology)
       type(slow_step_data_t) :: step
       real(wp)               :: mort_water, seed_rain_carbon, handover, litter_open
       real(wp), allocatable  :: leaf_carbon_new(:), storage_new(:)
@@ -208,7 +208,7 @@ contains
       type(polygon_t),     intent(inout) :: poly
       type(ed_config_t),   intent(in)    :: cfg
       logical,             intent(in)    :: is_new_month, is_new_year
-      type(slow_ledger_t), intent(inout) :: ledger   !--- the slow ledger; an inactive one books nothing
+      type(slow_ledger_t), intent(inout) :: ledger   ! the slow ledger; an inactive one books nothing
       if (.not. is_new_month) return
       if (.not. ledger%has_first) call slow_ledger_rebase(ledger, poly, cfg)
       call restructure_stand(poly, cfg, is_new_month, is_new_year, ledger)
@@ -229,8 +229,8 @@ contains
    subroutine restructure_stand(poly, cfg, is_new_month, is_new_year, ledger)
       type(polygon_t),     intent(inout) :: poly
       type(ed_config_t),   intent(in)    :: cfg
-      logical,             intent(in)    :: is_new_month, is_new_year   !--- which boundary this is
-      type(slow_ledger_t), intent(inout) :: ledger   !--- the slow ledger; an inactive one books nothing
+      logical,             intent(in)    :: is_new_month, is_new_year   ! which boundary this is
+      type(slow_ledger_t), intent(inout) :: ledger   ! the slow ledger; an inactive one books nothing
       real(wp) :: cull_water, rec_carbon, rec_heat, rec_water, dist_water, frac, kill_carbon
       logical  :: monthly, yearly
       logical, allocatable :: found(:,:), survives(:)
@@ -300,7 +300,7 @@ contains
    subroutine settle_tissue_water(poly, cfg, ledger)
       type(polygon_t),     intent(inout) :: poly
       type(ed_config_t), intent(in)      :: cfg
-      type(slow_ledger_t), intent(inout) :: ledger   !--- the slow ledger; an inactive one books nothing
+      type(slow_ledger_t), intent(inout) :: ledger   ! the slow ledger; an inactive one books nothing
       real(wp) :: water_shed
       if (.not. ledger%has_first) call slow_ledger_rebase(ledger, poly, cfg)
       call slow_ledger_heat_open(ledger, poly)

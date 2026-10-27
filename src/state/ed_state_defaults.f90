@@ -23,15 +23,15 @@ module ed_state_defaults
    real(wp), parameter, public :: UNSET_NEGATIVE =  1.0_wp
 
    !--- The daily maximum's start: below any leaf potential, so max() replaces it.
-   real(wp), parameter, public :: DMAX_PSI_LEAF_ACCUM_RESET = -1.0e30_wp  !--- [MPa]
+   real(wp), parameter, public :: DMAX_PSI_LEAF_ACCUM_RESET = -1.0e30_wp  ! [MPa]
 
    !--- Cohort: a newborn's phenology -- flushing, not shedding.
    real(wp), parameter, public :: PHENO_FLUSH_INIT = 1.0_wp
    real(wp), parameter, public :: PHENO_SHED_INIT  = 0.0_wp
 
    !--- Patch: the canopy air until the fast loop seeds it and the slow loop sizes it.
-   real(wp), parameter, public :: CAN_CO2_UNSEEDED = 400.0_wp   !--- [umol/mol]
-   real(wp), parameter, public :: CAN_DEPTH_UNSET  =  20.0_wp   !--- [m]
+   real(wp), parameter, public :: CAN_CO2_UNSEEDED = 400.0_wp   ! [umol/mol]
+   real(wp), parameter, public :: CAN_DEPTH_UNSET  =  20.0_wp   ! [m]
 
 contains
 

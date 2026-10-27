@@ -29,7 +29,7 @@ program test_allometry_lib
    real(wp), parameter :: CHAVE14_EXPONENT = 0.976_wp        ! Chave et al. (2014) eq. 4
    real(wp), parameter :: ED2_BL_XX_SCALE  = 0.46769540_wp   ! ED2 c14f15_bl_xx(1)
    real(wp), parameter :: RTOL             = 1.0e-12_wp
-   type(toml_table_t)  :: t          !--- the shipped PFT file
+   type(toml_table_t)  :: t          ! the shipped PFT file
 
    call test_allometry_laws()
    call test_shipped_defaults()

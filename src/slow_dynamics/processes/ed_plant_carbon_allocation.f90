@@ -25,7 +25,7 @@ module ed_plant_carbon_allocation
    public :: cohort_carbon_demand, growth_window_so_far, growth_sink_limitation
    public :: plant_carbon_allocation, growth_respiration
 
-   real(wp), parameter :: DBH_FLOOR = 1.0e-3_wp   !--- [cm] keeps dbh^exponent defined for any exponent
+   real(wp), parameter :: DBH_FLOOR = 1.0e-3_wp   ! [cm] keeps dbh^exponent defined for any exponent
 
 contains
 
@@ -41,16 +41,16 @@ contains
             leaf_carbon, fineroot_carbon, leaf_target, dt_day, r2l,                                &
             leaf_shed_c, fineroot_shed_c, leaf_demand, fineroot_demand,                            &
             retained_frac, leaf_retained_c, fineroot_retained_c)
-      real(wp), intent(in)  :: leaf_flush_tendency, leaf_shed_tendency  !--- [-]
-      real(wp), intent(in)  :: flush_rate_max, shed_rate_max            !--- [1/day]
-      real(wp), intent(in)  :: leaf_turn, fineroot_turnover_rate        !--- [1/yr]
-      real(wp), intent(in)  :: min_leaf_cover, bare_leaf_cover          !--- [-]
+      real(wp), intent(in)  :: leaf_flush_tendency, leaf_shed_tendency  ! [-]
+      real(wp), intent(in)  :: flush_rate_max, shed_rate_max            ! [1/day]
+      real(wp), intent(in)  :: leaf_turn, fineroot_turnover_rate        ! [1/yr]
+      real(wp), intent(in)  :: min_leaf_cover, bare_leaf_cover          ! [-]
       real(wp), intent(in)  :: leaf_carbon, fineroot_carbon, leaf_target, dt_day, r2l
       real(wp), intent(out) :: leaf_shed_c, fineroot_shed_c
       real(wp), intent(out) :: leaf_demand, fineroot_demand
-      real(wp), intent(in)  :: retained_frac        !--- [-] share of the loss resorbed; the shed stays the full loss
-      real(wp), intent(out) :: leaf_retained_c      !--- [kgC/plant] leaf carbon resorbed this step
-      real(wp), intent(out) :: fineroot_retained_c  !--- [kgC/plant] fine-root carbon resorbed this step
+      real(wp), intent(in)  :: retained_frac        ! [-] share of the loss resorbed; the shed stays the full loss
+      real(wp), intent(out) :: leaf_retained_c      ! [kgC/plant] leaf carbon resorbed this step
+      real(wp), intent(out) :: fineroot_retained_c  ! [kgC/plant] fine-root carbon resorbed this step
       real(wp) :: senescence, background, flush_cap, leaf_post, root_post, root_pool, retained
 
       !--- Turnover first: the leaf and fine-root losses, then the post-shed pools.
@@ -79,13 +79,13 @@ contains
    ! (docs/science/plant_carbon_allocation.md eq. (3); demography.md eq. (2)).
    !---~---
    pure subroutine growth_window_so_far(count, accum, oldest, n_window, dt_yr, window_yr, grown)
-      integer(ik), intent(in)  :: count       !--- samples in the ring buffer
-      real(wp),    intent(in)  :: accum       !--- [cm/yr] their sum
-      real(wp),    intent(in)  :: oldest      !--- [cm/yr] the sample in the slot this step overwrites
-      integer(ik), intent(in)  :: n_window    !--- the buffer's length [steps]
-      real(wp),    intent(in)  :: dt_yr       !--- [yr] step length
-      real(wp),    intent(out) :: window_yr   !--- [yr] the window this step closes
-      real(wp),    intent(out) :: grown       !--- [cm] diameter grown in it before this step
+      integer(ik), intent(in)  :: count       ! samples in the ring buffer
+      real(wp),    intent(in)  :: accum       ! [cm/yr] their sum
+      real(wp),    intent(in)  :: oldest      ! [cm/yr] the sample in the slot this step overwrites
+      integer(ik), intent(in)  :: n_window    ! the buffer's length [steps]
+      real(wp),    intent(in)  :: dt_yr       ! [yr] step length
+      real(wp),    intent(out) :: window_yr   ! [yr] the window this step closes
+      real(wp),    intent(out) :: grown       ! [cm] diameter grown in it before this step
       if (count < n_window) then
          window_yr = real(count + 1_ik, wp) * dt_yr
          grown     = accum * dt_yr
@@ -106,17 +106,17 @@ contains
                                                   max_relative_growth_rate,                          &
                                                   max_absolute_growth_rate, max_absolute_growth_exponent, &
                                                   dt_yr, window_yr, grown_in_window) result(growth_max)
-      type(allometry_t), intent(in) :: allom            !--- the cohort's PFT's allometry
-      real(wp), intent(in) :: wood_carbon               !--- [kgC/plant] wood carbon at the step's start
-      real(wp), intent(in) :: dbh                       !--- [cm] stem diameter at the step's start
-      real(wp), intent(in) :: wood_density              !--- [g/cm3] the cohort's wood density
-      real(wp), intent(in) :: max_relative_growth_rate  !--- [1/yr] the PFT's maximum relative growth rate of wood
-      real(wp), intent(in) :: max_absolute_growth_rate  !--- [cm/yr] the PFT's maximum diameter growth of a 1 cm stem
-      real(wp), intent(in) :: max_absolute_growth_exponent !--- [--] how that maximum scales with dbh [cm]
-      real(wp), intent(in) :: dt_yr                     !--- [yr] step length
-      real(wp), intent(in) :: window_yr                 !--- [yr] the growth window this step closes (>= dt_yr)
-      real(wp), intent(in) :: grown_in_window           !--- [cm] diameter already grown in it, before this step
-      real(wp)             :: growth_max                !--- [kgC/plant] the most wood the step can build
+      type(allometry_t), intent(in) :: allom            ! the cohort's PFT's allometry
+      real(wp), intent(in) :: wood_carbon               ! [kgC/plant] wood carbon at the step's start
+      real(wp), intent(in) :: dbh                       ! [cm] stem diameter at the step's start
+      real(wp), intent(in) :: wood_density              ! [g/cm3] the cohort's wood density
+      real(wp), intent(in) :: max_relative_growth_rate  ! [1/yr] the PFT's maximum relative growth rate of wood
+      real(wp), intent(in) :: max_absolute_growth_rate  ! [cm/yr] the PFT's maximum diameter growth of a 1 cm stem
+      real(wp), intent(in) :: max_absolute_growth_exponent ! [--] how that maximum scales with dbh [cm]
+      real(wp), intent(in) :: dt_yr                     ! [yr] step length
+      real(wp), intent(in) :: window_yr                 ! [yr] the growth window this step closes (>= dt_yr)
+      real(wp), intent(in) :: grown_in_window           ! [cm] diameter already grown in it, before this step
+      real(wp)             :: growth_max                ! [kgC/plant] the most wood the step can build
       real(wp) :: dt, dbh_room, dbh_max, wood_now, wood_max
 
       dt = max(dt_yr, 0.0_wp)
@@ -145,23 +145,23 @@ contains
                                     leaf_demand, fineroot_demand, storage_demand, repro_frac,     &
                                     growth_leaf, growth_fineroot, growth_wood, npp_store,         &
                                     growth_repro, growth_resp, deficit, wood_growth_max, exudate)
-      real(wp), intent(in)  :: gpp              !--- [kgC/plant] gross primary production this step (>= 0)
-      real(wp), intent(in)  :: resp_maint       !--- [kgC/plant] maintenance respiration this step (>= 0)
-      real(wp), intent(in)  :: growth_resp_frac !--- [--] construction-cost fraction g (PFT trait)
-      real(wp), intent(in)  :: storage          !--- [kgC/plant] current nonstructural carbon (available to draw)
-      real(wp), intent(in)  :: leaf_demand      !--- [kgC/plant] flush-capped leaf growth demand (post-shed; >= 0)
-      real(wp), intent(in)  :: fineroot_demand  !--- [kgC/plant] flush-capped fine-root growth demand (post-shed; >= 0)
-      real(wp), intent(in)  :: storage_demand   !--- [kgC/plant] deficit toward the storage target (>= 0)
-      real(wp), intent(in)  :: repro_frac       !--- [--] fraction of the post-storage residual -> reproduction
-      real(wp), intent(out) :: growth_leaf      !--- [kgC/plant] carbon grown into leaf (>= 0)
-      real(wp), intent(out) :: growth_fineroot  !--- [kgC/plant] carbon grown into fine root (>= 0)
-      real(wp), intent(out) :: growth_wood      !--- [kgC/plant] carbon grown into wood (residual; >= 0)
-      real(wp), intent(out) :: npp_store        !--- [kgC/plant] net storage change (refill - drawdown; signed)
-      real(wp), intent(out) :: growth_repro     !--- [kgC/plant] carbon -> reproduction (>= 0; -> recruits)
-      real(wp), intent(out) :: growth_resp      !--- [kgC/plant] growth respiration on realized growth (>= 0)
-      real(wp), intent(out) :: deficit          !--- [kgC/plant] unpaid maintenance after storage exhausted (>= 0)
-      real(wp), intent(in)  :: wood_growth_max  !--- [kgC/plant] sink-limited wood growth (growth_sink_limitation)
-      real(wp), intent(out) :: exudate          !--- [kgC/plant] residual the sink cannot use (>= 0)
+      real(wp), intent(in)  :: gpp              ! [kgC/plant] gross primary production this step (>= 0)
+      real(wp), intent(in)  :: resp_maint       ! [kgC/plant] maintenance respiration this step (>= 0)
+      real(wp), intent(in)  :: growth_resp_frac ! [--] construction-cost fraction g (PFT trait)
+      real(wp), intent(in)  :: storage          ! [kgC/plant] current nonstructural carbon (available to draw)
+      real(wp), intent(in)  :: leaf_demand      ! [kgC/plant] flush-capped leaf growth demand (post-shed; >= 0)
+      real(wp), intent(in)  :: fineroot_demand  ! [kgC/plant] flush-capped fine-root growth demand (post-shed; >= 0)
+      real(wp), intent(in)  :: storage_demand   ! [kgC/plant] deficit toward the storage target (>= 0)
+      real(wp), intent(in)  :: repro_frac       ! [--] fraction of the post-storage residual -> reproduction
+      real(wp), intent(out) :: growth_leaf      ! [kgC/plant] carbon grown into leaf (>= 0)
+      real(wp), intent(out) :: growth_fineroot  ! [kgC/plant] carbon grown into fine root (>= 0)
+      real(wp), intent(out) :: growth_wood      ! [kgC/plant] carbon grown into wood (residual; >= 0)
+      real(wp), intent(out) :: npp_store        ! [kgC/plant] net storage change (refill - drawdown; signed)
+      real(wp), intent(out) :: growth_repro     ! [kgC/plant] carbon -> reproduction (>= 0; -> recruits)
+      real(wp), intent(out) :: growth_resp      ! [kgC/plant] growth respiration on realized growth (>= 0)
+      real(wp), intent(out) :: deficit          ! [kgC/plant] unpaid maintenance after storage exhausted (>= 0)
+      real(wp), intent(in)  :: wood_growth_max  ! [kgC/plant] sink-limited wood growth (growth_sink_limitation)
+      real(wp), intent(out) :: exudate          ! [kgC/plant] residual the sink cannot use (>= 0)
       real(wp) :: net, g, cost, avail, store_left, draw, debt, storage_refill, c_repro, c_wood, c_exudate
 
       growth_leaf = 0.0_wp
@@ -252,9 +252,9 @@ contains
    ! temperature-dependent construction cost would replace this one form.
    !---~---
    elemental pure function growth_respiration(npp_growth, growth_resp_factor) result(rg)
-      real(wp), intent(in) :: npp_growth          !--- [kgC/plant] carbon allocated to new growth this step
-      real(wp), intent(in) :: growth_resp_factor  !--- [--] per-PFT construction-cost fraction
-      real(wp)             :: rg                   !--- [kgC/plant] growth respiration
+      real(wp), intent(in) :: npp_growth          ! [kgC/plant] carbon allocated to new growth this step
+      real(wp), intent(in) :: growth_resp_factor  ! [--] per-PFT construction-cost fraction
+      real(wp)             :: rg                   ! [kgC/plant] growth respiration
       rg = growth_resp_factor * max(0.0_wp, npp_growth)
    end function growth_respiration
 

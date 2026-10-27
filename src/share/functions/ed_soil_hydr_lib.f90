@@ -37,28 +37,28 @@ module ed_soil_hydr_lib
 
    !--- One soil layer as the soil maps describe it (SoilGrids 2.0's quantities).
    type :: soil_texture_t
-      real(wp) :: sand         = 0.0_wp   !--- [%]           sand share of the fine earth
-      real(wp) :: silt         = 0.0_wp   !--- [%]           silt share of the fine earth
-      real(wp) :: clay         = 0.0_wp   !--- [%]           clay share of the fine earth
-      real(wp) :: org_carbon   = 0.0_wp   !--- [g/kg]        organic carbon of the fine earth
-      real(wp) :: cec          = 0.0_wp   !--- [cmol(c)/kg]  cation exchange capacity
-      real(wp) :: ph           = 0.0_wp   !--- [-]           pH in water
-      real(wp) :: bulk_density = 0.0_wp   !--- [g/cm3]       bulk density of the fine earth
-      real(wp) :: coarse_frag  = 0.0_wp   !--- [% volume]    coarse fragments (> 2 mm) in the layer
+      real(wp) :: sand         = 0.0_wp   ! [%]           sand share of the fine earth
+      real(wp) :: silt         = 0.0_wp   ! [%]           silt share of the fine earth
+      real(wp) :: clay         = 0.0_wp   ! [%]           clay share of the fine earth
+      real(wp) :: org_carbon   = 0.0_wp   ! [g/kg]        organic carbon of the fine earth
+      real(wp) :: cec          = 0.0_wp   ! [cmol(c)/kg]  cation exchange capacity
+      real(wp) :: ph           = 0.0_wp   ! [-]           pH in water
+      real(wp) :: bulk_density = 0.0_wp   ! [g/cm3]       bulk density of the fine earth
+      real(wp) :: coarse_frag  = 0.0_wp   ! [% volume]    coarse fragments (> 2 mm) in the layer
    end type soil_texture_t
 
    !--- Hodnett & Tomasella (2002) give alpha per kPa.
-   real(wp), parameter :: KPA_PER_MPA      = 1000.0_wp                !--- [kPa/MPa]
+   real(wp), parameter :: KPA_PER_MPA      = 1000.0_wp                ! [kPa/MPa]
    !--- Ottoni et al. (2019): Ks = a (theta_sat - theta(-33 kPa))^b, Ks in m/day.
-   real(wp), parameter :: HEAD_33KPA       = -0.033_wp / grav_head   !--- [m] -33 kPa as water head
-   real(wp), parameter :: OTTONI_KS_COEF   = 19.31_wp                !--- [m/day]
-   real(wp), parameter :: OTTONI_KS_EXP    = 1.948_wp                !--- [-]
+   real(wp), parameter :: HEAD_33KPA       = -0.033_wp / grav_head   ! [m] -33 kPa as water head
+   real(wp), parameter :: OTTONI_KS_COEF   = 19.31_wp                ! [m/day]
+   real(wp), parameter :: OTTONI_KS_EXP    = 1.948_wp                ! [-]
    !--- Density of the mineral grains and of the fragments (Saxton & Rawls 2006).
-   real(wp), parameter :: PARTICLE_DENSITY = 2.65_wp                 !--- [g/cm3]
+   real(wp), parameter :: PARTICLE_DENSITY = 2.65_wp                 ! [g/cm3]
 
    !--- Retention-curve selector codes (soil_profile_t%retention).
-   integer(ik), parameter :: SOIL_RETENTION_VG       = 1_ik  !--- van Genuchten-Mualem (default)
-   integer(ik), parameter :: SOIL_RETENTION_CAMPBELL = 2_ik  !--- Campbell / Clapp-Hornberger (option)
+   integer(ik), parameter :: SOIL_RETENTION_VG       = 1_ik  ! van Genuchten-Mualem (default)
+   integer(ik), parameter :: SOIL_RETENTION_CAMPBELL = 2_ik  ! Campbell / Clapp-Hornberger (option)
 
    !---~---
    !   Mualem's pore-connectivity exponent L in the van Genuchten conductivity
@@ -92,16 +92,16 @@ module ed_soil_hydr_lib
    ! point where the solver's unknown changes from saturation to potential.
    !---~---
    type :: soil_layer_curve_t
-      integer(ik) :: retention    = 1_ik    !--- SOIL_RETENTION_VG or SOIL_RETENTION_CAMPBELL
-      real(wp)    :: theta_sat    = 0.0_wp  !--- [m3/m3]
-      real(wp)    :: theta_res    = 0.0_wp  !--- [m3/m3]
-      real(wp)    :: par_a        = 0.0_wp  !--- vG alpha [1/m], or Campbell's air-entry head [m, < 0]
-      real(wp)    :: par_n        = 0.0_wp  !--- vG n [-], or Campbell's b [-]
-      real(wp)    :: ksat         = 0.0_wp  !--- [m/s] saturated conductivity
-      real(wp)    :: dz           = 0.0_wp  !--- [m] layer thickness
-      real(wp)    :: se_switch    = 1.0_wp  !--- [-] saturation where the unknown changes branch
-      real(wp)    :: head_switch  = 0.0_wp  !--- [m] the matric head there
-      real(wp)    :: slope_switch = 1.0_wp  !--- [1/m] dSe/dhead there, the unknown's scale on the wet side
+      integer(ik) :: retention    = 1_ik    ! SOIL_RETENTION_VG or SOIL_RETENTION_CAMPBELL
+      real(wp)    :: theta_sat    = 0.0_wp  ! [m3/m3]
+      real(wp)    :: theta_res    = 0.0_wp  ! [m3/m3]
+      real(wp)    :: par_a        = 0.0_wp  ! vG alpha [1/m], or Campbell's air-entry head [m, < 0]
+      real(wp)    :: par_n        = 0.0_wp  ! vG n [-], or Campbell's b [-]
+      real(wp)    :: ksat         = 0.0_wp  ! [m/s] saturated conductivity
+      real(wp)    :: dz           = 0.0_wp  ! [m] layer thickness
+      real(wp)    :: se_switch    = 1.0_wp  ! [-] saturation where the unknown changes branch
+      real(wp)    :: head_switch  = 0.0_wp  ! [m] the matric head there
+      real(wp)    :: slope_switch = 1.0_wp  ! [1/m] dSe/dhead there, the unknown's scale on the wet side
    end type soil_layer_curve_t
 
    !---~---
@@ -115,12 +115,12 @@ module ed_soil_hydr_lib
    ! layer's does. A record at its defaults is a layer with no ice.
    !---~---
    type :: soil_ice_t
-      real(wp) :: theta_ice  = 0.0_wp          !--- [m3/m3] the ice
-      real(wp) :: impedance  = 1.0_wp          !--- [-] its factor on the conductivity
-      real(wp) :: tau_full   = huge(1.0_wp)    !--- the unknown at which the liquid fills the pores
-      real(wp) :: head_full  = 0.0_wp          !--- [m] the head there
-      real(wp) :: dhead_full = 0.0_wp          !--- [m per unit tau] the head's slope there, kept beyond
-      real(wp) :: k_full     = 0.0_wp          !--- [m/s] the liquid's conductivity there, unimpeded
+      real(wp) :: theta_ice  = 0.0_wp          ! [m3/m3] the ice
+      real(wp) :: impedance  = 1.0_wp          ! [-] its factor on the conductivity
+      real(wp) :: tau_full   = huge(1.0_wp)    ! the unknown at which the liquid fills the pores
+      real(wp) :: head_full  = 0.0_wp          ! [m] the head there
+      real(wp) :: dhead_full = 0.0_wp          ! [m per unit tau] the head's slope there, kept beyond
+      real(wp) :: k_full     = 0.0_wp          ! [m/s] the liquid's conductivity there, unimpeded
    end type soil_ice_t
 
    !--- [-] CLM5's ice impedance exponent (Swenson et al. 2012, e_ice).
@@ -149,11 +149,11 @@ contains
    !---~---
    elemental subroutine soil_texture_to_hydraulics(texture, theta_sat, theta_res, vg_alpha, vg_n, ksat)
       type(soil_texture_t), intent(in)  :: texture
-      real(wp),             intent(out) :: theta_sat   !--- [m3/m3] water content at saturation, per layer volume
-      real(wp),             intent(out) :: theta_res   !--- [m3/m3] residual water content, per layer volume
-      real(wp),             intent(out) :: vg_alpha    !--- [1/m]   van Genuchten alpha
-      real(wp),             intent(out) :: vg_n        !--- [-]     van Genuchten n
-      real(wp),             intent(out) :: ksat        !--- [m/s]   saturated hydraulic conductivity of the layer
+      real(wp),             intent(out) :: theta_sat   ! [m3/m3] water content at saturation, per layer volume
+      real(wp),             intent(out) :: theta_res   ! [m3/m3] residual water content, per layer volume
+      real(wp),             intent(out) :: vg_alpha    ! [1/m]   van Genuchten alpha
+      real(wp),             intent(out) :: vg_n        ! [-]     van Genuchten n
+      real(wp),             intent(out) :: ksat        ! [m/s]   saturated hydraulic conductivity of the layer
       real(wp) :: oc_percent, theta_33, drainable, rock_volume, rock_mass, matrix_density_ratio
 
       associate(sand => texture%sand, silt => texture%silt, clay => texture%clay, cec => texture%cec,  &
@@ -232,10 +232,10 @@ contains
    ! (docs/science/soil_biophysics.md, "Frozen soil").
    !---~---
    elemental subroutine soil_liquid_capacity(curve, temp, theta_liq, dtheta_dtemp)
-      type(soil_layer_curve_t), intent(in)  :: curve          !--- the layer's curve
-      real(wp),                 intent(in)  :: temp           !--- [K]
-      real(wp),                 intent(out) :: theta_liq      !--- [m3/m3]   the liquid it can hold
-      real(wp),                 intent(out) :: dtheta_dtemp   !--- [m3/m3/K] its slope
+      type(soil_layer_curve_t), intent(in)  :: curve          ! the layer's curve
+      real(wp),                 intent(in)  :: temp           ! [K]
+      real(wp),                 intent(out) :: theta_liq      ! [m3/m3]   the liquid it can hold
+      real(wp),                 intent(out) :: dtheta_dtemp   ! [m3/m3/K] its slope
       real(wp) :: head, se, dse_dhead
       if (temp >= t_3ple) then
          theta_liq    = curve%theta_sat
@@ -339,9 +339,9 @@ contains
       type(soil_layer_curve_t), intent(in)  :: c
       type(soil_ice_t),         intent(in)  :: ice
       real(wp),                 intent(in)  :: tau
-      real(wp),                 intent(out) :: psi, dpsi    !--- [MPa], [MPa per unit tau]
-      real(wp),                 intent(out) :: w, dw        !--- [kg/m2], [kg/m2 per unit tau]
-      real(wp),                 intent(out) :: kcond, dkcond !--- [m/s], [m/s per unit tau]
+      real(wp),                 intent(out) :: psi, dpsi    ! [MPa], [MPa per unit tau]
+      real(wp),                 intent(out) :: w, dw        ! [kg/m2], [kg/m2 per unit tau]
+      real(wp),                 intent(out) :: kcond, dkcond ! [m/s], [m/s per unit tau]
       real(wp) :: head
       if (tau > ice%tau_full) then
          !---~---
@@ -369,7 +369,7 @@ contains
    elemental subroutine liquid_water_relations(c, tau, psi, dpsi, w, dw, kcond, dkcond)
       type(soil_layer_curve_t), intent(in)  :: c
       real(wp),                 intent(in)  :: tau
-      real(wp),                 intent(out) :: psi, dpsi, w, dw, kcond, dkcond   !--- as soil_water_relations's
+      real(wp),                 intent(out) :: psi, dpsi, w, dw, kcond, dkcond   ! as soil_water_relations's
       real(wp) :: head, dhead, se, dse_dhead, dk_dse, dk_dhead, dtheta
       dtheta = c%theta_sat - c%theta_res
       if (tau <= c%se_switch) then

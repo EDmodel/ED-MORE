@@ -26,7 +26,7 @@ module ed_init_bare_ground
    public :: init_bare_ground, init_bare_sites, seed_bare_ground, add_cohort, finalize_init, seed_patch_stores
    public :: N_PATCH_INIT
 
-   integer(ik), parameter :: N_PATCH_INIT = 6_ik     !--- a bare-ground start's patches per site
+   integer(ik), parameter :: N_PATCH_INIT = 6_ik     ! a bare-ground start's patches per site
 
 contains
 
@@ -49,9 +49,9 @@ contains
    subroutine init_bare_sites(poly, cfg, n_patch, site_cfg, site_area)
       type(polygon_t),     intent(out) :: poly
       type(ed_config_t),   intent(in)  :: cfg
-      integer(ik),         intent(in)  :: n_patch(:)     !--- patches per site
+      integer(ik),         intent(in)  :: n_patch(:)     ! patches per site
       type(ed_config_t),   intent(in)  :: site_cfg(:)
-      real(wp),            intent(in)  :: site_area(:)   !--- [-] fractions of the polygon
+      real(wp),            intent(in)  :: site_area(:)   ! [-] fractions of the polygon
       integer(ik) :: ip, is, k, ns
       ns = int(size(n_patch), ik)
       call alloc_polygon(poly, cfg%pft%n, coh_cap = 64_ik, pat_cap = max(sum(n_patch), 1_ik),  &
@@ -89,7 +89,7 @@ contains
    subroutine seed_patch_stores(poly, cfg)
       type(polygon_t),     intent(inout) :: poly
       type(ed_config_t), intent(in)      :: cfg
-      type(met_forcing_t) :: ref   !--- the reference climate
+      type(met_forcing_t) :: ref   ! the reference climate
       integer(ik) :: ip, k, nsl
       ref = met_forcing_t()
       do ip = 1_ik, poly%patch%n

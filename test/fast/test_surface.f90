@@ -70,7 +70,7 @@ contains
 
    !--- A pack of swe [kg/m2], all ice at temp, at the default snow density.
    function cold_pack(swe, temp, p) result(snow)
-      real(wp),            intent(in) :: swe, temp   !--- [kg/m2], [K]
+      real(wp),            intent(in) :: swe, temp   ! [kg/m2], [K]
       type(snow_params_t), intent(in) :: p
       type(snow_state_t) :: snow
       snow = snow_state_t()
@@ -89,10 +89,10 @@ contains
    ! soil -- the vapour the pack lost [kg/m2], and the heat flux into the soil top [W/m2].
    !---~---
    subroutine snow_step(snow, env, cover, dt, energy_gain, vapour_loss, g_top)
-      type(snow_state_t),  intent(inout) :: snow          !--- the pack
-      type(surface_env_t), intent(in)    :: env           !--- its surroundings; the pack and cover are set here
-      real(wp),            intent(in)    :: cover, dt     !--- [-], [s]
-      real(wp),            intent(out)   :: energy_gain, vapour_loss, g_top   !--- [J/m2], [kg/m2], [W/m2]
+      type(snow_state_t),  intent(inout) :: snow          ! the pack
+      type(surface_env_t), intent(in)    :: env           ! its surroundings; the pack and cover are set here
+      real(wp),            intent(in)    :: cover, dt     ! [-], [s]
+      real(wp),            intent(out)   :: energy_gain, vapour_loss, g_top   ! [J/m2], [kg/m2], [W/m2]
       type(surface_env_t) :: e
       real(wp) :: h_ground, le_ground, ground_rad, snow_energy_in, snow_vapour_out
       e = env
@@ -106,7 +106,7 @@ contains
    end subroutine snow_step
 
    subroutine test_snow_cover()
-      real(wp), parameter :: GROUND_ROUGH = 0.01_wp   !--- [m] the [aerodynamics] soil_rough default
+      real(wp), parameter :: GROUND_ROUGH = 0.01_wp   ! [m] the [aerodynamics] soil_rough default
       type(snow_params_t) :: p
       real(wp) :: f0, f1, f2
       print '(a)', 'test_snow_cover:'

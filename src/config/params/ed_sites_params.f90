@@ -18,14 +18,14 @@ module ed_sites_params
    ! for each key it leaves out.
    !---~---
    type :: site_spec_t
-      real(wp)    :: area_fraction  = 0.0_wp      !--- [-] its share of the polygon
-      logical     :: has_elevation  = .false.     !--- .false.: the polygon's elevation
-      real(wp)    :: elevation      = 0.0_wp      !--- [m]
-      real(wp)    :: slope          = 0.0_wp      !--- [degrees] from horizontal
-      real(wp)    :: aspect         = 0.0_wp      !--- [degrees] clockwise from north
-      integer(ik) :: census_site_id = 0_ik        !--- the census rows it reads; 0: not given
-      logical     :: own_ground     = .false.     !--- .false.: the polygon's ground
-      type(soil_params_t) :: soil                 !--- its ground: [soil] with the table's keys
+      real(wp)    :: area_fraction  = 0.0_wp      ! [-] its share of the polygon
+      logical     :: has_elevation  = .false.     ! .false.: the polygon's elevation
+      real(wp)    :: elevation      = 0.0_wp      ! [m]
+      real(wp)    :: slope          = 0.0_wp      ! [degrees] from horizontal
+      real(wp)    :: aspect         = 0.0_wp      ! [degrees] clockwise from north
+      integer(ik) :: census_site_id = 0_ik        ! the census rows it reads; 0: not given
+      logical     :: own_ground     = .false.     ! .false.: the polygon's ground
+      type(soil_params_t) :: soil                 ! its ground: [soil] with the table's keys
    end type site_spec_t
 
 end module ed_sites_params

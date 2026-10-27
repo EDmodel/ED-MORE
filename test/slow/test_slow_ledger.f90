@@ -44,16 +44,16 @@ program test_slow_ledger
    use ed_test_support, only : banner, build_test_config, check, check_close
    use ed_constants,          only : rho_air_ref
    implicit none
-   type(kill_report_t)  :: kills   !--- what the cull and the treefall killed
-   type(slow_ledger_t) :: no_ledger    !--- inactive: a test step books nothing
-   integer(ik) :: which   !--- the member of a group a perturbation moves (section 1)
+   type(kill_report_t)  :: kills   ! what the cull and the treefall killed
+   type(slow_ledger_t) :: no_ledger    ! inactive: a test step books nothing
+   integer(ik) :: which   ! the member of a group a perturbation moves (section 1)
    character(len=8), parameter :: TISSUE(2) = [character(len=8) :: 'leaf', 'wood']
    character(len=13), parameter :: LIVE_POOL(4) = [character(len=13) :: 'leaf', 'fine-root', 'wood', &
                                                    'nonstructural']
    real(wp)    :: soil_bottoms(n_soil_layer_max)   ! [m] the column's layer bottoms, as the ledger builds them
    integer(ik) :: n_soil_layer
 
-   real(wp), parameter  :: RHO = rho_air_ref    !--- the density the canopy-air store is valued at
+   real(wp), parameter  :: RHO = rho_air_ref    ! the density the canopy-air store is valued at
    type(ed_config_t)    :: cfg
    type(polygon_t)      :: poly
    type(soil_profile_t) :: soil

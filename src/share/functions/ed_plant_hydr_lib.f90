@@ -31,10 +31,10 @@ module ed_plant_hydr_lib
    ! reads, passed together with the tissue's biomass.
    !---~---
    type :: water_curve_t
-      real(wp) :: pi0           = 0.0_wp   !--- [MPa] osmotic potential at full turgor (< 0)
-      real(wp) :: elastic_mod   = 0.0_wp   !--- [MPa] bulk elastic modulus
-      real(wp) :: apoplast_frac = 0.0_wp   !--- [-]   share of the saturated water outside the living cells
-      real(wp) :: water_sat     = 0.0_wp   !--- [kg H2O / kgC] water per unit biomass at saturation
+      real(wp) :: pi0           = 0.0_wp   ! [MPa] osmotic potential at full turgor (< 0)
+      real(wp) :: elastic_mod   = 0.0_wp   ! [MPa] bulk elastic modulus
+      real(wp) :: apoplast_frac = 0.0_wp   ! [-]   share of the saturated water outside the living cells
+      real(wp) :: water_sat     = 0.0_wp   ! [kg H2O / kgC] water per unit biomass at saturation
    end type water_curve_t
 
    !---~---
@@ -194,9 +194,9 @@ contains
    !---~---
    elemental subroutine tissue_water_relations(curve, biomass, nplant, r, psi, dpsi, w, dw)
       type(water_curve_t), intent(in)  :: curve
-      real(wp),            intent(in)  :: biomass   !--- [kgC per plant]
-      real(wp),            intent(in)  :: nplant    !--- [plants/m2]
-      real(wp),            intent(in)  :: r         !--- [-] symplastic relative water content
+      real(wp),            intent(in)  :: biomass   ! [kgC per plant]
+      real(wp),            intent(in)  :: nplant    ! [plants/m2]
+      real(wp),            intent(in)  :: r         ! [-] symplastic relative water content
       real(wp),            intent(out) :: psi, dpsi, w, dw
       real(wp) :: r_tlp, w_sat
       associate (pi0 => curve%pi0, emod => curve%elastic_mod, apo => curve%apoplast_frac)
@@ -268,10 +268,10 @@ contains
    ! for a plant with no sapwood yet (docs/science/plant_hydraulics.md eq. (10)).
    !---~---
    elemental function xylem_max_conductance(wood_kmax, sap_area, height, vessel_curl) result(k)
-      real(wp), intent(in) :: wood_kmax    !--- [kg/m/s/MPa] sapwood specific conductivity
-      real(wp), intent(in) :: sap_area     !--- [m2] sapwood cross-section
-      real(wp), intent(in) :: height       !--- [m]
-      real(wp), intent(in) :: vessel_curl  !--- [-] path length per unit height
+      real(wp), intent(in) :: wood_kmax    ! [kg/m/s/MPa] sapwood specific conductivity
+      real(wp), intent(in) :: sap_area     ! [m2] sapwood cross-section
+      real(wp), intent(in) :: height       ! [m]
+      real(wp), intent(in) :: vessel_curl  ! [-] path length per unit height
       real(wp) :: k
       k = max(wood_kmax * sap_area / max(height * vessel_curl, tiny_num), XYLEM_COND_MIN)
    end function xylem_max_conductance
@@ -286,10 +286,10 @@ contains
    ! (13)).
    !---~---
    elemental real(wp) function root_fraction_profile(root_beta, root_depth, z_top, z_bot) result(frac)
-      real(wp), intent(in) :: root_beta   !--- [-]  root-profile decay (0,1); smaller => shallower
-      real(wp), intent(in) :: root_depth  !--- [m]  maximum rooting depth (> 0)
-      real(wp), intent(in) :: z_top       !--- [m]  depth of the layer top    (>= 0)
-      real(wp), intent(in) :: z_bot       !--- [m]  depth of the layer bottom (> z_top)
+      real(wp), intent(in) :: root_beta   ! [-]  root-profile decay (0,1); smaller => shallower
+      real(wp), intent(in) :: root_depth  ! [m]  maximum rooting depth (> 0)
+      real(wp), intent(in) :: z_top       ! [m]  depth of the layer top    (>= 0)
+      real(wp), intent(in) :: z_bot       ! [m]  depth of the layer bottom (> z_top)
       real(wp) :: inv_d, a, b
       inv_d = 1.0_wp / max(root_depth, tiny_num)
       a = min(max(z_top, 0.0_wp), root_depth) * inv_d
@@ -306,10 +306,10 @@ contains
    !---~---
    elemental function rhizosphere_conductance(nplant, root_length, half_spacing, root_radius)      &
                       result(g_rhizo)
-      real(wp), intent(in) :: nplant        !--- [plants/m2]
-      real(wp), intent(in) :: root_length   !--- [m per plant] fine-root length in the layer
-      real(wp), intent(in) :: half_spacing  !--- [m] half the distance between the layer's roots
-      real(wp), intent(in) :: root_radius   !--- [m] absorbing-root radius
+      real(wp), intent(in) :: nplant        ! [plants/m2]
+      real(wp), intent(in) :: root_length   ! [m per plant] fine-root length in the layer
+      real(wp), intent(in) :: half_spacing  ! [m] half the distance between the layer's roots
+      real(wp), intent(in) :: root_radius   ! [m] absorbing-root radius
       real(wp) :: g_rhizo
       g_rhizo = nplant * 2.0_wp * pi * root_length * rho_h2o                                      &
                / (grav_head * log(max(half_spacing / root_radius, MIN_SPACING_RATIO)))

@@ -76,7 +76,7 @@ contains
       real(wp) :: dtt, ts, tr, dh, drn, dt_diag_ref, ts_ref
       real(wp) :: t_cas, t0, sw, lw, h, les, lws, ler, cap, dt, denom, tau, a_st
       real(wp) :: t_exact, t_march, worst, fe
-      type(latent_pathway_t) :: dry, none   !--- the stomata's pathway; none: no film
+      type(latent_pathway_t) :: dry, none   ! the stomata's pathway; none: no film
       integer(ik) :: k, nstep
       print '(a)', 'test_veg_exponential:'
       t_cas = 295.0_wp
@@ -246,7 +246,7 @@ contains
       real(wp) :: ai, ast, resid, worst, worst_split
       integer(ik) :: ia, il, is
       real(wp), parameter :: T_CAS = 298.0_wp, T0 = T_CAS - 0.5_wp, T_PARENT = 301.0_wp
-      real(wp), parameter :: CAP_PER_AREA = 1500.0_wp   !--- [J/m2 tissue/K] a leaf's dry tissue and water
+      real(wp), parameter :: CAP_PER_AREA = 1500.0_wp   ! [J/m2 tissue/K] a leaf's dry tissue and water
       logical :: is_leaf
       print '(a)', 'test_veg_energy_thin_tissue:'
       worst = 0.0_wp
@@ -426,7 +426,7 @@ contains
 
    subroutine pass_leaf_to_wood(film, rate)
       type(canopy_water_out_t), intent(inout) :: film
-      real(wp),                 intent(in)    :: rate   !--- [kg/m2/s]
+      real(wp),                 intent(in)    :: rate   ! [kg/m2/s]
       film%transfer_lw    = rate
       film%intercept_leaf = -rate
       film%intercept_wood = rate

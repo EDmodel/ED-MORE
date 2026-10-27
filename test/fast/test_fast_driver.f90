@@ -74,16 +74,16 @@ program test_fast_driver
    type(ed_time_t),   parameter :: DAY       = ed_time_t(2020_ik,   7_ik, 1_ik, 15_ik)
    type(ed_time_t),   parameter :: NOON      = ed_time_t(2020_ik,   7_ik, 1_ik, 17_ik)
    type(ed_time_t),   parameter :: AFTERNOON = ed_time_t(2020_ik,   7_ik, 1_ik, 19_ik)
-   type(slow_ledger_t) :: no_ledger    !--- inactive: a test step books nothing
-   type(run_ledgers_t) :: ledgers      !--- never activated: the coupled steps book nothing
-   type(met_source_t)  :: src          !--- the forcing file, opened once, as a run opens it
-   type(met_cursor_t)  :: cur          !--- a block's cursor on it, as a run gives each polygon one
+   type(slow_ledger_t) :: no_ledger    ! inactive: a test step books nothing
+   type(run_ledgers_t) :: ledgers      ! never activated: the coupled steps book nothing
+   type(met_source_t)  :: src          ! the forcing file, opened once, as a run opens it
+   type(met_cursor_t)  :: cur          ! a block's cursor on it, as a run gives each polygon one
    real(wp) :: test_bottoms(n_soil_layer_max)   ! the geometric layers these checks were written on
 
    integer(ik), parameter :: NSL = 10_ik
    type(ed_config_t)    :: cfg
    type(polygon_t)      :: poly
-   type(soil_profile_t) :: test_profile   !--- the site's soil column (use_test_column)
+   type(soil_profile_t) :: test_profile   ! the site's soil column (use_test_column)
    real(wp)    :: we, ww, t_cas0, t_cas1, theta0_1, mass0_leaf, mass1_leaf, mass2_leaf
    real(wp)    :: t_leaf0, t_wood0
    real(wp)    :: cbal0, cbal1

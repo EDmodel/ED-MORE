@@ -119,7 +119,7 @@ contains
       integer(ik),           intent(in)  :: n, nsl
       real(wp),              intent(in)  :: dt
       type(march_state_t),  intent(out) :: y_out, y_err
-      type(boundary_flux_t), optional, intent(out) :: bf   !--- b-weighted boundary-flux amounts over dt (ledger)
+      type(boundary_flux_t), optional, intent(out) :: bf   ! b-weighted boundary-flux amounts over dt (ledger)
       !--- Stage-clamp count (the report's WORK_CLAMP_STAGE), expected on an oversized trial.
       integer(ik), optional, intent(inout) :: clamp_stage_n
 

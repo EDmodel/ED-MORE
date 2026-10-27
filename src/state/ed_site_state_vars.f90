@@ -38,23 +38,23 @@ module ed_site_state_vars
       !---~---
       type(soil_params_t)  :: soil
       type(soil_profile_t) :: soil_profile
-      real(wp)    :: theta_start(n_soil_layer_max) = 0.0_wp   !--- [m3/m3] each layer's starting water
+      real(wp)    :: theta_start(n_soil_layer_max) = 0.0_wp   ! [m3/m3] each layer's starting water
       !--- The terrain: what corrects the polygon's forcing to the site.
-      real(wp)    :: elevation_m = 0.0_wp          !--- [m]
-      real(wp)    :: slope_deg   = 0.0_wp          !--- [degrees]
-      real(wp)    :: aspect_deg  = 0.0_wp          !--- [degrees from north, clockwise]
+      real(wp)    :: elevation_m = 0.0_wp          ! [m]
+      real(wp)    :: slope_deg   = 0.0_wp          ! [degrees]
+      real(wp)    :: aspect_deg  = 0.0_wp          ! [degrees from north, clockwise]
    end type site_surface_t
 
    !--- All sites of a polygon: an array per number.
    type :: site_block
       !--- 0. BLOCK RECORD
-      integer(ik) :: n   = 0_ik       !--- sites in use
-      integer(ik) :: cap = 0_ik       !--- allocated capacity
+      integer(ik) :: n   = 0_ik       ! sites in use
+      integer(ik) :: cap = 0_ik       ! allocated capacity
       !--- 1. AREA
-      real(wp),    allocatable :: area(:)           !--- fraction of the polygon, sum = 1
+      real(wp),    allocatable :: area(:)           ! fraction of the polygon, sum = 1
       !--- 2. PATCH MAP: a CSR map into the patch block (rebuild_patch_map derives it)
-      integer(ik), allocatable :: patch_offset(:)   !--- first patch of the site (1-based)
-      integer(ik), allocatable :: patch_count(:)    !--- patches in the site
+      integer(ik), allocatable :: patch_offset(:)   ! first patch of the site (1-based)
+      integer(ik), allocatable :: patch_count(:)    ! patches in the site
       !--- 3. SURFACE
       type(site_surface_t), allocatable :: surface(:)
       !--- 4. CLIMATE MEMORY
@@ -67,7 +67,7 @@ module ed_site_state_vars
       ! jump. Until it is seeded, the first slow step adopts that day's mean outright
       ! rather than relaxing from an arbitrary origin.
       !---~---
-      real(wp),    allocatable :: t_growth_avg(:)   !--- [K] running-mean growth temperature
+      real(wp),    allocatable :: t_growth_avg(:)   ! [K] running-mean growth temperature
       !---~---
       !   Each site's leaf table: the PFT table's, its entropy terms and Jmax:Vcmax ratio
       ! acclimated to the site's growth temperature (acclimate_site_leaf_tables). Derived
@@ -84,7 +84,7 @@ module ed_site_state_vars
       real(wp),    allocatable :: pheno_tair_sum(:)
       integer(ik), allocatable :: pheno_tair_n(:)
       !--- 6. OUTPUT ACCUMULATORS (only output reads them; never restarted)
-      type(site_diag_block) :: diag                 !--- the forcing each site receives (SI_*)
+      type(site_diag_block) :: diag                 ! the forcing each site receives (SI_*)
    end type site_block
 
 contains
@@ -94,7 +94,7 @@ contains
    subroutine alloc_site_block(site, cap, leaf_photo)
       type(site_block),         intent(inout) :: site
       integer(ik),              intent(in)    :: cap
-      type(leaf_photo_table_t), intent(in)    :: leaf_photo   !--- the PFT table's, each site's until it acclimates
+      type(leaf_photo_table_t), intent(in)    :: leaf_photo   ! the PFT table's, each site's until it acclimates
       site%cap = cap
       site%n = 0_ik
       !--- 1. Area

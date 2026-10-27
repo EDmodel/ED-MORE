@@ -38,9 +38,9 @@ contains
       type(met_cursor_t),  intent(inout) :: met_cur
       type(polygon_t),     intent(inout) :: poly
       type(ed_config_t),   intent(in)    :: cfg
-      type(ed_time_t),     intent(in)    :: step_start      !--- calendar time at the start of the slow step
-      type(met_forcing_t), intent(out)   :: met_sample(:)   !--- (sub-step)
-      type(ed_time_t),     intent(out)   :: t_sample(:)     !--- (sub-step) each sample's time
+      type(ed_time_t),     intent(in)    :: step_start      ! calendar time at the start of the slow step
+      type(met_forcing_t), intent(out)   :: met_sample(:)   ! (sub-step)
+      type(ed_time_t),     intent(out)   :: t_sample(:)     ! (sub-step) each sample's time
       integer(ik) :: isub
       met_cur%kt_last_day = poly%kt_last_day          ! the polygon's memory of the sky, carried over
       do isub = 1_ik, size(met_sample, kind=ik)
@@ -60,9 +60,9 @@ contains
       type(polygon_t),     intent(in)  :: poly
       type(ed_config_t),   intent(in)  :: cfg
       type(met_cursor_t),  intent(in)  :: met_cur
-      type(met_forcing_t), intent(in)  :: met_sample(:)   !--- (sub-step) the polygon's samples
-      type(ed_time_t),     intent(in)  :: t_sample(:)     !--- (sub-step) their times
-      type(met_forcing_t), intent(out) :: met_site(:,:)   !--- (sub-step, site)
+      type(met_forcing_t), intent(in)  :: met_sample(:)   ! (sub-step) the polygon's samples
+      type(ed_time_t),     intent(in)  :: t_sample(:)     ! (sub-step) their times
+      type(met_forcing_t), intent(out) :: met_site(:,:)   ! (sub-step, site)
       integer(ik) :: is, isub
       do is = 1_ik, poly%site%n
          associate (surf => poly%site%surface(is))
@@ -94,7 +94,7 @@ contains
       type(fast_dynamic_state_t), intent(in)    :: dynamic
       type(met_forcing_t),        intent(in)    :: met
       logical,                    intent(in)    :: to_top
-      type(fast_forcing_t),       intent(inout) :: forcing   !--- sized to the largest patch (ensure_forcing_capacity)
+      type(fast_forcing_t),       intent(inout) :: forcing   ! sized to the largest patch (ensure_forcing_capacity)
       type(met_forcing_t) :: met_top
       if (to_top) then
          met_top = met_to_cas_top(met, cfg%forcing, static%z_top, static%displace, static%rough)
@@ -136,8 +136,8 @@ contains
    subroutine apply_rt_forcing(forcing, cfg, static, dynamic, met)
       type(fast_forcing_t),       intent(inout) :: forcing
       type(ed_config_t),          intent(in)    :: cfg
-      type(fast_static_state_t),  intent(in)    :: static     !--- the cohorts (gather order, top first)
-      type(fast_dynamic_state_t), intent(in)    :: dynamic    !--- lagged tissue temperatures, top soil node, snow
+      type(fast_static_state_t),  intent(in)    :: static     ! the cohorts (gather order, top first)
+      type(fast_dynamic_state_t), intent(in)    :: dynamic    ! lagged tissue temperatures, top soil node, snow
       type(met_forcing_t),        intent(in)    :: met
       integer(ik) :: j, i, ig, ncoh
       integer(ik) :: pft_bt(static%n)

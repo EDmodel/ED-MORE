@@ -41,20 +41,20 @@ module ed_surface
    ! (prepare_snow_stage sets the pack and the cover).
    !---~---
    type :: surface_env_t
-      real(wp) :: rnet_soil = 0.0_wp                    !--- [W/m2] the bare soil's net all-wave radiation per unit of its area
-      real(wp) :: sw_snow   = 0.0_wp                    !--- [W/m2] the shortwave the snow absorbs per unit of its area
-      real(wp) :: lw_down   = 0.0_wp                    !--- [W/m2] the longwave reaching the ground
-      real(wp) :: can_temp = 273.16_wp, can_shv = 0.0_wp !--- [K],[kg/kg] the canopy air's temperature and specific humidity
-      real(wp) :: ggnet    = 0.0_wp                     !--- [m/s] ground to canopy-air conductance, heat and vapour alike
-      real(wp) :: rho_air  = 1.2_wp, press = 101325.0_wp !--- [kg/m3],[Pa] the canopy air's density and pressure
-      real(wp) :: t_soil_top = 273.16_wp                !--- [K] top soil node's temperature, the snow base's conduction target
-      real(wp) :: k_soil_top = 0.0_wp                   !--- [W/m/K] top soil layer's thermal conductivity
-      real(wp) :: dz_soil_top = 0.05_wp                 !--- [m] top soil node's depth |z_node(1)| below the snow base
-      real(wp) :: soil_evap  = 0.0_wp                   !--- [kg/m2/s] the bare ground's evaporation, already area-weighted
-      type(snow_state_t)  :: pack                       !--- the pack after the step's precipitation and drainage
-      real(wp) :: snowfac    = 0.0_wp                   !--- [-] its Niu-Yang cover fraction (0 without a pack)
-      type(snow_params_t) :: params                     !--- the snow parameters
-      real(wp) :: dt         = 0.0_wp                   !--- [s] the step
+      real(wp) :: rnet_soil = 0.0_wp                    ! [W/m2] the bare soil's net all-wave radiation per unit of its area
+      real(wp) :: sw_snow   = 0.0_wp                    ! [W/m2] the shortwave the snow absorbs per unit of its area
+      real(wp) :: lw_down   = 0.0_wp                    ! [W/m2] the longwave reaching the ground
+      real(wp) :: can_temp = 273.16_wp, can_shv = 0.0_wp ! [K],[kg/kg] the canopy air's temperature and specific humidity
+      real(wp) :: ggnet    = 0.0_wp                     ! [m/s] ground to canopy-air conductance, heat and vapour alike
+      real(wp) :: rho_air  = 1.2_wp, press = 101325.0_wp ! [kg/m3],[Pa] the canopy air's density and pressure
+      real(wp) :: t_soil_top = 273.16_wp                ! [K] top soil node's temperature, the snow base's conduction target
+      real(wp) :: k_soil_top = 0.0_wp                   ! [W/m/K] top soil layer's thermal conductivity
+      real(wp) :: dz_soil_top = 0.05_wp                 ! [m] top soil node's depth |z_node(1)| below the snow base
+      real(wp) :: soil_evap  = 0.0_wp                   ! [kg/m2/s] the bare ground's evaporation, already area-weighted
+      type(snow_state_t)  :: pack                       ! the pack after the step's precipitation and drainage
+      real(wp) :: snowfac    = 0.0_wp                   ! [-] its Niu-Yang cover fraction (0 without a pack)
+      type(snow_params_t) :: params                     ! the snow parameters
+      real(wp) :: dt         = 0.0_wp                   ! [s] the step
    end type surface_env_t
 
    !---~---
@@ -67,29 +67,29 @@ module ed_surface
    !---~---
    type :: snow_out_t
       !--- The surface balance.
-      real(wp) :: t_surf  = 273.16_wp                   !--- [K] diagnosed snow-surface temperature
-      real(wp) :: h_snow  = 0.0_wp, le_snow = 0.0_wp    !--- [W/m2] sensible + latent (sublimation/evap) to the canopy air
-      real(wp) :: w_flux  = 0.0_wp                      !--- [kg/m2/s] vapour to the canopy air (>0 sublimation, <0 deposition)
-      real(wp) :: g_base  = 0.0_wp                      !--- [W/m2] conduction from the snow base into the soil top
-      real(wp) :: rnet    = 0.0_wp                      !--- [W/m2] net all-wave radiation absorbed by the snow surface
-      real(wp) :: energy_in = 0.0_wp                    !--- [W/m2] what the pack gains: rnet - h_snow - le_snow - g_base
-      real(wp) :: snowfac = 0.0_wp                      !--- [-] Niu-Yang07 snow-cover / burial fraction
+      real(wp) :: t_surf  = 273.16_wp                   ! [K] diagnosed snow-surface temperature
+      real(wp) :: h_snow  = 0.0_wp, le_snow = 0.0_wp    ! [W/m2] sensible + latent (sublimation/evap) to the canopy air
+      real(wp) :: w_flux  = 0.0_wp                      ! [kg/m2/s] vapour to the canopy air (>0 sublimation, <0 deposition)
+      real(wp) :: g_base  = 0.0_wp                      ! [W/m2] conduction from the snow base into the soil top
+      real(wp) :: rnet    = 0.0_wp                      ! [W/m2] net all-wave radiation absorbed by the snow surface
+      real(wp) :: energy_in = 0.0_wp                    ! [W/m2] what the pack gains: rnet - h_snow - le_snow - g_base
+      real(wp) :: snowfac = 0.0_wp                      ! [-] Niu-Yang07 snow-cover / burial fraction
       !--- The meltwater drainage, a store-to-store hand-off to the pond.
-      real(wp) :: melt_mass = 0.0_wp                    !--- [kg/m2] free liquid drained this step -> the pond
-      real(wp) :: melt_enth = 0.0_wp                    !--- [J/m2]  matching enthalpy (internal_energy_liquid(t_3ple))
-      real(wp) :: dump_mass = 0.0_wp                    !--- [kg/m2] full-melt-out residual water dumped to the pond
-      real(wp) :: dump_enth = 0.0_wp                    !--- [J/m2]  full-melt-out residual energy dumped to the pond
+      real(wp) :: melt_mass = 0.0_wp                    ! [kg/m2] free liquid drained this step -> the pond
+      real(wp) :: melt_enth = 0.0_wp                    ! [J/m2]  matching enthalpy (internal_energy_liquid(t_3ple))
+      real(wp) :: dump_mass = 0.0_wp                    ! [kg/m2] full-melt-out residual water dumped to the pond
+      real(wp) :: dump_enth = 0.0_wp                    ! [J/m2]  full-melt-out residual energy dumped to the pond
       !--- The stage's hand-off.
-      logical  :: exists    = .false.                   !--- a pack is present after the step's precipitation
-      real(wp) :: melt_rate = 0.0_wp                    !--- [kg/m2/s] meltwater and dump to the pond over the step
+      logical  :: exists    = .false.                   ! a pack is present after the step's precipitation
+      real(wp) :: melt_rate = 0.0_wp                    ! [kg/m2/s] meltwater and dump to the pond over the step
       !---~---
       !   The drained water's temperature, at which its liquid internal energy equals its
       ! enthalpy, so the pond receives exactly that enthalpy; t_3ple when none drains.
       !---~---
-      real(wp) :: t_melt    = t_3ple                    !--- [K]
-      real(wp) :: acc_enth  = 0.0_wp                    !--- [J/m2]  precipitation (rain and snow) enthalpy that entered the pack
-      real(wp) :: swe0      = 0.0_wp                    !--- [kg/m2] pack mass before the stage, for the ledger
-      real(wp) :: enth0     = 0.0_wp                    !--- [J/m2]  pack internal energy before the stage, for the ledger
+      real(wp) :: t_melt    = t_3ple                    ! [K]
+      real(wp) :: acc_enth  = 0.0_wp                    ! [J/m2]  precipitation (rain and snow) enthalpy that entered the pack
+      real(wp) :: swe0      = 0.0_wp                    ! [kg/m2] pack mass before the stage, for the ledger
+      real(wp) :: enth0     = 0.0_wp                    ! [J/m2]  pack internal energy before the stage, for the ledger
    end type snow_out_t
 
 contains
@@ -106,13 +106,13 @@ contains
    !---~---
    pure subroutine ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, snow_energy_in,           &
                                            snow_vapour_out)
-      type(surface_env_t),    intent(in)  :: env               !---           the ground surface's surroundings
-      real(wp),               intent(out) :: h_ground          !--- [W/m2]    sensible heat to the canopy air
-      real(wp),               intent(out) :: le_ground         !--- [W/m2]    latent heat to the canopy air
-      real(wp),               intent(out) :: g_top             !--- [W/m2]    net energy into the soil top
-      real(wp),               intent(out) :: ground_rad        !--- [W/m2]    net radiation, snow's and bare soil's
-      real(wp),               intent(out) :: snow_energy_in    !--- [W/m2]    energy into the pack
-      real(wp),               intent(out) :: snow_vapour_out   !--- [kg/m2/s] vapour from the pack to the canopy air
+      type(surface_env_t),    intent(in)  :: env               !           the ground surface's surroundings
+      real(wp),               intent(out) :: h_ground          ! [W/m2]    sensible heat to the canopy air
+      real(wp),               intent(out) :: le_ground         ! [W/m2]    latent heat to the canopy air
+      real(wp),               intent(out) :: g_top             ! [W/m2]    net energy into the soil top
+      real(wp),               intent(out) :: ground_rad        ! [W/m2]    net radiation, snow's and bare soil's
+      real(wp),               intent(out) :: snow_energy_in    ! [W/m2]    energy into the pack
+      real(wp),               intent(out) :: snow_vapour_out   ! [kg/m2/s] vapour from the pack to the canopy air
       type(snow_out_t) :: sfx
       real(wp) :: h_bare, le_soil
       call snow_surface_balance(env, sfx)
@@ -133,8 +133,8 @@ contains
    ! air receives. ground_surface_exchange assembles G_top and the snow blend.
    !---~---
    elemental pure subroutine ground_surface_fluxes(t_ground, t_cas, ggnet, rho, soil_evap, h_bare, le_soil)
-      real(wp), intent(in)  :: t_ground, t_cas, ggnet, rho, soil_evap   !--- [K], [K], [m/s], [kg/m3], [kg/m2/s]
-      real(wp), intent(out) :: h_bare, le_soil                          !--- [W/m2], [W/m2]
+      real(wp), intent(in)  :: t_ground, t_cas, ggnet, rho, soil_evap   ! [K], [K], [m/s], [kg/m3], [kg/m2/s]
+      real(wp), intent(out) :: h_bare, le_soil                          ! [W/m2], [W/m2]
       h_bare  = ggnet * rho * cp_air * (t_ground - t_cas)
       le_soil = soil_evap * enthalpy_vapor(t_ground)
    end subroutine ground_surface_fluxes
@@ -148,9 +148,9 @@ contains
    ! micro-relief a thin pack has to fill.
    !---~---
    pure function snow_cover_fraction(swe, snow_depth, params, ground_rough) result(snowfac)
-      real(wp),            intent(in) :: swe, snow_depth   !--- [kg/m2], [m]
+      real(wp),            intent(in) :: swe, snow_depth   ! [kg/m2], [m]
       type(snow_params_t), intent(in) :: params
-      real(wp),            intent(in) :: ground_rough   !--- [m] the ground's roughness ([aerodynamics].soil_rough)
+      real(wp),            intent(in) :: ground_rough   ! [m] the ground's roughness ([aerodynamics].soil_rough)
       real(wp) :: snowfac, scale
       if (swe <= params%tiny_snow_mass) then
          snowfac = 0.0_wp
@@ -170,11 +170,11 @@ contains
    pure subroutine snow_blend_ground_optics(snow, params, ground_rough, albedo_vis, albedo_nir, emiss, temp)
       type(snow_state_t),  intent(in)    :: snow
       type(snow_params_t), intent(in)    :: params
-      real(wp),            intent(in)    :: ground_rough   !--- [m] the ground's roughness ([aerodynamics].soil_rough)
-      real(wp),            intent(inout) :: albedo_vis   !--- [-] VIS albedo: the bare soil's on entry
-      real(wp),            intent(inout) :: albedo_nir   !--- [-] NIR albedo: the bare soil's on entry
-      real(wp),            intent(inout) :: emiss        !--- [-] thermal emissivity: the bare soil's on entry
-      real(wp),            intent(inout) :: temp         !--- [K] emission temperature: the top soil node's on entry
+      real(wp),            intent(in)    :: ground_rough   ! [m] the ground's roughness ([aerodynamics].soil_rough)
+      real(wp),            intent(inout) :: albedo_vis   ! [-] VIS albedo: the bare soil's on entry
+      real(wp),            intent(inout) :: albedo_nir   ! [-] NIR albedo: the bare soil's on entry
+      real(wp),            intent(inout) :: emiss        ! [-] thermal emissivity: the bare soil's on entry
+      real(wp),            intent(inout) :: temp         ! [K] emission temperature: the top soil node's on entry
       real(wp) :: fc, snow_vis, snow_nir, emit_soil, emit_snow
       if (.not. (snow%nlayer >= 1_ik .and. snow%swe(1) > params%tiny_snow_mass)) return
       fc = snow_cover_fraction(snow%swe(1), snow%snow_depth(1), params, ground_rough)
@@ -194,7 +194,7 @@ contains
    pure subroutine snow_albedos(snow, params, albedo_vis, albedo_nir)
       type(snow_state_t),  intent(in)  :: snow
       type(snow_params_t), intent(in)  :: params
-      real(wp),            intent(out) :: albedo_vis, albedo_nir   !--- [-]
+      real(wp),            intent(out) :: albedo_vis, albedo_nir   ! [-]
       real(wp) :: fl
       fl = 0.0_wp
       if (snow%nlayer >= 1_ik) fl = snow%snow_fliq(1)
@@ -213,12 +213,12 @@ contains
    !---~---
    pure subroutine ground_tile_radiation(dn_vis, dn_nir, dn_lw, soil_albedo_vis, soil_albedo_nir, soil_emiss,  &
                                          soil_temp, snow, params, rnet_soil, sw_snow)
-      real(wp),            intent(in)  :: dn_vis, dn_nir, dn_lw   !--- [W/m2] each band reaching the ground
-      real(wp),            intent(in)  :: soil_albedo_vis, soil_albedo_nir, soil_emiss   !--- [-] the bare soil's optics
-      real(wp),            intent(in)  :: soil_temp               !--- [K] the top soil node's temperature
+      real(wp),            intent(in)  :: dn_vis, dn_nir, dn_lw   ! [W/m2] each band reaching the ground
+      real(wp),            intent(in)  :: soil_albedo_vis, soil_albedo_nir, soil_emiss   ! [-] the bare soil's optics
+      real(wp),            intent(in)  :: soil_temp               ! [K] the top soil node's temperature
       type(snow_state_t),  intent(in)  :: snow
       type(snow_params_t), intent(in)  :: params
-      real(wp),            intent(out) :: rnet_soil, sw_snow      !--- [W/m2]
+      real(wp),            intent(out) :: rnet_soil, sw_snow      ! [W/m2]
       real(wp) :: snow_vis, snow_nir
       rnet_soil = dn_vis * (1.0_wp - soil_albedo_vis) + dn_nir * (1.0_wp - soil_albedo_nir)              &
                   + soil_emiss * (dn_lw - stefan_boltzmann * soil_temp ** 4)
@@ -232,8 +232,8 @@ contains
    ! pack stays empty and the precipitation reaches the ground with the throughfall.
    !---~---
    pure subroutine snow_accumulate(snow, snowfall, rainf, air_temp, dt, params)
-      type(snow_state_t), intent(inout) :: snow                      !--- the pack
-      real(wp),            intent(in)    :: snowfall, rainf, air_temp, dt   !--- [kg/m2/s], [kg/m2/s], [K], [s]
+      type(snow_state_t), intent(inout) :: snow                      ! the pack
+      real(wp),            intent(in)    :: snowfall, rainf, air_temp, dt   ! [kg/m2/s], [kg/m2/s], [K], [s]
       type(snow_params_t), intent(in)    :: params
       real(wp) :: dm_snow, dm_rain
       logical  :: has_layer
@@ -252,9 +252,9 @@ contains
    ! enthalpy) hand-off to the pond (melt_*), and dump the residual at melt-out (dump_*).
    !---~---
    pure subroutine snow_drain_meltwater(snow, params, melt)
-      type(snow_state_t), intent(inout) :: snow     !--- the pack
+      type(snow_state_t), intent(inout) :: snow     ! the pack
       type(snow_params_t), intent(in)    :: params
-      type(snow_out_t),   intent(out)   :: melt     !--- the drained and dumped water, mass and enthalpy
+      type(snow_out_t),   intent(out)   :: melt     ! the drained and dumped water, mass and enthalpy
       real(wp) :: wmass_free, hold
       melt = snow_out_t()
       if (snow%nlayer == 0_ik) return
@@ -312,12 +312,12 @@ contains
    ! (ground_surface_exchange), and the pack takes it afterwards (snow_take_exchange).
    !---~---
    pure subroutine prepare_snow_stage(snowfall, rainfall, t_air, ground_rough, env, st)
-      real(wp),            intent(in)    :: snowfall       !--- [kg/m2/s] frozen precipitation
-      real(wp),            intent(in)    :: rainfall       !--- [kg/m2/s] liquid precipitation (rain-on-snow)
-      real(wp),            intent(in)    :: t_air          !--- [K]       reference-level air temperature
-      real(wp),            intent(in)    :: ground_rough   !--- [m]       the ground's roughness ([aerodynamics].soil_rough)
-      type(surface_env_t), intent(inout) :: env            !--- its pack advanced, its cover set; params and dt read
-      type(snow_out_t),    intent(out)   :: st             !---           the drainage and the stage's hand-off
+      real(wp),            intent(in)    :: snowfall       ! [kg/m2/s] frozen precipitation
+      real(wp),            intent(in)    :: rainfall       ! [kg/m2/s] liquid precipitation (rain-on-snow)
+      real(wp),            intent(in)    :: t_air          ! [K]       reference-level air temperature
+      real(wp),            intent(in)    :: ground_rough   ! [m]       the ground's roughness ([aerodynamics].soil_rough)
+      type(surface_env_t), intent(inout) :: env            ! its pack advanced, its cover set; params and dt read
+      type(snow_out_t),    intent(out)   :: st             !           the drainage and the stage's hand-off
       real(wp) :: swe0, enth0, acc_enth, melt_enth
       logical  :: exists
 
@@ -360,10 +360,10 @@ contains
    ! by the pack's own liquid fraction (docs/science/snow_biophysics.md eq. (1)).
    !---~---
    pure subroutine snow_surface_fluxes(t_surf, fliq, env, h_flux, w_flux, le_flux)
-      real(wp),         intent(in)  :: t_surf    !--- [K] snow-surface temperature
-      real(wp),         intent(in)  :: fliq      !--- [-] liquid fraction of the snow surface
+      real(wp),         intent(in)  :: t_surf    ! [K] snow-surface temperature
+      real(wp),         intent(in)  :: fliq      ! [-] liquid fraction of the snow surface
       type(surface_env_t), intent(in)  :: env
-      real(wp),         intent(out) :: h_flux, w_flux, le_flux   !--- [W/m2], [kg/m2/s], [W/m2]
+      real(wp),         intent(out) :: h_flux, w_flux, le_flux   ! [W/m2], [kg/m2/s], [W/m2]
       h_flux = env%ggnet * env%rho_air * cp_air * (t_surf - env%can_temp)
       w_flux = env%ggnet * env%rho_air * (sat_specific_humidity(t_surf, env%press, fliq) - env%can_shv)
       le_flux = w_flux * enthalpy_vapor(t_surf)
@@ -374,7 +374,7 @@ contains
    ! series, so a deepening pack decouples the soil (docs/science/snow_biophysics.md).
    !---~---
    pure function snow_base_conductance(snow_depth, env, params) result(gcond)
-      real(wp),            intent(in) :: snow_depth   !--- [m]
+      real(wp),            intent(in) :: snow_depth   ! [m]
       type(surface_env_t),    intent(in) :: env
       type(snow_params_t), intent(in) :: params
       real(wp) :: gcond, r_series
@@ -392,8 +392,8 @@ contains
    ! time integral in snow_take_exchange.
    !---~---
    pure subroutine snow_surface_balance(env, flux)
-      type(surface_env_t), intent(in)  :: env    !--- with the pack, its cover (which scales all boundary exchange), params, dt
-      type(snow_out_t),    intent(out) :: flux   !--- the exchange
+      type(surface_env_t), intent(in)  :: env    ! with the pack, its cover (which scales all boundary exchange), params, dt
+      type(snow_out_t),    intent(out) :: flux   ! the exchange
       real(wp) :: t_n, fliq_n, e_old, swe0, gcond, af, dtaf
       real(wp) :: h_n, w_n, le_n, g_n, dh_dt, dw_dt, demit_dt, l_vap, r0, drdt
       real(wp) :: u_freeze, u_melt, e_bal, t_new, dtemp, h_s, w_s, le_s, g_s, emit, rad_n
@@ -486,8 +486,8 @@ contains
    ! left at t_3ple for snow_drain_meltwater to empty.
    !---~---
    pure subroutine snow_take_exchange(snow, energy_amount, vapour_amount, params)
-      type(snow_state_t),  intent(inout) :: snow                            !--- the pack
-      real(wp),            intent(in)    :: energy_amount, vapour_amount    !--- [J/m2] in, [kg/m2] out
+      type(snow_state_t),  intent(inout) :: snow                            ! the pack
+      real(wp),            intent(in)    :: energy_amount, vapour_amount    ! [J/m2] in, [kg/m2] out
       type(snow_params_t), intent(in)    :: params
       if (snow%nlayer == 0_ik) return
       snow%snow_energy(1) = snow%snow_energy(1) + energy_amount

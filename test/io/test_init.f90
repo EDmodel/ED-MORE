@@ -254,7 +254,7 @@ contains
       type(soil_profile_t) :: prof
       integer(ik)          :: ip, nsl, k, n
       real(wp)             :: bottoms(n_soil_layer_max), tdiag, fdiag, theta_liq, dtheta
-      type(met_forcing_t)  :: ref   !--- the reference climate a start's canopy air is seeded at
+      type(met_forcing_t)  :: ref   ! the reference climate a start's canopy air is seeded at
 
 
       call banner('the initial soil state')

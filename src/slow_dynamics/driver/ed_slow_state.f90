@@ -62,22 +62,22 @@ module ed_slow_state
       ! more than it grows has a negative leaf change, the sign shed_turnover_water reads.
       !---~---
       real(wp), allocatable :: d_leaf(:), d_fineroot(:), d_wood(:), d_nonstructural(:)
-      real(wp), allocatable :: npp_repro(:)          !--- [kgC/plant] reproduction growth
-      logical,  allocatable :: exhausted(:)          !--- no leaves and no storage (plant_carbon_allocation.md §2)
-      real(wp), allocatable :: mortality(:)          !--- [1/yr]
-      real(wp), allocatable :: recruitment(:,:)      !--- [plant/m2/yr] (pft, patch)
+      real(wp), allocatable :: npp_repro(:)          ! [kgC/plant] reproduction growth
+      logical,  allocatable :: exhausted(:)          ! no leaves and no storage (plant_carbon_allocation.md §2)
+      real(wp), allocatable :: mortality(:)          ! [1/yr]
+      real(wp), allocatable :: recruitment(:,:)      ! [plant/m2/yr] (pft, patch)
       !---~---
       !   The density and leaf carbon before the commit, which the mortality litter and
       ! the new leaves' water are measured against.
       !---~---
-      real(wp), allocatable :: nplant_before(:)      !--- [plant/m2]
-      real(wp), allocatable :: leaf_carbon_before(:) !--- [kgC/plant]
+      real(wp), allocatable :: nplant_before(:)      ! [plant/m2]
+      real(wp), allocatable :: leaf_carbon_before(:) ! [kgC/plant]
       !---~---
       !   The share of the reproduction carbon that becomes recruits, under the patch's
       ! shade (demography.md eq. (5)); the recruits and the seed lost to litter both read
       ! it, so the two add up to the reproduction carbon.
       !---~---
-      real(wp), allocatable :: recruit_efficiency(:) !--- [-]
+      real(wp), allocatable :: recruit_efficiency(:) ! [-]
    end type slow_step_data_t
 
    !---~---
@@ -162,9 +162,9 @@ contains
    subroutine advance_plant_traits(poly, dt_yr, leaf_carbon_new, storage_new, instantaneous)
       type(polygon_t),       intent(inout) :: poly
       real(wp),              intent(in)    :: dt_yr
-      real(wp), allocatable, intent(out)   :: leaf_carbon_new(:)   !--- [kgC/plant] (cohort)
-      real(wp), allocatable, intent(out)   :: storage_new(:)       !--- [kgC/plant] (cohort)
-      logical, optional,     intent(in)    :: instantaneous   !--- census restart: jump straight to the target
+      real(wp), allocatable, intent(out)   :: leaf_carbon_new(:)   ! [kgC/plant] (cohort)
+      real(wp), allocatable, intent(out)   :: storage_new(:)       ! [kgC/plant] (cohort)
+      logical, optional,     intent(in)    :: instantaneous   ! census restart: jump straight to the target
       integer(ik) :: j, pf
       real(wp)    :: sla_t, vcmax_t, rd_t, turnover_t, turnover_now, leaf_target, excess
       logical     :: instant
@@ -215,8 +215,8 @@ contains
    subroutine reacclimate_plant_traits(poly, cfg, leaf_carbon_new, storage_new)
       type(polygon_t),       intent(inout) :: poly
       type(ed_config_t),   intent(in)      :: cfg
-      real(wp), allocatable, intent(out)   :: leaf_carbon_new(:)   !--- [kgC/plant] (cohort)
-      real(wp), allocatable, intent(out)   :: storage_new(:)       !--- [kgC/plant] (cohort)
+      real(wp), allocatable, intent(out)   :: leaf_carbon_new(:)   ! [kgC/plant] (cohort)
+      real(wp), allocatable, intent(out)   :: storage_new(:)       ! [kgC/plant] (cohort)
       integer(ik) :: j, pf
       real(wp)    :: sla_t, vcmax_t, rd_t, turnover_t, sla_old
       allocate(leaf_carbon_new(poly%cohort%n), storage_new(poly%cohort%n))
@@ -257,7 +257,7 @@ contains
    !---~---
    subroutine acclimate_site_leaf_tables(poly, lp, step_days)
       type(polygon_t),                intent(inout) :: poly
-      type(leaf_physiology_params_t), intent(in)    :: lp          !--- [leaf_physiology]
+      type(leaf_physiology_params_t), intent(in)    :: lp          ! [leaf_physiology]
       integer(ik),                    intent(in)    :: step_days
       real(wp)    :: t_day, w
       integer(ik) :: is
@@ -298,7 +298,7 @@ contains
    ! (docs/science/plant_carbon_allocation.md §1-§2, §4-§5).
    !---~---
    subroutine compute_carbon_allocation(poly, cfg, step)
-      type(polygon_t),         intent(inout) :: poly   !--- no pool moves here; inout for the litter, rows and patch rates
+      type(polygon_t),         intent(inout) :: poly   ! no pool moves here; inout for the litter, rows and patch rates
       type(ed_config_t),     intent(in)      :: cfg
       type(slow_step_data_t),  intent(inout) :: step
       integer(ik) :: n, j, pf, ip
@@ -476,7 +476,7 @@ contains
    subroutine compute_vital_rates(poly, cfg, step)
       type(polygon_t),        intent(in)    :: poly
       type(ed_config_t),      intent(in)    :: cfg
-      type(slow_step_data_t), intent(inout) :: step   !--- reads d_wood, npp_repro, exhausted, recruit_efficiency
+      type(slow_step_data_t), intent(inout) :: step   ! reads d_wood, npp_repro, exhausted, recruit_efficiency
       integer(ik) :: n, np, npft, j, pf, ip
       real(wp)    :: dbh_rate, dt_yr
 
@@ -532,9 +532,9 @@ contains
    ! per-patch accumulator as the turnover litter.
    !---~---
    subroutine accumulate_mortality_litter(poly, cfg, step)
-      type(polygon_t),        intent(inout) :: poly   !--- the litter accumulator and the mortality-carbon row
+      type(polygon_t),        intent(inout) :: poly   ! the litter accumulator and the mortality-carbon row
       type(ed_config_t),      intent(in)    :: cfg
-      type(slow_step_data_t), intent(in)    :: step   !--- reads nplant_before
+      type(slow_step_data_t), intent(in)    :: step   ! reads nplant_before
       integer(ik) :: j, pf, ip
       real(wp)    :: died_nplant
 
@@ -575,7 +575,7 @@ contains
    subroutine shed_turnover_water(poly, cfg, step, ledger)
       type(polygon_t),        intent(inout) :: poly
       type(ed_config_t),      intent(in)    :: cfg
-      type(slow_step_data_t), intent(in)    :: step   !--- reads d_leaf, d_fineroot
+      type(slow_step_data_t), intent(in)    :: step   ! reads d_leaf, d_fineroot
       type(slow_ledger_t),    intent(inout) :: ledger
       real(wp), allocatable :: patch_total(:), patch_enth(:)
       real(wp) :: shed_frac, shed_amount
@@ -636,7 +636,7 @@ contains
    subroutine fill_new_leaf_water(poly, cfg, step)
       type(polygon_t),        intent(inout) :: poly
       type(ed_config_t),      intent(in)    :: cfg
-      type(slow_step_data_t), intent(in)    :: step   !--- reads leaf_carbon_before
+      type(slow_step_data_t), intent(in)    :: step   ! reads leaf_carbon_before
       type(water_curve_t) :: leaf_curve, wood_curve
       real(wp)    :: grown, head, psi_wood, moved
       integer(ik) :: i
@@ -666,8 +666,8 @@ contains
    subroutine shed_mortality_water(poly, cfg, step, water_shed)
       type(polygon_t),        intent(inout) :: poly
       type(ed_config_t),      intent(in)    :: cfg
-      type(slow_step_data_t), intent(in)    :: step         !--- reads nplant_before
-      real(wp),               intent(out)   :: water_shed   !--- [kg/m2 site]
+      type(slow_step_data_t), intent(in)    :: step         ! reads nplant_before
+      real(wp),               intent(out)   :: water_shed   ! [kg/m2 site]
       integer(ik) :: j, ip
       real(wp)    :: died_nplant, w_j
 
@@ -699,7 +699,7 @@ contains
    subroutine shed_excess_tissue_water(poly, cfg, water_shed)
       type(polygon_t),     intent(inout) :: poly
       type(ed_config_t), intent(in)      :: cfg
-      real(wp),            intent(out)   :: water_shed     !--- [kg/m2 site] the water shed
+      real(wp),            intent(out)   :: water_shed     ! [kg/m2 site] the water shed
       type(water_curve_t) :: leaf_curve, wood_curve
       real(wp)    :: leaf_kept, wood_kept, excess, excess_enth
       integer(ik) :: i, ip
@@ -744,9 +744,9 @@ contains
       ! arriving here, and the day's Rh is declared leaving (conservation.md §3).
       !---~---
       type(slow_ledger_t),   intent(inout) :: ledger
-      type(soil_carbon_state_t), allocatable, intent(out) :: pools_new(:)   !--- (patch) the pools after the step
+      type(soil_carbon_state_t), allocatable, intent(out) :: pools_new(:)   ! (patch) the pools after the step
       real(wp)             :: u(N_SOIL_POOL), lignin_in(2), rh_today
-      real(wp)             :: xi_int(N_SOIL_POOL)   !--- [day] the scalar integrated over the step
+      real(wp)             :: xi_int(N_SOIL_POOL)   ! [day] the scalar integrated over the step
       type(soil_carbon_out_t) :: out
       integer(ik)          :: ip
 
@@ -794,7 +794,7 @@ contains
    subroutine decide_recruitment(poly, cfg, found)
       type(polygon_t),      intent(in)  :: poly
       type(ed_config_t),    intent(in)  :: cfg
-      logical, allocatable, intent(out) :: found(:,:)   !--- (pft, patch)
+      logical, allocatable, intent(out) :: found(:,:)   ! (pft, patch)
       integer(ik) :: np
       np = poly%patch%n
       allocate(found(poly%n_pft, max(np, 1_ik)))
@@ -810,9 +810,9 @@ contains
    subroutine decide_disturbance(poly, cfg, dt_yr, frac, survives)
       type(polygon_t),      intent(in)  :: poly
       type(ed_config_t),    intent(in)  :: cfg
-      real(wp),             intent(in)  :: dt_yr      !--- [yr] the interval the yearly rate covers
-      real(wp),             intent(out) :: frac       !--- [-] the disturbed share
-      logical, allocatable, intent(out) :: survives(:)   !--- (cohort)
+      real(wp),             intent(in)  :: dt_yr      ! [yr] the interval the yearly rate covers
+      real(wp),             intent(out) :: frac       ! [-] the disturbed share
+      logical, allocatable, intent(out) :: survives(:)   ! (cohort)
       integer(ik) :: n
       frac = 0.0_wp
       if (cfg%demography%patch_disturbance_rate > 0.0_wp) frac = disturbed_fraction(cfg%demography%patch_disturbance_rate, dt_yr)

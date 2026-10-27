@@ -353,7 +353,7 @@ contains
       type(soil_profile_t)  :: soil
       type(soil_heat_env_t) :: forcing
       real(wp), parameter :: THETA0 = 0.40_wp, TEMP0 = 291.0_wp
-      real(wp), parameter :: DTHETA = 0.01_wp     !--- [m3/m3] 1 kg/m2 out of or into a 0.1 m layer
+      real(wp), parameter :: DTHETA = 0.01_wp     ! [m3/m3] 1 kg/m2 out of or into a 0.1 m layer
       real(wp) :: e0, u_liq, temp_raw, temp_fix, fliq
       print '(a)', 'test_mass_change_neutrality:'
       call setup_1layer(soil, forcing, THETA0, 0.10_wp)

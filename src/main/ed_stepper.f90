@@ -46,11 +46,11 @@ contains
       type(polygon_t),        intent(inout) :: poly
       type(ed_config_t),    intent(in)      :: cfg
       type(run_ledgers_t),    intent(inout) :: ledgers
-      type(met_source_t),     intent(in),    optional :: met_src        !--- the run's forcing source
-      type(met_cursor_t),     intent(inout), optional :: met_cur        !--- this polygon's forcing cursor
-      type(ed_time_t),      intent(in),      optional :: step_start     !--- the step's start date
-      type(output_buffers_t), intent(inout), optional :: out_bufs       !--- this polygon's FAST-tier staging
-      integer(ik),            intent(in),    optional :: patch_threads  !--- the patch loop's threads (default 1)
+      type(met_source_t),     intent(in),    optional :: met_src        ! the run's forcing source
+      type(met_cursor_t),     intent(inout), optional :: met_cur        ! this polygon's forcing cursor
+      type(ed_time_t),      intent(in),      optional :: step_start     ! the step's start date
+      type(output_buffers_t), intent(inout), optional :: out_bufs       ! this polygon's FAST-tier staging
+      integer(ik),            intent(in),    optional :: patch_threads  ! the patch loop's threads (default 1)
 
       !---~---
       !   The restructuring the last step's boundary owes (docs/science/order_of_processes.md

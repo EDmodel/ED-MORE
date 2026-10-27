@@ -42,21 +42,21 @@ module ed_polygon
    !   A step's or a run's status. A failure is a status, not an `error stop`, so a library
    ! caller (Python) survives it.
    !---~---
-   integer(ik), parameter :: RUN_OK         = 0_ik   !--- a slow step was taken
-   integer(ik), parameter :: RUN_FINISHED   = 1_ik   !--- the calendar had reached end_time; nothing done
-   integer(ik), parameter :: RUN_ERR_NAN    = 2_ik   !--- NaN in the state or the energy/water ledger
-   integer(ik), parameter :: RUN_ERR_AREA   = 3_ik   !--- patch areas do not sum to 1 (finalize only)
-   integer(ik), parameter :: RUN_ERR_BOUNDS = 4_ik   !--- a cohort or soil-carbon state outside its bounds
+   integer(ik), parameter :: RUN_OK         = 0_ik   ! a slow step was taken
+   integer(ik), parameter :: RUN_FINISHED   = 1_ik   ! the calendar had reached end_time; nothing done
+   integer(ik), parameter :: RUN_ERR_NAN    = 2_ik   ! NaN in the state or the energy/water ledger
+   integer(ik), parameter :: RUN_ERR_AREA   = 3_ik   ! patch areas do not sum to 1 (finalize only)
+   integer(ik), parameter :: RUN_ERR_BOUNDS = 4_ik   ! a cohort or soil-carbon state outside its bounds
 
    !---~---
    !   What the run keeps to step and check one polygon; its state is the polygon_t beside
    ! it.
    !---~---
    type :: polygon_run_t
-      character(len=40)   :: label = ''                   !--- how messages name it ('' for a site run)
-      integer(ik)         :: patch_threads = 1_ik         !--- the patch loop's threads ([run].n_threads, or 1)
-      type(met_cursor_t)  :: met_cur                      !--- set only if forcing_on
-      type(run_ledgers_t) :: ledgers                      !--- its conservation ledgers over the run
+      character(len=40)   :: label = ''                   ! how messages name it ('' for a site run)
+      integer(ik)         :: patch_threads = 1_ik         ! the patch loop's threads ([run].n_threads, or 1)
+      type(met_cursor_t)  :: met_cur                      ! set only if forcing_on
+      type(run_ledgers_t) :: ledgers                      ! its conservation ledgers over the run
       !---~---
       !   The most patches, and the most cohorts in one patch, a restructuring left, and when:
       ! above max_patch or max_cohort, the fusion tolerance ceilings kept dissimilar ones
@@ -64,8 +64,8 @@ module ed_polygon
       !---~---
       integer(ik)         :: most_patches = 0_ik, most_cohorts = 0_ik
       character(len=19)   :: most_patches_when = '', most_cohorts_when = ''
-      real(wp)            :: area_start = 0.0_wp          !--- the patch areas' sum at the start
-      integer(ik)         :: status = RUN_OK           !--- the last step's status
+      real(wp)            :: area_start = 0.0_wp          ! the patch areas' sum at the start
+      integer(ik)         :: status = RUN_OK           ! the last step's status
    end type polygon_run_t
 
 contains
@@ -79,10 +79,10 @@ contains
    subroutine polygon_prepare(cfg, met_src, cell, poly, run, patch_threads, verbose)
       type(ed_config_t),   intent(in)    :: cfg
       type(met_source_t),  intent(in)    :: met_src
-      integer(ik),         intent(in)    :: cell            !--- the polygon's cell in the forcing source's list
+      integer(ik),         intent(in)    :: cell            ! the polygon's cell in the forcing source's list
       type(polygon_t),     intent(in)    :: poly
       type(polygon_run_t), intent(inout) :: run
-      integer(ik),         intent(in)    :: patch_threads   !--- [run].n_threads for one polygon, 1 for a region's
+      integer(ik),         intent(in)    :: patch_threads   ! [run].n_threads for one polygon, 1 for a region's
       logical,             intent(in)    :: verbose
       run%area_start    = total_area(poly)
       run%patch_threads = patch_threads
@@ -107,7 +107,7 @@ contains
       type(ed_config_t),      intent(in)    :: cfg
       type(met_source_t),     intent(in)    :: met_src
       type(output_files_t),   intent(in)    :: out_files
-      type(output_buffers_t), intent(inout) :: out_bufs   !--- this polygon's share of out_files
+      type(output_buffers_t), intent(inout) :: out_bufs   ! this polygon's share of out_files
       type(polygon_t),        intent(inout) :: poly
       type(polygon_run_t),    intent(inout) :: run
       type(calendar_step_t),  intent(in)    :: step

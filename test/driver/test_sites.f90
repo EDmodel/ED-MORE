@@ -57,7 +57,7 @@ program test_sites
 
    character(len=*), parameter :: TEMPLATE = 'ed_config_eval.toml'
    integer(ik), parameter :: N_DAY = 31_ik            ! two 15-day months, and the step that turns the year
-   real(wp),    parameter :: RTOL  = 1.0e-12_wp       !--- relative: check_close scales it by the expected value
+   real(wp),    parameter :: RTOL  = 1.0e-12_wp       ! relative: check_close scales it by the expected value
    character(len=512) :: work, edmore
    character(len=:), allocatable :: cfg_path, nl
    type(ed_config_t)   :: cfg, cfg_shallow, sites_cfg

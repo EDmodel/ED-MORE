@@ -97,7 +97,7 @@ contains
    !--- Run a temperate deciduous PFT for two years and sample the second.
    subroutine run_two_years(north, offset, fl_200, sh_200, fl_340, sh_340, gdd_1, gdd_200, cdd_171)
       logical,     intent(in)  :: north
-      integer(ik), intent(in)  :: offset          !--- calendar lag of the climate [day] (183: doy_effective)
+      integer(ik), intent(in)  :: offset          ! calendar lag of the climate [day] (183: doy_effective)
       real(wp),    intent(out) :: fl_200, sh_200, fl_340, sh_340, gdd_1, gdd_200, cdd_171
       type(pheno_env_t)    :: env
       type(pheno_state_t)  :: state

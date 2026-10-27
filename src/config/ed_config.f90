@@ -51,49 +51,49 @@ module ed_config
    public :: alloc_pft_table, apply_map_inputs
 
    !--- [init].init_mode.
-   integer(ik), parameter :: INIT_BARE    = 0_ik    !--- near-bare ground
-   integer(ik), parameter :: INIT_CENSUS  = 1_ik    !--- a cohort census (census_file)
-   integer(ik), parameter :: INIT_RESTART = 2_ik    !--- a state file (restart_file)
+   integer(ik), parameter :: INIT_BARE    = 0_ik    ! near-bare ground
+   integer(ik), parameter :: INIT_CENSUS  = 1_ik    ! a cohort census (census_file)
+   integer(ik), parameter :: INIT_RESTART = 2_ik    ! a state file (restart_file)
 
    !--- [init]: how the run starts.
    type :: init_params_t
-      integer(ik)        :: init_mode                     !--- INIT_BARE | INIT_CENSUS | INIT_RESTART
-      character(len=256) :: restart_file = ''             !--- the state file init_mode = 2 reads
-      character(len=256) :: census_file  = ''             !--- the cohort CSV init_mode = 1 reads
-      character(len=256) :: pft_config                    !--- the PFT file
-      real(wp)           :: soil_temp    = 288.0_wp       !--- [K] every soil layer's start
-      real(wp)           :: soil_theta   = 0.30_wp        !--- [m3/m3] every soil layer's start
-      logical            :: reacclimate_traits = .false.  !--- a restart's plastic traits from this PFT file
+      integer(ik)        :: init_mode                     ! INIT_BARE | INIT_CENSUS | INIT_RESTART
+      character(len=256) :: restart_file = ''             ! the state file init_mode = 2 reads
+      character(len=256) :: census_file  = ''             ! the cohort CSV init_mode = 1 reads
+      character(len=256) :: pft_config                    ! the PFT file
+      real(wp)           :: soil_temp    = 288.0_wp       ! [K] every soil layer's start
+      real(wp)           :: soil_theta   = 0.30_wp        ! [m3/m3] every soil layer's start
+      logical            :: reacclimate_traits = .false.  ! a restart's plastic traits from this PFT file
    end type init_params_t
 
    type :: ed_config_t
       !--- [run].
-      real(wp)          :: dt_slow                        !--- [s] slow step
-      type(ed_time_t)   :: start_time, end_time           !--- the run's span
-      integer(ik)       :: mode           = RUN_MODE_SITE !--- RUN_MODE_SITE | RUN_MODE_REGION
-      integer(ik)       :: n_threads      = 1_ik          !--- host threads
-      logical           :: slow_on        = .true.        !--- .false.: the slow tier is skipped
-      logical           :: slow_ledger_on = .true.        !--- the slow-step conservation ledger
-      real(wp)          :: dt_years                       !--- [yr] DERIVED dt_slow / yr_sec
+      real(wp)          :: dt_slow                        ! [s] slow step
+      type(ed_time_t)   :: start_time, end_time           ! the run's span
+      integer(ik)       :: mode           = RUN_MODE_SITE ! RUN_MODE_SITE | RUN_MODE_REGION
+      integer(ik)       :: n_threads      = 1_ik          ! host threads
+      logical           :: slow_on        = .true.        ! .false.: the slow tier is skipped
+      logical           :: slow_ledger_on = .true.        ! the slow-step conservation ledger
+      real(wp)          :: dt_years                       ! [yr] DERIVED dt_slow / yr_sec
 
       !--- [fast].
-      logical     :: fast_biophysics_on                   !--- the sub-daily loop
-      real(wp)    :: dt_fast                              !--- [s] sub-daily step
-      real(wp)    :: gpp_ref = 0.0_wp                     !--- [kgC/m2 leaf/yr] the stub GPP, loop off
-      integer(ik) :: time_integrator     = INTEG_ESDIRK2  !--- INTEG_ESDIRK2 | INTEG_RK45
-      real(wp)    :: rtol                = 2.0e-3_wp      !--- [-] relative tolerance of every group (esdirk2's
-                                                          !    default; rk45 takes RK45_RTOL)
-      real(wp)    :: atol_scale          = 1.0_wp         !--- [-] multiplier on every group's atol
-      real(wp)    :: water_atol          = 1.0e-4_wp      !--- [-] the water network's absolute tolerance
-      real(wp)    :: soil_energy_budget_atol = 1.0e-2_wp  !--- [K] the soil heat's budget stop; not a step tolerance
-      logical     :: debug_error         = .false.        !--- a budget breach stops the run; else it is reported
-      real(wp)    :: forcing_sample_frac = 0.5_wp         !--- [-] where in the sub-step the forcing is sampled
-      logical     :: canopy_water_on     = .false.        !--- the canopy interception films
-      real(wp)    :: intercept_alpha     = 1.0_wp         !--- [-] Beer interception efficiency
-      real(wp)    :: intercept_k         = 0.5_wp         !--- [1/PAI] Beer interception extinction
-      real(wp)    :: snow_init_swe       = 0.0_wp         !--- [kg/m2] snow seeded at the run start
-      real(wp)    :: snow_init_temp      = 270.0_wp       !--- [K] its temperature
-      integer(ik) :: n_fast_per_slow                      !--- DERIVED nint(dt_slow / dt_fast), at least 1
+      logical     :: fast_biophysics_on                   ! the sub-daily loop
+      real(wp)    :: dt_fast                              ! [s] sub-daily step
+      real(wp)    :: gpp_ref = 0.0_wp                     ! [kgC/m2 leaf/yr] the stub GPP, loop off
+      integer(ik) :: time_integrator     = INTEG_ESDIRK2  ! INTEG_ESDIRK2 | INTEG_RK45
+      real(wp)    :: rtol                = 2.0e-3_wp      ! [-] relative tolerance of every group (esdirk2's
+                                                          ! default; rk45 takes RK45_RTOL)
+      real(wp)    :: atol_scale          = 1.0_wp         ! [-] multiplier on every group's atol
+      real(wp)    :: water_atol          = 1.0e-4_wp      ! [-] the water network's absolute tolerance
+      real(wp)    :: soil_energy_budget_atol = 1.0e-2_wp  ! [K] the soil heat's budget stop; not a step tolerance
+      logical     :: debug_error         = .false.        ! a budget breach stops the run; else it is reported
+      real(wp)    :: forcing_sample_frac = 0.5_wp         ! [-] where in the sub-step the forcing is sampled
+      logical     :: canopy_water_on     = .false.        ! the canopy interception films
+      real(wp)    :: intercept_alpha     = 1.0_wp         ! [-] Beer interception efficiency
+      real(wp)    :: intercept_k         = 0.5_wp         ! [1/PAI] Beer interception extinction
+      real(wp)    :: snow_init_swe       = 0.0_wp         ! [kg/m2] snow seeded at the run start
+      real(wp)    :: snow_init_temp      = 270.0_wp       ! [K] its temperature
+      integer(ik) :: n_fast_per_slow                      ! DERIVED nint(dt_slow / dt_fast), at least 1
 
       !--- [soil]: the ground: its column, surface and bottom boundaries.
       type(soil_params_t) :: soil
@@ -119,7 +119,7 @@ module ed_config
       type(forcing_params_t)     :: forcing
       type(region_params_t)      :: region
       type(maps_params_t)        :: maps
-      type(site_spec_t), allocatable :: sites(:)          !--- not allocated: one site, the polygon
+      type(site_spec_t), allocatable :: sites(:)          ! not allocated: one site, the polygon
 
       !--- The PFT file.
       type(pft_table_t) :: pft

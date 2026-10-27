@@ -55,13 +55,13 @@ program test_met_file
    character(len=1024) :: co2_default_file = ''
 
    character(len=*), parameter :: TOWER_FILE = 'test_met_file_tower_tmp.nc'
-   real(wp),    parameter :: DT           = 1800.0_wp    !--- [s] half-hourly, as a tower reports
-   integer,     parameter :: NT           = 96           !--- two days of records
-   integer,     parameter :: RAIN_REC     = 30           !--- the one record with rain
-   real(wp),    parameter :: RAIN_RATE    = 2.0e-3_wp    !--- [kg/m2/s] its rate
-   integer,     parameter :: SATURATED_REC = 10          !--- the record whose RHair is exactly 1
-   real(wp),    parameter :: TOWER_HEIGHT = 41.0_wp      !--- [m] above the ground (BCI)
-   real(wp),    parameter :: PSURF        = 98800.0_wp   !--- [Pa]
+   real(wp),    parameter :: DT           = 1800.0_wp    ! [s] half-hourly, as a tower reports
+   integer,     parameter :: NT           = 96           ! two days of records
+   integer,     parameter :: RAIN_REC     = 30           ! the one record with rain
+   real(wp),    parameter :: RAIN_RATE    = 2.0e-3_wp    ! [kg/m2/s] its rate
+   integer,     parameter :: SATURATED_REC = 10          ! the record whose RHair is exactly 1
+   real(wp),    parameter :: TOWER_HEIGHT = 41.0_wp      ! [m] above the ground (BCI)
+   real(wp),    parameter :: PSURF        = 98800.0_wp   ! [Pa]
    type(ed_time_t)        :: base
 
 
@@ -507,10 +507,10 @@ contains
    subroutine write_synthetic_forcing(path, base, with_components, with_co2air, sw_flat, conventions)
       character(len=*),  intent(in) :: path
       type(ed_time_t),   intent(in) :: base
-      logical, optional, intent(in) :: with_components   !--- also write u10 = 3, v10 = -4 (speed 5, not Wind's 3)
-      logical, optional, intent(in) :: with_co2air       !--- also write CO2air, which the reader rejects
-      real(wp), optional, intent(in) :: sw_flat          !--- every record's SWdown [W/m2], night and day
-      logical, optional, intent(in) :: conventions       !--- the gaps and packing of test 7c
+      logical, optional, intent(in) :: with_components   ! also write u10 = 3, v10 = -4 (speed 5, not Wind's 3)
+      logical, optional, intent(in) :: with_co2air       ! also write CO2air, which the reader rejects
+      real(wp), optional, intent(in) :: sw_flat          ! every record's SWdown [W/m2], night and day
+      logical, optional, intent(in) :: conventions       ! the gaps and packing of test 7c
       integer, parameter :: NT = 25, NG = 2
       integer(c_int) :: st, ncid, td, gd, vt, vla, vlo, vv(7), vu, vw, vc
       integer(c_int) :: dims2(2), dims1(1)
@@ -818,7 +818,7 @@ contains
    ! cover rejected at open.
    !---~---
    subroutine test_co2_series(default_file)
-      character(len=*), intent(in) :: default_file      !--- the shipped series ('' -> its check is skipped)
+      character(len=*), intent(in) :: default_file      ! the shipped series ('' -> its check is skipped)
       character(len=*), parameter :: CF = 'test_met_co2_tmp.txt'
       type(met_source_t)     :: src
       type(met_cursor_t)     :: cur

@@ -27,9 +27,9 @@ module ed_maps
    public :: read_map_inputs
 
    integer(ik), parameter :: MAP_OK       = 0_ik
-   integer(ik), parameter :: MAP_ERR_OPEN = 1_ik   !--- the file (or the grid's static file) cannot be opened
-   integer(ik), parameter :: MAP_ERR_GRID = 2_ik   !--- the file is not on the forcing grid
-   integer(ik), parameter :: MAP_ERR_VAR  = 3_ik   !--- the variable (or its layer dimension) is not there
+   integer(ik), parameter :: MAP_ERR_OPEN = 1_ik   ! the file (or the grid's static file) cannot be opened
+   integer(ik), parameter :: MAP_ERR_GRID = 2_ik   ! the file is not on the forcing grid
+   integer(ik), parameter :: MAP_ERR_VAR  = 3_ik   ! the variable (or its layer dimension) is not there
 
    !--- The soil maps' layers (ED-SoilMaps v2: SoilGrids 2.0's six depths, to 2 m).
    character(len=*), parameter :: SOIL_LAYER_DIM = 'depth', SOIL_LAYER_BOUNDS = 'depth_bnds'

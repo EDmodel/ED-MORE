@@ -61,7 +61,7 @@ program test_output_roundtrip
    type(ed_config_t)      :: cfg
    type(polygon_t)        :: poly
    type(output_files_t)   :: files
-   type(output_buffers_t) :: bufs(1)     !--- one site's buffers: an array of one, as the driver holds them
+   type(output_buffers_t) :: bufs(1)     ! one site's buffers: an array of one, as the driver holds them
    type(ed_time_t)        :: prev, now
    integer(ik)            :: iday
    real(wp)               :: dt

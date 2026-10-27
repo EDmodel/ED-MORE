@@ -25,9 +25,9 @@ module ed_plant_energy
    !   The leaves' sidedness (docs/science/vegetation_energy_dynamics.md eq. (1)): a flat leaf
    ! exchanges heat from both sides, while its stomata and its film each use one.
    !---~---
-   real(wp), parameter :: EFFAREA_HEAT   = 2.0_wp   !--- [-] sensible heat
-   real(wp), parameter :: EFFAREA_EVAP   = 1.0_wp   !--- [-] film evaporation
-   real(wp), parameter :: EFFAREA_TRANSP = 1.0_wp   !--- [-] transpiration
+   real(wp), parameter :: EFFAREA_HEAT   = 2.0_wp   ! [-] sensible heat
+   real(wp), parameter :: EFFAREA_EVAP   = 1.0_wp   ! [-] film evaporation
+   real(wp), parameter :: EFFAREA_TRANSP = 1.0_wp   ! [-] transpiration
 
    !---~---
    !   Each cohort's leaf and wood energy-balance inputs, held fixed over the step, all per m2
@@ -37,25 +37,25 @@ module ed_plant_energy
    ! formulation: the tissue relaxes exactly").
    !---~---
    type :: plant_energy_env_t
-      real(wp), allocatable :: h_coeff_leaf(:)   !--- [W/m2/K]  leaf sensible-heat coefficient (sensible_heat_coeff)
-      real(wp), allocatable :: g_transp_leaf(:)      !--- [m/s]     leaf transpiration conductance (leaf_transp_coeff)
-      real(wp), allocatable :: abs_sw(:)      !--- [W/m2]    the leaves' absorbed shortwave
-      real(wp), allocatable :: abs_lw(:)      !--- [W/m2]    the leaves' net longwave at the emission base
-      real(wp), allocatable :: lai(:)         !--- [m2/m2]   cohort leaf area index
-      real(wp), allocatable :: h_coeff_w(:)   !--- [W/m2/K]  wood sensible-heat coefficient (pi*wai*wood_gbh*rho*cp)
-      real(wp), allocatable :: abs_sw_wood(:), abs_lw_wood(:) !--- [W/m2] the wood's absorbed SW and net LW
-      real(wp), allocatable :: wai(:)         !--- [m2/m2]   cohort wood area index
-      real(wp), allocatable :: leaf_hcap_per_dt(:), wood_hcap_per_dt(:)   !--- [W/m2/K] cap/dt (tissue_hcap_per_dt)
-      real(wp), allocatable :: t_leaf0(:), t_wood0(:) !--- [K]      start-of-step tissue temperatures
+      real(wp), allocatable :: h_coeff_leaf(:)   ! [W/m2/K]  leaf sensible-heat coefficient (sensible_heat_coeff)
+      real(wp), allocatable :: g_transp_leaf(:)      ! [m/s]     leaf transpiration conductance (leaf_transp_coeff)
+      real(wp), allocatable :: abs_sw(:)      ! [W/m2]    the leaves' absorbed shortwave
+      real(wp), allocatable :: abs_lw(:)      ! [W/m2]    the leaves' net longwave at the emission base
+      real(wp), allocatable :: lai(:)         ! [m2/m2]   cohort leaf area index
+      real(wp), allocatable :: h_coeff_w(:)   ! [W/m2/K]  wood sensible-heat coefficient (pi*wai*wood_gbh*rho*cp)
+      real(wp), allocatable :: abs_sw_wood(:), abs_lw_wood(:) ! [W/m2] the wood's absorbed SW and net LW
+      real(wp), allocatable :: wai(:)         ! [m2/m2]   cohort wood area index
+      real(wp), allocatable :: leaf_hcap_per_dt(:), wood_hcap_per_dt(:)   ! [W/m2/K] cap/dt (tissue_hcap_per_dt)
+      real(wp), allocatable :: t_leaf0(:), t_wood0(:) ! [K]      start-of-step tissue temperatures
       !---~---
       !   Heat the moving plant water brings each tissue, and the enthalpy each tissue's own
       ! water gains as its mass changes, both at start-of-step temperatures
       ! (docs/science/soil_plant_water.md eqs. (4)-(5)).
       !---~---
-      real(wp), allocatable :: qwflux_wl(:)   !--- [W/m2 ground] into the leaf, from sapflow (wood->leaf), q_wl
-      real(wp), allocatable :: q_wood_net(:)  !--- [W/m2 ground] into the wood, from root uptake less sapflow, q_w
-      real(wp), allocatable :: leaf_water_enth(:)  !--- [W/m2 ground] the leaf's water, eq. (5)
-      real(wp), allocatable :: wood_water_enth(:)  !--- [W/m2 ground] the wood's water, eq. (5)
+      real(wp), allocatable :: qwflux_wl(:)   ! [W/m2 ground] into the leaf, from sapflow (wood->leaf), q_wl
+      real(wp), allocatable :: q_wood_net(:)  ! [W/m2 ground] into the wood, from root uptake less sapflow, q_w
+      real(wp), allocatable :: leaf_water_enth(:)  ! [W/m2 ground] the leaf's water, eq. (5)
+      real(wp), allocatable :: wood_water_enth(:)  ! [W/m2 ground] the wood's water, eq. (5)
       !---~---
       !   Each cohort's transpiration as the water network allows it
       ! (docs/science/soil_plant_water.md §4). With transp_held the leaf's dry share carries
@@ -63,23 +63,23 @@ module ed_plant_energy
       ! without it, transpiration follows the stomatal conductance and the canopy air's
       ! humidity.
       !---~---
-      logical :: transp_held = .false.                !--- hold transpiration at transp_net
-      real(wp), allocatable :: transp_net(:)          !--- [kg/m2 ground/s]
+      logical :: transp_held = .false.                ! hold transpiration at transp_net
+      real(wp), allocatable :: transp_net(:)          ! [kg/m2 ground/s]
       !---~---
       !   Per-cohort longwave emissivities, the ones the radiation solver used, so each
       ! tissue's emission slope 4*eps*sigma*T^3 matches the longwave it was given.
       !---~---
-      real(wp), allocatable :: leaf_emiss(:)  !--- [-]       leaf LW emissivity
-      real(wp), allocatable :: wood_emiss(:)  !--- [-]       wood LW emissivity
+      real(wp), allocatable :: leaf_emiss(:)  ! [-]       leaf LW emissivity
+      real(wp), allocatable :: wood_emiss(:)  ! [-]       wood LW emissivity
       !---~---
       !   The heat-capacity inputs behind leaf_hcap_per_dt and wood_hcap_per_dt = (dry hcap +
       ! water mass*cp_liq)/dt (docs/science/vegetation_energy_dynamics.md eq. (8)). The water
       ! is the tissue's own: the film it holds joins at the commit.
       !---~---
-      real(wp), allocatable :: wood_dry_hcap(:)   !--- [J/m2/K]  dry wood heat capacity
-      real(wp), allocatable :: wood_wmass(:)      !--- [kg/m2]   the wood store's water (sapwood, fine roots)
-      real(wp), allocatable :: leaf_dry_hcap(:)   !--- [J/m2/K]  dry leaf heat capacity
-      real(wp), allocatable :: leaf_wmass(:)      !--- [kg/m2]   internal (symplast) leaf water
+      real(wp), allocatable :: wood_dry_hcap(:)   ! [J/m2/K]  dry wood heat capacity
+      real(wp), allocatable :: wood_wmass(:)      ! [kg/m2]   the wood store's water (sapwood, fine roots)
+      real(wp), allocatable :: leaf_dry_hcap(:)   ! [J/m2/K]  dry leaf heat capacity
+      real(wp), allocatable :: leaf_wmass(:)      ! [kg/m2]   internal (symplast) leaf water
    end type plant_energy_env_t
 
    !---~---
@@ -89,9 +89,9 @@ module ed_plant_energy
    ! back into mass. The default is no pathway.
    !---~---
    type :: latent_pathway_t
-      real(wp) :: slope = 0.0_wp            !--- [W/m2/K] the flux's change per kelvin of tissue warming
-      real(wp) :: ref   = 0.0_wp            !--- [W/m2]   at the canopy-air temperature
-      real(wp) :: h_vap = latent_heat_vap   !--- [J/kg]   energy per kg evaporated
+      real(wp) :: slope = 0.0_wp            ! [W/m2/K] the flux's change per kelvin of tissue warming
+      real(wp) :: ref   = 0.0_wp            ! [W/m2]   at the canopy-air temperature
+      real(wp) :: h_vap = latent_heat_vap   ! [J/kg]   energy per kg evaporated
    end type latent_pathway_t
 
 contains
@@ -108,28 +108,28 @@ contains
    elemental pure subroutine tissue_energy_balance(abs_sw, abs_lw, q_extra, h_coeff, lw_slope, dry, wet, f_wet, &
                                                    t_cas, t_parent, store_hcap_per_dt, t_store0,             &
                                                    dt_temp, t_store, transp, film_evap, dh, drnet)
-      real(wp), intent(in)  :: abs_sw     !--- [W/m2]   absorbed shortwave
-      real(wp), intent(in)  :: abs_lw     !--- [W/m2]   net longwave with the tissue at t_cas, the linearization base
+      real(wp), intent(in)  :: abs_sw     ! [W/m2]   absorbed shortwave
+      real(wp), intent(in)  :: abs_lw     ! [W/m2]   net longwave with the tissue at t_cas, the linearization base
       !---~---
       !   The sapflow's advected enthalpy, Q_adv of eq. (1): it shifts the balance like abs_sw
       ! but stays out of drnet, being an internal soil-to-plant transfer (eq. (6)).
       !---~---
-      real(wp), intent(in)  :: q_extra    !--- [W/m2]
-      real(wp), intent(in)  :: h_coeff    !--- [W/m2/K] sensible-heat coefficient (sensible_heat_coeff)
-      real(wp), intent(in)  :: lw_slope   !--- [W/m2/K] longwave emission slope (lw_emission_slope)
-      type(latent_pathway_t), intent(in) :: dry   !--- the stomatal pathway (transpiration)
-      type(latent_pathway_t), intent(in) :: wet   !--- the film's pathway, through the boundary layer only
-      real(wp), intent(in)  :: f_wet      !--- [-]      wetted fraction
-      real(wp), intent(in)  :: t_cas      !--- [K]      canopy-air temperature, the linearization base
-      real(wp), intent(in)  :: t_parent   !--- [K]      the temperature a tissue with no area takes
-      real(wp), intent(in)  :: store_hcap_per_dt   !--- [W/m2/K] heat capacity over the step, cap/dt
-      real(wp), intent(in)  :: t_store0   !--- [K]      start-of-step temperature
-      real(wp), intent(out) :: dt_temp    !--- [K]      end-of-step offset from the canopy-air temperature
-      real(wp), intent(out) :: t_store    !--- [K]      end-of-step tissue temperature, t_cas + dt_temp
-      real(wp), intent(out) :: transp     !--- [kg/m2/s] transpiration over the step (0 for wood)
-      real(wp), intent(out) :: film_evap  !--- [kg/m2/s] film evaporation over the step (dew if negative)
-      real(wp), intent(out) :: dh         !--- [W/m2]   sensible heat into the canopy air over the step
-      real(wp), intent(out) :: drnet      !--- [W/m2]   net radiation the tissue absorbs over the step
+      real(wp), intent(in)  :: q_extra    ! [W/m2]
+      real(wp), intent(in)  :: h_coeff    ! [W/m2/K] sensible-heat coefficient (sensible_heat_coeff)
+      real(wp), intent(in)  :: lw_slope   ! [W/m2/K] longwave emission slope (lw_emission_slope)
+      type(latent_pathway_t), intent(in) :: dry   ! the stomatal pathway (transpiration)
+      type(latent_pathway_t), intent(in) :: wet   ! the film's pathway, through the boundary layer only
+      real(wp), intent(in)  :: f_wet      ! [-]      wetted fraction
+      real(wp), intent(in)  :: t_cas      ! [K]      canopy-air temperature, the linearization base
+      real(wp), intent(in)  :: t_parent   ! [K]      the temperature a tissue with no area takes
+      real(wp), intent(in)  :: store_hcap_per_dt   ! [W/m2/K] heat capacity over the step, cap/dt
+      real(wp), intent(in)  :: t_store0   ! [K]      start-of-step temperature
+      real(wp), intent(out) :: dt_temp    ! [K]      end-of-step offset from the canopy-air temperature
+      real(wp), intent(out) :: t_store    ! [K]      end-of-step tissue temperature, t_cas + dt_temp
+      real(wp), intent(out) :: transp     ! [kg/m2/s] transpiration over the step (0 for wood)
+      real(wp), intent(out) :: film_evap  ! [kg/m2/s] film evaporation over the step (dew if negative)
+      real(wp), intent(out) :: dh         ! [W/m2]   sensible heat into the canopy air over the step
+      real(wp), intent(out) :: drnet      ! [W/m2]   net radiation the tissue absorbs over the step
       real(wp) :: les_dry, ler_dry, les_wet, ler_wet, denom
       real(wp) :: numer, imbalance, dt_prev, dt_avg, x, w_avg, w_flux
       les_wet = f_wet * wet%slope
@@ -207,22 +207,22 @@ contains
    pure subroutine canopy_tissue_energy(env, film, t_cas, q_cas, qsat_cas, dqsat_dt, rho, n, leaf_temp,       &
                                         wood_temp, transp, film_evap_leaf, film_evap_wood, h_canopy, qw_canopy, &
                                         transp_canopy, film_evap_canopy, rnet_canopy)
-      type(plant_energy_env_t), intent(in)    :: env    !--- the cohorts' energy-balance inputs
-      type(canopy_water_out_t), intent(in)    :: film   !--- the films' wetted fractions, conductances and capture
-      real(wp),                 intent(in)    :: t_cas      !--- [K]       canopy-air temperature
-      real(wp),                 intent(in)    :: q_cas      !--- [kg/kg]   canopy-air specific humidity
-      real(wp),                 intent(in)    :: qsat_cas   !--- [kg/kg]   saturation specific humidity at t_cas
-      real(wp),                 intent(in)    :: dqsat_dt   !--- [kg/kg/K] its temperature derivative
-      real(wp),                 intent(in)    :: rho        !--- [kg/m3]   canopy-air density
-      integer(ik),              intent(in)    :: n          !--- [-]       number of cohorts
-      real(wp),                 intent(inout) :: leaf_temp(:), wood_temp(:)          !--- [K] each cohort's, at the step's end
-      real(wp),                 intent(inout) :: transp(:)                           !--- [kg/m2 ground/s] each cohort's
-      real(wp),                 intent(inout) :: film_evap_leaf(:), film_evap_wood(:)   !--- [kg/m2 ground/s] each cohort's
-      real(wp),                 intent(out)   :: h_canopy           !--- [W/m2]     sensible heat into the canopy air
-      real(wp),                 intent(out)   :: qw_canopy          !--- [W/m2]     the vapour's enthalpy into it
-      real(wp),                 intent(out)   :: transp_canopy      !--- [kg/m2/s]  transpiration into it
-      real(wp),                 intent(out)   :: film_evap_canopy   !--- [kg/m2/s]  film evaporation into it
-      real(wp),                 intent(out)   :: rnet_canopy        !--- [W/m2]     net radiation the canopy absorbs
+      type(plant_energy_env_t), intent(in)    :: env    ! the cohorts' energy-balance inputs
+      type(canopy_water_out_t), intent(in)    :: film   ! the films' wetted fractions, conductances and capture
+      real(wp),                 intent(in)    :: t_cas      ! [K]       canopy-air temperature
+      real(wp),                 intent(in)    :: q_cas      ! [kg/kg]   canopy-air specific humidity
+      real(wp),                 intent(in)    :: qsat_cas   ! [kg/kg]   saturation specific humidity at t_cas
+      real(wp),                 intent(in)    :: dqsat_dt   ! [kg/kg/K] its temperature derivative
+      real(wp),                 intent(in)    :: rho        ! [kg/m3]   canopy-air density
+      integer(ik),              intent(in)    :: n          ! [-]       number of cohorts
+      real(wp),                 intent(inout) :: leaf_temp(:), wood_temp(:)          ! [K] each cohort's, at the step's end
+      real(wp),                 intent(inout) :: transp(:)                           ! [kg/m2 ground/s] each cohort's
+      real(wp),                 intent(inout) :: film_evap_leaf(:), film_evap_wood(:)   ! [kg/m2 ground/s] each cohort's
+      real(wp),                 intent(out)   :: h_canopy           ! [W/m2]     sensible heat into the canopy air
+      real(wp),                 intent(out)   :: qw_canopy          ! [W/m2]     the vapour's enthalpy into it
+      real(wp),                 intent(out)   :: transp_canopy      ! [kg/m2/s]  transpiration into it
+      real(wp),                 intent(out)   :: film_evap_canopy   ! [kg/m2/s]  film evaporation into it
+      real(wp),                 intent(out)   :: rnet_canopy        ! [W/m2]     net radiation the canopy absorbs
       type(latent_pathway_t) :: leaf_dry, leaf_wet, wood_dry, wood_wet
       real(wp)    :: q_def, h_evap, lw_slope, lw_slope_w, u_leaf0, u_wood0, q_film_leaf, q_film_wood
       real(wp)    :: dtl, transp_i, dh, drnet, dtw, transp_w, dh_w, drnet_w
@@ -315,17 +315,17 @@ contains
    pure subroutine commit_tissue_energy(env, nplant, dt, t_leaf_avg, t_wood_avg, n, leaf_water_mass,          &
                                         wood_water_mass, leaf_film0, wood_film0, leaf_film1, wood_film1,     &
                                         leaf_energy, wood_energy, leaf_temp, wood_temp, store0, store1)
-      type(plant_energy_env_t), intent(in)    :: env                                !--- the cohorts' inputs for the step
-      real(wp),                 intent(in)    :: nplant(:)                          !--- [plant/m2]
-      real(wp),                 intent(in)    :: dt                                 !--- [s]
-      real(wp),                 intent(in)    :: t_leaf_avg(:), t_wood_avg(:)       !--- [K] each tissue's step average
-      integer(ik),              intent(in)    :: n                                  !--- [-] number of cohorts
-      real(wp),                 intent(in)    :: leaf_water_mass(:), wood_water_mass(:)   !--- [kg/plant] end of step
-      real(wp),                 intent(in)    :: leaf_film0(:), wood_film0(:)       !--- [kg/m2 ground] films, start of step
-      real(wp),                 intent(in)    :: leaf_film1(:), wood_film1(:)       !--- [kg/m2 ground] films, end of step
-      real(wp),                 intent(inout) :: leaf_energy(:), wood_energy(:)     !--- [J/m2 ground]
-      real(wp),                 intent(inout) :: leaf_temp(:), wood_temp(:)         !--- [K]
-      real(wp),                 intent(out)   :: store0, store1                     !--- [J/m2 ground] the tissue store
+      type(plant_energy_env_t), intent(in)    :: env                                ! the cohorts' inputs for the step
+      real(wp),                 intent(in)    :: nplant(:)                          ! [plant/m2]
+      real(wp),                 intent(in)    :: dt                                 ! [s]
+      real(wp),                 intent(in)    :: t_leaf_avg(:), t_wood_avg(:)       ! [K] each tissue's step average
+      integer(ik),              intent(in)    :: n                                  ! [-] number of cohorts
+      real(wp),                 intent(in)    :: leaf_water_mass(:), wood_water_mass(:)   ! [kg/plant] end of step
+      real(wp),                 intent(in)    :: leaf_film0(:), wood_film0(:)       ! [kg/m2 ground] films, start of step
+      real(wp),                 intent(in)    :: leaf_film1(:), wood_film1(:)       ! [kg/m2 ground] films, end of step
+      real(wp),                 intent(inout) :: leaf_energy(:), wood_energy(:)     ! [J/m2 ground]
+      real(wp),                 intent(inout) :: leaf_temp(:), wood_temp(:)         ! [K]
+      real(wp),                 intent(out)   :: store0, store1                     ! [J/m2 ground] the tissue store
       real(wp)    :: heat_leaf, heat_wood, enth_leaf, enth_wood, w_leaf, w_wood
       integer(ik) :: i
       store0 = 0.0_wp
@@ -357,9 +357,9 @@ contains
    ! sensible-heat coefficient h = area*gbh*rho*cp.
    !---~---
    pure function sensible_heat_coeff(area_basis, gbh, rho, cp) result(h_coeff)
-      real(wp), intent(in) :: area_basis   !--- effarea_heat*LAI (leaf) or pi*WAI (wood) [m2/m2]
-      real(wp), intent(in) :: gbh, rho, cp !--- [m/s], [kg/m3], [J/kg/K] heat conductance, air density, cp
-      real(wp) :: h_coeff                  !--- [W/m2/K]
+      real(wp), intent(in) :: area_basis   ! effarea_heat*LAI (leaf) or pi*WAI (wood) [m2/m2]
+      real(wp), intent(in) :: gbh, rho, cp ! [m/s], [kg/m3], [J/kg/K] heat conductance, air density, cp
+      real(wp) :: h_coeff                  ! [W/m2/K]
       h_coeff = area_basis * gbh * rho * cp
    end function sensible_heat_coeff
 
@@ -368,8 +368,8 @@ contains
    ! over the stomatal side of the leaf area; 0 when both conductances are.
    !---~---
    pure function leaf_transp_coeff(effarea_transp, lai, gbw, gsw) result(g_tr)
-      real(wp), intent(in) :: effarea_transp, lai, gbw, gsw   !--- [-], [m2/m2], [m/s], [m/s]
-      real(wp) :: g_tr                                         !--- [m/s]
+      real(wp), intent(in) :: effarea_transp, lai, gbw, gsw   ! [-], [m2/m2], [m/s], [m/s]
+      real(wp) :: g_tr                                         ! [m/s]
       g_tr = 0.0_wp
       if (gbw + gsw > tiny_num) g_tr = effarea_transp * lai * gbw * gsw / (gbw + gsw)
    end function leaf_transp_coeff
@@ -379,15 +379,15 @@ contains
    ! only; same sidedness convention as leaf_transp_coeff, so leaf and wood share it.
    !---~---
    pure function leaf_film_coeff(effarea_evap, area_index, gbw) result(g_ev)
-      real(wp), intent(in) :: effarea_evap, area_index, gbw   !--- [-], [m2/m2] (LAI or WAI), [m/s]
-      real(wp) :: g_ev                                         !--- [m/s]
+      real(wp), intent(in) :: effarea_evap, area_index, gbw   ! [-], [m2/m2] (LAI or WAI), [m/s]
+      real(wp) :: g_ev                                         ! [m/s]
       g_ev = effarea_evap * area_index * gbw
    end function leaf_film_coeff
 
    !--- The longwave emission slope 4*eps*sigma*te^3*area_index, linearized about te (eq. (1)).
    pure function lw_emission_slope(emiss, te, area_index) result(lw_slope)
-      real(wp), intent(in) :: emiss, te, area_index   !--- [-], [K], [m2/m2] (LAI or WAI)
-      real(wp) :: lw_slope                             !--- [W/m2/K]
+      real(wp), intent(in) :: emiss, te, area_index   ! [-], [K], [m2/m2] (LAI or WAI)
+      real(wp) :: lw_slope                             ! [W/m2/K]
       lw_slope = 4.0_wp * emiss * stefan_boltzmann * te**3 * area_index
    end function lw_emission_slope
 
@@ -397,12 +397,12 @@ contains
    ! (slope).
    !---~---
    pure function latent_pathway(h_vap, rho, g, dqsat_dt, q_def) result(path)
-      real(wp), intent(in) :: h_vap      !--- [J/kg]    energy per kg evaporated
-      real(wp), intent(in) :: rho        !--- [kg/m3]   canopy-air density
-      real(wp), intent(in) :: g          !--- [m/s]     the pathway's conductance
-      real(wp), intent(in) :: dqsat_dt   !--- [kg/kg/K] the saturation humidity's slope at T_cas
-      real(wp), intent(in) :: q_def      !--- [kg/kg]   qsat(T_cas) - q_cas
-      type(latent_pathway_t) :: path     !--- slope [W/m2/K], ref [W/m2], h_vap [J/kg]
+      real(wp), intent(in) :: h_vap      ! [J/kg]    energy per kg evaporated
+      real(wp), intent(in) :: rho        ! [kg/m3]   canopy-air density
+      real(wp), intent(in) :: g          ! [m/s]     the pathway's conductance
+      real(wp), intent(in) :: dqsat_dt   ! [kg/kg/K] the saturation humidity's slope at T_cas
+      real(wp), intent(in) :: q_def      ! [kg/kg]   qsat(T_cas) - q_cas
+      type(latent_pathway_t) :: path     ! slope [W/m2/K], ref [W/m2], h_vap [J/kg]
       path%slope = h_vap * rho * g * dqsat_dt
       path%ref   = h_vap * rho * g * q_def
       path%h_vap = h_vap
@@ -413,10 +413,10 @@ contains
    ! eq. (8).
    !---~---
    elemental pure function tissue_hcap_per_dt(dry_hcap, water_mass, dt) result(hcap_per_dt)
-      real(wp), intent(in) :: dry_hcap     !--- [J/m2/K]
-      real(wp), intent(in) :: water_mass   !--- [kg/m2]
-      real(wp), intent(in) :: dt           !--- [s]
-      real(wp) :: hcap_per_dt              !--- [W/m2/K]
+      real(wp), intent(in) :: dry_hcap     ! [J/m2/K]
+      real(wp), intent(in) :: water_mass   ! [kg/m2]
+      real(wp), intent(in) :: dt           ! [s]
+      real(wp) :: hcap_per_dt              ! [W/m2/K]
       hcap_per_dt = (dry_hcap + water_mass * cp_liq) / dt
    end function tissue_hcap_per_dt
 

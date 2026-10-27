@@ -64,18 +64,18 @@ program test_fast_integ_step
    ! and what it records.
    !---~---
    type :: day_t
-      real(wp)    :: theta_seed   = THETA0   !--- [m3/m3] the soil's starting water
-      integer(ik) :: hours        = 24_ik    !--- the day's length
-      real(wp)    :: rain_pulse   = 0.0_wp   !--- [kg/m2/s] rain over 03:00-07:00
-      real(wp)    :: rain_all_day = 0.0_wp   !--- [kg/m2/s] rain all day
-      real(wp)    :: snowfall     = 0.0_wp   !--- [kg/m2/s] snowfall all day, under sub-freezing air
-      logical     :: cold_air     = .false.  !--- the snowfall's sub-freezing air, without the snowfall
-      real(wp)    :: snow_seed    = 0.0_wp   !--- [kg/m2] a pack at the start
-      real(wp)    :: shed         = 0.0_wp   !--- [kg/m2/s] the day's turnover shed water
-      real(wp)    :: shv_air      = SHV_AIR  !--- [kg/kg] the air's humidity
-      logical     :: sealed       = .false.  !--- a bedrock bottom: no drainage
-      logical     :: aquifer      = .false.  !--- an aquifer bottom
-      logical     :: dark_step    = .false.  !--- one dark step with the air at the column's temperature
+      real(wp)    :: theta_seed   = THETA0   ! [m3/m3] the soil's starting water
+      integer(ik) :: hours        = 24_ik    ! the day's length
+      real(wp)    :: rain_pulse   = 0.0_wp   ! [kg/m2/s] rain over 03:00-07:00
+      real(wp)    :: rain_all_day = 0.0_wp   ! [kg/m2/s] rain all day
+      real(wp)    :: snowfall     = 0.0_wp   ! [kg/m2/s] snowfall all day, under sub-freezing air
+      logical     :: cold_air     = .false.  ! the snowfall's sub-freezing air, without the snowfall
+      real(wp)    :: snow_seed    = 0.0_wp   ! [kg/m2] a pack at the start
+      real(wp)    :: shed         = 0.0_wp   ! [kg/m2/s] the day's turnover shed water
+      real(wp)    :: shv_air      = SHV_AIR  ! [kg/kg] the air's humidity
+      logical     :: sealed       = .false.  ! a bedrock bottom: no drainage
+      logical     :: aquifer      = .false.  ! an aquifer bottom
+      logical     :: dark_step    = .false.  ! one dark step with the air at the column's temperature
       !--- Recorded.
       real(wp) :: ct_noon = 0.0_wp, ct_night = 0.0_wp, co2_noon = 0.0_wp, co2_night = 0.0_wp
       real(wp) :: tleaf_noon = 0.0_wp, tleaf_night = 0.0_wp, ustar_noon = 0.0_wp, dtheta_noon = 0.0_wp
@@ -251,8 +251,8 @@ contains
    ! holding wmass of water: the slope of its energy in temperature (tissue_temp_to_energy).
    !---~---
    real(wp) function heat_per_kelvin(dry_hcap, wmass) result(c)
-      real(wp), intent(in) :: dry_hcap   !--- [J/m2/K]
-      real(wp), intent(in) :: wmass      !--- [kg/m2]
+      real(wp), intent(in) :: dry_hcap   ! [J/m2/K]
+      real(wp), intent(in) :: wmass      ! [kg/m2]
       c = tissue_temp_to_energy(dry_hcap, wmass, T0 + 1.0_wp) - tissue_temp_to_energy(dry_hcap, wmass, T0)
    end function heat_per_kelvin
 

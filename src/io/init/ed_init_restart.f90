@@ -37,7 +37,7 @@ module ed_init_restart
    character(len=*), parameter :: STATE_TITLE = 'ED-MORE instantaneous state (restart) file'
    !--- The layout written and read, a global attribute of every file; a change to it counts up.
    integer,          parameter :: N_META_INT = 11, N_META_REAL = 2
-   character(len=*), parameter :: FILM_UNITS  = 'kg/plant'   !--- the canopy films' units attribute
+   character(len=*), parameter :: FILM_UNITS  = 'kg/plant'   ! the canopy films' units attribute
 
    !--- An open state file, its polygon axis ahead of every other.
    type :: restart_file_t
@@ -79,8 +79,8 @@ contains
       character(len=*),      intent(in)  :: dir, prefix
       type(ed_time_t),       intent(in)  :: now
       integer(ik),           intent(in)  :: n_pft, n_window, n_cohort, n_patch, n_site
-      integer(ik),           intent(in)  :: polygon_id(:)                  !--- the polygons' ids ...
-      real(wp),              intent(in)  :: polygon_lat(:), polygon_lon(:)  !--- ... and locations [deg]
+      integer(ik),           intent(in)  :: polygon_id(:)                  ! the polygons' ids ...
+      real(wp),              intent(in)  :: polygon_lat(:), polygon_lon(:)  ! ... and locations [deg]
       logical,     optional, intent(in)  :: restructure_pending, restructure_new_year
       type(file_dims_t) :: d
       character(len=5)  :: pending
@@ -153,9 +153,9 @@ contains
       character(len=*),    intent(in)  :: path
       type(ed_time_t),     intent(out) :: restart_time
       logical,             intent(out) :: found
-      integer(ik),         intent(in)  :: polygon    !--- its row (1-based)
-      type(ed_config_t), optional, intent(in) :: site_cfg(:)   !--- each site's configuration
-      character(len=:), allocatable, optional, intent(out) :: why  !--- why found = .false.; '' when found
+      integer(ik),         intent(in)  :: polygon    ! its row (1-based)
+      type(ed_config_t), optional, intent(in) :: site_cfg(:)   ! each site's configuration
+      character(len=:), allocatable, optional, intent(out) :: why  ! why found = .false.; '' when found
       character(len=:), allocatable :: msg
       type(file_row_t) :: r
       integer(c_int)   :: ncid, st

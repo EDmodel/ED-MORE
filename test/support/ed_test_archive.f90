@@ -395,7 +395,7 @@ contains
    subroutine write_month(dir, v, y, m, fill)
       character(len=*), intent(in) :: dir
       integer(ik),      intent(in) :: v, y, m
-      real(c_double), optional, intent(in) :: fill   !--- a numeric _FillValue to declare (a bad file)
+      real(c_double), optional, intent(in) :: fill   ! a numeric _FillValue to declare (a bad file)
       character(len=:), allocatable :: path
       integer(c_int)    :: st, ncid, dt, dla, dlo, vt, vx, dims1(1), dims3(3)
       integer(c_size_t) :: start1(1), count1(1), start3(3), count3(3)

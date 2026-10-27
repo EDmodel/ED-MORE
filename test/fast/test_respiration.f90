@@ -47,11 +47,11 @@ program test_respiration
    implicit none
    !--- Leaf Rd's peaked response, as the reference configuration sets it ([leaf_physiology]).
    real(wp), parameter :: EA_RD = 46390.0_wp, HD_RD = 200000.0_wp, DS_RD = 490.0_wp
-   real(wp), parameter :: AGF  = 0.7_wp    !--- [-] the PFT aboveground fraction, passed per cohort
-   real(wp), parameter :: SRF  = 0.06_wp   !--- [umol/m2 stem/s @25C] the PFT stem baseline
-   real(wp), parameter :: RRF  = 0.30_wp   !--- [umol/kgC root/s @25C] the PFT root baseline
-   real(wp), parameter :: RSAP = 40.0_wp   !--- [umol/m3 sapwood/s @25C] the PFT sapwood rate
-   real(wp), parameter :: VSAP = 0.05_wp   !--- [m3/plant] a cohort's sapwood volume
+   real(wp), parameter :: AGF  = 0.7_wp    ! [-] the PFT aboveground fraction, passed per cohort
+   real(wp), parameter :: SRF  = 0.06_wp   ! [umol/m2 stem/s @25C] the PFT stem baseline
+   real(wp), parameter :: RRF  = 0.30_wp   ! [umol/kgC root/s @25C] the PFT root baseline
+   real(wp), parameter :: RSAP = 40.0_wp   ! [umol/m3 sapwood/s @25C] the PFT sapwood rate
+   real(wp), parameter :: VSAP = 0.05_wp   ! [m3/plant] a cohort's sapwood volume
    logical,  parameter :: WOODY = .true.
 
    call test_reference_temperature()

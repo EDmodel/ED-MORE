@@ -79,7 +79,7 @@ contains
       type(fast_forcing_t),       intent(in)    :: forcing
       type(fast_dynamic_state_t), intent(in)    :: dynamic
       type(fast_output_t),        intent(inout) :: out
-      type(water_work_t),         intent(inout) :: water    !--- the soil-plant water network
+      type(water_work_t),         intent(inout) :: water    ! the soil-plant water network
       type(frozen_t),             intent(inout) :: frozen
       type(march_state_t),       intent(out)   :: y
       !---~---
@@ -87,10 +87,10 @@ contains
       ! density, and the ground's temperature, which the later steps read.
       !---~---
       real(wp)    :: tcas, qcas, press, rho, t_ground
-      real(wp)    :: can_dmol      !--- [mol/m3] the canopy air's dry-air molar density
+      real(wp)    :: can_dmol      ! [mol/m3] the canopy air's dry-air molar density
       !--- The processes' patch totals [umol/m2 ground/s] and the root zone's drivers.
       real(wp)    :: gpp, ra_leaf, ra_stem, ra_root, rh, soil_temp_root, theta_mean
-      real(wp)    :: throughfall   !--- [kg/m2/s] the rain and snow through the canopy
+      real(wp)    :: throughfall   ! [kg/m2/s] the rain and snow through the canopy
       integer(ik) :: n, nsl
 
       n   = static%n
@@ -178,8 +178,8 @@ contains
    subroutine prepare_frozen(n, nsl, frozen)
       integer(ik),    intent(in)    :: n, nsl
       type(frozen_t), intent(inout) :: frozen
-      type(frozen_t) :: defaults   !--- default-initialised and never written: the defaults
-      type(frozen_t) :: arrays     !--- holds the arrays while the scalars are reset
+      type(frozen_t) :: defaults   ! default-initialised and never written: the defaults
+      type(frozen_t) :: arrays     ! holds the arrays while the scalars are reset
       call move_frozen_arrays(frozen, arrays)
       frozen = defaults
       call move_frozen_arrays(arrays, frozen)
@@ -293,12 +293,12 @@ contains
                                           leaf_temp, wood_temp, aero, tcas, qcas, press, rho, t_ground)
       type(aero_params_t),       intent(in)    :: aero_cfg
       type(aero_env_t),          intent(inout) :: aenv
-      type(fast_static_state_t), intent(in)    :: static     !--- the cohorts, the canopy geometry and its top
+      type(fast_static_state_t), intent(in)    :: static     ! the cohorts, the canopy geometry and its top
       type(fast_forcing_t),      intent(in)    :: forcing
       type(cas_state_t),         intent(in)    :: cas
-      real(wp),                  intent(in)    :: soil_temp_top    !--- [K] top soil-node temperature (ground skin)
-      real(wp),                  intent(in)    :: leaf_temp(:)     !--- [K] per-cohort leaf temperature
-      real(wp),                  intent(in)    :: wood_temp(:)     !--- [K] per-cohort wood temperature
+      real(wp),                  intent(in)    :: soil_temp_top    ! [K] top soil-node temperature (ground skin)
+      real(wp),                  intent(in)    :: leaf_temp(:)     ! [K] per-cohort leaf temperature
+      real(wp),                  intent(in)    :: wood_temp(:)     ! [K] per-cohort wood temperature
       type(aero_out_t),          intent(inout) :: aero
       real(wp),                  intent(out)   :: tcas, qcas, press, rho, t_ground
       call set_aero_env_atm(aenv, forcing%wind, static%z_top, forcing%air_temp, forcing%shv_atm)
@@ -318,11 +318,11 @@ contains
    !---~---
    pure subroutine root_zone_environment(soil, root_frac, soil_temp, theta, soil_temp_root, theta_mean)
       type(soil_profile_t), intent(in)  :: soil
-      real(wp),             intent(in)  :: root_frac(:)      !--- [-]     the patch's fine roots by layer
-      real(wp),             intent(in)  :: soil_temp(:)      !--- [K]     per-layer soil temperature
-      real(wp),             intent(in)  :: theta(:)          !--- [m3/m3] per-layer soil moisture
-      real(wp),             intent(out) :: soil_temp_root    !--- [K]     root-fraction-weighted mean
-      real(wp),             intent(out) :: theta_mean        !--- [m3/m3] depth-weighted column mean
+      real(wp),             intent(in)  :: root_frac(:)      ! [-]     the patch's fine roots by layer
+      real(wp),             intent(in)  :: soil_temp(:)      ! [K]     per-layer soil temperature
+      real(wp),             intent(in)  :: theta(:)          ! [m3/m3] per-layer soil moisture
+      real(wp),             intent(out) :: soil_temp_root    ! [K]     root-fraction-weighted mean
+      real(wp),             intent(out) :: theta_mean        ! [m3/m3] depth-weighted column mean
       integer(ik) :: k, nsl
       nsl = soil%n_active
       soil_temp_root = weighted_mean(soil_temp(1:nsl), root_frac, nsl)
@@ -344,23 +344,23 @@ contains
    subroutine canopy_leaf_gas_exchange(leaf_photo, hyd_table, soil, static, forcing, aero, dynamic,      &
                                        qcas, press, rho, gpp, ra_leaf, h_coeff_leaf, g_transp_leaf,        &
                                        gpp_coh, leaf_resp_coh, capture, cdiag)
-      type(leaf_photo_table_t),   intent(in)    :: leaf_photo   !--- the site's per-PFT leaf parameters
-      type(hydraulics_table_t),   intent(in)    :: hyd_table    !--- per-PFT leaf PV curve
-      type(soil_profile_t),       intent(in)    :: soil         !--- surface-layer retention (dmax_psi seed)
+      type(leaf_photo_table_t),   intent(in)    :: leaf_photo   ! the site's per-PFT leaf parameters
+      type(hydraulics_table_t),   intent(in)    :: hyd_table    ! per-PFT leaf PV curve
+      type(soil_profile_t),       intent(in)    :: soil         ! surface-layer retention (dmax_psi seed)
       type(fast_static_state_t),  intent(in)    :: static
-      type(fast_forcing_t),       intent(in)    :: forcing      !--- absorbed PAR per cohort
-      type(aero_out_t),           intent(in)    :: aero         !--- leaf boundary-layer conductances, wind
-      type(fast_dynamic_state_t), intent(in)    :: dynamic      !--- leaf/wood temperature + water, CAS CO2, theta(1)
+      type(fast_forcing_t),       intent(in)    :: forcing      ! absorbed PAR per cohort
+      type(aero_out_t),           intent(in)    :: aero         ! leaf boundary-layer conductances, wind
+      type(fast_dynamic_state_t), intent(in)    :: dynamic      ! leaf/wood temperature + water, CAS CO2, theta(1)
       real(wp),                   intent(in)    :: qcas, press, rho
-      real(wp),                   intent(out)   :: gpp, ra_leaf          !--- [umol/m2 ground/s] patch totals
+      real(wp),                   intent(out)   :: gpp, ra_leaf          ! [umol/m2 ground/s] patch totals
       real(wp),                   intent(out)   :: h_coeff_leaf(:), g_transp_leaf(:)
-      real(wp),                   intent(inout) :: gpp_coh(:), leaf_resp_coh(:)   !--- [umol/plant/s]
+      real(wp),                   intent(inout) :: gpp_coh(:), leaf_resp_coh(:)   ! [umol/plant/s]
       !---~---
       !   Per-cohort diagnostic capture; off, the extra fields are never requested from the batch
       ! kernel.
       !---~---
       logical,                    intent(in)    :: capture
-      real(wp),                   intent(inout) :: cdiag(:,:)   !--- (N_CO_FAST_ROWS, ncoh) instantaneous values
+      real(wp),                   intent(inout) :: cdiag(:,:)   ! (N_CO_FAST_ROWS, ncoh) instantaneous values
 
       !--- Bare-array batch I/O for the per-cohort physiology kernel.
       real(wp) :: par_arr(static%n), vpd_arr(static%n), gb_arr(static%n), rho_mol_arr(static%n), &
@@ -458,14 +458,14 @@ contains
    !---~---
    subroutine canopy_maintenance_respiration(ea_rd, hd_rd, ds_rd, soil, root_frac, static, wood_temp, soil_temp, &
                                              ra_stem, ra_root, stem_resp_coh, root_resp_coh)
-      real(wp),                  intent(in)    :: ea_rd, hd_rd, ds_rd !--- leaf Rd's parameters, in the peaked form
-      real(wp),                  intent(in)    :: root_frac(:)        !--- [-] the patch's fine roots by layer
-      type(soil_profile_t),      intent(in)    :: soil                !--- active layer count
+      real(wp),                  intent(in)    :: ea_rd, hd_rd, ds_rd ! leaf Rd's parameters, in the peaked form
+      real(wp),                  intent(in)    :: root_frac(:)        ! [-] the patch's fine roots by layer
+      type(soil_profile_t),      intent(in)    :: soil                ! active layer count
       type(fast_static_state_t), intent(in)    :: static
-      real(wp),                  intent(in)    :: wood_temp(:)        !--- [K] per-cohort wood temperature
-      real(wp),                  intent(in)    :: soil_temp(:)        !--- [K] PER-LAYER soil temperature
-      real(wp),                  intent(out)   :: ra_stem, ra_root    !--- [umol/m2 ground/s]
-      real(wp),                  intent(inout) :: stem_resp_coh(:), root_resp_coh(:)   !--- [umol/plant/s]
+      real(wp),                  intent(in)    :: wood_temp(:)        ! [K] per-cohort wood temperature
+      real(wp),                  intent(in)    :: soil_temp(:)        ! [K] PER-LAYER soil temperature
+      real(wp),                  intent(out)   :: ra_stem, ra_root    ! [umol/m2 ground/s]
+      real(wp),                  intent(inout) :: stem_resp_coh(:), root_resp_coh(:)   ! [umol/plant/s]
       real(wp) :: stem_resp_arr(static%n), root_resp_arr(static%n), tscale_root
       integer(ik) :: i, n
       n = static%n
@@ -501,13 +501,13 @@ contains
    subroutine patch_heterotrophic_respiration(cfg, soil, soil_carbon, t_ground, soil_temp_root,          &
                                               theta_mean, rh, exports)
       type(ed_config_t),    intent(in)    :: cfg
-      type(soil_profile_t), intent(in)    :: soil          !--- the surface layer's retention limits
+      type(soil_profile_t), intent(in)    :: soil          ! the surface layer's retention limits
       type(soil_carbon_state_t),  intent(in)    :: soil_carbon
       real(wp),             intent(in)    :: t_ground, soil_temp_root, theta_mean
-      real(wp),             intent(out)   :: rh              !--- [umol/m2/s]
+      real(wp),             intent(out)   :: rh              ! [umol/m2/s]
       type(step_exports_t), intent(inout) :: exports
       real(wp) :: xi(N_SOIL_POOL), a_mat(N_SOIL_POOL, N_SOIL_POOL), k_diag(N_SOIL_POOL), er(N_SOIL_POOL)
-      real(wp) :: rh_kgc                                     !--- [kgC/m2/day] the matrix's own currency
+      real(wp) :: rh_kgc                                     ! [kgC/m2/day] the matrix's own currency
       if (cfg%soil_carbon%soil_carbon_on) then
          call decomposition_env_scalar(t_ground, soil_temp_root, theta_mean, soil%theta_res(1),                    &
                                   soil%theta_sat(1), soil_carbon, cfg%soil_carbon, xi)
@@ -542,7 +542,7 @@ contains
       type(fast_dynamic_state_t),   intent(in)    :: dynamic
       logical,                      intent(in)    :: pack_exists
       type(canopy_water_out_t),     intent(inout) :: film
-      real(wp),                     intent(out)   :: throughfall   !--- [kg/m2/s] what reaches the ground
+      real(wp),                     intent(out)   :: throughfall   ! [kg/m2/s] what reaches the ground
       integer(ik) :: n
       n = static%n
       film%intercept_leaf = 0.0_wp
@@ -677,7 +677,7 @@ contains
       type(frozen_t),      intent(inout) :: frozen
       type(surface_state_t) :: y_stage
       type(surface_tend_t)  :: sf0
-      type(cas_boundary_t)  :: cas_start   !--- the boundary with the pre-pass's conductances
+      type(cas_boundary_t)  :: cas_start   ! the boundary with the pre-pass's conductances
       real(wp)    :: t_up_wl
       integer(ik) :: i
       y_stage%cas_enthalpy = dynamic%cas%can_enthalpy
@@ -711,12 +711,12 @@ contains
       type(soil_profile_t),       intent(in)    :: profile
       type(fast_forcing_t),       intent(in)    :: forcing
       type(fast_dynamic_state_t), intent(in)    :: dynamic
-      real(wp),                   intent(in)    :: ggnet         !--- [m/s] ground <-> canopy-air conductance
-      real(wp),                   intent(in)    :: throughfall   !--- [kg/m2/s]
+      real(wp),                   intent(in)    :: ggnet         ! [m/s] ground <-> canopy-air conductance
+      real(wp),                   intent(in)    :: throughfall   ! [kg/m2/s]
       real(wp),                   intent(in)    :: tcas, qcas, rho, t_ground
       integer(ik),                intent(in)    :: nsl
       type(frozen_t),      intent(inout) :: frozen
-      real(wp) :: t_water_base   !--- [K] the meltwater's or the rain's, before the shed water joins it
+      real(wp) :: t_water_base   ! [K] the meltwater's or the rain's, before the shed water joins it
       associate (snow => frozen%snow, drive => frozen%water_drive)
          call pond_inflow(snow%exists, snow%melt_rate, snow%t_melt, throughfall, forcing%rainfall, forcing%snowfall,  &
                           forcing%air_temp, tcas, static%shed_water_rate, static%shed_water_enth, drive%rain,         &

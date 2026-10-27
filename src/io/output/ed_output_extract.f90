@@ -65,13 +65,13 @@ module ed_output_extract
    ! FAST readers cannot resolve each other's ids (docs/science/diagnostics.md §8, Source ids).
    !---~---
    integer(ik), parameter :: SRCK_NONE   = 0_ik
-   integer(ik), parameter :: SRCK_COHORT = 1_ik   !--- 1000-1999 : per-cohort field
-   integer(ik), parameter :: SRCK_PATCH  = 2_ik   !--- 2000-2999 : per-patch field
-   integer(ik), parameter :: SRCK_LAYER  = 3_ik   !--- 3000-3999 : per-soil-layer field (per patch)
-   integer(ik), parameter :: SRCK_POLYGON   = 4_ik   !--- 4000-4999 : the polygon's own scalar (no reduction)
-   integer(ik), parameter :: SRCK_FAST   = 5_ik   !--- 5000-5999 : FAST-tier staged sample
-   integer(ik), parameter :: SRC_NONE    = 0_ik   !--- no source: a variable without a value on those tiers
-   integer(ik), parameter :: SRCK_SITE  = 6_ik   !--- 6000-6999 : one value per site of the polygon
+   integer(ik), parameter :: SRCK_COHORT = 1_ik   ! 1000-1999 : per-cohort field
+   integer(ik), parameter :: SRCK_PATCH  = 2_ik   ! 2000-2999 : per-patch field
+   integer(ik), parameter :: SRCK_LAYER  = 3_ik   ! 3000-3999 : per-soil-layer field (per patch)
+   integer(ik), parameter :: SRCK_POLYGON   = 4_ik   ! 4000-4999 : the polygon's own scalar (no reduction)
+   integer(ik), parameter :: SRCK_FAST   = 5_ik   ! 5000-5999 : FAST-tier staged sample
+   integer(ik), parameter :: SRC_NONE    = 0_ik   ! no source: a variable without a value on those tiers
+   integer(ik), parameter :: SRCK_SITE  = 6_ik   ! 6000-6999 : one value per site of the polygon
 
    !--- Cohort fields (SRCK_COHORT). Raw SoA columns first, then derived ones.
    integer(ik), parameter :: FLD_C_NPLANT          = 1001_ik
@@ -106,12 +106,12 @@ module ed_output_extract
    ! cohort block (FLD_C_DIAG0 + CO_LEAF_TEMP, CO_WOOD_TEMP), sampled every sub-step.
    !---~---
    !--- Derived cohort fields: closed forms of the cohort state.
-   integer(ik), parameter :: FLD_C_ONE             = 1050_ik !--- constant 1 (stem counts on any axis)
-   integer(ik), parameter :: FLD_C_LAI             = 1051_ik !--- nplant*leaf_area [m2/m2]
-   integer(ik), parameter :: FLD_C_NPP_ACCUM       = 1052_ik !--- gpp - (leaf+stem+root) maintenance resp
-   integer(ik), parameter :: FLD_C_BGB             = 1053_ik !--- belowground biomass per plant
-   integer(ik), parameter :: FLD_C_VEG_CARBON      = 1054_ik !--- leaf+fineroot+wood+storage per plant
-   integer(ik), parameter :: FLD_C_WAI             = 1055_ik !--- nplant*wood_area [m2/m2]
+   integer(ik), parameter :: FLD_C_ONE             = 1050_ik ! constant 1 (stem counts on any axis)
+   integer(ik), parameter :: FLD_C_LAI             = 1051_ik ! nplant*leaf_area [m2/m2]
+   integer(ik), parameter :: FLD_C_NPP_ACCUM       = 1052_ik ! gpp - (leaf+stem+root) maintenance resp
+   integer(ik), parameter :: FLD_C_BGB             = 1053_ik ! belowground biomass per plant
+   integer(ik), parameter :: FLD_C_VEG_CARBON      = 1054_ik ! leaf+fineroot+wood+storage per plant
+   integer(ik), parameter :: FLD_C_WAI             = 1055_ik ! nplant*wood_area [m2/m2]
    !---~---
    !   Per-cohort diagnostics (1100+): the id is FLD_C_DIAG0 + the row (CO_*). The fast loop's
    ! rows are read from poly%cohort%diag, the slow step's (above N_CO_FAST_ROWS) from
@@ -140,7 +140,7 @@ module ed_output_extract
    integer(ik), parameter :: FLD_P_COHORT_OFFSET   = 2004_ik
    integer(ik), parameter :: FLD_P_COHORT_COUNT    = 2005_ik
    integer(ik), parameter :: FLD_P_GLOBAL_ID       = 2006_ik
-   integer(ik), parameter :: FLD_P_SITE            = 2007_ik   !--- the patch's site (owner_site)
+   integer(ik), parameter :: FLD_P_SITE            = 2007_ik   ! the patch's site (owner_site)
    !---~---
    !   The canopy-air, soil-top and surface-water states are not read here at the output tick:
    ! one sample per window, at the boundary's local hour, biases them. Their time means
@@ -170,13 +170,13 @@ module ed_output_extract
    integer(ik), parameter :: FLD_L_SOIL_FLIQ    = 3005_ik
 
    !--- The polygon's own scalars (SRCK_POLYGON): already polygon quantities, no reduction.
-   integer(ik), parameter :: SRC_PY_ET               = 4001_ik !--- [kg/m2] slow-step ET accumulator
+   integer(ik), parameter :: SRC_PY_ET               = 4001_ik ! [kg/m2] slow-step ET accumulator
    integer(ik), parameter :: SRC_PY_N_COHORT         = 4002_ik
    integer(ik), parameter :: SRC_PY_N_PATCH          = 4003_ik
-   integer(ik), parameter :: SRC_PY_CANOPY_HEIGHT    = 4004_ik !--- [m] tallest live cohort
-   integer(ik), parameter :: SRC_PY_RUNOFF           = 4005_ik !--- [kg/m2] surface runoff + drainage
-   integer(ik), parameter :: SRC_PY_RUNOFF_SURF      = 4006_ik !--- [kg/m2] the pond's spill
-   integer(ik), parameter :: SRC_PY_DRAINAGE         = 4007_ik !--- [kg/m2] the column's bottom flux
+   integer(ik), parameter :: SRC_PY_CANOPY_HEIGHT    = 4004_ik ! [m] tallest live cohort
+   integer(ik), parameter :: SRC_PY_RUNOFF           = 4005_ik ! [kg/m2] surface runoff + drainage
+   integer(ik), parameter :: SRC_PY_RUNOFF_SURF      = 4006_ik ! [kg/m2] the pond's spill
+   integer(ik), parameter :: SRC_PY_DRAINAGE         = 4007_ik ! [kg/m2] the column's bottom flux
    integer(ik), parameter :: SRC_PY_WORK_STEPS       = 4030_ik
    integer(ik), parameter :: SRC_PY_WORK_REJ         = 4031_ik
    integer(ik), parameter :: SRC_PY_WORK_WATER_NSUB   = 4032_ik
@@ -194,10 +194,10 @@ module ed_output_extract
    !---~---
    integer(ik), parameter :: SRC_F_PY0           = 5100_ik
    integer(ik), parameter :: SRC_F_PA0           = 5200_ik
-   integer(ik), parameter :: SRC_F_SOIL_TEMP     = 5010_ik  !--- DIM_SOIL or DIM_SOIL_PATCH, the fast soil slabs
-   integer(ik), parameter :: SRC_F_SOIL_WATER    = 5011_ik  !--- DIM_SOIL or DIM_SOIL_PATCH, the fast soil slabs
-   integer(ik), parameter :: SRC_F_COH_GPP       = 5021_ik  !--- DIM_COHORT
-   integer(ik), parameter :: SRC_F_COH_HEIGHT    = 5022_ik  !--- DIM_COHORT
+   integer(ik), parameter :: SRC_F_SOIL_TEMP     = 5010_ik  ! DIM_SOIL or DIM_SOIL_PATCH, the fast soil slabs
+   integer(ik), parameter :: SRC_F_SOIL_WATER    = 5011_ik  ! DIM_SOIL or DIM_SOIL_PATCH, the fast soil slabs
+   integer(ik), parameter :: SRC_F_COH_GPP       = 5021_ik  ! DIM_COHORT
+   integer(ik), parameter :: SRC_F_COH_HEIGHT    = 5022_ik  ! DIM_COHORT
    !---~---
    !   The per-cohort diagnostic block's rows at the FAST tier, SRC_F_CO0 + CO_*, DIM_COHORT: the
    ! fast loop stages every row of every sub-step when the block is on (fast_cohort_diag).
@@ -532,8 +532,8 @@ contains
       real(wp),            intent(out) :: slab_out(:)
       logical,             intent(out) :: valid_out(:)
       integer(ik),         intent(out) :: n_out
-      real(wp), optional,  intent(in)  :: cohort_x(:)   !--- a cohort field to reduce in place of the live one
-                                                        !    (a staged sub-step's row, for a snapshot)
+      real(wp), optional,  intent(in)  :: cohort_x(:)   ! a cohort field to reduce in place of the live one
+                                                        ! (a staged sub-step's row, for a snapshot)
       real(wp)    :: x(max(poly%cohort%n, poly%patch%n, 1_ik))
       real(wp)    :: col(n_soil_layer_max, max(poly%patch%n, 1_ik))
       integer(ik) :: nf, kcls
@@ -701,8 +701,8 @@ contains
 
    pure real(wp) function extract_fast_scalar(source_id, site_row, forcing) result(val)
       integer(ik), intent(in) :: source_id
-      real(wp),    intent(in) :: site_row(:)   !--- the sub-step's polygon mean of the patch rows (PA_*)
-      real(wp),    intent(in) :: forcing(:)    !--- the sub-step's forcing (PY_*)
+      real(wp),    intent(in) :: site_row(:)   ! the sub-step's polygon mean of the patch rows (PA_*)
+      real(wp),    intent(in) :: forcing(:)    ! the sub-step's forcing (PY_*)
       if (source_id > SRC_F_PA0 .and. source_id <= SRC_F_PA0 + N_PA_ROWS) then
          val = site_row(source_id - SRC_F_PA0)
       else if (source_id > SRC_F_PY0 .and. source_id <= SRC_F_PY0 + N_PY_ROWS) then

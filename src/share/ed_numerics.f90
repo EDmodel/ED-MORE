@@ -34,11 +34,11 @@ module ed_numerics
    ! illinois_narrow narrows the bracket with that point's residual.
    !---~---
    type :: root_bracket_t
-      real(wp)    :: a  = 0.0_wp      !--- the left end
-      real(wp)    :: fa = 0.0_wp      !--- the residual at a (the Illinois step may have halved it)
-      real(wp)    :: b  = 0.0_wp      !--- the right end
-      real(wp)    :: fb = 0.0_wp      !--- the residual at b (likewise)
-      integer(ik) :: kept = 0_ik      !--- the end kept last time: -1 left, +1 right, 0 none
+      real(wp)    :: a  = 0.0_wp      ! the left end
+      real(wp)    :: fa = 0.0_wp      ! the residual at a (the Illinois step may have halved it)
+      real(wp)    :: b  = 0.0_wp      ! the right end
+      real(wp)    :: fb = 0.0_wp      ! the residual at b (likewise)
+      integer(ik) :: kept = 0_ik      ! the end kept last time: -1 left, +1 right, 0 none
    end type root_bracket_t
 
 contains
@@ -84,10 +84,10 @@ contains
    ! recruits tie bit for bit.
    !---~---
    pure subroutine equal_height_layers(height, n, layer, n_layer)
-      integer(ik), intent(in)  :: n            !--- number of cohorts
-      real(wp),    intent(in)  :: height(n)    !--- [m] ascending or descending
-      integer(ik), intent(out) :: layer(n)     !--- each cohort's layer, 1 at height(1)
-      integer(ik), intent(out) :: n_layer      !--- number of layers, 0 when n = 0
+      integer(ik), intent(in)  :: n            ! number of cohorts
+      real(wp),    intent(in)  :: height(n)    ! [m] ascending or descending
+      integer(ik), intent(out) :: layer(n)     ! each cohort's layer, 1 at height(1)
+      integer(ik), intent(out) :: n_layer      ! number of layers, 0 when n = 0
       integer(ik) :: k
       n_layer = 0_ik
       do k = 1_ik, n
@@ -118,7 +118,7 @@ contains
    !---~---
    elemental pure function adaptive_step_update(err, safety, fmin, fmax, p_order) result(factor)
       real(wp),    intent(in)           :: err, safety, fmin, fmax
-      integer(ik), intent(in), optional :: p_order   !--- order of the embedded error estimate (default 1)
+      integer(ik), intent(in), optional :: p_order   ! order of the embedded error estimate (default 1)
       real(wp)             :: factor, expo
       integer(ik) :: p
       p = 1_ik
@@ -135,7 +135,7 @@ contains
    !---~---
    elemental subroutine smooth_max0(x, width, f, df)
       real(wp), intent(in)  :: x, width
-      real(wp), intent(out) :: f, df    !--- the rounded max and its slope
+      real(wp), intent(out) :: f, df    ! the rounded max and its slope
       real(wp) :: t
       if (x <= 0.0_wp) then
          f = 0.0_wp
@@ -256,9 +256,9 @@ contains
    ! resolves. A NaN fails (docs/science/numerical_scheme.md §9).
    !---~---
    elemental pure logical function conserved(before, after, magnitude, rtol) result(ok)
-      real(wp), intent(in) :: before, after   !--- the amount before and after the operator
-      real(wp), intent(in) :: magnitude       !--- sum of the absolute values of its terms
-      real(wp), intent(in) :: rtol            !--- relative tolerance
+      real(wp), intent(in) :: before, after   ! the amount before and after the operator
+      real(wp), intent(in) :: magnitude       ! sum of the absolute values of its terms
+      real(wp), intent(in) :: rtol            ! relative tolerance
       ok = .not. (ieee_is_nan(before) .or. ieee_is_nan(after) .or. ieee_is_nan(magnitude))
       if (ok) ok = abs(after - before) <= rtol * magnitude + tiny(magnitude) / epsilon(magnitude)
    end function conserved
@@ -270,8 +270,8 @@ contains
    ! fusion.
    !---~---
    elemental pure real(wp) function pair_mean(a, wa, b, wb) result(m)
-      real(wp), intent(in) :: a, wa   !--- the first value and its weight (>= 0)
-      real(wp), intent(in) :: b, wb   !--- the second value and its weight (>= 0)
+      real(wp), intent(in) :: a, wa   ! the first value and its weight (>= 0)
+      real(wp), intent(in) :: b, wb   ! the second value and its weight (>= 0)
       if (wa + wb > 0.0_wp) then
          m = a + (b - a) * (wb / (wa + wb))
       else

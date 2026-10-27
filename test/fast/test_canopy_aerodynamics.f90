@@ -132,7 +132,7 @@ contains
    ! temperature, under a wind u_ref at zref = 30 m.
    !---~---
    function neutral_env(u_ref) result(env)
-      real(wp), intent(in) :: u_ref   !--- [m/s]
+      real(wp), intent(in) :: u_ref   ! [m/s]
       type(aero_env_t)     :: env
       env%u_ref     = u_ref
       env%zref      = 30.0_wp
@@ -148,7 +148,7 @@ contains
    ! under the neutral wind u_ref.
    !---~---
    subroutine one_leaf_cohort(u_ref, out)
-      real(wp),         intent(in)    :: u_ref   !--- [m/s]
+      real(wp),         intent(in)    :: u_ref   ! [m/s]
       type(aero_out_t), intent(inout) :: out
       type(aero_params_t) :: cfg
       type(aero_args_t)   :: geom

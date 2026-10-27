@@ -27,22 +27,22 @@ module ed_maps_params
    end type maps_params_t
 
    !--- The bottom water boundary of the soil depth map's bc_class.
-   integer(ik), parameter :: MAP_BC_FREE_DRAIN = 1_ik   !--- q = K(theta)
-   integer(ik), parameter :: MAP_BC_LEAKY      = 2_ik   !--- q = f_leak K(theta)
-   integer(ik), parameter :: MAP_BC_SEALED     = 3_ik   !--- q = 0
-   integer(ik), parameter :: MAP_BC_AQUIFER    = 4_ik   !--- a water table at the column base
+   integer(ik), parameter :: MAP_BC_FREE_DRAIN = 1_ik   ! q = K(theta)
+   integer(ik), parameter :: MAP_BC_LEAKY      = 2_ik   ! q = f_leak K(theta)
+   integer(ik), parameter :: MAP_BC_SEALED     = 3_ik   ! q = 0
+   integer(ik), parameter :: MAP_BC_AQUIFER    = 4_ik   ! a water table at the column base
 
    !--- What the [maps] maps hold at each cell of a run, read once (read_map_inputs).
    type :: map_inputs_t
-      logical :: soil  = .false.                          !--- the soil maps were read
-      logical :: chave = .false.                          !--- the chave_e map was read
-      real(wp), allocatable :: layer_top(:), layer_bottom(:)   !--- [m] the soil maps' layers, positive down
-      real(wp), allocatable :: soil_depth(:)              !--- [m] (cell) the soil column's depth
-      real(wp), allocatable :: bc_class(:)                !--- [-] (cell) its bottom water boundary, MAP_BC_*
-      real(wp), allocatable :: f_leak(:)                  !--- [-] (cell) a leaky base's drainage factor
-      real(wp), allocatable :: deep_temp(:)               !--- [K] (cell) the deep soil temperature
-      type(soil_texture_t), allocatable :: texture(:,:)   !--- (map layer, cell) each layer's soil
-      real(wp), allocatable :: chave_e(:)                 !--- [-] (cell) Chave et al. (2014)'s E
+      logical :: soil  = .false.                          ! the soil maps were read
+      logical :: chave = .false.                          ! the chave_e map was read
+      real(wp), allocatable :: layer_top(:), layer_bottom(:)   ! [m] the soil maps' layers, positive down
+      real(wp), allocatable :: soil_depth(:)              ! [m] (cell) the soil column's depth
+      real(wp), allocatable :: bc_class(:)                ! [-] (cell) its bottom water boundary, MAP_BC_*
+      real(wp), allocatable :: f_leak(:)                  ! [-] (cell) a leaky base's drainage factor
+      real(wp), allocatable :: deep_temp(:)               ! [K] (cell) the deep soil temperature
+      type(soil_texture_t), allocatable :: texture(:,:)   ! (map layer, cell) each layer's soil
+      real(wp), allocatable :: chave_e(:)                 ! [-] (cell) Chave et al. (2014)'s E
    end type map_inputs_t
 
 contains

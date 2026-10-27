@@ -45,11 +45,11 @@ module ed_config_io
    private
 
    public :: load_ed_config, write_pft_params_csv
-   public :: load_fast_params, load_soil, load_snow_params, load_aero_params   !--- exposed for unit tests
+   public :: load_fast_params, load_soil, load_snow_params, load_aero_params   ! exposed for unit tests
 
-   integer(ik), parameter :: MAXPFT  = 64_ik    !--- largest PFT count the array buffers handle
-   integer,     parameter :: MAXMISS = 256       !--- largest missing-key list
-   integer,     parameter :: NAME_LEN = 16       !--- longest selector name
+   integer(ik), parameter :: MAXPFT  = 64_ik    ! largest PFT count the array buffers handle
+   integer,     parameter :: MAXMISS = 256       ! largest missing-key list
+   integer,     parameter :: NAME_LEN = 16       ! longest selector name
 
    !--- The presence map: the required keys found absent or unreadable.
    type :: keymiss_t

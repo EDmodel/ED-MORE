@@ -50,7 +50,7 @@ program test_therm_lib
                                 specific_humidity_to_vpd, tissue_temp_to_energy, tissue_energy_to_temp,          &
                                 internal_energy_liquid
    implicit none
-   real(wp), parameter :: SCAN_LO = 5.0_wp, SCAN_HI = 55.0_wp   !--- [C] the optimum scan's range
+   real(wp), parameter :: SCAN_LO = 5.0_wp, SCAN_HI = 55.0_wp   ! [C] the optimum scan's range
 
    call test_temperature_response()
    call test_datum()
@@ -112,7 +112,7 @@ contains
    ! check against itself; the scan reaches well past a warm-grown stand's optimum (38 C).
    !---~---
    pure real(wp) function peak_temperature(ds) result(t_opt)
-      real(wp), intent(in) :: ds   !--- [J/mol/K] the entropy term
+      real(wp), intent(in) :: ds   ! [J/mol/K] the entropy term
       real(wp)    :: t, k, k_best
       integer(ik) :: j
       k_best = -1.0_wp

@@ -27,28 +27,28 @@ module ed_plant_phenology
 
    !--- Daily environmental drivers (read-only).
    type :: pheno_env_t
-      real(wp)    :: temp_day         = 0.0_wp    !--- [K]   daily-mean air temperature
-      real(wp)    :: par_hours        = 12.0_wp   !--- [h/day] hours with PAR at the cohort's top above par_min
-      real(wp)    :: predawn_leaf_psi = 0.0_wp    !--- [MPa, <=0] predawn (daily-max) leaf water potential
-      integer(ik) :: doy              = 1_ik      !--- [-]   day of year
-      logical     :: hemis_north      = .true.    !--- northern hemisphere (season windows)
+      real(wp)    :: temp_day         = 0.0_wp    ! [K]   daily-mean air temperature
+      real(wp)    :: par_hours        = 12.0_wp   ! [h/day] hours with PAR at the cohort's top above par_min
+      real(wp)    :: predawn_leaf_psi = 0.0_wp    ! [MPa, <=0] predawn (daily-max) leaf water potential
+      integer(ik) :: doy              = 1_ik      ! [-]   day of year
+      logical     :: hemis_north      = .true.    ! northern hemisphere (season windows)
    end type pheno_env_t
 
    !--- The prognostic memory: two smoothed tendencies + the cue accumulators.
    type :: pheno_state_t
-      real(wp) :: leaf_flush_tendency = 1.0_wp   !--- [-] smoothed flush signal; a cohort is born flushing
-      real(wp) :: leaf_shed_tendency  = 0.0_wp   !--- [-] smoothed senescence signal
-      real(wp) :: growing_degree_days = 0.0_wp   !--- [K day] warmth sum since midwinter     (TEMP flush)
-      real(wp) :: cold_degree_days    = 0.0_wp   !--- [K day] cold sum since midsummer       (TEMP shed)
-      real(wp) :: wet_psi_sum         = 0.0_wp   !--- [MPa day] sum of psi above the TLP     (WATER flush)
-      real(wp) :: dry_psi_sum         = 0.0_wp   !--- [MPa day] sum of psi below the TLP     (WATER shed)
-      real(wp) :: light_hours_mean    = -1.0_wp  !--- [h/day] running-mean par_hours (LIGHT); < 0: unset, the first day sets it
+      real(wp) :: leaf_flush_tendency = 1.0_wp   ! [-] smoothed flush signal; a cohort is born flushing
+      real(wp) :: leaf_shed_tendency  = 0.0_wp   ! [-] smoothed senescence signal
+      real(wp) :: growing_degree_days = 0.0_wp   ! [K day] warmth sum since midwinter     (TEMP flush)
+      real(wp) :: cold_degree_days    = 0.0_wp   ! [K day] cold sum since midsummer       (TEMP shed)
+      real(wp) :: wet_psi_sum         = 0.0_wp   ! [MPa day] sum of psi above the TLP     (WATER flush)
+      real(wp) :: dry_psi_sum         = 0.0_wp   ! [MPa day] sum of psi below the TLP     (WATER shed)
+      real(wp) :: light_hours_mean    = -1.0_wp  ! [h/day] running-mean par_hours (LIGHT); < 0: unset, the first day sets it
    end type pheno_state_t
 
    !--- Outputs: the potential relative rates the tendencies allow.
    type :: pheno_out_t
-      real(wp) :: leaf_flush_potential = 0.0_wp   !--- [1/day] flush_rate_max * leaf_flush_tendency
-      real(wp) :: leaf_shed_potential  = 0.0_wp   !--- [1/day] shed_rate_max  * leaf_shed_tendency
+      real(wp) :: leaf_flush_potential = 0.0_wp   ! [1/day] flush_rate_max * leaf_flush_tendency
+      real(wp) :: leaf_shed_potential  = 0.0_wp   ! [1/day] shed_rate_max  * leaf_shed_tendency
    end type pheno_out_t
 
    !--- Northern-equivalent day of the summer solstice, where the cold sum starts (§2).
@@ -57,9 +57,9 @@ module ed_plant_phenology
    !   At or below this flush rate a canopy is dormant and may snap to bare (§5): a numerical
    ! threshold, not a trait.
    !---~---
-   real(wp),    parameter :: DORMANT_FLUSH_EPS = 1.0e-6_wp    !--- [1/day]
+   real(wp),    parameter :: DORMANT_FLUSH_EPS = 1.0e-6_wp    ! [1/day]
    !--- At or below this shed tendency no leaves drop, so background turnover runs (§5).
-   real(wp),    parameter :: NO_DROP_SHED_TENDENCY = 0.01_wp   !--- [-]
+   real(wp),    parameter :: NO_DROP_SHED_TENDENCY = 0.01_wp   ! [-]
 
 contains
 
@@ -189,13 +189,13 @@ contains
                                       flush_rate_max, shed_rate_max, leaf_turnover_rate,          &
                                       min_leaf_cover, bare_leaf_cover, dt,                        &
                                       senescence, background, flush_cap)
-      real(wp), intent(in)  :: leaf, leaf_full                          !--- [carbon] now and full canopy
-      real(wp), intent(in)  :: leaf_flush_tendency, leaf_shed_tendency  !--- [-]
-      real(wp), intent(in)  :: flush_rate_max, shed_rate_max            !--- [1/day]
-      real(wp), intent(in)  :: leaf_turnover_rate                       !--- [1/yr] background loss
-      real(wp), intent(in)  :: min_leaf_cover, bare_leaf_cover          !--- [-] fractions of leaf_full
-      real(wp), intent(in)  :: dt                                       !--- [day]
-      real(wp), intent(out) :: senescence, background, flush_cap        !--- [carbon] this step
+      real(wp), intent(in)  :: leaf, leaf_full                          ! [carbon] now and full canopy
+      real(wp), intent(in)  :: leaf_flush_tendency, leaf_shed_tendency  ! [-]
+      real(wp), intent(in)  :: flush_rate_max, shed_rate_max            ! [1/day]
+      real(wp), intent(in)  :: leaf_turnover_rate                       ! [1/yr] background loss
+      real(wp), intent(in)  :: min_leaf_cover, bare_leaf_cover          ! [-] fractions of leaf_full
+      real(wp), intent(in)  :: dt                                       ! [day]
+      real(wp), intent(out) :: senescence, background, flush_cap        ! [carbon] this step
       real(wp) :: pool
 
       pool       = max(leaf, 0.0_wp)
@@ -215,7 +215,7 @@ contains
    ! leaves drop, nothing while they do; the fine roots turn over on the same gate (§5).
    !---~---
    pure real(wp) function turnover_gate(leaf_flush_tendency, leaf_shed_tendency) result(gate)
-      real(wp), intent(in) :: leaf_flush_tendency, leaf_shed_tendency   !--- [-]
+      real(wp), intent(in) :: leaf_flush_tendency, leaf_shed_tendency   ! [-]
       gate = 0.0_wp
       if (leaf_shed_tendency <= NO_DROP_SHED_TENDENCY) gate = leaf_flush_tendency
    end function turnover_gate

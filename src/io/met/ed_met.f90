@@ -41,8 +41,8 @@ module ed_met
    public :: met_at_site, met_to_cas_top, cas_top_wind_factor
    public :: cosz_reconstruct_factor, disaggregate_sw
 
-   integer(ik), parameter :: N_COSZ_SUB   = 10_ik      !--- sub-samples per forcing interval for <cosz>_win
-   real(wp),    parameter :: COSZ_BAR_MIN = 1.0e-3_wp  !--- [-] window-mean-cosz floor for a valid reconstruction
+   integer(ik), parameter :: N_COSZ_SUB   = 10_ik      ! sub-samples per forcing interval for <cosz>_win
+   real(wp),    parameter :: COSZ_BAR_MIN = 1.0e-3_wp  ! [-] window-mean-cosz floor for a valid reconstruction
 
 contains
 
@@ -58,7 +58,7 @@ contains
       type(forcing_params_t), intent(in)    :: fcfg
       integer(ik), optional,  intent(out)   :: stat
       type(ed_time_t),   optional, intent(in) :: run_start, run_end
-      type(met_cells_t), optional, intent(in) :: cells   !--- a region's cells (archive only); absent: the site's
+      type(met_cells_t), optional, intent(in) :: cells   ! a region's cells (archive only); absent: the site's
       integer(ik)       :: vstat
       character(len=:), allocatable :: why
 
@@ -443,8 +443,8 @@ contains
       type(met_forcing_t),    intent(in) :: met
       type(forcing_params_t), intent(in) :: f
       integer(ik),            intent(in) :: month
-      real(wp),               intent(in) :: dz            !--- [m] site above polygon
-      real(wp),               intent(in) :: beam_factor   !--- [-] slope_beam_factor
+      real(wp),               intent(in) :: dz            ! [m] site above polygon
+      real(wp),               intent(in) :: beam_factor   ! [-] slope_beam_factor
       type(met_forcing_t) :: site
       real(wp) :: gamma
       site = met
@@ -472,9 +472,9 @@ contains
    !---~---
    pure real(wp) function cas_top_wind_factor(f, z_top, displace, rough) result(factor)
       type(forcing_params_t), intent(in) :: f
-      real(wp),               intent(in) :: z_top      !--- [m] canopy-air top, above the ground
-      real(wp),               intent(in) :: displace   !--- [m] zero-plane displacement
-      real(wp),               intent(in) :: rough      !--- [m] roughness length (> 0)
+      real(wp),               intent(in) :: z_top      ! [m] canopy-air top, above the ground
+      real(wp),               intent(in) :: displace   ! [m] zero-plane displacement
+      real(wp),               intent(in) :: rough      ! [m] roughness length (> 0)
       real(wp) :: z_b, h_b, h_top
       factor = 1.0_wp
       z_b = f%wind_height
@@ -500,9 +500,9 @@ contains
    pure function met_to_cas_top(met, f, z_top, displace, rough) result(top)
       type(met_forcing_t),    intent(in) :: met
       type(forcing_params_t), intent(in) :: f
-      real(wp),               intent(in) :: z_top      !--- [m] canopy-air top, above the ground
-      real(wp),               intent(in) :: displace   !--- [m] zero-plane displacement
-      real(wp),               intent(in) :: rough      !--- [m] roughness length (> 0)
+      real(wp),               intent(in) :: z_top      ! [m] canopy-air top, above the ground
+      real(wp),               intent(in) :: displace   ! [m] zero-plane displacement
+      real(wp),               intent(in) :: rough      ! [m] roughness length (> 0)
       type(met_forcing_t) :: top
       real(wp) :: factor, z_t
       top    = met

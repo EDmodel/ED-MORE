@@ -129,7 +129,7 @@ contains
    ! MPa: positive below the root Q, negative above it.
    !---~---
    pure real(wp) function steady_residual(q) result(f)
-      real(wp), intent(in) :: q   !--- [MPa] the flux per k_cond
+      real(wp), intent(in) :: q   ! [MPa] the flux per k_cond
       real(wp), parameter :: P50 = -1.5_wp, PW = -1.0_wp, PL = -3.0_wp, G = 0.5_wp
       real(wp) :: c, lam
       c   = q + G
@@ -371,7 +371,7 @@ contains
    !---~---
    subroutine test_cohort_roots()
       type(hydraulics_pft_t) :: hp
-      real(wp), parameter :: ED2_DEPTH_35M = 5.0_wp   !--- [m] ED2's rooting depth of a 35 m tree
+      real(wp), parameter :: ED2_DEPTH_35M = 5.0_wp   ! [m] ED2's rooting depth of a 35 m tree
       real(wp)    :: edges(13), frac(12), frac2(4)
       integer(ik) :: k
       print '(a)', '-- Cohort roots --'

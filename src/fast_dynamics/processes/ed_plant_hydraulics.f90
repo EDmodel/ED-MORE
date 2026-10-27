@@ -55,7 +55,7 @@ contains
    ! head of the cohort's height (docs/science/plant_hydraulics.md eq. (2)).
    !---~---
    pure real(wp) function crown_gravity_head(height) result(grav)
-      real(wp), intent(in) :: height   !--- [m] cohort height
+      real(wp), intent(in) :: height   ! [m] cohort height
       grav = grav_head*height
    end function crown_gravity_head
 
@@ -66,12 +66,12 @@ contains
    ! (docs/science/plant_hydraulics.md §2).
    !---~---
    pure real(wp) function leaf_node_psi(leaf_water, bleaf, wood_water, bwood, height, p) result(psi_l)
-      real(wp),               intent(in) :: leaf_water  !--- [kg H2O/plant] leaf water
-      real(wp),               intent(in) :: bleaf       !--- [kgC/plant] leaf carbon
-      real(wp),               intent(in) :: wood_water  !--- [kg H2O/plant] wood (sapwood + fine-root) water
-      real(wp),               intent(in) :: bwood       !--- [kgC/plant] sapwood + fine-root carbon
-      real(wp),               intent(in) :: height      !--- [m] cohort height
-      type(hydraulics_pft_t), intent(in) :: p           !--- the cohort's PFT
+      real(wp),               intent(in) :: leaf_water  ! [kg H2O/plant] leaf water
+      real(wp),               intent(in) :: bleaf       ! [kgC/plant] leaf carbon
+      real(wp),               intent(in) :: wood_water  ! [kg H2O/plant] wood (sapwood + fine-root) water
+      real(wp),               intent(in) :: bwood       ! [kgC/plant] sapwood + fine-root carbon
+      real(wp),               intent(in) :: height      ! [m] cohort height
+      type(hydraulics_pft_t), intent(in) :: p           ! the cohort's PFT
       if (p%leaf_curve%water_sat*bleaf > tiny_num) then
          psi_l = tissue_water_to_psi(leaf_water, p%leaf_curve, bleaf)
       else
@@ -84,9 +84,9 @@ contains
    ! negative heights count as zero (docs/science/plant_hydraulics.md eq. (12)).
    !---~---
    pure real(wp) function cohort_root_depth(height, hp, soil_depth) result(depth)
-      real(wp),               intent(in) :: height      !--- [m] cohort height
-      type(hydraulics_pft_t), intent(in) :: hp          !--- the cohort's PFT
-      real(wp),               intent(in) :: soil_depth  !--- [m] depth of the soil column's bottom
+      real(wp),               intent(in) :: height      ! [m] cohort height
+      type(hydraulics_pft_t), intent(in) :: hp          ! the cohort's PFT
+      real(wp),               intent(in) :: soil_depth  ! [m] depth of the soil column's bottom
       depth = min(hp%root_depth_b1 * max(height, 0.0_wp)**hp%root_depth_b2, soil_depth)
    end function cohort_root_depth
 
@@ -96,11 +96,11 @@ contains
    ! eq. (13)).
    !---~---
    pure subroutine cohort_root_profile(height, hp, z_top, z_bot, frac)
-      real(wp),               intent(in)  :: height      !--- [m] cohort height
-      type(hydraulics_pft_t), intent(in)  :: hp          !--- the cohort's PFT
-      real(wp),               intent(in)  :: z_top(:)    !--- [m] depth of each layer's top (>= 0)
-      real(wp),               intent(in)  :: z_bot(:)    !--- [m] depth of each layer's bottom (> z_top)
-      real(wp),               intent(out) :: frac(:)     !--- [-] the cohort's fine roots in each layer
+      real(wp),               intent(in)  :: height      ! [m] cohort height
+      type(hydraulics_pft_t), intent(in)  :: hp          ! the cohort's PFT
+      real(wp),               intent(in)  :: z_top(:)    ! [m] depth of each layer's top (>= 0)
+      real(wp),               intent(in)  :: z_bot(:)    ! [m] depth of each layer's bottom (> z_top)
+      real(wp),               intent(out) :: frac(:)     ! [-] the cohort's fine roots in each layer
       real(wp) :: depth
       depth = cohort_root_depth(height, hp, z_bot(size(z_bot)))
       frac = root_fraction_profile(hp%root_beta, depth, z_top, z_bot) / (1.0_wp - hp%root_beta)
@@ -119,8 +119,8 @@ contains
    ! supersaturated tissue's xylem as blocked.
    !---~---
    pure real(wp) function kirchhoff_potential(psi, psi50, kexp, table) result(phi)
-      real(wp),            intent(in) :: psi, psi50, kexp   !--- [MPa], [MPa], [-] vulnerability exponent
-      type(kirchhoff_table_t), intent(in) :: table          !--- the PFT's Kirchhoff table
+      real(wp),            intent(in) :: psi, psi50, kexp   ! [MPa], [MPa], [-] vulnerability exponent
+      type(kirchhoff_table_t), intent(in) :: table          ! the PFT's Kirchhoff table
       if (psi > 0.0_wp) then
          phi = psi
       else if (has_closed_form(kexp)) then
@@ -137,8 +137,8 @@ contains
    ! (docs/science/plant_hydraulics.md §3).
    !---~---
    pure real(wp) function kirchhoff_difference(psi_a, psi_b, psi50, kexp, table) result(dphi)
-      real(wp),            intent(in) :: psi_a, psi_b, psi50, kexp   !--- [MPa], [MPa], [MPa], [-]
-      type(kirchhoff_table_t), intent(in) :: table                   !--- the PFT's Kirchhoff table
+      real(wp),            intent(in) :: psi_a, psi_b, psi50, kexp   ! [MPa], [MPa], [MPa], [-]
+      type(kirchhoff_table_t), intent(in) :: table                   ! the PFT's Kirchhoff table
       real(wp) :: r_a, r_b
       if (psi_a <= 0.0_wp .and. psi_b <= 0.0_wp .and. abs(kexp - 2.0_wp) < KEXP_TOL) then
          r_a  = psi_a / psi50
@@ -155,8 +155,8 @@ contains
    ! flows' derivatives are exact (docs/science/plant_hydraulics.md §3).
    !---~---
    pure real(wp) function kirchhoff_slope(psi, psi50, kexp, table) result(dphi)
-      real(wp),            intent(in) :: psi, psi50, kexp   !--- [MPa], [MPa], [-]
-      type(kirchhoff_table_t), intent(in) :: table          !--- the PFT's Kirchhoff table
+      real(wp),            intent(in) :: psi, psi50, kexp   ! [MPa], [MPa], [-]
+      type(kirchhoff_table_t), intent(in) :: table          ! the PFT's Kirchhoff table
       real(wp) :: r
       integer  :: idx
       if (psi > 0.0_wp) then
@@ -180,8 +180,8 @@ contains
    ! pieces and at or above zero potential, which keeps r = 0 off the power.
    !---~---
    pure real(wp) function kirchhoff_curvature(psi, psi50, kexp, table) result(d2phi)
-      real(wp),            intent(in) :: psi, psi50, kexp   !--- [MPa], [MPa], [-]
-      type(kirchhoff_table_t), intent(in) :: table          !--- the PFT's Kirchhoff table
+      real(wp),            intent(in) :: psi, psi50, kexp   ! [MPa], [MPa], [-]
+      type(kirchhoff_table_t), intent(in) :: table          ! the PFT's Kirchhoff table
       real(wp) :: r
       r = psi / psi50
       if (r <= 0.0_wp) then
@@ -197,13 +197,13 @@ contains
 
    !--- Whether the vulnerability exponent is 1 or 2, where Phi has a closed form.
    pure logical function has_closed_form(kexp)
-      real(wp), intent(in) :: kexp   !--- [-]
+      real(wp), intent(in) :: kexp   ! [-]
       has_closed_form = abs(kexp - 1.0_wp) < KEXP_TOL .or. abs(kexp - 2.0_wp) < KEXP_TOL
    end function has_closed_form
 
    !--- The closed forms [MPa]: psi50 ln(1+r) for kexp 1, psi50 atan(r) for kexp 2.
    pure real(wp) function kirchhoff_potential_closed(psi, psi50, kexp) result(phi)
-      real(wp), intent(in) :: psi, psi50, kexp   !--- [MPa], [MPa], [-]
+      real(wp), intent(in) :: psi, psi50, kexp   ! [MPa], [MPa], [-]
       real(wp) :: r
       r = max(psi/psi50, 0.0_wp)
       if (abs(kexp - 1.0_wp) < KEXP_TOL) then
@@ -220,8 +220,8 @@ contains
    ! turn a dried leaf's potential positive.
    !---~---
    pure real(wp) function kirchhoff_potential_table(psi, psi50, tab) result(phi)
-      real(wp),            intent(in) :: psi, psi50   !--- [MPa], [MPa]
-      type(kirchhoff_table_t), intent(in) :: tab      !--- the PFT's Kirchhoff table
+      real(wp),            intent(in) :: psi, psi50   ! [MPa], [MPa]
+      type(kirchhoff_table_t), intent(in) :: tab      ! the PFT's Kirchhoff table
       real(wp) :: r, x, t
       integer  :: idx
       r   = max(psi/psi50, 0.0_wp)
@@ -242,7 +242,7 @@ contains
    ! grows, so the potential keeps rising toward its asymptote.
    !---~---
    pure real(wp) function kirchhoff_tail(a, b, kexp) result(g)
-      real(wp), intent(in) :: a, b, kexp   !--- [-] the limits in r = psi/psi50, and the exponent
+      real(wp), intent(in) :: a, b, kexp   ! [-] the limits in r = psi/psi50, and the exponent
       if (abs(kexp - 1.0_wp) < KEXP_TOL) then
          g = log(b / a)
       else
@@ -263,9 +263,9 @@ contains
    ! within KIRCHHOFF_EPS take the mean at their midpoint.
    !---~---
    pure subroutine xylem_sapflow(k_cond, psi_w, psi_l, grav, psi50, kexp, table, s, ds_dpsi_w, ds_dpsi_l)
-      real(wp),            intent(in)  :: k_cond, psi_w, psi_l, grav, psi50, kexp !--- k_cond [kg/m2/s/MPa], kexp [-], others [MPa]
-      type(kirchhoff_table_t), intent(in)  :: table                               !--- the PFT's Kirchhoff table
-      real(wp),            intent(out) :: s, ds_dpsi_w, ds_dpsi_l                 !--- [kg/m2/s], [kg/m2/s/MPa], [kg/m2/s/MPa]
+      real(wp),            intent(in)  :: k_cond, psi_w, psi_l, grav, psi50, kexp ! k_cond [kg/m2/s/MPa], kexp [-], others [MPa]
+      type(kirchhoff_table_t), intent(in)  :: table                               ! the PFT's Kirchhoff table
+      real(wp),            intent(out) :: s, ds_dpsi_w, ds_dpsi_l                 ! [kg/m2/s], [kg/m2/s/MPa], [kg/m2/s/MPa]
       real(wp) :: dpsi, keff, dk_dw, dk_dl, mid, drive
       dpsi = psi_w - psi_l
       if (abs(dpsi) > KIRCHHOFF_EPS) then
@@ -293,8 +293,8 @@ contains
    !---~---
    elemental subroutine root_water_uptake(g_rhizo, k_soil, psi_soil, z_soil, psi_wood, u,             &
                                           du_dpsi_soil, du_dpsi_wood, du_dk)
-      real(wp), intent(in)  :: g_rhizo, k_soil, psi_soil, z_soil, psi_wood   !--- [kg/m3/MPa], [m/s], [MPa], [m] (< 0), [MPa]
-      real(wp), intent(out) :: u, du_dpsi_soil, du_dpsi_wood, du_dk   !--- [kg/m2/s], [kg/m2/s/MPa] (twice), [kg/m2/s per m/s]
+      real(wp), intent(in)  :: g_rhizo, k_soil, psi_soil, z_soil, psi_wood   ! [kg/m3/MPa], [m/s], [MPa], [m] (< 0), [MPa]
+      real(wp), intent(out) :: u, du_dpsi_soil, du_dpsi_wood, du_dk   ! [kg/m2/s], [kg/m2/s/MPa] (twice), [kg/m2/s per m/s]
       real(wp) :: force, drive, dramp
       force = psi_soil + grav_head * z_soil - psi_wood
       if (force >= UPTAKE_RAMP_WIDTH) then
@@ -319,9 +319,9 @@ contains
    !---~---
    pure subroutine root_water_uptake_profile(nsl, g_rhizo, k_soil, psi_soil, z_soil, psi_wood, u,      &
                                              du_dpsi_soil, du_dk)
-      integer(ik), intent(in)  :: nsl   !--- number of soil layers
-      real(wp),    intent(in)  :: g_rhizo(nsl), k_soil(nsl), psi_soil(nsl), z_soil(nsl), psi_wood   !--- as root_water_uptake's
-      real(wp),    intent(out) :: u(nsl), du_dpsi_soil(nsl), du_dk(nsl)                           !--- as root_water_uptake's
+      integer(ik), intent(in)  :: nsl   ! number of soil layers
+      real(wp),    intent(in)  :: g_rhizo(nsl), k_soil(nsl), psi_soil(nsl), z_soil(nsl), psi_wood   ! as root_water_uptake's
+      real(wp),    intent(out) :: u(nsl), du_dpsi_soil(nsl), du_dk(nsl)                           ! as root_water_uptake's
       real(wp)    :: du_dpsi_wood
       integer(ik) :: k
       do k = 1_ik, nsl
@@ -345,8 +345,8 @@ contains
    ! TRANSP_CLOSE_WIDTH/r_close.
    !---~---
    elemental subroutine supply_limited_transpiration(e_demand, r, r_close, e, de_dr)
-      real(wp), intent(in)  :: e_demand, r, r_close   !--- [kg/m2/s], [-], [-]
-      real(wp), intent(out) :: e, de_dr               !--- [kg/m2/s], [kg/m2/s] per unit r
+      real(wp), intent(in)  :: e_demand, r, r_close   ! [kg/m2/s], [-], [-]
+      real(wp), intent(out) :: e, de_dr               ! [kg/m2/s], [kg/m2/s] per unit r
       real(wp) :: excess, dexcess, share
       call smooth_max0(r - r_close, TRANSP_CLOSE_WIDTH, excess, dexcess)
       share = (r - excess) / r_close

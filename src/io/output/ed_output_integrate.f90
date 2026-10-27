@@ -39,7 +39,7 @@ contains
       type(output_buffers_t), intent(inout) :: bufs
       type(polygon_t),        intent(in)    :: poly
       type(calendar_step_t),  intent(in)    :: step
-      real(wp),               intent(in)    :: dt_slow, dt_fast   !--- [s] the slow step, a fast sub-step
+      real(wp),               intent(in)    :: dt_slow, dt_fast   ! [s] the slow step, a fast sub-step
       integer(ik) :: isub
       if (bufs%fast_ready .and. files%reg%nidx(TIER_FAST) > 0_ik) then
          do isub = 1_ik, bufs%n_fast_sub
@@ -234,9 +234,9 @@ contains
       type(output_files_t),   intent(in)    :: files
       type(output_buffers_t), intent(inout) :: bufs
       type(polygon_t),        intent(in)    :: poly
-      type(ed_time_t),        intent(in)    :: prev          !--- the start of the step just taken
+      type(ed_time_t),        intent(in)    :: prev          ! the start of the step just taken
       real(wp),               intent(in)    :: dt
-      logical,                intent(in)    :: is_new_day, is_new_month, is_new_year  !--- its end left prev's period
+      logical,                intent(in)    :: is_new_day, is_new_month, is_new_year  ! its end left prev's period
       integer(ik) :: t, j, k, n_out
       real(wp)    :: scal
       real(wp)    :: slab(max(files%max_slab, 1_ik))
