@@ -12,11 +12,23 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ## [Unreleased]
 
+### Answer changes
+
+- The reported latent heat flux and evapotranspiration move by <how much> at <site>; the model
+  state is unchanged. (#N)
+
 ### Changed
 
 - The Fortran sources use one comment format: `!--- text` for a comment line, a comment of
   several lines between two `!---~---` lines, and a plain `! text` after a statement. Results are
   bit for bit; only comments change. (#48)
+
+### Fixed
+
+- The latent heat of vaporization depends on temperature (Kirchhoff's law), as in ED2, instead of
+  being a constant. The reported latent heat flux uses it at the canopy air's temperature, and
+  evapotranspiration comes from the water vapour that leaves the canopy air rather than from the
+  latent heat flux divided by a constant. (#N)
 
 ## [0.4.1] - 2026-10-26
 
