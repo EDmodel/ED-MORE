@@ -18,12 +18,22 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   0.24 W/m2, in the region test's synthetic January 2021 run, where the canopy air is mostly below
   freezing; above freezing it falls. Evapotranspiration changes only at round-off, and the model
   state is unchanged. (#49)
+- Saturation vapour pressure follows Ambaum (2020) instead of Bolton and Magnus. In the region
+  test's synthetic January 2021 run the latent heat flux (`mean_le_pa`) rises by 12.5 % on average
+  (15.0 to 16.9 W/m2, at most 3.1 W/m2 on a day); the sensible heat flux, canopy air specific
+  humidity and VPD change by 0.04 % or less. (#N)
 
 ### Changed
 
 - The Fortran sources use one comment format: `!--- text` for a comment line, a comment of
   several lines between two `!---~---` lines, and a plain `! text` after a statement. Results are
   bit for bit; only comments change. (#48)
+- Saturation vapour pressure, over liquid water and over ice, is Ambaum's (2020) closed form of
+  the Clausius-Clapeyron equation, built on the model's latent heat, so its slope with temperature
+  is Clausius-Clapeyron by definition and both phases meet at the triple point. It replaces the
+  empirical Bolton and Magnus forms with no option; it is within 0.25 % of Murphy and Koop (2005)
+  from -30 to 40 C. The flux-tower tools use it too, and `ambaum` is the first of their
+  saturation curves, with `bolton` kept. (#N)
 
 ### Fixed
 

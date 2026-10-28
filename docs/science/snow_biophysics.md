@@ -29,13 +29,20 @@ What reaches the ground in each band, $`S_b`$ and $`L^\downarrow`$, is then shar
 The vapour flux is $`E=g_{net}\rho\,[q_{sat}(T_s,f_{liq})-q_{CAS}]`$, with $`g_{net}`$ the ground-to-canopy-air conductance, $`\rho`$ the air density and $`q_{CAS}`$ the canopy air's specific humidity. The saturation humidity $`q_{sat}`$ is taken on the **ice** curve when the pack is frozen, through the saturation vapour pressure
 
 ```math
-e_{sat}(T_c,f_{liq}) = f_{liq}\cdot 611.2\,e^{\frac{17.67\,T_c}{T_c+243.5}}
-                     + (1-f_{liq})\cdot 611.2\,e^{\frac{21.87\,T_c}{T_c+265.5}} \qquad(1)
+e_{sat}(T,f_{liq}) = f_{liq}\,e_l(T) + (1-f_{liq})\,e_i(T), \qquad
+e_p(T) = e_{3ple}\left(\frac{T_{3ple}}{T}\right)^{(c_p-c_{p,v})/R_v}
+         \exp\left[\frac{L_p(T_{3ple})}{R_v\,T_{3ple}} - \frac{L_p(T)}{R_v\,T}\right] \qquad(1)
 ```
 
-where $`T_c`$ is the temperature in °C (the code's ice exponent constant is 21.8745584). Both branches carry the same 611.2 Pa constant, so they cross **exactly** at $`T_c=0`$ and the blend is continuous in temperature *and* in $`f_{liq}`$. A pack that freezes or melts slides between the curves rather than stepping, which matters because the flux lands in the right-hand side an adaptive integrator steps through.
+with $`p`$ the phase: liquid ($`c_p=c_{p,l}`$, $`L_p=L_v`$) or ice ($`c_p=c_{p,i}`$, $`L_p=L_s`$), $`L_v(T)`$ and $`L_s(T)`$ the latent heats of [canopy air space biophysics](canopy_air_space_biophysics.md) (`latent_heat_vap`), $`R_v`$ the vapour's gas constant and $`e_{3ple}`$ the saturation vapour pressure at the triple point (`es_3ple`, 611.655 Pa; Ambaum 2020, eq. 14). This is Ambaum's (2020) closed form of the Clausius–Clapeyron equation for a latent heat that is linear in temperature, so the slope is **by definition**
 
-$`f_{liq}`$ is the pack's own prognostic liquid fraction, not a temperature threshold. The energy side is ice-aware (removing `enthalpy_vapor` from an ice-referenced layer debits sublimation, vaporization plus fusion, automatically), so the vapour side must be too: the liquid curve alone would treat the surface as ice for *enthalpy* and as liquid for *vapour pressure*. Over ice $`e_{sat}`$ is **9 % lower at −10 °C, 18 % at −20 °C and 26 % at −30 °C**, so the liquid curve would overstate it, and with it the driving gradient, by 10 %, 22 % and 35 %. The ice form is within 0.1 % of Murphy & Koop (2005) at −10 °C and 0.9 % at −30 °C.
+```math
+\frac{\partial e_p}{\partial T} = \frac{L_p(T)\,e_p(T)}{R_v\,T^2} \qquad(1b)
+```
+
+(`sat_vapor_pressure_temp_deriv`), with the same $`L_p`$ the energy budget uses: the second law holds between the vapour pressure and the heat a flux of vapour carries. The empirical Bolton and Magnus forms it replaces had no such link. Ice's latent heat at $`T_{3ple}`$ is the liquid's plus the heat of fusion, so both branches equal $`e_{3ple}`$ **exactly** at $`T_{3ple}`$, which is where a melting pack sits, and the blend is continuous in temperature *and* in $`f_{liq}`$. A pack that freezes or melts slides between the curves rather than stepping, which matters because the flux lands in the right-hand side an adaptive integrator steps through. The slope of the blend is taken at fixed $`f_{liq}`$.
+
+$`f_{liq}`$ is the pack's own prognostic liquid fraction, not a temperature threshold. The energy side is ice-aware (removing `enthalpy_vapor` from an ice-referenced layer debits sublimation, vaporization plus fusion, automatically), so the vapour side must be too: the liquid curve alone would treat the surface as ice for *enthalpy* and as liquid for *vapour pressure*. Over ice $`e_{sat}`$ is **9 % lower at −10 °C, 18 % at −20 °C and 26 % at −30 °C**, so the liquid curve would overstate it, and with it the driving gradient, by 10 %, 22 % and 34 %. With the model's own heat capacities and latent heat, the ice form is within 0.01 % of Murphy & Koop (2005) at −10 °C and 0.1 % at −30 °C, and the liquid form within 0.04 % at −10 °C, 0.09 % at 20 °C and 0.24 % at 40 °C.
 
 Ground evaporation from a frozen soil does not use the blend: its liquid sits on the soil freezing curve, whose potential puts the liquid's vapour pressure at the ice's, so Philip's humidity on that potential over liquid saturation already carries the ice ([soil_biophysics](soil_biophysics.md), "Frozen soil"). The blend is deliberately **not** used for dewpoint conversion or diagnostic vapour-pressure deficit: dewpoint is *defined* over liquid, so an ice branch there would mis-convert the forcing.
 
@@ -81,5 +88,6 @@ The `[snow]` block; every key is optional ([configuration](../configuration.md))
 | prognostic snow type | `ed_patch_state_vars`: `snow_state_t` |
 
 ## References
+- Ambaum (2020), *Q. J. R. Meteorol. Soc.* 146:4252, doi:10.1002/qj.3899 — saturation vapour pressure over water and ice.
 - Murphy & Koop (2005), *Q. J. R. Meteorol. Soc.* 131:1539 — vapour pressure over ice.
 - Niu & Yang (2007), *JGR* 112:D21101 — snow-cover fraction.

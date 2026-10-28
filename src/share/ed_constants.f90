@@ -47,6 +47,8 @@ module ed_constants
    real(wp), parameter :: k_ice              = 2.29_wp        ! [W/m/K] ice thermal conductivity
    real(wp), parameter :: latent_heat_vap_3ple = 2.501e6_wp   ! [J/kg] latent heat of vaporization at t_3ple
    real(wp), parameter :: latent_heat_fusion = 3.34e5_wp      ! [J/kg] latent heat of fusion
+   !--- [Pa] Saturation vapour pressure at t_3ple, Ambaum (2020, QJRMS 146:4252, doi:10.1002/qj.3899) eq. (14).
+   real(wp), parameter :: es_3ple            = 611.655_wp
    real(wp), parameter :: grav_head          = rho_h2o * grav * 1.0e-6_wp  ! [MPa/m] water potential per metre of height
    !---~---
    !   One energy zero for ice, liquid and vapour: ice at 0 K. Liquid water then holds

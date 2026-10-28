@@ -83,6 +83,7 @@ UNITS = {
 # The saturation curves a provider may have made its VPD with [Pa, T in degC]. V3 checks the
 # declared one and names the best fit; RH is recovered through the declared one where it is missing.
 SATURATION_CURVES = {
+    "ambaum":            lambda tc: conv.sat_vapor_pressure(np.asarray(tc, dtype=float) + 273.15),
     "bolton":            lambda tc: 611.2 * np.exp(17.67 * tc / (tc + 243.5)),
     "alduchov_eskridge": lambda tc: 610.94 * np.exp(17.625 * tc / (tc + 243.04)),
     "tetens":            lambda tc: 610.78 * np.exp(17.27 * tc / (tc + 237.3)),

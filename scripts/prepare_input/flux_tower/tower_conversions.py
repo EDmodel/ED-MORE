@@ -30,6 +30,12 @@ GRAV = 9.80665             # [m s-2]
 R_DRY = 287.04             # [J kg-1 K-1]
 CP_AIR = 1004.6            # [J kg-1 K-1]
 STEFAN = 5.670374419e-8    # [W m-2 K-4]
+#: Water vapour and the triple point, as ed_constants defines them, for the saturation vapour pressure.
+T_3PLE = 273.16            # [K]
+ES_3PLE = 611.655          # [Pa] Ambaum (2020) eq. (14)
+R_WV = 461.5               # [J kg-1 K-1]
+CP_VAP, CP_LIQ = 1859.0, 4186.0   # [J kg-1 K-1]
+LATENT_HEAT_VAP_3PLE = 2.501e6    # [J kg-1]
 SOLAR_CONSTANT = 1361.0    # [W m-2]
 COSZ_MIN = 1.0e-3          # below this cos z it is night
 COSZ_BAR_MIN = 1.0e-3      # a window whose mean cos z is at most this is a night window
@@ -46,9 +52,12 @@ H2O_DRY_RATIO = 0.01801528 / 0.0289655
 
 
 def sat_vapor_pressure(t_k):
-    """Saturation vapour pressure [Pa] over liquid water at t_k [K]: Bolton (1980)."""
-    tc = np.asarray(t_k, dtype=float) - 273.15
-    return 611.2 * np.exp(17.67 * tc / (tc + 243.5))
+    """Saturation vapour pressure [Pa] over liquid water at t_k [K]: Ambaum (2020), with the latent
+    heat L(T) of the model's Kirchhoff law (docs/science/snow_biophysics.md eq. (1))."""
+    t_k = np.asarray(t_k, dtype=float)
+    l_now = LATENT_HEAT_VAP_3PLE + (CP_VAP - CP_LIQ) * (t_k - T_3PLE)
+    return (ES_3PLE * (T_3PLE / t_k) ** ((CP_LIQ - CP_VAP) / R_WV)
+            * np.exp(LATENT_HEAT_VAP_3PLE / (R_WV * T_3PLE) - l_now / (R_WV * t_k)))
 
 
 def rh_to_specific_humidity(rh, t_k, p_pa):
