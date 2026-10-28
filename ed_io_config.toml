@@ -185,6 +185,7 @@
 # mean_soil_wetness_layer_pa = false                  # D M       [soil,patch] relative saturation by layer and patch (-)
 # mean_root_uptake_py = "D M Y"                       # D M Y     [polygon] polygon root water uptake (kg/m2/s)
 # mean_transp_leaf_py = "D M Y"                       # D M Y     [polygon] leaf-area-weighted canopy transpiration (mol/m2 leaf/s)
+# mean_et_pa = "F D M"                                # F D M     [patch] patch evapotranspiration (kg/m2/s)
 # soil_water_layer_si = false                         # F D M Y   [soil] each site's area-weighted volumetric soil moisture (m3/m3)
 # soil_psi_layer_si = false                           # D M Y     [soil] each site's area-weighted soil matric potential (MPa)
 # soil_wetness_layer_si = false                       # D M Y     [soil] each site's area-weighted relative saturation (-)

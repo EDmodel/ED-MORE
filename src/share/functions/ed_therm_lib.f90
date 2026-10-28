@@ -16,6 +16,7 @@
 module ed_therm_lib
    use ed_kinds,       only : wp, ik
    use ed_constants,   only : mmdry, tiny_num, cp_air, cp_vap, cp_liq, cp_ice, latent_heat_fusion,  &
+                              latent_heat_vap_3ple,                                               &
                               t_3ple, tsupercool_liq, tsupercool_vap, r_dry, rho_h2o, k_water,      &
                               k_ice, c2b_wood, r_gas, t_ref_photo, safe_exp, t_kelvin, grav,        &
                               h2o_dry_ratio, virtual_temp_factor
@@ -24,7 +25,7 @@ module ed_therm_lib
 
    !--- Energy datum: specific energies and the phase-change inverter.
    public :: internal_energy_to_temp, temp_to_internal_energy
-   public :: enthalpy_vapor, internal_energy_liquid, internal_energy_ice, liquid_energy_to_temp
+   public :: latent_heat_vap, enthalpy_vapor, internal_energy_liquid, internal_energy_ice, liquid_energy_to_temp
    public :: precip_enthalpy, precip_phase
    !--- Moist air.
    public :: sat_vapor_pressure, sat_specific_humidity, sat_vapor_pressure_temp_deriv
@@ -99,6 +100,24 @@ contains
       uext = dry_hcap * temp + wmass * (fliq * cp_liq * (temp - tsupercool_liq)                &
                                         + (1.0_wp - fliq) * cp_ice * temp)
    end function temp_to_internal_energy
+
+   !---~---
+   !   Latent heat [J/kg] of the water that turns to vapour at temperature t_k, from Kirchhoff's
+   ! law on the common datum, so it equals enthalpy_vapor less the source's own energy at t_k
+   ! (docs/science/canopy_air_space_biophysics.md). Liquid vaporizes with
+   ! latent_heat_vap_3ple + (cp_vap - cp_liq) (t_k - t_3ple), supercooled or not; ice sublimes with
+   ! latent_heat_fusion + latent_heat_vap_3ple + (cp_vap - cp_ice) (t_k - t_3ple). The heat is their
+   ! average weighted by fliq, the liquid share of the water that vaporizes.
+   !---~---
+   elemental function latent_heat_vap(t_k, fliq) result(l_v)
+      real(wp), intent(in) :: t_k    ! [K]
+      real(wp), intent(in) :: fliq   ! [-] liquid share of the vaporizing water
+      real(wp)             :: l_v
+      real(wp) :: l_liq, l_ice
+      l_liq = latent_heat_vap_3ple + (cp_vap - cp_liq) * (t_k - t_3ple)
+      l_ice = latent_heat_fusion + latent_heat_vap_3ple + (cp_vap - cp_ice) * (t_k - t_3ple)
+      l_v   = fliq * l_liq + (1.0_wp - fliq) * l_ice
+   end function latent_heat_vap
 
    !---~---
    !   Specific enthalpy of water vapour [J/kg] in the common datum, so a vapour flux

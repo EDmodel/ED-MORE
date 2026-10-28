@@ -185,6 +185,7 @@ contains
 
       report%exports%atm_heat_export = acc%atm_heat_out
       report%exports%atm_vap_export  = acc%atm_vap_out
+      report%exports%snow_vap_export = acc%snow_vap_out
       call budget_check(report%ledgers%cas_energy,                                                           &
                         cas_mass_capacity*enth0, cas_mass_capacity*enth1, acc%cas_enth_in, acc%cas_enth_out, &
                         dt_fast, BUDGET_ENERGY_RATE_FLOOR, 'cas_energy', halt)

@@ -12,11 +12,36 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ## [Unreleased]
 
+### Upgrading
+
+- `mean_et_pa` is now an output variable, and the code generates both ET and LE because
+   they cannot be related directly due to changes in temperature. (#49)
+
+### Answer changes
+
+- The latent heat flux (`mean_le_pa`, `mean_le_py`) rises by 13 % on average (14.9 to 16.9 W/m2),
+  and by at most 3.2 W/m2 on a day, in the region test's synthetic January 2021 run, where the
+  canopy air is mostly below freezing and the vapour takes the latent heat of sublimation.
+  Evapotranspiration changes only at round-off, and the model state is unchanged. (#49)
+
 ### Changed
 
 - The Fortran sources use one comment format: `!--- text` for a comment line, a comment of
   several lines between two `!---~---` lines, and a plain `! text` after a statement. Results are
   bit for bit; only comments change. (#48)
+
+### Fixed
+
+- The latent heat of vaporisation depends on temperature (Kirchhoff's law), as in ED2, instead of
+  being a constant, and the latent heat of sublimation for the ice share of the water that
+  vaporises. The reported latent heat flux uses it at the canopy air's temperature, and
+  evapotranspiration comes from the water vapour that leaves the canopy air rather than from the
+  latent heat flux divided by a constant. (#49)
+
+### Added
+
+- `mean_et_pa`, the patch evapotranspiration [kg/m2/s], beside `mean_le_pa`; latent heat is no longer
+  evapotranspiration times a constant, so both are needed. (#49)
 
 ## [0.4.1] - 2026-10-26
 
