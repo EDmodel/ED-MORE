@@ -16,7 +16,7 @@ module ed_fast_diag
                                        PA_RNET, PA_SW_GROUND,                                                    &
                                        PA_LW_GROUND, PA_SW_IN_VIS, PA_SW_IN_NIR, PA_SW_UP_VIS, PA_SW_UP_NIR,     &
                                        PA_LW_UP, PA_USTAR, PA_GGNET, PA_ROUGH, PA_DISPLACE, PA_CAS_TEMP,         &
-                                       PA_CAS_SHV, PA_CAS_CO2, PA_GPP, PA_NEE, PA_TRANSP, PA_NPP, PA_RECO,       &
+                                       PA_CAS_SHV, PA_CAS_CO2, PA_GPP, PA_NEE, PA_ET, PA_NPP, PA_RECO,       &
                                        PA_SW_UP, PA_SKIN_TEMP, PA_SOIL_TEMP_TOP, PA_CAS_VPD, PA_W_SURFACE,       &
                                        PA_RESID_ENERGY, PA_RESID_WATER, PA_WIND_CAS_TOP, PA_TAIR_CAS_TOP,        &
                                        PA_Z_CAS_TOP, PY_SW_IN, PY_PRECIP, PY_TAIR, PY_QAIR, PY_PSURF, PY_WIND,   &
@@ -287,7 +287,7 @@ contains
       !   The canopy air's whole evaporative flux to the atmosphere [kg/m2/s], not transpiration
       ! alone; each cohort's own transpiration is CO_TRANSP.
       !---~---
-      row(PA_TRANSP)       = et_flux
+      row(PA_ET)           = et_flux
       row(PA_SOIL_TEMP_TOP) = soil_temp_top
       !---~---
       !   The whole-column ledgers' signed residuals as leak rates [W/m2, kg/m2/s], positive when

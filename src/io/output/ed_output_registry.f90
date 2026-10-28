@@ -52,7 +52,7 @@ module ed_output_registry
                                     CO_LEAF_PAR, CO_GB_MOL, CO_PSI_PREDAWN, CO_CA, CO_PRESSURE, PA_LE, PA_H,      &
                                     PA_RNET, PA_SW_GROUND, PA_LW_GROUND, PA_SW_IN_VIS, PA_SW_IN_NIR,              &
                                     PA_SW_UP_VIS, PA_SW_UP_NIR, PA_LW_UP, PA_USTAR, PA_GGNET, PA_ROUGH,           &
-                                    PA_DISPLACE, PA_GPP, PA_NEE, PA_TRANSP, PA_SOIL_TEMP_TOP, PA_RESID_ENERGY,    &
+                                    PA_DISPLACE, PA_GPP, PA_NEE, PA_ET, PA_SOIL_TEMP_TOP, PA_RESID_ENERGY,    &
                                     PA_CAS_VPD, PA_W_SURFACE, PA_CAS_TEMP, PA_CAS_SHV, PA_CAS_CO2,                &
                                     PA_WIND_CAS_TOP, PA_TAIR_CAS_TOP, PA_Z_CAS_TOP, PA_RESID_WATER, PA_NPP,       &
                                     PA_RECO, PA_SW_UP, PA_SKIN_TEMP, PY_SW_IN, PY_PRECIP, PY_TAIR, PY_QAIR,       &
@@ -724,7 +724,7 @@ contains
       call add_variable(reg, 'mean_le_pa', 'patch latent heat flux', 'W/m2', DIM_PATCH, AGG_TMEAN, GRP_ENERGY,                  &
                         ior(FAST, DAY_MON), FLD_P_DIAG0 + PA_LE, flux=.true.)
       call add_variable(reg, 'mean_et_pa', 'patch evapotranspiration', 'kg/m2/s', DIM_PATCH, AGG_TMEAN, GRP_WATER,              &
-                        ior(FAST, DAY_MON), FLD_P_DIAG0 + PA_TRANSP, flux=.true.)
+                        ior(FAST, DAY_MON), FLD_P_DIAG0 + PA_ET, flux=.true.)
       call add_variable(reg, 'mean_h_pa', 'patch sensible heat flux', 'W/m2', DIM_PATCH, AGG_TMEAN, GRP_ENERGY,                 &
                         ior(FAST, DAY_MON), FLD_P_DIAG0 + PA_H, flux=.true.)
       call add_variable(reg, 'mean_rnet_pa', 'patch net all-wave radiation', 'W/m2', DIM_PATCH, AGG_TMEAN, GRP_ENERGY,          &

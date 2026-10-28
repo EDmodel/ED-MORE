@@ -233,7 +233,7 @@ module ed_diag_vars
    integer(ik), parameter, public :: PA_NPP               = 21_ik  ! [umol CO2/m2/s] GPP net of maintenance respiration
    integer(ik), parameter, public :: PA_RECO              = 22_ik  ! [umol CO2/m2/s] ecosystem respiration, NEE + GPP
    integer(ik), parameter, public :: PA_NEE               = 23_ik  ! [umol CO2/m2/s] net ecosystem exchange
-   integer(ik), parameter, public :: PA_TRANSP            = 24_ik  ! [kg/m2/s] evapotranspiration (CAS -> atm)
+   integer(ik), parameter, public :: PA_ET                = 24_ik  ! [kg/m2/s] evapotranspiration (CAS -> atm)
    !--- 6. Canopy air and ground state
    !---~---
    !   Fast-varying CAS / surface state, accumulated dt-weighted rather than read at the
