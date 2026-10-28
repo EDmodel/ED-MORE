@@ -102,15 +102,25 @@ contains
    end function temp_to_internal_energy
 
    !---~---
-   !   Latent heat of vaporization [J/kg] at temperature t_k: its value at t_3ple plus
-   ! (cp_vap - cp_liq) per kelvin from it (Kirchhoff's law), so it equals enthalpy_vapor less
-   ! internal_energy_liquid at the same temperature, and a kilogram evaporated at t_k costs
-   ! what the common datum says it does (docs/science/canopy_air_space_biophysics.md).
+   !   Latent heat [J/kg] of the water that turns to vapour at temperature t_k, from Kirchhoff's
+   ! law on the common datum, so it equals enthalpy_vapor less the source's own energy at t_k
+   ! (docs/science/canopy_air_space_biophysics.md). Above t_3ple the source is liquid, the
+   ! vaporization, latent_heat_vap_3ple + (cp_vap - cp_liq) (t_k - t_3ple); below it the source is
+   ! ice, the sublimation, latent_heat_fusion + latent_heat_vap_3ple + (cp_vap - cp_ice)
+   ! (t_k - t_3ple). At t_3ple itself both phases coexist, so the heat is their average
+   ! weighted by fliq, the liquid share of the water that vaporizes; fliq is read only there.
    !---~---
-   elemental function latent_heat_vap(t_k) result(l_v)
-      real(wp), intent(in) :: t_k
+   elemental function latent_heat_vap(t_k, fliq) result(l_v)
+      real(wp), intent(in) :: t_k    ! [K]
+      real(wp), intent(in) :: fliq   ! [-] liquid share of the vaporizing water, used at t_3ple only
       real(wp)             :: l_v
-      l_v = latent_heat_vap_3ple + (cp_vap - cp_liq) * (t_k - t_3ple)
+      if (t_k > t_3ple) then
+         l_v = latent_heat_vap_3ple + (cp_vap - cp_liq) * (t_k - t_3ple)
+      else if (t_k < t_3ple) then
+         l_v = latent_heat_fusion + latent_heat_vap_3ple + (cp_vap - cp_ice) * (t_k - t_3ple)
+      else
+         l_v = latent_heat_vap_3ple + (1.0_wp - fliq) * latent_heat_fusion
+      end if
    end function latent_heat_vap
 
    !---~---

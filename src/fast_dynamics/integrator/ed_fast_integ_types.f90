@@ -321,6 +321,7 @@ module ed_fast_integ_types
       !--- Net CAS -> atmosphere export over the step, b-weighted like the ledgers: the reported H, LE.
       real(wp)       :: atm_heat_export = 0.0_wp   ! [J/m2]  sensible heat over this dt_fast
       real(wp)       :: atm_vap_export  = 0.0_wp   ! [kg/m2] over this dt_fast
+      real(wp)       :: snow_vap_export = 0.0_wp   ! [kg/m2] the snow pack's vapour to the CAS over this dt_fast
       !---~---
       !   Water leaving the soil column over the step, as the water network moved it: the pond's
       ! spill (surface runoff) and the bottom flux (drainage; negative when an aquifer feeds it).
