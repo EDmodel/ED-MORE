@@ -723,6 +723,8 @@ contains
       !--- per-patch twins of the four that vary most between a gap and a closed canopy.
       call add_variable(reg, 'mean_le_pa', 'patch latent heat flux', 'W/m2', DIM_PATCH, AGG_TMEAN, GRP_ENERGY,                  &
                         ior(FAST, DAY_MON), FLD_P_DIAG0 + PA_LE, flux=.true.)
+      call add_variable(reg, 'mean_et_pa', 'patch evapotranspiration', 'kg/m2/s', DIM_PATCH, AGG_TMEAN, GRP_WATER,              &
+                        ior(FAST, DAY_MON), FLD_P_DIAG0 + PA_TRANSP, flux=.true.)
       call add_variable(reg, 'mean_h_pa', 'patch sensible heat flux', 'W/m2', DIM_PATCH, AGG_TMEAN, GRP_ENERGY,                 &
                         ior(FAST, DAY_MON), FLD_P_DIAG0 + PA_H, flux=.true.)
       call add_variable(reg, 'mean_rnet_pa', 'patch net all-wave radiation', 'W/m2', DIM_PATCH, AGG_TMEAN, GRP_ENERGY,          &

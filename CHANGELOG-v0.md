@@ -33,6 +33,11 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   evapotranspiration comes from the water vapour that leaves the canopy air rather than from the
   latent heat flux divided by a constant. (#N)
 
+### Added
+
+- `mean_et_pa`, the patch evapotranspiration [kg/m2/s], beside `mean_le_pa`; latent heat is no longer
+  evapotranspiration times a constant. (#N)
+
 ## [0.4.1] - 2026-10-26
 
 The first ED-MORE release: MEDS v0.4.0 renamed and moved to the EDmodel organization, with its
