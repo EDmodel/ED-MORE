@@ -19,9 +19,9 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   freezing; above freezing it falls. Evapotranspiration changes only at round-off, and the model
   state is unchanged. (#49)
 - Saturation vapour pressure follows Ambaum (2020) instead of Bolton and Magnus. In the region
-  test's synthetic January 2021 run the latent heat flux (`mean_le_pa`) rises by 12.5 % on average
-  (15.0 to 16.9 W/m2, at most 3.1 W/m2 on a day); the sensible heat flux, canopy air specific
-  humidity and VPD change by 0.04 % or less. (#N)
+  test's synthetic January 2021 run the latent heat flux (`mean_le_pa`) and evapotranspiration
+  (`mean_et_pa`) rise by 0.22 % on average (16.85 to 16.88 W/m2, at most 0.09 W/m2 on a day); the
+  sensible heat flux, canopy air specific humidity and VPD change by 0.04 % or less. (#N)
 
 ### Changed
 
