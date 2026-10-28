@@ -51,11 +51,11 @@ def crossing_day(series, first_doy, last_doy):
     """Per year, the (interpolated) day of year the series first rises through 0.5."""
     out = {}
     for year, g in series.groupby(series.index.year):
-        g = g[(g.index.dayofyear >= first_doy) & (g.index.dayofyear <= last_doy)]
+        g = g[(g.index.day_of_year >= first_doy) & (g.index.day_of_year <= last_doy)]
         k = np.flatnonzero(np.diff(np.sign(g.values - 0.5)) > 0)
         if len(k):
             i = k[0]
-            x0, x1 = g.index[i].dayofyear, g.index[i + 1].dayofyear
+            x0, x1 = g.index[i].day_of_year, g.index[i + 1].day_of_year
             out[year] = x0 + (0.5 - g.values[i]) * (x1 - x0) / (g.values[i + 1] - g.values[i])
     return pd.Series(out)
 
@@ -133,7 +133,7 @@ class Site:
         tair = self.tair if self.tair is not None else np.full(n, 298.15)
         psi = self.psi if self.psi is not None else np.zeros(n)
         days = [ph.step(temp_day=t, par_hours=h, predawn_leaf_psi=w, doy=d)
-                for t, h, w, d in zip(tair, hours, psi, self.dates.dayofyear)]
+                for t, h, w, d in zip(tair, hours, psi, self.dates.day_of_year)]
         return pd.DataFrame({"cover": [x.leaf_cover for x in days],
                              "litter": [x.senescence + x.background for x in days],
                              "flush": [x.leaf_flush_tendency for x in days],
@@ -210,7 +210,7 @@ class HarvardForest(Site):
         lai = lai.dropna().rolling(3, center=True).median().dropna().loc[f"{y0 + 1}":f"{y1}"]
         rel = []
         for _, g in lai.groupby(lai.index.year):
-            doy = g.index.dayofyear
+            doy = g.index.day_of_year
             winter = g[(doy <= 90) | (doy >= 330)].median()
             summer = g[(doy >= 170) & (doy <= 240)].quantile(0.9)
             rel.append(((g - winter) / (summer - winter)).clip(-0.1, 1.2))
@@ -241,7 +241,7 @@ class HarvardForest(Site):
     def fallen(self, sim):
         """Fraction of the year's peak canopy lost, from August on (as HF003 counts it)."""
         peak = sim.cover.groupby(sim.index.year).transform("max")
-        return (1.0 - sim.cover / peak.clip(lower=1e-6)).where(sim.index.dayofyear >= 213, 0.0)
+        return (1.0 - sim.cover / peak.clip(lower=1e-6)).where(sim.index.day_of_year >= 213, 0.0)
 
     def basket_fraction(self, sim):
         """Cumulative fraction of each leaf year's model litter (from 1 April) at the basket dates."""

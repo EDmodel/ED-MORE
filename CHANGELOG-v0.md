@@ -17,6 +17,8 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - The Fortran sources use one comment format: `!--- text` for a comment line, a comment of
   several lines between two `!---~---` lines, and a plain `! text` after a statement. Results are
   bit for bit; only comments change. (#48)
+- The Python tools and the phenology example use pandas' `day_of_year`, not its deprecated
+  `dayofyear`, which pandas 4 warns about and will remove. Results are bit for bit. (#N)
 
 ## [0.4.1] - 2026-10-26
 

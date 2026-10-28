@@ -265,7 +265,7 @@ def candidate_windows(scores: pd.Series, days: int, per_year: int, leaf_on: list
         end = start + pd.Timedelta(days=days - 1)
         if end.year != start.year:
             continue
-        s0, s1 = slot_of(start.dayofyear, per_year), slot_of(end.dayofyear, per_year)
+        s0, s1 = slot_of(start.day_of_year, per_year), slot_of(end.day_of_year, per_year)
         span = pd.date_range(start, end, freq="D")
         if s0 != s1 or not set(span.month) <= set(leaf_on):
             continue
