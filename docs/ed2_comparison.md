@@ -405,7 +405,10 @@ integrators of §3.1–3.2 and the biophysics of §2.3, is listed here.
 - **Leaf and wood boundary layers** (`ed_canopy_aerodynamics`). The Nusselt kernel and its coefficients are
   ED2's, as are the air's viscosity and thermal diffusivity, linear in temperature about 0 °C. ED2 forms the
   Reynolds number with the thermal diffusivity, $`u\ell/\alpha`$; ED-MORE uses the kinematic viscosity,
-  $`u\ell/\nu`$, so its Re is 1.42 times ED2's and a laminar leaf's forced conductance 1.19 times.
+  $`u\ell/\nu`$, so its Re is 1.42 times ED2's and a laminar leaf's forced conductance 1.19 times. ED2
+  adds the forced and free Nusselt numbers; ED-MORE combines them as the cube root of the sum of their
+  cubes, Churchill (1977)'s correlation for mixed convection, which is below the sum wherever both are
+  non-zero.
 - **The ground's coupling to the canopy air** (`ed_canopy_aerodynamics`). ED2's bare-ground conductance is
   $`u_*\,\mathrm{temp1}`$, the canopy air's own factor to the atmosphere, so bare ground crosses the
   surface layer twice. ED-MORE takes CLM5's soil coefficient,

@@ -14,7 +14,7 @@ module ed_canopy_aerodynamics
    use ed_constants,          only : grav, pi, tiny_num, von_karman, safe_exp, virtual_temp_factor
    use ed_biophysics_params, only : aero_params_t
    use ed_therm_lib,          only : cas_molar_density
-   use ed_numerics,           only : equal_height_layers
+   use ed_numerics,           only : equal_height_layers, cbrt
    implicit none
    private
 
@@ -454,14 +454,15 @@ contains
 
    !---~---
    !   Leaf (flat-plate) or wood (cylinder) boundary-layer heat conductance gbh_mos [m/s],
-   ! the sum of forced (Reynolds) and free (Grashof) convection Nusselt numbers
-   ! (docs/science/canopy_aerodynamics.md eqs. (10)-(11)).
+   ! from the forced (Reynolds) and free (Grashof) convection Nusselt numbers, combined as the
+   ! cube root of the sum of their cubes (Churchill 1977, AIChE J. 23, 10-16;
+   ! docs/science/canopy_aerodynamics.md eqs. (10)-(11)).
    !---~---
    pure function boundary_layer_conductance(cfg, wind, elem_temp, can_temp, lchar, is_leaf) result(gbh_mos)
       type(aero_params_t), intent(in) :: cfg     ! aerodynamic parameters
       real(wp),            intent(in) :: wind, elem_temp, can_temp, lchar   ! [m/s], [K], [K], [m]
       logical,             intent(in) :: is_leaf ! true: a leaf (flat plate); false: wood (cylinder)
-      real(wp) :: gbh_mos, nu_v, al_th, re, gr, nu_forced, nu_free   ! [m/s] the result; [m2/s] nu_v, al_th
+      real(wp) :: gbh_mos, nu_v, al_th, re, gr, nu_forced, nu_free, nu_mixed   ! [m/s] the result; [m2/s] nu_v, al_th
       nu_v  = air_kinematic_viscosity(cfg, can_temp)
       al_th = cfg%th_diff0  * (1.0_wp + cfg%dth_diff  * (can_temp - cfg%t_ref_air))
       re    = max(wind * lchar / nu_v, tiny_num)
@@ -474,7 +475,8 @@ contains
                          cfg%ocyli_turb + cfg%acyli_turb * re ** cfg%ncyli_turb)
          nu_free   = max(cfg%bcyli_lami * gr ** cfg%mcyli_lami, cfg%bcyli_turb * gr ** cfg%mcyli_turb)
       end if
-      gbh_mos = max(cfg%gbhmos_min, (nu_forced + nu_free) * al_th / lchar)
+      nu_mixed = cbrt(nu_forced ** 3 + nu_free ** 3)
+      gbh_mos  = max(cfg%gbhmos_min, nu_mixed * al_th / lchar)
    end function boundary_layer_conductance
 
    !--- The air's kinematic viscosity [m2/s], linear in temperature about t_ref_air.
