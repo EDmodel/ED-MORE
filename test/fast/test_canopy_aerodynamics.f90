@@ -14,7 +14,9 @@
 !   4. BOUNDARY LAYER (canopy_aerodynamics, eqs. (10)-(11)): a leaf's conductance is above
 !      its floor and rises with the wind; an isothermal 5 cm leaf at 20 C has Monteith &
 !      Unsworth's laminar flat-plate value with the air's tabulated viscosity and
-!      diffusivity.
+!      diffusivity; a warm leaf and warm wood (both forced and free convection) take the
+!      cube root of the sum of the cubes of the two Nusselt numbers (Churchill 1977), below
+!      their sum and above the larger.
 !   5. TWO COHORTS (canopy_aerodynamics, eq. (9)): u* and the ground conductance are
 !      positive, a closed canopy couples the ground less than bare soil, and the wind
 !      falls top to bottom by each closed crown's extinction.
@@ -43,20 +45,21 @@
 program test_canopy_aerodynamics
    use ed_test_assert,           only : check, check_true, test_report
    use ed_kinds,                 only : wp, ik
-   use ed_constants,             only : von_karman, mmdry
+   use ed_constants,             only : von_karman, mmdry, grav
    use ed_biophysics_params,     only : aero_params_t
    use ed_therm_lib,             only : cas_molar_density
    use ed_canopy_aerodynamics,   only : aero_env_t, aero_args_t, aero_out_t, ensure_aero_out_capacity,          &
                                         canopy_aerodynamics, mo_surface_layer, open_canopy_fraction,             &
                                         set_aero_env_atm, set_aero_env_canopy, canopy_burial_fraction,          &
                                         canopy_roughness, canopy_air_conductances, cas_atm_conductances
-   use ed_numerics,              only : ascending_order
+   use ed_numerics,              only : ascending_order, cbrt
    implicit none
 
    call test_neutral()
    call test_stability_order()
    call test_canopy_top_wind()
    call test_boundary_layer()
+   call test_mixed_convection()
    call test_two_cohorts()
    call test_open_canopy()
    call test_tied_layer()
@@ -201,6 +204,53 @@ contains
       call check('an isothermal 5 cm leaf: the laminar flat plate at 20 C', mid%leaf_gbh(1), g_plate,         &
                  1.0e-2_wp * g_plate)
    end subroutine test_boundary_layer
+
+   !---~---
+   !   4b. Mixed convection (eq. (11)). One cohort with leaf and wood 10 K above the canopy air, at a
+   ! wind where forced and free convection both count. The reference rebuilds the Nusselt numbers
+   ! of eq. (10) from the parameters and combines them as Churchill (1977): (Nu_f^3 + Nu_n^3)^(1/3),
+   ! for the flat plate (leaf) and the cylinder (wood). The result is below the plain sum of the two
+   ! and above the larger.
+   !---~---
+   subroutine test_mixed_convection()
+      type(aero_params_t) :: cfg
+      type(aero_args_t)   :: geom
+      type(aero_out_t)    :: out
+      integer(ik), parameter :: ORDER(1) = [1_ik]
+      real(wp), parameter :: T_AIR = 293.15_wp, DT = 10.0_wp, WIDTH = 0.05_wp, DIAM = 0.02_wp   ! [K], [K], [m], [m]
+      real(wp) :: nu_v, al_th, re, gr, wind
+      real(wp) :: fl, nl, fw, nw
+      geom%veg_height   = 20.0_wp
+      geom%opencan_frac = 0.0_wp
+      geom%snowfac      = 0.0_wp
+      call ensure_aero_out_capacity(out, 1_ik)
+      call canopy_aerodynamics(cfg, neutral_env(0.5_wp), geom, 1_ik, ORDER, [20.0_wp], [0.5_wp],           &
+                               [T_AIR + DT], [T_AIR + DT], [WIDTH], [DIAM], out)
+      wind  = out%wind(1)
+      nu_v  = cfg%kin_visc0 * (1.0_wp + cfg%dkin_visc * (T_AIR - cfg%t_ref_air))
+      al_th = cfg%th_diff0  * (1.0_wp + cfg%dth_diff  * (T_AIR - cfg%t_ref_air))
+      !--- the leaf (flat plate)
+      re = wind * WIDTH / nu_v
+      gr = grav / (T_AIR * nu_v ** 2) * DT * WIDTH ** 3
+      fl = max(cfg%aflat_lami * re ** cfg%nflat_lami, cfg%aflat_turb * re ** cfg%nflat_turb)
+      nl = max(cfg%bflat_lami * gr ** cfg%mflat_lami, cfg%bflat_turb * gr ** cfg%mflat_turb)
+      call check('a warm leaf: the cube root of the sum of the Nusselt cubes', out%leaf_gbh(1),            &
+                 cbrt(fl ** 3 + nl ** 3) * al_th / WIDTH, 1.0e-3_wp * out%leaf_gbh(1))
+      call check_true('a warm leaf: below the plain sum of the Nusselt numbers',                          &
+                      out%leaf_gbh(1) < (fl + nl) * al_th / WIDTH, (fl + nl) * al_th / WIDTH - out%leaf_gbh(1))
+      call check_true('a warm leaf: above the larger Nusselt number',                                     &
+                      out%leaf_gbh(1) > max(fl, nl) * al_th / WIDTH, out%leaf_gbh(1) - max(fl, nl) * al_th / WIDTH)
+      !--- the wood (cylinder)
+      re = wind * DIAM / nu_v
+      gr = grav / (T_AIR * nu_v ** 2) * DT * DIAM ** 3
+      fw = max(cfg%ocyli_lami + cfg%acyli_lami * re ** cfg%ncyli_lami,                                    &
+               cfg%ocyli_turb + cfg%acyli_turb * re ** cfg%ncyli_turb)
+      nw = max(cfg%bcyli_lami * gr ** cfg%mcyli_lami, cfg%bcyli_turb * gr ** cfg%mcyli_turb)
+      call check('warm wood: the cube root of the sum of the Nusselt cubes', out%wood_gbh(1),              &
+                 cbrt(fw ** 3 + nw ** 3) * al_th / DIAM, 1.0e-3_wp * out%wood_gbh(1))
+      call check_true('warm wood: below the plain sum of the Nusselt numbers',                            &
+                      out%wood_gbh(1) < (fw + nw) * al_th / DIAM, (fw + nw) * al_th / DIAM - out%wood_gbh(1))
+   end subroutine test_mixed_convection
 
    !--- 5. Two cohorts under the default forcing.
    subroutine test_two_cohorts()

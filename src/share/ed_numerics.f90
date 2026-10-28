@@ -1,7 +1,7 @@
 ! SPDX-License-Identifier: Apache-2.0
 !---~---
 !   ed_numerics -- small numerical helpers every layer shares: clamps, a smooth step, the
-! smooth minimum of two limits, a rounded max(x, 0), the step-size factor, the Newton
+! real cube root, the smooth minimum of two limits, a rounded max(x, 0), the step-size factor, the Newton
 ! solvers' step safeguards, the Illinois steps of a bracketed root, linear interpolation,
 ! weighted means, an ordering and the canopy layers it gives, and the test that an
 ! operator kept what it only moves. The linear solvers are in ed_linear_algebra.
@@ -16,7 +16,7 @@ module ed_numerics
    public :: quadratic_smaller_root, adaptive_step_update, smooth_max0
    public :: sufficient_decrease, fraction_to_boundary
    public :: root_bracket_t, regula_falsi_point, illinois_narrow
-   public :: logistic, clamp01, clamp, linear_interpolate, weighted_mean
+   public :: logistic, clamp01, clamp, cbrt, linear_interpolate, weighted_mean
    public :: ascending_order, equal_height_layers
    public :: conserved, pair_mean
 
@@ -221,6 +221,13 @@ contains
       real(wp)             :: y
       y = min(1.0_wp, max(0.0_wp, x))
    end function clamp01
+
+   !--- The real cube root of x, with the sign of x (x ** (1/3) is undefined for x < 0).
+   elemental pure function cbrt(x) result(y)
+      real(wp), intent(in) :: x
+      real(wp)             :: y
+      y = sign(abs(x) ** (1.0_wp / 3.0_wp), x)
+   end function cbrt
 
    !--- x clamped to [lo, hi], with lo <= hi.
    elemental pure function clamp(x, lo, hi) result(y)

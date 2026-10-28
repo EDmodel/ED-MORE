@@ -224,8 +224,8 @@ gather's ascending order (`static%order`), puts the cohorts bottom to top, and p
 the permutation is the identity for $n\le1$.
 
 **Boundary-layer conductance** of each cohort's leaves (flat plate) and wood (cylinder) is ED2's Nusselt
-kernel `boundary_layer_conductance`: the sum of forced convection (Reynolds number) and free convection
-(Grashof number), where the free term matters at low wind. The Reynolds number is
+kernel `boundary_layer_conductance`: forced convection (Reynolds number) and free convection
+(Grashof number) combined into one Nusselt number, where the free term matters at low wind. The Reynolds number is
 $`\mathrm{Re}=u\,\ell/\nu`$ and the Grashof number
 $`\mathrm{Gr}=g\,|T_{elem}-T_{CAS}|\,\ell^3/(T_{CAS}\,\nu^2)`$, over a characteristic length $\ell$
 (leaf width or branch diameter). $`T_{elem}`$ is the leaf temperature for the leaf layer and the wood
@@ -241,9 +241,13 @@ forms:
 ```
 
 ```math
-g_{bh} = \max\!\Big(g_{bh,min},\ \big(\mathrm{Nu}_{forced}+\mathrm{Nu}_{free}\big)\,
+g_{bh} = \max\!\Big(g_{bh,min},\ \big(\mathrm{Nu}_{forced}^{3}+\mathrm{Nu}_{free}^{3}\big)^{1/3}\,
 \frac{\alpha_{th}}{\ell}\Big) \qquad(11)
 ```
+
+The cube root of the sum of cubes is the Churchill (1977) correlation for mixed convection
+(Churchill, S.W., 1977, "A comprehensive correlating equation for laminar, assisting, forced and free convection", *AIChE J.* 23(1):10-16, doi:10.1002/aic.690230103). It tends to the larger
+Nusselt number when one dominates, and is 37 % below the linear sum when the two are equal.
 
 The kinematic viscosity $\nu$ and thermal diffusivity $\alpha_{th}$ are linear-in-temperature about a
 0 °C reference (`kin_visc0`, `dkin_visc`, `th_diff0`, `dth_diff`, `t_ref_air`): 1.52×10⁻⁵ and
