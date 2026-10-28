@@ -17,7 +17,7 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - The latent heat flux (`mean_le_pa`, `mean_le_py`) rises by 0.6 % on average, and by at most
   0.24 W/m2, in the region test's synthetic January 2021 run, where the canopy air is mostly below
   freezing; above freezing it falls. Evapotranspiration changes only at round-off, and the model
-  state is unchanged. (#N)
+  state is unchanged. (#49)
 
 ### Changed
 
@@ -27,16 +27,16 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ### Fixed
 
-- The latent heat of vaporization depends on temperature (Kirchhoff's law), as in ED2, instead of
+- The latent heat of vaporisation depends on temperature (Kirchhoff's law), as in ED2, instead of
   being a constant, and the latent heat of sublimation for the ice share of the water that
-  vaporizes. The reported latent heat flux uses it at the canopy air's temperature, and
+  vaporises. The reported latent heat flux uses it at the canopy air's temperature, and
   evapotranspiration comes from the water vapour that leaves the canopy air rather than from the
-  latent heat flux divided by a constant. (#N)
+  latent heat flux divided by a constant. (#49)
 
 ### Added
 
 - `mean_et_pa`, the patch evapotranspiration [kg/m2/s], beside `mean_le_pa`; latent heat is no longer
-  evapotranspiration times a constant. (#N)
+  evapotranspiration times a constant, so both are needed. (#49)
 
 ## [0.4.1] - 2026-10-26
 
