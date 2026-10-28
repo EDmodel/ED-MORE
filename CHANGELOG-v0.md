@@ -14,7 +14,7 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ### Upgrading
 
-- `mean_et_pa` is now an output variable, and the code generates both ET and LE because 
+- `mean_et_pa` is now an output variable, and the code generates both ET and LE because
    they cannot be related directly due to changes in temperature. (#49)
 
 ### Answer changes
