@@ -30,8 +30,8 @@
 program test_plant_energy
    use ed_test_assert,    only : check, check_true, test_report
    use ed_kinds,          only : wp, ik
-   use ed_constants,      only : cp_air, cp_liq, latent_heat_vap_3ple, stefan_boltzmann, pi
-   use ed_therm_lib,      only : enthalpy_vapor, internal_energy_liquid, sat_specific_humidity,                     &
+   use ed_constants,      only : cp_air, cp_liq, stefan_boltzmann, pi
+   use ed_therm_lib,      only : enthalpy_vapor, internal_energy_liquid, latent_heat_vap, sat_specific_humidity,   &
                                  sat_specific_humidity_temp_deriv, tissue_temp_to_energy
    use ed_canopy_water,   only : canopy_water_out_t
    use ed_plant_energy,   only : tissue_energy_balance, latent_pathway_t, plant_energy_env_t, canopy_tissue_energy,  &
@@ -171,10 +171,13 @@ contains
       real(wp) :: dt_temp2, t_store2, transp2, dh2, drnet2, film_evap2
       real(wp), parameter :: ABS_SW = 400.0_wp, ABS_LW = -50.0_wp, H_COEFF = 12.0_wp
       real(wp), parameter :: LW_SLOPE = 6.0_wp, T_CAS = 298.0_wp, T_PARENT = 298.0_wp
-      type(latent_pathway_t), parameter :: DRY = latent_pathway_t(slope=8.0_wp,  ref=15.0_wp)   ! stomatal
-      type(latent_pathway_t), parameter :: WET = latent_pathway_t(slope=20.0_wp, ref=40.0_wp)   ! film
-      type(latent_pathway_t) :: none
+      type(latent_pathway_t) :: DRY, WET, none
+      real(wp) :: h_vap
       print '(a)', 'test_veg_energy_diagnostic_wetted:'
+      !--- Both pathways evaporate liquid at the canopy air's temperature.
+      h_vap = latent_heat_vap(T_CAS, 1.0_wp)
+      DRY   = latent_pathway_t(slope=8.0_wp,  ref=15.0_wp, h_vap=h_vap)   ! stomatal
+      WET   = latent_pathway_t(slope=20.0_wp, ref=40.0_wp, h_vap=h_vap)   ! film
 
       !---~---
       !   1. f_wet = 0 leaves no trace of the film's pathway: the same result, bit for bit, as no
@@ -208,7 +211,7 @@ contains
       !---~---
       !   3. PARTIAL wetting (f_wet=0.4): the energy balance must still close -- absorbed radiation
       ! net of LW emission (drnet) splits EXACTLY into sensible + BOTH latent pathways, each at the
-      ! pathway's h_vap (here the default, latent_heat_vap_3ple) -- the identity the surface path relies
+      ! pathway's h_vap (here latent_heat_vap at the canopy-air temperature) -- the identity the surface path relies
       ! on to make the CAS's temperature-dependent vapour-enthalpy credit balance against a store's
       ! liquid-enthalpy debit (for transpiration the leaf pays the full vapour enthalpy itself; the
       ! surface-water accounting does the same for film_evap).
@@ -216,7 +219,7 @@ contains
       call tissue_energy_balance(ABS_SW, ABS_LW, 0.0_wp, H_COEFF, LW_SLOPE, DRY, WET, 0.4_wp,            &
                                  T_CAS, T_PARENT, 0.0_wp, T_CAS, dt_temp, t_store, transp, film_evap, dh, drnet)
       call check('partial f_wet: energy balance closes (drnet = dh + latent)', drnet,                  &
-                 dh + (transp + film_evap) * latent_heat_vap_3ple, 1.0e-9_wp)
+                 dh + (transp + film_evap) * h_vap, 1.0e-9_wp)
       call check_true('partial f_wet: film_evap > 0 (wet pathway active)', film_evap > 0.0_wp, film_evap)
       call check_true('partial f_wet: transp > 0 (dry pathway still active)', transp > 0.0_wp, transp)
    end subroutine test_veg_energy_diagnostic_wetted
@@ -243,12 +246,13 @@ contains
       !---~---
       real(wp) :: dt_temp, t_store, transp, dh, drnet, film_evap
       real(wp) :: dt_h, t_h, transp_h, dh_h, drnet_h, film_h
-      real(wp) :: ai, ast, resid, worst, worst_split
+      real(wp) :: ai, ast, resid, worst, worst_split, h_vap
       integer(ik) :: ia, il, is
       real(wp), parameter :: T_CAS = 298.0_wp, T0 = T_CAS - 0.5_wp, T_PARENT = 301.0_wp
       real(wp), parameter :: CAP_PER_AREA = 1500.0_wp   ! [J/m2 tissue/K] a leaf's dry tissue and water
       logical :: is_leaf
       print '(a)', 'test_veg_energy_thin_tissue:'
+      h_vap = latent_heat_vap(T_CAS, 1.0_wp)   ! liquid at the canopy air's temperature
       worst = 0.0_wp
       worst_split = 0.0_wp
       do is = 0_ik, 1_ik
@@ -259,7 +263,7 @@ contains
                ast = 0.0_wp
                if (is == 1_ik) ast = CAP_PER_AREA * ai / 900.0_wp
                call thin_tissue(ai, ast, is_leaf, dt_temp, t_store, transp, dh, drnet, film_evap)
-               resid = drnet + 25.0_wp*ai - dh - latent_heat_vap_3ple*(transp + film_evap) - ast * (t_store - T0)
+               resid = drnet + 25.0_wp*ai - dh - h_vap*(transp + film_evap) - ast * (t_store - T0)
                worst = max(worst, abs(resid) / (abs(drnet) + 25.0_wp*ai))
                call thin_tissue(0.5_wp*ai, 0.5_wp*ast, is_leaf, dt_h, t_h, transp_h, dh_h, drnet_h, film_h)
                worst_split = max(worst_split, abs(t_h - t_store), abs(2.0_wp*dh_h - dh) / abs(dh),          &
@@ -287,13 +291,14 @@ contains
       real(wp), intent(out) :: dtt, ts, tr, h_out, rn, fe
       real(wp), parameter   :: GBH = 0.03_wp, RHO = 1.2_wp, EMISS = 0.97_wp
       real(wp), parameter   :: T_CAS = 298.0_wp, T0 = T_CAS - 0.5_wp, T_PARENT = 301.0_wp
-      real(wp) :: hc, lws, les, ler
+      real(wp) :: hc, lws, les, ler, h_vap
       hc  = merge(2.0_wp, pi, leaf) * a * GBH * RHO * cp_air
       lws = 4.0_wp * EMISS * stefan_boltzmann * T_CAS**3 * a
       les = merge( 8.0_wp * a, 0.0_wp, leaf)    ! stomatal (wood does not transpire)
       ler = merge(15.0_wp * a, 0.0_wp, leaf)
-      call tissue_energy_balance(400.0_wp*a, -50.0_wp*a, 25.0_wp*a, hc, lws, latent_pathway_t(slope=les, ref=ler), &
-                                 latent_pathway_t(slope=20.0_wp*a, ref=40.0_wp*a), 0.4_wp, T_CAS, T_PARENT,      &
+      h_vap = latent_heat_vap(T_CAS, 1.0_wp)   ! liquid at the canopy air's temperature
+      call tissue_energy_balance(400.0_wp*a, -50.0_wp*a, 25.0_wp*a, hc, lws, latent_pathway_t(slope=les, ref=ler, h_vap=h_vap), &
+                                 latent_pathway_t(slope=20.0_wp*a, ref=40.0_wp*a, h_vap=h_vap), 0.4_wp, T_CAS, T_PARENT,      &
                                  a_store, T0, dtt, ts, tr, fe, h_out, rn)
    end subroutine thin_tissue
 
