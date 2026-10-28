@@ -45,8 +45,10 @@ module ed_constants
    real(wp), parameter :: cp_ice             = 2093.0_wp      ! [J/kg/K] ice specific heat
    real(wp), parameter :: k_water            = 0.57_wp        ! [W/m/K] liquid-water thermal conductivity
    real(wp), parameter :: k_ice              = 2.29_wp        ! [W/m/K] ice thermal conductivity
-   real(wp), parameter :: latent_heat_vap    = 2.501e6_wp     ! [J/kg] latent heat of vaporization
+   real(wp), parameter :: latent_heat_vap_3ple = 2.501e6_wp   ! [J/kg] latent heat of vaporization at t_3ple
    real(wp), parameter :: latent_heat_fusion = 3.34e5_wp      ! [J/kg] latent heat of fusion
+   !--- [Pa] Saturation vapour pressure at t_3ple, Ambaum (2020, QJRMS 146:4252, doi:10.1002/qj.3899) eq. (14).
+   real(wp), parameter :: es_3ple            = 611.655_wp
    real(wp), parameter :: grav_head          = rho_h2o * grav * 1.0e-6_wp  ! [MPa/m] water potential per metre of height
    !---~---
    !   One energy zero for ice, liquid and vapour: ice at 0 K. Liquid water then holds
@@ -55,7 +57,7 @@ module ed_constants
    !---~---
    real(wp), parameter :: tsupercool_liq = t_3ple - (cp_ice * t_3ple + latent_heat_fusion) / cp_liq
    real(wp), parameter :: tsupercool_vap = t_3ple                                                     &
-                          - (cp_ice * t_3ple + latent_heat_vap + latent_heat_fusion) / cp_vap
+                          - (cp_ice * t_3ple + latent_heat_vap_3ple + latent_heat_fusion) / cp_vap
 
    !---~---
    !   Physical constants: water vapour and CO2 diffusing through a leaf, as the ratio of

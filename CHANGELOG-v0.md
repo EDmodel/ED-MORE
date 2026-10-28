@@ -12,11 +12,41 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ## [Unreleased]
 
+### Answer changes
+
+- The latent heat flux (`mean_le_pa`, `mean_le_py`) rises by 0.6 % on average, and by at most
+  0.24 W/m2, in the region test's synthetic January 2021 run, where the canopy air is mostly below
+  freezing; above freezing it falls. Evapotranspiration changes only at round-off, and the model
+  state is unchanged. (#49)
+- Saturation vapour pressure follows Ambaum (2020) instead of Bolton and Magnus. In the region
+  test's synthetic January 2021 run the latent heat flux (`mean_le_pa`) and evapotranspiration
+  (`mean_et_pa`) rise by 0.22 % on average (16.85 to 16.88 W/m2, at most 0.09 W/m2 on a day); the
+  sensible heat flux, canopy air specific humidity and VPD change by 0.04 % or less. (#51)
+
 ### Changed
 
 - The Fortran sources use one comment format: `!--- text` for a comment line, a comment of
   several lines between two `!---~---` lines, and a plain `! text` after a statement. Results are
   bit for bit; only comments change. (#48)
+- Saturation vapour pressure, over liquid water and over ice, is Ambaum's (2020) closed form of
+  the Clausius-Clapeyron equation, built on the model's latent heat, so its slope with temperature
+  is Clausius-Clapeyron by definition and both phases meet at the triple point. It replaces the
+  empirical Bolton and Magnus forms with no option; it is within 0.25 % of Murphy and Koop (2005)
+  from -30 to 40 C. The flux-tower tools use it too, and `ambaum` is the first of their
+  saturation curves, with `bolton` kept. (#51)
+
+### Fixed
+
+- The latent heat of vaporisation depends on temperature (Kirchhoff's law), as in ED2, instead of
+  being a constant, and the latent heat of sublimation for the ice share of the water that
+  vaporises. The reported latent heat flux uses it at the canopy air's temperature, and
+  evapotranspiration comes from the water vapour that leaves the canopy air rather than from the
+  latent heat flux divided by a constant. (#49)
+
+### Added
+
+- `mean_et_pa`, the patch evapotranspiration [kg/m2/s], beside `mean_le_pa`; latent heat is no longer
+  evapotranspiration times a constant, so both are needed. (#49)
 
 ## [0.4.1] - 2026-10-26
 

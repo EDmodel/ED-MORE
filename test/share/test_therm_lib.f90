@@ -12,10 +12,10 @@
 !      and melting it at t_3ple costs the latent heat of fusion
 !      (docs/science/coupled_biophysics.md, principle 1).
 !   3. CLAUSIUS-CLAPEYRON (sat_vapor_pressure_temp_deriv): the slope of e_sat against a
-!      finite difference.
+!      finite difference, and e L / (Rv T**2) with the model's latent heat, over both phases.
 !   4. ICE SATURATION (sat_vapor_pressure; docs/science/snow_biophysics.md eq. (1)): an
 !      absent liquid fraction is the liquid curve to the bit; the branches meet at the
-!      triple point; over ice e_sat is Murphy & Koop (2005)'s; at 268 K the air saturated
+!      triple point, at es_3ple; both phases agree with Murphy & Koop (2005); at 268 K the air saturated
 !      over ice holds 3-8 % less vapour than over liquid.
 !   5. SOIL CONDUCTIVITY (soil_thermal_conductivity; docs/science/soil_biophysics.md eq.
 !      (11)): frozen soil conducts more than thawed; the Kersten number is Johansen's log
@@ -41,19 +41,21 @@
 program test_therm_lib
    use ed_test_assert,   only : check, check_true, test_report
    use ed_kinds,         only : wp, ik
-   use ed_constants,     only : t_kelvin, t_3ple, cp_ice, latent_heat_fusion, k_water, k_ice, h2o_dry_ratio
+   use ed_constants,     only : t_kelvin, t_3ple, r_wv, es_3ple, cp_ice, latent_heat_fusion, k_water, k_ice,   &
+                                h2o_dry_ratio, latent_heat_vap_3ple
    use ed_therm_lib,     only : arrhenius_scale, peaked_arrhenius_scale, kattge_knorr_entropy,                    &
                                 temp_to_internal_energy, internal_energy_to_temp, internal_energy_ice,            &
                                 sat_vapor_pressure, sat_vapor_pressure_temp_deriv, sat_specific_humidity,         &
                                 soil_thermal_conductivity, soil_texture_to_thermal, rh_to_specific_humidity,      &
                                 precip_phase, lapse_air_temperature, lapse_pressure, lapse_specific_humidity,     &
                                 specific_humidity_to_vpd, tissue_temp_to_energy, tissue_energy_to_temp,          &
-                                internal_energy_liquid
+                                internal_energy_liquid, latent_heat_vap, enthalpy_vapor
    implicit none
    real(wp), parameter :: SCAN_LO = 5.0_wp, SCAN_HI = 55.0_wp   ! [C] the optimum scan's range
 
    call test_temperature_response()
    call test_datum()
+   call test_latent_heat_vap()
    call test_clausius()
    call test_ice_saturation()
    call test_soil_conductivity()
@@ -161,14 +163,30 @@ contains
       call check('melting at t_3ple costs the latent heat of fusion', u_liq - u_ice, SWE * 3.34e5_wp, 1.0e-3_wp)
    end subroutine test_datum
 
-   !--- 3. The Clausius-Clapeyron slope of the liquid curve against a central difference.
+   !---~---
+   !   3. The slope of the liquid curve against a central difference, and the Clausius-Clapeyron
+   ! equation itself: de/dT = e L / (Rv T**2), with L the latent_heat_vap the energy budget uses,
+   ! over liquid and over ice.
+   !---~---
    subroutine test_clausius()
       real(wp), parameter :: DT = 1.0e-3_wp
-      real(wp) :: ana, fd
+      real(wp) :: ana, fd, temp
+      integer  :: i
       print '(a)', 'test_clausius:'
       ana = sat_vapor_pressure_temp_deriv(295.0_wp)
       fd  = (sat_vapor_pressure(295.0_wp + DT) - sat_vapor_pressure(295.0_wp - DT)) / (2.0_wp * DT)
       call check('d(e_sat)/dT vs FD', ana, fd, 1.0e-3_wp * abs(fd) + 1.0e-6_wp)
+      do i = 1, 5
+         temp = 233.15_wp + 20.0_wp * real(i - 1, wp)
+         call check('d(e_sat)/dT is Clausius-Clapeyron over liquid',                                &
+                    sat_vapor_pressure_temp_deriv(temp, 1.0_wp),                                    &
+                    sat_vapor_pressure(temp, 1.0_wp) * latent_heat_vap(temp, 1.0_wp) / (r_wv * temp**2), &
+                    1.0e-10_wp * sat_vapor_pressure_temp_deriv(temp, 1.0_wp))
+         call check('d(e_sat)/dT is Clausius-Clapeyron over ice',                                   &
+                    sat_vapor_pressure_temp_deriv(temp, 0.0_wp),                                    &
+                    sat_vapor_pressure(temp, 0.0_wp) * latent_heat_vap(temp, 0.0_wp) / (r_wv * temp**2), &
+                    1.0e-10_wp * sat_vapor_pressure_temp_deriv(temp, 0.0_wp))
+      end do
    end subroutine test_clausius
 
    !---~---
@@ -192,27 +210,23 @@ contains
                       sat_vapor_pressure(253.15_wp) == sat_vapor_pressure(253.15_wp, 1.0_wp), 0.0_wp)
 
       !---~---
-      !   (b) the two branches share the 611.2 Pa constant, so they cross EXACTLY at tc = 0,
-      ! i.e. at 273.15 K. (t_3ple is 273.16 K, one hundredth of a degree above, where they
-      ! differ by 0.06 Pa = 0.01 % -- checked below.) The blend is a convex combination of
-      ! two smooth curves, so it is continuous in BOTH temperature and fliq regardless; what
-      ! this pins is that a surface crossing the phase boundary sees no step.
+      !   (b) both branches are es_3ple at t_3ple, because ice's latent heat there is the liquid's
+      ! plus the fusion heat, so they meet EXACTLY at the triple point, where the melt plateau
+      ! sits. A surface melting at t_3ple then sees no step in e_sat as fliq changes.
       !---~---
-      call check('ice and liquid branches cross exactly at 273.15 K',                             &
-                 sat_vapor_pressure(273.15_wp, 0.0_wp), sat_vapor_pressure(273.15_wp, 1.0_wp),    &
-                 1.0e-12_wp)
-      call check('half-frozen too, at 273.15 K', sat_vapor_pressure(273.15_wp, 0.5_wp),           &
-                 sat_vapor_pressure(273.15_wp, 1.0_wp), 1.0e-12_wp)
-      call check_true('branches agree to < 0.05 % at the triple point',                           &
-                      abs(sat_vapor_pressure(t_3ple, 0.0_wp) - sat_vapor_pressure(t_3ple, 1.0_wp))&
-                      < 5.0e-4_wp * sat_vapor_pressure(t_3ple, 1.0_wp),                           &
-                      sat_vapor_pressure(t_3ple, 0.0_wp) / sat_vapor_pressure(t_3ple, 1.0_wp))
+      call check('liquid branch is es_3ple at t_3ple', sat_vapor_pressure(t_3ple), es_3ple, 1.0e-9_wp)
+      call check('ice branch is es_3ple at t_3ple', sat_vapor_pressure(t_3ple, 0.0_wp), es_3ple, 1.0e-9_wp)
+      call check('half-frozen too, at t_3ple', sat_vapor_pressure(t_3ple, 0.5_wp), es_3ple, 1.0e-9_wp)
 
       !--- (c) accuracy against Murphy & Koop (2005) over ice, and the liquid curve's error.
       call check('e_sat over ice at -10 C (Murphy-Koop 259.892 Pa)',                              &
-                 sat_vapor_pressure(t_3ple - 10.0_wp, 0.0_wp), 259.892_wp, 0.4_wp)
+                 sat_vapor_pressure(t_kelvin - 10.0_wp, 0.0_wp), 259.892_wp, 0.1_wp)
       call check('e_sat over ice at -20 C (Murphy-Koop 103.252 Pa)',                              &
-                 sat_vapor_pressure(t_3ple - 20.0_wp, 0.0_wp), 103.252_wp, 0.5_wp)
+                 sat_vapor_pressure(t_kelvin - 20.0_wp, 0.0_wp), 103.252_wp, 0.1_wp)
+      call check('e_sat over liquid at -20 C (Murphy-Koop 125.504 Pa)',                           &
+                 sat_vapor_pressure(t_kelvin - 20.0_wp), 125.504_wp, 0.3_wp)
+      call check('e_sat over liquid at 20 C (Murphy-Koop 2339.399 Pa)',                           &
+                 sat_vapor_pressure(t_kelvin + 20.0_wp), 2339.399_wp, 5.0_wp)
       e_liq = sat_vapor_pressure(t_3ple - 10.0_wp, 1.0_wp)
       e_ice = sat_vapor_pressure(t_3ple - 10.0_wp, 0.0_wp)
       call check_true('liquid curve overstates a frozen surface by ~10 % at -10 C',               &
@@ -335,6 +349,29 @@ contains
       call check_true('a site 500 m below its cell is warmer and holds more vapour', q1 > Q0, q1 - Q0)
       call check('dz = 0 leaves q unchanged', lapse_specific_humidity(Q0, T0, P0, T0, P0), Q0, 1.0e-15_wp)
    end subroutine test_lapse
+
+   !---~---
+   !   The latent heat of liquid equals enthalpy_vapor less internal_energy_liquid and that of ice
+   ! enthalpy_vapor less internal_energy_ice, at every temperature, supercooled liquid included;
+   ! a mixture is their average weighted by the liquid share.
+   !---~---
+   subroutine test_latent_heat_vap()
+      real(wp) :: t
+      integer  :: i
+      print '(a)', 'test_latent_heat_vap:'
+      do i = 0, 4
+         t = 240.0_wp + 20.0_wp * real(i, wp)
+         call check('liquid: enthalpy_vapor - internal_energy_liquid', latent_heat_vap(t, 1.0_wp),            &
+                    enthalpy_vapor(t) - internal_energy_liquid(t), 1.0e-6_wp)
+         call check('ice: enthalpy_vapor - internal_energy_ice', latent_heat_vap(t, 0.0_wp),                  &
+                    enthalpy_vapor(t) - internal_energy_ice(t), 1.0e-6_wp)
+         call check('mixture: the liquid-weighted average', latent_heat_vap(t, 0.3_wp),                       &
+                    0.3_wp * latent_heat_vap(t, 1.0_wp) + 0.7_wp * latent_heat_vap(t, 0.0_wp), 1.0e-6_wp)
+      end do
+      call check('liquid at t_3ple', latent_heat_vap(t_3ple, 1.0_wp), latent_heat_vap_3ple, 1.0e-9_wp)
+      call check('ice at t_3ple', latent_heat_vap(t_3ple, 0.0_wp), latent_heat_vap_3ple + latent_heat_fusion, 1.0e-9_wp)
+      call check_true('liquid L_v falls as the air warms', latent_heat_vap(303.15_wp, 1.0_wp) < latent_heat_vap(t_3ple, 1.0_wp))
+   end subroutine test_latent_heat_vap
 
    !---~---
    !   9. A tissue of 5e4 J/K of dry matter holding 12 kg of water at 297.3 K, and 0.7 kg of water

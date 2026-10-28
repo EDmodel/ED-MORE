@@ -10,21 +10,23 @@
 ! (8)-(10)); soil heat: the thermal properties of a texture and the soil's conductivity
 ! and heat capacity (docs/science/soil_biophysics.md eqs. (9) and (11)); and the
 ! temperature response of enzyme rates (docs/science/plant_respiration.md eq. (5),
-! docs/science/leaf_gas_exchange.md §2). The Bolton (1980), Johansen and CLM5 coefficients
+! docs/science/leaf_gas_exchange.md §2). The Johansen and CLM5 coefficients
 ! are fixed empirical constants, not model parameters.
 !---~---
 module ed_therm_lib
    use ed_kinds,       only : wp, ik
    use ed_constants,   only : mmdry, tiny_num, cp_air, cp_vap, cp_liq, cp_ice, latent_heat_fusion,  &
-                              t_3ple, tsupercool_liq, tsupercool_vap, r_dry, rho_h2o, k_water,      &
-                              k_ice, c2b_wood, r_gas, t_ref_photo, safe_exp, t_kelvin, grav,        &
+                              latent_heat_vap_3ple,                                               &
+                              t_3ple, tsupercool_liq, tsupercool_vap, r_dry, r_wv, es_3ple,        &
+                              rho_h2o, k_water, k_ice, c2b_wood, r_gas, t_ref_photo, safe_exp,      &
+                              t_kelvin, grav,                                                       &
                               h2o_dry_ratio, virtual_temp_factor
    implicit none
    private
 
    !--- Energy datum: specific energies and the phase-change inverter.
    public :: internal_energy_to_temp, temp_to_internal_energy
-   public :: enthalpy_vapor, internal_energy_liquid, internal_energy_ice, liquid_energy_to_temp
+   public :: latent_heat_vap, enthalpy_vapor, internal_energy_liquid, internal_energy_ice, liquid_energy_to_temp
    public :: precip_enthalpy, precip_phase
    !--- Moist air.
    public :: sat_vapor_pressure, sat_specific_humidity, sat_vapor_pressure_temp_deriv
@@ -101,6 +103,24 @@ contains
    end function temp_to_internal_energy
 
    !---~---
+   !   Latent heat [J/kg] of the water that turns to vapour at temperature t_k, from Kirchhoff's
+   ! law on the common datum, so it equals enthalpy_vapor less the source's own energy at t_k
+   ! (docs/science/canopy_air_space_biophysics.md). Liquid vaporizes with
+   ! latent_heat_vap_3ple + (cp_vap - cp_liq) (t_k - t_3ple), supercooled or not; ice sublimes with
+   ! latent_heat_fusion + latent_heat_vap_3ple + (cp_vap - cp_ice) (t_k - t_3ple). The heat is their
+   ! average weighted by fliq, the liquid share of the water that vaporizes.
+   !---~---
+   elemental function latent_heat_vap(t_k, fliq) result(l_v)
+      real(wp), intent(in) :: t_k    ! [K]
+      real(wp), intent(in) :: fliq   ! [-] liquid share of the vaporizing water
+      real(wp)             :: l_v
+      real(wp) :: l_liq, l_ice
+      l_liq = latent_heat_vap_3ple + (cp_vap - cp_liq) * (t_k - t_3ple)
+      l_ice = latent_heat_fusion + latent_heat_vap_3ple + (cp_vap - cp_ice) * (t_k - t_3ple)
+      l_v   = fliq * l_liq + (1.0_wp - fliq) * l_ice
+   end function latent_heat_vap
+
+   !---~---
    !   Specific enthalpy of water vapour [J/kg] in the common datum, so a vapour flux
    ! carries its latent heat (docs/science/canopy_air_space_biophysics.md).
    !---~---
@@ -168,23 +188,42 @@ contains
    !---~---
 
    !---~---
-   !   Saturation vapour pressure [Pa] (docs/science/snow_biophysics.md eq. (1)):
-   ! Bolton (1980) over liquid, blended with the Magnus form over ice by the liquid
-   ! fraction fliq. Without fliq it is over liquid, as dewpoint and VPD need
-   ! (docs/science/forcing.md §7).
+   !   Saturation vapour pressure [Pa] (docs/science/snow_biophysics.md eq. (1)): Ambaum
+   ! (2020) over liquid and over ice, blended by the liquid fraction fliq. Without fliq it is
+   ! over liquid, as dewpoint and VPD need (docs/science/forcing.md §7).
    !---~---
    elemental function sat_vapor_pressure(t_k, fliq) result(esat)
       real(wp), intent(in)           :: t_k
       real(wp), intent(in), optional :: fliq    ! liquid fraction of the surface (absent = 1, all liquid)
-      real(wp)                       :: esat, tc, fl
-      tc   = t_k - t_kelvin
-      esat = 611.2_wp * exp(17.67_wp * tc / (tc + 243.5_wp))
+      real(wp)                       :: esat, e_liq, e_ice, slope, fl
+      call sat_phase(t_k, 1.0_wp, e_liq, slope)
+      esat = e_liq
       if (present(fliq)) then
          fl = min(1.0_wp, max(0.0_wp, fliq))
-         if (fl < 1.0_wp) esat = fl * esat                                                       &
-                               + (1.0_wp - fl) * 611.2_wp * exp(21.8745584_wp * tc / (tc + 265.5_wp))
+         if (fl < 1.0_wp) then
+            call sat_phase(t_k, 0.0_wp, e_ice, slope)
+            esat = fl * e_liq + (1.0_wp - fl) * e_ice
+         end if
       end if
    end function sat_vapor_pressure
+
+   !---~---
+   !   The saturation vapour pressure e [Pa] over one phase (phase = 1 liquid, 0 ice) and its
+   ! slope de/dT [Pa/K] (docs/science/snow_biophysics.md eq. (1)). The latent heat is the
+   ! Kirchhoff L(T) of latent_heat_vap, so the slope is the Clausius-Clapeyron equation
+   ! e L / (Rv T**2) by construction, and both phases meet at es_3ple at t_3ple.
+   !---~---
+   elemental subroutine sat_phase(t_k, phase, e_sat, de_sat)
+      real(wp), intent(in)  :: t_k, phase
+      real(wp), intent(out) :: e_sat, de_sat
+      real(wp) :: l_ref, l_now, c_cond
+      c_cond = phase * cp_liq + (1.0_wp - phase) * cp_ice
+      l_ref  = latent_heat_vap(t_3ple, phase)
+      l_now  = latent_heat_vap(t_k, phase)
+      e_sat  = es_3ple * (t_3ple / t_k) ** ((c_cond - cp_vap) / r_wv)                            &
+             * safe_exp(l_ref / (r_wv * t_3ple) - l_now / (r_wv * t_k))
+      de_sat = e_sat * l_now / (r_wv * t_k * t_k)
+   end subroutine sat_phase
 
    !---~---
    !   Saturation specific humidity [kg/kg]: q = eps e / (p - (1 - eps) e), eps
@@ -237,16 +276,13 @@ contains
    elemental function sat_vapor_pressure_temp_deriv(t_k, fliq) result(desat)
       real(wp), intent(in)           :: t_k
       real(wp), intent(in), optional :: fliq
-      real(wp)                       :: desat, tc, fl, e_liq, e_ice
-      tc    = t_k - t_kelvin
-      e_liq = 611.2_wp * exp(17.67_wp * tc / (tc + 243.5_wp))
-      desat = e_liq * 17.67_wp * 243.5_wp / (tc + 243.5_wp) ** 2
+      real(wp)                       :: desat, fl, e_sat, d_ice
+      call sat_phase(t_k, 1.0_wp, e_sat, desat)
       if (present(fliq)) then
          fl = min(1.0_wp, max(0.0_wp, fliq))
          if (fl < 1.0_wp) then
-            e_ice = 611.2_wp * exp(21.8745584_wp * tc / (tc + 265.5_wp))
-            desat = fl * desat                                                                   &
-                  + (1.0_wp - fl) * e_ice * 21.8745584_wp * 265.5_wp / (tc + 265.5_wp) ** 2
+            call sat_phase(t_k, 0.0_wp, e_sat, d_ice)
+            desat = fl * desat + (1.0_wp - fl) * d_ice
          end if
       end if
    end function sat_vapor_pressure_temp_deriv

@@ -321,6 +321,7 @@ module ed_fast_integ_types
       !--- Net CAS -> atmosphere export over the step, b-weighted like the ledgers: the reported H, LE.
       real(wp)       :: atm_heat_export = 0.0_wp   ! [J/m2]  sensible heat over this dt_fast
       real(wp)       :: atm_vap_export  = 0.0_wp   ! [kg/m2] over this dt_fast
+      real(wp)       :: snow_vap_export = 0.0_wp   ! [kg/m2] the snow pack's vapour to the CAS over this dt_fast
       !---~---
       !   Water leaving the soil column over the step, as the water network moved it: the pond's
       ! spill (surface runoff) and the bottom flux (drainage; negative when an aquifer feeds it).
@@ -363,6 +364,7 @@ module ed_fast_integ_types
       real(wp), allocatable :: root_resp_coh(:)   ! [umol CO2/plant/s] fine-root maintenance respiration
       real(wp), allocatable :: psi_leaf_coh(:)    ! [MPa] the leaf potential at state^n (daily-max accumulator)
       real(wp)              :: le_flux = 0.0_wp   ! [W/m2] CAS -> atmosphere latent heat (ET), the step's mean
+      real(wp)              :: et_flux = 0.0_wp   ! [kg/m2/s] CAS -> atmosphere vapour (ET), the step's mean
       real(wp)              :: h_flux  = 0.0_wp   ! [W/m2] CAS -> atmosphere sensible heat, the step's mean
       real(wp)              :: rnet    = 0.0_wp   ! [W/m2] net radiation the canopy and ground booked, the step's mean
       logical               :: capture = .false.  ! fill cdiag; off, nothing extra is computed

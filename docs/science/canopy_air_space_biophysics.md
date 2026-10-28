@@ -73,7 +73,7 @@ four terms:
 The CAS temperature is diagnosed from $(H^{n+1},q^{n+1})$ at each step by inverting the specific
 enthalpy $`H = (1-q)\,c_{p,d}\,T + q\,c_{p,v}\,(T - T_{sc,v})`$ (`cas_temp_to_enthalpy`,
 `cas_enthalpy_to_temp`). Dry air is counted from 0 K, and vapour sits in the energy datum every store
-shares, in which ice at 0 K holds no energy, so a vapour flux carries its latent heat with it. All three
+shares, in which ice at 0 K holds no energy, so a vapour flux carries its latent heat with it. The latent heat is that datum's difference between the vapour and its source (`latent_heat_vap`; Kirchhoff's law). Liquid, supercooled or not, vaporizes with $`L_v(T) = L_{v,3ple} + (c_{p,v} - c_{p,l})\,(T - T_{3ple})`$ and ice sublimes with $`L_s(T) = L_f + L_{v,3ple} + (c_{p,v} - c_{p,i})\,(T - T_{3ple})`$. A mixture takes their average weighted by $`f_{liq}`$, the liquid share of the water that vaporizes: $`f_{liq}\,L_v + (1 - f_{liq})\,L_s`$. The reported latent heat flux takes the ice share from the snow pack's part of the vapour exported, and the rest as liquid. The heat a kilogram takes depends on the temperature it leaves at, and enthalpy closes; $`L_{v,3ple}`$ is the constant `latent_heat_vap_3ple`. The saturation vapour pressure is built on these same $`L_v(T)`$ and $`L_s(T)`$ ([snow biophysics](snow_biophysics.md) eq. (1)), so its slope with temperature is the Clausius–Clapeyron equation with the heat a vapour flux carries. All three
 variables share $`u_*`$ and the profile factor, which keeps them on one turbulence basis; CO₂ without
 the profile factor would be over-coupled to the free atmosphere and lose its nocturnal build-up (see
 [canopy_aerodynamics](canopy_aerodynamics.md) eq. (6)).
@@ -120,7 +120,7 @@ wrote it.
 | capacities $`W_{cap}`$, $`C_{cap}`$ | `ed_patch_state_vars`: `cas_capacities` (the frozen build and the slow ledger) |
 | conductances, eq. (6) of canopy_aerodynamics | `ed_canopy_aerodynamics`: `cas_atm_conductances`, `canopy_air_conductances` |
 | condensation sink | `ed_canopy_air_space`: `cas_condensation` |
-| temperature ↔ enthalpy | `ed_therm_lib`: `cas_temp_to_enthalpy`, `cas_enthalpy_to_temp`, `cas_molar_density` |
+| temperature ↔ enthalpy | `ed_therm_lib`: `cas_temp_to_enthalpy`, `cas_enthalpy_to_temp`, `cas_molar_density`, `latent_heat_vap` |
 | biotic CO₂ source $`F_{bio}`$ | `ed_fast_integ_frozen`: `build_frozen` |
 | CAS depth and open-volume exchange | `refresh_canopy_depth` (`ed_slow_update`), `cas_set_depth` (`ed_patch_state_vars`) |
 | the start's canopy air | `seed_patch_stores` (`ed_init_bare_ground`, the placeholder); `seed_start_canopy_air` (`ed_fast_state`), called by `fast_dynamics` at the first window |

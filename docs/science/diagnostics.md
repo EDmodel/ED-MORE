@@ -288,8 +288,8 @@ A polygon mean over a closed canopy and a gap can describe neither: in a stand w
 surface soil can run well above the air at midday while the closed patch's runs below it. So each fast
 quantity of the patch block is also written per patch on the F tier:
 
-- `mean_cas_temp_pa`, `mean_soil_temp_top_pa`, `mean_skin_temp_pa`, `mean_le_pa`, `mean_h_pa`,
-  `mean_rnet_pa`, `mean_nee_pa`, `mean_gpp_pa` and `mean_npp_pa`, which have daily values too, under
+- `mean_cas_temp_pa`, `mean_soil_temp_top_pa`, `mean_skin_temp_pa`, `mean_le_pa`, `mean_et_pa`,
+  `mean_h_pa`, `mean_rnet_pa`, `mean_nee_pa`, `mean_gpp_pa` and `mean_npp_pa`, which have daily values too, under
   the same names;
 - `mean_sw_up_pa`, `mean_lw_up_pa`, `mean_ustar_pa`, `mean_reco_pa` and `mean_cas_co2_pa`, which
   exist only sub-daily;
@@ -469,8 +469,8 @@ Look at these first.
 **Fast-scale.** `mean_sw_in_py`, `mean_rnet_py` — is the radiation forcing physically shaped?
 `mean_le_py`, `mean_h_py` — the Bowen ratio, the single most diagnostic energy number.
 `mean_gpp_py` — light-response shape and magnitude. `mean_nee_py` — night `= +Reco`, day `= −uptake`;
-the sign flip is the integration test. `mean_et_py` — closes against `mean_le_py`, catches a
-latent-heat unit error instantly. `mean_cas_temp_py`, `mean_cas_vpd_py` — canopy-air coupling, the first
+the sign flip is the integration test. `mean_et_py` — closes against `mean_le_py` through the latent heat at the canopy-air temperature
+(about 2.5e6 J/kg, a little more below freezing), which catches a latent-heat unit error instantly. `mean_cas_temp_py`, `mean_cas_vpd_py` — canopy-air coupling, the first
 thing to oscillate if `dt_fast` is too large. `mean_cas_co2_py` — drawdown amplitude; a stuck value
 means the canopy air's CO₂ is not coupled. `mean_soil_temp_layer_si`, `mean_soil_water_layer_si` — the diurnal thermal wave
 and the drydown shape. `mean_ustar_py` — is the surface layer turbulent at all?

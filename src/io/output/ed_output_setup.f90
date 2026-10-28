@@ -165,7 +165,7 @@ contains
       files%fast_interval_steps = cfg%output%fast_interval_steps
       if (cfg%forcing%forcing_on .and. cfg%forcing%format == MET_BACKEND_ERA5LAND)                   &
          files%forcing_qair = 'computed by ED-MORE from the ED_ERA5land 2 m dewpoint Td and surface '//         &
-                            'pressure P: q = 0.62196 e / (P - 0.37804 e), e = e_sat(Td), the Bolton (1980) '// &
+                            'pressure P: q = 0.62196 e / (P - 0.37804 e), e = e_sat(Td), the Ambaum (2020) '// &
                             'liquid-water saturation vapour pressure of ed_therm_lib'
 
       !---~---
