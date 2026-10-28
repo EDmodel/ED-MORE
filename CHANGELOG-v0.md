@@ -21,7 +21,7 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - Saturation vapour pressure follows Ambaum (2020) instead of Bolton and Magnus. In the region
   test's synthetic January 2021 run the latent heat flux (`mean_le_pa`) and evapotranspiration
   (`mean_et_pa`) rise by 0.22 % on average (16.85 to 16.88 W/m2, at most 0.09 W/m2 on a day); the
-  sensible heat flux, canopy air specific humidity and VPD change by 0.04 % or less. (#N)
+  sensible heat flux, canopy air specific humidity and VPD change by 0.04 % or less. (#51)
 
 ### Changed
 
@@ -33,7 +33,7 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   is Clausius-Clapeyron by definition and both phases meet at the triple point. It replaces the
   empirical Bolton and Magnus forms with no option; it is within 0.25 % of Murphy and Koop (2005)
   from -30 to 40 C. The flux-tower tools use it too, and `ambaum` is the first of their
-  saturation curves, with `bolton` kept. (#N)
+  saturation curves, with `bolton` kept. (#51)
 
 ### Fixed
 
