@@ -18,7 +18,7 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   cube root of the sum of their cubes (Churchill 1977), not their sum. `leaf_gbh`, `leaf_gbw`,
   `wood_gbh` and `wood_gbw` fall wherever both terms are non-zero: for a leaf 10 K above the canopy
   air at 20 °C, by 29 % at 0.5 m/s and 15 % at 3 m/s (wood: 24 % and 12 %); isothermal elements are
-  unchanged.
+  unchanged. (#54).
 
 ### Changed
 
