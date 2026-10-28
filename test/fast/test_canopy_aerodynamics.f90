@@ -52,7 +52,7 @@ program test_canopy_aerodynamics
                                         canopy_aerodynamics, mo_surface_layer, open_canopy_fraction,             &
                                         set_aero_env_atm, set_aero_env_canopy, canopy_burial_fraction,          &
                                         canopy_roughness, canopy_air_conductances, cas_atm_conductances
-   use ed_numerics,              only : ascending_order
+   use ed_numerics,              only : ascending_order, cbrt
    implicit none
 
    call test_neutral()
@@ -235,7 +235,7 @@ contains
       fl = max(cfg%aflat_lami * re ** cfg%nflat_lami, cfg%aflat_turb * re ** cfg%nflat_turb)
       nl = max(cfg%bflat_lami * gr ** cfg%mflat_lami, cfg%bflat_turb * gr ** cfg%mflat_turb)
       call check('a warm leaf: the cube root of the sum of the Nusselt cubes', out%leaf_gbh(1),            &
-                 (fl ** 3 + nl ** 3) ** (1.0_wp / 3.0_wp) * al_th / WIDTH, 1.0e-3_wp * out%leaf_gbh(1))
+                 cbrt(fl ** 3 + nl ** 3) * al_th / WIDTH, 1.0e-3_wp * out%leaf_gbh(1))
       call check_true('a warm leaf: below the plain sum of the Nusselt numbers',                          &
                       out%leaf_gbh(1) < (fl + nl) * al_th / WIDTH, (fl + nl) * al_th / WIDTH - out%leaf_gbh(1))
       call check_true('a warm leaf: above the larger Nusselt number',                                     &
@@ -247,7 +247,7 @@ contains
                cfg%ocyli_turb + cfg%acyli_turb * re ** cfg%ncyli_turb)
       nw = max(cfg%bcyli_lami * gr ** cfg%mcyli_lami, cfg%bcyli_turb * gr ** cfg%mcyli_turb)
       call check('warm wood: the cube root of the sum of the Nusselt cubes', out%wood_gbh(1),              &
-                 (fw ** 3 + nw ** 3) ** (1.0_wp / 3.0_wp) * al_th / DIAM, 1.0e-3_wp * out%wood_gbh(1))
+                 cbrt(fw ** 3 + nw ** 3) * al_th / DIAM, 1.0e-3_wp * out%wood_gbh(1))
       call check_true('warm wood: below the plain sum of the Nusselt numbers',                            &
                       out%wood_gbh(1) < (fw + nw) * al_th / DIAM, (fw + nw) * al_th / DIAM - out%wood_gbh(1))
    end subroutine test_mixed_convection
