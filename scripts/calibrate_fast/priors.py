@@ -28,6 +28,12 @@ import numpy as np
 import pandas as pd
 
 R_GAS = 8.314462618          # [J mol-1 K-1]
+#: Water vapour and the triple point, as ed_constants defines them, for the saturation vapour pressure.
+T_3PLE = 273.16            # [K]
+ES_3PLE = 611.655          # [Pa] Ambaum (2020) eq. (14)
+R_WV = 461.5               # [J kg-1 K-1]
+CP_VAP, CP_LIQ = 1859.0, 4186.0   # [J kg-1 K-1]
+LATENT_HEAT_VAP_3PLE = 2.501e6    # [J kg-1]
 T25 = 298.15                 # [K]
 BETA_LEAST_COST = 146.0      # the unit-cost ratio of carboxylation to transpiration (Stocker et al. 2020)
 PAR_PER_SW = 2.1             # [umol J-1] PAR photons per joule of total shortwave (ED-MORE's constant-path blend)
@@ -50,9 +56,12 @@ def kattge_knorr(t_growth_c: float) -> dict:
 
 
 def sat_vapor_pressure(t_k):
-    """[Pa] over liquid water: Bolton (1980), as the model's forcing kernels."""
-    tc = np.asarray(t_k, dtype=float) - 273.15
-    return 611.2 * np.exp(17.67 * tc / (tc + 243.5))
+    """[Pa] over liquid water: Ambaum (2020), as the model's forcing kernels (ed_therm_lib), with
+    ed_constants' triple point, heat capacities and latent heat."""
+    t_k = np.asarray(t_k, dtype=float)
+    l_now = LATENT_HEAT_VAP_3PLE + (CP_VAP - CP_LIQ) * (t_k - T_3PLE)
+    return (ES_3PLE * (T_3PLE / t_k) ** ((CP_LIQ - CP_VAP) / R_WV)
+            * np.exp(LATENT_HEAT_VAP_3PLE / (R_WV * T_3PLE) - l_now / (R_WV * t_k)))
 
 
 def co2_ppm(base, years) -> float:

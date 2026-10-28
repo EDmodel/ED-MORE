@@ -12,10 +12,10 @@
 !      and melting it at t_3ple costs the latent heat of fusion
 !      (docs/science/coupled_biophysics.md, principle 1).
 !   3. CLAUSIUS-CLAPEYRON (sat_vapor_pressure_temp_deriv): the slope of e_sat against a
-!      finite difference.
+!      finite difference, and e L / (Rv T**2) with the model's latent heat, over both phases.
 !   4. ICE SATURATION (sat_vapor_pressure; docs/science/snow_biophysics.md eq. (1)): an
 !      absent liquid fraction is the liquid curve to the bit; the branches meet at the
-!      triple point; over ice e_sat is Murphy & Koop (2005)'s; at 268 K the air saturated
+!      triple point, at es_3ple; both phases agree with Murphy & Koop (2005); at 268 K the air saturated
 !      over ice holds 3-8 % less vapour than over liquid.
 !   5. SOIL CONDUCTIVITY (soil_thermal_conductivity; docs/science/soil_biophysics.md eq.
 !      (11)): frozen soil conducts more than thawed; the Kersten number is Johansen's log
@@ -41,8 +41,8 @@
 program test_therm_lib
    use ed_test_assert,   only : check, check_true, test_report
    use ed_kinds,         only : wp, ik
-   use ed_constants,     only : t_kelvin, t_3ple, cp_ice, latent_heat_fusion, k_water, k_ice, h2o_dry_ratio,        &
-                                latent_heat_vap_3ple
+   use ed_constants,     only : t_kelvin, t_3ple, r_wv, es_3ple, cp_ice, latent_heat_fusion, k_water, k_ice,   &
+                                h2o_dry_ratio, latent_heat_vap_3ple
    use ed_therm_lib,     only : arrhenius_scale, peaked_arrhenius_scale, kattge_knorr_entropy,                    &
                                 temp_to_internal_energy, internal_energy_to_temp, internal_energy_ice,            &
                                 sat_vapor_pressure, sat_vapor_pressure_temp_deriv, sat_specific_humidity,         &
@@ -163,14 +163,30 @@ contains
       call check('melting at t_3ple costs the latent heat of fusion', u_liq - u_ice, SWE * 3.34e5_wp, 1.0e-3_wp)
    end subroutine test_datum
 
-   !--- 3. The Clausius-Clapeyron slope of the liquid curve against a central difference.
+   !---~---
+   !   3. The slope of the liquid curve against a central difference, and the Clausius-Clapeyron
+   ! equation itself: de/dT = e L / (Rv T**2), with L the latent_heat_vap the energy budget uses,
+   ! over liquid and over ice.
+   !---~---
    subroutine test_clausius()
       real(wp), parameter :: DT = 1.0e-3_wp
-      real(wp) :: ana, fd
+      real(wp) :: ana, fd, temp
+      integer  :: i
       print '(a)', 'test_clausius:'
       ana = sat_vapor_pressure_temp_deriv(295.0_wp)
       fd  = (sat_vapor_pressure(295.0_wp + DT) - sat_vapor_pressure(295.0_wp - DT)) / (2.0_wp * DT)
       call check('d(e_sat)/dT vs FD', ana, fd, 1.0e-3_wp * abs(fd) + 1.0e-6_wp)
+      do i = 1, 5
+         temp = 233.15_wp + 20.0_wp * real(i - 1, wp)
+         call check('d(e_sat)/dT is Clausius-Clapeyron over liquid',                                &
+                    sat_vapor_pressure_temp_deriv(temp, 1.0_wp),                                    &
+                    sat_vapor_pressure(temp, 1.0_wp) * latent_heat_vap(temp, 1.0_wp) / (r_wv * temp**2), &
+                    1.0e-10_wp * sat_vapor_pressure_temp_deriv(temp, 1.0_wp))
+         call check('d(e_sat)/dT is Clausius-Clapeyron over ice',                                   &
+                    sat_vapor_pressure_temp_deriv(temp, 0.0_wp),                                    &
+                    sat_vapor_pressure(temp, 0.0_wp) * latent_heat_vap(temp, 0.0_wp) / (r_wv * temp**2), &
+                    1.0e-10_wp * sat_vapor_pressure_temp_deriv(temp, 0.0_wp))
+      end do
    end subroutine test_clausius
 
    !---~---
@@ -194,27 +210,23 @@ contains
                       sat_vapor_pressure(253.15_wp) == sat_vapor_pressure(253.15_wp, 1.0_wp), 0.0_wp)
 
       !---~---
-      !   (b) the two branches share the 611.2 Pa constant, so they cross EXACTLY at tc = 0,
-      ! i.e. at 273.15 K. (t_3ple is 273.16 K, one hundredth of a degree above, where they
-      ! differ by 0.06 Pa = 0.01 % -- checked below.) The blend is a convex combination of
-      ! two smooth curves, so it is continuous in BOTH temperature and fliq regardless; what
-      ! this pins is that a surface crossing the phase boundary sees no step.
+      !   (b) both branches are es_3ple at t_3ple, because ice's latent heat there is the liquid's
+      ! plus the fusion heat, so they meet EXACTLY at the triple point, where the melt plateau
+      ! sits. A surface melting at t_3ple then sees no step in e_sat as fliq changes.
       !---~---
-      call check('ice and liquid branches cross exactly at 273.15 K',                             &
-                 sat_vapor_pressure(273.15_wp, 0.0_wp), sat_vapor_pressure(273.15_wp, 1.0_wp),    &
-                 1.0e-12_wp)
-      call check('half-frozen too, at 273.15 K', sat_vapor_pressure(273.15_wp, 0.5_wp),           &
-                 sat_vapor_pressure(273.15_wp, 1.0_wp), 1.0e-12_wp)
-      call check_true('branches agree to < 0.05 % at the triple point',                           &
-                      abs(sat_vapor_pressure(t_3ple, 0.0_wp) - sat_vapor_pressure(t_3ple, 1.0_wp))&
-                      < 5.0e-4_wp * sat_vapor_pressure(t_3ple, 1.0_wp),                           &
-                      sat_vapor_pressure(t_3ple, 0.0_wp) / sat_vapor_pressure(t_3ple, 1.0_wp))
+      call check('liquid branch is es_3ple at t_3ple', sat_vapor_pressure(t_3ple), es_3ple, 1.0e-9_wp)
+      call check('ice branch is es_3ple at t_3ple', sat_vapor_pressure(t_3ple, 0.0_wp), es_3ple, 1.0e-9_wp)
+      call check('half-frozen too, at t_3ple', sat_vapor_pressure(t_3ple, 0.5_wp), es_3ple, 1.0e-9_wp)
 
       !--- (c) accuracy against Murphy & Koop (2005) over ice, and the liquid curve's error.
       call check('e_sat over ice at -10 C (Murphy-Koop 259.892 Pa)',                              &
-                 sat_vapor_pressure(t_3ple - 10.0_wp, 0.0_wp), 259.892_wp, 0.4_wp)
+                 sat_vapor_pressure(t_kelvin - 10.0_wp, 0.0_wp), 259.892_wp, 0.1_wp)
       call check('e_sat over ice at -20 C (Murphy-Koop 103.252 Pa)',                              &
-                 sat_vapor_pressure(t_3ple - 20.0_wp, 0.0_wp), 103.252_wp, 0.5_wp)
+                 sat_vapor_pressure(t_kelvin - 20.0_wp, 0.0_wp), 103.252_wp, 0.1_wp)
+      call check('e_sat over liquid at -20 C (Murphy-Koop 125.504 Pa)',                           &
+                 sat_vapor_pressure(t_kelvin - 20.0_wp), 125.504_wp, 0.3_wp)
+      call check('e_sat over liquid at 20 C (Murphy-Koop 2339.399 Pa)',                           &
+                 sat_vapor_pressure(t_kelvin + 20.0_wp), 2339.399_wp, 5.0_wp)
       e_liq = sat_vapor_pressure(t_3ple - 10.0_wp, 1.0_wp)
       e_ice = sat_vapor_pressure(t_3ple - 10.0_wp, 0.0_wp)
       call check_true('liquid curve overstates a frozen surface by ~10 % at -10 C',               &

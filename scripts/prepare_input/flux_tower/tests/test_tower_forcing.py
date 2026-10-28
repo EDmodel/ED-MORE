@@ -465,6 +465,16 @@ def test_humidity_round_trip_is_exact():
     assert np.allclose(conv.specific_humidity_to_vapor_pressure(q, p) / conv.sat_vapor_pressure(t), rh, atol=1e-13)
 
 
+def test_saturation_vapour_pressure_is_the_models():
+    # ed_therm_lib sat_vapor_pressure: es_3ple at the triple point, and Murphy & Koop (2005) within 0.3 %
+    # from -30 to 40 degC (the model's own Fortran test pins the same values).
+    assert conv.sat_vapor_pressure(273.16) == pytest.approx(611.655, abs=1e-9)
+    for tc, murphy_koop in ((-20.0, 125.504), (20.0, 2339.399)):
+        assert conv.sat_vapor_pressure(273.15 + tc) == pytest.approx(murphy_koop, rel=1e-3)
+    assert list(ti.SATURATION_CURVES)[0] == "ambaum" and "bolton" in ti.SATURATION_CURVES
+    assert ti.SATURATION_CURVES["ambaum"](20.0) == pytest.approx(conv.sat_vapor_pressure(293.15), rel=1e-14)
+
+
 def test_solar_noon_follows_the_longitude_and_the_equation_of_time():
     day = np.datetime64("2014-03-21T00:00:00")
     stamps = day + np.arange(0, 86400, 60).astype("timedelta64[s]")
