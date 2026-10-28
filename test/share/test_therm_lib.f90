@@ -339,30 +339,26 @@ contains
    end subroutine test_lapse
 
    !---~---
-   !   The latent heat is vaporization above t_3ple and sublimation below it, each equal to
-   ! enthalpy_vapor less its source's energy at the same temperature, and at t_3ple it is the
-   ! liquid-weighted average of the two.
+   !   The latent heat of liquid equals enthalpy_vapor less internal_energy_liquid and that of ice
+   ! enthalpy_vapor less internal_energy_ice, at every temperature, supercooled liquid included;
+   ! a mixture is their average weighted by the liquid share.
    !---~---
    subroutine test_latent_heat_vap()
       real(wp) :: t
       integer  :: i
       print '(a)', 'test_latent_heat_vap:'
-      do i = 2, 4
+      do i = 0, 4
          t = 240.0_wp + 20.0_wp * real(i, wp)
-         call check('above t_3ple: enthalpy_vapor - internal_energy_liquid', latent_heat_vap(t, 0.3_wp),       &
+         call check('liquid: enthalpy_vapor - internal_energy_liquid', latent_heat_vap(t, 1.0_wp),            &
                     enthalpy_vapor(t) - internal_energy_liquid(t), 1.0e-6_wp)
-      end do
-      do i = 0, 2
-         t = 220.0_wp + 20.0_wp * real(i, wp)
-         call check('below t_3ple: enthalpy_vapor - internal_energy_ice', latent_heat_vap(t, 0.3_wp),         &
+         call check('ice: enthalpy_vapor - internal_energy_ice', latent_heat_vap(t, 0.0_wp),                  &
                     enthalpy_vapor(t) - internal_energy_ice(t), 1.0e-6_wp)
+         call check('mixture: the liquid-weighted average', latent_heat_vap(t, 0.3_wp),                       &
+                    0.3_wp * latent_heat_vap(t, 1.0_wp) + 0.7_wp * latent_heat_vap(t, 0.0_wp), 1.0e-6_wp)
       end do
       call check('liquid at t_3ple', latent_heat_vap(t_3ple, 1.0_wp), latent_heat_vap_3ple, 1.0e-9_wp)
       call check('ice at t_3ple', latent_heat_vap(t_3ple, 0.0_wp), latent_heat_vap_3ple + latent_heat_fusion, 1.0e-9_wp)
-      call check('half and half at t_3ple', latent_heat_vap(t_3ple, 0.5_wp),                                   &
-                 latent_heat_vap_3ple + 0.5_wp * latent_heat_fusion, 1.0e-9_wp)
-      call check_true('L_v falls as the air warms above t_3ple',                                              &
-                      latent_heat_vap(303.15_wp, 1.0_wp) < latent_heat_vap(t_3ple, 1.0_wp))
+      call check_true('liquid L_v falls as the air warms', latent_heat_vap(303.15_wp, 1.0_wp) < latent_heat_vap(t_3ple, 1.0_wp))
    end subroutine test_latent_heat_vap
 
    !---~---

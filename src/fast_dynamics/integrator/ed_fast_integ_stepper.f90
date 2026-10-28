@@ -289,7 +289,7 @@ contains
    !   atm_fluxes -- the canopy-air -> atmosphere fluxes the run reports, from the ledger's own
    ! boundary export over the step, so the reported ET is the conserved vapour export:
    ! LE = L_v(T_cas) * vapour export / dt, at the step's final canopy-air temperature (the pack's
-   ! share of the vapour decides the phase at t_3ple), and H = sensible export / dt, the b-weighted
+   ! share of the vapour is ice, the rest liquid), and H = sensible export / dt, the b-weighted
    ! g_atm_heat*cp_air*(T_cas - theta_atm), not the enthalpy export minus LE
    ! (docs/science/numerical_scheme.md §5b).
    !---~---
@@ -297,9 +297,9 @@ contains
       type(step_exports_t), intent(in)  :: exports
       real(wp),             intent(in)  :: dt_fast
       real(wp),             intent(in)  :: t_cas             ! [K] canopy-air temperature the vapour leaves at
-      real(wp) :: fliq   ! [-] liquid share of the vapour, which sets its latent heat at t_3ple
+      real(wp) :: fliq   ! [-] liquid share of the vapour, which sets its latent heat
       real(wp),             intent(out) :: le_flux, h_flux   ! [W/m2] step-mean CAS -> atmosphere
-      !--- The vapour's liquid share at t_3ple: what the pack did not supply, all of it when none leaves.
+      !--- The vapour's liquid share: what the pack did not supply, all of it when none leaves.
       if (exports%atm_vap_export > tiny_num) then
          fliq = 1.0_wp - min(1.0_wp, max(0.0_wp, exports%snow_vap_export / exports%atm_vap_export))
       else
