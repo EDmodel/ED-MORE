@@ -18,7 +18,7 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   several lines between two `!---~---` lines, and a plain `! text` after a statement. Results are
   bit for bit; only comments change. (#48)
 - The Python tools and the phenology example use pandas' `day_of_year`, not its deprecated
-  `dayofyear`, which pandas 4 warns about and will remove. Results are bit for bit. (#N)
+  `dayofyear`, which pandas 4 warns about and will remove. Results are bit for bit. (#52)
 
 ## [0.4.1] - 2026-10-26
 
