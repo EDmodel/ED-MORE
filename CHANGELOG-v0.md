@@ -25,11 +25,11 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - The files' `time` is now CF: each record's start in days since the run's start, with `calendar =
   "proleptic_gregorian"` and the bounds `time_bnds` (the start and the end of its last step), so
   xarray and CDO decode it. It was the decimal calendar year; read the `year`, `month` and `day`
-  companions, or decode `time`. (#TBD)
+  companions, or decode `time`. (#58)
 - `mean_transp_leaf_py` is now `mean_leaf_transp_py`, in the `ecophys` group and off by default, and
   its cohort source `mean_transp_co` is `mean_leaf_transp_co`: both are per leaf area, apart from
-  `mean_transp_py`, the transpiration in kg m⁻² s⁻¹. Rename them in an io_config. (#TBD)
-- `mean_soil_temp_top_pa` is on the daily tier by default, as its siblings are. (#TBD)
+  `mean_transp_py`, the transpiration in kg m⁻² s⁻¹. Rename them in an io_config. (#58)
+- `mean_soil_temp_top_pa` is on the daily tier by default, as its siblings are. (#58)
 
 ### Added
 
@@ -75,7 +75,7 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   Model state is bit for bit. (#56)
 - Clearer labels: `mean_abs_par_co` is the incident-equivalent PAR (the absorbed VIS over the leaf
   absorptance), as its long name now says; `mean_cas_co2_pa` is in the `energy` group with its
-  polygon twin; the radiation group's description no longer promises an albedo. (#TBD)
+  polygon twin; the radiation group's description no longer promises an albedo. (#58)
 
 ### Fixed
 
