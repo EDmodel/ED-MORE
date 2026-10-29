@@ -323,11 +323,13 @@ module ed_output_types
       !---~---
       real(wp),            allocatable :: fast_soil_temp_patch(:,:)   ! (layer x patch, n_fast_sub) [K]
       real(wp),            allocatable :: fast_soil_water_patch(:,:)  ! (layer x patch, n_fast_sub) [m3/m3]
+      real(wp),            allocatable :: fast_soil_fliq_patch(:,:)   ! (layer x patch, n_fast_sub) [-] liquid fraction
       real(wp),            allocatable :: fast_soil_temp(:,:)   ! (layer x site, n_fast_sub) [K]
       real(wp),            allocatable :: fast_soil_water(:,:)  ! (layer x site, n_fast_sub) [m3/m3]
       logical,             allocatable :: fast_soil_live(:)        ! (layer x site) a layer of its site
       logical,             allocatable :: fast_soil_patch_live(:)  ! (layer x patch) a layer of its patch's site
       real(wp),            allocatable :: fast_cohort_gpp(:,:)     ! (cohort, n_fast_sub) per-cohort GPP [umol/plant/s]
+      real(wp),            allocatable :: fast_cohort_npp(:,:)     ! (cohort, n_fast_sub) per-cohort NPP [umol/plant/s]
       !--- < (cohort, n_fast_sub) per-cohort height [m] (tallest post-proc)
       real(wp),            allocatable :: fast_cohort_height(:,:)
       !--- < (cohort, CO_*, n_fast_sub) the per-cohort diagnostic block's rows, staged while it is on

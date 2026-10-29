@@ -96,6 +96,8 @@ contains
       bf%snow_enth_in  = surf_tend%snow_enth_in
       bf%snow_vap_out  = surf_tend%snow_vap_out
       bf%film_evap     = sum(surf_tend%film_evap_leaf) + sum(surf_tend%film_evap_wood)
+      bf%h_canopy      = surf_tend%h_canopy
+      bf%h_ground      = surf_tend%h_ground
       bf%atm_heat_out  = gah*cp_air*(cas_enthalpy_to_temp(y_stage%cas_enthalpy, y_stage%cas_shv)          &
                                      - frozen%cas%env%theta_atm)
       bf%atm_vap_out   = gaw*(y_stage%cas_shv - frozen%cas%box%atm_specific_humidity)
@@ -271,6 +273,10 @@ contains
                             + B6*s(6)%snow_vap_out) * dt
       acc%film_evap      = (B1*s(1)%film_evap      + B3*s(3)%film_evap      + B4*s(4)%film_evap                &
                             + B6*s(6)%film_evap) * dt
+      acc%h_canopy       = (B1*s(1)%h_canopy       + B3*s(3)%h_canopy       + B4*s(4)%h_canopy                 &
+                            + B6*s(6)%h_canopy) * dt
+      acc%h_ground       = (B1*s(1)%h_ground       + B3*s(3)%h_ground       + B4*s(4)%h_ground                 &
+                            + B6*s(6)%h_ground) * dt
       acc%atm_heat_out   = (B1*s(1)%atm_heat_out   + B3*s(3)%atm_heat_out   + B4*s(4)%atm_heat_out             &
                             + B6*s(6)%atm_heat_out) * dt
       acc%atm_vap_out    = (B1*s(1)%atm_vap_out    + B3*s(3)%atm_vap_out    + B4*s(4)%atm_vap_out              &

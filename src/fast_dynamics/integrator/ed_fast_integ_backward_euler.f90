@@ -222,6 +222,8 @@ contains
             bf%snow_enth_in = surf_tend%snow_enth_in
             bf%snow_vap_out = surf_tend%snow_vap_out
             bf%film_evap    = sum(surf_tend%film_evap_leaf(1:n)) + sum(surf_tend%film_evap_wood(1:n))
+            bf%h_canopy     = surf_tend%h_canopy
+            bf%h_ground     = surf_tend%h_ground
             !--- The reported H, against theta_atm (T at zref), the ledger's basis.
             bf%atm_heat_out = g_atm_heat*cp_air*(t_cas1 - frozen%cas%env%theta_atm)
             bf%atm_vap_out  = g_atm_vapour*(shv1  - frozen%cas%box%atm_specific_humidity)

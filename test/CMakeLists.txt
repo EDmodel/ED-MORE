@@ -263,8 +263,7 @@ ed_add_test(io_config_example
 #      case runs in the other builds.                                                                #
 set(refused_cases config_unknown_keys config_bad_choice config_inapplicable_keys config_rk45_loose_rtol
                   config_malformed_value output_fast_window output_chunk_short io_config_coarse_on_f
-                  io_config_fast_on_coarse io_config_true_off io_config_no_match io_config_tie
-                  io_config_tier_none io_config_axis
+                  io_config_true_off io_config_no_match io_config_tie io_config_tier_none io_config_axis
                   maps_chave_e hydraulics_pv_traits hydraulics_vulnerability init_census_missing
                   init_census_empty init_restart_missing)
 if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -363,6 +362,11 @@ ed_add_pytest(output_closure PATH ${CMAKE_CURRENT_SOURCE_DIR}/python/test_output
 #      and a run refuses to start where a file it would write exists                                #
 #      (python/test_output_files.py; docs/science/diagnostics.md §3).                               #
 ed_add_pytest(output_files PATH ${CMAKE_CURRENT_SOURCE_DIR}/python/test_output_files.py
+              IMPORTS numpy netCDF4 pytest ENVIRONMENT EDMORE_MAIN=$<TARGET_FILE:ed_main> LABEL integration)
+#----- The whole-column water and energy budgets close from the output alone, on the daily and      #
+#      sub-daily tiers, in a run on a synthetic forcing with showers                                #
+#      (python/test_output_budgets.py; docs/science/diagnostics.md §4, The budgets).                #
+ed_add_pytest(output_budgets PATH ${CMAKE_CURRENT_SOURCE_DIR}/python/test_output_budgets.py
               IMPORTS numpy netCDF4 pytest ENVIRONMENT EDMORE_MAIN=$<TARGET_FILE:ed_main> LABEL integration)
 #----- The input tools' tests (scripts/prepare_input): a tower forcing file from flux-tower         #
 #      data, a census from a ForestGEO table, and the PFT traits that follow published fits.        #

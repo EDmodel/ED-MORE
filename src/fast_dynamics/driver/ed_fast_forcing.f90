@@ -195,6 +195,7 @@ contains
       call canopy_radiation(cfg%pft%optics, rf, ncoh, pft_bt, hgt_bt, lai_bt, wai_bt, tleaf_bt, twood_bt, flux)
 
       !--- inverse-scatter: RT index j (bottom->top) maps to gather index static%order(j).
+      forcing%apar = sum(flux%abs_leaf(RAD_VIS, 1:ncoh))      ! the leaves' absorbed PAR, for the diagnostics
       do j = 1_ik, ncoh
          ig = static%order(j)
          forcing%abs_sw(ig)      = flux%abs_leaf(RAD_VIS, j) + flux%abs_leaf(RAD_NIR, j)   ! absorbed leaf SW

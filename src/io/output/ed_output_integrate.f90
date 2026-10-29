@@ -17,8 +17,10 @@ module ed_output_integrate
                                    DIM_SOIL, DIM_SOIL_PATCH, MISSING_VALUE, N_WEIGHT, slab_col
    use ed_polygon_state_vars, only : polygon_t
    use ed_constants,     only : n_soil_layer_max
-   use ed_output_extract,   only : SRC_F_CO0, SRC_F_COH_GPP, SRC_F_COH_HEIGHT, SRC_F_PA0,                         &
-                                   SRC_F_SOIL_WATER, SRC_NONE, FLD_C_DIAG0, extract_fast_scalar, extract_variable
+   use ed_diag_vars,          only : N_CO_FAST_ROWS
+   use ed_output_extract,   only : SRC_F_CO0, SRC_F_COH_GPP, SRC_F_COH_HEIGHT, SRC_F_COH_NPP, SRC_F_PA0,           &
+                                   SRC_F_SOIL_LAYER, SRC_F_SOIL_WATER, SRC_NONE, extract_fast_scalar,             &
+                                   extract_variable
    implicit none
    private
 
@@ -553,7 +555,15 @@ contains
             end if
             cycle
          end if
-         call staged_value(bufs, files%reg%var(k)%source_fast, files%reg%var(k)%dim, isub, scal, slab, valid, n)
+         if (reduced_cohort_row(files%reg%var(k))) then
+            if (.not. present(poly)) cycle
+            call staged_cohort_reduced(bufs, poly, files%reg%var(k), isub, scal, slab, valid, n)
+         else if (files%reg%var(k)%source_fast == SRC_F_SOIL_LAYER) then
+            if (.not. present(poly)) cycle
+            call staged_soil_layer(bufs, poly, files%reg%var(k), isub, slab, valid, n)
+         else
+            call staged_value(bufs, files%reg%var(k)%source_fast, files%reg%var(k)%dim, isub, scal, slab, valid, n)
+         end if
          if (files%reg%var(k)%dim == DIM_SCALAR) then
             call integrate_scalar(bufs%buf(k,TIER_FAST), scal, dt)
          else if (files%reg%var(k)%dim == DIM_COHORT) then
@@ -607,6 +617,8 @@ contains
          select case (src)
          case (SRC_F_COH_GPP)
             slab(1:n) = bufs%fast_cohort_gpp(1:n, isub)
+         case (SRC_F_COH_NPP)
+            slab(1:n) = bufs%fast_cohort_npp(1:n, isub)
          case (SRC_F_COH_HEIGHT)
             slab(1:n) = bufs%fast_cohort_height(1:n, isub)
          case default   ! SRC_F_CO0 + CO_*: a row of the per-cohort diagnostic block
@@ -633,32 +645,76 @@ contains
       real(wp),               intent(out) :: scal, slab(:)
       logical,                intent(out) :: valid(:)
       integer(ik),            intent(out) :: n
-      integer(ik) :: isub, nc
+      scal = MISSING_VALUE
+      n = 0_ik
+      if (.not. bufs%fast_ready) return
+      if (reduced_cohort_row(v)) then
+         call staged_cohort_reduced(bufs, poly, v, bufs%n_fast_sub, scal, slab, valid, n)
+      else if (v%source_fast /= SRC_NONE) then
+         call staged_value(bufs, v%source_fast, v%dim, bufs%n_fast_sub, scal, slab, valid, n)
+      end if
+   end subroutine staged_snapshot
+
+   !---~---
+   !   A soil-layer field of sub-step isub (the matric potential, the relative saturation, the
+   ! liquid fraction), formed per patch from the staged water content and liquid fraction as the
+   ! coarse tiers form it from the live ones, then reduced to v's axis.
+   !---~---
+   subroutine staged_soil_layer(bufs, poly, v, isub, slab, valid, n)
+      type(output_buffers_t), intent(in)  :: bufs
+      type(polygon_t),        intent(in)  :: poly
+      type(var_desc_t),       intent(in)  :: v
+      integer(ik),            intent(in)  :: isub
+      real(wp),               intent(out) :: slab(:)
+      logical,                intent(out) :: valid(:)
+      integer(ik),            intent(out) :: n
+      real(wp)    :: theta(n_soil_layer_max, max(poly%patch%n, 1_ik)), fliq(n_soil_layer_max, max(poly%patch%n, 1_ik))
+      real(wp)    :: scal
+      integer(ik) :: ip, np
+      n = 0_ik
+      np = bufs%fast_n_patch
+      if (np /= poly%patch%n .or. np < 1_ik) return
+      do ip = 1_ik, np
+         theta(:, ip) = bufs%fast_soil_water_patch((ip - 1_ik)*n_soil_layer_max + 1_ik:ip*n_soil_layer_max, isub)
+         fliq(:, ip)  = bufs%fast_soil_fliq_patch((ip - 1_ik)*n_soil_layer_max + 1_ik:ip*n_soil_layer_max, isub)
+      end do
+      call extract_variable(poly, bufs%diag, v, scal, slab, valid, n, soil_theta=theta(:, 1:np), soil_fliq=fliq(:, 1:np))
+   end subroutine staged_soil_layer
+
+   !--- A per-cohort fast-loop row on a coarser axis: the patch, the polygon (staged_row).
+   pure logical function reduced_cohort_row(v) result(yes)
+      type(var_desc_t), intent(in) :: v
+      yes = v%dim /= DIM_COHORT .and. v%source_fast > SRC_F_CO0 .and. v%source_fast <= SRC_F_CO0 + N_CO_FAST_ROWS
+   end function reduced_cohort_row
+
+   !---~---
+   !   A staged per-cohort row of sub-step isub, reduced to v's axis as its mean is. The staged
+   ! row is in the fast loop's order: each value goes with its own cohort in the live order,
+   ! and is reduced with the weights the fast loop used. With no staged cohort block, or a
+   ! stand that does not match the staging, nothing is reported.
+   !---~---
+   subroutine staged_cohort_reduced(bufs, poly, v, isub, scal, slab, valid, n)
+      type(output_buffers_t), intent(in)  :: bufs
+      type(polygon_t),        intent(in)  :: poly
+      type(var_desc_t),       intent(in)  :: v
+      integer(ik),            intent(in)  :: isub
+      real(wp),               intent(out) :: scal, slab(:)
+      logical,                intent(out) :: valid(:)
+      integer(ik),            intent(out) :: n
+      integer(ik) :: nc
       integer(ik) :: at(max(poly%cohort%n, 1_ik))          ! each live cohort's slot in the staging
       real(wp)    :: x(max(poly%cohort%n, 1_ik)), w(max(poly%cohort%n, 1_ik), N_WEIGHT)
       scal = MISSING_VALUE
       n = 0_ik
-      if (.not. bufs%fast_ready) return
-      isub = bufs%n_fast_sub
-      if (v%source_fast /= SRC_NONE) then
-         call staged_value(bufs, v%source_fast, v%dim, isub, scal, slab, valid, n)
-      else if (allocated(bufs%fast_cohort_diag)) then
-         !---~---
-         !   The staged row is in the fast loop's order: put each value with its own cohort in the
-         ! live order, and reduce it with the weights the fast loop used.
-         !---~---
-         nc = bufs%fast_n_cohort
-         if (nc == poly%cohort%n) then
-            call find_ids(bufs%fast_cohort_id(1:nc), poly%cohort%global_id(1:nc), at(1:nc))
-            if (all(at(1:nc) > 0_ik)) then
-               x(1:nc)    = bufs%fast_cohort_diag(at(1:nc), v%source_id - FLD_C_DIAG0, isub)
-               w(1:nc, :) = bufs%fast_cohort_w(at(1:nc), :)
-               call extract_variable(poly, bufs%diag, v, scal, slab, valid, n, cohort_x=x(1:nc),      &
-                                     cohort_w=w(1:nc, :))
-            end if
-         end if
-      end if
-   end subroutine staged_snapshot
+      if (.not. allocated(bufs%fast_cohort_diag)) return
+      nc = bufs%fast_n_cohort
+      if (nc /= poly%cohort%n) return
+      call find_ids(bufs%fast_cohort_id(1:nc), poly%cohort%global_id(1:nc), at(1:nc))
+      if (.not. all(at(1:nc) > 0_ik)) return
+      x(1:nc)    = bufs%fast_cohort_diag(at(1:nc), v%source_fast - SRC_F_CO0, isub)
+      w(1:nc, :) = bufs%fast_cohort_w(at(1:nc), :)
+      call extract_variable(poly, bufs%diag, v, scal, slab, valid, n, cohort_x=x(1:nc), cohort_w=w(1:nc, :))
+   end subroutine staged_cohort_reduced
 
    !---~---
    !   Put every queued cohort record of each polygon in its month's end order, the live order

@@ -36,13 +36,12 @@ module ed_output_registry
                                      FLD_P_SOILC_STRUCT_SOIL, FLD_P_SOILC_MICROBIAL, FLD_P_SOILC_SLOW,            &
                                      FLD_P_SOILC_PASSIVE, FLD_P_SOILC_TOTAL, FLD_P_RH, FLD_L_SOIL_TEMP,           &
                                      FLD_L_SOIL_WATER, FLD_L_SOIL_PSI, FLD_L_SOIL_WETNESS, FLD_L_SOIL_FLIQ,       &
-                                     SRC_PY_ET, SRC_PY_N_COHORT, SRC_PY_N_PATCH, SRC_PY_CANOPY_HEIGHT,            &
-                                     SRC_PY_RUNOFF, SRC_PY_RUNOFF_SURF, SRC_PY_DRAINAGE, SRC_PY_WORK_STEPS,       &
-                                     SRC_PY_WORK_REJ, SRC_PY_WORK_WATER_NSUB, SRC_PY_WORK_WATER_NEWTON,           &
-                                     SRC_PY_WORK_WATER_NFAIL, SRC_PY_WORK_WATER_REJECT,                           &
-                                     SRC_PY_WORK_RK45_RESCUE, SRC_PY_WORK_CLAMP_STAGE, SRC_F_SOIL_TEMP,           &
-                                     SRC_F_SOIL_WATER, SRC_F_PY0, SRC_F_PA0,                                      &
-                                     SRC_F_COH_GPP, SRC_F_COH_HEIGHT, SRC_F_CO0, FLD_C_DIAG0, FLD_P_DIAG0,        &
+                                     SRC_PY_N_COHORT, SRC_PY_N_PATCH, SRC_PY_CANOPY_HEIGHT, SRC_PY_ECO_CARBON,     &
+                                     SRC_PY_WORK_STEPS, SRC_PY_WORK_REJ, SRC_PY_WORK_WATER_NSUB,                   &
+                                     SRC_PY_WORK_WATER_NEWTON, SRC_PY_WORK_WATER_NFAIL, SRC_PY_WORK_WATER_REJECT,  &
+                                     SRC_PY_WORK_RK45_RESCUE, SRC_PY_WORK_CLAMP_STAGE, SRC_F_SOIL_TEMP,            &
+                                     SRC_F_SOIL_WATER, SRC_F_SOIL_LAYER, SRC_F_PY0, SRC_F_PA0, SRC_F_COH_GPP,      &
+                                     SRC_F_COH_HEIGHT, SRC_F_COH_NPP, SRC_F_CO0, FLD_C_DIAG0, FLD_P_DIAG0,         &
                                      FLD_PY_DIAG0, FLD_SI_DIAG0, FLD_SI_GROWTH_TEMP
    use ed_diag_vars,         only : N_CO_FAST_ROWS, N_PA_FAST_ROWS, N_PY_ROWS, N_SI_ROWS,                    &
                                     CO_ANET, CO_AGROSS, CO_GSW, CO_GBW, CO_CI, CO_CS, CO_RD, CO_TRANSP,           &
@@ -63,7 +62,13 @@ module ed_output_registry
                                     CO_NPP_WOOD, CO_NPP_STORAGE, CO_NPP_REPRO, CO_GROWTH_RESP,                    &
                                     CO_EXUDATE, PA_LITTER_LEAF, PA_LITTER_FINEROOT, PA_MORT_C_BACKGROUND,         &
                                     PA_MORT_C_CULL, PA_MORT_C_DISTURB, PA_LITTER_STRUCT, PA_LITTER_WOOD,          &
-                                    PA_LITTER_REPRO, PA_RECRUIT_NPLANT, PA_DISTURB_AREA
+                                    PA_LITTER_REPRO, PA_RECRUIT_NPLANT, PA_DISTURB_AREA, PA_APAR, PA_H_CANOPY,    &
+                                    PA_H_GROUND, PA_HEAT_BOTTOM, PA_ENTH_ADVECT, PA_HEAT_GAIN_SOIL,               &
+                                    PA_HEAT_GAIN_CANOPY, PA_HEAT_GAIN_SURFACE, PA_RA, PA_LEAF_RESP,               &
+                                    PA_STEM_RESP, PA_ROOT_RESP, PA_RH, PA_ET, PA_RUNOFF_SURF, PA_DRAINAGE,        &
+                                    PA_RUNOFF, PA_INTERCEPT, PA_THROUGHFALL, PA_INFILTRATION, PA_SNOWMELT,        &
+                                    PA_SUBLIMATION, PA_SHED_WATER, PA_FILM_EXCESS, PA_WATER_STORE_GAIN,           &
+                                    PA_CANOPY_WATER, PA_SOIL_WATER_TOTAL, PA_PLANT_WATER, CO_WET_FRACTION
    implicit none
    private
 
@@ -132,6 +137,7 @@ contains
       call register_ecophys(reg)
       call register_allocation(reg)
       call register_patch_fluxes(reg)
+      call register_budgets(reg)
       call register_fast(reg)
       call register_forcing(reg)
       call register_snapshots(reg)                ! each mean_<x>'s end-of-period <x>, off by default
@@ -335,11 +341,14 @@ contains
                         ior(FAST, DAY_MON_YR), FLD_C_NPP_ACCUM, weight=W_NPLANT, scale=kgc_2_umol,                              &
                         fast_source=SRC_F_PA0 + PA_NPP)
       call add_variable(reg, 'mean_leaf_resp_py', 'polygon leaf dark respiration', 'umol/m2/s', DIM_SCALAR, AGG_RATE, GRP_CARBON,  &
-                        DAY_MON_YR, FLD_C_LEAF_RESP, weight=W_NPLANT, scale=kgc_2_umol)
+                        DAY_MON_YR, FLD_C_LEAF_RESP, weight=W_NPLANT, scale=kgc_2_umol,      &
+                        fast_source=SRC_F_PA0 + PA_LEAF_RESP)
       call add_variable(reg, 'mean_stem_resp_py', 'polygon stem maintenance respiration', 'umol/m2/s', DIM_SCALAR, AGG_RATE,       &
-                        GRP_CARBON, DAY_MON_YR, FLD_C_STEM_RESP, weight=W_NPLANT, scale=kgc_2_umol)
+                        GRP_CARBON, DAY_MON_YR, FLD_C_STEM_RESP, weight=W_NPLANT, scale=kgc_2_umol,      &
+                        fast_source=SRC_F_PA0 + PA_STEM_RESP)
       call add_variable(reg, 'mean_root_resp_py', 'polygon fine-root maintenance respiration', 'umol/m2/s', DIM_SCALAR, AGG_RATE,  &
-                        GRP_CARBON, DAY_MON_YR, FLD_C_ROOT_RESP, weight=W_NPLANT, scale=kgc_2_umol)
+                        GRP_CARBON, DAY_MON_YR, FLD_C_ROOT_RESP, weight=W_NPLANT, scale=kgc_2_umol,      &
+                        fast_source=SRC_F_PA0 + PA_ROOT_RESP)
       !--- Vegetation carbon stocks (AGG_MEAN: a stock, not a flux).
       call add_variable(reg, 'mean_leaf_carbon_py', 'polygon leaf carbon', 'kgC/m2', DIM_SCALAR, AGG_MEAN, GRP_CARBON, DAY_MON_YR, &
                         FLD_C_LEAF_CARBON, weight=W_NPLANT)
@@ -367,32 +376,36 @@ contains
       call add_variable(reg, 'mean_gpp_co', 'per-plant GPP', 'umol/plant/s', DIM_COHORT, AGG_RATE, GRP_CARBON,                  &
                         ior(FAST, DAY_MON), FLD_C_GPP_ACCUM, scale=kgc_2_umol, fast_source=SRC_F_COH_GPP)
       call add_variable(reg, 'mean_npp_co', 'per-plant NPP', 'umol/plant/s', DIM_COHORT, AGG_RATE, GRP_CARBON, DAY_MON,         &
-                        FLD_C_NPP_ACCUM, scale=kgc_2_umol)
+                        FLD_C_NPP_ACCUM, scale=kgc_2_umol, fast_source=SRC_F_COH_NPP)
    end subroutine register_carbon
 
    !--- Water.
    subroutine register_water(reg)
       type(output_registry_t), intent(inout) :: reg
-      call add_variable(reg, 'mean_et_py', 'polygon evapotranspiration', 'kg/m2/s', DIM_SCALAR, AGG_RATE, GRP_WATER, DAY_MON_YR,   &
-                        SRC_PY_ET)
+      call add_variable(reg, 'mean_et_py', 'polygon evapotranspiration', 'kg/m2/s', DIM_SCALAR, AGG_TMEAN, GRP_WATER,          &
+                        DAY_MON_YR, FLD_P_DIAG0 + PA_ET, flux=.true.)
+      call add_variable(reg, 'mean_et_pa', 'patch evapotranspiration', 'kg/m2/s', DIM_PATCH, AGG_TMEAN, GRP_WATER,             &
+                        ior(FAST, DAY_MON), FLD_P_DIAG0 + PA_ET, flux=.true.)
       !---~---
       !   The water leaving the soil column: surface runoff (the pond's spill above its capacity)
       ! and drainage (the bottom flux: free drainage, 0 on bedrock, net and signed with an
       ! aquifer), and their sum.
       !---~---
-      call add_variable(reg, 'mean_runoff_py', 'polygon runoff: surface runoff + drainage', 'kg/m2/s', DIM_SCALAR, AGG_RATE,       &
-                        GRP_WATER, DAY_MON_YR, SRC_PY_RUNOFF)
-      call add_variable(reg, 'mean_runoff_surf_py', 'polygon surface runoff', 'kg/m2/s', DIM_SCALAR, AGG_RATE, GRP_WATER,          &
-                        DAY_MON_YR, SRC_PY_RUNOFF_SURF)
-      call add_variable(reg, 'mean_drainage_py', 'polygon drainage at the soil column''s bottom', 'kg/m2/s', DIM_SCALAR, AGG_RATE, &
-                        GRP_WATER, DAY_MON_YR, SRC_PY_DRAINAGE)
+      call add_variable(reg, 'mean_runoff_py', 'polygon runoff: surface runoff + drainage', 'kg/m2/s', DIM_SCALAR, AGG_TMEAN,      &
+                        GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_RUNOFF, flux=.true.)
+      call add_variable(reg, 'mean_runoff_surf_py', 'polygon surface runoff', 'kg/m2/s', DIM_SCALAR, AGG_TMEAN, GRP_WATER,         &
+                        DAY_MON_YR, FLD_P_DIAG0 + PA_RUNOFF_SURF, flux=.true.)
+      call add_variable(reg, 'mean_drainage_py', 'polygon drainage at the soil column''s bottom', 'kg/m2/s', DIM_SCALAR,          &
+                        AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_DRAINAGE, flux=.true.)
       !--- Each site's soil column, its patches area-weighted (DIM_SOIL).
       call add_variable(reg, 'mean_soil_water_layer_si', 'each site''s area-weighted volumetric soil moisture', 'm3/m3',        &
                         DIM_SOIL, AGG_TMEAN, GRP_WATER, ior(FAST, DAY_MON_YR), FLD_L_SOIL_WATER, fast_source=SRC_F_SOIL_WATER)
       call add_variable(reg, 'mean_soil_psi_layer_si', 'each site''s area-weighted soil matric potential', 'MPa', DIM_SOIL,     &
-                        AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_L_SOIL_PSI)
+                        AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_L_SOIL_PSI,                    &
+                        fast_source=SRC_F_SOIL_LAYER)
       call add_variable(reg, 'mean_soil_wetness_layer_si', 'each site''s area-weighted relative saturation', '-', DIM_SOIL,     &
-                        AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_L_SOIL_WETNESS)
+                        AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_L_SOIL_WETNESS,                    &
+                        fast_source=SRC_F_SOIL_LAYER)
       !--- Surface water stores.
       call add_variable(reg, 'mean_w_surface_py', 'ponded surface water', 'kg/m2', DIM_SCALAR, AGG_TMEAN, GRP_WATER, DAY_MON_YR, &
                         FLD_P_DIAG0 + PA_W_SURFACE)
@@ -411,9 +424,11 @@ contains
       call add_variable(reg, 'mean_soil_water_layer_pa', 'volumetric soil moisture by layer and patch', 'm3/m3', DIM_SOIL_PATCH, &
                         AGG_TMEAN, GRP_WATER, FREQ_NONE, FLD_L_SOIL_WATER, fast_source=SRC_F_SOIL_WATER)
       call add_variable(reg, 'mean_soil_psi_layer_pa', 'soil matric potential by layer and patch', 'MPa', DIM_SOIL_PATCH,       &
-                        AGG_TMEAN, GRP_WATER, FREQ_NONE, FLD_L_SOIL_PSI)
+                        AGG_TMEAN, GRP_WATER, FREQ_NONE, FLD_L_SOIL_PSI,                    &
+                        fast_source=SRC_F_SOIL_LAYER)
       call add_variable(reg, 'mean_soil_wetness_layer_pa', 'relative saturation by layer and patch', '-', DIM_SOIL_PATCH,       &
-                        AGG_TMEAN, GRP_WATER, FREQ_NONE, FLD_L_SOIL_WETNESS)
+                        AGG_TMEAN, GRP_WATER, FREQ_NONE, FLD_L_SOIL_WETNESS,                    &
+                        fast_source=SRC_F_SOIL_LAYER)
    end subroutine register_water
 
    !--- Energy.
@@ -440,7 +455,8 @@ contains
       call add_variable(reg, 'mean_soil_temp_layer_si', 'each site''s area-weighted soil temperature', 'K', DIM_SOIL, AGG_TMEAN, &
                         GRP_ENERGY, ior(FAST, DAY_MON_YR), FLD_L_SOIL_TEMP, fast_source=SRC_F_SOIL_TEMP)
       call add_variable(reg, 'mean_soil_fliq_layer_si', 'each site''s area-weighted soil liquid fraction', '-', DIM_SOIL,       &
-                        AGG_TMEAN, GRP_ENERGY, DAY_MON_YR, FLD_L_SOIL_FLIQ)
+                        AGG_TMEAN, GRP_ENERGY, DAY_MON_YR, FLD_L_SOIL_FLIQ,                    &
+                        fast_source=SRC_F_SOIL_LAYER)
 
       !---~---
       !   Canopy temperatures, leaf-area-weighted: a bare sapling does not pull the canopy
@@ -463,7 +479,8 @@ contains
       call add_variable(reg, 'mean_soil_temp_layer_pa', 'soil temperature by layer and patch', 'K', DIM_SOIL_PATCH, AGG_TMEAN,  &
                         GRP_ENERGY, FREQ_NONE, FLD_L_SOIL_TEMP, fast_source=SRC_F_SOIL_TEMP)
       call add_variable(reg, 'mean_soil_fliq_layer_pa', 'soil liquid fraction by layer and patch', '-', DIM_SOIL_PATCH,         &
-                        AGG_TMEAN, GRP_ENERGY, FREQ_NONE, FLD_L_SOIL_FLIQ)
+                        AGG_TMEAN, GRP_ENERGY, FREQ_NONE, FLD_L_SOIL_FLIQ,                    &
+                        fast_source=SRC_F_SOIL_LAYER)
    end subroutine register_energy
 
    !--- Biogeochemistry: the CENTURY matrix pools and Rh, all 0 when soil_carbon_on is off.
@@ -486,11 +503,11 @@ contains
       call add_variable(reg, 'mean_soilc_total_py', 'polygon total soil organic carbon', 'kgC/m2', DIM_SCALAR, AGG_MEAN,           &
                         GRP_BIOGEOCHEM, DAY_MON_YR, FLD_P_SOILC_TOTAL)
       call add_variable(reg, 'mean_rh_py', 'polygon heterotrophic respiration', 'umol/m2/s', DIM_SCALAR, AGG_RATE, GRP_BIOGEOCHEM, &
-                        DAY_MON_YR, FLD_P_RH, scale=kgc_2_umol)
+                        DAY_MON_YR, FLD_P_RH, scale=kgc_2_umol, fast_source=SRC_F_PA0 + PA_RH)
       call add_variable(reg, 'mean_soilc_total_pa', 'patch total soil organic carbon', 'kgC/m2', DIM_PATCH, AGG_MEAN,           &
                         GRP_BIOGEOCHEM, MON, FLD_P_SOILC_TOTAL)
       call add_variable(reg, 'mean_rh_pa', 'patch heterotrophic respiration', 'umol/m2/s', DIM_PATCH, AGG_RATE, GRP_BIOGEOCHEM, &
-                        MON, FLD_P_RH, scale=kgc_2_umol)
+                        MON, FLD_P_RH, scale=kgc_2_umol, fast_source=SRC_F_PA0 + PA_RH)
    end subroutine register_biogeochem
 
    !---~---
@@ -745,6 +762,66 @@ contains
    end subroutine register_patch_fluxes
 
    !---~---
+   !   The budgets' terms (docs/science/diagnostics.md §4, The budgets): every flux the
+   ! whole-column water and energy ledgers book, so each budget closes from the files, its
+   ! residual (mean_resid_*_py) included; the canopy's carbon split; and the stocks.
+   !---~---
+   subroutine register_budgets(reg)
+      type(output_registry_t), intent(inout) :: reg
+      !--- water: the fluxes
+      call add_variable(reg, 'mean_intercept_py', 'precipitation the canopy films captured, net', 'kg/m2/s', DIM_SCALAR,     &
+                        AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_INTERCEPT, flux=.true.)
+      call add_variable(reg, 'mean_throughfall_py', 'precipitation reaching the ground', 'kg/m2/s', DIM_SCALAR, AGG_TMEAN,   &
+                        GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_THROUGHFALL, flux=.true.)
+      call add_variable(reg, 'mean_infiltration_py', 'infiltration: pond to soil layer 1', 'kg/m2/s', DIM_SCALAR, AGG_TMEAN, &
+                        GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_INFILTRATION, flux=.true.)
+      call add_variable(reg, 'mean_snowmelt_py', 'meltwater the snow pack drains to the pond', 'kg/m2/s', DIM_SCALAR,        &
+                        AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_SNOWMELT, flux=.true.)
+      call add_variable(reg, 'mean_sublimation_py', 'sublimation from the snow pack (deposition < 0)', 'kg/m2/s',            &
+                        DIM_SCALAR, AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_SUBLIMATION, flux=.true.)
+      call add_variable(reg, 'mean_shed_water_py', 'tissue water the slow step shed to the pond', 'kg/m2/s', DIM_SCALAR,     &
+                        AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_SHED_WATER, flux=.true.)
+      call add_variable(reg, 'mean_film_excess_py', 'canopy film water above capacity, removed', 'kg/m2/s', DIM_SCALAR,      &
+                        AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_FILM_EXCESS, flux=.true.)
+      call add_variable(reg, 'mean_water_store_gain_py', 'gain of every water store', 'kg/m2/s', DIM_SCALAR, AGG_TMEAN,     &
+                        GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_WATER_STORE_GAIN, flux=.true.)
+      !--- water: the stores
+      call add_variable(reg, 'mean_canopy_water_py', 'water on the leaves'' and wood''s surfaces', 'kg/m2', DIM_SCALAR,      &
+                        AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_CANOPY_WATER)
+      call add_variable(reg, 'mean_soil_water_total_py', 'the soil column''s water, liquid and ice', 'kg/m2', DIM_SCALAR,    &
+                        AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_SOIL_WATER_TOTAL)
+      call add_variable(reg, 'mean_plant_water_py', 'the plants'' tissue water', 'kg/m2', DIM_SCALAR, AGG_TMEAN, GRP_WATER,  &
+                        DAY_MON_YR, FLD_P_DIAG0 + PA_PLANT_WATER)
+      !--- the wet leaf: each cohort's film-covered fraction, and the canopy's leaf-area-weighted
+      call add_variable(reg, 'mean_wet_fraction_py', 'leaf-area-weighted wet fraction of the leaves', '-', DIM_SCALAR,       &
+                        AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_C_DIAG0 + CO_WET_FRACTION, weight=W_LEAF_AREA, mean=.true.)
+      call add_variable(reg, 'mean_wet_fraction_co', 'per-cohort wet fraction of the leaves', '-', DIM_COHORT, AGG_TMEAN,    &
+                        GRP_WATER, FREQ_NONE, FLD_C_DIAG0 + CO_WET_FRACTION)
+      !--- energy: the sensible heat's sources, and the terms beyond Rn, H and LE
+      call add_variable(reg, 'mean_h_canopy_py', 'sensible heat, leaves and wood to the canopy air', 'W/m2', DIM_SCALAR,     &
+                        AGG_TMEAN, GRP_ENERGY, DAY_MON_YR, FLD_P_DIAG0 + PA_H_CANOPY, flux=.true.)
+      call add_variable(reg, 'mean_h_ground_py', 'sensible heat, ground (soil, snow) to the canopy air', 'W/m2', DIM_SCALAR, &
+                        AGG_TMEAN, GRP_ENERGY, DAY_MON_YR, FLD_P_DIAG0 + PA_H_GROUND, flux=.true.)
+      call add_variable(reg, 'mean_heat_bottom_py', 'heat into the soil column through its bottom', 'W/m2', DIM_SCALAR,      &
+                        AGG_TMEAN, GRP_ENERGY, DAY_MON_YR, FLD_P_DIAG0 + PA_HEAT_BOTTOM, flux=.true.)
+      call add_variable(reg, 'mean_enth_advect_py', 'enthalpy the water carries in, beyond H and LE', 'W/m2', DIM_SCALAR,    &
+                        AGG_TMEAN, GRP_ENERGY, DAY_MON_YR, FLD_P_DIAG0 + PA_ENTH_ADVECT, flux=.true.)
+      call add_variable(reg, 'mean_heat_gain_soil_py', 'the soil column''s energy gain', 'W/m2', DIM_SCALAR, AGG_TMEAN,      &
+                        GRP_ENERGY, DAY_MON_YR, FLD_P_DIAG0 + PA_HEAT_GAIN_SOIL, flux=.true.)
+      call add_variable(reg, 'mean_heat_gain_canopy_py', 'the canopy air''s and tissues'' energy gain', 'W/m2', DIM_SCALAR,  &
+                        AGG_TMEAN, GRP_ENERGY, DAY_MON_YR, FLD_P_DIAG0 + PA_HEAT_GAIN_CANOPY, flux=.true.)
+      call add_variable(reg, 'mean_heat_gain_surface_py', 'the snow pack''s and pond''s energy gain', 'W/m2', DIM_SCALAR,    &
+                        AGG_TMEAN, GRP_ENERGY, DAY_MON_YR, FLD_P_DIAG0 + PA_HEAT_GAIN_SURFACE, flux=.true.)
+      call add_variable(reg, 'mean_apar_py', 'PAR (VIS) the leaves absorbed', 'W/m2', DIM_SCALAR, AGG_TMEAN, GRP_RADIATION, &
+                        DAY_MON_YR, FLD_P_DIAG0 + PA_APAR, flux=.true.)
+      !--- carbon: autotrophic respiration (Reco - Rh) and the ecosystem's carbon
+      call add_variable(reg, 'mean_ra_py', 'autotrophic respiration (ecosystem less heterotrophic)', 'umol/m2/s',           &
+                        DIM_SCALAR, AGG_TMEAN, GRP_CARBON, DAY_MON_YR, FLD_P_DIAG0 + PA_RA, flux=.true.)
+      call add_variable(reg, 'mean_eco_carbon_py', 'ecosystem carbon: live vegetation + soil organic carbon', 'kgC/m2',      &
+                        DIM_SCALAR, AGG_MEAN, GRP_CARBON, DAY_MON_YR, SRC_PY_ECO_CARBON)
+   end subroutine register_budgets
+
+   !---~---
    !   FAST-tier (sub-daily) diagnostics. They read the staged sub-step samples, not live
    ! state, so they carry the FAST bit only (docs/science/diagnostics.md §4, How the FAST
    ! tier is sampled).
@@ -752,9 +829,9 @@ contains
    subroutine register_fast(reg)
       type(output_registry_t), intent(inout) :: reg
       call add_variable(reg, 'mean_sw_up_py', 'shortwave leaving the canopy top (VIS + NIR)', 'W/m2', DIM_SCALAR, AGG_TMEAN,    &
-                        GRP_ENERGY, FAST, SRC_NONE, fast_source=SRC_F_PA0 + PA_SW_UP, flux=.true.)
+                        GRP_ENERGY, FAST, FLD_P_DIAG0 + PA_SW_UP, flux=.true.)
       call add_variable(reg, 'mean_reco_py', 'ecosystem respiration (autotrophic + heterotrophic)', 'umol/m2/s', DIM_SCALAR,    &
-                        AGG_TMEAN, GRP_CARBON, FAST, SRC_NONE, fast_source=SRC_F_PA0 + PA_RECO, flux=.true.)
+                        AGG_TMEAN, GRP_CARBON, ior(FAST, DAY_MON_YR), FLD_P_DIAG0 + PA_RECO, flux=.true.)
       !---~---
       !   The leaf solve's inputs and output per cohort, sub-daily, as the solve saw them (rows of
       ! the per-cohort diagnostic block, SRC_F_CO0 + CO_*): enough to repeat the solve outside
@@ -772,18 +849,19 @@ contains
                         GRP_ECOPHYS, FREQ_NONE, FLD_C_DIAG0 + CO_GB_MOL)
       !---~---
       !   Per-patch twins: the same samples before the sum over patches, named and switched as
-      ! docs/science/diagnostics.md §4 (The FAST tier by patch) says.
+      ! docs/science/diagnostics.md §4 (The FAST tier by patch) says; sub-daily by default, and
+      ! daily or monthly on request.
       !---~---
       call add_variable(reg, 'mean_sw_up_pa', 'patch shortwave leaving the canopy top (VIS + NIR)', 'W/m2', DIM_PATCH,          &
-                        AGG_TMEAN, GRP_ENERGY, FAST, SRC_NONE, fast_source=SRC_F_PA0 + PA_SW_UP, flux=.true.)
+                        AGG_TMEAN, GRP_ENERGY, FAST, FLD_P_DIAG0 + PA_SW_UP, flux=.true.)
       call add_variable(reg, 'mean_lw_up_pa', 'patch longwave leaving the canopy top (emission included)', 'W/m2', DIM_PATCH,   &
-                        AGG_TMEAN, GRP_ENERGY, FAST, SRC_NONE, fast_source=SRC_F_PA0 + PA_LW_UP, flux=.true.)
+                        AGG_TMEAN, GRP_ENERGY, FAST, FLD_P_DIAG0 + PA_LW_UP, flux=.true.)
       call add_variable(reg, 'mean_ustar_pa', 'patch friction velocity', 'm/s', DIM_PATCH, AGG_TMEAN, GRP_ENERGY, FAST,    &
-                        SRC_NONE, fast_source=SRC_F_PA0 + PA_USTAR)
+                        FLD_P_DIAG0 + PA_USTAR)
       call add_variable(reg, 'mean_reco_pa', 'patch ecosystem respiration (autotrophic + heterotrophic)', 'umol/m2/s',          &
-                        DIM_PATCH, AGG_TMEAN, GRP_CARBON, FAST, SRC_NONE, fast_source=SRC_F_PA0 + PA_RECO, flux=.true.)
+                        DIM_PATCH, AGG_TMEAN, GRP_CARBON, ior(FAST, DAY_MON), FLD_P_DIAG0 + PA_RECO, flux=.true.)
       call add_variable(reg, 'mean_cas_co2_pa', 'patch canopy-air CO2 mixing ratio', 'umol/mol', DIM_PATCH, AGG_TMEAN,          &
-                        GRP_CARBON, FAST, SRC_NONE, fast_source=SRC_F_PA0 + PA_CAS_CO2)
+                        GRP_CARBON, FAST, FLD_P_DIAG0 + PA_CAS_CO2)
    end subroutine register_fast
 
    !---~---
@@ -853,12 +931,9 @@ contains
                         AGG_TMEAN, GRP_FORCING, DAY_MON, FLD_P_DIAG0 + PA_TAIR_CAS_TOP)
       call add_variable(reg, 'mean_cas_depth_pa', 'patch canopy-air depth (the top its forcing is moved to)', 'm', DIM_PATCH,   &
                         AGG_TMEAN, GRP_FORCING, DAY_MON, FLD_P_DIAG0 + PA_Z_CAS_TOP)
-      !---~---
-      !   The FAST tier: each sub-step's own sample (air_temp_fast, sw_in_fast and atm_co2_fast
-      ! are registered with the fast fluxes, in this group).
-      !---~---
+      !--- The rain: the precipitation less mean_snowfall_py, as the patches split it.
       call add_variable(reg, 'mean_rainf_py', 'liquid precipitation (split at each patch''s canopy-air top)',                    &
-                        'kg/m2/s', DIM_SCALAR, AGG_TMEAN, GRP_FORCING, FAST, SRC_NONE, fast_source=SRC_F_PY0 + PY_RAINF,         &
+                        'kg/m2/s', DIM_SCALAR, AGG_TMEAN, GRP_FORCING, ior(FAST, DAY_MON_YR), FLD_PY_DIAG0 + PY_RAINF,           &
                         flux=.true.)
    end subroutine register_forcing
 
@@ -921,12 +996,15 @@ contains
    !   The staged twin of a fast-loop diagnostic row. Each sub-step the fast loop stages its
    ! per-cohort rows, each patch's row and their polygon mean (the area-weighted sum the
    ! coarse tiers reduce a patch row to), and the forcing, so a variable on one of these has
-   ! a sub-step value on its own axis. SRC_NONE for any other source.
+   ! a sub-step value on its own axis; a cohort row reduced to the patch or the polygon is
+   ! reduced from the staged row, with the weights the fast loop used. SRC_NONE for any
+   ! other source.
    !---~---
    pure integer(ik) function staged_row(dm, src) result(f)
       integer(ik), intent(in) :: dm, src
       f = SRC_NONE
-      if (dm == DIM_COHORT .and. src > FLD_C_DIAG0 .and. src <= FLD_C_DIAG0 + N_CO_FAST_ROWS) then
+      if ((dm == DIM_COHORT .or. dm == DIM_PATCH .or. dm == DIM_SCALAR) .and. src > FLD_C_DIAG0 .and.   &
+          src <= FLD_C_DIAG0 + N_CO_FAST_ROWS) then
          f = SRC_F_CO0 + (src - FLD_C_DIAG0)
       else if ((dm == DIM_PATCH .or. dm == DIM_SCALAR) .and. src > FLD_P_DIAG0 .and.            &
                src <= FLD_P_DIAG0 + N_PA_FAST_ROWS) then
