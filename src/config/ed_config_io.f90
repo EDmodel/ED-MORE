@@ -867,6 +867,8 @@ contains
       cfg%output%fast_interval_steps = toml_int    (t, 'output.fast_interval_steps', 4_ik)
       call opt_choice(t, 'output.sync_every', [character(len=NAME_LEN) :: 'flush', 'never'],               &
                       [SYNC_FLUSH, SYNC_NEVER], cfg%output%sync_every, m)
+      call opt_choice(t, 'output.diel_interval', [character(len=NAME_LEN) :: '1 hour', '2 hours', '3 hours',    &
+                      '4 hours'], [1_ik, 2_ik, 3_ik, 4_ik], cfg%output%diel_interval_hours, m)
       !---~---
       !   DBH size-class edges (DIM_SIZE), ascending, n_class+1 of them. Absent -> setup_output_files
       ! installs the built-in inventory default.

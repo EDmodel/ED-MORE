@@ -453,6 +453,7 @@ row ([Regional runs](#regional-runs) gives the layout).
 | `io_config` | `""` | the output-selection file; `""` writes every variable at its default tiers |
 | `cohort_max`, `patch_max` | 4096, 256 | the files' cohort and patch axis lengths; the run stops when a live count exceeds one |
 | `fast_interval_steps` | 4 | fast steps one sub-daily record spans (4 × 900 s is hourly); must divide the fast steps in a slow step |
+| `diel_interval` | `"1 hour"` | the bins of a `diel_` variable's mean diel cycle: `"1 hour"`, `"2 hours"`, `"3 hours"` or `"4 hours"`; `[fast].dt_fast` must divide it ([diagnostics](science/diagnostics.md) §4) |
 | `sync_every` | `"flush"` | `"flush"`: records reach the disk each month; `"never"` |
 | `dbh_class_edges` | 0, 10, 20, 30, 50, 70, 100 | ascending edges [cm] of the `dbh_class` axis |
 | `[output.fast]`, `[output.daily]`, `[output.monthly]`, `[output.annual]` | fast off, the others on | `enabled` switches a tier (an off tier writes nothing, whatever `io_config` says); `file_chunk` (`"day"`, `"month"`, `"year"` or `"all"`, one file for all of the run's records) is the span of one file, at least one of its tier's records (a monthly file a month or more, an annual one a year or more): defaults day, month, year and all |

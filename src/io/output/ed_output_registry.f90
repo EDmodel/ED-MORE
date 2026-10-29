@@ -141,6 +141,7 @@ contains
       call register_fast(reg)
       call register_forcing(reg)
       call register_snapshots(reg)                ! each mean_<x>'s end-of-period <x>, off by default
+      call register_diel(reg)                     ! each sub-daily mean_<x>'s mean diel cycle, off by default
 
       call enforce_annual_guard(reg)              ! no cohort or patch variable on FREQ_ANNUAL (docs/science/diagnostics.md §3)
       call enforce_fast_guard(reg)                ! FAST tier <-> FAST-staged source, both ways
@@ -1052,6 +1053,34 @@ contains
    end subroutine register_snapshots
 
    !---~---
+   !   The mean diel cycles: for each mean_<x> with a sub-step value, diel_<x>, its mean over the
+   ! period at each time of day, in bins of [output].diel_interval (docs/science/diagnostics.md
+   ! §4, The mean diel cycle). Off unless asked for; on D, M and Y (D and M on the cohort and
+   ! patch axes), never on F, whose records are the cycle itself.
+   !---~---
+   subroutine register_diel(reg)
+      type(output_registry_t), intent(inout) :: reg
+      type(var_desc_t) :: base, dv
+      integer(ik) :: k, n_base
+      n_base = reg%nvar
+      do k = 1_ik, n_base
+         base = reg%var(k)
+         if (base%name(1:5) /= 'mean_' .or. base%coord) cycle
+         if (src_class(base%source_fast) /= SRCK_FAST) cycle
+         dv = base
+         dv%name            = 'diel_'//base%name(6:)
+         dv%long_name       = 'mean diel cycle of '//trim(base%long_name)
+         dv%agg             = AGG_TMEAN
+         dv%streams         = FREQ_NONE
+         dv%streams_default = FREQ_NONE
+         dv%source_id       = SRC_NONE
+         dv%snap_staged     = .false.
+         dv%diel            = .true.
+         call append_variable(reg, dv)
+      end do
+   end subroutine register_diel
+
+   !---~---
    !   A row the fast loop fills each sub-step, which the coarse tiers read as its mean over
    ! the slow step: the per-cohort and per-patch blocks' fast rows and the forcing echo.
    !---~---
@@ -1098,6 +1127,12 @@ contains
    subroutine check_fast_tier(v, streams)
       type(var_desc_t), intent(in) :: v
       integer(ik),      intent(in) :: streams
+      if (v%diel) then
+         if (iand(streams, FREQ_FAST) /= 0_ik)                                                     &
+            error stop 'ed_output_registry: "'//trim(v%name)//'" is a mean diel cycle over a day or '// &
+                       'longer: D, M or Y, not F'
+         return
+      end if
       if (iand(streams, FREQ_FAST) /= 0_ik .and. src_class(v%source_fast) /= SRCK_FAST)             &
          error stop 'ed_output_registry: "'//trim(v%name)//'" has no sub-daily value and cannot be '// &
                     'put on the F stream'
@@ -1231,11 +1266,17 @@ contains
 
    !---~---
    !   The tiers a variable can be on: F with a staged sub-step value, D and M with a value
-   ! at the step's end or a staged snapshot, and Y too off the cohort and patch axes.
+   ! at the step's end or a staged snapshot, and Y too off the cohort and patch axes. A mean
+   ! diel cycle is a day or longer: D, M and Y.
    !---~---
    pure integer(ik) function usable_tiers(v) result(m)
       type(var_desc_t), intent(in) :: v
       m = FREQ_NONE
+      if (v%diel) then
+         m = ior(FREQ_DAILY, FREQ_MONTHLY)
+         if (.not. ragged_dim(v%dim)) m = ior(m, FREQ_ANNUAL)
+         return
+      end if
       !--- The axes' bookkeeping is fixed within a slow step: the F tier reads it from the stand.
       if (src_class(v%source_fast) == SRCK_FAST .or. v%coord) m = FREQ_FAST
       if (v%source_id /= SRC_NONE .or. v%snap_staged) then
@@ -1432,6 +1473,9 @@ contains
       write(u,'(a)') '# of a line''s variables can be on, and `true` for a name off by default stop the run. A tier'
       write(u,'(a)') '# whose [output.<tier>].enabled is false writes nothing, whatever this file says.'
       write(u,'(a)') '#'
+      write(u,'(a)') '# diel_<x> is the mean diel cycle of mean_<x> over each record: its mean at each time of day,'
+      write(u,'(a)') '# in bins of [output].diel_interval, on an extra diel axis (docs/science/diagnostics.md §4).'
+      write(u,'(a)') '#'
       write(u,'(a)') '# Each line below: the default (false: off), the tiers it can be on, [axis], long name (units).'
       write(u,'(a)') '# Every line is commented out, so this file as generated changes nothing.'
       write(u,'(a)') ''
@@ -1447,7 +1491,8 @@ contains
                lhs = '# '//trim(reg%var(k)%name)//' = "'//trim(mask_to_string(reg%var(k)%streams_default))//'"'
             end if
             can = mask_to_string(usable_tiers(reg%var(k)))
-            write(u,'(a)') lhs//'  # '//can//'  ['//trim(dim_name(reg%var(k)%dim))//'] '//                &
+            write(u,'(a)') lhs//'  # '//can//'  ['//trim(trim(dim_name(reg%var(k)%dim))//                     &
+                           merge(',diel', '     ', reg%var(k)%diel))//'] '//                                &
                            trim(reg%var(k)%long_name)//' ('//trim(reg%var(k)%units)//')'
          end do
       end do

@@ -219,6 +219,8 @@ cell's environmental stress index E.
 **A `mean_` variable is a mean over its record's period**, and the variable of the same name without
 the prefix is its value at the period's end (`AGG_LAST`), its snapshot. A flux is its mean rate, so
 one variable has one unit at every tier, and a period's total is the mean times the period's length.
+The third prefix, `diel_`, is a mean diel cycle: the mean at each time of day over the period (The
+mean diel cycle, below).
 
 | `agg` | `cell_methods` | meaning |
 |---|---|---|
@@ -226,6 +228,7 @@ one variable has one unit at every tier, and a period's total is the mean times 
 | `AGG_MEAN` | `time: mean` | equal-weight mean |
 | `AGG_RATE` | `time: mean` | mean rate of a per-step amount (the fast loop's carbon and water, a count): the period's amounts over the time they took |
 | `AGG_LAST` | `time: point` | end-of-period snapshot: every variable without `mean_` |
+| (a `diel_` variable) | `time: mean within days time: mean over days` | each bin's dt-weighted mean over the period's days |
 
 The fast loop's carbon fluxes are in µmol CO₂ m⁻² s⁻¹ (per plant for a cohort), water in kg m⁻² s⁻¹,
 energy in W m⁻²; the slow step's rates (allocation, growth, litterfall, mortality) keep their
@@ -358,6 +361,39 @@ quantities have only the second source. A tier a variable has no source for woul
 for the whole run, so the registry checks every default and every override at start-up and refuses to
 start, naming the variable: a diagnostic that quietly reports nothing is worse than one that refuses
 to start.
+
+### The mean diel cycle
+
+`diel_<x>` is the mean diel cycle of `mean_<x>` over a record: its mean at each time of day, over the
+record's days. Every `mean_` variable with a sub-daily value has one, so a month of hourly fluxes can
+be written as one monthly record of 24 values instead of 720 sub-daily ones.
+
+- **The bins.** `[output].diel_interval` sets them: `"1 hour"` (the default), `"2 hours"`, `"3 hours"`
+  or `"4 hours"`, so a day holds 24, 12, 8 or 6. The files carry them on a `diel` axis, the last, with
+  the coordinate `diel_hour`, the hour each bin starts at on the model's clock, the one every
+  record's time stamp uses. `[fast].dt_fast` must divide the interval, so each sub-step falls in
+  one bin.
+- **The values.** Each staged sub-step goes into the bin of the hour it starts in, on the coarse
+  tiers' open records, as the F tier reads it: a bin is the dt-weighted mean of its sub-steps over
+  the record. On a daily record, bin *h* is the mean of that day's F records in its hours; on a
+  monthly or annual record, the mean over the period's days. Where the daily tier averages the
+  sub-steps too (every flux and every fast-loop row), the bins' mean is the record's `mean_<x>`; for
+  the soil columns, which the daily tier reads from the state at each slow step's end, it is the
+  sub-daily mean the daily value is not.
+- **The tiers.** D, M and Y, and D and M on the cohort and patch axes; never F, whose records are the
+  cycle itself. Every `diel_` variable is off by default: name it in `[output].io_config`,
+  `diel_le_py = "M"`, or with a pattern, `"diel_*_py" = "M"`. A pattern that switches variables on
+  (`"*_py" = "M"`) catches the `diel_` variables too, as it does the snapshots.
+- **The cohort axis.** A cohort's cycle is folded into its slot of the month (§3), so a monthly record
+  of `diel_leaf_temp_co` holds each cohort's cycle over the month, in the month's end order.
+- **It needs the fast loop.** A run without one, or a `dt_fast` that does not divide the interval,
+  stops at start-up.
+- **Its cost** is the bins times the axis: at 24 bins a cohort `diel_` variable holds
+  24 × `cohort_max` accumulators a polygon (about 2 MB at the default 4096), so a region run pays
+  about 2 GB per 1,000 polygons for each one. The polygon and patch cycles are cheap.
+- **The time axis.** A record's `time` is its period's, as for every other variable of the file; the
+  `diel` axis holds the time of day. Strict CF climatology bounds are not used, since the same time
+  axis holds the file's ordinary means.
 
 ### The patch row
 
@@ -531,8 +567,8 @@ The rules:
 
 The level suffix makes the common choices one line each: `"*_co" = false` and `"*_pa" = false` drop
 the cohort and patch axes, the largest lever on output volume; `"*_pft_py"` and `"*_size_py"` select
-the PFT and size-class breakdowns; `"mean_*"` every mean, `"mean_resid_*"` the energy and water budget
-residuals. Keep those residuals: a closure nobody records is worse than one nobody looks at.
+the PFT and size-class breakdowns; `"mean_*"` every mean, `"diel_*"` every mean diel cycle,
+`"mean_resid_*"` the energy and water budget residuals. Keep those residuals: a closure nobody records is worse than one nobody looks at.
 
 **Groups** head the `--dump-io-config` list (§7). The `biogeochem` group keeps the soil-carbon
 pools apart from `carbon`; they stay 0 with `[soil_carbon].soil_carbon_on = false`. The `forcing` group is

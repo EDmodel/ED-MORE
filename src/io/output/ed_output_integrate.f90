@@ -14,7 +14,7 @@ module ed_output_integrate
    use ed_output_types,     only : var_desc_t, integ_buffer_t, output_files_t, output_buffers_t,                  &
                                    pending_record_t, record_queue_t, AGG_MEAN, AGG_RATE, AGG_LAST, AGG_TMEAN,     &
                                    DIM_SCALAR, DIM_COHORT, DIM_PATCH,                                             &
-                                   DIM_SOIL, DIM_SOIL_PATCH, MISSING_VALUE, N_WEIGHT, slab_col
+                                   DIM_SOIL, DIM_SOIL_PATCH, MISSING_VALUE, N_WEIGHT, slab_col, slab_var
    use ed_polygon_state_vars, only : polygon_t
    use ed_constants,     only : n_soil_layer_max
    use ed_diag_vars,          only : N_CO_FAST_ROWS
@@ -33,9 +33,10 @@ contains
 
    !---~---
    !   A polygon's output tick after a slow step: replay the FAST samples its fast loop
-   ! staged, closing that tier every fast_interval_steps of them over the run, then fold
-   ! the step into the slower tiers (output_integrate), whose snapshots of fast-loop values
-   ! read the last staged sub-step. Closed records are queued for the I/O phase.
+   ! staged, closing that tier every fast_interval_steps of them over the run, and fold each
+   ! into its bin of the mean diel cycles; then fold the step into the slower tiers
+   ! (output_integrate), whose snapshots of fast-loop values read the last staged sub-step.
+   ! Closed records are queued for the I/O phase.
    !---~---
    subroutine output_tick(files, bufs, poly, step, dt_slow, dt_fast)
       type(output_files_t),   intent(in)    :: files
@@ -50,6 +51,15 @@ contains
             bufs%fast_step_total = bufs%fast_step_total + 1_ik
             if (mod(bufs%fast_step_total, max(files%fast_interval_steps, 1_ik)) == 0_ik)          &
                call close_tier(files, bufs, TIER_FAST)
+         end do
+      end if
+      !---~---
+      !   The sub-steps belong to the step output_integrate folds next, so they go into the
+      ! windows it folds into, before it closes the periods the step's end has left.
+      !---~---
+      if (bufs%fast_ready .and. files%diel_live) then
+         do isub = 1_ik, bufs%n_fast_sub
+            call output_integrate_diel(files, bufs, poly, isub, dt_fast)
          end do
       end if
       call output_integrate(files, bufs, poly, step%start, dt_slow, step%new_day, step%new_month,     &
@@ -74,10 +84,10 @@ contains
       !   The F tier folds staged sub-step samples, rates and states alike: a mean variable their
       ! dt-weighted mean, a snapshot the last.
       !---~---
-      if (freq == FREQ_FAST .and. v%agg /= AGG_LAST) buf%agg = AGG_TMEAN
+      if ((freq == FREQ_FAST .or. v%diel) .and. v%agg /= AGG_LAST) buf%agg = AGG_TMEAN
       buf%dim    = v%dim
       buf%active = .true.
-      if (v%dim /= DIM_SCALAR) then
+      if (slab_var(v)) then
          allocate(buf%slab(cap), buf%wsum_slab(cap), buf%hits(cap))
       end if
       call reset_buffer(buf)
@@ -159,6 +169,28 @@ contains
          end select
       end do
    end subroutine integrate_slab
+
+   !---~---
+   !   Fold a slab of n samples into bin `bin` of each slot of a mean diel cycle, dt-weighted:
+   ! slot i's nb bins are entries (i-1)*nb+1 .. i*nb, the bin varying fastest. Invalid slots
+   ! are skipped, as in integrate_slab.
+   !---~---
+   subroutine integrate_diel(buf, x, valid, n, bin, nb, dt)
+      type(integ_buffer_t), intent(inout) :: buf
+      real(wp),             intent(in)    :: x(:)
+      logical,              intent(in)    :: valid(:)
+      integer(ik),          intent(in)    :: n, bin, nb
+      real(wp),             intent(in)    :: dt
+      integer(ik) :: i, m
+      buf%n_slab = max(buf%n_slab, n * nb)
+      do i = 1_ik, n
+         if (.not. valid(i)) cycle
+         m = (i - 1_ik) * nb + bin
+         buf%slab(m)      = buf%slab(m) + x(i) * dt
+         buf%wsum_slab(m) = buf%wsum_slab(m) + dt
+         buf%hits(m)      = buf%hits(m) + 1_ik
+      end do
+   end subroutine integrate_diel
 
    !--- Normalize (close a period). valid=.false. -> emit MISSING_VALUE (no NaN, no ±huge).
    subroutine normalize_scalar(buf, out, valid)
@@ -274,6 +306,7 @@ contains
          if (.not. bufs%has_data(t)) bufs%t_open(t) = prev
          do j = 1_ik, files%reg%nidx(t)
             k = files%reg%idx_freq(j, t)
+            if (files%reg%var(k)%diel) cycle               ! folded from the sub-steps (output_integrate_diel)
             if (files%reg%var(k)%snap_staged) then
                call staged_snapshot(bufs, poly, files%reg%var(k), scal, slab, vslab, n_out)
             else
@@ -393,9 +426,9 @@ contains
       type(output_files_t),   intent(in)    :: files
       type(output_buffers_t), intent(inout) :: bufs
       integer(ik),            intent(in)    :: t
-      integer(ik) :: j, k, c, ns, nsl
+      integer(ik) :: j, k, c, ns, nsl, nb
       integer(ik) :: slab_k(files%reg%nidx(t))
-      logical     :: soil_patch(files%reg%nidx(t))
+      integer(ik) :: patch_rows(files%reg%nidx(t))
       bufs%pending(t)%used   = .true.
       bufs%pending(t)%freq   = ishft(1_ik, t - 1_ik)
       bufs%pending(t)%t_open = bufs%t_open(t)
@@ -406,7 +439,7 @@ contains
       bufs%pending(t)%nslab(:)  = 0_ik
       do j = 1_ik, files%reg%nidx(t)
          k = files%reg%idx_freq(j, t)
-         if (files%reg%var(k)%dim == DIM_SCALAR) then
+         if (.not. slab_var(files%reg%var(k))) then
             call normalize_scalar(bufs%buf(k,t), bufs%pending(t)%sval(k), bufs%pending(t)%svalid(k))
          else
             c = slab_col(bufs%pending(t), k)
@@ -415,15 +448,17 @@ contains
             bufs%pending(t)%nslab(k) = ns
             !---~---
             !   The record's axis lengths. A soil-by-patch slab is patch-major, strided by the
-            ! layer ceiling, so it holds ns / n_soil_layer_max patches.
+            ! layer ceiling, so it holds ns / n_soil_layer_max patches; a mean diel cycle holds
+            ! n_diel entries a slot.
             !---~---
+            nb = merge(files%n_diel, 1_ik, files%reg%var(k)%diel)
             select case (files%reg%var(k)%dim)
             case (DIM_COHORT)
-               bufs%pending(t)%n_cohort = max(bufs%pending(t)%n_cohort, ns)
+               bufs%pending(t)%n_cohort = max(bufs%pending(t)%n_cohort, ns / nb)
             case (DIM_PATCH)
-               bufs%pending(t)%n_patch  = max(bufs%pending(t)%n_patch,  ns)
+               bufs%pending(t)%n_patch  = max(bufs%pending(t)%n_patch,  ns / nb)
             case (DIM_SOIL_PATCH)
-               bufs%pending(t)%n_patch  = max(bufs%pending(t)%n_patch,  ns / n_soil_layer_max)
+               bufs%pending(t)%n_patch  = max(bufs%pending(t)%n_patch,  ns / (n_soil_layer_max * nb))
             end select
          end if
          call reset_buffer(bufs%buf(k,t))
@@ -437,26 +472,29 @@ contains
       nsl = 0_ik                                          ! this tier's slab variables, for the queue
       do j = 1_ik, files%reg%nidx(t)
          k = files%reg%idx_freq(j, t)
-         if (files%reg%var(k)%dim == DIM_SCALAR) cycle
+         if (.not. slab_var(files%reg%var(k))) cycle
          nsl = nsl + 1_ik
          slab_k(nsl) = k
-         soil_patch(nsl) = files%reg%var(k)%dim == DIM_SOIL_PATCH
+         patch_rows(nsl) = 0_ik
+         if (files%reg%var(k)%dim == DIM_SOIL_PATCH)                                              &
+            patch_rows(nsl) = n_soil_layer_max * merge(files%n_diel, 1_ik, files%reg%var(k)%diel)
       end do
-      call enqueue_record(bufs%queue(t), bufs%pending(t), slab_k(1:nsl), soil_patch(1:nsl))
+      call enqueue_record(bufs%queue(t), bufs%pending(t), slab_k(1:nsl), patch_rows(1:nsl))
       bufs%pending(t)%used = .false.
    end subroutine close_tier
 
    !---~---
    !   Append a copy of the scratch record to the tier's queue. Only what the writer reads is
    ! copied: the tier's slab variables (`slab_k`), each to its nslab rows, or the whole patch x
-   ! layer block (n_patch * n_soil_layer_max) for a soil-patch variable. The copy is exact, so
-   ! a queued record writes exactly what an immediate write from the scratch would have.
+   ! layer block (n_patch * patch_rows: the layers, times the bins of a mean diel cycle) for a
+   ! soil-patch variable. The copy is exact, so a queued record writes exactly what an
+   ! immediate write from the scratch would have.
    !---~---
-   subroutine enqueue_record(q, src, slab_k, soil_patch)
+   subroutine enqueue_record(q, src, slab_k, patch_rows)
       type(record_queue_t),   intent(inout) :: q
       type(pending_record_t), intent(in)    :: src
       integer(ik),            intent(in)    :: slab_k(:)
-      logical,                intent(in)    :: soil_patch(:)
+      integer(ik),            intent(in)    :: patch_rows(:)   ! rows a patch takes; 0 off the soil-patch axis
       type(pending_record_t), allocatable :: grown(:)
       integer(ik) :: rows, nv, ncol, c
       if (.not. allocated(q%rec)) allocate(q%rec(8))
@@ -471,7 +509,7 @@ contains
       rows = 1_ik
       do c = 1_ik, ncol
          rows = max(rows, src%nslab(slab_k(c)))
-         if (soil_patch(c)) rows = max(rows, src%n_patch * n_soil_layer_max)
+         rows = max(rows, src%n_patch * patch_rows(c))
       end do
       rows = min(rows, size(src%slab, 1, kind=ik))
       associate (r => q%rec(q%n))
@@ -555,15 +593,7 @@ contains
             end if
             cycle
          end if
-         if (reduced_cohort_row(files%reg%var(k))) then
-            if (.not. present(poly)) cycle
-            call staged_cohort_reduced(bufs, poly, files%reg%var(k), isub, scal, slab, valid, n)
-         else if (files%reg%var(k)%source_fast == SRC_F_SOIL_LAYER) then
-            if (.not. present(poly)) cycle
-            call staged_soil_layer(bufs, poly, files%reg%var(k), isub, slab, valid, n)
-         else
-            call staged_value(bufs, files%reg%var(k)%source_fast, files%reg%var(k)%dim, isub, scal, slab, valid, n)
-         end if
+         call staged_sample(bufs, files%reg%var(k), isub, scal, slab, valid, n, poly)
          if (files%reg%var(k)%dim == DIM_SCALAR) then
             call integrate_scalar(bufs%buf(k,TIER_FAST), scal, dt)
          else if (files%reg%var(k)%dim == DIM_COHORT) then
@@ -574,6 +604,77 @@ contains
       end do
       bufs%has_data(TIER_FAST) = .true.
    end subroutine output_integrate_fast
+
+   !---~---
+   !   Fold one staged sub-step (isub) into its bin of the coarse tiers' mean diel cycles (the
+   ! bin of the hour the sub-step starts in), each read from the staging as the F tier reads
+   ! it, a cohort value into its cohort's slot of the month.
+   !---~---
+   subroutine output_integrate_diel(files, bufs, poly, isub, dt)
+      type(output_files_t),   intent(in)    :: files
+      type(output_buffers_t), intent(inout) :: bufs
+      type(polygon_t),        intent(in)    :: poly
+      integer(ik),            intent(in)    :: isub
+      real(wp),               intent(in)    :: dt
+      integer(ik) :: t, j, k, n, i, bin
+      real(wp)    :: scal
+      real(wp)    :: slab(max(files%max_slab, 1_ik))
+      logical     :: valid(max(files%max_slab, 1_ik))
+      real(wp)    :: xm(max(files%cohort_max, 1_ik))
+      logical     :: vm(max(files%cohort_max, 1_ik))
+      integer(ik) :: at_staged(max(bufs%fast_n_cohort, 1_ik))   ! each staged cohort's slot in the month's order
+      if (.not. files%enabled) return
+      if (files%cohort_axis) call month_slots(files, bufs, bufs%fast_cohort_id(1:bufs%fast_n_cohort), at_staged)
+      bin = bufs%fast_time(isub)%hour / (24_ik / files%n_diel) + 1_ik
+      do t = TIER_DAILY, N_FREQ
+         do j = 1_ik, files%reg%nidx(t)
+            k = files%reg%idx_freq(j, t)
+            if (.not. files%reg%var(k)%diel) cycle
+            call staged_sample(bufs, files%reg%var(k), isub, scal, slab, valid, n, poly)
+            select case (files%reg%var(k)%dim)
+            case (DIM_SCALAR)
+               n = 1_ik
+               slab(1)  = scal
+               valid(1) = scal /= MISSING_VALUE
+            case (DIM_COHORT)
+               xm(1:bufs%n_month) = MISSING_VALUE
+               vm(1:bufs%n_month) = .false.
+               do i = 1_ik, n
+                  xm(at_staged(i)) = slab(i)
+                  vm(at_staged(i)) = valid(i)
+               end do
+               n = bufs%n_month
+               slab(1:n)  = xm(1:n)
+               valid(1:n) = vm(1:n)
+            end select
+            call integrate_diel(bufs%buf(k,t), slab, valid, n, bin, files%n_diel, dt)
+         end do
+      end do
+   end subroutine output_integrate_diel
+
+   !---~---
+   !   One variable's staged value of sub-step isub on its own axis, as the F tier and the mean
+   ! diel cycles read it. A per-cohort row reduced to a coarser axis and a soil-layer field are
+   ! formed against the stand (`poly`); without it they have nothing to report.
+   !---~---
+   subroutine staged_sample(bufs, v, isub, scal, slab, valid, n, poly)
+      type(output_buffers_t),    intent(in)  :: bufs
+      type(var_desc_t),          intent(in)  :: v
+      integer(ik),               intent(in)  :: isub
+      real(wp),                  intent(out) :: scal, slab(:)
+      logical,                   intent(out) :: valid(:)
+      integer(ik),               intent(out) :: n
+      type(polygon_t), optional, intent(in)  :: poly
+      scal = MISSING_VALUE
+      n = 0_ik
+      if (reduced_cohort_row(v)) then
+         if (present(poly)) call staged_cohort_reduced(bufs, poly, v, isub, scal, slab, valid, n)
+      else if (v%source_fast == SRC_F_SOIL_LAYER) then
+         if (present(poly)) call staged_soil_layer(bufs, poly, v, isub, slab, valid, n)
+      else
+         call staged_value(bufs, v%source_fast, v%dim, isub, scal, slab, valid, n)
+      end if
+   end subroutine staged_sample
 
    !---~---
    !   One staged source's value in sub-step isub, on the variable's axis: the polygon mean of
@@ -748,8 +849,12 @@ contains
                      if (files%reg%var(k)%dim /= DIM_COHORT) cycle
                      c = slab_col(r, k)
                      if (c <= 0_ik .or. r%nslab(k) <= 0_ik) cycle
-                     r%slab(1:n, c)      = r%slab(perm, c)
-                     r%slabvalid(1:n, c) = r%slabvalid(perm, c)
+                     if (files%reg%var(k)%diel) then
+                        call permute_blocks(r%slab(:, c), r%slabvalid(:, c), perm, files%n_diel)
+                     else
+                        r%slab(1:n, c)      = r%slab(perm, c)
+                        r%slabvalid(1:n, c) = r%slabvalid(perm, c)
+                     end if
                   end do
                   deallocate(at, key, perm)
                end associate
@@ -757,6 +862,23 @@ contains
          end do
       end do
    end subroutine write_order
+
+   !--- Reorder a slab of blocks of nb entries, one block a cohort: block j takes block perm(j).
+   pure subroutine permute_blocks(x, valid, perm, nb)
+      real(wp),    intent(inout) :: x(:)
+      logical,     intent(inout) :: valid(:)
+      integer(ik), intent(in)    :: perm(:), nb
+      real(wp)    :: y(size(perm) * nb)
+      logical     :: w(size(perm) * nb)
+      integer(ik) :: j, n
+      n = size(perm, kind=ik)
+      do j = 1_ik, n
+         y((j - 1_ik)*nb + 1_ik:j*nb) = x((perm(j) - 1_ik)*nb + 1_ik:perm(j)*nb)
+         w((j - 1_ik)*nb + 1_ik:j*nb) = valid((perm(j) - 1_ik)*nb + 1_ik:perm(j)*nb)
+      end do
+      x(1:n*nb)     = y
+      valid(1:n*nb) = w
+   end subroutine permute_blocks
 
    !--- Order perm by ascending key (insertion sort: a record is nearly in order already).
    pure subroutine sort_by_key(key, perm)

@@ -22,7 +22,7 @@ module ed_output_types
    public :: XTYPE_DOUBLE, XTYPE_INT
    public :: MISSING_VALUE, MISSING_INT, MAX_OUTPUT_VARS, MAX_DBH_CLASS
    public :: W_NONE, W_NPLANT, W_LEAF_AREA, W_BASAL_AREA, W_AGB, N_WEIGHT
-   public :: ragged_dim, slab_col
+   public :: ragged_dim, slab_col, slab_var
 
    !---~---
    !   Temporal reduction operators (the `agg` of a variable): a mean over the period, or its
@@ -89,7 +89,7 @@ module ed_output_types
    !   Registry capacity: the registered set (docs/science/diagnostics.md §7) plus headroom; the
    ! list is short enough for a linear find_var_index.
    !---~---
-   integer(ik), parameter :: MAX_OUTPUT_VARS = 512_ik
+   integer(ik), parameter :: MAX_OUTPUT_VARS = 1024_ik
    !--- DBH size-class ceiling (DIM_SIZE). Edges come from [output].dbh_class_edges.
    integer(ik), parameter :: MAX_DBH_CLASS   = 32_ik
 
@@ -126,6 +126,8 @@ module ed_output_types
                                                     ! not selected (resolve_streams)
       logical     :: snap_staged     = .false.      ! a snapshot the D, M and Y tiers read from the last staged
                                                     ! sub-step (a fast-loop diagnostic's end-of-period value)
+      logical     :: diel            = .false.      ! a mean diel cycle (diel_<x>): each slot of the axis holds
+                                                    ! n_diel bins, the bin varying fastest
       !---~---
       !   How the field reduces to this variable's axis, so one field serves every scale. The
       ! weight kind and mean together state extensive vs intensive (docs/science/diagnostics.md §2).
@@ -258,6 +260,13 @@ module ed_output_types
       integer(ik)           :: sync_every = 1_ik
       integer(ik)           :: fast_interval_steps = 4_ik   ! fast tier closes every N*dt_fast sub-steps
       !---~---
+      !   The mean diel cycle (diel_<x>): n_diel bins a day, each [output].diel_interval long, filled
+      ! from the staged sub-steps of dt_fast seconds each; diel_live when a diel_ variable is written.
+      !---~---
+      integer(ik)           :: n_diel = 24_ik
+      real(wp)              :: dt_fast = 0.0_wp
+      logical               :: diel_live = .false.
+      !---~---
       !   The polygon axis every file carries: one entry per polygon's buffers, with these
       ! coordinates (a site run is one polygon, id 0, at row 0 col 0 unless its forcing file
       ! places it).
@@ -355,6 +364,15 @@ module ed_output_types
    end type output_buffers_t
 
 contains
+
+   !---~---
+   !   A variable written as a slab: one with an axis, or a mean diel cycle, whose bins are a slab
+   ! even on the polygon.
+   !---~---
+   pure logical function slab_var(v) result(yes)
+      type(var_desc_t), intent(in) :: v
+      yes = v%dim /= DIM_SCALAR .or. v%diel
+   end function slab_var
 
    !--- The slab column of registry variable k in a record (identity for the scratch record).
    pure integer(ik) function slab_col(pr, k) result(c)

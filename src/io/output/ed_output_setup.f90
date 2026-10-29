@@ -17,7 +17,7 @@ module ed_output_setup
    use ed_output_params,    only : N_FREQ, TIER_FAST, N_DBH_CLASS_DEFAULT, DBH_EDGES_DEFAULT, FREQ_NONE
    use ed_output_types,     only : output_files_t, output_buffers_t, MAX_DBH_CLASS, DIM_COHORT, DIM_PATCH,        &
                                    DIM_SOIL, DIM_PFT, DIM_SIZE, DIM_SOIL_PATCH, DIM_SITE, MISSING_VALUE,          &
-                                   MISSING_INT, DIM_SCALAR
+                                   MISSING_INT, var_desc_t, slab_var
    use ed_constants,         only : n_soil_layer_max
    use ed_output_registry,    only : build_output_registry, freq_bit, parse_stream_mask, selection_t,           &
                                      apply_selections, resolve_streams, OVR_TRUE, OVR_FALSE, OVR_MASK
@@ -163,6 +163,8 @@ contains
       files%file_chunk = cfg%output%file_chunk
       files%sync_every = cfg%output%sync_every
       files%fast_interval_steps = cfg%output%fast_interval_steps
+      files%n_diel  = 24_ik / cfg%output%diel_interval_hours
+      files%dt_fast = cfg%dt_fast
       if (cfg%forcing%forcing_on .and. cfg%forcing%format == MET_BACKEND_ERA5LAND)                   &
          files%forcing_qair = 'computed by ED-MORE from the ED_ERA5land 2 m dewpoint Td and surface '//         &
                             'pressure P: q = 0.62196 e / (P - 0.37804 e), e = e_sat(Td), the Bolton (1980) '// &
@@ -198,9 +200,17 @@ contains
       do k = 1_ik, files%reg%nvar
          if (.not. files%reg%var(k)%enabled)      cycle
          if (files%reg%var(k)%streams == FREQ_NONE) cycle
-         cap = max(cap, dim_capacity(files, files%reg%var(k)%dim))
+         cap = max(cap, var_capacity(files, files%reg%var(k)))
       end do
    end function live_max_slab
+
+   !--- Slab capacity of one variable: its axis's, times the bins of a mean diel cycle.
+   pure integer(ik) function var_capacity(files, v) result(cap)
+      type(output_files_t), intent(in) :: files
+      type(var_desc_t),     intent(in) :: v
+      cap = dim_capacity(files, v%dim)
+      if (v%diel) cap = max(cap, 1_ik) * files%n_diel
+   end function var_capacity
 
    !--- Slab capacity of one axis.
    pure integer(ik) function dim_capacity(files, dm) result(cap)
@@ -258,6 +268,7 @@ contains
       ! override, since an override can switch on a longer slab variable.
       !---~---
       files%max_slab = live_max_slab(files)
+      call check_diel(files)
       !---~---
       !   Whether the cohort and patch caps bind: only a live variable on that axis fills a slab of
       ! that size.
@@ -265,6 +276,29 @@ contains
       files%cohort_axis = live_axis(files, [DIM_COHORT])
       files%patch_axis  = live_axis(files, [DIM_PATCH, DIM_SOIL_PATCH])
    end subroutine finalize_output_files
+
+   !---~---
+   !   A mean diel cycle is filled from the fast loop's sub-steps, each wholly in one bin: it needs
+   ! the fast loop, and a dt_fast that divides [output].diel_interval.
+   !---~---
+   subroutine check_diel(files)
+      type(output_files_t), intent(inout) :: files
+      integer(ik) :: k
+      real(wp)    :: bin
+      files%diel_live = .false.
+      do k = 1_ik, files%reg%nvar
+         if (files%reg%var(k)%diel .and. files%reg%var(k)%enabled .and. files%reg%var(k)%streams /= FREQ_NONE) &
+            files%diel_live = .true.
+      end do
+      if (.not. (files%diel_live .and. files%enabled)) return
+      if (.not. files%fast_loop_on)                                                                 &
+         error stop 'ed_output_setup: a diel_ variable is a mean diel cycle of the fast loop''s sub-steps, '// &
+                    'and this run has no fast loop'
+      bin = 86400.0_wp / real(files%n_diel, wp)
+      if (files%dt_fast <= 0.0_wp .or. abs(modulo(bin, files%dt_fast)) > 1.0e-6_wp)                 &
+         error stop 'ed_output_setup: [fast].dt_fast must divide [output].diel_interval, so each '//     &
+                    'sub-step falls in one bin of a diel_ variable'
+   end subroutine check_diel
 
    !--- Does any live variable have one of these axes?
    pure logical function live_axis(files, dims) result(yes)
@@ -296,7 +330,7 @@ contains
          bit = freq_bit(t)
          do k = 1_ik, nv
             if (files%reg%var(k)%enabled .and. iand(files%reg%var(k)%streams, bit) /= 0_ik) then
-               cap = dim_capacity(files, files%reg%var(k)%dim)
+               cap = var_capacity(files, files%reg%var(k))
                call alloc_integ_buffer(bufs%buf(k,t), files%reg%var(k), bit, cap)
                bufs%buf(k,t)%var_id = k
             end if
@@ -313,7 +347,7 @@ contains
          cap = 0_ik
          do k = 1_ik, nv
             if (files%reg%var(k)%enabled .and. iand(files%reg%var(k)%streams, bit) /= 0_ik .and.     &
-                files%reg%var(k)%dim /= DIM_SCALAR) then
+                slab_var(files%reg%var(k))) then
                cap = cap + 1_ik
                bufs%pending(t)%col(k) = cap
             end if
@@ -323,10 +357,10 @@ contains
          bufs%pending(t)%used = .false.
       end do
       !---~---
-      !   The fast loop stages its sub-steps for the F tier and for the snapshots the coarse
-      ! tiers take from the last one.
+      !   The fast loop stages its sub-steps for the F tier, for the snapshots the coarse tiers
+      ! take from the last one, and for the mean diel cycles.
       !---~---
-      bufs%fast_on = files%reg%nidx(TIER_FAST) > 0_ik
+      bufs%fast_on = files%reg%nidx(TIER_FAST) > 0_ik .or. files%diel_live
       do t = TIER_FAST + 1_ik, N_FREQ
          do k = 1_ik, files%reg%nidx(t)
             if (files%reg%var(files%reg%idx_freq(k, t))%snap_staged) bufs%fast_on = .true.
@@ -410,11 +444,11 @@ contains
             do j = 1_ik, files%reg%nidx(t)
                k   = files%reg%idx_freq(j, t)
                !---~---
-               !   The F tier, and a snapshot that reads the staging, need the block that stages
-               ! their source, not the one the coarse means accumulate in.
+               !   The F tier, a mean diel cycle and a snapshot that reads the staging need the
+               ! block that stages their source, not the one the coarse means accumulate in.
                !---~---
                src = files%reg%var(k)%source_id
-               if (t == TIER_FAST .or. (files%reg%var(k)%snap_staged .and.                           &
+               if (t == TIER_FAST .or. files%reg%var(k)%diel .or. (files%reg%var(k)%snap_staged .and. &
                                         files%reg%var(k)%source_fast /= SRC_NONE))                   &
                   src = files%reg%var(k)%source_fast
                if (src > FLD_C_DIAG0 .and. src <= FLD_C_DIAG0 + N_CO_FAST_ROWS) need_c = .true.

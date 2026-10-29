@@ -368,6 +368,11 @@ ed_add_pytest(output_files PATH ${CMAKE_CURRENT_SOURCE_DIR}/python/test_output_f
 #      (python/test_output_budgets.py; docs/science/diagnostics.md §4, The budgets).                #
 ed_add_pytest(output_budgets PATH ${CMAKE_CURRENT_SOURCE_DIR}/python/test_output_budgets.py
               IMPORTS numpy netCDF4 pytest ENVIRONMENT EDMORE_MAIN=$<TARGET_FILE:ed_main> LABEL integration)
+#----- The mean diel cycle: a daily diel_ record is, bin by bin, the mean of that day's sub-daily   #
+#      records in the bin's hours, on every axis, at 1- and 3-hour bins; never sub-daily            #
+#      (python/test_output_diel.py; docs/science/diagnostics.md §4, The mean diel cycle).           #
+ed_add_pytest(output_diel PATH ${CMAKE_CURRENT_SOURCE_DIR}/python/test_output_diel.py
+              IMPORTS numpy netCDF4 pytest ENVIRONMENT EDMORE_MAIN=$<TARGET_FILE:ed_main> LABEL integration)
 #----- The input tools' tests (scripts/prepare_input): a tower forcing file from flux-tower         #
 #      data, a census from a ForestGEO table, and the PFT traits that follow published fits.        #
 ed_add_pytest(prepare_flux_tower PATH ${PROJECT_SOURCE_DIR}/scripts/prepare_input/flux_tower/tests
