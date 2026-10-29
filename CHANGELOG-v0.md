@@ -21,7 +21,7 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   removes a configuration's files, as the examples' scripts now do before they run again. (#55)
 - The daily, monthly and yearly files carry about thirty more polygon variables by default: the
   water and energy budgets' terms and `mean_reco_py`. To write the files as before, switch them off
-  in `[output].io_config`; `ed_io_config.toml` lists each with its default. (#TBD)
+  in `[output].io_config`; `ed_io_config.toml` lists each with its default. (#56)
 
 ### Added
 
@@ -29,7 +29,7 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   `mean_transp_py` (transpiration), `mean_evap_canopy_py` (evaporation of the rain the canopy
   intercepted), `mean_evap_ground_py` (bare soil and snow) and `mean_dew_py` (condensation). ET is
   the first three less the dew. They are written daily, monthly and yearly by default, and hourly
-  on request. Results are bit for bit. (#TBD)
+  on request. Results are bit for bit. (#56)
 - The water and energy budgets close from the output alone (docs/science/diagnostics.md §4, The
   budgets): every term the whole-column ledgers book is a variable, written daily, monthly and
   yearly by default. Water: `mean_shed_water_py`, `mean_film_excess_py`, `mean_water_store_gain_py`,
@@ -39,10 +39,10 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   (`mean_wet_fraction_py`; per cohort `mean_wet_fraction_co`, off by default). Energy:
   `mean_heat_bottom_py`, `mean_enth_advect_py`, the stores' gains (`mean_heat_gain_soil_py`,
   `mean_heat_gain_canopy_py`, `mean_heat_gain_surface_py`) and H by source (`mean_h_canopy_py`,
-  `mean_h_ground_py`). A test closes both budgets from a run's files. (#TBD)
+  `mean_h_ground_py`). A test closes both budgets from a run's files. (#56)
 - Carbon and radiation: autotrophic respiration `mean_ra_py` ($`R_{eco} - R_h`$), the ecosystem's
   carbon `mean_eco_carbon_py` (vegetation plus soil), the leaves' absorbed PAR `mean_apar_py`, and
-  patch evapotranspiration `mean_et_pa`. (#TBD)
+  patch evapotranspiration `mean_et_pa`. (#56)
 
 ### Changed
 
@@ -59,7 +59,7 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   monthly and yearly by default, and `mean_reco_pa`, `mean_sw_up_*`, `mean_lw_up_pa`, `mean_ustar_pa`,
   `mean_cas_co2_pa` and `mean_rainf_py` daily or monthly on request. `mean_et_py` and the runoff
   variables are now read from the fast loop's own exports; they differ from before at round-off.
-  Model state is bit for bit. (#TBD)
+  Model state is bit for bit. (#56)
 
 ### Fixed
 
