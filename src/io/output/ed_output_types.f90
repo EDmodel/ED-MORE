@@ -21,6 +21,7 @@ module ed_output_types
    public :: DIM_SCALAR, DIM_COHORT, DIM_PATCH, DIM_SOIL, DIM_PFT, DIM_SIZE, DIM_SOIL_PATCH, DIM_SITE
    public :: XTYPE_DOUBLE, XTYPE_INT
    public :: MISSING_VALUE, MISSING_INT, MAX_OUTPUT_VARS, MAX_DBH_CLASS
+   public :: W_NONE, W_NPLANT, W_LEAF_AREA, W_BASAL_AREA, W_AGB, N_WEIGHT
    public :: ragged_dim, slab_col
 
    !---~---
@@ -57,6 +58,18 @@ module ed_output_types
    ! their forcing after their terrain and their growth temperature.
    !---~---
    integer(ik), parameter :: DIM_SITE = 7_ik
+
+   !---~---
+   !   Weight kinds: a per-cohort weight w_i. Patch area enters only at the patch -> polygon
+   ! step, so one w serves every scale (docs/science/diagnostics.md eqs. (1)-(2)). The fast
+   ! loop stages the weights it used, one column per kind (output_buffers_t%fast_cohort_w).
+   !---~---
+   integer(ik), parameter :: W_NONE       = 0_ik  ! w = 1        (count-like; x already per ground area)
+   integer(ik), parameter :: W_NPLANT     = 1_ik  ! w = nplant   (the standard extensive per-plant weight)
+   integer(ik), parameter :: W_LEAF_AREA  = 2_ik  ! w = nplant*leaf_area (canopy-flux / leaf-state weighting)
+   integer(ik), parameter :: W_BASAL_AREA = 3_ik  ! w = nplant*basal_area (structural weighting; dbh)
+   integer(ik), parameter :: W_AGB        = 4_ik  ! w = nplant*agb (biomass weighting)
+   integer(ik), parameter :: N_WEIGHT     = 4_ik  ! the weighted kinds, W_NPLANT .. W_AGB
 
    !---~---
    !   On-disk numeric type, declared here to keep the module netCDF-free; the serializer maps
@@ -160,6 +173,11 @@ module ed_output_types
       integer(ik)       :: freq     = 0_ik      ! the FREQ_* bit of the tier this record closes
       type(ed_time_t)   :: t_open              ! period-start stamp (calendar companions)
       integer(ik)       :: n_cohort = 0_ik, n_patch = 0_ik  ! live slab lengths this record
+      !---~---
+      !   The cohort id of each cohort row (a tier with a cohort variable): the order the record
+      ! was folded in until write_order puts it in its month's end order.
+      !---~---
+      integer(ik), allocatable :: cohort_id(:)
       real(wp),    allocatable :: sval(:)       ! (nvar) normalized scalar value
       logical,     allocatable :: svalid(:)     ! (nvar)
       real(wp),    allocatable :: slab(:,:)     ! (rows, columns) normalized slab values
@@ -202,7 +220,7 @@ module ed_output_types
       integer(ik) :: d_site = -1_ik          ! the site dimension, behind the polygon's
       integer(ik) :: v_pft = -1_ik, v_dbh_lower = -1_ik, v_dbh_upper = -1_ik  ! self-describing axis coords
       integer(ik) :: v_soil_z = -1_ik                                        ! soil layer node depths [m]
-      integer(ik) :: cohort_dim = 0_ik, patch_dim = 0_ik   ! the file's trimmed cohort/patch axis lengths
+      integer(ik) :: cohort_dim = 0_ik, patch_dim = 0_ik   ! the cohort/patch axis lengths written so far
       integer(ik) :: v_time = -1_ik, v_year = -1_ik, v_month = -1_ik, v_day = -1_ik
       integer(ik) :: v_hour = -1_ik, v_minute = -1_ik, v_second = -1_ik   ! FAST-tier sub-daily companions
       integer(ik) :: v_ncohort = -1_ik, v_npatch = -1_ik
@@ -276,6 +294,17 @@ module ed_output_types
       type(pending_record_t) :: pending(N_FREQ)          ! per-tier scratch that close_tier normalizes into
       type(record_queue_t)   :: queue(N_FREQ)            ! closed records awaiting the I/O phase
       !---~---
+      !   The month's cohort order (docs/science/diagnostics.md §3). The stand is re-sorted every
+      ! slow step, but its cohorts change only at a month's turn, so every cohort value of the
+      ! month is folded into the slot its id holds in month_id, the ids in the order the month
+      ! first saw them. end_id is the live order at the latest tick, the month's end order when
+      ! the records are written (write_order).
+      !---~---
+      integer(ik), allocatable :: month_id(:)            ! (cohort_max) the month's cohort ids, in fold order
+      integer(ik)              :: n_month = 0_ik         ! cohorts in month_id (0: the month has not opened)
+      integer(ik), allocatable :: end_id(:)              ! (cohort_max) the live cohort ids at the latest tick
+      integer(ik)              :: n_end = 0_ik
+      !---~---
       !   FAST-tier staging, filled per (patch, sub-step) by the fast loop and replayed into
       ! buf(:, TIER_FAST) by output_integrate_fast (docs/science/diagnostics.md §4): each patch's
       ! row of the patch block (PA_*) and soil column, their polygon mean, the forcing (PY_*)
@@ -303,6 +332,13 @@ module ed_output_types
       real(wp),            allocatable :: fast_cohort_height(:,:)
       !--- < (cohort, CO_*, n_fast_sub) the per-cohort diagnostic block's rows, staged while it is on
       real(wp),            allocatable :: fast_cohort_diag(:,:,:)
+      !---~---
+      !   The staged cohorts' ids and the weights the fast loop used (one column per W_* kind),
+      ! once per slow step: the staged rows are in the fast loop's order, which the step's
+      ! re-sort can change before the output reads them.
+      !---~---
+      integer(ik),         allocatable :: fast_cohort_id(:)       ! (cohort)
+      real(wp),            allocatable :: fast_cohort_w(:,:)      ! (cohort, N_WEIGHT)
       integer(ik)          :: n_fast_sub   = 0_ik              ! sub-steps staged this slow step
       integer(ik)          :: fast_n_site  = 0_ik              ! sites in the fast soil slabs
       integer(ik)          :: fast_n_cohort = 0_ik             ! the polygon's live cohorts in the fast cohort slabs
@@ -332,8 +368,8 @@ contains
 
    !---~---
    !   The axes whose length and slots follow the stand: cohort, patch, and soil by patch. Fixed
-   ! only within a month (docs/science/diagnostics.md §3), so a file of them spans at most a
-   ! month, the annual stream refuses them, and a file pads them to its largest live count.
+   ! only within a month (docs/science/diagnostics.md §3), so the annual stream refuses them,
+   ! and a file grows them to its largest live count.
    !---~---
    pure logical function ragged_dim(dim) result(yes)
       integer(ik), intent(in) :: dim

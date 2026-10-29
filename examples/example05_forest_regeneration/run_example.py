@@ -53,6 +53,8 @@ def run_model(end=None, threads=None):
         cfg.set("run.end_time", end)
     main = cfg.write(os.path.join(HERE, "output", "config"), "main.toml", "pft.toml")   # the run's own copy
     os.chdir(HERE)                        # the output paths in the config are relative to this folder
+    for path in cfg.remove_diagnostics(HERE):          # edmore never overwrites output
+        print(f"removed {os.path.relpath(path, HERE)} (an earlier run's)", flush=True)
     t0 = time.time()
     print(f"{'year':>6} {'AGB kgC/m2':>11} {'LAI':>5} {'BA m2/ha':>9} {'stems/ha':>9} "
           f"{'patches':>8} {'cohorts':>8} {'minutes':>8}", flush=True)

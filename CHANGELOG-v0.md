@@ -12,11 +12,29 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ## [Unreleased]
 
+### Upgrading
+
+- `[output.<tier>].file_chunk = "run"` is now `"all"`, one file for all of the run's records; `"run"`
+  stops the run. A monthly file can no longer be a day long, nor an annual one shorter than a year.
+- A run stops before its first step if a diagnostic file it would write exists: remove the old files,
+  or give `[output].dir` or `prefix` another value. In Python, `RunConfig.remove_diagnostics()`
+  removes a configuration's files, as the examples' scripts now do before they run again. (#TBD)
+
 ### Changed
 
 - The Fortran sources use one comment format: `!--- text` for a comment line, a comment of
   several lines between two `!---~---` lines, and a plain `! text` after a statement. Results are
   bit for bit; only comments change. (#48)
+- Each tier's `file_chunk` is honoured as written. A tier with a cohort or patch variable used to be
+  cut to monthly files (sub-daily: daily), so the default monthly output was a file a month; it is now
+  a file a year, its cohort and patch axes growing to the file's largest live count. (#TBD)
+
+### Fixed
+
+- Cohort output under daily growth: the stand is re-sorted every day, so a monthly cohort record could
+  average two cohorts in one slot. Every record of a month is now written in the month's end order,
+  keyed by cohort id, and a fast-loop row reduced to a coarser axis pairs each cohort with the weight
+  the fast loop used (docs/science/diagnostics.md §3). Model state is bit for bit. (#TBD)
 
 ## [0.4.1] - 2026-10-26
 

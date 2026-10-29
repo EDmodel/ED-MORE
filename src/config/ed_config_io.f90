@@ -29,7 +29,7 @@ module ed_config_io
                                    METAVG_BEGIN, LW_FILE, LW_SYNTHESIZE, CLAMP_ERROR, CLAMP_HOLD,                 &
                                    GRIDMATCH_EXPLICIT, GRIDMATCH_NEAREST
    use ed_output_params, only : output_params_t, MAX_DBH_EDGE, SYNC_FLUSH, SYNC_NEVER, FC_DAY, FC_MONTH,      &
-                                 FC_YEAR, FC_RUN, STATE_DAYS, STATE_MONTHS, STATE_YEARS
+                                 FC_YEAR, FC_ALL, STATE_DAYS, STATE_MONTHS, STATE_YEARS
    use ed_time,       only : ed_time_t, string_to_time
    use ed_biophysics_params,   only : snow_params_t, aero_params_t
    use ed_biogeochem_params,   only : soil_carbon_params_t, DECOMP_STEP_EULER, DECOMP_STEP_EXPM,   &
@@ -848,7 +848,7 @@ contains
       type(toml_table_t),  intent(in)    :: t
       type(ed_config_t),   intent(inout) :: cfg
       type(keymiss_t),     intent(inout) :: m
-      character(len=NAME_LEN), parameter :: CHUNKS(4) = [character(len=NAME_LEN) :: 'day', 'month', 'year', 'run']
+      character(len=NAME_LEN), parameter :: CHUNKS(4) = [character(len=NAME_LEN) :: 'day', 'month', 'year', 'all']
       cfg%output = output_params_t()                                     ! defaults
       !--- The state files, whatever the diagnostics: state_write is required, and the rest with it.
       call req_l(t, 'output.state_write', cfg%output%state_write, m)
@@ -877,13 +877,13 @@ contains
       cfg%output%freq_on(2) = toml_logical(t, 'output.daily.enabled',   .true.)
       cfg%output%freq_on(3) = toml_logical(t, 'output.monthly.enabled', .true.)
       cfg%output%freq_on(4) = toml_logical(t, 'output.annual.enabled',  .true.)
-      call opt_choice(t, 'output.fast.file_chunk',    CHUNKS, [FC_DAY, FC_MONTH, FC_YEAR, FC_RUN],              &
+      call opt_choice(t, 'output.fast.file_chunk',    CHUNKS, [FC_DAY, FC_MONTH, FC_YEAR, FC_ALL],              &
                       cfg%output%file_chunk(1), m)
-      call opt_choice(t, 'output.daily.file_chunk',   CHUNKS, [FC_DAY, FC_MONTH, FC_YEAR, FC_RUN],              &
+      call opt_choice(t, 'output.daily.file_chunk',   CHUNKS, [FC_DAY, FC_MONTH, FC_YEAR, FC_ALL],              &
                       cfg%output%file_chunk(2), m)
-      call opt_choice(t, 'output.monthly.file_chunk', CHUNKS, [FC_DAY, FC_MONTH, FC_YEAR, FC_RUN],              &
+      call opt_choice(t, 'output.monthly.file_chunk', CHUNKS, [FC_DAY, FC_MONTH, FC_YEAR, FC_ALL],              &
                       cfg%output%file_chunk(3), m)
-      call opt_choice(t, 'output.annual.file_chunk',  CHUNKS, [FC_DAY, FC_MONTH, FC_YEAR, FC_RUN],              &
+      call opt_choice(t, 'output.annual.file_chunk',  CHUNKS, [FC_DAY, FC_MONTH, FC_YEAR, FC_ALL],              &
                       cfg%output%file_chunk(4), m)
    end subroutine load_output_params
 

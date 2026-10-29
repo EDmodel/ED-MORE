@@ -73,6 +73,7 @@ def configure(site, work, archive):
         cfg.set(key, value)
     with open(os.path.join(work, "variables.toml"), "w") as fh:
         fh.write('[variables]\nmean_par_beam_py = "F"\nmean_par_diffuse_py = "F"\n')
+    cfg.remove_diagnostics(work)                        # an earlier run's files: edmore never overwrites output
     return cfg.write(work)
 
 

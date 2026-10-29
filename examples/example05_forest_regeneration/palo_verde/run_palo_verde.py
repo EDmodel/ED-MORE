@@ -35,6 +35,13 @@ CUT_TOOL = os.path.join(ROOT, "scripts", "prepare_input", "era5", "make_forcing_
 SITE = (10.35, -85.35)             # [deg N, deg E] the Palo Verde plots, as ed_config_*.toml [site]
 
 
+def fresh(config):
+    """Remove the diagnostic files an earlier run of `config` (run from this folder) wrote: edmore
+    never overwrites output, so a rerun would stop at its start."""
+    for path in RunConfig.load(config, relative_to=HERE).remove_diagnostics(HERE):
+        print(f"  removed {os.path.relpath(path, HERE)} (an earlier run's)", flush=True)
+
+
 def run(cmd, log=None):
     print("+", " ".join(cmd), flush=True)
     if log is None:
@@ -76,8 +83,10 @@ def main(argv=None):
             if not args.era5_archive:
                 raise SystemExit("ERROR: the inventory check reads the ED_ERA5land archive: pass --era5-archive "
                                  "(or set ERA5LAND_ARCHIVE), or --skip-inventory")
-            run([args.edmore,    inventory_config(args.era5_archive)],
-                log=os.path.join(HERE, "output", "inventory.log"))
+            inventory = inventory_config(args.era5_archive)
+            fresh(inventory)
+            run([args.edmore, inventory], log=os.path.join(HERE, "output", "inventory.log"))
+        fresh(os.path.join(HERE, "ed_config_regrowth.toml"))
         run([args.edmore, "ed_config_regrowth.toml"], log=os.path.join(HERE, "output", "regrowth.log"))
     run([sys.executable, os.path.join(HERE, "plot_palo_verde.py")])
 

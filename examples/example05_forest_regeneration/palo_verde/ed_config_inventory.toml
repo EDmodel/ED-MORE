@@ -78,15 +78,15 @@ file_chunk = "month"
 
 [output.daily]
 enabled    = true
-file_chunk = "run"
+file_chunk = "all"
 
 [output.monthly]
 enabled    = true
-file_chunk = "run"
+file_chunk = "all"
 
 [output.annual]
 enabled    = true
-file_chunk = "run"
+file_chunk = "all"
 
 #----- Leaf physiology (example 04's calibrated configuration). ----------------------------------------
 [leaf_physiology]

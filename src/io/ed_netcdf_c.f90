@@ -19,6 +19,7 @@ module ed_netcdf_c
    integer(c_int), parameter :: NC_NOERR     = 0_c_int
    integer(c_int), parameter :: NC_NETCDF4   = 4096_c_int   ! 0x1000: HDF5-backed format
    integer(c_int), parameter :: NC_CLOBBER   = 0_c_int
+   integer(c_int), parameter :: NC_NOCLOBBER = 4_c_int      ! create fails if the file exists
    integer(c_int), parameter :: NC_NOWRITE   = 0_c_int      ! read-only open mode
    integer(c_int), parameter :: NC_GLOBAL    = -1_c_int
    integer(c_int), parameter :: NC_BYTE      = 1_c_int

@@ -13,6 +13,7 @@
 #   config_malformed_value     a value the reader cannot parse as the number its key takes
 #   output_fast_window         a sub-daily record that spans more fast steps than divide a slow step, so
 #                              its window would straddle two slow steps
+#   output_chunk_short         a monthly file_chunk shorter than a monthly record ("day")
 #   io_config_*                an [output].io_config line the selection refuses (ed_output_registry):
 #                              a variable with no sub-daily value on F (coarse_on_f), one that exists
 #                              only sub-daily on D (fast_on_coarse), `true` on a variable off by default
@@ -122,6 +123,11 @@ elseif(CASE STREQUAL "output_fast_window")
    replace_or_fail(text "\nenabled *= *false" "\nenabled = true" "[output] enabled")
    replace_or_fail(text "\nfast_interval_steps *= *[0-9]+" "\nfast_interval_steps = 5" "[output] fast_interval_steps")
    set(expects "output\\.fast_interval_steps must divide the fast steps in a slow step")
+elseif(CASE STREQUAL "output_chunk_short")
+   #----- The diagnostics on, and the monthly tier's files a day long. ------------------------------#
+   replace_or_fail(text "\nenabled *= *false" "\nenabled = true" "[output] enabled")
+   replace_or_fail(text "(\[output\.monthly\][^[]*file_chunk *= *)\"year\"" "\\1\"day\"" "[output.monthly] file_chunk")
+   set(expects "output\\.monthly\\.file_chunk = \"day\" is shorter than a monthly record")
 elseif(CASE MATCHES "^io_config_")
    #----- The fast loop and the diagnostics on, and a file of the case's [variables] lines. --------#
    if(CASE STREQUAL "io_config_coarse_on_f")

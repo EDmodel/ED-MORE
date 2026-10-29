@@ -201,6 +201,20 @@ class RunConfig:
     def copy(self) -> "RunConfig":
         return RunConfig(copy.deepcopy(self.main), copy.deepcopy(self.pft), self.path, self.pft_path)
 
+    def remove_diagnostics(self, run_dir) -> list[Path]:
+        """Delete the diagnostic files, <dir>/<prefix>-<F|D|M|Y>*.nc, that an earlier run of this
+        configuration wrote, so a new run can write its own: ED-MORE never overwrites an output file,
+        and stops before its first step where one would be. `run_dir` is the directory the run
+        starts in, which a relative [output].dir is read from. The state files stay. Returns the
+        files removed."""
+        out = deep_get(self.main, "output.dir", ".")
+        folder = Path(out) if os.path.isabs(out) else Path(run_dir) / out
+        prefix = deep_get(self.main, "output.prefix", "ED")
+        removed = sorted(p for tier in "FDMY" for p in folder.glob(f"{prefix}-{tier}*.nc"))
+        for p in removed:
+            p.unlink()
+        return removed
+
     def write(self, directory, main_name: str = "main.toml", pft_name: str = "pft.toml") -> Path:
         """Write both files into `directory`, the main file naming the PFT file written beside it.
         Returns the main file's path, the argument a run takes."""

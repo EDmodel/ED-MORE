@@ -11,7 +11,7 @@ module ed_fast_diag
    use ed_constants,            only : latent_heat_vap, stefan_boltzmann, n_soil_layer_max
    use ed_therm_lib,            only : specific_humidity_to_vpd
    use ed_time,                 only : ed_time_t, time_advance_seconds
-   use ed_output_types,         only : output_buffers_t
+   use ed_output_types,         only : output_buffers_t, W_NPLANT, W_LEAF_AREA, W_BASAL_AREA, W_AGB, N_WEIGHT
    use ed_diag_vars,            only : N_CO_FAST_ROWS, N_PA_ROWS, patch_diag_block, polygon_diag_block, PA_LE, PA_H, &
                                        PA_RNET, PA_SW_GROUND,                                                    &
                                        PA_LW_GROUND, PA_SW_IN_VIS, PA_SW_IN_NIR, PA_SW_UP_VIS, PA_SW_UP_NIR,     &
@@ -48,7 +48,7 @@ contains
       logical,                intent(in)              :: do_fast
       type(ed_time_t),      intent(in),      optional :: step_start   ! the slow step's start (the stamps)
       type(output_buffers_t), intent(inout), optional :: out_bufs     ! present when do_fast
-      integer(ik) :: ip, is, isub, ks, nl, npatch
+      integer(ik) :: ip, is, isub, ks, nl, npatch, nc
       npatch = poly%patch%n
       if (poly%cohort%diag%active) then
          call expand_cohort_diag(poly%cohort%diag, max(poly%cohort%n, 1_ik))
@@ -80,6 +80,18 @@ contains
       end do
       out_bufs%fast_n_cohort = poly%cohort%n
       out_bufs%fast_n_patch  = npatch
+      !---~---
+      !   The staged cohorts' ids and the weights the fast loop uses, in its order: the step's
+      ! re-sort may move them before the output reads the staging (docs/science/diagnostics.md §3).
+      !---~---
+      nc = poly%cohort%n
+      if (nc > 0_ik) then
+         out_bufs%fast_cohort_id(1:nc)                = poly%cohort%global_id(1:nc)
+         out_bufs%fast_cohort_w(1:nc, W_NPLANT)     = poly%cohort%nplant(1:nc)
+         out_bufs%fast_cohort_w(1:nc, W_LEAF_AREA)  = poly%cohort%nplant(1:nc) * poly%cohort%leaf_area(1:nc)
+         out_bufs%fast_cohort_w(1:nc, W_BASAL_AREA) = poly%cohort%nplant(1:nc) * poly%cohort%basal_area(1:nc)
+         out_bufs%fast_cohort_w(1:nc, W_AGB)        = poly%cohort%nplant(1:nc) * poly%cohort%agb(1:nc)
+      end if
       out_bufs%fast_site = 0.0_wp
       out_bufs%fast_soil_temp = 0.0_wp
       out_bufs%fast_soil_water = 0.0_wp
@@ -335,11 +347,12 @@ contains
       if (allocated(b%fast_cohort_gpp)) then
          if (size(b%fast_cohort_gpp, 1, kind=ik) < nc) then
             nc = max(nc, 2_ik * size(b%fast_cohort_gpp, 1, kind=ik))
-            deallocate(b%fast_cohort_gpp, b%fast_cohort_height)
+            deallocate(b%fast_cohort_gpp, b%fast_cohort_height, b%fast_cohort_id, b%fast_cohort_w)
          end if
       end if
       if (.not. allocated(b%fast_cohort_gpp))                                                      &
-         allocate(b%fast_cohort_gpp(nc, nsub), b%fast_cohort_height(nc, nsub))
+         allocate(b%fast_cohort_gpp(nc, nsub), b%fast_cohort_height(nc, nsub), b%fast_cohort_id(nc),   &
+                  b%fast_cohort_w(nc, N_WEIGHT))
       !--- The per-cohort diagnostic rows, staged only while their FAST-tier variables are on.
       if (with_cdiag) then
          nc = size(b%fast_cohort_gpp, 1, kind=ik)

@@ -135,6 +135,7 @@ def run_trial(cfg, out):
     folder = os.path.splitext(out)[0]
     main = cfg.write(folder)
     os.chdir(folder)
+    cfg.remove_diagnostics(folder)                     # an earlier attempt's files: edmore never overwrites output
     start, last, density, fused = None, {}, {}, set()
     with Run(main, verbose=False) as run:
         for step in run:

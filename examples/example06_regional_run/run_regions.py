@@ -27,6 +27,7 @@ preset's build) and the data paths (--era5-archive, --soil-maps, --chave-e-map, 
 and CHAVE_E_MAP).
 """
 import argparse
+import glob
 import os
 import re
 import shlex
@@ -200,6 +201,10 @@ def main(argv=None):
     if args.setup_only:
         return
     for name, rdir, path, _ in configs:
+        #----- An earlier run's diagnostic files: edmore never overwrites output, and would stop at its start. -------
+        for old in sorted(glob.glob(os.path.join(rdir, f"{name}-[FDMY]*.nc"))):
+            os.remove(old)
+            print(f"  removed {os.path.relpath(old, HERE)} (an earlier run's)", flush=True)
         cmd = f"export OMP_NUM_THREADS={args.threads} OMP_STACKSIZE={args.stack} OMP_PLACES=threads " \
               f"OMP_PROC_BIND=close; cd {shlex.quote(rdir)}; " \
               f"{shlex.quote(args.edmore)} config.toml > run.log 2>&1"

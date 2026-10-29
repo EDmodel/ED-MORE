@@ -138,8 +138,8 @@ value at the period's end, its snapshot (§4, Snapshots). The tier is the file, 
 | netCDF dim | length | notes |
 |---|---|---|
 | `time` | UNLIMITED | period **start** stamp; `cell_methods` says how the period was reduced |
-| `cohort` | live count, trimmed per file | slot order; `global_cohort_id` tracks a cohort across files |
-| `patch` | live count, trimmed per file | ditto `global_patch_id` |
+| `cohort` | unlimited: the file's largest live count | the month's end order (below); `global_cohort_id` names each record's cohorts |
+| `patch` | unlimited: the file's largest live count | one patch per slot through a calendar year; `global_patch_id` names each record's patches |
 | `soil` | `n_soil_layer_max` | behind `site`: each site's column on its own layers, its patches area-weighted |
 | `pft` | **run-time** PFT count | carries a `pft` coordinate variable, so the file stays self-describing |
 | `dbh_class` | from `[output].dbh_class_edges` | carries `dbh_lower` / `dbh_upper` coordinates |
@@ -156,12 +156,38 @@ preserve the closure identity, which is what makes `mean_nplant_size_py` a genui
 distribution comparable to a forest inventory.
 
 **Cohort and patch axes may not appear on the annual stream**, and neither may the `(patch, soil)`
-profiles. A window longer than a month would straddle the annual disturbance restructuring, so the
-slot set that was averaged would not be the slot set present at flush. The registry rejects it at
-start-up. For the same reason a file with a cohort or patch axis spans at most a month, whatever
-`[output.<tier>].file_chunk` says (a day for the FAST tier). Its cohort and patch axes are as long as
-the largest live count among the polygons when it opens; `n_cohort` and `n_patch` give each polygon's
-live count per record, and the slots past it are `_FillValue`.
+profiles. A window longer than a month would straddle the calendar's restructuring, so the cohorts and
+patches that were averaged would not be the ones present at its end. The registry rejects it at
+start-up.
+
+**A file spans what its tier's `[output.<tier>].file_chunk` says**, whatever its axes. Its cohort and
+patch axes are unlimited and grow to the largest live count among its records and polygons; `n_cohort`
+and `n_patch` give each polygon's live count per record, and the slots past it are `_FillValue`. Each
+record names its own cohorts and patches (`global_cohort_id`, `owner_patch`, `cohort_offset`,
+`cohort_count`, `global_patch_id`): a slot holds one cohort through a month (below) and one patch
+through a calendar year, and a reader follows either across months by its id.
+
+**The cohort order of a month's records.** ED-MORE's stand grows and dies every day: each slow step
+changes every cohort's size and plant number, then sorts the stand tallest first again, the order the
+radiation, the interception and the overtopping LAI need the next day ([demography](demography.md)
+§3). Which cohorts exist changes only at a month's turn (recruitment, fusion, fission, the cull) and a
+year's (disturbance). **This is a major difference from ED2**, which changes its plants' size (structural
+growth) and number (mortality) once a month, so its stand keeps one order through the month: in ED-MORE a
+cohort that outgrows the one above it changes the order on that day.
+
+The output does not follow the stand's daily order. Every cohort value of a month (the daily fold, the
+per-cohort diagnostic rows and the fast loop's staged sub-steps) is placed by its `global_cohort_id`,
+and every record of the month, on every tier, is written in the month's end order: the order of the
+month's last step, which the state file written at that boundary also has. So:
+
+- slot *i* of every record of a month holds the same cohort, and a monthly cohort record is each
+  cohort's own mean, never two cohorts' values averaged in one slot;
+- the first cohort of a patch is the tallest at the month's end, not necessarily on each day before
+  it: rank cohorts by `height_co` or `mean_height_co`, not by slot;
+- a fast-loop row reduced to a coarser axis (a snapshot such as `leaf_temp_py`) pairs each cohort's
+  value with the weight the fast loop used, before the step's sort moved it.
+
+A run that stops in mid-month writes that month's records in the order of its last step.
 
 **The soil axis has a fixed length.** It is `n_soil_layer_max` long whatever a site's layer count: a
 column fills it from the top, and the slots below the column's bottom layer are `_FillValue`. A fixed
@@ -254,7 +280,7 @@ fused. This restructuring runs **between** two slow steps: after the output has 
 ends on the boundary, and before the fast loop of the step that begins there. As a result:
 
 - **every record describes one stand.** A monthly cohort or patch record is the mean of its daily
-  records, slot by slot, and a file's cohort and patch axes are the same throughout;
+  records, cohort by cohort and patch by patch (§3, The cohort order of a month's records);
 - **the restructuring's events and the stand it leaves are recorded in the new period.** The year's
   disturbance area and disturbance mortality are in January's record, never December's, and the
   biomass the disturbance removes first shows in the 1 January daily state. The 31 December state is
@@ -315,7 +341,8 @@ polygon's F value is the patches' sum, each weighted by its share of the polygon
 weights its patches by their areas within the site. On the F tier every `mean_` variable is the
 dt-weighted mean of its sub-step samples, whatever its reduction on the coarse tiers: GPP, the mean
 rate of the day's per-step amounts on D, is the mean of the sub-steps' rates on F. A snapshot is the
-last of them.
+last of them. The axes' bookkeeping (§5) is read from the stand instead: the slow step leaves it as it
+was but for the cohorts' order, and it is placed by cohort id like every cohort value (§3).
 
 The FAST tier shares everything else with the coarse tiers: the registry, the running reductions, the
 closing of a period and the writer. Only where it reads its values differs, and that is forced by

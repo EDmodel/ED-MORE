@@ -334,6 +334,9 @@ contains
       end do
       bufs%fast_on = bufs%fast_on .and. files%enabled
       bufs%diag = files%diag
+      !--- The month's cohort order, where a cohort variable is written (write_order).
+      if (files%cohort_axis)                                                                       &
+         allocate(bufs%month_id(max(files%cohort_max, 1_ik)), bufs%end_id(max(files%cohort_max, 1_ik)))
    end subroutine alloc_output_buffers
 
    !---~---

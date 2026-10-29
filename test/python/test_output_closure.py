@@ -5,7 +5,7 @@ over PFTs and the sum over DBH classes equal the polygon total (docs/science/dia
 A half-open or closed class-edge error, or a wrong reduction weight, breaks these sums while every
 number on its own still looks plausible. The run starts from the shipped census
 (data/census_example.csv) on the fast loop's constant reference climate (no forcing file) and lasts
-two months, so the second month's file follows a slow step that grew, killed and recruited plants.
+two months, so the second month's record follows a slow step that grew, killed and recruited plants.
 EDMORE_MAIN names the executable; CTest sets it.
 """
 import os
@@ -39,8 +39,10 @@ def monthly_files(run_dir):
     res = subprocess.run([EDMORE_MAIN, str(cfg.write(run_dir))], cwd=run_dir, capture_output=True,
                          text=True, timeout=600)
     assert res.returncode == 0, res.stdout[-3000:] + res.stderr[-3000:]
-    files = sorted((run_dir / "out").glob("c-M-*.nc"))      # one file a month, one record each
-    assert len(files) == 2, f"expected two monthly files in {run_dir / 'out'}, found {files}"
+    files = sorted((run_dir / "out").glob("c-M-*.nc"))      # [output.monthly].file_chunk = "year"
+    assert [f.name for f in files] == ["c-M-2001.nc"], f"expected the year's monthly file, found {files}"
+    with Dataset(files[0]) as ds:
+        assert ds.dimensions["time"].size == 2, "June's and July's records in the year's file"
     return files
 
 

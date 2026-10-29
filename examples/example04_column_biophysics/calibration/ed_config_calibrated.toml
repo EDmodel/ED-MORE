@@ -85,7 +85,7 @@ file_chunk = "year"               # one file per UTC year of hourly records
 
 [output.daily]
 enabled    = true
-file_chunk = "run"
+file_chunk = "all"
 
 [output.monthly]
 enabled    = false
@@ -93,7 +93,7 @@ file_chunk = "year"
 
 [output.annual]
 enabled    = false
-file_chunk = "run"
+file_chunk = "all"
 
 # The leaf traits follow the canopy's light gradient: each cohort's Vcmax25, Rd25, SLA and leaf
 # turnover rate are its PFT's top-of-canopy values times exp(k * LAI above it), set at the census start

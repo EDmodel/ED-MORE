@@ -216,7 +216,7 @@ sync_every    = "flush"         # "flush": records reach the disk each month | "
   file_chunk = "year"
   [output.annual]
   enabled = true
-  file_chunk = "run"
+  file_chunk = "all"
 
 # Leaf phenology has no switch: it runs every day of every run, with each PFT's [phenology] block in
 # the PFT file (docs/science/plant_phenology.md).

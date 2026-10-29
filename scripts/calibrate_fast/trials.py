@@ -129,6 +129,7 @@ def build_trial(base: RunConfig, keys, values, window: Window, state_file, root:
     for k, v in {"output.dir": str(tdir / "out"), "output.state_file_dir": str(tdir / "out"),
                  "output.io_config": str(tdir / "output_variables.toml"), "run.n_threads": int(threads)}.items():
         cfg.set(k, v)
+    cfg.remove_diagnostics(tdir)        # an unfinished attempt's files: edmore never overwrites output
     cfg.write(tdir)
     return tdir
 

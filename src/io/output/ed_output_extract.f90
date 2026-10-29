@@ -524,7 +524,7 @@ contains
    ! mean_agb_co, mean_agb_pa, mean_agb_py, mean_agb_pft_py and mean_agb_size_py all read FLD_C_AGB. Extract each
    ! variable once per step (the nvfortran trap above).
    !---~---
-   subroutine extract_variable(poly, setup, v, scalar_out, slab_out, valid_out, n_out, cohort_x)
+   subroutine extract_variable(poly, setup, v, scalar_out, slab_out, valid_out, n_out, cohort_x, cohort_w)
       type(polygon_t),     intent(in)  :: poly
       type(diag_setup_t),  intent(in)  :: setup
       type(var_desc_t),    intent(in)  :: v
@@ -534,6 +534,8 @@ contains
       integer(ik),         intent(out) :: n_out
       real(wp), optional,  intent(in)  :: cohort_x(:)   ! a cohort field to reduce in place of the live one
                                                         ! (a staged sub-step's row, for a snapshot)
+      real(wp), optional,  intent(in)  :: cohort_w(:,:) ! with cohort_x: the weights the fast loop used
+                                                        ! (cohort, W_NPLANT:W_AGB), in the live order
       real(wp)    :: x(max(poly%cohort%n, poly%patch%n, 1_ik))
       real(wp)    :: col(n_soil_layer_max, max(poly%patch%n, 1_ik))
       integer(ik) :: nf, kcls
@@ -572,7 +574,7 @@ contains
       case (DIM_PATCH)
          if (kcls == SRCK_COHORT) then
             call reduce_cohort_to_patch(poly, x, v%weight, v%mean, slab_out, valid_out, n_out, &
-                                        scale=v%scale)
+                                        scale=v%scale, w_given=cohort_w)
          else
             call patch_source_field(poly, v%source_id, slab_out, n_out)
             valid_out(1:max(n_out,1_ik)) = .true.
@@ -582,12 +584,12 @@ contains
       !--- PFT axis (run-time length; empty PFTs are a true 0 for sums, see the reducer).
       case (DIM_PFT)
          call reduce_cohort_to_pft(poly, x, v%weight, v%mean, setup%n_pft, slab_out, valid_out,   &
-                                   n_out, scale=v%scale)
+                                   n_out, scale=v%scale, w_given=cohort_w)
 
       !--- DBH size class: each cohort whole in the class of its mean dbh.
       case (DIM_SIZE)
          call reduce_cohort_to_size(poly, x, v%weight, v%mean, setup%dbh_edges, setup%n_dbh_class,   &
-                                    slab_out, valid_out, n_out, scale=v%scale)
+                                    slab_out, valid_out, n_out, scale=v%scale, w_given=cohort_w)
 
       !--- Each site's column, its patches area-weighted, at (is-1)*n_soil_layer_max + k.
       case (DIM_SOIL)
@@ -618,7 +620,8 @@ contains
       case default
          select case (kcls)
          case (SRCK_COHORT)
-            call reduce_cohort_to_polygon(poly, x, v%weight, v%mean, scalar_out, ok, scale=v%scale)
+            call reduce_cohort_to_polygon(poly, x, v%weight, v%mean, scalar_out, ok, scale=v%scale,     &
+                                          w_given=cohort_w)
          case (SRCK_PATCH)
             call patch_source_field(poly, v%source_id, x, nf)
             call reduce_patch_to_polygon(poly, x, v%mean, scalar_out, ok)
