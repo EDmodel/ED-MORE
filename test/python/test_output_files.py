@@ -8,6 +8,8 @@
 - The stand is re-sorted every day, but within a month every record holds its cohorts in one order,
   the month's end order: each daily and sub-daily record of a month names the same cohorts in the
   same slots as the month's record.
+- `time` is each record's start in days since the run's start, and `time_bnds` its start and the
+  end of its last step: a month's record spans the month, a day's the day, a sub-daily one its hour.
 - A run never overwrites output: a second run into the same folder stops before its first step,
   names the file, and leaves the first run's files as they were.
 
@@ -58,6 +60,10 @@ def test_files_span_their_chunk_and_hold_one_order_a_month(tmp_path):
     assert sorted(p.name for p in out.glob("f-D-*.nc")) == [f"f-D-2001{m}.nc" for m in MONTHS]
     with Dataset(out / "f-M-2001.nc") as ds:
         assert ds.dimensions["time"].size == 3, "June to August in the year's file"
+        assert ds["time"].units == "days since 2001-06-01 00:00:00"
+        assert ds["time"].calendar == "proleptic_gregorian" and ds["time"].bounds == "time_bnds"
+        assert ds["time_bnds"][:].tolist() == [[0, 30], [30, 61], [61, 92]], "each month's start and end"
+        assert ds["time"][:].tolist() == [0, 30, 61]
         n = ds["n_cohort"][:, 0]
         assert ds.dimensions["cohort"].size == n.max(), "the cohort axis is the file's largest count"
         agb = ds["mean_agb_co"][:, 0, :]
@@ -65,6 +71,11 @@ def test_files_span_their_chunk_and_hold_one_order_a_month(tmp_path):
             assert not np.ma.is_masked(agb[t, :n[t]]), "every live cohort has a value"
             assert np.ma.getmaskarray(agb[t, n[t]:]).all(), "the fill value past the record's count"
         monthly = cohort_ids(ds)
+    with Dataset(out / "f-D-200106.nc") as ds:
+        assert ds["time_bnds"][:].tolist() == [[d, d + 1] for d in range(30)], "each day's start and end"
+    with Dataset(sorted(out.glob("f-F-*.nc"))[0]) as ds:
+        b = ds["time_bnds"][:]
+        assert np.allclose(b[:, 1] - b[:, 0], 1.0 / 24.0) and np.allclose(b[1:, 0], b[:-1, 1]), "hourly, end to end"
     for t, m in enumerate(MONTHS):
         with Dataset(out / f"f-D-2001{m}.nc") as ds:
             for day, ids in enumerate(cohort_ids(ds)):

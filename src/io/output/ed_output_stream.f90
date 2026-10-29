@@ -13,7 +13,7 @@
 module ed_output_stream
    use iso_c_binding, only : c_int, c_size_t, c_double
    use ed_kinds,      only : wp, ik
-   use ed_time,       only : ed_time_t, time_to_decimal_year, time_eq
+   use ed_time,       only : ed_time_t, time_eq, seconds_between, time_to_string
    use ed_constants,     only : n_soil_layer_max
    use ed_soil_params,       only : SOIL_BC_DRAIN, SOIL_BC_AQUIFER
    use ed_netcdf_c,   only : nc_check, nc_close, nc_create_f, nc_def_dim_f, nc_enddef, nc_put_att_double_f,       &
@@ -228,6 +228,7 @@ contains
          call nc_check(st, 'stream nc_create')
       end if
       call nc_check(nc_def_dim_f(ncid, 'time', NC_UNLIMITED, dt), 'dim time')
+      call nc_check(nc_def_dim_f(ncid, 'nv', 2_c_size_t, dnv), 'dim nv')
       dpo = -1_c_int
       dc = -1_c_int
       dp = -1_c_int
@@ -246,7 +247,19 @@ contains
       if (hasd) call nc_check(nc_def_dim_f(ncid, 'diel', int(files%n_diel, c_size_t), dd), 'dim diel')
 
       !--- time coordinate + calendar companions (period-start stamp).
-      stream%v_time  = int(def_scalar_var(ncid, dt, 'time',  NC_DOUBLE, 'year', 'decimal calendar year (period start)'), ik)
+      !---~---
+      !   CF time: days since the run's start on the proleptic Gregorian calendar, the period's
+      ! start, with its start and end as the bounds, so a partial period carries its true span.
+      !---~---
+      stream%v_time  = int(def_scalar_var(ncid, dt, 'time',  NC_DOUBLE, 'days since '//time_to_string(files%t_ref), &
+                                          'period start'), ik)
+      call put_text_att(ncid, int(stream%v_time, c_int), 'standard_name', 'time')
+      call put_text_att(ncid, int(stream%v_time, c_int), 'calendar', 'proleptic_gregorian')
+      call put_text_att(ncid, int(stream%v_time, c_int), 'bounds', 'time_bnds')
+      dims2 = [dt, dnv]
+      call define_var(ncid, 'time_bnds', NC_DOUBLE, dims2, vid, units='days since '//time_to_string(files%t_ref), &
+                      long_name='period start and end (the end of its last step)')
+      stream%v_time_bnds = int(vid, ik)
       stream%v_year  = int(def_scalar_var(ncid, dt, 'year',  NC_INT,    '1', 'calendar year (period start)'), ik)
       stream%v_month = int(def_scalar_var(ncid, dt, 'month', NC_INT,    '1', 'calendar month (period start)'), ik)
       stream%v_day   = int(def_scalar_var(ncid, dt, 'day',   NC_INT,    '1', 'calendar day (period start)'), ik)
@@ -312,7 +325,6 @@ contains
       !   Each site has its own layers: the coordinate is per site, with each layer's top and
       ! bottom as its CF bounds, and the fill value below the site's bottom.
       !---~---
-      if (hass .or. hasd) call nc_check(nc_def_dim_f(ncid, 'nv', 2_c_size_t, dnv), 'dim nv')
       if (hass) then
          dims3 = [dpo, dsi, ds]
          call define_var(ncid, 'soil_z', NC_DOUBLE, dims3, vid, units='m',                             &
@@ -431,6 +443,12 @@ contains
       cn4 = [cn3(1), cn3(2), cn3(3), 2_c_size_t]
       call nc_check(nc_put_vara_double(ncid, v_bnds, st4, cn4, b), 'put soil_z_bnds')
    end subroutine write_site_soil_coord
+
+   !--- Days from ref to t, the files' time unit.
+   pure real(c_double) function days_since(ref, t) result(d)
+      type(ed_time_t), intent(in) :: ref, t
+      d = real(seconds_between(ref, t) / 86400.0_wp, c_double)
+   end function days_since
 
    !--- The diel coordinate: each bin's start hour, and its start and end as the bounds.
    subroutine write_diel_coord(ncid, v_dh, v_dhb, nd)
@@ -602,7 +620,11 @@ contains
       stream%cohort_dim = max(stream%cohort_dim, n_cohort)
       stream%patch_dim  = max(stream%patch_dim,  n_patch)
       !--- calendar (period start) + live counts.
-      call nc_check(nc_put_var1_double(ncid, int(stream%v_time, c_int), i1, time_to_decimal_year(r1%t_open)), 'put time')
+      call nc_check(nc_put_var1_double(ncid, int(stream%v_time, c_int), i1, days_since(files%t_ref, r1%t_open)), &
+                    'put time')
+      call nc_check(nc_put_vara_double(ncid, int(stream%v_time_bnds, c_int), [t0, 0_c_size_t], [1_c_size_t, 2_c_size_t], &
+                                       [days_since(files%t_ref, r1%t_open), days_since(files%t_ref, r1%t_close)]),  &
+                    'put time_bnds')
       call put_int_rec(ncid, stream%v_year,  t0, int(r1%t_open%year,  c_int))
       call put_int_rec(ncid, stream%v_month, t0, int(r1%t_open%month, c_int))
       call put_int_rec(ncid, stream%v_day,   t0, int(r1%t_open%day,   c_int))

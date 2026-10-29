@@ -277,6 +277,14 @@ stamped *d* holds the steps that start in period *d*:
   the state at 1 August 00:00, and a monthly mean is the mean over the ends of the month's steps;
 - no record is stamped at or after the run's end.
 
+**A record's `time` is its period's start**, in days since the run's start on the proleptic Gregorian
+calendar (CF `units = "days since <run start>"`, `calendar = "proleptic_gregorian"`), so xarray and
+CDO decode it. Its bounds, `time_bnds`, are that start and the end of the record's last step. A
+period's total is its mean rate times `time_bnds[:, 1] - time_bnds[:, 0]` (in days, times 86400 s),
+and a partial record, at the run's start or end or around a restart, carries its true span. The
+`year`, `month` and `day` companions (and `hour`, `minute`, `second` on F) give the start's calendar
+date without decoding.
+
 **The calendar's restructuring belongs to the period it opens.** At the turn of a month the stand's
 cohorts are recruited, fused, split and culled; at the turn of a year its patches are disturbed and
 fused. This restructuring runs **between** two slow steps: after the output has read the step that
@@ -656,7 +664,7 @@ It is generated from the registry, so it cannot drift; the page states no count 
 | `water` | evapotranspiration, soil moisture and potential, snow, surface water |
 | `energy` | latent and sensible heat, net radiation, temperatures, canopy-air state |
 | `numerics` | the integrators' work counters and the energy and water budget residuals |
-| `radiation` | albedo, absorbed shortwave, PAR and longwave, ground radiation |
+| `radiation` | the leaves' absorbed PAR, each cohort's shortwave, PAR and longwave, the ground's radiation |
 | `ecophys` | per-cohort leaf gas exchange and hydraulics (the highest volume) |
 | `biogeochem` | soil-carbon pools, heterotrophic respiration, litterfall |
 | `forcing` | the atmospheric forcing the run used (§5) |

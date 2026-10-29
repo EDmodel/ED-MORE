@@ -474,7 +474,7 @@ contains
       call add_variable(reg, 'mean_cas_temp_pa', 'patch canopy-air-space temperature', 'K', DIM_PATCH, AGG_TMEAN, GRP_ENERGY,   &
                         ior(FAST, DAY_MON), FLD_P_DIAG0 + PA_CAS_TEMP)
       call add_variable(reg, 'mean_soil_temp_top_pa', 'patch soil-top temperature', 'K', DIM_PATCH, AGG_TMEAN, GRP_ENERGY,      &
-                        ior(FAST, MON), FLD_P_DIAG0 + PA_SOIL_TEMP_TOP)
+                        ior(FAST, DAY_MON), FLD_P_DIAG0 + PA_SOIL_TEMP_TOP)
       call add_variable(reg, 'mean_skin_temp_pa', 'patch skin temperature (longwave up)', 'K', DIM_PATCH, AGG_TMEAN, GRP_ENERGY, &
                         ior(FAST, DAY_MON), FLD_P_DIAG0 + PA_SKIN_TEMP)
       call add_variable(reg, 'mean_soil_temp_layer_pa', 'soil temperature by layer and patch', 'K', DIM_SOIL_PATCH, AGG_TMEAN,  &
@@ -560,8 +560,8 @@ contains
                         FREQ_NONE, FLD_C_DIAG0 + CO_CS)
       call add_variable(reg, 'mean_rd_co', 'leaf dark respiration', 'umol/m2 leaf/s', DIM_COHORT, AGG_TMEAN, GRP_ECOPHYS,        &
                         FREQ_NONE, FLD_C_DIAG0 + CO_RD, flux=.true.)
-      call add_variable(reg, 'mean_transp_co', 'leaf transpiration (the water the leaves lose)', 'mol/m2 leaf/s', DIM_COHORT,   &
-                        AGG_TMEAN, GRP_ECOPHYS, FREQ_NONE, FLD_C_DIAG0 + CO_TRANSP, flux=.true.)
+      call add_variable(reg, 'mean_leaf_transp_co', 'leaf transpiration (the water the leaves lose)', 'mol/m2 leaf/s',         &
+                        DIM_COHORT, AGG_TMEAN, GRP_ECOPHYS, FREQ_NONE, FLD_C_DIAG0 + CO_TRANSP, flux=.true.)
       call add_variable(reg, 'mean_beta_stomata_co', 'stomatal water-stress factor', '-', DIM_COHORT, AGG_TMEAN, GRP_ECOPHYS,   &
                         FREQ_NONE, FLD_C_DIAG0 + CO_BETA_STOM)
       call add_variable(reg, 'mean_beta_nonstomata_co', 'non-stomatal (capacity) water-stress factor', '-', DIM_COHORT,         &
@@ -582,8 +582,8 @@ contains
                         FREQ_NONE, FLD_C_DIAG0 + CO_LEAF_WATER)
       call add_variable(reg, 'mean_wood_water_co', 'internal wood water', 'kg/plant', DIM_COHORT, AGG_TMEAN, GRP_ECOPHYS,        &
                         FREQ_NONE, FLD_C_DIAG0 + CO_WOOD_WATER)
-      call add_variable(reg, 'mean_abs_par_co', 'absorbed photosynthetically active radiation', 'W/m2', DIM_COHORT, AGG_TMEAN,  &
-                        GRP_RADIATION, FREQ_NONE, FLD_C_DIAG0 + CO_ABS_PAR, flux=.true.)
+      call add_variable(reg, 'mean_abs_par_co', 'incident-equivalent PAR: the absorbed VIS over the leaf absorptance', 'W/m2',  &
+                        DIM_COHORT, AGG_TMEAN, GRP_RADIATION, FREQ_NONE, FLD_C_DIAG0 + CO_ABS_PAR, flux=.true.)
       call add_variable(reg, 'mean_abs_sw_co', 'absorbed shortwave radiation', 'W/m2', DIM_COHORT, AGG_TMEAN, GRP_RADIATION,    &
                         FREQ_NONE, FLD_C_DIAG0 + CO_ABS_SW, flux=.true.)
       call add_variable(reg, 'mean_abs_lw_co', 'net longwave radiation', 'W/m2', DIM_COHORT, AGG_TMEAN, GRP_RADIATION, FREQ_NONE, &
@@ -603,8 +603,9 @@ contains
                         AGG_TMEAN, GRP_ECOPHYS, FREQ_NONE, FLD_C_DIAG0 + CO_BETA_STOM, weight=W_LEAF_AREA, mean=.true.)
       call add_variable(reg, 'mean_root_uptake_py', 'polygon root water uptake', 'kg/m2/s', DIM_SCALAR, AGG_TMEAN, GRP_WATER,      &
                         DAY_MON_YR, FLD_C_DIAG0 + CO_ROOT_UPTAKE, weight=W_NPLANT, flux=.true.)
-      call add_variable(reg, 'mean_transp_leaf_py', 'leaf-area-weighted canopy transpiration', 'mol/m2 leaf/s', DIM_SCALAR,     &
-                        AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_C_DIAG0 + CO_TRANSP, weight=W_LEAF_AREA, mean=.true., flux=.true.)
+      call add_variable(reg, 'mean_leaf_transp_py', 'leaf-area-weighted leaf transpiration, per leaf area', 'mol/m2 leaf/s',    &
+                        DIM_SCALAR, AGG_TMEAN, GRP_ECOPHYS, FREQ_NONE, FLD_C_DIAG0 + CO_TRANSP, weight=W_LEAF_AREA,          &
+                        mean=.true., flux=.true.)
    end subroutine register_ecophys
 
    !---~---
@@ -862,7 +863,7 @@ contains
       call add_variable(reg, 'mean_reco_pa', 'patch ecosystem respiration (autotrophic + heterotrophic)', 'umol/m2/s',          &
                         DIM_PATCH, AGG_TMEAN, GRP_CARBON, ior(FAST, DAY_MON), FLD_P_DIAG0 + PA_RECO, flux=.true.)
       call add_variable(reg, 'mean_cas_co2_pa', 'patch canopy-air CO2 mixing ratio', 'umol/mol', DIM_PATCH, AGG_TMEAN,          &
-                        GRP_CARBON, FAST, FLD_P_DIAG0 + PA_CAS_CO2)
+                        GRP_ENERGY, FAST, FLD_P_DIAG0 + PA_CAS_CO2)
    end subroutine register_fast
 
    !---~---

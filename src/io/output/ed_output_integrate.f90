@@ -9,7 +9,7 @@
 !---~---
 module ed_output_integrate
    use ed_kinds,            only : wp, ik
-   use ed_time,             only : ed_time_t, calendar_step_t
+   use ed_time,             only : ed_time_t, calendar_step_t, time_advance_seconds
    use ed_output_params,      only : N_FREQ, FREQ_FAST, TIER_FAST, TIER_DAILY, TIER_MONTHLY, TIER_ANNUAL
    use ed_output_types,     only : var_desc_t, integ_buffer_t, output_files_t, output_buffers_t,                  &
                                    pending_record_t, record_queue_t, AGG_MEAN, AGG_RATE, AGG_LAST, AGG_TMEAN,     &
@@ -325,6 +325,7 @@ contains
             end if
          end do
          bufs%has_data(t) = .true.
+         bufs%t_last(t) = time_advance_seconds(prev, dt)
       end do
       !--- then close the periods the step's end has left (tiers independent).
       if (is_new_year  .and. bufs%has_data(TIER_ANNUAL))  call close_tier(files, bufs, TIER_ANNUAL)
@@ -432,6 +433,7 @@ contains
       bufs%pending(t)%used   = .true.
       bufs%pending(t)%freq   = ishft(1_ik, t - 1_ik)
       bufs%pending(t)%t_open = bufs%t_open(t)
+      bufs%pending(t)%t_close = bufs%t_last(t)
       bufs%pending(t)%n_cohort = 0_ik
       bufs%pending(t)%n_patch = 0_ik
       bufs%pending(t)%sval(:)   = MISSING_VALUE
@@ -516,6 +518,7 @@ contains
          r%used = .true.
          r%freq = src%freq
          r%t_open = src%t_open
+         r%t_close = src%t_close
          r%n_cohort = src%n_cohort
          r%n_patch = src%n_patch
          if (allocated(r%sval)) then
@@ -603,6 +606,7 @@ contains
          end if
       end do
       bufs%has_data(TIER_FAST) = .true.
+      bufs%t_last(TIER_FAST) = time_advance_seconds(bufs%fast_time(isub), dt)
    end subroutine output_integrate_fast
 
    !---~---

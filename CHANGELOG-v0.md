@@ -22,6 +22,14 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - The daily, monthly and yearly files carry about thirty more polygon variables by default: the
   water and energy budgets' terms and `mean_reco_py`. To write the files as before, switch them off
   in `[output].io_config`; `ed_io_config.toml` lists each with its default. (#56)
+- The files' `time` is now CF: each record's start in days since the run's start, with `calendar =
+  "proleptic_gregorian"` and the bounds `time_bnds` (the start and the end of its last step), so
+  xarray and CDO decode it. It was the decimal calendar year; read the `year`, `month` and `day`
+  companions, or decode `time`. (#TBD)
+- `mean_transp_leaf_py` is now `mean_leaf_transp_py`, in the `ecophys` group and off by default, and
+  its cohort source `mean_transp_co` is `mean_leaf_transp_co`: both are per leaf area, apart from
+  `mean_transp_py`, the transpiration in kg m⁻² s⁻¹. Rename them in an io_config. (#TBD)
+- `mean_soil_temp_top_pa` is on the daily tier by default, as its siblings are. (#TBD)
 
 ### Added
 
@@ -65,6 +73,9 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   `mean_cas_co2_pa` and `mean_rainf_py` daily or monthly on request. `mean_et_py` and the runoff
   variables are now read from the fast loop's own exports; they differ from before at round-off.
   Model state is bit for bit. (#56)
+- Clearer labels: `mean_abs_par_co` is the incident-equivalent PAR (the absorbed VIS over the leaf
+  absorptance), as its long name now says; `mean_cas_co2_pa` is in the `energy` group with its
+  polygon twin; the radiation group's description no longer promises an albedo. (#TBD)
 
 ### Fixed
 
