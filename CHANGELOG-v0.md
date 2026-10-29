@@ -19,6 +19,9 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - A run stops before its first step if a diagnostic file it would write exists: remove the old files,
   or give `[output].dir` or `prefix` another value. In Python, `RunConfig.remove_diagnostics()`
   removes a configuration's files, as the examples' scripts now do before they run again. (#55)
+- The daily, monthly and yearly files carry about thirty more polygon variables by default: the
+  water and energy budgets' terms and `mean_reco_py`. To write the files as before, switch them off
+  in `[output].io_config`; `ed_io_config.toml` lists each with its default. (#TBD)
 
 ### Added
 
