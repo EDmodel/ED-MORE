@@ -427,9 +427,9 @@ entries are formed there for a reason:
   air's own vapour gain, which is small beyond a few hours.
 - **Respiration** is split as the fast loop booked it. Leaf, stem and fine-root maintenance
   respiration (`mean_leaf_resp_py`, `mean_stem_resp_py`, `mean_root_resp_py`) are the cohorts'
-  summed per ground area; heterotrophic respiration (`mean_rh_py`) is the soil's over the sub-step;
+  summed per ground area; heterotrophic respiration (`mean_rhet_py`) is the soil's over the sub-step;
   and autotrophic respiration is formed as the rest of the ecosystem's,
-  $`R_{aut} = R_{eco} - R_h`$ (`mean_raut_py`), so the three always add up.
+  $`R_{aut} = R_{eco} - R_{het}`$ (`mean_raut_py`), so the three always add up.
 - **The budget residuals** (`mean_resid_energy_py`, `mean_resid_water_py`) are each sub-step's signed
   whole-column imbalance over the sub-step: a leak rate in W m⁻² or kg m⁻² s⁻¹, positive when a store
   appears from nowhere.
@@ -620,7 +620,7 @@ and the drydown shape. `mean_ustar_py` — is the surface layer turbulent at all
 **Slow-scale.** `mean_agb_py`, `mean_lai_py`, `mean_basal_area_py`, `mean_nplant_py` — the four
 stand-structure scalars. `mean_agb_pft_py`, `mean_lai_pft_py` — is PFT composition doing anything?
 `mean_agb_size_py`, `mean_nplant_size_py` — the size distribution, the demographic core's actual output.
-`mean_npp_py`, `mean_rh_py`, `mean_nee_py` — the carbon balance; drift is the long-run sanity check.
+`mean_npp_py`, `mean_rhet_py`, `mean_nee_py` — the carbon balance; drift is the long-run sanity check.
 `mean_leaf_resp_py` + `mean_stem_resp_py` + `mean_root_resp_py` — the autotrophic fraction should be roughly
 half of GPP, a strong parameter check. `mean_agb_growth_py`, `mean_agb_mort_py`,
 `mean_nplant_recruit_py` — the rates that *make* the AGB trajectory. `mean_soilc_total_py` — spinning up,
@@ -635,7 +635,7 @@ monotonically climbing count is a config bug. `mean_canopy_height_py` — stand 
 \frac{\mathrm{d}\,\text{soilc}}{\mathrm{d}t} \approx \sum \text{mean\_litter\_*\_py} - \text{mean\_rh\_py} \qquad(4)
 ```
 
-with `mean_rh_py` [µmol CO₂ m⁻² s⁻¹] taken to kgC m⁻² yr⁻¹, as the litter rates are (× 1.20107 × 10⁻⁸
+with `mean_rhet_py` [µmol CO₂ m⁻² s⁻¹] taken to kgC m⁻² yr⁻¹, as the litter rates are (× 1.20107 × 10⁻⁸
 kgC µmol⁻¹ × the year's seconds).
 
 ### The carbon seam

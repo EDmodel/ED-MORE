@@ -141,7 +141,7 @@ contains
       call check(find_var_index(reg, 'mean_agb_py') > 0_ik, 'mean_agb_py present')
       call check(find_var_index(reg, 'mean_gpp_py') > 0_ik, 'mean_gpp_py (carbon) present')
       call check(find_var_index(reg, 'mean_soilc_slow_py') > 0_ik, 'mean_soilc_slow_py (carbon) present')
-      call check(find_var_index(reg, 'mean_rh_py') > 0_ik, 'mean_rh_py (carbon) present')
+      call check(find_var_index(reg, 'mean_rhet_py') > 0_ik, 'mean_rhet_py (carbon) present')
       call check(find_var_index(reg, 'mean_soil_temp_layer_si') > 0_ik, 'mean_soil_temp_layer_si (energy) present')
       call check(find_var_index(reg, 'nope') == 0_ik, 'unknown name -> 0')
       !---~---

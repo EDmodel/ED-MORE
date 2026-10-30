@@ -30,6 +30,11 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   its cohort source `mean_transp_co` is `mean_leaf_transp_co`: both are per leaf area, apart from
   `mean_transp_py`, the transpiration in kg m⁻² s⁻¹. Rename them in an io_config. (#58)
 - `mean_soil_temp_top_pa` is on the daily tier by default, as its siblings are. (#58)
+- `mean_rh_py` and `mean_rh_pa` are now `mean_rhet_py` and `mean_rhet_pa`: "rh" read as relative
+  humidity. (#58)
+- `mean_ca_co` and `mean_pressure_co` are removed: they repeated the patch's canopy-air CO2 and the
+  forcing's air pressure for every cohort. Read `mean_cas_co2_pa` (the previous sub-step's, the CO2
+  the leaf solve saw) and `mean_psurf_py`. (#58)
 
 ### Added
 

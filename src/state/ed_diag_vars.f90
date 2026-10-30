@@ -113,14 +113,13 @@ module ed_diag_vars
    !---~---
    !   The rest of the leaf solve's own inputs, as it saw them, so the solve can be repeated
    ! outside the model (the calibration's canopy of leaf kernels): with CO_LEAF_TEMP,
-   ! CO_LEAF_VPD and CO_PSI_LEAF they are every driver of leaf_gas_exchange_batch.
+   ! CO_LEAF_VPD, CO_PSI_LEAF, the patch's canopy-air CO2 at the sub-step's start and the
+   ! forcing's air pressure, they are every driver of leaf_gas_exchange_batch.
    !---~---
    integer(ik), parameter, public :: CO_LEAF_PAR     = 27_ik  ! [umol photon/m2 leaf/s] incident-equivalent PAR per leaf area
    integer(ik), parameter, public :: CO_GB_MOL       = 28_ik  ! [mol H2O/m2 leaf/s] boundary-layer conductance
    integer(ik), parameter, public :: CO_PSI_PREDAWN  = 29_ik  ! [MPa] the stomatal limb's predawn leaf potential
-   integer(ik), parameter, public :: CO_CA           = 30_ik  ! [umol/mol] canopy-air CO2 the leaf sees
-   integer(ik), parameter, public :: CO_PRESSURE     = 31_ik  ! [Pa] air pressure the leaf sees
-   integer(ik), parameter, public :: N_CO_FAST_ROWS  = 31_ik
+   integer(ik), parameter, public :: N_CO_FAST_ROWS  = 29_ik
 
    !---~---
    !   PER-COHORT SLOW-STEP diagnostic rows, N_CO_FAST_ROWS+1..N_CO_ROWS -- a SECOND block of the
@@ -138,19 +137,19 @@ module ed_diag_vars
    ! lockstep removes the failure mode rather than timing around it.
    !---~---
    !--- 7. Growth and mortality
-   integer(ik), parameter, public :: CO_DDBH_DT      = 32_ik  ! [cm/yr]         diameter growth
-   integer(ik), parameter, public :: CO_DAGB_DT      = 33_ik  ! [kgC/plant/yr]  AGB growth
-   integer(ik), parameter, public :: CO_MORT_RATE    = 34_ik  ! [1/yr]          mortality hazard (positive)
+   integer(ik), parameter, public :: CO_DDBH_DT      = 30_ik  ! [cm/yr]         diameter growth
+   integer(ik), parameter, public :: CO_DAGB_DT      = 31_ik  ! [kgC/plant/yr]  AGB growth
+   integer(ik), parameter, public :: CO_MORT_RATE    = 32_ik  ! [1/yr]          mortality hazard (positive)
    !--- 8. Carbon allocation
-   integer(ik), parameter, public :: CO_NPP_LEAF     = 35_ik  ! [kgC/plant/yr]  NPP to leaf
-   integer(ik), parameter, public :: CO_NPP_FINEROOT = 36_ik  ! [kgC/plant/yr]  NPP to fine root
-   integer(ik), parameter, public :: CO_NPP_WOOD     = 37_ik  ! [kgC/plant/yr]  NPP to wood
-   integer(ik), parameter, public :: CO_NPP_STORAGE  = 38_ik  ! [kgC/plant/yr]  NPP to non-structural storage
-   integer(ik), parameter, public :: CO_NPP_REPRO    = 39_ik  ! [kgC/plant/yr]  NPP to reproduction
+   integer(ik), parameter, public :: CO_NPP_LEAF     = 33_ik  ! [kgC/plant/yr]  NPP to leaf
+   integer(ik), parameter, public :: CO_NPP_FINEROOT = 34_ik  ! [kgC/plant/yr]  NPP to fine root
+   integer(ik), parameter, public :: CO_NPP_WOOD     = 35_ik  ! [kgC/plant/yr]  NPP to wood
+   integer(ik), parameter, public :: CO_NPP_STORAGE  = 36_ik  ! [kgC/plant/yr]  NPP to non-structural storage
+   integer(ik), parameter, public :: CO_NPP_REPRO    = 37_ik  ! [kgC/plant/yr]  NPP to reproduction
    !--- 9. Carbon losses
-   integer(ik), parameter, public :: CO_GROWTH_RESP  = 40_ik  ! [kgC/plant/yr]  growth respiration
-   integer(ik), parameter, public :: CO_EXUDATE      = 41_ik  ! [kgC/plant/yr]  root exudate (carbon the growth sink could not use)
-   integer(ik), parameter, public :: N_CO_ROWS       = 41_ik
+   integer(ik), parameter, public :: CO_GROWTH_RESP  = 38_ik  ! [kgC/plant/yr]  growth respiration
+   integer(ik), parameter, public :: CO_EXUDATE      = 39_ik  ! [kgC/plant/yr]  root exudate (carbon the growth sink could not use)
+   integer(ik), parameter, public :: N_CO_ROWS       = 39_ik
 
    !---~---
    !   Fusion kind of each cohort row. The leaf and wood temperatures fuse on the heat capacity
@@ -174,7 +173,7 @@ module ed_diag_vars
         !--- 5. Canopy environment
         FSK_INTENSIVE, FSK_INTENSIVE, FSK_INTENSIVE,                                                             &
         !--- 6. The leaf solve's other inputs
-        FSK_INTENSIVE, FSK_INTENSIVE, FSK_INTENSIVE, FSK_INTENSIVE, FSK_INTENSIVE,                               &
+        FSK_INTENSIVE, FSK_INTENSIVE, FSK_INTENSIVE,                                                             &
         !--- 7. Growth and mortality
         FSK_EXTENSIVE, FSK_EXTENSIVE, FSK_EXTENSIVE,                                                             &
         !--- 8. Carbon allocation

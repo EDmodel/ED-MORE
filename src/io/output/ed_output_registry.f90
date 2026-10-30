@@ -34,7 +34,7 @@ module ed_output_registry
                                      FLD_P_GLOBAL_ID, FLD_P_SITE, FLD_P_CAS_DEPTH, FLD_P_SWE, FLD_P_SNOW_DEPTH,   &
                                      FLD_P_SOILC_FAST_GRND, FLD_P_SOILC_FAST_SOIL, FLD_P_SOILC_STRUCT_GRND,       &
                                      FLD_P_SOILC_STRUCT_SOIL, FLD_P_SOILC_MICROBIAL, FLD_P_SOILC_SLOW,            &
-                                     FLD_P_SOILC_PASSIVE, FLD_P_SOILC_TOTAL, FLD_P_RH, FLD_L_SOIL_TEMP,           &
+                                     FLD_P_SOILC_PASSIVE, FLD_P_SOILC_TOTAL, FLD_P_RHET, FLD_L_SOIL_TEMP,           &
                                      FLD_L_SOIL_WATER, FLD_L_SOIL_PSI, FLD_L_SOIL_WETNESS, FLD_L_SOIL_FLIQ,       &
                                      SRC_PY_N_COHORT, SRC_PY_N_PATCH, SRC_PY_CANOPY_HEIGHT, SRC_PY_ECO_CARBON,     &
                                      SRC_PY_WORK_STEPS, SRC_PY_WORK_REJ, SRC_PY_WORK_WATER_NSUB,                   &
@@ -48,7 +48,7 @@ module ed_output_registry
                                     CO_BETA_STOM, CO_BETA_NONSTOM, CO_LEAF_VPD, CO_PSI_LEAF, CO_PSI_WOOD,         &
                                     CO_PLC, CO_SAPFLOW, CO_ROOT_UPTAKE, CO_ABS_PAR, CO_ABS_SW, CO_ABS_LW,         &
                                     CO_WIND, CO_LEAF_WATER, CO_WOOD_WATER, CO_LEAF_TEMP, CO_WOOD_TEMP,            &
-                                    CO_LEAF_PAR, CO_GB_MOL, CO_PSI_PREDAWN, CO_CA, CO_PRESSURE, PA_LE, PA_H,      &
+                                    CO_LEAF_PAR, CO_GB_MOL, CO_PSI_PREDAWN, PA_LE, PA_H,                         &
                                     PA_RNET, PA_SW_GROUND, PA_LW_GROUND, PA_SW_IN_VIS, PA_SW_IN_NIR,              &
                                     PA_SW_UP_VIS, PA_SW_UP_NIR, PA_LW_UP, PA_USTAR, PA_GGNET, PA_ROUGH,           &
                                     PA_DISPLACE, PA_GPP, PA_NEE, PA_TRANSP, PA_SOIL_TEMP_TOP, PA_RESID_ENERGY,    &
@@ -504,12 +504,12 @@ contains
                         GRP_BIOGEOCHEM, DAY_MON_YR, FLD_P_SOILC_PASSIVE)
       call add_variable(reg, 'mean_soilc_total_py', 'polygon total soil organic carbon', 'kgC/m2', DIM_SCALAR, AGG_MEAN,           &
                         GRP_BIOGEOCHEM, DAY_MON_YR, FLD_P_SOILC_TOTAL)
-      call add_variable(reg, 'mean_rh_py', 'polygon heterotrophic respiration', 'umol/m2/s', DIM_SCALAR, AGG_RATE, GRP_BIOGEOCHEM, &
-                        DAY_MON_YR, FLD_P_RH, scale=kgc_2_umol, fast_source=SRC_F_PA0 + PA_RHET)
+      call add_variable(reg, 'mean_rhet_py', 'polygon heterotrophic respiration', 'umol/m2/s', DIM_SCALAR, AGG_RATE,          &
+                        GRP_BIOGEOCHEM, DAY_MON_YR, FLD_P_RHET, scale=kgc_2_umol, fast_source=SRC_F_PA0 + PA_RHET)
       call add_variable(reg, 'mean_soilc_total_pa', 'patch total soil organic carbon', 'kgC/m2', DIM_PATCH, AGG_MEAN,           &
                         GRP_BIOGEOCHEM, MON, FLD_P_SOILC_TOTAL)
-      call add_variable(reg, 'mean_rh_pa', 'patch heterotrophic respiration', 'umol/m2/s', DIM_PATCH, AGG_RATE, GRP_BIOGEOCHEM, &
-                        MON, FLD_P_RH, scale=kgc_2_umol, fast_source=SRC_F_PA0 + PA_RHET)
+      call add_variable(reg, 'mean_rhet_pa', 'patch heterotrophic respiration', 'umol/m2/s', DIM_PATCH, AGG_RATE,            &
+                        GRP_BIOGEOCHEM, MON, FLD_P_RHET, scale=kgc_2_umol, fast_source=SRC_F_PA0 + PA_RHET)
    end subroutine register_biogeochem
 
    !---~---
@@ -846,10 +846,6 @@ contains
       !---~---
       call add_variable(reg, 'mean_leaf_par_co', 'leaf solve: incident-equivalent PAR per leaf area', 'umol/m2/s', DIM_COHORT,  &
                         AGG_TMEAN, GRP_ECOPHYS, FREQ_NONE, FLD_C_DIAG0 + CO_LEAF_PAR, flux=.true.)
-      call add_variable(reg, 'mean_ca_co', 'leaf solve: canopy-air CO2', 'umol/mol', DIM_COHORT, AGG_TMEAN, GRP_ECOPHYS,        &
-                        FREQ_NONE, FLD_C_DIAG0 + CO_CA)
-      call add_variable(reg, 'mean_pressure_co', 'leaf solve: air pressure', 'Pa', DIM_COHORT, AGG_TMEAN, GRP_ECOPHYS,          &
-                        FREQ_NONE, FLD_C_DIAG0 + CO_PRESSURE)
       call add_variable(reg, 'mean_psi_predawn_co', 'leaf solve: predawn leaf water potential', 'MPa', DIM_COHORT, AGG_TMEAN,   &
                         GRP_ECOPHYS, FREQ_NONE, FLD_C_DIAG0 + CO_PSI_PREDAWN)
       call add_variable(reg, 'mean_gb_mol_co', 'leaf solve: boundary-layer conductance', 'mol/m2/s', DIM_COHORT, AGG_TMEAN,     &
