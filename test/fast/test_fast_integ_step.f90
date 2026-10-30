@@ -84,7 +84,7 @@ program test_fast_integ_step
       real(wp) :: gpp_noon = 0.0_wp, nee_noon = 0.0_wp, psileaf_noon = 0.0_wp, psileaf_night = 0.0_wp
       real(wp) :: ss_min = 1.0e9_wp, ss_max = -1.0e9_wp, sd_min = 1.0e9_wp, sd_max = -1.0e9_wp
       real(wp) :: th_min = 1.0e9_wp, th_max = -1.0e9_wp, theta_min = 1.0e9_wp
-      real(wp) :: film_peak = 0.0_wp, pond_peak = 0.0_wp, theta_peak = 0.0_wp, ood_peak = 0.0_wp
+      real(wp) :: surf_water_peak = 0.0_wp, pond_peak = 0.0_wp, theta_peak = 0.0_wp, ood_peak = 0.0_wp
       real(wp) :: wood_lag = 0.0_wp, worst_super = -1.0_wp
       real(wp) :: h_first = 0.0_wp, gah_first = 0.0_wp
       logical  :: physical = .true., snow_physical = .true.
@@ -101,7 +101,7 @@ program test_fast_integ_step
    call test_dry_day()
    call test_wet_day()
    call test_shed_water()
-   call test_canopy_films()
+   call test_veg_surface_water()
    call test_sealed_saturated()
    call test_free_drain_saturated()
    call test_aquifer()
@@ -113,7 +113,7 @@ program test_fast_integ_step
    call test_prognostic_wood()
    call test_refilling_wood()
    call test_wood_capacity()
-   call test_film_outside_capacity()
+   call test_surface_water_outside_capacity()
    call test_campbell_seed()
    call test_rk45_drydown()
    call test_rk45_tiny_cohort()
@@ -195,7 +195,7 @@ contains
             d%th_max = max(d%th_max, dy%soil_water%theta(1))
             d%theta_min  = min(d%theta_min, minval(dy%soil_water%theta(1:NSL)))
             d%theta_peak = max(d%theta_peak, maxval(dy%soil_water%theta(1:NSL)))
-            d%film_peak  = max(d%film_peak, dy%leaf_surf_water(1) + dy%wood_surf_water(1))
+            d%surf_water_peak  = max(d%surf_water_peak, dy%leaf_surf_water(1) + dy%wood_surf_water(1))
             d%pond_peak  = max(d%pond_peak, dy%soil_water%w_surface)
             d%ood_peak   = max(d%ood_peak, col%out%report%theta_ood_max)
             d%wood_lag   = max(d%wood_lag, abs(dy%wood_temp(1) - dy%cas%can_temp))
@@ -582,27 +582,27 @@ contains
    ! interception through the films to the canopy air and the ledgers; the films' own laws are
    ! test_canopy_water's and test_plant_energy's.
    !---~---
-   subroutine test_canopy_films()
+   subroutine test_veg_surface_water()
       type(day_t) :: d
       integer(ik) :: is
       character(len=7) :: nm
-      print '(a)', 'test_canopy_films:'
+      print '(a)', 'test_veg_surface_water:'
       col%cfg%canopy_water_on = .true.
       do is = 1_ik, size(SCHEMES, kind=ik)
          call use_scheme(SCHEMES(is))
          nm = scheme_name(SCHEMES(is))
          d = day_t(rain_pulse = 1.5e-4_wp)
          call march_day(d)
-         print '(3a,es10.3,a)', '   ', trim(nm), ' peak film ', d%film_peak, ' kg/m2'
+         print '(3a,es10.3,a)', '   ', trim(nm), ' peak surface water ', d%surf_water_peak, ' kg/m2'
          call check_true(trim(nm)//' films: whole-column water closes', col%out%report%ledgers%whole_water%n_fail == 0_ik, &
                          real(col%out%report%ledgers%whole_water%n_fail, wp))
-         call check_true(trim(nm)//' films: the morning rain was intercepted', d%film_peak > 0.0_wp, d%film_peak)
+         call check_true(trim(nm)//' films: the morning rain was intercepted', d%surf_water_peak > 0.0_wp, d%surf_water_peak)
          call check_true(trim(nm)//' films: whole-column energy closes to round-off',                             &
                          col%out%report%ledgers%whole_energy%worst < 1.0e-3_wp, col%out%report%ledgers%whole_energy%worst)
       end do
       col%cfg%canopy_water_on = .false.
       call use_scheme(INTEG_ESDIRK2)
-   end subroutine test_canopy_films
+   end subroutine test_veg_surface_water
 
    !---~---
    !   A sealed (bedrock) column seeded just below theta_sat under ~29 mm/h of rain, on both
@@ -1044,49 +1044,49 @@ contains
    ! matter and internal water gain per kelvin; each film holds enough heat that counting it would
    ! show.
    !---~---
-   subroutine test_film_outside_capacity()
+   subroutine test_surface_water_outside_capacity()
       real(wp), parameter :: FILL = 0.5_wp   ! the films' share of their capacity
       type(frozen_t)      :: fz
       type(march_state_t) :: ys
-      real(wp) :: leaf_cap_no_film, wood_cap_no_film, leaf_film, wood_film, leaf_own, wood_own
-      print '(a)', 'test_film_outside_capacity:'
+      real(wp) :: leaf_cap_dry, wood_cap_dry, leaf_surf_held, wood_surf_held, leaf_own, wood_own
+      print '(a)', 'test_surface_water_outside_capacity:'
       col%cfg%canopy_water_on = .true.
       call reset_column(col)
       call set_noon_forcing(col)
       call frozen_record(col, fz, ys)
-      leaf_cap_no_film = fz%tissue%leaf_hcap_per_dt(1)
-      wood_cap_no_film = fz%tissue%wood_hcap_per_dt(1)
-      leaf_film = FILL * col%cfg%pft%leaf_surf_water_max(col%static%pft(1)) * col%static%lai(1)
-      wood_film = FILL * col%cfg%pft%wood_surf_water_max(col%static%pft(1)) * col%static%wai(1)
+      leaf_cap_dry = fz%tissue%leaf_hcap_per_dt(1)
+      wood_cap_dry = fz%tissue%wood_hcap_per_dt(1)
+      leaf_surf_held = FILL * col%cfg%pft%leaf_surf_water_max(col%static%pft(1)) * col%static%lai(1)
+      wood_surf_held = FILL * col%cfg%pft%wood_surf_water_max(col%static%pft(1)) * col%static%wai(1)
       call reset_column(col)
-      col%dynamic%leaf_surf_water(1) = leaf_film
-      col%dynamic%wood_surf_water(1) = wood_film
+      col%dynamic%leaf_surf_water(1) = leaf_surf_held
+      col%dynamic%wood_surf_water(1) = wood_surf_held
       call frozen_record(col, fz, ys)
-      call check_true('film: the wet column''s frozen build sees its films', fz%film%f_wet_c(1) > 0.0_wp,          &
-                      fz%film%f_wet_c(1))
-      call check('film: the leaves'' capacity for the step leaves their film out', fz%tissue%leaf_hcap_per_dt(1),    &
-                 leaf_cap_no_film, 1.0e-12_wp * leaf_cap_no_film)
-      call check('film: the wood''s capacity for the step leaves its film out', fz%tissue%wood_hcap_per_dt(1),       &
-                 wood_cap_no_film, 1.0e-12_wp * wood_cap_no_film)
+      call check_true('surface water: the wet column''s frozen build sees its surface water',                   &
+                      fz%veg_surface%f_wet_c(1) > 0.0_wp, fz%veg_surface%f_wet_c(1))
+      call check('surface water: the leaves'' capacity for the step leaves their surface water out',            &
+                 fz%tissue%leaf_hcap_per_dt(1), leaf_cap_dry, 1.0e-12_wp * leaf_cap_dry)
+      call check('surface water: the wood''s capacity for the step leaves its surface water out',               &
+                 fz%tissue%wood_hcap_per_dt(1), wood_cap_dry, 1.0e-12_wp * wood_cap_dry)
       !--- Each is its tissue's own, the dry matter and the internal water, as the column made them.
       leaf_own = heat_per_kelvin(tissue_dry_heat_capacity(col%static%nplant(1), col%static%bleaf(1), tissue_c_leaf),  &
                                  col%dynamic%leaf_water_mass(1) * col%static%nplant(1))
       wood_own = heat_per_kelvin(tissue_dry_heat_capacity(col%static%nplant(1), col%static%bwood(1),                 &
                                                           tissue_c_wood_dry),                                       &
                                  col%dynamic%wood_water_mass(1) * col%static%nplant(1))
-      call check('film: the leaves'' capacity is their dry matter''s and internal water''s',                       &
+      call check('surface water: the leaves'' capacity is their dry matter''s and internal water''s',                       &
                  fz%tissue%leaf_hcap_per_dt(1) * DT_FAST, leaf_own, 1.0e-12_wp * leaf_own)
-      call check('film: the wood''s capacity is its dry matter''s and internal water''s',                          &
+      call check('surface water: the wood''s capacity is its dry matter''s and internal water''s',                          &
                  fz%tissue%wood_hcap_per_dt(1) * DT_FAST, wood_own, 1.0e-12_wp * wood_own)
       !--- Counted, either film would move its capacity far beyond the tolerances above.
-      call check_true('film: the leaf film holds heat a capacity counting it would show',                         &
-                      heat_per_kelvin(0.0_wp, leaf_film) > 1.0e-6_wp * leaf_own,                                    &
-                      heat_per_kelvin(0.0_wp, leaf_film) / leaf_own)
-      call check_true('film: the wood film holds heat a capacity counting it would show',                         &
-                      heat_per_kelvin(0.0_wp, wood_film) > 1.0e-6_wp * wood_own,                                    &
-                      heat_per_kelvin(0.0_wp, wood_film) / wood_own)
+      call check_true('surface water: the leaf''s surface water holds heat a capacity counting it would show',  &
+                      heat_per_kelvin(0.0_wp, leaf_surf_held) > 1.0e-6_wp * leaf_own,                                    &
+                      heat_per_kelvin(0.0_wp, leaf_surf_held) / leaf_own)
+      call check_true('surface water: the wood''s surface water holds heat a capacity counting it would show',  &
+                      heat_per_kelvin(0.0_wp, wood_surf_held) > 1.0e-6_wp * wood_own,                                    &
+                      heat_per_kelvin(0.0_wp, wood_surf_held) / wood_own)
       col%cfg%canopy_water_on = .false.
-   end subroutine test_film_outside_capacity
+   end subroutine test_surface_water_outside_capacity
 
    !---~---
    !   A new cohort's predawn potential is seeded from the top soil layer's, which the leaf's

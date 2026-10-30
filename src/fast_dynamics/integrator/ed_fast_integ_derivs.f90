@@ -87,11 +87,11 @@ contains
    ! also the longwave emission base (docs/science/vegetation_energy_dynamics.md eqs. (1)-(2)); the
    ! twins' tendencies are docs/science/canopy_air_space_biophysics.md eq. (1).
    !---~---
-   pure subroutine surface_derivs(y, cas, tissue, film, ground, t_ground, n, f)
+   pure subroutine surface_derivs(y, cas, tissue, veg_surface, ground, t_ground, n, f)
       type(surface_state_t),        intent(in)  :: y
       type(cas_boundary_t),         intent(in)  :: cas      ! CAS <-> atmosphere boundary (a stage may pass its own conductances)
       type(plant_energy_env_t),     intent(in)  :: tissue   ! per-cohort leaf/wood energy coefficients
-      type(canopy_water_out_t),     intent(in)  :: film     ! interception film
+      type(canopy_water_out_t),     intent(in)  :: veg_surface     ! interception film
       type(surface_env_t),          intent(in)  :: ground   ! what the ground surface reads, the snow pack among it
       real(wp),               intent(in)  :: t_ground   ! [K] soil-top temperature at this evaluation (live, not frozen)
       integer(ik),            intent(in)  :: n
@@ -102,7 +102,7 @@ contains
       type(surface_tend_t),   intent(inout) :: f
 
       real(wp)    :: tcas, qcas, qsat_c, dqdt
-      real(wp)    :: coh_h, coh_qw, coh_transp, coh_rnet, coh_film_evap   ! the canopy's, into the canopy air
+      real(wp)    :: coh_h, coh_qw, coh_transp, coh_rnet, coh_surface_evap   ! the canopy's, into the canopy air
       type(surface_env_t) :: senv      ! the ground surface's surroundings at this evaluation
       real(wp)    :: gah_l, gaw_l, gac_l      ! the conductances this evaluation uses
       type(cas_env_t) :: cas_env
@@ -118,9 +118,9 @@ contains
       !   Every cohort's wood and leaf at this canopy air (docs/science/vegetation_energy_dynamics.md);
       ! with canopy_water_on off, f_wet_c = 0 and the films' pathway vanishes.
       !---~---
-      call canopy_tissue_energy(tissue, film, tcas, qcas, qsat_c, dqdt, cas%rho, n, f%leaf_temp, f%wood_temp,     &
-                                f%transp_c, f%film_evap_leaf, f%film_evap_wood, coh_h, coh_qw, coh_transp,        &
-                                coh_film_evap, coh_rnet)
+      call canopy_tissue_energy(tissue, veg_surface, tcas, qcas, qsat_c, dqdt, cas%rho, n, f%leaf_temp, f%wood_temp,     &
+                                f%transp_c, f%leaf_surface_evap, f%wood_surface_evap, coh_h, coh_qw, coh_transp,        &
+                                coh_surface_evap, coh_rnet)
 
       !---~---
       !   The ground surface at this evaluation's canopy air and soil top, as the tissues' is at
@@ -136,7 +136,7 @@ contains
                                    f%snow_vap_out)
 
       f%src_enth   = coh_h + coh_qw + f%h_ground + f%le_ground
-      f%src_vap    = coh_transp + coh_film_evap + ground%soil_evap + f%snow_vap_out
+      f%src_vap    = coh_transp + coh_surface_evap + ground%soil_evap + f%snow_vap_out
       f%coh_rnet   = coh_rnet
       f%h_canopy   = coh_h
 
@@ -174,16 +174,16 @@ contains
       type(surface_tend_t), intent(inout) :: f
       integer(ik),          intent(in)    :: n
       if (allocated(f%leaf_temp) .and. allocated(f%wood_temp) .and. allocated(f%transp_c) .and.   &
-          allocated(f%film_evap_leaf) .and. allocated(f%film_evap_wood)) then
+          allocated(f%leaf_surface_evap) .and. allocated(f%wood_surface_evap)) then
          if (size(f%leaf_temp) == n .and. size(f%wood_temp) == n .and. size(f%transp_c) == n .and. &
-             size(f%film_evap_leaf) == n .and. size(f%film_evap_wood) == n) return
+             size(f%leaf_surface_evap) == n .and. size(f%wood_surface_evap) == n) return
       end if
       if (allocated(f%leaf_temp))      deallocate(f%leaf_temp)
       if (allocated(f%wood_temp))      deallocate(f%wood_temp)
       if (allocated(f%transp_c))       deallocate(f%transp_c)
-      if (allocated(f%film_evap_leaf)) deallocate(f%film_evap_leaf)
-      if (allocated(f%film_evap_wood)) deallocate(f%film_evap_wood)
-      allocate(f%leaf_temp(n), f%wood_temp(n), f%transp_c(n), f%film_evap_leaf(n), f%film_evap_wood(n))
+      if (allocated(f%leaf_surface_evap)) deallocate(f%leaf_surface_evap)
+      if (allocated(f%wood_surface_evap)) deallocate(f%wood_surface_evap)
+      allocate(f%leaf_temp(n), f%wood_temp(n), f%transp_c(n), f%leaf_surface_evap(n), f%wood_surface_evap(n))
    end subroutine ensure_surface_tend
 
    !---~---
@@ -224,7 +224,7 @@ contains
       y_stage%cas_enthalpy = y%cas_enthalpy
       y_stage%cas_shv = y%cas_shv
       y_stage%cas_co2 = y%cas_co2
-      call surface_derivs(y_stage, frozen%cas, frozen%tissue, frozen%film, frozen%ground,                 &
+      call surface_derivs(y_stage, frozen%cas, frozen%tissue, frozen%veg_surface, frozen%ground,                 &
                           t_ground, n, surf_tend)
       f%d_cas_enthalpy = surf_tend%d_cas_enthalpy
       f%d_cas_shv = surf_tend%d_cas_shv
@@ -267,8 +267,8 @@ contains
       !   5. Canopy film: frozen interception in, per-stage film evaporation out, both per m2 of
       ! ground. Zero with canopy_water_on off.
       !---~---
-      f%d_leaf_surf_water(1:n) = frozen%film%intercept_leaf(1:n) - surf_tend%film_evap_leaf(1:n)
-      f%d_wood_surf_water(1:n) = frozen%film%intercept_wood(1:n) - surf_tend%film_evap_wood(1:n)
+      f%d_leaf_surf_water(1:n) = frozen%veg_surface%intercept_leaf(1:n) - surf_tend%leaf_surface_evap(1:n)
+      f%d_wood_surf_water(1:n) = frozen%veg_surface%intercept_wood(1:n) - surf_tend%wood_surface_evap(1:n)
       if (present(sf_out)) sf_out = surf_tend
    end subroutine march_derivs
 

@@ -230,7 +230,7 @@ module test_slow_update_cohorts
    real(wp)            :: agb_tot, n0, agb0, dbh_avg
    real(wp)            :: wr, wd, leafmass_exp, woodmass_exp, ltemp_exp, wtemp_exp
    real(wp)            :: cl1, cw1, cl2, cw2, clf, cwf, e_leaf0, e_wood0
-   real(wp) :: np1, np2, xdiag(4), film0, e_sum0
+   real(wp) :: np1, np2, xdiag(4), surf_water0, e_sum0
    integer(ik) :: ndiag
    integer(ik)         :: j, pf
 
@@ -409,7 +409,7 @@ contains
       !---~---
       poly%cohort%leaf_surf_water(1) = 0.30_wp
       poly%cohort%wood_surf_water(1) = 0.05_wp
-      film0 = poly%cohort%nplant(1) * 0.35_wp
+      surf_water0 = poly%cohort%nplant(1) * 0.35_wp
       !---~---
       !   The tissues away from their birth temperature, held to their energies, films included:
       ! each daughter keeps its parent's temperatures (the wood carbon it gained or lost held at
@@ -427,7 +427,7 @@ contains
       call check_close(total_agb(poly),    agb0, cfg%demography%conservation_tol, 'split broke AGB conservation')
       call check_close(sum(poly%cohort%nplant(1:poly%cohort%n) * (poly%cohort%leaf_surf_water(1:poly%cohort%n)        &
                                                                 + poly%cohort%wood_surf_water(1:poly%cohort%n))),   &
-                       film0, 1.0e-12_wp, 'split broke canopy film water conservation')
+                       surf_water0, 1.0e-12_wp, 'split broke canopy surface water conservation')
       do j = 1_ik, poly%cohort%n
          call check(abs(poly%cohort%leaf_temp(j) - ltemp_exp) < 1.0e-9_wp .and.                            &
                     abs(poly%cohort%wood_temp(j) - wtemp_exp) < 1.0e-9_wp,                                 &
@@ -560,7 +560,7 @@ contains
          call check(cohort_bad_field(poly%cohort, 1_ik) == 0_ik, 'a fresh cohort is in bounds')
          poly%cohort%leaf_surf_water(1) = -1.0e-30_wp
          call check(trim(cohort_field_name(cohort_bad_field(poly%cohort, 1_ik))) == 'leaf_surf_water',  &
-                    'a negative leaf film is out of bounds, however small')
+                    'negative leaf surface water is out of bounds, however small')
          poly%cohort%nplant(1) = ieee_value(1.0_wp, ieee_quiet_nan)
          call check(trim(cohort_field_name(cohort_bad_field(poly%cohort, 1_ik))) == 'nplant',           &
                     'a NaN density is out of bounds, and checked first')
@@ -633,7 +633,7 @@ module test_slow_update_gaps
    type(polygon_t)  :: poly
    integer(ik)         :: ig, ip, i0, i1, i, n_gap_cohorts, n_slot
    real(wp)            :: disturb_rate(8)
-   real(wp)            :: n_before, h_tall, h_short, film_before, film_after, frac_expect
+   real(wp)            :: n_before, h_tall, h_short, surf_water_before, surf_water_after, frac_expect
    real(wp)            :: le(8), le_site, cull_before, cull_after, w_canopy
 
 contains
@@ -657,7 +657,7 @@ contains
       ! SURVIVOR's film is conserved across the split.
       !---~---
       poly%cohort%leaf_surf_water(poly%cohort%n) = 0.25_wp
-      film_before = poly%patch%area(1) * poly%cohort%nplant(poly%cohort%n) * 0.25_wp
+      surf_water_before = poly%patch%area(1) * poly%cohort%nplant(poly%cohort%n) * 0.25_wp
 
       !---~---
       !   Turn the per-patch diagnostic block ON. It defaults OFF (a run with no diagnostics
@@ -716,16 +716,17 @@ contains
       i1 = i0 + poly%patch%cohort_count(ig) - 1_ik
       n_gap_cohorts = poly%patch%cohort_count(ig)
       call check(n_gap_cohorts == 1_ik, 'gap should contain exactly the one survivor cohort')
-      film_after = 0.0_wp
+      surf_water_after = 0.0_wp
       do ip = 1_ik, poly%patch%n
          i0 = poly%patch%cohort_offset(ip)
          i1 = i0 + poly%patch%cohort_count(ip) - 1_ik
          do i = i0, i1
             if (poly%cohort%height(i) < cfg%demography%disturbance_survive_height)                                &
-               film_after = film_after + poly%patch%area(ip) * poly%cohort%nplant(i) * poly%cohort%leaf_surf_water(i)
+               surf_water_after = surf_water_after + poly%patch%area(ip) * poly%cohort%nplant(i) * poly%cohort%leaf_surf_water(i)
          end do
       end do
-      call check_close(film_after, film_before, 1.0e-12_wp, 'disturbance broke the survivor film-water conservation')
+      call check_close(surf_water_after, surf_water_before, 1.0e-12_wp,                                         &
+                       'disturbance broke the survivor surface-water conservation')
       i0 = poly%patch%cohort_offset(ig)
       i1 = i0 + poly%patch%cohort_count(ig) - 1_ik
       do i = i0, i1
@@ -749,14 +750,14 @@ contains
       call add_cohort(poly, cfg, 2_ik, 2_ik, 0.20_wp, 40.0_wp)   ! tall, dies
       call add_cohort(poly, cfg, 2_ik, 2_ik, 0.50_wp,  3.0_wp)   ! short survivor, dry
       call finalize_init(poly)
-      film_before = 0.0_wp
+      surf_water_before = 0.0_wp
       do ip = 1_ik, poly%patch%n
          i0 = poly%patch%cohort_offset(ip)
          i1 = i0 + poly%patch%cohort_count(ip) - 1_ik
          do i = i0, i1
             if (poly%cohort%height(i) < cfg%demography%disturbance_survive_height .and. ip == 1_ik) then
                poly%cohort%leaf_surf_water(i) = 0.25_wp
-               film_before = film_before + poly%patch%area(ip) * poly%cohort%nplant(i) * 0.25_wp
+               surf_water_before = surf_water_before + poly%patch%area(ip) * poly%cohort%nplant(i) * 0.25_wp
             end if
          end do
       end do
@@ -784,16 +785,16 @@ contains
          if (poly%patch%dist_type(ip) == DIST_TREEFALL) ig = ip
       end do
       call check_close(le(ig), 180.0_wp, 1.0e-9_wp, 'the gap inherits the donors'' area-weighted diagnostics')
-      film_after = 0.0_wp
+      surf_water_after = 0.0_wp
       do ip = 1_ik, poly%patch%n
          i0 = poly%patch%cohort_offset(ip)
          i1 = i0 + poly%patch%cohort_count(ip) - 1_ik
          do i = i0, i1
-            film_after = film_after + poly%patch%area(ip) * poly%cohort%nplant(i) * poly%cohort%leaf_surf_water(i)
+            surf_water_after = surf_water_after + poly%patch%area(ip) * poly%cohort%nplant(i) * poly%cohort%leaf_surf_water(i)
          end do
       end do
       call check_close(total_area(poly), 1.0_wp, 1.0e-9_wp, 'two-donor disturbance broke area conservation')
-      call check_close(film_after, film_before, 1.0e-12_wp,                                            &
+      call check_close(surf_water_after, surf_water_before, 1.0e-12_wp,                                            &
                        'two-donor disturbance: survivor films go into the gap with their plants')
 
       !---~---
@@ -829,7 +830,7 @@ module test_slow_update_patches
    use ed_init_bare_ground, only : init_bare_ground, add_cohort, finalize_init
    use ed_slow_update, only : fuse_patches, terminate_patches, sort_patches, patch_light_profile
    use ed_output_reduce, only : total_nplant, total_area
-   use ed_cohort_state_vars, only : cohort_film_water
+   use ed_cohort_state_vars, only : cohort_surface_water
    use ed_test_support, only : banner, build_test_config, check, check_close
    implicit none
    private
@@ -838,7 +839,7 @@ module test_slow_update_patches
 
    type(ed_config_t) :: cfg
    type(polygon_t)  :: poly
-   real(wp)            :: n0, w_before, w_after, cas_before, cas_after, davg, film0
+   real(wp)            :: n0, w_before, w_after, cas_before, cas_after, davg, surf_water0
    real(wp), allocatable :: light1(:), light2(:)
    integer(ik)         :: ip
 
@@ -863,14 +864,14 @@ contains
       poly%cohort%leaf_surf_water(1) = 0.20_wp
       poly%cohort%wood_surf_water(2) = 0.10_wp                                              ! patch 1
       poly%cohort%leaf_surf_water(3) = 0.40_wp                                               ! patch 2
-      film0 = site_film(poly)
+      surf_water0 = site_surf_water(poly)
       call fuse_patches(poly, cfg)
       call check(poly%patch%n == 1_ik, 'identical patches should fuse to one')
       call check_close(total_area(poly),   1.0_wp, 1.0e-9_wp, 'total area not conserved by fusion')
       call check_close(total_nplant(poly), n0,     1.0e-9_wp, 'the polygon''s plant number not conserved by fusion')
       call check(poly%site%patch_offset(1) == 1_ik .and. poly%site%patch_count(1) == poly%patch%n,            &
                  'the site map covers the fused patch block')
-      call check_close(site_film(poly), film0, 1.0e-12_wp, 'patch fusion broke canopy film water conservation')
+      call check_close(site_surf_water(poly), surf_water0, 1.0e-12_wp, 'patch fusion broke canopy surface water conservation')
 
       !--- A negligible-area patch is removed and the remaining areas renormalize to 1.
       !---~---
@@ -1007,14 +1008,14 @@ contains
       call finalize_init(poly)
    end subroutine two_unlike_patches
    !--- The site's canopy film water [kg/m2 of site]: each cohort's, area-weighted by its patch.
-   real(wp) function site_film(p) result(w)
+   real(wp) function site_surf_water(p) result(w)
       type(polygon_t), intent(in) :: p
       integer(ik) :: i
       w = 0.0_wp
       do i = 1_ik, p%cohort%n
-         w = w + p%patch%area(p%cohort%owner_patch(i)) * cohort_film_water(p%cohort, i)
+         w = w + p%patch%area(p%cohort%owner_patch(i)) * cohort_surface_water(p%cohort, i)
       end do
-   end function site_film
+   end function site_surf_water
 
 end module test_slow_update_patches
 

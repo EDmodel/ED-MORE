@@ -37,7 +37,7 @@ module ed_cohort_state_vars
    public :: compact_cohort_block, copy_cohort, set_cohort_size, set_cohort_size_from_carbon, init_cohort
    public :: fuse_cohort_fast_state
    public :: cohort_deriv_block, cohort_deriv_alloc
-   public :: cohort_tissue_heat_capacity, cohort_tissue_water, cohort_film_water, cohort_water_enthalpy
+   public :: cohort_tissue_heat_capacity, cohort_tissue_water, cohort_surface_water, cohort_water_enthalpy
    public :: cohort_wood_store_carbon, cohort_carbon_supply
    public :: set_cohort_tissue_water, cohort_tissue_temps, set_cohort_tissue_temps, hold_cohort_tissue_temps
    public :: cohort_bad_field, cohort_field_finite, cohort_field_name
@@ -672,12 +672,12 @@ contains
    end function cohort_tissue_water
 
    !--- One cohort's canopy films [kg/m2 ground]: the water intercepted on its leaves and wood.
-   pure function cohort_film_water(cohort, i) result(w)
+   pure function cohort_surface_water(cohort, i) result(w)
       type(cohort_block), intent(in) :: cohort
       integer(ik),        intent(in) :: i
       real(wp)                       :: w
       w = cohort%nplant(i) * (cohort%leaf_surf_water(i) + cohort%wood_surf_water(i))
-   end function cohort_film_water
+   end function cohort_surface_water
 
    !---~---
    !   The enthalpy of the water a cohort holds [J/plant]: its tissue water and its canopy films,

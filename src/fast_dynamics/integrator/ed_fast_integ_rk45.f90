@@ -95,7 +95,7 @@ contains
       bf%whole_cond_enth = surf_tend%cond_enth   ! exactly what surface_derivs debited from the CAS
       bf%snow_enth_in  = surf_tend%snow_enth_in
       bf%snow_vap_out  = surf_tend%snow_vap_out
-      bf%veg_surface_evap     = sum(surf_tend%film_evap_leaf) + sum(surf_tend%film_evap_wood)
+      bf%veg_surface_evap     = sum(surf_tend%leaf_surface_evap) + sum(surf_tend%wood_surface_evap)
       bf%h_canopy      = surf_tend%h_canopy
       bf%h_ground      = surf_tend%h_ground
       bf%atm_heat_out  = gah*cp_air*(cas_enthalpy_to_temp(y_stage%cas_enthalpy, y_stage%cas_shv)          &

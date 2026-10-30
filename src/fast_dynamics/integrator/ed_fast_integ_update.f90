@@ -16,7 +16,7 @@ module ed_fast_integ_update
                                      step_report_t, march_state_t, frozen_t, boundary_flux_t,              &
                                      diagnose_soil_temps
    use ed_plant_energy,       only : commit_tissue_energy
-   use ed_canopy_water,       only : clamp_canopy_film
+   use ed_canopy_water,       only : clamp_surface_water
    use ed_patch_state_vars,   only : soil_water_store, soil_energy_store
    use ed_diag_vars,          only : CO_TRANSP
    use ed_surface, only : snow_take_exchange
@@ -72,18 +72,18 @@ contains
       type(fast_dynamic_state_t), intent(inout) :: dynamic
       type(fast_output_t),        intent(inout) :: out
       type(commit_amounts_t),     intent(out)   :: moved
-      real(wp)    :: t_leaf_avg(static%n), t_wood_avg(static%n), leaf_film0(static%n), wood_film0(static%n)
+      real(wp)    :: t_leaf_avg(static%n), t_wood_avg(static%n), leaf_surf_water0(static%n), wood_surf_water0(static%n)
       integer(ik) :: n, nsl
 
       n   = static%n
-      leaf_film0(1:n) = dynamic%leaf_surf_water(1:n)              ! the films at the step's start
-      wood_film0(1:n) = dynamic%wood_surf_water(1:n)
+      leaf_surf_water0(1:n) = dynamic%leaf_surf_water(1:n)              ! the films at the step's start
+      wood_surf_water0(1:n) = dynamic%wood_surf_water(1:n)
       nsl = site%soil_profile%n_active
       y_out%theta(1:nsl)     = frozen%hydrology%theta1(1:nsl)
       y_out%w_surface        = frozen%hydrology%w_surface1
       y_out%w_surface_energy = frozen%hydrology%w_surface_energy1
       if (cfg%canopy_water_on) then
-         call clamp_canopy_film(y_out%leaf_surf_water, y_out%wood_surf_water, static%lai, static%wai,             &
+         call clamp_surface_water(y_out%leaf_surf_water, y_out%wood_surf_water, static%lai, static%wai,             &
                                 cfg%pft%leaf_surf_water_max(static%pft(1:n)),                                  &
                                 cfg%pft%wood_surf_water_max(static%pft(1:n)), frozen%tissue%t_leaf0,           &
                                 frozen%tissue%t_wood0, n, moved%surf_overflow, moved%surf_deficit,             &
@@ -107,7 +107,7 @@ contains
       t_leaf_avg(1:n) = acc%tissue_leaf_int(1:n) / dt_fast
       t_wood_avg(1:n) = acc%tissue_wood_int(1:n) / dt_fast
       call commit_tissue_energy(frozen%tissue, static%nplant, dt_fast, t_leaf_avg, t_wood_avg, n,                 &
-                                dynamic%leaf_water_mass, dynamic%wood_water_mass, leaf_film0, wood_film0,         &
+                                dynamic%leaf_water_mass, dynamic%wood_water_mass, leaf_surf_water0, wood_surf_water0,         &
                                 dynamic%leaf_surf_water, dynamic%wood_surf_water, dynamic%leaf_energy,            &
                                 dynamic%wood_energy, dynamic%leaf_temp, dynamic%wood_temp, moved%tissue_store0,   &
                                 moved%tissue_store1)
@@ -179,9 +179,9 @@ contains
       !   The films, per m2 of ground (0 with canopy_water_on off). Their energy is their
       ! tissues', in the tissue store.
       !---~---
-      surf_water0 = canopy_film_store(y%leaf_surf_water,     y%wood_surf_water,     n)
-      surf_water1 = canopy_film_store(y_out%leaf_surf_water, y_out%wood_surf_water, n)
-      intercept_total = sum(frozen%film%intercept_leaf(1:n) + frozen%film%intercept_wood(1:n))
+      surf_water0 = surface_water_store(y%leaf_surf_water,     y%wood_surf_water,     n)
+      surf_water1 = surface_water_store(y_out%leaf_surf_water, y_out%wood_surf_water, n)
+      intercept_total = sum(frozen%veg_surface%intercept_leaf(1:n) + frozen%veg_surface%intercept_wood(1:n))
 
       report%exports%atm_heat_export = acc%atm_heat_out
       report%exports%atm_vap_export  = acc%atm_vap_out
@@ -216,7 +216,7 @@ contains
       report%exports%soil_water_store    = w_soil1
       report%exports%plant_water_store   = w_plant1
       report%exports%heat_bottom_export  = acc%whole_enth_in - acc%rad_net
-      report%exports%precip_enth_export  = intercept_total*dt_fast*frozen%film%rain_liquid_enthalpy                  &
+      report%exports%precip_enth_export  = intercept_total*dt_fast*frozen%veg_surface%rain_liquid_enthalpy                  &
                                            + frozen%snow%acc_enth + frozen%hydrology%ground_inflow_enth*dt_fast
       report%exports%outflow_enth_export = acc%whole_enth_out - acc%atm_heat_out - latent_heat_vap*acc%atm_vap_out  &
                                            + frozen%hydrology%runoff_enth*dt_fast + moved%surf_net_enth
@@ -270,7 +270,7 @@ contains
       call budget_check(report%ledgers%whole_energy,                                                               &
                         e_soil0 + cas_mass_capacity*enth0 + frozen%snow%enth0 + e_pond0 + moved%tissue_store0,      &
                         e_soil1 + cas_mass_capacity*enth1 + moved%snow_enth1 + e_pond1 + moved%tissue_store1,       &
-                        acc%whole_enth_in + intercept_total*dt_fast*frozen%film%rain_liquid_enthalpy               &
+                        acc%whole_enth_in + intercept_total*dt_fast*frozen%veg_surface%rain_liquid_enthalpy               &
                                           + frozen%snow%acc_enth + frozen%hydrology%ground_inflow_enth*dt_fast, &
                         acc%whole_enth_out + moved%surf_net_enth + frozen%hydrology%runoff_enth*dt_fast,         &
                         dt_fast, BUDGET_ENERGY_RATE_FLOOR, 'whole_energy', halt)
@@ -305,12 +305,12 @@ contains
       w = sum(nplant(1:n) * (leaf_mass(1:n) + wood_mass(1:n)))
    end function plant_water_store
 
-   pure function canopy_film_store(leaf_surf, wood_surf, n) result(w)   ! [kg/m2 ground], already ground-referenced
+   pure function surface_water_store(leaf_surf, wood_surf, n) result(w)   ! [kg/m2 ground], already ground-referenced
       real(wp),    intent(in) :: leaf_surf(:), wood_surf(:)
       integer(ik), intent(in) :: n
       real(wp) :: w
       w = sum(leaf_surf(1:n) + wood_surf(1:n))
-   end function canopy_film_store
+   end function surface_water_store
 
    !---~---
    !   Deposit condensed canopy-air vapour into soil layer 1 as paired mass [kg/m2] + liquid

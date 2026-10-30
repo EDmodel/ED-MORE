@@ -13,7 +13,7 @@
 module ed_slow_ledger
    use ed_kinds,                only : wp, ik
    use ed_config,               only : ed_config_t
-   use ed_cohort_state_vars,    only : cohort_film_water, cohort_carbon_supply
+   use ed_cohort_state_vars,    only : cohort_surface_water, cohort_carbon_supply
    use ed_polygon_state_vars,   only : polygon_t, patch_polygon_area
    use ed_patch_state_vars,     only : cas_capacities, soil_water_store, soil_energy_store, litter_input_t
    use ed_budget_check,         only : BUDGET_RTOL_FLUX
@@ -346,7 +346,7 @@ contains
                store%carbon = store%carbon + a * c%nplant(i) * (c%leaf_carbon(i)                   &
                             + c%fineroot_carbon(i) + c%wood_carbon(i) + c%nonstructural_carbon(i))
                store%water  = store%water  + a * c%nplant(i) * (c%leaf_water_mass(i) + c%wood_water_mass(i))
-               store%water  = store%water  + a * cohort_film_water(c, i)
+               store%water  = store%water  + a * cohort_surface_water(c, i)
                !--- Tissue energy [J/plant], the cohort's state.
                store%energy = store%energy + a * c%nplant(i) * (c%leaf_energy(i) + c%wood_energy(i))
             end do

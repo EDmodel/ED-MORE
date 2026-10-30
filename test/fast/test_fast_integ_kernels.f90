@@ -66,7 +66,7 @@ program test_fast_integ_kernels
 
    call test_leaf_closure()
    call test_leaf_analytic()
-   call test_falling_leaf_film()
+   call test_falling_leaf_surface_water()
    call test_assembler()
    call test_domain_safety()
    call test_be_stable_and_accurate()
@@ -107,7 +107,7 @@ contains
       ys%cas_enthalpy = cas_temp_to_enthalpy(298.0_wp, 0.012_wp)
       ys%cas_shv      = 0.012_wp
       ys%cas_co2      = 410.0_wp
-      call surface_derivs(ys, frozen%cas, frozen%tissue, frozen%film, frozen%ground, 297.0_wp, N, f)
+      call surface_derivs(ys, frozen%cas, frozen%tissue, frozen%veg_surface, frozen%ground, 297.0_wp, N, f)
       tcas   = cas_enthalpy_to_temp(ys%cas_enthalpy, ys%cas_shv)
       qcas   = ys%cas_shv
       qsat_c = sat_specific_humidity(tcas, frozen%cas%press)
@@ -152,7 +152,7 @@ contains
       frozen%tissue%h_coeff_leaf(1) = 2.0_wp * frozen%tissue%lai(1) * 0.03_wp * 1.2_wp * cp_air
       ys%cas_enthalpy = cas_temp_to_enthalpy(299.0_wp, 0.010_wp)
       ys%cas_shv      = 0.010_wp
-      call surface_derivs(ys, frozen%cas, frozen%tissue, frozen%film, frozen%ground, 297.0_wp, 1_ik, f)
+      call surface_derivs(ys, frozen%cas, frozen%tissue, frozen%veg_surface, frozen%ground, 297.0_wp, 1_ik, f)
       tcas     = cas_enthalpy_to_temp(ys%cas_enthalpy, ys%cas_shv)
       t_leaf0  = frozen%tissue%t_leaf0(1)
       lw_slope = 4.0_wp * frozen%tissue%leaf_emiss(1) * stefan_boltzmann * t_leaf0 ** 3 * frozen%tissue%lai(1)
@@ -168,13 +168,13 @@ contains
    ! is charged nothing for the water it passes, so the leaf balances its sensible heat
    ! against its emission about t_leaf0 alone; charged the rain's valuation, it sat 4e10 K off.
    !---~---
-   subroutine test_falling_leaf_film()
+   subroutine test_falling_leaf_surface_water()
       type(march_state_t)   :: y
       type(frozen_t)        :: frozen
       type(surface_state_t) :: ys
       type(surface_tend_t)  :: f
       real(wp) :: tcas, t_leaf0, lw_slope, expect
-      print '(a)', 'test_falling_leaf_film:'
+      print '(a)', 'test_falling_leaf_surface_water:'
       call kernel_record(col%site, col%cfg%pft%hydraulics, 1_ik, y, frozen)
       frozen%tissue%transp_held = .false.
       frozen%tissue%lai(1) = 1.0e-20_wp
@@ -187,21 +187,21 @@ contains
       frozen%tissue%wood_hcap_per_dt(1) = 1.0e4_wp / 900.0_wp
       frozen%tissue%t_leaf0(1) = 303.9_wp
       frozen%tissue%t_wood0(1) = 304.5_wp
-      frozen%film%f_wet_c(1) = 1.0_wp
-      frozen%film%intercept_leaf(1) = -1.07e-12_wp            ! the leaf's whole film, passed on
-      frozen%film%transfer_lw(1)    =  1.07e-12_wp
-      frozen%film%intercept_wood(1) =  1.07e-12_wp
-      frozen%film%rain_liquid_enthalpy = internal_energy_liquid(297.0_wp)
+      frozen%veg_surface%f_wet_c(1) = 1.0_wp
+      frozen%veg_surface%intercept_leaf(1) = -1.07e-12_wp            ! the leaf's whole film, passed on
+      frozen%veg_surface%transfer_lw(1)    =  1.07e-12_wp
+      frozen%veg_surface%intercept_wood(1) =  1.07e-12_wp
+      frozen%veg_surface%rain_liquid_enthalpy = internal_energy_liquid(297.0_wp)
       ys%cas_enthalpy = cas_temp_to_enthalpy(299.0_wp, 0.010_wp)
       ys%cas_shv      = 0.010_wp
-      call surface_derivs(ys, frozen%cas, frozen%tissue, frozen%film, frozen%ground, 297.0_wp, 1_ik, f)
+      call surface_derivs(ys, frozen%cas, frozen%tissue, frozen%veg_surface, frozen%ground, 297.0_wp, 1_ik, f)
       tcas     = cas_enthalpy_to_temp(ys%cas_enthalpy, ys%cas_shv)
       t_leaf0  = frozen%tissue%t_leaf0(1)
       lw_slope = 4.0_wp * frozen%tissue%leaf_emiss(1) * stefan_boltzmann * t_leaf0 ** 3 * frozen%tissue%lai(1)
       expect   = tcas + lw_slope * (t_leaf0 - tcas) / (frozen%tissue%h_coeff_leaf(1) + lw_slope)
-      call check_true('surface_derivs: a falling leaf passing its film to its wood is charged nothing for it',      &
+      call check_true('surface_derivs: a falling leaf passing its surface water to its wood is charged nothing for it',      &
                       abs(f%leaf_temp(1) - expect) < 1.0e-8_wp, f%leaf_temp(1) - expect)
-   end subroutine test_falling_leaf_film
+   end subroutine test_falling_leaf_surface_water
 
    !---~---
    !   2. THE ASSEMBLER (march_derivs): two cohorts on the kernel record, the water network's
@@ -248,7 +248,7 @@ contains
       y_stage%cas_enthalpy = y%cas_enthalpy
       y_stage%cas_shv      = y%cas_shv
       y_stage%cas_co2      = y%cas_co2
-      call surface_derivs(y_stage, frozen%cas, frozen%tissue, frozen%film, frozen%ground, t_ground, N, surf_tend)
+      call surface_derivs(y_stage, frozen%cas, frozen%tissue, frozen%veg_surface, frozen%ground, t_ground, N, surf_tend)
       call check('march_derivs: its canopy-air enthalpy tendency is surface_derivs''', f%d_cas_enthalpy,          &
                  surf_tend%d_cas_enthalpy, 1.0e-12_wp)
 
@@ -566,7 +566,7 @@ contains
       ! cannot read, so the allocation is asserted, not just the values.
       !---~---
       out = zero_like(a, N, NL)
-      call check_true('zero_like: the tissue-water and film fields allocated',                                    &
+      call check_true('zero_like: the tissue-water and surface-water fields allocated',                                    &
                       allocated(out%leaf_water_mass) .and. allocated(out%wood_water_mass)                          &
                       .and. allocated(out%leaf_surf_water) .and. allocated(out%wood_surf_water))
       call fill_state(expect, 0.0_wp)

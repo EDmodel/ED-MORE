@@ -481,7 +481,7 @@ module ed_fast_integ_types
       !   Per-cohort film evaporation (dew if negative), the films' analogue of transp_c. Zero
       ! when canopy_water_on is off.
       !---~---
-      real(wp), allocatable :: film_evap_leaf(:), film_evap_wood(:)   ! [kg/m2 ground/s]
+      real(wp), allocatable :: leaf_surface_evap(:), wood_surface_evap(:)   ! [kg/m2 ground/s]
    end type surface_tend_t
 
    !---~---
@@ -648,7 +648,7 @@ module ed_fast_integ_types
    type :: frozen_t
       type(cas_boundary_t)         :: cas          ! CAS <-> atmosphere boundary
       type(plant_energy_env_t)     :: tissue       ! per-cohort leaf/wood energy coefficients + heat store
-      type(canopy_water_out_t)     :: film         ! canopy interception film
+      type(canopy_water_out_t)     :: veg_surface         ! canopy interception film
       type(surface_env_t)          :: ground       ! what the ground surface reads, the snow pack among it
       type(snow_out_t)             :: snow         ! the snow stage's hand-off (all zero without a pack)
       type(soil_hydrology_t)       :: hydrology    ! the water network's soil flows over the step

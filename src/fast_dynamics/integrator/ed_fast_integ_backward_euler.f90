@@ -221,7 +221,7 @@ contains
             bf%whole_cond_enth = surf_tend%cond_enth   ! exactly what surface_derivs debited from the CAS
             bf%snow_enth_in = surf_tend%snow_enth_in
             bf%snow_vap_out = surf_tend%snow_vap_out
-            bf%veg_surface_evap    = sum(surf_tend%film_evap_leaf(1:n)) + sum(surf_tend%film_evap_wood(1:n))
+            bf%veg_surface_evap    = sum(surf_tend%leaf_surface_evap(1:n)) + sum(surf_tend%wood_surface_evap(1:n))
             bf%h_canopy     = surf_tend%h_canopy
             bf%h_ground     = surf_tend%h_ground
             !--- The reported H, against theta_atm (T at zref), the ledger's basis.
@@ -268,7 +268,7 @@ contains
       y_stage%cas_co2 = y%cas_co2
       y_stage%cas_enthalpy = Hk
       y_stage%cas_shv = qk
-      call surface_derivs(y_stage, cas, frozen%tissue, frozen%film, frozen%ground,                            &
+      call surface_derivs(y_stage, cas, frozen%tissue, frozen%veg_surface, frozen%ground,                            &
          t_ground, n, surf_tend)
       nfeval = nfeval + 1_ik
       R_H = cas_mass_capacity*(Hk - H0)/dt - surf_tend%src_enth - g_atm_heat*(cas%box%atm_enthalpy - Hk)
@@ -305,7 +305,7 @@ contains
             !---~---
             y_stage%cas_enthalpy = Ht
             y_stage%cas_shv = qt
-            call surface_derivs(y_stage, cas, frozen%tissue, frozen%film, frozen%ground,                      &
+            call surface_derivs(y_stage, cas, frozen%tissue, frozen%veg_surface, frozen%ground,                      &
                t_ground, n, surf_tend)
             nfeval = nfeval + 1_ik
             RHt = cas_mass_capacity*(Ht - H0)/dt - surf_tend%src_enth - g_atm_heat*(cas%box%atm_enthalpy - Ht)
@@ -364,14 +364,14 @@ contains
       y_stage%cas_co2 = co2
       y_stage%cas_enthalpy = Hk + dH
       y_stage%cas_shv = qk
-      call surface_derivs(y_stage, cas, frozen%tissue, frozen%film, frozen%ground,                            &
+      call surface_derivs(y_stage, cas, frozen%tissue, frozen%veg_surface, frozen%ground,                            &
          t_ground, n, sfp)
       nfeval = nfeval + 1_ik
       dse_dH = (sfp%src_enth - surf_tend%src_enth)/dH
       dsv_dH = (sfp%src_vap - surf_tend%src_vap)/dH
       y_stage%cas_enthalpy = Hk
       y_stage%cas_shv = qk + dq
-      call surface_derivs(y_stage, cas, frozen%tissue, frozen%film, frozen%ground,                            &
+      call surface_derivs(y_stage, cas, frozen%tissue, frozen%veg_surface, frozen%ground,                            &
          t_ground, n, sfp)
       nfeval = nfeval + 1_ik
       dse_dq = (sfp%src_enth - surf_tend%src_enth)/dq
@@ -409,12 +409,12 @@ contains
    ! advance_plant_water: frozen interception in, b-weighted film evaporation out (the number the CAS
    ! was credited). Unclamped: update_dynamic_state clamps it and books the overflow and deficit.
    !---~---
-   pure subroutine advance_surf_water_full(y, frozen, n, dt, film_evap_leaf_bw, film_evap_wood_bw, y_out)
+   pure subroutine advance_surf_water_full(y, frozen, n, dt, leaf_surface_evap_bw, wood_surface_evap_bw, y_out)
       type(march_state_t),  intent(in)    :: y
       type(frozen_t), intent(in)    :: frozen
       integer(ik),            intent(in)    :: n
       real(wp),               intent(in)    :: dt
-      real(wp),               intent(in)    :: film_evap_leaf_bw(n), film_evap_wood_bw(n)
+      real(wp),               intent(in)    :: leaf_surface_evap_bw(n), wood_surface_evap_bw(n)
       type(march_state_t),  intent(inout) :: y_out
       integer(ik) :: i
       !---~---
@@ -422,8 +422,8 @@ contains
       ! shortfall to the whole-column outflow; a floor here would create that water.
       !---~---
       do i = 1_ik, n
-         y_out%leaf_surf_water(i) = y%leaf_surf_water(i) + dt*(frozen%film%intercept_leaf(i) - film_evap_leaf_bw(i))
-         y_out%wood_surf_water(i) = y%wood_surf_water(i) + dt*(frozen%film%intercept_wood(i) - film_evap_wood_bw(i))
+         y_out%leaf_surf_water(i) = y%leaf_surf_water(i) + dt*(frozen%veg_surface%intercept_leaf(i) - leaf_surface_evap_bw(i))
+         y_out%wood_surf_water(i) = y%wood_surf_water(i) + dt*(frozen%veg_surface%intercept_wood(i) - wood_surface_evap_bw(i))
       end do
    end subroutine advance_surf_water_full
 

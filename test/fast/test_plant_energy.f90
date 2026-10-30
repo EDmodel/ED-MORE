@@ -51,12 +51,12 @@ program test_plant_energy
    call test_veg_energy_diagnostic_wetted()
    call test_veg_energy_thin_tissue()
    call test_canopy_energy_closes()
-   call test_film_capture()
-   call test_film_transfer()
-   call test_film_evaporation()
+   call test_surface_water_capture()
+   call test_surface_water_transfer()
+   call test_surface_water_evaporation()
    call test_tissue_longwave()
    call test_commit()
-   call test_commit_heavy_film()
+   call test_commit_heavy_surface_water()
 
    call test_report('test_plant_energy')
 
@@ -167,8 +167,8 @@ contains
       ! DIFFERENT conductances, so the three properties below are non-trivial (a bug that swapped
       ! or mixed them would still "look" plausible).
       !---~---
-      real(wp) :: dt_temp, t_store, transp, dh, drnet, film_evap
-      real(wp) :: dt_temp2, t_store2, transp2, dh2, drnet2, film_evap2
+      real(wp) :: dt_temp, t_store, transp, dh, drnet, surface_evap
+      real(wp) :: dt_temp2, t_store2, transp2, dh2, drnet2, surface_evap2
       real(wp), parameter :: ABS_SW = 400.0_wp, ABS_LW = -50.0_wp, H_COEFF = 12.0_wp
       real(wp), parameter :: LW_SLOPE = 6.0_wp, T_CAS = 298.0_wp, T_PARENT = 298.0_wp
       type(latent_pathway_t), parameter :: DRY = latent_pathway_t(slope=8.0_wp,  ref=15.0_wp)   ! stomatal
@@ -181,13 +181,13 @@ contains
       ! film pathway at all.
       !---~---
       call tissue_energy_balance(ABS_SW, ABS_LW, 0.0_wp, H_COEFF, LW_SLOPE, DRY, none, 0.0_wp,           &
-                                 T_CAS, T_PARENT, 0.0_wp, T_CAS, dt_temp, t_store, transp, film_evap, dh, drnet)
+                                 T_CAS, T_PARENT, 0.0_wp, T_CAS, dt_temp, t_store, transp, surface_evap, dh, drnet)
       call tissue_energy_balance(ABS_SW, ABS_LW, 0.0_wp, H_COEFF, LW_SLOPE, DRY, WET, 0.0_wp,            &
-                                 T_CAS, T_PARENT, 0.0_wp, T_CAS, dt_temp2, t_store2, transp2, film_evap2, dh2, &
+                                 T_CAS, T_PARENT, 0.0_wp, T_CAS, dt_temp2, t_store2, transp2, surface_evap2, dh2, &
                                  drnet2)
-      call check('f_wet=0 == no film pathway (dt_temp)', dt_temp2, dt_temp, 1.0e-14_wp)
-      call check('f_wet=0 == no film pathway (transp)',  transp2,  transp,  1.0e-14_wp)
-      call check_true('f_wet=0 -> film_evap = 0 exactly', film_evap2 == 0.0_wp, film_evap2)
+      call check('f_wet=0 == no surface-water pathway (dt_temp)', dt_temp2, dt_temp, 1.0e-14_wp)
+      call check('f_wet=0 == no surface-water pathway (transp)',  transp2,  transp,  1.0e-14_wp)
+      call check_true('f_wet=0 -> surface_evap = 0 exactly', surface_evap2 == 0.0_wp, surface_evap2)
 
       !---~---
       !   2. FULLY WET (f_wet=1): the dry (stomatal) pathway must vanish -- a saturated film
@@ -197,12 +197,12 @@ contains
       ! 2-unknown linear solve).
       !---~---
       call tissue_energy_balance(ABS_SW, ABS_LW, 0.0_wp, H_COEFF, LW_SLOPE, DRY, WET, 1.0_wp,            &
-                                 T_CAS, T_PARENT, 0.0_wp, T_CAS, dt_temp, t_store, transp, film_evap, dh, drnet)
+                                 T_CAS, T_PARENT, 0.0_wp, T_CAS, dt_temp, t_store, transp, surface_evap, dh, drnet)
       call tissue_energy_balance(ABS_SW, ABS_LW, 0.0_wp, H_COEFF, LW_SLOPE, WET, none, 0.0_wp,           &
-                                 T_CAS, T_PARENT, 0.0_wp, T_CAS, dt_temp2, t_store2, transp2, film_evap2, dh2, &
+                                 T_CAS, T_PARENT, 0.0_wp, T_CAS, dt_temp2, t_store2, transp2, surface_evap2, dh2, &
                                  drnet2)
       call check_true('f_wet=1: dry pathway (transp) vanishes', abs(transp) < 1.0e-14_wp, transp)
-      call check('f_wet=1: film_evap == swap-equivalent transp', film_evap, transp2, 1.0e-12_wp)
+      call check('f_wet=1: surface_evap == swap-equivalent transp', surface_evap, transp2, 1.0e-12_wp)
       call check('f_wet=1: dt_temp == swap-equivalent dt_temp',  dt_temp,   dt_temp2, 1.0e-12_wp)
 
       !---~---
@@ -214,10 +214,10 @@ contains
       ! surface-water accounting does the same for film_evap).
       !---~---
       call tissue_energy_balance(ABS_SW, ABS_LW, 0.0_wp, H_COEFF, LW_SLOPE, DRY, WET, 0.4_wp,            &
-                                 T_CAS, T_PARENT, 0.0_wp, T_CAS, dt_temp, t_store, transp, film_evap, dh, drnet)
+                                 T_CAS, T_PARENT, 0.0_wp, T_CAS, dt_temp, t_store, transp, surface_evap, dh, drnet)
       call check('partial f_wet: energy balance closes (drnet = dh + latent)', drnet,                  &
-                 dh + (transp + film_evap) * latent_heat_vap, 1.0e-9_wp)
-      call check_true('partial f_wet: film_evap > 0 (wet pathway active)', film_evap > 0.0_wp, film_evap)
+                 dh + (transp + surface_evap) * latent_heat_vap, 1.0e-9_wp)
+      call check_true('partial f_wet: surface_evap > 0 (wet pathway active)', surface_evap > 0.0_wp, surface_evap)
       call check_true('partial f_wet: transp > 0 (dry pathway still active)', transp > 0.0_wp, transp)
    end subroutine test_veg_energy_diagnostic_wetted
 
@@ -241,8 +241,8 @@ contains
       !   * NO AREA: a tissue with no coupling and no heat capacity takes the temperature of what
       !     it grows from (t_parent) and carries no flux.
       !---~---
-      real(wp) :: dt_temp, t_store, transp, dh, drnet, film_evap
-      real(wp) :: dt_h, t_h, transp_h, dh_h, drnet_h, film_h
+      real(wp) :: dt_temp, t_store, transp, dh, drnet, surface_evap
+      real(wp) :: dt_h, t_h, transp_h, dh_h, drnet_h, surface_evap_h
       real(wp) :: ai, ast, resid, worst, worst_split
       integer(ik) :: ia, il, is
       real(wp), parameter :: T_CAS = 298.0_wp, T0 = T_CAS - 0.5_wp, T_PARENT = 301.0_wp
@@ -258,10 +258,10 @@ contains
                ai = 1.0e-6_wp * (10.0_wp ** (0.5_wp * real(ia - 1_ik, wp)))
                ast = 0.0_wp
                if (is == 1_ik) ast = CAP_PER_AREA * ai / 900.0_wp
-               call thin_tissue(ai, ast, is_leaf, dt_temp, t_store, transp, dh, drnet, film_evap)
-               resid = drnet + 25.0_wp*ai - dh - latent_heat_vap*(transp + film_evap) - ast * (t_store - T0)
+               call thin_tissue(ai, ast, is_leaf, dt_temp, t_store, transp, dh, drnet, surface_evap)
+               resid = drnet + 25.0_wp*ai - dh - latent_heat_vap*(transp + surface_evap) - ast * (t_store - T0)
                worst = max(worst, abs(resid) / (abs(drnet) + 25.0_wp*ai))
-               call thin_tissue(0.5_wp*ai, 0.5_wp*ast, is_leaf, dt_h, t_h, transp_h, dh_h, drnet_h, film_h)
+               call thin_tissue(0.5_wp*ai, 0.5_wp*ast, is_leaf, dt_h, t_h, transp_h, dh_h, drnet_h, surface_evap_h)
                worst_split = max(worst_split, abs(t_h - t_store), abs(2.0_wp*dh_h - dh) / abs(dh),          &
                                  abs(2.0_wp*drnet_h - drnet) / abs(drnet))
             end do
@@ -271,10 +271,10 @@ contains
       call check_true('half the area: the same temperature, half of every flux', worst_split < 1.0e-12_wp,       &
                       worst_split)
       !--- No area: no coupling and no heat capacity.
-      call thin_tissue(0.0_wp, 0.0_wp, .true., dt_temp, t_store, transp, dh, drnet, film_evap)
+      call thin_tissue(0.0_wp, 0.0_wp, .true., dt_temp, t_store, transp, dh, drnet, surface_evap)
       call check('a tissue with no area takes the temperature of what it grows from', t_store, T_PARENT, 0.0_wp)
       call check_true('a tissue with no area carries no flux',                                                  &
-                      dh == 0.0_wp .and. drnet == 0.0_wp .and. transp == 0.0_wp .and. film_evap == 0.0_wp, dh)
+                      dh == 0.0_wp .and. drnet == 0.0_wp .and. transp == 0.0_wp .and. surface_evap == 0.0_wp, dh)
    end subroutine test_veg_energy_thin_tissue
 
    !---~---
@@ -316,13 +316,13 @@ contains
    !---~---
    subroutine test_canopy_energy_closes()
       type(plant_energy_env_t) :: env
-      type(canopy_water_out_t) :: film
+      type(canopy_water_out_t) :: veg_surface
       real(wp) :: worst, resid, scale
       integer(ik) :: mode
       print '(a)', 'test_canopy_energy_closes:'
       worst = 0.0_wp
       do mode = 1_ik, 2_ik
-         call canopy_inputs(2_ik, env, film)
+         call canopy_inputs(2_ik, env, veg_surface)
          env%h_coeff_leaf  = [30.0_wp, 20.0_wp]
          env%g_transp_leaf = [0.006_wp, 0.004_wp]
          env%abs_sw        = [300.0_wp, 150.0_wp]
@@ -340,14 +340,14 @@ contains
          env%q_wood_net = [-1.5_wp, 0.5_wp]
          env%transp_held = mode == 1_ik
          env%transp_net  = [3.0e-5_wp, 1.5e-5_wp]
-         film%f_wet_c     = [0.3_wp, 0.6_wp]
-         film%g_film_leaf = [0.02_wp, 0.01_wp]
-         film%g_film_w    = [0.004_wp, 0.002_wp]
-         film%rain_liquid_enthalpy = internal_energy_liquid(293.0_wp)
-         film%transfer_lw    = [5.0e-6_wp, -4.0e-6_wp]               ! leaf -> wood in one, wood -> leaf in the other
-         film%intercept_leaf = [2.0e-5_wp, 1.0e-5_wp] - film%transfer_lw
-         film%intercept_wood = [1.0e-5_wp, 6.0e-6_wp] + film%transfer_lw
-         call canopy_closure(env, film, resid, scale)
+         veg_surface%f_wet_c     = [0.3_wp, 0.6_wp]
+         veg_surface%g_surf_leaf = [0.02_wp, 0.01_wp]
+         veg_surface%g_surf_wood    = [0.004_wp, 0.002_wp]
+         veg_surface%rain_liquid_enthalpy = internal_energy_liquid(293.0_wp)
+         veg_surface%transfer_lw    = [5.0e-6_wp, -4.0e-6_wp]               ! leaf -> wood in one, wood -> leaf in the other
+         veg_surface%intercept_leaf = [2.0e-5_wp, 1.0e-5_wp] - veg_surface%transfer_lw
+         veg_surface%intercept_wood = [1.0e-5_wp, 6.0e-6_wp] + veg_surface%transfer_lw
+         call canopy_closure(env, veg_surface, resid, scale)
          worst = max(worst, abs(resid) / scale)
       end do
       call check_true('canopy_tissue_energy: energy is conserved across the canopy, its films included '//        &
@@ -355,23 +355,23 @@ contains
    end subroutine test_canopy_energy_closes
 
    !--- The canopy's energy residual: what entered less what left less what was stored.
-   subroutine canopy_closure(env, film, resid, scale)
+   subroutine canopy_closure(env, veg_surface, resid, scale)
       type(plant_energy_env_t), intent(in)  :: env
-      type(canopy_water_out_t), intent(in)  :: film
+      type(canopy_water_out_t), intent(in)  :: veg_surface
       real(wp),                 intent(out) :: resid, scale
       real(wp) :: tl(size(env%lai)), tw(size(env%lai)), tr(size(env%lai)), fl(size(env%lai)), fw(size(env%lai))
       real(wp) :: h, qw, transp, fe, rnet, u_l0(size(env%lai)), u_w0(size(env%lai)), gain, loss, stored
-      call run_canopy(env, film, tl, tw, tr, fl, fw, h, qw, transp, fe, rnet)
+      call run_canopy(env, veg_surface, tl, tw, tr, fl, fw, h, qw, transp, fe, rnet)
       u_l0 = internal_energy_liquid(env%t_leaf0)
       u_w0 = internal_energy_liquid(env%t_wood0)
       gain   = rnet + sum(env%qwflux_wl + env%q_wood_net)                                                       &
-               + sum(film%intercept_leaf + film%intercept_wood) * film%rain_liquid_enthalpy
+               + sum(veg_surface%intercept_leaf + veg_surface%intercept_wood) * veg_surface%rain_liquid_enthalpy
       loss   = h + qw
       stored = sum(env%leaf_hcap_per_dt * (tl - env%t_leaf0) + env%wood_hcap_per_dt * (tw - env%t_wood0))       &
-               + sum((film%intercept_leaf - fl) * u_l0 + (film%intercept_wood - fw) * u_w0)
+               + sum((veg_surface%intercept_leaf - fl) * u_l0 + (veg_surface%intercept_wood - fw) * u_w0)
       resid = gain - loss - stored
       scale = abs(rnet) + sum(abs(env%qwflux_wl) + abs(env%q_wood_net)) + abs(h) + abs(qw)                       &
-              + sum(abs(film%intercept_leaf) + abs(film%intercept_wood)) * film%rain_liquid_enthalpy
+              + sum(abs(veg_surface%intercept_leaf) + abs(veg_surface%intercept_wood)) * veg_surface%rain_liquid_enthalpy
    end subroutine canopy_closure
 
    !---~---
@@ -379,57 +379,57 @@ contains
    ! cohort at 300 K, the rain at 300 K, leaves both temperatures as they are with no capture,
    ! only the films growing; rain at 310 K warms both.
    !---~---
-   subroutine test_film_capture()
+   subroutine test_surface_water_capture()
       type(plant_energy_env_t) :: env
-      type(canopy_water_out_t) :: film
+      type(canopy_water_out_t) :: veg_surface
       real(wp) :: tl0(1), tw0(1), tl(1), tw(1), tr(1), fl(1), fw(1), h, qw, transp, fe, rnet
-      print '(a)', 'test_film_capture:'
-      call one_wet_cohort(env, film, 300.0_wp, 300.0_wp)
-      call run_canopy(env, film, tl0, tw0, tr, fl, fw, h, qw, transp, fe, rnet)
-      film%intercept_leaf = 1.0e-5_wp
-      film%intercept_wood = 1.0e-5_wp
-      film%rain_liquid_enthalpy = internal_energy_liquid(300.0_wp)
-      call run_canopy(env, film, tl, tw, tr, fl, fw, h, qw, transp, fe, rnet)
+      print '(a)', 'test_surface_water_capture:'
+      call one_wet_cohort(env, veg_surface, 300.0_wp, 300.0_wp)
+      call run_canopy(env, veg_surface, tl0, tw0, tr, fl, fw, h, qw, transp, fe, rnet)
+      veg_surface%intercept_leaf = 1.0e-5_wp
+      veg_surface%intercept_wood = 1.0e-5_wp
+      veg_surface%rain_liquid_enthalpy = internal_energy_liquid(300.0_wp)
+      call run_canopy(env, veg_surface, tl, tw, tr, fl, fw, h, qw, transp, fe, rnet)
       call check('canopy_tissue_energy: rain captured at the tissues'' own temperature brings them no heat',       &
                  max(abs(tl(1) - tl0(1)), abs(tw(1) - tw0(1))), 0.0_wp, 1.0e-12_wp)
-      film%rain_liquid_enthalpy = internal_energy_liquid(310.0_wp)
-      call run_canopy(env, film, tl, tw, tr, fl, fw, h, qw, transp, fe, rnet)
+      veg_surface%rain_liquid_enthalpy = internal_energy_liquid(310.0_wp)
+      call run_canopy(env, veg_surface, tl, tw, tr, fl, fw, h, qw, transp, fe, rnet)
       call check_true('canopy_tissue_energy: warmer rain warms the leaf and the wood that capture it',              &
                       tl(1) > tl0(1) .and. tw(1) > tw0(1), min(tl(1) - tl0(1), tw(1) - tw0(1)))
-   end subroutine test_film_capture
+   end subroutine test_surface_water_capture
 
    !---~---
    !   A film passed from leaf to wood (no net capture) leaves the leaf at the leaf's enthalpy and
    ! reaches the wood at the leaf's: with leaf and wood at one temperature it moves neither, and
    ! from a warmer leaf it leaves the leaf as it was and warms the wood.
    !---~---
-   subroutine test_film_transfer()
+   subroutine test_surface_water_transfer()
       type(plant_energy_env_t) :: env
-      type(canopy_water_out_t) :: film
+      type(canopy_water_out_t) :: veg_surface
       real(wp) :: tl0(1), tw0(1), tl(1), tw(1), tr(1), fl(1), fw(1), h, qw, transp, fe, rnet
-      print '(a)', 'test_film_transfer:'
-      call one_wet_cohort(env, film, 300.0_wp, 300.0_wp)
-      call run_canopy(env, film, tl0, tw0, tr, fl, fw, h, qw, transp, fe, rnet)
-      call pass_leaf_to_wood(film, 5.0e-6_wp)
-      call run_canopy(env, film, tl, tw, tr, fl, fw, h, qw, transp, fe, rnet)
-      call check('canopy_tissue_energy: a film passed between tissues at one temperature moves neither',           &
+      print '(a)', 'test_surface_water_transfer:'
+      call one_wet_cohort(env, veg_surface, 300.0_wp, 300.0_wp)
+      call run_canopy(env, veg_surface, tl0, tw0, tr, fl, fw, h, qw, transp, fe, rnet)
+      call pass_leaf_to_wood(veg_surface, 5.0e-6_wp)
+      call run_canopy(env, veg_surface, tl, tw, tr, fl, fw, h, qw, transp, fe, rnet)
+      call check('canopy_tissue_energy: surface water passed between tissues at one temperature moves neither',           &
                  max(abs(tl(1) - tl0(1)), abs(tw(1) - tw0(1))), 0.0_wp, 1.0e-12_wp)
-      call one_wet_cohort(env, film, 305.0_wp, 300.0_wp)
-      call run_canopy(env, film, tl0, tw0, tr, fl, fw, h, qw, transp, fe, rnet)
-      call pass_leaf_to_wood(film, 5.0e-6_wp)
-      call run_canopy(env, film, tl, tw, tr, fl, fw, h, qw, transp, fe, rnet)
-      call check('canopy_tissue_energy: the warmer leaf giving its film is charged nothing for it', tl(1), tl0(1),  &
+      call one_wet_cohort(env, veg_surface, 305.0_wp, 300.0_wp)
+      call run_canopy(env, veg_surface, tl0, tw0, tr, fl, fw, h, qw, transp, fe, rnet)
+      call pass_leaf_to_wood(veg_surface, 5.0e-6_wp)
+      call run_canopy(env, veg_surface, tl, tw, tr, fl, fw, h, qw, transp, fe, rnet)
+      call check('canopy_tissue_energy: the warmer leaf giving its surface water is charged nothing for it', tl(1), tl0(1),  &
                  1.0e-12_wp)
       call check_true('canopy_tissue_energy: the wood receiving it gains the leaf''s warmer water', tw(1) > tw0(1), &
                       tw(1) - tw0(1))
-   end subroutine test_film_transfer
+   end subroutine test_surface_water_transfer
 
-   subroutine pass_leaf_to_wood(film, rate)
-      type(canopy_water_out_t), intent(inout) :: film
+   subroutine pass_leaf_to_wood(veg_surface, rate)
+      type(canopy_water_out_t), intent(inout) :: veg_surface
       real(wp),                 intent(in)    :: rate   ! [kg/m2/s]
-      film%transfer_lw    = rate
-      film%intercept_leaf = -rate
-      film%intercept_wood = rate
+      veg_surface%transfer_lw    = rate
+      veg_surface%intercept_leaf = -rate
+      veg_surface%intercept_wood = rate
    end subroutine pass_leaf_to_wood
 
    !---~---
@@ -439,29 +439,29 @@ contains
    ! kilogram evaporated of exactly h_vapour(T_cas) - u_liquid(T0), from 2 K above the canopy air
    ! and 3 K below it.
    !---~---
-   subroutine test_film_evaporation()
+   subroutine test_surface_water_evaporation()
       type(plant_energy_env_t) :: env
-      type(canopy_water_out_t) :: film
+      type(canopy_water_out_t) :: veg_surface
       real(wp) :: tl(1), tw(1), tr(1), fl(1), fw(1), h, qw, transp, fe, rnet, t0, per_kg, worst
       integer(ik) :: k
-      print '(a)', 'test_film_evaporation:'
+      print '(a)', 'test_surface_water_evaporation:'
       worst = 0.0_wp
       do k = 1_ik, 2_ik
          t0 = merge(T_CAS + 2.0_wp, T_CAS - 3.0_wp, k == 1_ik)
-         call canopy_inputs(1_ik, env, film)
+         call canopy_inputs(1_ik, env, veg_surface)
          env%t_leaf0 = t0
          env%t_wood0 = t0
          env%wood_hcap_per_dt = 50.0_wp
-         film%f_wet_c = 1.0_wp
-         film%g_film_w = 0.004_wp
-         call run_canopy(env, film, tl, tw, tr, fl, fw, h, qw, transp, fe, rnet)
+         veg_surface%f_wet_c = 1.0_wp
+         veg_surface%g_surf_wood = 0.004_wp
+         call run_canopy(env, veg_surface, tl, tw, tr, fl, fw, h, qw, transp, fe, rnet)
          per_kg = -env%wood_hcap_per_dt(1) * (tw(1) - t0) / fw(1)
          worst = max(worst, abs(per_kg - (enthalpy_vapor(T_CAS) - internal_energy_liquid(t0)))                     &
                             / (enthalpy_vapor(T_CAS) - internal_energy_liquid(t0)))
       end do
-      call check_true('canopy_tissue_energy: an evaporating film costs its tissue h_vapour(T_cas) - u_liquid(T0)',  &
+      call check_true('canopy_tissue_energy: evaporating surface water costs its tissue h_vapour(T_cas) - u_liquid(T0)',  &
                       worst < 1.0e-10_wp, worst)
-   end subroutine test_film_evaporation
+   end subroutine test_surface_water_evaporation
 
    !---~---
    !   5. THE TISSUE'S LONGWAVE. The two-stream's abs_lw is the tissue's net longwave with it
@@ -559,14 +559,14 @@ contains
    ! film left out, and the commit reads the temperature back with the end-of-step film, so the
    ! leaf reads back at the step's temperature.
    !---~---
-   subroutine test_commit_heavy_film()
+   subroutine test_commit_heavy_surface_water()
       real(wp), parameter :: DT = 900.0_wp
       real(wp), parameter :: DL = 3.4e-8_wp, WL = 1.0e-11_wp, F0 = 8.4e-9_wp   ! [J/K], [kg], [kg]
       real(wp), parameter :: DW = 4.0e4_wp, WW = 9.0_wp                       ! [J/K], [kg]
       real(wp), parameter :: TL0 = 298.0_wp, TL_AVG = 297.5_wp, TW0 = 298.0_wp
       type(plant_energy_env_t) :: env
       real(wp) :: e_leaf(1), e_wood(1), t_leaf(1), t_wood(1), store0, store1
-      print '(a)', 'test_commit_heavy_film:'
+      print '(a)', 'test_commit_heavy_surface_water:'
       call commit_env(env, DL, WL, DW, WW, TL0, TW0, DT)
       e_leaf = tissue_temp_to_energy(DL, WL + F0, TL0)
       e_wood = tissue_temp_to_energy(DW, WW, TW0)
@@ -574,9 +574,9 @@ contains
       t_wood = TW0
       call commit_tissue_energy(env, [1.0_wp], DT, [TL_AVG], [TW0], 1_ik, [WL], [WW], [F0], [0.0_wp], [0.0_wp],    &
                                 [0.0_wp], e_leaf, e_wood, t_leaf, t_wood, store0, store1)
-      call check('commit_tissue_energy: a film heavier than its tissue, evaporated within the step, leaves '//  &
+      call check('commit_tissue_energy: surface water heavier than its tissue, evaporated within the step, leaves '//  &
                  'the tissue at the step''s temperature', t_leaf(1), TL_AVG, 1.0e-6_wp)
-   end subroutine test_commit_heavy_film
+   end subroutine test_commit_heavy_surface_water
 
    !---~---
    !   The commit's inputs for one cohort: each tissue's dry heat capacity, its heat capacity over
@@ -609,16 +609,16 @@ contains
       real(wp), intent(in)  :: t0
       real(wp), intent(out) :: t_leaf, rnet
       type(plant_energy_env_t) :: env
-      type(canopy_water_out_t) :: film
+      type(canopy_water_out_t) :: veg_surface
       real(wp) :: tl(1), tw(1), tr(1), fl(1), fw(1), h, qw, transp, fe
-      call canopy_inputs(1_ik, env, film)
+      call canopy_inputs(1_ik, env, veg_surface)
       env%lai = LEAF_LAI
       env%leaf_emiss = LEAF_EMISS
       env%abs_sw = LEAF_SW
       env%h_coeff_leaf = LEAF_H
       env%t_leaf0 = t0
       env%abs_lw = LEAF_LW_IN - LEAF_EMISS * stefan_boltzmann * LEAF_LAI * t0 ** 4
-      call run_canopy(env, film, tl, tw, tr, fl, fw, h, qw, transp, fe, rnet)
+      call run_canopy(env, veg_surface, tl, tw, tr, fl, fw, h, qw, transp, fe, rnet)
       t_leaf = tl(1)
    end subroutine leaf_in_sun
 
@@ -626,11 +626,11 @@ contains
    !   One cohort, partly wet, with leaf and wood exchanging sensible heat and longwave and holding
    ! heat, at the given start-of-step temperatures; no capture.
    !---~---
-   subroutine one_wet_cohort(env, film, t_leaf0, t_wood0)
+   subroutine one_wet_cohort(env, veg_surface, t_leaf0, t_wood0)
       type(plant_energy_env_t), intent(out) :: env
-      type(canopy_water_out_t), intent(out) :: film
+      type(canopy_water_out_t), intent(out) :: veg_surface
       real(wp),                 intent(in)  :: t_leaf0, t_wood0
-      call canopy_inputs(1_ik, env, film)
+      call canopy_inputs(1_ik, env, veg_surface)
       env%h_coeff_leaf = 30.0_wp
       env%g_transp_leaf = 0.005_wp
       env%abs_sw = 250.0_wp
@@ -644,20 +644,20 @@ contains
       env%wood_hcap_per_dt = 50.0_wp
       env%t_leaf0 = t_leaf0
       env%t_wood0 = t_wood0
-      film%f_wet_c = 0.5_wp
-      film%g_film_leaf = 0.02_wp
-      film%g_film_w = 0.004_wp
-      film%rain_liquid_enthalpy = internal_energy_liquid(290.0_wp)
+      veg_surface%f_wet_c = 0.5_wp
+      veg_surface%g_surf_leaf = 0.02_wp
+      veg_surface%g_surf_wood = 0.004_wp
+      veg_surface%rain_liquid_enthalpy = internal_energy_liquid(290.0_wp)
    end subroutine one_wet_cohort
 
    !---~---
    !   n cohorts with nothing on: every coefficient, flux, film and heat store zero, the tissues at
    ! the canopy air's temperature with the shipped emissivities, transpiration free.
    !---~---
-   subroutine canopy_inputs(n, env, film)
+   subroutine canopy_inputs(n, env, veg_surface)
       integer(ik),              intent(in)  :: n
       type(plant_energy_env_t), intent(out) :: env
-      type(canopy_water_out_t), intent(out) :: film
+      type(canopy_water_out_t), intent(out) :: veg_surface
       allocate(env%h_coeff_leaf(n), env%g_transp_leaf(n), env%abs_sw(n), env%abs_lw(n), env%lai(n),            &
                env%h_coeff_w(n), env%abs_sw_wood(n), env%abs_lw_wood(n), env%wai(n), env%leaf_hcap_per_dt(n),  &
                env%wood_hcap_per_dt(n), env%t_leaf0(n), env%t_wood0(n), env%qwflux_wl(n), env%q_wood_net(n),   &
@@ -667,22 +667,23 @@ contains
       env%leaf_emiss = 0.97_wp
       env%wood_emiss = 0.90_wp
       env%transp_held = .false.
-      allocate(film%f_wet_c(n), film%g_film_leaf(n), film%g_film_w(n), film%intercept_leaf(n),                   &
-               film%intercept_wood(n), film%transfer_lw(n), source=0.0_wp)
-      film%rain_liquid_enthalpy = internal_energy_liquid(T_CAS)
+      allocate(veg_surface%f_wet_c(n), veg_surface%g_surf_leaf(n), veg_surface%g_surf_wood(n),                    &
+               veg_surface%intercept_leaf(n),                                                                    &
+               veg_surface%intercept_wood(n), veg_surface%transfer_lw(n), source=0.0_wp)
+      veg_surface%rain_liquid_enthalpy = internal_energy_liquid(T_CAS)
    end subroutine canopy_inputs
 
    !--- canopy_tissue_energy under the test canopy air.
-   subroutine run_canopy(env, film, tl, tw, tr, fl, fw, h, qw, transp, fe, rnet)
+   subroutine run_canopy(env, veg_surface, tl, tw, tr, fl, fw, h, qw, transp, fe, rnet)
       type(plant_energy_env_t), intent(in)  :: env
-      type(canopy_water_out_t), intent(in)  :: film
+      type(canopy_water_out_t), intent(in)  :: veg_surface
       real(wp),                 intent(out) :: tl(:), tw(:), tr(:), fl(:), fw(:), h, qw, transp, fe, rnet
       tl = 0.0_wp
       tw = 0.0_wp
       tr = 0.0_wp
       fl = 0.0_wp
       fw = 0.0_wp
-      call canopy_tissue_energy(env, film, T_CAS, Q_CAS, sat_specific_humidity(T_CAS, P_AIR),                    &
+      call canopy_tissue_energy(env, veg_surface, T_CAS, Q_CAS, sat_specific_humidity(T_CAS, P_AIR),                    &
                                 sat_specific_humidity_temp_deriv(T_CAS, P_AIR), RHO_AIR, size(env%lai, kind=ik), &
                                 tl, tw, tr, fl, fw, h, qw, transp, fe, rnet)
    end subroutine run_canopy

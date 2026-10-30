@@ -44,9 +44,9 @@ module ed_fast_integ_frozen
    use ed_patch_state_vars, only : cas_state_t, soil_carbon_state_t, cas_capacities
    use ed_biogeochem_params, only : N_SOIL_POOL
    use ed_canopy_aerodynamics, only : canopy_aerodynamics, cas_atm_conductances
-   use ed_plant_energy,   only : plant_energy_env_t, sensible_heat_coeff, leaf_transp_coeff, leaf_film_coeff, &
+   use ed_plant_energy,   only : plant_energy_env_t, sensible_heat_coeff, leaf_transp_coeff, leaf_surface_evap_coeff, &
                                  tissue_hcap_per_dt, EFFAREA_HEAT, EFFAREA_TRANSP, EFFAREA_EVAP
-   use ed_canopy_water,   only : canopy_water_out_t, canopy_interception, limit_film_evaporation
+   use ed_canopy_water,   only : canopy_water_out_t, canopy_interception, limit_surface_evaporation
    use ed_leaf_gas_exchange, only : leaf_gas_exchange_batch, cohort_leaf_par
    use ed_respiration,   only : stem_maintenance_respiration, fine_root_maintenance_respiration, root_zone_temp_scale, &
                                 decomposition_env_scalar, decomposition_transfer_matrix, heterotrophic_respiration
@@ -153,8 +153,8 @@ contains
                                                                prof%solid_conductivity(1), prof%dry_conductivity(1))
       end associate
 
-      call intercept_rain(dt_fast, cfg, static, forcing, dynamic, frozen%snow%exists, frozen%film, throughfall)
-      call tissue_coefficients(dt_fast, cfg, static, forcing, dynamic, out%aero, rho, frozen%tissue, frozen%film, &
+      call intercept_rain(dt_fast, cfg, static, forcing, dynamic, frozen%snow%exists, frozen%veg_surface, throughfall)
+      call tissue_coefficients(dt_fast, cfg, static, forcing, dynamic, out%aero, rho, frozen%tissue, frozen%veg_surface, &
                                frozen%plant)
       call canopy_air_boundary(cfg%aero, static%geom, out%aero, forcing, rho, press, frozen%cas, frozen%ground)
       call ground_inflow(static, site%soil_profile, forcing, dynamic, out%aero%ggnet, throughfall, tcas, qcas, rho, &
@@ -207,12 +207,12 @@ contains
       call fit(frozen%tissue%leaf_emiss, n)
       call fit(frozen%tissue%wood_emiss, n)
       call fit(frozen%tissue%transp_net, n)
-      call fit(frozen%film%f_wet_c, n)
-      call fit(frozen%film%g_film_leaf, n)
-      call fit(frozen%film%g_film_w, n)
-      call fit(frozen%film%intercept_leaf, n)
-      call fit(frozen%film%intercept_wood, n)
-      call fit(frozen%film%transfer_lw, n)
+      call fit(frozen%veg_surface%f_wet_c, n)
+      call fit(frozen%veg_surface%g_surf_leaf, n)
+      call fit(frozen%veg_surface%g_surf_wood, n)
+      call fit(frozen%veg_surface%intercept_leaf, n)
+      call fit(frozen%veg_surface%intercept_wood, n)
+      call fit(frozen%veg_surface%transfer_lw, n)
       call fit(frozen%roots%root_share, nsl)
       call fit(frozen%roots%qloss_frozen, n)
       call fit(frozen%roots%root_heat, nsl)
@@ -255,12 +255,12 @@ contains
       call move_alloc(from%tissue%leaf_emiss, to%tissue%leaf_emiss)
       call move_alloc(from%tissue%wood_emiss, to%tissue%wood_emiss)
       call move_alloc(from%tissue%transp_net, to%tissue%transp_net)
-      call move_alloc(from%film%f_wet_c, to%film%f_wet_c)
-      call move_alloc(from%film%g_film_leaf, to%film%g_film_leaf)
-      call move_alloc(from%film%g_film_w, to%film%g_film_w)
-      call move_alloc(from%film%intercept_leaf, to%film%intercept_leaf)
-      call move_alloc(from%film%intercept_wood, to%film%intercept_wood)
-      call move_alloc(from%film%transfer_lw, to%film%transfer_lw)
+      call move_alloc(from%veg_surface%f_wet_c, to%veg_surface%f_wet_c)
+      call move_alloc(from%veg_surface%g_surf_leaf, to%veg_surface%g_surf_leaf)
+      call move_alloc(from%veg_surface%g_surf_wood, to%veg_surface%g_surf_wood)
+      call move_alloc(from%veg_surface%intercept_leaf, to%veg_surface%intercept_leaf)
+      call move_alloc(from%veg_surface%intercept_wood, to%veg_surface%intercept_wood)
+      call move_alloc(from%veg_surface%transfer_lw, to%veg_surface%transfer_lw)
       call move_alloc(from%roots%root_share, to%roots%root_share)
       call move_alloc(from%roots%qloss_frozen, to%roots%qloss_frozen)
       call move_alloc(from%roots%root_heat, to%roots%root_heat)
@@ -532,31 +532,31 @@ contains
    ! water store on. None under a pack, which takes the rain and the snow; throughfall
    ! carries sub-threshold snowfall, which forms no pack, as liquid.
    !---~---
-   subroutine intercept_rain(dt_fast, cfg, static, forcing, dynamic, pack_exists, film, throughfall)
+   subroutine intercept_rain(dt_fast, cfg, static, forcing, dynamic, pack_exists, veg_surface, throughfall)
       real(wp),                     intent(in)    :: dt_fast
       type(ed_config_t),            intent(in)    :: cfg
       type(fast_static_state_t),    intent(in)    :: static
       type(fast_forcing_t),         intent(in)    :: forcing
       type(fast_dynamic_state_t),   intent(in)    :: dynamic
       logical,                      intent(in)    :: pack_exists
-      type(canopy_water_out_t),     intent(inout) :: film
+      type(canopy_water_out_t),     intent(inout) :: veg_surface
       real(wp),                     intent(out)   :: throughfall   ! [kg/m2/s] what reaches the ground
       integer(ik) :: n
       n = static%n
-      film%intercept_leaf = 0.0_wp
-      film%intercept_wood = 0.0_wp
-      film%transfer_lw = 0.0_wp
-      film%f_wet_c = 0.0_wp
-      film%g_film_leaf = 0.0_wp
-      film%g_film_w = 0.0_wp
+      veg_surface%intercept_leaf = 0.0_wp
+      veg_surface%intercept_wood = 0.0_wp
+      veg_surface%transfer_lw = 0.0_wp
+      veg_surface%f_wet_c = 0.0_wp
+      veg_surface%g_surf_leaf = 0.0_wp
+      veg_surface%g_surf_wood = 0.0_wp
       throughfall = forcing%rainfall + forcing%snowfall
       if (cfg%canopy_water_on .and. .not. pack_exists)                                                         &
          call canopy_interception(n, forcing%rainfall + forcing%snowfall, dynamic%leaf_surf_water,              &
                                   dynamic%wood_surf_water, static%lai, static%wai,                              &
                                   cfg%pft%leaf_surf_water_max(static%pft(1:n)),                                 &
                                   cfg%pft%wood_surf_water_max(static%pft(1:n)), cfg%intercept_k,                &
-                                  cfg%intercept_alpha, dt_fast, film%intercept_leaf, film%intercept_wood,       &
-                                  film%transfer_lw, film%f_wet_c, throughfall)
+                                  cfg%intercept_alpha, dt_fast, veg_surface%intercept_leaf, veg_surface%intercept_wood,       &
+                                  veg_surface%transfer_lw, veg_surface%f_wet_c, throughfall)
    end subroutine intercept_rain
 
    !---~---
@@ -564,7 +564,7 @@ contains
    ! radiation, heat capacities and the start-of-step temperatures
    ! (docs/science/vegetation_energy_dynamics.md), and its film-evaporation conductances.
    !---~---
-   subroutine tissue_coefficients(dt_fast, cfg, static, forcing, dynamic, aero, rho, tissue, film, plant)
+   subroutine tissue_coefficients(dt_fast, cfg, static, forcing, dynamic, aero, rho, tissue, veg_surface, plant)
       real(wp),                     intent(in)    :: dt_fast
       type(ed_config_t),            intent(in)    :: cfg
       type(fast_static_state_t),    intent(in)    :: static
@@ -573,7 +573,7 @@ contains
       type(aero_out_t),             intent(in)    :: aero
       real(wp),                     intent(in)    :: rho
       type(plant_energy_env_t),     intent(inout) :: tissue
-      type(canopy_water_out_t),     intent(inout) :: film
+      type(canopy_water_out_t),     intent(inout) :: veg_surface
       type(plant_water_t),          intent(inout) :: plant
       integer(ik) :: i
       do i = 1_ik, static%n
@@ -617,8 +617,8 @@ contains
          ! off.
          !---~---
          if (cfg%canopy_water_on) then
-            film%g_film_leaf(i) = leaf_film_coeff(EFFAREA_EVAP, static%lai(i), aero%leaf_gbw(i))
-            film%g_film_w(i) = leaf_film_coeff(EFFAREA_EVAP, static%wai(i), aero%wood_gbw(i))
+            veg_surface%g_surf_leaf(i) = leaf_surface_evap_coeff(EFFAREA_EVAP, static%lai(i), aero%leaf_gbw(i))
+            veg_surface%g_surf_wood(i) = leaf_surface_evap_coeff(EFFAREA_EVAP, static%wai(i), aero%wood_gbw(i))
          end if
       end do
    end subroutine tissue_coefficients
@@ -683,15 +683,15 @@ contains
       y_stage%cas_co2 = dynamic%cas%can_co2
       cas_start = frozen%cas
       cas_start%mo_live = .false.
-      call surface_derivs(y_stage, cas_start, frozen%tissue, frozen%film, frozen%ground, t_ground, n, sf0)
+      call surface_derivs(y_stage, cas_start, frozen%tissue, frozen%veg_surface, frozen%ground, t_ground, n, sf0)
       if (canopy_water_on)                                                                                    &
-         call limit_film_evaporation(n, dt_fast, dynamic%leaf_surf_water, dynamic%wood_surf_water,              &
-                                     sf0%film_evap_leaf, sf0%film_evap_wood, frozen%film)
+         call limit_surface_evaporation(n, dt_fast, dynamic%leaf_surf_water, dynamic%wood_surf_water,              &
+                                     sf0%leaf_surface_evap, sf0%wood_surface_evap, frozen%veg_surface)
       do i = 1_ik, n
          t_up_wl = merge(dynamic%wood_temp(i), dynamic%leaf_temp(i), sf0%transp_c(i) >= 0.0_wp)
          frozen%tissue%qwflux_wl(i) = sf0%transp_c(i) * internal_energy_liquid(t_up_wl)
       end do
-      call surface_derivs(y_stage, cas_start, frozen%tissue, frozen%film, frozen%ground, t_ground, n, sf0)
+      call surface_derivs(y_stage, cas_start, frozen%tissue, frozen%veg_surface, frozen%ground, t_ground, n, sf0)
       frozen%water_drive%e_demand(1:n) = sf0%transp_c(1:n)
    end subroutine transpiration_demand
 
@@ -732,7 +732,7 @@ contains
                                            (1.0_wp - dynamic%soil_energy%soil_fliq(1:nsl))                        &
                                            * dynamic%soil_water%theta(1:nsl))
          !--- The rain the canopy films capture and drip back is the throughfall's, at its temperature.
-         frozen%film%rain_liquid_enthalpy = internal_energy_liquid(t_water_base)
+         frozen%veg_surface%rain_liquid_enthalpy = internal_energy_liquid(t_water_base)
       end associate
    end subroutine ground_inflow
 
@@ -865,7 +865,7 @@ contains
             do i = 1_ik, n
                out%cdiag(CO_SAPFLOW,     i) = frozen%plant%sapflow_frozen(i)
                out%cdiag(CO_ROOT_UPTAKE, i) = frozen%plant%uptake_frozen(i)
-               out%cdiag(CO_WET_FRACTION, i) = frozen%film%f_wet_c(i)
+               out%cdiag(CO_WET_FRACTION, i) = frozen%veg_surface%f_wet_c(i)
                out%cdiag(CO_PSI_WOOD,    i) = st%psi_coh(WOOD, i)
                associate (hp => cfg%pft%hydraulics%pft(static%pft(i)))
                   out%cdiag(CO_PLC, i) = 1.0_wp - conductance_retained_fraction(st%psi_coh(WOOD, i), hp%wood_psi50, &

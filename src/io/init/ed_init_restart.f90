@@ -37,7 +37,7 @@ module ed_init_restart
    character(len=*), parameter :: STATE_TITLE = 'ED-MORE instantaneous state (restart) file'
    !--- The layout written and read, a global attribute of every file; a change to it counts up.
    integer,          parameter :: N_META_INT = 11, N_META_REAL = 2
-   character(len=*), parameter :: FILM_UNITS  = 'kg/plant'   ! the canopy films' units attribute
+   character(len=*), parameter :: SURF_WATER_UNITS  = 'kg/plant'   ! the canopy films' units attribute
 
    !--- An open state file, its polygon axis ahead of every other.
    type :: restart_file_t
@@ -559,8 +559,10 @@ contains
       !---~---
       call def_var(d, 'leaf_water_mass_co', NC_DOUBLE, [d%cohort], 'per-cohort internal leaf water [kg/plant]')
       call def_var(d, 'wood_water_mass_co', NC_DOUBLE, [d%cohort], 'per-cohort internal wood water [kg/plant]')
-      call def_var(d, 'leaf_surf_water_co', NC_DOUBLE, [d%cohort], 'leaf interception film [kg/plant]', units=FILM_UNITS)
-      call def_var(d, 'wood_surf_water_co', NC_DOUBLE, [d%cohort], 'wood interception film [kg/plant]', units=FILM_UNITS)
+      call def_var(d, 'leaf_surf_water_co', NC_DOUBLE, [d%cohort], 'water on the leaf surfaces [kg/plant]',          &
+                   units=SURF_WATER_UNITS)
+      call def_var(d, 'wood_surf_water_co', NC_DOUBLE, [d%cohort], 'water on the wood surfaces [kg/plant]',          &
+                   units=SURF_WATER_UNITS)
       call def_var(d, 'dmax_psi_leaf_co',   NC_DOUBLE, [d%cohort],                                                 &
                    'yesterday daily-max leaf water potential [MPa] (drives beta_stomata)')
       !--- 5. Energy: the tissue energies, with their temperatures as twins.
