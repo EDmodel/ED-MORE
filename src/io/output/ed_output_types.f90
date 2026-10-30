@@ -258,6 +258,7 @@ module ed_output_types
       character(len=512)     :: forcing_qair = ''
       integer(ik)           :: file_chunk(N_FREQ) = 0_ik
       integer(ik)           :: sync_every = 1_ik
+      logical               :: overwrite = .false.           ! replace existing files ([output].overwrite)
       integer(ik)           :: fast_interval_steps = 4_ik   ! fast tier closes every N*dt_fast sub-steps
       !---~---
       !   The mean diel cycle (diel_<x>): n_diel bins a day, each [output].diel_interval long, filled

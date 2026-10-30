@@ -862,6 +862,7 @@ contains
       cfg%output%dir                 = toml_string (t, 'output.dir',                 '.')
       cfg%output%prefix              = toml_string (t, 'output.prefix',              'ED')
       cfg%output%io_config           = toml_string (t, 'output.io_config',           '')
+      cfg%output%overwrite           = toml_logical(t, 'output.overwrite',           .false.)
       cfg%output%cohort_max          = toml_int    (t, 'output.cohort_max',          4096_ik)
       cfg%output%patch_max           = toml_int    (t, 'output.patch_max',           256_ik)
       cfg%output%fast_interval_steps = toml_int    (t, 'output.fast_interval_steps', 4_ik)

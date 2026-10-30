@@ -161,6 +161,7 @@ contains
       files%dir        = cfg%output%dir
       files%prefix     = cfg%output%prefix
       files%file_chunk = cfg%output%file_chunk
+      files%overwrite  = cfg%output%overwrite
       files%sync_every = cfg%output%sync_every
       files%fast_interval_steps = cfg%output%fast_interval_steps
       files%n_diel  = 24_ik / cfg%output%diel_interval_hours

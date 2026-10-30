@@ -48,6 +48,8 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   new `diel` axis with the coordinate `diel_hour`. New key `[output].diel_interval`: `"1 hour"`
   (default) to `"4 hours"`. Off by default; results are bit for bit (docs/science/diagnostics.md §4,
   The mean diel cycle). (#57)
+  give `[output].dir` or `prefix` another value, or set the new `[output].overwrite = true` (default
+  `false`) to replace them, as the examples' configs and scripts now do. (#55)
 
 ### Changed
 

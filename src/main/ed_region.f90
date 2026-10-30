@@ -410,10 +410,11 @@ contains
 
    !---~---
    !   Stop before the first step if a diagnostic file this run would write already exists: a
-   ! run never overwrites output. A run resubmitted from a state file into the folder of the
-   ! run it continues would otherwise replace that run's files that share a name with its own,
-   ! losing their earlier records (docs/configuration.md, [output]). Each day of the run is
-   ! the stamp of some record of each tier, so walking the days lists every file.
+   ! run never overwrites output unless [output].overwrite says so. A run resubmitted from a
+   ! state file into the folder of the run it continues would otherwise replace that run's
+   ! files that share a name with its own, losing their earlier records (docs/configuration.md,
+   ! [output]). Each day of the run is the stamp of some record of each tier, so walking the
+   ! days lists every file.
    !---~---
    subroutine refuse_existing_output(files, start, end)
       type(output_files_t), intent(in) :: files
@@ -422,6 +423,7 @@ contains
       character(len=512)  :: path, last(N_FREQ)
       integer(ik)         :: t
       logical             :: there
+      if (files%overwrite) return
       last = ''
       day = ed_time_t(year=start%year, month=start%month, day=start%day)
       do while (time_lt(day, end))
@@ -433,7 +435,7 @@ contains
             inquire(file=trim(path), exist=there)
             if (there) then
                write(*,'(3a)') ' output: ', trim(path), ' exists; a run never overwrites output. Move or '//  &
-                               'remove it, or give [output].dir or prefix another value.'
+                               'remove it, give [output].dir or prefix another value, or set [output].overwrite.'
                error stop 'ed_region: an output file this run would write exists (see the message above)'
             end if
          end do

@@ -49,13 +49,6 @@ CALIB = os.path.join(HERE, "calibration")
 WINDOW = ("2016-04-20", "2016-05-01")   # [UTC] the end of the 2016 El Nino dry season and its first storm
 
 
-def fresh(config):
-    """Remove the diagnostic files an earlier run of `config` (run from this folder) wrote: edmore
-    never overwrites output, so a rerun would stop at its start."""
-    for path in config.remove_diagnostics(HERE):
-        print(f"  removed {os.path.relpath(path, HERE)} (an earlier run's)", flush=True)
-
-
 def run(cmd, log=None):
     print("+", " ".join(cmd), flush=True)
     if log:
@@ -96,7 +89,6 @@ def run_window(edmore, config):
                        "output.fast_interval_steps": 2}.items():          # 2 x 900 s: half-hourly records
         window.set(key, value)
     folder = os.path.join(OUTPUT, "window")
-    fresh(window)
     run([edmore, str(lead.write(folder, "lead.toml", "lead_pft.toml"))], log=os.path.join(OUTPUT, "window_lead.log"))
     run([edmore, str(window.write(folder, "window.toml", "window_pft.toml"))], log=os.path.join(OUTPUT, "window.log"))
 
@@ -134,7 +126,6 @@ def main(argv=None):
             raise SystemExit(f"ERROR: no {CENSUS}; pass --census-dir (or set BCI_CENSUS_DIR): the folder "
                              "holding the BCI census tables bci_2010.csv and bci_2005.csv (README.md, The data)")
         run([py, CENSUS_TOOL, "--declaration", census_declaration(args.census_dir), "--out", CENSUS])
-    fresh(RunConfig.load(os.path.join(HERE, "ed_config_eval.toml")))
     run([args.edmore, "ed_config_eval.toml"], log=os.path.join(OUTPUT, "eval.log"))
     if args.calibrate:
         work = os.path.join(CALIB, "run")
@@ -143,7 +134,6 @@ def main(argv=None):
         for name in ("fit.json", "report.md", "ed_config_calibrated.toml", "pft_parameters_calibrated.toml"):
             shutil.copyfile(os.path.join(work, name), os.path.join(CALIB, name))
     calibrated = os.path.join(CALIB, "ed_config_calibrated.toml")
-    fresh(RunConfig.load(calibrated, relative_to=HERE))
     run([args.edmore, calibrated], log=os.path.join(OUTPUT, "cal.log"))
     run([py, "plot_evaluation.py", "--calibrated", os.path.join(OUTPUT, "cal-F-*.nc")])
     run([py, "plot_calibration.py"])
