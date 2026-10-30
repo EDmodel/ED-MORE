@@ -9,7 +9,7 @@
 !---~---
 module ed_plant_energy
    use ed_kinds,              only : wp, ik
-   use ed_constants,          only : tiny_num, stefan_boltzmann, latent_heat_vap, cp_liq
+   use ed_constants,          only : tiny_num, stefan_boltzmann, latent_heat_vap_3ple, cp_liq
    use ed_therm_lib,          only : enthalpy_vapor, tissue_energy_to_temp, internal_energy_liquid
    use ed_canopy_water,       only : canopy_water_out_t
    implicit none
@@ -91,7 +91,7 @@ module ed_plant_energy
    type :: latent_pathway_t
       real(wp) :: slope = 0.0_wp            ! [W/m2/K] the flux's change per kelvin of tissue warming
       real(wp) :: ref   = 0.0_wp            ! [W/m2]   at the canopy-air temperature
-      real(wp) :: h_vap = latent_heat_vap   ! [J/kg]   energy per kg evaporated
+      real(wp) :: h_vap = latent_heat_vap_3ple   ! [J/kg]   energy per kg evaporated
    end type latent_pathway_t
 
 contains

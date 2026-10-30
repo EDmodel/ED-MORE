@@ -72,6 +72,13 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   `mean_veg_surface_evap_pa`, `mean_ground_evap_pa`, `mean_dew_pa`, `mean_resid_energy_pa` and
   `mean_resid_water_pa`. (#60)
 
+### Answer changes
+
+- The latent heat flux (`mean_le_pa`, `mean_le_py`) rises by 13 % on average (14.9 to 16.9 W/m2),
+  and by at most 3.2 W/m2 on a day, in the region test's synthetic January 2021 run, where the
+  canopy air is mostly below freezing and the vapour takes the latent heat of sublimation.
+  Evapotranspiration changes only at round-off, and the model state is unchanged. (#49)
+
 ### Changed
 
 - The Fortran sources use one comment format: `!--- text` for a comment line, a comment of
@@ -101,6 +108,11 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   average two cohorts in one slot. Every record of a month is now written in the month's end order,
   keyed by cohort id, and a fast-loop row reduced to a coarser axis pairs each cohort with the weight
   the fast loop used (docs/science/diagnostics.md §3). Model state is bit for bit. (#55)
+- The latent heat of vaporisation depends on temperature (Kirchhoff's law), as in ED2, instead of
+  being a constant, and the latent heat of sublimation for the ice share of the water that
+  vaporises. The reported latent heat flux and the energy budget's outflows use it at the canopy
+  air's temperature, so latent heat is no longer evapotranspiration times a constant: both are
+  reported (`mean_et_py`, `mean_et_pa`). (#49)
 
 ## [0.4.1] - 2026-10-26
 

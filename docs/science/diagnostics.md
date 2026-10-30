@@ -424,7 +424,7 @@ entries are formed there for a reason:
   booked them: transpiration (`mean_transp_py`), the evaporation of the water on the leaves' and
   wood's surfaces (`mean_veg_surface_evap_py`, negative when dew forms on them), the ground's
   evaporation, bare soil and snow pack (`mean_ground_evap_py`), and the condensate that left the
-  canopy air for the soil (`mean_dew_py`). ET (`mean_et_py`, and $`L_v`$ times it, `mean_le_py`) is
+  canopy air for the soil (`mean_dew_py`). ET (`mean_et_py`, and its latent heat, `mean_le_py`) is
   the canopy air's vapour export to the atmosphere: the first three less the dew, less the canopy
   air's own vapour gain, which is small beyond a few hours.
 - **Respiration** is split as the fast loop booked it. Leaf, stem and fine-root maintenance
@@ -613,8 +613,9 @@ Look at these first.
 **Fast-scale.** `mean_sw_in_py`, `mean_rnet_py` — is the radiation forcing physically shaped?
 `mean_le_py`, `mean_h_py` — the Bowen ratio, the single most diagnostic energy number.
 `mean_gpp_py` — light-response shape and magnitude. `mean_nee_py` — night `= +Reco`, day `= −uptake`;
-the sign flip is the integration test. `mean_et_py` — closes against `mean_le_py`, catches a
-latent-heat unit error instantly. `mean_cas_temp_py`, `mean_cas_vpd_py` — canopy-air coupling, the first
+the sign flip is the integration test. `mean_et_py` — closes against `mean_le_py` through the latent heat at the canopy-air temperature
+(about 2.5e6 J/kg, a little more below freezing), which catches a latent-heat unit error instantly.
+`mean_cas_temp_py`, `mean_cas_vpd_py` — canopy-air coupling, the first
 thing to oscillate if `dt_fast` is too large. `mean_cas_co2_py` — drawdown amplitude; a stuck value
 means the canopy air's CO₂ is not coupled. `mean_soil_temp_layer_si`, `mean_soil_water_layer_si` — the diurnal thermal wave
 and the drydown shape. `mean_ustar_py` — is the surface layer turbulent at all?
