@@ -18,7 +18,7 @@ module ed_output_stream
    use ed_soil_params,       only : SOIL_BC_DRAIN, SOIL_BC_AQUIFER
    use ed_netcdf_c,   only : nc_check, nc_close, nc_create_f, nc_def_dim_f, nc_enddef, nc_put_att_double_f,       &
                              nc_put_att_int_f, nc_put_var1_double, nc_put_vara_double, nc_put_vara_int,           &
-                             nc_sync, NC_NOCLOBBER, NC_NOERR, NC_DOUBLE, NC_INT, NC_NETCDF4, NC_UNLIMITED
+                             nc_sync, NC_CLOBBER, NC_NOCLOBBER, NC_NOERR, NC_DOUBLE, NC_INT, NC_NETCDF4, NC_UNLIMITED
    use ed_netcdf_write,    only : define_var, put_text_att, put_global_text, define_polygon_axis,               &
                                   write_polygon_axis, define_site_statics, write_site_statics, OUTPUT_DEFLATE
    use ed_output_params,   only : FC_DAY, FC_MONTH, FC_YEAR, SYNC_FLUSH, freq_letter, TIER_FAST, N_FREQ
@@ -219,10 +219,10 @@ contains
 
       path = output_file_path(files, tier, pr%t_open)
 
-      st = nc_create_f(trim(path), ior(NC_NETCDF4, NC_NOCLOBBER), ncid)
+      st = nc_create_f(trim(path), ior(NC_NETCDF4, merge(NC_CLOBBER, NC_NOCLOBBER, files%overwrite)), ncid)
       if (st /= NC_NOERR) then
          write(*,'(3a)') ' output: cannot create ', trim(path), ' (a file of that name exists, or the folder '// &
-                         'cannot be written); an existing output file is never overwritten'
+                         'cannot be written); an existing output file is overwritten only with [output].overwrite'
          call nc_check(st, 'stream nc_create')
       end if
       call nc_check(nc_def_dim_f(ncid, 'time', NC_UNLIMITED, dt), 'dim time')

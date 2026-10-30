@@ -43,6 +43,8 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - Carbon and radiation: autotrophic respiration `mean_ra_py` ($`R_{eco} - R_h`$), the ecosystem's
   carbon `mean_eco_carbon_py` (vegetation plus soil), the leaves' absorbed PAR `mean_apar_py`, and
   patch evapotranspiration `mean_et_pa`. (#56)
+  give `[output].dir` or `prefix` another value, or set the new `[output].overwrite = true` (default
+  `false`) to replace them, as the examples' configs and scripts now do. (#55)
 
 ### Changed
 

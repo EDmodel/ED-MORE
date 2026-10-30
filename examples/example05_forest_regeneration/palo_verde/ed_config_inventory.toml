@@ -68,6 +68,7 @@ state_file_prefix = "pv"
 enabled       = true
 dir           = "output"
 prefix        = "pv"
+overwrite     = true            # an example: a rerun replaces its own files
 sync_every    = "flush"
 # Daily per-cohort records for the leaf-habit analysis; hourly leaf potential per cohort (io_config_inventory.toml).
 io_config     = "io_config_inventory.toml"

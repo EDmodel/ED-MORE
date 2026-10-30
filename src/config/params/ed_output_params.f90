@@ -86,6 +86,7 @@ module ed_output_params
       integer(ik)        :: cohort_max  = 4096_ik               ! cohort slab size: a run stops if its live count exceeds it
       integer(ik)        :: patch_max   = 256_ik                ! patch slab size: likewise
       integer(ik)        :: sync_every  = SYNC_FLUSH            ! nc_sync policy: SYNC_NEVER | SYNC_FLUSH
+      logical            :: overwrite   = .false.               ! replace existing diagnostic files instead of stopping
       integer(ik)        :: fast_interval_steps = 4_ik          ! fast tier flushes every N*dt_fast
       !--- Per-tier enable and file chunk, indexed FAST, DAILY, MONTHLY, ANNUAL.
       logical            :: freq_on(N_FREQ)    = [.false., .true., .true., .true.]

@@ -9,7 +9,8 @@
   the month's end order: each daily and sub-daily record of a month names the same cohorts in the
   same slots as the month's record.
 - A run never overwrites output: a second run into the same folder stops before its first step,
-  names the file, and leaves the first run's files as they were.
+  names the file, and leaves the first run's files as they were; with [output].overwrite it
+  replaces them.
 
 The runs start from the shipped census (data/census_example.csv) on the fast loop's constant
 reference climate (no forcing file). EDMORE_MAIN names the executable; CTest sets it.
@@ -31,13 +32,14 @@ EDMORE_MAIN = os.environ.get("EDMORE_MAIN", str(ROOT / "build-dev" / "edmore"))
 MONTHS = ("06", "07", "08")
 
 
-def run(run_dir, end="2001-09-01"):
+def run(run_dir, end="2001-09-01", overwrite=False):
     cfg = RunConfig.load(ROOT / "ed_config_main.toml")
     for key, value in {"run.start_time": "2001-06-01", "run.end_time": end, "run.slow_on": True,
                        "run.n_threads": 1, "fast.fast_biophysics_on": True, "forcing.forcing_on": False,
                        "init.init_mode": 1, "init.census_file": str(ROOT / "data/census_example.csv"),
                        "output.state_write": False, "output.enabled": True, "output.fast.enabled": True,
-                       "output.dir": str(run_dir / "out"), "output.prefix": "f"}.items():
+                       "output.dir": str(run_dir / "out"), "output.prefix": "f",
+                       "output.overwrite": overwrite}.items():
         cfg.set(key, value)
     return subprocess.run([EDMORE_MAIN, str(cfg.write(run_dir))], cwd=run_dir, capture_output=True,
                           text=True, timeout=600)
@@ -88,3 +90,9 @@ def test_a_run_never_overwrites_output(tmp_path):
     assert again.returncode != 0, "a run into the folder of a run with the same files must stop"
     assert "a run never overwrites output" in again.stdout
     assert digest(tmp_path / "out") == before, "the first run's files are untouched"
+    stamps = {p.name: p.stat().st_mtime_ns for p in (tmp_path / "out").glob("*.nc")}
+    replace = run(tmp_path, end="2001-06-03", overwrite=True)
+    assert replace.returncode == 0, replace.stdout[-3000:] + replace.stderr[-3000:]
+    after = {p.name: p.stat().st_mtime_ns for p in (tmp_path / "out").glob("*.nc")}
+    assert after.keys() == stamps.keys(), "the same files"
+    assert all(after[k] > stamps[k] for k in stamps), "each one written again"
