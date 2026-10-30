@@ -21,7 +21,7 @@ module ed_fast_integ_frozen
    use ed_diag_vars,          only : CO_ANET, CO_AGROSS, CO_GSW, CO_GBW, CO_CI, CO_CS, CO_RD, CO_BETA_STOM,     &
                                      CO_BETA_NONSTOM, CO_LEAF_TEMP, CO_WOOD_TEMP, CO_LEAF_VPD, CO_PSI_LEAF,      &
                                      CO_ABS_PAR, CO_ABS_SW, CO_ABS_LW, CO_WIND, CO_LEAF_WATER, CO_WOOD_WATER,    &
-                                     CO_GPP_RATE, CO_LEAF_PAR, CO_GB_MOL, CO_PSI_PREDAWN, CO_CA, CO_PRESSURE,    &
+                                     CO_GPP_RATE, CO_LEAF_PAR, CO_GB_MOL, CO_PSI_PREDAWN,    &
                                      CO_PSI_WOOD, CO_PLC, CO_SAPFLOW, CO_ROOT_UPTAKE, CO_WET_FRACTION
    use ed_plant_hydr_lib,     only : conductance_retained_fraction
    use ed_plant_hydraulics,   only : leaf_node_psi
@@ -425,8 +425,6 @@ contains
             cdiag(CO_LEAF_PAR,     i) = par_arr(i)
             cdiag(CO_GB_MOL,       i) = gb_arr(i)
             cdiag(CO_PSI_PREDAWN,  i) = dmax_psi_arr(i)
-            cdiag(CO_CA,           i) = dynamic%cas%can_co2
-            cdiag(CO_PRESSURE,     i) = press
          end do
       else
          call leaf_gas_exchange_batch(n, par_arr, dynamic%leaf_temp(1:n), vpd_arr, dynamic%cas%can_co2, press, &

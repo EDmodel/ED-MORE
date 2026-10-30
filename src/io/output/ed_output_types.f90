@@ -174,6 +174,7 @@ module ed_output_types
       logical           :: used     = .false.
       integer(ik)       :: freq     = 0_ik      ! the FREQ_* bit of the tier this record closes
       type(ed_time_t)   :: t_open              ! period-start stamp (calendar companions)
+      type(ed_time_t)   :: t_close             ! the end of its last step: the period's upper bound
       integer(ik)       :: n_cohort = 0_ik, n_patch = 0_ik  ! live slab lengths this record
       !---~---
       !   The cohort id of each cohort row (a tier with a cohort variable): the order the record
@@ -224,6 +225,7 @@ module ed_output_types
       integer(ik) :: v_soil_z = -1_ik                                        ! soil layer node depths [m]
       integer(ik) :: cohort_dim = 0_ik, patch_dim = 0_ik   ! the cohort/patch axis lengths written so far
       integer(ik) :: v_time = -1_ik, v_year = -1_ik, v_month = -1_ik, v_day = -1_ik
+      integer(ik) :: v_time_bnds = -1_ik
       integer(ik) :: v_hour = -1_ik, v_minute = -1_ik, v_second = -1_ik   ! FAST-tier sub-daily companions
       integer(ik) :: v_ncohort = -1_ik, v_npatch = -1_ik
       integer(ik), allocatable :: vid(:)    ! (nvar) netCDF varid per registry var (-1 if not in tier)
@@ -260,6 +262,7 @@ module ed_output_types
       integer(ik)           :: sync_every = 1_ik
       logical               :: overwrite = .false.           ! replace existing files ([output].overwrite)
       integer(ik)           :: fast_interval_steps = 4_ik   ! fast tier closes every N*dt_fast sub-steps
+      type(ed_time_t)       :: t_ref                        ! the run's start: the files' time origin
       !---~---
       !   The mean diel cycle (diel_<x>): n_diel bins a day, each [output].diel_interval long, filled
       ! from the staged sub-steps of dt_fast seconds each; diel_live when a diel_ variable is written.
@@ -301,6 +304,7 @@ module ed_output_types
       type(integ_buffer_t), allocatable :: buf(:,:)   ! (nvar, N_FREQ) running reductions
       logical           :: has_data(N_FREQ) = .false. ! tier's current window has >=1 sample
       type(ed_time_t)   :: t_open(N_FREQ)             ! period-start of each tier's current window
+      type(ed_time_t)   :: t_last(N_FREQ)             ! the end of the latest step each window holds
       type(pending_record_t) :: pending(N_FREQ)          ! per-tier scratch that close_tier normalizes into
       type(record_queue_t)   :: queue(N_FREQ)            ! closed records awaiting the I/O phase
       !---~---

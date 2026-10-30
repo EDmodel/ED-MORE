@@ -277,6 +277,14 @@ stamped *d* holds the steps that start in period *d*:
   the state at 1 August 00:00, and a monthly mean is the mean over the ends of the month's steps;
 - no record is stamped at or after the run's end.
 
+**A record's `time` is its period's start**, in days since the run's start on the proleptic Gregorian
+calendar (CF `units = "days since <run start>"`, `calendar = "proleptic_gregorian"`), so xarray and
+CDO decode it. Its bounds, `time_bnds`, are that start and the end of the record's last step. A
+period's total is its mean rate times `time_bnds[:, 1] - time_bnds[:, 0]` (in days, times 86400 s),
+and a partial record, at the run's start or end or around a restart, carries its true span. The
+`year`, `month` and `day` companions (and `hour`, `minute`, `second` on F) give the start's calendar
+date without decoding.
+
 **The calendar's restructuring belongs to the period it opens.** At the turn of a month the stand's
 cohorts are recruited, fused, split and culled; at the turn of a year its patches are disturbed and
 fused. This restructuring runs **between** two slow steps: after the output has read the step that
@@ -419,9 +427,9 @@ entries are formed there for a reason:
   air's own vapour gain, which is small beyond a few hours.
 - **Respiration** is split as the fast loop booked it. Leaf, stem and fine-root maintenance
   respiration (`mean_leaf_resp_py`, `mean_stem_resp_py`, `mean_root_resp_py`) are the cohorts'
-  summed per ground area; heterotrophic respiration (`mean_rh_py`) is the soil's over the sub-step;
+  summed per ground area; heterotrophic respiration (`mean_rhet_py`) is the soil's over the sub-step;
   and autotrophic respiration is formed as the rest of the ecosystem's,
-  $`R_{aut} = R_{eco} - R_h`$ (`mean_raut_py`), so the three always add up.
+  $`R_{aut} = R_{eco} - R_{het}`$ (`mean_raut_py`), so the three always add up.
 - **The budget residuals** (`mean_resid_energy_py`, `mean_resid_water_py`) are each sub-step's signed
   whole-column imbalance over the sub-step: a leak rate in W m⁻² or kg m⁻² s⁻¹, positive when a store
   appears from nowhere.
@@ -612,7 +620,7 @@ and the drydown shape. `mean_ustar_py` — is the surface layer turbulent at all
 **Slow-scale.** `mean_agb_py`, `mean_lai_py`, `mean_basal_area_py`, `mean_nplant_py` — the four
 stand-structure scalars. `mean_agb_pft_py`, `mean_lai_pft_py` — is PFT composition doing anything?
 `mean_agb_size_py`, `mean_nplant_size_py` — the size distribution, the demographic core's actual output.
-`mean_npp_py`, `mean_rh_py`, `mean_nee_py` — the carbon balance; drift is the long-run sanity check.
+`mean_npp_py`, `mean_rhet_py`, `mean_nee_py` — the carbon balance; drift is the long-run sanity check.
 `mean_leaf_resp_py` + `mean_stem_resp_py` + `mean_root_resp_py` — the autotrophic fraction should be roughly
 half of GPP, a strong parameter check. `mean_agb_growth_py`, `mean_agb_mort_py`,
 `mean_nplant_recruit_py` — the rates that *make* the AGB trajectory. `mean_soilc_total_py` — spinning up,
@@ -627,7 +635,7 @@ monotonically climbing count is a config bug. `mean_canopy_height_py` — stand 
 \frac{\mathrm{d}\,\text{soilc}}{\mathrm{d}t} \approx \sum \text{mean\_litter\_*\_py} - \text{mean\_rh\_py} \qquad(4)
 ```
 
-with `mean_rh_py` [µmol CO₂ m⁻² s⁻¹] taken to kgC m⁻² yr⁻¹, as the litter rates are (× 1.20107 × 10⁻⁸
+with `mean_rhet_py` [µmol CO₂ m⁻² s⁻¹] taken to kgC m⁻² yr⁻¹, as the litter rates are (× 1.20107 × 10⁻⁸
 kgC µmol⁻¹ × the year's seconds).
 
 ### The carbon seam
@@ -659,7 +667,7 @@ It is generated from the registry, so it cannot drift; the page states no count 
 | `water` | evapotranspiration, soil moisture and potential, snow, surface water |
 | `energy` | latent and sensible heat, net radiation, temperatures, canopy-air state |
 | `numerics` | the integrators' work counters and the energy and water budget residuals |
-| `radiation` | albedo, absorbed shortwave, PAR and longwave, ground radiation |
+| `radiation` | the leaves' absorbed PAR, each cohort's shortwave, PAR and longwave, the ground's radiation |
 | `ecophys` | per-cohort leaf gas exchange and hydraulics (the highest volume) |
 | `biogeochem` | soil-carbon pools, heterotrophic respiration, litterfall |
 | `forcing` | the atmospheric forcing the run used (§5) |

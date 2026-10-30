@@ -278,8 +278,8 @@ and slots beyond the live count hold the fill value.
 exist depends on the config (`edmore --dump-io-config` lists them all). Read coordinates from the file
 (`soil_z`, `dbh_lower`, `dbh_upper`, `pft`) and the reference CO₂ from `mean_atm_co2_py`, so a figure
 stays right when a run changes its grid or forcing. Two habits keep a budget computed from the files
-closed: a rate becomes an amount with the width of its own window, `t[i+1] - t[i]`, the trailing
-partial window dropped because its width is unknown; and the litter variables are not all the carbon
+closed: a rate becomes an amount with the width of its own record, `time_bnds[:, 1] - time_bnds[:, 0]`
+(days), the last, partial record included; and the litter variables are not all the carbon
 entering the soil, because cull and disturbance mortality add necromass directly to the soil-carbon
 pools, so closing the soil-carbon budget also needs the `mean_mort_carbon_*_py` variables.
 

@@ -360,7 +360,7 @@ either: the pools are empty and take no litter, so its CO₂ would be carbon fro
 | the slow step's driver, seam guard and ledger entries | `ed_slow_state`: `advance_soil_carbon`; `ed_slow_update`: `commit_soil_carbon`; `ed_slow_ledger`: `slow_ledger_soil_check` |
 | litter accumulation | `ed_slow_state`: `compute_carbon_allocation`, `accumulate_mortality_litter`, `kill_litter`; the kills come from `ed_slow_update`: `terminate_cohorts`, `apply_patch_disturbance` |
 | fast-step $`R_h`$ and the $`\xi`$ accumulation | `ed_fast_integ_frozen`: `patch_heterotrophic_respiration`; `ed_fast_state`: `accumulate_fast_to_slow`, `reset_fast_to_slow` |
-| output | `mean_soilc_<pool>_py`, `mean_soilc_total_py`, `mean_soilc_total_pa`, `mean_rh_py`, `mean_litter_*_py`, `mean_root_exudate_py`; the state file's `soilc_<name>_pa`, `soilc_lignin_grnd_pa`, `soilc_lignin_soil_pa` |
+| output | `mean_soilc_<pool>_py`, `mean_soilc_total_py`, `mean_soilc_total_pa`, `mean_rhet_py`, `mean_litter_*_py`, `mean_root_exudate_py`; the state file's `soilc_<name>_pa`, `soilc_lignin_grnd_pa`, `soilc_lignin_soil_pa` |
 | tests | `test/fast/test_respiration.f90` ($\xi$, $A$, $K$, $`e_r`$, $`R_h`$ and the Jensen seam), `test/slow/test_soil_carbon.f90` (the soil step), `test/slow/test_slow_step.f90` (the seam through the driver) |
 
 ## References

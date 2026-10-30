@@ -164,6 +164,7 @@ contains
       files%overwrite  = cfg%output%overwrite
       files%sync_every = cfg%output%sync_every
       files%fast_interval_steps = cfg%output%fast_interval_steps
+      files%t_ref = cfg%start_time
       files%n_diel  = 24_ik / cfg%output%diel_interval_hours
       files%dt_fast = cfg%dt_fast
       if (cfg%forcing%forcing_on .and. cfg%forcing%format == MET_BACKEND_ERA5LAND)                   &

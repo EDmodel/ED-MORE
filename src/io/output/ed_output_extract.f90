@@ -43,7 +43,7 @@ module ed_output_extract
    public :: FLD_P_GLOBAL_ID, FLD_P_SITE, FLD_P_CAS_DEPTH, FLD_P_SWE, FLD_P_SNOW_DEPTH
    public :: FLD_P_SOILC_FAST_GRND, FLD_P_SOILC_FAST_SOIL, FLD_P_SOILC_STRUCT_GRND
    public :: FLD_P_SOILC_STRUCT_SOIL, FLD_P_SOILC_MICROBIAL, FLD_P_SOILC_SLOW
-   public :: FLD_P_SOILC_PASSIVE, FLD_P_SOILC_TOTAL, FLD_P_RH
+   public :: FLD_P_SOILC_PASSIVE, FLD_P_SOILC_TOTAL, FLD_P_RHET
    !--- Soil layer fields (3000-3999).
    public :: FLD_L_SOIL_TEMP, FLD_L_SOIL_WATER, FLD_L_SOIL_PSI, FLD_L_SOIL_WETNESS, FLD_L_SOIL_FLIQ
    !--- The polygon's own scalars (4000-4999).
@@ -156,7 +156,7 @@ module ed_output_extract
    integer(ik), parameter :: FLD_P_SOILC_SLOW        = 2025_ik
    integer(ik), parameter :: FLD_P_SOILC_PASSIVE     = 2026_ik
    integer(ik), parameter :: FLD_P_SOILC_TOTAL       = 2027_ik
-   integer(ik), parameter :: FLD_P_RH                = 2028_ik
+   integer(ik), parameter :: FLD_P_RHET                = 2028_ik
 
    !---~---
    !   Soil layer fields (SRCK_LAYER): per (layer, patch); reduced to each site's column
@@ -429,7 +429,7 @@ contains
          do ip = 1_ik, n
             x(ip) = sum(poly%patch%soil_carbon(ip)%carbon)
          end do
-      case (FLD_P_RH)
+      case (FLD_P_RHET)
          do ip = 1_ik, n
             x(ip) = poly%patch%decomp_xi(ip)%rh_fast
          end do
