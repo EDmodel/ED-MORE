@@ -85,6 +85,9 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - Clearer labels: `mean_abs_par_co` is the incident-equivalent PAR (the absorbed VIS over the leaf
   absorptance), as its long name now says; `mean_cas_co2_pa` is in the `energy` group with its
   polygon twin; the radiation group's description no longer promises an albedo. (#58)
+- The water the leaves and wood hold on their surfaces is called surface water throughout the code
+  and the docs (it was a "film"), as its state, keys and outputs already were; no key, state-file
+  variable or output changes. Bit for bit. (#59)
 
 ### Fixed
 
