@@ -35,6 +35,9 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - `mean_ca_co` and `mean_pressure_co` are removed: they repeated the patch's canopy-air CO2 and the
   forcing's air pressure for every cohort. Read `mean_cas_co2_pa` (the previous sub-step's, the CO2
   the leaf solve saw) and `mean_psurf_py`. (#58)
+- `mean_cas_depth_py` is in the `forcing` group, beside `mean_cas_depth_pa`, and reads the depth the
+  fast loop used (the patches' area-weighted), as `mean_cas_depth_pa` does; it moves by millimetres.
+  (#60)
 
 ### Added
 
@@ -65,6 +68,9 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   The mean diel cycle). (#57)
   give `[output].dir` or `prefix` another value, or set the new `[output].overwrite = true` (default
   `false`) to replace them, as the examples' configs and scripts now do. (#55)
+- Per-patch ET sources and budget residuals, off by default: `mean_transp_pa`,
+  `mean_veg_surface_evap_pa`, `mean_ground_evap_pa`, `mean_dew_pa`, `mean_resid_energy_pa` and
+  `mean_resid_water_pa`. (#60)
 
 ### Changed
 

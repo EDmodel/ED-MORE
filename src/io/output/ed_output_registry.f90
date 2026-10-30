@@ -31,7 +31,7 @@ module ed_output_registry
                                      FLD_C_STEM_RESP, FLD_C_ROOT_RESP, FLD_C_DMAX_PSI_LEAF,                       &
                                      FLD_C_LEAF_FLUSH_TENDENCY, FLD_C_LEAF_SHED_TENDENCY, FLD_P_AREA,             &
                                      FLD_P_AGE, FLD_P_DIST_TYPE, FLD_P_COHORT_OFFSET, FLD_P_COHORT_COUNT,         &
-                                     FLD_P_GLOBAL_ID, FLD_P_SITE, FLD_P_CAS_DEPTH, FLD_P_SWE, FLD_P_SNOW_DEPTH,   &
+                                     FLD_P_GLOBAL_ID, FLD_P_SITE, FLD_P_SWE, FLD_P_SNOW_DEPTH,                    &
                                      FLD_P_SOILC_FAST_GRND, FLD_P_SOILC_FAST_SOIL, FLD_P_SOILC_STRUCT_GRND,       &
                                      FLD_P_SOILC_STRUCT_SOIL, FLD_P_SOILC_MICROBIAL, FLD_P_SOILC_SLOW,            &
                                      FLD_P_SOILC_PASSIVE, FLD_P_SOILC_TOTAL, FLD_P_RHET, FLD_L_SOIL_TEMP,           &
@@ -444,8 +444,6 @@ contains
                         GRP_ENERGY, ior(FAST, DAY_MON_YR), FLD_P_DIAG0 + PA_CAS_CO2)
       call add_variable(reg, 'mean_cas_vpd_py', 'polygon canopy-air vapour-pressure deficit', 'Pa', DIM_SCALAR, AGG_TMEAN,         &
                         GRP_ENERGY, DAY_MON_YR, FLD_P_DIAG0 + PA_CAS_VPD)
-      call add_variable(reg, 'mean_cas_depth_py', 'polygon canopy-air-space depth', 'm', DIM_SCALAR, AGG_TMEAN, GRP_ENERGY,     &
-                        MON_YR, FLD_P_CAS_DEPTH)
       call add_variable(reg, 'mean_soil_temp_top_py', 'polygon soil-top (layer 1) temperature', 'K', DIM_SCALAR, AGG_TMEAN,        &
                         GRP_ENERGY, ior(FAST, DAY_MON_YR), FLD_P_DIAG0 + PA_SOIL_TEMP_TOP)
       !---~---
@@ -754,6 +752,19 @@ contains
                         DIM_SCALAR, AGG_TMEAN, GRP_NUMERICS, DAY_MON_YR, FLD_P_DIAG0 + PA_RESID_ENERGY, flux=.true.)
       call add_variable(reg, 'mean_resid_water_py', 'signed whole-column water-budget residual (+ = appearing)', 'kg/m2/s',      &
                         DIM_SCALAR, AGG_TMEAN, GRP_NUMERICS, DAY_MON_YR, FLD_P_DIAG0 + PA_RESID_WATER, flux=.true.)
+      !--- Per patch, off by default: ET's sources and the budget residuals, where a gap and a closed canopy differ.
+      call add_variable(reg, 'mean_transp_pa', 'patch canopy transpiration', 'kg/m2/s', DIM_PATCH, AGG_TMEAN, GRP_WATER,        &
+                        FREQ_NONE, FLD_P_DIAG0 + PA_TRANSP, flux=.true.)
+      call add_variable(reg, 'mean_veg_surface_evap_pa', 'patch evaporation of the leaves'' and wood''s surface water', 'kg/m2/s', &
+                        DIM_PATCH, AGG_TMEAN, GRP_WATER, FREQ_NONE, FLD_P_DIAG0 + PA_VEG_SURFACE_EVAP, flux=.true.)
+      call add_variable(reg, 'mean_ground_evap_pa', 'patch ground evaporation: bare soil and snow pack', 'kg/m2/s', DIM_PATCH,  &
+                        AGG_TMEAN, GRP_WATER, FREQ_NONE, FLD_P_DIAG0 + PA_GROUND_EVAP, flux=.true.)
+      call add_variable(reg, 'mean_dew_pa', 'patch condensation from the canopy air, to the soil', 'kg/m2/s', DIM_PATCH,        &
+                        AGG_TMEAN, GRP_WATER, FREQ_NONE, FLD_P_DIAG0 + PA_DEW, flux=.true.)
+      call add_variable(reg, 'mean_resid_energy_pa', 'patch signed energy-budget residual (+ = appearing)', 'W/m2', DIM_PATCH,  &
+                        AGG_TMEAN, GRP_NUMERICS, FREQ_NONE, FLD_P_DIAG0 + PA_RESID_ENERGY, flux=.true.)
+      call add_variable(reg, 'mean_resid_water_pa', 'patch signed water-budget residual (+ = appearing)', 'kg/m2/s',            &
+                        DIM_PATCH, AGG_TMEAN, GRP_NUMERICS, FREQ_NONE, FLD_P_DIAG0 + PA_RESID_WATER, flux=.true.)
       !--- per-patch twins of the four that vary most between a gap and a closed canopy.
       call add_variable(reg, 'mean_le_pa', 'patch latent heat flux', 'W/m2', DIM_PATCH, AGG_TMEAN, GRP_ENERGY,                  &
                         ior(FAST, DAY_MON), FLD_P_DIAG0 + PA_LE, flux=.true.)
@@ -934,6 +945,9 @@ contains
                         AGG_TMEAN, GRP_FORCING, DAY_MON, FLD_P_DIAG0 + PA_TAIR_CAS_TOP)
       call add_variable(reg, 'mean_cas_depth_pa', 'patch canopy-air depth (the top its forcing is moved to)', 'm', DIM_PATCH,   &
                         AGG_TMEAN, GRP_FORCING, DAY_MON, FLD_P_DIAG0 + PA_Z_CAS_TOP)
+      !--- Their area-weighted sum: the polygon's canopy-air depth, as the fast loop used it.
+      call add_variable(reg, 'mean_cas_depth_py', 'canopy-air depth (the top the forcing is moved to), area-weighted', 'm',     &
+                        DIM_SCALAR, AGG_TMEAN, GRP_FORCING, MON_YR, FLD_P_DIAG0 + PA_Z_CAS_TOP)
       !--- The rain: the precipitation less mean_snowfall_py, as the patches split it.
       call add_variable(reg, 'mean_rainf_py', 'liquid precipitation (split at each patch''s canopy-air top)',                    &
                         'kg/m2/s', DIM_SCALAR, AGG_TMEAN, GRP_FORCING, ior(FAST, DAY_MON_YR), FLD_PY_DIAG0 + PY_RAINF,           &

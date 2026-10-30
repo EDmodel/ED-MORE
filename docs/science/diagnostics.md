@@ -330,6 +330,8 @@ quantity of the patch block is also written per patch on the F tier:
   values too, under the same names;
 - `mean_sw_up_pa`, `mean_lw_up_pa`, `mean_ustar_pa`, `mean_reco_pa` and `mean_cas_co2_pa`, sub-daily
   by default and daily or monthly on request;
+- ET's sources and the budget residuals per patch (`mean_transp_pa`, `mean_veg_surface_evap_pa`,
+  `mean_ground_evap_pa`, `mean_dew_pa`, `mean_resid_energy_pa`, `mean_resid_water_pa`), off by default;
 - the soil columns by layer and patch (`mean_soil_*_layer_pa`), off by default.
 
 The polygon's F value is the area-weighted sum of the patch values, taken in patch order, so the two
@@ -594,7 +596,8 @@ optional corrections:
 - each site's forcing after its terrain, at the daily, monthly and annual tiers (`mean_air_temp_si`
   … `mean_nir_beam_si`);
 - three patch rows at the daily and monthly tiers: the forcing each patch saw at its canopy-air top,
-  `mean_wind_cas_top_pa` and `mean_air_temp_cas_top_pa`, and that top's height `mean_cas_depth_pa`.
+  `mean_wind_cas_top_pa` and `mean_air_temp_cas_top_pa`, and that top's height `mean_cas_depth_pa`
+  (area-weighted, `mean_cas_depth_py`, monthly and yearly).
   With `mean_rough_pa` and `mean_displace_pa` (in `energy`) the move can be rebuilt
   ([`forcing.md`](forcing.md) §8).
 
