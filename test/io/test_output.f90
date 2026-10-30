@@ -70,7 +70,7 @@ program test_output
                                        gather_patch_columns, dbh_class_index, W_NONE, W_NPLANT, W_LEAF_AREA,    &
                                        W_BASAL_AREA, total_agb, total_lai, total_nplant
    use ed_output_extract,       only : extract_variable, extract_fast_scalar, FLD_C_AGB, FLD_C_DIAG0,           &
-                                       SRC_F_PA0, SRC_F_PY0, SRC_F_CO0, SRC_NONE
+                                       FLD_P_DIAG0, SRC_F_PA0, SRC_F_PY0, SRC_F_CO0
    use ed_output_integrate,     only : alloc_integ_buffer, reset_buffer, integrate_scalar, integrate_slab,      &
                                        normalize_scalar, normalize_slab, output_integrate_fast, close_tier,     &
                                        output_integrate, write_order
@@ -296,9 +296,12 @@ contains
       call check(files%reg%var(k)%source_fast == SRC_F_CO0 + CO_GSW,                                  &
                  'a fast-loop cohort row is staged, so the F tier reads it')
       k = find_var_index(files%reg, 'cas_co2_pa')
-      call check(k > 0_ik, 'an F-only state has a snapshot')
-      if (k > 0_ik) call check(files%reg%var(k)%source_id == SRC_NONE .and. files%reg%var(k)%snap_staged, &
-                               'cas_co2_pa reads the staging on every tier')
+      call check(k > 0_ik, 'a patch state of the fast loop has a snapshot')
+      if (k > 0_ik) call check(files%reg%var(k)%source_id == FLD_P_DIAG0 + PA_CAS_CO2 .and.              &
+                               files%reg%var(k)%snap_staged, 'cas_co2_pa: its patch row, read from the staging')
+      k = find_var_index(files%reg, 'mean_leaf_temp_py')
+      call check(files%reg%var(k)%source_fast == SRC_F_CO0 + CO_LEAF_TEMP,                             &
+                 'a cohort row reduced to the polygon is staged too, so the F tier reads it')
    end subroutine test_snapshot_registry
 
    !--- The registry from the config, with these io_config lines applied.
@@ -1350,15 +1353,15 @@ contains
                bufs%fast_patch(N_PA_ROWS, max(np, 1_ik), nsub))
       allocate(bufs%fast_soil_temp(nl, nsub), bufs%fast_soil_water(nl, nsub),                        &
                bufs%fast_soil_temp_patch(nl * max(np, 1_ik), nsub),                                  &
-               bufs%fast_soil_water_patch(nl * max(np, 1_ik), nsub))
+               bufs%fast_soil_water_patch(nl * max(np, 1_ik), nsub), bufs%fast_soil_fliq_patch(nl * max(np, 1_ik), nsub))
       allocate(bufs%fast_soil_live(nl), bufs%fast_soil_patch_live(nl * max(np, 1_ik)), source=.false.)
       bufs%fast_n_site = 1_ik
       bufs%fast_soil_live(1:n_soil) = .true.
       do ip = 1_ik, np
          bufs%fast_soil_patch_live((ip - 1_ik) * nl + 1_ik:(ip - 1_ik) * nl + n_soil) = .true.
       end do
-      allocate(bufs%fast_cohort_gpp(nc, nsub), bufs%fast_cohort_height(nc, nsub), bufs%fast_cohort_id(nc),   &
-               bufs%fast_cohort_w(nc, N_WEIGHT))
+      allocate(bufs%fast_cohort_gpp(nc, nsub), bufs%fast_cohort_npp(nc, nsub), bufs%fast_cohort_height(nc, nsub), &
+               bufs%fast_cohort_id(nc), bufs%fast_cohort_w(nc, N_WEIGHT))
       bufs%fast_cohort_id = [(ip, ip = 1_ik, nc)]           ! the cohorts' ids, in the stand's order
       bufs%fast_cohort_w  = 1.0_wp
       bufs%fast_forcing          = 0.0_wp
@@ -1368,7 +1371,9 @@ contains
       bufs%fast_soil_water       = 0.0_wp
       bufs%fast_soil_temp_patch  = 0.0_wp
       bufs%fast_soil_water_patch = 0.0_wp
+      bufs%fast_soil_fliq_patch  = 1.0_wp
       bufs%fast_cohort_gpp       = 0.0_wp
+      bufs%fast_cohort_npp       = 0.0_wp
       bufs%fast_cohort_height    = 0.0_wp
       bufs%n_fast_sub  = nsub
       bufs%fast_n_patch = np

@@ -269,6 +269,7 @@ module ed_fast_integ_types
       real(wp), allocatable :: abs_sw(:), abs_lw(:)     ! [W/m2] absorbed SW (VIS+NIR) / net LW per cohort (leaf energy)
       real(wp), allocatable :: abs_par(:)               ! [W/m2] incident-equivalent PAR (VIS) per cohort; the leaf
                                                         ! model applies leaf_absorptance itself (photosynthesis)
+      real(wp)              :: apar          = 0.0_wp   ! [W/m2] PAR (VIS) the leaves absorbed, all cohorts
       real(wp), allocatable :: abs_sw_wood(:), abs_lw_wood(:) ! [W/m2] absorbed SW / net LW per cohort (wood energy)
       real(wp), allocatable :: par_top(:)               ! [W/m2] PAR (VIS) reaching the cohort's top: the
                                                         ! phenology PAR cue's driver (canopy light gradient)
@@ -327,6 +328,50 @@ module ed_fast_integ_types
       !---~---
       real(wp)       :: runoff_surf_export = 0.0_wp   ! [kg/m2] over this dt_fast
       real(wp)       :: drainage_export    = 0.0_wp   ! [kg/m2] over this dt_fast
+      !---~---
+      !   The canopy air's vapour sources over the step, as its ledger booked them: the cohorts'
+      ! transpiration, the canopy films' evaporation (net of dew onto them), the ground's (bare
+      ! soil and snow pack), and the condensate (dew, fog) it lost to soil layer 1. ET
+      ! (atm_vap_export) is the first three less the condensate, less the canopy air's own
+      ! vapour gain.
+      !---~---
+      real(wp)       :: transp_export      = 0.0_wp   ! [kg/m2] over this dt_fast
+      real(wp)       :: veg_surface_evap_export   = 0.0_wp   ! [kg/m2] over this dt_fast
+      real(wp)       :: ground_evap_export = 0.0_wp   ! [kg/m2] over this dt_fast
+      real(wp)       :: cond_export        = 0.0_wp   ! [kg/m2] over this dt_fast
+      !---~---
+      !   The whole-column water budget's other terms over the step (docs/science/diagnostics.md
+      ! §4, The budgets): the films' net capture of the rain and snow, the pond's infiltration
+      ! into the soil, the pack's meltwater and sublimation, the tissue water the slow step
+      ! shed, the films' water above capacity that the update removed, and the change of every
+      ! store; and three stores at the step's end.
+      !---~---
+      real(wp)       :: intercept_export    = 0.0_wp   ! [kg/m2] over this dt_fast
+      real(wp)       :: infiltration_export = 0.0_wp   ! [kg/m2] over this dt_fast
+      real(wp)       :: melt_export         = 0.0_wp   ! [kg/m2] over this dt_fast
+      real(wp)       :: sublimation_export  = 0.0_wp   ! [kg/m2] over this dt_fast (deposition < 0)
+      real(wp)       :: shed_water_export   = 0.0_wp   ! [kg/m2] over this dt_fast
+      real(wp)       :: veg_surface_overflow_export  = 0.0_wp   ! [kg/m2] over this dt_fast
+      real(wp)       :: water_store_gain    = 0.0_wp   ! [kg/m2] over this dt_fast
+      real(wp)       :: veg_surface_water_store          = 0.0_wp   ! [kg/m2] at the step's end
+      real(wp)       :: soil_water_store    = 0.0_wp   ! [kg/m2] at the step's end
+      real(wp)       :: plant_water_store   = 0.0_wp   ! [kg/m2] at the step's end
+      !---~---
+      !   The whole-column energy budget's other terms over the step: the heat through the soil
+      ! column's bottom (+ up, into it), the enthalpy the rain and snow carried in and the
+      ! enthalpy the outflows carried out (runoff, drainage, the surface water's overflow and the
+      ! exported vapour's beyond LE), and the change of the soil's, the canopy's (its air and tissues) and the surface's
+      ! (snow pack and pond) stores; and the sensible heat from the canopy and the ground to
+      ! the canopy air.
+      !---~---
+      real(wp)       :: heat_bottom_export  = 0.0_wp   ! [J/m2] over this dt_fast
+      real(wp)       :: precip_enth_export  = 0.0_wp   ! [J/m2] over this dt_fast
+      real(wp)       :: outflow_enth_export = 0.0_wp   ! [J/m2] over this dt_fast
+      real(wp)       :: heat_gain_soil      = 0.0_wp   ! [J/m2] over this dt_fast
+      real(wp)       :: heat_gain_canopy    = 0.0_wp   ! [J/m2] over this dt_fast
+      real(wp)       :: heat_gain_surface   = 0.0_wp   ! [J/m2] over this dt_fast
+      real(wp)       :: h_canopy_export     = 0.0_wp   ! [J/m2] over this dt_fast
+      real(wp)       :: h_ground_export     = 0.0_wp   ! [J/m2] over this dt_fast
       !---~---
       !   Soil-carbon Rh diagnostics (docs/science/soil_carbon.md §7), set by the frozen build when
       ! soil carbon is on (else 0). The fast driver accumulates them into the patch's day
@@ -422,6 +467,7 @@ module ed_fast_integ_types
       real(wp) :: g_top          = 0.0_wp     ! [W/m2]     net energy into the soil-top store
       real(wp) :: h_ground       = 0.0_wp     ! [W/m2]     ground sensible flux to the CAS
       real(wp) :: le_ground      = 0.0_wp     ! [W/m2]     ground latent flux to the CAS
+      real(wp) :: h_canopy       = 0.0_wp     ! [W/m2]     the leaves' and wood's sensible flux to the CAS
       real(wp) :: coh_rnet       = 0.0_wp     ! [W/m2]     net radiation absorbed by the canopy
       real(wp) :: cond           = 0.0_wp     ! [kg/m2/s]  smooth condensation sink (dew) draining CAS supersat
       real(wp) :: cond_enth      = 0.0_wp     ! [W/m2]     liquid enthalpy the sink debited from the CAS
@@ -664,6 +710,9 @@ module ed_fast_integ_types
       real(wp) :: whole_cond_enth = 0.0_wp                       ! [W/m2] its liquid enthalpy at the stage CAS temperature
       real(wp) :: snow_enth_in = 0.0_wp                          ! [W/m2]    energy into the snow pack
       real(wp) :: snow_vap_out = 0.0_wp                          ! [kg/m2/s] vapour from it to the CAS
+      real(wp) :: veg_surface_evap = 0.0_wp                      ! [kg/m2/s] leaf and wood surface water evaporated (dew < 0)
+      real(wp) :: h_canopy     = 0.0_wp                          ! [W/m2]    the leaves' and wood's sensible heat to the CAS
+      real(wp) :: h_ground     = 0.0_wp                          ! [W/m2]    the ground's (soil, snow) sensible heat to the CAS
       !---~---
       !   Net CAS -> atmosphere export at the ledger's own stage states and conductances: the
       ! reported H and LE (ed_fast_integ_stepper%atm_fluxes; docs/science/numerical_scheme.md §5b).
@@ -698,6 +747,9 @@ module ed_fast_integ_types
       !--- The snow pack's exchange over the step, which the update commits to the pack.
       real(wp) :: snow_enth_in = 0.0_wp    ! [J/m2]  energy into the pack
       real(wp) :: snow_vap_out = 0.0_wp    ! [kg/m2] vapour from it to the CAS
+      real(wp) :: veg_surface_evap    = 0.0_wp    ! [kg/m2] leaf and wood surface water evaporated (dew < 0)
+      real(wp) :: h_canopy     = 0.0_wp    ! [J/m2]  the leaves' and wood's sensible heat to the CAS
+      real(wp) :: h_ground     = 0.0_wp    ! [J/m2]  the ground's (soil, snow) sensible heat to the CAS
       real(wp) :: atm_heat_out = 0.0_wp    ! [J/m2]  net CAS -> atmosphere sensible-heat export (reported H)
       real(wp) :: atm_vap_out  = 0.0_wp    ! [kg/m2] net CAS -> atmosphere vapour export (reported LE / L_v)
       real(wp) :: rad_net      = 0.0_wp    ! [J/m2]  net radiation the canopy and the ground booked (reported)
@@ -1113,6 +1165,9 @@ contains
       acc%whole_cond_enth = b2*s2%whole_cond_enth + b3*s3%whole_cond_enth
       acc%snow_enth_in  = b2*s2%snow_enth_in  + b3*s3%snow_enth_in
       acc%snow_vap_out  = b2*s2%snow_vap_out  + b3*s3%snow_vap_out
+      acc%veg_surface_evap = b2*s2%veg_surface_evap + b3*s3%veg_surface_evap
+      acc%h_canopy      = b2*s2%h_canopy      + b3*s3%h_canopy
+      acc%h_ground      = b2*s2%h_ground      + b3*s3%h_ground
       acc%atm_heat_out  = b2*s2%atm_heat_out  + b3*s3%atm_heat_out
       acc%atm_vap_out   = b2*s2%atm_vap_out   + b3*s3%atm_vap_out
       acc%rad_net       = b2*s2%rad_net       + b3*s3%rad_net
@@ -1151,6 +1206,9 @@ contains
       acc%whole_cond_enth = acc%whole_cond_enth + s%whole_cond_enth
       acc%snow_enth_in  = acc%snow_enth_in  + s%snow_enth_in
       acc%snow_vap_out  = acc%snow_vap_out  + s%snow_vap_out
+      acc%veg_surface_evap = acc%veg_surface_evap + s%veg_surface_evap
+      acc%h_canopy      = acc%h_canopy      + s%h_canopy
+      acc%h_ground      = acc%h_ground      + s%h_ground
       acc%atm_heat_out  = acc%atm_heat_out  + s%atm_heat_out
       acc%atm_vap_out   = acc%atm_vap_out   + s%atm_vap_out
       acc%rad_net       = acc%rad_net       + s%rad_net

@@ -22,7 +22,7 @@ module ed_fast_integ_frozen
                                      CO_BETA_NONSTOM, CO_LEAF_TEMP, CO_WOOD_TEMP, CO_LEAF_VPD, CO_PSI_LEAF,      &
                                      CO_ABS_PAR, CO_ABS_SW, CO_ABS_LW, CO_WIND, CO_LEAF_WATER, CO_WOOD_WATER,    &
                                      CO_GPP_RATE, CO_LEAF_PAR, CO_GB_MOL, CO_PSI_PREDAWN, CO_CA, CO_PRESSURE,    &
-                                     CO_PSI_WOOD, CO_PLC, CO_SAPFLOW, CO_ROOT_UPTAKE
+                                     CO_PSI_WOOD, CO_PLC, CO_SAPFLOW, CO_ROOT_UPTAKE, CO_WET_FRACTION
    use ed_plant_hydr_lib,     only : conductance_retained_fraction
    use ed_plant_hydraulics,   only : leaf_node_psi
    use ed_surface, only : snow_out_t
@@ -867,6 +867,7 @@ contains
             do i = 1_ik, n
                out%cdiag(CO_SAPFLOW,     i) = frozen%plant%sapflow_frozen(i)
                out%cdiag(CO_ROOT_UPTAKE, i) = frozen%plant%uptake_frozen(i)
+               out%cdiag(CO_WET_FRACTION, i) = frozen%film%f_wet_c(i)
                out%cdiag(CO_PSI_WOOD,    i) = st%psi_coh(WOOD, i)
                associate (hp => cfg%pft%hydraulics%pft(static%pft(i)))
                   out%cdiag(CO_PLC, i) = 1.0_wp - conductance_retained_fraction(st%psi_coh(WOOD, i), hp%wood_psi50, &

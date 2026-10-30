@@ -315,11 +315,11 @@ surface soil can run well above the air at midday while the closed patch's runs 
 quantity of the patch block is also written per patch on the F tier:
 
 - `mean_cas_temp_pa`, `mean_soil_temp_top_pa`, `mean_skin_temp_pa`, `mean_le_pa`, `mean_h_pa`,
-  `mean_rnet_pa`, `mean_nee_pa`, `mean_gpp_pa` and `mean_npp_pa`, which have daily values too, under
-  the same names;
-- `mean_sw_up_pa`, `mean_lw_up_pa`, `mean_ustar_pa`, `mean_reco_pa` and `mean_cas_co2_pa`, which
-  exist only sub-daily;
-- the soil columns by layer and patch, `mean_soil_temp_layer_pa` and `mean_soil_water_layer_pa`.
+  `mean_rnet_pa`, `mean_nee_pa`, `mean_gpp_pa`, `mean_npp_pa` and `mean_et_pa`, which have daily
+  values too, under the same names;
+- `mean_sw_up_pa`, `mean_lw_up_pa`, `mean_ustar_pa`, `mean_reco_pa` and `mean_cas_co2_pa`, sub-daily
+  by default and daily or monthly on request;
+- the soil columns by layer and patch (`mean_soil_*_layer_pa`), off by default.
 
 The polygon's F value is the area-weighted sum of the patch values, taken in patch order, so the two
 always agree. The patch variables are on by default and the soil by patch off; `"*_pa" = false`
@@ -351,12 +351,13 @@ a sub-daily variable read from it would write end-of-step values on a sub-daily 
 
 A variable therefore has two sources: the staged sample its F records read, and the live field its
 D, M and Y records read. Every row the fast loop records each sub-step (the per-cohort and per-patch
-diagnostic rows, the forcing) is staged, so a variable on one has both, under one name. A few patch
-values (`mean_reco_py`, `mean_sw_up_py`, `mean_ustar_pa`, `mean_cas_co2_pa`, …) have only the first;
-a state among them has a snapshot, the last sub-step's value, on any tier. The slow step's quantities
-and the fast loop's per-slow-step totals have only the second. A tier a variable has no source for would write `_FillValue` for the whole run,
-so the registry checks every default and every override at start-up and refuses to start, naming the
-variable: a diagnostic that quietly reports nothing is worse than one that refuses to start.
+diagnostic rows, the forcing) is staged, so a variable on one has both, under one name. A per-cohort
+row reduced to the patch or the polygon (`mean_leaf_temp_py`, `mean_gsw_py`, `mean_root_uptake_py`)
+is reduced on the F tier from the staged row, with the weights the fast loop used (§3). The slow step's
+quantities have only the second source. A tier a variable has no source for would write `_FillValue`
+for the whole run, so the registry checks every default and every override at start-up and refuses to
+start, naming the variable: a diagnostic that quietly reports nothing is worse than one that refuses
+to start.
 
 ### The patch row
 
@@ -373,9 +374,78 @@ entries are formed there for a reason:
   $`R_{eco} = \mathrm{NEE} + \mathrm{GPP}`$, not summed a second way.
 - **NPP** is GPP net of the maintenance respiration of leaves, stems and roots, on every tier. The
   slow allocator charges growth respiration once a day, and it is not in NPP.
+- **ET's sources** are the vapour the canopy air was credited over the sub-step, as its ledger
+  booked them: transpiration (`mean_transp_py`), the evaporation of the water on the leaves' and
+  wood's surfaces (`mean_veg_surface_evap_py`, negative when dew forms on them), the ground's
+  evaporation, bare soil and snow pack (`mean_ground_evap_py`), and the condensate that left the
+  canopy air for the soil (`mean_dew_py`). ET (`mean_et_py`, and $`L_v`$ times it, `mean_le_py`) is
+  the canopy air's vapour export to the atmosphere: the first three less the dew, less the canopy
+  air's own vapour gain, which is small beyond a few hours.
+- **Respiration** is split as the fast loop booked it. Leaf, stem and fine-root maintenance
+  respiration (`mean_leaf_resp_py`, `mean_stem_resp_py`, `mean_root_resp_py`) are the cohorts'
+  summed per ground area; heterotrophic respiration (`mean_rh_py`) is the soil's over the sub-step;
+  and autotrophic respiration is formed as the rest of the ecosystem's,
+  $`R_{aut} = R_{eco} - R_h`$ (`mean_raut_py`), so the three always add up.
 - **The budget residuals** (`mean_resid_energy_py`, `mean_resid_water_py`) are each sub-step's signed
   whole-column imbalance over the sub-step: a leak rate in W m⁻² or kg m⁻² s⁻¹, positive when a store
   appears from nowhere.
+
+### The budgets
+
+The whole-column water and energy ledgers (docs/science/numerical_scheme.md §5b) close each fast
+step, and the output carries every term they book, on the patch row, so each budget closes from the
+files alone, on any tier, to round-off. Every term is a mean rate over the record, and a store's gain
+is its change over the record divided by the record's length.
+
+Water [kg m⁻² s⁻¹]:
+
+```math
+P + S - \mathrm{ET} - R - O_v - \Delta W = -\epsilon_W
+```
+
+- $`P`$, the precipitation (`mean_precip_py`); $`S`$, the tissue water the slow step shed to the pond
+  (`mean_shed_water_py`);
+- $`\mathrm{ET}`$ (`mean_et_py`); $`R`$, surface runoff plus drainage (`mean_runoff_py`, its two parts
+  `mean_runoff_surf_py` and `mean_drainage_py`);
+- $`O_v`$, the water on the leaves' and wood's surfaces above their capacity, which the update removes
+  (`mean_veg_surface_overflow_py`);
+- $`\Delta W`$, the gain of every store: soil, pond, plants, the leaves' and wood's surface water, snow
+  pack and canopy-air vapour
+  (`mean_water_store_gain_py`);
+- $`\epsilon_W`$, the residual (`mean_resid_water_py`).
+
+The water's paths inside the column are written too, though they cancel in the budget: interception
+and throughfall (`mean_intercept_py`, `mean_throughfall_py`, which add up to the precipitation),
+infiltration, snowmelt and sublimation (`mean_infiltration_py`, `mean_snowmelt_py`,
+`mean_sublimation_py`), and the stores themselves (`mean_veg_surface_water_py`, `mean_soil_water_total_py`,
+`mean_plant_water_py`) with the leaves' wet fraction (`mean_wet_fraction_py`, per cohort
+`mean_wet_fraction_co`).
+
+Energy [W m⁻²]:
+
+```math
+R_n + G_b + P_e - H - \lambda E - O_e - \Delta E_{soil} - \Delta E_{canopy} - \Delta E_{surface} = -\epsilon_E
+```
+
+- $`R_n`$, the net all-wave radiation (`mean_rnet_py`); $`G_b`$, the heat into the soil column through
+  its bottom (`mean_heat_bottom_py`, 0 with an insulated bottom);
+- $`H`$ and $`\lambda E`$, the reported sensible and latent heat (`mean_h_py`, `mean_le_py`);
+- $`P_e`$, the enthalpy the precipitation carries in (`mean_precip_enth_py`): the rain the leaves
+  and wood catch, the snowfall onto the pack and the rain and snow reaching the ground;
+- $`O_e`$, the enthalpy the outflows carry out (`mean_outflow_enth_py`): the surface runoff, the
+  drainage through the column's bottom, the surface water's overflow, and the exported vapour's
+  beyond $`\lambda E`$. Both are carried by water crossing the column's boundary, not by the air;
+- $`\Delta E`$, the energy gains of the soil column, of the canopy air and the tissues, and of the
+  snow pack and the pond (`mean_heat_gain_soil_py`, `mean_heat_gain_canopy_py`,
+  `mean_heat_gain_surface_py`);
+- $`\epsilon_E`$, the residual (`mean_resid_energy_py`).
+
+$`H`$ is also split by its source: the leaves' and wood's (`mean_h_canopy_py`) and the ground's
+(`mean_h_ground_py`). Their sum is the sensible heat into the canopy air, which differs from $`H`$ by
+the canopy air's own warming and the enthalpy its condensate takes to the soil.
+
+The carbon stocks add up the same way: the ecosystem's carbon (`mean_eco_carbon_py`) is the live
+vegetation's (`mean_veg_carbon_py`) plus the soil's organic carbon (`mean_soilc_total_py`).
 
 ### The slow rows
 
@@ -475,8 +545,8 @@ optional corrections:
 - polygon means at every tier: `mean_air_temp_py`, `mean_qair_py`, `mean_psurf_py`, `mean_wind_py`,
   `mean_lwdown_py`, the four shortwave streams `mean_par_beam_py` … `mean_nir_diffuse_py`,
   `mean_sw_in_py`, `mean_precip_py`, `mean_snowfall_py`, `mean_atm_co2_py`, `mean_cosz_py` and
-  `mean_rho_air_py`; `mean_rainf_py` is sub-daily only. Rain and snow are the split each patch made at
-  its canopy-air top, area-weighted;
+  `mean_rho_air_py` and `mean_rainf_py`, the rain. Rain and snow are the split each patch made at its
+  canopy-air top, area-weighted;
 - each site's forcing after its terrain, at the daily, monthly and annual tiers (`mean_air_temp_si`
   … `mean_nir_beam_si`);
 - three patch rows at the daily and monthly tiers: the forcing each patch saw at its canopy-air top,

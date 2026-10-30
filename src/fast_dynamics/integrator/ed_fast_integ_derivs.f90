@@ -138,6 +138,7 @@ contains
       f%src_enth   = coh_h + coh_qw + f%h_ground + f%le_ground
       f%src_vap    = coh_transp + coh_film_evap + ground%soil_evap + f%snow_vap_out
       f%coh_rnet   = coh_rnet
+      f%h_canopy   = coh_h
 
       !---~---
       !   The condensation sink (dew, fog; ed_canopy_air_space), taken from the canopy air's vapour

@@ -23,7 +23,7 @@ module ed_output_extract
    use ed_output_reduce,  only : reduce_cohort_to_polygon, reduce_cohort_to_patch,             &
                                        reduce_cohort_to_pft, reduce_cohort_to_size,               &
                                        reduce_patch_to_polygon, reduce_patch_columns_to_sites,       &
-                                       gather_patch_columns
+                                       gather_patch_columns, W_NPLANT
    implicit none
    private
 
@@ -47,14 +47,13 @@ module ed_output_extract
    !--- Soil layer fields (3000-3999).
    public :: FLD_L_SOIL_TEMP, FLD_L_SOIL_WATER, FLD_L_SOIL_PSI, FLD_L_SOIL_WETNESS, FLD_L_SOIL_FLIQ
    !--- The polygon's own scalars (4000-4999).
-   public :: SRC_PY_ET, SRC_PY_N_COHORT, SRC_PY_N_PATCH, SRC_PY_CANOPY_HEIGHT
-   public :: SRC_PY_RUNOFF, SRC_PY_RUNOFF_SURF, SRC_PY_DRAINAGE
+   public :: SRC_PY_N_COHORT, SRC_PY_N_PATCH, SRC_PY_CANOPY_HEIGHT, SRC_PY_ECO_CARBON
    public :: SRC_PY_WORK_STEPS, SRC_PY_WORK_REJ, SRC_PY_WORK_WATER_NSUB,                              &
              SRC_PY_WORK_WATER_NEWTON, SRC_PY_WORK_WATER_NFAIL, SRC_PY_WORK_WATER_REJECT
    public :: SRC_PY_WORK_RK45_RESCUE, SRC_PY_WORK_CLAMP_STAGE
    !--- FAST-tier sources (5000-5999): read from the fast loop's staging.
-   public :: SRC_F_SOIL_TEMP, SRC_F_SOIL_WATER
-   public :: SRC_F_COH_GPP, SRC_F_COH_HEIGHT, SRC_F_CO0
+   public :: SRC_F_SOIL_TEMP, SRC_F_SOIL_WATER, SRC_F_SOIL_LAYER
+   public :: SRC_F_COH_GPP, SRC_F_COH_HEIGHT, SRC_F_COH_NPP, SRC_F_CO0
    public :: SRC_F_PY0, SRC_F_PA0
    !--- Per-site fields (6000-6999).
    public :: FLD_SI_GROWTH_TEMP, FLD_SI_DIAG0
@@ -170,13 +169,10 @@ module ed_output_extract
    integer(ik), parameter :: FLD_L_SOIL_FLIQ    = 3005_ik
 
    !--- The polygon's own scalars (SRCK_POLYGON): already polygon quantities, no reduction.
-   integer(ik), parameter :: SRC_PY_ET               = 4001_ik ! [kg/m2] slow-step ET accumulator
    integer(ik), parameter :: SRC_PY_N_COHORT         = 4002_ik
    integer(ik), parameter :: SRC_PY_N_PATCH          = 4003_ik
    integer(ik), parameter :: SRC_PY_CANOPY_HEIGHT    = 4004_ik ! [m] tallest live cohort
-   integer(ik), parameter :: SRC_PY_RUNOFF           = 4005_ik ! [kg/m2] surface runoff + drainage
-   integer(ik), parameter :: SRC_PY_RUNOFF_SURF      = 4006_ik ! [kg/m2] the pond's spill
-   integer(ik), parameter :: SRC_PY_DRAINAGE         = 4007_ik ! [kg/m2] the column's bottom flux
+   integer(ik), parameter :: SRC_PY_ECO_CARBON       = 4008_ik ! [kgC/m2] live vegetation + soil carbon
    integer(ik), parameter :: SRC_PY_WORK_STEPS       = 4030_ik
    integer(ik), parameter :: SRC_PY_WORK_REJ         = 4031_ik
    integer(ik), parameter :: SRC_PY_WORK_WATER_NSUB   = 4032_ik
@@ -196,8 +192,11 @@ module ed_output_extract
    integer(ik), parameter :: SRC_F_PA0           = 5200_ik
    integer(ik), parameter :: SRC_F_SOIL_TEMP     = 5010_ik  ! DIM_SOIL or DIM_SOIL_PATCH, the fast soil slabs
    integer(ik), parameter :: SRC_F_SOIL_WATER    = 5011_ik  ! DIM_SOIL or DIM_SOIL_PATCH, the fast soil slabs
+   !--- A soil-layer field formed from the staged water content and liquid fraction (layer_source_field).
+   integer(ik), parameter :: SRC_F_SOIL_LAYER    = 5012_ik  ! DIM_SOIL or DIM_SOIL_PATCH
    integer(ik), parameter :: SRC_F_COH_GPP       = 5021_ik  ! DIM_COHORT
    integer(ik), parameter :: SRC_F_COH_HEIGHT    = 5022_ik  ! DIM_COHORT
+   integer(ik), parameter :: SRC_F_COH_NPP       = 5023_ik  ! DIM_COHORT
    !---~---
    !   The per-cohort diagnostic block's rows at the FAST tier, SRC_F_CO0 + CO_*, DIM_COHORT: the
    ! fast loop stages every row of every sub-step when the block is on (fast_cohort_diag).
@@ -450,12 +449,15 @@ contains
    ! Only the active layers are data and marked valid: the padding would average zeros
    ! into a column, and soil_matric_potential on it (theta_sat 0) divides by zero.
    !---~---
-   pure subroutine layer_source_field(poly, setup, src, col, ok)
+   pure subroutine layer_source_field(poly, setup, src, col, ok, theta_x, fliq_x)
       type(polygon_t),     intent(in)  :: poly
       type(diag_setup_t),  intent(in)  :: setup
       integer(ik),         intent(in)  :: src
       real(wp),            intent(out) :: col(:,:)
       logical,             intent(out) :: ok
+      !--- In place of the live columns: a staged sub-step's water content and liquid fraction.
+      real(wp), optional,  intent(in)  :: theta_x(:,:), fliq_x(:,:)   ! (n_soil_layer_max, patch)
+      real(wp)    :: theta(n_soil_layer_max), fliq(n_soil_layer_max)
       integer(ik) :: ip, np, nl
       np = poly%patch%n
       ok = np > 0_ik
@@ -467,25 +469,30 @@ contains
       do ip = 1_ik, np
          associate (soil => poly%site%surface(poly%patch%owner_site(ip))%soil_profile)
             nl = soil%n_active
+            if (present(theta_x)) then
+               theta(1:nl) = theta_x(1:nl, ip)
+               fliq(1:nl)  = fliq_x(1:nl, ip)
+            else
+               theta(1:nl) = poly%patch%soil_water(ip)%theta(1:nl)
+               fliq(1:nl)  = poly%patch%soil_energy(ip)%soil_fliq(1:nl)
+            end if
             select case (src)
             case (FLD_L_SOIL_TEMP)
                col(1:nl, ip) = poly%patch%soil_energy(ip)%soil_temp(1:nl)
             case (FLD_L_SOIL_WATER)
-               col(1:nl, ip) = poly%patch%soil_water(ip)%theta(1:nl)
+               col(1:nl, ip) = theta(1:nl)
             case (FLD_L_SOIL_FLIQ)
-               col(1:nl, ip) = poly%patch%soil_energy(ip)%soil_fliq(1:nl)
+               col(1:nl, ip) = fliq(1:nl)
             case (FLD_L_SOIL_PSI)
                !---~---
                !   The liquid's potential: in a frozen layer, the freezing curve's
                ! (docs/science/soil_biophysics.md, "Frozen soil").
                !---~---
-               col(1:nl, ip) = soil_matric_potential(soil%retention, poly%patch%soil_water(ip)%theta(1:nl)   &
-                                                     * poly%patch%soil_energy(ip)%soil_fliq(1:nl),          &
+               col(1:nl, ip) = soil_matric_potential(soil%retention, theta(1:nl) * fliq(1:nl),         &
                                                      soil%theta_sat(1:nl), soil%theta_res(1:nl),          &
                                                      soil%curve_par_a(1:nl), soil%curve_par_n(1:nl))
             case (FLD_L_SOIL_WETNESS)
-               col(1:nl, ip) = soil_theta_to_saturation(poly%patch%soil_water(ip)%theta(1:nl),        &
-                                                        soil%theta_sat(1:nl), soil%theta_res(1:nl))
+               col(1:nl, ip) = soil_theta_to_saturation(theta(1:nl), soil%theta_sat(1:nl), soil%theta_res(1:nl))
             case default
                ok = .false.
             end select
@@ -524,7 +531,8 @@ contains
    ! mean_agb_co, mean_agb_pa, mean_agb_py, mean_agb_pft_py and mean_agb_size_py all read FLD_C_AGB. Extract each
    ! variable once per step (the nvfortran trap above).
    !---~---
-   subroutine extract_variable(poly, setup, v, scalar_out, slab_out, valid_out, n_out, cohort_x, cohort_w)
+   subroutine extract_variable(poly, setup, v, scalar_out, slab_out, valid_out, n_out, cohort_x, cohort_w, soil_theta, &
+                               soil_fliq)
       type(polygon_t),     intent(in)  :: poly
       type(diag_setup_t),  intent(in)  :: setup
       type(var_desc_t),    intent(in)  :: v
@@ -536,6 +544,8 @@ contains
                                                         ! (a staged sub-step's row, for a snapshot)
       real(wp), optional,  intent(in)  :: cohort_w(:,:) ! with cohort_x: the weights the fast loop used
                                                         ! (cohort, W_NPLANT:W_AGB), in the live order
+      real(wp), optional,  intent(in)  :: soil_theta(:,:), soil_fliq(:,:)   ! a staged sub-step's soil columns
+                                                        ! (n_soil_layer_max, patch), in place of the live ones
       real(wp)    :: x(max(poly%cohort%n, poly%patch%n, 1_ik))
       real(wp)    :: col(n_soil_layer_max, max(poly%patch%n, 1_ik))
       integer(ik) :: nf, kcls
@@ -593,7 +603,7 @@ contains
 
       !--- Each site's column, its patches area-weighted, at (is-1)*n_soil_layer_max + k.
       case (DIM_SOIL)
-         call layer_source_field(poly, setup, v%source_id, col, ok)
+         call layer_source_field(poly, setup, v%source_id, col, ok, soil_theta, soil_fliq)
          if (ok) then
             call reduce_patch_columns_to_sites(poly, col, slab_out, valid_out, n_out)
             call scale_slab(slab_out, n_out, v%scale)
@@ -608,7 +618,7 @@ contains
 
       !--- 2-D (soil layer x patch), flattened at (ip-1)*n_soil_layer_max + k.
       case (DIM_SOIL_PATCH)
-         call layer_source_field(poly, setup, v%source_id, col, ok)
+         call layer_source_field(poly, setup, v%source_id, col, ok, soil_theta, soil_fliq)
          if (ok) then
             call gather_patch_columns(poly, col, slab_out, valid_out, n_out)
             call scale_slab(slab_out, n_out, v%scale)
@@ -639,19 +649,30 @@ contains
       end select
    end subroutine extract_variable
 
+   !---~---
+   !   The polygon's ecosystem carbon [kgC/m2]: its live vegetation (leaf, fine root, wood and
+   ! storage of every plant) and its soil pools, litter included, each patch weighted by its
+   ! share of the polygon, as mean_veg_carbon_py and mean_soilc_total_py reduce them.
+   !---~---
+   pure real(wp) function ecosystem_carbon(poly) result(c)
+      type(polygon_t), intent(in) :: poly
+      real(wp)    :: x(max(poly%cohort%n, poly%patch%n, 1_ik)), veg, soil
+      integer(ik) :: nf
+      logical     :: ok
+      call cohort_source_field(poly, FLD_C_VEG_CARBON, x, nf)
+      call reduce_cohort_to_polygon(poly, x, W_NPLANT, .false., veg, ok)
+      call patch_source_field(poly, FLD_P_SOILC_TOTAL, x, nf)
+      call reduce_patch_to_polygon(poly, x, .false., soil, ok)
+      c = veg + soil
+   end function ecosystem_carbon
+
    !--- The polygon's own scalars: already polygon quantities, no reduction.
    pure real(wp) function extract_scalar_source(poly, source_id) result(val)
       type(polygon_t), intent(in) :: poly
       integer(ik),  intent(in) :: source_id
       select case (source_id)
-      case (SRC_PY_ET)
-         val = poly%et_accum
-      case (SRC_PY_RUNOFF)
-         val = poly%runoff_surf_accum + poly%drainage_accum
-      case (SRC_PY_RUNOFF_SURF)
-         val = poly%runoff_surf_accum
-      case (SRC_PY_DRAINAGE)
-         val = poly%drainage_accum
+      case (SRC_PY_ECO_CARBON)
+         val = ecosystem_carbon(poly)
       case (SRC_PY_N_COHORT)
          val = real(poly%cohort%n, wp)
       case (SRC_PY_N_PATCH)

@@ -8,7 +8,7 @@
 !---~---
 module ed_fast_diag
    use ed_kinds,                only : wp, ik
-   use ed_constants,            only : latent_heat_vap, stefan_boltzmann, n_soil_layer_max
+   use ed_constants,            only : stefan_boltzmann, n_soil_layer_max, kgcday_2_umols
    use ed_therm_lib,            only : specific_humidity_to_vpd
    use ed_time,                 only : ed_time_t, time_advance_seconds
    use ed_output_types,         only : output_buffers_t, W_NPLANT, W_LEAF_AREA, W_BASAL_AREA, W_AGB, N_WEIGHT
@@ -17,6 +17,14 @@ module ed_fast_diag
                                        PA_LW_GROUND, PA_SW_IN_VIS, PA_SW_IN_NIR, PA_SW_UP_VIS, PA_SW_UP_NIR,     &
                                        PA_LW_UP, PA_USTAR, PA_GGNET, PA_ROUGH, PA_DISPLACE, PA_CAS_TEMP,         &
                                        PA_CAS_SHV, PA_CAS_CO2, PA_GPP, PA_NEE, PA_TRANSP, PA_NPP, PA_RECO,       &
+                                       PA_VEG_SURFACE_EVAP, PA_GROUND_EVAP, PA_DEW, PA_ET, PA_RUNOFF_SURF,       &
+                                       PA_DRAINAGE, PA_RUNOFF, PA_LEAF_RESP, PA_STEM_RESP, PA_ROOT_RESP,         &
+                                       PA_RHET, PA_RAUT, PA_APAR, PA_H_CANOPY, PA_H_GROUND, PA_HEAT_BOTTOM,      &
+                                       PA_PRECIP_ENTH, PA_OUTFLOW_ENTH, PA_HEAT_GAIN_SOIL,                       &
+                                       PA_HEAT_GAIN_CANOPY, PA_HEAT_GAIN_SURFACE, PA_INTERCEPT,                  &
+                                       PA_THROUGHFALL, PA_INFILTRATION, PA_SNOWMELT, PA_SUBLIMATION,             &
+                                       PA_SHED_WATER, PA_VEG_SURFACE_OVERFLOW, PA_WATER_STORE_GAIN,              &
+                                       PA_VEG_SURFACE_WATER, PA_SOIL_WATER_TOTAL, PA_PLANT_WATER,                &
                                        PA_SW_UP, PA_SKIN_TEMP, PA_SOIL_TEMP_TOP, PA_CAS_VPD, PA_W_SURFACE,       &
                                        PA_RESID_ENERGY, PA_RESID_WATER, PA_WIND_CAS_TOP, PA_TAIR_CAS_TOP,        &
                                        PA_Z_CAS_TOP, PY_SW_IN, PY_PRECIP, PY_TAIR, PY_QAIR, PY_PSURF, PY_WIND,   &
@@ -27,7 +35,8 @@ module ed_fast_diag
                                        SI_RHO_AIR, N_SI_ROWS
    use ed_met_types,            only : met_forcing_t
    use ed_polygon_state_vars,   only : polygon_t, patch_polygon_area
-   use ed_fast_integ_types,         only : fast_static_state_t, fast_dynamic_state_t, fast_forcing_t, fast_output_t
+   use ed_fast_integ_types,         only : fast_static_state_t, fast_dynamic_state_t, fast_forcing_t, fast_output_t,  &
+                                           step_exports_t
    implicit none
    private
 
@@ -96,6 +105,7 @@ contains
       out_bufs%fast_soil_temp = 0.0_wp
       out_bufs%fast_soil_water = 0.0_wp
       out_bufs%fast_cohort_gpp = 0.0_wp
+      out_bufs%fast_cohort_npp = 0.0_wp
       out_bufs%fast_cohort_height = 0.0_wp
       if (poly%cohort%diag%active) out_bufs%fast_cohort_diag = 0.0_wp
       !--- A FAST record is stamped by its sub-step's start, as the slower tiers stamp theirs.
@@ -123,7 +133,7 @@ contains
       logical,                    intent(in)              :: do_fast
       type(output_buffers_t),     intent(inout), optional :: out_bufs   ! present when do_fast
       real(wp)    :: prow(N_PA_ROWS)                ! the patch block's row for this (patch, sub-step)
-      real(wp)    :: gpp_patch, npp_patch, rnet, rnet_ts, lw_up
+      real(wp)    :: gpp_patch, npp_patch, rnet, rnet_ts, lw_up, leaf_resp, stem_resp, root_resp
       integer(ik) :: ncoh, i0, i, j, kb, nl
       logical     :: do_cdiag, do_pdiag
       do_cdiag = poly%cohort%diag%active
@@ -147,6 +157,9 @@ contains
          lw_up     = forcing%lw_up + (rnet_ts - rnet)
          npp_patch = gpp_patch - sum((out%leaf_resp_coh(1:ncoh) + out%stem_resp_coh(1:ncoh)              &
                                       + out%root_resp_coh(1:ncoh)) * static%nplant(1:ncoh))
+         leaf_resp = sum(out%leaf_resp_coh(1:ncoh) * static%nplant(1:ncoh))        ! [umol/m2/s]
+         stem_resp = sum(out%stem_resp_coh(1:ncoh) * static%nplant(1:ncoh))
+         root_resp = sum(out%root_resp_coh(1:ncoh) * static%nplant(1:ncoh))
          call patch_diag_row(prow, dt_fast, out%le_flux, out%h_flux, rnet,                              &
                              forcing%abs_sw_ground, forcing%abs_lw_ground,                              &
                              out%aero%ustar, out%aero%ggnet, out%aero%rough, out%aero%displace,         &
@@ -156,7 +169,8 @@ contains
                              out%report%ledgers%whole_water%resid, forcing%wind, forcing%air_temp,      &
                              static%z_top, forcing%sw_in_vis, forcing%sw_in_nir, forcing%sw_up_vis,     &
                              forcing%sw_up_nir, lw_up, dynamic%soil_water%w_surface,                    &
-                             forcing%press)
+                             forcing%press, out%report%exports, leaf_resp, stem_resp, root_resp,        &
+                             forcing%rainfall + forcing%snowfall, forcing%apar)
       end if
       !--- FAST-tier staging in the patch's and its cohorts' own slots.
       if (do_fast) then
@@ -164,9 +178,12 @@ contains
          kb = (ip - 1_ik) * nl
          out_bufs%fast_soil_temp_patch(kb+1_ik:kb+nl, isub)  = dynamic%soil_energy%soil_temp(1:nl)
          out_bufs%fast_soil_water_patch(kb+1_ik:kb+nl, isub) = dynamic%soil_water%theta(1:nl)
+         out_bufs%fast_soil_fliq_patch(kb+1_ik:kb+nl, isub)  = dynamic%soil_energy%soil_fliq(1:nl)
          do j = 1_ik, ncoh
             i = i0 + j - 1_ik
             out_bufs%fast_cohort_gpp(i,isub)    = out%gpp_coh(j)
+            out_bufs%fast_cohort_npp(i,isub)    = out%gpp_coh(j) - out%leaf_resp_coh(j) - out%stem_resp_coh(j)  &
+                                                  - out%root_resp_coh(j)
             out_bufs%fast_cohort_height(i,isub) = static%height(j)
             if (do_cdiag) out_bufs%fast_cohort_diag(i, :, isub) = out%cdiag(:, j)
          end do
@@ -244,7 +261,7 @@ contains
                                   ustar, ggnet, rough, displace, cas_temp, cas_shv, cas_co2, gpp, nee, &
                                   npp, soil_temp_top, resid_energy, resid_water, wind_top, tair_top,  &
                                   z_top, sw_in_vis, sw_in_nir, sw_up_vis, sw_up_nir, lw_up, w_surface, &
-                                  press)
+                                  press, exports, leaf_resp, stem_resp, root_resp, precip, apar)
       real(wp), intent(out) :: row(N_PA_ROWS)
       real(wp), intent(in)  :: dt                        ! [s]        the sub-step
       real(wp), intent(in)  :: le_flux, h_flux           ! [W/m2]     CAS -> atmosphere
@@ -262,6 +279,10 @@ contains
       real(wp), intent(in)  :: sw_in_vis, sw_in_nir, sw_up_vis, sw_up_nir, lw_up
       real(wp), intent(in)  :: w_surface                 ! [kg/m2]   ponded surface water
       real(wp), intent(in)  :: press                     ! [Pa]      air pressure
+      type(step_exports_t), intent(in) :: exports        ! the step's exports: water and Rh amounts over dt
+      real(wp), intent(in)  :: leaf_resp, stem_resp, root_resp   ! [umol/m2/s] the cohorts' maintenance respiration
+      real(wp), intent(in)  :: precip                    ! [kg/m2/s] rain and snow at the canopy-air top
+      real(wp), intent(in)  :: apar                      ! [W/m2]    PAR the leaves absorbed
       row = 0.0_wp
       row(PA_LE)           = le_flux
       row(PA_H)            = h_flux
@@ -294,11 +315,43 @@ contains
       row(PA_NEE)          = nee
       row(PA_NPP)          = npp
       row(PA_RECO)         = nee + gpp
-      !---~---
-      !   The canopy air's whole evaporative flux to the atmosphere [kg/m2/s], not transpiration
-      ! alone; each cohort's own transpiration is CO_TRANSP.
-      !---~---
-      row(PA_TRANSP)       = le_flux / latent_heat_vap
+      row(PA_LEAF_RESP)    = leaf_resp
+      row(PA_STEM_RESP)    = stem_resp
+      row(PA_ROOT_RESP)    = root_resp
+      row(PA_RHET)           = exports%rh_matrix_step * kgcday_2_umols
+      row(PA_RAUT)           = row(PA_RECO) - row(PA_RHET)      ! maintenance and growth, as NEE booked them
+      !--- ET's sources, as rates [kg/m2/s]: ET = transp + evap_canopy + evap_ground - dew - d(CAS vapour).
+      row(PA_TRANSP)       = exports%transp_export / dt
+      row(PA_VEG_SURFACE_EVAP)  = exports%veg_surface_evap_export / dt
+      row(PA_GROUND_EVAP)  = exports%ground_evap_export / dt
+      row(PA_DEW)          = exports%cond_export / dt
+      row(PA_ET)           = exports%atm_vap_export / dt
+      !--- The water leaving the soil column [kg/m2/s].
+      row(PA_RUNOFF_SURF)  = exports%runoff_surf_export / dt
+      row(PA_DRAINAGE)     = exports%drainage_export / dt
+      row(PA_RUNOFF)       = (exports%runoff_surf_export + exports%drainage_export) / dt
+      !--- The water budget's other terms [kg/m2/s] and three of its stores [kg/m2].
+      row(PA_INTERCEPT)        = exports%intercept_export / dt
+      row(PA_THROUGHFALL)      = precip - exports%intercept_export / dt
+      row(PA_INFILTRATION)     = exports%infiltration_export / dt
+      row(PA_SNOWMELT)         = exports%melt_export / dt
+      row(PA_SUBLIMATION)      = exports%sublimation_export / dt
+      row(PA_SHED_WATER)       = exports%shed_water_export / dt
+      row(PA_VEG_SURFACE_OVERFLOW)      = exports%veg_surface_overflow_export / dt
+      row(PA_WATER_STORE_GAIN) = exports%water_store_gain / dt
+      row(PA_VEG_SURFACE_WATER)     = exports%veg_surface_water_store
+      row(PA_SOIL_WATER_TOTAL) = exports%soil_water_store
+      row(PA_PLANT_WATER)      = exports%plant_water_store
+      !--- The energy budget's other terms [W/m2], the sensible heat's sources and the absorbed PAR.
+      row(PA_APAR)              = apar
+      row(PA_H_CANOPY)          = exports%h_canopy_export / dt
+      row(PA_H_GROUND)          = exports%h_ground_export / dt
+      row(PA_HEAT_BOTTOM)       = exports%heat_bottom_export / dt
+      row(PA_PRECIP_ENTH)       = exports%precip_enth_export / dt
+      row(PA_OUTFLOW_ENTH)      = exports%outflow_enth_export / dt
+      row(PA_HEAT_GAIN_SOIL)    = exports%heat_gain_soil / dt
+      row(PA_HEAT_GAIN_CANOPY)  = exports%heat_gain_canopy / dt
+      row(PA_HEAT_GAIN_SURFACE) = exports%heat_gain_surface / dt
       row(PA_SOIL_TEMP_TOP) = soil_temp_top
       !---~---
       !   The whole-column ledgers' signed residuals as leak rates [W/m2, kg/m2/s], positive when
@@ -337,22 +390,24 @@ contains
       if (allocated(b%fast_patch)) then
          if (size(b%fast_patch, 2, kind=ik) < np) then
             np = max(np, 2_ik * size(b%fast_patch, 2, kind=ik))
-            deallocate(b%fast_patch, b%fast_soil_temp_patch, b%fast_soil_water_patch, b%fast_soil_patch_live)
+            deallocate(b%fast_patch, b%fast_soil_temp_patch, b%fast_soil_water_patch, b%fast_soil_fliq_patch,  &
+                       b%fast_soil_patch_live)
          end if
       end if
       if (.not. allocated(b%fast_patch))                                                           &
          allocate(b%fast_patch(N_PA_ROWS, np, nsub), b%fast_soil_temp_patch(nl * np, nsub),           &
-                  b%fast_soil_water_patch(nl * np, nsub), b%fast_soil_patch_live(nl * np))
+                  b%fast_soil_water_patch(nl * np, nsub), b%fast_soil_fliq_patch(nl * np, nsub),         &
+                  b%fast_soil_patch_live(nl * np))
       nc = max(ncohort, 1_ik)
       if (allocated(b%fast_cohort_gpp)) then
          if (size(b%fast_cohort_gpp, 1, kind=ik) < nc) then
             nc = max(nc, 2_ik * size(b%fast_cohort_gpp, 1, kind=ik))
-            deallocate(b%fast_cohort_gpp, b%fast_cohort_height, b%fast_cohort_id, b%fast_cohort_w)
+            deallocate(b%fast_cohort_gpp, b%fast_cohort_npp, b%fast_cohort_height, b%fast_cohort_id, b%fast_cohort_w)
          end if
       end if
       if (.not. allocated(b%fast_cohort_gpp))                                                      &
-         allocate(b%fast_cohort_gpp(nc, nsub), b%fast_cohort_height(nc, nsub), b%fast_cohort_id(nc),   &
-                  b%fast_cohort_w(nc, N_WEIGHT))
+         allocate(b%fast_cohort_gpp(nc, nsub), b%fast_cohort_npp(nc, nsub), b%fast_cohort_height(nc, nsub),  &
+                  b%fast_cohort_id(nc), b%fast_cohort_w(nc, N_WEIGHT))
       !--- The per-cohort diagnostic rows, staged only while their FAST-tier variables are on.
       if (with_cdiag) then
          nc = size(b%fast_cohort_gpp, 1, kind=ik)

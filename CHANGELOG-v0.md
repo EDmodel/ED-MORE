@@ -17,6 +17,34 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - `[output.<tier>].file_chunk = "run"` is now `"all"`, one file for all of the run's records; `"run"`
   stops the run. A monthly file can no longer be a day long, nor an annual one shorter than a year.
 - A run stops before its first step if a diagnostic file it would write exists: remove the old files,
+  or give `[output].dir` or `prefix` another value. In Python, `RunConfig.remove_diagnostics()`
+  removes a configuration's files, as the examples' scripts now do before they run again. (#55)
+- The daily, monthly and yearly files carry about thirty more polygon variables by default: the
+  water and energy budgets' terms and `mean_reco_py`. To write the files as before, switch them off
+  in `[output].io_config`; `ed_io_config.toml` lists each with its default. (#56)
+
+### Added
+
+- Four output variables split evapotranspiration by where the vapour comes from:
+  `mean_transp_py` (transpiration), `mean_veg_surface_evap_py` (evaporation of the water on the
+  leaves' and wood's surfaces), `mean_ground_evap_py` (bare soil and snow) and `mean_dew_py`
+  (condensation). ET is
+  the first three less the dew. They are written daily, monthly and yearly by default, and hourly
+  on request. Results are bit for bit. (#56)
+- The water and energy budgets close from the output alone (docs/science/diagnostics.md §4, The
+  budgets): every term the whole-column ledgers book is a variable, written daily, monthly and
+  yearly by default. Water: `mean_shed_water_py`, `mean_veg_surface_overflow_py`, `mean_water_store_gain_py`,
+  the paths inside the column (`mean_intercept_py`, `mean_throughfall_py`, `mean_infiltration_py`,
+  `mean_snowmelt_py`, `mean_sublimation_py`), the stores (`mean_veg_surface_water_py`,
+  `mean_soil_water_total_py`, `mean_plant_water_py`) and the leaves' wet fraction
+  (`mean_wet_fraction_py`; per cohort `mean_wet_fraction_co`, off by default). Energy:
+  `mean_heat_bottom_py`, the enthalpy the precipitation carries in and the outflows carry out
+  (`mean_precip_enth_py`, `mean_outflow_enth_py`), the stores' gains (`mean_heat_gain_soil_py`,
+  `mean_heat_gain_canopy_py`, `mean_heat_gain_surface_py`) and H by source (`mean_h_canopy_py`,
+  `mean_h_ground_py`). A test closes both budgets from a run's files. (#56)
+- Carbon and radiation: autotrophic respiration `mean_raut_py` ($`R_{eco} - R_{het}`$), the ecosystem's
+  carbon `mean_eco_carbon_py` (vegetation plus soil), the leaves' absorbed PAR `mean_apar_py`, and
+  patch evapotranspiration `mean_et_pa`. (#56)
   give `[output].dir` or `prefix` another value, or set the new `[output].overwrite = true` (default
   `false`) to replace them, as the examples' configs and scripts now do. (#55)
 
@@ -28,6 +56,14 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - Each tier's `file_chunk` is honoured as written. A tier with a cohort or patch variable used to be
   cut to monthly files (sub-daily: daily), so the default monthly output was a file a month; it is now
   a file a year, its cohort and patch axes growing to the file's largest live count. (#55)
+- The sub-daily (F) tier reaches every fast-loop quantity, and the daily and monthly tiers every
+  formerly sub-daily-only one. On request, F now writes the respiration split, Rh, ET, runoff, the
+  soil potential, wetness and liquid fraction by layer, per-cohort NPP and any per-cohort row reduced
+  to the patch or polygon (`mean_leaf_temp_py`, `mean_gsw_py`, ...). `mean_reco_py` is written daily,
+  monthly and yearly by default, and `mean_reco_pa`, `mean_sw_up_*`, `mean_lw_up_pa`, `mean_ustar_pa`,
+  `mean_cas_co2_pa` and `mean_rainf_py` daily or monthly on request. `mean_et_py` and the runoff
+  variables are now read from the fast loop's own exports; they differ from before at round-off.
+  Model state is bit for bit. (#56)
 
 ### Fixed
 

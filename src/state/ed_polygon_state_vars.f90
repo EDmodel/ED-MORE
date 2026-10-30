@@ -84,21 +84,8 @@ module ed_polygon_state_vars
       !---~---
       type(polygon_diag_block) :: diag
       !---~---
-      !   The polygon's evapotranspiration accumulator [kg/m2 = mm]: the fast loop sums the
-      ! area-weighted canopy-air -> atmosphere water-vapour flux * dt_fast over the
-      ! slow step (reset each step, mirrors the gpp_accum/pheno lifecycle); read as a diagnostic
-      ! (SRC_PY_ET) at the output tick. Transient (never restarted).
-      !---~---
-      real(wp)           :: et_accum       = 0.0_wp
-      !---~---
-      !   And the water the soil column lost the same way [kg/m2 = mm]: the pond's spill (surface
-      ! runoff) and the bottom flux (drainage; negative when an aquifer feeds the column).
-      !---~---
-      real(wp)           :: runoff_surf_accum = 0.0_wp
-      real(wp)           :: drainage_accum    = 0.0_wp
-      !---~---
       !   Integrator WORK accumulators: summed over patches and fast sub-steps within a slow
-      ! step, reset alongside et_accum. These are the COST axis of a scheme comparison
+      ! step, reset each step. These are the COST axis of a scheme comparison
       ! wall-clock is too coarse and too machine-dependent to rank integrators, whereas
       ! step/sub-solver counts are exact and reproducible. Transient (diagnostic only,
       ! never restarted). Real-valued so the output integrators can average them over a
