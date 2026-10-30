@@ -71,6 +71,7 @@ state_file_prefix = "eval"
 enabled       = true
 dir           = "output"
 prefix        = "cal"
+overwrite     = true            # an example: a rerun replaces its own files
 io_config     = "output_variables.toml"
 cohort_max    = 4096
 patch_max     = 256

@@ -260,6 +260,7 @@ module ed_output_types
       character(len=512)     :: forcing_qair = ''
       integer(ik)           :: file_chunk(N_FREQ) = 0_ik
       integer(ik)           :: sync_every = 1_ik
+      logical               :: overwrite = .false.           ! replace existing files ([output].overwrite)
       integer(ik)           :: fast_interval_steps = 4_ik   ! fast tier closes every N*dt_fast sub-steps
       type(ed_time_t)       :: t_ref                        ! the run's start: the files' time origin
       !---~---
