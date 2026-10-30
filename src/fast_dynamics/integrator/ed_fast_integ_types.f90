@@ -336,7 +336,7 @@ module ed_fast_integ_types
       ! vapour gain.
       !---~---
       real(wp)       :: transp_export      = 0.0_wp   ! [kg/m2] over this dt_fast
-      real(wp)       :: film_evap_export   = 0.0_wp   ! [kg/m2] over this dt_fast
+      real(wp)       :: veg_surface_evap_export   = 0.0_wp   ! [kg/m2] over this dt_fast
       real(wp)       :: ground_evap_export = 0.0_wp   ! [kg/m2] over this dt_fast
       real(wp)       :: cond_export        = 0.0_wp   ! [kg/m2] over this dt_fast
       !---~---
@@ -351,20 +351,22 @@ module ed_fast_integ_types
       real(wp)       :: melt_export         = 0.0_wp   ! [kg/m2] over this dt_fast
       real(wp)       :: sublimation_export  = 0.0_wp   ! [kg/m2] over this dt_fast (deposition < 0)
       real(wp)       :: shed_water_export   = 0.0_wp   ! [kg/m2] over this dt_fast
-      real(wp)       :: film_excess_export  = 0.0_wp   ! [kg/m2] over this dt_fast
+      real(wp)       :: veg_surface_overflow_export  = 0.0_wp   ! [kg/m2] over this dt_fast
       real(wp)       :: water_store_gain    = 0.0_wp   ! [kg/m2] over this dt_fast
-      real(wp)       :: film_store          = 0.0_wp   ! [kg/m2] at the step's end
+      real(wp)       :: veg_surface_water_store          = 0.0_wp   ! [kg/m2] at the step's end
       real(wp)       :: soil_water_store    = 0.0_wp   ! [kg/m2] at the step's end
       real(wp)       :: plant_water_store   = 0.0_wp   ! [kg/m2] at the step's end
       !---~---
       !   The whole-column energy budget's other terms over the step: the heat through the soil
-      ! column's bottom (+ up, into it), the enthalpy the water carried in and out beyond H and
-      ! LE, and the change of the soil's, the canopy's (its air and tissues) and the surface's
+      ! column's bottom (+ up, into it), the enthalpy the rain and snow carried in and the
+      ! enthalpy the outflows carried out (runoff, drainage, the surface water's overflow and the
+      ! exported vapour's beyond LE), and the change of the soil's, the canopy's (its air and tissues) and the surface's
       ! (snow pack and pond) stores; and the sensible heat from the canopy and the ground to
       ! the canopy air.
       !---~---
       real(wp)       :: heat_bottom_export  = 0.0_wp   ! [J/m2] over this dt_fast
-      real(wp)       :: enth_advect_export  = 0.0_wp   ! [J/m2] over this dt_fast
+      real(wp)       :: precip_enth_export  = 0.0_wp   ! [J/m2] over this dt_fast
+      real(wp)       :: outflow_enth_export = 0.0_wp   ! [J/m2] over this dt_fast
       real(wp)       :: heat_gain_soil      = 0.0_wp   ! [J/m2] over this dt_fast
       real(wp)       :: heat_gain_canopy    = 0.0_wp   ! [J/m2] over this dt_fast
       real(wp)       :: heat_gain_surface   = 0.0_wp   ! [J/m2] over this dt_fast
@@ -708,7 +710,7 @@ module ed_fast_integ_types
       real(wp) :: whole_cond_enth = 0.0_wp                       ! [W/m2] its liquid enthalpy at the stage CAS temperature
       real(wp) :: snow_enth_in = 0.0_wp                          ! [W/m2]    energy into the snow pack
       real(wp) :: snow_vap_out = 0.0_wp                          ! [kg/m2/s] vapour from it to the CAS
-      real(wp) :: film_evap    = 0.0_wp                          ! [kg/m2/s] the canopy films' evaporation to the CAS (dew < 0)
+      real(wp) :: veg_surface_evap = 0.0_wp                      ! [kg/m2/s] leaf and wood surface water evaporated (dew < 0)
       real(wp) :: h_canopy     = 0.0_wp                          ! [W/m2]    the leaves' and wood's sensible heat to the CAS
       real(wp) :: h_ground     = 0.0_wp                          ! [W/m2]    the ground's (soil, snow) sensible heat to the CAS
       !---~---
@@ -745,7 +747,7 @@ module ed_fast_integ_types
       !--- The snow pack's exchange over the step, which the update commits to the pack.
       real(wp) :: snow_enth_in = 0.0_wp    ! [J/m2]  energy into the pack
       real(wp) :: snow_vap_out = 0.0_wp    ! [kg/m2] vapour from it to the CAS
-      real(wp) :: film_evap    = 0.0_wp    ! [kg/m2] the canopy films' evaporation to the CAS (dew < 0)
+      real(wp) :: veg_surface_evap    = 0.0_wp    ! [kg/m2] leaf and wood surface water evaporated (dew < 0)
       real(wp) :: h_canopy     = 0.0_wp    ! [J/m2]  the leaves' and wood's sensible heat to the CAS
       real(wp) :: h_ground     = 0.0_wp    ! [J/m2]  the ground's (soil, snow) sensible heat to the CAS
       real(wp) :: atm_heat_out = 0.0_wp    ! [J/m2]  net CAS -> atmosphere sensible-heat export (reported H)
@@ -1163,7 +1165,7 @@ contains
       acc%whole_cond_enth = b2*s2%whole_cond_enth + b3*s3%whole_cond_enth
       acc%snow_enth_in  = b2*s2%snow_enth_in  + b3*s3%snow_enth_in
       acc%snow_vap_out  = b2*s2%snow_vap_out  + b3*s3%snow_vap_out
-      acc%film_evap     = b2*s2%film_evap     + b3*s3%film_evap
+      acc%veg_surface_evap = b2*s2%veg_surface_evap + b3*s3%veg_surface_evap
       acc%h_canopy      = b2*s2%h_canopy      + b3*s3%h_canopy
       acc%h_ground      = b2*s2%h_ground      + b3*s3%h_ground
       acc%atm_heat_out  = b2*s2%atm_heat_out  + b3*s3%atm_heat_out
@@ -1204,7 +1206,7 @@ contains
       acc%whole_cond_enth = acc%whole_cond_enth + s%whole_cond_enth
       acc%snow_enth_in  = acc%snow_enth_in  + s%snow_enth_in
       acc%snow_vap_out  = acc%snow_vap_out  + s%snow_vap_out
-      acc%film_evap     = acc%film_evap     + s%film_evap
+      acc%veg_surface_evap = acc%veg_surface_evap + s%veg_surface_evap
       acc%h_canopy      = acc%h_canopy      + s%h_canopy
       acc%h_ground      = acc%h_ground      + s%h_ground
       acc%atm_heat_out  = acc%atm_heat_out  + s%atm_heat_out
