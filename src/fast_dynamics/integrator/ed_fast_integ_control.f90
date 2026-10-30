@@ -4,7 +4,7 @@
 ! target accuracy means the same on each: the grouped error norm state_wrms_grouped and
 ! the step factor step_control_factor (the integral controller). The march state mixes
 ! units, so each entry's error is scaled by its group's (rtol, atol) (the seven groups of
-! ed_fast_integ_types; the films and the pond carry none). The run's error control is
+! ed_fast_integ_types; the surface water and the pond carry none). The run's error control is
 ! built from [fast] (build_error_control), with its budget stops; default_error_control
 ! serves the tests (docs/science/numerical_scheme.md eqs. (3)-(4)). water_scales sets the
 ! scale of each of the soil-plant water network's stores, against which its sub-step

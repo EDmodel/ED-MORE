@@ -466,7 +466,7 @@ contains
       real(wp),            intent(in)    :: frac          ! [-] the disturbed share (decide_disturbance)
       logical,             intent(in)    :: survives(:)   ! (cohort) survives into the gap
       !--- What the killed canopy handed on, for the caller to declare to the slow ledger.
-      real(wp),            intent(out)   :: water_shed  ! [kg/m2 polygon] tissue + film water -> the gaps' ground
+      real(wp),            intent(out)   :: water_shed  ! [kg/m2 polygon] tissue + surface water -> the gaps' ground
       type(kill_report_t), intent(out)   :: kills       ! the killed canopy's carbon (kill_litter)
       integer(ik) :: np0, newp, d, i, i0, i1, m, m0, nsurv, is, p0, p1
       real(wp)    :: new_area, atot
@@ -921,7 +921,7 @@ contains
       !   What the cull handed on, for the caller to declare to the slow ledger
       ! (conservation.md §3).
       !---~---
-      real(wp),           intent(out) :: water_shed  ! [kg/m2 site] tissue + film water -> the ground
+      real(wp),           intent(out) :: water_shed  ! [kg/m2 site] tissue + surface water -> the ground
       type(kill_report_t), intent(out) :: kills      ! the culled cohorts' carbon (kill_litter)
       logical, allocatable :: keep(:)
       integer(ik)          :: i, n, ip

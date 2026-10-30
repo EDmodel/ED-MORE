@@ -95,8 +95,8 @@ partial windows are written.
    `restructure_new_year` as well.
 8. **Guards**, every step:
    - the run's energy and water ledgers are finite (with the fast loop on);
-   - each cohort's state is finite and in bounds: density, carbon, SLA, tissue water and films are
-     never negative, and the tissue energies are finite;
+   - each cohort's state is finite and in bounds: density, carbon, SLA, tissue water and surface water
+     are never negative, and the tissue energies are finite;
    - each patch's canopy air is finite;
    - with soil carbon on, each soil-carbon pool is in bounds. This check is unconditional; the slow
      ledger's own copy of it follows `[run].slow_ledger_on`.
@@ -302,8 +302,8 @@ Each group of variables is stored because the rest of the state cannot rebuild i
 - **The phenology memory** ([leaf phenology](plant_phenology.md) §2). The cue sums and the running
   light mean are integrals over the past season. Without them every cohort restarts at its birth
   state, flushing with empty sums, and a deciduous stand restarted in January leafs out in midwinter.
-- **The canopy films**, per plant (their `units` attribute is `kg/plant`). A dry canopy is a valid
-  start, but not the state the writing run was in.
+- **The canopy's surface water**, per plant (its `units` attribute is `kg/plant`). A dry canopy is
+  a valid start, but not the state the writing run was in.
 - **The growth-rate ring buffer** behind `growth_avg`, the mortality predictor, and its write slot.
 - **The growth-temperature running mean**, one per site ([leaf gas exchange](leaf_gas_exchange.md)
   §2, Thermal acclimation).

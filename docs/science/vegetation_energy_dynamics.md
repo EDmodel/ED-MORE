@@ -3,8 +3,8 @@
 The leaf and wood energy balance of each cohort: how its canopy surfaces exchange radiation, sensible
 heat and water vapour with the canopy air space, and how their temperatures relax over a fast step
 toward their quasi-steady balance, with their own heat capacity. The page gives the balance, the
-interception film that is part of each tissue, the exact relaxation, and the tissue energy that is
-the stored state.
+intercepted surface water that is part of each tissue, the exact relaxation, and the tissue energy
+that is the stored state.
 
 This page is one of the per-store pages under [coupled_biophysics](coupled_biophysics.md), which describes
 the two cross-cutting principles (prognostic internal energy; closed-budget discipline) and how the
@@ -49,10 +49,10 @@ $g$ linearizes the saturation deficit at $`T_{cas}`$:
 with $`h_v`$ the specific enthalpy of the vapour at $`T_{cas}`$, so the tissue pays what the canopy air
 receives. The terms in eq. (1) sum the pathways, each weighted by its share of the surface: a leaf's
 dry share $`1-f_{wet}`$ transpires through boundary layer and stomata in series; its wetted share
-$`f_{wet}`$ evaporates the intercepted film through the boundary layer alone. The film is part of its
-tissue, so this pathway pays $`h_v`$ less the liquid enthalpy the tissue's energy holds for the water,
-$`u_{liq}`$ at the tissue's start-of-step temperature (The canopy's interception film, below). Wood has
-only the film pathway. Once the water network has
+$`f_{wet}`$ evaporates the intercepted surface water through the boundary layer alone. The surface
+water is part of its tissue, so this pathway pays $`h_v`$ less the liquid enthalpy the tissue's
+energy holds for the water, $`u_{liq}`$ at the tissue's start-of-step temperature (The canopy's
+surface water, below). Wood has only the surface-water pathway. Once the water network has
 fixed the step's transpiration, the dry share carries it as a fixed latent term
 ($`\mathrm{LE}_{slope}=0`$), so the transpiration the leaf reports is exactly the water it lost.
 The tissue is charged the full $`h_v`$, not the latent heat alone: charging it only $`L`$, with the
@@ -100,55 +100,56 @@ emission within the step. That emission leaves to the sky: the reported upwellin
 (`ed_fast_diag`), so shortwave in − shortwave up + longwave down − longwave up is the reported net
 radiation.
 
-## The canopy's interception film
+## The canopy's surface water
 
-With `[fast].canopy_water_on`, rain and snow are intercepted by a film on each cohort. **Canopy
-interception** is a top-to-bottom cascade (`intercept_canopy_layer`, in `ed_canopy_water`): a
+With `[fast].canopy_water_on`, rain and snow are intercepted and held as surface water on each
+cohort's leaves and wood. **Canopy interception** is a top-to-bottom cascade
+(`intercept_canopy_layer`, in `ed_canopy_water`): a
 capacity-limited bucket with a Beer interception fraction
 $`f = \alpha\,(1-e^{-k\,\mathrm{PAI}})`$ (`[fast].intercept_alpha`, `[fast].intercept_k`) and a wetted fraction
 $`\sigma_w = (W/W_{max})^{2/3}`$, each
 cohort's throughfall feeding the next, so the net throughfall reaching the soil top is what the
-infiltration boundary sees. A film left above its capacity, when a cohort sheds leaf area under a full
-film, drips the excess to the layer below, so the water stays in the column. A cohort holds its films
-per plant, as it holds its tissue water, and the
-fast loop works with them per m² of ground. So a split, a patch fusion or a disturbance changes a
-cohort's density and leaves its films alone, and the plants that die take their films to the ground
-with their tissue water.
+infiltration boundary sees. Surface water left above its capacity, when a cohort sheds leaf area
+while full, drips the excess to the layer below, so the water stays in the column. A cohort holds its
+surface water per plant, as it holds its tissue water, and the fast loop works with it per m² of
+ground. So a split, a patch fusion or a disturbance changes a cohort's density and leaves its surface
+water alone, and the plants that die take their surface water to the ground with their tissue water.
 
-In the fast loop the cascade runs once per fast step, at the step's start, as capture only; film
-evaporation is the energy stages' own flux. Each cohort holds one combined leaf-and-wood bucket, filled
-tallest first and shared between leaf and wood by capacity, and the update reaches both integrators as
-a constant rate whose Euler step over the fast step reproduces it. Under a snowpack nothing is intercepted:
-the pack takes the rain and the snow. Snowfall below the new-snow threshold forms no pack and joins
-the rain as liquid: the films intercept it, and the rest reaches the pond.
+In the fast loop the cascade runs once per fast step, at the step's start, as capture only; the
+surface water's evaporation is the energy stages' own flux. Each cohort holds one combined
+leaf-and-wood bucket, filled tallest first and shared between leaf and wood by capacity, and the
+update reaches both integrators as a constant rate whose Euler step over the fast step reproduces it.
+Under a snowpack nothing is intercepted: the pack takes the rain and the snow. Snowfall below the
+new-snow threshold forms no pack and joins the rain as liquid: the canopy intercepts it as surface
+water, and the rest reaches the pond.
 
-The films are clamped at their boundary after the march, not
-inside it. A film evaporates at a conductance frozen at the step's start and only roughly rescaled by
-what it holds, so it can overdraw below zero; left negative, it would create water in the next step's
-interception, so it is floored at zero and the shortfall is booked as a negative outflow, while water
-above capacity leaves as outflow.
+The surface water is clamped at its boundary after the march, not inside it. It evaporates at a
+conductance frozen at the step's start and only roughly rescaled by what it holds, so it can overdraw
+below zero; left negative, it would create water in the next step's interception, so it is floored at
+zero and the shortfall is booked as a negative outflow, while water above capacity leaves as outflow.
 
-The film's evaporation is the wetted share's latent pathway of eqs. (1)–(2) above.
+The surface water's evaporation is the wetted share's latent pathway of eqs. (1)–(2) above.
 
-**A film is part of its tissue** (ED2's form). Its water joins the tissue's in the heat capacity,
-eq. (8), and in the energy, eqs. (9)–(10), so it sits at the tissue's temperature: rain that lands on a
-warm leaf cools it, and a wet leaf's heat capacity rises with what it holds. Over a step the tissue's
-energy gains the rain's liquid enthalpy for what its film captures, $`u_{liq}(T_{rain})`$ at the
-throughfall's temperature, and loses the vapour's, $`h_v`$, for what evaporates; the commit values the
-film's change at $`u_{liq}`$ of the tissue's start-of-step temperature, as it does the tissue's own
-water, and the balance's film terms are taken relative to that, so the tissue, its film and the canopy
-air close exactly. Within a step the tissue's balance runs on the tissue's own heat capacity, and the
-commit reads the temperature back with the end-of-step film, so the film's share of the step's heat is
-a step behind. A film far heavier than its tissue that evaporates within the step (a falling leaf's, or a stem's at
-the first rains) would leave its sensible heat to the tissue alone if it were in the step's capacity;
-the step's balance therefore runs on the tissue's own water, and the film joins at the commit. A cohort's
-drip leaves at the rain's liquid enthalpy, the throughfall's temperature the pond values it at; the
-update's cut at capacity leaves at the tissue's. Water one film passes to the other within a cohort,
-as the cohort's film is re-shared by capacity, leaves the giver at the giver's enthalpy and reaches
-the receiver at it, so the giver is charged nothing: a falling leaf hands its film to its wood, and a
-leaf with almost no area is not charged for it. The film stays liquid below 0 °C, as tissue water does. The fast loop stops a run whose
-tissue energies leave out the films a cohort holds, since the stored temperatures then disagree with
-the energies.
+**Surface water is part of its tissue** (ED2's form). It joins the tissue's water in the heat
+capacity, eq. (8), and in the energy, eqs. (9)–(10), so it sits at the tissue's temperature: rain that
+lands on a warm leaf cools it, and a wet leaf's heat capacity rises with what it holds. Over a step the
+tissue's energy gains the rain's liquid enthalpy for what its surface captures, $`u_{liq}(T_{rain})`$
+at the throughfall's temperature, and loses the vapour's, $`h_v`$, for what evaporates; the commit
+values the surface water's change at $`u_{liq}`$ of the tissue's start-of-step temperature, as it does
+the tissue's own water, and the balance's surface-water terms are taken relative to that, so the
+tissue, its surface water and the canopy air close exactly. Within a step the tissue's balance runs on
+the tissue's own heat capacity, and the commit reads the temperature back with the end-of-step surface
+water, so the surface water's share of the step's heat is a step behind. Surface water far heavier
+than its tissue that evaporates within the step (a falling leaf's, or a stem's at the first rains)
+would leave its sensible heat to the tissue alone if it were in the step's capacity; the step's balance
+therefore runs on the tissue's own water, and the surface water joins at the commit. A cohort's drip
+leaves at the rain's liquid enthalpy, the throughfall's temperature the pond values it at; the
+update's cut at capacity leaves at the tissue's. Surface water one tissue passes to the other within a
+cohort, as the cohort's surface water is re-shared by capacity, leaves the giver at the giver's
+enthalpy and reaches the receiver at it, so the giver is charged nothing: a falling leaf hands its
+surface water to its wood, and a leaf with almost no area is not charged for it. The surface water
+stays liquid below 0 °C, as tissue water does. The fast loop stops a run whose tissue energies leave
+out the surface water a cohort holds, since the stored temperatures then disagree with the energies.
 
 ## One formulation: the tissue relaxes exactly
 
@@ -239,8 +240,8 @@ internal water, both from the water network. Fresh wood's specific heat (about 2
 100 % moisture) is not used: the water is counted on its own, so a fresh-wood value would count it
 twice. The fast loop and the state layer's `cohort_tissue_heat_capacity` build the capacity the same
 way, so the fusion weights and the slow ledger use the same capacity. Each tissue's water includes the
-film it carries, in the cohort's capacity and energy; a step's balance runs on the tissue's own water
-(The canopy's interception film, above).
+surface water it carries, in the cohort's capacity and energy; a step's balance runs on the tissue's
+own water (The canopy's surface water, above).
 
 The wood's area and its sapwood come from stem-size allometries (`ed_allometry_lib`; each PFT's
 `[allometry]` `wai_b1/b2`, `sapwood_area_b1/b2`), with $D$ the diameter [cm]. The wood area index is
@@ -355,7 +356,7 @@ is re-valued by $`\Delta W c_{liq}(T_1-T_0+T_{sc})`$ each step, large when wet s
 | Concept | Routine |
 |---|---|
 | leaf/wood balance + exact exponential relaxation, eqs. (1), (3)–(7) | `ed_plant_energy`: `tissue_energy_balance` |
-| coefficients $h$, $g$, emission slope | `sensible_heat_coeff`, `leaf_transp_coeff`, `leaf_film_coeff`, `lw_emission_slope` |
+| coefficients $h$, $g$, emission slope | `sensible_heat_coeff`, `leaf_transp_coeff`, `leaf_surface_evap_coeff`, `lw_emission_slope` |
 | a latent pathway, eq. (2) | `latent_pathway` (`latent_pathway_t`) |
 | every cohort's wood and leaf at one canopy-air state | `canopy_tissue_energy` |
 | tissue heat capacity, eq. (8), and $`a_{\rm store}`$ | `tissue_hcap_per_dt`, per cohort in `ed_fast_integ_frozen`'s `tissue_coefficients`; the dry part `derive_cohort_terms` (`ed_fast_state`) |
@@ -363,7 +364,7 @@ is re-valued by $`\Delta W c_{liq}(T_1-T_0+T_{sc})`$ each step, large when wet s
 | the fast step's energy commit | `ed_plant_energy`: `commit_tissue_energy` |
 | a cohort's temperatures from its energies; holding them through a change of mass | `ed_cohort_state_vars`: `cohort_tissue_temps`, `set_cohort_tissue_temps`, `hold_cohort_tissue_temps` |
 | ground surface (the snow/bare blend) and skin fluxes | `ed_surface`: `ground_surface_exchange`, `ground_surface_fluxes` |
-| canopy interception | `ed_canopy_water`: `intercept_canopy_layer`, swept over the cohorts by `canopy_interception`; `limit_film_evaporation`, `clamp_canopy_film` |
+| canopy interception | `ed_canopy_water`: `intercept_canopy_layer`, swept over the cohorts by `canopy_interception`; `limit_surface_evaporation`, `clamp_surface_water` |
 
 ## References
 - ED2 `../ED2/ED/src/dynamics/rk4_derivs.f90` — the leaf/wood energy budget in the reference model.

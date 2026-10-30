@@ -63,7 +63,7 @@ module ed_slow_ledger
    !--- One total per currency, per m2 of site, area-weighted over the patches (§2).
    type :: slow_store_t
       real(wp) :: carbon = 0.0_wp   ! [kgC/m2] live pools + necromass + canopy air + recruit pool
-      real(wp) :: water  = 0.0_wp   ! [kg/m2]  soil + pond + snow + canopy vapour + tissue + film
+      real(wp) :: water  = 0.0_wp   ! [kg/m2]  soil + pond + snow + canopy vapour + tissue + surface water
       real(wp) :: energy = 0.0_wp   ! [J/m2]   soil + pond + snow + canopy air + tissue heat
    end type slow_store_t
 

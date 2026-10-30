@@ -23,7 +23,7 @@ contains
    !   esdirk2_step -- one ESDIRK2 step, docs/science/numerical_scheme.md eqs. (1)-(2): the
    ! ARS(2,2,2) tableau (Ascher, Ruuth & Spiteri 1997), two backward-Euler stages over gamma*dt
    ! (backward_euler_stage), stiffly accurate, so Y3 is the step. Soil water moves at the
-   ! network's rate in the stages; plant water and the films are advanced once over dt on
+   ! network's rate in the stages; plant water and the surface water are advanced once over dt on
    ! the stages' b-weighted fluxes, so neither adds to the embedded error y_err.
    !---~---
    subroutine esdirk2_step(y, frozen, site, ec, n, nsl, dt, y_out, y_err, stages, bf, clamp_n)
@@ -62,7 +62,7 @@ contains
          !---~---
          transp_bw(1:n) = (1.0_wp - GAMMA)*sf2%transp_c(1:n) + GAMMA*sf3%transp_c(1:n)
          call advance_plant_water(y, frozen, n, dt, transp_bw, y_out)
-         !--- The films the same way (a no-op with canopy_water_on off).
+         !--- The surface water the same way (a no-op with canopy_water_on off).
          leaf_surface_evap_bw(1:n) = (1.0_wp - GAMMA)*sf2%leaf_surface_evap(1:n) + GAMMA*sf3%leaf_surface_evap(1:n)
          wood_surface_evap_bw(1:n) = (1.0_wp - GAMMA)*sf2%wood_surface_evap(1:n) + GAMMA*sf3%wood_surface_evap(1:n)
          call advance_surf_water_full(y, frozen, n, dt, leaf_surface_evap_bw, wood_surface_evap_bw, y_out)

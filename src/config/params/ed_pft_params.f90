@@ -249,7 +249,7 @@ module ed_pft_params
       real(wp), allocatable :: wstress_lambda_exp(:) ! [--]    Katul lambda water-stress exponent
       real(wp), allocatable :: wstress_sref_stomata(:) ! [1/MPa] Sabot slope, beta_stomata = exp(sref*(psi_pd - onset))
       real(wp), allocatable :: stomata_psi_onset(:)  ! [MPa] predawn onset of beta_stomata; unset: half the turgor-loss point
-      !--- Canopy-film capacities (rain and dew), 0.1 by default (CLM5's dewmx).
+      !--- Surface-water capacities (rain and dew), 0.1 by default (CLM5's dewmx).
       real(wp), allocatable :: leaf_surf_water_max(:)   ! [kg/m2 leaf]
       real(wp), allocatable :: wood_surf_water_max(:)   ! [kg/m2 wood]
       !--- Leaf capacities derived from vcmax25 (derive_leaf_params).

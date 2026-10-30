@@ -18,15 +18,15 @@
 !      control allows; on both, each step's ET sources less its dew are its ET plus the
 !      canopy air's vapour gain, to round-off.
 !   5. THE LEDGERS ON EVERY PATH, on both schemes: a dry day, steady rain, shed water,
-!      canopy films; a sealed column saturating and ponding; a free-draining one
+!      canopy surface water; a sealed column saturating and ponding; a free-draining one
 !      saturating under a storm (ESDIRK2); an aquifer wetting a dry column from below.
 !   6. SNOW: a melting pack, shed water under a pack and snowfall each close the column's
 !      water and energy on both schemes; snowfall arrives in the column; snowfall too light
 !      to start a pack reaches the ground as ice.
 !   7. PLANT WATER AND HEAT: the leaf potential converges in dt_fast; the wood's heat
 !      store lags the canopy air on both schemes; refilling wood takes no heat from water
-!      at its own temperature; the wood's heat capacity follows its water; the canopy
-!      films stay out of the tissues' heat capacity for the step; a new cohort's predawn
+!      at its own temperature; the wood's heat capacity follows its water; the canopy's
+!      surface water stays out of the tissues' heat capacity for the step; a new cohort's predawn
 !      potential follows a Campbell soil's curve.
 !   8. RK45 AT ITS EDGES: a drydown to theta_res, a just-recruited cohort, a dense canopy
 !      in a cold snap, and the dry soil's uptake seam.
@@ -365,11 +365,11 @@ contains
 
    !---~---
    !   4. ESDIRK2 AND RK45 AGREE on a forced day: the fixture's 21 June with a morning rain on
-   ! the canopy films, at the shipped dt_fast of 900 s, each scheme at RK45's shipped
+   ! the canopy, at the shipped dt_fast of 900 s, each scheme at RK45's shipped
    ! tolerance. Both close every ledger, and the day's totals agree.
    !
    !   THE TOLERANCE. Both march the same frozen record, water network and update; they differ
-   ! only in how the canopy air, the soil heat, the tissues and the films are integrated
+   ! only in how the canopy air, the soil heat, the tissues and the surface water are integrated
    ! within a step. Each holds every sub-step's local error in the canopy air and the soil
    ! heat below one tolerance unit, atol + rtol|y| (eq. (3)): at rtol = 1e-4 that is
    ! 50 + 1e-4 * 2.9e5 ~ 80 J/kg of canopy-air enthalpy, 0.08 K. The canopy air forgets an
@@ -380,7 +380,7 @@ contains
    ! in proportion. So each day's total may differ by up to 5 % of the day's integrated
    ! |flux|, the bound asserted. The schemes in fact agree far closer (a few 1e-4), while a
    ! wiring error in either (a dropped flux term, a stage fed the wrong input) moves a total
-   ! by tens of percent. ESDIRK2's films are advanced by a map and RK45's in its tableau, so
+   ! by tens of percent. ESDIRK2's surface water is advanced by a map and RK45's in its tableau, so
    ! the latent heat and the transpiration are where the two differ most. ET's sources
    ! (step_exports_t) are checked against the canopy air's vapour ledger on every step: the
    ! sources less the dew, less ET, are its net inflow, to round-off.
@@ -444,7 +444,7 @@ contains
          call check_true(trim(scheme_name(SCHEMES(is)))//' at 900 s: all seven ledgers close on every step',          &
                          all_ledgers_closed(col%out%report))
       end do
-      call check_true('the morning rain''s films evaporate on both schemes (canopy evaporation > 0)',              &
+      call check_true('the morning rain on the canopy evaporates on both schemes (canopy evaporation > 0)',         &
                       minval(total(8, :)) > 0.0_wp, minval(total(8, :)))
       do q = 1_ik, NQ
          print '(a,a24,a,es12.4,a,es12.4,a,f8.4)', '   ', QNAME(q), ' ESDIRK2 ', total(q, 1), ' RK45 ', total(q, 2),   &
@@ -575,12 +575,12 @@ contains
    end subroutine test_shed_water
 
    !---~---
-   !   The canopy films ([fast].canopy_water_on) under the morning rain, on both schemes: the
-   ! canopy intercepts some of it, and the whole column's water and energy close, each film
-   ! being part of its tissue's energy at the tissue's temperature, its capture brought in at
-   ! the rain's liquid enthalpy and its evaporation paying the vapour's. The wiring, from the
-   ! interception through the films to the canopy air and the ledgers; the films' own laws are
-   ! test_canopy_water's and test_plant_energy's.
+   !   The canopy's surface water ([fast].canopy_water_on) under the morning rain, on both
+   ! schemes: the canopy intercepts some of it, and the whole column's water and energy close,
+   ! each tissue's surface water being part of its tissue's energy at the tissue's temperature,
+   ! its capture brought in at the rain's liquid enthalpy and its evaporation paying the
+   ! vapour's. The wiring, from the interception through the surface water to the canopy air
+   ! and the ledgers; its own laws are test_canopy_water's and test_plant_energy's.
    !---~---
    subroutine test_veg_surface_water()
       type(day_t) :: d
@@ -594,10 +594,11 @@ contains
          d = day_t(rain_pulse = 1.5e-4_wp)
          call march_day(d)
          print '(3a,es10.3,a)', '   ', trim(nm), ' peak surface water ', d%surf_water_peak, ' kg/m2'
-         call check_true(trim(nm)//' films: whole-column water closes', col%out%report%ledgers%whole_water%n_fail == 0_ik, &
+         call check_true(trim(nm)//' surface water: whole-column water closes', col%out%report%ledgers%whole_water%n_fail == 0_ik, &
                          real(col%out%report%ledgers%whole_water%n_fail, wp))
-         call check_true(trim(nm)//' films: the morning rain was intercepted', d%surf_water_peak > 0.0_wp, d%surf_water_peak)
-         call check_true(trim(nm)//' films: whole-column energy closes to round-off',                             &
+         call check_true(trim(nm)//' surface water: the morning rain was intercepted',                            &
+                         d%surf_water_peak > 0.0_wp, d%surf_water_peak)
+         call check_true(trim(nm)//' surface water: whole-column energy closes to round-off',                     &
                          col%out%report%ledgers%whole_energy%worst < 1.0e-3_wp, col%out%report%ledgers%whole_energy%worst)
       end do
       col%cfg%canopy_water_on = .false.
@@ -1033,19 +1034,19 @@ contains
    end subroutine test_wood_capacity
 
    !---~---
-   !   The canopy films stay out of the tissues' heat capacity for the step (build_frozen; docs/
-   ! science/vegetation_energy_dynamics.md, "The canopy's interception film"). A film is part of
-   ! its tissue's energy, but within a step the tissue's balance runs on the tissue's own heat
-   ! capacity, its dry matter and its internal water, and the commit reads the temperature back
-   ! with the end-of-step film. Counted in the step's capacity, a film far heavier than its tissue
-   ! that evaporates within the step would leave its heat to the tissue alone: at Palo Verde a
-   ! nearly leafless cohort's leaf read back at 107 K. The column frozen dry and frozen with its
-   ! leaf and wood films half full gives the same two capacities, each the heat its tissue's dry
-   ! matter and internal water gain per kelvin; each film holds enough heat that counting it would
-   ! show.
+   !   The canopy's surface water stays out of the tissues' heat capacity for the step
+   ! (build_frozen; docs/science/vegetation_energy_dynamics.md, "The canopy's surface water").
+   ! Surface water is part of its tissue's energy, but within a step the tissue's balance runs
+   ! on the tissue's own heat capacity, its dry matter and its internal water, and the commit
+   ! reads the temperature back with the end-of-step surface water. Counted in the step's
+   ! capacity, surface water far heavier than its tissue that evaporates within the step would
+   ! leave its heat to the tissue alone: at Palo Verde a nearly leafless cohort's leaf read back
+   ! at 107 K. The column frozen dry and frozen with its leaf and wood surface water half full
+   ! gives the same two capacities, each the heat its tissue's dry matter and internal water
+   ! gain per kelvin; each holds enough surface water that counting its heat would show.
    !---~---
    subroutine test_surface_water_outside_capacity()
-      real(wp), parameter :: FILL = 0.5_wp   ! the films' share of their capacity
+      real(wp), parameter :: FILL = 0.5_wp   ! the surface water's share of its capacity
       type(frozen_t)      :: fz
       type(march_state_t) :: ys
       real(wp) :: leaf_cap_dry, wood_cap_dry, leaf_surf_held, wood_surf_held, leaf_own, wood_own
@@ -1078,7 +1079,7 @@ contains
                  fz%tissue%leaf_hcap_per_dt(1) * DT_FAST, leaf_own, 1.0e-12_wp * leaf_own)
       call check('surface water: the wood''s capacity is its dry matter''s and internal water''s',                          &
                  fz%tissue%wood_hcap_per_dt(1) * DT_FAST, wood_own, 1.0e-12_wp * wood_own)
-      !--- Counted, either film would move its capacity far beyond the tolerances above.
+      !--- Counted, either tissue's surface water would move its capacity far beyond the tolerances above.
       call check_true('surface water: the leaf''s surface water holds heat a capacity counting it would show',  &
                       heat_per_kelvin(0.0_wp, leaf_surf_held) > 1.0e-6_wp * leaf_own,                                    &
                       heat_per_kelvin(0.0_wp, leaf_surf_held) / leaf_own)

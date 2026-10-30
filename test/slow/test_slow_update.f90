@@ -265,7 +265,7 @@ contains
       poly%cohort%wood_temp(1) = 298.0_wp
       poly%cohort%wood_temp(2) = 306.0_wp
       !---~---
-      !   And the canopy films [kg/plant]: nplant-weighted like the tissue water, and part of the
+      !   And the surface water [kg/plant]: nplant-weighted like the tissue water, and part of the
       ! tissues' heat capacity, so set before the energies.
       !---~---
       poly%cohort%leaf_surf_water(1) = 0.02_wp
@@ -404,14 +404,14 @@ contains
       n0   = total_nplant(poly)
       agb0 = total_agb(poly)
       !---~---
-      !   The interception films are per plant: each daughter keeps its parent's, so the patch's
-      ! film water is what it was.
+      !   The surface water is per plant: each daughter keeps its parent's, so the patch's
+      ! surface water is what it was.
       !---~---
       poly%cohort%leaf_surf_water(1) = 0.30_wp
       poly%cohort%wood_surf_water(1) = 0.05_wp
       surf_water0 = poly%cohort%nplant(1) * 0.35_wp
       !---~---
-      !   The tissues away from their birth temperature, held to their energies, films included:
+      !   The tissues away from their birth temperature, held to their energies, surface water included:
       ! each daughter keeps its parent's temperatures (the wood carbon it gained or lost held at
       ! them), and together they hold the parent's tissue energy.
       !---~---
@@ -653,8 +653,8 @@ contains
       call check(h_short <  cfg%demography%disturbance_survive_height, 'short cohort should be below threshold')
       n_before = total_nplant(poly)
       !---~---
-      !   The survivor's film [kg/plant] goes into the gap with it; the site total of the
-      ! SURVIVOR's film is conserved across the split.
+      !   The survivor's surface water [kg/plant] goes into the gap with it; the site total of
+      ! the SURVIVOR's surface water is conserved across the split.
       !---~---
       poly%cohort%leaf_surf_water(poly%cohort%n) = 0.25_wp
       surf_water_before = poly%patch%area(1) * poly%cohort%nplant(poly%cohort%n) * 0.25_wp
@@ -738,9 +738,9 @@ contains
       call check(total_nplant(poly) < n_before, 'canopy mortality should reduce plant number')
 
       !---~---
-      !   TWO donors of unequal area and unequal film: the gap's survivor copies take their donors'
-      ! densities diluted by frac*area(d)/new_area and keep their per-plant films, so the site's
-      ! survivor film water is what it was.
+      !   TWO donors of unequal area and unequal surface water: the gap's survivor copies take
+      ! their donors' densities diluted by frac*area(d)/new_area and keep their per-plant surface
+      ! water, so the site's survivor surface water is what it was.
       !---~---
       call init_bare_ground(poly, cfg, 2_ik)
       poly%patch%area(1) = 0.6_wp
@@ -795,7 +795,7 @@ contains
       end do
       call check_close(total_area(poly), 1.0_wp, 1.0e-9_wp, 'two-donor disturbance broke area conservation')
       call check_close(surf_water_after, surf_water_before, 1.0e-12_wp,                                            &
-                       'two-donor disturbance: survivor films go into the gap with their plants')
+                       'two-donor disturbance: survivor surface water goes into the gap with its plants')
 
       !---~---
       !   At a calendar boundary, as a run does it: the step's diagnostics were read and reset, so
@@ -858,8 +858,8 @@ contains
       call finalize_init(poly)
       n0 = total_nplant(poly)
       !---~---
-      !   Films are per plant: fusion rescales the densities and leaves the films alone, and the
-      ! site's film water, the area- and nplant-weighted sum, is what it was.
+      !   Surface water is per plant: fusion rescales the densities and leaves the surface water
+      ! alone, and the site's surface water, the area- and nplant-weighted sum, is what it was.
       !---~---
       poly%cohort%leaf_surf_water(1) = 0.20_wp
       poly%cohort%wood_surf_water(2) = 0.10_wp                                              ! patch 1
@@ -1007,7 +1007,7 @@ contains
       call add_cohort(poly, cfg, 2_ik, 1_ik, 0.050_wp,  5.0_wp)
       call finalize_init(poly)
    end subroutine two_unlike_patches
-   !--- The site's canopy film water [kg/m2 of site]: each cohort's, area-weighted by its patch.
+   !--- The site's canopy surface water [kg/m2 of site]: each cohort's, area-weighted by its patch.
    real(wp) function site_surf_water(p) result(w)
       type(polygon_t), intent(in) :: p
       integer(ik) :: i

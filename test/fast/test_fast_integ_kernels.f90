@@ -4,7 +4,7 @@
 ! (src/fast_dynamics/integrator; docs/science/numerical_scheme.md §2-§3, eqs. (3)-(4)).
 !   1. THE SURFACE RIGHT-HAND SIDE (surface_derivs): the diagnosed leaf temperature zeroes
 !      the linearized leaf balance it was solved from; a hand-computable leaf with no
-!      latent and no longwave forcing; a falling leaf that passes its film to its wood is
+!      latent and no longwave forcing; a falling leaf that passes its surface water to its wood is
 !      charged nothing for it.
 !   2. THE ASSEMBLER (march_derivs): every tendency is finite; its canopy-air part is
 !      surface_derivs at the state's soil-top temperature; the canopy hands the canopy air
@@ -163,10 +163,11 @@ contains
    end subroutine test_leaf_analytic
 
    !---~---
-   !   A falling leaf's film passed to its wood (Palo Verde's dry season): the leaf, nearly gone,
-   ! hands its whole film to the wood as the cohort's film is re-shared by capacity. The giver
-   ! is charged nothing for the water it passes, so the leaf balances its sensible heat
-   ! against its emission about t_leaf0 alone; charged the rain's valuation, it sat 4e10 K off.
+   !   A falling leaf's surface water passed to its wood (Palo Verde's dry season): the leaf,
+   ! nearly gone, hands all its surface water to the wood as the cohort's surface water is
+   ! re-shared by capacity. The giver is charged nothing for the water it passes, so the leaf
+   ! balances its sensible heat against its emission about t_leaf0 alone; charged the rain's
+   ! valuation, it sat 4e10 K off.
    !---~---
    subroutine test_falling_leaf_surface_water()
       type(march_state_t)   :: y
@@ -188,7 +189,7 @@ contains
       frozen%tissue%t_leaf0(1) = 303.9_wp
       frozen%tissue%t_wood0(1) = 304.5_wp
       frozen%veg_surface%f_wet_c(1) = 1.0_wp
-      frozen%veg_surface%intercept_leaf(1) = -1.07e-12_wp            ! the leaf's whole film, passed on
+      frozen%veg_surface%intercept_leaf(1) = -1.07e-12_wp            ! all the leaf's surface water, passed on
       frozen%veg_surface%transfer_lw(1)    =  1.07e-12_wp
       frozen%veg_surface%intercept_wood(1) =  1.07e-12_wp
       frozen%veg_surface%rain_liquid_enthalpy = internal_energy_liquid(297.0_wp)
@@ -562,7 +563,7 @@ contains
       call same_state('state_sub', out, expect)
 
       !---~---
-      !   zero_like allocates and zeroes every field: a film left unallocated is a field the norm
+      !   zero_like allocates and zeroes every field: surface water left unallocated is a field the norm
       ! cannot read, so the allocation is asserted, not just the values.
       !---~---
       out = zero_like(a, N, NL)
@@ -574,8 +575,9 @@ contains
 
       !---~---
       !   state_err_diff: (a - b) - (b - a) = 2 (a - b) in the canopy air and the soil heat, which
-      ! the march integrates; zero in the soil water, the tissue water, the films and the pond,
-      ! which move by the water network's or the films' maps and are left out on purpose.
+      ! the march integrates; zero in the soil water, the tissue water, the surface water and the
+      ! pond, which move by the water network's or the surface water's maps and are left out on
+      ! purpose.
       !---~---
       call state_err_diff(a, b, b, a, N, NL, out)
       call fill_state(expect, 1.5_wp)
@@ -656,7 +658,7 @@ contains
                  maxval(abs(v(1:3) - [a%cas_enthalpy, a%cas_shv, a%cas_co2])), 0.0_wp, 0.0_wp)
       call check('state_to_array: then the soil heat and water, layer by layer',                                  &
                  maxval(abs(v(4:3+2*NL) - [a%soil_energy(1:NL), a%theta(1:NL)])), 0.0_wp, 0.0_wp)
-      call check('state_to_array: then the tissue water and the films, cohort by cohort',                         &
+      call check('state_to_array: then the tissue water and the surface water, cohort by cohort',                 &
                  maxval(abs(v(4+2*NL:3+2*NL+4*N) - [(a%leaf_water_mass(j), a%wood_water_mass(j), j = 1_ik, N),     &
                                                      (a%leaf_surf_water(j), a%wood_surf_water(j), j = 1_ik, N)])),  &
                  0.0_wp, 0.0_wp)
@@ -816,7 +818,7 @@ contains
                  0.0_wp)
       !---~---
       !   What the march does not integrate is left out: the soil water and the plant water move at
-      ! the water network's rate, the films and the pond by their maps.
+      ! the water network's rate, the surface water and the pond by their maps.
       !---~---
       call state_init(y, N, nsl, a)
       a%theta = 0.5_wp * a%theta
@@ -826,7 +828,7 @@ contains
       a%wood_surf_water = 0.5_wp * a%wood_surf_water
       a%w_surface = 0.5_wp * a%w_surface
       a%w_surface_energy = 0.5_wp * a%w_surface_energy
-      call check('state_wrms_grouped: the soil and plant water, the films and the pond are left out',              &
+      call check('state_wrms_grouped: the soil and plant water, the surface water and the pond are left out',      &
                  state_wrms_grouped(a, y, y, N, nsl, t_abs), 0.0_wp, 0.0_wp)
       !---~---
       !   One tolerance unit in every counted entry is an error of 1, with each group's own unit: the

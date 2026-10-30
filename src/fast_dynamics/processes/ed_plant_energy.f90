@@ -5,7 +5,7 @@
 ! the step (tissue_energy_balance), with its linearization coefficients and latent
 ! pathways; every cohort's wood and leaf at one canopy-air state (canopy_tissue_energy);
 ! and each tissue's end-of-step energy and temperature (commit_tissue_energy). The wetted
-! fraction its film pathway takes is the interception film's (ed_canopy_water).
+! fraction its surface-water pathway takes is the canopy surface water's (ed_canopy_water).
 !---~---
 module ed_plant_energy
    use ed_kinds,              only : wp, ik
@@ -23,10 +23,10 @@ module ed_plant_energy
 
    !---~---
    !   The leaves' sidedness (docs/science/vegetation_energy_dynamics.md eq. (1)): a flat leaf
-   ! exchanges heat from both sides, while its stomata and its film each use one.
+   ! exchanges heat from both sides, while its stomata and its surface water each use one.
    !---~---
    real(wp), parameter :: EFFAREA_HEAT   = 2.0_wp   ! [-] sensible heat
-   real(wp), parameter :: EFFAREA_EVAP   = 1.0_wp   ! [-] film evaporation
+   real(wp), parameter :: EFFAREA_EVAP   = 1.0_wp   ! [-] surface-water evaporation
    real(wp), parameter :: EFFAREA_TRANSP = 1.0_wp   ! [-] transpiration
 
    !---~---
@@ -74,7 +74,7 @@ module ed_plant_energy
       !---~---
       !   The heat-capacity inputs behind leaf_hcap_per_dt and wood_hcap_per_dt = (dry hcap +
       ! water mass*cp_liq)/dt (docs/science/vegetation_energy_dynamics.md eq. (8)). The water
-      ! is the tissue's own: the film it holds joins at the commit.
+      ! is the tissue's own: the surface water it holds joins at the commit.
       !---~---
       real(wp), allocatable :: wood_dry_hcap(:)   ! [J/m2/K]  dry wood heat capacity
       real(wp), allocatable :: wood_wmass(:)      ! [kg/m2]   the wood store's water (sapwood, fine roots)
@@ -102,7 +102,7 @@ contains
    ! exactly over the step from t_store0 at heat capacity store_hcap_per_dt = cap/dt; with
    ! no heat capacity it takes the steady balance at once. The latent flux takes two
    ! pathways: the dry share 1 - f_wet through the stomata (dry; none for wood), and the
-   ! wetted share f_wet evaporating the film (wet). A tissue with no area takes t_parent:
+   ! wetted share f_wet evaporating the surface water (wet). A tissue with no area takes t_parent:
    ! its wood's temperature for a leaf, the canopy air's for wood.
    !---~---
    elemental pure subroutine tissue_energy_balance(abs_sw, abs_lw, q_extra, h_coeff, lw_slope, dry, wet, f_wet, &
@@ -118,7 +118,7 @@ contains
       real(wp), intent(in)  :: h_coeff    ! [W/m2/K] sensible-heat coefficient (sensible_heat_coeff)
       real(wp), intent(in)  :: lw_slope   ! [W/m2/K] longwave emission slope (lw_emission_slope)
       type(latent_pathway_t), intent(in) :: dry   ! the stomatal pathway (transpiration)
-      type(latent_pathway_t), intent(in) :: wet   ! the film's pathway, through the boundary layer only
+      type(latent_pathway_t), intent(in) :: wet   ! the surface water's pathway, through the boundary layer only
       real(wp), intent(in)  :: f_wet      ! [-]      wetted fraction
       real(wp), intent(in)  :: t_cas      ! [K]      canopy-air temperature, the linearization base
       real(wp), intent(in)  :: t_parent   ! [K]      the temperature a tissue with no area takes
@@ -127,7 +127,7 @@ contains
       real(wp), intent(out) :: dt_temp    ! [K]      end-of-step offset from the canopy-air temperature
       real(wp), intent(out) :: t_store    ! [K]      end-of-step tissue temperature, t_cas + dt_temp
       real(wp), intent(out) :: transp     ! [kg/m2/s] transpiration over the step (0 for wood)
-      real(wp), intent(out) :: surface_evap  ! [kg/m2/s] film evaporation over the step (dew if negative)
+      real(wp), intent(out) :: surface_evap  ! [kg/m2/s] surface-water evaporation over the step (dew if negative)
       real(wp), intent(out) :: dh         ! [W/m2]   sensible heat into the canopy air over the step
       real(wp), intent(out) :: drnet      ! [W/m2]   net radiation the tissue absorbs over the step
       real(wp) :: les_dry, ler_dry, les_wet, ler_wet, denom
@@ -196,19 +196,19 @@ contains
    ! (docs/science/vegetation_energy_dynamics.md eq. (2)). Wood comes first, because a
    ! leaf with no area takes its wood's temperature. A tissue pays the full specific
    ! enthalpy of the vapour it sheds, enthalpy_vapor at t_cas (the linearization base),
-   ! and the canopy air receives the same number. Its film is part of it, at its
-   ! temperature: the film's pathway pays that enthalpy less the liquid enthalpy the
-   ! tissue's energy holds for the water (u_liq at its start-of-step temperature, as the
-   ! commit values the film's change), and the film's capture brings in the rain's liquid
-   ! enthalpy less that, so film, tissue and canopy air close with no slack. The latent
-   ! terms take the saturation deficit and its slope at this canopy-air state; the
-   ! conductances are env's and film's.
+   ! and the canopy air receives the same number. Its surface water is part of it, at its
+   ! temperature: the surface water's pathway pays that enthalpy less the liquid enthalpy
+   ! the tissue's energy holds for the water (u_liq at its start-of-step temperature, as the
+   ! commit values the surface water's change), and the surface water's capture brings in
+   ! the rain's liquid enthalpy less that, so surface water, tissue and canopy air close with
+   ! no slack. The latent terms take the saturation deficit and its slope at this canopy-air
+   ! state; the conductances are env's and veg_surface's.
    !---~---
    pure subroutine canopy_tissue_energy(env, veg_surface, t_cas, q_cas, qsat_cas, dqsat_dt, rho, n, leaf_temp,       &
                                         wood_temp, transp, leaf_surface_evap, wood_surface_evap, h_canopy, qw_canopy, &
                                         transp_canopy, veg_surface_evap, rnet_canopy)
       type(plant_energy_env_t), intent(in)    :: env    ! the cohorts' energy-balance inputs
-      type(canopy_water_out_t), intent(in)    :: veg_surface   ! the films' wetted fractions, conductances and capture
+      type(canopy_water_out_t), intent(in)    :: veg_surface   ! the surface water's wetted fractions, conductances, capture
       real(wp),                 intent(in)    :: t_cas      ! [K]       canopy-air temperature
       real(wp),                 intent(in)    :: q_cas      ! [kg/kg]   canopy-air specific humidity
       real(wp),                 intent(in)    :: qsat_cas   ! [kg/kg]   saturation specific humidity at t_cas
@@ -221,7 +221,7 @@ contains
       real(wp),                 intent(out)   :: h_canopy           ! [W/m2]     sensible heat into the canopy air
       real(wp),                 intent(out)   :: qw_canopy          ! [W/m2]     the vapour's enthalpy into it
       real(wp),                 intent(out)   :: transp_canopy      ! [kg/m2/s]  transpiration into it
-      real(wp),                 intent(out)   :: veg_surface_evap   ! [kg/m2/s]  film evaporation into it
+      real(wp),                 intent(out)   :: veg_surface_evap   ! [kg/m2/s]  surface-water evaporation into it
       real(wp),                 intent(out)   :: rnet_canopy        ! [W/m2]     net radiation the canopy absorbs
       type(latent_pathway_t) :: leaf_dry, leaf_wet, wood_dry, wood_wet
       real(wp)    :: q_def, h_evap, lw_slope, lw_slope_w, u_leaf0, u_wood0, q_surf_leaf, q_surf_wood
@@ -247,13 +247,13 @@ contains
             leaf_dry = latent_pathway(h_evap, rho, env%g_transp_leaf(i), dqsat_dt, q_def)
          end if
          !---~---
-         !   Each film at its tissue's start-of-step temperature: it evaporates at the vapour's
-         ! enthalpy less the liquid enthalpy its tissue holds for it, and its share of the
-         ! cohort's net capture brings the rain's liquid enthalpy less that. Water one film
-         ! passes to the other within the cohort leaves the giver at its own enthalpy,
-         ! charging it nothing, and reaches the receiver at the giver's: a falling leaf's
-         ! film, passed to its wood, cannot charge the vanishing leaf for the rain's
-         ! valuation.
+         !   Each tissue's surface water at the tissue's start-of-step temperature: it evaporates
+         ! at the vapour's enthalpy less the liquid enthalpy its tissue holds for it, and its
+         ! share of the cohort's net capture brings the rain's liquid enthalpy less that. Water
+         ! one tissue's surface passes to the other within the cohort leaves the giver at its
+         ! own enthalpy, charging it nothing, and reaches the receiver at the giver's: a falling
+         ! leaf's surface water, passed to its wood, cannot charge the vanishing leaf for the
+         ! rain's valuation.
          !---~---
          u_leaf0     = internal_energy_liquid(env%t_leaf0(i))
          u_wood0     = internal_energy_liquid(env%t_wood0(i))
@@ -293,7 +293,7 @@ contains
          transp_canopy    = transp_canopy    + transp_i
          veg_surface_evap = veg_surface_evap + leaf_surface_evap(i)
          rnet_canopy      = rnet_canopy      + drnet
-         !--- The wood's sensible heat, film evaporation and net longwave join the leaf's.
+         !--- The wood's sensible heat, surface-water evaporation and net longwave join the leaf's.
          h_canopy         = h_canopy         + dh_w
          qw_canopy        = qw_canopy        + wood_surface_evap(i) * h_evap   ! what the wood paid
          veg_surface_evap = veg_surface_evap + wood_surface_evap(i)
@@ -306,13 +306,13 @@ contains
    ! tissue store before and after, for the column's energy budget
    ! (docs/science/vegetation_energy_dynamics.md eqs. (9)-(10)). The energy gains the heat
    ! cap*(t_avg - t0) at the capacity the step's balance ran on, the tissue's own without
-   ! its film, t_avg being the step's time-average of where the tissue relaxed to; the
-   ! enthalpy its water gained (docs/science/soil_plant_water.md eq. (5)); and its film's
-   ! change at the liquid enthalpy of its start-of-step temperature. The temperature is
-   ! read back with the end-of-step water and film, so the film's share of the heat is a
-   ! step behind, and it lies between the start-of-step temperature and t_avg even where a
-   ! film far heavier than its tissue evaporated within the step. A tissue with no heat
-   ! capacity keeps a temperature: wood its own, a leaf its wood's.
+   ! its surface water, t_avg being the step's time-average of where the tissue relaxed to;
+   ! the enthalpy its water gained (docs/science/soil_plant_water.md eq. (5)); and its surface
+   ! water's change at the liquid enthalpy of its start-of-step temperature. The temperature
+   ! is read back with the end-of-step internal and surface water, so the surface water's
+   ! share of the heat is a step behind, and it lies between the start-of-step temperature
+   ! and t_avg even where surface water far heavier than its tissue evaporated within the
+   ! step. A tissue with no heat capacity keeps a temperature: wood its own, a leaf its wood's.
    !---~---
    pure subroutine commit_tissue_energy(env, nplant, dt, t_leaf_avg, t_wood_avg, n, leaf_water_mass,          &
                                         wood_water_mass, leaf_surf_water0, wood_surf_water0, leaf_surf_water1,     &
@@ -378,7 +378,7 @@ contains
    end function leaf_transp_coeff
 
    !---~---
-   !   Film-evaporation conductance: the wet share's latent pathway, through the boundary layer
+   !   Surface-water evaporation conductance: the wet share's latent pathway, through the boundary layer
    ! only; same sidedness convention as leaf_transp_coeff, so leaf and wood share it.
    !---~---
    pure function leaf_surface_evap_coeff(effarea_evap, area_index, gbw) result(g_ev)

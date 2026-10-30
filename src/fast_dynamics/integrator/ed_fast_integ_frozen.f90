@@ -562,7 +562,7 @@ contains
    !---~---
    !   tissue_coefficients -- each cohort's leaf and wood energy-balance inputs: geometry,
    ! radiation, heat capacities and the start-of-step temperatures
-   ! (docs/science/vegetation_energy_dynamics.md), and its film-evaporation conductances.
+   ! (docs/science/vegetation_energy_dynamics.md), and its surface-water evaporation conductances.
    !---~---
    subroutine tissue_coefficients(dt_fast, cfg, static, forcing, dynamic, aero, rho, tissue, veg_surface, plant)
       real(wp),                     intent(in)    :: dt_fast
@@ -582,10 +582,10 @@ contains
          tissue%abs_lw(i) = forcing%abs_lw(i)
          !---~---
          !   Wood heat capacity over the step: the dry heat of all the wood plus the water network's
-         ! whole wood store (docs/science/vegetation_energy_dynamics.md eq. (8)). The film the wood
-         ! holds joins at the commit, which reads the temperature back with the end-of-step film, so
-         ! a film far heavier than its tissue that evaporates within the step cannot leave its heat
-         ! to the tissue alone ("The canopy's interception film").
+         ! whole wood store (docs/science/vegetation_energy_dynamics.md eq. (8)). The surface water
+         ! the wood holds joins at the commit, which reads the temperature back with the end-of-step
+         ! surface water, so surface water far heavier than its tissue that evaporates within the
+         ! step cannot leave its heat to the tissue alone ("The canopy's surface water").
          !---~---
          tissue%wood_dry_hcap(i) = static%wood_dry_hcap(i)
          tissue%wood_wmass(i)    = max(dynamic%wood_water_mass(i), 0.0_wp) * static%nplant(i)
@@ -613,8 +613,8 @@ contains
          tissue%wood_emiss(i) = static%wood_emissivity(i)
          plant%nplant(i)   = static%nplant(i)
          !---~---
-         !   Film-evaporation conductances, from the boundary layers; none with the canopy water store
-         ! off.
+         !   Surface-water evaporation conductances, from the boundary layers; none with the canopy
+         ! water store off.
          !---~---
          if (cfg%canopy_water_on) then
             veg_surface%g_surf_leaf(i) = leaf_surface_evap_coeff(EFFAREA_EVAP, static%lai(i), aero%leaf_gbw(i))
@@ -661,10 +661,11 @@ contains
    ! cohort's transpiration demand on the water network (docs/science/soil_plant_water.md §4).
    ! It takes the canopy air's exchange the pre-pass solved at that same state, so the
    ! surface layer is not solved again.
-   ! Each film's evaporation conductance is first scaled so its potential evaporation over
-   ! dt_fast cannot exceed what the film holds plus this step's interception; then the leaf
-   ! is credited the liquid enthalpy of the sapflow that replaces its transpiration, as the
-   ! stages will, estimated as if the sapflow matched it, and the surface is solved again.
+   ! The evaporation conductance of each tissue's surface water is first scaled so its
+   ! potential evaporation over dt_fast cannot exceed what that water holds plus this step's
+   ! interception; then the leaf is credited the liquid enthalpy of the sapflow that replaces
+   ! its transpiration, as the stages will, estimated as if the sapflow matched it, and the
+   ! surface is solved again.
    !---~---
    subroutine transpiration_demand(dt_fast, canopy_water_on, n, dynamic, t_ground, frozen)
       real(wp),                   intent(in)    :: dt_fast
@@ -700,7 +701,7 @@ contains
    ! (docs/science/soil_plant_water.md §5, "The ground inflow"): the water reaching the
    ! pond, the temperature that values it and the enthalpy it brings across the column's
    ! boundary (pond_inflow), each layer's temperature and ice, and the ground evaporation's
-   ! boundary. Also the liquid enthalpy of the rain the canopy films exchange water with,
+   ! boundary. Also the liquid enthalpy of the rain the canopy's surface water exchanges with,
    ! which the start-of-step surface solves read, so it runs before them.
    !---~---
    subroutine ground_inflow(static, profile, forcing, dynamic, ggnet, throughfall, tcas, qcas, rho, t_ground, nsl, &
@@ -731,14 +732,14 @@ contains
          drive%ice(1:nsl) = soil_ice_state(profile%layer_curve(1:nsl),                                            &
                                            (1.0_wp - dynamic%soil_energy%soil_fliq(1:nsl))                        &
                                            * dynamic%soil_water%theta(1:nsl))
-         !--- The rain the canopy films capture and drip back is the throughfall's, at its temperature.
+         !--- The rain the surface water captures and drips back is the throughfall's, at its temperature.
          frozen%veg_surface%rain_liquid_enthalpy = internal_energy_liquid(t_water_base)
       end associate
    end subroutine ground_inflow
 
    !---~---
    !   The march's start state, the state^n canopy air, soil energy and water, plant water and
-   ! films; the pond rides it (the stages pass it through; each scheme commits the network's).
+   ! surface water; the pond rides it (the stages pass it through; each scheme commits the network's).
    !---~---
    subroutine pack_march_start(dynamic, n, nsl, y)
       type(fast_dynamic_state_t), intent(in)  :: dynamic

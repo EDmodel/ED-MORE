@@ -671,7 +671,7 @@ contains
                             + max(cohort%wood_water_mass(i), 0.0_wp))
    end function cohort_tissue_water
 
-   !--- One cohort's canopy films [kg/m2 ground]: the water intercepted on its leaves and wood.
+   !--- One cohort's surface water [kg/m2 ground]: the water intercepted on its leaves and wood.
    pure function cohort_surface_water(cohort, i) result(w)
       type(cohort_block), intent(in) :: cohort
       integer(ik),        intent(in) :: i
@@ -680,7 +680,7 @@ contains
    end function cohort_surface_water
 
    !---~---
-   !   The enthalpy of the water a cohort holds [J/plant]: its tissue water and its canopy films,
+   !   The enthalpy of the water a cohort holds [J/plant]: its tissue water and its surface water,
    ! each at the temperature of the tissue it is in or on. What a shed hands the ground with
    ! the water.
    !---~---
@@ -697,7 +697,7 @@ contains
    !---~---
    !   One cohort's leaf and wood heat capacity [J/m2 ground/K], from tissue_heat_capacity. The
    ! wood holds the whole wood store's water, its fine roots' share included, and each tissue
-   ! the film it carries. The fusion weights, the demography operators and the slow ledger
+   ! the surface water it carries. The fusion weights, the demography operators and the slow ledger
    ! all take it from here, so they agree on a cohort's thermal mass.
    !---~---
    pure subroutine cohort_tissue_heat_capacity(cohort, i, cap_leaf, cap_wood)
@@ -712,7 +712,7 @@ contains
 
    !---~---
    !   A cohort's per-plant tissue masses, on which its energies are counted: each tissue's dry
-   ! heat capacity [J/K/plant] and its water [kg/plant], its own and the film it carries
+   ! heat capacity [J/K/plant] and its water [kg/plant], its own and the surface water it carries
    ! (docs/science/vegetation_energy_dynamics.md eq. (8)).
    !---~---
    pure subroutine cohort_tissue_masses(cohort, i, dry_leaf, w_leaf, dry_wood, w_wood)
@@ -840,7 +840,7 @@ contains
    !
    !   These fields are written by the fast loop and read back by it; the slow loop only has
    ! to carry them correctly through a fusion. Each is a per-PLANT amount (FSK_EXTENSIVE):
-   ! the tissue energies and waters, the canopy films and the per-plant fluxes, blended by
+   ! the tissue energies and waters, the surface water and the per-plant fluxes, blended by
    ! nplant, so the site total (nplant * value, summed) is conserved. The tissue
    ! temperatures are not fused: they are derived from the fused energies, by the caller,
    ! once the carbon pools are merged. Getting a field's kind wrong is invisible: the AGB
@@ -875,7 +875,7 @@ contains
       call blend(cohort%leaf_energy,      np_r, np_d)
       call blend(cohort%wood_energy,      np_r, np_d)
       !---~---
-      !   EXTENSIVE: tissue water and the canopy films [kg/plant], and the per-plant flux
+      !   EXTENSIVE: tissue water and the surface water [kg/plant], and the per-plant flux
       ! accumulators.
       !---~---
       call blend(cohort%leaf_water_mass,  np_r, np_d)
@@ -910,10 +910,10 @@ contains
 
    !---~---
    !   The bounds of a cohort's state: its plant density, carbon pools, SLA, and the water it
-   ! holds (internal stores and the films on its leaves and wood) are amounts, never below
+   ! holds (internal stores and the surface water on its leaves and wood) are amounts, never below
    ! zero and never infinite; its tissue energies are finite. Every operator keeps them in
    ! bounds by construction -- the applier zeroes only a pool's round-off, mortality never
-   ! takes nplant below `negligible`, the fast loop clamps the films into [0, capacity] -- so
+   ! takes nplant below `negligible`, the fast loop clamps the surface water into [0, capacity] -- so
    ! a violation is an operator bug, and a non-finite energy is a fast-loop integrator that
    ! could not take even its smallest step. The driver checks this every step and names the
    ! field, so the bug is caught the step it happens. The geometry and the temperatures are

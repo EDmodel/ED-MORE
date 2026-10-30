@@ -370,7 +370,7 @@ contains
       frozen%tissue%wood_emiss = 0.95_wp
       frozen%tissue%transp_net = frozen%plant%sapflow_frozen * frozen%plant%nplant
       frozen%tissue%transp_held = .true.
-      !--- No films.
+      !--- No surface water.
       allocate(frozen%veg_surface%f_wet_c(n), frozen%veg_surface%g_surf_leaf(n),                                 &
                frozen%veg_surface%g_surf_wood(n),                                                                &
                frozen%veg_surface%intercept_leaf(n), frozen%veg_surface%intercept_wood(n), frozen%veg_surface%transfer_lw(n))

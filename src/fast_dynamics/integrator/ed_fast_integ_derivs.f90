@@ -91,7 +91,7 @@ contains
       type(surface_state_t),        intent(in)  :: y
       type(cas_boundary_t),         intent(in)  :: cas      ! CAS <-> atmosphere boundary (a stage may pass its own conductances)
       type(plant_energy_env_t),     intent(in)  :: tissue   ! per-cohort leaf/wood energy coefficients
-      type(canopy_water_out_t),     intent(in)  :: veg_surface     ! interception film
+      type(canopy_water_out_t),     intent(in)  :: veg_surface     ! the canopy's surface water
       type(surface_env_t),          intent(in)  :: ground   ! what the ground surface reads, the snow pack among it
       real(wp),               intent(in)  :: t_ground   ! [K] soil-top temperature at this evaluation (live, not frozen)
       integer(ik),            intent(in)  :: n
@@ -116,7 +116,7 @@ contains
 
       !---~---
       !   Every cohort's wood and leaf at this canopy air (docs/science/vegetation_energy_dynamics.md);
-      ! with canopy_water_on off, f_wet_c = 0 and the films' pathway vanishes.
+      ! with canopy_water_on off, f_wet_c = 0 and the surface water's pathway vanishes.
       !---~---
       call canopy_tissue_energy(tissue, veg_surface, tcas, qcas, qsat_c, dqdt, cas%rho, n, f%leaf_temp, f%wood_temp,     &
                                 f%transp_c, f%leaf_surface_evap, f%wood_surface_evap, coh_h, coh_qw, coh_transp,        &
@@ -264,8 +264,8 @@ contains
       end do
 
       !---~---
-      !   5. Canopy film: frozen interception in, per-stage film evaporation out, both per m2 of
-      ! ground. Zero with canopy_water_on off.
+      !   5. Canopy surface water: frozen interception in, per-stage surface-water evaporation
+      ! out, both per m2 of ground. Zero with canopy_water_on off.
       !---~---
       f%d_leaf_surf_water(1:n) = frozen%veg_surface%intercept_leaf(1:n) - surf_tend%leaf_surface_evap(1:n)
       f%d_wood_surf_water(1:n) = frozen%veg_surface%intercept_wood(1:n) - surf_tend%wood_surface_evap(1:n)

@@ -5,7 +5,7 @@
 ! solves the canopy air against the leaf, wood and ground temperatures by a small Newton
 ! on a forward-difference Jacobian: backward_euler_stage is the stage,
 ! newton_surface_solve and jac_surface its inner solve, cas_box_commit the box commit;
-! advance_plant_water and advance_surf_water_full move plant and film water once per step.
+! advance_plant_water and advance_surf_water_full move plant and surface water once per step.
 ! The soil-plant water network's step is implicit Euler on adaptive sub-steps
 ! (docs/science/soil_plant_water.md §3): water_step, its Newton sub-step, the Newton
 ! matrix and the sub-step's commit. The two Newton solves share only the line search and
@@ -243,7 +243,7 @@ contains
                                    surf_tend, nfeval, ok)
       type(march_state_t),   intent(in)    :: y
       type(cas_boundary_t),   intent(in)    :: cas      ! the stage's CAS boundary (its own conductances)
-      type(frozen_t),  intent(in)    :: frozen   ! tissue / film / ground / snow for surface_derivs
+      type(frozen_t),  intent(in)    :: frozen   ! tissue / veg_surface / ground / snow for surface_derivs
       real(wp),               intent(in)    :: t_ground
       integer(ik),            intent(in)    :: n
       real(wp),               intent(in)    :: dt, cas_mass_capacity, g_atm_heat, g_atm_vapour
@@ -405,9 +405,10 @@ contains
    end subroutine advance_plant_water
 
    !---~---
-   !   advance_surf_water_full -- the canopy film over the full dt, the film analogue of
-   ! advance_plant_water: frozen interception in, b-weighted film evaporation out (the number the CAS
-   ! was credited). Unclamped: update_dynamic_state clamps it and books the overflow and deficit.
+   !   advance_surf_water_full -- the canopy's surface water over the full dt, the surface-water
+   ! analogue of advance_plant_water: frozen interception in, b-weighted surface-water evaporation
+   ! out (the number the CAS was credited). Unclamped: update_dynamic_state clamps it and books the
+   ! overflow and deficit.
    !---~---
    pure subroutine advance_surf_water_full(y, frozen, n, dt, leaf_surface_evap_bw, wood_surface_evap_bw, y_out)
       type(march_state_t),  intent(in)    :: y
@@ -418,7 +419,7 @@ contains
       type(march_state_t),  intent(inout) :: y_out
       integer(ik) :: i
       !---~---
-      !   Not floored: the caller's deficit bookkeeping must see a negative film to credit the
+      !   Not floored: the caller's deficit bookkeeping must see negative surface water to credit the
       ! shortfall to the whole-column outflow; a floor here would create that water.
       !---~---
       do i = 1_ik, n

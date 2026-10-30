@@ -96,7 +96,7 @@ program test_slow_ledger
    poly%cohort%wood_water_mass(1:2) = 0.05_wp
    poly%cohort%leaf_surf_water(1:2) = 0.01_wp
    poly%cohort%wood_surf_water(1:2) = 0.03_wp
-   call hold_cohort_tissue_temps(poly%cohort, 1_ik)   ! the tissues' energy with that water and film
+   call hold_cohort_tissue_temps(poly%cohort, 1_ik)   ! the tissues' energy with that internal and surface water
    call hold_cohort_tissue_temps(poly%cohort, 2_ik)
 
    !---~---

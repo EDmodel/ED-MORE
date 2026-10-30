@@ -2,7 +2,7 @@
 !---~---
 !   ed_fast_integ_rk45 -- the explicit fast-loop scheme a run can choose ("rk45"):
 ! rk45_step is one Cash-Karp 5(4) step over the whole march state (canopy air, soil energy
-! and water, plant water, films) through the shared right-hand side march_derivs, from the
+! and water, plant water, surface water) through the shared right-hand side march_derivs, from the
 ! same frozen record as ESDIRK2, with its embedded error and b-weighted boundary-flux
 ! amounts; rk45_state_railed checks the march's end. It is also the explicit reference the
 ! tests compare ESDIRK2 against. The stepper marches it, and marches the step again with

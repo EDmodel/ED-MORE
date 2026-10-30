@@ -9,7 +9,7 @@ and the ecosystem's carbon is its vegetation's plus its soil's. A term the files
 booked on a different basis from the ledger's, breaks a budget by far more than round-off.
 
 The run starts from the shipped census on a synthetic hourly forcing with an afternoon shower every
-other day (test_restart_exact.synthetic_forcing), the canopy's water films and the slow step on.
+other day (test_restart_exact.synthetic_forcing), the canopy's surface water and the slow step on.
 EDMORE_MAIN names the executable; CTest sets it.
 """
 import subprocess
