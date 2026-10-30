@@ -17,8 +17,8 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - `[output.<tier>].file_chunk = "run"` is now `"all"`, one file for all of the run's records; `"run"`
   stops the run. A monthly file can no longer be a day long, nor an annual one shorter than a year.
 - A run stops before its first step if a diagnostic file it would write exists: remove the old files,
-  or give `[output].dir` or `prefix` another value. In Python, `RunConfig.remove_diagnostics()`
-  removes a configuration's files, as the examples' scripts now do before they run again. (#55)
+  give `[output].dir` or `prefix` another value, or set the new `[output].overwrite = true` (default
+  `false`) to replace them, as the examples' configs and scripts now do. (#55)
 
 ### Changed
 
