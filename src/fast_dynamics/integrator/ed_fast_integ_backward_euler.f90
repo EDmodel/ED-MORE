@@ -221,7 +221,7 @@ contains
             bf%whole_cond_enth = surf_tend%cond_enth   ! exactly what surface_derivs debited from the CAS
             bf%snow_enth_in = surf_tend%snow_enth_in
             bf%snow_vap_out = surf_tend%snow_vap_out
-            bf%film_evap    = sum(surf_tend%film_evap_leaf(1:n)) + sum(surf_tend%film_evap_wood(1:n))
+            bf%veg_surface_evap    = sum(surf_tend%film_evap_leaf(1:n)) + sum(surf_tend%film_evap_wood(1:n))
             bf%h_canopy     = surf_tend%h_canopy
             bf%h_ground     = surf_tend%h_ground
             !--- The reported H, against theta_atm (T at zref), the ledger's basis.

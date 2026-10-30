@@ -217,69 +217,71 @@ module ed_diag_vars
    ! surface is the top soil layer (PA_SOIL_TEMP_TOP) -- and over a forest this is
    ! mostly the canopy. It is a fourth root, so it is formed per sub-step, like the VPD.
    !---~---
-   integer(ik), parameter, public :: PA_SKIN_TEMP         = 10_ik  ! [K] (longwave up / sigma)^(1/4)
+   integer(ik), parameter, public :: PA_SKIN_TEMP            = 10_ik  ! [K] (longwave up / sigma)^(1/4)
    !--- 3. Turbulence
-   integer(ik), parameter, public :: PA_USTAR             = 11_ik  ! [m/s]
-   integer(ik), parameter, public :: PA_GGNET             = 12_ik  ! [m/s] ground conductance
-   integer(ik), parameter, public :: PA_ROUGH             = 13_ik  ! [m] roughness length
-   integer(ik), parameter, public :: PA_DISPLACE          = 14_ik  ! [m] displacement height
+   integer(ik), parameter, public :: PA_USTAR                = 11_ik  ! [m/s]
+   integer(ik), parameter, public :: PA_GGNET                = 12_ik  ! [m/s] ground conductance
+   integer(ik), parameter, public :: PA_ROUGH                = 13_ik  ! [m] roughness length
+   integer(ik), parameter, public :: PA_DISPLACE             = 14_ik  ! [m] displacement height
    !--- 4. Surface energy balance
-   integer(ik), parameter, public :: PA_RNET              = 15_ik  ! [W/m2] net all-wave radiation
-   integer(ik), parameter, public :: PA_H                 = 16_ik  ! [W/m2] sensible heat (CAS -> atm)
-   integer(ik), parameter, public :: PA_LE                = 17_ik  ! [W/m2] latent heat (CAS -> atm)
-   integer(ik), parameter, public :: PA_SW_GROUND         = 18_ik  ! [W/m2] shortwave reaching the ground
-   integer(ik), parameter, public :: PA_LW_GROUND         = 19_ik  ! [W/m2] net longwave at the ground
-   integer(ik), parameter, public :: PA_APAR              = 20_ik  ! [W/m2] PAR (VIS) the leaves absorbed
-   integer(ik), parameter, public :: PA_H_CANOPY          = 21_ik  ! [W/m2] sensible heat, leaves and wood -> canopy air
-   integer(ik), parameter, public :: PA_H_GROUND          = 22_ik  ! [W/m2] sensible heat, ground (soil, snow) -> canopy air
+   integer(ik), parameter, public :: PA_RNET                 = 15_ik  ! [W/m2] net all-wave radiation
+   integer(ik), parameter, public :: PA_H                    = 16_ik  ! [W/m2] sensible heat (CAS -> atm)
+   integer(ik), parameter, public :: PA_LE                   = 17_ik  ! [W/m2] latent heat (CAS -> atm)
+   integer(ik), parameter, public :: PA_SW_GROUND            = 18_ik  ! [W/m2] shortwave reaching the ground
+   integer(ik), parameter, public :: PA_LW_GROUND            = 19_ik  ! [W/m2] net longwave at the ground
+   integer(ik), parameter, public :: PA_APAR                 = 20_ik  ! [W/m2] PAR (VIS) the leaves absorbed
+   integer(ik), parameter, public :: PA_H_CANOPY             = 21_ik  ! [W/m2] sensible heat, leaves and wood -> canopy air
+   integer(ik), parameter, public :: PA_H_GROUND             = 22_ik  ! [W/m2] sensible heat, ground (soil, snow) -> canopy air
    !---~---
    !   The whole-column energy budget's other terms (docs/science/diagnostics.md §4, The budgets):
-   ! Rn + bottom heat - H - LE + advected enthalpy - store gains = the energy residual.
+   ! Rn + bottom heat - H - LE + the precipitation's enthalpy - the outflows' - store gains =
+   ! the energy residual.
    !---~---
-   integer(ik), parameter, public :: PA_HEAT_BOTTOM       = 23_ik  ! [W/m2] heat into the soil column through its bottom
-   integer(ik), parameter, public :: PA_ENTH_ADVECT       = 24_ik  ! [W/m2] enthalpy the water carries in, beyond H and LE
-   integer(ik), parameter, public :: PA_HEAT_GAIN_SOIL    = 25_ik  ! [W/m2] the soil column's energy gain
-   integer(ik), parameter, public :: PA_HEAT_GAIN_CANOPY  = 26_ik  ! [W/m2] the canopy air's and tissues' energy gain
-   integer(ik), parameter, public :: PA_HEAT_GAIN_SURFACE = 27_ik  ! [W/m2] the snow pack's and pond's energy gain
+   integer(ik), parameter, public :: PA_HEAT_BOTTOM          = 23_ik  ! [W/m2] heat into the soil column through its bottom
+   integer(ik), parameter, public :: PA_PRECIP_ENTH          = 24_ik  ! [W/m2] enthalpy the rain and snow carry in
+   integer(ik), parameter, public :: PA_OUTFLOW_ENTH         = 25_ik  ! [W/m2] enthalpy runoff, drainage, overflow, vapour carry out
+   integer(ik), parameter, public :: PA_HEAT_GAIN_SOIL       = 26_ik  ! [W/m2] the soil column's energy gain
+   integer(ik), parameter, public :: PA_HEAT_GAIN_CANOPY     = 27_ik  ! [W/m2] the canopy air's and tissues' energy gain
+   integer(ik), parameter, public :: PA_HEAT_GAIN_SURFACE    = 28_ik  ! [W/m2] the snow pack's and pond's energy gain
    !--- 5. Carbon and water fluxes
-   integer(ik), parameter, public :: PA_GPP               = 28_ik  ! [umol CO2/m2/s] patch GPP rate
-   integer(ik), parameter, public :: PA_NPP               = 29_ik  ! [umol CO2/m2/s] GPP net of maintenance respiration
-   integer(ik), parameter, public :: PA_RECO              = 30_ik  ! [umol CO2/m2/s] ecosystem respiration, NEE + GPP
-   integer(ik), parameter, public :: PA_NEE               = 31_ik  ! [umol CO2/m2/s] net ecosystem exchange
-   integer(ik), parameter, public :: PA_RA                = 32_ik  ! [umol CO2/m2/s] autotrophic respiration, Reco - Rh
+   integer(ik), parameter, public :: PA_GPP                  = 29_ik  ! [umol CO2/m2/s] patch GPP rate
+   integer(ik), parameter, public :: PA_NPP                  = 30_ik  ! [umol CO2/m2/s] GPP net of maintenance respiration
+   integer(ik), parameter, public :: PA_RECO                 = 31_ik  ! [umol CO2/m2/s] ecosystem respiration, NEE + GPP
+   integer(ik), parameter, public :: PA_NEE                  = 32_ik  ! [umol CO2/m2/s] net ecosystem exchange
+   integer(ik), parameter, public :: PA_RAUT                 = 33_ik  ! [umol CO2/m2/s] autotrophic respiration, Reco - Rhet
    !--- Respiration: the cohorts' maintenance, summed per m2 of the patch, and the soil's (Rh).
-   integer(ik), parameter, public :: PA_LEAF_RESP         = 33_ik  ! [umol CO2/m2/s] leaf dark respiration
-   integer(ik), parameter, public :: PA_STEM_RESP         = 34_ik  ! [umol CO2/m2/s] stem maintenance respiration
-   integer(ik), parameter, public :: PA_ROOT_RESP         = 35_ik  ! [umol CO2/m2/s] fine-root maintenance respiration
-   integer(ik), parameter, public :: PA_RH                = 36_ik  ! [umol CO2/m2/s] heterotrophic respiration
+   integer(ik), parameter, public :: PA_LEAF_RESP            = 34_ik  ! [umol CO2/m2/s] leaf dark respiration
+   integer(ik), parameter, public :: PA_STEM_RESP            = 35_ik  ! [umol CO2/m2/s] stem maintenance respiration
+   integer(ik), parameter, public :: PA_ROOT_RESP            = 36_ik  ! [umol CO2/m2/s] fine-root maintenance respiration
+   integer(ik), parameter, public :: PA_RHET                 = 37_ik  ! [umol CO2/m2/s] heterotrophic respiration
    !---~---
    !   The canopy air's vapour sources, as its ledger booked them: ET (PA_LE) is the first three
    ! less PA_DEW, less the canopy air's own vapour gain.
    !---~---
-   integer(ik), parameter, public :: PA_TRANSP            = 37_ik  ! [kg/m2/s] canopy transpiration
-   integer(ik), parameter, public :: PA_EVAP_CANOPY       = 38_ik  ! [kg/m2/s] the canopy films' evaporation (dew onto them < 0)
-   integer(ik), parameter, public :: PA_EVAP_GROUND       = 39_ik  ! [kg/m2/s] the ground's evaporation: bare soil and snow pack
-   integer(ik), parameter, public :: PA_DEW               = 40_ik  ! [kg/m2/s] condensate (dew, fog) to soil layer 1
-   integer(ik), parameter, public :: PA_ET                = 41_ik  ! [kg/m2/s] evapotranspiration: the canopy air's vapour export
+   integer(ik), parameter, public :: PA_TRANSP               = 38_ik  ! [kg/m2/s] canopy transpiration
+   integer(ik), parameter, public :: PA_VEG_SURFACE_EVAP     = 39_ik  ! [kg/m2/s] leaf and wood surface water evaporated (dew < 0)
+   integer(ik), parameter, public :: PA_GROUND_EVAP          = 40_ik  ! [kg/m2/s] the ground's evaporation: bare soil and snow pack
+   integer(ik), parameter, public :: PA_DEW                  = 41_ik  ! [kg/m2/s] condensate (dew, fog) to soil layer 1
+   integer(ik), parameter, public :: PA_ET                   = 42_ik  ! [kg/m2/s] evapotranspiration: the canopy air's vapour export
    !--- The water leaving the soil column: the pond's spill, the bottom flux, and their sum.
-   integer(ik), parameter, public :: PA_RUNOFF_SURF       = 42_ik  ! [kg/m2/s] surface runoff
-   integer(ik), parameter, public :: PA_DRAINAGE          = 43_ik  ! [kg/m2/s] drainage (negative when an aquifer feeds it)
-   integer(ik), parameter, public :: PA_RUNOFF            = 44_ik  ! [kg/m2/s] surface runoff + drainage
+   integer(ik), parameter, public :: PA_RUNOFF_SURF          = 43_ik  ! [kg/m2/s] surface runoff
+   integer(ik), parameter, public :: PA_DRAINAGE             = 44_ik  ! [kg/m2/s] drainage (negative when an aquifer feeds it)
+   integer(ik), parameter, public :: PA_RUNOFF               = 45_ik  ! [kg/m2/s] surface runoff + drainage
    !---~---
    !   The whole-column water budget's other terms and stores (docs/science/diagnostics.md §4, The
    ! budgets): P + shed water - ET - runoff - film excess - store gain = the water residual.
    !---~---
-   integer(ik), parameter, public :: PA_INTERCEPT         = 45_ik  ! [kg/m2/s] rain and snow the canopy films captured, net
-   integer(ik), parameter, public :: PA_THROUGHFALL       = 46_ik  ! [kg/m2/s] precipitation reaching the ground
-   integer(ik), parameter, public :: PA_INFILTRATION      = 47_ik  ! [kg/m2/s] pond -> soil layer 1
-   integer(ik), parameter, public :: PA_SNOWMELT          = 48_ik  ! [kg/m2/s] meltwater the snow pack drains to the pond
-   integer(ik), parameter, public :: PA_SUBLIMATION       = 49_ik  ! [kg/m2/s] snow pack -> canopy air (deposition < 0)
-   integer(ik), parameter, public :: PA_SHED_WATER        = 50_ik  ! [kg/m2/s] tissue water the slow step shed to the pond
-   integer(ik), parameter, public :: PA_FILM_EXCESS       = 51_ik  ! [kg/m2/s] film water above capacity, removed
-   integer(ik), parameter, public :: PA_WATER_STORE_GAIN  = 52_ik  ! [kg/m2/s] change of every water store
-   integer(ik), parameter, public :: PA_CANOPY_WATER      = 53_ik  ! [kg/m2] water on the leaves' and wood's surfaces
-   integer(ik), parameter, public :: PA_SOIL_WATER_TOTAL  = 54_ik  ! [kg/m2] the soil column's water, liquid and ice
-   integer(ik), parameter, public :: PA_PLANT_WATER       = 55_ik  ! [kg/m2] the plants' tissue water
+   integer(ik), parameter, public :: PA_INTERCEPT            = 46_ik  ! [kg/m2/s] rain and snow the canopy films captured, net
+   integer(ik), parameter, public :: PA_THROUGHFALL          = 47_ik  ! [kg/m2/s] precipitation reaching the ground
+   integer(ik), parameter, public :: PA_INFILTRATION         = 48_ik  ! [kg/m2/s] pond -> soil layer 1
+   integer(ik), parameter, public :: PA_SNOWMELT             = 49_ik  ! [kg/m2/s] meltwater the snow pack drains to the pond
+   integer(ik), parameter, public :: PA_SUBLIMATION          = 50_ik  ! [kg/m2/s] snow pack -> canopy air (deposition < 0)
+   integer(ik), parameter, public :: PA_SHED_WATER           = 51_ik  ! [kg/m2/s] tissue water the slow step shed to the pond
+   integer(ik), parameter, public :: PA_VEG_SURFACE_OVERFLOW = 52_ik  ! [kg/m2/s] their surface water above capacity, removed
+   integer(ik), parameter, public :: PA_WATER_STORE_GAIN     = 53_ik  ! [kg/m2/s] change of every water store
+   integer(ik), parameter, public :: PA_VEG_SURFACE_WATER    = 54_ik  ! [kg/m2] water on the leaves' and wood's surfaces
+   integer(ik), parameter, public :: PA_SOIL_WATER_TOTAL     = 55_ik  ! [kg/m2] the soil column's water, liquid and ice
+   integer(ik), parameter, public :: PA_PLANT_WATER          = 56_ik  ! [kg/m2] the plants' tissue water
    !--- 6. Canopy air and ground state
    !---~---
    !   Fast-varying CAS / surface state, accumulated dt-weighted rather than read at the
@@ -288,35 +290,35 @@ module ed_diag_vars
    ! function of the site's longitude -- measured at +1.4 K for the top soil layer at
    ! Ithaca.
    !---~---
-   integer(ik), parameter, public :: PA_CAS_TEMP          = 56_ik  ! [K]
-   integer(ik), parameter, public :: PA_CAS_SHV           = 57_ik  ! [kg/kg]
-   integer(ik), parameter, public :: PA_CAS_CO2           = 58_ik  ! [umol/mol]
-   integer(ik), parameter, public :: PA_CAS_VPD           = 59_ik  ! [Pa]
-   integer(ik), parameter, public :: PA_SOIL_TEMP_TOP     = 60_ik  ! [K] top soil layer (the ground surface when snow-free)
-   integer(ik), parameter, public :: PA_W_SURFACE         = 61_ik  ! [kg/m2] ponded surface water
+   integer(ik), parameter, public :: PA_CAS_TEMP             = 57_ik  ! [K]
+   integer(ik), parameter, public :: PA_CAS_SHV              = 58_ik  ! [kg/kg]
+   integer(ik), parameter, public :: PA_CAS_CO2              = 59_ik  ! [umol/mol]
+   integer(ik), parameter, public :: PA_CAS_VPD              = 60_ik  ! [Pa]
+   integer(ik), parameter, public :: PA_SOIL_TEMP_TOP        = 61_ik  ! [K] top soil layer (the ground surface when snow-free)
+   integer(ik), parameter, public :: PA_W_SURFACE            = 62_ik  ! [kg/m2] ponded surface water
    !--- 7. Budget residuals
-   integer(ik), parameter, public :: PA_RESID_ENERGY      = 62_ik  ! [W/m2] whole-column energy residual
-   integer(ik), parameter, public :: PA_RESID_WATER       = 63_ik  ! [kg/m2/s] whole-column water residual
-   integer(ik), parameter, public :: N_PA_FAST_ROWS         = 63_ik  ! the fast loop's last row; the slow rows follow
+   integer(ik), parameter, public :: PA_RESID_ENERGY         = 63_ik  ! [W/m2] whole-column energy residual
+   integer(ik), parameter, public :: PA_RESID_WATER          = 64_ik  ! [kg/m2/s] whole-column water residual
+   integer(ik), parameter, public :: N_PA_FAST_ROWS         = 64_ik  ! the fast loop's last row; the slow rows follow
    !--- 8. SLOW rows: litter
    !---~---
    !   SLOW-loop patch diagnostics. They share this block (and its weight) with the fast rows
    ! above because the reader normalizes by w either way, and the slow driver writes them as
    ! a dt-weighted contribution over the same slow step the fast rows span.
    !---~---
-   integer(ik), parameter, public :: PA_LITTER_LEAF       = 64_ik  ! [kgC/m2/yr] leaf litterfall (after resorption)
-   integer(ik), parameter, public :: PA_LITTER_FINEROOT   = 65_ik  ! [kgC/m2/yr] fine-root litter (after resorption)
+   integer(ik), parameter, public :: PA_LITTER_LEAF          = 65_ik  ! [kgC/m2/yr] leaf litterfall (after resorption)
+   integer(ik), parameter, public :: PA_LITTER_FINEROOT      = 66_ik  ! [kgC/m2/yr] fine-root litter (after resorption)
    !---~---
    !   Litter by the tissue it came from, completing PA_LITTER_LEAF / PA_LITTER_FINEROOT:
    ! with mean_root_exudate_py they sum to the carbon entering the soil pools
    ! (docs/science/soil_carbon.md §5).
    !---~---
-   integer(ik), parameter, public :: PA_LITTER_WOOD       = 66_ik  ! [kgC/m2/yr] wood + storage of dead plants
-   integer(ik), parameter, public :: PA_LITTER_REPRO      = 67_ik  ! [kgC/m2/yr] fruit and seed that made no recruit
-   integer(ik), parameter, public :: PA_LITTER_STRUCT     = 68_ik  ! [kgC/m2/yr] structural litter + CWD
+   integer(ik), parameter, public :: PA_LITTER_WOOD          = 67_ik  ! [kgC/m2/yr] wood + storage of dead plants
+   integer(ik), parameter, public :: PA_LITTER_REPRO         = 68_ik  ! [kgC/m2/yr] fruit and seed that made no recruit
+   integer(ik), parameter, public :: PA_LITTER_STRUCT        = 69_ik  ! [kgC/m2/yr] structural litter + CWD
    !--- 9. SLOW rows: demography
-   integer(ik), parameter, public :: PA_RECRUIT_NPLANT    = 69_ik  ! [plant/m2/yr] recruitment density flux
-   integer(ik), parameter, public :: PA_DISTURB_AREA      = 70_ik  ! [1/yr] area fraction disturbed
+   integer(ik), parameter, public :: PA_RECRUIT_NPLANT       = 70_ik  ! [plant/m2/yr] recruitment density flux
+   integer(ik), parameter, public :: PA_DISTURB_AREA         = 71_ik  ! [1/yr] area fraction disturbed
    !---~---
    !   MORTALITY CARBON BY PATHWAY: the three ways an ED-MORE plant can die, kept apart so a
    ! user can tell a stand thinning continuously from one being knocked over. The three
@@ -331,10 +333,10 @@ module ed_diag_vars
    ! are switched off. Whole-individual death carries every pool (leaf + fine root +
    ! wood + storage), as the litter partitioning does.
    !---~---
-   integer(ik), parameter, public :: PA_MORT_C_BACKGROUND = 71_ik  ! [kgC/m2/yr] continuous hazard mortality
-   integer(ik), parameter, public :: PA_MORT_C_CULL       = 72_ik  ! [kgC/m2/yr] cohorts culled below the tracking floor
-   integer(ik), parameter, public :: PA_MORT_C_DISTURB    = 73_ik  ! [kgC/m2/yr] canopy killed by patch disturbance
-   integer(ik), parameter, public :: N_PA_ROWS              = 73_ik
+   integer(ik), parameter, public :: PA_MORT_C_BACKGROUND    = 72_ik  ! [kgC/m2/yr] continuous hazard mortality
+   integer(ik), parameter, public :: PA_MORT_C_CULL          = 73_ik  ! [kgC/m2/yr] cohorts culled below the tracking floor
+   integer(ik), parameter, public :: PA_MORT_C_DISTURB       = 74_ik  ! [kgC/m2/yr] canopy killed by patch disturbance
+   integer(ik), parameter, public :: N_PA_ROWS              = 74_ik
 
    !---~---
    !   PER-POLYGON diagnostic fields: quantities that are the same everywhere in the polygon,

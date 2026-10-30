@@ -2,8 +2,8 @@
 """The whole-column water and energy budgets close from the output alone (docs/science/diagnostics.md
 §4, The budgets): on the daily and the sub-daily tier, every record's terms add up to its residual,
 
-    water:  precip + shed_water - et - runoff - film_excess - water_store_gain = -resid_water
-    energy: rnet + heat_bottom - h - le + enth_advect - heat_gain_*            = -resid_energy
+    water:  precip + shed_water - et - runoff - veg_surface_overflow - water_store_gain = -resid_water
+    energy: rnet + heat_bottom + precip_enth - h - le - outflow_enth - heat_gain_*    = -resid_energy
 
 and the ecosystem's carbon is its vegetation's plus its soil's. A term the files leave out, or one
 booked on a different basis from the ledger's, breaks a budget by far more than round-off.
@@ -20,9 +20,9 @@ from netCDF4 import Dataset
 from test_restart_exact import EDMORE_MAIN, forced_config, synthetic_forcing
 
 WATER_IN = ["mean_precip_py", "mean_shed_water_py"]
-WATER_OUT = ["mean_et_py", "mean_runoff_py", "mean_film_excess_py", "mean_water_store_gain_py"]
-ENERGY_IN = ["mean_rnet_py", "mean_heat_bottom_py", "mean_enth_advect_py"]
-ENERGY_OUT = ["mean_h_py", "mean_le_py", "mean_heat_gain_soil_py", "mean_heat_gain_canopy_py",
+WATER_OUT = ["mean_et_py", "mean_runoff_py", "mean_veg_surface_overflow_py", "mean_water_store_gain_py"]
+ENERGY_IN = ["mean_rnet_py", "mean_heat_bottom_py", "mean_precip_enth_py"]
+ENERGY_OUT = ["mean_h_py", "mean_le_py", "mean_outflow_enth_py", "mean_heat_gain_soil_py", "mean_heat_gain_canopy_py",
               "mean_heat_gain_surface_py"]
 BUDGETS = [("water", WATER_IN, WATER_OUT, "mean_resid_water_py"),
            ("energy", ENERGY_IN, ENERGY_OUT, "mean_resid_energy_py")]

@@ -26,21 +26,23 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 ### Added
 
 - Four output variables split evapotranspiration by where the vapour comes from:
-  `mean_transp_py` (transpiration), `mean_evap_canopy_py` (evaporation of the rain the canopy
-  intercepted), `mean_evap_ground_py` (bare soil and snow) and `mean_dew_py` (condensation). ET is
+  `mean_transp_py` (transpiration), `mean_veg_surface_evap_py` (evaporation of the water on the
+  leaves' and wood's surfaces), `mean_ground_evap_py` (bare soil and snow) and `mean_dew_py`
+  (condensation). ET is
   the first three less the dew. They are written daily, monthly and yearly by default, and hourly
   on request. Results are bit for bit. (#56)
 - The water and energy budgets close from the output alone (docs/science/diagnostics.md §4, The
   budgets): every term the whole-column ledgers book is a variable, written daily, monthly and
-  yearly by default. Water: `mean_shed_water_py`, `mean_film_excess_py`, `mean_water_store_gain_py`,
+  yearly by default. Water: `mean_shed_water_py`, `mean_veg_surface_overflow_py`, `mean_water_store_gain_py`,
   the paths inside the column (`mean_intercept_py`, `mean_throughfall_py`, `mean_infiltration_py`,
-  `mean_snowmelt_py`, `mean_sublimation_py`), the stores (`mean_canopy_water_py`,
+  `mean_snowmelt_py`, `mean_sublimation_py`), the stores (`mean_veg_surface_water_py`,
   `mean_soil_water_total_py`, `mean_plant_water_py`) and the leaves' wet fraction
   (`mean_wet_fraction_py`; per cohort `mean_wet_fraction_co`, off by default). Energy:
-  `mean_heat_bottom_py`, `mean_enth_advect_py`, the stores' gains (`mean_heat_gain_soil_py`,
+  `mean_heat_bottom_py`, the enthalpy the precipitation carries in and the outflows carry out
+  (`mean_precip_enth_py`, `mean_outflow_enth_py`), the stores' gains (`mean_heat_gain_soil_py`,
   `mean_heat_gain_canopy_py`, `mean_heat_gain_surface_py`) and H by source (`mean_h_canopy_py`,
   `mean_h_ground_py`). A test closes both budgets from a run's files. (#56)
-- Carbon and radiation: autotrophic respiration `mean_ra_py` ($`R_{eco} - R_h`$), the ecosystem's
+- Carbon and radiation: autotrophic respiration `mean_raut_py` ($`R_{eco} - R_{het}`$), the ecosystem's
   carbon `mean_eco_carbon_py` (vegetation plus soil), the leaves' absorbed PAR `mean_apar_py`, and
   patch evapotranspiration `mean_et_pa`. (#56)
 - The mean diel cycle: `diel_<x>`, for every `mean_<x>` with a sub-daily value, is its mean at each

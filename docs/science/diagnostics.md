@@ -411,17 +411,17 @@ entries are formed there for a reason:
 - **NPP** is GPP net of the maintenance respiration of leaves, stems and roots, on every tier. The
   slow allocator charges growth respiration once a day, and it is not in NPP.
 - **ET's sources** are the vapour the canopy air was credited over the sub-step, as its ledger
-  booked them: transpiration (`mean_transp_py`), the evaporation of the water the canopy
-  intercepted (`mean_evap_canopy_py`, negative when dew forms on it), the ground's evaporation, bare
-  soil and snow pack (`mean_evap_ground_py`), and the condensate that left the canopy air for the
-  soil (`mean_dew_py`). ET (`mean_et_py`, and $`L_v`$ times it, `mean_le_py`) is the canopy air's
-  vapour export to the atmosphere: the first three less the dew, less the canopy air's own vapour
-  gain, which is small beyond a few hours.
+  booked them: transpiration (`mean_transp_py`), the evaporation of the water on the leaves' and
+  wood's surfaces (`mean_veg_surface_evap_py`, negative when dew forms on them), the ground's
+  evaporation, bare soil and snow pack (`mean_ground_evap_py`), and the condensate that left the
+  canopy air for the soil (`mean_dew_py`). ET (`mean_et_py`, and $`L_v`$ times it, `mean_le_py`) is
+  the canopy air's vapour export to the atmosphere: the first three less the dew, less the canopy
+  air's own vapour gain, which is small beyond a few hours.
 - **Respiration** is split as the fast loop booked it. Leaf, stem and fine-root maintenance
   respiration (`mean_leaf_resp_py`, `mean_stem_resp_py`, `mean_root_resp_py`) are the cohorts'
   summed per ground area; heterotrophic respiration (`mean_rh_py`) is the soil's over the sub-step;
   and autotrophic respiration is formed as the rest of the ecosystem's,
-  $`R_a = R_{eco} - R_h`$ (`mean_ra_py`), so the three always add up.
+  $`R_{aut} = R_{eco} - R_h`$ (`mean_raut_py`), so the three always add up.
 - **The budget residuals** (`mean_resid_energy_py`, `mean_resid_water_py`) are each sub-step's signed
   whole-column imbalance over the sub-step: a leak rate in W m⁻² or kg m⁻² s⁻¹, positive when a store
   appears from nowhere.
@@ -436,38 +436,41 @@ is its change over the record divided by the record's length.
 Water [kg m⁻² s⁻¹]:
 
 ```math
-P + S - \mathrm{ET} - R - F_{ex} - \Delta W = -\epsilon_W
+P + S - \mathrm{ET} - R - O_v - \Delta W = -\epsilon_W
 ```
 
 - $`P`$, the precipitation (`mean_precip_py`); $`S`$, the tissue water the slow step shed to the pond
   (`mean_shed_water_py`);
 - $`\mathrm{ET}`$ (`mean_et_py`); $`R`$, surface runoff plus drainage (`mean_runoff_py`, its two parts
   `mean_runoff_surf_py` and `mean_drainage_py`);
-- $`F_{ex}`$, the canopy films' water above their capacity, which the update removes
-  (`mean_film_excess_py`);
-- $`\Delta W`$, the gain of every store: soil, pond, plants, films, snow pack and canopy-air vapour
+- $`O_v`$, the water on the leaves' and wood's surfaces above their capacity, which the update removes
+  (`mean_veg_surface_overflow_py`);
+- $`\Delta W`$, the gain of every store: soil, pond, plants, the leaves' and wood's surface water, snow
+  pack and canopy-air vapour
   (`mean_water_store_gain_py`);
 - $`\epsilon_W`$, the residual (`mean_resid_water_py`).
 
 The water's paths inside the column are written too, though they cancel in the budget: interception
 and throughfall (`mean_intercept_py`, `mean_throughfall_py`, which add up to the precipitation),
 infiltration, snowmelt and sublimation (`mean_infiltration_py`, `mean_snowmelt_py`,
-`mean_sublimation_py`), and the stores themselves (`mean_canopy_water_py`, `mean_soil_water_total_py`,
+`mean_sublimation_py`), and the stores themselves (`mean_veg_surface_water_py`, `mean_soil_water_total_py`,
 `mean_plant_water_py`) with the leaves' wet fraction (`mean_wet_fraction_py`, per cohort
 `mean_wet_fraction_co`).
 
 Energy [W m⁻²]:
 
 ```math
-R_n + G_b - H - \lambda E + A - \Delta E_{soil} - \Delta E_{canopy} - \Delta E_{surface} = -\epsilon_E
+R_n + G_b + P_e - H - \lambda E - O_e - \Delta E_{soil} - \Delta E_{canopy} - \Delta E_{surface} = -\epsilon_E
 ```
 
 - $`R_n`$, the net all-wave radiation (`mean_rnet_py`); $`G_b`$, the heat into the soil column through
   its bottom (`mean_heat_bottom_py`, 0 with an insulated bottom);
 - $`H`$ and $`\lambda E`$, the reported sensible and latent heat (`mean_h_py`, `mean_le_py`);
-- $`A`$, the enthalpy the water carries across the column's boundary beyond $`H`$ and $`\lambda E`$
-  (`mean_enth_advect_py`): the precipitation's in, the runoff's and drainage's out, the films' cut, and
-  the difference between the vapour export's enthalpy and $`\lambda E`$;
+- $`P_e`$, the enthalpy the precipitation carries in (`mean_precip_enth_py`): the rain the leaves
+  and wood catch, the snowfall onto the pack and the rain and snow reaching the ground;
+- $`O_e`$, the enthalpy the outflows carry out (`mean_outflow_enth_py`): the surface runoff, the
+  drainage through the column's bottom, the surface water's overflow, and the exported vapour's
+  beyond $`\lambda E`$. Both are carried by water crossing the column's boundary, not by the air;
 - $`\Delta E`$, the energy gains of the soil column, of the canopy air and the tissues, and of the
   snow pack and the pond (`mean_heat_gain_soil_py`, `mean_heat_gain_canopy_py`,
   `mean_heat_gain_surface_py`);
