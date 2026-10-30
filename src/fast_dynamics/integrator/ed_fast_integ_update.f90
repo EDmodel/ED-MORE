@@ -192,34 +192,34 @@ contains
       !---~---
       report%exports%transp_export      = 0.0_wp
       if (allocated(acc%transp_coh)) report%exports%transp_export = sum(acc%transp_coh(1:n))
-      report%exports%film_evap_export   = acc%film_evap
+      report%exports%veg_surface_evap_export   = acc%veg_surface_evap
       report%exports%ground_evap_export = frozen%ground%soil_evap * dt_fast + acc%snow_vap_out
       report%exports%cond_export        = acc%whole_cond
       !---~---
       !   The budgets' other terms, so both close from the output (docs/science/diagnostics.md §4,
       ! The budgets): the same amounts the two whole-column ledgers below set against their
-      ! stores. The advected enthalpy is what the energy ledger's water and vapour flows carry
-      ! beyond the reported H and LE: the precipitation's enthalpy in, the vapour export's at
-      ! its own basis less LE, the drainage's and runoff's out and the films' cut.
+      ! stores. The water's enthalpy is split by direction: the precipitation's in (the rain the
+      ! surfaces catch, the snowfall, the rain reaching the ground), and the outflows' out (the
+      ! drainage, the runoff, the surface water's overflow, and the exported vapour's beyond LE).
       !---~---
       report%exports%intercept_export    = intercept_total * dt_fast
       report%exports%infiltration_export = frozen%hydrology%infiltration * dt_fast
       report%exports%melt_export         = frozen%snow%melt_rate * dt_fast
       report%exports%sublimation_export  = acc%snow_vap_out
       report%exports%shed_water_export   = static%shed_water_rate * dt_fast
-      report%exports%film_excess_export  = moved%surf_overflow - moved%surf_deficit
+      report%exports%veg_surface_overflow_export  = moved%surf_overflow - moved%surf_deficit
       report%exports%water_store_gain    = (w_soil1 + cas_mass_capacity*shv1 + frozen%hydrology%w_surface1 + w_plant1 &
                                            + surf_water1 + moved%snow_swe1)                                       &
                                            - (w_soil0 + cas_mass_capacity*shv0 + w_surface0 + w_plant0 + surf_water0 &
                                            + frozen%snow%swe0)
-      report%exports%film_store          = surf_water1
+      report%exports%veg_surface_water_store          = surf_water1
       report%exports%soil_water_store    = w_soil1
       report%exports%plant_water_store   = w_plant1
       report%exports%heat_bottom_export  = acc%whole_enth_in - acc%rad_net
-      report%exports%enth_advect_export  = intercept_total*dt_fast*frozen%film%rain_liquid_enthalpy                  &
-                                           + frozen%snow%acc_enth + frozen%hydrology%ground_inflow_enth*dt_fast     &
-                                           + acc%atm_heat_out + latent_heat_vap*acc%atm_vap_out - acc%whole_enth_out &
-                                           - frozen%hydrology%runoff_enth*dt_fast - moved%surf_net_enth
+      report%exports%precip_enth_export  = intercept_total*dt_fast*frozen%film%rain_liquid_enthalpy                  &
+                                           + frozen%snow%acc_enth + frozen%hydrology%ground_inflow_enth*dt_fast
+      report%exports%outflow_enth_export = acc%whole_enth_out - acc%atm_heat_out - latent_heat_vap*acc%atm_vap_out  &
+                                           + frozen%hydrology%runoff_enth*dt_fast + moved%surf_net_enth
       report%exports%heat_gain_soil      = e_soil1 - e_soil0
       report%exports%heat_gain_canopy    = cas_mass_capacity*(enth1 - enth0) + moved%tissue_store1 - moved%tissue_store0
       report%exports%heat_gain_surface   = moved%snow_enth1 - frozen%snow%enth0 + e_pond1 - e_pond0

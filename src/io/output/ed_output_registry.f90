@@ -43,7 +43,7 @@ module ed_output_registry
                                      SRC_F_SOIL_WATER, SRC_F_SOIL_LAYER, SRC_F_PY0, SRC_F_PA0, SRC_F_COH_GPP,      &
                                      SRC_F_COH_HEIGHT, SRC_F_COH_NPP, SRC_F_CO0, FLD_C_DIAG0, FLD_P_DIAG0,         &
                                      FLD_PY_DIAG0, FLD_SI_DIAG0, FLD_SI_GROWTH_TEMP
-   use ed_diag_vars,         only : N_CO_FAST_ROWS, N_PA_FAST_ROWS, N_PY_ROWS, N_SI_ROWS,                    &
+   use ed_diag_vars,         only : N_CO_FAST_ROWS, N_PA_FAST_ROWS, N_PY_ROWS, N_SI_ROWS,                         &
                                     CO_ANET, CO_AGROSS, CO_GSW, CO_GBW, CO_CI, CO_CS, CO_RD, CO_TRANSP,           &
                                     CO_BETA_STOM, CO_BETA_NONSTOM, CO_LEAF_VPD, CO_PSI_LEAF, CO_PSI_WOOD,         &
                                     CO_PLC, CO_SAPFLOW, CO_ROOT_UPTAKE, CO_ABS_PAR, CO_ABS_SW, CO_ABS_LW,         &
@@ -52,7 +52,7 @@ module ed_output_registry
                                     PA_RNET, PA_SW_GROUND, PA_LW_GROUND, PA_SW_IN_VIS, PA_SW_IN_NIR,              &
                                     PA_SW_UP_VIS, PA_SW_UP_NIR, PA_LW_UP, PA_USTAR, PA_GGNET, PA_ROUGH,           &
                                     PA_DISPLACE, PA_GPP, PA_NEE, PA_TRANSP, PA_SOIL_TEMP_TOP, PA_RESID_ENERGY,    &
-                                    PA_EVAP_CANOPY, PA_EVAP_GROUND, PA_DEW,                                        &
+                                    PA_VEG_SURFACE_EVAP, PA_GROUND_EVAP, PA_DEW,                                  &
                                     PA_CAS_VPD, PA_W_SURFACE, PA_CAS_TEMP, PA_CAS_SHV, PA_CAS_CO2,                &
                                     PA_WIND_CAS_TOP, PA_TAIR_CAS_TOP, PA_Z_CAS_TOP, PA_RESID_WATER, PA_NPP,       &
                                     PA_RECO, PA_SW_UP, PA_SKIN_TEMP, PY_SW_IN, PY_PRECIP, PY_TAIR, PY_QAIR,       &
@@ -63,12 +63,13 @@ module ed_output_registry
                                     CO_EXUDATE, PA_LITTER_LEAF, PA_LITTER_FINEROOT, PA_MORT_C_BACKGROUND,         &
                                     PA_MORT_C_CULL, PA_MORT_C_DISTURB, PA_LITTER_STRUCT, PA_LITTER_WOOD,          &
                                     PA_LITTER_REPRO, PA_RECRUIT_NPLANT, PA_DISTURB_AREA, PA_APAR, PA_H_CANOPY,    &
-                                    PA_H_GROUND, PA_HEAT_BOTTOM, PA_ENTH_ADVECT, PA_HEAT_GAIN_SOIL,               &
-                                    PA_HEAT_GAIN_CANOPY, PA_HEAT_GAIN_SURFACE, PA_RA, PA_LEAF_RESP,               &
-                                    PA_STEM_RESP, PA_ROOT_RESP, PA_RH, PA_ET, PA_RUNOFF_SURF, PA_DRAINAGE,        &
+                                    PA_H_GROUND, PA_HEAT_BOTTOM, PA_PRECIP_ENTH, PA_OUTFLOW_ENTH,                 &
+                                    PA_HEAT_GAIN_SOIL,                                                            &
+                                    PA_HEAT_GAIN_CANOPY, PA_HEAT_GAIN_SURFACE, PA_RAUT, PA_LEAF_RESP,             &
+                                    PA_STEM_RESP, PA_ROOT_RESP, PA_RHET, PA_ET, PA_RUNOFF_SURF, PA_DRAINAGE,      &
                                     PA_RUNOFF, PA_INTERCEPT, PA_THROUGHFALL, PA_INFILTRATION, PA_SNOWMELT,        &
-                                    PA_SUBLIMATION, PA_SHED_WATER, PA_FILM_EXCESS, PA_WATER_STORE_GAIN,           &
-                                    PA_CANOPY_WATER, PA_SOIL_WATER_TOTAL, PA_PLANT_WATER, CO_WET_FRACTION
+                                    PA_SUBLIMATION, PA_SHED_WATER, PA_VEG_SURFACE_OVERFLOW, PA_WATER_STORE_GAIN,  &
+                                    PA_VEG_SURFACE_WATER, PA_SOIL_WATER_TOTAL, PA_PLANT_WATER, CO_WET_FRACTION
    implicit none
    private
 
@@ -503,11 +504,11 @@ contains
       call add_variable(reg, 'mean_soilc_total_py', 'polygon total soil organic carbon', 'kgC/m2', DIM_SCALAR, AGG_MEAN,           &
                         GRP_BIOGEOCHEM, DAY_MON_YR, FLD_P_SOILC_TOTAL)
       call add_variable(reg, 'mean_rh_py', 'polygon heterotrophic respiration', 'umol/m2/s', DIM_SCALAR, AGG_RATE, GRP_BIOGEOCHEM, &
-                        DAY_MON_YR, FLD_P_RH, scale=kgc_2_umol, fast_source=SRC_F_PA0 + PA_RH)
+                        DAY_MON_YR, FLD_P_RH, scale=kgc_2_umol, fast_source=SRC_F_PA0 + PA_RHET)
       call add_variable(reg, 'mean_soilc_total_pa', 'patch total soil organic carbon', 'kgC/m2', DIM_PATCH, AGG_MEAN,           &
                         GRP_BIOGEOCHEM, MON, FLD_P_SOILC_TOTAL)
       call add_variable(reg, 'mean_rh_pa', 'patch heterotrophic respiration', 'umol/m2/s', DIM_PATCH, AGG_RATE, GRP_BIOGEOCHEM, &
-                        MON, FLD_P_RH, scale=kgc_2_umol, fast_source=SRC_F_PA0 + PA_RH)
+                        MON, FLD_P_RH, scale=kgc_2_umol, fast_source=SRC_F_PA0 + PA_RHET)
    end subroutine register_biogeochem
 
    !---~---
@@ -739,10 +740,11 @@ contains
       !---~---
       call add_variable(reg, 'mean_transp_py', 'canopy transpiration', 'kg/m2/s', DIM_SCALAR, AGG_TMEAN, GRP_WATER,             &
                         DAY_MON_YR, FLD_P_DIAG0 + PA_TRANSP, flux=.true.)
-      call add_variable(reg, 'mean_evap_canopy_py', 'evaporation of the canopy''s intercepted water (dew onto it < 0)',          &
-                        'kg/m2/s', DIM_SCALAR, AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_EVAP_CANOPY, flux=.true.)
-      call add_variable(reg, 'mean_evap_ground_py', 'ground evaporation: bare soil and snow pack', 'kg/m2/s', DIM_SCALAR,       &
-                        AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_EVAP_GROUND, flux=.true.)
+      call add_variable(reg, 'mean_veg_surface_evap_py', 'evaporation of the leaves'' and wood''s surface water (dew < 0)', &
+                        'kg/m2/s', DIM_SCALAR, AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_VEG_SURFACE_EVAP,           &
+                        flux=.true.)
+      call add_variable(reg, 'mean_ground_evap_py', 'ground evaporation: bare soil and snow pack', 'kg/m2/s', DIM_SCALAR,       &
+                        AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_GROUND_EVAP, flux=.true.)
       call add_variable(reg, 'mean_dew_py', 'condensation from the canopy air (dew, fog), to the soil', 'kg/m2/s', DIM_SCALAR,  &
                         AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_DEW, flux=.true.)
       !--- budget health (GRP_NUMERICS): the numbers that say whether anything above is real.
@@ -769,7 +771,7 @@ contains
    subroutine register_budgets(reg)
       type(output_registry_t), intent(inout) :: reg
       !--- water: the fluxes
-      call add_variable(reg, 'mean_intercept_py', 'precipitation the canopy films captured, net', 'kg/m2/s', DIM_SCALAR,     &
+      call add_variable(reg, 'mean_intercept_py', 'precipitation the leaves and wood caught, net', 'kg/m2/s', DIM_SCALAR,    &
                         AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_INTERCEPT, flux=.true.)
       call add_variable(reg, 'mean_throughfall_py', 'precipitation reaching the ground', 'kg/m2/s', DIM_SCALAR, AGG_TMEAN,   &
                         GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_THROUGHFALL, flux=.true.)
@@ -781,18 +783,19 @@ contains
                         DIM_SCALAR, AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_SUBLIMATION, flux=.true.)
       call add_variable(reg, 'mean_shed_water_py', 'tissue water the slow step shed to the pond', 'kg/m2/s', DIM_SCALAR,     &
                         AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_SHED_WATER, flux=.true.)
-      call add_variable(reg, 'mean_film_excess_py', 'canopy film water above capacity, removed', 'kg/m2/s', DIM_SCALAR,      &
-                        AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_FILM_EXCESS, flux=.true.)
+      call add_variable(reg, 'mean_veg_surface_overflow_py', 'leaf and wood surface water above capacity, removed',         &
+                        'kg/m2/s', DIM_SCALAR, AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_VEG_SURFACE_OVERFLOW,       &
+                        flux=.true.)
       call add_variable(reg, 'mean_water_store_gain_py', 'gain of every water store', 'kg/m2/s', DIM_SCALAR, AGG_TMEAN,     &
                         GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_WATER_STORE_GAIN, flux=.true.)
       !--- water: the stores
-      call add_variable(reg, 'mean_canopy_water_py', 'water on the leaves'' and wood''s surfaces', 'kg/m2', DIM_SCALAR,      &
-                        AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_CANOPY_WATER)
+      call add_variable(reg, 'mean_veg_surface_water_py', 'water on the leaves'' and wood''s surfaces', 'kg/m2', DIM_SCALAR, &
+                        AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_VEG_SURFACE_WATER)
       call add_variable(reg, 'mean_soil_water_total_py', 'the soil column''s water, liquid and ice', 'kg/m2', DIM_SCALAR,    &
                         AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_SOIL_WATER_TOTAL)
       call add_variable(reg, 'mean_plant_water_py', 'the plants'' tissue water', 'kg/m2', DIM_SCALAR, AGG_TMEAN, GRP_WATER,  &
                         DAY_MON_YR, FLD_P_DIAG0 + PA_PLANT_WATER)
-      !--- the wet leaf: each cohort's film-covered fraction, and the canopy's leaf-area-weighted
+      !--- the wet leaf: each cohort's wet fraction, and the canopy's leaf-area-weighted
       call add_variable(reg, 'mean_wet_fraction_py', 'leaf-area-weighted wet fraction of the leaves', '-', DIM_SCALAR,       &
                         AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_C_DIAG0 + CO_WET_FRACTION, weight=W_LEAF_AREA, mean=.true.)
       call add_variable(reg, 'mean_wet_fraction_co', 'per-cohort wet fraction of the leaves', '-', DIM_COHORT, AGG_TMEAN,    &
@@ -804,8 +807,10 @@ contains
                         AGG_TMEAN, GRP_ENERGY, DAY_MON_YR, FLD_P_DIAG0 + PA_H_GROUND, flux=.true.)
       call add_variable(reg, 'mean_heat_bottom_py', 'heat into the soil column through its bottom', 'W/m2', DIM_SCALAR,      &
                         AGG_TMEAN, GRP_ENERGY, DAY_MON_YR, FLD_P_DIAG0 + PA_HEAT_BOTTOM, flux=.true.)
-      call add_variable(reg, 'mean_enth_advect_py', 'enthalpy the water carries in, beyond H and LE', 'W/m2', DIM_SCALAR,    &
-                        AGG_TMEAN, GRP_ENERGY, DAY_MON_YR, FLD_P_DIAG0 + PA_ENTH_ADVECT, flux=.true.)
+      call add_variable(reg, 'mean_precip_enth_py', 'enthalpy the rain and snow carry into the column', 'W/m2', DIM_SCALAR,  &
+                        AGG_TMEAN, GRP_ENERGY, DAY_MON_YR, FLD_P_DIAG0 + PA_PRECIP_ENTH, flux=.true.)
+      call add_variable(reg, 'mean_outflow_enth_py', 'enthalpy runoff, drainage, overflow and vapour carry out, beyond LE', &
+                        'W/m2', DIM_SCALAR, AGG_TMEAN, GRP_ENERGY, DAY_MON_YR, FLD_P_DIAG0 + PA_OUTFLOW_ENTH, flux=.true.)
       call add_variable(reg, 'mean_heat_gain_soil_py', 'the soil column''s energy gain', 'W/m2', DIM_SCALAR, AGG_TMEAN,      &
                         GRP_ENERGY, DAY_MON_YR, FLD_P_DIAG0 + PA_HEAT_GAIN_SOIL, flux=.true.)
       call add_variable(reg, 'mean_heat_gain_canopy_py', 'the canopy air''s and tissues'' energy gain', 'W/m2', DIM_SCALAR,  &
@@ -814,9 +819,9 @@ contains
                         AGG_TMEAN, GRP_ENERGY, DAY_MON_YR, FLD_P_DIAG0 + PA_HEAT_GAIN_SURFACE, flux=.true.)
       call add_variable(reg, 'mean_apar_py', 'PAR (VIS) the leaves absorbed', 'W/m2', DIM_SCALAR, AGG_TMEAN, GRP_RADIATION, &
                         DAY_MON_YR, FLD_P_DIAG0 + PA_APAR, flux=.true.)
-      !--- carbon: autotrophic respiration (Reco - Rh) and the ecosystem's carbon
-      call add_variable(reg, 'mean_ra_py', 'autotrophic respiration (ecosystem less heterotrophic)', 'umol/m2/s',           &
-                        DIM_SCALAR, AGG_TMEAN, GRP_CARBON, DAY_MON_YR, FLD_P_DIAG0 + PA_RA, flux=.true.)
+      !--- carbon: autotrophic respiration (Reco - Rhet) and the ecosystem's carbon
+      call add_variable(reg, 'mean_raut_py', 'autotrophic respiration (ecosystem less heterotrophic)', 'umol/m2/s',           &
+                        DIM_SCALAR, AGG_TMEAN, GRP_CARBON, DAY_MON_YR, FLD_P_DIAG0 + PA_RAUT, flux=.true.)
       call add_variable(reg, 'mean_eco_carbon_py', 'ecosystem carbon: live vegetation + soil organic carbon', 'kgC/m2',      &
                         DIM_SCALAR, AGG_MEAN, GRP_CARBON, DAY_MON_YR, SRC_PY_ECO_CARBON)
    end subroutine register_budgets

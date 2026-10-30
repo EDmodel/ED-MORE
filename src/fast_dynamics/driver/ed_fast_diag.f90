@@ -17,13 +17,14 @@ module ed_fast_diag
                                        PA_LW_GROUND, PA_SW_IN_VIS, PA_SW_IN_NIR, PA_SW_UP_VIS, PA_SW_UP_NIR,     &
                                        PA_LW_UP, PA_USTAR, PA_GGNET, PA_ROUGH, PA_DISPLACE, PA_CAS_TEMP,         &
                                        PA_CAS_SHV, PA_CAS_CO2, PA_GPP, PA_NEE, PA_TRANSP, PA_NPP, PA_RECO,       &
-                                       PA_EVAP_CANOPY, PA_EVAP_GROUND, PA_DEW, PA_ET, PA_RUNOFF_SURF,             &
-                                       PA_DRAINAGE, PA_RUNOFF, PA_LEAF_RESP, PA_STEM_RESP, PA_ROOT_RESP, PA_RH,   &
-                                       PA_RA, PA_APAR, PA_H_CANOPY, PA_H_GROUND, PA_HEAT_BOTTOM, PA_ENTH_ADVECT,   &
-                                       PA_HEAT_GAIN_SOIL, PA_HEAT_GAIN_CANOPY, PA_HEAT_GAIN_SURFACE,             &
-                                       PA_INTERCEPT, PA_THROUGHFALL, PA_INFILTRATION, PA_SNOWMELT,               &
-                                       PA_SUBLIMATION, PA_SHED_WATER, PA_FILM_EXCESS, PA_WATER_STORE_GAIN,       &
-                                       PA_CANOPY_WATER, PA_SOIL_WATER_TOTAL, PA_PLANT_WATER,                     &
+                                       PA_VEG_SURFACE_EVAP, PA_GROUND_EVAP, PA_DEW, PA_ET, PA_RUNOFF_SURF,       &
+                                       PA_DRAINAGE, PA_RUNOFF, PA_LEAF_RESP, PA_STEM_RESP, PA_ROOT_RESP,         &
+                                       PA_RHET, PA_RAUT, PA_APAR, PA_H_CANOPY, PA_H_GROUND, PA_HEAT_BOTTOM,      &
+                                       PA_PRECIP_ENTH, PA_OUTFLOW_ENTH, PA_HEAT_GAIN_SOIL,                       &
+                                       PA_HEAT_GAIN_CANOPY, PA_HEAT_GAIN_SURFACE, PA_INTERCEPT,                  &
+                                       PA_THROUGHFALL, PA_INFILTRATION, PA_SNOWMELT, PA_SUBLIMATION,             &
+                                       PA_SHED_WATER, PA_VEG_SURFACE_OVERFLOW, PA_WATER_STORE_GAIN,              &
+                                       PA_VEG_SURFACE_WATER, PA_SOIL_WATER_TOTAL, PA_PLANT_WATER,                &
                                        PA_SW_UP, PA_SKIN_TEMP, PA_SOIL_TEMP_TOP, PA_CAS_VPD, PA_W_SURFACE,       &
                                        PA_RESID_ENERGY, PA_RESID_WATER, PA_WIND_CAS_TOP, PA_TAIR_CAS_TOP,        &
                                        PA_Z_CAS_TOP, PY_SW_IN, PY_PRECIP, PY_TAIR, PY_QAIR, PY_PSURF, PY_WIND,   &
@@ -317,12 +318,12 @@ contains
       row(PA_LEAF_RESP)    = leaf_resp
       row(PA_STEM_RESP)    = stem_resp
       row(PA_ROOT_RESP)    = root_resp
-      row(PA_RH)           = exports%rh_matrix_step * kgcday_2_umols
-      row(PA_RA)           = row(PA_RECO) - row(PA_RH)      ! maintenance and growth, as NEE booked them
+      row(PA_RHET)           = exports%rh_matrix_step * kgcday_2_umols
+      row(PA_RAUT)           = row(PA_RECO) - row(PA_RHET)      ! maintenance and growth, as NEE booked them
       !--- ET's sources, as rates [kg/m2/s]: ET = transp + evap_canopy + evap_ground - dew - d(CAS vapour).
       row(PA_TRANSP)       = exports%transp_export / dt
-      row(PA_EVAP_CANOPY)  = exports%film_evap_export / dt
-      row(PA_EVAP_GROUND)  = exports%ground_evap_export / dt
+      row(PA_VEG_SURFACE_EVAP)  = exports%veg_surface_evap_export / dt
+      row(PA_GROUND_EVAP)  = exports%ground_evap_export / dt
       row(PA_DEW)          = exports%cond_export / dt
       row(PA_ET)           = exports%atm_vap_export / dt
       !--- The water leaving the soil column [kg/m2/s].
@@ -336,9 +337,9 @@ contains
       row(PA_SNOWMELT)         = exports%melt_export / dt
       row(PA_SUBLIMATION)      = exports%sublimation_export / dt
       row(PA_SHED_WATER)       = exports%shed_water_export / dt
-      row(PA_FILM_EXCESS)      = exports%film_excess_export / dt
+      row(PA_VEG_SURFACE_OVERFLOW)      = exports%veg_surface_overflow_export / dt
       row(PA_WATER_STORE_GAIN) = exports%water_store_gain / dt
-      row(PA_CANOPY_WATER)     = exports%film_store
+      row(PA_VEG_SURFACE_WATER)     = exports%veg_surface_water_store
       row(PA_SOIL_WATER_TOTAL) = exports%soil_water_store
       row(PA_PLANT_WATER)      = exports%plant_water_store
       !--- The energy budget's other terms [W/m2], the sensible heat's sources and the absorbed PAR.
@@ -346,7 +347,8 @@ contains
       row(PA_H_CANOPY)          = exports%h_canopy_export / dt
       row(PA_H_GROUND)          = exports%h_ground_export / dt
       row(PA_HEAT_BOTTOM)       = exports%heat_bottom_export / dt
-      row(PA_ENTH_ADVECT)       = exports%enth_advect_export / dt
+      row(PA_PRECIP_ENTH)       = exports%precip_enth_export / dt
+      row(PA_OUTFLOW_ENTH)      = exports%outflow_enth_export / dt
       row(PA_HEAT_GAIN_SOIL)    = exports%heat_gain_soil / dt
       row(PA_HEAT_GAIN_CANOPY)  = exports%heat_gain_canopy / dt
       row(PA_HEAT_GAIN_SURFACE) = exports%heat_gain_surface / dt

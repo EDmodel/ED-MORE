@@ -426,15 +426,15 @@ contains
             amount(6) = ground_energy() - e_ground
             amount(7) = sum(col%out%cdiag(CO_TRANSP, 1:n) * col%static%nplant(1:n) * col%static%leaf_area(1:n))   &
                         * mmh2o * H
-            amount(8) = col%out%report%exports%film_evap_export
+            amount(8) = col%out%report%exports%veg_surface_evap_export
             amount(9) = col%out%report%exports%ground_evap_export
             total(:, is) = total(:, is) + amount
             gross(:, is) = gross(:, is) + abs(amount)
             !--- ET's sources less the dew, less ET, against the canopy air's net vapour inflow.
             associate (ex => col%out%report%exports, cw => col%out%report%ledgers%cas_water)
-               gap = ex%transp_export + ex%film_evap_export + ex%ground_evap_export - ex%cond_export        &
+               gap = ex%transp_export + ex%veg_surface_evap_export + ex%ground_evap_export - ex%cond_export        &
                      - ex%atm_vap_export - (cw%influx - cw%outflux)
-               gap_scale = abs(ex%transp_export) + abs(ex%film_evap_export) + abs(ex%ground_evap_export)    &
+               gap_scale = abs(ex%transp_export) + abs(ex%veg_surface_evap_export) + abs(ex%ground_evap_export)    &
                            + abs(ex%cond_export) + abs(cw%influx) + abs(cw%outflux)
                gap_worst(is) = max(gap_worst(is), abs(gap) / max(gap_scale, tiny(1.0_wp)))
             end associate
