@@ -74,10 +74,12 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ### Answer changes
 
-- The latent heat flux (`mean_le_pa`, `mean_le_py`) rises by 13 % on average (14.9 to 16.9 W/m2),
-  and by at most 3.2 W/m2 on a day, in the region test's synthetic January 2021 run, where the
-  canopy air is mostly below freezing and the vapour takes the latent heat of sublimation.
-  Evapotranspiration changes only at round-off, and the model state is unchanged. (#49)
+- The latent heat flux (`mean_le_pa`, `mean_le_py`) rises by 13 % on average (January 2021: 16.6 to
+  18.8 W/m2), and by at most 3.2 W/m2 on a day, in the region test's synthetic January-February
+  2021 run, where the canopy air is mostly below freezing and the vapour takes the latent heat of
+  sublimation. The energy budget's outflows (`mean_outflow_enth_py`) move by the same amount, the
+  other way, so the energy residual is unchanged. Evapotranspiration and the model state are bit
+  for bit. (#49)
 
 ### Changed
 
