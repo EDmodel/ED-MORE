@@ -23,7 +23,7 @@ module ed_output_stream
                                   write_polygon_axis, define_site_statics, write_site_statics, OUTPUT_DEFLATE
    use ed_output_params,   only : FC_DAY, FC_MONTH, FC_YEAR, SYNC_FLUSH, freq_letter, TIER_FAST, N_FREQ
    use ed_output_integrate, only : close_tier, write_order
-   use ed_output_types,    only : stream_file_t, pending_record_t, var_desc_t, slab_col, &
+   use ed_output_types,    only : stream_file_t, pending_record_t, var_desc_t, slab_col, slab_var, &
                                   output_files_t, output_buffers_t,                                  &
                                   DIM_SCALAR, DIM_COHORT, DIM_PATCH, DIM_SOIL, DIM_PFT,            &
                                   DIM_SIZE, DIM_SOIL_PATCH, DIM_SITE, diag_setup_t,               &
@@ -177,11 +177,11 @@ contains
       integer(ik),            intent(in)    :: n_cohort, n_patch   ! the opening record's live counts
       character(len=512) :: path
       integer(c_int)     :: ncid, dt, dpo, dsi, dc, dp, ds, dpf, dsz, dnv, vid, dims1(1), dims2(2), dims3(3), st
-      integer(c_int)     :: dims4(4)
-      integer(c_int)     :: v_row, v_col, v_nsite, v_chave, v_bnds
+      integer(c_int)     :: dims4(4), dd
+      integer(c_int)     :: v_row, v_col, v_nsite, v_chave, v_bnds, v_dh, v_dhb
       integer(c_size_t)  :: st1(1), cn1(1)
       integer(ik)        :: j, k, np, cohort_dim, patch_dim
-      logical            :: hasc, hasp, hass, haspf, hassz
+      logical            :: hasc, hasp, hass, haspf, hassz, hasd
       associate (stream => files%stream(tier), reg => files%reg, setup => files%diag)
       np   = files%n_polygon
 
@@ -194,8 +194,10 @@ contains
       hass = .false.
       haspf = .false.
       hassz = .false.
+      hasd = .false.
       do j = 1_ik, reg%nidx(tier)
          k = reg%idx_freq(j, tier)
+         if (reg%var(k)%diel) hasd = .true.
          select case (reg%var(k)%dim)
          case (DIM_COHORT)
             hasc = .true.
@@ -232,6 +234,7 @@ contains
       ds = -1_c_int
       dpf = -1_c_int
       dsz = -1_c_int
+      dd = -1_c_int
       call define_polygon_axis(ncid, np, dpo)
       call nc_check(nc_def_dim_f(ncid, 'site', int(files%site_max, c_size_t), dsi), 'dim site')
       if (hasc) call nc_check(nc_def_dim_f(ncid, 'cohort', NC_UNLIMITED, dc), 'dim cohort')
@@ -240,6 +243,7 @@ contains
       if (haspf) call nc_check(nc_def_dim_f(ncid, 'pft',   int(max(setup%n_pft,1_ik), c_size_t), dpf), 'dim pft')
       if (hassz) call nc_check(nc_def_dim_f(ncid, 'dbh_class',                                       &
                                int(max(setup%n_dbh_class,1_ik), c_size_t), dsz), 'dim dbh_class')
+      if (hasd) call nc_check(nc_def_dim_f(ncid, 'diel', int(files%n_diel, c_size_t), dd), 'dim diel')
 
       !--- time coordinate + calendar companions (period-start stamp).
       stream%v_time  = int(def_scalar_var(ncid, dt, 'time',  NC_DOUBLE, 'year', 'decimal calendar year (period start)'), ik)
@@ -308,8 +312,8 @@ contains
       !   Each site has its own layers: the coordinate is per site, with each layer's top and
       ! bottom as its CF bounds, and the fill value below the site's bottom.
       !---~---
+      if (hass .or. hasd) call nc_check(nc_def_dim_f(ncid, 'nv', 2_c_size_t, dnv), 'dim nv')
       if (hass) then
-         call nc_check(nc_def_dim_f(ncid, 'nv', 2_c_size_t, dnv), 'dim nv')
          dims3 = [dpo, dsi, ds]
          call define_var(ncid, 'soil_z', NC_DOUBLE, dims3, vid, units='m',                             &
                          long_name='the site''s soil layer node depths (negative downward)')
@@ -330,13 +334,23 @@ contains
                          long_name='DBH class upper edge (exclusive; the last class also holds every larger plant)')
          stream%v_dbh_upper = int(vid, ik)
       end if
+      !--- The mean diel cycles' bins, by the hour of the day each starts at.
+      if (hasd) then
+         dims1 = [dd]
+         call define_var(ncid, 'diel_hour', NC_DOUBLE, dims1, v_dh, units='h',                        &
+                         long_name='hour of the day each bin of the mean diel cycle starts at (model clock)')
+         call put_text_att(ncid, v_dh, 'bounds', 'diel_hour_bnds')
+         dims2 = [dd, dnv]
+         call define_var(ncid, 'diel_hour_bnds', NC_DOUBLE, dims2, v_dhb, units='h',                  &
+                         long_name='hours of the day each bin of the mean diel cycle starts and ends at')
+      end if
 
       !--- registry-driven variable definitions (dims per DIM_*, chunk+deflate + CF attrs).
       stream%vid = -1_ik
       do j = 1_ik, reg%nidx(tier)
          k = reg%idx_freq(j, tier)
-         vid = def_registry_var(ncid, dt, dpo, dsi, dc, dp, ds, dpf, dsz, reg%var(k), np, files%site_max,  &
-                                cohort_dim, patch_dim, setup)
+         vid = def_registry_var(ncid, dt, dpo, dsi, dc, dp, ds, dpf, dsz, dd, reg%var(k), np, files%site_max, &
+                                cohort_dim, patch_dim, setup, files%n_diel)
          stream%vid(k) = int(vid, ik)
       end do
 
@@ -361,6 +375,7 @@ contains
       if (hass) call write_site_soil_coord(ncid, int(stream%v_soil_z, c_int), v_bnds, files)
       if (haspf) call write_pft_coord(ncid, stream%v_pft, setup%n_pft)
       if (hassz) call write_size_coord(ncid, stream%v_dbh_lower, stream%v_dbh_upper, setup)
+      if (hasd) call write_diel_coord(ncid, v_dh, v_dhb, files%n_diel)
 
       stream%ncid = int(ncid, ik)
       stream%nrec = 0_ik
@@ -417,6 +432,23 @@ contains
       call nc_check(nc_put_vara_double(ncid, v_bnds, st4, cn4, b), 'put soil_z_bnds')
    end subroutine write_site_soil_coord
 
+   !--- The diel coordinate: each bin's start hour, and its start and end as the bounds.
+   subroutine write_diel_coord(ncid, v_dh, v_dhb, nd)
+      integer(c_int), intent(in) :: ncid, v_dh, v_dhb
+      integer(ik),    intent(in) :: nd
+      real(c_double)    :: b(2, nd)
+      integer(c_size_t) :: st2(2), cn2(2)
+      integer(ik)       :: j
+      do j = 1_ik, nd
+         b(1, j) = real((j - 1_ik) * (24_ik / nd), c_double)
+         b(2, j) = real(j * (24_ik / nd), c_double)
+      end do
+      call nc_check(nc_put_vara_double(ncid, v_dh, [0_c_size_t], [int(nd, c_size_t)], b(1, :)), 'put diel_hour')
+      st2 = 0_c_size_t
+      cn2 = [int(nd, c_size_t), 2_c_size_t]
+      call nc_check(nc_put_vara_double(ncid, v_dhb, st2, cn2, b), 'put diel_hour_bnds')
+   end subroutine write_diel_coord
+
    !--- The pft coordinate: the 1-based PFT indices this run carries.
    subroutine write_pft_coord(ncid, vid_ik, n_pft)
       integer(c_int), intent(in) :: ncid
@@ -465,19 +497,21 @@ contains
    !   Define one registry variable: (time, polygon[, axis...]), chunked one record at a time
    ! and deflated, with CF attributes and _FillValue. A soil-by-patch variable is (time,
    ! polygon, patch, soil) and a site soil column (time, polygon, site, soil): the slab is
-   ! patch- or site-major and strided by n_soil_layer_max, netCDF's row-major order.
+   ! patch- or site-major and strided by n_soil_layer_max, netCDF's row-major order. A mean diel
+   ! cycle has the diel axis last, its bins varying fastest.
    !---~---
-   integer(c_int) function def_registry_var(ncid, dt, dpo, dsi, dc, dp, ds, dpf, dsz, v, np, ns,    &
-                                            cohort_dim, patch_dim, setup) result(vid)
-      integer(c_int),      intent(in) :: ncid, dt, dpo, dsi, dc, dp, ds, dpf, dsz
+   integer(c_int) function def_registry_var(ncid, dt, dpo, dsi, dc, dp, ds, dpf, dsz, dd, v, np, ns, &
+                                            cohort_dim, patch_dim, setup, nd) result(vid)
+      integer(c_int),      intent(in) :: ncid, dt, dpo, dsi, dc, dp, ds, dpf, dsz, dd
       type(var_desc_t),    intent(in) :: v
       integer(ik),         intent(in) :: np                     ! polygons
       integer(ik),         intent(in) :: ns                     ! the site axis's length
       integer(ik),         intent(in) :: cohort_dim, patch_dim  ! the chunk sizes along the growing axes
       type(diag_setup_t),  intent(in) :: setup
-      integer(c_int)    :: xt, dims(4), rank
-      integer(c_size_t) :: chunk(4)
-      character(len=16) :: cm
+      integer(ik),         intent(in) :: nd                     ! the diel axis's length
+      integer(c_int)    :: xt, dims(5), rank
+      integer(c_size_t) :: chunk(5)
+      character(len=48) :: cm
       xt = merge(NC_INT, NC_DOUBLE, v%xtype == XTYPE_INT)
       rank = 2_c_int
       dims(1:2)  = [dt, dpo]
@@ -518,9 +552,15 @@ contains
          dims(rank) = dsi
          chunk(rank) = int(ns, c_size_t)
       end select
+      if (v%diel) then
+         rank = rank + 1_c_int
+         dims(rank) = dd
+         chunk(rank) = int(nd, c_size_t)
+      end if
       call define_var(ncid, trim(v%name), xt, dims(1:rank), vid, units=trim(v%units), long_name=trim(v%long_name), &
                       chunk=chunk(1:rank), deflate=OUTPUT_DEFLATE)
       cm = cell_methods_of(v%agg)
+      if (v%diel) cm = 'time: mean within days time: mean over days'
       call put_text_att(ncid, vid, 'cell_methods', trim(cm))
       if (v%xtype == XTYPE_INT) then
          call nc_check(nc_put_att_int_f(ncid, vid, '_FillValue', NC_INT, int(MISSING_INT, c_int)), 'fill')
@@ -539,8 +579,8 @@ contains
       type(output_buffers_t), intent(in)    :: bufs(:)
       integer(ik),            intent(in)    :: t, i, p1
       integer(c_int)    :: ncid, rank
-      integer(c_size_t) :: t0, i1(1), st(4), cn(4)
-      integer(ik)       :: j, k, np, p, n, ns, c, m, n_cohort, n_patch
+      integer(c_size_t) :: t0, i1(1), st(5), cn(5)
+      integer(ik)       :: j, k, np, p, n, ns, c, m, n_cohort, n_patch, nbase
       real(c_double),  allocatable :: x(:,:)
       integer(c_int),  allocatable :: kx(:,:)
       associate (stream => files%stream(t), reg => files%reg, r1 => bufs(p1)%queue(t)%rec(i))
@@ -595,6 +635,8 @@ contains
          case default
             n = 1_ik
          end select
+         nbase = n
+         if (reg%var(k)%diel) n = n * files%n_diel   ! each slot's bins, the bin varying fastest
          if (n <= 0_ik) cycle                       ! no cohort or patch this record: all fill
          rank = 2_c_int
          st(1:2) = [t0, 0_c_size_t]
@@ -610,7 +652,12 @@ contains
          else if (reg%var(k)%dim /= DIM_SCALAR) then
             rank = rank + 1_c_int
             st(rank) = 0_c_size_t
-            cn(rank) = int(n, c_size_t)
+            cn(rank) = int(nbase, c_size_t)
+         end if
+         if (reg%var(k)%diel) then
+            rank = rank + 1_c_int
+            st(rank) = 0_c_size_t
+            cn(rank) = int(files%n_diel, c_size_t)
          end if
          if (reg%var(k)%xtype == XTYPE_INT) then
             allocate(kx(n, np))
@@ -618,10 +665,10 @@ contains
             do p = 1_ik, np
                if (bufs(p)%queue(t)%n < i) cycle
                associate (r => bufs(p)%queue(t)%rec(i))
-                  if (reg%var(k)%dim == DIM_SCALAR) then
+                  if (.not. slab_var(reg%var(k))) then
                      kx(1, p) = real_to_int(r%sval(k), r%svalid(k))
                   else
-                     ns = min(record_length(r, reg%var(k)%dim, k), n)
+                     ns = min(record_length(r, reg%var(k), k, files%n_diel), n)
                      c = slab_col(r, k)
                      do m = 1_ik, ns
                         kx(m, p) = real_to_int(r%slab(m, c), r%slabvalid(m, c))
@@ -638,10 +685,10 @@ contains
             do p = 1_ik, np
                if (bufs(p)%queue(t)%n < i) cycle
                associate (r => bufs(p)%queue(t)%rec(i))
-                  if (reg%var(k)%dim == DIM_SCALAR) then
+                  if (.not. slab_var(reg%var(k))) then
                      x(1, p) = r%sval(k)
                   else
-                     ns = min(record_length(r, reg%var(k)%dim, k), n)
+                     ns = min(record_length(r, reg%var(k), k, files%n_diel), n)
                      c = slab_col(r, k)
                      if (ns > 0_ik) x(1:ns, p) = r%slab(1:ns, c)
                   end if
@@ -680,13 +727,15 @@ contains
 
    !---~---
    !   How many slab entries of variable k a record holds: its live length, or for the soil-by-
-   ! patch slab (patch-major, strided by n_soil_layer_max) every layer of its live patches.
+   ! patch slab (patch-major, strided by n_soil_layer_max) every layer of its live patches,
+   ! times the nd bins of a mean diel cycle.
    !---~---
-   pure integer(ik) function record_length(r, dim, k) result(ns)
+   pure integer(ik) function record_length(r, v, k, nd) result(ns)
       type(pending_record_t), intent(in) :: r
-      integer(ik),            intent(in) :: dim, k
-      if (dim == DIM_SOIL_PATCH) then
-         ns = r%n_patch * n_soil_layer_max
+      type(var_desc_t),       intent(in) :: v
+      integer(ik),            intent(in) :: k, nd
+      if (v%dim == DIM_SOIL_PATCH) then
+         ns = r%n_patch * n_soil_layer_max * merge(nd, 1_ik, v%diel)
       else
          ns = r%nslab(k)
       end if

@@ -453,6 +453,7 @@ row ([Regional runs](#regional-runs) gives the layout).
 | `io_config` | `""` | the output-selection file; `""` writes every variable at its default tiers |
 | `cohort_max`, `patch_max` | 4096, 256 | the files' cohort and patch axis lengths; the run stops when a live count exceeds one |
 | `fast_interval_steps` | 4 | fast steps one sub-daily record spans (4 × 900 s is hourly); must divide the fast steps in a slow step |
+| `diel_interval` | `"1 hour"` | the bins of a `diel_` variable's mean diel cycle: `"1 hour"`, `"2 hours"`, `"3 hours"` or `"4 hours"`; `[fast].dt_fast` must divide it ([diagnostics](science/diagnostics.md) §4) |
 | `sync_every` | `"flush"` | `"flush"`: records reach the disk each month; `"never"` |
 | `overwrite` | `false` | `true`: a run replaces the diagnostic files of its own names where they exist; `false`: it stops before its first step (below) |
 | `dbh_class_edges` | 0, 10, 20, 30, 50, 70, 100 | ascending edges [cm] of the `dbh_class` axis |

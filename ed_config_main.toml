@@ -200,6 +200,7 @@ io_config     = ""              # what is written: a file of [variables] lines, 
 cohort_max    = 4096            # the files' cohort axis (the run stops when the live count exceeds it)
 patch_max     = 256             # the files' patch axis
 fast_interval_steps = 4         # dt_fast sub-steps a sub-daily record spans (4 x 900 s = hourly)
+diel_interval = "1 hour"        # the bins of a diel_ variable's mean diel cycle: "1 hour" .. "4 hours"
 sync_every    = "flush"         # "flush": records reach the disk each month | "never"
 
   # --- The dbh_class axis: ascending edges [cm]; a cohort counts whole in the class of its dbh. ---

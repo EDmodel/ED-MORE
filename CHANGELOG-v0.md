@@ -45,6 +45,11 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - Carbon and radiation: autotrophic respiration `mean_raut_py` ($`R_{eco} - R_{het}`$), the ecosystem's
   carbon `mean_eco_carbon_py` (vegetation plus soil), the leaves' absorbed PAR `mean_apar_py`, and
   patch evapotranspiration `mean_et_pa`. (#56)
+- The mean diel cycle: `diel_<x>`, for every `mean_<x>` with a sub-daily value, is its mean at each
+  time of day over a daily, monthly or yearly record (D and M on the cohort and patch axes), on a
+  new `diel` axis with the coordinate `diel_hour`. New key `[output].diel_interval`: `"1 hour"`
+  (default) to `"4 hours"`. Off by default; results are bit for bit (docs/science/diagnostics.md §4,
+  The mean diel cycle). (#57)
   give `[output].dir` or `prefix` another value, or set the new `[output].overwrite = true` (default
   `false`) to replace them, as the examples' configs and scripts now do. (#55)
 

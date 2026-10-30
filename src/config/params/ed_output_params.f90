@@ -88,6 +88,7 @@ module ed_output_params
       integer(ik)        :: sync_every  = SYNC_FLUSH            ! nc_sync policy: SYNC_NEVER | SYNC_FLUSH
       logical            :: overwrite   = .false.               ! replace existing diagnostic files instead of stopping
       integer(ik)        :: fast_interval_steps = 4_ik          ! fast tier flushes every N*dt_fast
+      integer(ik)        :: diel_interval_hours = 1_ik          ! a diel_ variable's bins [h]: 1, 2, 3 or 4
       !--- Per-tier enable and file chunk, indexed FAST, DAILY, MONTHLY, ANNUAL.
       logical            :: freq_on(N_FREQ)    = [.false., .true., .true., .true.]
       integer(ik)        :: file_chunk(N_FREQ) = [FC_DAY, FC_MONTH, FC_YEAR, FC_ALL]
