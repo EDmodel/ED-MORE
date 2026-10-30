@@ -94,8 +94,8 @@ contains
    !   Gather patch ip for the window. The static state: the cohorts and what they fix on the
    ! site's soil layers, the canopy geometry, the canopy-air top with its roughness and
    ! displacement, the slow loop's daily inputs and the site's leaf table. The dynamic
-   ! state: the patch's stores and each cohort's tissue energy, water and films. Every field
-   ! is assigned, so neither needs seeding.
+   ! state: the patch's stores and each cohort's tissue energy, water and surface water. Every
+   ! field is assigned, so neither needs seeding.
    !---~---
    subroutine gather_patch(poly, cfg, ip, static, dynamic)
       type(polygon_t),            intent(in)    :: poly
@@ -189,7 +189,7 @@ contains
          !---~---
          dynamic%leaf_water_mass(j) = poly%cohort%leaf_water_mass(i)
          dynamic%wood_water_mass(j) = poly%cohort%wood_water_mass(i)
-         !--- The canopy films, per plant on the cohort and per m2 of ground here (0 is dry).
+         !--- The canopy's surface water, per plant on the cohort and per m2 of ground here (0 is dry).
          dynamic%leaf_surf_water(j) = poly%cohort%leaf_surf_water(i) * poly%cohort%nplant(i)
          dynamic%wood_surf_water(j) = poly%cohort%wood_surf_water(i) * poly%cohort%nplant(i)
       end do

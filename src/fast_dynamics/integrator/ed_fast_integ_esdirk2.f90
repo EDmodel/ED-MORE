@@ -23,7 +23,7 @@ contains
    !   esdirk2_step -- one ESDIRK2 step, docs/science/numerical_scheme.md eqs. (1)-(2): the
    ! ARS(2,2,2) tableau (Ascher, Ruuth & Spiteri 1997), two backward-Euler stages over gamma*dt
    ! (backward_euler_stage), stiffly accurate, so Y3 is the step. Soil water moves at the
-   ! network's rate in the stages; plant water and the films are advanced once over dt on
+   ! network's rate in the stages; plant water and the surface water are advanced once over dt on
    ! the stages' b-weighted fluxes, so neither adds to the embedded error y_err.
    !---~---
    subroutine esdirk2_step(y, frozen, site, ec, n, nsl, dt, y_out, y_err, stages, bf, clamp_n)
@@ -42,7 +42,7 @@ contains
       real(wp), parameter :: BETA  = 2.4142135623730951_wp   ! (1-gamma)/gamma = 1 + sqrt(2)
       type(stage_bflux_t)   :: bf2, bf3
       real(wp)              :: transp_bw(n)
-      real(wp)              :: film_evap_leaf_bw(n), film_evap_wood_bw(n)
+      real(wp)              :: leaf_surface_evap_bw(n), wood_surface_evap_bw(n)
       associate (Y2 => stages%y2, base3 => stages%base3, Y3 => stages%y3, sf2 => stages%sf2, sf3 => stages%sf3)
          !--- Stage 2: a gamma*dt backward-Euler stage from y_n.
          call backward_euler_stage(y, frozen, site, ec, n, nsl, GAMMA*dt, Y2, sf2, bf=bf2)
@@ -62,10 +62,10 @@ contains
          !---~---
          transp_bw(1:n) = (1.0_wp - GAMMA)*sf2%transp_c(1:n) + GAMMA*sf3%transp_c(1:n)
          call advance_plant_water(y, frozen, n, dt, transp_bw, y_out)
-         !--- The films the same way (a no-op with canopy_water_on off).
-         film_evap_leaf_bw(1:n) = (1.0_wp - GAMMA)*sf2%film_evap_leaf(1:n) + GAMMA*sf3%film_evap_leaf(1:n)
-         film_evap_wood_bw(1:n) = (1.0_wp - GAMMA)*sf2%film_evap_wood(1:n) + GAMMA*sf3%film_evap_wood(1:n)
-         call advance_surf_water_full(y, frozen, n, dt, film_evap_leaf_bw, film_evap_wood_bw, y_out)
+         !--- The surface water the same way (a no-op with canopy_water_on off).
+         leaf_surface_evap_bw(1:n) = (1.0_wp - GAMMA)*sf2%leaf_surface_evap(1:n) + GAMMA*sf3%leaf_surface_evap(1:n)
+         wood_surface_evap_bw(1:n) = (1.0_wp - GAMMA)*sf2%wood_surface_evap(1:n) + GAMMA*sf3%wood_surface_evap(1:n)
+         call advance_surf_water_full(y, frozen, n, dt, leaf_surface_evap_bw, wood_surface_evap_bw, y_out)
          !--- Embedded first-order error, eq. (2).
          call state_err_diff(Y3, base3, Y2, y, n, nsl, y_err)
          !--- b-weighted boundary-flux amounts, b = (0, 1-gamma, gamma), which telescope exactly.

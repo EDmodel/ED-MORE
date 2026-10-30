@@ -45,7 +45,7 @@ gpp_ref             = 0.3      # [kgC/m2 leaf/yr] the GPP of a run without the l
 # ---- Switches and the initial snow. ----
 # forcing_sample_frac = 0.5          # [-]  where in each sub-step the forcing is sampled, in [0, 1]
 #                                    #   (docs/science/numerical_scheme.md §7)
-# canopy_water_on     = false        # the canopy interception films and their evaporation
+# canopy_water_on     = false        # the canopy's surface water and its evaporation
 # intercept_alpha     = 1.0          # [-]  Beer interception efficiency
 # intercept_k         = 0.5          # [1/PAI] Beer interception extinction
 # snow_init_swe       = 0.0          # [kg/m2] snow water equivalent at the run start

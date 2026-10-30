@@ -19,7 +19,7 @@ fast_biophysics_on  = true
 dt_fast             = "900s"
 time_integrator     = "esdirk2"
 rtol                = 2.0e-3
-canopy_water_on     = true       # the canopy intercepts rain and its film evaporates (condensate goes to soil layer 1)
+canopy_water_on     = true       # the canopy intercepts rain and its surface water evaporates (condensate goes to soil layer 1)
 
 # Each cohort's Vcmax25, Rd25, SLA and leaf turnover rate follow the leaf area above it.
 [trait_dynamics]

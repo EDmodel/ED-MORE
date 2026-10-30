@@ -68,7 +68,7 @@ which is what makes any of the schemes below affordable.
 leaf and wood energy balance, the ground surface (the top soil layer and the snow pack's exchange),
 the soil thermal column, and the soil–plant water network (pond, soil layers, leaf and wood water).
 
-**Category 2 — non-stiff**: canopy surface (film) water, the transpiration and aerodynamic fluxes
+**Category 2 — non-stiff**: the canopy's surface water, the transpiration and aerodynamic fluxes
 themselves.
 
 **The freeze is not free.** It introduces an error that no time integrator can remove, because it
@@ -198,8 +198,8 @@ Both schemes judge a sub-step by the same weighted root-mean-square of their err
 ```
 
 $`a_g`$ is the group's absolute tolerance, times `atol_scale` (soil moisture's is `[fast].water_atol`);
-$`r_g`$ is `[fast].rtol`, the same for every group. The canopy films and the
-pond carry no group. A sub-step with $`\lVert\varepsilon\rVert\le 1`$ is accepted, and the next one is
+$`r_g`$ is `[fast].rtol`, the same for every group. The canopy's surface water and the pond carry no
+group. A sub-step with $`\lVert\varepsilon\rVert\le 1`$ is accepted, and the next one is
 scaled by the integral controller:
 
 ```math
@@ -640,8 +640,8 @@ agreement of those aggregates in one realization is reassurance rather than a co
    across wind speeds and `dt_fast`. It is scored at one site.
 
 3. **Condensate is deposited into soil layer 1**, not onto foliage. It is small, about 0.5 % of
-   evapotranspiration at a humid tropical site, so routing it onto the leaves would change little; the canopy film,
-   which is optional, is part of its tissue's energy and could take it.
+   evapotranspiration at a humid tropical site, so routing it onto the leaves would change little;
+   the canopy's surface water, which is optional, is part of its tissue's energy and could take it.
 4. **Where the forcing is sampled within the sub-step** (`forcing_sample_frac`) is a real accuracy
    knob and a *trade*, not a free win: sampling at the sub-step start improves canopy-air temperature
    and degrades soil temperature, with opposite optima. It does not cause a convergence floor —

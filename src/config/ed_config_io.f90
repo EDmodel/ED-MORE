@@ -279,7 +279,7 @@ contains
    !---~---
    !---~---
    !   [fast]'s optional keys: the integrator, its tolerances and budget stops, the
-   ! forcing's sampling, the canopy films and the starting snow.
+   ! forcing's sampling, the canopy's surface water and the starting snow.
    !---~---
    subroutine load_fast_params(tm, cfg, m)
       type(toml_table_t),        intent(in)    :: tm

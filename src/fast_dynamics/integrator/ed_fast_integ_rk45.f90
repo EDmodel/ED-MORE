@@ -2,7 +2,7 @@
 !---~---
 !   ed_fast_integ_rk45 -- the explicit fast-loop scheme a run can choose ("rk45"):
 ! rk45_step is one Cash-Karp 5(4) step over the whole march state (canopy air, soil energy
-! and water, plant water, films) through the shared right-hand side march_derivs, from the
+! and water, plant water, surface water) through the shared right-hand side march_derivs, from the
 ! same frozen record as ESDIRK2, with its embedded error and b-weighted boundary-flux
 ! amounts; rk45_state_railed checks the march's end. It is also the explicit reference the
 ! tests compare ESDIRK2 against. The stepper marches it, and marches the step again with
@@ -95,7 +95,7 @@ contains
       bf%whole_cond_enth = surf_tend%cond_enth   ! exactly what surface_derivs debited from the CAS
       bf%snow_enth_in  = surf_tend%snow_enth_in
       bf%snow_vap_out  = surf_tend%snow_vap_out
-      bf%veg_surface_evap     = sum(surf_tend%film_evap_leaf) + sum(surf_tend%film_evap_wood)
+      bf%veg_surface_evap     = sum(surf_tend%leaf_surface_evap) + sum(surf_tend%wood_surface_evap)
       bf%h_canopy      = surf_tend%h_canopy
       bf%h_ground      = surf_tend%h_ground
       bf%atm_heat_out  = gah*cp_air*(cas_enthalpy_to_temp(y_stage%cas_enthalpy, y_stage%cas_shv)          &

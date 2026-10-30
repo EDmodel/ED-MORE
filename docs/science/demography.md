@@ -153,7 +153,7 @@ survives into it (§4).
     one-signed.
   - The density drop is taken from the commit, not recomputed from the hazard, so a cohort the floor
     stopped is not credited with litter for plants still standing.
-  - The dying plants' tissue and film water goes to the ground with its enthalpy, down the same
+  - The dying plants' tissue and surface water goes to the ground with its enthalpy, down the same
     channel turnover shedding uses.
 - **The recruit pool is credited every slow step**, $`P \leftarrow P + R\,\Delta t`$ for each PFT and
   patch.
@@ -248,8 +248,8 @@ fraction of its site, so no operator moves area between sites.
   integrator's step seed and the cost estimate. It has no cohorts of its own yet.
 - **Survivors** (shorter than the threshold) are copied into the gap, at the density the disturbed
   share of their patch gives over the gap's area.
-- **The killed canopy's carbon becomes litter** in the gap, and its tissue and film water goes to the
-  gap's ground.
+- **The killed canopy's carbon becomes litter** in the gap, and its tissue and surface water goes to
+  the gap's ground.
 - **Each donor keeps** $`(1-f)`$ of its area with all its cohorts.
 - Site area is conserved. Plant number is not: the killed canopy is the disturbance.
 

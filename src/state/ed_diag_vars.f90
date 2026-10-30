@@ -268,9 +268,9 @@ module ed_diag_vars
    integer(ik), parameter, public :: PA_RUNOFF               = 45_ik  ! [kg/m2/s] surface runoff + drainage
    !---~---
    !   The whole-column water budget's other terms and stores (docs/science/diagnostics.md §4, The
-   ! budgets): P + shed water - ET - runoff - film excess - store gain = the water residual.
+   ! budgets): P + shed water - ET - runoff - surface-water excess - store gain = the water residual.
    !---~---
-   integer(ik), parameter, public :: PA_INTERCEPT            = 46_ik  ! [kg/m2/s] rain and snow the canopy films captured, net
+   integer(ik), parameter, public :: PA_INTERCEPT            = 46_ik  ! [kg/m2/s] rain and snow caught as surface water, net
    integer(ik), parameter, public :: PA_THROUGHFALL          = 47_ik  ! [kg/m2/s] precipitation reaching the ground
    integer(ik), parameter, public :: PA_INFILTRATION         = 48_ik  ! [kg/m2/s] pond -> soil layer 1
    integer(ik), parameter, public :: PA_SNOWMELT             = 49_ik  ! [kg/m2/s] meltwater the snow pack drains to the pond

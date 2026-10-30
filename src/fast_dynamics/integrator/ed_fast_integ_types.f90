@@ -227,9 +227,9 @@ module ed_fast_integ_types
       !---~---
       real(wp), allocatable      :: leaf_water_mass(:) ! [kg/plant] internal leaf water
       real(wp), allocatable      :: wood_water_mass(:) ! [kg/plant] internal wood water
-      !--- The interception films, per m2 of ground here; the cohort holds them per plant.
-      real(wp), allocatable      :: leaf_surf_water(:) ! [kg/m2 ground] leaf interception film
-      real(wp), allocatable      :: wood_surf_water(:) ! [kg/m2 ground] wood interception film
+      !--- The leaves' and wood's surface water, per m2 of ground here; the cohort holds it per plant.
+      real(wp), allocatable      :: leaf_surf_water(:) ! [kg/m2 ground] leaf surface water
+      real(wp), allocatable      :: wood_surf_water(:) ! [kg/m2 ground] wood surface water
       !---~---
       !   Warm start for the adaptive march (docs/science/numerical_scheme.md §3, `esdirk2`): the step
       ! that seeds the next dt_fast's first sub-step; 0 = no history, start from dt_fast.
@@ -330,10 +330,10 @@ module ed_fast_integ_types
       real(wp)       :: drainage_export    = 0.0_wp   ! [kg/m2] over this dt_fast
       !---~---
       !   The canopy air's vapour sources over the step, as its ledger booked them: the cohorts'
-      ! transpiration, the canopy films' evaporation (net of dew onto them), the ground's (bare
-      ! soil and snow pack), and the condensate (dew, fog) it lost to soil layer 1. ET
-      ! (atm_vap_export) is the first three less the condensate, less the canopy air's own
-      ! vapour gain.
+      ! transpiration, the evaporation of the leaves' and wood's surface water (net of dew onto
+      ! it), the ground's (bare soil and snow pack), and the condensate (dew, fog) it lost to
+      ! soil layer 1. ET (atm_vap_export) is the first three less the condensate, less the
+      ! canopy air's own vapour gain.
       !---~---
       real(wp)       :: transp_export      = 0.0_wp   ! [kg/m2] over this dt_fast
       real(wp)       :: veg_surface_evap_export   = 0.0_wp   ! [kg/m2] over this dt_fast
@@ -341,10 +341,10 @@ module ed_fast_integ_types
       real(wp)       :: cond_export        = 0.0_wp   ! [kg/m2] over this dt_fast
       !---~---
       !   The whole-column water budget's other terms over the step (docs/science/diagnostics.md
-      ! §4, The budgets): the films' net capture of the rain and snow, the pond's infiltration
-      ! into the soil, the pack's meltwater and sublimation, the tissue water the slow step
-      ! shed, the films' water above capacity that the update removed, and the change of every
-      ! store; and three stores at the step's end.
+      ! §4, The budgets): the surface water's net capture of the rain and snow, the pond's
+      ! infiltration into the soil, the pack's meltwater and sublimation, the tissue water the
+      ! slow step shed, the surface water above capacity that the update removed, and the change
+      ! of every store; and three stores at the step's end.
       !---~---
       real(wp)       :: intercept_export    = 0.0_wp   ! [kg/m2] over this dt_fast
       real(wp)       :: infiltration_export = 0.0_wp   ! [kg/m2] over this dt_fast
@@ -425,7 +425,7 @@ module ed_fast_integ_types
    !   The frozen record, by physical content (docs/science/numerical_scheme.md §2): what the
    ! pre-pass (build_frozen) evaluates once at state^n and every stage of either
    ! integrator reads. A kernel takes only the pieces it reads (surface_derivs: cas, tissue,
-   ! film, ground, snow). The CAS <-> atmosphere conductances are re-solved per stage.
+   ! veg_surface, ground, snow). The CAS <-> atmosphere conductances are re-solved per stage.
    !---~---
 
    !---~---
@@ -478,10 +478,10 @@ module ed_fast_integ_types
       real(wp), allocatable :: wood_temp(:)   ! [K]        diagnosed per-cohort wood temperature
       real(wp), allocatable :: transp_c(:)    ! [kg/m2/s]  per-cohort transpiration demand
       !---~---
-      !   Per-cohort film evaporation (dew if negative), the films' analogue of transp_c. Zero
-      ! when canopy_water_on is off.
+      !   Per-cohort surface-water evaporation (dew if negative), the surface water's analogue of
+      ! transp_c. Zero when canopy_water_on is off.
       !---~---
-      real(wp), allocatable :: film_evap_leaf(:), film_evap_wood(:)   ! [kg/m2 ground/s]
+      real(wp), allocatable :: leaf_surface_evap(:), wood_surface_evap(:)   ! [kg/m2 ground/s]
    end type surface_tend_t
 
    !---~---
@@ -499,16 +499,16 @@ module ed_fast_integ_types
       real(wp), allocatable :: wood_water_mass(:) ! [kg/plant] internal wood water (ncoh)
       !---~---
       !   The pond: carried through the stages unchanged and committed from the water network.
-      ! Like the films it carries no error group, so the controller scores no frozen quantity.
+      ! Like the surface water it carries no error group, so the controller scores no frozen quantity.
       !---~---
       real(wp) :: w_surface      = 0.0_wp         ! [kg/m2] ponded surface water
       real(wp) :: w_surface_energy = 0.0_wp         ! [J/m2]  enthalpy of the ponded water
       !---~---
-      !   The interception films, distinct from the internal water above: a film evaporates with
-      ! no stomatal resistance. Per m2 of ground, unlike the per-plant fields above.
+      !   The leaves' and wood's surface water, distinct from the internal water above: it
+      ! evaporates with no stomatal resistance. Per m2 of ground, unlike the per-plant fields above.
       !---~---
-      real(wp), allocatable :: leaf_surf_water(:) ! [kg/m2 ground] canopy interception film on leaf
-      real(wp), allocatable :: wood_surf_water(:) ! [kg/m2 ground] canopy interception film on wood
+      real(wp), allocatable :: leaf_surf_water(:) ! [kg/m2 ground] canopy surface water on leaf
+      real(wp), allocatable :: wood_surf_water(:) ! [kg/m2 ground] canopy surface water on wood
    end type march_state_t
 
    !---~---
@@ -648,7 +648,7 @@ module ed_fast_integ_types
    type :: frozen_t
       type(cas_boundary_t)         :: cas          ! CAS <-> atmosphere boundary
       type(plant_energy_env_t)     :: tissue       ! per-cohort leaf/wood energy coefficients + heat store
-      type(canopy_water_out_t)     :: film         ! canopy interception film
+      type(canopy_water_out_t)     :: veg_surface         ! the canopy's surface water
       type(surface_env_t)          :: ground       ! what the ground surface reads, the snow pack among it
       type(snow_out_t)             :: snow         ! the snow stage's hand-off (all zero without a pack)
       type(soil_hydrology_t)       :: hydrology    ! the water network's soil flows over the step
@@ -684,9 +684,9 @@ module ed_fast_integ_types
       real(wp) :: dtheta_dt(n_soil_layer_max) = 0.0_wp! [1/s]  dtheta/dt
       real(wp), allocatable :: d_leaf_water_mass(:)   ! [kg/plant/s] frozen_sapflow - transp(stage)
       real(wp), allocatable :: d_wood_water_mass(:)   ! [kg/plant/s] frozen_uptake  - frozen_sapflow
-      !--- The films' analogue of d_leaf_water_mass/d_wood_water_mass.
-      real(wp), allocatable :: d_leaf_surf_water(:)   ! [kg/m2 ground/s] frozen_intercept_leaf - film_evap
-      real(wp), allocatable :: d_wood_surf_water(:)   ! [kg/m2 ground/s] frozen_intercept_wood - film_evap
+      !--- The surface water's analogue of d_leaf_water_mass/d_wood_water_mass.
+      real(wp), allocatable :: d_leaf_surf_water(:)   ! [kg/m2 ground/s] frozen_intercept_leaf - leaf_surface_evap
+      real(wp), allocatable :: d_wood_surf_water(:)   ! [kg/m2 ground/s] frozen_intercept_wood - wood_surface_evap
       real(wp) :: g_top = 0.0_wp, drainage_rate = 0.0_wp, uptake_rate = 0.0_wp
       real(wp) :: g_bottom = 0.0_wp   ! [W/m2] heat across the soil column's bottom face, positive UP
       real(wp), allocatable :: leaf_temp(:)
@@ -967,7 +967,7 @@ contains
    ! state_entry_rules the only one that says how each is treated. Fortran cannot check that a
    ! field is listed, so test_fast_integ_kernels runs every field through every combinator.
    ! Layout: CAS enthalpy, humidity, CO2 | soil energy (1:nsl) | soil water (1:nsl) |
-   !   per cohort: leaf, wood water | per cohort: leaf, wood film | pond: water, enthalpy
+   !   per cohort: leaf, wood water | per cohort: leaf, wood surface water | pond: water, enthalpy
    !---~---
    pure subroutine state_to_array(y, n, nsl, v)
       type(march_state_t), intent(in)  :: y
@@ -1059,9 +1059,9 @@ contains
    !   How entry j of the flat array is treated: norm_group, its group's tolerances (0: none), and
    ! in_embedded_error, whether the march integrates it and so has an error to measure: the
    ! canopy air and the soil heat. The soil and plant water move at the water network's fixed
-   ! rate on both schemes, and the films and the pond by operator-split maps, so their embedded
-   ! difference is structurally zero: it is set to 0, not left as rounding noise, and the norm
-   ! leaves them out.
+   ! rate on both schemes, and the surface water and the pond by operator-split maps, so their
+   ! embedded difference is structurally zero: it is set to 0, not left as rounding noise, and
+   ! the norm leaves them out.
    !---~---
    pure subroutine state_entry_rules(j, n, nsl, norm_group, in_embedded_error)
       integer(ik), intent(in)  :: j, n, nsl
@@ -1089,7 +1089,7 @@ contains
          in_embedded_error = .false.
       else
          norm_group = 0_ik
-         in_embedded_error = .false.         ! films and pond
+         in_embedded_error = .false.         ! surface water and pond
       end if
    end subroutine state_entry_rules
 
@@ -1225,7 +1225,7 @@ contains
 
    !---~---
    !   out = (1-b)*y + b*Y2, the ARS stage-3 extrapolation base (b = (1-gamma)/gamma,
-   ! docs/science/numerical_scheme.md eq. (1)). The plant water, the films and the pond are
+   ! docs/science/numerical_scheme.md eq. (1)). The plant water, the surface water and the pond are
    ! frozen through the stages, so for them this is y again (up to rounding).
    !---~---
    pure subroutine state_extrap(y, b, Y2, n, nsl, out)

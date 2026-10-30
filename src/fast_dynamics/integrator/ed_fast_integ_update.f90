@@ -16,7 +16,7 @@ module ed_fast_integ_update
                                      step_report_t, march_state_t, frozen_t, boundary_flux_t,              &
                                      diagnose_soil_temps
    use ed_plant_energy,       only : commit_tissue_energy
-   use ed_canopy_water,       only : clamp_canopy_film
+   use ed_canopy_water,       only : clamp_surface_water
    use ed_patch_state_vars,   only : soil_water_store, soil_energy_store
    use ed_diag_vars,          only : CO_TRANSP
    use ed_surface, only : snow_take_exchange
@@ -30,11 +30,11 @@ module ed_fast_integ_update
    public :: unpack_column_state, transp_per_leaf_area   ! used only by the tests
 
    !---~---
-   !   What the update moved besides the march, which the ledgers book: the films' overflow at
-   ! their capacity and deficit below zero, and their net enthalpy at the tissues'
+   !   What the update moved besides the march, which the ledgers book: the surface water's
+   ! overflow at its capacity and deficit below zero, and their net enthalpy at the tissues'
    ! start-of-step temperatures, the condensate deposited in the top soil layer with its
-   ! enthalpy, the tissue store (films included) before and after, and the snow pack after
-   ! its exchange.
+   ! enthalpy, the tissue store (surface water included) before and after, and the snow pack
+   ! after its exchange.
    !---~---
    type :: commit_amounts_t
       real(wp) :: surf_overflow = 0.0_wp, surf_deficit = 0.0_wp   ! [kg/m2]
@@ -51,9 +51,9 @@ contains
    !---~---
    !   update_dynamic_state -- commit one fast step. Soil water and the pond are the water
    ! network's: the march moved theta at the network's steady rate, and its end-of-step theta
-   ! and pond are committed once, here. A film evaporating at its frozen conductance can
+   ! and pond are committed once, here. Surface water evaporating at its frozen conductance can
    ! overdraw below zero, which would create water in the next step's interception, so the
-   ! films are floored at zero and capped at capacity, and the update reports both. Each
+   ! surface water is floored at zero and capped at capacity, and the update reports both. Each
    ! tissue's energy is committed from its time-average temperature over the march, the
    ! complement of what the canopy air received (docs/science/vegetation_energy_dynamics.md
    ! §One formulation). The condensate, dew and fog, lands inside the column, so it goes,
@@ -72,18 +72,18 @@ contains
       type(fast_dynamic_state_t), intent(inout) :: dynamic
       type(fast_output_t),        intent(inout) :: out
       type(commit_amounts_t),     intent(out)   :: moved
-      real(wp)    :: t_leaf_avg(static%n), t_wood_avg(static%n), leaf_film0(static%n), wood_film0(static%n)
+      real(wp)    :: t_leaf_avg(static%n), t_wood_avg(static%n), leaf_surf_water0(static%n), wood_surf_water0(static%n)
       integer(ik) :: n, nsl
 
       n   = static%n
-      leaf_film0(1:n) = dynamic%leaf_surf_water(1:n)              ! the films at the step's start
-      wood_film0(1:n) = dynamic%wood_surf_water(1:n)
+      leaf_surf_water0(1:n) = dynamic%leaf_surf_water(1:n)              ! the surface water at the step's start
+      wood_surf_water0(1:n) = dynamic%wood_surf_water(1:n)
       nsl = site%soil_profile%n_active
       y_out%theta(1:nsl)     = frozen%hydrology%theta1(1:nsl)
       y_out%w_surface        = frozen%hydrology%w_surface1
       y_out%w_surface_energy = frozen%hydrology%w_surface_energy1
       if (cfg%canopy_water_on) then
-         call clamp_canopy_film(y_out%leaf_surf_water, y_out%wood_surf_water, static%lai, static%wai,             &
+         call clamp_surface_water(y_out%leaf_surf_water, y_out%wood_surf_water, static%lai, static%wai,             &
                                 cfg%pft%leaf_surf_water_max(static%pft(1:n)),                                  &
                                 cfg%pft%wood_surf_water_max(static%pft(1:n)), frozen%tissue%t_leaf0,           &
                                 frozen%tissue%t_wood0, n, moved%surf_overflow, moved%surf_deficit,             &
@@ -107,7 +107,7 @@ contains
       t_leaf_avg(1:n) = acc%tissue_leaf_int(1:n) / dt_fast
       t_wood_avg(1:n) = acc%tissue_wood_int(1:n) / dt_fast
       call commit_tissue_energy(frozen%tissue, static%nplant, dt_fast, t_leaf_avg, t_wood_avg, n,                 &
-                                dynamic%leaf_water_mass, dynamic%wood_water_mass, leaf_film0, wood_film0,         &
+                                dynamic%leaf_water_mass, dynamic%wood_water_mass, leaf_surf_water0, wood_surf_water0,         &
                                 dynamic%leaf_surf_water, dynamic%wood_surf_water, dynamic%leaf_energy,            &
                                 dynamic%wood_energy, dynamic%leaf_temp, dynamic%wood_temp, moved%tissue_store0,   &
                                 moved%tissue_store1)
@@ -176,18 +176,18 @@ contains
       w_plant0 = plant_water_store(static%nplant, y%leaf_water_mass,     y%wood_water_mass,     n)
       w_plant1 = plant_water_store(static%nplant, y_out%leaf_water_mass, y_out%wood_water_mass, n)
       !---~---
-      !   The films, per m2 of ground (0 with canopy_water_on off). Their energy is their
+      !   The surface water, per m2 of ground (0 with canopy_water_on off). Its energy is its
       ! tissues', in the tissue store.
       !---~---
-      surf_water0 = canopy_film_store(y%leaf_surf_water,     y%wood_surf_water,     n)
-      surf_water1 = canopy_film_store(y_out%leaf_surf_water, y_out%wood_surf_water, n)
-      intercept_total = sum(frozen%film%intercept_leaf(1:n) + frozen%film%intercept_wood(1:n))
+      surf_water0 = surface_water_store(y%leaf_surf_water,     y%wood_surf_water,     n)
+      surf_water1 = surface_water_store(y_out%leaf_surf_water, y_out%wood_surf_water, n)
+      intercept_total = sum(frozen%veg_surface%intercept_leaf(1:n) + frozen%veg_surface%intercept_wood(1:n))
 
       report%exports%atm_heat_export = acc%atm_heat_out
       report%exports%atm_vap_export  = acc%atm_vap_out
       !---~---
       !   The vapour sources the canopy air was credited (surface_derivs' src_vap): transpiration,
-      ! the films', the ground's at the network's rate held over the step, and the snow pack's;
+      ! the surface water's, the ground's at the network's rate held over the step, and the snow pack's;
       ! and the condensate it was debited.
       !---~---
       report%exports%transp_export      = 0.0_wp
@@ -216,7 +216,7 @@ contains
       report%exports%soil_water_store    = w_soil1
       report%exports%plant_water_store   = w_plant1
       report%exports%heat_bottom_export  = acc%whole_enth_in - acc%rad_net
-      report%exports%precip_enth_export  = intercept_total*dt_fast*frozen%film%rain_liquid_enthalpy                  &
+      report%exports%precip_enth_export  = intercept_total*dt_fast*frozen%veg_surface%rain_liquid_enthalpy                  &
                                            + frozen%snow%acc_enth + frozen%hydrology%ground_inflow_enth*dt_fast
       report%exports%outflow_enth_export = acc%whole_enth_out - acc%atm_heat_out - latent_heat_vap*acc%atm_vap_out  &
                                            + frozen%hydrology%runoff_enth*dt_fast + moved%surf_net_enth
@@ -250,7 +250,7 @@ contains
                         dt_fast, BUDGET_WATER_RATE_FLOOR, 'soil_water', halt)
       !---~---
       !   Whole water: rainfall, snowfall and shed water in; the CAS vapour export, drainage and
-      ! runoff out; soil, pond, plant water, films, snow pack and canopy-air vapour stored.
+      ! runoff out; soil, pond, plant water, surface water, snow pack and canopy-air vapour stored.
       ! Sublimation leaves through the vapour export and meltwater moves pack -> pond, so
       ! neither needs a term.
       !---~---
@@ -264,13 +264,13 @@ contains
                         dt_fast, BUDGET_WATER_RATE_FLOOR, 'whole_water', halt)
       !---~---
       !   Whole energy: meltwater passes pack -> pond, both stores, so it telescopes. The
-      ! films' capture comes in at the rain's liquid enthalpy, and the update's cut leaves at
+      ! surface water's capture comes in at the rain's liquid enthalpy, and the update's cut leaves at
       ! the tissues' (moved%surf_net_enth).
       !---~---
       call budget_check(report%ledgers%whole_energy,                                                               &
                         e_soil0 + cas_mass_capacity*enth0 + frozen%snow%enth0 + e_pond0 + moved%tissue_store0,      &
                         e_soil1 + cas_mass_capacity*enth1 + moved%snow_enth1 + e_pond1 + moved%tissue_store1,       &
-                        acc%whole_enth_in + intercept_total*dt_fast*frozen%film%rain_liquid_enthalpy               &
+                        acc%whole_enth_in + intercept_total*dt_fast*frozen%veg_surface%rain_liquid_enthalpy               &
                                           + frozen%snow%acc_enth + frozen%hydrology%ground_inflow_enth*dt_fast, &
                         acc%whole_enth_out + moved%surf_net_enth + frozen%hydrology%runoff_enth*dt_fast,         &
                         dt_fast, BUDGET_ENERGY_RATE_FLOOR, 'whole_energy', halt)
@@ -293,7 +293,7 @@ contains
    end function transp_per_leaf_area
 
    !---~---
-   !   The plant water's and the canopy films' totals for the conservation ledgers [per m2
+   !   The plant water's and the canopy surface water's totals for the conservation ledgers [per m2
    ! ground]; the soil column's are the patch state's (soil_water_store,
    ! soil_energy_store). Shared by both schemes, so a ledger built from these is the same
    ! arithmetic on both.
@@ -305,12 +305,12 @@ contains
       w = sum(nplant(1:n) * (leaf_mass(1:n) + wood_mass(1:n)))
    end function plant_water_store
 
-   pure function canopy_film_store(leaf_surf, wood_surf, n) result(w)   ! [kg/m2 ground], already ground-referenced
+   pure function surface_water_store(leaf_surf, wood_surf, n) result(w)   ! [kg/m2 ground], already ground-referenced
       real(wp),    intent(in) :: leaf_surf(:), wood_surf(:)
       integer(ik), intent(in) :: n
       real(wp) :: w
       w = sum(leaf_surf(1:n) + wood_surf(1:n))
-   end function canopy_film_store
+   end function surface_water_store
 
    !---~---
    !   Deposit condensed canopy-air vapour into soil layer 1 as paired mass [kg/m2] + liquid
@@ -325,7 +325,7 @@ contains
 
    !---~---
    !   Unpack the committed column state into the dynamic state: CAS twins (and their
-   ! temperature), soil energy and moisture, plant internal water, canopy films; not the pond.
+   ! temperature), soil energy and moisture, plant internal water, canopy surface water; not the pond.
    !---~---
    pure subroutine unpack_column_state(y_out, n, nsl, dynamic)
       type(march_state_t),       intent(in)    :: y_out

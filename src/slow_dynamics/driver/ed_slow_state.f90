@@ -659,7 +659,7 @@ contains
    end subroutine fill_new_leaf_water
 
    !---~---
-   !   The water of the plants that die this step: their tissue water and canopy films go to the
+   !   The water of the plants that die this step: their tissue water and surface water go to the
    ! ground down the turnover shed's channel. Runs after the commit, with the dying number
    ! n0 - n1 taken as accumulate_mortality_litter takes it (docs/science/demography.md §2).
    !---~---
