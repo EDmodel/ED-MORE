@@ -454,8 +454,15 @@ row ([Regional runs](#regional-runs) gives the layout).
 | `cohort_max`, `patch_max` | 4096, 256 | the files' cohort and patch axis lengths; the run stops when a live count exceeds one |
 | `fast_interval_steps` | 4 | fast steps one sub-daily record spans (4 × 900 s is hourly); must divide the fast steps in a slow step |
 | `sync_every` | `"flush"` | `"flush"`: records reach the disk each month; `"never"` |
+| `overwrite` | `false` | `true`: a run replaces the diagnostic files of its own names where they exist; `false`: it stops before its first step (below) |
 | `dbh_class_edges` | 0, 10, 20, 30, 50, 70, 100 | ascending edges [cm] of the `dbh_class` axis |
-| `[output.fast]`, `[output.daily]`, `[output.monthly]`, `[output.annual]` | fast off, the others on | `enabled` switches a tier (an off tier writes nothing, whatever `io_config` says); `file_chunk` (`"day"`, `"month"`, `"year"` or `"run"`) is the span of one file: defaults day, month, year and run |
+| `[output.fast]`, `[output.daily]`, `[output.monthly]`, `[output.annual]` | fast off, the others on | `enabled` switches a tier (an off tier writes nothing, whatever `io_config` says); `file_chunk` (`"day"`, `"month"`, `"year"` or `"all"`, one file for all of the run's records) is the span of one file, at least one of its tier's records (a monthly file a month or more, an annual one a year or more): defaults day, month, year and all |
+
+**A run never overwrites output.** Before its first step a run lists every diagnostic file it would
+write, and stops, naming the file, if one exists. A run resubmitted from a state file into the folder of
+the run it continues would otherwise replace the files whose names it shares, and their earlier records
+with them: give it another `dir` or `prefix`, or move the old files away. `overwrite = true` lets a run
+replace them instead; the examples set it, since rerunning an example means replacing its own files.
 
 ### Choosing variables
 

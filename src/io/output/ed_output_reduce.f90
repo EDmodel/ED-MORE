@@ -12,7 +12,7 @@ module ed_output_reduce
    use ed_kinds,       only : wp, ik
    use ed_constants,   only : tiny_num, cm2_to_m2, n_soil_layer_max
    use ed_polygon_state_vars,   only : polygon_t, patch_polygon_area, patch_polygon_areas
-   use ed_output_types,         only : MISSING_VALUE
+   use ed_output_types,         only : MISSING_VALUE, W_NONE, W_NPLANT, W_LEAF_AREA, W_BASAL_AREA, W_AGB
    use, intrinsic :: ieee_arithmetic, only : ieee_is_nan, ieee_is_finite
    implicit none
    private
@@ -30,33 +30,31 @@ module ed_output_reduce
    public :: print_summary
    public :: dbh_class_index
 
-   !---~---
-   !   Weight kinds: a per-cohort weight w_i. Patch area enters only at the patch -> polygon
-   ! step, so one w serves every scale (docs/science/diagnostics.md eqs. (1)-(2)).
-   !---~---
-   integer(ik), parameter :: W_NONE       = 0_ik  ! w = 1        (count-like; x already per ground area)
-   integer(ik), parameter :: W_NPLANT     = 1_ik  ! w = nplant   (the standard extensive per-plant weight)
-   integer(ik), parameter :: W_LEAF_AREA  = 2_ik  ! w = nplant*leaf_area (canopy-flux / leaf-state weighting)
-   integer(ik), parameter :: W_BASAL_AREA = 3_ik  ! w = nplant*basal_area (structural weighting; dbh)
-   integer(ik), parameter :: W_AGB        = 4_ik  ! w = nplant*agb (biomass weighting)
-
 contains
 
    !--- Weights
 
    !---~---
    !   Fill w(1:n) with the per-cohort weight of `wkind` over the polygon's whole cohort
-   ! array. A cohort whose x is missing (one recruited after the fast loop has no samples
-   ! yet) carries no weight, so it is left out of a sum and of both halves of a mean.
+   ! array: the live stand's, or `w_given`'s column of that kind (the weights the fast loop
+   ! used, for a staged sub-step's row). A cohort whose x is missing (one recruited after the
+   ! fast loop has no samples yet) carries no weight, so it is left out of a sum and of both
+   ! halves of a mean.
    !---~---
-   pure subroutine cohort_weight(poly, wkind, x, w, n)
+   pure subroutine cohort_weight(poly, wkind, x, w, n, w_given)
       type(polygon_t), intent(in) :: poly
       integer(ik),  intent(in)  :: wkind
       real(wp),     intent(in)  :: x(:)
       real(wp),     intent(out) :: w(:)
       integer(ik),  intent(out) :: n
+      real(wp), optional, intent(in) :: w_given(:,:)   ! (cohort, W_NPLANT:W_AGB)
       n = poly%cohort%n
       if (n <= 0_ik) return
+      if (present(w_given) .and. wkind /= W_NONE) then
+         w(1:n) = w_given(1:n, wkind)
+         where (x(1:n) == MISSING_VALUE) w(1:n) = 0.0_wp
+         return
+      end if
       select case (wkind)
       case (W_NPLANT)
          w(1:n) = poly%cohort%nplant(1:n)
@@ -79,7 +77,7 @@ contains
    ! its share of the polygon. `scale` multiplies each patch's contribution before it is
    ! summed; applying it once at the end would change the rounding of every total.
    !---~---
-   pure subroutine reduce_cohort_to_polygon(poly, x, wkind, mean, val, valid, scale)
+   pure subroutine reduce_cohort_to_polygon(poly, x, wkind, mean, val, valid, scale, w_given)
       type(polygon_t),    intent(in)  :: poly
       real(wp),           intent(in)  :: x(:)
       integer(ik),        intent(in)  :: wkind
@@ -87,11 +85,12 @@ contains
       real(wp),           intent(out) :: val
       logical,            intent(out) :: valid
       real(wp), optional, intent(in)  :: scale
+      real(wp), optional, intent(in)  :: w_given(:,:)   ! the fast loop's weights (cohort_weight)
       real(wp)    :: w(max(poly%cohort%n, 1_ik)), share(max(poly%patch%n, 1_ik)), num, den, sc
       integer(ik) :: ip, i0, i1, nw
       sc = 1.0_wp
       if (present(scale)) sc = scale
-      call cohort_weight(poly, wkind, x, w, nw)
+      call cohort_weight(poly, wkind, x, w, nw, w_given)
       call patch_polygon_areas(poly, share)
       num = 0.0_wp
       den = 0.0_wp
@@ -118,7 +117,7 @@ contains
    !   Reduce a per-cohort field to one value per patch, with no area factor: a patch value
    ! is per unit of its own ground. An empty patch is not valid (_FillValue).
    !---~---
-   pure subroutine reduce_cohort_to_patch(poly, x, wkind, mean, out, valid, n_out, scale)
+   pure subroutine reduce_cohort_to_patch(poly, x, wkind, mean, out, valid, n_out, scale, w_given)
       type(polygon_t),    intent(in)  :: poly
       real(wp),           intent(in)  :: x(:)
       integer(ik),        intent(in)  :: wkind
@@ -127,11 +126,12 @@ contains
       logical,            intent(out) :: valid(:)
       integer(ik),        intent(out) :: n_out
       real(wp), optional, intent(in)  :: scale
+      real(wp), optional, intent(in)  :: w_given(:,:)   ! the fast loop's weights (cohort_weight)
       real(wp)    :: w(max(poly%cohort%n, 1_ik)), num, den, sc
       integer(ik) :: ip, i0, i1, nw
       sc = 1.0_wp
       if (present(scale)) sc = scale
-      call cohort_weight(poly, wkind, x, w, nw)
+      call cohort_weight(poly, wkind, x, w, nw, w_given)
       n_out = poly%patch%n
       out(1:max(n_out,1_ik)) = 0.0_wp
       valid(1:max(n_out,1_ik)) = .false.
@@ -159,7 +159,7 @@ contains
    !   Reduce a per-cohort field onto the PFT axis, each patch weighted by its share of the
    ! polygon, so a value is per m2 of polygon ground and the PFTs sum to the polygon total.
    !---~---
-   pure subroutine reduce_cohort_to_pft(poly, x, wkind, mean, n_pft, out, valid, n_out, scale)
+   pure subroutine reduce_cohort_to_pft(poly, x, wkind, mean, n_pft, out, valid, n_out, scale, w_given)
       type(polygon_t),    intent(in)  :: poly
       real(wp),           intent(in)  :: x(:)
       integer(ik),        intent(in)  :: wkind, n_pft
@@ -168,12 +168,13 @@ contains
       logical,            intent(out) :: valid(:)
       integer(ik),        intent(out) :: n_out
       real(wp), optional, intent(in)  :: scale
+      real(wp), optional, intent(in)  :: w_given(:,:)   ! the fast loop's weights (cohort_weight)
       real(wp)    :: w(max(poly%cohort%n, 1_ik)), sc, aw
       real(wp)    :: num(max(n_pft,1_ik)), den(max(n_pft,1_ik))
       integer(ik) :: ip, i0, i1, i, k, nw
       sc = 1.0_wp
       if (present(scale)) sc = scale
-      call cohort_weight(poly, wkind, x, w, nw)
+      call cohort_weight(poly, wkind, x, w, nw, w_given)
       n_out = n_pft
       num = 0.0_wp
       den = 0.0_wp
@@ -211,7 +212,7 @@ contains
    ! its mean dbh, weighted and closed over empty classes as on the PFT axis above.
    !---~---
    pure subroutine reduce_cohort_to_size(poly, x, wkind, mean, edges, n_class, out, valid,     &
-                                         n_out, scale)
+                                         n_out, scale, w_given)
       type(polygon_t),    intent(in)  :: poly
       real(wp),           intent(in)  :: x(:)
       integer(ik),        intent(in)  :: wkind, n_class
@@ -221,12 +222,13 @@ contains
       logical,            intent(out) :: valid(:)
       integer(ik),        intent(out) :: n_out
       real(wp), optional, intent(in)  :: scale
+      real(wp), optional, intent(in)  :: w_given(:,:)   ! the fast loop's weights (cohort_weight)
       real(wp)    :: w(max(poly%cohort%n, 1_ik)), sc, aw
       real(wp)    :: num(max(n_class,1_ik)), den(max(n_class,1_ik))
       integer(ik) :: ip, i0, i1, i, k, nw
       sc = 1.0_wp
       if (present(scale)) sc = scale
-      call cohort_weight(poly, wkind, x, w, nw)
+      call cohort_weight(poly, wkind, x, w, nw, w_given)
       n_out = n_class
       num = 0.0_wp
       den = 0.0_wp

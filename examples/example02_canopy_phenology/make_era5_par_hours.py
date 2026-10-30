@@ -56,7 +56,7 @@ def configure(site, work, archive):
         "demography.demography_on": False,
         "init.init_mode": 0,
         "output.state_write": False,
-        "output.enabled": True, "output.dir": "out", "output.prefix": site,
+        "output.enabled": True, "output.dir": "out", "output.prefix": site, "output.overwrite": True,
         "output.io_config": os.path.join(work, "variables.toml"), "output.fast_interval_steps": 1,
         "output.fast.enabled": True, "output.fast.file_chunk": "year",
         "output.daily.enabled": False, "output.monthly.enabled": False, "output.annual.enabled": False,

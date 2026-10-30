@@ -69,6 +69,7 @@ state_file_prefix = "regen"
 enabled       = true
 dir           = "output"
 prefix        = "regen"
+overwrite     = true            # an example: a rerun replaces its own files
 sync_every    = "flush"
 # Site, PFT and size-class totals only: per-cohort and per-patch records over 421 years would be
 # gigabytes (io_config_regeneration.toml). The checkpoints hold the full stand.
@@ -82,11 +83,11 @@ enabled    = false
 
 [output.monthly]
 enabled    = true
-file_chunk = "run"
+file_chunk = "all"
 
 [output.annual]
 enabled    = true
-file_chunk = "run"
+file_chunk = "all"
 
 #----- Leaf physiology (example 04's calibrated configuration). ----------------------------------------
 [leaf_physiology]

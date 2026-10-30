@@ -61,6 +61,7 @@ state_file_prefix = "eval"
 enabled       = true
 dir           = "output"
 prefix        = "eval"
+overwrite     = true            # an example: a rerun replaces its own files
 io_config     = "output_variables.toml"
 cohort_max    = 4096
 patch_max     = 256
@@ -75,7 +76,7 @@ file_chunk = "year"               # one file per UTC year of hourly records
 
 [output.daily]
 enabled    = true
-file_chunk = "run"
+file_chunk = "all"
 
 [output.monthly]
 enabled    = false
@@ -83,7 +84,7 @@ file_chunk = "year"
 
 [output.annual]
 enabled    = false
-file_chunk = "run"
+file_chunk = "all"
 
 # The leaf traits follow the canopy's light gradient: each cohort's Vcmax25, Rd25, SLA and leaf
 # turnover rate are its PFT's top-of-canopy values times exp(k * LAI above it), set at the census start

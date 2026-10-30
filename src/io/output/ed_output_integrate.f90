@@ -14,7 +14,7 @@ module ed_output_integrate
    use ed_output_types,     only : var_desc_t, integ_buffer_t, output_files_t, output_buffers_t,                  &
                                    pending_record_t, record_queue_t, AGG_MEAN, AGG_RATE, AGG_LAST, AGG_TMEAN,     &
                                    DIM_SCALAR, DIM_COHORT, DIM_PATCH,                                             &
-                                   DIM_SOIL, DIM_SOIL_PATCH, MISSING_VALUE, slab_col
+                                   DIM_SOIL, DIM_SOIL_PATCH, MISSING_VALUE, N_WEIGHT, slab_col
    use ed_polygon_state_vars, only : polygon_t
    use ed_constants,     only : n_soil_layer_max
    use ed_output_extract,   only : SRC_F_CO0, SRC_F_COH_GPP, SRC_F_COH_HEIGHT, SRC_F_PA0,                         &
@@ -25,6 +25,7 @@ module ed_output_integrate
    public :: alloc_integ_buffer, reset_buffer, integrate_scalar, integrate_slab
    public :: normalize_scalar, normalize_slab
    public :: output_tick, output_integrate, output_integrate_fast, close_tier
+   public :: write_order, find_ids
 
 contains
 
@@ -43,7 +44,7 @@ contains
       integer(ik) :: isub
       if (bufs%fast_ready .and. files%reg%nidx(TIER_FAST) > 0_ik) then
          do isub = 1_ik, bufs%n_fast_sub
-            call output_integrate_fast(files, bufs, isub, dt_fast)
+            call output_integrate_fast(files, bufs, isub, dt_fast, poly)
             bufs%fast_step_total = bufs%fast_step_total + 1_ik
             if (mod(bufs%fast_step_total, max(files%fast_interval_steps, 1_ik)) == 0_ik)          &
                call close_tier(files, bufs, TIER_FAST)
@@ -237,10 +238,12 @@ contains
       type(ed_time_t),        intent(in)    :: prev          ! the start of the step just taken
       real(wp),               intent(in)    :: dt
       logical,                intent(in)    :: is_new_day, is_new_month, is_new_year  ! its end left prev's period
-      integer(ik) :: t, j, k, n_out
+      integer(ik) :: t, j, k, n_out, nc
       real(wp)    :: scal
       real(wp)    :: slab(max(files%max_slab, 1_ik))
       logical     :: vslab(max(files%max_slab, 1_ik))
+      integer(ik) :: at_live(max(poly%cohort%n, 1_ik))    ! each live cohort's slot in the month's order
+      integer(ik) :: at_staged(max(bufs%fast_n_cohort, 1_ik))
       if (.not. files%enabled) return
       !---~---
       !   The cohort and patch slabs are output.cohort_max and patch_max long. Stop at the step the
@@ -248,6 +251,18 @@ contains
       !---~---
       if (files%cohort_axis .and. poly%cohort%n > files%cohort_max) call cap_exceeded('cohort', poly%cohort%n, files%cohort_max)
       if (files%patch_axis  .and. poly%patch%n  > files%patch_max)  call cap_exceeded('patch',  poly%patch%n,  files%patch_max)
+      !---~---
+      !   A cohort value is folded into its cohort's slot of the month (month_slots), from the
+      ! live stand's order or the staging's, and the live order is kept as the order the
+      ! month's records are written in if the month ends here (write_order).
+      !---~---
+      if (files%cohort_axis) then
+         nc = poly%cohort%n
+         call month_slots(files, bufs, poly%cohort%global_id(1:nc), at_live)
+         if (bufs%fast_ready) call month_slots(files, bufs, bufs%fast_cohort_id(1:bufs%fast_n_cohort), at_staged)
+         bufs%end_id(1:nc) = poly%cohort%global_id(1:nc)
+         bufs%n_end = nc
+      end if
       !---~---
       !   Fold the step into the daily, monthly and annual tiers. The FAST tier is fed from the
       ! staged sub-steps (output_integrate_fast).
@@ -264,6 +279,12 @@ contains
             end if
             if (files%reg%var(k)%dim == DIM_SCALAR) then
                call integrate_scalar(bufs%buf(k,t), scal, dt)
+            else if (files%reg%var(k)%dim == DIM_COHORT) then
+               if (files%reg%var(k)%snap_staged .and. files%reg%var(k)%source_fast /= SRC_NONE) then
+                  call integrate_cohort_slab(bufs, bufs%buf(k,t), slab, vslab, n_out, at_staged, dt)
+               else
+                  call integrate_cohort_slab(bufs, bufs%buf(k,t), slab, vslab, n_out, at_live, dt)
+               end if
             else
                call integrate_slab(bufs%buf(k,t), slab, n_out, dt, vslab)
             end if
@@ -274,7 +295,87 @@ contains
       if (is_new_year  .and. bufs%has_data(TIER_ANNUAL))  call close_tier(files, bufs, TIER_ANNUAL)
       if (is_new_month .and. bufs%has_data(TIER_MONTHLY)) call close_tier(files, bufs, TIER_MONTHLY)
       if (is_new_day   .and. bufs%has_data(TIER_DAILY))   call close_tier(files, bufs, TIER_DAILY)
+      !---~---
+      !   The month's records are closed: the calendar restructuring that follows may recruit,
+      ! fuse, split or cull cohorts, so the next month opens its own order.
+      !---~---
+      if (is_new_month) bufs%n_month = 0_ik
    end subroutine output_integrate
+
+   !---~---
+   !   Fold a cohort slab, in the order `at` maps it from (live or staged), into the slots of
+   ! the month's order: slot at(i) takes entry i, and a slot nothing maps to is not folded
+   ! this step.
+   !---~---
+   subroutine integrate_cohort_slab(bufs, buf, x, valid, n, at, dt)
+      type(output_buffers_t), intent(in)    :: bufs
+      type(integ_buffer_t),   intent(inout) :: buf
+      real(wp),               intent(in)    :: x(:)
+      logical,                intent(in)    :: valid(:)
+      integer(ik),            intent(in)    :: n, at(:)
+      real(wp),               intent(in)    :: dt
+      real(wp)    :: xm(max(bufs%n_month, 1_ik))
+      logical     :: vm(max(bufs%n_month, 1_ik))
+      integer(ik) :: i
+      xm = MISSING_VALUE
+      vm = .false.
+      do i = 1_ik, n
+         xm(at(i)) = x(i)
+         vm(at(i)) = valid(i)
+      end do
+      call integrate_slab(buf, xm, bufs%n_month, dt, vm)
+   end subroutine integrate_cohort_slab
+
+   !---~---
+   !   Each of `ids`' slot in the month's cohort order, at(i). The month opens with the first
+   ! ids it sees; a cohort it has not seen (none in a month the calendar restructures only at
+   ! its turn) takes the next slot.
+   !---~---
+   subroutine month_slots(files, bufs, ids, at)
+      type(output_files_t),   intent(in)    :: files
+      type(output_buffers_t), intent(inout) :: bufs
+      integer(ik),            intent(in)    :: ids(:)
+      integer(ik),            intent(out)   :: at(:)
+      integer(ik) :: i
+      call find_ids(bufs%month_id(1:bufs%n_month), ids, at)
+      do i = 1_ik, size(ids, kind=ik)
+         if (at(i) > 0_ik) cycle
+         bufs%n_month = bufs%n_month + 1_ik
+         if (bufs%n_month > files%cohort_max) call cap_exceeded('cohort', bufs%n_month, files%cohort_max)
+         bufs%month_id(bufs%n_month) = ids(i)
+         at(i) = bufs%n_month
+      end do
+   end subroutine month_slots
+
+   !---~---
+   !   Where each of `ids` sits in `ref`: at(i) = j with ref(j) == ids(i), or 0 when it is not
+   ! there. A re-sort moves a cohort only within its patch, so the search starts at i and
+   ! widens outward: a stand in the same order costs one comparison per cohort.
+   !---~---
+   pure subroutine find_ids(ref, ids, at)
+      integer(ik), intent(in)  :: ref(:), ids(:)
+      integer(ik), intent(out) :: at(:)
+      integer(ik) :: i, d, nr
+      nr = size(ref, kind=ik)
+      do i = 1_ik, size(ids, kind=ik)
+         at(i) = 0_ik
+         do d = 0_ik, max(nr, i)
+            if (i + d <= nr) then
+               if (ref(i + d) == ids(i)) then
+                  at(i) = i + d
+                  exit
+               end if
+            end if
+            if (d > 0_ik .and. i - d >= 1_ik .and. i - d <= nr) then
+               if (ref(i - d) == ids(i)) then
+                  at(i) = i - d
+                  exit
+               end if
+            end if
+            if (i + d > nr .and. i - d < 1_ik) exit
+         end do
+      end do
+   end subroutine find_ids
 
    !--- A live count past its output cap: say which, by how much, and what to raise.
    subroutine cap_exceeded(axis, n, cap)
@@ -326,6 +427,11 @@ contains
          call reset_buffer(bufs%buf(k,t))
       end do
       bufs%has_data(t) = .false.
+      !--- The record's cohort rows are in the month's order: keep their ids (write_order).
+      if (bufs%pending(t)%n_cohort > 0_ik) then
+         if (.not. allocated(bufs%pending(t)%cohort_id)) allocate(bufs%pending(t)%cohort_id(files%cohort_max))
+         bufs%pending(t)%cohort_id(1:bufs%pending(t)%n_cohort) = bufs%month_id(1:bufs%pending(t)%n_cohort)
+      end if
       nsl = 0_ik                                          ! this tier's slab variables, for the queue
       do j = 1_ik, files%reg%nidx(t)
          k = files%reg%idx_freq(j, t)
@@ -379,6 +485,13 @@ contains
          if (.not. allocated(r%sval))                                                             &
             allocate(r%sval(nv), r%svalid(nv), r%nslab(nv), r%col(nv),                            &
                      r%slab(rows, max(ncol, 1_ik)), r%slabvalid(rows, max(ncol, 1_ik)))
+         if (src%n_cohort > 0_ik) then
+            if (allocated(r%cohort_id)) then
+               if (size(r%cohort_id) < src%n_cohort) deallocate(r%cohort_id)
+            end if
+            if (.not. allocated(r%cohort_id)) allocate(r%cohort_id(src%n_cohort))
+            r%cohort_id(1:src%n_cohort) = src%cohort_id(1:src%n_cohort)
+         end if
          r%sval = src%sval
          r%svalid = src%svalid
          r%nslab = src%nslab
@@ -393,19 +506,23 @@ contains
 
    !---~---
    !   Fold one staged sub-step (isub) into the FAST tier's buffers. output_tick calls it
-   ! once per staged sub-step and closes the tier every fast_interval_steps folds. It
-   ! reads only the buffers' staging, never the polygon's live state (the end of the slow
-   ! step by now).
+   ! once per staged sub-step and closes the tier every fast_interval_steps folds. It reads
+   ! the buffers' staging, never the polygon's live state (the end of the slow step by now),
+   ! but for the axes' bookkeeping, which the slow step leaves as it was but for the order,
+   ! and which is folded by cohort id like every cohort value (`poly`; without it, not read).
    !---~---
-   subroutine output_integrate_fast(files, bufs, isub, dt)
+   subroutine output_integrate_fast(files, bufs, isub, dt, poly)
       type(output_files_t),   intent(in)    :: files
       type(output_buffers_t), intent(inout) :: bufs
       integer(ik),            intent(in)    :: isub
       real(wp),               intent(in)    :: dt
+      type(polygon_t), optional, intent(in) :: poly
       integer(ik) :: j, k, n
       real(wp)    :: scal
       real(wp)    :: slab(max(files%max_slab, 1_ik))
       logical     :: valid(max(files%max_slab, 1_ik))
+      integer(ik) :: at_staged(max(bufs%fast_n_cohort, 1_ik))   ! each staged cohort's slot in the month's order
+      integer(ik), allocatable :: at_live(:)                    ! each live cohort's (the bookkeeping)
       if (.not. files%enabled) return
       if (files%reg%nidx(TIER_FAST) == 0_ik) return
       !---~---
@@ -416,12 +533,31 @@ contains
          call cap_exceeded('cohort', bufs%fast_n_cohort, files%cohort_max)
       if (files%patch_axis .and. bufs%fast_n_patch > files%patch_max)                              &
          call cap_exceeded('patch', bufs%fast_n_patch, files%patch_max)
+      if (files%cohort_axis) then
+         call month_slots(files, bufs, bufs%fast_cohort_id(1:bufs%fast_n_cohort), at_staged)
+         if (present(poly)) then
+            allocate(at_live(max(poly%cohort%n, 1_ik)))
+            call month_slots(files, bufs, poly%cohort%global_id(1:poly%cohort%n), at_live)
+         end if
+      end if
       if (.not. bufs%has_data(TIER_FAST)) bufs%t_open(TIER_FAST) = bufs%fast_time(isub)
       do j = 1_ik, files%reg%nidx(TIER_FAST)
          k = files%reg%idx_freq(j, TIER_FAST)
+         if (files%reg%var(k)%coord) then
+            if (.not. present(poly)) cycle
+            call extract_variable(poly, bufs%diag, files%reg%var(k), scal, slab, valid, n)
+            if (files%reg%var(k)%dim == DIM_COHORT) then
+               call integrate_cohort_slab(bufs, bufs%buf(k,TIER_FAST), slab, valid, n, at_live, dt)
+            else
+               call integrate_slab(bufs%buf(k,TIER_FAST), slab, n, dt, valid)
+            end if
+            cycle
+         end if
          call staged_value(bufs, files%reg%var(k)%source_fast, files%reg%var(k)%dim, isub, scal, slab, valid, n)
          if (files%reg%var(k)%dim == DIM_SCALAR) then
             call integrate_scalar(bufs%buf(k,TIER_FAST), scal, dt)
+         else if (files%reg%var(k)%dim == DIM_COHORT) then
+            call integrate_cohort_slab(bufs, bufs%buf(k,TIER_FAST), slab, valid, n, at_staged, dt)
          else
             call integrate_slab(bufs%buf(k,TIER_FAST), slab, n, dt, valid)
          end if
@@ -498,6 +634,8 @@ contains
       logical,                intent(out) :: valid(:)
       integer(ik),            intent(out) :: n
       integer(ik) :: isub, nc
+      integer(ik) :: at(max(poly%cohort%n, 1_ik))          ! each live cohort's slot in the staging
+      real(wp)    :: x(max(poly%cohort%n, 1_ik)), w(max(poly%cohort%n, 1_ik), N_WEIGHT)
       scal = MISSING_VALUE
       n = 0_ik
       if (.not. bufs%fast_ready) return
@@ -505,11 +643,82 @@ contains
       if (v%source_fast /= SRC_NONE) then
          call staged_value(bufs, v%source_fast, v%dim, isub, scal, slab, valid, n)
       else if (allocated(bufs%fast_cohort_diag)) then
+         !---~---
+         !   The staged row is in the fast loop's order: put each value with its own cohort in the
+         ! live order, and reduce it with the weights the fast loop used.
+         !---~---
          nc = bufs%fast_n_cohort
-         if (nc == poly%cohort%n)                                                                    &
-            call extract_variable(poly, bufs%diag, v, scal, slab, valid, n,                          &
-                                  cohort_x=bufs%fast_cohort_diag(1:nc, v%source_id - FLD_C_DIAG0, isub))
+         if (nc == poly%cohort%n) then
+            call find_ids(bufs%fast_cohort_id(1:nc), poly%cohort%global_id(1:nc), at(1:nc))
+            if (all(at(1:nc) > 0_ik)) then
+               x(1:nc)    = bufs%fast_cohort_diag(at(1:nc), v%source_id - FLD_C_DIAG0, isub)
+               w(1:nc, :) = bufs%fast_cohort_w(at(1:nc), :)
+               call extract_variable(poly, bufs%diag, v, scal, slab, valid, n, cohort_x=x(1:nc),      &
+                                     cohort_w=w(1:nc, :))
+            end if
+         end if
       end if
    end subroutine staged_snapshot
+
+   !---~---
+   !   Put every queued cohort record of each polygon in its month's end order, the live order
+   ! of the latest tick (end_id), before the I/O phase writes it (docs/science/diagnostics.md
+   ! §3). A record's cohort ids name its rows; a cohort the end order lacks keeps its place
+   ! after those it holds.
+   !---~---
+   subroutine write_order(files, bufs)
+      type(output_files_t),   intent(in)    :: files
+      type(output_buffers_t), intent(inout) :: bufs(:)
+      integer(ik) :: p, t, i, j, k, n, c
+      integer(ik), allocatable :: at(:), key(:), perm(:)
+      do p = 1_ik, size(bufs, kind=ik)
+         do t = 1_ik, N_FREQ
+            do i = 1_ik, bufs(p)%queue(t)%n
+               associate (r => bufs(p)%queue(t)%rec(i))
+                  n = r%n_cohort
+                  if (n <= 0_ik .or. .not. allocated(r%cohort_id)) cycle
+                  if (n == bufs(p)%n_end) then
+                     if (all(r%cohort_id(1:n) == bufs(p)%end_id(1:n))) cycle
+                  end if
+                  allocate(at(n), key(n), perm(n))
+                  call find_ids(bufs(p)%end_id(1:bufs(p)%n_end), r%cohort_id(1:n), at)
+                  do j = 1_ik, n
+                     key(j) = merge(at(j), bufs(p)%n_end + j, at(j) > 0_ik)
+                     perm(j) = j
+                  end do
+                  call sort_by_key(key, perm)
+                  r%cohort_id(1:n) = r%cohort_id(perm)
+                  do k = 1_ik, files%reg%nvar
+                     if (files%reg%var(k)%dim /= DIM_COHORT) cycle
+                     c = slab_col(r, k)
+                     if (c <= 0_ik .or. r%nslab(k) <= 0_ik) cycle
+                     r%slab(1:n, c)      = r%slab(perm, c)
+                     r%slabvalid(1:n, c) = r%slabvalid(perm, c)
+                  end do
+                  deallocate(at, key, perm)
+               end associate
+            end do
+         end do
+      end do
+   end subroutine write_order
+
+   !--- Order perm by ascending key (insertion sort: a record is nearly in order already).
+   pure subroutine sort_by_key(key, perm)
+      integer(ik), intent(inout) :: key(:), perm(:)
+      integer(ik) :: i, j, kk, pp
+      do i = 2_ik, size(key, kind=ik)
+         kk = key(i)
+         pp = perm(i)
+         j = i - 1_ik
+         do while (j >= 1_ik)
+            if (key(j) <= kk) exit
+            key(j + 1_ik) = key(j)
+            perm(j + 1_ik) = perm(j)
+            j = j - 1_ik
+         end do
+         key(j + 1_ik) = kk
+         perm(j + 1_ik) = pp
+      end do
+   end subroutine sort_by_key
 
 end module ed_output_integrate

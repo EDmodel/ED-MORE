@@ -68,6 +68,7 @@ state_file_prefix = "regrowth"
 enabled       = true
 dir           = "output"
 prefix        = "regrowth"
+overwrite     = true            # an example: a rerun replaces its own files
 sync_every    = "flush"
 # Monthly and yearly site and PFT totals (io_config_regrowth.toml); trees above and below 10 cm.
 io_config     = "io_config_regrowth.toml"
@@ -79,15 +80,15 @@ file_chunk = "month"
 
 [output.daily]
 enabled    = false
-file_chunk = "run"
+file_chunk = "all"
 
 [output.monthly]
 enabled    = true
-file_chunk = "run"
+file_chunk = "all"
 
 [output.annual]
 enabled    = true
-file_chunk = "run"
+file_chunk = "all"
 
 #----- Leaf physiology (example 04's calibrated configuration). ----------------------------------------
 [leaf_physiology]

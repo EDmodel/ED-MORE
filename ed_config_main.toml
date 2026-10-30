@@ -193,6 +193,7 @@ state_file_prefix = "ED_output"   # their file-name stem
 enabled       = false           # write the diagnostics
 dir           = "out"           # directory
 prefix        = "ED"            # file-name stem
+overwrite     = false           # true: replace this run's files where they exist; false: stop before the first step
 io_config     = ""              # what is written: a file of [variables] lines, each a name or a pattern
                                 #   ("*_co" = false, "mean_*_py" = "M Y"); "" = the defaults. `edmore
                                 #   --dump-io-config` lists every variable (docs/science/diagnostics.md §5)
@@ -216,7 +217,7 @@ sync_every    = "flush"         # "flush": records reach the disk each month | "
   file_chunk = "year"
   [output.annual]
   enabled = true
-  file_chunk = "run"
+  file_chunk = "all"
 
 # Leaf phenology has no switch: it runs every day of every run, with each PFT's [phenology] block in
 # the PFT file (docs/science/plant_phenology.md).

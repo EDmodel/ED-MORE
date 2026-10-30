@@ -40,7 +40,7 @@ program test_output_roundtrip
    use ed_soil_derive,        only : build_profile_hydraulics
    use ed_time,               only : ed_time_t, time_advance_days
    use ed_polygon_state_vars, only : polygon_t, alloc_polygon, free_polygon, rebuild_patch_map
-   use ed_output_params,      only : FC_DAY, FC_MONTH, FC_YEAR, FC_RUN, SYNC_FLUSH
+   use ed_output_params,      only : FC_DAY, FC_MONTH, FC_YEAR, FC_ALL, SYNC_FLUSH
    use ed_output_types,       only : output_files_t, output_buffers_t
    use ed_output_setup,       only : alloc_output_set
    use ed_output_registry,    only : selection_t, OVR_FALSE, OVR_MASK
@@ -69,6 +69,7 @@ program test_output_roundtrip
    integer(ik), parameter :: N_ACTIVE = 6_ik
 
    call banner('output_roundtrip')
+   call execute_command_line('rm -f test_ro-*.nc')   ! the last run's files: the writer never overwrites one
 
    !--- A fixed 1-cohort / 1-patch site (constant slot set).
    call alloc_polygon(poly, 1_ik, 16_ik, 4_ik, 4_ik, test_pft_table())
@@ -164,7 +165,7 @@ contains
       c%output%patch_max  = 4_ik
       c%output%sync_every = SYNC_FLUSH
       c%output%freq_on    = [.false., .true., .false., .true.]     ! daily + annual
-      c%output%file_chunk = [FC_DAY, FC_MONTH, FC_YEAR, FC_RUN]
+      c%output%file_chunk = [FC_DAY, FC_MONTH, FC_YEAR, FC_ALL]
    end function build_cfg
 
    !---~---

@@ -252,8 +252,8 @@ the regrowth about 20 minutes on 12 threads (`[run].n_threads`). Output goes to 
 With `[output].enabled = true`, each tier writes files named from `[output].dir` and
 `[output].prefix`: `<prefix>-F-YYYYMMDD.nc` (fast), `<prefix>-D-YYYYMM.nc` (daily),
 `<prefix>-M-YYYY.nc` (monthly) and `<prefix>-Y.nc` (annual). The stamp follows each tier's
-`file_chunk`; the shipped values are day, month, year and run, and a `run` chunk has no stamp (the
-BCI run writes `output/regen-M.nc`). [`plot_pft_size.py`](plot_pft_size.py) reads any monthly or
+`file_chunk`; the shipped values are day, month, year and all, and an `all` chunk, one file for all
+of the run's records, has no stamp (the BCI run writes `output/regen-M.nc`). [`plot_pft_size.py`](plot_pft_size.py) reads any monthly or
 annual tier that carries the PFT and DBH-class axes, from `edmore` or `edmore.model`, given one file
 or a quoted glob:
 

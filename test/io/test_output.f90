@@ -60,7 +60,7 @@ program test_output
    use ed_output_types,         only : output_registry_t, var_desc_t, integ_buffer_t, output_files_t,          &
                                        output_buffers_t, diag_setup_t, slab_col, MAX_OUTPUT_VARS,               &
                                        MISSING_VALUE, AGG_MEAN, AGG_RATE, AGG_LAST, AGG_TMEAN, DIM_SCALAR,      &
-                                       DIM_COHORT, DIM_PATCH
+                                       DIM_COHORT, DIM_PATCH, N_WEIGHT
    use ed_output_registry,      only : build_output_registry, build_freq_index, find_var_index,                &
                                        apply_variable_override, parse_stream_mask, selection_t,                 &
                                        apply_selections, resolve_streams, glob_match, OVR_TRUE, OVR_FALSE,      &
@@ -73,7 +73,7 @@ program test_output
                                        SRC_F_PA0, SRC_F_PY0, SRC_F_CO0, SRC_NONE
    use ed_output_integrate,     only : alloc_integ_buffer, reset_buffer, integrate_scalar, integrate_slab,      &
                                        normalize_scalar, normalize_slab, output_integrate_fast, close_tier,     &
-                                       output_integrate
+                                       output_integrate, write_order
    use ed_output_setup,         only : alloc_output_set, alloc_output_buffers, setup_output_files,              &
                                        finalize_output_files
    use ed_diag_vars,            only : alloc_cohort_diag, CO_LEAF_TEMP, CO_GSW, N_PY_ROWS, PY_TAIR, PY_CO2,      &
@@ -107,6 +107,7 @@ program test_output
    call test_two_buffers()
    call test_boundary_step()
    call test_snapshots()
+   call test_cohort_order()
    write(*,'(a)') 'test_output: ALL PASSED'
 
 contains
@@ -1194,6 +1195,7 @@ contains
       bufs%fast_patch(PA_CAS_CO2, 1, :) = [400.0_wp, 410.0_wp]
       allocate(bufs%fast_cohort_diag(8, N_CO_FAST_ROWS, 2), source=0.0_wp)
       bufs%fast_cohort_diag(1:2, CO_LEAF_TEMP, 2) = [290.0_wp, 298.0_wp]
+      bufs%fast_cohort_w(1:2, W_LEAF_AREA) = [1.0_wp, 3.0_wp]       ! the leaf areas the fast loop used
       bufs%fast_ready = .true.
 
       call output_integrate_fast(files, bufs, 1_ik, 900.0_wp)
@@ -1219,6 +1221,87 @@ contains
       call free_polygon(poly)
    end subroutine test_snapshots
 
+   !---~---
+   !   The month's cohort order (docs/science/diagnostics.md §3). Two cohorts swap places in the
+   ! stand's order on the month's last day, as the daily re-sort does when one outgrows the
+   ! other. Each monthly slot is still one cohort's mean, every record of the month is written
+   ! in the month's end order, and a staged row is paired with its own cohort and the weight
+   ! the fast loop used, though the re-sort moved the live order after the fast loop.
+   !---~---
+   subroutine test_cohort_order()
+      type(ed_config_t)      :: cfg
+      type(output_files_t)   :: files
+      type(output_buffers_t) :: bufs(1)
+      type(polygon_t)        :: poly
+      type(ed_time_t)        :: jan1, jan2
+      integer(ik) :: k_a, k_id, k_lt, cd, cm, cid
+      logical     :: found
+      real(wp), parameter :: DT = 86400.0_wp
+      cfg = build_test_config(DT)
+      cfg%output%enabled    = .true.
+      cfg%output%freq_on    = [.false., .true., .true., .false.]    ! daily + monthly
+      cfg%output%cohort_max = 8_ik
+      call setup_output_files(files, cfg)
+      call select_nothing(files)
+      call apply_variable_override(files%reg, 'mean_agb_co', OVR_MASK, ior(FREQ_DAILY, FREQ_MONTHLY), found)
+      call apply_variable_override(files%reg, 'leaf_temp_py', OVR_MASK, FREQ_DAILY, found)
+      call check(found, 'the order fixture''s variables are registry variables')
+      call resolve_streams(files%reg)
+      call finalize_output_files(files)
+      call alloc_output_buffers(files, bufs(1))
+      k_a  = find_var_index(files%reg, 'mean_agb_co')
+      k_id = find_var_index(files%reg, 'global_cohort_id')
+      k_lt = find_var_index(files%reg, 'leaf_temp_py')
+
+      call alloc_polygon(poly, 2_ik, 8_ik, 8_ik, 4_ik, cfg%pft)
+      poly%patch%n = 1_ik
+      poly%patch%area(1) = 1.0_wp
+      poly%patch%cohort_offset(1) = 1_ik
+      call alloc_cohort_diag(poly%cohort%diag, 8_ik, .true.)
+      poly%cohort%diag%n = 2_ik
+      jan1 = ed_time_t(year=2000_ik, month=1_ik, day=30_ik)
+      jan2 = time_advance_days(jan1, 1_ik)
+
+      !--- 30 January: cohort 1 (agb 10) above cohort 2 (agb 20).
+      call set_cohorts(poly, [10.0_wp, 20.0_wp])
+      call output_integrate(files, bufs(1), poly, jan1, DT, .true., .false., .false.)
+
+      !---~---
+      !   31 January, the month's last step: cohort 2 has outgrown cohort 1, and the step's
+      ! re-sort put it first. The fast loop ran in the order before it, and staged cohort 1's
+      ! leaf at 290 K (leaf area 1) and cohort 2's at 298 K (leaf area 3).
+      !---~---
+      call set_cohorts(poly, [21.0_wp, 11.0_wp])
+      poly%cohort%global_id(1:2) = [2_ik, 1_ik]
+      poly%cohort%leaf_area(1:2) = [3.0_wp, 1.0_wp]
+      call stage_cas(bufs(1), [290.0_wp, 290.0_wp])
+      bufs(1)%fast_n_cohort = 2_ik
+      allocate(bufs(1)%fast_cohort_diag(8, N_CO_FAST_ROWS, 2), source=0.0_wp)
+      bufs(1)%fast_cohort_diag(1:2, CO_LEAF_TEMP, 2) = [290.0_wp, 298.0_wp]
+      bufs(1)%fast_cohort_w(1:2, W_LEAF_AREA) = [1.0_wp, 3.0_wp]
+      bufs(1)%fast_ready = .true.
+      call output_integrate(files, bufs(1), poly, jan2, DT, .true., .true., .false.)
+      call check_close(bufs(1)%queue(2)%rec(2)%sval(k_lt), 296.0_wp, 1.0e-12_wp,                       &
+                       'a staged row reduces with its own cohorts and the fast loop''s weights')
+
+      !--- Before the I/O phase: the month's records in its end order, cohort 2 first.
+      call write_order(files, bufs)
+      associate (m => bufs(1)%queue(3)%rec(1), d1 => bufs(1)%queue(2)%rec(1), d2 => bufs(1)%queue(2)%rec(2))
+         cm = slab_col(m, k_a)
+         cd = slab_col(d1, k_a)
+         cid = slab_col(m, k_id)
+         call check(all(m%cohort_id(1:2) == [2_ik, 1_ik]), 'the monthly record is in the month''s end order')
+         call check_close(m%slab(1, cm), 20.5_wp, 1.0e-12_wp, 'monthly slot 1: cohort 2''s mean, (20 + 21) / 2')
+         call check_close(m%slab(2, cm), 10.5_wp, 1.0e-12_wp, 'monthly slot 2: cohort 1''s mean, (10 + 11) / 2')
+         call check_close(m%slab(1, cid), 2.0_wp, 1.0e-12_wp, 'the record''s global_cohort_id names its rows')
+         call check_close(d1%slab(1, cd), 20.0_wp, 1.0e-12_wp, 'the first day''s record in the month''s end order')
+         call check_close(d1%slab(2, cd), 10.0_wp, 1.0e-12_wp, 'the first day''s record: cohort 1 second')
+         call check_close(d2%slab(1, slab_col(d2, k_a)), 21.0_wp, 1.0e-12_wp, 'the last day''s record: cohort 2 first')
+      end associate
+      call check(bufs(1)%n_month == 0_ik, 'the month''s order closes with its records')
+      call free_polygon(poly)
+   end subroutine test_cohort_order
+
    !--- `"*" = false`: nothing selected, the axes' bookkeeping included.
    subroutine select_nothing(files)
       type(output_files_t), intent(inout) :: files
@@ -1230,9 +1313,10 @@ contains
    subroutine set_cohorts(poly, agb)
       type(polygon_t), intent(inout) :: poly
       real(wp),        intent(in)    :: agb(:)
-      integer(ik) :: n
+      integer(ik) :: n, i
       n = size(agb, kind=ik)
       poly%cohort%n = n
+      poly%cohort%global_id(1:n) = [(i, i = 1_ik, n)]
       poly%patch%cohort_count(1) = n
       poly%cohort%nplant(1:n) = 1.0_wp
       poly%cohort%pft(1:n) = 1_ik
@@ -1273,7 +1357,10 @@ contains
       do ip = 1_ik, np
          bufs%fast_soil_patch_live((ip - 1_ik) * nl + 1_ik:(ip - 1_ik) * nl + n_soil) = .true.
       end do
-      allocate(bufs%fast_cohort_gpp(nc, nsub), bufs%fast_cohort_height(nc, nsub))
+      allocate(bufs%fast_cohort_gpp(nc, nsub), bufs%fast_cohort_height(nc, nsub), bufs%fast_cohort_id(nc),   &
+               bufs%fast_cohort_w(nc, N_WEIGHT))
+      bufs%fast_cohort_id = [(ip, ip = 1_ik, nc)]           ! the cohorts' ids, in the stand's order
+      bufs%fast_cohort_w  = 1.0_wp
       bufs%fast_forcing          = 0.0_wp
       bufs%fast_site             = 0.0_wp
       bufs%fast_patch            = 0.0_wp

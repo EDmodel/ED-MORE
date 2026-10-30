@@ -161,6 +161,7 @@ contains
       files%dir        = cfg%output%dir
       files%prefix     = cfg%output%prefix
       files%file_chunk = cfg%output%file_chunk
+      files%overwrite  = cfg%output%overwrite
       files%sync_every = cfg%output%sync_every
       files%fast_interval_steps = cfg%output%fast_interval_steps
       if (cfg%forcing%forcing_on .and. cfg%forcing%format == MET_BACKEND_ERA5LAND)                   &
@@ -334,6 +335,9 @@ contains
       end do
       bufs%fast_on = bufs%fast_on .and. files%enabled
       bufs%diag = files%diag
+      !--- The month's cohort order, where a cohort variable is written (write_order).
+      if (files%cohort_axis)                                                                       &
+         allocate(bufs%month_id(max(files%cohort_max, 1_ik)), bufs%end_id(max(files%cohort_max, 1_ik)))
    end subroutine alloc_output_buffers
 
    !---~---

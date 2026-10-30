@@ -255,14 +255,16 @@ ed_add_test(io_config_example
 #----- edmore refuses a run it cannot start and names the cause: unknown, moved or misplaced        #
 #      keys, a choice none of its key's, keys a setting makes inapplicable; RK45 at a loose          #
 #      tolerance; a value that is not a number, a string with no closing quote or a key set twice;  #
-#      a sub-daily record across two slow steps; io_config lines the selection refuses; a Chave E   #
-#      map no PFT uses; plastic fine roots without plastic traits; impossible hydraulic traits; a   #
-#      NaN soil layer; a census or state file that is missing or empty. Each case is a one-day run  #
-#      in its own build-tree directory; the script explains the cases. A Debug build traps the NaN  #
-#      at the comparison that refuses it, so that case runs in the other builds.                     #
+#      a sub-daily record across two slow steps; a monthly file shorter than a month; io_config     #
+#      lines the selection refuses; a Chave E map no PFT uses; plastic fine roots without plastic   #
+#      traits; impossible hydraulic traits; a NaN soil layer; a census or state file that is        #
+#      missing or empty. Each case is a one-day run in its own build-tree directory; the script     #
+#      explains the cases. A Debug build traps the NaN at the comparison that refuses it, so that    #
+#      case runs in the other builds.                                                                #
 set(refused_cases config_unknown_keys config_bad_choice config_inapplicable_keys config_rk45_loose_rtol
-                  config_malformed_value output_fast_window io_config_coarse_on_f io_config_fast_on_coarse
-                  io_config_true_off io_config_no_match io_config_tie io_config_tier_none io_config_axis
+                  config_malformed_value output_fast_window output_chunk_short io_config_coarse_on_f
+                  io_config_fast_on_coarse io_config_true_off io_config_no_match io_config_tie
+                  io_config_tier_none io_config_axis
                   maps_chave_e hydraulics_pv_traits hydraulics_vulnerability init_census_missing
                   init_census_empty init_restart_missing)
 if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -355,6 +357,12 @@ ed_add_pytest(restart_exact PATH ${CMAKE_CURRENT_SOURCE_DIR}/python/test_restart
 #      census, the sums over PFTs and over classes equal the polygon totals                         #
 #      (python/test_output_closure.py; docs/science/diagnostics.md eq. (3)).                        #
 ed_add_pytest(output_closure PATH ${CMAKE_CURRENT_SOURCE_DIR}/python/test_output_closure.py
+              IMPORTS numpy netCDF4 pytest ENVIRONMENT EDMORE_MAIN=$<TARGET_FILE:ed_main> LABEL integration)
+#----- The files a run writes: a file spans its tier's file_chunk, its cohort axis growing with    #
+#      the stand; every record of a month holds its cohorts in one order, the month's end order;    #
+#      and a run refuses to start where a file it would write exists                                #
+#      (python/test_output_files.py; docs/science/diagnostics.md §3).                               #
+ed_add_pytest(output_files PATH ${CMAKE_CURRENT_SOURCE_DIR}/python/test_output_files.py
               IMPORTS numpy netCDF4 pytest ENVIRONMENT EDMORE_MAIN=$<TARGET_FILE:ed_main> LABEL integration)
 #----- The input tools' tests (scripts/prepare_input): a tower forcing file from flux-tower         #
 #      data, a census from a ForestGEO table, and the PFT traits that follow published fits.        #

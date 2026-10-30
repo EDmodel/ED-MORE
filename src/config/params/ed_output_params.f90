@@ -16,7 +16,7 @@ module ed_output_params
    public :: TIER_FAST, TIER_DAILY, TIER_MONTHLY, TIER_ANNUAL
    public :: GRP_STRUCTURE, GRP_CARBON, GRP_WATER, GRP_ENERGY, GRP_RADIATION, GRP_ECOPHYS,       &
              GRP_BIOGEOCHEM, GRP_NUMERICS, GRP_FORCING, N_GRP
-   public :: FC_DAY, FC_MONTH, FC_YEAR, FC_RUN
+   public :: FC_DAY, FC_MONTH, FC_YEAR, FC_ALL
    public :: SYNC_NEVER, SYNC_FLUSH
    public :: STATE_DAYS, STATE_MONTHS, STATE_YEARS
    public :: MAX_DBH_EDGE
@@ -53,11 +53,14 @@ module ed_output_params
    !--- DBH size-class edge ceiling (n_class <= MAX_DBH_EDGE-1).
    integer(ik), parameter :: MAX_DBH_EDGE = 33_ik
 
-   !--- File-chunk buckets: how many records per file for a stream (the time-chunk).
+   !---~---
+   !   File-chunk buckets: the span of one file of a tier ([output.<tier>].file_chunk), at least
+   ! the tier's own period.
+   !---~---
    integer(ik), parameter :: FC_DAY   = 1_ik  ! one file per sim-day
    integer(ik), parameter :: FC_MONTH = 2_ik  ! one file per sim-month
    integer(ik), parameter :: FC_YEAR  = 3_ik  ! one file per sim-year
-   integer(ik), parameter :: FC_RUN   = 4_ik  ! one file for the whole run (annual default)
+   integer(ik), parameter :: FC_ALL   = 4_ik  ! one file for all of the run's records (annual default)
 
    !---~---
    !   The unit of [output].state_interval: a state file every N days, N month boundaries or N
@@ -83,10 +86,11 @@ module ed_output_params
       integer(ik)        :: cohort_max  = 4096_ik               ! cohort slab size: a run stops if its live count exceeds it
       integer(ik)        :: patch_max   = 256_ik                ! patch slab size: likewise
       integer(ik)        :: sync_every  = SYNC_FLUSH            ! nc_sync policy: SYNC_NEVER | SYNC_FLUSH
+      logical            :: overwrite   = .false.               ! replace existing diagnostic files instead of stopping
       integer(ik)        :: fast_interval_steps = 4_ik          ! fast tier flushes every N*dt_fast
       !--- Per-tier enable and file chunk, indexed FAST, DAILY, MONTHLY, ANNUAL.
       logical            :: freq_on(N_FREQ)    = [.false., .true., .true., .true.]
-      integer(ik)        :: file_chunk(N_FREQ) = [FC_DAY, FC_MONTH, FC_YEAR, FC_RUN]
+      integer(ik)        :: file_chunk(N_FREQ) = [FC_DAY, FC_MONTH, FC_YEAR, FC_ALL]
       !---~---
       !   The state files (<state_file_prefix>-S-<date>.nc), the model's whole state to restart
       ! from: every state_every days, months or years (state_unit) and at the run's end.

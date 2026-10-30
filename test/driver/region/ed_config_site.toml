@@ -60,7 +60,7 @@ enabled    = true
 file_chunk = "month"
 [output.annual]
 enabled    = false
-file_chunk = "run"
+file_chunk = "all"
 
 [leaf_physiology]
 stomatal_model     = "medlyn"

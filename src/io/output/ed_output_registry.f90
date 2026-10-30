@@ -1145,7 +1145,8 @@ contains
    pure integer(ik) function usable_tiers(v) result(m)
       type(var_desc_t), intent(in) :: v
       m = FREQ_NONE
-      if (src_class(v%source_fast) == SRCK_FAST) m = FREQ_FAST
+      !--- The axes' bookkeeping is fixed within a slow step: the F tier reads it from the stand.
+      if (src_class(v%source_fast) == SRCK_FAST .or. v%coord) m = FREQ_FAST
       if (v%source_id /= SRC_NONE .or. v%snap_staged) then
          m = ior(m, ior(FREQ_DAILY, FREQ_MONTHLY))
          if (.not. ragged_dim(v%dim)) m = ior(m, FREQ_ANNUAL)
