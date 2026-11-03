@@ -55,6 +55,11 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   calibrated runs). The energy budget's outflows (`mean_outflow_enth_py`) change by the same amount,
   but in the opposite direction, so the energy residual is unchanged. Evapotranspiration and the
   model state are bit for bit. (#49)
+- Saturation vapour pressure follows Ambaum (2020) instead of Bolton and Magnus. In the region
+  test's synthetic January-February 2021 run the latent heat flux (`mean_le_pa`) and
+  evapotranspiration (`mean_et_pa`) rise by 0.22 % on average (at most 0.09 W/m2 on a day), the snow
+  water equivalent falls by 0.16 %, and the sensible heat flux, canopy air specific humidity and VPD
+  change by 0.05 % or less. (#51)
 
 ### Added
 
@@ -88,14 +93,6 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - Per-patch ET sources and budget residuals, off by default: `mean_transp_pa`,
   `mean_veg_surface_evap_pa`, `mean_ground_evap_pa`, `mean_dew_pa`, `mean_resid_energy_pa` and
   `mean_resid_water_pa`. (#60)
-- The latent heat flux (`mean_le_pa`, `mean_le_py`) rises by 0.6 % on average, and by at most
-  0.24 W/m2, in the region test's synthetic January 2021 run, where the canopy air is mostly below
-  freezing; above freezing it falls. Evapotranspiration changes only at round-off, and the model
-  state is unchanged. (#49)
-- Saturation vapour pressure follows Ambaum (2020) instead of Bolton and Magnus. In the region
-  test's synthetic January 2021 run the latent heat flux (`mean_le_pa`) and evapotranspiration
-  (`mean_et_pa`) rise by 0.22 % on average (16.85 to 16.88 W/m2, at most 0.09 W/m2 on a day); the
-  sensible heat flux, canopy air specific humidity and VPD change by 0.04 % or less. (#51)
 
 ### Changed
 
