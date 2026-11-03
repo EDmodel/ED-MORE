@@ -475,6 +475,78 @@ def test_saturation_vapour_pressure_is_the_models():
     assert ti.SATURATION_CURVES["ambaum"](20.0) == pytest.approx(conv.sat_vapor_pressure(293.15), rel=1e-14)
 
 
+#: ed_therm_lib sat_vapor_pressure and sat_vapor_pressure_temp_deriv (gfortran, dev build): (T [K], fliq, e [Pa], de/dT [Pa/K]),
+#: fliq None where the Fortran call has no liquid fraction.
+FORTRAN_SATURATION = [
+    (233.15, None, 19.00913782990313, 1.9656542777679684),
+    (233.15, 1.0, 19.00913782990313, 1.9656542777679684),
+    (233.15, 0.5, 15.909779874660167, 1.709059860691755),
+    (233.15, 0.0, 12.810421919417205, 1.452465443615542),
+    (233.15, 0.3, 14.670036692562983, 1.6064220938612699),
+    (253.15, None, 125.59055193065608, 10.818184376889544),
+    (253.15, 1.0, 125.59055193065608, 10.818184376889544),
+    (253.15, 0.5, 114.41576277010172, 10.365468670509674),
+    (253.15, 0.0, 103.24097360954737, 9.912752964129806),
+    (253.15, 0.3, 109.94584710587998, 10.184382387957728),
+    (263.15, None, 286.558569148595, 22.63470065669385),
+    (263.15, 1.0, 286.558569148595, 22.63470065669385),
+    (263.15, 0.5, 273.23747426612084, 22.855520443861174),
+    (263.15, 0.0, 259.9163793836467, 23.076340231028503),
+    (263.15, 0.3, 267.90903631313114, 22.943848358728104),
+    (273.16, None, 611.655, 44.42365713071364),
+    (273.16, 1.0, 611.655, 44.42365713071364),
+    (273.16, 0.5, 611.655, 47.389970901536984),
+    (273.16, 0.0, 611.655, 50.356284672360324),
+    (273.16, 0.3, 611.655, 48.576496409866316),
+    (283.15, None, 1227.721417429232, 82.21537703760961),
+    (283.15, 1.0, 1227.721417429232, 82.21537703760961),
+    (283.15, 0.5, 1289.8223557578915, 92.85788784216777),
+    (283.15, 0.0, 1351.923294086551, 103.50039864672591),
+    (283.15, 0.3, 1314.6627310893552, 97.11489216399103),
+    (303.15, None, 4240.305168929145, 243.07109662256516),
+    (303.15, 1.0, 4240.305168929145, 243.07109662256516),
+    (303.15, 0.5, 4941.932508651347, 309.6893431238739),
+    (303.15, 0.0, 5643.559848373549, 376.3075896251827),
+    (303.15, 0.3, 5222.583444540228, 336.3366417243974),
+]
+
+
+@pytest.mark.parametrize("t_k, fliq, e_ref, d_ref", FORTRAN_SATURATION)
+def test_saturation_vapour_pressure_matches_the_fortran(t_k, fliq, e_ref, d_ref):
+    assert conv.sat_vapor_pressure(t_k, fliq) == pytest.approx(e_ref, rel=1e-12)
+    assert conv.sat_vapor_pressure_temp_deriv(t_k, fliq) == pytest.approx(d_ref, rel=1e-12)
+
+
+def test_saturation_over_ice_is_ambaum_on_the_ice_latent_heat():
+    # Murphy & Koop (2005) over ice, as the Fortran unit test; both phases are es_3ple at the triple point.
+    assert conv.sat_vapor_pressure(273.15 - 10.0, 0.0) == pytest.approx(259.892, abs=0.1)
+    assert conv.sat_vapor_pressure(273.15 - 20.0, 0.0) == pytest.approx(103.252, abs=0.1)
+    for fliq in (0.0, 0.5, 1.0):
+        assert conv.sat_vapor_pressure(conv.T_3PLE, fliq) == pytest.approx(conv.ES_3PLE, abs=1e-9)
+    # The ice latent heat is the liquid's plus the heat of fusion at the triple point.
+    assert conv.latent_heat_vap(conv.T_3PLE, 0.0) - conv.latent_heat_vap(conv.T_3PLE, 1.0) == pytest.approx(
+        conv.LATENT_HEAT_FUSION, rel=1e-14)
+    # Clausius-Clapeyron, e L / (Rv T**2), and a central difference, for both phases and a mixture.
+    for fliq in (1.0, 0.0):
+        for t_k in (233.15, 258.15, 268.15, 283.15):
+            cc = (conv.sat_vapor_pressure(t_k, fliq) * conv.latent_heat_vap(t_k, fliq) / (conv.R_WV * t_k ** 2))
+            assert conv.sat_vapor_pressure_temp_deriv(t_k, fliq) == pytest.approx(cc, rel=1e-12)
+            fd = (conv.sat_vapor_pressure(t_k + 1e-3, fliq) - conv.sat_vapor_pressure(t_k - 1e-3, fliq)) / 2e-3
+            assert conv.sat_vapor_pressure_temp_deriv(t_k, fliq) == pytest.approx(fd, rel=1e-6)
+
+
+def test_saturation_liquid_fraction_is_clamped_and_broadcast():
+    t = np.array([250.0, 265.0, 280.0])
+    assert np.array_equal(conv.sat_vapor_pressure(t), conv.sat_vapor_pressure(t, 1.0))
+    assert np.array_equal(conv.sat_vapor_pressure(t, 1.7), conv.sat_vapor_pressure(t, 1.0))
+    assert np.array_equal(conv.sat_vapor_pressure(t, -0.3), conv.sat_vapor_pressure(t, 0.0))
+    fl = np.array([0.0, 0.5, 1.0])
+    out = conv.sat_vapor_pressure(t, fl)
+    assert out.shape == (3,)
+    for i in range(3):
+        assert out[i] == conv.sat_vapor_pressure(t[i], fl[i])
+
+
 def test_solar_noon_follows_the_longitude_and_the_equation_of_time():
     day = np.datetime64("2014-03-21T00:00:00")
     stamps = day + np.arange(0, 86400, 60).astype("timedelta64[s]")

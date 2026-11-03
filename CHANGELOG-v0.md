@@ -122,8 +122,8 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   the Clausius-Clapeyron equation, built on the model's latent heat, so its slope with temperature
   is Clausius-Clapeyron by definition and both phases meet at the triple point. It replaces the
   empirical Bolton and Magnus forms with no option; it is within 0.25 % of Murphy and Koop (2005)
-  from -30 to 40 C. The flux-tower tools use it too, and `ambaum` is the first of their
-  saturation curves, with `bolton` kept. (#51)
+  from -30 to 40 C. The flux-tower tools use it too, with its ice branch and liquid-fraction
+  blend, and `ambaum` is the first of their saturation curves, with `bolton` kept. (#51)
 
 ### Fixed
 
