@@ -39,6 +39,16 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   fast loop used (the patches' area-weighted), as `mean_cas_depth_pa` does; it moves by millimetres.
   (#60)
 
+### Answer changes
+
+- The latent heat flux (`mean_le_pa`, `mean_le_py`) rises by 13 % on average (January 2021: 16.6 to
+  18.8 W/m2), and by at most 3.2 W/m2 on a day, in the region test's synthetic January-February
+  2021 run, where the canopy air is mostly below freezing and the vapour takes the latent heat of
+  sublimation. At the warm BCI site, LE declined by about 2.5 % (66.87 W/m2 to 65.12 W/m2 for
+  calibrated runs). The energy budget's outflows (`mean_outflow_enth_py`) change by the same amount,
+  but in the opposite direction, so the energy residual is unchanged. Evapotranspiration and the
+  model state are bit for bit. (#49)
+
 ### Added
 
 - Four output variables split evapotranspiration by where the vapour comes from:
@@ -71,15 +81,6 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - Per-patch ET sources and budget residuals, off by default: `mean_transp_pa`,
   `mean_veg_surface_evap_pa`, `mean_ground_evap_pa`, `mean_dew_pa`, `mean_resid_energy_pa` and
   `mean_resid_water_pa`. (#60)
-
-### Answer changes
-
-- The latent heat flux (`mean_le_pa`, `mean_le_py`) rises by 13 % on average (January 2021: 16.6 to
-  18.8 W/m2), and by at most 3.2 W/m2 on a day, in the region test's synthetic January-February
-  2021 run, where the canopy air is mostly below freezing and the vapour takes the latent heat of
-  sublimation. The energy budget's outflows (`mean_outflow_enth_py`) move by the same amount, the
-  other way, so the energy residual is unchanged. Evapotranspiration and the model state are bit
-  for bit. (#49)
 
 ### Changed
 

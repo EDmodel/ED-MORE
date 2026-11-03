@@ -321,8 +321,8 @@ module ed_fast_integ_types
       real(wp)       :: gpp_last = 0.0_wp, nee_last = 0.0_wp   ! [umol/m2/s] this step's patch GPP and NEE
       !--- Net CAS -> atmosphere export over the step, b-weighted like the ledgers: the reported H, LE.
       real(wp)       :: atm_heat_export = 0.0_wp   ! [J/m2]  sensible heat over this dt_fast
-      real(wp)       :: atm_vap_export  = 0.0_wp   ! [kg/m2] over this dt_fast
-      real(wp)       :: atm_le_export   = 0.0_wp   ! [J/m2] latent heat of that vapour, at its latent heat (reported LE * dt_fast)
+      real(wp)       :: atm_vap_export  = 0.0_wp   ! [kg/m2] evapotranspiration over this dt_fast
+      real(wp)       :: atm_le_export   = 0.0_wp   ! [J/m2]  latent heat over this dt_fast (reported LE * dt_fast)
       !---~---
       !   Water leaving the soil column over the step, as the water network moved it: the pond's
       ! spill (surface runoff) and the bottom flux (drainage; negative when an aquifer feeds it).
