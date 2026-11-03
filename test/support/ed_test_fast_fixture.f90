@@ -370,15 +370,16 @@ contains
       frozen%tissue%wood_emiss = 0.95_wp
       frozen%tissue%transp_net = frozen%plant%sapflow_frozen * frozen%plant%nplant
       frozen%tissue%transp_held = .true.
-      !--- No films.
-      allocate(frozen%film%f_wet_c(n), frozen%film%g_film_leaf(n), frozen%film%g_film_w(n),                     &
-               frozen%film%intercept_leaf(n), frozen%film%intercept_wood(n), frozen%film%transfer_lw(n))
-      frozen%film%f_wet_c = 0.0_wp
-      frozen%film%g_film_leaf = 0.0_wp
-      frozen%film%g_film_w = 0.0_wp
-      frozen%film%intercept_leaf = 0.0_wp
-      frozen%film%intercept_wood = 0.0_wp
-      frozen%film%transfer_lw = 0.0_wp
+      !--- No surface water.
+      allocate(frozen%veg_surface%f_wet_c(n), frozen%veg_surface%g_surf_leaf(n),                                 &
+               frozen%veg_surface%g_surf_wood(n),                                                                &
+               frozen%veg_surface%intercept_leaf(n), frozen%veg_surface%intercept_wood(n), frozen%veg_surface%transfer_lw(n))
+      frozen%veg_surface%f_wet_c = 0.0_wp
+      frozen%veg_surface%g_surf_leaf = 0.0_wp
+      frozen%veg_surface%g_surf_wood = 0.0_wp
+      frozen%veg_surface%intercept_leaf = 0.0_wp
+      frozen%veg_surface%intercept_wood = 0.0_wp
+      frozen%veg_surface%transfer_lw = 0.0_wp
       !--- The canopy-air box, venting to 300 K, 11 g/kg and 400 ppm air; a net CO2 uptake of 5.
       frozen%cas%rho   = rho
       frozen%cas%press = 101325.0_wp

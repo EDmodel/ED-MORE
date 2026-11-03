@@ -227,7 +227,7 @@ contains
       real(wp), parameter :: ROUNDOFF_RTOL = 1.0e-12_wp   ! the round-off of summing a stored amount
       real(wp) :: nan_v
       !---~---
-      !   A dry canopy whose film total is a tiny NEGATIVE number, reordered. Relative to the
+      !   A dry canopy whose surface-water total is a tiny NEGATIVE number, reordered. Relative to the
       ! net total floored at 1e-30 this round-off (3.7e-40) would fail.
       !---~---
       call check_true('conserved: round-off of a near-zero mixed-sign total passes',                 &

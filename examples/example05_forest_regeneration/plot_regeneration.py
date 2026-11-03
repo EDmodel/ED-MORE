@@ -53,7 +53,7 @@ def read(path):
         return {"year": v("year"), "agb": v("mean_agb_pft_py") * 10.0,                 # kgC/m2 -> MgC/ha
                 "ba": v("mean_basal_area_pft_py") * 1e4, "lai": v("mean_lai_pft_py"),          # m2/m2 -> m2/ha
                 "gpp": v("mean_gpp_py") * UMOL_TO_KGC * yr * 10.0,                # umol/m2/s -> MgC/ha/yr
-                "npp": v("mean_npp_py") * UMOL_TO_KGC * yr * 10.0, "rh": v("mean_rh_py") * UMOL_TO_KGC * yr * 10.0,
+                "npp": v("mean_npp_py") * UMOL_TO_KGC * yr * 10.0, "rh": v("mean_rhet_py") * UMOL_TO_KGC * yr * 10.0,
                 "et": v("mean_et_py") * yr,                                       # kg/m2/s -> mm/yr
                 "stems10": v("mean_nplant_size_py")[:, lower >= 10.0].sum(axis=1) * 1e4}
 

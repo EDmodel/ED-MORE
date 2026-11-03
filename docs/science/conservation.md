@@ -44,7 +44,7 @@ its share of it:
 | Currency | Summed over |
 |---|---|
 | carbon [kgC m⁻²] | the cohorts' four pools; the seven CENTURY pools; the canopy air's CO₂; the recruit pools, each plant valued at $`c_{\min}`$ ([demography](demography.md) §2) |
-| water [kg m⁻²] | the soil layers; the pond; the snow; the canopy air's vapour; the tissues' water and their surface films |
+| water [kg m⁻²] | the soil layers; the pond; the snow; the canopy air's vapour; the tissues' water and their surface water |
 | energy [J m⁻²] | the soil layers; the pond; the snow; the canopy air; the tissues |
 
 - **The water and energy lists are the fast budgets' own**, through the same store functions, so the

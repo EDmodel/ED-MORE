@@ -121,7 +121,7 @@ program test_sites
 
    !--- 2. The site axis in the run's daily file (a cohort tier's files are monthly).
    call banner('the site axis in the files')
-   call check_output(trim(work)//'/sites-D-202407.nc')
+   call check_output(trim(work)//'/sites-D.nc')        ! [output.daily].file_chunk = "all": one file
 
    !--- 3. A census read by census_site_id.
    call banner('a census by census_site_id')
@@ -130,6 +130,7 @@ program test_sites
                          '[init]'//nl//'census_file = "'//trim(work)//'/sites_census.csv"'//nl//     &
                          '[[sites]]'//nl//'area_fraction = 0.4'//nl//'census_site_id = 9'//nl//       &
                          '[[sites]]'//nl//'area_fraction = 0.6'//nl//'census_site_id = 7'//nl)
+   call clear_diagnostics()                    ! the previous run's files: a run never overwrites output
    call region_open(cfg_path, reg, ok, verbose=.false.)
    call check(ok, 'a census run of two sites opens')
    if (ok) then
@@ -213,6 +214,7 @@ program test_sites
    !--- The run of 1 from its state file, with the config's [[sites]].
    call derive(cfg_path, run_block('2024-07-04', '2024-07-05', 2_ik,                            &
                                    trim(work)//'/sites-S-20240704000000.nc')//two_sites())
+   call clear_diagnostics()                    ! the previous run's files: a run never overwrites output
    call region_open(cfg_path, reg, ok, verbose=.false.)
    call check(ok, 'the run restarts from its state file')
    if (ok) then
@@ -286,7 +288,7 @@ contains
           'dir = "'//trim(work)//'"'//nl//'prefix = "sites"'//nl//                                  &
           'io_config = ""'//nl//                                                                    &
           '[output.fast]'//nl//'enabled = false'//nl//'[output.daily]'//nl//'enabled = true'//nl//  &
-          'file_chunk = "run"'//nl
+          'file_chunk = "all"'//nl
    end function run_block
 
    !---~---
@@ -300,6 +302,11 @@ contains
    end function two_sites
 
    !--- A config from these blocks and the template, each key once (ed_test_run).
+   !--- Remove the previous run's diagnostic files (not its state file), which a run would refuse to overwrite.
+   subroutine clear_diagnostics()
+      call execute_command_line('rm -f "'//trim(work)//'"/sites-[FDMY]*.nc')
+   end subroutine clear_diagnostics
+
    subroutine derive(path, overrides)
       character(len=*), intent(in) :: path, overrides
       call derive_config(path, overrides, TEMPLATE)

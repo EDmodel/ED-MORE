@@ -607,10 +607,10 @@ def test_keys_whose_process_the_data_never_sample_are_fixed():
     w = trials.Window("w", dt.datetime(2016, 1, 1), 2, "cal")
     cov = data_rules.process_coverage({"w": rows(obs.index, obs, only(le={"sigma_abs": 10.0}))}, obs, [w], 10.0)
     assert cov["wet_canopy"] == 2 and cov["night"] == 0 and cov["drought"] == 0
-    film = Param("film", "pft", "pft.leaf_surf_water_max", 0.05, 0.3, process="wet_canopy")
+    surf_water = Param("surf_water", "pft", "pft.leaf_surf_water_max", 0.05, 0.3, process="wet_canopy")
     sref = Param("sref", "pft", "pft.wstress_sref_stomata", 0.5, 5.0, process="drought")
     g1 = Param("g1", "pft", "pft.stomatal_g1", 1.5, 8.0)
-    fixed = data_rules.fix_by_coverage([film, sref, g1], cov, 2)
+    fixed = data_rules.fix_by_coverage([surf_water, sref, g1], cov, 2)
     assert set(fixed) == {"sref"} and "drought" in fixed["sref"]
 
 

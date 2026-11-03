@@ -155,7 +155,8 @@ def main():
     print(f"reading {len(paths)} file(s): {os.path.basename(paths[0])}"
           + (f" .. {os.path.basename(paths[-1])}" if len(paths) > 1 else ""))
 
-    t = get(ds, "time")
+    #----- A decimal calendar year for the plot axis: `time` counts days since the run's start. -----#
+    t = get(ds, "year") + (get(ds, "month") - 1 + (get(ds, "day") - 1) / 31.0) / 12.0
     pft_ids = get(ds, "pft")
     lower, upper = get(ds, "dbh_lower"), get(ds, "dbh_upper")
     if lower is None or upper is None:

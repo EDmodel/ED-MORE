@@ -27,7 +27,7 @@ module ed_region
    use ed_config_check,             only : validate_config
    use ed_config_io,                only : load_ed_config, write_pft_params_csv
    use ed_time,                     only : ed_time_t, calendar_step_t, calendar_step, time_lt,       &
-                                           time_to_string, years_between
+                                           time_to_string, years_between, time_advance_days
    use ed_polygon_state_vars,       only : polygon_t, free_polygon
    use ed_init_restart,             only : restart_file_t, restart_file_open, restart_file_write, restart_file_close, &
                                            restart_file_slots
@@ -44,8 +44,8 @@ module ed_region
    use ed_polygon,                  only : polygon_run_t, polygon_prepare, polygon_step, polygon_report,  &
                                            RUN_OK, RUN_FINISHED, RUN_ERR_NAN, RUN_ERR_AREA, RUN_ERR_BOUNDS
    use ed_output_types,             only : output_files_t, output_buffers_t
-   use ed_output_params,            only : output_params_t, STATE_DAYS, STATE_MONTHS, STATE_YEARS
-   use ed_output_stream,            only : output_serialize, output_close
+   use ed_output_params,            only : output_params_t, STATE_DAYS, STATE_MONTHS, STATE_YEARS, N_FREQ
+   use ed_output_stream,            only : output_serialize, output_close, output_file_path
    use ed_output_setup,             only : open_output_files, attach_output
    use ed_toml,                     only : toml_write_record
    implicit none
@@ -396,6 +396,7 @@ contains
          call ensure_output_dir(trim(out%dir))
          call open_output_files(cfg, reg%out_files, reg%verbose, ids, reg%poly(:)%site%n, places%lat,    &
                                 places%lon, places%row, places%col)
+         call refuse_existing_output(reg%out_files, cfg%start_time, cfg%end_time)
          do p = 1_ik, size(reg%poly, kind=ik)
             call attach_output(cfg, reg%out_files, reg%out_bufs(p), reg%poly(p), p)
          end do
@@ -406,6 +407,41 @@ contains
          call toml_write_record(trim(out%state_file_dir)//'/'//trim(out%state_file_prefix)//'_parameters.csv')
       end associate
    end subroutine open_files
+
+   !---~---
+   !   Stop before the first step if a diagnostic file this run would write already exists: a
+   ! run never overwrites output unless [output].overwrite says so. A run resubmitted from a
+   ! state file into the folder of the run it continues would otherwise replace that run's
+   ! files that share a name with its own, losing their earlier records (docs/configuration.md,
+   ! [output]). Each day of the run is the stamp of some record of each tier, so walking the
+   ! days lists every file.
+   !---~---
+   subroutine refuse_existing_output(files, start, end)
+      type(output_files_t), intent(in) :: files
+      type(ed_time_t),      intent(in) :: start, end
+      type(ed_time_t)     :: day
+      character(len=512)  :: path, last(N_FREQ)
+      integer(ik)         :: t
+      logical             :: there
+      if (files%overwrite) return
+      last = ''
+      day = ed_time_t(year=start%year, month=start%month, day=start%day)
+      do while (time_lt(day, end))
+         do t = 1_ik, N_FREQ
+            if (files%reg%nidx(t) == 0_ik) cycle
+            path = output_file_path(files, t, day)
+            if (path == last(t)) cycle
+            last(t) = path
+            inquire(file=trim(path), exist=there)
+            if (there) then
+               write(*,'(3a)') ' output: ', trim(path), ' exists; a run never overwrites output. Move or '//  &
+                               'remove it, give [output].dir or prefix another value, or set [output].overwrite.'
+               error stop 'ed_region: an output file this run would write exists (see the message above)'
+            end if
+         end do
+         day = time_advance_days(day, 1_ik)
+      end do
+   end subroutine refuse_existing_output
 
    !---~---
    !   Create an output directory that does not exist yet. The model's libraries never touch

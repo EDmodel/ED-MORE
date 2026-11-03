@@ -13,7 +13,7 @@ module ed_config_check
    use ed_kinds,              only : wp, ik
    use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
    use ed_constants,            only : n_soil_layer_max, day_sec
-   use ed_output_params,        only : STATE_DAYS
+   use ed_output_params,        only : STATE_DAYS, FC_DAY, FC_MONTH, TIER_MONTHLY, TIER_ANNUAL
    use ed_time,                 only : time_lt, time_valid, time_to_string, whole_years_between
    use ed_toml,                 only : toml_table_t, toml_has, toml_has_section
    use ed_allometry_lib,        only : HEIGHT_CHAVE
@@ -438,15 +438,23 @@ contains
    end subroutine check_init
 
    !---~---
-   !   [output]: a state file every N days falls on a step's end, and a fast-tier window does not
-   ! straddle two slow steps, whose restructuring would move the cohort and patch slots it
-   ! opened with.
+   !   [output]: a state file every N days falls on a step's end; a file holds at least one of
+   ! its tier's records, so a monthly file spans a month or more and an annual one a year or
+   ! more; and a fast-tier window does not straddle two slow steps, whose restructuring would
+   ! move the cohort and patch slots it opened with.
    !---~---
    subroutine check_output(cfg)
       type(ed_config_t), intent(in) :: cfg
       if (cfg%output%state_write .and. cfg%output%state_unit == STATE_DAYS) then
          if (mod(real(cfg%output%state_every, wp) * day_sec, cfg%dt_slow) /= 0.0_wp)                 &
             error stop TAG//'output.state_interval in days must be whole slow steps ([run].dt_slow)'
+      end if
+      if (cfg%output%enabled) then
+         if (cfg%output%file_chunk(TIER_MONTHLY) == FC_DAY)                                           &
+            error stop TAG//'output.monthly.file_chunk = "day" is shorter than a monthly record: use '//   &
+                            '"month", "year" or "all"'
+         if (cfg%output%file_chunk(TIER_ANNUAL) == FC_DAY .or. cfg%output%file_chunk(TIER_ANNUAL) == FC_MONTH) &
+            error stop TAG//'output.annual.file_chunk is shorter than an annual record: use "year" or "all"'
       end if
       if (.not. (cfg%fast_biophysics_on .and. cfg%output%enabled)) return
       if (cfg%output%fast_interval_steps < 1_ik) error stop TAG//'output.fast_interval_steps < 1'

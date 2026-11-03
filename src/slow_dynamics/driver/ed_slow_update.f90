@@ -19,7 +19,7 @@ module ed_slow_update
    use ed_cohort_state_vars,    only : cohort_block, cohort_deriv_block, set_cohort_size_from_carbon,    &
                                        hold_cohort_tissue_temps, reorder_cohort_block,                   &
                                        compact_cohort_block, expand_cohort_block, copy_cohort,           &
-                                       init_cohort, cohort_tissue_heat_capacity, cohort_film_water,      &
+                                       init_cohort, cohort_tissue_heat_capacity, cohort_surface_water,      &
                                        cohort_water_enthalpy, cohort_tissue_water,                       &
                                        fuse_cohort_fast_state, set_cohort_tissue_temps,                  &
                                        cohort_deriv_alloc
@@ -466,7 +466,7 @@ contains
       real(wp),            intent(in)    :: frac          ! [-] the disturbed share (decide_disturbance)
       logical,             intent(in)    :: survives(:)   ! (cohort) survives into the gap
       !--- What the killed canopy handed on, for the caller to declare to the slow ledger.
-      real(wp),            intent(out)   :: water_shed  ! [kg/m2 polygon] tissue + film water -> the gaps' ground
+      real(wp),            intent(out)   :: water_shed  ! [kg/m2 polygon] tissue + surface water -> the gaps' ground
       type(kill_report_t), intent(out)   :: kills       ! the killed canopy's carbon (kill_litter)
       integer(ik) :: np0, newp, d, i, i0, i1, m, m0, nsurv, is, p0, p1
       real(wp)    :: new_area, atot
@@ -578,7 +578,7 @@ contains
                      ! cohort's area density the gap takes, the factor the survivor branch uses.
                      !---~---
                      kill_frac = frac * patch%area(d)
-                     w_kill = kill_frac * (cohort_tissue_water(cohort, i) + cohort_film_water(cohort, i))
+                     w_kill = kill_frac * (cohort_tissue_water(cohort, i) + cohort_surface_water(cohort, i))
                      call add_shed_water(patch, newp, w_kill / new_area,                               &
                                          kill_frac * cohort%nplant(i) * cohort_water_enthalpy(cohort, i)   &
                                          / new_area, cfg%dt_slow)
@@ -921,7 +921,7 @@ contains
       !   What the cull handed on, for the caller to declare to the slow ledger
       ! (conservation.md §3).
       !---~---
-      real(wp),           intent(out) :: water_shed  ! [kg/m2 site] tissue + film water -> the ground
+      real(wp),           intent(out) :: water_shed  ! [kg/m2 site] tissue + surface water -> the ground
       type(kill_report_t), intent(out) :: kills      ! the culled cohorts' carbon (kill_litter)
       logical, allocatable :: keep(:)
       integer(ik)          :: i, n, ip
@@ -944,7 +944,7 @@ contains
             ! shedding uses (conservation.md §3). The heat of its tissues is a thermal-mass
             ! change the caller declares with the phase's (conservation.md §4).
             !---~---
-            w_cohort = cohort_tissue_water(cohort, i) + cohort_film_water(cohort, i)
+            w_cohort = cohort_tissue_water(cohort, i) + cohort_surface_water(cohort, i)
             call add_shed_water(patch, ip, w_cohort, cohort%nplant(i) * cohort_water_enthalpy(cohort, i), &
                                 cfg%dt_slow)
             w_tot = w_tot + patch_polygon_area(poly, ip) * w_cohort

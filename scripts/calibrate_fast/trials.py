@@ -126,7 +126,7 @@ def build_trial(base: RunConfig, keys, values, window: Window, state_file, root:
     (tdir / "out").mkdir(parents=True, exist_ok=True)
     (tdir / "output_variables.toml").write_text(
         "[variables]\n" + "".join(f'{v} = "F"\n' for v in TRIAL_VARIABLES))
-    for k, v in {"output.dir": str(tdir / "out"), "output.state_file_dir": str(tdir / "out"),
+    for k, v in {"output.dir": str(tdir / "out"), "output.state_file_dir": str(tdir / "out"), "output.overwrite": True,
                  "output.io_config": str(tdir / "output_variables.toml"), "run.n_threads": int(threads)}.items():
         cfg.set(k, v)
     cfg.write(tdir)

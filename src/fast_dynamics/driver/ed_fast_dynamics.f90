@@ -10,7 +10,6 @@
 module ed_fast_dynamics
    use ed_kinds,                only : wp, ik, lk
    use ed_numerics,             only : ascending_order
-   use ed_constants,            only : latent_heat_vap
    use ed_config,               only : ed_config_t
    use ed_budget_check,         only : budget_t, budget_merge
    use ed_time,                 only : ed_time_t
@@ -41,19 +40,13 @@ module ed_fast_dynamics
    ! order after the loop, so the sums do not move with the thread count
    ! (docs/science/numerical_scheme.md §6a).
    !---~---
-   integer(ik), parameter :: RED_ET          = 1_ik   ! polygon ET [kg/m2], area-weighted
-   integer(ik), parameter :: RED_PHENO_TAIR  = 2_ik   ! daily-mean air-temperature accumulator [K]
+   integer(ik), parameter :: RED_PHENO_TAIR  = 1_ik   ! daily-mean air-temperature accumulator [K]
    !--- The step report's work counters, area-weighted: slot RED_WORK + WORK_*.
-   integer(ik), parameter :: RED_WORK        = 2_ik
-   !---~---
-   !   Rain and snow as split at each patch's canopy-air top, area-weighted (docs/science/forcing.md §7),
-   ! and the water leaving the soil column.
-   !---~---
+   integer(ik), parameter :: RED_WORK        = 1_ik
+   !--- Rain and snow as split at each patch's canopy-air top, area-weighted (docs/science/forcing.md §7).
    integer(ik), parameter :: RED_RAINF       = RED_WORK + N_WORK + 1_ik   ! rain [kg/m2/s]
    integer(ik), parameter :: RED_SNOWFALL    = RED_WORK + N_WORK + 2_ik   ! snow [kg/m2/s]
-   integer(ik), parameter :: RED_RUNOFF_SURF = RED_WORK + N_WORK + 3_ik   ! surface runoff [kg/m2]
-   integer(ik), parameter :: RED_DRAINAGE    = RED_WORK + N_WORK + 4_ik   ! drainage at the column's bottom [kg/m2]
-   integer(ik), parameter :: N_RED           = RED_DRAINAGE
+   integer(ik), parameter :: N_RED           = RED_SNOWFALL
 
    !---~---
    !   Everything one fast step reads and writes besides cfg and the site, one per thread: the
@@ -238,13 +231,7 @@ contains
             call fast_step(cfg%dt_fast, cfg, poly%site%surface(is_p), sd%static, sd%forcing, sd%dynamic,  &
                            sd%out, sd%work)
 
-            !---~---
-            !   The CAS -> atmosphere latent flux integrated into ET [kg/m2 = mm], the water leaving
-            ! the soil column and the step's work, area-weighted.
-            !---~---
-            red_site(RED_ET,          isub, ip) = area * (sd%out%le_flux / latent_heat_vap) * cfg%dt_fast
-            red_site(RED_RUNOFF_SURF, isub, ip) = area * sd%out%report%exports%runoff_surf_export
-            red_site(RED_DRAINAGE,    isub, ip) = area * sd%out%report%exports%drainage_export
+            !--- The step's work, area-weighted.
             do k = 1_ik, N_WORK
                red_site(RED_WORK + k, isub, ip) = area * real(sd%out%report%work(k), wp)
             end do
@@ -276,9 +263,6 @@ contains
       !---~---
       poly%site%pheno_tair_sum = 0.0_wp
       poly%site%pheno_tair_n   = 0_ik
-      poly%et_accum            = 0.0_wp
-      poly%runoff_surf_accum   = 0.0_wp
-      poly%drainage_accum      = 0.0_wp
       poly%work_integ_steps    = 0.0_wp
       poly%work_integ_rej      = 0.0_wp
       poly%work_water_nsub     = 0.0_wp
@@ -289,9 +273,6 @@ contains
       poly%work_clamp_stage    = 0.0_wp
       do ip = 1_ik, npatch
          do isub = 1_ik, nsub
-            poly%et_accum          = poly%et_accum          + red_site(RED_ET,          isub, ip)
-            poly%runoff_surf_accum = poly%runoff_surf_accum + red_site(RED_RUNOFF_SURF, isub, ip)
-            poly%drainage_accum    = poly%drainage_accum    + red_site(RED_DRAINAGE,    isub, ip)
             associate (is_s => poly%patch%owner_site(ip))
                poly%site%pheno_tair_sum(is_s) = poly%site%pheno_tair_sum(is_s) + red_site(RED_PHENO_TAIR, isub, ip)
                poly%site%pheno_tair_n(is_s)   = poly%site%pheno_tair_n(is_s) + 1_ik

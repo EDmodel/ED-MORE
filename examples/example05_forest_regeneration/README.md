@@ -252,8 +252,8 @@ the regrowth about 20 minutes on 12 threads (`[run].n_threads`). Output goes to 
 With `[output].enabled = true`, each tier writes files named from `[output].dir` and
 `[output].prefix`: `<prefix>-F-YYYYMMDD.nc` (fast), `<prefix>-D-YYYYMM.nc` (daily),
 `<prefix>-M-YYYY.nc` (monthly) and `<prefix>-Y.nc` (annual). The stamp follows each tier's
-`file_chunk`; the shipped values are day, month, year and run, and a `run` chunk has no stamp (the
-BCI run writes `output/regen-M.nc`). [`plot_pft_size.py`](plot_pft_size.py) reads any monthly or
+`file_chunk`; the shipped values are day, month, year and all, and an `all` chunk, one file for all
+of the run's records, has no stamp (the BCI run writes `output/regen-M.nc`). [`plot_pft_size.py`](plot_pft_size.py) reads any monthly or
 annual tier that carries the PFT and DBH-class axes, from `edmore` or `edmore.model`, given one file
 or a quoted glob:
 
@@ -278,8 +278,8 @@ and slots beyond the live count hold the fill value.
 exist depends on the config (`edmore --dump-io-config` lists them all). Read coordinates from the file
 (`soil_z`, `dbh_lower`, `dbh_upper`, `pft`) and the reference CO₂ from `mean_atm_co2_py`, so a figure
 stays right when a run changes its grid or forcing. Two habits keep a budget computed from the files
-closed: a rate becomes an amount with the width of its own window, `t[i+1] - t[i]`, the trailing
-partial window dropped because its width is unknown; and the litter variables are not all the carbon
+closed: a rate becomes an amount with the width of its own record, `time_bnds[:, 1] - time_bnds[:, 0]`
+(days), the last, partial record included; and the litter variables are not all the carbon
 entering the soil, because cull and disturbance mortality add necromass directly to the soil-carbon
 pools, so closing the soil-carbon budget also needs the `mean_mort_carbon_*_py` variables.
 

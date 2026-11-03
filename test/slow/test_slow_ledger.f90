@@ -96,7 +96,7 @@ program test_slow_ledger
    poly%cohort%wood_water_mass(1:2) = 0.05_wp
    poly%cohort%leaf_surf_water(1:2) = 0.01_wp
    poly%cohort%wood_surf_water(1:2) = 0.03_wp
-   call hold_cohort_tissue_temps(poly%cohort, 1_ik)   ! the tissues' energy with that water and film
+   call hold_cohort_tissue_temps(poly%cohort, 1_ik)   ! the tissues' energy with that internal and surface water
    call hold_cohort_tissue_temps(poly%cohort, 2_ik)
 
    !---~---
@@ -109,7 +109,7 @@ program test_slow_ledger
    call moves_water ('canopy vapour',     perturb_shv,          RHO * 20.0_wp * 0.001_wp)
    do which = 1_ik, 2_ik
       call moves_water (trim(TISSUE(which))//' water', perturb_tissue_water, poly%cohort%nplant(1) * 0.01_wp)
-      call moves_water (trim(TISSUE(which))//' film',  perturb_film,         poly%cohort%nplant(1) * 0.01_wp)
+      call moves_water (trim(TISSUE(which))//' surface water',  perturb_surf_water,         poly%cohort%nplant(1) * 0.01_wp)
    end do
    call moves_energy('soil energy',       perturb_soil_energy,  1.0e6_wp * soil%dz(1))
    call moves_energy('pond energy',       perturb_pond_energy,  1.0e5_wp)
@@ -478,7 +478,7 @@ contains
                        1.0e-12_wp, 'cull: its carbon reaches the patch litter')
 
       call check(poly%cohort%n == n0 - 1_ik, 'cull: the sub-floor cohort is removed')
-      call check_close(w_shed, expect_w, 1.0e-12_wp, 'cull: reports the tissue + film water it carried')
+      call check_close(w_shed, expect_w, 1.0e-12_wp, 'cull: reports the tissue + surface water it carried')
       call check_close(poly%patch%shed_water_rate(1) - shed_before, w_before / cfg%dt_slow,       &
                        1.0e-12_wp, 'cull: the water reaches the patch shed channel, not the void')
       !---~---
@@ -594,14 +594,14 @@ contains
          poly%cohort%wood_water_mass(1) = poly%cohort%wood_water_mass(1) + 0.01_wp
       end select
    end subroutine perturb_tissue_water
-   subroutine perturb_film()
+   subroutine perturb_surf_water()
       select case (which)
       case (1_ik)
          poly%cohort%leaf_surf_water(1) = poly%cohort%leaf_surf_water(1) + 0.01_wp
       case default
          poly%cohort%wood_surf_water(1) = poly%cohort%wood_surf_water(1) + 0.01_wp
       end select
-   end subroutine perturb_film
+   end subroutine perturb_surf_water
    subroutine perturb_soil_energy()
       poly%patch%soil_energy(1)%soil_energy(1) = poly%patch%soil_energy(1)%soil_energy(1) + 1.0e6_wp
    end subroutine perturb_soil_energy

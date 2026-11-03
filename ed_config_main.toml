@@ -45,7 +45,7 @@ gpp_ref             = 0.3      # [kgC/m2 leaf/yr] the GPP of a run without the l
 # ---- Switches and the initial snow. ----
 # forcing_sample_frac = 0.5          # [-]  where in each sub-step the forcing is sampled, in [0, 1]
 #                                    #   (docs/science/numerical_scheme.md §7)
-# canopy_water_on     = false        # the canopy interception films and their evaporation
+# canopy_water_on     = false        # the canopy's surface water and its evaporation
 # intercept_alpha     = 1.0          # [-]  Beer interception efficiency
 # intercept_k         = 0.5          # [1/PAI] Beer interception extinction
 # snow_init_swe       = 0.0          # [kg/m2] snow water equivalent at the run start
@@ -193,12 +193,14 @@ state_file_prefix = "ED_output"   # their file-name stem
 enabled       = false           # write the diagnostics
 dir           = "out"           # directory
 prefix        = "ED"            # file-name stem
+overwrite     = false           # true: replace this run's files where they exist; false: stop before the first step
 io_config     = ""              # what is written: a file of [variables] lines, each a name or a pattern
                                 #   ("*_co" = false, "mean_*_py" = "M Y"); "" = the defaults. `edmore
                                 #   --dump-io-config` lists every variable (docs/science/diagnostics.md §5)
 cohort_max    = 4096            # the files' cohort axis (the run stops when the live count exceeds it)
 patch_max     = 256             # the files' patch axis
 fast_interval_steps = 4         # dt_fast sub-steps a sub-daily record spans (4 x 900 s = hourly)
+diel_interval = "1 hour"        # the bins of a diel_ variable's mean diel cycle: "1 hour" .. "4 hours"
 sync_every    = "flush"         # "flush": records reach the disk each month | "never"
 
   # --- The dbh_class axis: ascending edges [cm]; a cohort counts whole in the class of its dbh. ---
@@ -216,7 +218,7 @@ sync_every    = "flush"         # "flush": records reach the disk each month | "
   file_chunk = "year"
   [output.annual]
   enabled = true
-  file_chunk = "run"
+  file_chunk = "all"
 
 # Leaf phenology has no switch: it runs every day of every run, with each PFT's [phenology] block in
 # the PFT file (docs/science/plant_phenology.md).

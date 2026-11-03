@@ -131,7 +131,7 @@ either on is a decision to leave the shipped baseline.
 | `NZS` (4), `IPERCOL` | One bulk snow layer: Niu–Yang cover fraction, accumulation, meltwater percolation, surface balance. The clearest resolution loss | `[snow]` | [snow_biophysics](science/snow_biophysics.md) |
 | `therm_lib8` saturation vapour pressure (Murphy–Koop family) | Bolton (1980) over liquid and Magnus over ice, blended on the liquid fraction | | [coupled_biophysics](science/coupled_biophysics.md) |
 | `IED_GRNDVAP` 0–5; 0 (modified Lee–Pielke) | Dry-surface-layer resistance | `[soil].dsl_dmax`, `dsl_theta_init` | [soil_biophysics](science/soil_biophysics.md) |
-| `LEAF_MAXWHC` | Optional canopy interception films with a Beer-law catch and a per-PFT storage capacity. Off by default | `[fast].canopy_water_on`, `intercept_*`; `[pft].*_surf_water_max` | [vegetation_energy_dynamics](science/vegetation_energy_dynamics.md) |
+| `LEAF_MAXWHC` | Optional canopy interception into surface water with a Beer-law catch and a per-PFT storage capacity. Off by default | `[fast].canopy_water_on`, `intercept_*`; `[pft].*_surf_water_max` | [vegetation_energy_dynamics](science/vegetation_energy_dynamics.md) |
 | `DECOMP_SCHEME` 0–5; 2 | A seven-pool CENTURY carbon matrix (metabolic and structural litter above and below ground, microbial, slow, passive; lignin tracer). `"ed2"` has the topology of ED2's schemes 0–4 (three active pools) and the capped temperature and moisture responses of ED2's default; `"century5"` is ED2's scheme 5 (five active pools). Daily forward-Euler or matrix-exponential step; an optional semi-analytic steady-state spin-up that ED2 does not have. On by default | `[soil_carbon]` | [soil_carbon](science/soil_carbon.md) |
 | `N_PLANT_LIM`, `N_DECOMP_LIM` | Not implemented (carbon only) | | |
 
@@ -285,11 +285,17 @@ The output is the largest usability difference ([diagnostics](science/diagnostic
 | State files | A separate stream, `[output].state_write`, every `state_interval` days, months or years: the raw prognostic state at an instant | `ISOUTPUT`, `FRQSTATE`, HDF5 histories |
 | Post-processing | the examples' plotting scripts: example 03's for its stand file, example 05's `plot_pft_size.py` for the diagnostic files | Community scripts |
 
-Variable names follow `[mean_]<quantity>[_<breakdown>]_<level>` ([diagnostics](science/diagnostics.md) §3). Two
+Variable names follow `[mean_]<quantity>[_<breakdown>]_<level>` ([diagnostics](science/diagnostics.md) §3). Three
 conventions matter for analysis code. Sub-daily variables share a name with
 their coarse namesakes, and putting a variable on a tier it has no value for is rejected at start-up
 instead of writing fill. Cohort and patch axes are forbidden on the annual tier, because a window longer
-than a month would straddle the disturbance restructuring.
+than a month would straddle the disturbance restructuring. And **the cohort order of the output is the
+month's, not the day's**: ED2 changes its plants' size (structural growth) and number (mortality) once a
+month, so its stand keeps one order through the month, while ED-MORE changes them every slow step and
+re-sorts the stand each day.
+Every record of a month is written in the month's end order, keyed by cohort id, so a slot holds one
+cohort through the month, and the first cohort of a patch is the tallest at the month's end, not on every
+day ([diagnostics](science/diagnostics.md) §3, The cohort order of a month's records).
 
 What the output code in `src/io/output` takes from ED2:
 

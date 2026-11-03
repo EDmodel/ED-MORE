@@ -138,8 +138,8 @@ value at the period's end, its snapshot (§4, Snapshots). The tier is the file, 
 | netCDF dim | length | notes |
 |---|---|---|
 | `time` | UNLIMITED | period **start** stamp; `cell_methods` says how the period was reduced |
-| `cohort` | live count, trimmed per file | slot order; `global_cohort_id` tracks a cohort across files |
-| `patch` | live count, trimmed per file | ditto `global_patch_id` |
+| `cohort` | unlimited: the file's largest live count | the month's end order (below); `global_cohort_id` names each record's cohorts |
+| `patch` | unlimited: the file's largest live count | one patch per slot through a calendar year; `global_patch_id` names each record's patches |
 | `soil` | `n_soil_layer_max` | behind `site`: each site's column on its own layers, its patches area-weighted |
 | `pft` | **run-time** PFT count | carries a `pft` coordinate variable, so the file stays self-describing |
 | `dbh_class` | from `[output].dbh_class_edges` | carries `dbh_lower` / `dbh_upper` coordinates |
@@ -156,12 +156,38 @@ preserve the closure identity, which is what makes `mean_nplant_size_py` a genui
 distribution comparable to a forest inventory.
 
 **Cohort and patch axes may not appear on the annual stream**, and neither may the `(patch, soil)`
-profiles. A window longer than a month would straddle the annual disturbance restructuring, so the
-slot set that was averaged would not be the slot set present at flush. The registry rejects it at
-start-up. For the same reason a file with a cohort or patch axis spans at most a month, whatever
-`[output.<tier>].file_chunk` says (a day for the FAST tier). Its cohort and patch axes are as long as
-the largest live count among the polygons when it opens; `n_cohort` and `n_patch` give each polygon's
-live count per record, and the slots past it are `_FillValue`.
+profiles. A window longer than a month would straddle the calendar's restructuring, so the cohorts and
+patches that were averaged would not be the ones present at its end. The registry rejects it at
+start-up.
+
+**A file spans what its tier's `[output.<tier>].file_chunk` says**, whatever its axes. Its cohort and
+patch axes are unlimited and grow to the largest live count among its records and polygons; `n_cohort`
+and `n_patch` give each polygon's live count per record, and the slots past it are `_FillValue`. Each
+record names its own cohorts and patches (`global_cohort_id`, `owner_patch`, `cohort_offset`,
+`cohort_count`, `global_patch_id`): a slot holds one cohort through a month (below) and one patch
+through a calendar year, and a reader follows either across months by its id.
+
+**The cohort order of a month's records.** ED-MORE's stand grows and dies every day: each slow step
+changes every cohort's size and plant number, then sorts the stand tallest first again, the order the
+radiation, the interception and the overtopping LAI need the next day ([demography](demography.md)
+§3). Which cohorts exist changes only at a month's turn (recruitment, fusion, fission, the cull) and a
+year's (disturbance). **This is a major difference from ED2**, which changes its plants' size (structural
+growth) and number (mortality) once a month, so its stand keeps one order through the month: in ED-MORE a
+cohort that outgrows the one above it changes the order on that day.
+
+The output does not follow the stand's daily order. Every cohort value of a month (the daily fold, the
+per-cohort diagnostic rows and the fast loop's staged sub-steps) is placed by its `global_cohort_id`,
+and every record of the month, on every tier, is written in the month's end order: the order of the
+month's last step, which the state file written at that boundary also has. So:
+
+- slot *i* of every record of a month holds the same cohort, and a monthly cohort record is each
+  cohort's own mean, never two cohorts' values averaged in one slot;
+- the first cohort of a patch is the tallest at the month's end, not necessarily on each day before
+  it: rank cohorts by `height_co` or `mean_height_co`, not by slot;
+- a fast-loop row reduced to a coarser axis (a snapshot such as `leaf_temp_py`) pairs each cohort's
+  value with the weight the fast loop used, before the step's sort moved it.
+
+A run that stops in mid-month writes that month's records in the order of its last step.
 
 **The soil axis has a fixed length.** It is `n_soil_layer_max` long whatever a site's layer count: a
 column fills it from the top, and the slots below the column's bottom layer are `_FillValue`. A fixed
@@ -193,6 +219,8 @@ cell's environmental stress index E.
 **A `mean_` variable is a mean over its record's period**, and the variable of the same name without
 the prefix is its value at the period's end (`AGG_LAST`), its snapshot. A flux is its mean rate, so
 one variable has one unit at every tier, and a period's total is the mean times the period's length.
+The third prefix, `diel_`, is a mean diel cycle: the mean at each time of day over the period (The
+mean diel cycle, below).
 
 | `agg` | `cell_methods` | meaning |
 |---|---|---|
@@ -200,6 +228,7 @@ one variable has one unit at every tier, and a period's total is the mean times 
 | `AGG_MEAN` | `time: mean` | equal-weight mean |
 | `AGG_RATE` | `time: mean` | mean rate of a per-step amount (the fast loop's carbon and water, a count): the period's amounts over the time they took |
 | `AGG_LAST` | `time: point` | end-of-period snapshot: every variable without `mean_` |
+| (a `diel_` variable) | `time: mean within days time: mean over days` | each bin's dt-weighted mean over the period's days |
 
 The fast loop's carbon fluxes are in µmol CO₂ m⁻² s⁻¹ (per plant for a cohort), water in kg m⁻² s⁻¹,
 energy in W m⁻²; the slow step's rates (allocation, growth, litterfall, mortality) keep their
@@ -248,13 +277,21 @@ stamped *d* holds the steps that start in period *d*:
   the state at 1 August 00:00, and a monthly mean is the mean over the ends of the month's steps;
 - no record is stamped at or after the run's end.
 
+**A record's `time` is its period's start**, in days since the run's start on the proleptic Gregorian
+calendar (CF `units = "days since <run start>"`, `calendar = "proleptic_gregorian"`), so xarray and
+CDO decode it. Its bounds, `time_bnds`, are that start and the end of the record's last step. A
+period's total is its mean rate times `time_bnds[:, 1] - time_bnds[:, 0]` (in days, times 86400 s),
+and a partial record, at the run's start or end or around a restart, carries its true span. The
+`year`, `month` and `day` companions (and `hour`, `minute`, `second` on F) give the start's calendar
+date without decoding.
+
 **The calendar's restructuring belongs to the period it opens.** At the turn of a month the stand's
 cohorts are recruited, fused, split and culled; at the turn of a year its patches are disturbed and
 fused. This restructuring runs **between** two slow steps: after the output has read the step that
 ends on the boundary, and before the fast loop of the step that begins there. As a result:
 
 - **every record describes one stand.** A monthly cohort or patch record is the mean of its daily
-  records, slot by slot, and a file's cohort and patch axes are the same throughout;
+  records, cohort by cohort and patch by patch (§3, The cohort order of a month's records);
 - **the restructuring's events and the stand it leaves are recorded in the new period.** The year's
   disturbance area and disturbance mortality are in January's record, never December's, and the
   biomass the disturbance removes first shows in the 1 January daily state. The 31 December state is
@@ -289,11 +326,13 @@ surface soil can run well above the air at midday while the closed patch's runs 
 quantity of the patch block is also written per patch on the F tier:
 
 - `mean_cas_temp_pa`, `mean_soil_temp_top_pa`, `mean_skin_temp_pa`, `mean_le_pa`, `mean_h_pa`,
-  `mean_rnet_pa`, `mean_nee_pa`, `mean_gpp_pa` and `mean_npp_pa`, which have daily values too, under
-  the same names;
-- `mean_sw_up_pa`, `mean_lw_up_pa`, `mean_ustar_pa`, `mean_reco_pa` and `mean_cas_co2_pa`, which
-  exist only sub-daily;
-- the soil columns by layer and patch, `mean_soil_temp_layer_pa` and `mean_soil_water_layer_pa`.
+  `mean_rnet_pa`, `mean_nee_pa`, `mean_gpp_pa`, `mean_npp_pa` and `mean_et_pa`, which have daily
+  values too, under the same names;
+- `mean_sw_up_pa`, `mean_lw_up_pa`, `mean_ustar_pa`, `mean_reco_pa` and `mean_cas_co2_pa`, sub-daily
+  by default and daily or monthly on request;
+- ET's sources and the budget residuals per patch (`mean_transp_pa`, `mean_veg_surface_evap_pa`,
+  `mean_ground_evap_pa`, `mean_dew_pa`, `mean_resid_energy_pa`, `mean_resid_water_pa`), off by default;
+- the soil columns by layer and patch (`mean_soil_*_layer_pa`), off by default.
 
 The polygon's F value is the area-weighted sum of the patch values, taken in patch order, so the two
 always agree. The patch variables are on by default and the soil by patch off; `"*_pa" = false`
@@ -315,7 +354,8 @@ polygon's F value is the patches' sum, each weighted by its share of the polygon
 weights its patches by their areas within the site. On the F tier every `mean_` variable is the
 dt-weighted mean of its sub-step samples, whatever its reduction on the coarse tiers: GPP, the mean
 rate of the day's per-step amounts on D, is the mean of the sub-steps' rates on F. A snapshot is the
-last of them.
+last of them. The axes' bookkeeping (§5) is read from the stand instead: the slow step leaves it as it
+was but for the cohorts' order, and it is placed by cohort id like every cohort value (§3).
 
 The FAST tier shares everything else with the coarse tiers: the registry, the running reductions, the
 closing of a period and the writer. Only where it reads its values differs, and that is forced by
@@ -324,12 +364,46 @@ a sub-daily variable read from it would write end-of-step values on a sub-daily 
 
 A variable therefore has two sources: the staged sample its F records read, and the live field its
 D, M and Y records read. Every row the fast loop records each sub-step (the per-cohort and per-patch
-diagnostic rows, the forcing) is staged, so a variable on one has both, under one name. A few patch
-values (`mean_reco_py`, `mean_sw_up_py`, `mean_ustar_pa`, `mean_cas_co2_pa`, …) have only the first;
-a state among them has a snapshot, the last sub-step's value, on any tier. The slow step's quantities
-and the fast loop's per-slow-step totals have only the second. A tier a variable has no source for would write `_FillValue` for the whole run,
-so the registry checks every default and every override at start-up and refuses to start, naming the
-variable: a diagnostic that quietly reports nothing is worse than one that refuses to start.
+diagnostic rows, the forcing) is staged, so a variable on one has both, under one name. A per-cohort
+row reduced to the patch or the polygon (`mean_leaf_temp_py`, `mean_gsw_py`, `mean_root_uptake_py`)
+is reduced on the F tier from the staged row, with the weights the fast loop used (§3). The slow step's
+quantities have only the second source. A tier a variable has no source for would write `_FillValue`
+for the whole run, so the registry checks every default and every override at start-up and refuses to
+start, naming the variable: a diagnostic that quietly reports nothing is worse than one that refuses
+to start.
+
+### The mean diel cycle
+
+`diel_<x>` is the mean diel cycle of `mean_<x>` over a record: its mean at each time of day, over the
+record's days. Every `mean_` variable with a sub-daily value has one, so a month of hourly fluxes can
+be written as one monthly record of 24 values instead of 720 sub-daily ones.
+
+- **The bins.** `[output].diel_interval` sets them: `"1 hour"` (the default), `"2 hours"`, `"3 hours"`
+  or `"4 hours"`, so a day holds 24, 12, 8 or 6. The files carry them on a `diel` axis, the last, with
+  the coordinate `diel_hour`, the hour each bin starts at on the model's clock, the one every
+  record's time stamp uses. `[fast].dt_fast` must divide the interval, so each sub-step falls in
+  one bin.
+- **The values.** Each staged sub-step goes into the bin of the hour it starts in, on the coarse
+  tiers' open records, as the F tier reads it: a bin is the dt-weighted mean of its sub-steps over
+  the record. On a daily record, bin *h* is the mean of that day's F records in its hours; on a
+  monthly or annual record, the mean over the period's days. Where the daily tier averages the
+  sub-steps too (every flux and every fast-loop row), the bins' mean is the record's `mean_<x>`; for
+  the soil columns, which the daily tier reads from the state at each slow step's end, it is the
+  sub-daily mean the daily value is not.
+- **The tiers.** D, M and Y, and D and M on the cohort and patch axes; never F, whose records are the
+  cycle itself. Every `diel_` variable is off by default: name it in `[output].io_config`,
+  `diel_le_py = "M"`, or with a pattern, `"diel_*_py" = "M"`. A pattern that switches variables on
+  (`"*_py" = "M"`) catches the `diel_` variables too, as it does the snapshots.
+- **The cohort axis.** A cohort's cycle is folded into its slot of the month (§3), so a monthly record
+  of `diel_leaf_temp_co` holds each cohort's cycle over the month, in the month's end order.
+- **It needs the fast loop.** A run without one, or a `dt_fast` that does not divide the interval,
+  stops at start-up.
+- **Its cost** is the bins times the axis: at 24 bins a cohort `diel_` variable holds
+  24 × `cohort_max` accumulators a polygon (about 2 MB at the default 4096), so a region run pays
+  about 2 GB per 1,000 polygons for each one. The polygon and patch cycles are cheap.
+- **The time axis.** A record's `time` is its period's, as for every other variable of the file; the
+  `diel` axis holds the time of day. Strict CF climatology bounds are not used, since the same time
+  axis holds the file's ordinary means.
 
 ### The patch row
 
@@ -346,9 +420,78 @@ entries are formed there for a reason:
   $`R_{eco} = \mathrm{NEE} + \mathrm{GPP}`$, not summed a second way.
 - **NPP** is GPP net of the maintenance respiration of leaves, stems and roots, on every tier. The
   slow allocator charges growth respiration once a day, and it is not in NPP.
+- **ET's sources** are the vapour the canopy air was credited over the sub-step, as its ledger
+  booked them: transpiration (`mean_transp_py`), the evaporation of the water on the leaves' and
+  wood's surfaces (`mean_veg_surface_evap_py`, negative when dew forms on them), the ground's
+  evaporation, bare soil and snow pack (`mean_ground_evap_py`), and the condensate that left the
+  canopy air for the soil (`mean_dew_py`). ET (`mean_et_py`, and its latent heat, `mean_le_py`) is
+  the canopy air's vapour export to the atmosphere: the first three less the dew, less the canopy
+  air's own vapour gain, which is small beyond a few hours.
+- **Respiration** is split as the fast loop booked it. Leaf, stem and fine-root maintenance
+  respiration (`mean_leaf_resp_py`, `mean_stem_resp_py`, `mean_root_resp_py`) are the cohorts'
+  summed per ground area; heterotrophic respiration (`mean_rhet_py`) is the soil's over the sub-step;
+  and autotrophic respiration is formed as the rest of the ecosystem's,
+  $`R_{aut} = R_{eco} - R_{het}`$ (`mean_raut_py`), so the three always add up.
 - **The budget residuals** (`mean_resid_energy_py`, `mean_resid_water_py`) are each sub-step's signed
   whole-column imbalance over the sub-step: a leak rate in W m⁻² or kg m⁻² s⁻¹, positive when a store
   appears from nowhere.
+
+### The budgets
+
+The whole-column water and energy ledgers (docs/science/numerical_scheme.md §5b) close each fast
+step, and the output carries every term they book, on the patch row, so each budget closes from the
+files alone, on any tier, to round-off. Every term is a mean rate over the record, and a store's gain
+is its change over the record divided by the record's length.
+
+Water [kg m⁻² s⁻¹]:
+
+```math
+P + S - \mathrm{ET} - R - O_v - \Delta W = -\epsilon_W
+```
+
+- $`P`$, the precipitation (`mean_precip_py`); $`S`$, the tissue water the slow step shed to the pond
+  (`mean_shed_water_py`);
+- $`\mathrm{ET}`$ (`mean_et_py`); $`R`$, surface runoff plus drainage (`mean_runoff_py`, its two parts
+  `mean_runoff_surf_py` and `mean_drainage_py`);
+- $`O_v`$, the water on the leaves' and wood's surfaces above their capacity, which the update removes
+  (`mean_veg_surface_overflow_py`);
+- $`\Delta W`$, the gain of every store: soil, pond, plants, the leaves' and wood's surface water, snow
+  pack and canopy-air vapour
+  (`mean_water_store_gain_py`);
+- $`\epsilon_W`$, the residual (`mean_resid_water_py`).
+
+The water's paths inside the column are written too, though they cancel in the budget: interception
+and throughfall (`mean_intercept_py`, `mean_throughfall_py`, which add up to the precipitation),
+infiltration, snowmelt and sublimation (`mean_infiltration_py`, `mean_snowmelt_py`,
+`mean_sublimation_py`), and the stores themselves (`mean_veg_surface_water_py`, `mean_soil_water_total_py`,
+`mean_plant_water_py`) with the leaves' wet fraction (`mean_wet_fraction_py`, per cohort
+`mean_wet_fraction_co`).
+
+Energy [W m⁻²]:
+
+```math
+R_n + G_b + P_e - H - \lambda E - O_e - \Delta E_{soil} - \Delta E_{canopy} - \Delta E_{surface} = -\epsilon_E
+```
+
+- $`R_n`$, the net all-wave radiation (`mean_rnet_py`); $`G_b`$, the heat into the soil column through
+  its bottom (`mean_heat_bottom_py`, 0 with an insulated bottom);
+- $`H`$ and $`\lambda E`$, the reported sensible and latent heat (`mean_h_py`, `mean_le_py`);
+- $`P_e`$, the enthalpy the precipitation carries in (`mean_precip_enth_py`): the rain the leaves
+  and wood catch, the snowfall onto the pack and the rain and snow reaching the ground;
+- $`O_e`$, the enthalpy the outflows carry out (`mean_outflow_enth_py`): the surface runoff, the
+  drainage through the column's bottom, the surface water's overflow, and the exported vapour's
+  beyond $`\lambda E`$. Both are carried by water crossing the column's boundary, not by the air;
+- $`\Delta E`$, the energy gains of the soil column, of the canopy air and the tissues, and of the
+  snow pack and the pond (`mean_heat_gain_soil_py`, `mean_heat_gain_canopy_py`,
+  `mean_heat_gain_surface_py`);
+- $`\epsilon_E`$, the residual (`mean_resid_energy_py`).
+
+$`H`$ is also split by its source: the leaves' and wood's (`mean_h_canopy_py`) and the ground's
+(`mean_h_ground_py`). Their sum is the sensible heat into the canopy air, which differs from $`H`$ by
+the canopy air's own warming and the enthalpy its condensate takes to the soil.
+
+The carbon stocks add up the same way: the ecosystem's carbon (`mean_eco_carbon_py`) is the live
+vegetation's (`mean_veg_carbon_py`) plus the soil's organic carbon (`mean_soilc_total_py`).
 
 ### The slow rows
 
@@ -437,8 +580,8 @@ The rules:
 
 The level suffix makes the common choices one line each: `"*_co" = false` and `"*_pa" = false` drop
 the cohort and patch axes, the largest lever on output volume; `"*_pft_py"` and `"*_size_py"` select
-the PFT and size-class breakdowns; `"mean_*"` every mean, `"mean_resid_*"` the energy and water budget
-residuals. Keep those residuals: a closure nobody records is worse than one nobody looks at.
+the PFT and size-class breakdowns; `"mean_*"` every mean, `"diel_*"` every mean diel cycle,
+`"mean_resid_*"` the energy and water budget residuals. Keep those residuals: a closure nobody records is worse than one nobody looks at.
 
 **Groups** head the `--dump-io-config` list (§7). The `biogeochem` group keeps the soil-carbon
 pools apart from `carbon`; they stay 0 with `[soil_carbon].soil_carbon_on = false`. The `forcing` group is
@@ -448,12 +591,13 @@ optional corrections:
 - polygon means at every tier: `mean_air_temp_py`, `mean_qair_py`, `mean_psurf_py`, `mean_wind_py`,
   `mean_lwdown_py`, the four shortwave streams `mean_par_beam_py` … `mean_nir_diffuse_py`,
   `mean_sw_in_py`, `mean_precip_py`, `mean_snowfall_py`, `mean_atm_co2_py`, `mean_cosz_py` and
-  `mean_rho_air_py`; `mean_rainf_py` is sub-daily only. Rain and snow are the split each patch made at
-  its canopy-air top, area-weighted;
+  `mean_rho_air_py` and `mean_rainf_py`, the rain. Rain and snow are the split each patch made at its
+  canopy-air top, area-weighted;
 - each site's forcing after its terrain, at the daily, monthly and annual tiers (`mean_air_temp_si`
   … `mean_nir_beam_si`);
 - three patch rows at the daily and monthly tiers: the forcing each patch saw at its canopy-air top,
-  `mean_wind_cas_top_pa` and `mean_air_temp_cas_top_pa`, and that top's height `mean_cas_depth_pa`.
+  `mean_wind_cas_top_pa` and `mean_air_temp_cas_top_pa`, and that top's height `mean_cas_depth_pa`
+  (area-weighted, `mean_cas_depth_py`, monthly and yearly).
   With `mean_rough_pa` and `mean_displace_pa` (in `energy`) the move can be rebuilt
   ([`forcing.md`](forcing.md) §8).
 
@@ -469,8 +613,9 @@ Look at these first.
 **Fast-scale.** `mean_sw_in_py`, `mean_rnet_py` — is the radiation forcing physically shaped?
 `mean_le_py`, `mean_h_py` — the Bowen ratio, the single most diagnostic energy number.
 `mean_gpp_py` — light-response shape and magnitude. `mean_nee_py` — night `= +Reco`, day `= −uptake`;
-the sign flip is the integration test. `mean_et_py` — closes against `mean_le_py`, catches a
-latent-heat unit error instantly. `mean_cas_temp_py`, `mean_cas_vpd_py` — canopy-air coupling, the first
+the sign flip is the integration test. `mean_et_py` — closes against `mean_le_py` through the latent heat at the canopy-air temperature
+(about 2.5e6 J/kg, a little more below freezing), which catches a latent-heat unit error instantly.
+`mean_cas_temp_py`, `mean_cas_vpd_py` — canopy-air coupling, the first
 thing to oscillate if `dt_fast` is too large. `mean_cas_co2_py` — drawdown amplitude; a stuck value
 means the canopy air's CO₂ is not coupled. `mean_soil_temp_layer_si`, `mean_soil_water_layer_si` — the diurnal thermal wave
 and the drydown shape. `mean_ustar_py` — is the surface layer turbulent at all?
@@ -479,7 +624,7 @@ and the drydown shape. `mean_ustar_py` — is the surface layer turbulent at all
 **Slow-scale.** `mean_agb_py`, `mean_lai_py`, `mean_basal_area_py`, `mean_nplant_py` — the four
 stand-structure scalars. `mean_agb_pft_py`, `mean_lai_pft_py` — is PFT composition doing anything?
 `mean_agb_size_py`, `mean_nplant_size_py` — the size distribution, the demographic core's actual output.
-`mean_npp_py`, `mean_rh_py`, `mean_nee_py` — the carbon balance; drift is the long-run sanity check.
+`mean_npp_py`, `mean_rhet_py`, `mean_nee_py` — the carbon balance; drift is the long-run sanity check.
 `mean_leaf_resp_py` + `mean_stem_resp_py` + `mean_root_resp_py` — the autotrophic fraction should be roughly
 half of GPP, a strong parameter check. `mean_agb_growth_py`, `mean_agb_mort_py`,
 `mean_nplant_recruit_py` — the rates that *make* the AGB trajectory. `mean_soilc_total_py` — spinning up,
@@ -494,7 +639,7 @@ monotonically climbing count is a config bug. `mean_canopy_height_py` — stand 
 \frac{\mathrm{d}\,\text{soilc}}{\mathrm{d}t} \approx \sum \text{mean\_litter\_*\_py} - \text{mean\_rh\_py} \qquad(4)
 ```
 
-with `mean_rh_py` [µmol CO₂ m⁻² s⁻¹] taken to kgC m⁻² yr⁻¹, as the litter rates are (× 1.20107 × 10⁻⁸
+with `mean_rhet_py` [µmol CO₂ m⁻² s⁻¹] taken to kgC m⁻² yr⁻¹, as the litter rates are (× 1.20107 × 10⁻⁸
 kgC µmol⁻¹ × the year's seconds).
 
 ### The carbon seam
@@ -526,7 +671,7 @@ It is generated from the registry, so it cannot drift; the page states no count 
 | `water` | evapotranspiration, soil moisture and potential, snow, surface water |
 | `energy` | latent and sensible heat, net radiation, temperatures, canopy-air state |
 | `numerics` | the integrators' work counters and the energy and water budget residuals |
-| `radiation` | albedo, absorbed shortwave, PAR and longwave, ground radiation |
+| `radiation` | the leaves' absorbed PAR, each cohort's shortwave, PAR and longwave, the ground's radiation |
 | `ecophys` | per-cohort leaf gas exchange and hydraulics (the highest volume) |
 | `biogeochem` | soil-carbon pools, heterotrophic respiration, litterfall |
 | `forcing` | the atmospheric forcing the run used (§5) |
