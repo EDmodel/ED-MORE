@@ -9,7 +9,7 @@
 !---~---
 module ed_fast_integ_update
    use ed_kinds,              only : wp, ik
-   use ed_constants,          only : rho_h2o, tiny_num, mmh2o, latent_heat_vap
+   use ed_constants,          only : rho_h2o, tiny_num, mmh2o
    use ed_config,             only : ed_config_t
    use ed_site_state_vars,    only : site_surface_t
    use ed_fast_integ_types,       only : fast_static_state_t, fast_dynamic_state_t, fast_forcing_t, fast_output_t,     &
@@ -20,7 +20,7 @@ module ed_fast_integ_update
    use ed_patch_state_vars,   only : soil_water_store, soil_energy_store
    use ed_diag_vars,          only : CO_TRANSP
    use ed_surface, only : snow_take_exchange
-   use ed_therm_lib,          only : cas_enthalpy_to_temp
+   use ed_therm_lib,          only : cas_enthalpy_to_temp, latent_heat_vap
    use ed_budget_check,       only : budget_check, BUDGET_ENERGY_RATE_FLOOR, BUDGET_WATER_RATE_FLOOR,           &
                                      BUDGET_CO2_RATE_FLOOR
    implicit none
@@ -147,6 +147,7 @@ contains
       logical,                   intent(in)    :: halt
       type(step_report_t),       intent(inout) :: report
       real(wp)    :: cas_mass_capacity, cas_molar_capacity, enth0, shv0, co20, enth1, shv1, co21
+      real(wp)    :: fliq   ! [-] liquid share of the exported vapour
       real(wp)    :: e_soil0, e_soil1, w_soil0, w_soil1, w_plant0, w_plant1, w_surface0, e_pond0, e_pond1
       real(wp)    :: surf_water0, surf_water1, intercept_total
       integer(ik) :: n, nsl
@@ -186,6 +187,17 @@ contains
       report%exports%atm_heat_export = acc%atm_heat_out
       report%exports%atm_vap_export  = acc%atm_vap_out
       !---~---
+      !   The reported latent heat, booked once: the vapour exported at its latent heat at the
+      ! step's final canopy-air temperature, ice for the snow pack's share of it (sublimation) and
+      ! liquid for the rest. Both LE and the energy budget's outflows read this number.
+      !---~---
+      if (acc%atm_vap_out > tiny_num) then
+         fliq = 1.0_wp - min(1.0_wp, max(0.0_wp, acc%snow_vap_out / acc%atm_vap_out))
+      else
+         fliq = 1.0_wp
+      end if
+      report%exports%atm_le_export = acc%atm_vap_out * latent_heat_vap(cas_enthalpy_to_temp(enth1, shv1), fliq)
+      !---~---
       !   The vapour sources the canopy air was credited (surface_derivs' src_vap): transpiration,
       ! the surface water's, the ground's at the network's rate held over the step, and the snow pack's;
       ! and the condensate it was debited.
@@ -218,7 +230,7 @@ contains
       report%exports%heat_bottom_export  = acc%whole_enth_in - acc%rad_net
       report%exports%precip_enth_export  = intercept_total*dt_fast*frozen%veg_surface%rain_liquid_enthalpy                  &
                                            + frozen%snow%acc_enth + frozen%hydrology%ground_inflow_enth*dt_fast
-      report%exports%outflow_enth_export = acc%whole_enth_out - acc%atm_heat_out - latent_heat_vap*acc%atm_vap_out  &
+      report%exports%outflow_enth_export = acc%whole_enth_out - acc%atm_heat_out - report%exports%atm_le_export  &
                                            + frozen%hydrology%runoff_enth*dt_fast + moved%surf_net_enth
       report%exports%heat_gain_soil      = e_soil1 - e_soil0
       report%exports%heat_gain_canopy    = cas_mass_capacity*(enth1 - enth0) + moved%tissue_store1 - moved%tissue_store0

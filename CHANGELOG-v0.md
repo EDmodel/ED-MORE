@@ -39,6 +39,16 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   fast loop used (the patches' area-weighted), as `mean_cas_depth_pa` does; it moves by millimetres.
   (#60)
 
+### Answer changes
+
+- The latent heat flux (`mean_le_pa`, `mean_le_py`) rises by 13 % on average (January 2021: 16.6 to
+  18.8 W/m2), and by at most 3.2 W/m2 on a day, in the region test's synthetic January-February
+  2021 run, where the canopy air is mostly below freezing and the vapour takes the latent heat of
+  sublimation. At the warm BCI site, LE declined by about 2.5 % (66.87 W/m2 to 65.12 W/m2 for
+  calibrated runs). The energy budget's outflows (`mean_outflow_enth_py`) change by the same amount,
+  but in the opposite direction, so the energy residual is unchanged. Evapotranspiration and the
+  model state are bit for bit. (#49)
+
 ### Added
 
 - Four output variables split evapotranspiration by where the vapour comes from:
@@ -101,6 +111,11 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   average two cohorts in one slot. Every record of a month is now written in the month's end order,
   keyed by cohort id, and a fast-loop row reduced to a coarser axis pairs each cohort with the weight
   the fast loop used (docs/science/diagnostics.md §3). Model state is bit for bit. (#55)
+- The latent heat of vaporisation depends on temperature (Kirchhoff's law), as in ED2, instead of
+  being a constant, and the latent heat of sublimation for the ice share of the water that
+  vaporises. The reported latent heat flux and the energy budget's outflows use it at the canopy
+  air's temperature, so latent heat is no longer evapotranspiration times a constant: both are
+  reported (`mean_et_py`, `mean_et_pa`). (#49)
 
 ## [0.4.1] - 2026-10-26
 

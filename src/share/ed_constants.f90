@@ -45,7 +45,7 @@ module ed_constants
    real(wp), parameter :: cp_ice             = 2093.0_wp      ! [J/kg/K] ice specific heat
    real(wp), parameter :: k_water            = 0.57_wp        ! [W/m/K] liquid-water thermal conductivity
    real(wp), parameter :: k_ice              = 2.29_wp        ! [W/m/K] ice thermal conductivity
-   real(wp), parameter :: latent_heat_vap    = 2.501e6_wp     ! [J/kg] latent heat of vaporization
+   real(wp), parameter :: latent_heat_vap_3ple = 2.501e6_wp   ! [J/kg] latent heat of vaporization at t_3ple
    real(wp), parameter :: latent_heat_fusion = 3.34e5_wp      ! [J/kg] latent heat of fusion
    real(wp), parameter :: grav_head          = rho_h2o * grav * 1.0e-6_wp  ! [MPa/m] water potential per metre of height
    !---~---
@@ -55,7 +55,7 @@ module ed_constants
    !---~---
    real(wp), parameter :: tsupercool_liq = t_3ple - (cp_ice * t_3ple + latent_heat_fusion) / cp_liq
    real(wp), parameter :: tsupercool_vap = t_3ple                                                     &
-                          - (cp_ice * t_3ple + latent_heat_vap + latent_heat_fusion) / cp_vap
+                          - (cp_ice * t_3ple + latent_heat_vap_3ple + latent_heat_fusion) / cp_vap
 
    !---~---
    !   Physical constants: water vapour and CO2 diffusing through a leaf, as the ratio of
