@@ -6,7 +6,9 @@ longwave, moving pressure to the ground).
 The copies mirror the Fortran term for term, so a value the tool computes is the value the model
 would compute from the same inputs:
 
-  sat_vapor_pressure, rh_to_specific_humidity,      ed_therm_lib (a dewpoint's q is
+  sat_vapor_pressure,                               ed_therm_lib (liquid, or the ice blend given fliq)
+  sat_vapor_pressure_temp_deriv, latent_heat_vap    ed_therm_lib
+  rh_to_specific_humidity,                          ed_therm_lib (a dewpoint's q is
   dewpoint_to_specific_humidity,                    sat_specific_humidity at the dewpoint)
   specific_humidity_to_vapor_pressure
   pressure_at_height                                ed_therm_lib%lapse_pressure (isothermal form)
@@ -30,6 +32,14 @@ GRAV = 9.80665             # [m s-2]
 R_DRY = 287.04             # [J kg-1 K-1]
 CP_AIR = 1004.6            # [J kg-1 K-1]
 STEFAN = 5.670374419e-8    # [W m-2 K-4]
+#: Water vapour, liquid, ice and the triple point, as ed_constants defines them, for the saturation vapour pressure.
+T_3PLE = 273.16            # [K]
+ES_3PLE = 611.655          # [Pa] Ambaum (2020) eq. (14)
+R_WV = 461.5               # [J kg-1 K-1]
+CP_VAP, CP_LIQ, CP_ICE = 1859.0, 4186.0, 2093.0   # [J kg-1 K-1]
+LATENT_HEAT_VAP_3PLE = 2.501e6    # [J kg-1]
+LATENT_HEAT_FUSION = 3.34e5       # [J kg-1]
+LNEXP_LIMIT = 38.0         # exp() arguments are held to +-this (ed_constants: lnexp_min, lnexp_max)
 SOLAR_CONSTANT = 1361.0    # [W m-2]
 COSZ_MIN = 1.0e-3          # below this cos z it is night
 COSZ_BAR_MIN = 1.0e-3      # a window whose mean cos z is at most this is a night window
@@ -45,10 +55,49 @@ LW_CLOUD_A = 0.22          # [-] the model's default cloud coefficient ([forcing
 H2O_DRY_RATIO = 0.01801528 / 0.0289655
 
 
-def sat_vapor_pressure(t_k):
-    """Saturation vapour pressure [Pa] over liquid water at t_k [K]: Bolton (1980)."""
-    tc = np.asarray(t_k, dtype=float) - 273.15
-    return 611.2 * np.exp(17.67 * tc / (tc + 243.5))
+def latent_heat_vap(t_k, fliq):
+    """Latent heat [J/kg] of the water that vaporizes at t_k [K], Kirchhoff's law: liquid with
+    L_v,3ple + (cp_vap - cp_liq)(T - T_3ple), ice with L_f + L_v,3ple + (cp_vap - cp_ice)(T - T_3ple),
+    averaged by fliq, the liquid share (ed_therm_lib%latent_heat_vap)."""
+    dt = np.asarray(t_k, dtype=float) - T_3PLE
+    l_liq = LATENT_HEAT_VAP_3PLE + (CP_VAP - CP_LIQ) * dt
+    l_ice = LATENT_HEAT_FUSION + LATENT_HEAT_VAP_3PLE + (CP_VAP - CP_ICE) * dt
+    return fliq * l_liq + (1.0 - fliq) * l_ice
+
+
+def _sat_phase(t_k, phase):
+    """(e, de/dT) [Pa, Pa/K] over one phase (1 liquid, 0 ice): Ambaum (2020) on the Kirchhoff latent heat,
+    so the slope is Clausius-Clapeyron, e L / (Rv T**2) (ed_therm_lib%sat_phase,
+    docs/science/snow_biophysics.md eq. (1))."""
+    t_k = np.asarray(t_k, dtype=float)
+    c_cond = phase * CP_LIQ + (1.0 - phase) * CP_ICE
+    l_ref = latent_heat_vap(T_3PLE, phase)
+    l_now = latent_heat_vap(t_k, phase)
+    arg = np.clip(l_ref / (R_WV * T_3PLE) - l_now / (R_WV * t_k), -LNEXP_LIMIT, LNEXP_LIMIT)
+    e_sat = ES_3PLE * (T_3PLE / t_k) ** ((c_cond - CP_VAP) / R_WV) * np.exp(arg)
+    return e_sat, e_sat * l_now / (R_WV * t_k * t_k)
+
+
+def sat_vapor_pressure(t_k, fliq=None):
+    """Saturation vapour pressure [Pa] at t_k [K]. Without fliq it is over liquid water, as dewpoint, relative
+    humidity and VPD are defined; with the liquid fraction fliq (held to [0, 1]) it blends the liquid and ice
+    curves, as the snow pack's does (ed_therm_lib%sat_vapor_pressure)."""
+    e_liq, _ = _sat_phase(t_k, 1.0)
+    if fliq is None:
+        return e_liq
+    fl = np.clip(fliq, 0.0, 1.0)
+    e_ice, _ = _sat_phase(t_k, 0.0)
+    return fl * e_liq + (1.0 - fl) * e_ice
+
+
+def sat_vapor_pressure_temp_deriv(t_k, fliq=None):
+    """d(e_sat)/dT [Pa/K], at fixed fliq (ed_therm_lib%sat_vapor_pressure_temp_deriv)."""
+    _, d_liq = _sat_phase(t_k, 1.0)
+    if fliq is None:
+        return d_liq
+    fl = np.clip(fliq, 0.0, 1.0)
+    _, d_ice = _sat_phase(t_k, 0.0)
+    return fl * d_liq + (1.0 - fl) * d_ice
 
 
 def rh_to_specific_humidity(rh, t_k, p_pa):

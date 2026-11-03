@@ -371,12 +371,12 @@ relative humidity (`RHair`, a flux tower) by eq. (11), a specific humidity (`Qai
 measured quantity is what keeps the provider's saturation curve out of the model: a tower's relative
 humidity is a sensor reading, while its vapour-pressure deficit, or a $q$ made from it offline, carries
 whichever curve the provider used (Barro Colorado Island's `vpd` column is the Alduchov–Eskridge
-form, whose saturation pressure is 5.7 Pa below Bolton's at 25 °C). With `RHair`, 100 % at the tower is
+form, whose saturation pressure is 4.4 Pa below the model's at 25 °C). With `RHair`, 100 % at the tower is
 saturation in the model.
 
-Both conversions go through the **same** Bolton (1980) saturation vapour pressure the rest of ED-MORE
-uses (`sat_vapor_pressure` in `ed_therm_lib`,
-$`e_{sat}(T)=611.2\exp[17.67\,T_c/(T_c+243.5)]`$ Pa), taken over **liquid** water, deliberately. Dewpoint
+Both conversions go through the **same** Ambaum (2020) saturation vapour pressure the rest of ED-MORE
+uses (`sat_vapor_pressure` in `ed_therm_lib`, [snow biophysics](snow_biophysics.md) eq. (1) with
+$`f_{liq}=1`$), taken over **liquid** water, deliberately. Dewpoint
 is *defined* as the temperature at which the liquid saturation vapour pressure equals the actual one,
 and a relative-humidity sensor reports against liquid water (the WMO convention) even below freezing,
 so the ice branch that `sat_vapor_pressure` has for frozen surfaces
@@ -803,7 +803,7 @@ each option requires are in the reference config `ed_config_main.toml` and in
 - Erbs, Klein & Duffie (1982), *Solar Energy* 28:293: diffuse fraction vs the clearness index.
 - Weiss & Norman (1985), *Agric. For. Meteorol.* 34:205: band-specific direct/diffuse partitioning;
   ED2 `ED/src/utils/radiate_utils.f90` (`short_bdown_weissnorman`).
-- Bolton (1980), *Mon. Weather Rev.* 108:1046: saturation vapour pressure.
+- Ambaum (2020), *Q. J. R. Meteorol. Soc.* 146:4252, doi:10.1002/qj.3899: saturation vapour pressure.
 - Brutsaert (1975), *Water Resour. Res.* 11:742: clear-sky emissivity.
 - Idso & Jackson (1969), *J. Geophys. Res.* 74:5397: temperature-only clear-sky emissivity.
 - Spencer (1971), *Search* 2:172: Fourier series for the equation of time.
