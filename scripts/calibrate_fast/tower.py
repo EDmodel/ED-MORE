@@ -57,7 +57,7 @@ def solar_elevation(index_utc: pd.DatetimeIndex, lat: float, lon: float, step: f
     """The sun's elevation [degrees] at the middle of each record (NOAA's approximation:
     declination and equation of time from the fractional year; well within a degree)."""
     t = index_utc + pd.Timedelta(seconds=step / 2.0)
-    doy = t.dayofyear.to_numpy()
+    doy = t.day_of_year.to_numpy()
     hour = t.hour.to_numpy() + t.minute.to_numpy() / 60.0 + t.second.to_numpy() / 3600.0
     g = 2.0 * np.pi / 365.0 * (doy - 1 + (hour - 12.0) / 24.0)
     eot = 229.18 * (0.000075 + 0.001868 * np.cos(g) - 0.032077 * np.sin(g) - 0.014615 * np.cos(2 * g)

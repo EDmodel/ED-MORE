@@ -87,6 +87,8 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - The Fortran sources use one comment format: `!--- text` for a comment line, a comment of
   several lines between two `!---~---` lines, and a plain `! text` after a statement. Results are
   bit for bit; only comments change. (#48)
+- The Python tools and the phenology example use pandas' `day_of_year`, not its deprecated
+  `dayofyear`, which pandas 4 warns about and will remove. Results are bit for bit. (#52)
 - Each tier's `file_chunk` is honoured as written. A tier with a cohort or patch variable used to be
   cut to monthly files (sub-daily: daily), so the default monthly output was a file a month; it is now
   a file a year, its cohort and patch axes growing to the file's largest live count. (#55)
