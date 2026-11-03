@@ -19,12 +19,13 @@
 !      ground sees cos z, an equator-facing slope at a winter noon sees cos(z - slope), a
 !      pole-facing one less, and an east-facing one more of the morning sun.
 !  11. linear_interpolate: states are linear between the bracketing records.
+!  12. cbrt: the real cube root, with the sign of its argument.
 !---~---
 program test_numerics
    use ed_test_assert, only : check, check_true, test_report
    use ed_kinds,          only : wp, ik
    use ed_numerics,       only : quadratic_smaller_root, adaptive_step_update, ascending_order, conserved, &
-                                 pair_mean, equal_height_layers, linear_interpolate
+                                 pair_mean, equal_height_layers, linear_interpolate, cbrt
    use ed_linear_algebra,   only : thomas_solve
    use ed_time,           only : ed_time_t, is_leap_year, days_in_month, days_in_year, day_of_year,           &
                                  time_advance_days, time_advance_months, time_lt, time_eq, string_to_time,    &
@@ -38,6 +39,7 @@ program test_numerics
 
    call test_thomas()
    call test_quadratic()
+   call test_cbrt()
    call test_step_update()
    call test_budget()
    call test_ascending_order()
@@ -81,6 +83,14 @@ contains
          call check('thomas x', x(k), xtrue(k), 1.0e-12_wp)
       end do
    end subroutine test_thomas
+
+   !--- 12. The real cube root: exact on cubes, odd in x, zero at zero.
+   subroutine test_cbrt()
+      call check('cbrt of 27', cbrt(27.0_wp), 3.0_wp, 1.0e-12_wp)
+      call check('cbrt of -8 keeps the sign', cbrt(-8.0_wp), -2.0_wp, 1.0e-12_wp)
+      call check('cbrt of 0', cbrt(0.0_wp), 0.0_wp, 0.0_wp)
+      call check('cbrt inverts the cube', cbrt(0.37_wp ** 3), 0.37_wp, 1.0e-12_wp)
+   end subroutine test_cbrt
 
    !--- 2. Smoothed-min quadratic.
    subroutine test_quadratic()
