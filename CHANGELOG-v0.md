@@ -19,12 +19,112 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   `wood_gbh` and `wood_gbw` fall wherever both terms are non-zero: for a leaf 10 K above the canopy
   air at 20 °C, by 29 % at 0.5 m/s and 15 % at 3 m/s (wood: 24 % and 12 %); isothermal elements are
   unchanged. (#54).
+### Upgrading
+
+- `[output.<tier>].file_chunk = "run"` is now `"all"`, one file for all of the run's records; `"run"`
+  stops the run. A monthly file can no longer be a day long, nor an annual one shorter than a year.
+- A run stops before its first step if a diagnostic file it would write exists: remove the old files,
+  or give `[output].dir` or `prefix` another value. In Python, `RunConfig.remove_diagnostics()`
+  removes a configuration's files, as the examples' scripts now do before they run again. (#55)
+- The daily, monthly and yearly files carry about thirty more polygon variables by default: the
+  water and energy budgets' terms and `mean_reco_py`. To write the files as before, switch them off
+  in `[output].io_config`; `ed_io_config.toml` lists each with its default. (#56)
+- The files' `time` is now CF: each record's start in days since the run's start, with `calendar =
+  "proleptic_gregorian"` and the bounds `time_bnds` (the start and the end of its last step), so
+  xarray and CDO decode it. It was the decimal calendar year; read the `year`, `month` and `day`
+  companions, or decode `time`. (#58)
+- `mean_transp_leaf_py` is now `mean_leaf_transp_py`, in the `ecophys` group and off by default, and
+  its cohort source `mean_transp_co` is `mean_leaf_transp_co`: both are per leaf area, apart from
+  `mean_transp_py`, the transpiration in kg m⁻² s⁻¹. Rename them in an io_config. (#58)
+- `mean_soil_temp_top_pa` is on the daily tier by default, as its siblings are. (#58)
+- `mean_rh_py` and `mean_rh_pa` are now `mean_rhet_py` and `mean_rhet_pa`: "rh" read as relative
+  humidity. (#58)
+- `mean_ca_co` and `mean_pressure_co` are removed: they repeated the patch's canopy-air CO2 and the
+  forcing's air pressure for every cohort. Read `mean_cas_co2_pa` (the previous sub-step's, the CO2
+  the leaf solve saw) and `mean_psurf_py`. (#58)
+- `mean_cas_depth_py` is in the `forcing` group, beside `mean_cas_depth_pa`, and reads the depth the
+  fast loop used (the patches' area-weighted), as `mean_cas_depth_pa` does; it moves by millimetres.
+  (#60)
+
+### Answer changes
+
+- The latent heat flux (`mean_le_pa`, `mean_le_py`) rises by 13 % on average (January 2021: 16.6 to
+  18.8 W/m2), and by at most 3.2 W/m2 on a day, in the region test's synthetic January-February
+  2021 run, where the canopy air is mostly below freezing and the vapour takes the latent heat of
+  sublimation. At the warm BCI site, LE declined by about 2.5 % (66.87 W/m2 to 65.12 W/m2 for
+  calibrated runs). The energy budget's outflows (`mean_outflow_enth_py`) change by the same amount,
+  but in the opposite direction, so the energy residual is unchanged. Evapotranspiration and the
+  model state are bit for bit. (#49)
+
+### Added
+
+- Four output variables split evapotranspiration by where the vapour comes from:
+  `mean_transp_py` (transpiration), `mean_veg_surface_evap_py` (evaporation of the water on the
+  leaves' and wood's surfaces), `mean_ground_evap_py` (bare soil and snow) and `mean_dew_py`
+  (condensation). ET is
+  the first three less the dew. They are written daily, monthly and yearly by default, and hourly
+  on request. Results are bit for bit. (#56)
+- The water and energy budgets close from the output alone (docs/science/diagnostics.md §4, The
+  budgets): every term the whole-column ledgers book is a variable, written daily, monthly and
+  yearly by default. Water: `mean_shed_water_py`, `mean_veg_surface_overflow_py`, `mean_water_store_gain_py`,
+  the paths inside the column (`mean_intercept_py`, `mean_throughfall_py`, `mean_infiltration_py`,
+  `mean_snowmelt_py`, `mean_sublimation_py`), the stores (`mean_veg_surface_water_py`,
+  `mean_soil_water_total_py`, `mean_plant_water_py`) and the leaves' wet fraction
+  (`mean_wet_fraction_py`; per cohort `mean_wet_fraction_co`, off by default). Energy:
+  `mean_heat_bottom_py`, the enthalpy the precipitation carries in and the outflows carry out
+  (`mean_precip_enth_py`, `mean_outflow_enth_py`), the stores' gains (`mean_heat_gain_soil_py`,
+  `mean_heat_gain_canopy_py`, `mean_heat_gain_surface_py`) and H by source (`mean_h_canopy_py`,
+  `mean_h_ground_py`). A test closes both budgets from a run's files. (#56)
+- Carbon and radiation: autotrophic respiration `mean_raut_py` ($`R_{eco} - R_{het}`$), the ecosystem's
+  carbon `mean_eco_carbon_py` (vegetation plus soil), the leaves' absorbed PAR `mean_apar_py`, and
+  patch evapotranspiration `mean_et_pa`. (#56)
+- The mean diel cycle: `diel_<x>`, for every `mean_<x>` with a sub-daily value, is its mean at each
+  time of day over a daily, monthly or yearly record (D and M on the cohort and patch axes), on a
+  new `diel` axis with the coordinate `diel_hour`. New key `[output].diel_interval`: `"1 hour"`
+  (default) to `"4 hours"`. Off by default; results are bit for bit (docs/science/diagnostics.md §4,
+  The mean diel cycle). (#57)
+  give `[output].dir` or `prefix` another value, or set the new `[output].overwrite = true` (default
+  `false`) to replace them, as the examples' configs and scripts now do. (#55)
+- Per-patch ET sources and budget residuals, off by default: `mean_transp_pa`,
+  `mean_veg_surface_evap_pa`, `mean_ground_evap_pa`, `mean_dew_pa`, `mean_resid_energy_pa` and
+  `mean_resid_water_pa`. (#60)
 
 ### Changed
 
 - The Fortran sources use one comment format: `!--- text` for a comment line, a comment of
   several lines between two `!---~---` lines, and a plain `! text` after a statement. Results are
   bit for bit; only comments change. (#48)
+- The Python tools and the phenology example use pandas' `day_of_year`, not its deprecated
+  `dayofyear`, which pandas 4 warns about and will remove. Results are bit for bit. (#52)
+- Each tier's `file_chunk` is honoured as written. A tier with a cohort or patch variable used to be
+  cut to monthly files (sub-daily: daily), so the default monthly output was a file a month; it is now
+  a file a year, its cohort and patch axes growing to the file's largest live count. (#55)
+- The sub-daily (F) tier reaches every fast-loop quantity, and the daily and monthly tiers every
+  formerly sub-daily-only one. On request, F now writes the respiration split, Rh, ET, runoff, the
+  soil potential, wetness and liquid fraction by layer, per-cohort NPP and any per-cohort row reduced
+  to the patch or polygon (`mean_leaf_temp_py`, `mean_gsw_py`, ...). `mean_reco_py` is written daily,
+  monthly and yearly by default, and `mean_reco_pa`, `mean_sw_up_*`, `mean_lw_up_pa`, `mean_ustar_pa`,
+  `mean_cas_co2_pa` and `mean_rainf_py` daily or monthly on request. `mean_et_py` and the runoff
+  variables are now read from the fast loop's own exports; they differ from before at round-off.
+  Model state is bit for bit. (#56)
+- Clearer labels: `mean_abs_par_co` is the incident-equivalent PAR (the absorbed VIS over the leaf
+  absorptance), as its long name now says; `mean_cas_co2_pa` is in the `energy` group with its
+  polygon twin; the radiation group's description no longer promises an albedo. (#58)
+- The water the leaves and wood hold on their surfaces is called surface water throughout the code
+  and the docs (it was a "film"), as its state, keys and outputs already were; no key, state-file
+  variable or output changes. Bit for bit. (#59)
+
+### Fixed
+
+- Cohort output under daily growth: the stand is re-sorted every day, so a monthly cohort record could
+  average two cohorts in one slot. Every record of a month is now written in the month's end order,
+  keyed by cohort id, and a fast-loop row reduced to a coarser axis pairs each cohort with the weight
+  the fast loop used (docs/science/diagnostics.md §3). Model state is bit for bit. (#55)
+- The latent heat of vaporisation depends on temperature (Kirchhoff's law), as in ED2, instead of
+  being a constant, and the latent heat of sublimation for the ice share of the water that
+  vaporises. The reported latent heat flux and the energy budget's outflows use it at the canopy
+  air's temperature, so latent heat is no longer evapotranspiration times a constant: both are
+  reported (`mean_et_py`, `mean_et_pa`). (#49)
 
 ## [0.4.1] - 2026-10-26
 

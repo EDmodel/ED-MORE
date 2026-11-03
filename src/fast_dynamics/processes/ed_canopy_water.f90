@@ -1,13 +1,13 @@
 ! SPDX-License-Identifier: Apache-2.0
 !---~---
-!   ed_canopy_water -- the canopy's interception film
-! (docs/science/vegetation_energy_dynamics.md, "The canopy's interception film"): one
+!   ed_canopy_water -- the canopy's surface water
+! (docs/science/vegetation_energy_dynamics.md, "The canopy's surface water"): one
 ! cohort's capacity-limited bucket with a Beer interception fraction
 ! (intercept_canopy_layer); the step's capture, swept down the height-sorted cohorts
-! (canopy_interception); each film's evaporation held to what it holds
-! (limit_film_evaporation); and the films kept within their capacities at the step's end
-! (clamp_canopy_film). A film is part of its tissue's energy, and its evaporation is the
-! tissue energy balance's wet pathway (ed_plant_energy).
+! (canopy_interception); the evaporation of each tissue's surface water held to what it
+! holds (limit_surface_evaporation); and the surface water kept within its capacities at
+! the step's end (clamp_surface_water). Surface water is part of its tissue's energy, and
+! its evaporation is the tissue energy balance's wet pathway (ed_plant_energy).
 !---~---
 module ed_canopy_water
    use ed_kinds,       only : wp, ik
@@ -17,22 +17,22 @@ module ed_canopy_water
    private
 
    public :: canopy_water_out_t
-   public :: intercept_canopy_layer, canopy_interception, limit_film_evaporation, clamp_canopy_film
+   public :: intercept_canopy_layer, canopy_interception, limit_surface_evaporation, clamp_surface_water
 
    !---~---
-   !   The interception film over one step, per cohort and per m2 of ground: the wetted
-   ! fraction and film-evaporation conductances, the liquid enthalpy of the rain the films
-   ! exchange water with, and the interception rates, held fixed over the step. A film is
-   ! part of its tissue, at the tissue's temperature
-   ! (docs/science/vegetation_energy_dynamics.md, "The canopy's interception film"). All zero
+   !   The canopy's surface water over one step, per cohort and per m2 of ground: the wetted
+   ! fraction and surface-water evaporation conductances, the liquid enthalpy of the rain it
+   ! exchanges water with, and the interception rates, held fixed over the step. Surface water
+   ! is part of its tissue, at the tissue's temperature
+   ! (docs/science/vegetation_energy_dynamics.md, "The canopy's surface water"). All zero
    ! when canopy_water_on is off.
    !---~---
    type :: canopy_water_out_t
-      real(wp), allocatable :: g_film_leaf(:), g_film_w(:)   ! [m/s] film-evaporation conductance, leaf/wood
+      real(wp), allocatable :: g_surf_leaf(:), g_surf_wood(:)   ! [m/s] surface-water evaporation conductance, leaf/wood
       real(wp), allocatable :: f_wet_c(:)                    ! [-]   combined wetted fraction (sigma_w)
       !---~---
       !   The liquid enthalpy per kg of the rain passing through the canopy, at the
-      ! throughfall's temperature: what a film's net capture brings into its tissue, and what
+      ! throughfall's temperature: what the surface water's net capture brings into its tissue, and what
       ! its drip takes back out to the throughfall.
       !---~---
       real(wp) :: rain_liquid_enthalpy = 0.0_wp              ! [J/kg]
@@ -42,9 +42,9 @@ module ed_canopy_water
       !---~---
       real(wp), allocatable :: intercept_leaf(:), intercept_wood(:)   ! [kg/m2 ground/s] per cohort
       !---~---
-      !   Of each intercept, the water one film passes to the other within its cohort as the
-      ! cohort's film is re-shared by capacity (positive leaf to wood, as when leaves fall);
-      ! the rest is the film's share of the cohort's net capture.
+      !   Of each intercept, the surface water one tissue passes to the other within its cohort
+      ! as the cohort's surface water is re-shared by capacity (positive leaf to wood, as when
+      ! leaves fall); the rest is that tissue's share of the cohort's net capture.
       !---~---
       real(wp), allocatable :: transfer_lw(:)                         ! [kg/m2 ground/s] per cohort
    end type canopy_water_out_t
@@ -53,18 +53,18 @@ contains
 
    !---~---
    !   One cohort's canopy interception (docs/science/vegetation_energy_dynamics.md, "The
-   ! canopy's interception film"): a capacity-limited film bucket [kg/m2 ground] with a
+   ! canopy's surface water"): a capacity-limited surface-water bucket [kg/m2 ground] with a
    ! Beer interception fraction, returning the wetted fraction sigma_w (0 with no
    ! capacity). canopy_interception sweeps it down the height-sorted cohorts, each
    ! cohort's throughfall the next one's rain_above, so it is not elemental.
    !---~---
    pure subroutine intercept_canopy_layer(leaf_water, rain_above, lai, sai, dt, leaf_max, wood_max, k_int,     &
                                           alpha_pi, throughfall, drip, sigma_w)
-      real(wp), intent(inout) :: leaf_water             ! [kg/m2 ground] the film, leaf and wood together
+      real(wp), intent(inout) :: leaf_water             ! [kg/m2 ground] the surface water, leaf and wood together
       real(wp), intent(in)    :: rain_above             ! [kg/m2/s] precipitation reaching the cohort
       real(wp), intent(in)    :: lai, sai               ! [m2/m2] leaf and stem area index
       real(wp), intent(in)    :: dt                     ! [s]
-      real(wp), intent(in)    :: leaf_max, wood_max     ! [kg/m2 leaf], [kg/m2 wood] film capacities
+      real(wp), intent(in)    :: leaf_max, wood_max     ! [kg/m2 leaf], [kg/m2 wood] surface-water capacities
       real(wp), intent(in)    :: k_int, alpha_pi        ! [-] the interception fraction's extinction and scale
       real(wp), intent(out)   :: throughfall, drip      ! [kg/m2/s] all that reaches the layer below; the drip in it
       real(wp), intent(out)   :: sigma_w                ! [-] the wetted fraction
@@ -76,7 +76,7 @@ contains
       room   = max(0.0_wp, w_max - leaf_water) / dt
       q_intr = min(q_grab, room)                                 ! bounded by the room left
       !---~---
-      !   A film above capacity (leaf area shed under a full film) drips its excess to the
+      !   Surface water above capacity (leaf area shed while full) drips its excess to the
       ! layer below, so the water stays in the column.
       !---~---
       w_new = leaf_water + q_intr * dt
@@ -92,26 +92,26 @@ contains
    end subroutine intercept_canopy_layer
 
    !---~---
-   !   canopy_interception -- the step's capture by the canopy's films
-   ! (docs/science/vegetation_energy_dynamics.md, "The canopy's interception film"): one
+   !   canopy_interception -- the step's capture into the canopy's surface water
+   ! (docs/science/vegetation_energy_dynamics.md, "The canopy's surface water"): one
    ! leaf-and-wood bucket per cohort, tallest first, each cohort's throughfall the next
-   ! one's rain. Capture only: the films' evaporation is the tissue energy balance's. Each
-   ! cohort's film is shared between leaf and wood by capacity, so neither is left above
-   ! its own, and returned as the rate whose Euler step over dt is the bucket's update; a
-   ! cohort with no capacity passes both films on to the layer below. Returns what reaches
-   ! the ground.
+   ! one's rain. Capture only: the surface water's evaporation is the tissue energy
+   ! balance's. Each cohort's surface water is shared between leaf and wood by capacity, so
+   ! neither is left above its own, and returned as the rate whose Euler step over dt is the
+   ! bucket's update; a cohort with no capacity passes its leaf and wood surface water on to
+   ! the layer below. Returns what reaches the ground.
    !---~---
    pure subroutine canopy_interception(n, rain, leaf_water, wood_water, lai, wai, leaf_max, wood_max, k_int,     &
                                        alpha_pi, dt, intercept_leaf, intercept_wood, transfer_lw, f_wet,       &
                                        throughfall)
       integer(ik), intent(in)    :: n                                ! [-] number of cohorts, tallest first
       real(wp),    intent(in)    :: rain                             ! [kg/m2/s] rain and snow above the canopy
-      real(wp),    intent(in)    :: leaf_water(:), wood_water(:)     ! [kg/m2 ground] the films at the start
+      real(wp),    intent(in)    :: leaf_water(:), wood_water(:)     ! [kg/m2 ground] the surface water at the start
       real(wp),    intent(in)    :: lai(:), wai(:)                   ! [m2/m2] leaf and wood area index
       real(wp),    intent(in)    :: leaf_max(:), wood_max(:)         ! [kg/m2 leaf], [kg/m2 wood] capacities
       real(wp),    intent(in)    :: k_int, alpha_pi                  ! [-] intercept_canopy_layer's
       real(wp),    intent(in)    :: dt                               ! [s]
-      real(wp),    intent(inout) :: intercept_leaf(:), intercept_wood(:)   ! [kg/m2 ground/s] each film's change
+      real(wp),    intent(inout) :: intercept_leaf(:), intercept_wood(:)   ! [kg/m2 ground/s] each surface's change
       real(wp),    intent(inout) :: transfer_lw(:)                   ! [kg/m2 ground/s] leaf to wood within a cohort
       real(wp),    intent(inout) :: f_wet(:)                         ! [-] combined wetted fraction
       real(wp),    intent(out)   :: throughfall                      ! [kg/m2/s] what reaches the ground
@@ -127,7 +127,7 @@ contains
          if (leaf_cap_i + wood_cap_i > tiny_num) then
             intercept_leaf(i) = (combined_w*leaf_cap_i/(leaf_cap_i + wood_cap_i) - leaf_water(i)) / dt
             intercept_wood(i) = (combined_w*wood_cap_i/(leaf_cap_i + wood_cap_i) - wood_water(i)) / dt
-            !--- The leaf's film above its share of the start's, re-shared to the wood.
+            !--- The leaf's surface water above its share of the start's, re-shared to the wood.
             transfer_lw(i) = (leaf_water(i) - (leaf_water(i) + wood_water(i))*leaf_cap_i/(leaf_cap_i + wood_cap_i)) / dt
          else
             intercept_leaf(i) = -leaf_water(i) / dt
@@ -140,39 +140,39 @@ contains
    end subroutine canopy_interception
 
    !---~---
-   !   limit_film_evaporation -- each film's evaporation conductance scaled so that its
-   ! evaporation over dt, at the rate film_evap the step starts with, cannot exceed what
-   ! the film holds plus the step's capture (docs/science/soil_plant_water.md §4). Dew
-   ! (film_evap <= 0) is left alone.
+   !   limit_surface_evaporation -- the evaporation conductance of each tissue's surface water
+   ! scaled so that its evaporation over dt, at the rate leaf_surface_evap/wood_surface_evap
+   ! the step starts with, cannot exceed what the surface water holds plus the step's capture
+   ! (docs/science/soil_plant_water.md §4). Dew (a rate <= 0) is left alone.
    !---~---
-   pure subroutine limit_film_evaporation(n, dt, leaf_water, wood_water, film_evap_leaf, film_evap_wood, film)
+   pure subroutine limit_surface_evaporation(n, dt, leaf_water, wood_water, leaf_surface_evap, wood_surface_evap, veg_surface)
       integer(ik),              intent(in)    :: n                                 ! [-] number of cohorts
       real(wp),                 intent(in)    :: dt                                ! [s]
-      real(wp),                 intent(in)    :: leaf_water(:), wood_water(:)      ! [kg/m2 ground] the films
-      real(wp),                 intent(in)    :: film_evap_leaf(:), film_evap_wood(:)   ! [kg/m2 ground/s] at the start
-      type(canopy_water_out_t), intent(inout) :: film                              ! its conductances scaled in place
+      real(wp),                 intent(in)    :: leaf_water(:), wood_water(:)      ! [kg/m2 ground] the surface water
+      real(wp),                 intent(in)    :: leaf_surface_evap(:), wood_surface_evap(:)   ! [kg/m2 ground/s] at the start
+      type(canopy_water_out_t), intent(inout) :: veg_surface                              ! its conductances scaled in place
       real(wp)    :: avail_leaf, avail_wood
       integer(ik) :: i
       do i = 1_ik, n
-         avail_leaf = leaf_water(i) + max(0.0_wp, film%intercept_leaf(i)) * dt
-         if (film_evap_leaf(i) > tiny_num) film%g_film_leaf(i) = film%g_film_leaf(i)                          &
-              * min(1.0_wp, avail_leaf / (film_evap_leaf(i)*dt))
-         avail_wood = wood_water(i) + max(0.0_wp, film%intercept_wood(i)) * dt
-         if (film_evap_wood(i) > tiny_num) film%g_film_w(i) = film%g_film_w(i)                                &
-              * min(1.0_wp, avail_wood / (film_evap_wood(i)*dt))
+         avail_leaf = leaf_water(i) + max(0.0_wp, veg_surface%intercept_leaf(i)) * dt
+         if (leaf_surface_evap(i) > tiny_num) veg_surface%g_surf_leaf(i) = veg_surface%g_surf_leaf(i)                          &
+              * min(1.0_wp, avail_leaf / (leaf_surface_evap(i)*dt))
+         avail_wood = wood_water(i) + max(0.0_wp, veg_surface%intercept_wood(i)) * dt
+         if (wood_surface_evap(i) > tiny_num)                                                                     &
+            veg_surface%g_surf_wood(i) = veg_surface%g_surf_wood(i) * min(1.0_wp, avail_wood / (wood_surface_evap(i)*dt))
       end do
-   end subroutine limit_film_evaporation
+   end subroutine limit_surface_evaporation
 
    !---~---
-   !   clamp_canopy_film -- each cohort's leaf and wood films at the step's end, capped at
-   ! leaf_max*LAI and wood_max*WAI and floored at 0. The excess cut (overflow) and the
+   !   clamp_surface_water -- each cohort's leaf and wood surface water at the step's end,
+   ! capped at leaf_max*LAI and wood_max*WAI and floored at 0. The excess cut (overflow) and the
    ! shortfall filled (deficit) are returned, so the column's water budget can count them,
    ! and their net enthalpy at each tissue's start-of-step temperature, the temperature
-   ! the tissue's commit values its film's change at.
+   ! the tissue's commit values its surface water's change at.
    !---~---
-   pure subroutine clamp_canopy_film(leaf_water, wood_water, lai, wai, leaf_max, wood_max, t_leaf0, t_wood0, n,   &
+   pure subroutine clamp_surface_water(leaf_water, wood_water, lai, wai, leaf_max, wood_max, t_leaf0, t_wood0, n,   &
                                      surf_overflow, surf_deficit, surf_net_enth)
-      real(wp),    intent(inout) :: leaf_water(:), wood_water(:)   ! [kg/m2 ground] the films
+      real(wp),    intent(inout) :: leaf_water(:), wood_water(:)   ! [kg/m2 ground] the surface water
       real(wp),    intent(in)    :: lai(:), wai(:)                 ! [m2/m2] leaf and wood area index
       real(wp),    intent(in)    :: leaf_max(:), wood_max(:)       ! [kg/m2 leaf], [kg/m2 wood] per cohort
       real(wp),    intent(in)    :: t_leaf0(:), t_wood0(:)         ! [K] the tissues' start-of-step temperatures
@@ -195,6 +195,6 @@ contains
          leaf_water(i) = min(max(leaf_water(i), 0.0_wp), leaf_cap_i)
          wood_water(i) = min(max(wood_water(i), 0.0_wp), wood_cap_i)
       end do
-   end subroutine clamp_canopy_film
+   end subroutine clamp_surface_water
 
 end module ed_canopy_water

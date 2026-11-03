@@ -8,6 +8,9 @@ authors:
   - family-names: Xu
     given-names: Xiangtao
     affiliation: Cornell University
+  - family-names: Longo
+    given-names: Marcos
+    affiliation: National Institute for Space Research (INPE)
 repository-code: https://github.com/EDmodel/ED-MORE
 # The concept DOI: it stands for every version and resolves to the latest. Zenodo gives each release
 # its own DOI as well (https://doi.org/10.5281/zenodo.23674060 lists them).

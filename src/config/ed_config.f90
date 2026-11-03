@@ -88,7 +88,7 @@ module ed_config
       real(wp)    :: soil_energy_budget_atol = 1.0e-2_wp  ! [K] the soil heat's budget stop; not a step tolerance
       logical     :: debug_error         = .false.        ! a budget breach stops the run; else it is reported
       real(wp)    :: forcing_sample_frac = 0.5_wp         ! [-] where in the sub-step the forcing is sampled
-      logical     :: canopy_water_on     = .false.        ! the canopy interception films
+      logical     :: canopy_water_on     = .false.        ! the canopy's surface water
       real(wp)    :: intercept_alpha     = 1.0_wp         ! [-] Beer interception efficiency
       real(wp)    :: intercept_k         = 0.5_wp         ! [1/PAI] Beer interception extinction
       real(wp)    :: snow_init_swe       = 0.0_wp         ! [kg/m2] snow seeded at the run start

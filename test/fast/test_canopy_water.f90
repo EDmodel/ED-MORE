@@ -1,10 +1,10 @@
 ! SPDX-License-Identifier: Apache-2.0
 !---~---
-!   test_canopy_water -- the canopy's interception film (ed_canopy_water;
-! docs/science/vegetation_energy_dynamics.md, "The canopy's interception film").
+!   test_canopy_water -- the canopy's surface water (ed_canopy_water;
+! docs/science/vegetation_energy_dynamics.md, "The canopy's surface water").
 !   1. INTERCEPTION (intercept_canopy_layer): a dry canopy fills below its capacity with
 !      no drip and an exact water balance; a full one drips, holds its capacity and is
-!      wholly wet; a film above its capacity, as leaves fall from under it, drips the
+!      wholly wet; surface water above its capacity, as leaves fall from under it, drips the
 !      excess, and throughfall plus the change in storage is still the rain.
 !---~---
 program test_canopy_water
@@ -20,7 +20,7 @@ program test_canopy_water
 contains
 
    !---~---
-   !   1. One cohort of LAI 2 and SAI 0.5 under 0.1 mm/s of rain for 10 minutes, its film holding
+   !   1. One cohort of LAI 2 and SAI 0.5 under 0.1 mm/s of rain for 10 minutes, its surface water holding
    ! 0.1 kg/m2 per unit of leaf and of wood area (0.25 kg/m2 in all), the interception fraction's
    ! extinction 0.5 and scale 1.
    !---~---
@@ -45,7 +45,7 @@ contains
       call check_true('capacity respected', lw <= 0.25_wp + 1.0e-12_wp, lw)
       call check_true('sigma_w saturates to 1', abs(sw - 1.0_wp) < 1.0e-9_wp, sw)
       !---~---
-      !   A film already ABOVE capacity (leaf area lost under a full film) drips the excess:
+      !   Surface water already ABOVE capacity (leaf area lost while full) drips the excess:
       ! storage capped, and throughfall + storage change = rain -- nothing discarded.
       !---~---
       lw = 0.30_wp                                       ! capacity is 0.25: 0.05 too much

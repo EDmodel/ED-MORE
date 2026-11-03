@@ -76,8 +76,8 @@ def main(argv=None):
             if not args.era5_archive:
                 raise SystemExit("ERROR: the inventory check reads the ED_ERA5land archive: pass --era5-archive "
                                  "(or set ERA5LAND_ARCHIVE), or --skip-inventory")
-            run([args.edmore,    inventory_config(args.era5_archive)],
-                log=os.path.join(HERE, "output", "inventory.log"))
+            inventory = inventory_config(args.era5_archive)
+            run([args.edmore, inventory], log=os.path.join(HERE, "output", "inventory.log"))
         run([args.edmore, "ed_config_regrowth.toml"], log=os.path.join(HERE, "output", "regrowth.log"))
     run([sys.executable, os.path.join(HERE, "plot_palo_verde.py")])
 

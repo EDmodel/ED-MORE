@@ -14,10 +14,11 @@ outside the model computes what the fast loop computes:
                     pft, height, lai, wai)              # one patch, many hours
 
 The leaf drivers are those the model's leaf solve uses, which it reports per cohort on the fast
-tier: `mean_leaf_par_co`, `mean_leaf_temp_co`, `mean_leaf_vpd_co`, `mean_ca_co`, `mean_pressure_co`,
-`mean_psi_leaf_co`, `mean_gb_mol_co` and `mean_psi_predawn_co` (with `[output].fast_interval_steps
-= 1`, each record is one sub-step's solve); the stand's geometry is its restart state plus the
-`mean_wai_co` output.
+tier: `mean_leaf_par_co`, `mean_leaf_temp_co`, `mean_leaf_vpd_co`, `mean_psi_leaf_co`, `mean_gb_mol_co`
+and `mean_psi_predawn_co` (with `[output].fast_interval_steps = 1`, each record is one sub-step's
+solve). The solve's CO2 and pressure are its patch's: the canopy-air CO2 at the sub-step's start, the
+previous record's `mean_cas_co2_pa` (the cohort's patch is `owner_patch`), and the forcing's air
+pressure, `mean_psurf_py`. The stand's geometry is its restart state plus the `mean_wai_co` output.
 
 The library holds ONE configuration at a time. A Canopy reads its configuration's files when it is
 made, and again before a call when another Canopy has been opened since, so several can be used in

@@ -158,7 +158,7 @@ fractions $`w_i = a_i/(a_1+a_2)`$:
   term $`w_1 w_2 (d_1-d_2)(v_1-v_2)`$: fusing a tall patch with a gap would shift the canopy air's
   energy, humidity and CO₂ by the same relative error.
 - **The cohorts: only their density.** A cohort's amounts are per plant (its carbon, tissue water and
-  energy, and canopy films), so the cohorts of the merged patch keep them, and their densities take
+  energy, and surface water), so the cohorts of the merged patch keep them, and their densities take
   the area weights.
 - **Diagnosed fields** (temperatures, liquid fractions) are mixed on the same weights only so that a
   read before the caller re-diagnoses them from the blended energy is not far off.

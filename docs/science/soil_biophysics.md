@@ -275,7 +275,7 @@ Every face, the top one included, is applied by one upwind rule at the time leve
 
 ## Canopy interception
 
-The canopy's interception film, whose throughfall and drip are the rain that reaches the pond, is described with the tissue it wets in [vegetation_energy_dynamics](vegetation_energy_dynamics.md) ("The canopy's interception film").
+The canopy's surface water, whose throughfall and drip are the rain that reaches the pond, is described with the tissue it wets in [vegetation_energy_dynamics](vegetation_energy_dynamics.md) ("The canopy's surface water").
 
 ## Soil heterotrophic respiration
 

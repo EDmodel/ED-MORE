@@ -12,7 +12,7 @@
 !---~---
 module ed_fast_integ_stepper
    use ed_kinds,              only : wp, ik
-   use ed_constants,          only : latent_heat_vap, tiny_num
+   use ed_constants,          only : tiny_num
    use ed_config,             only : ed_config_t
    use ed_fast_params,        only : INTEG_ESDIRK2, INTEG_RK45
    use ed_site_state_vars,    only : site_surface_t
@@ -285,15 +285,16 @@ contains
    !---~---
    !   atm_fluxes -- the canopy-air -> atmosphere fluxes the run reports, from the ledger's own
    ! boundary export over the step, so the reported ET is the conserved vapour export:
-   ! LE = L_v * vapour export / dt and H = sensible export / dt, the b-weighted
-   ! g_atm_heat*cp_air*(T_cas - theta_atm), not the enthalpy export minus LE
-   ! (docs/science/numerical_scheme.md §5b).
+   ! LE = the vapour's latent heat export / dt (update_dynamic_state books it at the final
+   ! canopy-air temperature, the energy budget's outflows reading the same number) and
+   ! H = sensible export / dt, the b-weighted g_atm_heat*cp_air*(T_cas - theta_atm), not the
+   ! enthalpy export minus LE (docs/science/numerical_scheme.md §5b).
    !---~---
    pure subroutine atm_fluxes(exports, dt_fast, le_flux, h_flux)
       type(step_exports_t), intent(in)  :: exports
       real(wp),             intent(in)  :: dt_fast
       real(wp),             intent(out) :: le_flux, h_flux   ! [W/m2] step-mean CAS -> atmosphere
-      le_flux = exports%atm_vap_export  / dt_fast * latent_heat_vap
+      le_flux = exports%atm_le_export  / dt_fast
       h_flux  = exports%atm_heat_export / dt_fast
    end subroutine atm_fluxes
 

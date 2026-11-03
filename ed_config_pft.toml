@@ -57,8 +57,8 @@ wstress_sref_stomata = [2.0, 2.0, 2.0]              # [1/MPa] Sabot stomatal-str
                                                     #   point, the recommended value (-0.857 at the [hydraulics] leaf_pi0 and
                                                     #   leaf_elastic_mod). It clears the gravity head of a tree up to ~85 m in
                                                     #   wet soil.
-# leaf_surf_water_max = [0.1, 0.1, 0.1]             # [kg/m2 leaf] OPTIONAL film capacity of a leaf (intercepted rain and dew)
-# wood_surf_water_max = [0.1, 0.1, 0.1]             # [kg/m2 wood] OPTIONAL film capacity of the woody surface. Absent: 0.1 each,
+# leaf_surf_water_max = [0.1, 0.1, 0.1]             # [kg/m2 leaf] OPTIONAL surface-water capacity of a leaf (intercepted rain and dew)
+# wood_surf_water_max = [0.1, 0.1, 0.1]             # [kg/m2 wood] OPTIONAL surface-water capacity of the woody surface. Absent: 0.1 each,
                                                     #   CLM5's dewmx. Used with [fast].canopy_water_on; a cohort holds
                                                     #   leaf_surf_water_max*LAI + wood_surf_water_max*WAI before it drips.
 # Carbon traits (docs/science/plant_carbon_allocation.md). All state is CARBON; conversions are folded in
