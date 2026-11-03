@@ -12,26 +12,6 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ## [Unreleased]
 
-### Answer changes
-
-- The latent heat flux (`mean_le_pa`, `mean_le_py`) rises by 13 % on average (January 2021: 16.6 to
-  18.8 W/m2), and by at most 3.2 W/m2 on a day, in the region test's synthetic January-February
-  2021 run, where the canopy air is mostly below freezing and the vapour takes the latent heat of
-  sublimation. At the warm BCI site, LE declined by about 2.5 % (66.87 W/m2 to 65.12 W/m2 for
-  calibrated runs). The energy budget's outflows (`mean_outflow_enth_py`) change by the same amount,
-  but in the opposite direction, so the energy residual is unchanged. Evapotranspiration and the
-  model state are bit for bit. (#49)
-- Saturation vapour pressure follows Ambaum (2020) instead of Bolton and Magnus. In the region
-  test's synthetic January-February 2021 run the latent heat flux (`mean_le_pa`) and
-  evapotranspiration (`mean_et_pa`) rise by 0.22 % on average (at most 0.09 W/m2 on a day), the snow
-  water equivalent falls by 0.16 %, and the sensible heat flux, canopy air specific humidity and VPD
-  change by 0.052 % or less. (#51)
-- The leaf and wood boundary-layer conductances combine the forced and free Nusselt numbers as the
-  cube root of the sum of their cubes (Churchill 1977), not their sum. `leaf_gbh`, `leaf_gbw`,
-  `wood_gbh` and `wood_gbw` fall wherever both terms are non-zero: for a leaf 10 K above the canopy
-  air at 20 °C, by 29 % at 0.5 m/s and 15 % at 3 m/s (wood: 24 % and 12 %); isothermal elements are
-  unchanged. (#54).
-
 ### Upgrading
 
 - `[output.<tier>].file_chunk = "run"` is now `"all"`, one file for all of the run's records; `"run"`
@@ -58,6 +38,26 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - `mean_cas_depth_py` is in the `forcing` group, beside `mean_cas_depth_pa`, and reads the depth the
   fast loop used (the patches' area-weighted), as `mean_cas_depth_pa` does; it moves by millimetres.
   (#60)
+
+### Answer changes
+
+- The latent heat flux (`mean_le_pa`, `mean_le_py`) rises by 13 % on average (January 2021: 16.6 to
+  18.8 W/m2), and by at most 3.2 W/m2 on a day, in the region test's synthetic January-February
+  2021 run, where the canopy air is mostly below freezing and the vapour takes the latent heat of
+  sublimation. At the warm BCI site, LE declined by about 2.5 % (66.87 W/m2 to 65.12 W/m2 for
+  calibrated runs). The energy budget's outflows (`mean_outflow_enth_py`) change by the same amount,
+  but in the opposite direction, so the energy residual is unchanged. Evapotranspiration and the
+  model state are bit for bit. (#49)
+- Saturation vapour pressure follows Ambaum (2020) instead of Bolton and Magnus. In the region
+  test's synthetic January-February 2021 run the latent heat flux (`mean_le_pa`) and
+  evapotranspiration (`mean_et_pa`) rise by 0.22 % on average (at most 0.09 W/m2 on a day), the snow
+  water equivalent falls by 0.16 %, and the sensible heat flux, canopy air specific humidity and VPD
+  change by 0.052 % or less. (#51)
+- The leaf and wood boundary-layer conductances combine the forced and free Nusselt numbers as the
+  cube root of the sum of their cubes (Churchill 1977), not their sum. `leaf_gbh`, `leaf_gbw`,
+  `wood_gbh` and `wood_gbw` fall wherever both terms are non-zero: for a leaf 10 K above the canopy
+  air at 20 °C, by 29 % at 0.5 m/s and 15 % at 3 m/s (wood: 24 % and 12 %); isothermal elements are
+  unchanged. (#54)
 
 ### Added
 
