@@ -12,13 +12,6 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ## [Unreleased]
 
-### Answer changes
-
-- The leaf and wood boundary-layer conductances combine the forced and free Nusselt numbers as the
-  cube root of the sum of their cubes (Churchill 1977), not their sum. `leaf_gbh`, `leaf_gbw`,
-  `wood_gbh` and `wood_gbw` fall wherever both terms are non-zero: for a leaf 10 K above the canopy
-  air at 20 °C, by 29 % at 0.5 m/s and 15 % at 3 m/s (wood: 24 % and 12 %); isothermal elements are
-  unchanged. (#54).
 ### Upgrading
 
 - `[output.<tier>].file_chunk = "run"` is now `"all"`, one file for all of the run's records; `"run"`
@@ -55,6 +48,16 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   calibrated runs). The energy budget's outflows (`mean_outflow_enth_py`) change by the same amount,
   but in the opposite direction, so the energy residual is unchanged. Evapotranspiration and the
   model state are bit for bit. (#49)
+- Saturation vapour pressure follows Ambaum (2020) instead of Bolton and Magnus. In the region
+  test's synthetic January-February 2021 run the latent heat flux (`mean_le_pa`) and
+  evapotranspiration (`mean_et_pa`) rise by 0.22 % on average (at most 0.09 W/m2 on a day), the snow
+  water equivalent falls by 0.16 %, and the sensible heat flux, canopy air specific humidity and VPD
+  change by 0.052 % or less. (#51)
+- The leaf and wood boundary-layer conductances combine the forced and free Nusselt numbers as the
+  cube root of the sum of their cubes (Churchill 1977), not their sum. `leaf_gbh`, `leaf_gbw`,
+  `wood_gbh` and `wood_gbw` fall wherever both terms are non-zero: for a leaf 10 K above the canopy
+  air at 20 °C, by 29 % at 0.5 m/s and 15 % at 3 m/s (wood: 24 % and 12 %); isothermal elements are
+  unchanged. (#54)
 
 ### Added
 
@@ -113,6 +116,12 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - The water the leaves and wood hold on their surfaces is called surface water throughout the code
   and the docs (it was a "film"), as its state, keys and outputs already were; no key, state-file
   variable or output changes. Bit for bit. (#59)
+- Saturation vapour pressure, over liquid water and over ice, is Ambaum's (2020) closed form of
+  the Clausius-Clapeyron equation, built on the model's latent heat, so its slope with temperature
+  is Clausius-Clapeyron by definition and both phases meet at the triple point. It replaces the
+  empirical Bolton and Magnus forms with no option; it is within 0.25 % of Murphy and Koop (2005)
+  from -30 to 40 C. The flux-tower tools use it too, with its ice branch and liquid-fraction
+  blend, and `ambaum` is the first of their saturation curves, with `bolton` kept. (#51)
 
 ### Fixed
 

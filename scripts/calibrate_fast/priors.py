@@ -22,10 +22,15 @@ from __future__ import annotations
 
 import math
 import re
+import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+# The model's own saturation curve, over liquid water: the flux-tower tool's copy is the one copy.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "prepare_input" / "flux_tower"))
+from tower_conversions import sat_vapor_pressure  # noqa: E402
 
 R_GAS = 8.314462618          # [J mol-1 K-1]
 T25 = 298.15                 # [K]
@@ -47,12 +52,6 @@ LEAF_DEFAULTS = {"kc25": 40.49, "ko25": 27840.0, "gstar25": 4.275, "ea_kc": 7943
 def kattge_knorr(t_growth_c: float) -> dict:
     """{config key: value} of the shape keys at Kattge & Knorr's acclimated values."""
     return {k: a - b * t_growth_c for k, (a, b) in KATTGE_KNORR.items()}
-
-
-def sat_vapor_pressure(t_k):
-    """[Pa] over liquid water: Bolton (1980), as the model's forcing kernels."""
-    tc = np.asarray(t_k, dtype=float) - 273.15
-    return 611.2 * np.exp(17.67 * tc / (tc + 243.5))
 
 
 def co2_ppm(base, years) -> float:
