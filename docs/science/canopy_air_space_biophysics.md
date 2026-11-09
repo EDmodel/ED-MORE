@@ -91,13 +91,40 @@ record, `cas_env_t`, with the pre-assembled sources and the capacities, conducta
 boundary conditions. Any scheme-specific adjustment is folded into the source by the driver, so the box
 math is shared by both schemes.
 
+### The capacity between steps
+
+Each fast step takes the capacities $`W_{cap}`$ and $`C_{cap}`$ at its start and holds them through the
+step, so each step's budgets close at its own capacities. Between two steps they move: the density
+follows the canopy air's temperature, humidity and pressure every step, and the slow step resizes the
+depth once a day. The box is open, so its state carries over and its content changes: air leaves or
+enters at the canopy air's own state. That change is booked at the next step's start as a budget term,
+
+```math
+\Delta S_X = \big(\mathcal{C}^{\,n} - \mathcal{C}^{\,n-1}\big)\,X^{n} \qquad(3)
+```
+
+with $\mathcal{C}$ the capacity ($`W_{cap}`$ for the enthalpy and the humidity, $`C_{cap}`$ for the CO₂) and
+$`X^n`$ the canopy air's state at the step's start (`cas_capacity_change`). The patch keeps the last
+step's capacities, in its state file too. A step with none to compare against books nothing: the
+first after a start, the first after a restart from a state file that lacks them, and a fused patch
+whose parts did not both have them. The output reports the term as `mean_budget_cas_cap_energy`,
+`_water` and `_co2` ([diagnostics](diagnostics.md) §4, The budgets).
+
+It is a budget term, not a flux: the reported H, LE and NEE leave it out. The step's storage, the
+capacity times the change of state, is the storage a flux tower counts; this term makes the stored
+amounts add up across steps. Its energy part also depends on the enthalpy's datum. Dry air counts
+from 0 K, and at fixed pressure a box of fixed depth holds the same dry-air enthalpy at any temperature
+($`\rho\,c_p\,T = P\,c_p/R_d`$), so the term nearly cancels the step's sensible storage. The slow
+ledger values the canopy air at its own fixed density, `rho_air_ref`, and declares the depth change
+there ([conservation](conservation.md) §2, §3).
+
 ---
 
 ## Prognostic state
 
 | Store | Type | Prognostic variable(s) | Diagnosed |
 |---|---|---|---|
-| Canopy air space | `cas_state_t` | `can_enthalpy`, `can_shv`, `can_co2` | `can_temp` |
+| Canopy air space | `cas_state_t` | `can_enthalpy`, `can_shv`, `can_co2` | `can_temp`; the last step's capacities, eq. (3) |
 
 ### The start
 
@@ -124,6 +151,7 @@ wrote it.
 | temperature ↔ enthalpy | `ed_therm_lib`: `cas_temp_to_enthalpy`, `cas_enthalpy_to_temp`, `cas_molar_density`, `latent_heat_vap` |
 | biotic CO₂ source $`F_{bio}`$ | `ed_fast_integ_frozen`: `build_frozen` |
 | CAS depth and open-volume exchange | `refresh_canopy_depth` (`ed_slow_update`), `cas_set_depth` (`ed_patch_state_vars`) |
+| the content change between steps, eq. (3) | `ed_patch_state_vars`: `cas_capacity_change`, called by `build_frozen`; the capacities kept by `update_dynamic_state` (`ed_fast_integ_update`) |
 | the start's canopy air | `seed_patch_stores` (`ed_init_bare_ground`, the placeholder); `seed_start_canopy_air` (`ed_fast_state`), called by `fast_dynamics` at the first window |
 
 ## References

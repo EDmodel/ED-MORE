@@ -41,7 +41,7 @@ module ed_fast_integ_frozen
    use ed_fast_integ_derivs, only : surface_derivs, set_water_state
    use ed_state_defaults,   only : is_unset_negative
    use ed_biophysics_params, only : aero_params_t
-   use ed_patch_state_vars, only : cas_state_t, soil_carbon_state_t, cas_capacities
+   use ed_patch_state_vars, only : cas_state_t, soil_carbon_state_t, cas_capacities, cas_capacity_change
    use ed_biogeochem_params, only : N_SOIL_POOL
    use ed_canopy_aerodynamics, only : canopy_aerodynamics, cas_atm_conductances
    use ed_plant_energy,   only : plant_energy_env_t, sensible_heat_coeff, leaf_transp_coeff, leaf_surface_evap_coeff, &
@@ -133,6 +133,10 @@ contains
       call cas_atm_conductances(rho, can_dmol, out%aero%ustar, out%aero%heat_transfer_factor,                  &
                                 out%aero%vapour_transfer_factor, frozen%cas%box%atm_conductance_enthalpy,     &
                                 frozen%cas%box%atm_conductance_vapor, frozen%cas%box%atm_conductance_co2)
+      !--- The content change from the capacities moving since the last step: a budget term.
+      call cas_capacity_change(dynamic%cas, frozen%cas%box%air_mass_capacity, frozen%cas%box%air_molar_capacity, &
+                               out%report%exports%cas_capacity_energy, out%report%exports%cas_capacity_water,    &
+                               out%report%exports%cas_capacity_co2)
 
       !---~---
       !   The snow stage (docs/science/snow_biophysics.md §The snow store): the step's snow and rain

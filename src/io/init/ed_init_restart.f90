@@ -353,6 +353,14 @@ contains
       call nc_check(nc_get_vara_int(r%ncid, var_id(r%ncid, name), st(1:nd), ct(1:nd), x), 'get '//name)
    end subroutine get_int
 
+   !--- Whether the state file holds a variable (a later version may write ones an older did not).
+   logical function has_var(ncid, name)
+      integer(c_int),   intent(in) :: ncid
+      character(len=*), intent(in) :: name
+      integer(c_int) :: id
+      has_var = nc_inq_varid_f(ncid, name, id) == NC_NOERR
+   end function has_var
+
    integer(c_int) function var_id(ncid, name)
       integer(c_int),   intent(in) :: ncid
       character(len=*), intent(in) :: name
@@ -747,6 +755,8 @@ contains
       call def_var(d, 'cas_can_shv_pa',      NC_DOUBLE, [d%patch], 'CAS specific humidity [kg/kg] (prognostic)')
       call def_var(d, 'cas_can_co2_pa',      NC_DOUBLE, [d%patch], 'CAS CO2 mixing ratio [umol/mol] (prognostic)')
       call def_var(d, 'cas_can_temp_pa',     NC_DOUBLE, [d%patch], 'CAS temperature [K] (diagnosed twin)')
+      call def_var(d, 'cas_air_mass_capacity_pa',  NC_DOUBLE, [d%patch], 'CAS air mass the last fast step held [kg/m2]')
+      call def_var(d, 'cas_air_molar_capacity_pa', NC_DOUBLE, [d%patch], 'CAS dry-air moles the last fast step held [mol/m2]')
       call def_var(d, 'snow_nlayer_pa', NC_INT,    [d%patch], 'active snow layer count (0 = no snow)')
       call def_var(d, 'snow_swe_layer_pa',    NC_DOUBLE, [d%patch, d%snow_layer], 'snow water-equivalent mass [kg/m2] (prognostic)')
       call def_var(d, 'snow_energy_layer_pa', NC_DOUBLE, [d%patch, d%snow_layer],                                   &
@@ -810,6 +820,10 @@ contains
          call put_dbl(r, 'cas_can_co2_pa', buf)
          buf = p%cas(1:npat)%can_temp
          call put_dbl(r, 'cas_can_temp_pa', buf)
+         buf = p%cas(1:npat)%air_mass_capacity
+         call put_dbl(r, 'cas_air_mass_capacity_pa', buf)
+         buf = p%cas(1:npat)%air_molar_capacity
+         call put_dbl(r, 'cas_air_molar_capacity_pa', buf)
          !--- 5. Snow.
          ibuf = p%snow(1:npat)%nlayer
          call put_int(r, 'snow_nlayer_pa', ibuf)
@@ -880,6 +894,13 @@ contains
          p%cas(1:npat)%can_co2 = buf
          call get_dbl(r, 'cas_can_temp_pa', buf)
          p%cas(1:npat)%can_temp = buf
+         !--- A state file from before these were written: the first step books no capacity change.
+         if (has_var(r%ncid, 'cas_air_mass_capacity_pa')) then
+            call get_dbl(r, 'cas_air_mass_capacity_pa', buf)
+            p%cas(1:npat)%air_mass_capacity = buf
+            call get_dbl(r, 'cas_air_molar_capacity_pa', buf)
+            p%cas(1:npat)%air_molar_capacity = buf
+         end if
          !--- 5. Snow.
          call get_int(r, 'snow_nlayer_pa', ibuf)
          p%snow(1:npat)%nlayer = ibuf

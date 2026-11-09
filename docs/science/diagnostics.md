@@ -490,6 +490,13 @@ $`H`$ is also split by its source: the leaves' and wood's (`mean_h_canopy_py`) a
 (`mean_h_ground_py`). Their sum is the sensible heat into the canopy air, which differs from $`H`$ by
 the canopy air's own warming and the enthalpy its condensate takes to the soil.
 
+The canopy air's gains above are valued at each step's own capacity, so both budgets close step by
+step without the next terms. The canopy air's content also changes between steps, when its capacity
+(density times depth) moves, and the budget terms `mean_budget_cas_cap_energy_py`, `_water_py`
+and `_co2_py` carry that change (W m⁻², kg m⁻² s⁻¹, µmol m⁻² s⁻¹; + gained; the `numerics` group, and
+per patch `_pa`, off by default). The canopy air's content at a record's end, less that at its start,
+is its gain plus this term ([canopy-air-space biophysics](canopy_air_space_biophysics.md) eq. (3)).
+
 The carbon stocks add up the same way: the ecosystem's carbon (`mean_eco_carbon_py`) is the live
 vegetation's (`mean_veg_carbon_py`) plus the soil's organic carbon (`mean_soilc_total_py`).
 

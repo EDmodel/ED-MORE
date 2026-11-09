@@ -100,6 +100,9 @@ contains
       end if
 
       call unpack_column_state(y_out, n, nsl, dynamic)
+      !--- The capacities this step held, which the next step books its change from.
+      dynamic%cas%air_mass_capacity  = frozen%cas%box%air_mass_capacity
+      dynamic%cas%air_molar_capacity = frozen%cas%box%air_molar_capacity
       dynamic%soil_water%w_surface        = y_out%w_surface
       dynamic%soil_water%w_surface_energy = y_out%w_surface_energy
       call diagnose_soil_temps(y_out, site%soil_profile, nsl, dynamic%soil_energy%soil_temp,                    &

@@ -27,6 +27,7 @@ module ed_fast_diag
                                        PA_VEG_SURFACE_WATER, PA_SOIL_WATER_TOTAL, PA_PLANT_WATER,                &
                                        PA_SW_UP, PA_SKIN_TEMP, PA_SOIL_TEMP_TOP, PA_CAS_VPD, PA_W_SURFACE,       &
                                        PA_RESID_ENERGY, PA_RESID_WATER, PA_WIND_CAS_TOP, PA_TAIR_CAS_TOP,        &
+                                       PA_BUDGET_CAS_CAP_ENERGY, PA_BUDGET_CAS_CAP_WATER, PA_BUDGET_CAS_CAP_CO2, &
                                        PA_Z_CAS_TOP, PY_SW_IN, PY_PRECIP, PY_TAIR, PY_QAIR, PY_PSURF, PY_WIND,   &
                                        PY_LWDOWN, PY_PAR_BEAM, PY_PAR_DIFFUSE, PY_NIR_BEAM, PY_NIR_DIFFUSE,      &
                                        PY_SNOWFALL, PY_CO2, PY_COSZ, PY_RHO_AIR, PY_RAINF, N_PY_ROWS,            &
@@ -359,6 +360,10 @@ contains
       !---~---
       row(PA_RESID_ENERGY) = resid_energy / dt
       row(PA_RESID_WATER)  = resid_water / dt
+      !--- The canopy air's content change from its capacity moving since the last step [W/m2, kg/m2/s, umol/m2/s].
+      row(PA_BUDGET_CAS_CAP_ENERGY) = exports%cas_capacity_energy / dt
+      row(PA_BUDGET_CAS_CAP_WATER)  = exports%cas_capacity_water / dt
+      row(PA_BUDGET_CAS_CAP_CO2)    = exports%cas_capacity_co2 / dt
    end subroutine patch_diag_row
 
    !--- Fold one (patch, sub-step) row into the patch accumulator, dt-weighted; read as v / w.
