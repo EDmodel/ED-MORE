@@ -517,7 +517,7 @@ canopy). An open-terrain wind (`wind_exposure = "open_terrain"`, with `wind_expo
 ```math
 u(z_c) = u_m\,\frac{\ln(z_b/z_{0e})}{\ln(z_m/z_{0e})}\;\frac{\ln(h_c/z_0)}{\ln(h_b/z_0)}, \qquad
 T(z_c) = T_m-\frac{g}{c_p}\,(z_c-z_T), \qquad
-P(z_c) = P_s\left(\frac{T(z_c)}{T(0)}\right)^{c_p/R_d} \qquad(15)
+P(z_c) = P_s\left(\frac{T(z_c)}{T(z_s)}\right)^{c_p/R_d} \qquad(15)
 ```
 
 Here $`u_m`$ and $`T_m`$ are the forcing's wind and temperature, $`z_m`$ is `wind_height`, $`z_{0e}`$ is
@@ -526,12 +526,14 @@ first factor). $`h_c`$ and $`h_b`$ are $`z_c`$ and $`z_b`$ as heights above the 
 reanalysis's heights already are; a tower's are measured above the ground, so $d$ is subtracted),
 floored at $`2z_0`$ like the aerodynamics' own reference height. The temperature height is
 $`z_T = d + `$`tq_height` above the zero plane, or `tq_height` above the ground. The move conserves
-potential temperature, $\theta = T + (g/c_p)\,z$. Pressure moves along the same adiabat from the
-ground, where the forcing's surface pressure $`P_s`$ is, at the forcing's temperature brought down to
-it, $`T(0) = T_m + (g/c_p)\,z_T`$: the hydrostatic integral under that linear $T(z)$. The aerodynamics
-then references both the canopy air's potential temperature and this air's to $`z_c`$, where each
-equals its actual temperature ([canopy aerodynamics](canopy_aerodynamics.md) §2). Humidity,
-radiation, total precipitation and CO₂ are unchanged, and $`\rho_{air}`$ is re-derived, so the record
+potential temperature, $\theta = T + (g/c_p)\,z$. Pressure moves along the same adiabat from
+$`z_s`$, where the forcing's surface pressure $`P_s`$ is, at the forcing's temperature brought down to
+it, $`T(z_s) = T_m + (g/c_p)\,(z_T - z_s)`$: the hydrostatic integral under that linear $T(z)$. For a
+tower $`z_s`$ is the ground; for a reanalysis, whose heights are above the zero plane, it is $d$, the
+reanalysis's own surface. The aerodynamics then references both the canopy air's potential
+temperature and this air's to $`z_c`$, where each equals its actual temperature ([canopy
+aerodynamics](canopy_aerodynamics.md) §2). Humidity, radiation, total precipitation and CO₂ are
+unchanged, and $`\rho_{air}`$ is re-derived, so the record
 at $`z_c`$ is one parcel of air. Its pressure is the one the patch uses: the canopy air's, the leaves'
 and the ground's. The rain/snow split, eq. (12), is made at $`T(z_c)`$: precipitation enters the
 canopy there, and its enthalpy is valued there too (rain as liquid and snow as ice at that
