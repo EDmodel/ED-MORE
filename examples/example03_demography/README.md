@@ -68,6 +68,12 @@ rounded small stems to 5 mm. Only processed summaries are committed: the coeffic
 [`census_stand.csv`](census_stand.csv) (stems, basal area and aboveground biomass by PFT and size class,
 per census).
 
+The committed summaries come from an earlier download of the Dryad package, made before its taxonomy
+update: it uses the codes `sipagu` and `tremmi`. The current `bci.tree.zip` lists 2 to 6 fewer live
+trees per census and three new codes, `ingaun`, `sipacr` and `tremsp`, which
+[`bci_wood_density.csv`](bci_wood_density.csv) also lists. `prepare_census.py` stops and lists any
+species code that has no wood density.
+
 ## Run
 
 Build the Python library once (as in [example 01](../example01_leaf_gas_exchange/README.md#run)),

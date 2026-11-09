@@ -481,6 +481,7 @@ ingasp,Inga,spectabilis,Fabaceae,0.5771,genus,0
 ingast,Inga,aff.stenophylla,Fabaceae,0.5771,genus,0
 ingath,Inga,thibaudiana,Fabaceae,0.5771,genus,0
 ingaum,Inga,umbellifera,Fabaceae,0.7240,species,1
+ingaun,Inga,sp.,Fabaceae,0.5771,genus,0
 ingaur,Inga,urceolata,Fabaceae,0.5771,genus,0
 ingav1,Inga,venusta,Fabaceae,0.5771,genus,0
 ingave,Inga,vera,Fabaceae,0.5750,species,2
@@ -904,6 +905,7 @@ sidepe,Sideroxylon,persimile,Sapotaceae,0.8640,genus,0
 sim1po,Simaba,polyphylla,Simaroubaceae,0.4103,genus,0
 simaam,Simarouba,amara,Simaroubaceae,0.3833,species,18
 sipa3,Siparuna,sp.3,Siparunaceae,0.6618,genus,0
+sipacr,Siparuna,cristata,Siparunaceae,0.6618,genus,0
 sipacu,Siparuna,cuspidata,Siparunaceae,0.6550,species,2
 sipagu,Siparuna,guianensis,Siparunaceae,0.6618,genus,0
 sipapa,Siparuna,pauciflora,Siparunaceae,0.6618,genus,0
@@ -983,6 +985,7 @@ tratas,Trattinnickia,aspera,Burseraceae,0.4240,species,1
 tratbu,Trattinnickia,burserifolia,Burseraceae,0.4600,species,4
 tremin,Trema,integerrima,Cannabaceae,0.3000,species,1
 tremmi,Trema,micrantha,Cannabaceae,0.2863,species,4
+tremsp,Trema,sp.,Cannabaceae,0.2931,genus,0
 tri1gi,Trichanthera,gigantea,Acanthaceae,0.4500,species,1
 tri2hi,Trichilia,hirta,Meliaceae,0.5500,species,2
 tri2pa,Trichilia,pallida,Meliaceae,0.6700,species,1
