@@ -58,6 +58,11 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   `wood_gbh` and `wood_gbw` fall wherever both terms are non-zero: for a leaf 10 K above the canopy
   air at 20 °C, by 29 % at 0.5 m/s and 15 % at 3 m/s (wood: 24 % and 12 %); isothermal elements are
   unchanged. (#54)
+- The canopy air uses its own density, its temperature and humidity at the pressure of its top; the
+  forcing's pressure moves to that top along its temperature's dry adiabat, from the ground for a
+  tower and from the zero plane for a reanalysis; a tower's humidity is converted at its sensor's
+  pressure. BCI (example 04, default/calibrated): LE +0.12/−0.05 %, H −0.18/−0.03 %, GPP
+  −0.10/−0.13 %; Palo Verde (example 05, ERA5-Land): LE +0.21 %, H −0.24 %, ET +2.1 mm/yr. (#65)
 
 ### Added
 
