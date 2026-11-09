@@ -366,8 +366,12 @@ is one of the partition's open uncertainties.
 ## 7. Humidity and precipitation phase
 
 A file carries the humidity its source measured, and the reader converts it to specific humidity at
-each stamp, with that record's own temperature and pressure: a dewpoint (`Tdew`, a reanalysis) or a
-relative humidity (`RHair`, a flux tower) by eq. (11), a specific humidity (`Qair`) as it is. Storing the
+each stamp, with that record's own temperature and the pressure of the air it was measured in: a
+dewpoint (`Tdew`, a reanalysis) or a relative humidity (`RHair`, a flux tower) by eq. (11), a specific
+humidity (`Qair`) as it is. A file's pressure is the ground's, so for heights above the ground (a
+tower) the reader moves it up the dry adiabat to `tq_height`, as Step 2 moves it to the canopy-air top
+(`tq_height_pressure`; about 0.5 % lower at a 41 m tower, and the specific humidity as much higher). A
+reanalysis's 2 m air keeps the surface pressure it comes with. Storing the
 measured quantity is what keeps the provider's saturation curve out of the model: a tower's relative
 humidity is a sensor reading, while its vapour-pressure deficit, or a $q$ made from it offline, carries
 whichever curve the provider used (Barro Colorado Island's `vpd` column is the Alduchov–Eskridge
@@ -785,7 +789,7 @@ each option requires are in the reference config `ed_config_main.toml` and in
 | apparent solar time, zenith | `ed_time`: `solar_cosz_utc` over `solar_cosz`, with `utc_to_solar_seconds` and the private `equation_of_time`; the window mean `mean_solar_cosz`; `solar_declination`, `daylength` |
 | SW disaggregation | `ed_met`: `cosz_reconstruct_factor`, `disaggregate_sw` |
 | SW partition | `ed_radiation_lib`: `partition_shortwave`, `erbs_diffuse_fraction`, `weiss_norman_partition` |
-| humidity, precip phase | `ed_therm_lib`: `sat_specific_humidity` (at the dewpoint), `rh_to_specific_humidity`, `vapor_pressure_to_specific_humidity`, `specific_humidity_to_vapor_pressure`, `precip_phase` |
+| humidity, precip phase | `ed_therm_lib`: `sat_specific_humidity` (at the dewpoint), `rh_to_specific_humidity`, `vapor_pressure_to_specific_humidity`, `specific_humidity_to_vapor_pressure`, `precip_phase`; the pressure they use, `tq_height_pressure` (`ed_met`) |
 | longwave synthesis | `ed_radiation_lib`: `clearness_index`, `clear_sky_emissivity`, `synthesize_lwdown`; `ed_met`: `remember_clearness` (the night's $`k_t`$) |
 | the grid and its cells | `ed_met_grid`: `select_site_cell`, `select_box_cells`, `keep_cells`, `same_grid`, `great_circle_distance`, `nearest_grid_index`; the archive's grid, `ed_met_era5land`: `era5land_grid` |
 | terrain lapse (§8, Step 1) | the laws: `ed_therm_lib`: `lapse_air_temperature`, `lapse_pressure`, `lapse_specific_humidity`; `ed_radiation_lib`: `lapse_longwave`; applied in `read_record` (`ed_met`) |

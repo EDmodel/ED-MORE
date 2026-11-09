@@ -30,7 +30,8 @@ program test_met_file
                                      LW_SYNTHESIZE
    use ed_met_types,          only : met_forcing_t, met_source_t, met_cursor_t, FLD_TAIR, FLD_QAIR, FLD_PSURF
    use ed_met,                only : cosz_reconstruct_factor, disaggregate_sw, cas_top_wind_factor, met_to_cas_top, &
-                                     met_open, met_cursor_init, met_advance, met_instant, met_close, met_at_site
+                                     met_open, met_cursor_init, met_advance, met_instant, met_close, met_at_site, &
+                                     tq_height_pressure
    use ed_met_grid,           only : great_circle_distance, nearest_grid_index
    use ed_met_share,          only : MET_OK, MET_ERR_WINDOW_NOT_WHOLE_YEARS, MET_ERR_START_NOT_A_RECORD, &
                                      MET_ERR_WINDOW_NOT_COVERED, MET_ERR_DT_MISMATCH, MET_ERR_ATTR_MISMATCH, &
@@ -1358,8 +1359,19 @@ contains
       call check_true('an RHair file opens', st == MET_OK, real(st, wp))
       call met_cursor_init(src, cur, 1_ik, fc%latitude, fc%longitude, fc%elevation)
       met = sample(src, cur, stamp_seconds(K))
-      call check('RHair -> q by rh_to_specific_humidity at the record''s T and P', met%air_shv,           &
-                 rh_to_specific_humidity(rh_at(K), tair_at(K), PSURF), 1.0e-15_wp)
+      call check('RHair -> q by rh_to_specific_humidity at the record''s T and its height''s P', met%air_shv, &
+                 rh_to_specific_humidity(rh_at(K), tair_at(K), tq_height_pressure(fc, tair_at(K), PSURF)), 1.0e-15_wp)
+      !--- A 41 m tower's air sits ~0.47 % below the ground's pressure; a reanalysis's keeps it.
+      call check('a tower''s humidity is converted at its sensor''s pressure, rho g z below the ground''s', &
+                 PSURF - tq_height_pressure(fc, tair_at(K), PSURF),                                       &
+                 air_density(tair_at(K), PSURF, 0.0_wp) * grav * TOWER_HEIGHT, 2.0_wp)
+      block
+         type(forcing_params_t) :: fz
+         fz = fc
+         fz%height_above = HEIGHT_ABOVE_ZERO_PLANE
+         call check('a reanalysis''s humidity keeps its surface pressure', tq_height_pressure(fz, tair_at(K), PSURF), &
+                    PSURF, 0.0_wp)
+      end block
       call met_close(src)
 
       call write_tower_file('begin', 'Tdew', 'UTC', 1.0_wp, TOWER_HEIGHT, 'ground')
@@ -1367,8 +1379,8 @@ contains
       call check_true('a Tdew file opens', st == MET_OK, real(st, wp))
       call met_cursor_init(src, cur, 1_ik, fc%latitude, fc%longitude, fc%elevation)
       met = sample(src, cur, stamp_seconds(K))
-      call check('Tdew -> q by sat_specific_humidity', met%air_shv,                              &
-                 sat_specific_humidity(tair_at(K) - 3.0_wp, PSURF), 1.0e-15_wp)
+      call check('Tdew -> q by sat_specific_humidity at the height''s P', met%air_shv,               &
+                 sat_specific_humidity(tair_at(K) - 3.0_wp, tq_height_pressure(fc, tair_at(K), PSURF)), 1.0e-15_wp)
       call met_close(src)
 
       call write_tower_file('begin', 'Qair', 'UTC', 1.0_wp, TOWER_HEIGHT, 'ground')
@@ -1535,13 +1547,13 @@ contains
       do k = 1, NT - 1
          if (k == SATURATED_REC) cycle
          met = sample(src, cur, stamp_seconds(k))
-         vpd = specific_humidity_to_vpd(met%air_temp, met%air_shv, met%air_pressure)
+         vpd = specific_humidity_to_vpd(met%air_temp, met%air_shv, tq_height_pressure(fc, met%air_temp, met%air_pressure))
          rh_model = 1.0_wp - vpd / sat_vapor_pressure(met%air_temp)
          worst = max(worst, abs(rh_model - rh_at(k)))
       end do
       call check('the model''s RH at the forcing temperature is RHair at every stamp', worst, 0.0_wp, 1.0e-12_wp)
       met = sample(src, cur, stamp_seconds(SATURATED_REC))
-      vpd = specific_humidity_to_vpd(met%air_temp, met%air_shv, met%air_pressure)
+      vpd = specific_humidity_to_vpd(met%air_temp, met%air_shv, tq_height_pressure(fc, met%air_temp, met%air_pressure))
       call check('a saturated tower record reads back as VPD = 0', vpd, 0.0_wp, 1.0e-9_wp)
 
       call met_close(src)
