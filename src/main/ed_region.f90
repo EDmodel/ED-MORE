@@ -595,13 +595,16 @@ contains
 
       !---~---
       !   The compute phase: no file is touched here; each polygon writes only its own state
-      ! and buffers.
+      ! and buffers. The threads take the polygons one at a time in the order given, costliest
+      ! first. That needs `monotonic`: without it OpenMP lets the runtime hand each thread a block
+      ! of the order up front (ifx's runtime does), and the costliest polygons can then queue on
+      ! one thread while the others finish early.
       !---~---
       allocate(order(npoly), failed_step(npoly), was_running(npoly))
       call ascending_order(-reg%cost, npoly, order)
       was_running = reg%run(:)%status == RUN_OK
       failed_step = 0_ik
-      !$omp parallel do schedule(dynamic, 1) num_threads(cfg%n_threads) default(shared) if(npoly > 1)   &
+      !$omp parallel do schedule(monotonic: dynamic, 1) num_threads(cfg%n_threads) default(shared) if(npoly > 1)   &
       !$omp    private(k, p, s, st, tick0, tick1, tick_rate)
       do k = 1_ik, npoly
          p = order(k)

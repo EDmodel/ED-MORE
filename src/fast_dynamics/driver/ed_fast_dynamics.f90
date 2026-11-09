@@ -204,11 +204,12 @@ contains
 
       !---~---
       !   The parallel patch loop (docs/science/numerical_scheme.md §6a): patches are
-      ! independent within a dt_fast. schedule(dynamic, 1), because the adaptive march makes
-      ! their costs very unequal. Without OpenMP the directives are comments and there is one
+      ! independent within a dt_fast. schedule(monotonic: dynamic, 1): one patch at a time,
+      ! because the adaptive march makes their costs very unequal, and in the order given, so
+      ! the costliest start first. Without OpenMP the directives are comments and there is one
       ! step data.
       !---~---
-      !$omp parallel do default(shared) schedule(dynamic, 1) num_threads(n_thread)                  &
+      !$omp parallel do default(shared) schedule(monotonic: dynamic, 1) num_threads(n_thread)       &
       !$omp    private(iv, ip, ith, isub, is_p, area, k, tick0, tick1, tick_rate)
       do iv = 1_ik, npatch
          ip = visit(iv)

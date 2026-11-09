@@ -588,14 +588,18 @@ in patch order reproduces the serial fold exactly, so the answer does not move w
 An OpenMP build is not bit-identical to a serial build, because compiling the loop as a parallel region
 changes its rounding (`docs/building.md`, "Parallel builds").
 
-The patch loop uses `schedule(dynamic, 1)`: the adaptive march makes patches very unequal in cost
-(one collapsed patch can take many times the others), and a static schedule would wait on the slowest.
-Patches are also handed out costliest first. Each patch keeps the wall time its last day took
+The patch loop uses `schedule(monotonic: dynamic, 1)`: the adaptive march makes patches very unequal
+in cost (one collapsed patch can take many times the others), and a static schedule would wait on the
+slowest. Patches are also handed out costliest first. Each patch keeps the wall time its last day took
 (`patch%fast_cost`, measured with the system clock around the patch's march), and the next day visits
 the patches in descending order of that cost, so a slow patch starts at once instead of arriving last
 and running on one thread while the others sit idle. A new patch costs nothing until its first day
 runs; fused patches add their costs. The order changes only which thread runs which patch: every patch
 still writes its own staging slot and the fold stays in patch order, so the answer does not move.
+`monotonic` makes the threads take the patches in that order. Without it, OpenMP lets the runtime give
+each thread a block of the order up front (ifx's runtime does), and the costliest patches can then
+queue on one thread. A region's polygon loop is scheduled the same way, on each polygon's wall time in
+the last month.
 Each thread's per-patch scratch is an explicit pool indexed by thread number rather than an OpenMP
 `private` clause, because ifx builds private copies of a derived type through a static mold that every
 thread writes: a data race that gives exactly the thread-count-dependent answers the patch-order fold
