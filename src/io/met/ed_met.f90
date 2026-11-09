@@ -16,7 +16,8 @@ module ed_met
    use ed_kinds, only : wp, ik
    use ed_numerics, only : linear_interpolate
    use ed_therm_lib,   only : air_density, lapse_air_temperature, lapse_pressure, lapse_specific_humidity,        &
-                              dry_adiabat_temperature, sat_specific_humidity, rh_to_specific_humidity
+                              dry_adiabat_temperature, dry_adiabat_pressure, sat_specific_humidity,          &
+                             rh_to_specific_humidity
    use ed_time,   only : ed_time_t, time_advance_seconds, seconds_into_day, time_to_string, solar_cosz_utc,     &
                          mean_solar_cosz
    use ed_forcing_params,   only : forcing_params_t, MET_BACKEND_DEFAULT, MET_BACKEND_ERA5LAND,                   &
@@ -492,10 +493,11 @@ contains
    !---~---
    !   A forcing record at a patch's canopy-air top: wind (and its vector) by the patch's factor,
    ! temperature along the dry adiabat from the forcing's temperature height (a reanalysis's
-   ! is above d), so the aerodynamics' theta is exactly the forcing's; air density re-derived.
-   ! Humidity is conserved and the radiation, precipitation and pressure are unchanged; the
-   ! rain/snow split is made from this record's temperature where the column's forcing is
-   ! filled (fill_forcing).
+   ! is above d), so the aerodynamics' theta is exactly the forcing's, and pressure along the
+   ! same adiabat from the ground, where the forcing's is; air density re-derived, so the record
+   ! is one parcel of air at the top. Humidity is conserved and the radiation and precipitation
+   ! are unchanged; the rain/snow split is made from this record's temperature where the
+   ! column's forcing is filled (fill_forcing).
    !---~---
    pure function met_to_cas_top(met, f, z_top, displace, rough) result(top)
       type(met_forcing_t),    intent(in) :: met
@@ -515,6 +517,8 @@ contains
       z_t = f%tq_height
       if (f%height_above == HEIGHT_ABOVE_ZERO_PLANE) z_t = displace + f%tq_height
       top%air_temp  = dry_adiabat_temperature(met%air_temp, z_top - z_t)
+      !--- From the ground, at the forcing's temperature brought down the same adiabat.
+      top%air_pressure = dry_adiabat_pressure(met%air_pressure, dry_adiabat_temperature(met%air_temp, -z_t), z_top)
       top%air_density = air_density(top%air_temp, top%air_pressure, top%air_shv)
    end function met_to_cas_top
 

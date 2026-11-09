@@ -107,8 +107,7 @@ contains
 
    !---~---
    !   The patch's air from the sub-step's record: its enthalpy, humidity and CO2, the wind,
-   ! pressure and density the aerodynamics reads, and the precipitation; apply_rt_forcing then
-   ! fills the radiation.
+   ! pressure the patch reads, and the precipitation; apply_rt_forcing then fills the radiation.
    !---~---
    subroutine fill_forcing(forcing, met)
       type(fast_forcing_t), intent(inout) :: forcing
@@ -118,7 +117,6 @@ contains
       forcing%co2_atm      = met%co2
       forcing%wind         = met%wind
       forcing%press        = met%air_pressure
-      forcing%rho_air      = met%air_density
       !---~---
       !   The rain/snow split at the record's temperature: with forcing, the patch's canopy-air top,
       ! where the precipitation's enthalpy is valued too (docs/science/forcing.md §7).

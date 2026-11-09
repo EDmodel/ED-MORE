@@ -512,7 +512,8 @@ canopy). An open-terrain wind (`wind_exposure = "open_terrain"`, with `wind_expo
 
 ```math
 u(z_c) = u_m\,\frac{\ln(z_b/z_{0e})}{\ln(z_m/z_{0e})}\;\frac{\ln(h_c/z_0)}{\ln(h_b/z_0)}, \qquad
-T(z_c) = T_m-\frac{g}{c_p}\,(z_c-z_T) \qquad(15)
+T(z_c) = T_m-\frac{g}{c_p}\,(z_c-z_T), \qquad
+P(z_c) = P_s\left(\frac{T(z_c)}{T(0)}\right)^{c_p/R_d} \qquad(15)
 ```
 
 Here $`u_m`$ and $`T_m`$ are the forcing's wind and temperature, $`z_m`$ is `wind_height`, $`z_{0e}`$ is
@@ -521,12 +522,15 @@ first factor). $`h_c`$ and $`h_b`$ are $`z_c`$ and $`z_b`$ as heights above the 
 reanalysis's heights already are; a tower's are measured above the ground, so $d$ is subtracted),
 floored at $`2z_0`$ like the aerodynamics' own reference height. The temperature height is
 $`z_T = d + `$`tq_height` above the zero plane, or `tq_height` above the ground. The move conserves
-potential temperature, $\theta = T + (g/c_p)\,z$. The aerodynamics then references both the canopy
-air's potential temperature and this air's to $`z_c`$, where each equals its actual temperature
-([canopy aerodynamics](canopy_aerodynamics.md) §2). Humidity, pressure, radiation, total precipitation
-and CO₂ are unchanged (pressure stays at the ground, where the canopy air, ground and leaves use it),
-and $`\rho_{air}`$ is re-derived. The rain/snow split, eq. (12), is made at $`T(z_c)`$: precipitation
-enters the canopy there, and its enthalpy is valued there too (rain as liquid and snow as ice at that
+potential temperature, $\theta = T + (g/c_p)\,z$. Pressure moves along the same adiabat from the
+ground, where the forcing's surface pressure $`P_s`$ is, at the forcing's temperature brought down to
+it, $`T(0) = T_m + (g/c_p)\,z_T`$: the hydrostatic integral under that linear $T(z)$. The aerodynamics
+then references both the canopy air's potential temperature and this air's to $`z_c`$, where each
+equals its actual temperature ([canopy aerodynamics](canopy_aerodynamics.md) §2). Humidity,
+radiation, total precipitation and CO₂ are unchanged, and $`\rho_{air}`$ is re-derived, so the record
+at $`z_c`$ is one parcel of air. Its pressure is the one the patch uses: the canopy air's, the leaves'
+and the ground's. The rain/snow split, eq. (12), is made at $`T(z_c)`$: precipitation enters the
+canopy there, and its enthalpy is valued there too (rain as liquid and snow as ice at that
 temperature, `precip_enthalpy`), so phase and enthalpy come from the same air. The aerodynamics then
 runs from $`z_c`$: there is no fixed reference height, and nothing has to clear the canopy.
 
@@ -786,7 +790,7 @@ each option requires are in the reference config `ed_config_main.toml` and in
 | the grid and its cells | `ed_met_grid`: `select_site_cell`, `select_box_cells`, `keep_cells`, `same_grid`, `great_circle_distance`, `nearest_grid_index`; the archive's grid, `ed_met_era5land`: `era5land_grid` |
 | terrain lapse (§8, Step 1) | the laws: `ed_therm_lib`: `lapse_air_temperature`, `lapse_pressure`, `lapse_specific_humidity`; `ed_radiation_lib`: `lapse_longwave`; applied in `read_record` (`ed_met`) |
 | each site (§8) | `ed_met`: `met_at_site`, with `slope_incidence_cosz` (`ed_time`) and `slope_beam_factor` (`ed_radiation_lib`) |
-| canopy-air top (§8, Step 2) | `ed_met`: `cas_top_wind_factor`, `met_to_cas_top`; `ed_therm_lib`: `dry_adiabat_temperature`; `canopy_roughness` (`ed_canopy_aerodynamics`); called per patch by `ed_fast_forcing` |
+| canopy-air top (§8, Step 2) | `ed_met`: `cas_top_wind_factor`, `met_to_cas_top`; `ed_therm_lib`: `dry_adiabat_temperature`, `dry_adiabat_pressure`; `canopy_roughness` (`ed_canopy_aerodynamics`); called per patch by `ed_fast_forcing` |
 | the reader | `ed_met`: `met_open`, `met_cursor_init`, `met_prefetch`, `met_advance`, `met_instant`, `met_close`; the one ingest `read_record`, `assert_finite` |
 | the two file sources | `ed_met_default`: `default_file_open`, `default_file_record`, `read_series`, `detect_humidity`; `ed_met_era5land`: `era5land_open`, `era5land_prefetch`, `era5land_record`, `open_archive`, `load_axis_month`, `locate_record`, `keep_window_head` |
 | the archive's files | `ed_met_era5land`: `era5land_path`, `era5land_month_hours`, `era5land_load_month` |

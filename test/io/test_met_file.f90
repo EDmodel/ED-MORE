@@ -19,7 +19,7 @@
 program test_met_file
    use ed_test_assert,        only : check, check_true, test_report
    use ed_kinds,              only : wp, ik
-   use ed_constants,          only : t_3ple, h2o_dry_ratio, grav, cp_air
+   use ed_constants,          only : t_3ple, h2o_dry_ratio, grav, cp_air, r_dry
    use ed_time,               only : ed_time_t, time_advance_seconds, solar_cosz_utc
    use ed_therm_lib,          only : sat_vapor_pressure, air_density, sat_specific_humidity, &
                                      rh_to_specific_humidity, precip_phase, specific_humidity_to_vpd
@@ -705,7 +705,7 @@ contains
       real(wp), parameter :: ZC = 30.0_wp, D = 15.75_wp, Z0 = 3.25_wp, GC = grav / cp_air
       type(forcing_params_t) :: f
       type(met_forcing_t)    :: m, top
-      real(wp) :: fac, rain_top, snow_top, rain_ref, snow_ref
+      real(wp) :: fac, rain_top, snow_top, rain_ref, snow_ref, t_ground
       print '(a)', '-- test: forcing to the canopy-air top --'
       !--- ERA5-Land: open-terrain 10 m wind, heights above the zero plane.
       f%tq_height = 2.0_wp
@@ -735,7 +735,7 @@ contains
       call check('tower at the top: no change', cas_top_wind_factor(f, 40.0_wp, D, Z0), 1.0_wp, 1.0e-15_wp)
       call check('heights floored at 2 z0 above d', cas_top_wind_factor(f, D + 1.0_wp, D, Z0),       &
                  log(2.0_wp) / log((40.0_wp - D)/Z0), 1.0e-12_wp)
-      !--- The whole record: wind and vector scaled, temperature moved, rho re-derived, the rest kept.
+      !--- The whole record: wind and vector scaled, temperature and pressure moved, rho re-derived, the rest kept.
       f%height_above = HEIGHT_ABOVE_ZERO_PLANE
       f%wind_exposure = WIND_EXPOSURE_OPEN_TERRAIN
       f%tq_height = 2.0_wp
@@ -754,9 +754,17 @@ contains
       call check('record: vector scaled (v)', top%wind_v, -4.0_wp * fac, 1.0e-12_wp)
       call check('record: temperature moved', top%air_temp, 290.0_wp - GC * (ZC - (D + 2.0_wp)), 1.0e-12_wp)
       call check('record: humidity conserved', top%air_shv, 0.009_wp, 1.0e-15_wp)
-      call check('record: pressure stays at the ground', top%air_pressure, 98000.0_wp, 1.0e-12_wp)
+      !--- Pressure from the ground along the same adiabat: the forcing's temperature brought down to it.
+      t_ground = 290.0_wp + GC * (D + 2.0_wp)
+      call check('record: pressure along the dry adiabat from the ground', top%air_pressure,               &
+                 98000.0_wp * (top%air_temp / t_ground) ** (cp_air / r_dry), 1.0e-9_wp)
+      call check('record: the top is ~350 Pa below the ground, as rho g z_c', 98000.0_wp - top%air_pressure, &
+                 air_density(top%air_temp, top%air_pressure, 0.0_wp) * grav * ZC, 3.0_wp)
+      call check('record: one adiabat, the same Poisson theta at the ground and the top',                 &
+                 top%air_temp * (98000.0_wp / top%air_pressure) ** (r_dry / cp_air), t_ground, 1.0e-9_wp)
       call check('record: shortwave unchanged', top%sw_down(), m%sw_down(), 1.0e-12_wp)
-      call check('record: air density re-derived', top%air_density, air_density(top%air_temp, 98000.0_wp, 0.009_wp), 1.0e-12_wp)
+      call check('record: air density re-derived at the top', top%air_density,                            &
+                 air_density(top%air_temp, top%air_pressure, 0.009_wp), 1.0e-12_wp)
       !---~---
       !   The record carries total precipitation, unchanged by the move; the rain/snow split is made
       ! from the moved temperature where the column's forcing is filled. At freezing, the cooler top

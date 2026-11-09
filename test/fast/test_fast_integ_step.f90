@@ -43,7 +43,7 @@ program test_fast_integ_step
    use ed_fast_params,          only : INTEG_ESDIRK2, INTEG_RK45, RK45_RTOL
    use ed_time,                 only : solar_cosz
    use ed_therm_lib,            only : temp_to_internal_energy, internal_energy_liquid, sat_specific_humidity,     &
-                                       tissue_temp_to_energy, tissue_dry_heat_capacity
+                                       tissue_temp_to_energy, tissue_dry_heat_capacity, air_density
    use ed_soil_hydr_lib,        only : SOIL_RETENTION_CAMPBELL, SOIL_SPECIFIC_STORAGE, soil_theta_to_head
    use ed_soil_params,          only : soil_params_t, SOIL_BC_DRAIN, SOIL_BC_AQUIFER
    use ed_site_state_vars,      only : make_site_surface
@@ -183,7 +183,9 @@ contains
          call step_column(col, DT_FAST)
          if (d%dark_step) then
             d%h_first   = col%out%h_flux
-            d%gah_first = col%forcing%rho_air * col%out%aero%ustar * col%out%aero%heat_transfer_factor
+            !--- The canopy air's own density sets the exchange conductance (its end state: a scale here).
+            d%gah_first = air_density(col%dynamic%cas%can_temp, col%forcing%press, col%dynamic%cas%can_shv)   &
+                          * col%out%aero%ustar * col%out%aero%heat_transfer_factor
             exit
          end if
          associate (dy => col%dynamic)

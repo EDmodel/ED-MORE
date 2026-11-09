@@ -17,7 +17,8 @@ stores are woven together each `dt_fast`.
 ## The canopy air's three variables
 
 The CAS is a well-mixed box of air of depth $D_{can}$ and mass per ground area
-$`W_{cap}=\rho\,D_{can}`$.
+$`W_{cap}=\rho\,D_{can}`$. Here $\rho$ is the canopy air's own density: its temperature and humidity at
+the pressure of its top ([forcing](forcing.md) eq. (15)), taken at the start of each fast step.
 
 **$D_{can}$ is the tallest cohort's height plus a freeboard** (`[aerodynamics].canopy_freeboard`,
 default 5 m, floored by `min_canopy_depth`). The CAS is the well-mixed layer the canopy exchanges with,

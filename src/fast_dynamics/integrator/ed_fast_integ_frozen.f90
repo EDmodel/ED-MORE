@@ -53,7 +53,7 @@ module ed_fast_integ_frozen
    use ed_surface, only : surface_env_t, prepare_snow_stage
    use ed_soil_water, only : pond_inflow
    use ed_therm_lib,          only : internal_energy_liquid, liquid_energy_to_temp,                              &
-                                     cas_enthalpy_to_temp, air_vpd,                                             &
+                                     cas_enthalpy_to_temp, air_vpd, air_density,                                &
                                      soil_thermal_conductivity, specific_humidity_to_vapor_pressure
    use ed_numerics,           only : weighted_mean
    implicit none
@@ -305,7 +305,8 @@ contains
       tcas = cas_enthalpy_to_temp(cas%can_enthalpy, cas%can_shv)
       qcas = cas%can_shv
       press = forcing%press
-      rho = forcing%rho_air
+      !--- The canopy air's own density: its temperature and humidity at the pressure of its top.
+      rho = air_density(tcas, press, qcas)
       t_ground = soil_temp_top
       call set_aero_env_canopy(aenv, tcas, qcas, t_ground)
       call canopy_aerodynamics(aero_cfg, aenv, static%geom, static%n, static%order, static%height, static%lai, &
