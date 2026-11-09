@@ -510,8 +510,8 @@ contains
    !   A forcing record at a patch's canopy-air top: wind (and its vector) by the patch's factor,
    ! temperature along the dry adiabat from the forcing's temperature height (a reanalysis's
    ! is above d), so the aerodynamics' theta is exactly the forcing's, and pressure along the
-   ! same adiabat from the ground, where the forcing's is; air density re-derived, so the record
-   ! is one parcel of air at the top. Humidity is conserved and the radiation and precipitation
+   ! same adiabat from where the forcing's is (the ground, or a reanalysis's zero plane); air
+   ! density re-derived, so the record is one parcel of air at the top. Humidity is conserved and the radiation and precipitation
    ! are unchanged; the rain/snow split is made from this record's temperature where the
    ! column's forcing is filled (fill_forcing).
    !---~---
@@ -522,7 +522,7 @@ contains
       real(wp),               intent(in) :: displace   ! [m] zero-plane displacement
       real(wp),               intent(in) :: rough      ! [m] roughness length (> 0)
       type(met_forcing_t) :: top
-      real(wp) :: factor, z_t
+      real(wp) :: factor, z_t, z_s
       top    = met
       factor = cas_top_wind_factor(f, z_top, displace, rough)
       top%wind = factor * met%wind
@@ -533,8 +533,15 @@ contains
       z_t = f%tq_height
       if (f%height_above == HEIGHT_ABOVE_ZERO_PLANE) z_t = displace + f%tq_height
       top%air_temp  = dry_adiabat_temperature(met%air_temp, z_top - z_t)
-      !--- From the ground, at the forcing's temperature brought down the same adiabat.
-      top%air_pressure = dry_adiabat_pressure(met%air_pressure, dry_adiabat_temperature(met%air_temp, -z_t), z_top)
+      !---~---
+      !   Pressure along the same adiabat, from the height the forcing's surface pressure is at, at
+      ! the forcing's temperature brought down to it: the ground for heights above the ground (a
+      ! tower), the zero plane for heights above it (a reanalysis, whose surface the zero plane is).
+      !---~---
+      z_s = 0.0_wp
+      if (f%height_above == HEIGHT_ABOVE_ZERO_PLANE) z_s = displace
+      top%air_pressure = dry_adiabat_pressure(met%air_pressure, dry_adiabat_temperature(met%air_temp, z_s - z_t), &
+                                              z_top - z_s)
       top%air_density = air_density(top%air_temp, top%air_pressure, top%air_shv)
    end function met_to_cas_top
 

@@ -706,7 +706,7 @@ contains
       real(wp), parameter :: ZC = 30.0_wp, D = 15.75_wp, Z0 = 3.25_wp, GC = grav / cp_air
       type(forcing_params_t) :: f
       type(met_forcing_t)    :: m, top
-      real(wp) :: fac, rain_top, snow_top, rain_ref, snow_ref, t_ground
+      real(wp) :: fac, rain_top, snow_top, rain_ref, snow_ref, t_surf
       print '(a)', '-- test: forcing to the canopy-air top --'
       !--- ERA5-Land: open-terrain 10 m wind, heights above the zero plane.
       f%tq_height = 2.0_wp
@@ -755,17 +755,29 @@ contains
       call check('record: vector scaled (v)', top%wind_v, -4.0_wp * fac, 1.0e-12_wp)
       call check('record: temperature moved', top%air_temp, 290.0_wp - GC * (ZC - (D + 2.0_wp)), 1.0e-12_wp)
       call check('record: humidity conserved', top%air_shv, 0.009_wp, 1.0e-15_wp)
-      !--- Pressure from the ground along the same adiabat: the forcing's temperature brought down to it.
-      t_ground = 290.0_wp + GC * (D + 2.0_wp)
-      call check('record: pressure along the dry adiabat from the ground', top%air_pressure,               &
-                 98000.0_wp * (top%air_temp / t_ground) ** (cp_air / r_dry), 1.0e-9_wp)
-      call check('record: the top is ~350 Pa below the ground, as rho g z_c', 98000.0_wp - top%air_pressure, &
-                 air_density(top%air_temp, top%air_pressure, 0.0_wp) * grav * ZC, 3.0_wp)
-      call check('record: one adiabat, the same Poisson theta at the ground and the top',                 &
-                 top%air_temp * (98000.0_wp / top%air_pressure) ** (r_dry / cp_air), t_ground, 1.0e-9_wp)
+      !---~---
+      !   Pressure along the same adiabat from where the forcing's is: a reanalysis's heights are above
+      ! the zero plane, which is its surface, so from there, at the 2 m air brought down to it.
+      !---~---
+      t_surf = 290.0_wp + GC * 2.0_wp
+      call check('record: pressure along the dry adiabat from the zero plane', top%air_pressure,           &
+                 98000.0_wp * (top%air_temp / t_surf) ** (cp_air / r_dry), 1.0e-9_wp)
+      call check('record: the top is ~165 Pa below the zero plane, as rho g (z_c - d)',                    &
+                 98000.0_wp - top%air_pressure, air_density(top%air_temp, top%air_pressure, 0.0_wp) * grav * (ZC - D), &
+                 2.0_wp)
+      call check('record: one adiabat, the same Poisson theta at the zero plane and the top',             &
+                 top%air_temp * (98000.0_wp / top%air_pressure) ** (r_dry / cp_air), t_surf, 1.0e-9_wp)
       call check('record: shortwave unchanged', top%sw_down(), m%sw_down(), 1.0e-12_wp)
       call check('record: air density re-derived at the top', top%air_density,                            &
                  air_density(top%air_temp, top%air_pressure, 0.009_wp), 1.0e-12_wp)
+      !--- A tower's pressure is the ground's: from there, at its 40 m air brought down to the ground.
+      f%height_above = HEIGHT_ABOVE_GROUND
+      f%tq_height = 40.0_wp
+      top = met_to_cas_top(m, f, ZC, D, Z0)
+      call check('record: a tower''s pressure along the dry adiabat from the ground', top%air_pressure,      &
+                 98000.0_wp * ((290.0_wp + GC * 10.0_wp) / (290.0_wp + GC * 40.0_wp)) ** (cp_air / r_dry), 1.0e-9_wp)
+      f%height_above = HEIGHT_ABOVE_ZERO_PLANE
+      f%tq_height = 2.0_wp
       !---~---
       !   The record carries total precipitation, unchanged by the move; the rain/snow split is made
       ! from the moved temperature where the column's forcing is filled. At freezing, the cooler top
