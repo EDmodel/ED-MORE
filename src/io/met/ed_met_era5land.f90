@@ -4,7 +4,8 @@
 ! hourly fields over its global grid (docs/science/forcing.md §1-§2, with the files'
 ! layout), laid end to end as one hourly axis over the months a run
 ! needs. era5land_open opens it, era5land_prefetch loads a month before the step that
-! reads it, and era5land_record hands the shared ingest one record's values as stored.
+! reads it, era5land_read_ahead loads the next one into a buffer of the caller's while the
+! polygons step, and era5land_record hands the shared ingest one record's values as stored.
 ! era5land_grid is its grid (ed_met_grid). A month load checks every file, and ED-MORE
 ! never gap-fills: a NaN in a selected cell is an error, never a fill.
 !---~---
@@ -29,7 +30,7 @@ module ed_met_era5land
    implicit none
    private
 
-   public :: era5land_open, era5land_prefetch, era5land_record
+   public :: era5land_open, era5land_prefetch, era5land_read_ahead, era5land_record
    public :: era5land_grid, era5land_path, era5land_default_template, era5land_month_hours, era5land_load_month
    public :: ERA_NVAR, ERA_TAIR, ERA_TDEW, ERA_PSURF, ERA_U10, ERA_V10, ERA_RAINF, ERA_SWDOWN, ERA_LWDOWN
    public :: ERA_VAR_NAME, ERA_VAR_UNITS, ERA_CHUNK
@@ -86,14 +87,63 @@ contains
    !   PREFETCH from the archive: the month the step starting at `step_start` reads, and the
    ! record before it (00:00 on the 1st, or the window's last record at the recycle wrap),
    ! which comes from the outgoing month, so a run loads each month once
-   ! (docs/science/forcing.md §2). It assumes the daily steps from midnight validate_config
-   ! requires of the archive.
+   ! (docs/science/forcing.md §2). A month `ahead` holds (era5land_read_ahead) is moved in
+   ! rather than read again; the record before it is taken first, while the outgoing month is
+   ! still in the buffer. It assumes the daily steps from midnight validate_config requires of
+   ! the archive.
    !---~---
-   subroutine era5land_prefetch(src, step_start)
+   subroutine era5land_prefetch(src, step_start, ahead)
       type(met_source_t), intent(inout)  :: src
       type(ed_time_t),  intent(in)    :: step_start
+      type(met_month_t), optional, intent(inout) :: ahead
+      integer(ik) :: k, kp, p
+      call month_of_step(src, step_start, k, p)
+      if (p > 0_ik .and. src%carry_rec /= p) then       ! the record before the month
+         if (.not. allocated(src%carry)) allocate(src%carry(src%cells%ncell, ERA_NVAR))
+         kp = axis_month_of(src, p)
+         if (.not. month_loaded(src, kp) .and. in_window_head(src, p)) then
+            src%carry = src%head(p - src%irec_cycle_first + 1_ik, :, :)   ! a midnight anchor's record
+         else
+            if (.not. month_loaded(src, kp)) call take_month(src, kp, ahead)
+            src%carry = src%buffer%values(p - src%month_rec0(kp), :, :)
+         end if
+         src%carry_rec = p
+      end if
+      if (.not. month_loaded(src, k)) call take_month(src, k, ahead)
+   end subroutine era5land_prefetch
+
+   !---~---
+   !   READ AHEAD from the archive: the month the step starting at `step_start` will read,
+   ! into `ahead`, a buffer the caller owns. It reads only what open fixed (the files, the
+   ! cells and the month axis) and changes nothing in src, so the polygons can read src while it
+   ! runs; the prefetch for that step then moves the month in. It reads nothing when src's
+   ! buffer or `ahead` already holds the month. A month that fails its checks leaves `ahead`
+   ! empty, and the prefetch reads it again and stops the run with the reason.
+   !---~---
+   subroutine era5land_read_ahead(src, step_start, ahead)
+      type(met_source_t), intent(in)    :: src
+      type(ed_time_t),    intent(in)    :: step_start
+      type(met_month_t),  intent(inout) :: ahead
+      character(len=MET_PATH_LEN + 128) :: message
+      integer(ik) :: k, p, est
+      call month_of_step(src, step_start, k, p)
+      if (month_loaded(src, k) .or. month_held(ahead, src, k)) return
+      call era5land_load_month(src%file_template, src%fcfg%data_path, src%cells, src%month_year(k), &
+                               src%month_month(k), ahead, est, message)
+   end subroutine era5land_read_ahead
+
+   !---~---
+   !   What the step starting at `step_start` reads from the archive: axis month k, and
+   ! `before`, the record before that month on the model's clock (00:00 on the 1st, which the
+   ! month before holds; the window's last record at the recycle wrap; 0 before the axis's first
+   ! record). Reads only the axis and the recycle window, which open fixes.
+   !---~---
+   pure subroutine month_of_step(src, step_start, k, before)
+      type(met_source_t), intent(in)  :: src
+      type(ed_time_t),    intent(in)  :: step_start
+      integer(ik),        intent(out) :: k, before
       real(wp)    :: s0
-      integer(ik) :: r, k, kp, p
+      integer(ik) :: r
       logical     :: wrap
       s0 = file_lookup_sec(src, step_start)
       wrap = .false.
@@ -102,25 +152,36 @@ contains
       end if
       if (wrap) then                                    ! the window's first month, after its last record
          k = axis_month_of(src, src%irec_cycle_first)
-         p = src%irec_cycle_last
+         before = src%irec_cycle_last
       else
          r = first_record_after(src, s0)                ! clamped to the axis
          k = axis_month_of(src, r)
-         p = src%month_rec0(k)
+         before = src%month_rec0(k)
       end if
-      if (p > 0_ik .and. src%carry_rec /= p) then       ! the record before the month
-         if (.not. allocated(src%carry)) allocate(src%carry(src%cells%ncell, ERA_NVAR))
-         kp = axis_month_of(src, p)
-         if (.not. month_loaded(src, kp) .and. in_window_head(src, p)) then
-            src%carry = src%head(p - src%irec_cycle_first + 1_ik, :, :)   ! a midnight anchor's record
-         else
-            if (.not. month_loaded(src, kp)) call load_month_or_stop(src, kp)
-            src%carry = src%buffer%values(p - src%month_rec0(kp), :, :)
+   end subroutine month_of_step
+
+   !---~---
+   !   Put axis month k in src's buffer: moved in from `ahead` when it holds the month (no copy),
+   ! else read from the archive now.
+   !---~---
+   subroutine take_month(src, k, ahead)
+      type(met_source_t), intent(inout) :: src
+      integer(ik),        intent(in)    :: k
+      type(met_month_t), optional, intent(inout) :: ahead
+      if (present(ahead)) then
+         if (month_held(ahead, src, k)) then
+            call move_alloc(ahead%values, src%buffer%values)
+            src%buffer%year  = ahead%year
+            src%buffer%month = ahead%month
+            src%buffer%nt    = ahead%nt
+            ahead%year = 0_ik
+            src%n_loads = src%n_loads + 1_ik
+            src%n_loads_ahead = src%n_loads_ahead + 1_ik
+            return
          end if
-         src%carry_rec = p
       end if
-      if (.not. month_loaded(src, k)) call load_month_or_stop(src, k)
-   end subroutine era5land_prefetch
+      call load_month_or_stop(src, k)
+   end subroutine take_month
 
    !---~---
    !   One record's values at the cursor's cell, as the archive stores them: the dewpoint
@@ -328,11 +389,20 @@ contains
       k = lo
    end function axis_month_of
 
+   !--- Does src's buffer hold axis month k?
    pure logical function month_loaded(src, k) result(yes)
       type(met_source_t), intent(in)  :: src
       integer(ik),        intent(in) :: k
-      yes = src%buffer%year == src%month_year(k) .and. src%buffer%month == src%month_month(k)
+      yes = month_held(src%buffer, src, k)
    end function month_loaded
+
+   !--- Does month buffer buf hold src's axis month k? (An empty buffer has year 0.)
+   pure logical function month_held(buf, src, k) result(yes)
+      type(met_month_t),  intent(in) :: buf
+      type(met_source_t), intent(in) :: src
+      integer(ik),        intent(in) :: k
+      yes = buf%year == src%month_year(k) .and. buf%month == src%month_month(k)
+   end function month_held
 
    pure logical function in_window_head(src, irec) result(yes)
       type(met_source_t), intent(in)  :: src
@@ -363,8 +433,9 @@ contains
    end subroutine keep_window_head
 
    !---~---
-   !   Read axis month k into the buffer: the only place the archive is read after open. A
-   ! month that fails its checks returns MET_ERR_ARCHIVE and the reason.
+   !   Read axis month k into src's buffer, the one place a run reads the archive into the
+   ! source after open (era5land_read_ahead reads into a buffer of the caller's). A month that
+   ! fails its checks returns MET_ERR_ARCHIVE and the reason.
    !---~---
    subroutine load_axis_month(src, k, stat, why)
       type(met_source_t),            intent(inout) :: src

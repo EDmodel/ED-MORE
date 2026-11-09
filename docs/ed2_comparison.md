@@ -468,7 +468,8 @@ What it takes from ED2 is listed here.
   `ed_stepper`'s `advance_one_step` runs the fast loop's sub-steps inside it, then the slow dynamics
   ([order_of_processes](science/order_of_processes.md) §1–§2). The loop is the slow step, with the fast loop
   nested in it, where ED2's is the fast step with the dynamics called on the calendar. The forcing is loaded,
-  and the output written, between the steps of every polygon rather than inside them.
+  and the output written, between the steps of every polygon rather than inside them; a region reads its
+  next month on one thread while its polygons step, outside any polygon's step.
 
 ---
 

@@ -54,10 +54,14 @@ region (`"region"`). Both go through the same stages.
 **The loop.** Until `[run].end_time`, the executable steps a month at a time (`region_step_month`)
 and Python one slow step at a time (`region_step`). Either way:
 
-1. Prefetch the forcing the steps need; the archive backend loads a month at a time.
+1. Prefetch the forcing the steps need; the archive backend loads a month at a time, or moves in the
+   month the last compute phase read ahead.
 2. The compute phase: take each polygon through the steps ([§2](#2-one-slow-step)), touching no file.
    Several polygons run side by side on `[run].n_threads` threads, costliest first; one polygon gives
-   the threads to its patch loop instead ([§3](#3-the-fast-loop)).
+   the threads to its patch loop instead ([§3](#3-the-fast-loop)). When several polygons run on the
+   archive and the run goes on past these steps, one thread first reads the month the next steps
+   need into a spare buffer, then joins them; the read changes nothing they read and ends before
+   they do ([forcing](forcing.md) §2).
 3. After a month's last step, a failed step or the run's last step, the I/O phase
    ([§6](#6-output-and-io)).
 
