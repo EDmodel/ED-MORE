@@ -38,6 +38,10 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - `mean_cas_depth_py` is in the `forcing` group, beside `mean_cas_depth_pa`, and reads the depth the
   fast loop used (the patches' area-weighted), as `mean_cas_depth_pa` does; it moves by millimetres.
   (#60)
+- The daily, monthly and yearly files carry three more polygon variables by default, the canopy air's
+  capacity budget terms `mean_budget_cas_cap_{energy,water,co2}_py`; switch them off in
+  `[output].io_config`. State files gain `cas_air_mass_capacity_pa` and `cas_air_molar_capacity_pa`;
+  a state file without them still loads. (#66)
 
 ### Answer changes
 
@@ -96,6 +100,9 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - Per-patch ET sources and budget residuals, off by default: `mean_transp_pa`,
   `mean_veg_surface_evap_pa`, `mean_ground_evap_pa`, `mean_dew_pa`, `mean_resid_energy_pa` and
   `mean_resid_water_pa`. (#60)
+- The canopy air's content change when its capacity (density times depth) moves between fast steps
+  is booked as a budget term, `mean_budget_cas_cap_{energy,water,co2}_py` and `_pa`, so its stored
+  amounts add up across steps. H, LE, NEE and the model state are unchanged. (#66)
 
 ### Changed
 
