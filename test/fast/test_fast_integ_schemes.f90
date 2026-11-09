@@ -23,7 +23,7 @@ program test_fast_integ_schemes
    use ed_therm_lib,            only : cas_enthalpy_to_temp, cas_temp_to_enthalpy
    use ed_soil_heat,            only : soil_layer_temp
    use ed_fast_integ_types,     only : march_state_t, frozen_t, error_control_t, surface_tend_t, boundary_flux_t, &
-                                       state_init, state_sub
+                                       surface_source_slopes_t, state_init, state_sub
    use ed_fast_integ_backward_euler,   only : backward_euler_stage, advance_plant_water
    use ed_fast_integ_esdirk2,   only : esdirk2_step
    use ed_fast_integ_rk45,      only : rk45_step, RK45_P_ORDER
@@ -347,10 +347,11 @@ contains
       type(march_state_t), intent(inout) :: y_out
       type(march_state_t)  :: y, ytmp
       type(surface_tend_t) :: surf_tend
+      type(surface_source_slopes_t) :: slopes   ! reused over the march, as a patch's day reuses them
       integer(ik) :: s
       call state_init(y0, N, nsl, y)
       do s = 1_ik, nstep
-         call backward_euler_stage(y, frozen, col%site, ec_default, N, nsl, dt, ytmp, surf_tend)
+         call backward_euler_stage(y, frozen, col%site, ec_default, N, nsl, dt, slopes, ytmp, surf_tend)
          call advance_plant_water(y, frozen, N, dt, surf_tend%transp_c(1:N), ytmp)
          call state_init(ytmp, N, nsl, y)
       end do

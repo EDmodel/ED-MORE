@@ -24,7 +24,8 @@ contains
    ! ARS(2,2,2) tableau (Ascher, Ruuth & Spiteri 1997), two backward-Euler stages over gamma*dt
    ! (backward_euler_stage), stiffly accurate, so Y3 is the step. Soil water moves at the
    ! network's rate in the stages; plant water and the surface water are advanced once over dt on
-   ! the stages' b-weighted fluxes, so neither adds to the embedded error y_err.
+   ! the stages' b-weighted fluxes, so neither adds to the embedded error y_err. Both stages' Newton
+   ! solves reuse the source slopes the stage storage carries (stages%slopes).
    !---~---
    subroutine esdirk2_step(y, frozen, site, ec, n, nsl, dt, y_out, y_err, stages, bf, clamp_n)
       type(march_state_t),  intent(in)  :: y
@@ -34,7 +35,7 @@ contains
       integer(ik),           intent(in)  :: n, nsl
       real(wp),              intent(in)  :: dt
       type(march_state_t),  intent(inout) :: y_out, y_err   ! filled in place
-      type(esdirk2_stages_t),    intent(inout) :: stages    ! this thread's stage storage, filled in place
+      type(esdirk2_stages_t),    intent(inout) :: stages    ! this thread's stage storage and source slopes
       type(boundary_flux_t), optional, intent(out) :: bf   ! b-weighted boundary-flux AMOUNTS over dt (ledger)
       !--- Stage-clamp count (the report's WORK_CLAMP_STAGE): only the stage-3 base is clamped.
       integer(ik), optional, intent(inout) :: clamp_n
@@ -45,7 +46,7 @@ contains
       real(wp)              :: leaf_surface_evap_bw(n), wood_surface_evap_bw(n)
       associate (Y2 => stages%y2, base3 => stages%base3, Y3 => stages%y3, sf2 => stages%sf2, sf3 => stages%sf3)
          !--- Stage 2: a gamma*dt backward-Euler stage from y_n.
-         call backward_euler_stage(y, frozen, site, ec, n, nsl, GAMMA*dt, Y2, sf2, bf=bf2)
+         call backward_euler_stage(y, frozen, site, ec, n, nsl, GAMMA*dt, stages%slopes, Y2, sf2, bf=bf2)
          !---~---
          !   Stage 3 from the extrapolated base. Extrapolating by BETA can carry the canopy-air
          ! enthalpy to a temperature where qsat overflows, so the base's canopy air is clamped to a
@@ -54,7 +55,7 @@ contains
          !---~---
          call state_extrap(y, BETA, Y2, n, nsl, base3)
          call clamp_cas(base3, nfire=clamp_n)
-         call backward_euler_stage(base3, frozen, site, ec, n, nsl, GAMMA*dt, Y3, sf3, bf=bf3)
+         call backward_euler_stage(base3, frozen, site, ec, n, nsl, GAMMA*dt, stages%slopes, Y3, sf3, bf=bf3)
          call state_init(Y3, n, nsl, y_out)
          !---~---
          !   Plant water over the full dt at the network's rates, debited the same b-weighted

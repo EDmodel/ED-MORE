@@ -3,9 +3,11 @@
 !   ed_fast_integ_backward_euler -- the fast loop's backward-Euler solves, two systems
 ! side by side. One ESDIRK2 stage (docs/science/numerical_scheme.md §3 `esdirk2`, eq. (1))
 ! solves the canopy air against the leaf, wood and ground temperatures by a small Newton
-! on a forward-difference Jacobian: backward_euler_stage is the stage,
-! newton_surface_solve and jac_surface its inner solve, cas_box_commit the box commit;
-! advance_plant_water and advance_surf_water_full move plant and surface water once per step.
+! whose Jacobian is the box's own terms less the surface's source slopes, taken by forward
+! differences and reused over a patch's day: backward_euler_stage is the stage,
+! newton_surface_solve its inner solve, surface_source_slopes and surface_jacobian the
+! Jacobian's two parts, cas_box_commit the box commit; advance_plant_water and
+! advance_surf_water_full move plant and surface water once per step.
 ! The soil-plant water network's step is implicit Euler on adaptive sub-steps
 ! (docs/science/soil_plant_water.md §3): water_step, its Newton sub-step, the Newton
 ! matrix and the sub-step's commit. The two Newton solves share only the line search and
@@ -24,7 +26,7 @@ module ed_fast_integ_backward_euler
                                surface_tend_t, stage_bflux_t, error_control_t, tol_set_t, fast_static_state_t,    &
                                water_drive_t, water_tend_t, water_state_t, water_flows_t, water_work_t,           &
                                GRP_THETA, POND, WOOD, LEAF, COHORT_STORES, WORK_WATER_NSUB, WORK_WATER_NEWTON,    &
-                               WORK_WATER_REJECT, WORK_WATER_NFAIL, state_init
+                               WORK_WATER_REJECT, WORK_WATER_NFAIL, state_init, surface_source_slopes_t
    use ed_site_state_vars, only : site_surface_t
    use ed_therm_lib, only : cas_enthalpy_to_temp, internal_energy_liquid, liquid_energy_to_temp
    use ed_numerics,     only : sufficient_decrease, fraction_to_boundary
@@ -39,6 +41,31 @@ module ed_fast_integ_backward_euler
    public :: backward_euler_stage, advance_plant_water, advance_surf_water_full
    public :: water_step
    public :: water_jacobian_error   ! used only by the tests
+   public :: newton_surface_solve, surface_source_slopes, surface_jacobian, surface_residual_scaled, &
+             SURFACE_NEWTON_MAX                                                        ! used only by the tests
+
+   !---~---
+   !   The canopy-air Newton (newton_surface_solve). A stage's balance counts as solved when its
+   ! enthalpy and humidity residuals, as changes of the canopy air over the stage, are within
+   ! these absolute tolerances plus SURFACE_RTOL of the state: 50 J/kg is about 0.05 K of
+   ! canopy-air temperature. A solve takes fresh source slopes at most SURFACE_NEWTON_MAX times,
+   ! once more when its last step was on held ones; it halves a step at most SURFACE_LS_MAX times
+   ! and stops at SURFACE_FEVAL_MAX evaluations of the surface, which also bounds its steps on held
+   ! slopes.
+   !---~---
+   real(wp),    parameter :: SURFACE_RTOL      = 1.0e-7_wp
+   real(wp),    parameter :: SURFACE_ATOL_ENTH = 5.0e1_wp    ! [J/kg]
+   real(wp),    parameter :: SURFACE_ATOL_SHV  = 1.0e-6_wp   ! [kg/kg]
+   integer(ik), parameter :: SURFACE_NEWTON_MAX = 4_ik
+   integer(ik), parameter :: SURFACE_LS_MAX     = 6_ik
+   integer(ik), parameter :: SURFACE_FEVAL_MAX  = 24_ik
+   !---~---
+   !   Held source slopes are taken afresh after a step on them that converges poorly: one whose
+   ! line search had to shorten it, or one that cut the scaled residual by less than
+   ! SLOPES_MIN_FALL. Slopes taken at the iterate cut it by far more than that near the solution,
+   ! so a smaller fall says the held ones no longer describe the surface.
+   !---~---
+   real(wp),    parameter :: SLOPES_MIN_FALL = 4.0_wp
 
    !---~---
    !   The water network's Newton. The balance counts as solved when every store's imbalance
@@ -73,13 +100,14 @@ contains
    ! Thomas). Soil water moves at the water network's steady rate; plant water is passed
    ! through and advanced once (advance_plant_water).
    !---~---
-   subroutine backward_euler_stage(y, frozen, site, ec, n, nsl, dt, y_out, surf_tend, bf)
+   subroutine backward_euler_stage(y, frozen, site, ec, n, nsl, dt, slopes, y_out, surf_tend, bf)
       type(march_state_t),  intent(in)  :: y
       type(frozen_t), intent(in)  :: frozen
       type(site_surface_t),  intent(in)  :: site
       type(error_control_t), intent(in)  :: ec     ! its budget stop ([fast].debug_error)
       integer(ik),           intent(in)  :: n, nsl
       real(wp),              intent(in)  :: dt
+      type(surface_source_slopes_t), intent(inout) :: slopes   ! the Newton's source slopes, reused and refreshed
       !---~---
       !   The stage's state and its own surface tendencies, the ones its CAS source and bf used; the
       ! caller b-weights transp_c into the plant water, so the leaves' water debit and the canopy
@@ -96,9 +124,9 @@ contains
       type(soil_heat_out_t)        :: eflux
       real(wp)    :: t_ground, fliq1, cas_mass_capacity, cas_molar_capacity, g_atm_heat, g_atm_vapour, g_atm_co2
       real(wp)    :: enth1, shv1, e_infil, e_drain, t_cas1, water_heat(nsl)
-      real(wp)    :: co21
-      integer(ik) :: nfeval
-      logical     :: ok
+      real(wp)    :: co21, enth_newton, shv_newton
+      integer(ik) :: newton_steps
+      logical     :: converged
 
       call state_init(y, n, nsl, y_out)
 
@@ -124,10 +152,11 @@ contains
 
       !---~---
       !   The coupled 2x2 Newton for the leaves and the canopy air; its final surf_tend drives the box
-      ! commit and the soil sinks, one flux per interface.
+      ! commit and the soil sinks, one flux per interface. Its solution and step count are the
+      ! tests'; the box commit reads surf_tend.
       !---~---
       call newton_surface_solve(y, cas_stage, frozen, t_ground, n, dt, cas_mass_capacity, g_atm_heat, g_atm_vapour, &
-                                surf_tend, nfeval, ok)
+                                slopes, surf_tend, enth_newton, shv_newton, newton_steps, converged)
       !---~---
       !   One box commit for all three twins, in flux form, so the budgets close for any surf_tend:
       ! CO2 rides the same box as enthalpy and humidity.
@@ -234,54 +263,73 @@ contains
    !---~---
    !   newton_surface_solve -- a direct 2x2 Newton solve of the coupled backward-Euler canopy-air block
    ! {R_H, R_q} = 0 in (cas_enthalpy, cas_shv), whose surface sources depend on both through tcas,
-   ! qcas and qsat; robust near saturation, where a leaf <-> CAS Picard iteration is not. The forward-
-   ! difference Jacobian (jac_surface) captures the strong VPD self-limiting d src_vap/dq. A singular-
-   ! Jacobian fallback, a line search and an evaluation cap; it never stops the run. Returns surf_tend
-   ! at the solution, from which backward_euler_stage commits the box.
+   ! qcas and qsat; robust near saturation, where a leaf <-> CAS Picard iteration is not. The
+   ! Jacobian (surface_jacobian) is the box's own terms, exact at every stage, less the surface's
+   ! source slopes (surface_source_slopes), which capture the strong VPD self-limiting d src_vap/dq.
+   ! The slopes change slowly over a patch's day, so a solve steps on the set it is handed and takes
+   ! one afresh at the iterate only when none is held or a step on the held set converges poorly
+   ! (docs/science/numerical_scheme.md §3, "The stage Newton"). A singular-Jacobian fallback, a
+   ! line search and an evaluation cap; it never stops the run. Returns surf_tend at the solution,
+   ! from which backward_euler_stage commits the box, the solution itself, the steps taken and
+   ! whether it converged.
    !---~---
    subroutine newton_surface_solve(y, cas, frozen, t_ground, n, dt, cas_mass_capacity, g_atm_heat, g_atm_vapour, &
-                                   surf_tend, nfeval, ok)
+                                   slopes, surf_tend, cas_enthalpy, cas_shv, steps, ok)
       type(march_state_t),   intent(in)    :: y
       type(cas_boundary_t),   intent(in)    :: cas      ! the stage's CAS boundary (its own conductances)
       type(frozen_t),  intent(in)    :: frozen   ! tissue / veg_surface / ground / snow for surface_derivs
       real(wp),               intent(in)    :: t_ground
       integer(ik),            intent(in)    :: n
       real(wp),               intent(in)    :: dt, cas_mass_capacity, g_atm_heat, g_atm_vapour
+      type(surface_source_slopes_t), intent(inout) :: slopes   ! reused when held, taken afresh here when not
       type(surface_tend_t),   intent(inout) :: surf_tend   ! the evaluation at the solution, on return
-      integer(ik),            intent(out)   :: nfeval
-      logical,                intent(out)   :: ok
+      real(wp),               intent(out)   :: cas_enthalpy, cas_shv   ! [J/kg], [kg/kg] the solution
+      integer(ik),            intent(out)   :: steps      ! the Newton steps taken
+      logical,                intent(out)   :: ok         ! the balance is solved
 
       type(surface_state_t) :: y_stage
       real(wp)    :: H0, q0, Hk, qk, R_H, R_q, J11, J12, J21, J22, detJ, delH, delq
-      real(wp)    :: lam, rn0, Ht, qt, RHt, Rqt
-      integer(ik) :: it, ls
-      real(wp),    parameter :: RTOL_N = 1.0e-7_wp, ATOL_H = 5.0e1_wp, ATOL_Q = 1.0e-6_wp
+      real(wp)    :: lam, rn0, Ht, qt, RHt, Rqt, scaled, scaled_new
+      integer(ik) :: ls, nfeval, fresh
+      logical     :: reused
       real(wp),    parameter :: DETEPS = 1.0e-30_wp
-      integer(ik), parameter :: NEWT_MAX = 4_ik, LS_MAX = 6_ik, FEVAL_CAP = 24_ik
 
       H0 = y%cas_enthalpy
       q0 = y%cas_shv
       Hk = H0
       qk = q0
-      nfeval = 0_ik
+      steps = 0_ik
+      fresh = 0_ik
       ok = .false.
+      reused = .false.
       y_stage%cas_co2 = y%cas_co2
       y_stage%cas_enthalpy = Hk
       y_stage%cas_shv = qk
       call surface_derivs(y_stage, cas, frozen%tissue, frozen%veg_surface, frozen%ground,                            &
          t_ground, n, surf_tend)
-      nfeval = nfeval + 1_ik
+      nfeval = 1_ik
       R_H = cas_mass_capacity*(Hk - H0)/dt - surf_tend%src_enth - g_atm_heat*(cas%box%atm_enthalpy - Hk)
       R_q = cas_mass_capacity*(qk - q0)/dt - surf_tend%src_vap  - g_atm_vapour*(cas%box%atm_specific_humidity  - qk)
+      scaled = surface_residual_scaled(R_H, R_q, Hk, qk, dt, cas_mass_capacity)
 
-      do it = 1_ik, NEWT_MAX
-         if ( abs(R_H)*dt/cas_mass_capacity <= ATOL_H + RTOL_N*abs(Hk) .and.                                  &
-              abs(R_q)*dt/cas_mass_capacity <= ATOL_Q + RTOL_N*abs(qk) ) then
+      do
+         if (scaled <= 1.0_wp) then
             ok = .true.
             exit
          end if
-         call jac_surface(Hk, qk, y%cas_co2, cas, frozen, t_ground, surf_tend, n, cas_mass_capacity, g_atm_heat, g_atm_vapour, dt, &
-                          J11, J12, J21, J22, nfeval)
+         if (nfeval >= SURFACE_FEVAL_MAX) exit
+         if (.not. slopes%valid) then
+            !--- Fresh slopes at most SURFACE_NEWTON_MAX times, and once more after a step on held ones.
+            if (fresh > SURFACE_NEWTON_MAX .or. (fresh == SURFACE_NEWTON_MAX .and. .not. reused)) exit
+            call surface_source_slopes(Hk, qk, y%cas_co2, cas, frozen, t_ground, surf_tend, n, slopes)
+            nfeval = nfeval + 2_ik
+            fresh = fresh + 1_ik
+            reused = .false.
+         else
+            reused = .true.
+         end if
+         steps = steps + 1_ik
+         call surface_jacobian(slopes, cas_mass_capacity/dt, g_atm_heat, g_atm_vapour, J11, J12, J21, J22)
          detJ = J11*J22 - J12*J21
          if (detJ <= DETEPS*abs(J11*J22) .or. detJ <= 0.0_wp) then       ! singular / sign-flipped guard
             delH = -R_H / max(J11, tiny_num)                             ! damped-diagonal (Picard-like) fallback
@@ -296,7 +344,7 @@ contains
          qt = qk
          RHt = R_H
          Rqt = R_q
-         do ls = 1_ik, LS_MAX
+         do ls = 1_ik, SURFACE_LS_MAX
             Ht = Hk + lam*delH
             qt = qk + lam*delq
             !---~---
@@ -317,13 +365,34 @@ contains
          qk = qt
          R_H = RHt
          R_q = Rqt
-         if (nfeval >= FEVAL_CAP) exit
+         scaled_new = surface_residual_scaled(R_H, R_q, Hk, qk, dt, cas_mass_capacity)
+         !---~---
+         !   A step on held slopes that converged poorly -- shortened by the line search, or a fall
+         ! of the residual below SLOPES_MIN_FALL while still unsolved -- has them taken afresh.
+         !---~---
+         if (reused .and. scaled_new > 1.0_wp .and. (ls > 1_ik .or. SLOPES_MIN_FALL*scaled_new > scaled))          &
+            slopes%valid = .false.
+         scaled = scaled_new
       end do
+      cas_enthalpy = Hk
+      cas_shv = qk
       !---~---
       !   surf_tend holds the last evaluation, which is at (Hk, qk): the start when the first test
       ! passes, else the accepted line-search trial. The caller commits the box from it.
       !---~---
    end subroutine newton_surface_solve
+
+   !---~---
+   !   The canopy-air balance's residuals as changes of the canopy air over the stage, each over its
+   ! tolerance; the larger of the two. At or below one the balance is solved.
+   !---~---
+   pure real(wp) function surface_residual_scaled(r_h, r_q, h, q, dt, cas_mass_capacity) result(scaled)
+      real(wp), intent(in) :: r_h, r_q                 ! [W/m2], [kg/m2/s] the residuals
+      real(wp), intent(in) :: h, q                     ! [J/kg], [kg/kg] the canopy air's state
+      real(wp), intent(in) :: dt, cas_mass_capacity    ! [s], [kg/m2]
+      scaled = max(abs(r_h)*dt/cas_mass_capacity / (SURFACE_ATOL_ENTH + SURFACE_RTOL*abs(h)),                   &
+                   abs(r_q)*dt/cas_mass_capacity / (SURFACE_ATOL_SHV + SURFACE_RTOL*abs(q)))
+   end function surface_residual_scaled
 
    !---~---
    !   The backward-Euler canopy-air box commit, through the shared box kernel
@@ -343,21 +412,23 @@ contains
       call cas_box_step_implicit(h0, q0, c0, env, dt, h1, q1, c1)
    end subroutine cas_box_commit
 
-   !--- 2x2 numerical Jacobian of (R_H, R_q) w.r.t. (H, q) by forward-differencing surface_derivs.
-   subroutine jac_surface(Hk, qk, co2, cas, frozen, t_ground, surf_tend, n, cas_mass_capacity, g_atm_heat, g_atm_vapour, dt, J11, &
-                          J12, J21, J22, &
-                          nfeval)
-      real(wp),               intent(in)    :: Hk, qk, co2, cas_mass_capacity, g_atm_heat, g_atm_vapour, dt
+   !---~---
+   !   The surface's source slopes at (Hk, qk), by forward differences of surface_derivs from its
+   ! evaluation there (surf_tend): how src_enth and src_vap respond to the canopy air's enthalpy
+   ! and humidity. Two evaluations of the surface; the set is marked held.
+   !---~---
+   subroutine surface_source_slopes(Hk, qk, co2, cas, frozen, t_ground, surf_tend, n, slopes)
+      real(wp),               intent(in)    :: Hk, qk, co2
       type(cas_boundary_t),   intent(in)    :: cas
-      type(frozen_t),  intent(in)    :: frozen
+      type(frozen_t),         intent(in)    :: frozen
       real(wp),               intent(in)    :: t_ground
-      type(surface_tend_t),   intent(in)    :: surf_tend         ! base eval at (Hk,qk)
+      type(surface_tend_t),   intent(in)    :: surf_tend         ! the evaluation at (Hk, qk)
       integer(ik),            intent(in)    :: n
-      real(wp),               intent(out)   :: J11, J12, J21, J22
-      integer(ik),            intent(inout) :: nfeval
+      type(surface_source_slopes_t), intent(inout) :: slopes
       type(surface_state_t) :: y_stage
       type(surface_tend_t)  :: sfp
-      real(wp) :: dH, dq, dse_dH, dsv_dH, dse_dq, dsv_dq
+      real(wp) :: dH, dq
+      !--- The difference steps: the square root of the machine epsilon of each variable's scale.
       real(wp), parameter :: SQEPS = 1.4901161e-8_wp, HSCALE = 1.0e4_wp, QSCALE = 1.0e-3_wp
       dH = SQEPS * max(abs(Hk), HSCALE)
       dq = SQEPS * max(abs(qk), QSCALE)
@@ -366,21 +437,31 @@ contains
       y_stage%cas_shv = qk
       call surface_derivs(y_stage, cas, frozen%tissue, frozen%veg_surface, frozen%ground,                            &
          t_ground, n, sfp)
-      nfeval = nfeval + 1_ik
-      dse_dH = (sfp%src_enth - surf_tend%src_enth)/dH
-      dsv_dH = (sfp%src_vap - surf_tend%src_vap)/dH
+      slopes%dsrc_enth_dh = (sfp%src_enth - surf_tend%src_enth)/dH
+      slopes%dsrc_vap_dh  = (sfp%src_vap - surf_tend%src_vap)/dH
       y_stage%cas_enthalpy = Hk
       y_stage%cas_shv = qk + dq
       call surface_derivs(y_stage, cas, frozen%tissue, frozen%veg_surface, frozen%ground,                            &
          t_ground, n, sfp)
-      nfeval = nfeval + 1_ik
-      dse_dq = (sfp%src_enth - surf_tend%src_enth)/dq
-      dsv_dq = (sfp%src_vap - surf_tend%src_vap)/dq
-      J11 = cas_mass_capacity/dt + g_atm_heat - dse_dH
-      J12 =              - dse_dq
-      J21 =              - dsv_dH
-      J22 = cas_mass_capacity/dt + g_atm_vapour - dsv_dq
-   end subroutine jac_surface
+      slopes%dsrc_enth_dq = (sfp%src_enth - surf_tend%src_enth)/dq
+      slopes%dsrc_vap_dq  = (sfp%src_vap - surf_tend%src_vap)/dq
+      slopes%valid = .true.
+   end subroutine surface_source_slopes
+
+   !---~---
+   !   The 2x2 Jacobian of (R_H, R_q) in (H, q): the box's own terms, its capacity over the stage
+   ! (capacity_rate, cas_mass_capacity/dt) and its conductances to the atmosphere, both exact at
+   ! every stage, less the surface's source slopes.
+   !---~---
+   pure subroutine surface_jacobian(slopes, capacity_rate, g_atm_heat, g_atm_vapour, J11, J12, J21, J22)
+      type(surface_source_slopes_t), intent(in) :: slopes
+      real(wp),               intent(in)  :: capacity_rate, g_atm_heat, g_atm_vapour   ! [kg/m2/s]
+      real(wp),               intent(out) :: J11, J12, J21, J22
+      J11 = capacity_rate + g_atm_heat - slopes%dsrc_enth_dh
+      J12 =                            - slopes%dsrc_enth_dq
+      J21 =                            - slopes%dsrc_vap_dh
+      J22 = capacity_rate + g_atm_vapour - slopes%dsrc_vap_dq
+   end subroutine surface_jacobian
 
    !---~---
    !   advance_plant_water -- each cohort's leaf and wood water over an ESDIRK2 step at the network's

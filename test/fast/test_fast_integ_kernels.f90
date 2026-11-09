@@ -29,26 +29,35 @@
 !   7. THE WATER NETWORK'S STORES (set_water_state, water_derivs): on a column of a PFT 1
 !      and a PFT 2 tree, each cohort's wood and leaves sit at the potential their water
 !      has on its own PFT's curves, and hold that water.
+!   8. THE STAGE NEWTON ON REUSED SOURCE SLOPES (newton_surface_solve): handed the slopes of
+!      another state, it converges, within a bound on its steps, to the solution it reaches on
+!      slopes it takes itself, on canopy air from dry to supersaturated, with transpiration
+!      held and not, with wet leaves and wood, and over a snow pack on each branch of its balance.
 ! The scheme-level properties (observed orders, the adaptive march) are
 ! test_fast_integ_schemes'; whole steps are test_fast_integ_step's.
 !---~---
 program test_fast_integ_kernels
    use ed_kinds,               only : wp, ik
-   use ed_constants,           only : stefan_boltzmann, cp_air, tiny_num, rho_h2o, h2o_dry_ratio, n_soil_layer_max
+   use ed_constants,           only : stefan_boltzmann, cp_air, tiny_num, rho_h2o, h2o_dry_ratio, n_soil_layer_max, &
+                                      t_3ple
    use ed_config,              only : ed_config_t
    use ed_therm_lib,           only : cas_temp_to_enthalpy, cas_enthalpy_to_temp, sat_specific_humidity,           &
                                       sat_vapor_pressure, sat_vapor_pressure_temp_deriv, enthalpy_vapor,          &
                                       temp_to_internal_energy, internal_energy_liquid
    use ed_soil_heat,           only : soil_heat_env_t, soil_energy_time_deriv, soil_layer_temp
-   use ed_patch_state_vars,    only : soil_energy_state_t
+   use ed_patch_state_vars,    only : soil_energy_state_t, snow_state_t
    use ed_site_state_vars,     only : site_surface_t
    use ed_fast_integ_types,    only : surface_state_t, surface_tend_t, march_state_t, march_tend_t, frozen_t,      &
                                       error_control_t, tol_set_t, fast_dynamic_state_t, GRP_ENTH, GRP_SHV,         &
                                       GRP_CO2, GRP_SE, GRP_THETA, state_init, state_sub, state_err_diff,           &
                                       zero_like, state_accum, state_extrap, state_to_array, state_entry_rules,     &
-                                      ensure_output_capacity, ensure_forcing_capacity, WOOD, LEAF
+                                      ensure_output_capacity, ensure_forcing_capacity, WOOD, LEAF,                 &
+                                      surface_source_slopes_t
    use ed_fast_integ_derivs,   only : surface_derivs, march_derivs, set_water_state, water_derivs
-   use ed_fast_integ_backward_euler, only : backward_euler_stage, advance_plant_water
+   use ed_fast_integ_backward_euler, only : backward_euler_stage, advance_plant_water, newton_surface_solve,        &
+                                            surface_source_slopes, surface_jacobian, surface_residual_scaled,     &
+                                            SURFACE_NEWTON_MAX
+   use ed_surface,             only : surface_env_t, ground_surface_exchange, snow_take_exchange
    use ed_fast_integ_rk45,   only : rk45_step, RK45_P_ORDER
    use ed_fast_integ_control, only : build_tol_set, build_error_control, state_wrms_grouped, step_control_factor
    use ed_fast_integ_update,   only : unpack_column_state
@@ -61,6 +70,7 @@ program test_fast_integ_kernels
 
    type(fast_column_t)   :: col          ! the fixture column: its config and its site's soil
    type(error_control_t) :: ec_default   ! the type's defaults: no budget stop
+   integer(ik), parameter :: SNOW_FIRST = 8_ik   ! section 8's first stage problem with a snow pack
 
    call make_fast_column(col)
 
@@ -77,6 +87,7 @@ program test_fast_integ_kernels
    call test_error_norm()
    call test_step_factor()
    call test_water_curves_per_pft()
+   call test_stage_newton_stale_slopes()
 
    call test_report('test_fast_integ_kernels')
 
@@ -496,7 +507,8 @@ contains
       real(wp),            intent(in)    :: dt
       type(march_state_t), intent(inout) :: y_out
       type(surface_tend_t) :: surf_tend
-      call backward_euler_stage(y, frozen, col%site, ec_default, n, nsl, dt, y_out, surf_tend)
+      type(surface_source_slopes_t) :: slopes   ! none held: the stage takes its own
+      call backward_euler_stage(y, frozen, col%site, ec_default, n, nsl, dt, slopes, y_out, surf_tend)
       call advance_plant_water(y, frozen, n, dt, surf_tend%transp_c(1:n), y_out)
    end subroutine be_euler_step
 
@@ -972,6 +984,231 @@ contains
                          abs(psi_off) > 0.01_wp, psi_off)
       end associate
    end subroutine test_water_curves_per_pft
+
+   !--- 8. THE STAGE NEWTON ON REUSED SOURCE SLOPES (newton_surface_solve, surface_source_slopes)
+
+   !---~---
+   !   A patch's day hands each stage's Newton the source slopes an earlier stage took. Handed the
+   ! slopes of another state, the Newton converges to the solution it reaches on slopes it takes
+   ! itself, and within SURFACE_NEWTON_MAX + 2 steps: a full Newton's, the step the stale slopes
+   ! are tried on, and the one more a solve may take after a step on held slopes. Eleven stage
+   ! problems (stage_problem): canopy air dry, humid, near and across saturation; transpiration
+   ! held and not; wet leaves and wood; and a snow pack on each branch of its balance. Each is
+   ! solved on its own slopes and on the slopes of each other problem's start, at an ESDIRK2
+   ! stage's step and at a whole fast step. Two solutions are within the Newton's tolerance of
+   ! each other when the residual their difference makes, through the Jacobian at one of them, is
+   ! within two of the tolerances the Newton holds each solution's residual to. Measured as states
+   ! instead, the humidity may differ by about two of its tolerances when the enthalpy differs by
+   ! a fraction of its own, since the enthalpy's tolerance is the looser.
+   !---~---
+   subroutine test_stage_newton_stale_slopes()
+      integer(ik), parameter :: N = 2_ik, NPROB = 11_ik
+      real(wp),    parameter :: DTS(2) = [0.2928932188134524_wp * 900.0_wp, 900.0_wp]   ! [s] a stage, a fast step
+      type(march_state_t)           :: y(NPROB)
+      type(frozen_t)                :: frozen(NPROB)
+      real(wp)                      :: t_ground(NPROB)
+      type(surface_source_slopes_t) :: start_slopes(NPROB), slopes, at_ref
+      type(surface_state_t)         :: ys
+      type(surface_tend_t)          :: f
+      real(wp)    :: dt, h_ref, q_ref, h, q, worst_dev, j11, j12, j21, j22, dist
+      integer(ik) :: i, j, k, steps, worst_steps
+      logical     :: ok, own_ok, stale_ok, branch_ok
+      print '(a)', 'test_stage_newton_stale_slopes:'
+      do i = 1_ik, NPROB
+         call stage_problem(i, N, y(i), frozen(i), t_ground(i))
+         ys%cas_enthalpy = y(i)%cas_enthalpy
+         ys%cas_shv      = y(i)%cas_shv
+         ys%cas_co2      = y(i)%cas_co2
+         call surface_derivs(ys, frozen(i)%cas, frozen(i)%tissue, frozen(i)%veg_surface, frozen(i)%ground,          &
+                             t_ground(i), N, f)
+         call surface_source_slopes(ys%cas_enthalpy, ys%cas_shv, ys%cas_co2, frozen(i)%cas, frozen(i), t_ground(i), &
+                                    f, N, start_slopes(i))
+      end do
+      own_ok      = .true.
+      stale_ok    = .true.
+      branch_ok   = .true.
+      worst_dev   = 0.0_wp
+      worst_steps = 0_ik
+      do k = 1_ik, size(DTS, kind=ik)
+         dt = DTS(k)
+         do i = 1_ik, NPROB
+            associate (fz => frozen(i), box => frozen(i)%cas%box)
+               slopes = surface_source_slopes_t()
+               call newton_surface_solve(y(i), fz%cas, fz, t_ground(i), N, dt, box%air_mass_capacity,                &
+                                         box%atm_conductance_enthalpy, box%atm_conductance_vapor, slopes, f,         &
+                                         h_ref, q_ref, steps, ok)
+               own_ok = own_ok .and. ok
+               !--- The Jacobian at this solution, through which another solution's distance from it is measured.
+               ys%cas_enthalpy = h_ref
+               ys%cas_shv      = q_ref
+               ys%cas_co2      = y(i)%cas_co2
+               call surface_derivs(ys, fz%cas, fz%tissue, fz%veg_surface, fz%ground, t_ground(i), N, f)
+               call surface_source_slopes(h_ref, q_ref, ys%cas_co2, fz%cas, fz, t_ground(i), f, N, at_ref)
+               call surface_jacobian(at_ref, box%air_mass_capacity / dt, box%atm_conductance_enthalpy,              &
+                                     box%atm_conductance_vapor, j11, j12, j21, j22)
+               if (i >= SNOW_FIRST) branch_ok = branch_ok .and. pack_on_branch(i, fz, h_ref, q_ref, t_ground(i))
+               do j = 1_ik, NPROB
+                  if (j == i) cycle
+                  slopes = start_slopes(j)
+                  call newton_surface_solve(y(i), fz%cas, fz, t_ground(i), N, dt, box%air_mass_capacity,             &
+                                            box%atm_conductance_enthalpy, box%atm_conductance_vapor, slopes, f,      &
+                                            h, q, steps, ok)
+                  stale_ok    = stale_ok .and. ok
+                  worst_steps = max(worst_steps, steps)
+                  dist = surface_residual_scaled(j11 * (h - h_ref) + j12 * (q - q_ref),                           &
+                                                 j21 * (h - h_ref) + j22 * (q - q_ref), h_ref, q_ref, dt,         &
+                                                 box%air_mass_capacity)
+                  worst_dev   = max(worst_dev, dist)
+               end do
+            end associate
+         end do
+      end do
+      call check_true('newton_surface_solve: converges on slopes it takes itself, every problem', own_ok)
+      call check_true('stage problems: each snow pack ends the step on the branch it was set on', branch_ok)
+      call check_true('newton_surface_solve: converges on every other problem''s slopes', stale_ok)
+      call check_true('newton_surface_solve: on stale slopes within SURFACE_NEWTON_MAX + 2 steps',                   &
+                      worst_steps <= SURFACE_NEWTON_MAX + 2_ik, real(worst_steps, wp))
+      call check_true('newton_surface_solve: stale slopes reach its own solution within 2 tolerances',               &
+                      worst_dev <= 2.0_wp, worst_dev)
+   end subroutine test_stage_newton_stale_slopes
+
+   !---~---
+   !   Stage problem k of test_stage_newton_stale_slopes, on the kernel record: its canopy air, its
+   ! surfaces, the atmosphere it vents to and the soil-top temperature its ground sees. 1 is the
+   ! kernel record, transpiration held; from 2 on, transpiration follows the canopy air: 2 as the
+   ! kernel record; 3 dry, hot air; 4 humid air; 5 and 6 a night at 99.5 % and 103 % of
+   ! saturation; 7 wet leaves and wood; SNOW_FIRST on, a snow pack (snow_problem).
+   !---~---
+   subroutine stage_problem(k, n, y, frozen, t_ground)
+      integer(ik),         intent(in)  :: k, n
+      type(march_state_t), intent(out) :: y
+      type(frozen_t),      intent(out) :: frozen
+      real(wp),            intent(out) :: t_ground   ! [K]
+      real(wp) :: qsat
+      call kernel_record(col%site, col%cfg%pft%hydraulics, n, y, frozen)
+      t_ground = 296.0_wp
+      frozen%tissue%transp_held = (k == 1_ik)
+      select case (k)
+      case (3_ik)
+         call set_canopy_air(y, 305.0_wp, 0.004_wp)
+         call set_atmosphere(frozen, 307.0_wp, 0.0035_wp)
+         frozen%tissue%t_leaf0 = 306.0_wp
+         t_ground = 302.0_wp
+      case (4_ik)
+         call set_canopy_air(y, 297.0_wp, 0.92_wp * sat_specific_humidity(297.0_wp, frozen%cas%press))
+      case (5_ik, 6_ik)
+         frozen%tissue%abs_sw    = 0.0_wp
+         frozen%tissue%abs_lw    = -50.0_wp
+         frozen%tissue%t_leaf0   = 294.0_wp
+         frozen%ground%rnet_soil = -40.0_wp
+         call set_atmosphere(frozen, 294.0_wp, 0.99_wp * sat_specific_humidity(294.0_wp, frozen%cas%press))
+         qsat = sat_specific_humidity(295.0_wp, frozen%cas%press)
+         call set_canopy_air(y, 295.0_wp, merge(0.995_wp, 1.03_wp, k == 5_ik) * qsat)
+         t_ground = 295.5_wp
+      case (7_ik)
+         frozen%veg_surface%f_wet_c     = 0.6_wp
+         frozen%veg_surface%g_surf_leaf = 0.01_wp * frozen%tissue%lai
+         frozen%veg_surface%g_surf_wood = 0.005_wp
+         frozen%tissue%wai              = 0.5_wp
+         frozen%tissue%h_coeff_w        = 10.0_wp
+         frozen%tissue%abs_sw_wood      = 30.0_wp
+         frozen%tissue%wood_hcap_per_dt = 1.0e4_wp / 900.0_wp
+      case (SNOW_FIRST:)
+         call snow_problem(k, y, frozen, t_ground)
+      end select
+   end subroutine stage_problem
+
+   !---~---
+   !   The snow problems of stage_problem: a pack over 60 % of the ground under cold canopy air,
+   ! leaves and atmosphere, set on one branch of its balance -- SNOW_FIRST ice well below freezing,
+   ! then a pack melting with 40 % of it liquid, then all liquid above freezing, then a trace
+   ! under dry, well-ventilated air that sublimates away within the step.
+   !---~---
+   subroutine snow_problem(k, y, frozen, t_ground)
+      integer(ik),         intent(in)    :: k
+      type(march_state_t), intent(inout) :: y
+      type(frozen_t),      intent(inout) :: frozen
+      real(wp),            intent(out)   :: t_ground   ! [K]
+      real(wp), parameter :: T_AIR(0:3)  = [265.0_wp, 276.0_wp, 279.0_wp, 270.0_wp]     ! [K] the canopy air's
+      real(wp), parameter :: RH(0:3)     = [0.8_wp, 0.85_wp, 0.85_wp, 0.3_wp]           ! [-] its relative humidity
+      real(wp), parameter :: SWE(0:3)    = [30.0_wp, 30.0_wp, 30.0_wp, 2.0e-4_wp]       ! [kg/m2]
+      real(wp), parameter :: T_PACK(0:3) = [263.0_wp, t_3ple, 274.0_wp, 268.0_wp]       ! [K]
+      real(wp), parameter :: FLIQ(0:3)   = [0.0_wp, 0.4_wp, 1.0_wp, 0.0_wp]             ! [-] its liquid share
+      real(wp), parameter :: T_SOIL(0:3) = [270.0_wp, t_3ple, 274.0_wp, 270.0_wp]       ! [K]
+      integer(ik) :: b
+      b = k - SNOW_FIRST
+      call set_canopy_air(y, T_AIR(b), RH(b) * sat_specific_humidity(T_AIR(b), frozen%cas%press))
+      call set_atmosphere(frozen, T_AIR(b) - 1.0_wp, 0.9_wp * y%cas_shv)
+      frozen%tissue%abs_sw  = 0.2_wp * frozen%tissue%abs_sw
+      frozen%tissue%t_leaf0 = T_AIR(b)
+      frozen%tissue%t_wood0 = T_AIR(b)
+      associate (g => frozen%ground)
+         g%rnet_soil   = 10.0_wp
+         g%soil_evap   = 0.0_wp
+         g%sw_snow     = 30.0_wp
+         g%lw_down     = stefan_boltzmann * (T_AIR(b) - 8.0_wp) ** 4
+         g%k_soil_top  = 1.5_wp
+         g%dz_soil_top = 0.05_wp
+         g%snowfac     = 0.6_wp
+         g%dt          = 900.0_wp
+         if (b == 3_ik) g%ggnet = 0.05_wp
+         g%pack%nlayer         = 1_ik
+         g%pack%swe(1)         = SWE(b)
+         g%pack%snow_energy(1) = temp_to_internal_energy(0.0_wp, SWE(b), T_PACK(b), FLIQ(b))
+         g%pack%snow_depth(1)  = SWE(b) / g%params%rho_snow
+         g%pack%snow_temp(1)   = T_PACK(b)
+         g%pack%snow_fliq(1)   = FLIQ(b)
+      end associate
+      t_ground = T_SOIL(b)
+   end subroutine snow_problem
+
+   !---~---
+   !   Snow problem k's pack once it takes the step's exchange with canopy air at (h, q): on the
+   ! branch snow_problem set it on.
+   !---~---
+   logical function pack_on_branch(k, frozen, h, q, t_ground) result(on)
+      integer(ik),    intent(in) :: k
+      type(frozen_t), intent(in) :: frozen
+      real(wp),       intent(in) :: h, q, t_ground   ! [J/kg], [kg/kg], [K]
+      type(surface_env_t) :: env
+      type(snow_state_t)  :: pack
+      real(wp) :: h_ground, le_ground, g_top, ground_rad, energy_in, vapour_out
+      env            = frozen%ground
+      env%can_temp   = cas_enthalpy_to_temp(h, q)
+      env%can_shv    = q
+      env%rho_air    = frozen%cas%rho
+      env%press      = frozen%cas%press
+      env%t_soil_top = t_ground
+      call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, energy_in, vapour_out)
+      pack = env%pack
+      call snow_take_exchange(pack, env%dt * energy_in, env%dt * vapour_out, env%params)
+      select case (k - SNOW_FIRST)
+      case (0_ik)
+         on = pack%snow_temp(1) < t_3ple                                     ! the ice line
+      case (1_ik)
+         on = pack%snow_fliq(1) > 0.0_wp .and. pack%snow_fliq(1) < 1.0_wp    ! the melt plateau
+      case (2_ik)
+         on = pack%snow_temp(1) > t_3ple                                     ! the liquid line
+      case default
+         on = pack%swe(1) <= env%params%tiny_snow_mass                       ! sublimated away
+      end select
+   end function pack_on_branch
+
+   !--- Canopy air at temperature t [K] and specific humidity q [kg/kg].
+   subroutine set_canopy_air(y, t, q)
+      type(march_state_t), intent(inout) :: y
+      real(wp),            intent(in)    :: t, q
+      y%cas_enthalpy = cas_temp_to_enthalpy(t, q)
+      y%cas_shv      = q
+   end subroutine set_canopy_air
+
+   !--- The atmosphere the canopy air vents to, at temperature t [K] and specific humidity q [kg/kg].
+   subroutine set_atmosphere(frozen, t, q)
+      type(frozen_t), intent(inout) :: frozen
+      real(wp),       intent(in)    :: t, q
+      frozen%cas%box%atm_enthalpy          = cas_temp_to_enthalpy(t, q)
+      frozen%cas%box%atm_specific_humidity = q
+   end subroutine set_atmosphere
 
    elemental logical function ieee_ok(x)
       real(wp), intent(in) :: x
