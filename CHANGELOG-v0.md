@@ -73,6 +73,11 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   March −14 %; example 06 region 06 −14 % on 40 threads). Results move within the Newton's
   tolerance: at BCI (example 04) the five-year mean GPP, LE, H and ET by less than 1e-5 relative, in
   the region test's January–February run LE and snow water equivalent by about 1e-4. (#76)
+- Rubisco's Michaelis constants Kc and Ko, partial pressures, become mole fractions over the dry-air
+  pressure P − e, the basis of the canopy air's CO2 and O2, instead of over P (and the C4 PEP slope
+  likewise); the Rubisco-limited rate was about 1.3–1.5 % high in humid air. BCI (example 04,
+  default/calibrated): GPP −0.45/−0.54 %, LE −0.28/−0.38 %; Palo Verde (ERA5-Land): GPP −0.36 %,
+  LE −0.13 %. (#82)
 
 ### Added
 
@@ -192,6 +197,9 @@ patch version; the names change, and the Upgrading notes list them.
   `meds_config_*.toml`), and their scripts take `--edmore` (was `--meds-main`). (#42)
 - The conda environment is `edmore` (was `meds`): `mamba env create -f environment.yml`, then
   `conda activate edmore`. It needs Python 3.11 or later and brings CMake. (#43)
+- `edmore.plant.leaf.rubisco_kinetics` requires `vpd` [Pa], the leaf-to-air vapour pressure deficit,
+  as a keyword argument, and the C function `ed_rubisco_kinetics` takes it after `pressure`: the
+  constants depend on the air's vapour pressure. (#82)
 
 ### Added
 
