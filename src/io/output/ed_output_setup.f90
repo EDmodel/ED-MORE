@@ -170,7 +170,8 @@ contains
       if (cfg%forcing%forcing_on .and. cfg%forcing%format == MET_BACKEND_ERA5LAND)                   &
          files%forcing_qair = 'computed by ED-MORE from the ED_ERA5land 2 m dewpoint Td and surface '//         &
                             'pressure P: q = 0.62196 e / (P - 0.37804 e), e = e_sat(Td), the Ambaum (2020) '// &
-                            'liquid-water saturation vapour pressure of ed_therm_lib'
+                            'liquid-water saturation vapour pressure of ed_therm_lib, at most saturation at '//  &
+                            'the 2 m air temperature'
 
       !---~---
       !   The derived diagnostics' parameters (diag_setup_t). n_pft is the run-time PFT count,

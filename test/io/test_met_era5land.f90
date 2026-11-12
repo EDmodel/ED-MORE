@@ -307,7 +307,7 @@ contains
       q0  = sat_specific_humidity(field(ERA_TDEW, 1_ik, 3_ik, g), p0)
       lw0 = field(ERA_LWDOWN, 1_ik, 3_ik, g)
       t1  = t0 - 0.0042_wp * 500.0_wp
-      p1 = lapse_pressure(p0, t0, 500.0_wp, 0.0042_wp)
+      p1 = lapse_pressure(p0, t0, 500.0_wp, 0.0042_wp, q0)
       call check('lapse: T by January''s rate', met%air_temp, t1, 1.0e-9_wp)
       call check('lapse: P hydrostatic', met%air_pressure, p1, 1.0e-6_wp)
       rh0 = q0 * p0 / (h2o_dry_ratio + (1.0_wp - h2o_dry_ratio) * q0) / sat_vapor_pressure(t0)

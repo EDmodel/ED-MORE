@@ -11,7 +11,8 @@ would compute from the same inputs:
   rh_to_specific_humidity,                          ed_therm_lib (a dewpoint's q is
   dewpoint_to_specific_humidity,                    sat_specific_humidity at the dewpoint)
   specific_humidity_to_vapor_pressure
-  pressure_at_height                                ed_therm_lib%lapse_pressure (isothermal form)
+  moist_gas_constant, pressure_at_height            ed_therm_lib%moist_gas_constant, lapse_pressure
+                                                    (isothermal form)
   equation_of_time, solar_declination,              ed_time
   solar_cosz, window_mean_cosz
   clearness_index, clear_sky_emissivity,            ed_radiation_lib
@@ -53,6 +54,8 @@ LW_CLOUD_A = 0.22          # [-] the model's default cloud coefficient ([forcing
 # ---------------------------------------------------------------------------------------------
 #: Water's molar mass over dry air's (ed_constants: h2o_dry_ratio = mmh2o / mmdry).
 H2O_DRY_RATIO = 0.01801528 / 0.0289655
+#: R_v/R_d - 1, the moist-air factor (ed_constants: virtual_temp_factor = mmdry / mmh2o - 1).
+VIRTUAL_TEMP_FACTOR = 0.0289655 / 0.01801528 - 1.0
 
 
 def latent_heat_vap(t_k, fliq):
@@ -118,10 +121,18 @@ def specific_humidity_to_vapor_pressure(q, p_pa):
     return q * np.asarray(p_pa, dtype=float) / (H2O_DRY_RATIO + (1.0 - H2O_DRY_RATIO) * q)
 
 
-def pressure_at_height(p_pa, t_k, dz):
-    """Pressure dz [m] above (dz > 0) or below (dz < 0) a level at p_pa, t_k: the isothermal
-    hypsometric form of ed_therm_lib%lapse_pressure."""
-    return np.asarray(p_pa, dtype=float) * np.exp(-GRAV * np.asarray(dz, dtype=float) / (R_DRY * np.asarray(t_k)))
+def moist_gas_constant(q):
+    """R_m [J kg-1 K-1] of moist air holding specific humidity q [kg/kg], R_d (1 + (R_v/R_d - 1) q)
+    (ed_therm_lib%moist_gas_constant; docs/science/forcing.md eq. (13))."""
+    return R_DRY * (1.0 + VIRTUAL_TEMP_FACTOR * np.asarray(q, dtype=float))
+
+
+def pressure_at_height(p_pa, t_k, dz, q):
+    """Pressure dz [m] above (dz > 0) or below (dz < 0) a level at p_pa, t_k, in moist air holding
+    specific humidity q: the isothermal hypsometric form of ed_therm_lib%lapse_pressure,
+    p exp(-g dz / (R_m T))."""
+    return np.asarray(p_pa, dtype=float) * np.exp(-GRAV * np.asarray(dz, dtype=float)
+                                                  / (moist_gas_constant(q) * np.asarray(t_k)))
 
 
 # ---------------------------------------------------------------------------------------------

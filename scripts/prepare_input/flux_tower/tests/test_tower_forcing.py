@@ -165,10 +165,13 @@ def test_states_are_recentred_to_the_stamps(tmp_path):
 
 
 def test_pressure_is_brought_down_to_the_ground(tmp_path):
+    # as moist air, holding the tower's humidity: dry air's R_d would put the ground 4e-5 low
     ds, _ = build(tmp_path, write_site(tmp_path, synthetic_tower()))
     p = ds["PSurf"][:, 0].astype(float)
     t = ds["Tair"][:, 0].astype(float)
-    assert np.allclose(p, 98800.0 * np.exp(conv.GRAV * 30.0 / (conv.R_DRY * t)), rtol=2e-6)
+    q = conv.rh_to_specific_humidity(ds["RHair"][:, 0].astype(float), t, 98800.0)
+    r_moist = conv.R_DRY * (1.0 + 0.60783 * q)
+    assert np.allclose(p, 98800.0 * np.exp(conv.GRAV * 30.0 / (r_moist * t)), rtol=2e-6)
 
 
 def test_rain_and_shortwave_stay_interval_means(tmp_path):
@@ -463,6 +466,17 @@ def test_humidity_round_trip_is_exact():
     rh = np.array([0.3, 0.9, 1.0])
     q = conv.rh_to_specific_humidity(rh, t, p)
     assert np.allclose(conv.specific_humidity_to_vapor_pressure(q, p) / conv.sat_vapor_pressure(t), rh, atol=1e-13)
+
+
+def test_pressure_at_height_is_moist_airs():
+    # ed_therm_lib lapse_pressure at gamma = 0: q = 0 is dry air's barometric form exactly; moist air is
+    # dry air at the virtual temperature T (1 + 0.60783 q), so its pressure falls more slowly with height
+    t, dz = 290.0, 500.0
+    assert conv.pressure_at_height(95000.0, t, dz, 0.0) == 95000.0 * np.exp(-conv.GRAV * dz / (conv.R_DRY * t))
+    t_virtual = t * (1.0 + 0.60783 * 0.02)
+    moist = conv.pressure_at_height(95000.0, t, dz, 0.02)
+    assert moist == pytest.approx(95000.0 * np.exp(-conv.GRAV * dz / (conv.R_DRY * t_virtual)), rel=1e-8)
+    assert moist > conv.pressure_at_height(95000.0, t, dz, 0.0)
 
 
 def test_saturation_vapour_pressure_is_the_models():
