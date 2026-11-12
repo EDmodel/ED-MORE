@@ -220,6 +220,9 @@ of two runs:
 
 - **The patches are the parallel axis,** so a site run gains while it has more patches than
   threads: at BCI 16 threads run 8× faster than one, and 32 only 20 % faster than 16.
+- **The cohorts are not threaded.** A patch's cohort kernels are too small to pay for a thread team:
+  threading over cohorts was measured at 1.08× per patch at most, against 6.5× from patch threads on
+  8 cores.
 - **No routine passes a procedure as an argument.** ifx allocates a lock-guarded record on every
   call of a routine that hands one of its contained functions to another routine, so the threads
   queue on it: two such routines in the fast loop are enough to make 8 and 16 threads slower than 4

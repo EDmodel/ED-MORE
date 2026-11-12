@@ -47,6 +47,9 @@ stomata (`leaf.Stomata`), and a plain Arrhenius temperature response (`leaf.Temp
 
 ## Results
 
+The numbers here come from the first ED-MORE release, built with ifx and the production preset
+(`cmake --preset production`).
+
 ![Slot & Winter 2017 reproduced with the ED-MORE leaf model](slot2017.png)
 
 **(a) A–Cᵢ curve.** Net assimilation is limited by RuBP carboxylation (A_c, red) below

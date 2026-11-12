@@ -21,7 +21,7 @@ program test_met_file
    use ed_test_assert,        only : check, check_true, test_report
    use ed_kinds,              only : wp, ik
    use ed_constants,          only : t_3ple, h2o_dry_ratio, grav, cp_air, r_dry, virtual_temp_factor
-   use ed_time,               only : ed_time_t, time_advance_seconds, solar_cosz_utc
+   use ed_time,               only : ed_time_t, time_advance_seconds, solar_cosz_utc, day_of_year, earth_sun_distance_factor
    use ed_therm_lib,          only : sat_vapor_pressure, air_density, sat_specific_humidity, &
                                      rh_to_specific_humidity, precip_phase, specific_humidity_to_vpd
    use ed_radiation_lib,      only : SWPART_CLEARIDX, SWPART_PASSTHROUGH, clearness_index
@@ -1601,7 +1601,9 @@ contains
       met = sample(src, cur, t0 + 0.4_wp * DT)
       call check('the remembered clearness is the containing interval''s', cur%kt_last_day,              &
                  clearness_index(sw_at(k_sw), solar_cosz_utc(time_advance_seconds(base, t0 + 0.4_wp * DT),  &
-                                 t0 + 0.4_wp * DT, fc%latitude, fc%longitude)), 1.0e-12_wp)
+                                 t0 + 0.4_wp * DT, fc%latitude, fc%longitude),                          &
+                                 earth_sun_distance_factor(day_of_year(time_advance_seconds(base, t0 + 0.4_wp * DT)))), &
+                 1.0e-12_wp)
       call met_close(src)
    end subroutine test_flux_interval
 

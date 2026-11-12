@@ -651,6 +651,8 @@ A polygon is one site unless `[[sites]]` divides it, in a site run. Each `[[site
 - **A restart** reads the sites back from the state file, which must hold as many as the config and, for
   each, as many soil layers.
 - **A region refuses `[[sites]]`**: each cell is one site.
+- **What a polygon's sites do not have.** The slope corrects the direct beam only: diffuse and reflected
+  light are not moved onto it. No water and no seeds move between sites.
 
 ```toml
 [[sites]]                 # a quarter of the polygon on a shallow, south-east-facing slope

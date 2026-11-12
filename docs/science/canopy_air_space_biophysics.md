@@ -19,6 +19,8 @@ stores are woven together each `dt_fast`.
 The CAS is a well-mixed box of air of depth $D_{can}$ and mass per ground area
 $`W_{cap}=\rho\,D_{can}`$. Here $\rho$ is the canopy air's own density: its temperature and humidity at
 the pressure of its top ([forcing](forcing.md) eq. (15)), taken at the start of each fast step.
+The leaves and the ground use that same pressure, though the ground sits deeper and its true pressure is
+higher ([forcing](forcing.md) §8, "One pressure for the whole patch").
 
 **$D_{can}$ is the tallest cohort's height plus a freeboard** (`[aerodynamics].canopy_freeboard`,
 default 5 m, floored by `min_canopy_depth`). The CAS is the well-mixed layer the canopy exchanges with,
@@ -74,7 +76,7 @@ four terms:
 The CAS temperature is diagnosed from $(H^{n+1},q^{n+1})$ at each step by inverting the specific
 enthalpy $`H = (1-q)\,c_{p,d}\,T + q\,c_{p,v}\,(T - T_{sc,v})`$ (`cas_temp_to_enthalpy`,
 `cas_enthalpy_to_temp`). Dry air is counted from 0 K, and vapour sits in the energy datum every store
-shares, in which ice at 0 K holds no energy, so a vapour flux carries its latent heat with it. The latent heat is that datum's difference between the vapour and its source (`latent_heat_vap`; Kirchhoff's law). Liquid, supercooled or not, vaporizes with $`L_v(T) = L_{v,3ple} + (c_{p,v} - c_{p,l})\,(T - T_{3ple})`$ and ice sublimes with $`L_s(T) = L_f + L_{v,3ple} + (c_{p,v} - c_{p,i})\,(T - T_{3ple})`$. A mixture takes their average weighted by $`f_{liq}`$, the liquid share of the water that vaporizes: $`f_{liq}\,L_v + (1 - f_{liq})\,L_s`$. The reported latent heat flux takes the ice share from the snow pack's part of the vapour exported, and the rest as liquid. The heat a kilogram takes depends on the temperature it leaves at, and enthalpy closes; $`L_{v,3ple}`$ is the constant `latent_heat_vap_3ple`. The saturation vapour pressure is built on these same $`L_v(T)`$ and $`L_s(T)`$ ([snow biophysics](snow_biophysics.md) eq. (1)), so its slope with temperature is the Clausius–Clapeyron equation with the heat a vapour flux carries. All three
+shares, in which ice at 0 K holds no energy, so a vapour flux carries its latent heat with it. The latent heat is that datum's difference between the vapour and its source (`latent_heat_vap`; Kirchhoff's law). Liquid, supercooled or not, vaporizes with $`L_v(T) = L_{v,3ple} + (c_{p,v} - c_{p,l})\,(T - T_{3ple})`$ and ice sublimes with $`L_s(T) = L_f + L_{v,3ple} + (c_{p,v} - c_{p,i})\,(T - T_{3ple})`$. A mixture takes their average weighted by $`f_{liq}`$, the liquid share of the water that vaporizes: $`f_{liq}\,L_v + (1 - f_{liq})\,L_s`$. The reported latent heat flux takes the ice share from the snow pack's part of the vapour exported, and the rest as liquid. The heat a kilogram takes depends on the temperature it leaves at, and enthalpy closes; $`L_{v,3ple}`$ is the constant `latent_heat_vap_3ple`. The saturation vapour pressure is built on these same $`L_v(T)`$ and $`L_s(T)`$ ([snow biophysics](snow_biophysics.md) eq. (1)), so its slope with temperature (eq. (2)) is the Clausius–Clapeyron equation with the heat a vapour flux carries. All three
 variables share $`u_*`$ and the profile factor, which keeps them on one turbulence basis; CO₂ without
 the profile factor would be over-coupled to the free atmosphere and lose its nocturnal build-up (see
 [canopy_aerodynamics](canopy_aerodynamics.md) eq. (6)).

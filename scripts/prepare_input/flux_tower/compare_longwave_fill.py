@@ -87,7 +87,8 @@ def main(argv=None):
 
     fills = {"synth": mt.prepare(site, lw_holdout=hidden)["values"]["LWdown"]}
     y = base["values"]
-    fills["ed_synth"] = tg.synthesized_longwave(y["Tair"], y["RH"], y["PSurf"], y["SWdown"], base["mean_cosz"])
+    fills["ed_synth"] = tg.synthesized_longwave(y["Tair"], y["RH"], y["PSurf"], y["SWdown"], base["mean_cosz"],
+                                       base["toa_scale"])
     groups = tg.regression_groups(base["stamps"], base["mean_cosz"], by_day_night=True)
     seen = observed & ~hidden
     climatology = np.full(len(groups), np.nan)

@@ -214,7 +214,7 @@ def test_a_tower_without_longwave_gets_the_model_synthesis(tmp_path, capsys):
     # the file's LWdown is re-centred; compare an interior stamp against the synthesis of its two intervals
     p = mt.prepare(site)
     y = p["values"]
-    lw = tg.synthesized_longwave(y["Tair"], y["RH"], y["PSurf"], y["SWdown"], p["mean_cosz"])
+    lw = tg.synthesized_longwave(y["Tair"], y["RH"], y["PSurf"], y["SWdown"], p["mean_cosz"], p["toa_scale"])
     assert np.allclose(ds["LWdown"][1:, 0], 0.5 * (lw[:-1] + lw[1:]), atol=1e-3)
     assert (ds["LWdown_qc"][:, 0] == tg.QC_SYNTH_OR_MDV).all()
     assert np.isfinite(t).all()
@@ -576,3 +576,31 @@ def test_window_mean_cosz_matches_a_fine_integral_by_day():
     coarse = conv.window_mean_cosz(start, 3600.0, 9.15, -79.85)[0]
     fine = conv.window_mean_cosz(start, 3600.0, 9.15, -79.85, nsub=3600)[0]
     assert abs(coarse - fine) < 1e-3
+
+
+def test_earth_sun_distance_factor_matches_the_model_values():
+    """The same numbers test_radiation_lib checks in Fortran: 100th day = 0.9950481718546265, the
+    January perihelion about +3.3 %, the July aphelion about -3.3 %, a mean of 1 over the year."""
+    day = np.datetime64("2014-04-10T12:00:00")                       # day 100
+    assert abs(conv.earth_sun_distance_factor(day) - 0.9950481718546265) < 1e-12
+    assert 1.032 < conv.earth_sun_distance_factor(np.datetime64("2014-01-03T00:00:00")) < 1.034
+    assert 0.966 < conv.earth_sun_distance_factor(np.datetime64("2014-07-04T00:00:00")) < 0.968
+    year = np.datetime64("2014-01-01T00:00:00") + np.arange(365) * np.timedelta64(86400, "s")
+    assert abs(conv.earth_sun_distance_factor(year).mean() - 1.0) < 1e-4
+
+
+def test_clearness_index_scales_by_the_inverse_factor():
+    kt1 = conv.clearness_index(500.0, 0.5, 1.0)
+    kt2 = conv.clearness_index(500.0, 0.5, 1.033)
+    assert abs(kt1 - 500.0 / (1361.0 * 0.5)) < 1e-12
+    assert abs(kt2 - kt1 / 1.033) < 1e-12
+    assert conv.clearness_index(0.0, 0.0, 1.033) == -1.0
+
+
+def test_shortwave_gap_fill_holds_the_clearness_index_with_the_factor():
+    y = np.array([400.0, np.nan, 400.0])
+    qc = np.zeros(3, dtype=int)
+    cz = np.full(3, 0.5)
+    out, _ = tg.fill_short(y, qc, 2, "shortwave", cz, np.full(3, 1.033))
+    assert abs(out[1] - 400.0) < 1e-9                                 # kt held, same TOA all three
+

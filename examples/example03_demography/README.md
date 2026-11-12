@@ -97,6 +97,9 @@ that `prepare_census.py` writes.
 
 ## Results
 
+The numbers here come from the first ED-MORE release, built with ifx and the production preset
+(`cmake --preset production`).
+
 ![The census-trained laws and the stands they make](demography.png)
 
 **Top row:** the three laws. **Bottom row:** a run from the 1985 census beside the next five

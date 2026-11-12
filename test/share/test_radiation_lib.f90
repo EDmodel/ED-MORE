@@ -9,12 +9,15 @@
 !      a cloud term that only adds, and the clearness index's night sentinel;
 !   3. the beam on a slope: level ground keeps its beam, no beam stays none, and the beam
 !      normal to a low sun is held at the solar constant.
+!   5. the Earth-Sun distance factor: its perihelion and aphelion extremes, a yearly mean of 1,
+!      and its scaling of the clearness index, the Weiss-Norman streams and the slope cap.
 !   4. the longwave at another height (forcing.md §8): the file's longwave scales by the
 !      clear-sky emissivity times T^4, so a warmer, moister site gets more, and dz = 0 none.
 !---~---
 program test_radiation_lib
    use ed_test_assert,     only : check, check_true, test_report
-   use ed_kinds,           only : wp
+   use ed_kinds,           only : wp, ik
+   use ed_time,            only : earth_sun_distance_factor
    use ed_radiation_lib,   only : LW_CLEAR_BRUTSAERT, LW_CLEAR_IDSO, SWPART_CLEARIDX, SWPART_WEISS_NORMAN,  &
                                   partition_shortwave, clearness_index, clear_sky_emissivity,            &
                                   synthesize_lwdown, slope_beam_factor, lapse_longwave
@@ -25,6 +28,7 @@ program test_radiation_lib
    call test_lwdown_synthesis()
    call test_slope_beam()
    call test_lapse_longwave()
+   call test_earth_sun_distance()
 
    call test_report('test_radiation_lib')
 
@@ -36,15 +40,15 @@ contains
       real(wp), parameter :: PS = 98000.0_wp
       print '(a)', '-- test 4: SW partition (Erbs) --'
       cosz = 0.8_wp
-      call partition_shortwave(800.0_wp, cosz, PS, SWPART_CLEARIDX, pb, pd, nb, nd)
+      call partition_shortwave(800.0_wp, cosz, 1.0_wp, PS, SWPART_CLEARIDX, pb, pd, nb, nd)
       call check('4 streams sum to total SW', pb+pd+nb+nd, 800.0_wp, 1.0e-9_wp)
       call check_true('all streams >= 0', pb>=0 .and. pd>=0 .and. nb>=0 .and. nd>=0, min(pb,pd,nb,nd))
       call check_true('clear sky -> mostly beam', (pb+nb) > (pd+nd), (pb+nb)-(pd+nd))
       !--- overcast (low kt) -> mostly diffuse
-      call partition_shortwave(150.0_wp, cosz, PS, SWPART_CLEARIDX, pb, pd, nb, nd)
+      call partition_shortwave(150.0_wp, cosz, 1.0_wp, PS, SWPART_CLEARIDX, pb, pd, nb, nd)
       call check_true('overcast -> mostly diffuse', (pd+nd) > (pb+nb), (pd+nd)-(pb+nb))
       !--- night -> all zero
-      call partition_shortwave(0.0_wp, 0.0_wp, PS, SWPART_CLEARIDX, pb, pd, nb, nd)
+      call partition_shortwave(0.0_wp, 0.0_wp, 1.0_wp, PS, SWPART_CLEARIDX, pb, pd, nb, nd)
       call check('night -> zero SW', pb+pd+nb+nd, 0.0_wp, 1.0e-30_wp)
    end subroutine test_sw_partition
 
@@ -56,22 +60,22 @@ contains
       real(wp) :: pb, pd, nb, nd, cosz, beam_hi, beam_lo
       print '(a)', '-- test 4b: SW partition (Weiss-Norman) --'
       cosz = 0.8_wp
-      call partition_shortwave(800.0_wp, cosz, 98000.0_wp, SWPART_WEISS_NORMAN, pb, pd, nb, nd)
+      call partition_shortwave(800.0_wp, cosz, 1.0_wp, 98000.0_wp, SWPART_WEISS_NORMAN, pb, pd, nb, nd)
       call check('WN: 4 streams sum to total SW', pb+pd+nb+nd, 800.0_wp, 1.0e-8_wp)
       call check_true('WN: all streams >= 0', pb>=0 .and. pd>=0 .and. nb>=0 .and. nd>=0, min(pb,pd,nb,nd))
       call check_true('WN: clear sky -> mostly beam', (pb+nb) > (pd+nd), (pb+nb)-(pd+nd))
       call check_true('WN: PAR beam > NIR-diffuse in clear sky', pb > nd, pb-nd)
       beam_hi = pb + nb
       !--- overcast (low observed vs potential) -> beam collapses, diffuse dominates
-      call partition_shortwave(120.0_wp, cosz, 98000.0_wp, SWPART_WEISS_NORMAN, pb, pd, nb, nd)
+      call partition_shortwave(120.0_wp, cosz, 1.0_wp, 98000.0_wp, SWPART_WEISS_NORMAN, pb, pd, nb, nd)
       call check('WN overcast: streams sum to total', pb+pd+nb+nd, 120.0_wp, 1.0e-8_wp)
       call check_true('WN overcast -> mostly diffuse', (pd+nd) > (pb+nb), (pd+nd)-(pb+nb))
       !--- grazing sun (cosz below WN_COSZ_MIN) -> all diffuse, still conserving
-      call partition_shortwave(50.0_wp, 0.01_wp, 98000.0_wp, SWPART_WEISS_NORMAN, pb, pd, nb, nd)
+      call partition_shortwave(50.0_wp, 0.01_wp, 1.0_wp, 98000.0_wp, SWPART_WEISS_NORMAN, pb, pd, nb, nd)
       call check('WN dawn: streams sum to total', pb+pd+nb+nd, 50.0_wp, 1.0e-9_wp)
       call check('WN dawn: no beam', pb+nb, 0.0_wp, 1.0e-30_wp)
       !--- pressure sensitivity: psurf_pa enters the WN optical depth, so the split MUST change with it
-      call partition_shortwave(800.0_wp, cosz, 101325.0_wp, SWPART_WEISS_NORMAN, pb, pd, nb, nd)
+      call partition_shortwave(800.0_wp, cosz, 1.0_wp, 101325.0_wp, SWPART_WEISS_NORMAN, pb, pd, nb, nd)
       beam_lo = pb + nb
       call check_true('WN: surface pressure changes the beam split', abs(beam_hi-beam_lo) > 1.0e-6_wp, &
                       abs(beam_hi-beam_lo))
@@ -121,25 +125,62 @@ contains
       !   The clearness index: a real value by day, a NEGATIVE sentinel at night. A zero here
       ! would read as fully overcast and give every night the maximum cloud correction.
       !---~---
-      kt = clearness_index(500.0_wp, 0.5_wp)
+      kt = clearness_index(500.0_wp, 0.5_wp, 1.0_wp)
       call check('clearness index by day = SW/(S0 cosz)', kt, 500.0_wp / (1361.0_wp*0.5_wp), 1.0e-9_wp)
       call check_true('clearness index is a NEGATIVE sentinel at night, not 0',                    &
-                      clearness_index(0.0_wp, 0.0_wp) < 0.0_wp, clearness_index(0.0_wp, 0.0_wp))
-      call check_true('clearness index is capped at 1', clearness_index(5000.0_wp, 0.5_wp) <= 1.0_wp)
+                      clearness_index(0.0_wp, 0.0_wp, 1.0_wp) < 0.0_wp, clearness_index(0.0_wp, 0.0_wp, 1.0_wp))
+      call check_true('clearness index is capped at 1', clearness_index(5000.0_wp, 0.5_wp, 1.0_wp) <= 1.0_wp)
    end subroutine test_lwdown_synthesis
 
    !--- The beam on a slope (docs/science/forcing.md §8).
    subroutine test_slope_beam()
       real(wp), parameter :: S0 = 1361.0_wp
       print '(a)', '-- the beam on a slope --'
-      call check_true('level ground keeps its beam', slope_beam_factor(300.0_wp, 0.5_wp, 0.5_wp) == 1.0_wp)
-      call check_true('no beam has nothing to scale', slope_beam_factor(0.0_wp, 0.5_wp, 0.7_wp) == 1.0_wp)
+      call check_true('level ground keeps its beam', slope_beam_factor(300.0_wp, 0.5_wp, 0.5_wp, 1.0_wp) == 1.0_wp)
+      call check_true('no beam has nothing to scale', slope_beam_factor(0.0_wp, 0.5_wp, 0.7_wp, 1.0_wp) == 1.0_wp)
       call check_true('a slope facing the sun takes cos i / cos z',                                  &
-                      abs(slope_beam_factor(300.0_wp, 0.5_wp, 0.7_wp) - 1.4_wp) < 1.0e-12_wp)
+                      abs(slope_beam_factor(300.0_wp, 0.5_wp, 0.7_wp, 1.0_wp) - 1.4_wp) < 1.0e-12_wp)
       call check_true('the beam normal to a low sun is held at the solar constant',                  &
-                      abs(slope_beam_factor(100.0_wp, 0.01_wp, 0.5_wp) - S0 * 0.5_wp / 100.0_wp) < 1.0e-9_wp)
+                      abs(slope_beam_factor(100.0_wp, 0.01_wp, 0.5_wp, 1.0_wp) - S0 * 0.5_wp / 100.0_wp) < 1.0e-9_wp)
 
    end subroutine test_slope_beam
+
+   !---~---
+   !   The Earth-Sun distance factor (r0/r)^2 and what it scales (docs/science/forcing.md
+   ! §6): about +3.3 % at the January perihelion, -3.3 % at the July aphelion, a yearly
+   ! mean of 1; the clearness index falls by it, the Weiss-Norman streams still sum to the
+   ! shortwave, and the slope's beam cap rises with it.
+   !---~---
+   subroutine test_earth_sun_distance()
+      real(wp) :: pb, pd, nb, nd, f_jan, f_jul, mean_f, kt1, kt2, pb1, pd1, nb1, nd1
+      integer(ik) :: d
+      print '(a)', '-- test 5: the Earth-Sun distance factor --'
+      f_jan = earth_sun_distance_factor(3_ik)
+      f_jul = earth_sun_distance_factor(185_ik)
+      call check_true('perihelion (3 Jan) factor is about 1.033', f_jan > 1.032_wp .and. f_jan < 1.034_wp, f_jan)
+      call check_true('aphelion (4 Jul) factor is about 0.967', f_jul > 0.966_wp .and. f_jul < 0.968_wp, f_jul)
+      mean_f = 0.0_wp
+      do d = 1_ik, 365_ik
+         mean_f = mean_f + earth_sun_distance_factor(d) / 365.0_wp
+      end do
+      call check('the factor on day 100 (the Python mirror checks the same value)',                  &
+                 earth_sun_distance_factor(100_ik), 0.9950481718546265_wp, 1.0e-12_wp)
+      call check('the factor averages 1 over the year', mean_f, 1.0_wp, 1.0e-4_wp)
+
+      kt1 = clearness_index(500.0_wp, 0.5_wp, 1.0_wp)
+      kt2 = clearness_index(500.0_wp, 0.5_wp, f_jan)
+      call check('kt scales by 1/factor', kt2, kt1 / f_jan, 1.0e-12_wp)
+
+      call partition_shortwave(800.0_wp, 0.8_wp, f_jan, 98000.0_wp, SWPART_WEISS_NORMAN, pb, pd, nb, nd)
+      call check('WN at perihelion: the streams still sum to the shortwave', pb+pd+nb+nd, 800.0_wp, 1.0e-8_wp)
+      call partition_shortwave(800.0_wp, 0.8_wp, 1.0_wp, 98000.0_wp, SWPART_WEISS_NORMAN, pb1, pd1, nb1, nd1)
+      call check_true('WN: the factor changes the beam share', abs(pb - pb1) > 1.0e-6_wp, pb - pb1)
+      call partition_shortwave(800.0_wp, 0.8_wp, f_jul, 98000.0_wp, SWPART_CLEARIDX, pb, pd, nb, nd)
+      call check('Erbs at aphelion: the streams still sum to the shortwave', pb+pd+nb+nd, 800.0_wp, 1.0e-9_wp)
+
+      call check('the slope cap is the solar constant of the day',                                   &
+                 slope_beam_factor(100.0_wp, 0.01_wp, 0.5_wp, f_jan), 1361.0_wp * f_jan * 0.5_wp / 100.0_wp, 1.0e-9_wp)
+   end subroutine test_earth_sun_distance
 
    !--- 4. The longwave at a site 500 m below its cell, warmer, moister and at a higher pressure.
    subroutine test_lapse_longwave()

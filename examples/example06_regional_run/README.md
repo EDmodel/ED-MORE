@@ -25,6 +25,9 @@ cells); the peak leaf area is too high and too even (median 6.9 against 5.4, r =
 
 ## The regional run
 
+The numbers here come from the first ED-MORE release, built with ifx and the production preset
+(`cmake --preset production`).
+
 **Cells.** Xu et al.'s box, 5–25° N and 100–80° W, on the ERA5-Land 0.1° grid (201 × 201 cells), cut
 into 3 × 3-cell blocks from its south-west corner. In each block the cell with the most natural vegetation
 (ESA CCI 2001–2020, via the ED soil maps' diagnostics) runs, if it is at least 80 % natural; among equals,

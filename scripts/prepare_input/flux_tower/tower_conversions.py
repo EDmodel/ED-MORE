@@ -14,6 +14,7 @@ would compute from the same inputs:
   moist_gas_constant, pressure_at_height            ed_therm_lib%moist_gas_constant, lapse_pressure
                                                     (isothermal form)
   equation_of_time, solar_declination,              ed_time
+  earth_sun_distance_factor                         ed_time
   solar_cosz, window_mean_cosz
   clearness_index, clear_sky_emissivity,            ed_radiation_lib
   synthesize_lwdown
@@ -41,7 +42,7 @@ CP_VAP, CP_LIQ, CP_ICE = 1859.0, 4186.0, 2093.0   # [J kg-1 K-1]
 LATENT_HEAT_VAP_3PLE = 2.501e6    # [J kg-1]
 LATENT_HEAT_FUSION = 3.34e5       # [J kg-1]
 LNEXP_LIMIT = 38.0         # exp() arguments are held to +-this (ed_constants: lnexp_min, lnexp_max)
-SOLAR_CONSTANT = 1361.0    # [W m-2]
+SOLAR_CONSTANT = 1361.0    # [W m-2] at the mean Earth-Sun distance; earth_sun_distance_factor scales it to the day
 COSZ_MIN = 1.0e-3          # below this cos z it is night
 COSZ_BAR_MIN = 1.0e-3      # a window whose mean cos z is at most this is a night window
 N_COSZ_SUB = 10            # sub-samples of the window mean
@@ -160,6 +161,14 @@ def solar_declination(doy):
     return 23.45 * np.pi / 180.0 * np.sin(2.0 * np.pi * (284.0 + np.asarray(doy, dtype=float)) / 365.0)
 
 
+def earth_sun_distance_factor(stamps):
+    """(r0/r)^2 = 1 + 0.033 cos(2 pi doy / 365) on the UTC day of year of `stamps`, Duffie & Beckman (2013),
+    Solar Engineering of Thermal Processes, 4th ed., §1.4 (doi:10.1002/9781118671603), as
+    ed_time%earth_sun_distance_factor. The irradiance above the atmosphere is SOLAR_CONSTANT times it."""
+    doy, _ = _day_of_year_and_seconds(stamps)
+    return 1.0 + 0.033 * np.cos(2.0 * np.pi * doy / 365.0)
+
+
 def _cosz(doy, sec_utc, latitude, longitude):
     sec_solar = sec_utc + longitude * 240.0 + equation_of_time(doy)
     lat = np.radians(latitude)
@@ -184,11 +193,12 @@ def window_mean_cosz(window_start, window_seconds, latitude, longitude, nsub=N_C
     return total / nsub
 
 
-def clearness_index(sw_total, cosz):
-    """kt = SW / (S0 cos z), clipped to [0, 1]; -1 where the sun is down (the model's sentinel)."""
+def clearness_index(sw_total, cosz, toa_scale):
+    """kt = SW / (S0 f cos z), f = toa_scale the Earth-Sun distance factor of the day, clipped to [0, 1];
+    -1 where the sun is down (the model's sentinel)."""
     sw_total = np.asarray(sw_total, dtype=float)
     cosz = np.asarray(cosz, dtype=float)
-    kt = np.clip(np.maximum(sw_total, 0.0) / (SOLAR_CONSTANT * np.maximum(cosz, 1e-30)), 0.0, 1.0)
+    kt = np.clip(np.maximum(sw_total, 0.0) / (SOLAR_CONSTANT * toa_scale * np.maximum(cosz, 1e-30)), 0.0, 1.0)
     return np.where(cosz <= COSZ_MIN, -1.0, kt)
 
 
