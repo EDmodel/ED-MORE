@@ -79,6 +79,12 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   lapse, the lift to the canopy-air top, a tower's sensor height) and the air density use the gas
   constant of moist air. BCI (example 04) and Palo Verde (ERA5-Land): the means move by less than
   1e-4 relative (Palo Verde LE −0.003 %). (#80)
+- The irradiance above the atmosphere follows the Earth–Sun distance (about ±3.3 % over the year)
+  in the clearness index, the Erbs and Weiss–Norman shortwave partitions, the longwave synthesis and
+  the slope beam cap. Total shortwave is unchanged; its beam/diffuse and PAR/NIR split shift with
+  the season. BCI (example 04, default/calibrated): LE +0.03/+0.04 %, GPP +0.04/+0.04 %; Palo Verde
+  (ERA5-Land inventory check): LE +0.07 %, GPP +0.06 %. A passthrough partition with longwave from
+  file is bit for bit. (#79)
 
 ### Added
 
@@ -170,6 +176,8 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - Example 03: `prepare_census.py` stops and lists any species code without a wood density, instead
   of putting its trees in PFT 3 and dropping their biomass. The wood-density table gains the three
   codes of the current Dryad download (`ingaun`, `sipacr`, `tremsp`). (#63)
+- Example 04: `run_example.py` runs to its end. `plot_window.py` looked for the window's daily output
+  as `window-D-*.nc`, while the example writes it as one file, `window-D.nc`. (#78)
 
 ## [0.4.1] - 2026-10-26
 
