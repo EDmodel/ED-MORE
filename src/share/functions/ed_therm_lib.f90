@@ -33,7 +33,7 @@ module ed_therm_lib
    public :: sat_specific_humidity_temp_deriv, air_vpd, specific_humidity_to_vpd, vpd_to_vapor_pressure
    public :: vapor_pressure_to_specific_humidity, specific_humidity_to_vapor_pressure, rh_to_specific_humidity
    public :: dry_air_pressure, moist_gas_constant
-   public :: air_density, cas_temp_to_enthalpy, cas_enthalpy_to_temp, cas_molar_density
+   public :: air_density, cas_temp_to_enthalpy, cas_enthalpy_to_temp, cas_heat_capacity, cas_molar_density
    !--- The air at another height.
    public :: lapse_air_temperature, lapse_pressure, lapse_specific_humidity, dry_adiabat_temperature
    public :: dry_adiabat_pressure
@@ -382,8 +382,20 @@ contains
    elemental function cas_enthalpy_to_temp(enth, shv) result(t_k)
       real(wp), intent(in) :: enth, shv
       real(wp)             :: t_k
-      t_k = (enth + shv * cp_vap * tsupercool_vap) / ((1.0_wp - shv) * cp_air + shv * cp_vap)
+      t_k = (enth + shv * cp_vap * tsupercool_vap) / cas_heat_capacity(shv)
    end function cas_enthalpy_to_temp
+
+   !---~---
+   !   The canopy air's specific heat [J/kg/K], the slope of cas_temp_to_enthalpy in
+   ! temperature at fixed humidity, (1 - q) c_p,dry + q c_p,vap: the c_p of every sensible
+   ! flux into or out of the canopy air (docs/science/canopy_air_space_biophysics.md, the
+   ! three variables).
+   !---~---
+   elemental function cas_heat_capacity(shv) result(cp_cas)
+      real(wp), intent(in) :: shv      ! [kg/kg] specific humidity
+      real(wp)             :: cp_cas
+      cp_cas = (1.0_wp - shv) * cp_air + shv * cp_vap
+   end function cas_heat_capacity
 
    !---~---
    !   Molar density of dry air in moist air [mol/m3], rho (1 - q)/mmdry: the canopy

@@ -130,6 +130,7 @@ contains
       senv%can_temp   = tcas
       senv%can_shv    = qcas
       senv%rho_air    = cas%rho
+      senv%cp_cas     = cas%cp
       senv%press      = cas%press
       senv%t_soil_top = t_ground
       call ground_surface_exchange(senv, f%h_ground, f%le_ground, f%g_top, f%ground_rad, f%snow_enth_in,         &

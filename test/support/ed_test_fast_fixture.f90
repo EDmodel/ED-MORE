@@ -28,7 +28,7 @@ module ed_test_fast_fixture
    use ed_config,              only : ed_config_t
    use ed_time,                only : ed_time_t, solar_cosz
    use ed_therm_lib,           only : cas_temp_to_enthalpy, temp_to_internal_energy, tissue_temp_to_energy,       &
-                                      tissue_dry_heat_capacity
+                                      tissue_dry_heat_capacity, cas_heat_capacity
    use ed_soil_params,         only : soil_params_t
    use ed_soil_hydr_lib,       only : SOIL_RETENTION_VG
    use ed_site_state_vars,     only : site_surface_t, make_site_surface
@@ -382,6 +382,7 @@ contains
       frozen%veg_surface%transfer_lw = 0.0_wp
       !--- The canopy-air box, venting to 300 K, 11 g/kg and 400 ppm air; a net CO2 uptake of 5.
       frozen%cas%rho   = rho
+      frozen%cas%cp    = cas_heat_capacity(0.012_wp)
       frozen%cas%press = 101325.0_wp
       frozen%cas%nee_biotic = -5.0_wp
       frozen%cas%box%air_mass_capacity  = rho * BOX_DEPTH

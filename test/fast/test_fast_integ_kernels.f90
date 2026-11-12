@@ -16,7 +16,8 @@
 !   4. THE BACKWARD-EULER STAGE (backward_euler_stage, advance_plant_water): stable and
 !      physical at 900 s; close to the explicit RK45 reference at 4 s; its surface Newton
 !      keeps the canopy air physical and below saturation under a harsh noon and from a
-!      99 %-saturated start.
+!      99 %-saturated start; its reported H is g_ah c_p,cas (T_cas - theta_atm) at its committed
+!      canopy air, with the canopy air's own specific heat.
 !   5. THE STATE VECTOR (state_init, state_sub, zero_like, state_err_diff, state_accum,
 !      state_extrap, unpack_column_state, state_to_array, state_entry_rules): every field,
 !      every layer and every cohort, through every operation; what each leaves out on
@@ -43,7 +44,7 @@ program test_fast_integ_kernels
    use ed_config,              only : ed_config_t
    use ed_therm_lib,           only : cas_temp_to_enthalpy, cas_enthalpy_to_temp, sat_specific_humidity,           &
                                       sat_vapor_pressure, sat_vapor_pressure_temp_deriv, enthalpy_vapor,          &
-                                      temp_to_internal_energy, internal_energy_liquid
+                                      temp_to_internal_energy, internal_energy_liquid, cas_heat_capacity
    use ed_soil_heat,           only : soil_heat_env_t, soil_energy_time_deriv, soil_layer_temp
    use ed_patch_state_vars,    only : soil_energy_state_t, snow_state_t
    use ed_site_state_vars,     only : site_surface_t
@@ -52,7 +53,7 @@ program test_fast_integ_kernels
                                       GRP_CO2, GRP_SE, GRP_THETA, state_init, state_sub, state_err_diff,           &
                                       zero_like, state_accum, state_extrap, state_to_array, state_entry_rules,     &
                                       ensure_output_capacity, ensure_forcing_capacity, WOOD, LEAF,                 &
-                                      surface_source_slopes_t
+                                      surface_source_slopes_t, stage_bflux_t
    use ed_fast_integ_derivs,   only : surface_derivs, march_derivs, set_water_state, water_derivs
    use ed_fast_integ_backward_euler, only : backward_euler_stage, advance_plant_water, newton_surface_solve,        &
                                             surface_source_slopes, surface_jacobian, surface_residual_scaled,     &
@@ -82,6 +83,7 @@ program test_fast_integ_kernels
    call test_be_stable_and_accurate()
    call test_be_coupled()
    call test_be_near_saturation()
+   call test_be_reported_h()
    call test_state_vector()
    call test_tolerance_set()
    call test_error_norm()
@@ -498,6 +500,34 @@ contains
       call check_true('backward_euler_stage''s Newton ~ RK45 at dt = 4 s: canopy-air temperature within 5e-2 K',   &
                       dcas < 5.0e-2_wp, dcas)
    end subroutine test_be_near_saturation
+
+   !---~---
+   !   The stage's reported H (docs/science/numerical_scheme.md §5b) is the sensible flux
+   ! g_ah c_p,cas (T_cas - theta_atm) at its committed canopy air: the kernel record's 12 g/kg
+   ! air at its own specific heat, 1.0 % above the dry air's, under air at 290 K.
+   !---~---
+   subroutine test_be_reported_h()
+      integer(ik), parameter :: N = 2_ik
+      type(march_state_t)  :: y, y_out
+      type(frozen_t)       :: frozen
+      type(surface_tend_t) :: surf_tend
+      type(surface_source_slopes_t) :: slopes   ! none held: the stage takes its own
+      type(stage_bflux_t)  :: bf
+      real(wp)    :: t_cas1, h_expect
+      integer(ik) :: nsl
+      print '(a)', 'test_be_reported_h:'
+      nsl = col%site%soil_profile%n_active
+      call kernel_record(col%site, col%cfg%pft%hydraulics, N, y, frozen)
+      frozen%cas%env%theta_atm = 290.0_wp                 ! [K] the air above, well below the canopy air
+      call state_init(y, N, nsl, y_out)
+      call backward_euler_stage(y, frozen, col%site, ec_default, N, nsl, 900.0_wp, slopes, y_out, surf_tend, bf)
+      t_cas1   = cas_enthalpy_to_temp(y_out%cas_enthalpy, y_out%cas_shv)
+      h_expect = frozen%cas%box%atm_conductance_enthalpy * cas_heat_capacity(0.012_wp)                            &
+                 * (t_cas1 - frozen%cas%env%theta_atm)
+      call check('backward_euler_stage: the reported H is g_ah c_p,cas (T_cas - theta_atm)', bf%atm_heat_out,      &
+                 h_expect, 1.0e-12_wp * abs(h_expect))
+      call check_true('backward_euler_stage: a sensible flux to report', abs(h_expect) > 1.0_wp, h_expect)
+   end subroutine test_be_reported_h
 
    !--- One first-order backward-Euler column step (see section 4's header).
    subroutine be_euler_step(y, frozen, n, nsl, dt, y_out)
@@ -1177,6 +1207,7 @@ contains
       env%can_temp   = cas_enthalpy_to_temp(h, q)
       env%can_shv    = q
       env%rho_air    = frozen%cas%rho
+      env%cp_cas     = frozen%cas%cp
       env%press      = frozen%cas%press
       env%t_soil_top = t_ground
       call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, energy_in, vapour_out)

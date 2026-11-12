@@ -15,7 +15,7 @@
 !---~---
 module ed_fast_integ_backward_euler
    use ed_kinds, only : wp, ik
-   use ed_constants,   only : tiny_num, cp_air
+   use ed_constants,   only : tiny_num
    use ed_soil_heat,   only : soil_heat_env_t, soil_heat_out_t, soil_energy_step_implicit, set_soil_heat_env,     &
                               soil_layer_temp
    use ed_patch_state_vars,   only : soil_energy_state_t
@@ -253,8 +253,11 @@ contains
             bf%veg_surface_evap    = sum(surf_tend%leaf_surface_evap(1:n)) + sum(surf_tend%wood_surface_evap(1:n))
             bf%h_canopy     = surf_tend%h_canopy
             bf%h_ground     = surf_tend%h_ground
-            !--- The reported H, against theta_atm (T at zref), the ledger's basis.
-            bf%atm_heat_out = g_atm_heat*cp_air*(t_cas1 - frozen%cas%env%theta_atm)
+            !---~---
+            !   The reported H, against theta_atm (T at zref), the ledger's basis, at the canopy
+            ! air's specific heat.
+            !---~---
+            bf%atm_heat_out = g_atm_heat*frozen%cas%cp*(t_cas1 - frozen%cas%env%theta_atm)
             bf%atm_vap_out  = g_atm_vapour*(shv1  - frozen%cas%box%atm_specific_humidity)
             bf%rad_net      = surf_tend%coh_rnet + surf_tend%ground_rad
       end if

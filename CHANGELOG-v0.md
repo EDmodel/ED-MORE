@@ -94,6 +94,12 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   likewise); the Rubisco-limited rate was about 1.3–1.5 % high in humid air. BCI (example 04,
   default/calibrated): GPP −0.45/−0.54 %, LE −0.28/−0.38 %; Palo Verde (ERA5-Land): GPP −0.36 %,
   LE −0.13 %. (#82)
+- The leaves' stomatal and boundary-layer conductances convert between mol m⁻² s⁻¹ and m s⁻¹ at the
+  canopy air's temperature, the air the flux uses, not the leaf's; and every sensible flux into the
+  canopy air, the reported H included, uses the canopy air's own specific heat, (1 − q) c_p,d +
+  q c_p,v, not the dry one. BCI (example 04, default/calibrated): H +1.86/+1.82 % (mostly the moist
+  c_p in the reported split; `mean_outflow_enth_py` moves the other way), LE −0.23/−0.25 %; Palo
+  Verde (ERA5-Land): H +1.42 %, LE −0.07 %. (#83)
 
 ### Added
 

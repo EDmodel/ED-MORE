@@ -287,7 +287,7 @@ contains
    ! boundary export over the step, so the reported ET is the conserved vapour export:
    ! LE = the vapour's latent heat export / dt (update_dynamic_state books it at the final
    ! canopy-air temperature, the energy budget's outflows reading the same number) and
-   ! H = sensible export / dt, the b-weighted g_atm_heat*cp_air*(T_cas - theta_atm), not the
+   ! H = sensible export / dt, the b-weighted g_atm_heat*cp_cas*(T_cas - theta_atm), not the
    ! enthalpy export minus LE (docs/science/numerical_scheme.md §5b).
    !---~---
    pure subroutine atm_fluxes(exports, dt_fast, le_flux, h_flux)

@@ -514,7 +514,8 @@ condensation and $u$ the liquid's internal energy.
 **The reported fluxes are the ledger's.** H and LE are the canopy air's net export to the atmosphere
 over the step, $b$-weighted at the stage states and conductances exactly as the ledger books it, so
 the reported ET is the conserved vapour export rather than a recomputation from the end-of-step
-state. H is the sensible flux $`g_{ah}\,c_p\,(T_{cas} - \theta_{atm})`$ in its own right, not the
+state. H is the sensible flux $`g_{ah}\,c_{p,cas}\,(T_{cas} - \theta_{atm})`$ in its own right, at the
+canopy air's specific heat ([canopy_air_space_biophysics](canopy_air_space_biophysics.md)), not the
 enthalpy export less $`L_v`$ times the vapour export: the canopy air's enthalpy values vapour from a
 liquid-water datum, so that difference would put the vapour's liquid-datum enthalpy, about 40 % of
 LE, inside H.

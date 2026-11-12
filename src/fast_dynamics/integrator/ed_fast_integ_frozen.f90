@@ -16,7 +16,7 @@
 !---~---
 module ed_fast_integ_frozen
    use ed_kinds,              only : wp, ik
-   use ed_constants,          only : tiny_num, cp_air, rho_h2o, pi, r_gas,                      &
+   use ed_constants,          only : tiny_num, rho_h2o, pi, r_gas,                              &
                                      kgcday_2_umols
    use ed_diag_vars,          only : CO_ANET, CO_AGROSS, CO_GSW, CO_GBW, CO_CI, CO_CS, CO_RD, CO_BETA_STOM,     &
                                      CO_BETA_NONSTOM, CO_LEAF_TEMP, CO_WOOD_TEMP, CO_LEAF_VPD, CO_PSI_LEAF,      &
@@ -53,7 +53,7 @@ module ed_fast_integ_frozen
    use ed_surface, only : surface_env_t, prepare_snow_stage
    use ed_soil_water, only : pond_inflow
    use ed_therm_lib,          only : internal_energy_liquid, liquid_energy_to_temp,                              &
-                                     cas_enthalpy_to_temp, air_vpd, air_density,                                &
+                                     cas_enthalpy_to_temp, cas_heat_capacity, air_vpd, air_density,             &
                                      soil_thermal_conductivity, specific_humidity_to_vapor_pressure
    use ed_numerics,           only : weighted_mean
    implicit none
@@ -83,10 +83,10 @@ contains
       type(frozen_t),             intent(inout) :: frozen
       type(march_state_t),       intent(out)   :: y
       !---~---
-      !   The canopy air's temperature and humidity at the start state, the air's pressure and
-      ! density, and the ground's temperature, which the later steps read.
+      !   The canopy air's temperature and humidity at the start state, its pressure, density and
+      ! specific heat, and the ground's temperature, which the later steps read.
       !---~---
-      real(wp)    :: tcas, qcas, press, rho, t_ground
+      real(wp)    :: tcas, qcas, press, rho, cp_cas, t_ground
       real(wp)    :: can_dmol      ! [mol/m3] the canopy air's dry-air molar density
       !--- The processes' patch totals [umol/m2 ground/s] and the root zone's drivers.
       real(wp)    :: gpp, ra_leaf, ra_stem, ra_root, rh, soil_temp_root, theta_mean
@@ -100,13 +100,13 @@ contains
       !--- The processes' rates at the start state.
       call refresh_canopy_aerodynamics(cfg%aero, frozen%cas%env, static, forcing, dynamic%cas,               &
                                        dynamic%soil_energy%soil_temp(1), dynamic%leaf_temp, dynamic%wood_temp, &
-                                       out%aero, tcas, qcas, press, rho, t_ground)
+                                       out%aero, tcas, qcas, press, rho, cp_cas, t_ground)
       call root_zone_environment(site%soil_profile, static%root_frac_patch(1:nsl), dynamic%soil_energy%soil_temp, &
                                  dynamic%soil_water%theta, soil_temp_root, theta_mean)
       call canopy_leaf_gas_exchange(static%leaf_photo, cfg%pft%hydraulics, site%soil_profile, static, forcing,     &
-                                    out%aero, dynamic, qcas, press, rho, gpp, ra_leaf, frozen%tissue%h_coeff_leaf, &
-                                    frozen%tissue%g_transp_leaf, out%gpp_coh, out%leaf_resp_coh, out%capture,     &
-                                    out%cdiag)
+                                    out%aero, dynamic, tcas, qcas, press, rho, cp_cas, gpp, ra_leaf,             &
+                                    frozen%tissue%h_coeff_leaf, frozen%tissue%g_transp_leaf, out%gpp_coh,        &
+                                    out%leaf_resp_coh, out%capture, out%cdiag)
       call canopy_maintenance_respiration(cfg%leaf_physiology%ea_rd, cfg%leaf_physiology%hd_rd,                   &
                                           cfg%leaf_physiology%ds_rd, site%soil_profile,                           &
                                           static%root_frac_patch(1:nsl), static, dynamic%wood_temp,               &
@@ -158,9 +158,9 @@ contains
       end associate
 
       call intercept_rain(dt_fast, cfg, static, forcing, dynamic, frozen%snow%exists, frozen%veg_surface, throughfall)
-      call tissue_coefficients(dt_fast, cfg, static, forcing, dynamic, out%aero, rho, frozen%tissue, frozen%veg_surface, &
-                               frozen%plant)
-      call canopy_air_boundary(cfg%aero, static%geom, out%aero, forcing, rho, press, frozen%cas, frozen%ground)
+      call tissue_coefficients(dt_fast, cfg, static, forcing, dynamic, out%aero, rho, cp_cas, frozen%tissue,          &
+                               frozen%veg_surface, frozen%plant)
+      call canopy_air_boundary(cfg%aero, static%geom, out%aero, forcing, rho, cp_cas, press, frozen%cas, frozen%ground)
       call ground_inflow(static, site%soil_profile, forcing, dynamic, out%aero%ggnet, throughfall, tcas, qcas, rho, &
                          t_ground, nsl, frozen)
       call transpiration_demand(dt_fast, cfg%canopy_water_on, n, dynamic, t_ground, frozen)
@@ -291,10 +291,11 @@ contains
    ! forcing at the canopy-air top, the reference level the surface layer is solved to, and its
    ! canopy air diagnosed from the CAS state; then the whole-canopy aerodynamics solve (friction
    ! velocity, scalar profile factors, ground conductance, per-cohort boundary layers;
-   ! docs/science/canopy_aerodynamics.md §2-§4).
+   ! docs/science/canopy_aerodynamics.md §2-§4). The canopy air's density and specific heat
+   ! are held for the step, at its start state.
    !---~---
    subroutine refresh_canopy_aerodynamics(aero_cfg, aenv, static, forcing, cas, soil_temp_top,    &
-                                          leaf_temp, wood_temp, aero, tcas, qcas, press, rho, t_ground)
+                                          leaf_temp, wood_temp, aero, tcas, qcas, press, rho, cp_cas, t_ground)
       type(aero_params_t),       intent(in)    :: aero_cfg
       type(aero_env_t),          intent(inout) :: aenv
       type(fast_static_state_t), intent(in)    :: static     ! the cohorts, the canopy geometry and its top
@@ -304,13 +305,17 @@ contains
       real(wp),                  intent(in)    :: leaf_temp(:)     ! [K] per-cohort leaf temperature
       real(wp),                  intent(in)    :: wood_temp(:)     ! [K] per-cohort wood temperature
       type(aero_out_t),          intent(inout) :: aero
-      real(wp),                  intent(out)   :: tcas, qcas, press, rho, t_ground
+      real(wp),                  intent(out)   :: tcas, qcas, press, rho, cp_cas, t_ground
       call set_aero_env_atm(aenv, forcing%wind, static%z_top, forcing%air_temp, forcing%shv_atm)
       tcas = cas_enthalpy_to_temp(cas%can_enthalpy, cas%can_shv)
       qcas = cas%can_shv
       press = forcing%press
-      !--- The canopy air's own density: its temperature and humidity at the pressure of its top.
+      !---~---
+      !   The canopy air's own density, its temperature and humidity at the pressure of its top,
+      ! and its specific heat at that humidity, the c_p of every sensible flux it exchanges.
+      !---~---
       rho = air_density(tcas, press, qcas)
+      cp_cas = cas_heat_capacity(qcas)
       t_ground = soil_temp_top
       call set_aero_env_canopy(aenv, tcas, qcas, t_ground)
       call canopy_aerodynamics(aero_cfg, aenv, static%geom, static%n, static%order, static%height, static%lai, &
@@ -345,10 +350,14 @@ contains
    ! state^n leaf water. The stomatal limb (eq. (10), §4.2) takes the cohort's predawn leaf potential,
    ! dmax_psi_leaf, through the kernel's psi keyword; a cohort with no history yet (a recruit, a run's
    ! first step) starts from its patch's top-layer soil potential rather than at fully turgid.
+   ! The molar conductances the leaf solve works in and the velocities the energy balance takes
+   ! convert at one molar density, the canopy air's, P/(R T_cas): the air whose density
+   ! multiplies them in the latent fluxes, so a leaf's transpiration is M_w g_mol de/P whatever
+   ! its temperature (docs/science/vegetation_energy_dynamics.md eq. (2)).
    !---~---
    subroutine canopy_leaf_gas_exchange(leaf_photo, hyd_table, soil, static, forcing, aero, dynamic,      &
-                                       qcas, press, rho, gpp, ra_leaf, h_coeff_leaf, g_transp_leaf,        &
-                                       gpp_coh, leaf_resp_coh, capture, cdiag)
+                                       tcas, qcas, press, rho, cp_cas, gpp, ra_leaf, h_coeff_leaf,       &
+                                       g_transp_leaf, gpp_coh, leaf_resp_coh, capture, cdiag)
       type(leaf_photo_table_t),   intent(in)    :: leaf_photo   ! the site's per-PFT leaf parameters
       type(hydraulics_table_t),   intent(in)    :: hyd_table    ! per-PFT leaf PV curve
       type(soil_profile_t),       intent(in)    :: soil         ! surface-layer retention (dmax_psi seed)
@@ -356,7 +365,8 @@ contains
       type(fast_forcing_t),       intent(in)    :: forcing      ! absorbed PAR per cohort
       type(aero_out_t),           intent(in)    :: aero         ! leaf boundary-layer conductances, wind
       type(fast_dynamic_state_t), intent(in)    :: dynamic      ! leaf/wood temperature + water, CAS CO2, theta(1)
-      real(wp),                   intent(in)    :: qcas, press, rho
+      real(wp),                   intent(in)    :: tcas, qcas, press   ! [K], [kg/kg], [Pa] the canopy air's
+      real(wp),                   intent(in)    :: rho, cp_cas         ! [kg/m3], [J/kg/K] its density and specific heat
       real(wp),                   intent(out)   :: gpp, ra_leaf          ! [umol/m2 ground/s] patch totals
       real(wp),                   intent(out)   :: h_coeff_leaf(:), g_transp_leaf(:)
       real(wp),                   intent(inout) :: gpp_coh(:), leaf_resp_coh(:)   ! [umol/plant/s]
@@ -368,13 +378,12 @@ contains
       real(wp),                   intent(inout) :: cdiag(:,:)   ! (N_CO_FAST_ROWS, ncoh) instantaneous values
 
       !--- Bare-array batch I/O for the per-cohort physiology kernel.
-      real(wp) :: par_arr(static%n), vpd_arr(static%n), gb_arr(static%n), rho_mol_arr(static%n), &
-            psi_leaf_arr(static%n)
+      real(wp) :: par_arr(static%n), vpd_arr(static%n), gb_arr(static%n), psi_leaf_arr(static%n)
       real(wp) :: dmax_psi_arr(static%n), dmax_psi_seed
       real(wp) :: a_gross_arr(static%n), gs_arr(static%n), rd_arr(static%n)
       real(wp) :: a_net_arr(static%n), ci_arr(static%n), cs_arr(static%n)
       real(wp) :: bstom_arr(static%n), bnstom_arr(static%n)
-      real(wp) :: e_air, gsw_ms
+      real(wp) :: e_air, rho_mol, gsw_ms
       integer(ik) :: i, n
 
       n = static%n
@@ -382,12 +391,12 @@ contains
       ra_leaf = 0.0_wp
       gpp_coh(1:n)       = 0.0_wp
       leaf_resp_coh(1:n) = 0.0_wp
-      e_air = specific_humidity_to_vapor_pressure(qcas, press)     ! loop-invariant
+      e_air   = specific_humidity_to_vapor_pressure(qcas, press)
+      rho_mol = press / (r_gas * tcas)                             ! [mol/m3] the canopy air's molar density
       do i = 1_ik, n
-         rho_mol_arr(i)  = press / (r_gas * dynamic%leaf_temp(i))
          par_arr(i)      = cohort_leaf_par(forcing%abs_par(i), static%lai(i), forcing%par_per_w)
          vpd_arr(i)      = air_vpd(dynamic%leaf_temp(i), e_air)
-         gb_arr(i)       = aero%leaf_gbw(i) * rho_mol_arr(i)
+         gb_arr(i)       = aero%leaf_gbw(i) * rho_mol
          psi_leaf_arr(i) = leaf_node_psi(dynamic%leaf_water_mass(i), static%bleaf(i),                 &
                dynamic%wood_water_mass(i), static%bwood_water(i), static%height(i),              &
                hyd_table%pft(static%pft(i)))
@@ -438,7 +447,7 @@ contains
                                       psi=dmax_psi_arr(1:n))
       end if
       do i = 1_ik, n
-         gsw_ms  = gs_arr(i) / max(rho_mol_arr(i), tiny_num)
+         gsw_ms  = gs_arr(i) / rho_mol
          !---~---
          !   GPP is gross A, and Rd is charged below either way, so the canopy air receives the
          ! leaf's net exchange A_g - Rd whatever the water-stress controls did to A_g.
@@ -448,7 +457,7 @@ contains
          if (capture) cdiag(CO_GPP_RATE, i) = a_gross_arr(i) * static%leaf_area(i)
          ra_leaf = ra_leaf + rd_arr(i)      * static%leaf_area(i) * static%nplant(i)
          leaf_resp_coh(i) = rd_arr(i) * static%leaf_area(i)
-         h_coeff_leaf(i) = sensible_heat_coeff(EFFAREA_HEAT * static%lai(i), aero%leaf_gbh(i), rho, cp_air)
+         h_coeff_leaf(i) = sensible_heat_coeff(EFFAREA_HEAT * static%lai(i), aero%leaf_gbh(i), rho, cp_cas)
          g_transp_leaf(i)    = leaf_transp_coeff(EFFAREA_TRANSP, static%lai(i), aero%leaf_gbw(i), gsw_ms)
       end do
    end subroutine canopy_leaf_gas_exchange
@@ -569,14 +578,14 @@ contains
    ! radiation, heat capacities and the start-of-step temperatures
    ! (docs/science/vegetation_energy_dynamics.md), and its surface-water evaporation conductances.
    !---~---
-   subroutine tissue_coefficients(dt_fast, cfg, static, forcing, dynamic, aero, rho, tissue, veg_surface, plant)
+   subroutine tissue_coefficients(dt_fast, cfg, static, forcing, dynamic, aero, rho, cp_cas, tissue, veg_surface, plant)
       real(wp),                     intent(in)    :: dt_fast
       type(ed_config_t),            intent(in)    :: cfg
       type(fast_static_state_t),    intent(in)    :: static
       type(fast_forcing_t),         intent(in)    :: forcing
       type(fast_dynamic_state_t),   intent(in)    :: dynamic
       type(aero_out_t),             intent(in)    :: aero
-      real(wp),                     intent(in)    :: rho
+      real(wp),                     intent(in)    :: rho, cp_cas   ! [kg/m3], [J/kg/K] the canopy air's
       type(plant_energy_env_t),     intent(inout) :: tissue
       type(canopy_water_out_t),     intent(inout) :: veg_surface
       type(plant_water_t),          intent(inout) :: plant
@@ -602,7 +611,7 @@ contains
          ! (docs/science/vegetation_energy_dynamics.md §Leaf and wood energy balance).
          !---~---
          tissue%wai(i)         = static%wai(i)
-         tissue%h_coeff_w(i)   = sensible_heat_coeff(pi * static%wai(i), aero%wood_gbh(i), rho, cp_air)
+         tissue%h_coeff_w(i)   = sensible_heat_coeff(pi * static%wai(i), aero%wood_gbh(i), rho, cp_cas)
          tissue%abs_sw_wood(i) = forcing%abs_sw_wood(i)
          tissue%abs_lw_wood(i) = forcing%abs_lw_wood(i)
          !---~---
@@ -635,12 +644,12 @@ contains
    ! conductance. The re-solve takes its roughness from the same geometry, so at the state^n
    ! canopy air it reproduces the conductances exactly.
    !---~---
-   subroutine canopy_air_boundary(aero_cfg, geom, aero, forcing, rho, press, cas, ground)
+   subroutine canopy_air_boundary(aero_cfg, geom, aero, forcing, rho, cp_cas, press, cas, ground)
       type(aero_params_t),     intent(in)    :: aero_cfg
       type(aero_args_t),       intent(in)    :: geom
       type(aero_out_t),        intent(in)    :: aero
       type(fast_forcing_t),    intent(in)    :: forcing
-      real(wp),                intent(in)    :: rho, press
+      real(wp),                intent(in)    :: rho, cp_cas, press   ! [kg/m3], [J/kg/K], [Pa] the canopy air's
       type(cas_boundary_t),    intent(inout) :: cas
       type(surface_env_t),     intent(inout) :: ground
       cas%aero_cfg     = aero_cfg
@@ -654,6 +663,7 @@ contains
       cas%box%atm_specific_humidity = forcing%shv_atm
       cas%box%atm_co2 = forcing%co2_atm
       cas%rho   = rho
+      cas%cp    = cp_cas
       cas%press = press
       ground%rnet_soil = forcing%rnet_soil
       ground%sw_snow   = forcing%sw_snow

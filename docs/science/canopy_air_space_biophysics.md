@@ -81,6 +81,16 @@ variables share $`u_*`$ and the profile factor, which keeps them on one turbulen
 the profile factor would be over-coupled to the free atmosphere and lose its nocturnal build-up (see
 [canopy_aerodynamics](canopy_aerodynamics.md) eq. (6)).
 
+**The canopy air's specific heat.** At fixed humidity the enthalpy rises with temperature at
+$`c_{p,cas} = \partial H/\partial T\,|_q = (1-q)\,c_{p,d} + q\,c_{p,v}`$ (`cas_heat_capacity`), 1.4 %
+above the dry air's $`c_{p,d}`$ at 17 g kg⁻¹. It is the $`c_p`$ of every sensible flux into or out of
+the canopy air: the leaves' and the wood's ([vegetation_energy_dynamics](vegetation_energy_dynamics.md)
+eq. (1)), the bare ground's and the snow's, and the reported H to the atmosphere
+([numerical_scheme](numerical_scheme.md) §5b). Each is a conductance times $`\rho\,c_{p,cas}\,\Delta T`$,
+so the heat a flux carries per kelvin of difference is what the canopy air's enthalpy gains per kelvin
+at its own humidity. Like $\rho$, it is taken at the canopy air's state at the start of each fast step and held
+for the step.
+
 Air that becomes supersaturated condenses through a smooth sink, $`\mathrm{d}q/\mathrm{d}t=-(q-q_{sat})/\tau`$
 with $\tau=300$ s (`cas_condensation`). The condensate leaves as liquid at the air's temperature and
 takes only its liquid enthalpy; the latent heat stays in the air. The driver adds this sink, like the
@@ -116,7 +126,7 @@ It is a budget term, not a flux: the reported H, LE and NEE leave it out. The st
 capacity times the change of state, is the storage a flux tower counts; this term makes the stored
 amounts add up across steps. Its energy part also depends on the enthalpy's datum. Dry air counts
 from 0 K, and at fixed pressure a box of fixed depth holds the same dry-air enthalpy at any temperature
-($`\rho\,c_p\,T = P\,c_p/R_d`$), so the term nearly cancels the step's sensible storage. The slow
+($`\rho\,c_{p,d}\,T = P\,c_{p,d}/R_d`$), so the term nearly cancels the step's sensible storage. The slow
 ledger values the canopy air at its own fixed density, `rho_air_ref`, and declares the depth change
 there ([conservation](conservation.md) §2, §3).
 

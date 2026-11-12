@@ -37,9 +37,11 @@ the tissue's start-of-step temperature, the base of its emission (below), and $`
 $`Q_{adv}`$ is
 the enthalpy the sapflow carries in (`q_extra`); $\mathrm{AI}$ is LAI for leaves and WAI for wood, and
 $\varepsilon$ the PFT's leaf or wood emissivity. The sensible coefficient is
-$`h=\rho\,c_p\,g_{bh}\cdot2\,\mathrm{LAI}`$ for leaves (flat plates, both sides, `effarea_heat`) and
-$`h=\rho\,c_p\,g_{bh}\cdot\pi\,\mathrm{WAI}`$ for wood (cylinders). Each latent pathway with conductance
-$g$ linearizes the saturation deficit at $`T_{cas}`$:
+$`h=\rho\,c_{p,cas}\,g_{bh}\cdot2\,\mathrm{LAI}`$ for leaves (flat plates, both sides, `effarea_heat`) and
+$`h=\rho\,c_{p,cas}\,g_{bh}\cdot\pi\,\mathrm{WAI}`$ for wood (cylinders), with $\rho$ and $`c_{p,cas}`$
+the density and specific heat of the canopy air the heat goes into
+([canopy_air_space_biophysics](canopy_air_space_biophysics.md), "The canopy air's specific heat"). Each
+latent pathway with conductance $g$ linearizes the saturation deficit at $`T_{cas}`$:
 
 ```math
 \mathrm{LE}_{ref} = h_v\,\rho\,g\,\big(q_{sat}(T_{cas}) - q_{cas}\big), \qquad
@@ -49,7 +51,12 @@ $g$ linearizes the saturation deficit at $`T_{cas}`$:
 with $`h_v`$ the specific enthalpy of the vapour at $`T_{cas}`$, so the tissue pays what the canopy air
 receives. The terms in eq. (1) sum the pathways, each weighted by its share of the surface: a leaf's
 dry share $`1-f_{wet}`$ transpires through boundary layer and stomata in series; its wetted share
-$`f_{wet}`$ evaporates the intercepted surface water through the boundary layer alone. The surface
+$`f_{wet}`$ evaporates the intercepted surface water through the boundary layer alone. The leaf solve
+gives $`g_s`$ and takes $`g_b`$ in mol m⁻² s⁻¹ ([leaf_gas_exchange](leaf_gas_exchange.md)); both turn into
+the velocities of eq. (2) over one molar density, the canopy air's, $`\rho_{mol}=P/(R\,T_{cas})`$, the
+same air whose $\rho$ multiplies them there. $\rho/\rho_{mol}$ is then the molar mass of the moist air,
+so the transpiration $`\rho\,g\,\Delta q`$ is $`M_w\,g_{mol}\,\Delta e/P`$ to first order in the deficit,
+whatever the leaf's temperature. The surface
 water is part of its tissue, so this pathway pays $`h_v`$ less the liquid enthalpy the tissue's
 energy holds for the water, $`u_{liq}`$ at the tissue's start-of-step temperature (The canopy's
 surface water, below). Wood has only the surface-water pathway. Once the water network has

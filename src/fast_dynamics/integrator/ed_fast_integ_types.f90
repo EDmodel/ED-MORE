@@ -456,6 +456,7 @@ module ed_fast_integ_types
       type(aero_args_t)   :: geom             ! the canopy geometry the roughness and displacement come from
       real(wp) :: nee_biotic    = 0.0_wp      ! [umol/m2/s] frozen biotic CO2 source (Ra+Rh-GPP)
       real(wp) :: rho           = 0.0_wp      ! [kg/m3]   canopy-air density
+      real(wp) :: cp            = 0.0_wp      ! [J/kg/K]  canopy-air specific heat (cas_heat_capacity), held as rho is
       real(wp) :: press         = 0.0_wp      ! [Pa]      canopy-air pressure
    end type cas_boundary_t
 
@@ -738,7 +739,7 @@ module ed_fast_integ_types
       !   Net CAS -> atmosphere export at the ledger's own stage states and conductances: the
       ! reported H and LE (ed_fast_integ_stepper%atm_fluxes; docs/science/numerical_scheme.md §5b).
       !---~---
-      real(wp) :: atm_heat_out = 0.0_wp                          ! [W/m2]    g_atm_heat*cp_air*(T_cas - theta_atm)
+      real(wp) :: atm_heat_out = 0.0_wp                          ! [W/m2]    g_atm_heat*cp_cas*(T_cas - theta_atm)
       real(wp) :: atm_vap_out  = 0.0_wp                          ! [kg/m2/s] g_atm_vapour*(q_cas - q_atm)
       !---~---
       !   The net radiation the canopy and the ground absorbed, as their balances booked it: the
