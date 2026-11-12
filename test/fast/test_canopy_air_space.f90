@@ -16,10 +16,12 @@ program test_canopy_air_space
    use ed_constants,          only : mmdry
    use ed_therm_lib,          only : cas_temp_to_enthalpy, cas_enthalpy_to_temp
    use ed_canopy_air_space,   only : cas_env_t, cas_box_step_implicit
+   use ed_patch_state_vars,   only : cas_state_t, cas_capacity_change, blend_cas
    implicit none
 
    call test_cas()
    call test_cas_co2()
+   call test_cas_capacity_change()
 
    call test_report('test_canopy_air_space')
 
@@ -116,5 +118,43 @@ contains
       env%biotic_co2_source   = source
       call cas_box_step_implicit(0.0_wp, 0.0_wp, co2, env, dt, enth_new, shv_new, co2_new)
    end function cas_co2_after
+
+   !---~---
+   !   3. The canopy air's content change when its capacities move between steps
+   ! (docs/science/canopy_air_space_biophysics.md eq. (3)): nothing before a step has set them;
+   ! then the new capacities less the last, times the content per unit; a fused patch adds them
+   ! by area, and stays unset if either was.
+   !---~---
+   subroutine test_cas_capacity_change()
+      type(cas_state_t) :: a, b, c
+      real(wp) :: de, dw, dc
+      print '(a)', 'test_cas_capacity_change:'
+      a%can_enthalpy = cas_temp_to_enthalpy(295.0_wp, 0.012_wp)
+      a%can_shv      = 0.012_wp
+      a%can_co2      = 410.0_wp
+      a%can_depth    = 20.0_wp
+      call cas_capacity_change(a, 24.0_wp, 820.0_wp, de, dw, dc)
+      call check('CAPACITY: nothing booked before a step set the capacities', abs(de) + abs(dw) + abs(dc), 0.0_wp, 0.0_wp)
+      a%air_mass_capacity  = 24.0_wp
+      a%air_molar_capacity = 820.0_wp
+      call cas_capacity_change(a, 23.9_wp, 817.0_wp, de, dw, dc)
+      call check('CAPACITY: enthalpy, a thinner box gives up air at its own state', de, -0.1_wp * a%can_enthalpy, &
+                 1.0e-9_wp)
+      call check('CAPACITY: vapour', dw, -0.1_wp * 0.012_wp, 1.0e-15_wp)
+      call check('CAPACITY: CO2 on the dry-air moles', dc, -3.0_wp * 410.0_wp, 1.0e-9_wp)
+      b = a
+      b%can_depth          = 30.0_wp
+      b%air_mass_capacity  = 36.0_wp
+      b%air_molar_capacity = 1230.0_wp
+      c = blend_cas(0.25_wp, a, 0.75_wp, b)
+      call check('CAPACITY: a fused patch adds the mass capacities by area', c%air_mass_capacity,              &
+                 0.25_wp * 24.0_wp + 0.75_wp * 36.0_wp, 1.0e-12_wp)
+      call check('CAPACITY: and the molar ones', c%air_molar_capacity, 0.25_wp * 820.0_wp + 0.75_wp * 1230.0_wp, &
+                 1.0e-9_wp)
+      b%air_mass_capacity = 0.0_wp
+      c = blend_cas(0.25_wp, a, 0.75_wp, b)
+      call check('CAPACITY: with one unset, the fused patch is unset', c%air_mass_capacity + c%air_molar_capacity, &
+                 0.0_wp, 0.0_wp)
+   end subroutine test_cas_capacity_change
 
 end program test_canopy_air_space

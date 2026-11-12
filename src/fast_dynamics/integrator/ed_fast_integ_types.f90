@@ -379,6 +379,11 @@ module ed_fast_integ_types
       !---~---
       real(wp)       :: xi_step(N_SOIL_POOL) = 0.0_wp   ! [-] this sub-step's per-pool env scalar
       real(wp)       :: rh_matrix_step       = 0.0_wp   ! [kgC/m2/day] this sub-step's matrix Rh
+      !--- The canopy air's content change since the last step's capacities (density x depth),
+      !--- booked at this step's start: a budget term, + gained (cas_capacity_change).
+      real(wp)       :: cas_capacity_energy = 0.0_wp   ! [J/m2]
+      real(wp)       :: cas_capacity_water  = 0.0_wp   ! [kg/m2]
+      real(wp)       :: cas_capacity_co2    = 0.0_wp   ! [umol/m2]
    end type step_exports_t
 
    !--- The step's report: its ledgers, its exports and its work.

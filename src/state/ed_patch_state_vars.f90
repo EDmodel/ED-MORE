@@ -29,7 +29,8 @@ module ed_patch_state_vars
 
    public :: cas_state_t, snow_state_t, soil_water_state_t, soil_energy_state_t, soil_carbon_state_t
    public :: decomp_xi_t, litter_input_t
-   public :: blend_cas, cas_set_depth, cas_capacities, blend_snow, blend_soil_water, blend_soil_energy, blend_soil_carbon
+   public :: blend_cas, cas_set_depth, cas_capacities, cas_capacity_change
+   public :: blend_snow, blend_soil_water, blend_soil_energy, blend_soil_carbon
    public :: soil_water_store, soil_energy_store
    public :: blend_decomp_xi, blend_litter_input, blend_patch_stores, add_shed_water
    public :: patch_block, alloc_patch_block, expand_patch_block, reorder_patch_block, free_patch_block
@@ -42,8 +43,8 @@ module ed_patch_state_vars
    integer(ik), parameter :: DIST_TREEFALL = 2_ik   ! treefall-gap (age-0) patch
 
    !---~---
-   !   The canopy air: three prognostic twins, and the depth that sizes the box
-   ! (docs/science/canopy_air_space_biophysics.md).
+   !   The canopy air: three prognostic twins, the depth that sizes the box, and the capacities
+   ! the patch's last fast step held (docs/science/canopy_air_space_biophysics.md).
    !---~---
    type :: cas_state_t
       real(wp) :: can_enthalpy = 0.0_wp                     ! [J/kg]     specific enthalpy (prognostic)
@@ -51,6 +52,8 @@ module ed_patch_state_vars
       real(wp) :: can_co2      = CAN_CO2_UNSEEDED           ! [umol/mol] CO2 mixing ratio in dry air (prognostic)
       real(wp) :: can_temp     = UNSET_POSITIVE             ! [K]        diagnosed; unset until a start seeds it
       real(wp) :: can_depth    = CAN_DEPTH_UNSET            ! [m]        tallest cohort + freeboard, set by the slow step
+      real(wp) :: air_mass_capacity  = 0.0_wp               ! [kg/m2]    the last fast step's capacities, which the
+      real(wp) :: air_molar_capacity = 0.0_wp               ! [mol/m2]   next step's change is booked from; 0 = none yet
    end type cas_state_t
 
    !---~---
@@ -213,6 +216,11 @@ contains
       m2 = w2 * b%can_depth
       mt = m1 + m2
       c%can_depth = mt                                   ! = w1*d1 + w2*d2, the area-weighted depth
+      !--- The last step's capacities add by area; with either unset the blend stays unset.
+      if (a%air_mass_capacity > 0.0_wp .and. b%air_mass_capacity > 0.0_wp) then
+         c%air_mass_capacity  = w1 * a%air_mass_capacity  + w2 * b%air_mass_capacity
+         c%air_molar_capacity = w1 * a%air_molar_capacity + w2 * b%air_molar_capacity
+      end if
       if (mt > tiny_num) then        ! below it, a blend has no air mass to conserve
          c%can_enthalpy = (m1 * a%can_enthalpy + m2 * b%can_enthalpy) / mt
          c%can_shv      = (m1 * a%can_shv      + m2 * b%can_shv     ) / mt
@@ -271,6 +279,30 @@ contains
       mass_capacity  = rho_air * depth
       molar_capacity = molar_density * depth
    end subroutine cas_capacities
+
+   !---~---
+   !   The canopy air's content change when its capacities move between fast steps: its density
+   ! follows its temperature, humidity and pressure, and the slow step resizes its depth. Each
+   ! step closes its own budgets at its own capacities, so the change between two steps is booked
+   ! here, as a budget term: this step's capacities less the last step's, times the content per
+   ! unit at this step's start (the open box takes in or gives up air at its own state). Zero until
+   ! a step has set the capacities (docs/science/canopy_air_space_biophysics.md eq. (3)).
+   !---~---
+   elemental subroutine cas_capacity_change(cas, mass_capacity, molar_capacity, d_energy, d_water, d_co2)
+      type(cas_state_t), intent(in)  :: cas
+      real(wp),          intent(in)  :: mass_capacity    ! [kg/m2]   this step's
+      real(wp),          intent(in)  :: molar_capacity   ! [mol/m2]  this step's
+      real(wp),          intent(out) :: d_energy         ! [J/m2]    + gained
+      real(wp),          intent(out) :: d_water          ! [kg/m2]   + gained
+      real(wp),          intent(out) :: d_co2            ! [umol/m2] + gained
+      d_energy = 0.0_wp
+      d_water  = 0.0_wp
+      d_co2    = 0.0_wp
+      if (cas%air_mass_capacity <= 0.0_wp .or. cas%air_molar_capacity <= 0.0_wp) return
+      d_energy = (mass_capacity  - cas%air_mass_capacity)  * cas%can_enthalpy
+      d_water  = (mass_capacity  - cas%air_mass_capacity)  * cas%can_shv
+      d_co2    = (molar_capacity - cas%air_molar_capacity) * cas%can_co2
+   end subroutine cas_capacity_change
 
    !---~---
    !   The soil column's water [kg/m2] and internal energy [J/m2], from theta [m3/m3] and the energy

@@ -50,6 +50,7 @@ program test_fast_integ_step
    use ed_diag_vars,            only : CO_PSI_PREDAWN, CO_TRANSP
    use ed_plant_hydr_lib,       only : tissue_water_to_psi
    use ed_fast_state,           only : derive_cohort_terms
+   use ed_patch_state_vars,     only : cas_set_depth
    use ed_fast_integ_types,     only : frozen_t, march_state_t, ensure_output_capacity, WORK_RK45_RESCUE,          &
                                        WORK_INTEG_STEPS
    use ed_test_fast_fixture,    only : fast_column_t, make_fast_column, gather_column, reset_column, step_column,  &
@@ -120,6 +121,7 @@ program test_fast_integ_step
    call test_rk45_dense_cold()
    call test_rk45_dry_seam()
    call test_rnet_counts_wood()
+   call test_cas_capacity_budget()
 
    call test_report('test_fast_integ_step')
 
@@ -1311,5 +1313,64 @@ contains
       col%forcing%abs_sw_wood = 0.0_wp
       call use_scheme(INTEG_ESDIRK2)
    end subroutine test_rnet_counts_wood
+
+   !---~---
+   !   The canopy air's content adds up across steps (docs/science/canopy_air_space_biophysics.md
+   ! eq. (3)). Each step closes its budgets at its own capacities, and the change between two steps
+   ! is the budget term booked at the second's start. Over a diurnal day, the canopy air's density
+   ! following its temperature, with its depth raised at noon as the slow step would, the content at
+   ! the end less the content after the first step is the steps' own gains plus the booked terms,
+   ! for the enthalpy, the vapour and the CO2. Without the term the gap is the sum of the jumps.
+   !---~---
+   subroutine test_cas_capacity_budget()
+      integer(ik) :: istep
+      real(wp)    :: t_sec, h0, q0, c0, e_first, w_first, c_first, e_last, w_last, c_last
+      real(wp)    :: gain_e, gain_w, gain_c, book_e, book_w, book_c, booked_abs
+      print '(a)', 'test_cas_capacity_budget:'
+      call use_scheme(INTEG_ESDIRK2)
+      call reset_column(col)
+      gain_e = 0.0_wp
+      gain_w = 0.0_wp
+      gain_c = 0.0_wp
+      book_e = 0.0_wp
+      book_w = 0.0_wp
+      book_c = 0.0_wp
+      booked_abs = 0.0_wp
+      do istep = 1_ik, 24_ik * STEPS_PER_HOUR
+         t_sec = (real(istep, wp) - 0.5_wp) * DT_FAST
+         call set_diurnal_forcing(col, t_sec)
+         if (istep == 12_ik * STEPS_PER_HOUR) call cas_set_depth(col%dynamic%cas, col%dynamic%cas%can_depth + 0.5_wp)
+         h0 = col%dynamic%cas%can_enthalpy
+         q0 = col%dynamic%cas%can_shv
+         c0 = col%dynamic%cas%can_co2
+         call step_column(col, DT_FAST)
+         associate (cas => col%dynamic%cas, ex => col%out%report%exports)
+            if (istep == 1_ik) then
+               call check('CAPACITY: the first step books nothing', abs(ex%cas_capacity_energy), 0.0_wp, 0.0_wp)
+               e_first = cas%air_mass_capacity * cas%can_enthalpy
+               w_first = cas%air_mass_capacity * cas%can_shv
+               c_first = cas%air_molar_capacity * cas%can_co2
+            else
+               gain_e = gain_e + cas%air_mass_capacity * (cas%can_enthalpy - h0)
+               gain_w = gain_w + cas%air_mass_capacity * (cas%can_shv - q0)
+               gain_c = gain_c + cas%air_molar_capacity * (cas%can_co2 - c0)
+               book_e = book_e + ex%cas_capacity_energy
+               book_w = book_w + ex%cas_capacity_water
+               book_c = book_c + ex%cas_capacity_co2
+               booked_abs = booked_abs + abs(ex%cas_capacity_energy)
+            end if
+         end associate
+      end do
+      e_last = col%dynamic%cas%air_mass_capacity * col%dynamic%cas%can_enthalpy
+      w_last = col%dynamic%cas%air_mass_capacity * col%dynamic%cas%can_shv
+      c_last = col%dynamic%cas%air_molar_capacity * col%dynamic%cas%can_co2
+      call check('CAPACITY: enthalpy content = the steps'' gains + the booked terms', e_last - e_first,       &
+                 gain_e + book_e, 1.0e-9_wp * abs(e_first))
+      call check('CAPACITY: vapour content = the steps'' gains + the booked terms', w_last - w_first,         &
+                 gain_w + book_w, 1.0e-9_wp * abs(w_first))
+      call check('CAPACITY: CO2 content = the steps'' gains + the booked terms', c_last - c_first,            &
+                 gain_c + book_c, 1.0e-9_wp * abs(c_first))
+      call check_true('CAPACITY: the density and the depth moved the content', booked_abs > 1.0_wp, booked_abs)
+   end subroutine test_cas_capacity_budget
 
 end program test_fast_integ_step

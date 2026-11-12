@@ -55,6 +55,7 @@ module ed_output_registry
                                     PA_VEG_SURFACE_EVAP, PA_GROUND_EVAP, PA_DEW,                                  &
                                     PA_CAS_VPD, PA_W_SURFACE, PA_CAS_TEMP, PA_CAS_SHV, PA_CAS_CO2,                &
                                     PA_WIND_CAS_TOP, PA_TAIR_CAS_TOP, PA_Z_CAS_TOP, PA_RESID_WATER, PA_NPP,       &
+                                    PA_BUDGET_CAS_CAP_ENERGY, PA_BUDGET_CAS_CAP_WATER, PA_BUDGET_CAS_CAP_CO2,     &
                                     PA_RECO, PA_SW_UP, PA_SKIN_TEMP, PY_SW_IN, PY_PRECIP, PY_TAIR, PY_QAIR,       &
                                     PY_PSURF, PY_WIND, PY_LWDOWN, PY_PAR_BEAM, PY_PAR_DIFFUSE, PY_NIR_BEAM,       &
                                     PY_NIR_DIFFUSE, PY_SNOWFALL, PY_CO2, PY_COSZ, PY_RHO_AIR, PY_RAINF,           &
@@ -752,6 +753,19 @@ contains
                         DIM_SCALAR, AGG_TMEAN, GRP_NUMERICS, DAY_MON_YR, FLD_P_DIAG0 + PA_RESID_ENERGY, flux=.true.)
       call add_variable(reg, 'mean_resid_water_py', 'signed whole-column water-budget residual (+ = appearing)', 'kg/m2/s',      &
                         DIM_SCALAR, AGG_TMEAN, GRP_NUMERICS, DAY_MON_YR, FLD_P_DIAG0 + PA_RESID_WATER, flux=.true.)
+      !---~---
+      !   Budget terms: the canopy air's content change when its capacity (density x depth) moves
+      ! between steps, which no flux carries (docs/science/canopy_air_space_biophysics.md eq. (3)).
+      !---~---
+      call add_variable(reg, 'mean_budget_cas_cap_energy_py',                                                        &
+                        'budget: canopy-air enthalpy change as its capacity moves (+ = gained)', 'W/m2',          &
+                        DIM_SCALAR, AGG_TMEAN, GRP_NUMERICS, DAY_MON_YR, FLD_P_DIAG0 + PA_BUDGET_CAS_CAP_ENERGY, flux=.true.)
+      call add_variable(reg, 'mean_budget_cas_cap_water_py',                                                         &
+                        'budget: canopy-air vapour change as its capacity moves (+ = gained)', 'kg/m2/s',         &
+                        DIM_SCALAR, AGG_TMEAN, GRP_NUMERICS, DAY_MON_YR, FLD_P_DIAG0 + PA_BUDGET_CAS_CAP_WATER, flux=.true.)
+      call add_variable(reg, 'mean_budget_cas_cap_co2_py',                                                           &
+                        'budget: canopy-air CO2 change as its capacity moves (+ = gained)', 'umol/m2/s',          &
+                        DIM_SCALAR, AGG_TMEAN, GRP_NUMERICS, DAY_MON_YR, FLD_P_DIAG0 + PA_BUDGET_CAS_CAP_CO2, flux=.true.)
       !--- Per patch, off by default: ET's sources and the budget residuals, where a gap and a closed canopy differ.
       call add_variable(reg, 'mean_transp_pa', 'patch canopy transpiration', 'kg/m2/s', DIM_PATCH, AGG_TMEAN, GRP_WATER,        &
                         FREQ_NONE, FLD_P_DIAG0 + PA_TRANSP, flux=.true.)
@@ -765,6 +779,15 @@ contains
                         AGG_TMEAN, GRP_NUMERICS, FREQ_NONE, FLD_P_DIAG0 + PA_RESID_ENERGY, flux=.true.)
       call add_variable(reg, 'mean_resid_water_pa', 'patch signed water-budget residual (+ = appearing)', 'kg/m2/s',            &
                         DIM_PATCH, AGG_TMEAN, GRP_NUMERICS, FREQ_NONE, FLD_P_DIAG0 + PA_RESID_WATER, flux=.true.)
+      call add_variable(reg, 'mean_budget_cas_cap_energy_pa',                                                        &
+                        'patch budget: canopy-air enthalpy change as its capacity moves (+ = gained)', 'W/m2',    &
+                        DIM_PATCH, AGG_TMEAN, GRP_NUMERICS, FREQ_NONE, FLD_P_DIAG0 + PA_BUDGET_CAS_CAP_ENERGY, flux=.true.)
+      call add_variable(reg, 'mean_budget_cas_cap_water_pa',                                                         &
+                        'patch budget: canopy-air vapour change as its capacity moves (+ = gained)', 'kg/m2/s',   &
+                        DIM_PATCH, AGG_TMEAN, GRP_NUMERICS, FREQ_NONE, FLD_P_DIAG0 + PA_BUDGET_CAS_CAP_WATER, flux=.true.)
+      call add_variable(reg, 'mean_budget_cas_cap_co2_pa',                                                           &
+                        'patch budget: canopy-air CO2 change as its capacity moves (+ = gained)', 'umol/m2/s',    &
+                        DIM_PATCH, AGG_TMEAN, GRP_NUMERICS, FREQ_NONE, FLD_P_DIAG0 + PA_BUDGET_CAS_CAP_CO2, flux=.true.)
       !--- per-patch twins of the four that vary most between a gap and a closed canopy.
       call add_variable(reg, 'mean_le_pa', 'patch latent heat flux', 'W/m2', DIM_PATCH, AGG_TMEAN, GRP_ENERGY,                  &
                         ior(FAST, DAY_MON), FLD_P_DIAG0 + PA_LE, flux=.true.)

@@ -54,7 +54,9 @@ its share of it:
   carry-forward as a leak.
 - **The lignin is not summed.** It is a sub-state of the structural pools, not carbon of its own.
 - **The canopy air is valued at one air density**, `rho_air_ref`. No fast step runs inside the
-  window, so the before-and-after difference is the true change of the canopy air's content.
+  window, so the before-and-after difference is the true change of the canopy air's content. The fast
+  loop values it at each step's own capacity and books the change between steps as a budget term
+  ([canopy-air-space biophysics](canopy_air_space_biophysics.md) eq. (3)).
 - **The shed water is not a store, though it looks like one** (§3, the shed water).
 
 ## 3. Phases, residuals and declared terms

@@ -253,6 +253,8 @@ contains
             pa%cas(ip)%can_shv      = 0.011_wp + 1.0e-3_wp * x
             pa%cas(ip)%can_co2      = 415.0_wp + x
             pa%cas(ip)%can_temp     = 291.0_wp + x
+            pa%cas(ip)%air_mass_capacity  = 24.0_wp + x
+            pa%cas(ip)%air_molar_capacity = 820.0_wp + 10.0_wp * x
             pa%snow(ip)%nlayer = 1_ik
             pa%snow(ip)%swe(1:n_snow_layer_max)         = 4.0_wp + x
             pa%snow(ip)%snow_energy(1:n_snow_layer_max) = -1.0e5_wp - x

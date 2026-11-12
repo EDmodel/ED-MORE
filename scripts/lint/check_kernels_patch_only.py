@@ -31,8 +31,8 @@ OPERATORS = ("src/slow_dynamics/driver/ed_slow_update.f90",)  # they apply what 
 PATCH_STORE_TYPES = {"cas_state_t", "snow_state_t", "soil_water_state_t", "soil_energy_state_t",
                      "soil_carbon_state_t", "decomp_xi_t", "litter_input_t", "blend_cas", "blend_snow",
                      "blend_soil_water", "blend_soil_energy", "blend_soil_carbon", "blend_decomp_xi",
-                     "blend_litter_input", "cas_set_depth", "cas_capacities", "soil_water_store",
-                     "soil_energy_store"}
+                     "blend_litter_input", "cas_set_depth", "cas_capacities", "cas_capacity_change",
+                     "soil_water_store", "soil_energy_store"}
 MODULE = re.compile(r"^module\s+(\w+)$", re.I)
 USE = re.compile(r"^use\s*(?:,\s*\w+\s*::\s*|::\s*|\s)\s*(\w+)\s*(,\s*only\s*:(.*))?$", re.I)
 
