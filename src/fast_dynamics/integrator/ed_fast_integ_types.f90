@@ -47,7 +47,7 @@ module ed_fast_integ_types
    public :: ensure_static_capacity, ensure_dynamic_capacity, ensure_forcing_capacity, ensure_output_capacity
    public :: surface_state_t, surface_tend_t
    public :: cas_boundary_t
-   public :: soil_hydrology_t, root_zone_t, plant_water_t, esdirk2_stages_t
+   public :: soil_hydrology_t, root_zone_t, plant_water_t, esdirk2_stages_t, surface_source_slopes_t
    public :: march_state_t, frozen_t, march_tend_t
    public :: stage_bflux_t, boundary_flux_t
    public :: POND, WOOD, LEAF, COHORT_STORES
@@ -663,14 +663,30 @@ module ed_fast_integ_types
    end type frozen_t
 
    !---~---
+   !   The surface's source slopes the canopy-air Newton's Jacobian is built from: how the
+   ! enthalpy and vapour the surface hands the canopy air respond to the canopy air's enthalpy
+   ! and humidity, by forward differences (docs/science/numerical_scheme.md §3, "The stage
+   ! Newton"). The stages keep one set over a patch's day; valid says a set is held.
+   !---~---
+   type :: surface_source_slopes_t
+      real(wp) :: dsrc_enth_dh = 0.0_wp   ! [kg/m2/s]     d src_enth / d cas_enthalpy (W/m2 per J/kg)
+      real(wp) :: dsrc_enth_dq = 0.0_wp   ! [W/m2]        d src_enth / d cas_shv
+      real(wp) :: dsrc_vap_dh  = 0.0_wp   ! [kg2/J/m2/s]  d src_vap / d cas_enthalpy (kg/m2/s per J/kg)
+      real(wp) :: dsrc_vap_dq  = 0.0_wp   ! [kg/m2/s]     d src_vap / d cas_shv
+      logical  :: valid = .false.         ! a set is held
+   end type surface_source_slopes_t
+
+   !---~---
    !   Storage one thread's fast step reuses from step to step: the aerodynamic environment, the
    ! soil-plant water network, the frozen record, and the ESDIRK2 march's states and stages,
    ! filled in place and reallocated only when the cohort count changes. The stages are their own record so the
-   ! march passes them beside its states.
+   ! march passes them beside its states. They carry the source slopes their Newton reuses, which
+   ! the patch loop clears when each patch's day starts, so a patch never reads another's.
    !---~---
    type :: esdirk2_stages_t
       type(march_state_t) :: y2, base3, y3            ! the ARS(2,2,2) stages
       type(surface_tend_t) :: sf2, sf3                 ! the stages' surface tendencies
+      type(surface_source_slopes_t) :: slopes          ! the stage Newton's source slopes, kept over a patch's day
    end type esdirk2_stages_t
 
    type :: fast_workspace_t

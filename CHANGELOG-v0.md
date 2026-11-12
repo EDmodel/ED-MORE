@@ -67,6 +67,12 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   tower and from the zero plane for a reanalysis; a tower's humidity is converted at its sensor's
   pressure. BCI (example 04, default/calibrated): LE +0.12/−0.05 %, H −0.18/−0.03 %, GPP
   −0.10/−0.13 %; Palo Verde (example 05, ERA5-Land): LE +0.21 %, H −0.24 %, ET +2.1 mm/yr. (#65)
+- The canopy-air Newton of each ESDIRK2 stage keeps its forward-difference source slopes over a
+  patch's day and takes fresh ones only when it holds none or a step converges poorly, so a stage
+  evaluates the surface about 45 % less often: the fast loop runs 10–14 % faster (BCI August −10 %,
+  March −14 %; example 06 region 06 −14 % on 40 threads). Results move within the Newton's
+  tolerance: at BCI (example 04) the five-year mean GPP, LE, H and ET by less than 1e-5 relative, in
+  the region test's January–February run LE and snow water equivalent by about 1e-4. (#76)
 
 ### Added
 

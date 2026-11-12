@@ -19,7 +19,8 @@ module ed_fast_dynamics
    use ed_forcing_params,       only : CO2_SOURCE_FILE
    use ed_polygon_state_vars,   only : polygon_t, patch_polygon_area
    use ed_fast_integ_types,         only : fast_static_state_t, fast_dynamic_state_t, fast_forcing_t, fast_output_t,   &
-                                       fast_workspace_t, step_report_t, ensure_static_capacity,                  &
+                                       fast_workspace_t, step_report_t, surface_source_slopes_t,                 &
+                                       ensure_static_capacity,                                                   &
                                        ensure_dynamic_capacity, ensure_forcing_capacity, ensure_output_capacity, &
                                        N_WORK, WORK_INTEG_STEPS, WORK_INTEG_REJECT, WORK_WATER_NSUB,             &
                                        WORK_WATER_NEWTON, WORK_WATER_REJECT, WORK_WATER_NFAIL, WORK_RK45_RESCUE, &
@@ -222,6 +223,12 @@ contains
          area = patch_polygon_area(poly, ip)
          call gather_patch(poly, cfg, ip, sd%static, sd%dynamic)
          sd%out%report = step_report_t()
+         !---~---
+         !   The stages' Newton reuses its source slopes over this patch's day and starts it with
+         ! none, so no patch reads another's and the answer does not depend on which thread ran
+         ! which patch before (docs/science/numerical_scheme.md §3, "The stage Newton").
+         !---~---
+         sd%work%stages%slopes = surface_source_slopes_t()
          do isub = 1_ik, nsub
             !--- The patch's forcing, the phenology's air temperature and the precipitation split.
             call patch_forcing(cfg, sd%static, sd%dynamic, met_site(isub, is_p), do_forcing, sd%forcing)

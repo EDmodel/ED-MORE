@@ -151,8 +151,8 @@ how far the group drifted apart on the last stretch.
   water are **operator-split out**: soil water moves at the water network's steady rate, and plant
   and surface water are advanced once over the full `dt_fast`.
 - The leaf↔canopy-air coupling is solved implicitly *within* every stage by a direct 2×2 Newton
-  (`newton_surface_solve`) with a numerical Jacobian — which is what
-  lets it carry the tissue heat store.
+  (`newton_surface_solve`, "The stage Newton" below) — which is what lets it carry the tissue heat
+  store.
 - Adaptive: the step size is chosen from the difference between the second-order and first-order
   solutions, measured by **one weighted norm over the states the march integrates**, the canopy air
   and the soil heat, with a per-variable-group tolerance (`[fast].rtol`, `atol_scale`). Soil water
@@ -209,6 +209,49 @@ scaled by the integral controller:
 
 with $p$ the order of the embedded estimate (1 for `esdirk2`, 4 for `rk45`), $s = 0.9$, $`f_{min} = 0.2`$
 and $`f_{max} = 5`$.
+
+**The stage Newton.** Each stage of eq. (1) solves the canopy air's backward-Euler balance for its
+enthalpy $H$ and specific humidity $q$ over the stage's step $`\Delta t = \gamma h`$:
+
+```math
+R_H = \frac{m\,(H - H_0)}{\Delta t} - S_H(H, q) - g_H\,(H_{atm} - H) = 0, \qquad
+R_q = \frac{m\,(q - q_0)}{\Delta t} - S_q(H, q) - g_q\,(q_{atm} - q) = 0
+```
+
+with $m$ the canopy air's mass capacity, $`S_H`$ and $`S_q`$ the enthalpy and vapour the leaves, wood,
+ground and snow hand it at that canopy air (`surface_derivs`), and $`g_H`$, $`g_q`$ its conductances to
+the atmosphere, re-solved at the stage's start (§2). The balance counts as solved when each residual,
+as the change of the canopy air over the stage it stands for ($`|R|\,\Delta t/m`$), is within 50 J/kg
+(about 0.05 K) and 10⁻⁶ kg/kg, plus 10⁻⁷ of the state. The Newton's Jacobian has two parts:
+
+```math
+J = \begin{pmatrix} m/\Delta t + g_H & 0 \\ 0 & m/\Delta t + g_q \end{pmatrix}
+  - \begin{pmatrix} \partial S_H/\partial H & \partial S_H/\partial q \\
+                     \partial S_q/\partial H & \partial S_q/\partial q \end{pmatrix}
+```
+
+The first, the box's own terms, is exact and cheap, and is formed at every step from the stage's own
+$`\Delta t`$ and conductances. The second, the surface's *source slopes* (`surface_source_slopes`),
+is taken by forward differences, two more evaluations of the surface, and that makes it the costliest
+part of a Newton step. It carries the strong self-limiting of the vapour source (moister canopy air,
+less transpiration and evaporation), which is why the solve needs it, but it changes slowly: it moves
+with the light, the stomata and the canopy-air state over the day, not from one stage to the next. So
+the Newton keeps the last slopes it took and steps on them in the later iterations, stages and steps
+of the same patch's day. It takes new ones, at the current iterate, when:
+
+- it holds none. The patch loop clears them when it starts each patch's day, so no patch reads
+  another's: the answer is the same at any thread count, and a restart needs nothing new.
+- a step on held slopes converged poorly: its line search had to shorten it, or it cut the scaled
+  residual by less than a factor of 4 (`SLOPES_MIN_FALL`) and the balance is still unsolved. Slopes
+  taken at the iterate cut it by far more near the solution, so a smaller fall says the held ones no
+  longer describe the surface.
+
+A solve takes fresh slopes at most 4 times (`SURFACE_NEWTON_MAX`), the step bound of a Newton that
+takes them at every step, and once more when its last step was on held slopes and left it unsolved.
+Its steps on held slopes, which cost one evaluation of the surface each (more when the line search
+shortens them), are bounded by its cap of 24 evaluations (`SURFACE_FEVAL_MAX`). Reuse changes the path to the solution, not the balance
+solved: any solution is one the tolerance above accepts. The slopes live in the stage storage of the
+thread's step data (§6a).
 
 ### `rk45` — adaptive explicit Cash–Karp 5(4), ED2-style
 
@@ -603,7 +646,9 @@ the last month.
 Each thread's per-patch scratch is an explicit pool indexed by thread number rather than an OpenMP
 `private` clause, because ifx builds private copies of a derived type through a static mold that every
 thread writes: a data race that gives exactly the thread-count-dependent answers the patch-order fold
-exists to prevent (`docs/building.md`, the portability traps).
+exists to prevent (`docs/building.md`, the portability traps). The stage Newton's source slopes (§3)
+live in that pool too, and are cleared when each patch's day starts, so a patch never starts from
+slopes another patch left on its thread.
 
 ### What threading buys
 
@@ -670,7 +715,7 @@ agreement of those aggregates in one realization is reassurance rather than a co
 | adaptive Cash–Karp scheme | `src/fast_dynamics/integrator/ed_fast_integ_rk45.f90` (`rk45_step`, `rk45_state_railed`) |
 | the shared right-hand side | `src/fast_dynamics/integrator/ed_fast_integ_derivs.f90` (`march_derivs`, `surface_derivs`) |
 | the frozen record, Category 0 | `src/fast_dynamics/integrator/ed_fast_integ_frozen.f90` (`build_frozen`, `record_water_flows`) |
-| the implicit stage and its leaf↔canopy-air Newton | `src/fast_dynamics/integrator/ed_fast_integ_backward_euler.f90` (`backward_euler_stage`, `newton_surface_solve`) |
+| the implicit stage and its leaf↔canopy-air Newton, its source slopes and Jacobian (§3, "The stage Newton") | `src/fast_dynamics/integrator/ed_fast_integ_backward_euler.f90` (`backward_euler_stage`, `newton_surface_solve`, `surface_source_slopes`, `surface_jacobian`); the slopes' record `surface_source_slopes_t` in `ed_fast_integ_types.f90` |
 | the soil–plant water network | `ed_fast_integ_backward_euler.f90` (`water_step`), its flows and Jacobian in `ed_fast_integ_derivs.f90` (`water_derivs`) ([soil_plant_water](soil_plant_water.md)) |
 | the commit and the seven ledgers (§5b) | `src/fast_dynamics/integrator/ed_fast_integ_update.f90` (`update_dynamic_state`, `close_ledgers`) |
 | error norm and step controller, eqs. (3)–(4) | `src/fast_dynamics/integrator/ed_fast_integ_control.f90` (`state_wrms_grouped`, `step_control_factor`); the tolerance set and the error control from config: `build_tol_set`, `build_error_control` there |
