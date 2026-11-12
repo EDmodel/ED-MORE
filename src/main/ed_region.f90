@@ -9,9 +9,10 @@
 ! location, on either forcing format; "region" is every selected cell of a box of the
 ! ED_ERA5land archive. The forcing loads a month for every cell at once; then each polygon
 ! runs through it, reading its own cell; then the I/O phase writes every polygon's queued
-! records. Nothing inside the polygon loop touches a file, so the polygons of a month run
-! side by side on [run].n_threads threads, each with a one-thread patch loop; a run of one
-! polygon gives its patch loop the threads instead.
+! records. No polygon touches a file, so the polygons of a month run side by side on
+! [run].n_threads threads, each with a one-thread patch loop, while one thread reads the
+! archive's next month into a spare buffer before it joins them; a run of one polygon gives
+! its patch loop the threads instead.
 !
 !   Output and state files carry a polygon axis, the cohort and patch axes padded to the
 ! largest polygon's. A failed step is returned as a status, not an `error stop`: this
@@ -32,9 +33,9 @@ module ed_region
    use ed_init_restart,             only : restart_file_t, restart_file_open, restart_file_write, restart_file_close, &
                                            restart_file_slots
    use ed_init,                     only : init_polygon
-   use ed_met_types,                only : met_source_t, met_grid_t, met_cells_t
+   use ed_met_types,                only : met_source_t, met_grid_t, met_cells_t, met_month_t
    use ed_forcing_params,           only : MET_BACKEND_ERA5LAND
-   use ed_met,                      only : met_open, met_open_co2, met_close, met_prefetch
+   use ed_met,                      only : met_open, met_open_co2, met_close, met_prefetch, met_read_ahead
    use ed_met_share,                only : MET_OK
    use ed_maps,                     only : apply_cell_mask, map_status_message, MAP_OK, read_map_inputs
    use ed_maps_params,              only : map_inputs_t
@@ -72,6 +73,7 @@ module ed_region
    type :: ed_region_t
       type(ed_config_t)     :: cfg
       type(met_source_t)    :: met_src          ! one reader for every polygon (opened only if forcing_on)
+      type(met_month_t)     :: met_ahead        ! the archive's next month, read while the polygons step
       type(output_files_t)  :: out_files           ! the run's files (built only if output.enabled)
       !---~---
       !   Each polygon as its state (the stand) and what the run keeps to step and check it
@@ -92,10 +94,12 @@ module ed_region
       integer(ik)           :: iyear = 0_ik       ! year boundaries stepped across, for the state files
       integer(ik)           :: imonth = 0_ik      ! month boundaries stepped across, likewise
       !---~---
-      !   The forcing's load time (met_prefetch) over the run and this year, and the archive
-      ! month files read before this year, for the summaries.
+      !   For the summaries, over the run and this year: the time the polygons waited for their
+      ! forcing (met_prefetch), and the time one thread spent reading the next month while
+      ! they stepped (met_read_ahead); and the archive month files read before this year.
       !---~---
       real(wp)              :: read_seconds = 0.0_wp, year_read_seconds = 0.0_wp
+      real(wp)              :: ahead_seconds = 0.0_wp, year_ahead_seconds = 0.0_wp
       integer(ik)           :: year_loads0 = 0_ik
       !--- Last month's wall time per polygon: the next month starts the costliest first.
       real(wp),    allocatable :: cost(:)
@@ -580,7 +584,8 @@ contains
       logical,     allocatable :: was_running(:)
       integer(ik), allocatable :: order(:), failed_step(:)
       integer(ik) :: nstep, s, p, k, st, npoly
-      integer(ik) :: tick0, tick1, tick_rate
+      integer(ik) :: tick0, tick1, tick_rate, ahead0, ahead1, ahead_rate
+      logical     :: read_ahead
 
       status = RUN_OK
       associate (cfg => reg%cfg, last => steps(size(steps)))
@@ -588,24 +593,43 @@ contains
       nstep = size(steps, kind=ik)
       if (cfg%fast_biophysics_on .and. cfg%forcing%forcing_on) then
          call system_clock(tick0, tick_rate)
-         call met_prefetch(reg%met_src, steps(1)%start)
+         call met_prefetch(reg%met_src, steps(1)%start, reg%met_ahead)
          call system_clock(tick1)
          reg%year_read_seconds = reg%year_read_seconds + real(tick1 - tick0, wp) / real(max(tick_rate, 1_ik), wp)
       end if
 
       !---~---
-      !   The compute phase: no file is touched here; each polygon writes only its own state
-      ! and buffers. The threads take the polygons one at a time in the order given, costliest
+      !   The compute phase: no polygon touches a file; each writes only its own state and
+      ! buffers. The threads take the polygons one at a time in the order given, costliest
       ! first. That needs `monotonic`: without it OpenMP lets the runtime hand each thread a block
       ! of the order up front (ifx's runtime does), and the costliest polygons can then queue on
       ! one thread while the others finish early.
+      !
+      !   Meanwhile, when the run goes on past these steps, one thread reads the archive month
+      ! the next steps read into the run's spare buffer (met_read_ahead), then joins the
+      ! polygons; the next prefetch moves the month in. The read changes nothing the polygons
+      ! read, and it ends before the loop's closing barrier, ahead of the I/O phase, so the
+      ! netCDF library is never called from two threads at once. One polygon gives every thread
+      ! to its patch loop, so it reads each month at its prefetch.
       !---~---
+      read_ahead = cfg%fast_biophysics_on .and. cfg%forcing%forcing_on .and.                         &
+                   cfg%forcing%format == MET_BACKEND_ERA5LAND .and. npoly > 1_ik .and.              &
+                   time_lt(last%end, cfg%end_time)
       allocate(order(npoly), failed_step(npoly), was_running(npoly))
       call ascending_order(-reg%cost, npoly, order)
       was_running = reg%run(:)%status == RUN_OK
       failed_step = 0_ik
-      !$omp parallel do schedule(monotonic: dynamic, 1) num_threads(cfg%n_threads) default(shared) if(npoly > 1)   &
+      !$omp parallel num_threads(cfg%n_threads) default(shared) if(npoly > 1)                         &
       !$omp    private(k, p, s, st, tick0, tick1, tick_rate)
+      if (read_ahead) then
+         !$omp single
+         call system_clock(ahead0, ahead_rate)
+         call met_read_ahead(reg%met_src, last%end, reg%met_ahead)
+         call system_clock(ahead1)
+         reg%year_ahead_seconds = reg%year_ahead_seconds + real(ahead1 - ahead0, wp) / real(max(ahead_rate, 1_ik), wp)
+         !$omp end single nowait
+      end if
+      !$omp do schedule(monotonic: dynamic, 1)
       do k = 1_ik, npoly
          p = order(k)
          if (.not. was_running(p)) cycle
@@ -621,7 +645,8 @@ contains
          call system_clock(tick1)
          reg%cost(p) = real(tick1 - tick0, wp) / real(max(tick_rate, 1_ik), wp)
       end do
-      !$omp end parallel do
+      !$omp end do
+      !$omp end parallel
 
       do p = 1_ik, npoly
          if (failed_step(p) == 0_ik) cycle
@@ -641,6 +666,8 @@ contains
          if (reg%verbose) call year_summary(reg)
          reg%read_seconds = reg%read_seconds + reg%year_read_seconds
          reg%year_read_seconds = 0.0_wp
+         reg%ahead_seconds = reg%ahead_seconds + reg%year_ahead_seconds
+         reg%year_ahead_seconds = 0.0_wp
          reg%year_loads0 = reg%met_src%n_loads
       end if
 
@@ -711,7 +738,8 @@ contains
 
    !---~---
    !   A year's summary: one polygon's stand every 5 years, or a line for the polygons' mean
-   ! and range of AGB and LAI every year, with what the forcing reads cost.
+   ! and range of AGB and LAI every year, with what the forcing reads cost: the time the
+   ! polygons waited for them, and the time spent reading ahead while they stepped.
    !---~---
    subroutine year_summary(reg)
       type(ed_region_t), intent(in) :: reg
@@ -730,8 +758,9 @@ contains
       write(*,'(a,a10,a,3(1x,f0.3),a,3(1x,f0.3))') ' ', when(1:10), '  AGB kgC/m2 min/mean/max:',     &
             minval(agb), sum(agb) / size(agb), maxval(agb), '   LAI:', minval(lai),                  &
             sum(lai) / size(lai), maxval(lai)
-      write(*,'(a,f0.2,a,i0,a)') '             forcing: ', reg%year_read_seconds, ' s loading, ',        &
-            reg%met_src%n_loads - reg%year_loads0, ' archive month(s) read from file'
+      write(*,'(a,f0.2,a,f0.2,a,i0,a)') '             forcing: ', reg%year_read_seconds, ' s waiting, ',     &
+            reg%year_ahead_seconds, ' s reading ahead, ', reg%met_src%n_loads - reg%year_loads0,            &
+            ' archive month(s) read from file'
    end subroutine year_summary
 
    !---~---
@@ -783,8 +812,9 @@ contains
             end associate
          end do
          if (n_bad > 0_ik) write(*,'(a,i0,a)') ' ERROR: ', n_bad, ' polygon(s) did not conserve area'
-         if (reg%verbose) write(*,'(a,f0.2,a,i0,a)') ' forcing: ',                                  &
-               reg%read_seconds + reg%year_read_seconds, ' s loading in all, ', reg%met_src%n_loads,    &
+         if (reg%verbose) write(*,'(a,f0.2,a,f0.2,a,i0,a)') ' forcing: ',                           &
+               reg%read_seconds + reg%year_read_seconds, ' s waiting in all, ',                        &
+               reg%ahead_seconds + reg%year_ahead_seconds, ' s reading ahead, ', reg%met_src%n_loads,  &
                ' archive month(s) read from file'
       end if
 

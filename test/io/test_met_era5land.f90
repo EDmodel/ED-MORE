@@ -18,7 +18,8 @@ program test_met_era5land
    use ed_met_types,   only : met_source_t, met_cursor_t, met_forcing_t, met_cells_t, met_month_t
    use ed_therm_lib,         only : sat_specific_humidity, lapse_pressure, sat_vapor_pressure
    use iso_c_binding,        only : c_double
-   use ed_met,      only : met_open, met_cursor_init, met_advance, met_instant, met_close, met_prefetch
+   use ed_met,      only : met_open, met_cursor_init, met_advance, met_instant, met_close, met_prefetch,      &
+                           met_read_ahead
    use ed_met_share, only : MET_OK, MET_ERR_ARCHIVE, MET_ERR_ATTR_MISMATCH
    use ed_met_era5land,      only : era5land_path, era5land_default_template, era5land_load_month, ERA_OK,  &
                                     ERA_ERR_NAN, ERA_ERR_FILL, ERA_NVAR, ERA_TAIR, ERA_TDEW, ERA_PSURF,      &
@@ -41,6 +42,7 @@ program test_met_era5land
    call test_driver_rejections()
    call test_region_cursors()
    call test_driver_recycle_anchors()
+   call test_read_ahead()
 
    call test_report('test_met_era5land')
 
@@ -583,6 +585,110 @@ contains
                       real(src%n_loads - loads, wp))
       call met_close(src)
    end subroutine test_driver_recycle_anchors
+
+   !---~---
+   !   10. Reading the next month ahead (docs/science/forcing.md §2): while a region's polygons
+   !     step through a month, one thread reads the next month into a buffer of the region's,
+   !     and the next prefetch moves it in. The buffer must hold what a direct load of that
+   !     month holds, bit for bit, and the source the prefetch leaves must equal that of a source
+   !     that never reads ahead: for an ordinary month, the recycle wrap and a run's last month.
+   !     The read changes nothing in the source, and reads nothing when the month is in already.
+   !---~---
+   subroutine test_read_ahead()
+      type(met_source_t)     :: src, plain
+      type(met_month_t)      :: ahead, direct
+      type(met_cells_t)      :: cells
+      type(forcing_params_t) :: fc
+      type(ed_time_t)        :: t
+      character(len=512)     :: msg
+      integer(ik) :: st, loads
+      print '(a)', '-- era5land 10: reading the next month ahead --'
+      !--- The five cells of the box across 180 (test 3), as a region reads them.
+      call select_box_cells(archive_grid(DIR//'/ED_ERA5land_static.nc'), [40.0_wp, 150.0_wp, 20.0_wp, -150.0_wp], &
+                            cells, st)
+
+      !--- The 2021 window recycled, walked a month at a time from March 2036.
+      fc = archive_config()
+      fc%recycle = .true.
+      fc%recycle_start = T0
+      fc%recycle_end = ed_time_t(2022_ik, 1_ik, 1_ik, 1_ik)
+      call met_open(src, fc, stat=st, cells=cells)
+      call met_open(plain, fc, stat=st, cells=cells)
+      call check_true('both sources open on the region''s cells', st == MET_OK)
+      t = ed_time_t(2036_ik, 3_ik, 1_ik)
+      call met_prefetch(src, t, ahead)
+      call met_prefetch(plain, t)
+      loads = src%n_loads
+
+      t = ed_time_t(2036_ik, 4_ik, 1_ik)
+      call met_read_ahead(src, t, ahead)
+      call era5land_load_month(era5land_default_template(), DIR, cells, 2021_ik, 4_ik, direct, st, msg)
+      call check_true('an ordinary month read ahead holds what a direct load of it holds',                 &
+                      st == ERA_OK .and. same_month(ahead, direct))
+      call check_true('reading ahead leaves the source as it was',                                          &
+                      src%n_loads == loads .and. src%buffer%month == 3_ik .and. same_source(src, plain))
+      call met_prefetch(src, t, ahead)
+      call met_prefetch(plain, t)
+      call check_true('the prefetch moves it in: the source equals one that never reads ahead',            &
+                      same_source(src, plain))
+      call check_true('... the buffer is emptied, and the month counts as one load, read ahead',          &
+                      ahead%year == 0_ik .and. src%n_loads == loads + 1_ik .and. src%n_loads_ahead == 1_ik)
+      call met_read_ahead(src, ed_time_t(2036_ik, 4_ik, 15_ik), ahead)
+      call check_true('a month already in is not read again', ahead%year == 0_ik)
+
+      !--- The recycle wrap: from December the next month is the window's first, January 2021.
+      t = ed_time_t(2036_ik, 12_ik, 1_ik)
+      call met_prefetch(src, t, ahead)
+      call met_prefetch(plain, t)
+      t = ed_time_t(2037_ik, 1_ik, 1_ik)
+      call met_read_ahead(src, t, ahead)
+      call era5land_load_month(era5land_default_template(), DIR, cells, 2021_ik, 1_ik, direct, st, msg)
+      call check_true('at the recycle wrap the month read ahead is the window''s first, as loaded directly', &
+                      st == ERA_OK .and. same_month(ahead, direct))
+      call met_prefetch(src, t, ahead)
+      call met_prefetch(plain, t)
+      call check_true('across the wrap: December''s last record carried, January in, as without reading ahead', &
+                      same_source(src, plain) .and. src%carry_rec == src%irec_cycle_last)
+      call met_close(src)
+      call met_close(plain)
+
+      !--- A run's last month: 15 January to 1 April 2021 reads January to March.
+      fc = archive_config()
+      call met_open(src, fc, stat=st, run_start=ed_time_t(2021_ik, 1_ik, 15_ik),                         &
+                    run_end=ed_time_t(2021_ik, 4_ik, 1_ik), cells=cells)
+      call met_open(plain, fc, stat=st, run_start=ed_time_t(2021_ik, 1_ik, 15_ik),                       &
+                    run_end=ed_time_t(2021_ik, 4_ik, 1_ik), cells=cells)
+      t = ed_time_t(2021_ik, 2_ik, 1_ik)
+      call met_prefetch(src, t, ahead)
+      call met_prefetch(plain, t)
+      t = ed_time_t(2021_ik, 3_ik, 1_ik)
+      call met_read_ahead(src, t, ahead)
+      call era5land_load_month(era5land_default_template(), DIR, cells, 2021_ik, 3_ik, direct, st, msg)
+      call check_true('the run''s last month read ahead holds what a direct load of it holds',            &
+                      st == ERA_OK .and. same_month(ahead, direct))
+      call met_prefetch(src, t, ahead)
+      call met_prefetch(plain, t)
+      call check_true('... and the prefetch leaves the source as without reading ahead', same_source(src, plain))
+      call met_read_ahead(src, ed_time_t(2021_ik, 4_ik, 1_ik), ahead)
+      call check_true('past the axis''s last month nothing more is read', ahead%year == 0_ik)
+      call met_close(src)
+      call met_close(plain)
+   end subroutine test_read_ahead
+
+   !--- Two month buffers hold the same month, value for value.
+   logical function same_month(a, b) result(same)
+      type(met_month_t), intent(in) :: a, b
+      same = a%year == b%year .and. a%month == b%month .and. a%nt == b%nt .and. a%year /= 0_ik
+      if (same) same = all(shape(a%values) == shape(b%values))
+      if (same) same = all(a%values == b%values)
+   end function same_month
+
+   !--- Two sources hold the same month, the same carried record and the same load count.
+   logical function same_source(a, b) result(same)
+      type(met_source_t), intent(in) :: a, b
+      same = same_month(a%buffer, b%buffer) .and. a%carry_rec == b%carry_rec .and. a%n_loads == b%n_loads
+      if (same .and. a%carry_rec > 0_ik) same = all(a%carry == b%carry)
+   end function same_source
 
    !--- The site cell's Tair half an hour after stamp t: the mean of its record and the next.
    real(wp) function pair_mean(t) result(x)

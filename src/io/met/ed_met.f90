@@ -3,7 +3,8 @@
 !   ed_met -- the meteorological-forcing reader (docs/science/forcing.md §1-§3, §8, §10-§12).
 ! met_open opens an ED-MORE forcing file or the ED_ERA5land archive into the
 ! met_source_t a run shares; met_cursor_init binds a polygon's met_cursor_t to it; met_prefetch
-! loads what a step reads; met_advance and met_instant step and sample a cursor with no file
+! loads what a step reads, and met_read_ahead reads the archive's next month while the polygons
+! step, without changing the source; met_advance and met_instant step and sample a cursor with no file
 ! access; met_at_site moves a sample to a site and met_to_cas_top to a patch's canopy-air top.
 ! read_record is the one ingest for both file sources (ed_met_default,
 ! ed_met_era5land): it checks, converts, lapses and partitions a record, and a missing
@@ -26,19 +27,20 @@ module ed_met
    use ed_radiation_lib,    only : COSZ_MIN, SWPART_PASSTHROUGH, lapse_longwave, partition_shortwave, clearness_index,      &
                                    synthesize_lwdown
    use ed_met_types, only : met_forcing_t, met_record_t, met_source_t, met_cursor_t,        &
-                                  met_cells_t, HUMIDITY_RHAIR, HUMIDITY_TDEW, ED_FIELD
+                                  met_cells_t, met_month_t, HUMIDITY_RHAIR, HUMIDITY_TDEW, ED_FIELD
    use ed_met_co2, only : co2_series_read, co2_series_at, co2_series_covers,                 &
                                co2_series_end, co2_series_free
    use ed_netcdf_c, only : nc_close, nc_check
    use ed_met_share,   only : MET_OK, MET_ERR_CO2_FILE, MET_ERR_CO2_NOT_COVERED, file_lookup_sec,    &
                               humidity_field, add_line
    use ed_met_default,   only : default_file_open, default_file_record
-   use ed_met_era5land, only : era5land_open, era5land_prefetch,                     &
+   use ed_met_era5land, only : era5land_open, era5land_prefetch, era5land_read_ahead,                     &
                                        era5land_record
    implicit none
    private
 
    public :: met_open, met_open_co2, met_co2, met_cursor_init, met_advance, met_instant, met_close, met_prefetch
+   public :: met_read_ahead
    public :: met_at_site, met_to_cas_top, cas_top_wind_factor, tq_height_pressure
    public :: cosz_reconstruct_factor, disaggregate_sw
 
@@ -190,13 +192,27 @@ contains
 
    !---~---
    !   PREFETCH: load what the step starting at `step_start` reads, before its compute phase.
-   ! An ED-MORE forcing file was read at open; the archive loads a month at a time.
+   ! An ED-MORE forcing file was read at open; the archive loads a month at a time, and takes
+   ! it from `ahead` when met_read_ahead has read it there.
    !---~---
-   subroutine met_prefetch(src, step_start)
+   subroutine met_prefetch(src, step_start, ahead)
       type(met_source_t), intent(inout)  :: src
       type(ed_time_t),  intent(in)    :: step_start
-      if (src%backend == MET_BACKEND_ERA5LAND) call era5land_prefetch(src, step_start)
+      type(met_month_t), optional, intent(inout) :: ahead   ! a month read ahead; emptied when taken
+      if (src%backend == MET_BACKEND_ERA5LAND) call era5land_prefetch(src, step_start, ahead)
    end subroutine met_prefetch
+
+   !---~---
+   !   READ AHEAD: read into `ahead` what met_prefetch will load for the step starting at
+   ! `step_start`, changing nothing in src, so it can run while the polygons step on src. Only
+   ! the archive reads during a run; for an ED-MORE forcing file there is nothing to read.
+   !---~---
+   subroutine met_read_ahead(src, step_start, ahead)
+      type(met_source_t), intent(in)    :: src
+      type(ed_time_t),    intent(in)    :: step_start
+      type(met_month_t),  intent(inout) :: ahead
+      if (src%backend == MET_BACKEND_ERA5LAND) call era5land_read_ahead(src, step_start, ahead)
+   end subroutine met_read_ahead
 
    !---~---
    !   ADVANCE: slide this cursor's bracket so rec_prev%when <= now < rec_next%when: a start
@@ -566,6 +582,7 @@ contains
       src%carry_rec = 0_ik
       src%n_head = 0_ik
       src%n_loads = 0_ik
+      src%n_loads_ahead = 0_ik
    end subroutine met_close
 
    !---~---

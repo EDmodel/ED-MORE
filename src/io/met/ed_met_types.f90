@@ -120,7 +120,8 @@ module ed_met_types
 
    !---~---
    !   One archive month for every cell: values(hour, cell, variable), float32 as stored, from
-   ! 01:00 on the 1st to 00:00 on the 1st of the next month (end-stamped).
+   ! 01:00 on the 1st to 00:00 on the 1st of the next month (end-stamped). The source holds the
+   ! month the steps read; a region holds a second, the next month, read while its polygons step.
    !---~---
    type :: met_month_t
       integer(ik) :: year = 0_ik, month = 0_ik, nt = 0_ik
@@ -186,6 +187,7 @@ module ed_met_types
       real(sp),    allocatable :: head(:,:,:)               ! (record, cell, variable) from irec_cycle_first on
       integer(ik) :: n_head    = 0_ik                       ! records in head (0 = none)
       integer(ik) :: n_loads   = 0_ik                       ! archive month loads so far (tests: none inside a step)
+      integer(ik) :: n_loads_ahead = 0_ik                   ! of these, the months a read-ahead loaded
       real(wp),    allocatable :: series(:,:)               ! (record, column) ED-MORE forcing file at grid_index
       integer(ik) :: series_col(N_ED_FIELD) = 0_ik          ! each ED_FIELD's column in series (0 = absent)
       !--- The prescribed CO2 (co2_source = "file"): one global series, read at open.

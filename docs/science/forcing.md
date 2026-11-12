@@ -190,6 +190,18 @@ month the step reads plus the one record before it: 00:00 on the 1st, which live
 month's file, or the window's last record at the recycle wrap. On moving into a new month that record
 comes from the outgoing buffer, so each archive month is read once per pass through it.
 
+**A region reads the next month ahead.** While a region's polygons step through a month, one thread
+reads the month the next steps need, the recycle wrap included, into a second buffer
+(`met_read_ahead`), then joins the polygons. It reads only what `met_open` fixed (the files, the cells
+and the month axis) and changes nothing the polygons read. The next `met_prefetch` takes the record
+before the month from the outgoing buffer, as above, then moves the month in instead of reading it, so
+the polygons wait for a month only when it takes longer to read than they take to step through the
+one before. The read ends before the polygons' loop does, and the output is written after it, so the
+netCDF library is never called from two threads at once. A month that fails its checks is read again
+by the prefetch, which stops the run with the reason. A one-polygon run gives every thread to its
+patch loop and reads each month at its prefetch. Reading ahead holds one more month in memory, about
+24 kB per cell, and changes no result.
+
 ## 3. Temporal interpolation, and why wind is different
 
 Within the bracket the weight is $`w_{next}=(t-t_{prev})/(t_{next}-t_{prev})`$, clipped to $[0,1]$. Each
@@ -797,8 +809,8 @@ each option requires are in the reference config `ed_config_main.toml` and in
 | terrain lapse (§8, Step 1) | the laws: `ed_therm_lib`: `lapse_air_temperature`, `lapse_pressure`, `lapse_specific_humidity`; `ed_radiation_lib`: `lapse_longwave`; applied in `read_record` (`ed_met`) |
 | each site (§8) | `ed_met`: `met_at_site`, with `slope_incidence_cosz` (`ed_time`) and `slope_beam_factor` (`ed_radiation_lib`) |
 | canopy-air top (§8, Step 2) | `ed_met`: `cas_top_wind_factor`, `met_to_cas_top`; `ed_therm_lib`: `dry_adiabat_temperature`, `dry_adiabat_pressure`; `canopy_roughness` (`ed_canopy_aerodynamics`); called per patch by `ed_fast_forcing` |
-| the reader | `ed_met`: `met_open`, `met_cursor_init`, `met_prefetch`, `met_advance`, `met_instant`, `met_close`; the one ingest `read_record`, `assert_finite` |
-| the two file sources | `ed_met_default`: `default_file_open`, `default_file_record`, `read_series`, `detect_humidity`; `ed_met_era5land`: `era5land_open`, `era5land_prefetch`, `era5land_record`, `open_archive`, `load_axis_month`, `locate_record`, `keep_window_head` |
+| the reader | `ed_met`: `met_open`, `met_cursor_init`, `met_prefetch`, `met_read_ahead`, `met_advance`, `met_instant`, `met_close`; the one ingest `read_record`, `assert_finite` |
+| the two file sources | `ed_met_default`: `default_file_open`, `default_file_record`, `read_series`, `detect_humidity`; `ed_met_era5land`: `era5land_open`, `era5land_prefetch`, `era5land_read_ahead`, `era5land_record`, `open_archive`, `month_of_step`, `load_axis_month`, `locate_record`, `keep_window_head` |
 | the archive's files | `ed_met_era5land`: `era5land_path`, `era5land_month_hours`, `era5land_load_month` |
 | recycling | `ed_met_share`: `validate_recycle_window`, `file_lookup_sec`, `recycle_model_to_file`; `ed_met`: `load_wrap_bracket` |
 | CO₂ | `ed_met_co2`: `co2_series_read`, `co2_series_at`, `co2_series_covers`; `ed_met`: `open_co2`, `met_open_co2`, `met_co2`; the `CO2air` rejection is in `validate_file_against_config` (`ed_met_share`) |
@@ -806,7 +818,7 @@ each option requires are in the reference config `ed_config_main.toml` and in
 | config | `ed_forcing_params`: `forcing_params_t`, `MET_BACKEND_*`, `METAVG_*`, `LW_FILE`, `LW_SYNTHESIZE`, `CLAMP_*`, `GRIDMATCH_*`, `CO2_SOURCE_*`, `HEIGHT_ABOVE_*`, `WIND_EXPOSURE_*`; `SWPART_*` and `LW_CLEAR_*` in `ed_radiation_lib`; read by `load_forcing_params` (`ed_config_io`), checked by `check_forcing` (`ed_config_check`) |
 | fast-loop join | `ed_fast_forcing`: `sample_window` (the per-sub-step `met_advance` and `met_instant`), `site_forcing` (each site's sample), `patch_forcing` (the air at the patch's canopy-air top, from `fill_forcing`, and the radiation, which `apply_rt_forcing` hands to the canopy two-stream, [canopy radiative transfer](canopy_radiation_transfer.md) §3–§4) |
 | file production | the archive: `scripts/prepare_input/era5/download_era5land_gdex.py` or `download_era5land_cds.py`, then `build_era5land_static.py` and `build_era5land_archive.py`; a single file: `make_forcing_file.py` (from the archive, or from `download_era5land_cds.py` and `postprocess_era5land.py` box files) or `scripts/prepare_input/flux_tower/make_tower_forcing.py` (flux-tower data); the shared writer `edmore.forcing` (`python/edmore/forcing.py`); the tower tool's Python mirror of the model's conversions `scripts/prepare_input/flux_tower/tower_conversions.py`; the shipped CO₂ series `scripts/prepare_input/co2/make_co2_file.py` |
-| tests | ctest `met_file` (`test/io/test_met_file.f90`): the mean-conserving identity and the secant bias, the NetCDF round trip, start-clamp and recycle-window rejections, recycle phase over 29 years, prescribed CO₂ (every rejection, the shipped series, CO₂ not recycled with the met), the forcing at a site, and the flux-tower contract (humidity forms, the UTC requirement, stated heights, the interval each flux is read from, the move to the canopy-air top); `met_era5land` (`test/io/test_met_era5land.f90`): a synthetic archive, its cell selection, month loads, seam and recycling; `radiation_lib`, `therm_lib` and `numerics` (`test/share/`): the shortwave schemes, longwave synthesis, humidity, phase, lapse, the beam on a slope |
+| tests | ctest `met_file` (`test/io/test_met_file.f90`): the mean-conserving identity and the secant bias, the NetCDF round trip, start-clamp and recycle-window rejections, recycle phase over 29 years, prescribed CO₂ (every rejection, the shipped series, CO₂ not recycled with the met), the forcing at a site, and the flux-tower contract (humidity forms, the UTC requirement, stated heights, the interval each flux is read from, the move to the canopy-air top); `met_era5land` (`test/io/test_met_era5land.f90`): a synthetic archive, its cell selection, month loads, seam and recycling, and the next month read ahead (an ordinary month, the recycle wrap, a run's last month); `radiation_lib`, `therm_lib` and `numerics` (`test/share/`): the shortwave schemes, longwave synthesis, humidity, phase, lapse, the beam on a slope |
 
 ## References
 

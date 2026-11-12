@@ -138,6 +138,11 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   first, as intended: the loops now ask OpenMP for a monotonic schedule, which ifx's runtime needs
   to follow the order. Bit for bit; example 06's region 02 runs about 11 % faster on 40 threads,
   and example 04 about 4 % faster on 20. (#74)
+- A region run on the ED_ERA5land archive reads each month's forcing on one thread while its
+  polygons step through the month before, instead of making every thread wait for the read: 5 to 7 %
+  less wall time in example 06's regions when the archive is not cached, about 1 % when it is. The
+  log's forcing lines give the seconds the polygons waited and the seconds spent reading ahead. Bit
+  for bit; the run holds one more month of forcing, about 24 kB per cell. (#75)
 
 ### Fixed
 

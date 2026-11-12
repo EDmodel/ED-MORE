@@ -16,7 +16,8 @@
 !      run's series, bit for bit, on every tier, cohort and patch variables included, with
 !      the fill value past the polygon's own count; the polygon axis carries the cells'
 !      ids and coordinates, and each polygon's own layers and map inputs.
-!   4. On four threads the region writes the same files.
+!   4. On four threads the region writes the same files, one thread reading February while
+!      the polygons step through January.
 !   5. A region run in two halves, the second restarted from the first's state file,
 !      writes the second half's files exactly as the whole run does.
 !   6. A reused run owes no restructuring from the run before it.
@@ -183,6 +184,8 @@ program test_region
       call region_step_month(reg, st)
       if (st /= RUN_OK) error stop 'test_region: a threaded region month failed'
    end do
+   call check_true('one thread read February while the polygons stepped through January',              &
+                   reg%met_src%n_loads_ahead == 1_ik)
    call region_finalize(reg, st)
    call region_free(reg)
    nbad = 0_ik
