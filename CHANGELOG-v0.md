@@ -164,6 +164,8 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - Example 03: `prepare_census.py` stops and lists any species code without a wood density, instead
   of putting its trees in PFT 3 and dropping their biomass. The wood-density table gains the three
   codes of the current Dryad download (`ingaun`, `sipacr`, `tremsp`). (#63)
+- Example 04: `run_example.py` runs to its end. `plot_window.py` looked for the window's daily output
+  as `window-D-*.nc`, while the example writes it as one file, `window-D.nc`. (#78)
 
 ## [0.4.1] - 2026-10-26
 

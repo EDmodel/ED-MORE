@@ -63,8 +63,10 @@ def read(pattern):
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("--fast", default=os.path.join(HERE, "output", "window-F-*.nc"))
-    ap.add_argument("--daily", default=os.path.join(HERE, "output", "window-D-*.nc"))
+    # A tier's files under any [output.<tier>].file_chunk: "window-D.nc" holds the whole window ("all"),
+    # "window-D-2016.nc" one year ("year").
+    ap.add_argument("--fast", default=os.path.join(HERE, "output", "window-F*.nc"))
+    ap.add_argument("--daily", default=os.path.join(HERE, "output", "window-D*.nc"))
     ap.add_argument("--site", default=os.path.join(HERE, "bci_site.toml"))
     ap.add_argument("--out", default=os.path.join(HERE, "window.png"))
     args = ap.parse_args(argv)
