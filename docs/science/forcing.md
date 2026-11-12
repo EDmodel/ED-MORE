@@ -38,11 +38,11 @@ variables:
     double latitude(grid) ["degrees_north"], longitude(grid) ["degrees_east"] ;
     double elevation(grid) ["m"] ;              // optional, not read: the cell's orography (archive only)
     float Tair(time,grid) ["K"], PSurf(time,grid) ["Pa"],          // cell_methods = "time: point"
-          Wind(time,grid) ["m s-1"] ;
+          Wind(time,grid) ["m s-1"], LWdown(time,grid) ["W m-2"] ;
     float Tdew(time,grid) ["K"] ;              // the humidity: exactly one of Tdew, RHair ["1"]
                                                // and Qair ["kg kg-1"]; see sec. 7
     float u10(time,grid), v10(time,grid) ["m s-1"] ;            // optional wind vector; see below
-    float Rainf(time,grid) ["kg m-2 s-1"], LWdown(time,grid) ["W m-2"],  // cell_methods = "time: mean"
+    float Rainf(time,grid) ["kg m-2 s-1"],                      // cell_methods = "time: mean"
           SWdown(time,grid) ["W m-2"] ;                         // SWdown is the TOTAL; see sec. 6
     // every float is stored with _FillValue = 1.e20; the writer refuses a missing value (sec. 10)
 // global attributes -- time_zone is required and must be "UTC"; avg_convention, sw_input_kind and,
@@ -132,6 +132,21 @@ last hour needs the 00:00 stamp of day D+1, so the downloader fetches that closi
 extra request; the box files therefore start at 01:00 on the first day and end at 00:00 after the
 last, and nothing is filled.
 
+*The longwave at the stamps.* Every de-accumulated flux is the mean of the hour **ending** at its
+stamp. Rain and shortwave are read as such means (§3, §5), but the reader takes the longwave, like a
+state, as a value *at* the stamps, which would put every hour's longwave half an hour late. So
+ERA5-Land's `LWdown` is centred at the stamps before the reader interpolates it: the value at stamp
+$`t_k`$ is $`\bigl(L(t_k) + L(t_k + 1\,\mathrm{h})\bigr)/2`$, the mean of the hour ending at $`t_k`$
+and the hour after it, with $L$ the stored hour means. `make_forcing_file.py` writes the file's
+`LWdown` that way (`centre_at_stamps`), and the archive reader applies the same rule as it loads a
+month, so a run on the archive and a run on a file cut from it read the same longwave. The last stamp
+of a cut takes the hour after it from the archive, the first hour of the next month's file when the
+stamp closes a month; where the source has no hour after it (the archive's last hour, or the end of
+the box files) the stamp keeps its own hour's mean. The sums are formed in double precision from the
+archive's float32 values and rounded once to float32 on both paths, so the two agree to the bit. A
+tower's longwave is centred by its own tool (below), and an ED-MORE forcing file's `LWdown` is
+labelled `cell_methods = "time: point"`.
+
 **Producing one from flux-tower data.** `scripts/prepare_input/flux_tower/make_tower_forcing.py` reads
 AmeriFlux BASE, FLUXNET (ONEFlux) or a plain CSV described by a site TOML, converts the clock to UTC,
 writes `RHair` as measured, fills gaps explicitly with a per-variable `<Var>_qc` flag, and states the
@@ -158,6 +173,10 @@ checked at config load), because the reader loads one month at a time before a s
 - **reads a month at a time**, one chunk column per variable, into a buffer, checking each file's
   grid, stamps and units, and rejecting a missing value in the cell. A missing value is NaN, as the
   archive stores it; a file whose `_FillValue` is a number is refused rather than read as data;
+- **centres the longwave at its stamps** as it loads the month (`centre_longwave`), by the rule
+  above: the month's last stamp, 00:00 on the 1st of the next month, takes the first hour of the next
+  month's `LWdown` file, checked like any month file. That file need not be one the run reads; without
+  it (the archive's last month) the last stamp keeps its own hour's mean;
 - **converts at each stamp:** $`q`$ from the stored dewpoint and pressure by eq. (11), and the wind
   speed from the stored components, whose vector the record also carries.
 
@@ -206,7 +225,9 @@ patch loop and reads each month at its prefetch. Reading ahead holds one more mo
 
 Within the bracket the weight is $`w_{next}=(t-t_{prev})/(t_{next}-t_{prev})`$, clipped to $[0,1]$. Each
 variable carries its own policy: **linear** for `Tair`, the humidity (as $q$), `PSurf` and `LWdown`
-(smooth atmospheric states, read as values *at* the stamps); **step-constant** for `Rainf`, held over
+(smooth atmospheric states, read as values *at* the stamps; a longwave delivered as hour means is
+centred at the stamps first, by the ERA5-Land tools and archive reader of §1 or by the tower tool);
+**step-constant** for `Rainf`, held over
 the interval it is the mean of, because interpolating precipitation smears intense events into
 physically wrong drizzle and breaks infiltration and runoff; **cosz reconstruction** for the four
 shortwave streams (§5), because those records are interval *means*, not point values. Rain and
@@ -310,8 +331,23 @@ $`\langle\cos z\rangle_{win}`$ of §5), so the clearness index is a ratio of int
 sunrise or sunset interval whose midpoint is dark still splits its light. Both schemes conserve energy
 exactly: the four streams sum to the total.
 
+Both compare the shortwave with the irradiance above the atmosphere, which follows the Earth–Sun distance
+$`r`$. The solar constant $`S_0 = 1361`$ W m⁻² is its value at the mean distance $`r_0`$; on day $`n`$ of the
+year the irradiance normal to the sun is $`S_0 f`$, with
+
+```math
+f = \left(\frac{r_0}{r}\right)^2 = 1 + 0.033\cos\frac{2\pi n}{365}
+```
+
+(Duffie & Beckman 2013, §1.4): +3.3 % in early January, −3.3 % in early July, 1 on average over the year. $`n`$ is
+the UTC day of year of the record (of the instant, for the longwave synthesis and the slope), the day the
+declination of eq. (4) takes. Without $`f`$ the clearness index would be biased by up to 3 % with the season,
+a few hundredths in the diffuse fraction. `earth_sun_distance_factor` (`ed_time`) computes $`f`$ from the day of year and the caller passes it to the
+laws below: the clearness index, the Weiss–Norman bands $`S_{vis}`$ and $`S_{nir}`$, and the slope's solar constant. With `sw_partition = "passthrough"` the four streams are the file's own, and $`f`$ only enters
+the longwave synthesis's $`k_t`$.
+
 **`sw_partition = "clearidx"`** — the Erbs et al. (1982) clearness-index correlation. With
-$`k_t = \mathrm{SW}/(S_0\cos z)`$ clipped to $[0,1]$ and $`S_0 = 1361`$ W m⁻²,
+$`k_t = \mathrm{SW}/(S_0 f\cos z)`$ clipped to $[0,1]$,
 
 ```math
 f_{diff} =
@@ -330,10 +366,10 @@ sensors these fractions give PPFD 3–11 % high, mostly from the diffuse 0.52.
 **`sw_partition = "weiss_norman"`** — the band-specific Weiss & Norman (1985) scheme, after ED2's
 `short_bdown_weissnorman`. It builds *potential* (clear-sky) band fluxes from air-mass optical depth, with
 $`m=\sec z`$ and $`p_{rat}=P_{surf}/P_{std}`$ (so it needs surface pressure), then scales them to the
-observed total. The sun's beam above the atmosphere is $`S_{vis}=600`$ W m⁻² visible and
-$`S_{nir}=720`$ W m⁻² near-infrared, and the NIR water-vapour absorption is
-$`w_{10}=1320\cdot10^{\,-1.1950+0.4459\log_{10}m-0.0345(\log_{10}m)^2}`$ W m⁻², as WN85 publish them
-(eqs. 1, 4, 6):
+observed total. The sun's beam above the atmosphere is $`S_{vis}=600f`$ W m⁻² visible and
+$`S_{nir}=720f`$ W m⁻² near-infrared (600 and 720 at the mean distance), and the NIR water-vapour absorption is
+$`w_{10}=1320f\cdot10^{\,-1.1950+0.4459\log_{10}m-0.0345(\log_{10}m)^2}`$ W m⁻² (1320, the solar constant
+WN85 use, scales with the distance too), as WN85 publish them (eqs. 1, 4, 6):
 
 ```math
 R^{pot}_{vis,b} = S_{vis}e^{-0.185\,p_{rat}m}\cos z, \qquad
@@ -381,9 +417,19 @@ A file carries the humidity its source measured, and the reader converts it to s
 each stamp, with that record's own temperature and the pressure of the air it was measured in: a
 dewpoint (`Tdew`, a reanalysis) or a relative humidity (`RHair`, a flux tower) by eq. (11), a specific
 humidity (`Qair`) as it is. A file's pressure is the ground's, so for heights above the ground (a
-tower) the reader moves it up the dry adiabat to `tq_height`, as Step 2 moves it to the canopy-air top
-(`tq_height_pressure`; about 0.5 % lower at a 41 m tower, and the specific humidity as much higher). A
-reanalysis's 2 m air keeps the surface pressure it comes with. Storing the
+tower) the reader moves it up to `tq_height` by eq. (15), as Step 2 moves it to the canopy-air top
+(`tq_height_pressure`; about 0.5 % lower at a 41 m tower, and the specific humidity as much higher).
+That move is moist air's, so it takes the humidity formed at the ground's pressure; the error of
+this one pass is second order, a few parts in 10⁷ of $q$ at a 41 m tower. A
+reanalysis's 2 m air keeps the surface pressure it comes with.
+
+**Every humidity is held to saturation.** Whatever its form, the specific humidity is held to
+$`[0,\,q_{sat}(T,P)]`$ at the record's temperature and that pressure (`record_specific_humidity`), as a
+relative humidity is held to $[0,1]$. A dewpoint above the air temperature, which ERA5-Land can
+deliver (the archive builder warns only above 0.5 K), or a specific humidity above saturation is
+saturated air: a value
+at a point cannot hold more, and the terrain lapse (§8), which goes through the relative humidity,
+gives the same air as a run without it. Storing the
 measured quantity is what keeps the provider's saturation curve out of the model: a tower's relative
 humidity is a sensor reading, while its vapour-pressure deficit, or a $q$ made from it offline, carries
 whichever curve the provider used (Barro Colorado Island's `vpd` column is the Alduchov–Eskridge
@@ -399,7 +445,8 @@ so the ice branch that `sat_vapor_pressure` has for frozen surfaces
 ([snow biophysics](snow_biophysics.md), "Sublimation saturates over ice") must not be applied here.
 Every diagnostic output file of an ED_ERA5land run names the formula in its `forcing_qair` global
 attribute. The dewpoint form uses the fact that the actual vapour pressure *is* the saturation vapour
-pressure at the dewpoint; RH is clipped to $[0,1]$ first. The model's own inverse,
+pressure at the dewpoint; RH is clipped to $[0,1]$ first, and every form to saturation after. The
+model's own inverse,
 `specific_humidity_to_vpd`, is the exact inverse of eq. (11), so a saturated record reads back as a
 vapour-pressure deficit of zero.
 
@@ -458,15 +505,22 @@ polygon's, `[site].elevation`, and the cell's: the archive's static orography, o
 (`[site].lapse_rate_tair`, 0 to 0.01 K m⁻¹: one value, or twelve picked by the record's calendar month,
 such as Kunkel's 1989 Northern Hemisphere rates tabulated by Liston & Elder 2006, from 4.4 K km⁻¹ in
 January to 8.2 in June), temperature and pressure move together so they stay ideal-gas consistent. The
-pressure form is the hypsometric integral of $`dP/dz=-Pg/(R_dT)`$ under the *same* linear $T(z)$:
+pressure form is the hypsometric integral of $`dP/dz=-Pg/(R_mT)`$ under the *same* linear $T(z)$:
 
 ```math
 T_{site} = T_{grid}-\Gamma\,\Delta z, \qquad
-P_{site} = P_{grid}\left(\frac{T_{site}}{T_{grid}}\right)^{g/(R_d\Gamma)} \qquad(13)
+P_{site} = P_{grid}\left(\frac{T_{site}}{T_{grid}}\right)^{g/(R_m\Gamma)}, \qquad
+R_m = R_d\left[1+\left(\frac{R_v}{R_d}-1\right)q\right] \qquad(13)
 ```
 
-with the isothermal limit $`P_{site}=P_{grid}\exp[-g\,\Delta z/(R_dT_{grid})]`$ when $`|\Gamma|\le 10^{-6}`$.
-Humidity and file longwave follow, as in NLDAS (Cosgrove et al. 2003):
+with the isothermal limit $`P_{site}=P_{grid}\exp[-g\,\Delta z/(R_mT_{grid})]`$ when $`|\Gamma|\le 10^{-6}`$.
+$`R_m`$ is the gas constant of moist air holding specific humidity $q$ (`moist_gas_constant`), with
+$`R_d`$ and $`R_v`$ the gas constants of dry air and water vapour and
+$`R_v/R_d-1=M_{dry}/M_{h2o}-1=0.60783`$ (`virtual_temp_factor`); $`R_mT=R_dT_v`$, the virtual
+temperature's form of the same law, which the air density $`\rho_{air}=P/(R_mT)`$ uses too. The
+humidity is the record's, held along the path. Moist air is lighter than dry air, so its pressure
+falls more slowly with height: over 500 m at $q$ = 0.02 the pressure drop is 1.2 % smaller, 0.07 % of
+the pressure. Humidity and file longwave follow, as in NLDAS (Cosgrove et al. 2003):
 
 ```math
 q_{site} = q\!\left(RH\,e_s(T_{site}),\,P_{site}\right),\quad RH=\frac{e(q_{grid},P_{grid})}{e_s(T_{grid})}, \qquad
@@ -474,12 +528,13 @@ L^{\downarrow}_{site} = L^{\downarrow}_{grid}\,\frac{\varepsilon(T_{site},q_{sit
 ```
 
 **Relative humidity is held**, not specific humidity: holding $q$ would dry a site below its cell by
-about 6 % RH per K of warming, 20 % over 500 m. A file's `RHair` is used directly at the site; a
-dewpoint or a specific humidity gives its relative humidity at the cell first. $\varepsilon$ is the
+about 6 % RH per K of warming, 20 % over 500 m. Every humidity form gives its relative humidity at the
+cell, and the pressures in it are those the humidity is formed at, the sensor's (§7), at both ends.
+$\varepsilon$ is the
 clear-sky emissivity of §11 (`[forcing].lw_clear_form`); a synthesized longwave is built afterwards from
 the lapsed $T$ and $q$ instead. Wind, shortwave and precipitation are unchanged; the rain/snow split
-(§7) is made later, at the canopy-air top. A region's polygons sit at their cells' own elevations, so
-there $\Delta z = 0$.
+(§7) is made later, at the canopy-air top. A polygon at its cell's elevation, $\Delta z = 0$, keeps the
+record as read. A region's polygons sit at their cells' own elevations, so there $\Delta z = 0$.
 
 ### Each site of a polygon
 
@@ -500,9 +555,9 @@ corrections (`met_at_site`), and each of its patches works from the result:
   ```
 
   for declination $\delta$, hour angle $h$ (§4) and latitude $\phi$; $\cos i = 0$ with the sun behind
-  the slope. Both beam streams take the factor $`\min(\cos i/\cos z,\; S_0\cos i/I_b)`$, $I_b$ the beam on
-  level ground: the beam normal to the sun, $`I_b/\cos z`$, held at most the solar constant
-  $`S_0 = 1361`$ W m⁻², so a low sun's small $\cos z$ does not inflate the beam a slope facing it receives.
+  the slope. Both beam streams take the factor $`\min(\cos i/\cos z,\; S_0 f\cos i/I_b)`$, $I_b$ the beam on
+  level ground: the beam normal to the sun, $`I_b/\cos z`$, held at most the solar constant of the day
+  $`S_0 f`$ (§6), so a low sun's small $\cos z$ does not inflate the beam a slope facing it receives.
 
 The diffuse light, the wind and the precipitation are the polygon's, and the canopy's radiation keeps
 the sun's zenith angle: stems stand vertical on a slope. A flat site at the polygon's elevation takes
@@ -529,7 +584,7 @@ canopy). An open-terrain wind (`wind_exposure = "open_terrain"`, with `wind_expo
 ```math
 u(z_c) = u_m\,\frac{\ln(z_b/z_{0e})}{\ln(z_m/z_{0e})}\;\frac{\ln(h_c/z_0)}{\ln(h_b/z_0)}, \qquad
 T(z_c) = T_m-\frac{g}{c_p}\,(z_c-z_T), \qquad
-P(z_c) = P_s\left(\frac{T(z_c)}{T(z_s)}\right)^{c_p/R_d} \qquad(15)
+P(z_c) = P_s\left(\frac{T(z_c)}{T(z_s)}\right)^{c_p/R_m} \qquad(15)
 ```
 
 Here $`u_m`$ and $`T_m`$ are the forcing's wind and temperature, $`z_m`$ is `wind_height`, $`z_{0e}`$ is
@@ -538,9 +593,12 @@ first factor). $`h_c`$ and $`h_b`$ are $`z_c`$ and $`z_b`$ as heights above the 
 reanalysis's heights already are; a tower's are measured above the ground, so $d$ is subtracted),
 floored at $`2z_0`$ like the aerodynamics' own reference height. The temperature height is
 $`z_T = d + `$`tq_height` above the zero plane, or `tq_height` above the ground. The move conserves
-potential temperature, $\theta = T + (g/c_p)\,z$. Pressure moves along the same adiabat from
+potential temperature, $\theta = T + (g/c_p)\,z$. Pressure moves under the same temperature from
 $`z_s`$, where the forcing's surface pressure $`P_s`$ is, at the forcing's temperature brought down to
-it, $`T(z_s) = T_m + (g/c_p)\,(z_T - z_s)`$: the hydrostatic integral under that linear $T(z)$. For a
+it, $`T(z_s) = T_m + (g/c_p)\,(z_T - z_s)`$: the hydrostatic integral of moist air, with the $`R_m`$
+of eq. (13) at the forcing's humidity, under that linear $T(z)$. The temperature stays the dry
+adiabat's. Over a 40 m lift at $q$ = 0.02, moist air's pressure at the top is about 5 Pa above dry
+air's. For a
 tower $`z_s`$ is the ground; for a reanalysis, whose heights are above the zero plane, it is $d$, the
 reanalysis's own surface. The aerodynamics then references both the canopy air's potential
 temperature and this air's to $`z_c`$, where each equals its actual temperature ([canopy
@@ -561,6 +619,26 @@ the tower's at the same canopy-air top, and its temperature 0.11 K warmer.
 **Not corrected: stability.** The neutral move leaves the stability-dependent part of the 2 m → canopy-top
 difference, about ±1 K between day and night. Correcting it needs fluxes ERA5-Land does not carry, and its
 2 m value describes a clearing, so inverting similarity theory from it would add error.
+
+**Accepted: one pressure for the whole patch.** The ground sits below the canopy-air top, so its true
+pressure is higher than the one it is given: by the hypsometric relation, about 0.4 % for a top 35–39 m
+above it at tropical temperatures. The ground's saturation humidity, which scales as $`1/P`$, is
+overstated by the same fraction. The deficit that drives evaporation is a small part of the saturation
+humidity, so the ground evaporation it drives is overstated by a few times that: of order 0.1 W m⁻² at a
+humid tropical site. One pressure keeps the canopy air, the leaves and the ground on one parcel of air.
+
+**Accepted: supersaturation after the lift.** Moving the forcing air up the dry adiabat at constant
+specific humidity cools it, and cooler air has a lower saturation humidity: over 12–15 m at tropical
+temperatures the relative humidity rises by 0.6–0.7 % (the pressure falling with height offsets a little
+of the cooling's effect). Near-saturated 2 m air therefore arrives at the canopy-air top supersaturated
+by that margin. The canopy air's condensation (`cas_condensation`, with its time constant `TAU_COND`)
+removes the excess: the lifted air reaches condensation along a dry adiabat, not a moist one.
+
+**Accepted: rain at the air's temperature.** Rain and snow are valued at the canopy-air top's air
+temperature, but falling drops are nearer the wet-bulb temperature, which is lower in unsaturated air.
+The enthalpy rain carries is its rate times $`c_{liq}`$ times the temperature difference, about 0.3 W m⁻²
+in the yearly mean at a humid tropical site (2,000–2,800 mm yr⁻¹ with a wet-bulb depression of about 1 K)
+and about 12 W m⁻² in an hour of 10 mm h⁻¹ rain.
 
 **In the output**, the polygon's forcing echo (`mean_air_temp_py`, `mean_wind_py`, …) is the forcing after the
 terrain lapse, at its own heights; each patch's forcing is `mean_wind_cas_top_pa` and
@@ -802,23 +880,24 @@ each option requires are in the reference config `ed_config_main.toml` and in
 | interpolation, wind energy form | `ed_numerics`: `linear_interpolate`; `ed_met`: `interpolate_wind_energy` |
 | apparent solar time, zenith | `ed_time`: `solar_cosz_utc` over `solar_cosz`, with `utc_to_solar_seconds` and the private `equation_of_time`; the window mean `mean_solar_cosz`; `solar_declination`, `daylength` |
 | SW disaggregation | `ed_met`: `cosz_reconstruct_factor`, `disaggregate_sw` |
+| Earth–Sun distance factor, §6 | `ed_time`: `earth_sun_distance_factor`, called by `ed_met` and `ed_fast_forcing` with the day of year |
 | SW partition | `ed_radiation_lib`: `partition_shortwave`, `erbs_diffuse_fraction`, `weiss_norman_partition` |
-| humidity, precip phase | `ed_therm_lib`: `sat_specific_humidity` (at the dewpoint), `rh_to_specific_humidity`, `vapor_pressure_to_specific_humidity`, `specific_humidity_to_vapor_pressure`, `precip_phase`; the pressure they use, `tq_height_pressure` (`ed_met`) |
+| humidity, precip phase | `ed_therm_lib`: `sat_specific_humidity` (at the dewpoint), `rh_to_specific_humidity`, `vapor_pressure_to_specific_humidity`, `specific_humidity_to_vapor_pressure`, `precip_phase`; `ed_met`: `record_specific_humidity` (each form, held to saturation) and the pressure it uses, `tq_height_pressure` |
 | longwave synthesis | `ed_radiation_lib`: `clearness_index`, `clear_sky_emissivity`, `synthesize_lwdown`; `ed_met`: `remember_clearness` (the night's $`k_t`$) |
 | the grid and its cells | `ed_met_grid`: `select_site_cell`, `select_box_cells`, `keep_cells`, `same_grid`, `great_circle_distance`, `nearest_grid_index`; the archive's grid, `ed_met_era5land`: `era5land_grid` |
-| terrain lapse (§8, Step 1) | the laws: `ed_therm_lib`: `lapse_air_temperature`, `lapse_pressure`, `lapse_specific_humidity`; `ed_radiation_lib`: `lapse_longwave`; applied in `read_record` (`ed_met`) |
+| terrain lapse (§8, Step 1) | the laws: `ed_therm_lib`: `lapse_air_temperature`, `lapse_pressure`, `moist_gas_constant`, `lapse_specific_humidity`; `ed_radiation_lib`: `lapse_longwave`; applied by `terrain_lapse` (`ed_met`) in `read_record` and `met_at_site` |
 | each site (§8) | `ed_met`: `met_at_site`, with `slope_incidence_cosz` (`ed_time`) and `slope_beam_factor` (`ed_radiation_lib`) |
-| canopy-air top (§8, Step 2) | `ed_met`: `cas_top_wind_factor`, `met_to_cas_top`; `ed_therm_lib`: `dry_adiabat_temperature`, `dry_adiabat_pressure`; `canopy_roughness` (`ed_canopy_aerodynamics`); called per patch by `ed_fast_forcing` |
+| canopy-air top (§8, Step 2) | `ed_met`: `cas_top_wind_factor`, `met_to_cas_top`; `ed_therm_lib`: `dry_adiabat_temperature`, `dry_adiabat_pressure`, `moist_gas_constant`; `canopy_roughness` (`ed_canopy_aerodynamics`); called per patch by `ed_fast_forcing` |
 | the reader | `ed_met`: `met_open`, `met_cursor_init`, `met_prefetch`, `met_read_ahead`, `met_advance`, `met_instant`, `met_close`; the one ingest `read_record`, `assert_finite` |
 | the two file sources | `ed_met_default`: `default_file_open`, `default_file_record`, `read_series`, `detect_humidity`; `ed_met_era5land`: `era5land_open`, `era5land_prefetch`, `era5land_read_ahead`, `era5land_record`, `open_archive`, `month_of_step`, `load_axis_month`, `locate_record`, `keep_window_head` |
-| the archive's files | `ed_met_era5land`: `era5land_path`, `era5land_month_hours`, `era5land_load_month` |
+| the archive's files | `ed_met_era5land`: `era5land_path`, `era5land_month_hours`, `era5land_load_month` (with `open_month_variable`, `read_month_hours` and the longwave's `centre_longwave`) |
 | recycling | `ed_met_share`: `validate_recycle_window`, `file_lookup_sec`, `recycle_model_to_file`; `ed_met`: `load_wrap_bracket` |
 | CO₂ | `ed_met_co2`: `co2_series_read`, `co2_series_at`, `co2_series_covers`; `ed_met`: `open_co2`, `met_open_co2`, `met_co2`; the `CO2air` rejection is in `validate_file_against_config` (`ed_met_share`) |
 | types | `ed_met_types`: `met_forcing_t`, `met_record_t`, `met_source_t`, `met_cursor_t`, `met_grid_t`, `met_cells_t`, `met_month_t`, `co2_series_t` |
 | config | `ed_forcing_params`: `forcing_params_t`, `MET_BACKEND_*`, `METAVG_*`, `LW_FILE`, `LW_SYNTHESIZE`, `CLAMP_*`, `GRIDMATCH_*`, `CO2_SOURCE_*`, `HEIGHT_ABOVE_*`, `WIND_EXPOSURE_*`; `SWPART_*` and `LW_CLEAR_*` in `ed_radiation_lib`; read by `load_forcing_params` (`ed_config_io`), checked by `check_forcing` (`ed_config_check`) |
 | fast-loop join | `ed_fast_forcing`: `sample_window` (the per-sub-step `met_advance` and `met_instant`), `site_forcing` (each site's sample), `patch_forcing` (the air at the patch's canopy-air top, from `fill_forcing`, and the radiation, which `apply_rt_forcing` hands to the canopy two-stream, [canopy radiative transfer](canopy_radiation_transfer.md) §3–§4) |
-| file production | the archive: `scripts/prepare_input/era5/download_era5land_gdex.py` or `download_era5land_cds.py`, then `build_era5land_static.py` and `build_era5land_archive.py`; a single file: `make_forcing_file.py` (from the archive, or from `download_era5land_cds.py` and `postprocess_era5land.py` box files) or `scripts/prepare_input/flux_tower/make_tower_forcing.py` (flux-tower data); the shared writer `edmore.forcing` (`python/edmore/forcing.py`); the tower tool's Python mirror of the model's conversions `scripts/prepare_input/flux_tower/tower_conversions.py`; the shipped CO₂ series `scripts/prepare_input/co2/make_co2_file.py` |
-| tests | ctest `met_file` (`test/io/test_met_file.f90`): the mean-conserving identity and the secant bias, the NetCDF round trip, start-clamp and recycle-window rejections, recycle phase over 29 years, prescribed CO₂ (every rejection, the shipped series, CO₂ not recycled with the met), the forcing at a site, and the flux-tower contract (humidity forms, the UTC requirement, stated heights, the interval each flux is read from, the move to the canopy-air top); `met_era5land` (`test/io/test_met_era5land.f90`): a synthetic archive, its cell selection, month loads, seam and recycling, and the next month read ahead (an ordinary month, the recycle wrap, a run's last month); `radiation_lib`, `therm_lib` and `numerics` (`test/share/`): the shortwave schemes, longwave synthesis, humidity, phase, lapse, the beam on a slope |
+| file production | the archive: `scripts/prepare_input/era5/download_era5land_gdex.py` or `download_era5land_cds.py`, then `build_era5land_static.py` and `build_era5land_archive.py`; a single file: `make_forcing_file.py` (from the archive, or from `download_era5land_cds.py` and `postprocess_era5land.py` box files; its longwave centred by `centre_at_stamps`) or `scripts/prepare_input/flux_tower/make_tower_forcing.py` (flux-tower data); the shared writer `edmore.forcing` (`python/edmore/forcing.py`); the tower tool's Python mirror of the model's conversions `scripts/prepare_input/flux_tower/tower_conversions.py`; the shipped CO₂ series `scripts/prepare_input/co2/make_co2_file.py` |
+| tests | ctest `met_file` (`test/io/test_met_file.f90`): the mean-conserving identity and the secant bias, the NetCDF round trip, start-clamp and recycle-window rejections, recycle phase over 29 years, prescribed CO₂ (every rejection, the shipped series, CO₂ not recycled with the met), the forcing at a site, and the flux-tower contract (humidity forms, the UTC requirement, stated heights, the interval each flux is read from, the move to the canopy-air top); `met_era5land` (`test/io/test_met_era5land.f90`): a synthetic archive, its cell selection, month loads, seam and recycling, the next month read ahead (an ordinary month, the recycle wrap, a run's last month), and the longwave centred at its stamps (within a month, across a month's and a year's end, the archive's last hour); `prepare_era5` (`scripts/prepare_input/era5/tests`): the same centring in `make_forcing_file.py`, from the archive and from box files; `radiation_lib`, `therm_lib` and `numerics` (`test/share/`): the shortwave schemes, longwave synthesis, humidity, phase, lapse, the beam on a slope |
 
 ## References
 
@@ -830,6 +909,8 @@ each option requires are in the reference config `ed_config_main.toml` and in
 - Idso & Jackson (1969), *J. Geophys. Res.* 74:5397: temperature-only clear-sky emissivity.
 - Spencer (1971), *Search* 2:172: Fourier series for the equation of time.
 - Cooper (1969), *Solar Energy* 12:333: the declination formula of eq. (4).
+- Duffie & Beckman (2013), *Solar Engineering of Thermal Processes*, 4th ed., Wiley, §1.4,
+  doi:10.1002/9781118671603: the Earth–Sun distance factor of §6.
 - Jin et al. (1999): precipitation phase partitioning; ED2 `ed_met_driver.f90`.
 - Longo et al. (2019), *GMD* 12:4309: ED-2.2 technical description (the meteorological driver).
 - Muñoz-Sabater et al. (2021), *ESSD* 13:4349: ERA5-Land; §2.3, its own lapse to the ERA5-Land orography.

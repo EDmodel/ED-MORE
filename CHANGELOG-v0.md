@@ -73,6 +73,22 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   March −14 %; example 06 region 06 −14 % on 40 threads). Results move within the Newton's
   tolerance: at BCI (example 04) the five-year mean GPP, LE, H and ET by less than 1e-5 relative, in
   the region test's January–February run LE and snow water equivalent by about 1e-4. (#76)
+- The irradiance above the atmosphere follows the Earth–Sun distance (about ±3.3 % over the year)
+  in the clearness index, the Erbs and Weiss–Norman shortwave partitions, the longwave synthesis and
+  the slope beam cap. Total shortwave is unchanged; its beam/diffuse and PAR/NIR split shift with
+  the season. BCI (example 04, default/calibrated): LE +0.03/+0.04 %, GPP +0.04/+0.04 %; Palo Verde
+  (ERA5-Land inventory check): LE +0.07 %, GPP +0.06 %. A passthrough partition with longwave from
+  file is bit for bit. (#79)
+- A forcing record's humidity is held to saturation whatever its kind (relative humidity, dewpoint
+  or specific humidity) and whether the terrain lapse is on or off, and the terrain lapse takes the
+  relative humidity at the humidity sensor's pressure at both ends. The pressure lapses (the terrain
+  lapse, the lift to the canopy-air top, a tower's sensor height) and the air density use the gas
+  constant of moist air. BCI (example 04) and Palo Verde (ERA5-Land): the means move by less than
+  1e-4 relative (Palo Verde LE −0.003 %). (#80)
+- ERA5-Land's longwave, a mean over the hour ending at each stamp, is centred at the stamps, from the
+  archive and in the files `make_forcing_file.py` cuts alike; it acted half an hour late. Every
+  ERA5-Land run moves at the sub-daily scale (Palo Verde: hourly longwave by up to 10 W/m2, LE
+  −0.11 %, H +0.14 %, GPP −0.03 %); tower runs are bit for bit. (#81)
 - Rubisco's Michaelis constants Kc and Ko, partial pressures, become mole fractions over the dry-air
   pressure P − e, the basis of the canopy air's CO2 and O2, instead of over P (and the C4 PEP slope
   likewise); the Rubisco-limited rate was about 1.3–1.5 % high in humid air. BCI (example 04,
@@ -175,6 +191,8 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - Example 03: `prepare_census.py` stops and lists any species code without a wood density, instead
   of putting its trees in PFT 3 and dropping their biomass. The wood-density table gains the three
   codes of the current Dryad download (`ingaun`, `sipacr`, `tremsp`). (#63)
+- Example 04: `run_example.py` runs to its end. `plot_window.py` looked for the window's daily output
+  as `window-D-*.nc`, while the example writes it as one file, `window-D.nc`. (#78)
 
 ## [0.4.1] - 2026-10-26
 
@@ -203,6 +221,9 @@ patch version; the names change, and the Upgrading notes list them.
   `meds_config_*.toml`), and their scripts take `--edmore` (was `--meds-main`). (#42)
 - The conda environment is `edmore` (was `meds`): `mamba env create -f environment.yml`, then
   `conda activate edmore`. It needs Python 3.11 or later and brings CMake. (#43)
+- ERA5-Land forcing files cut with `scripts/prepare_input/era5/make_forcing_file.py` before #81 hold
+  the longwave as hourly means ending at the stamps, which the model reads half an hour late: cut
+  them again. The archive is read correctly without any change. (#81)
 - `edmore.plant.leaf.rubisco_kinetics` requires `vpd` [Pa], the leaf-to-air vapour pressure deficit,
   as a keyword argument, and the C function `ed_rubisco_kinetics` takes it after `pressure`: the
   constants depend on the air's vapour pressure. (#82)

@@ -3,8 +3,8 @@
 !   ed_therm_lib -- the thermodynamics the model's stores share, so each uses one formula:
 ! the specific energies of liquid, ice, vapour and canopy air in one datum and the energy
 ! -> temperature inverter with phase change (docs/science/soil_biophysics.md); moist
-! air: saturation vapour pressure and humidity, VPD, the dry air's pressure and density
-! (docs/science/snow_biophysics.md eq. (1), docs/science/forcing.md eq. (11)); the
+! air: saturation vapour pressure and humidity, VPD, the dry air's pressure, density and the gas
+! constant (docs/science/snow_biophysics.md eq. (1), docs/science/forcing.md eq. (11)); the
 ! rain/snow split; the air at another height (docs/science/forcing.md §8); plant
 ! tissue heat capacity and energy (docs/science/vegetation_energy_dynamics.md eqs.
 ! (8)-(10)); soil heat: the thermal properties of a texture and the soil's conductivity
@@ -32,7 +32,7 @@ module ed_therm_lib
    public :: sat_vapor_pressure, sat_specific_humidity, sat_vapor_pressure_temp_deriv
    public :: sat_specific_humidity_temp_deriv, air_vpd, specific_humidity_to_vpd, vpd_to_vapor_pressure
    public :: vapor_pressure_to_specific_humidity, specific_humidity_to_vapor_pressure, rh_to_specific_humidity
-   public :: dry_air_pressure
+   public :: dry_air_pressure, moist_gas_constant
    public :: air_density, cas_temp_to_enthalpy, cas_enthalpy_to_temp, cas_heat_capacity, cas_molar_density
    !--- The air at another height.
    public :: lapse_air_temperature, lapse_pressure, lapse_specific_humidity, dry_adiabat_temperature
@@ -211,7 +211,7 @@ contains
 
    !---~---
    !   The saturation vapour pressure e [Pa] over one phase (phase = 1 liquid, 0 ice) and its
-   ! slope de/dT [Pa/K] (docs/science/snow_biophysics.md eq. (1)). The latent heat is the
+   ! slope de/dT [Pa/K] (docs/science/snow_biophysics.md eqs. (1), (2)). The latent heat is the
    ! Kirchhoff L(T) of latent_heat_vap, so the slope is the Clausius-Clapeyron equation
    ! e L / (Rv T**2) by construction, and both phases meet at es_3ple at t_3ple.
    !---~---
@@ -350,12 +350,22 @@ contains
       vpd   = air_vpd(temp, e_vap)
    end function specific_humidity_to_vpd
 
-   !--- Moist-air density [kg/m3] via the virtual temperature.
+   !--- Moist-air density [kg/m3], p / (R_m T) (moist_gas_constant).
    elemental function air_density(t_k, p_pa, shv) result(rho)
       real(wp), intent(in) :: t_k, p_pa, shv
       real(wp)             :: rho
-      rho = p_pa / (r_dry * t_k * (1.0_wp + virtual_temp_factor * shv))
+      rho = p_pa / (moist_gas_constant(shv) * t_k)
    end function air_density
+
+   !---~---
+   !   The gas constant of moist air [J/kg/K] holding specific humidity shv,
+   ! R_m = R_d (1 + (R_v/R_d - 1) q) (docs/science/forcing.md eq. (13)): R_m T = R_d T_v, the
+   ! virtual temperature's form of the same law.
+   !---~---
+   elemental real(wp) function moist_gas_constant(shv) result(r_moist)
+      real(wp), intent(in) :: shv   ! [kg/kg]
+      r_moist = r_dry * (1.0_wp + virtual_temp_factor * shv)
+   end function moist_gas_constant
 
    !---~---
    !   Canopy-air specific enthalpy [J/kg] from temperature and specific humidity: dry
@@ -415,19 +425,21 @@ contains
    end function lapse_air_temperature
 
    !---~---
-   !   Hypsometric pressure under the same linear T(z), so P and T stay ideal-gas
-   ! consistent: P_site = P_grid (T_site/T_grid)^(g/(Rd gamma)), or
-   ! exp(-g dz/(Rd T)) as gamma -> 0 (docs/science/forcing.md eq. (13)).
+   !   Hypsometric pressure of moist air under the same linear T(z), so P and T stay
+   ! ideal-gas consistent: P_site = P_grid (T_site/T_grid)^(g/(R_m gamma)), or
+   ! exp(-g dz/(R_m T)) as gamma -> 0, with R_m the moist-air gas constant of the air's
+   ! humidity shv, held along the path (docs/science/forcing.md eq. (13)).
    !---~---
-   elemental function lapse_pressure(psurf_grid, tair_grid, dz, gamma) result(psurf_site)
+   elemental function lapse_pressure(psurf_grid, tair_grid, dz, gamma, shv) result(psurf_site)
       real(wp), intent(in) :: psurf_grid, tair_grid, dz, gamma
+      real(wp), intent(in) :: shv   ! [kg/kg] specific humidity of the air
       real(wp) :: psurf_site, tair_site
       real(wp), parameter :: LAPSE_GAMMA_MIN = 1.0e-6_wp
       if (abs(gamma) > LAPSE_GAMMA_MIN) then
          tair_site  = tair_grid - gamma * dz
-         psurf_site = psurf_grid * (tair_site / tair_grid) ** (grav / (r_dry * gamma))
+         psurf_site = psurf_grid * (tair_site / tair_grid) ** (grav / (moist_gas_constant(shv) * gamma))
       else
-         psurf_site = psurf_grid * exp(-grav * dz / (r_dry * tair_grid))
+         psurf_site = psurf_grid * exp(-grav * dz / (moist_gas_constant(shv) * tair_grid))
       end if
    end function lapse_pressure
 
@@ -453,13 +465,14 @@ contains
    end function dry_adiabat_temperature
 
    !---~---
-   !   Air pressure dz above the air at (p_pa, t_k), along the same dry adiabat: the hydrostatic
-   ! integral under that linear temperature, p (T(dz)/T)**(cp/R_d), so pressure and temperature stay
-   ! on one adiabat (docs/science/forcing.md eq. (15)).
+   !   Air pressure dz above the air at (p_pa, t_k), under the temperature of the same dry adiabat:
+   ! the hydrostatic integral of moist air holding shv under that linear temperature,
+   ! p (T(dz)/T)**(cp/R_m) (docs/science/forcing.md eq. (15)).
    !---~---
-   elemental real(wp) function dry_adiabat_pressure(p_pa, t_k, dz) result(p_dz)
+   elemental real(wp) function dry_adiabat_pressure(p_pa, t_k, dz, shv) result(p_dz)
       real(wp), intent(in) :: p_pa, t_k, dz
-      p_dz = p_pa * (dry_adiabat_temperature(t_k, dz) / t_k) ** (cp_air / r_dry)
+      real(wp), intent(in) :: shv   ! [kg/kg] specific humidity of the air
+      p_dz = p_pa * (dry_adiabat_temperature(t_k, dz) / t_k) ** (cp_air / moist_gas_constant(shv))
    end function dry_adiabat_pressure
 
    !--- Plant tissue heat (docs/science/vegetation_energy_dynamics.md eqs. (8)-(10)).

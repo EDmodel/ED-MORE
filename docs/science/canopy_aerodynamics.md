@@ -11,8 +11,8 @@ $`u_*`$; the scalar profile factors that set the atmosphere↔CAS conductances o
 CO₂; the per-cohort in-canopy wind and leaf and wood boundary-layer conductances; and the ground↔CAS
 conductance. Like ED2's `canopy_turbulence8`, it carries no integrated state and is recomputed from the
 current CAS and vegetation state. The physics combines ED2 and CLM: CLM5's four-range Monin–Obukhov
-surface layer, ED2's forced-plus-free-convection Nusselt boundary layers, ED2's per-cohort wind
-extinction, and a CLM4-like ground conductance.
+surface layer, ED2's Nusselt coefficients with forced and free convection combined as Churchill (1977)
+(eq. (11)), ED2's per-cohort wind extinction, and a CLM4-like ground conductance.
 
 Symbols: $`u_*`$ = friction velocity; $\zeta = z/L$ = Monin–Obukhov stability parameter ($L$ = Obukhov
 length); $`z_{0m}, z_{0h}, z_{0q}`$ = roughness lengths for momentum, heat and vapour; $d$ = displacement
@@ -247,9 +247,11 @@ g_{bh} = \max\!\Big(g_{bh,min},\ \big(\mathrm{Nu}_{forced}^{3}+\mathrm{Nu}_{free
 \frac{\alpha_{th}}{\ell}\Big) \qquad(11)
 ```
 
-The cube root of the sum of cubes is the Churchill (1977) correlation for mixed convection
-(Churchill, S.W., 1977, "A comprehensive correlating equation for laminar, assisting, forced and free convection", *AIChE J.* 23(1):10-16, doi:10.1002/aic.690230103). It tends to the larger
-Nusselt number when one dominates, and is 37 % below the linear sum when the two are equal.
+The cube root of the sum of cubes is the Churchill (1977) correlation for mixed convection. It tends to
+the larger Nusselt number when one dominates, and is 37 % below the linear sum when the two are equal.
+Churchill's exponent is 3, the usual choice; larger exponents, which keep the combination closer to the
+larger term, are sometimes fitted to transverse flow over plates and cylinders. ED-MORE fixes it at 3
+(`boundary_layer_conductance`).
 
 The kinematic viscosity $\nu$ and thermal diffusivity $\alpha_{th}$ are linear-in-temperature about a
 0 °C reference (`kin_visc0`, `dkin_visc`, `th_diff0`, `dth_diff`, `t_ref_air`): 1.52×10⁻⁵ and
@@ -311,6 +313,9 @@ The leaf width and branch diameter that set $\ell$ are PFT traits (`[pft]`).
 
 ## References
 
+- Churchill, S. W. (1977), A comprehensive correlating equation for laminar, assisting, forced and free
+  convection, *AIChE J.* 23(1):10–16, doi:10.1002/aic.690230103: the mixed-convection combination of
+  eq. (11).
 - ED2 `../ED2/ED/src/dynamics/canopy_struct_dynamics.f90` (`canopy_turbulence8`): boundary layers and
   in-canopy wind.
 - CLM5 Technical Note (Oleson et al. 2018): Monin–Obukhov surface layer, stability functions.

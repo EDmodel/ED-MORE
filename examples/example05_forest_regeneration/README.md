@@ -16,6 +16,9 @@ fixes.
 
 ## 1. Barro Colorado Island, 1600–2020
 
+The numbers here come from the first ED-MORE release, built with ifx and the production preset
+(`cmake --preset production`).
+
 Three PFTs, early, mid and late successional, compete for light.
 
 ![The forest regrowing from bare ground, 1600-2020](regeneration.png)
@@ -53,6 +56,8 @@ Yearly values. The census is the 50-ha plot's 2010 census on the model's allomet
   MgC ha⁻¹ by 2020.
 - **The stand's structure is steady over the last three centuries**: LAI 5.8–6.4, 300–400 trees
   above 10 cm a hectare (the census 416), evapotranspiration 1,400–1,520 mm a year.
+  ERA5-Land's hourly drizzle keeps the canopy wet and raises this figure; it is a property of the
+  forcing, described in [the canopy's surface water](../../docs/science/vegetation_energy_dynamics.md).
 
 ### The census check
 

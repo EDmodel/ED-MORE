@@ -90,6 +90,8 @@ enabled    = true
 file_chunk = "all"
 
 #----- Leaf physiology (example 04's calibrated configuration). ----------------------------------------
+# The values calibrate_growth.py was fitted with; example 04's current fit is in
+# ../example04_column_biophysics/calibration/fit.json.
 [leaf_physiology]
 stomatal_model     = "medlyn"
 temp_response_form = "peaked"
@@ -115,7 +117,7 @@ leaf_absorptance = 0.85
 phi_psii         = 0.74
 
 [aerodynamics]
-z0m_ratio = 0.0528022             # example 04's calibration
+z0m_ratio = 0.0528022             # example 04's calibration, as the growth fit used it
 
 #----- The site and its weather. ----------------------------------------------------------------------
 [site]

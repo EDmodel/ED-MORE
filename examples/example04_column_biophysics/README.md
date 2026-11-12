@@ -120,6 +120,9 @@ The energy-balance gap is the largest uncertainty: sharing it between H and LE i
 
 ## 4. Against the tower
 
+The numbers here come from the first ED-MORE release, built with ifx and the production preset
+(`cmake --preset production`).
+
 ![ED-MORE against the BCI tower: mean diurnal and seasonal cycles of carbon, water and energy](evaluation.png)
 
 The dashed lines are the calibration's targets: GPP with κ, and H with the energy-balance gap added.

@@ -17,8 +17,9 @@ from netCDF4 import Dataset
 CONVENTIONS = "ED-MORE-forcing-1.1"
 
 # The file's variables and their CF attributes. Every forcing variable is float32 on (time, grid)
-# with _FillValue 1e20; states are values at the stamps, fluxes are means over the interval the
-# stamp convention names.
+# with _FillValue 1e20. The states and the longwave are values at the stamps, as the model reads them
+# (docs/science/forcing.md §3): the tools centre a longwave measured or delivered as interval means
+# there. Rain and shortwave are means over the interval the stamp convention names.
 VARIABLE_ATTRIBUTES = {
     "Tair":   dict(units="K", long_name="air temperature", standard_name="air_temperature",
                    cell_methods="time: point"),
@@ -41,7 +42,7 @@ VARIABLE_ATTRIBUTES = {
     "SWdown": dict(units="W m-2", long_name="downward shortwave radiation (total)",
                    standard_name="surface_downwelling_shortwave_flux_in_air", cell_methods="time: mean"),
     "LWdown": dict(units="W m-2", long_name="downward longwave radiation",
-                   standard_name="surface_downwelling_longwave_flux_in_air", cell_methods="time: mean"),
+                   standard_name="surface_downwelling_longwave_flux_in_air", cell_methods="time: point"),
 }
 HUMIDITY_VARIABLES = ("RHair", "Tdew", "Qair")
 
