@@ -59,6 +59,10 @@ The tissue is charged the full $`h_v`$, not the latent heat alone: charging it o
 liquid part $`h_v-L`$ charged to the soil, would charge the soil twice beside the explicit soil → wood
 → leaf chain of advected enthalpy, and heat the leaf for free. $`h_v`$ is taken at $`T_{cas}`$, the
 linearization base; the difference $`c_{p,vap}(T_{leaf}-T_{cas})`$ is about 0.2 % of $`h_v`$.
+Linearizing $`q_{sat}`$ about $`T_{cas}`$ also understates a warmer leaf's saturation humidity by the
+curve's curvature, $`\tfrac12\,(L/R_v T^2)^2\,\Delta T^2\,q_{sat}`$: about 0.2, 0.7 and 1.5 % of
+$`q_{sat}`$ for a leaf 1, 2 and 3 K above the canopy air at 30 °C. At 70 % relative humidity that is
+0.5 to 3 % of the deficit that drives its transpiration.
 
 **A thin tissue is a small tissue.** Every term of eq. (1), and the heat capacity of eq. (8), is a
 per-plant quantity times the plant density: the absorbed radiation, the sapflow's enthalpy, the

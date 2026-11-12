@@ -59,6 +59,10 @@ ED-MORE sorts the processes into three categories.
   drainage, ground evaporation, root uptake, sapflow, transpiration) handed to the rest of the patch
   as constants, on both schemes
 
+Stomatal conductance responds to the leaf-to-air VPD at the leaf's start-of-step temperature, while
+the leaf's energy balance solves for its end-of-step temperature, so $g_s$ lags the leaf temperature
+by one step; the lag shrinks with `dt_fast`.
+
 This is ED2-faithful. ED2 calls `canopy_photosynthesis` once before its RK integrator and the RK
 stages only *read* the frozen conductances; `plant_hydro.f90` freezes hydraulic fluxes per `DTLSM`
 for exactly the same reason. Freezing hydraulics removes the ~20 s mode from the coupled system,
