@@ -38,7 +38,7 @@ program test_c_api_leaf
    use ed_config_io,       only : load_ed_config
    use ed_pft_params, only : PATH_C3
    use ed_leaf_params,  only : SM_MEDLYN, COLIM_QUADRATIC, COLIM_MIN
-   use ed_therm_lib,     only : TEMP_RESPONSE_PEAKED
+   use ed_therm_lib,     only : TEMP_RESPONSE_PEAKED, sat_vapor_pressure
    use ed_test_support, only : banner, check, check_close
    implicit none
 
@@ -46,7 +46,7 @@ program test_c_api_leaf
    type(leaf_args_c)   :: p
    type(leaf_flux_c)   :: f0, f1, f2, fb
    type(leaf_kinetics_c) :: kin
-   real(wp)            :: k25, arr
+   real(wp)            :: k25, arr, p_dry
 
    call banner('leaf C-API shim')
 
@@ -97,14 +97,16 @@ program test_c_api_leaf
    !---~---
    !   5. The kinetics entry reads the parameters it is given: at 25 C and 21 % O2 Gamma* is
    ! gstar25 at 100 kPa as a mole fraction (42.75 umol/mol), Kc and Ko are their partial
-   ! pressures over the air's pressure, and O2 is o2_mol_frac (leaf_gas_exchange.md eq. (3)).
+   ! pressures over the dry air's pressure P - e, with e = e_sat(25 C) - VPD the air's vapour
+   ! pressure, and O2 is o2_mol_frac (leaf_gas_exchange.md eq. (3)).
    !---~---
-   call ed_rubisco_kinetics(p, 298.15_c_double, 101325.0_c_double, kin)
+   call ed_rubisco_kinetics(p, 298.15_c_double, 101325.0_c_double, 1500.0_c_double, kin)
+   p_dry = 101325.0_wp - (sat_vapor_pressure(298.15_wp) - 1500.0_wp)
    call check_close(real(kin%gstar, wp), 42.75_wp, 1.0e-12_wp, 'C-API Gamma* is 42.75 umol/mol at 25 C')
-   call check_close(real(kin%kc, wp), 40.49_wp / 101325.0_wp * 1.0e6_wp, 1.0e-12_wp,            &
-                    'C-API Kc is kc25 over the pressure at 25 C')
-   call check_close(real(kin%ko, wp), 27840.0_wp / 101325.0_wp * 1.0e6_wp, 1.0e-12_wp,          &
-                    'C-API Ko is ko25 over the pressure at 25 C')
+   call check_close(real(kin%kc, wp), 40.49_wp / p_dry * 1.0e6_wp, 1.0e-12_wp,                  &
+                    'C-API Kc is kc25 over the dry air''s pressure at 25 C')
+   call check_close(real(kin%ko, wp), 27840.0_wp / p_dry * 1.0e6_wp, 1.0e-12_wp,                &
+                    'C-API Ko is ko25 over the dry air''s pressure at 25 C')
    call check_close(real(kin%o2, wp), 209000.0_wp, 1.0e-12_wp, 'C-API O2 is o2_mol_frac in umol/mol')
 
    !---~---

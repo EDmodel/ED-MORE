@@ -4,10 +4,13 @@ comes from the forcing, never from the tower's fluxes.
 
   growth climate   over the leaf-on months: the mean air temperature (Kattge & Knorr's growth
                    temperature), and the daytime means (incoming shortwave above 10 W m-2) of air
-                   temperature, VPD, pressure and PAR; CO2 from the run's own CO2 setting
+                   temperature, VPD, vapour pressure, pressure and PAR; CO2 from the run's own CO2
+                   setting
   stomatal_g1      the least-cost value: Medlyn's g1 equals xi = sqrt(beta (K + Gamma*) / (1.6 eta*)),
                    beta = 146 (Prentice et al. 2014; Stocker et al. 2020), at the daytime climate with
-                   ED-MORE's own Rubisco kinetics; eta* is water's viscosity relative to 25 degC
+                   ED-MORE's own Rubisco kinetics; eta* is water's viscosity relative to 25 degC. CO2
+                   and O2 are mole fractions of dry air, as in the leaf kernel, so their partial
+                   pressures are those fractions of the dry air's pressure P - e
   vcmax25          the coordination condition (Wang et al. 2017; Smith et al. 2019), solved with
                    ED-MORE's own leaf equations (edmore.plant.leaf): the vcmax25 at which the Rubisco- and
                    light-limited rates are equal at the daytime climate, with ci from the least-cost
@@ -83,9 +86,11 @@ def growth_climate(forcing: str, grid: int, leaf_on: list, daytime_sw: float = 1
     df = pd.DataFrame(col, index=when)
     df = df[df.index.month.isin(leaf_on)]
     day = df[df["SWdown"] > daytime_sw]
-    vpd = (1.0 - day["RHair"]) * sat_vapor_pressure(day["Tair"])
+    e_sat = sat_vapor_pressure(day["Tair"])
+    vpd, e_air = (1.0 - day["RHair"]) * e_sat, day["RHair"] * e_sat
     return {"t_growth_c": float(df["Tair"].mean() - 273.15), "t_day_k": float(day["Tair"].mean()),
-            "vpd_day_pa": float(vpd.mean()), "p_day_pa": float(day["PSurf"].mean()),
+            "vpd_day_pa": float(vpd.mean()), "e_day_pa": float(e_air.mean()),
+            "p_day_pa": float(day["PSurf"].mean()),
             "par_day": float(PAR_PER_SW * day["SWdown"].mean()), "years": sorted(set(df.index.year)),
             "leaf_on_months": list(leaf_on)}
 
@@ -100,17 +105,23 @@ def viscosity_ratio(t_k: float) -> float:
     return eta(t_k) / eta(T25)
 
 
-def kinetics(lp: dict, t_k: float, p_pa: float) -> dict:
-    """ED-MORE's Rubisco kinetics as partial pressures [Pa] at t_k and the site's pressure."""
-    gstar = _arr(lp["gstar25"], lp["ea_gstar"], t_k) * lp["o2_mol_frac"] / O2_REF_GSTAR * p_pa / P_REF_GSTAR
+def dry_air_pressure(clim: dict) -> float:
+    """The daytime dry air's pressure [Pa], P - e: the pressure CO2's and O2's mole fractions are of."""
+    return clim["p_day_pa"] - clim["e_day_pa"]
+
+
+def kinetics(lp: dict, t_k: float, p_dry_pa: float) -> dict:
+    """ED-MORE's Rubisco kinetics as partial pressures [Pa] at t_k, with the O2 (and so Gamma*) at its
+    mole fraction of the dry air's pressure p_dry_pa."""
+    gstar = _arr(lp["gstar25"], lp["ea_gstar"], t_k) * lp["o2_mol_frac"] / O2_REF_GSTAR * p_dry_pa / P_REF_GSTAR
     kc, ko = _arr(lp["kc25"], lp["ea_kc"], t_k), _arr(lp["ko25"], lp["ea_ko"], t_k)
-    o2 = lp["o2_mol_frac"] * p_pa
+    o2 = lp["o2_mol_frac"] * p_dry_pa
     return {"gstar": gstar, "kc": kc, "ko": ko, "o2": o2, "k": kc * (1.0 + o2 / ko)}
 
 
 def least_cost_xi(lp: dict, clim: dict) -> float:
     """xi [Pa^0.5] of the least-cost hypothesis at the daytime climate."""
-    k = kinetics(lp, clim["t_day_k"], clim["p_day_pa"])
+    k = kinetics(lp, clim["t_day_k"], dry_air_pressure(clim))
     return math.sqrt(BETA_LEAST_COST * (k["k"] + k["gstar"]) / (1.6 * viscosity_ratio(clim["t_day_k"])))
 
 
@@ -124,12 +135,12 @@ def eeo_vcmax25(lp: dict, pft: dict, clim: dict, ca_ppm: float, temp_response: s
     PFT's theta_j and jmax_vcmax_ratio; `lp` the leaf-physiology settings (with Kattge & Knorr's ds)."""
     from scipy.optimize import brentq
     from edmore.plant import leaf
-    t, p = clim["t_day_k"], clim["p_day_pa"]
+    t, p = clim["t_day_k"], dry_air_pressure(clim)
     k = kinetics(lp, t, p)
     ca = ca_ppm * 1.0e-6 * p
     xi = least_cost_xi(lp, clim)
     chi = k["gstar"] / ca + (1.0 - k["gstar"] / ca) * xi / (xi + math.sqrt(clim["vpd_day_pa"]))
-    to_mf = 1.0e6 / p                                       # partial pressure [Pa] -> mole fraction [umol mol-1]
+    to_mf = 1.0e6 / p                                       # partial pressure [Pa] -> dry mole fraction [umol mol-1]
     ci = chi * ca * to_mf
 
     def at_t(k25, which):

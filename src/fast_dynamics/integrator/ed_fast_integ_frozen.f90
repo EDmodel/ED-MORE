@@ -401,7 +401,7 @@ contains
          end if
       end do
       if (capture) then
-         call leaf_gas_exchange_batch(n, par_arr, dynamic%leaf_temp(1:n), vpd_arr, dynamic%cas%can_co2, press, &
+         call leaf_gas_exchange_batch(n, par_arr, dynamic%leaf_temp(1:n), vpd_arr, dynamic%cas%can_co2, press, e_air, &
                                       psi_leaf_arr, gb_arr, leaf_photo, static%pft(1:n),                  &
                                       static%vcmax25(1:n), static%rd25(1:n), a_gross_arr, gs_arr, rd_arr, &
                                       psi=dmax_psi_arr(1:n),                                            &
@@ -432,7 +432,7 @@ contains
             cdiag(CO_PSI_PREDAWN,  i) = dmax_psi_arr(i)
          end do
       else
-         call leaf_gas_exchange_batch(n, par_arr, dynamic%leaf_temp(1:n), vpd_arr, dynamic%cas%can_co2, press, &
+         call leaf_gas_exchange_batch(n, par_arr, dynamic%leaf_temp(1:n), vpd_arr, dynamic%cas%can_co2, press, e_air, &
                                       psi_leaf_arr, gb_arr, leaf_photo, static%pft(1:n),                  &
                                       static%vcmax25(1:n), static%rd25(1:n), a_gross_arr, gs_arr, rd_arr, &
                                       psi=dmax_psi_arr(1:n))

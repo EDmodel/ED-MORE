@@ -3,7 +3,7 @@
 !   ed_therm_lib -- the thermodynamics the model's stores share, so each uses one formula:
 ! the specific energies of liquid, ice, vapour and canopy air in one datum and the energy
 ! -> temperature inverter with phase change (docs/science/soil_biophysics.md); moist
-! air: saturation vapour pressure and humidity, VPD and density
+! air: saturation vapour pressure and humidity, VPD, the dry air's pressure and density
 ! (docs/science/snow_biophysics.md eq. (1), docs/science/forcing.md eq. (11)); the
 ! rain/snow split; the air at another height (docs/science/forcing.md §8); plant
 ! tissue heat capacity and energy (docs/science/vegetation_energy_dynamics.md eqs.
@@ -30,8 +30,9 @@ module ed_therm_lib
    public :: precip_enthalpy, precip_phase
    !--- Moist air.
    public :: sat_vapor_pressure, sat_specific_humidity, sat_vapor_pressure_temp_deriv
-   public :: sat_specific_humidity_temp_deriv, air_vpd, specific_humidity_to_vpd
+   public :: sat_specific_humidity_temp_deriv, air_vpd, specific_humidity_to_vpd, vpd_to_vapor_pressure
    public :: vapor_pressure_to_specific_humidity, specific_humidity_to_vapor_pressure, rh_to_specific_humidity
+   public :: dry_air_pressure
    public :: air_density, cas_temp_to_enthalpy, cas_enthalpy_to_temp, cas_molar_density
    !--- The air at another height.
    public :: lapse_air_temperature, lapse_pressure, lapse_specific_humidity, dry_adiabat_temperature
@@ -312,6 +313,28 @@ contains
       real(wp), intent(in) :: e_vap   ! [Pa] actual vapour pressure
       vpd = max(0.0_wp, sat_vapor_pressure(temp) - e_vap)
    end function air_vpd
+
+   !---~---
+   !   The inverse of air_vpd: the vapour pressure [Pa] of air whose deficit to saturation
+   ! at temperature temp is vpd, e = e_sat(temp) - vpd.
+   !---~---
+   pure elemental real(wp) function vpd_to_vapor_pressure(temp, vpd) result(e_vap)
+      real(wp), intent(in) :: temp    ! [K]
+      real(wp), intent(in) :: vpd     ! [Pa] the deficit to saturation at temp
+      e_vap = sat_vapor_pressure(temp) - vpd
+   end function vpd_to_vapor_pressure
+
+   !---~---
+   !   The dry air's partial pressure [Pa] in moist air at pressure p_pa holding vapour at
+   ! pressure e_vap, p - e. A gas stated as a mole fraction of dry air, as CO2 and O2 are, has
+   ! that fraction of this pressure as its partial pressure
+   ! (docs/science/leaf_gas_exchange.md eq. (3)).
+   !---~---
+   pure elemental real(wp) function dry_air_pressure(p_pa, e_vap) result(p_dry)
+      real(wp), intent(in) :: p_pa    ! [Pa] the air's pressure
+      real(wp), intent(in) :: e_vap   ! [Pa] its vapour pressure
+      p_dry = p_pa - e_vap
+   end function dry_air_pressure
 
    !---~---
    !   VPD [Pa] from temperature, specific humidity and pressure. The vapour pressure e

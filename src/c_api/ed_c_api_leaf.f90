@@ -18,7 +18,8 @@ module ed_c_api_leaf
    use ed_pft_params,          only : leaf_photo_pft_t
    use ed_leaf_gas_exchange,   only : solve_leaf_gas_exchange
    use ed_leaf_gas_exchange,   only : assimilation_demand_c3, electron_transport_j, rubisco_kinetics
-   use ed_therm_lib,           only : peaked_arrhenius_scale, arrhenius_scale
+   use ed_therm_lib,           only : peaked_arrhenius_scale, arrhenius_scale, vpd_to_vapor_pressure,   &
+                                      dry_air_pressure
    implicit none
    private
 
@@ -27,7 +28,10 @@ module ed_c_api_leaf
    public :: ed_rubisco_kinetics
    public :: ed_peaked_arrhenius, ed_arrhenius
 
-   !--- C-interoperable mirror of leaf_env_t (8 doubles).
+   !---~---
+   !   C-interoperable mirror of leaf_env_t (8 doubles), less its vapor_pressure, which to_env
+   ! reads off the leaf temperature and the leaf-to-air VPD.
+   !---~---
    type, bind(c) :: leaf_env_c
       real(c_double) :: par, leaf_temp, vpd, ca, pressure, psi_leaf, gb, psi
    end type leaf_env_c
@@ -141,18 +145,20 @@ contains
    end subroutine ed_assimilation_demand_c3
 
    !---~---
-   !   The C3 Rubisco kinetics Kc, Ko, Gamma* and O2 as mole fractions [umol/mol] at a leaf
-   ! temperature [K] and pressure [Pa] (rubisco_kinetics; docs/science/leaf_gas_exchange.md
-   ! eq. (3)): the solver's own values, for callers of ed_assimilation_demand_c3.
+   !   The C3 Rubisco kinetics Kc, Ko, Gamma* and O2 as mole fractions of dry air [umol/mol] at
+   ! a leaf temperature [K], pressure [Pa] and leaf-to-air VPD [Pa], the drivers ed_leaf_solve
+   ! takes them from (rubisco_kinetics; docs/science/leaf_gas_exchange.md eq. (3)): the
+   ! solver's own values, for callers of ed_assimilation_demand_c3.
    !---~---
-   subroutine ed_rubisco_kinetics(params_c, t_leaf, pressure, kin_c) bind(c, name="ed_rubisco_kinetics")
+   subroutine ed_rubisco_kinetics(params_c, t_leaf, pressure, vpd, kin_c) bind(c, name="ed_rubisco_kinetics")
       type(leaf_args_c),     intent(in)  :: params_c
-      real(c_double), value, intent(in)  :: t_leaf, pressure
+      real(c_double), value, intent(in)  :: t_leaf, pressure, vpd
       type(leaf_kinetics_c), intent(out) :: kin_c
       type(leaf_photo_pft_t)   :: p
-      real(wp) :: kc, ko, gstar, o2
+      real(wp) :: kc, ko, gstar, o2, p_dry
       p = to_params(params_c)
-      call rubisco_kinetics(p, real(t_leaf, wp), real(pressure, wp), kc, ko, gstar, o2)
+      p_dry = dry_air_pressure(real(pressure, wp), vpd_to_vapor_pressure(real(t_leaf, wp), real(vpd, wp)))
+      call rubisco_kinetics(p, real(t_leaf, wp), p_dry, kc, ko, gstar, o2)
       kin_c%kc = kc
       kin_c%ko = ko
       kin_c%gstar = gstar
@@ -192,8 +198,9 @@ contains
       ! below).
       !---~---
       env = leaf_env_t(par=env_c%par, leaf_temp=env_c%leaf_temp, vpd=env_c%vpd, ca=env_c%ca,      &
-                       pressure=env_c%pressure, psi_leaf=env_c%psi_leaf, gb=env_c%gb,             &
-                       psi=env_c%psi)
+                       pressure=env_c%pressure,                                                   &
+                       vapor_pressure=vpd_to_vapor_pressure(env_c%leaf_temp, env_c%vpd),          &
+                       psi_leaf=env_c%psi_leaf, gb=env_c%gb, psi=env_c%psi)
    end function to_env
 
    pure function to_params(p_c) result(p)

@@ -25,6 +25,7 @@ module ed_c_api_canopy
    use ed_canopy_radiation, only : rad_env_t, rad_out_t, ground_optics_env_t, alloc_rad_env
    use ed_canopy_radiation,       only : canopy_radiation, ground_optics
    use ed_numerics,               only : ascending_order
+   use ed_therm_lib,              only : vpd_to_vapor_pressure
    implicit none
    private
 
@@ -103,6 +104,7 @@ contains
    !---~---
    !   The leaf solve for n leaves, each with its own drivers and plastic capacities: the loop
    ! of leaf_gas_exchange_batch, with canopy-air CO2 and pressure per leaf rather than shared.
+   ! The air's vapour pressure is read off each leaf's temperature and leaf-to-air VPD.
    !---~---
    subroutine ed_canopy_leaf(n, pft, vcmax25, rd25, par, leaf_temp, vpd, ca, pressure, psi_leaf,   &
                              gb, psi, a_gross, a_net, gs, ci) bind(c, name="ed_canopy_leaf")
@@ -122,6 +124,7 @@ contains
          env%vpd = vpd(i)
          env%ca = ca(i)
          env%pressure = pressure(i)
+         env%vapor_pressure = vpd_to_vapor_pressure(leaf_temp(i), vpd(i))
          env%psi_leaf = psi_leaf(i)
          env%gb = gb(i)
          env%psi = psi(i)

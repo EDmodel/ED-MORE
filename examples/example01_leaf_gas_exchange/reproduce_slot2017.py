@@ -75,7 +75,7 @@ def run_aci(prefix):
     """Fig 1(b): net Ac, Aj and A against Ci for F. insipida at 25 C; A is the sharp min(Ac, Aj)."""
     tk = 25.0 + T_KELVIN
     p = leaf.c3_params()                       # Bernacchi et al. (2001) Rubisco kinetics
-    k = leaf.rubisco_kinetics(p, tk, PRESSURE)  # the solver's, as mole fractions [umol/mol]
+    k = leaf.rubisco_kinetics(p, tk, PRESSURE, vpd=leaf_vpd(25.0))  # the solver's, in umol/mol of dry air
     j = leaf.electron_transport_j(PAR, JMAX_ACI, absorptance=p.absorptance,
                                   phi_psii=p.phi_psii, theta=p.theta_j)
     rd = RD_FRAC * VCMAX_ACI
