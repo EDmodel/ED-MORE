@@ -47,6 +47,7 @@ module ed_surface
       real(wp) :: can_temp = 273.16_wp, can_shv = 0.0_wp ! [K],[kg/kg] the canopy air's temperature and specific humidity
       real(wp) :: ggnet    = 0.0_wp                     ! [m/s] ground to canopy-air conductance, heat and vapour alike
       real(wp) :: rho_air  = 1.2_wp, press = 101325.0_wp ! [kg/m3],[Pa] the canopy air's density and pressure
+      real(wp) :: cp_cas   = cp_air                     ! [J/kg/K] its specific heat (cas_heat_capacity); dry until set
       real(wp) :: t_soil_top = 273.16_wp                ! [K] top soil node's temperature, the snow base's conduction target
       real(wp) :: k_soil_top = 0.0_wp                   ! [W/m/K] top soil layer's thermal conductivity
       real(wp) :: dz_soil_top = 0.05_wp                 ! [m] top soil node's depth |z_node(1)| below the snow base
@@ -116,7 +117,8 @@ contains
       type(snow_out_t) :: sfx
       real(wp) :: h_bare, le_soil
       call snow_surface_balance(env, sfx)
-      call ground_surface_fluxes(env%t_soil_top, env%can_temp, env%ggnet, env%rho_air, env%soil_evap, h_bare, le_soil)
+      call ground_surface_fluxes(env%t_soil_top, env%can_temp, env%ggnet, env%rho_air, env%cp_cas, env%soil_evap,   &
+                                 h_bare, le_soil)
       h_ground  = sfx%h_snow  + (1.0_wp - env%snowfac) * h_bare
       le_ground = sfx%le_snow + le_soil
       g_top     = sfx%g_base                                                                         &
@@ -128,14 +130,16 @@ contains
    end subroutine ground_surface_exchange
 
    !---~---
-   !   Bare-ground fluxes to the canopy air, instantaneous: sensible through ggnet, latent
-   ! from the soil evaporation (already area-weighted) at the vapour enthalpy the canopy
-   ! air receives. ground_surface_exchange assembles G_top and the snow blend.
+   !   Bare-ground fluxes to the canopy air, instantaneous: sensible through ggnet at the
+   ! canopy air's density and specific heat, latent from the soil evaporation (already
+   ! area-weighted) at the vapour enthalpy the canopy air receives. ground_surface_exchange
+   ! assembles G_top and the snow blend.
    !---~---
-   elemental pure subroutine ground_surface_fluxes(t_ground, t_cas, ggnet, rho, soil_evap, h_bare, le_soil)
-      real(wp), intent(in)  :: t_ground, t_cas, ggnet, rho, soil_evap   ! [K], [K], [m/s], [kg/m3], [kg/m2/s]
-      real(wp), intent(out) :: h_bare, le_soil                          ! [W/m2], [W/m2]
-      h_bare  = ggnet * rho * cp_air * (t_ground - t_cas)
+   elemental pure subroutine ground_surface_fluxes(t_ground, t_cas, ggnet, rho, cp_cas, soil_evap, h_bare, le_soil)
+      real(wp), intent(in)  :: t_ground, t_cas, ggnet       ! [K], [K], [m/s]
+      real(wp), intent(in)  :: rho, cp_cas, soil_evap       ! [kg/m3], [J/kg/K], [kg/m2/s]
+      real(wp), intent(out) :: h_bare, le_soil              ! [W/m2], [W/m2]
+      h_bare  = ggnet * rho * cp_cas * (t_ground - t_cas)
       le_soil = soil_evap * enthalpy_vapor(t_ground)
    end subroutine ground_surface_fluxes
 
@@ -364,7 +368,7 @@ contains
       real(wp),         intent(in)  :: fliq      ! [-] liquid fraction of the snow surface
       type(surface_env_t), intent(in)  :: env
       real(wp),         intent(out) :: h_flux, w_flux, le_flux   ! [W/m2], [kg/m2/s], [W/m2]
-      h_flux = env%ggnet * env%rho_air * cp_air * (t_surf - env%can_temp)
+      h_flux = env%ggnet * env%rho_air * env%cp_cas * (t_surf - env%can_temp)
       w_flux = env%ggnet * env%rho_air * (sat_specific_humidity(t_surf, env%press, fliq) - env%can_shv)
       le_flux = w_flux * enthalpy_vapor(t_surf)
    end subroutine snow_surface_fluxes
@@ -423,7 +427,7 @@ contains
          !---~---
          call snow_surface_fluxes(t_n, fliq_n, env, h_n, w_n, le_n)
          g_n      = gcond * (t_n - env%t_soil_top)
-         dh_dt    = env%ggnet * env%rho_air * cp_air
+         dh_dt    = env%ggnet * env%rho_air * env%cp_cas
          dw_dt    = env%ggnet * env%rho_air * sat_specific_humidity_temp_deriv(t_n, env%press, fliq_n)
          demit_dt = 4.0_wp * params%snow_emiss * stefan_boltzmann * t_n ** 3
          !---~---

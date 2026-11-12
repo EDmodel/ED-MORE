@@ -38,12 +38,16 @@
 !      docs/science/vegetation_energy_dynamics.md eqs. (9)-(10)): it is
 !      temp_to_internal_energy with liquid water, tissue_energy_to_temp inverts it, and
 !      water that comes or goes at the tissue's temperature leaves the temperature there.
+!  10. THE CANOPY AIR'S SPECIFIC HEAT (cas_heat_capacity, cas_temp_to_enthalpy,
+!      cas_enthalpy_to_temp; docs/science/canopy_air_space_biophysics.md): it is the slope of
+!      the canopy air's enthalpy in temperature at fixed humidity, the dry air's at q = 0 and
+!      1.4 % above it at 17 g/kg; the enthalpy inverts to the temperature it came from.
 !---~---
 program test_therm_lib
    use ed_test_assert,   only : check, check_true, test_report
    use ed_kinds,         only : wp, ik
    use ed_constants,     only : t_kelvin, t_3ple, r_wv, es_3ple, cp_ice, latent_heat_fusion, k_water, k_ice,   &
-                                h2o_dry_ratio, latent_heat_vap_3ple, r_dry
+                                h2o_dry_ratio, latent_heat_vap_3ple, r_dry, cp_air
    use ed_therm_lib,     only : arrhenius_scale, peaked_arrhenius_scale, kattge_knorr_entropy,                    &
                                 temp_to_internal_energy, internal_energy_to_temp, internal_energy_ice,            &
                                 sat_vapor_pressure, sat_vapor_pressure_temp_deriv, sat_specific_humidity,         &
@@ -52,7 +56,8 @@ program test_therm_lib
                                 specific_humidity_to_vpd, tissue_temp_to_energy, tissue_energy_to_temp,          &
                                 internal_energy_liquid, latent_heat_vap, enthalpy_vapor, air_vpd,                 &
                                 vpd_to_vapor_pressure, dry_air_pressure, air_density,                             &
-                                specific_humidity_to_vapor_pressure
+                                specific_humidity_to_vapor_pressure, cas_heat_capacity, cas_temp_to_enthalpy,    &
+                                cas_enthalpy_to_temp
    implicit none
    real(wp), parameter :: SCAN_LO = 5.0_wp, SCAN_HI = 55.0_wp   ! [C] the optimum scan's range
 
@@ -66,6 +71,7 @@ program test_therm_lib
    call test_moist_air()
    call test_lapse()
    call test_tissue_energy()
+   call test_cas_heat_capacity()
 
    call test_report('test_therm_lib')
 
@@ -405,5 +411,26 @@ contains
                       abs(tissue_energy_to_temp(e - DW * internal_energy_liquid(T_TISSUE), WATER - DW, DRY)      &
                           - T_TISSUE) < 1.0e-10_wp)
    end subroutine test_tissue_energy
+
+   !---~---
+   !   10. The canopy air's specific heat, against a central difference of its enthalpy over
+   ! +-0.5 K (exact, the enthalpy being linear in T at fixed q), at 0, 8 and 17 g/kg.
+   !---~---
+   subroutine test_cas_heat_capacity()
+      real(wp), parameter :: T_CAS = 299.3_wp, Q(3) = [0.0_wp, 0.008_wp, 0.017_wp]
+      real(wp) :: slope
+      integer  :: i
+      print '(a)', 'test_cas_heat_capacity:'
+      do i = 1, size(Q)
+         slope = cas_temp_to_enthalpy(T_CAS + 0.5_wp, Q(i)) - cas_temp_to_enthalpy(T_CAS - 0.5_wp, Q(i))
+         call check('the canopy air''s specific heat is its enthalpy''s slope at fixed q', cas_heat_capacity(Q(i)),  &
+                    slope, 1.0e-9_wp)
+         call check('cas_enthalpy_to_temp inverts cas_temp_to_enthalpy',                                          &
+                    cas_enthalpy_to_temp(cas_temp_to_enthalpy(T_CAS, Q(i)), Q(i)), T_CAS, 1.0e-10_wp)
+      end do
+      call check('dry canopy air: the dry air''s specific heat', cas_heat_capacity(0.0_wp), cp_air, 0.0_wp)
+      call check_true('at 17 g/kg the canopy air''s specific heat is 1.4 % above the dry air''s',                  &
+                      abs(cas_heat_capacity(0.017_wp) / cp_air - 1.0145_wp) < 5.0e-4_wp, cas_heat_capacity(0.017_wp))
+   end subroutine test_cas_heat_capacity
 
 end program test_therm_lib

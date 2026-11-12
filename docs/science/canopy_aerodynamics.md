@@ -129,7 +129,8 @@ $`t_*=\mathrm{temp1}\,\Delta\theta`$, and $`\mathrm{Rib}`$, $\zeta$ and $L$ as d
 the air temperature there and $`\theta_{CAS}`$ the canopy-air temperature, so
 $`\Delta\theta = T_{atm} - T_{CAS}`$. That is the difference the canopy air's energy budget
 exchanges, $`g_{ah}\,(h_{CAS}-h_{atm})`$ on actual temperatures, so the reported sensible heat
-$`H = g_{ah}\,c_p\,(T_{CAS}-T_{atm})`$ is the flux the budget books. The two temperatures must share the
+$`H = g_{ah}\,c_{p,cas}\,(T_{CAS}-T_{atm})`$, at the canopy air's own specific heat
+([canopy_air_space_biophysics](canopy_air_space_biophysics.md)), is the flux the budget books. The two temperatures must share the
 reference. Referencing $`\theta_{atm}`$ to the ground, $`T_{atm}+(g/c_p)\,z_{ref}`$, while $`\theta_{CAS}`$
 is not, would add $`(g/c_p)\,z_{ref}`$ (0.4 K at a 40 m canopy) of spurious stable stratification to every
 solve and lower the reported H by $`g_{ah}\,g\,z_{ref}`$.
@@ -256,8 +257,9 @@ The kinematic viscosity $\nu$ and thermal diffusivity $\alpha_{th}$ are linear-i
 definition ([ED2 comparison](../ed2_comparison.md) §4.9). The floor is
 $`g_{bh,min}=`$ `gbhmos_min`. The vapour conductance is $`g_{bw}=1.075\,g_{bh}`$ (`gbh_2_gbw`).
 $g_{bh}$ is a velocity [m s⁻¹]; the energy kernel uses it directly, and the leaf gas exchange forms the
-molar $`g_{b,mol}=g_{bw}\,\rho_{mol}`$ with $`\rho_{mol}=p/(R\,T_{leaf})`$, the molar density of air at
-the leaf temperature [mol m⁻³].
+molar $`g_{b,mol}=g_{bw}\,\rho_{mol}`$ with $`\rho_{mol}=p/(R\,T_{cas})`$, the molar density of the canopy
+air [mol m⁻³], the air the vapour goes into
+([vegetation_energy_dynamics](vegetation_energy_dynamics.md), eq. (2)).
 
 ## Parameters
 

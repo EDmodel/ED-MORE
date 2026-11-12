@@ -24,7 +24,8 @@
 !      cover they sum to what the blended ground absorbs.
 !   8. BARE GROUND (ground_surface_fluxes): no sensible flux without a temperature
 !      difference and no latent flux without evaporation; warm ground heats the canopy
-!      air, in proportion to the difference.
+!      air, in proportion to the difference and at the canopy air's specific heat; the
+!      ground surface's exchange takes that specific heat from its surroundings.
 ! The energy datum the pack is held in is test_therm_lib's.
 !---~---
 program test_surface
@@ -32,7 +33,7 @@ program test_surface
    use ed_kinds,              only : wp, ik
    use ed_constants,          only : t_3ple, stefan_boltzmann
    use ed_therm_lib,          only : temp_to_internal_energy, internal_energy_to_temp, internal_energy_ice,      &
-                                     internal_energy_liquid, sat_specific_humidity
+                                     internal_energy_liquid, sat_specific_humidity, cas_heat_capacity
    use ed_patch_state_vars,   only : snow_state_t
    use ed_biophysics_params, only : snow_params_t
    use ed_surface,            only : surface_env_t, snow_out_t, snow_cover_fraction, snow_accumulate,            &
@@ -360,18 +361,34 @@ contains
                  1.0e-9_wp)
    end subroutine test_tile_radiation
 
-   !--- 8. The bare ground's skin fluxes to the canopy air.
+   !---~---
+   !   8. The bare ground's skin fluxes to the canopy air, at 15 g/kg; and the exchange's bare
+   ! ground, with no pack, under canopy air whose specific heat is set.
+   !---~---
    subroutine test_ground_balance()
-      real(wp), parameter :: GGNET = 0.02_wp, RHO = 1.2_wp, T_GROUND = 300.0_wp
-      real(wp) :: h_bare, le_soil, h_2k
+      real(wp), parameter :: GGNET = 0.02_wp, RHO = 1.2_wp, T_GROUND = 300.0_wp, Q_CAS = 0.015_wp
+      type(surface_env_t) :: env
+      real(wp) :: cp_cas, h_bare, le_soil, h_2k, h_ground, le_ground, g_top, ground_rad, energy_in, vapour_out
       print '(a)', 'test_ground_balance:'
-      call ground_surface_fluxes(T_GROUND, T_GROUND, GGNET, RHO, 0.0_wp, h_bare, le_soil)
+      cp_cas = cas_heat_capacity(Q_CAS)
+      call ground_surface_fluxes(T_GROUND, T_GROUND, GGNET, RHO, cp_cas, 0.0_wp, h_bare, le_soil)
       call check_true('H_bare = 0 (no gradient)', abs(h_bare) < 1.0e-9_wp, h_bare)
       call check_true('LE_soil = 0 (no evap)',    abs(le_soil) < 1.0e-30_wp, le_soil)
-      call ground_surface_fluxes(T_GROUND, T_GROUND - 1.0_wp, GGNET, RHO, 0.0_wp, h_bare, le_soil)
-      call ground_surface_fluxes(T_GROUND, T_GROUND - 2.0_wp, GGNET, RHO, 0.0_wp, h_2k, le_soil)
+      call ground_surface_fluxes(T_GROUND, T_GROUND - 1.0_wp, GGNET, RHO, cp_cas, 0.0_wp, h_bare, le_soil)
+      call ground_surface_fluxes(T_GROUND, T_GROUND - 2.0_wp, GGNET, RHO, cp_cas, 0.0_wp, h_2k, le_soil)
       call check_true('warm ground over cooler canopy air heats it', h_bare > 0.0_wp, h_bare)
       call check('twice the difference, twice the sensible flux', h_2k, 2.0_wp * h_bare, 1.0e-12_wp * h_2k)
+      call check('the bare ground''s sensible flux over g rho dT is the canopy air''s specific heat',          &
+                 h_bare / (GGNET * RHO), cp_cas, 1.0e-12_wp * cp_cas)
+      env%can_temp   = T_GROUND - 1.0_wp
+      env%can_shv    = Q_CAS
+      env%ggnet      = GGNET
+      env%rho_air    = RHO
+      env%cp_cas     = cp_cas
+      env%t_soil_top = T_GROUND
+      call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, energy_in, vapour_out)
+      call check('the ground surface''s exchange takes the canopy air''s specific heat', h_ground, h_bare,        &
+                 1.0e-12_wp * h_bare)
    end subroutine test_ground_balance
 
 end program test_surface

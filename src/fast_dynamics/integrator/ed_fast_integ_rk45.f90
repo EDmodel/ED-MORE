@@ -10,7 +10,6 @@
 !---~---
 module ed_fast_integ_rk45
    use ed_kinds,              only : wp, ik
-   use ed_constants,          only : cp_air
    use ed_therm_lib,          only : cas_enthalpy_to_temp, internal_energy_liquid
    use ed_fast_integ_derivs, only : march_derivs, cas_conductances
    use ed_site_state_vars,  only : site_surface_t
@@ -98,7 +97,7 @@ contains
       bf%veg_surface_evap     = sum(surf_tend%leaf_surface_evap) + sum(surf_tend%wood_surface_evap)
       bf%h_canopy      = surf_tend%h_canopy
       bf%h_ground      = surf_tend%h_ground
-      bf%atm_heat_out  = gah*cp_air*(cas_enthalpy_to_temp(y_stage%cas_enthalpy, y_stage%cas_shv)          &
+      bf%atm_heat_out  = gah*frozen%cas%cp*(cas_enthalpy_to_temp(y_stage%cas_enthalpy, y_stage%cas_shv)   &
                                      - frozen%cas%env%theta_atm)
       bf%atm_vap_out   = gaw*(y_stage%cas_shv - frozen%cas%box%atm_specific_humidity)
       bf%rad_net       = surf_tend%coh_rnet + surf_tend%ground_rad

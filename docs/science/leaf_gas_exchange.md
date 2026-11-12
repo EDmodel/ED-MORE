@@ -12,7 +12,10 @@ The kernel takes one leaf's environment as given (incident PAR, leaf temperature
 deficit, CO₂, pressure, the air's vapour pressure, water potentials, boundary-layer conductance) and
 does no radiation, energy balance or hydraulics itself. The radiation page gives how the cohort's PAR
 is formed ([canopy_radiation_transfer](canopy_radiation_transfer.md), "PAR passed to photosynthesis");
-the cohort code divides it by the leaf area index (`cohort_leaf_par`).
+the cohort code divides it by the leaf area index (`cohort_leaf_par`). The solve's conductances are
+molar; the fast loop converts between them and the velocities the leaf energy balance takes at the
+canopy air's molar density, $`P/(R\,T_{cas})`$ ([vegetation_energy_dynamics](vegetation_energy_dynamics.md),
+eq. (2)).
 
 Symbols: $A$ = net CO₂ assimilation, $A_g$ = gross assimilation, $R_d$ = leaf (dark) respiration
 ($A = A_g - R_d$); $C_a, C_s, C_i$ = CO₂ mole fraction of dry air (µmol mol⁻¹) in the ambient air,

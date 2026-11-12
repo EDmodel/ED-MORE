@@ -33,26 +33,33 @@
 !   9. THE REPORTED NET RADIATION (fast_step's out%rnet) counts the wood: with the leaves
 !      and the ground dark, shortwave on the wood alone raises it by what the wood
 !      absorbs, less only the warmer wood's extra emission, on both schemes.
+!  10. THE CANOPY AIR'S PROPERTIES IN THE CONDUCTANCES (build_frozen, surface_derivs): a
+!      leaf's molar conductances become velocities at the canopy air's molar density,
+!      whatever the leaf's temperature, and every sensible coefficient takes the canopy
+!      air's specific heat (cas_heat_capacity).
 ! The building blocks are test_fast_integ_kernels'; the schemes' orders and the adaptive
 ! march are test_fast_integ_schemes'.
 !---~---
 program test_fast_integ_step
    use ed_kinds,                only : wp, ik
    use ed_constants,            only : latent_heat_fusion, rho_h2o, grav, pio4, cp_liq, grav_head, mmh2o,          &
-                                       tissue_c_wood_dry, tissue_c_leaf
+                                       tissue_c_wood_dry, tissue_c_leaf, pi, r_gas, mmdry, virtual_temp_factor
    use ed_fast_params,          only : INTEG_ESDIRK2, INTEG_RK45, RK45_RTOL
    use ed_time,                 only : solar_cosz
    use ed_therm_lib,            only : temp_to_internal_energy, internal_energy_liquid, sat_specific_humidity,     &
-                                       tissue_temp_to_energy, tissue_dry_heat_capacity, air_density
+                                       tissue_temp_to_energy, tissue_dry_heat_capacity, air_density,              &
+                                       cas_enthalpy_to_temp, cas_heat_capacity
    use ed_soil_hydr_lib,        only : SOIL_RETENTION_CAMPBELL, SOIL_SPECIFIC_STORAGE, soil_theta_to_head
    use ed_soil_params,          only : soil_params_t, SOIL_BC_DRAIN, SOIL_BC_AQUIFER
    use ed_site_state_vars,      only : make_site_surface
-   use ed_diag_vars,            only : CO_PSI_PREDAWN, CO_TRANSP
+   use ed_diag_vars,            only : CO_PSI_PREDAWN, CO_TRANSP, CO_GSW, CO_GB_MOL
+   use ed_plant_energy,         only : EFFAREA_HEAT, EFFAREA_TRANSP
+   use ed_fast_integ_derivs,    only : surface_derivs
    use ed_plant_hydr_lib,       only : tissue_water_to_psi
    use ed_fast_state,           only : derive_cohort_terms
    use ed_patch_state_vars,     only : cas_set_depth
    use ed_fast_integ_types,     only : frozen_t, march_state_t, ensure_output_capacity, WORK_RK45_RESCUE,          &
-                                       WORK_INTEG_STEPS
+                                       WORK_INTEG_STEPS, surface_state_t, surface_tend_t
    use ed_test_fast_fixture,    only : fast_column_t, make_fast_column, gather_column, reset_column, step_column,  &
                                        set_diurnal_forcing, set_noon_forcing, set_coldsnap_forcing, set_air,        &
                                        set_ground_tiles, frozen_record, all_ledgers_closed, NSL, DT_FAST,           &
@@ -122,6 +129,7 @@ program test_fast_integ_step
    call test_rk45_dry_seam()
    call test_rnet_counts_wood()
    call test_cas_capacity_budget()
+   call test_canopy_air_properties()
 
    call test_report('test_fast_integ_step')
 
@@ -1372,5 +1380,62 @@ contains
                  gain_c + book_c, 1.0e-9_wp * abs(c_first))
       call check_true('CAPACITY: the density and the depth moved the content', booked_abs > 1.0_wp, booked_abs)
    end subroutine test_cas_capacity_budget
+
+   !---~---
+   !   10. The fluxes go into the canopy air, so their conductances take its properties. A leaf
+   ! 5 K above and 3 K below the canopy air: its transpiration conductance [m/s] times the canopy
+   ! air's density, over its molar conductance (CO_GSW and CO_GB_MOL in series, on the
+   ! transpiring leaf area), is the moist air's molar mass M_dry/(1 + 0.608 q) at both, so its
+   ! flux rho g dq is M_air g_mol dq, about M_w g_mol de/P, whatever the leaf's temperature;
+   ! P/(R T) and R_d differ from M_dry by 2.5e-5. The leaf's boundary-layer conductance in mol is
+   ! its velocity times P/(R T_cas). The leaf's and the wood's sensible coefficients over
+   ! (area g_bh rho), and the bare ground's sensible flux over (g rho dT), are the canopy air's
+   ! specific heat at its humidity, 0.7 % above the dry air's at 8 g/kg.
+   !---~---
+   subroutine test_canopy_air_properties()
+      real(wp), parameter :: DT_LEAF(2) = [5.0_wp, -3.0_wp]   ! [K] the leaf over the canopy air
+      type(frozen_t)        :: fz
+      type(march_state_t)   :: ys
+      type(surface_state_t) :: y_surf
+      type(surface_tend_t)  :: f
+      real(wp)    :: tcas, qcas, cp_cas, m_air, gs, gb
+      integer(ik) :: k
+      print '(a)', 'test_canopy_air_properties:'
+      call use_scheme(INTEG_ESDIRK2)
+      call reset_column(col)
+      call set_noon_forcing(col)
+      call ensure_output_capacity(col%out, col%static%n, .true.)   ! the leaf solve's conductances
+      tcas   = cas_enthalpy_to_temp(col%dynamic%cas%can_enthalpy, col%dynamic%cas%can_shv)
+      qcas   = col%dynamic%cas%can_shv
+      cp_cas = cas_heat_capacity(qcas)
+      m_air  = mmdry / (1.0_wp + virtual_temp_factor * qcas)
+      do k = 1_ik, size(DT_LEAF, kind=ik)
+         col%dynamic%leaf_temp(1) = tcas + DT_LEAF(k)
+         call frozen_record(col, fz, ys)
+         gs = col%out%cdiag(CO_GSW, 1)
+         gb = col%out%cdiag(CO_GB_MOL, 1)
+         call check('canopy air: transpiration conductance x rho over the molar one is M_air, any leaf temperature', &
+                    fz%tissue%g_transp_leaf(1) * fz%cas%rho                                                        &
+                    / (EFFAREA_TRANSP * col%static%lai(1) * gs * gb / (gs + gb)), m_air, 1.0e-4_wp * m_air)
+         call check('canopy air: the molar boundary-layer conductance is g_bw P/(R T_cas)', gb,                      &
+                    col%out%aero%leaf_gbw(1) * fz%cas%press / (r_gas * tcas), 1.0e-12_wp * gb)
+      end do
+      call check('canopy air: the record holds its specific heat', fz%cas%cp, cp_cas, 0.0_wp)
+      call check('canopy air: the leaf''s sensible coefficient over (2 LAI g_bh rho) is c_p,cas',                   &
+                 fz%tissue%h_coeff_leaf(1)                                                                         &
+                 / (EFFAREA_HEAT * col%static%lai(1) * col%out%aero%leaf_gbh(1) * fz%cas%rho), cp_cas, 1.0e-12_wp * cp_cas)
+      call check_true('canopy air: the cohort has wood area', col%static%wai(1) > 0.0_wp, col%static%wai(1))
+      call check('canopy air: the wood''s sensible coefficient over (pi WAI g_bh rho) is c_p,cas',                  &
+                 fz%tissue%h_coeff_w(1) / (pi * col%static%wai(1) * col%out%aero%wood_gbh(1) * fz%cas%rho),        &
+                 cp_cas, 1.0e-12_wp * cp_cas)
+      y_surf%cas_enthalpy = col%dynamic%cas%can_enthalpy
+      y_surf%cas_shv      = qcas
+      y_surf%cas_co2      = col%dynamic%cas%can_co2
+      call surface_derivs(y_surf, fz%cas, fz%tissue, fz%veg_surface, fz%ground, tcas + 2.0_wp, col%static%n, f)
+      call check('canopy air: the bare ground''s sensible flux over (g rho dT) is c_p,cas',                         &
+                 f%h_ground / (fz%ground%ggnet * fz%cas%rho * 2.0_wp), cp_cas, 1.0e-9_wp * cp_cas)
+      call ensure_output_capacity(col%out, col%static%n, .false.)
+      call reset_column(col)
+   end subroutine test_canopy_air_properties
 
 end program test_fast_integ_step
