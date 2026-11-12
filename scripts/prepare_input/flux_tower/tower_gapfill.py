@@ -31,10 +31,11 @@ def missing_runs(missing):
     return list(zip(edges[::2], edges[1::2] - 1))
 
 
-def fill_short(y, qc, max_len, kind="linear", mean_cosz=None):
+def fill_short(y, qc, max_len, kind="linear", mean_cosz=None, toa_scale=None):
     """Fill runs of at most max_len missing records bounded on both sides by values. `kind` is
     'linear', 'energy' (wind: linear in u^2) or 'shortwave' (linear in the clearness index
-    SW / (S0 <cos z>), zero at night; needs mean_cosz)."""
+    SW / (S0 f <cos z>), f = toa_scale the Earth-Sun distance factor, zero at night; needs
+    mean_cosz and toa_scale)."""
     y = y.copy()
     qc = qc.copy()
     n = len(y)
@@ -46,7 +47,9 @@ def fill_short(y, qc, max_len, kind="linear", mean_cosz=None):
         if kind == "energy":
             y[a:b + 1] = np.sqrt((1 - w) * y[i0] ** 2 + w * y[i1] ** 2)
         elif kind == "shortwave":
-            toa = conv.SOLAR_CONSTANT * mean_cosz
+            if mean_cosz is None or toa_scale is None:
+                raise ValueError("fill_short(kind='shortwave') needs mean_cosz and toa_scale")
+            toa = conv.SOLAR_CONSTANT * toa_scale * mean_cosz
             day = mean_cosz > conv.COSZ_BAR_MIN
             k0 = y[i0] / toa[i0] if day[i0] else np.nan
             k1 = y[i1] / toa[i1] if day[i1] else np.nan
@@ -156,32 +159,32 @@ def fill_by_regression(y, qc, x, groups, code, lower=None, upper=None, fallback=
 # ---------------------------------------------------------------------------------------------
 # The longwave predictors: the model's synthesis.
 # ---------------------------------------------------------------------------------------------
-def clearness_held_through_night(sw, mean_cosz):
+def clearness_held_through_night(sw, mean_cosz, toa_scale):
     """The clearness index the model's longwave synthesis sees: by day the interval's SW over its
     mean top-of-atmosphere flux, and after dark the last daytime value (dusk's cloudiness), seeded
     clear (1) before the first sunrise."""
     kt = np.where(mean_cosz > conv.COSZ_BAR_MIN,
-                  np.clip(np.maximum(sw, 0.0) / (conv.SOLAR_CONSTANT * np.maximum(mean_cosz, 1e-30)), 0.0, 1.0),
+                  np.clip(np.maximum(sw, 0.0) / (conv.SOLAR_CONSTANT * toa_scale * np.maximum(mean_cosz, 1e-30)), 0.0, 1.0),
                   np.nan)
     kt = pd.Series(kt).ffill().fillna(1.0).to_numpy()
     return kt
 
 
-def synthesized_longwave(tair_k, rh, psurf_ground_pa, sw, mean_cosz, cloud_a=conv.LW_CLOUD_A):
+def synthesized_longwave(tair_k, rh, psurf_ground_pa, sw, mean_cosz, toa_scale, cloud_a=conv.LW_CLOUD_A):
     """ED-MORE's lwdown_source = "synthesize" from the tower's own temperature, humidity, pressure and
     shortwave (docs/science/forcing.md eq. (17))."""
     q = conv.rh_to_specific_humidity(rh, tair_k, psurf_ground_pa)
-    kt = clearness_held_through_night(sw, mean_cosz)
+    kt = clearness_held_through_night(sw, mean_cosz, toa_scale)
     return conv.synthesize_lwdown(tair_k, q, psurf_ground_pa, kt, cloud_a)
 
 
-def synthesis_predictors(tair_k, rh, psurf_ground_pa, sw, mean_cosz):
+def synthesis_predictors(tair_k, rh, psurf_ground_pa, sw, mean_cosz, toa_scale):
     """The two parts of the model's synthesis, eps_clear sigma T^4 and eps_clear sigma T^4 (1 - kt),
     as separate predictors. Regressing on both fits the cloud term's coefficient at the site
     instead of taking the model's 0.22, and on held-out records the two parts predict better than
     one regression on the whole synthesis."""
     q = conv.rh_to_specific_humidity(rh, tair_k, psurf_ground_pa)
-    kt = clearness_held_through_night(sw, mean_cosz)
+    kt = clearness_held_through_night(sw, mean_cosz, toa_scale)
     clear = conv.synthesize_lwdown(tair_k, q, psurf_ground_pa, np.ones_like(q), 0.0)
     return np.column_stack([clear, clear * (1.0 - kt)])
 

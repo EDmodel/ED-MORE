@@ -310,8 +310,23 @@ $`\langle\cos z\rangle_{win}`$ of §5), so the clearness index is a ratio of int
 sunrise or sunset interval whose midpoint is dark still splits its light. Both schemes conserve energy
 exactly: the four streams sum to the total.
 
+Both compare the shortwave with the irradiance above the atmosphere, which follows the Earth–Sun distance
+$`r`$. The solar constant $`S_0 = 1361`$ W m⁻² is its value at the mean distance $`r_0`$; on day $`n`$ of the
+year the irradiance normal to the sun is $`S_0 f`$, with
+
+```math
+f = \left(\frac{r_0}{r}\right)^2 = 1 + 0.033\cos\frac{2\pi n}{365}
+```
+
+(Duffie & Beckman 2013, §1.4): +3.3 % in early January, −3.3 % in early July, 1 on average over the year. $`n`$ is
+the UTC day of year of the record (of the instant, for the longwave synthesis and the slope), the day the
+declination of eq. (4) takes. Without $`f`$ the clearness index would be biased by up to 3 % with the season,
+a few hundredths in the diffuse fraction. `earth_sun_distance_factor` (`ed_time`) computes $`f`$ from the day of year and the caller passes it to the
+laws below: the clearness index, the Weiss–Norman bands $`S_{vis}`$ and $`S_{nir}`$, and the slope's solar constant. With `sw_partition = "passthrough"` the four streams are the file's own, and $`f`$ only enters
+the longwave synthesis's $`k_t`$.
+
 **`sw_partition = "clearidx"`** — the Erbs et al. (1982) clearness-index correlation. With
-$`k_t = \mathrm{SW}/(S_0\cos z)`$ clipped to $[0,1]$ and $`S_0 = 1361`$ W m⁻²,
+$`k_t = \mathrm{SW}/(S_0 f\cos z)`$ clipped to $[0,1]$,
 
 ```math
 f_{diff} =
@@ -330,10 +345,10 @@ sensors these fractions give PPFD 3–11 % high, mostly from the diffuse 0.52.
 **`sw_partition = "weiss_norman"`** — the band-specific Weiss & Norman (1985) scheme, after ED2's
 `short_bdown_weissnorman`. It builds *potential* (clear-sky) band fluxes from air-mass optical depth, with
 $`m=\sec z`$ and $`p_{rat}=P_{surf}/P_{std}`$ (so it needs surface pressure), then scales them to the
-observed total. The sun's beam above the atmosphere is $`S_{vis}=600`$ W m⁻² visible and
-$`S_{nir}=720`$ W m⁻² near-infrared, and the NIR water-vapour absorption is
-$`w_{10}=1320\cdot10^{\,-1.1950+0.4459\log_{10}m-0.0345(\log_{10}m)^2}`$ W m⁻², as WN85 publish them
-(eqs. 1, 4, 6):
+observed total. The sun's beam above the atmosphere is $`S_{vis}=600f`$ W m⁻² visible and
+$`S_{nir}=720f`$ W m⁻² near-infrared (600 and 720 at the mean distance), and the NIR water-vapour absorption is
+$`w_{10}=1320f\cdot10^{\,-1.1950+0.4459\log_{10}m-0.0345(\log_{10}m)^2}`$ W m⁻² (1320, the solar constant
+WN85 use, scales with the distance too), as WN85 publish them (eqs. 1, 4, 6):
 
 ```math
 R^{pot}_{vis,b} = S_{vis}e^{-0.185\,p_{rat}m}\cos z, \qquad
@@ -500,9 +515,9 @@ corrections (`met_at_site`), and each of its patches works from the result:
   ```
 
   for declination $\delta$, hour angle $h$ (§4) and latitude $\phi$; $\cos i = 0$ with the sun behind
-  the slope. Both beam streams take the factor $`\min(\cos i/\cos z,\; S_0\cos i/I_b)`$, $I_b$ the beam on
-  level ground: the beam normal to the sun, $`I_b/\cos z`$, held at most the solar constant
-  $`S_0 = 1361`$ W m⁻², so a low sun's small $\cos z$ does not inflate the beam a slope facing it receives.
+  the slope. Both beam streams take the factor $`\min(\cos i/\cos z,\; S_0 f\cos i/I_b)`$, $I_b$ the beam on
+  level ground: the beam normal to the sun, $`I_b/\cos z`$, held at most the solar constant of the day
+  $`S_0 f`$ (§6), so a low sun's small $\cos z$ does not inflate the beam a slope facing it receives.
 
 The diffuse light, the wind and the precipitation are the polygon's, and the canopy's radiation keeps
 the sun's zenith angle: stems stand vertical on a slope. A flat site at the polygon's elevation takes
@@ -802,6 +817,7 @@ each option requires are in the reference config `ed_config_main.toml` and in
 | interpolation, wind energy form | `ed_numerics`: `linear_interpolate`; `ed_met`: `interpolate_wind_energy` |
 | apparent solar time, zenith | `ed_time`: `solar_cosz_utc` over `solar_cosz`, with `utc_to_solar_seconds` and the private `equation_of_time`; the window mean `mean_solar_cosz`; `solar_declination`, `daylength` |
 | SW disaggregation | `ed_met`: `cosz_reconstruct_factor`, `disaggregate_sw` |
+| Earth–Sun distance factor, §6 | `ed_time`: `earth_sun_distance_factor`, called by `ed_met` and `ed_fast_forcing` with the day of year |
 | SW partition | `ed_radiation_lib`: `partition_shortwave`, `erbs_diffuse_fraction`, `weiss_norman_partition` |
 | humidity, precip phase | `ed_therm_lib`: `sat_specific_humidity` (at the dewpoint), `rh_to_specific_humidity`, `vapor_pressure_to_specific_humidity`, `specific_humidity_to_vapor_pressure`, `precip_phase`; the pressure they use, `tq_height_pressure` (`ed_met`) |
 | longwave synthesis | `ed_radiation_lib`: `clearness_index`, `clear_sky_emissivity`, `synthesize_lwdown`; `ed_met`: `remember_clearness` (the night's $`k_t`$) |
@@ -830,6 +846,8 @@ each option requires are in the reference config `ed_config_main.toml` and in
 - Idso & Jackson (1969), *J. Geophys. Res.* 74:5397: temperature-only clear-sky emissivity.
 - Spencer (1971), *Search* 2:172: Fourier series for the equation of time.
 - Cooper (1969), *Solar Energy* 12:333: the declination formula of eq. (4).
+- Duffie & Beckman (2013), *Solar Engineering of Thermal Processes*, 4th ed., Wiley, §1.4,
+  doi:10.1002/9781118671603: the Earth–Sun distance factor of §6.
 - Jin et al. (1999): precipitation phase partitioning; ED2 `ed_met_driver.f90`.
 - Longo et al. (2019), *GMD* 12:4309: ED-2.2 technical description (the meteorological driver).
 - Muñoz-Sabater et al. (2021), *ESSD* 13:4349: ERA5-Land; §2.3, its own lapse to the ERA5-Land orography.

@@ -20,7 +20,7 @@ module ed_met
                               dry_adiabat_temperature, dry_adiabat_pressure, sat_specific_humidity,          &
                              rh_to_specific_humidity
    use ed_time,   only : ed_time_t, time_advance_seconds, seconds_into_day, time_to_string, solar_cosz_utc,     &
-                         mean_solar_cosz
+                         mean_solar_cosz, day_of_year, earth_sun_distance_factor
    use ed_forcing_params,   only : forcing_params_t, MET_BACKEND_DEFAULT, MET_BACKEND_ERA5LAND,                   &
                                    METAVG_END, METAVG_BEGIN, CLAMP_ERROR, LW_SYNTHESIZE,                          &
                                    CO2_SOURCE_FILE, HEIGHT_ABOVE_ZERO_PLANE, WIND_EXPOSURE_OPEN_TERRAIN
@@ -295,7 +295,7 @@ contains
       r = interval_mean_record(src, cur)
       cosz_now = solar_cosz_utc(now, seconds_into_day(now), cur%latitude_deg, cur%longitude_deg)
       sw_total = r%par_beam + r%par_diffuse + r%nir_beam + r%nir_diffuse
-      kt = clearness_index(sw_total, cosz_now)
+      kt = clearness_index(sw_total, cosz_now, earth_sun_distance_factor(day_of_year(now)))
       if (kt >= 0.0_wp) cur%kt_last_day = kt         ! negative = night: keep dusk's value
    end subroutine remember_clearness
 
@@ -394,7 +394,7 @@ contains
          block
             real(wp) :: sw_now, kt_now
             sw_now = met%par_beam + met%par_diffuse + met%nir_beam + met%nir_diffuse
-            kt_now = clearness_index(sw_now, cosz_now)
+            kt_now = clearness_index(sw_now, cosz_now, earth_sun_distance_factor(day_of_year(now)))
             if (kt_now < 0.0_wp) kt_now = cur%kt_last_day
             met%lw_down = synthesize_lwdown(f%lw_clear_form, met%air_temp, met%air_shv, met%air_pressure,   &
                                            kt_now, f%lw_cloud_a)
@@ -690,7 +690,8 @@ contains
          call assert_finite(rec%nir_diffuse, 'SWdown_nir_diffuse', irec, src%grid_index)
       else
          call assert_finite(sw_total, 'SWdown', irec, src%grid_index)
-         call partition_shortwave(sw_total, record_mean_cosz(src, cur, rec%when), rec%air_pressure,    &
+         call partition_shortwave(sw_total, record_mean_cosz(src, cur, rec%when),                      &
+                                  earth_sun_distance_factor(day_of_year(rec%when)), rec%air_pressure,   &
                                   src%fcfg%sw_partition,                                          &
                                   rec%par_beam, rec%par_diffuse, rec%nir_beam, rec%nir_diffuse)
       end if
