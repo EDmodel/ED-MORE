@@ -134,6 +134,10 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   empirical Bolton and Magnus forms with no option; it is within 0.25 % of Murphy and Koop (2005)
   from -30 to 40 C. The flux-tower tools use it too, with its ice branch and liquid-fraction
   blend, and `ambaum` is the first of their saturation curves, with `bolton` kept. (#51)
+- Region runs and threaded site runs built with ifx hand out their polygons and patches costliest
+  first, as intended: the loops now ask OpenMP for a monotonic schedule, which ifx's runtime needs
+  to follow the order. Bit for bit; example 06's region 02 runs about 11 % faster on 40 threads,
+  and example 04 about 4 % faster on 20. (#74)
 
 ### Fixed
 
