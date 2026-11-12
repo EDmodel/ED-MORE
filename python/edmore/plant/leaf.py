@@ -147,7 +147,7 @@ class C3Rates:
 
 @dataclass(frozen=True)
 class Kinetics:
-    """C3 Rubisco kinetics at a leaf temperature and pressure, as mole fractions [umol/mol]."""
+    """C3 Rubisco kinetics at a leaf's drivers, as mole fractions of dry air [umol/mol]."""
     kc: float                 # Michaelis constant for CO2
     ko: float                 # Michaelis constant for O2
     gstar: float              # CO2 compensation point without respiration (Gamma*)
@@ -175,9 +175,13 @@ def gas_exchange(par, leaf_temp, vpd, ca, params, *,
                  colimitation=Colimitation.QUADRATIC, boundary_layer=False) -> Flux:
     """Solve the coupled A-gs-Ci system for one leaf.
 
-    Environmental drivers: par [umol photon/m2/s], leaf_temp [K], vpd [Pa], ca [umol/mol],
-    pressure [Pa], psi_leaf [MPa, <=0], gb [mol H2O/m2/s boundary-layer conductance; used only
-    when boundary_layer=True]. `params` is a Params (see c3_params / c4_params). Returns a Flux.
+    Environmental drivers: par [umol photon/m2/s], leaf_temp [K], vpd [Pa], ca [umol/mol of dry
+    air], pressure [Pa], psi_leaf [MPa, <=0], gb [mol H2O/m2/s boundary-layer conductance; used
+    only when boundary_layer=True]. `params` is a Params (see c3_params / c4_params). Returns a Flux.
+
+    `vpd` is the leaf-to-air deficit, e_sat(leaf_temp) - e, so it also gives the air's vapour
+    pressure e: CO2 and O2 are mole fractions of the dry air, whose pressure is pressure - e
+    (docs/science/leaf_gas_exchange.md eq. (3)).
 
     `psi` [MPa, <=0] is the SUPPLY-side water potential driving the Sabot stomatal limb
     (beta_stomata = min(1, exp(sref_stomata * psi)): docs/science/leaf_gas_exchange.md eq. (10) with
@@ -216,12 +220,14 @@ def gas_exchange_batch(par, leaf_temp, vpd, ca, params, *,
     return {k: np.asarray(v).reshape(shape) for k, v in result.items()}
 
 
-def rubisco_kinetics(params, leaf_temp, pressure=101325.0) -> Kinetics:
-    """The C3 Rubisco kinetics the solver uses, as mole fractions [umol/mol], at leaf_temp [K] and
-    pressure [Pa]: docs/science/leaf_gas_exchange.md eq. (3). Kc and Ko are partial pressures over the
-    air's pressure; Gamma* depends on the O2 mole fraction and not on pressure. The values are the
-    compiled kernel's own, so they compose with assimilation_demand_c3 to reproduce the solver."""
-    return Kinetics(**_ffi.rubisco_kinetics(asdict(params), leaf_temp, pressure))
+def rubisco_kinetics(params, leaf_temp, pressure=101325.0, *, vpd) -> Kinetics:
+    """The C3 Rubisco kinetics the solver uses, as mole fractions of dry air [umol/mol], at
+    leaf_temp [K], pressure [Pa] and the leaf-to-air vpd [Pa], as gas_exchange takes them:
+    docs/science/leaf_gas_exchange.md eq. (3). Kc and Ko are partial pressures over the dry air's
+    pressure, pressure - e, with e = e_sat(leaf_temp) - vpd the air's vapour pressure; Gamma*
+    depends on the O2 mole fraction and not on pressure. The values are the compiled kernel's own,
+    so they compose with assimilation_demand_c3 to reproduce the solver at the same drivers."""
+    return Kinetics(**_ffi.rubisco_kinetics(asdict(params), leaf_temp, pressure, vpd))
 
 
 def assimilation_demand_c3(ci, vcmax, j, *, tpu=1.0e6, gstar, kc, ko, o2,

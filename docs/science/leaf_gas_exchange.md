@@ -9,16 +9,16 @@ the public entry points are `solve_leaf_gas_exchange` and `leaf_gas_exchange_bat
 leaf table of the PFT table (`ed_pft_derive`).
 
 The kernel takes one leaf's environment as given (incident PAR, leaf temperature, vapour pressure
-deficit, CO₂, pressure, water potentials, boundary-layer conductance) and does no radiation, energy
-balance or hydraulics itself. The radiation page gives how the cohort's PAR is formed
-([canopy_radiation_transfer](canopy_radiation_transfer.md), "PAR passed to photosynthesis"); the cohort
-code divides it by the leaf area index (`cohort_leaf_par`).
+deficit, CO₂, pressure, the air's vapour pressure, water potentials, boundary-layer conductance) and
+does no radiation, energy balance or hydraulics itself. The radiation page gives how the cohort's PAR
+is formed ([canopy_radiation_transfer](canopy_radiation_transfer.md), "PAR passed to photosynthesis");
+the cohort code divides it by the leaf area index (`cohort_leaf_par`).
 
 Symbols: $A$ = net CO₂ assimilation, $A_g$ = gross assimilation, $R_d$ = leaf (dark) respiration
-($A = A_g - R_d$); $C_a, C_s, C_i$ = CO₂ mole fraction (µmol mol⁻¹) in the ambient air, at the leaf
-surface and in the intercellular space; $g_s$ = stomatal conductance **to water vapour**; $g_b$ = leaf
-boundary-layer conductance to water vapour; $D$ = leaf-to-air vapour deficit; $\psi$ = water
-potential. Two fixed diffusion constants appear throughout: the H₂O:CO₂ diffusivity ratios $1.6$
+($A = A_g - R_d$); $C_a, C_s, C_i$ = CO₂ mole fraction of dry air (µmol mol⁻¹) in the ambient air,
+at the leaf surface and in the intercellular space; $g_s$ = stomatal conductance **to water vapour**;
+$g_b$ = leaf boundary-layer conductance to water vapour; $D$ = leaf-to-air vapour deficit; $\psi$ =
+water potential. Two fixed diffusion constants appear throughout: the H₂O:CO₂ diffusivity ratios $1.6$
 through the stomata (`gsw_2_gsc`) and $1.4$ through the boundary layer (`gbw_2_gbc`).
 
 ---
@@ -64,24 +64,36 @@ electrons per CO₂ (the $4C_i + 8\Gamma^*$ in $A_j$) that is 0.093 CO₂ per ab
 maximum quantum yield of C3 leaves (Long et al. 1993). The maximum PSII efficiency Fv/Fm (0.85) in
 its place would give the O₂-evolution yield, 0.106 (Björkman & Demmig 1987).
 
+**The CO₂ and the O₂ are mole fractions of dry air.** The canopy air carries its CO₂ per mole of
+dry air ([canopy_air_space_biophysics](canopy_air_space_biophysics.md)), as CO₂ records report it,
+and `o2_mol_frac` (0.209) is O₂'s share of dry air. A gas's partial pressure is its dry mole fraction
+times the dry air's pressure $`P - e`$, with $e$ the air's vapour pressure (`dry_air_pressure` in
+`ed_therm_lib`).
+
 **$`\Gamma^*`$ is proportional to the oxygen partial pressure**, because it is set by Rubisco's
 specificity for CO₂ over O₂: $`\Gamma^* = \tfrac{1}{2} O / S_{c/o}`$. The O₂ partial pressure is
-the O₂ mole fraction times the air's pressure, as the CO₂ one is, so $`\Gamma^*`$ as a mole fraction
-depends on the O₂ mole fraction and **not on pressure**. ED-MORE computes it as a mole fraction from the
-O₂ mole fraction and the pressure its reference value is stated at:
+the O₂ mole fraction times the dry air's pressure, as the CO₂ one is, so $`\Gamma^*`$ as a mole
+fraction depends on the O₂ mole fraction and **not on pressure**. ED-MORE computes it as a mole
+fraction from the O₂ mole fraction and the pressure its reference value is stated at. $`K_c`$ and
+$`K_o`$, the Michaelis constants of dissolved CO₂ and O₂, are partial pressures, and are divided by
+the dry air's pressure:
 
 ```math
 \Gamma^*(T, O) = \frac{\Gamma^*_{25}}{P_\mathrm{ref}}\,f_{\mathrm{Arr}}(T)\;\frac{O}{O_\mathrm{ref}},
+\qquad K_{c,o}(T) = \frac{K_{c,o,25}\,f_{\mathrm{Arr}}(T)}{P - e},
 \qquad O_\mathrm{ref} = 0.209,\quad P_\mathrm{ref} = 100\ \mathrm{kPa} \qquad(3)
 ```
 
 The shipped `gstar25` = 4.275 Pa is Bernacchi et al. (2001)'s 42.75 µmol mol⁻¹ at 21 % O₂, written
 as a partial pressure at 100 kPa, so $`\Gamma^*`$ at 25 °C is 42.75 µmol mol⁻¹ at any elevation.
-$`K_c`$ and $`K_o`$, the Michaelis constants of dissolved CO₂ and O₂, are partial pressures and are
-divided by the local pressure, so $`O/K_o`$ is the ratio of the two partial pressures
-(`rubisco_kinetics` in `ed_leaf_gas_exchange`; `edmore.plant.leaf.rubisco_kinetics` in Python).
-Dividing `gstar25` by the local pressure instead would raise $`\Gamma^*`$ with elevation and cut
-gross photosynthesis in dim light, where photorespiration sets the quantum yield.
+$`O/K_o`$ is the ratio of the two partial pressures, and $`C_i + K_c(1 + O/K_o)`$ adds a CO₂ mole
+fraction to a Michaelis constant on the same basis (`rubisco_kinetics` in `ed_leaf_gas_exchange`;
+`edmore.plant.leaf.rubisco_kinetics` in Python). Dividing `gstar25` by the local pressure instead
+would raise $`\Gamma^*`$ with elevation and cut gross photosynthesis in dim light, where
+photorespiration sets the quantum yield. Dividing $`K_c`$ and $`K_o`$ by the total pressure $P$
+would state them per mole of moist air while the CO₂ is per mole of dry air: in humid lowland air
+($`e/P \approx 3\,\%`$) they would be 3 % low, and the Rubisco-limited rate at $`C_i`$ = 280 µmol mol⁻¹
+1.3 % high at 25 °C and 1.5 % at 30 °C. The light- and TPU-limited rates do not involve them.
 
 The O₂ factor makes `[leaf_physiology].o2_mol_frac` reach both places oxygen enters the C3 demand,
 the Michaelis term $`K_c(1 + O/K_o)`$ and the compensation point. It equals 1 in any default run. It
@@ -92,7 +104,8 @@ the low-O₂ sensitivity experiment, the standard way to isolate photorespiratio
 light-limited slope with the quantum yield $\phi_{C4}$ (`quantum_yield_c4`); and $A_p = k_p C_i$ is the
 PEP-carboxylase CO₂ limitation. $`\Gamma^* \approx 0`$ because the CO₂-concentrating mechanism suppresses
 photorespiration. `kp25` is a slope on the CO₂ partial pressure stated at standard pressure, so the
-code scales $`k_p`$ by $`p/p_{std}`$ and $`k_p C_i`$ follows the partial pressure at any altitude.
+code scales $`k_p`$ by the dry air's pressure, $`(P - e)/p_{std}`$, and $`k_p C_i`$ follows the CO₂
+partial pressure at any altitude and humidity.
 
 The three rates are combined into $A_g$ either as a sharp $\min(A_c,A_j,A_p)$
 (`[leaf_physiology].colimitation = "min"`) or as two nested smoothing quadratics
@@ -406,7 +419,8 @@ bracket is narrower than the tolerance `CI_TOL_PPM` (10⁻³ µmol mol⁻¹):
   $`\Gamma^*`$; Katul's derivative in $C_i$ is a finite difference of 10⁻³ $C_i$, at least 10⁻² µmol mol⁻¹.
 
 Then $g_s$, $C_s$, $C_i$ and the transpiration $E$ are assembled consistently. $E$ uses the vapour
-deficit over the pressure and, with the boundary layer resolved, $g_s$ and $g_b$ in series.
+deficit over the total pressure, the vapour's mole fraction in the moist air, and, with the boundary
+layer resolved, $g_s$ and $g_b$ in series.
 
 ---
 
@@ -441,7 +455,7 @@ selectors are in `[leaf_physiology]`.
 
 | Concept | Routine (`ed_leaf_gas_exchange` unless noted) |
 |---|---|
-| Rubisco kinetics $K_c$, $K_o$, $`\Gamma^*`$ in µmol mol⁻¹, eq. (3) | `rubisco_kinetics` |
+| Rubisco kinetics $K_c$, $K_o$, $`\Gamma^*`$ in µmol mol⁻¹ of dry air, eq. (3) | `rubisco_kinetics`; the dry air's pressure, `ed_therm_lib`: `dry_air_pressure` |
 | C3 and C4 demand, eq. (2) | `assimilation_demand_c3`, `assimilation_demand_c4`, `combine_limits` |
 | electron transport $J$ | `electron_transport_j` |
 | temperature responses and acclimation, eq. (4) | `ed_therm_lib`: `temp_response`, `kattge_knorr_entropy`, `kattge_knorr_jv_ratio`; `ed_plant_traits`: `acclimate_leaf_photo_table` |

@@ -89,6 +89,11 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   archive and in the files `make_forcing_file.py` cuts alike; it acted half an hour late. Every
   ERA5-Land run moves at the sub-daily scale (Palo Verde: hourly longwave by up to 10 W/m2, LE
   −0.11 %, H +0.14 %, GPP −0.03 %); tower runs are bit for bit. (#81)
+- Rubisco's Michaelis constants Kc and Ko, partial pressures, become mole fractions over the dry-air
+  pressure P − e, the basis of the canopy air's CO2 and O2, instead of over P (and the C4 PEP slope
+  likewise); the Rubisco-limited rate was about 1.3–1.5 % high in humid air. BCI (example 04,
+  default/calibrated): GPP −0.45/−0.54 %, LE −0.28/−0.38 %; Palo Verde (ERA5-Land): GPP −0.36 %,
+  LE −0.13 %. (#82)
 
 ### Added
 
@@ -213,6 +218,9 @@ patch version; the names change, and the Upgrading notes list them.
 - ERA5-Land forcing files cut with `scripts/prepare_input/era5/make_forcing_file.py` before #81 hold
   the longwave as hourly means ending at the stamps, which the model reads half an hour late: cut
   them again. The archive is read correctly without any change. (#81)
+- `edmore.plant.leaf.rubisco_kinetics` requires `vpd` [Pa], the leaf-to-air vapour pressure deficit,
+  as a keyword argument, and the C function `ed_rubisco_kinetics` takes it after `pressure`: the
+  constants depend on the air's vapour pressure. (#82)
 
 ### Added
 

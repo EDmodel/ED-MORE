@@ -1004,7 +1004,7 @@ def test_kattge_knorr_and_the_least_cost_g1():
     kk = priors.kattge_knorr(25.5)
     assert kk["pft.jmax_vcmax_ratio"] == pytest.approx(1.6975) and kk["leaf_physiology.ds_vcmax"] == pytest.approx(641.105)
     assert kk["leaf_physiology.ds_jmax"] == pytest.approx(640.575) and priors.viscosity_ratio(298.15) == pytest.approx(1.0)
-    clim = {"t_day_k": 299.4, "p_day_pa": 99300.0, "vpd_day_pa": 530.0, "par_day": 840.0}
+    clim = {"t_day_k": 299.4, "p_day_pa": 99300.0, "vpd_day_pa": 530.0, "e_day_pa": 2870.0, "par_day": 840.0}
     g1 = priors.eeo_g1(dict(priors.LEAF_DEFAULTS), clim)
     assert 2.6 < g1 < 3.0                                           # a tropical lowland climate: ~2.8
     hot = priors.eeo_g1(dict(priors.LEAF_DEFAULTS), {**clim, "t_day_k": 308.0})
@@ -1023,7 +1023,7 @@ def test_co2_from_the_run_setting(tmp_path):
 @pytest.mark.skipif(not os.environ.get("EDMORE_LIB"), reason="the EEO vcmax25 uses ED-MORE's own leaf (libedmore.so)")
 def test_the_coordination_vcmax25_balances_the_two_rates():
     lp = dict(priors.LEAF_DEFAULTS)
-    clim = {"t_day_k": 299.4, "p_day_pa": 99300.0, "vpd_day_pa": 530.0, "par_day": 840.0}
+    clim = {"t_day_k": 299.4, "p_day_pa": 99300.0, "vpd_day_pa": 530.0, "e_day_pa": 2870.0, "par_day": 840.0}
     pft = {"theta_j": 0.7, "jmax_vcmax_ratio": 1.7}
     v25 = priors.eeo_vcmax25(lp, pft, clim, 400.0)
     assert 20.0 < v25 < 80.0
@@ -1034,13 +1034,15 @@ def test_the_coordination_vcmax25_balances_the_two_rates():
 @pytest.mark.skipif(not os.environ.get("EDMORE_LIB"), reason="compares with ED-MORE's own leaf kinetics (libedmore.so)")
 def test_the_priors_kinetics_are_the_leafs():
     # The least-cost g1 needs no library, so priors.kinetics computes the kinetics itself, as partial
-    # pressures; they must be the leaf kernel's at any pressure (Gamma* as a mole fraction does not
-    # depend on it: docs/science/leaf_gas_exchange.md eq. (3)).
+    # pressures on the dry air's pressure P - e; they must be the leaf kernel's at any pressure and
+    # humidity (Gamma* as a mole fraction does not depend on them: docs/science/leaf_gas_exchange.md
+    # eq. (3)). The kernel reads e off the leaf temperature and VPD, e = e_sat(T) - VPD.
     from edmore.plant import leaf
-    for p_pa in (99300.0, 70000.0):
-        k = priors.kinetics(dict(priors.LEAF_DEFAULTS), 303.15, p_pa)
-        m = leaf.rubisco_kinetics(leaf.c3_params(), 303.15, p_pa)
-        to_mf = 1.0e6 / p_pa
+    for p_pa, vpd in ((99300.0, 530.0), (70000.0, 2500.0)):
+        p_dry = p_pa - (priors.sat_vapor_pressure(303.15) - vpd)
+        k = priors.kinetics(dict(priors.LEAF_DEFAULTS), 303.15, p_dry)
+        m = leaf.rubisco_kinetics(leaf.c3_params(), 303.15, p_pa, vpd=vpd)
+        to_mf = 1.0e6 / p_dry
         assert k["gstar"] * to_mf == pytest.approx(m.gstar, rel=1e-10)
         assert k["kc"] * to_mf == pytest.approx(m.kc, rel=1e-10)
         assert k["ko"] * to_mf == pytest.approx(m.ko, rel=1e-10)

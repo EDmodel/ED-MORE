@@ -74,7 +74,8 @@ def _lib():
         lib.ed_assimilation_demand_c3.argtypes = [c_double] * 8 + [c_int, c_double, c_double,
                                                     POINTER(_C3DemandC)]
         lib.ed_rubisco_kinetics.restype = None
-        lib.ed_rubisco_kinetics.argtypes = [POINTER(_ParamsC), c_double, c_double, POINTER(_KineticsC)]
+        lib.ed_rubisco_kinetics.argtypes = [POINTER(_ParamsC), c_double, c_double, c_double,
+                                            POINTER(_KineticsC)]
         lib.ed_electron_transport_j.restype = c_double
         lib.ed_electron_transport_j.argtypes = [c_double] * 5
         lib.ed_peaked_arrhenius.restype = c_double
@@ -128,12 +129,13 @@ def assimilation_demand_c3(ci, vcmax, j, tpu, gstar, kc, ko, o2, colimitation, t
     return {n: getattr(dem_c, n) for n in _C3_DEMAND_FIELDS}
 
 
-def rubisco_kinetics(params, t_leaf, pressure):
-    """The solver's C3 Rubisco kinetics (kc, ko, gstar, o2) [umol/mol] at t_leaf [K] and pressure [Pa]."""
+def rubisco_kinetics(params, t_leaf, pressure, vpd):
+    """The solver's C3 Rubisco kinetics (kc, ko, gstar, o2) [umol/mol of dry air] at t_leaf [K],
+    pressure [Pa] and leaf-to-air vpd [Pa]."""
     params_c = _ParamsC(pathway=int(params["pathway"]),
                         **{k: float(params[k]) for k in PARAM_FIELDS})
     kin_c = _KineticsC()
-    _lib().ed_rubisco_kinetics(byref(params_c), float(t_leaf), float(pressure), byref(kin_c))
+    _lib().ed_rubisco_kinetics(byref(params_c), float(t_leaf), float(pressure), float(vpd), byref(kin_c))
     return {n: getattr(kin_c, n) for n in _KINETICS_FIELDS}
 
 

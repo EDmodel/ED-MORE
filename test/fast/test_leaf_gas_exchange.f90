@@ -18,7 +18,11 @@
 !   7. LIGHT: the night branch at PAR = 0, and a monotone light response.
 !   8. O2 (eq. (3)): oxygen reaches Gamma* as well as the Michaelis term.
 !   9. PRESSURE (rubisco_kinetics, eq. (3)): Gamma* as a mole fraction does not depend on
-!      pressure; Kc and Ko are partial pressures.
+!      pressure; Kc and Ko are partial pressures. The CO2 and O2 are mole fractions of dry
+!      air, so Kc and Ko are over the dry air's pressure P - e: with no vapour that is P;
+!      Kc (P - e) is the Arrhenius partial pressure; Ac at a fixed Ci falls by the factor
+!      the partial pressures give while Aj does not move; and a whole solve's carbon, C3
+!      or C4, sees the pressure only through P - e.
 !  10. A COHORT'S LEAF PAR (cohort_leaf_par): its absorbed PAR per unit of its own leaf
 !      area, the same for a thin cohort as a thick one, none for a leafless one.
 ! The temperature responses are test_therm_lib's.
@@ -34,6 +38,7 @@ program test_leaf_gas_exchange
    use ed_leaf_gas_exchange,    only : assimilation_demand_c3, rubisco_kinetics, stomata_gs_medlyn,          &
                                        solve_leaf_gas_exchange, leaf_env_t, leaf_out_t, LIM_NONE,         &
                                        LIM_RUBISCO, LIM_RUBP, LIM_C4_PEP, cohort_leaf_par
+   use ed_therm_lib,            only : arrhenius_scale, dry_air_pressure, vpd_to_vapor_pressure
    use ed_test_support,         only : banner, build_test_config, check, check_close
    implicit none
 
@@ -463,7 +468,7 @@ program test_leaf_gas_exchange
    ! eq. (3)): it is proportional to the O2 partial pressure, which scales with pressure as
    ! the CO2 partial pressure does. At 25 C and 21 % O2 it is Bernacchi et al. (2001)'s
    ! 42.75 umol/mol at sea level and at 3000 m (70 kPa) alike. Kc and Ko are partial
-   ! pressures, so as mole fractions they scale as 1/P.
+   ! pressures, so as mole fractions they scale as 1/P (here the dry air's pressure).
    !---~---
    block
       type(leaf_photo_pft_t)   :: pp
@@ -480,6 +485,68 @@ program test_leaf_gas_exchange
       call rubisco_kinetics(pp, t_kelvin + 35.0_wp, 101325.0_wp, kc_low, ko_low, gstar_low, o2_low)
       call rubisco_kinetics(pp, t_kelvin + 35.0_wp, 70000.0_wp, kc_high, ko_high, gstar_high, o2_high)
       call check(gstar_high == gstar_low, 'Gamma* in umol/mol does not depend on pressure at 35 C')
+   end block
+
+   !---~---
+   !   9b. The dry-air basis (docs/science/leaf_gas_exchange.md eq. (3)). The canopy air's CO2 and
+   ! the O2 are mole fractions of dry air, so Kc and Ko are their partial pressures over the dry
+   ! air's pressure P - e, in humid lowland air at 30 C (P = 100 kPa, e = 3 kPa) as at no vapour,
+   ! where it is P. At a fixed Ci the Rubisco-limited rate then falls by (Ci + K0)/(Ci + Ke),
+   ! with K = Kc (1 + O/Ko) built from the partial pressures, K_pp = Kc_pp (1 + x_O2 (P - e)/Ko_pp),
+   ! over P - e; Gamma*, and with it the light-limited rate, does not move. A whole solve sees
+   ! the pressure only through P - e in its carbon: (P + e, e) gives the A of (P, 0), for a
+   ! Rubisco-limited C3 leaf and a PEP-limited C4 one, whose PEP slope follows the CO2 partial
+   ! pressure; at a fixed P, vapour lowers both.
+   !---~---
+   block
+      type(leaf_photo_pft_t) :: pp
+      real(wp), parameter :: P_AIR = 1.0e5_wp, E_AIR = 3000.0_wp, CI_FIX = 280.0_wp, JRATE = 150.0_wp
+      real(wp) :: t30, kc_pa, ko_pa, kc0, ko0, gs0, o20, kc1, ko1, gs1, o21, k0_ppm, k1_ppm
+      real(wp) :: ag0, ac0, aj0, ap0, ag1, ac1, aj1, ap1, a_base
+      integer(ik) :: ipft
+      pp = cfg%pft%leaf_photo%pft(1)
+      t30 = t_kelvin + 30.0_wp
+      kc_pa = arrhenius_scale(pp%kc25, pp%ea_kc, t30)                      ! [Pa] partial pressures
+      ko_pa = arrhenius_scale(pp%ko25, pp%ea_ko, t30)
+      call rubisco_kinetics(pp, t30, dry_air_pressure(P_AIR, 0.0_wp), kc0, ko0, gs0, o20)
+      call rubisco_kinetics(pp, t30, dry_air_pressure(P_AIR, E_AIR), kc1, ko1, gs1, o21)
+      call check_close(kc0, kc_pa / P_AIR * 1.0e6_wp, 1.0e-14_wp, 'no vapour: Kc is over the total pressure')
+      call check_close(ko0, ko_pa / P_AIR * 1.0e6_wp, 1.0e-14_wp, 'no vapour: Ko is over the total pressure')
+      call check_close(kc1 * (P_AIR - E_AIR) * 1.0e-6_wp, kc_pa, 1.0e-13_wp, 'Kc (P - e) is the Arrhenius partial pressure')
+      call check_close(ko1 * (P_AIR - E_AIR) * 1.0e-6_wp, ko_pa, 1.0e-13_wp, 'Ko (P - e) is the Arrhenius partial pressure')
+      call check(gs1 == gs0 .and. o21 == o20, 'Gamma* and O2 as mole fractions do not depend on the vapour')
+      !--- K from the partial pressures alone, then the Rubisco-limited rate at a fixed Ci.
+      k0_ppm = kc_pa * (1.0_wp + pp%o2_mol_frac * P_AIR / ko_pa) / P_AIR * 1.0e6_wp
+      k1_ppm = kc_pa * (1.0_wp + pp%o2_mol_frac * (P_AIR - E_AIR) / ko_pa) / (P_AIR - E_AIR) * 1.0e6_wp
+      call assimilation_demand_c3(CI_FIX, 60.0_wp, JRATE, 15.0_wp, gs0, kc0, ko0, o20, COLIM_MIN,       &
+                                  0.98_wp, 0.95_wp, ag0, ac0, aj0, ap0)
+      call assimilation_demand_c3(CI_FIX, 60.0_wp, JRATE, 15.0_wp, gs1, kc1, ko1, o21, COLIM_MIN,       &
+                                  0.98_wp, 0.95_wp, ag1, ac1, aj1, ap1)
+      call check_close(ac1 / ac0, (CI_FIX + k0_ppm) / (CI_FIX + k1_ppm), 1.0e-12_wp,                    &
+                       'vapour lowers Ac at a fixed Ci by (Ci + K0)/(Ci + Ke), K from the partial pressures')
+      call check(ac1 < 0.99_wp * ac0 .and. ac1 > 0.98_wp * ac0,                                       &
+                 'e/P = 3 % lowers Ac at Ci = 280 and 30 C by 1-2 %')
+      call check(aj1 == aj0 .and. ap1 == ap0, 'the light- and TPU-limited rates do not depend on the vapour')
+      print '(a,f8.4,a)', '   [dry air] Ac with e/P = 3 % over Ac with none: ', ac1 / ac0, ''
+      !--- The whole solve: a Rubisco-limited C3 leaf (low CO2, full light) and a PEP-limited C4 leaf.
+      do ipft = 1_ik, 3_ik, 2_ik
+         env = std_env()
+         env%ca = merge(150.0_wp, 40.0_wp, ipft == 1_ik)
+         env%pressure = P_AIR
+         env%vapor_pressure = 0.0_wp
+         call leaf_solve(env, ipft, flux)
+         a_base = flux%A_gross
+         call check(flux%limitation == merge(LIM_RUBISCO, LIM_C4_PEP, ipft == 1_ik),                  &
+                    'dry air: the C3 leaf is Rubisco-limited, the C4 leaf PEP-limited')
+         env%pressure = P_AIR + E_AIR
+         env%vapor_pressure = E_AIR
+         call leaf_solve(env, ipft, flux2)
+         call check_close(flux2%A_gross, a_base, 1.0e-14_wp,                                          &
+                          'the leaf''s carbon sees the pressure only through P - e: (P + e, e) is (P, 0)')
+         env%pressure = P_AIR
+         call leaf_solve(env, ipft, flux2)
+         call check(flux2%converged .and. flux2%A_gross < a_base, 'at a fixed P, vapour lowers A_gross')
+      end do
    end block
 
    !---~---
@@ -506,6 +573,7 @@ contains
       e%vpd = 1500.0_wp
       e%ca = 400.0_wp
       e%pressure = 101325.0_wp
+      e%vapor_pressure = vpd_to_vapor_pressure(e%leaf_temp, e%vpd)
       e%psi_leaf = 0.0_wp
       e%gb = 0.0_wp
       e%psi = 0.0_wp

@@ -114,7 +114,8 @@ module ed_diag_vars
    !   The rest of the leaf solve's own inputs, as it saw them, so the solve can be repeated
    ! outside the model (the calibration's canopy of leaf kernels): with CO_LEAF_TEMP,
    ! CO_LEAF_VPD, CO_PSI_LEAF, the patch's canopy-air CO2 at the sub-step's start and the
-   ! forcing's air pressure, they are every driver of leaf_gas_exchange_batch.
+   ! forcing's air pressure, they are every driver of leaf_gas_exchange_batch: the canopy
+   ! air's vapour pressure is the saturation pressure at CO_LEAF_TEMP less CO_LEAF_VPD.
    !---~---
    integer(ik), parameter, public :: CO_LEAF_PAR     = 27_ik  ! [umol photon/m2 leaf/s] incident-equivalent PAR per leaf area
    integer(ik), parameter, public :: CO_GB_MOL       = 28_ik  ! [mol H2O/m2 leaf/s] boundary-layer conductance

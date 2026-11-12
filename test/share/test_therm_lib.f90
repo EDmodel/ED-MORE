@@ -23,12 +23,13 @@
 !   6. SOIL TEXTURE (soil_texture_to_thermal; soil_biophysics.md eq. (9)): CLM5's solids'
 !      and dry soil's conductivities and the solids' heat capacity, computed apart.
 !   7. MOIST AIR (sat_specific_humidity, rh_to_specific_humidity, specific_humidity_to_vpd,
-!      precip_phase; docs/science/forcing.md): the humidity of a dewpoint is
-!      eps e / (p - (1 - eps) e) and RH = 1 at the dewpoint gives it again; the VPD is read
-!      at the air's pressure: air half saturated at 70 kPa has half e_sat of it there, and a
-!      humidity at 70 kPa holds 0.7 of the vapour pressure it holds at 1 atm; the
-!      rain/snow split keeps the total, all rain when warm, all snow when cold, part of each
-!      at the triple point.
+!      vpd_to_vapor_pressure, dry_air_pressure, precip_phase; docs/science/forcing.md): the
+!      humidity of a dewpoint is eps e / (p - (1 - eps) e) and RH = 1 at the dewpoint gives
+!      it again; the VPD is read at the air's pressure: air half saturated at 70 kPa has half
+!      e_sat of it there, and a humidity at 70 kPa holds 0.7 of the vapour pressure it holds
+!      at 1 atm; vpd_to_vapor_pressure inverts air_vpd; the dry air's pressure P - e is its
+!      density times R_d T (Dalton); the rain/snow split keeps the total, all rain when warm,
+!      all snow when cold, part of each at the triple point.
 !   8. THE AIR AT ANOTHER HEIGHT (lapse_air_temperature, lapse_pressure,
 !      lapse_specific_humidity; forcing.md §8): the temperature falls at the rate given, the
 !      pressure drops, barometrically when isothermal, the humidity keeps its relative
@@ -52,8 +53,9 @@ program test_therm_lib
                                 soil_thermal_conductivity, soil_texture_to_thermal, rh_to_specific_humidity,      &
                                 precip_phase, lapse_air_temperature, lapse_pressure, lapse_specific_humidity,     &
                                 specific_humidity_to_vpd, tissue_temp_to_energy, tissue_energy_to_temp,          &
-                                internal_energy_liquid, latent_heat_vap, enthalpy_vapor, moist_gas_constant,      &
-                                dry_adiabat_pressure
+                                internal_energy_liquid, latent_heat_vap, enthalpy_vapor, air_vpd,                 &
+                                vpd_to_vapor_pressure, dry_air_pressure, air_density,                             &
+                                specific_humidity_to_vapor_pressure, moist_gas_constant, dry_adiabat_pressure
    implicit none
    real(wp), parameter :: SCAN_LO = 5.0_wp, SCAN_HI = 55.0_wp   ! [C] the optimum scan's range
 
@@ -320,6 +322,15 @@ contains
       vpd_low = specific_humidity_to_vpd(T_AIR, Q_AIR, P_LOW)
       call check('at 70 kPa a humidity holds 0.7 of its vapour pressure at 1 atm (Dalton)', es - vpd_low,          &
                  0.7_wp * (es - vpd_std), 1.0e-12_wp * es)
+      call check('vpd_to_vapor_pressure inverts air_vpd', vpd_to_vapor_pressure(T_AIR, air_vpd(T_AIR, 1200.0_wp)), &
+                 1200.0_wp, 1.0e-9_wp)
+      !---~---
+      !   The dry air's partial pressure is its own density times R_d T: the moist air's density
+      ! times its dry share 1 - q.
+      !---~---
+      e = specific_humidity_to_vapor_pressure(Q_AIR, P_LOW)
+      call check('the dry air''s pressure P - e is rho (1 - q) R_d T (Dalton)', dry_air_pressure(P_LOW, e),       &
+                 air_density(T_AIR, P_LOW, Q_AIR) * (1.0_wp - Q_AIR) * r_dry * T_AIR, 1.0e-9_wp * P_LOW)
       call precip_phase(TOT, t_3ple + 5.0_wp, rain, snow)
       call check('warm -> all rain', rain, TOT, 1.0e-16_wp)
       call check('warm -> no snow',  snow, 0.0_wp, 1.0e-16_wp)

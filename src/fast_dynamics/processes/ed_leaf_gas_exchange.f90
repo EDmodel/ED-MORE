@@ -12,7 +12,7 @@ module ed_leaf_gas_exchange
    use ed_leaf_params,     only : COLIM_QUADRATIC, SM_LEUNING, SM_KATUL
    use ed_pft_params,      only : PATH_C4
    use ed_pft_params,  only : leaf_photo_pft_t, leaf_photo_table_t
-   use ed_therm_lib,       only : temp_response, arrhenius_scale
+   use ed_therm_lib,       only : temp_response, arrhenius_scale, dry_air_pressure
    use ed_numerics,        only : quadratic_smaller_root, root_bracket_t, regula_falsi_point, illinois_narrow
    implicit none
    private
@@ -71,8 +71,13 @@ module ed_leaf_gas_exchange
       real(wp) :: par        ! [umol photon/m2 leaf/s] incident PAR (the solve applies the absorptance)
       real(wp) :: leaf_temp  ! [K]    leaf temperature
       real(wp) :: vpd        ! [Pa]   leaf-to-air vapour-pressure deficit
-      real(wp) :: ca         ! [umol/mol] the surrounding (canopy-air) CO2 mole fraction
+      real(wp) :: ca         ! [umol/mol] the surrounding (canopy-air) CO2 mole fraction in dry air
       real(wp) :: pressure   ! [Pa]   air pressure
+      !---~---
+      !   The air's vapour pressure. CO2 and O2 are mole fractions of the dry air, so their
+      ! partial pressures are those fractions of pressure - vapor_pressure (eq. (3)).
+      !---~---
+      real(wp) :: vapor_pressure   ! [Pa]
       real(wp) :: psi_leaf   ! [MPa]  the leaf's current water potential (<= 0); drives beta_nonstomata
       real(wp) :: gb         ! [mol H2O/m2 leaf/s] boundary-layer conductance (<= 0: none, Cs = Ca)
       !---~---
@@ -295,17 +300,18 @@ contains
 
 
    !---~---
-   !   C3 Rubisco kinetics at leaf temperature, as mole fractions [umol/mol]. Kc and Ko are
-   ! partial pressures, divided by the local pressure; Gamma* scales with the O2 mole
-   ! fraction and not with pressure (docs/science/leaf_gas_exchange.md eq. (3)).
+   !   C3 Rubisco kinetics at leaf temperature, as mole fractions of dry air [umol/mol], the
+   ! basis of the CO2 they meet. Kc and Ko are partial pressures, divided by the dry air's
+   ! pressure P - e; Gamma* scales with the O2 mole fraction and not with pressure
+   ! (docs/science/leaf_gas_exchange.md eq. (3)).
    !---~---
-   pure subroutine rubisco_kinetics(p, t_leaf, pressure, kc, ko, gstar, o2)
+   pure subroutine rubisco_kinetics(p, t_leaf, p_dry, kc, ko, gstar, o2)
       type(leaf_photo_pft_t),    intent(in)  :: p           ! the PFT's leaf parameters
       real(wp),                  intent(in)  :: t_leaf      ! [K] leaf temperature
-      real(wp),                  intent(in)  :: pressure    ! [Pa] the air's pressure at the leaf
+      real(wp),                  intent(in)  :: p_dry       ! [Pa] the dry air's pressure at the leaf, P - e
       real(wp),                  intent(out) :: kc, ko, gstar, o2   ! [umol/mol]
-      kc    = arrhenius_scale(p%kc25, p%ea_kc, t_leaf) / pressure * mol_2_umol
-      ko    = arrhenius_scale(p%ko25, p%ea_ko, t_leaf) / pressure * mol_2_umol
+      kc    = arrhenius_scale(p%kc25, p%ea_kc, t_leaf) / p_dry * mol_2_umol
+      ko    = arrhenius_scale(p%ko25, p%ea_ko, t_leaf) / p_dry * mol_2_umol
       gstar = arrhenius_scale(p%gstar25, p%ea_gstar, t_leaf) / P_REF_GSTAR * mol_2_umol                &
               * (p%o2_mol_frac / O2_REF_GSTAR)
       o2    = p%o2_mol_frac * mol_2_umol
@@ -327,7 +333,7 @@ contains
       logical,                   intent(in)  :: use_boundary_layer   ! resolve the leaf boundary layer
       type(leaf_out_t),         intent(out) :: flux    ! the leaf's fluxes
 
-      real(wp) :: t_leaf, pressure, ca_ppm, o2_ppm, ddef, beta_nonstomata, beta_stomata, g1_eff
+      real(wp) :: t_leaf, pressure, p_dry, ca_ppm, o2_ppm, ddef, beta_nonstomata, beta_stomata, g1_eff
       real(wp) :: vcmax, jmax, jrate, tpu, rd, kc_ppm, ko_ppm, gstar_ppm
       real(wp) :: Aj_light, kp_eff, lambda_eff
       real(wp) :: lo0, hi0, ci_sol, An_open
@@ -337,6 +343,7 @@ contains
 
       t_leaf   = env%leaf_temp
       pressure = env%pressure
+      p_dry    = dry_air_pressure(pressure, env%vapor_pressure)
       ca_ppm   = env%ca
       !---~---
       !   Katul's mole-fraction deficit D, floored at vpd_min as Medlyn's is: water costs
@@ -345,7 +352,7 @@ contains
       ddef     = max(env%vpd, 1.0e3_wp * p%vpd_min) / pressure   ! vpd_min [kPa] -> [Pa]
       do_boundary_layer    = use_boundary_layer .and. env%gb > 0.0_wp
 
-      call rubisco_kinetics(p, t_leaf, pressure, kc_ppm, ko_ppm, gstar_ppm, o2_ppm)
+      call rubisco_kinetics(p, t_leaf, p_dry, kc_ppm, ko_ppm, gstar_ppm, o2_ppm)
       vcmax = temp_response(temp_response_form, p%vcmax25, p%ea_vcmax, p%hd_vcmax, p%ds_vcmax, t_leaf)
       jmax  = temp_response(temp_response_form, p%jmax25,  p%ea_jmax,  p%hd_jmax,  p%ds_jmax,  t_leaf)
       tpu   = temp_response(temp_response_form, p%tpu25,   p%ea_vcmax, p%hd_vcmax, p%ds_vcmax, t_leaf)
@@ -371,11 +378,11 @@ contains
          Aj_light  = p%quantum_yield * p%absorptance * env%par * beta_nonstomata
          !---~---
          !   The PEPcase slope kp takes Vcmax's temperature response, as tpu does (§2), and its
-         ! water stress. It is stated at the standard pressure p_std, so kp*Ci follows the CO2
-         ! partial pressure.
+         ! water stress. It is a slope on the CO2 partial pressure stated at the standard
+         ! pressure p_std, so kp*Ci follows the partial pressure, Ci times the dry air's pressure.
          !---~---
          kp_eff    = temp_response(temp_response_form, p%kp25, p%ea_vcmax, p%hd_vcmax, p%ds_vcmax, t_leaf)       &
-                     * pressure / p_std * beta_nonstomata
+                     * p_dry / p_std * beta_nonstomata
          jrate     = 0.0_wp
       else
          jrate     = electron_transport_j(env%par, p%absorptance, p%phi_psii, jmax, p%theta_j)
@@ -685,10 +692,10 @@ contains
    !---~---
    !   leaf_gas_exchange_batch -- solve_leaf_gas_exchange over n leaves on bare arrays: each
    ! leaf its own environment, PFT and capacities (through leaf_params_at_capacity), with
-   ! the CO2, the pressure and the leaf table shared. Without psi the slow stomatal
-   ! control is inert (psi = 0). The optional outputs are diagnostic values.
+   ! the air (its CO2, pressure and vapour pressure) and the leaf table shared. Without psi
+   ! the slow stomatal control is inert (psi = 0). The optional outputs are diagnostic values.
    !---~---
-   subroutine leaf_gas_exchange_batch(n, par, leaf_temp, vpd, ca, pressure, psi_leaf, gb,      &
+   subroutine leaf_gas_exchange_batch(n, par, leaf_temp, vpd, ca, pressure, vapor_pressure, psi_leaf, gb, &
                                       table, pft, vcmax25, rd25, a_gross, gs, rd, psi,        &
                                       a_net, ci, cs, transp, limitation, beta_stom, beta_nonstom)
       integer(ik),         intent(in)  :: n                                                 ! [-] number of leaves
@@ -697,7 +704,7 @@ contains
       ! vpd [Pa], psi_leaf [MPa] and gb [mol H2O/m2 leaf/s].
       !---~---
       real(wp),            intent(in)  :: par(n), leaf_temp(n), vpd(n), psi_leaf(n), gb(n)
-      real(wp),            intent(in)  :: ca, pressure                                      ! [umol/mol], [Pa] shared
+      real(wp),            intent(in)  :: ca, pressure, vapor_pressure                      ! [umol/mol], [Pa], [Pa] shared
       type(leaf_photo_table_t), intent(in) :: table                                       ! per-PFT parameters
       integer(ik),         intent(in)  :: pft(n)                                            ! [-] each leaf's PFT
       real(wp),            intent(in)  :: vcmax25(n), rd25(n)                   ! [umol/m2 leaf/s] plastic capacities at 25 degC
@@ -720,6 +727,7 @@ contains
          env%vpd = vpd(i)
          env%ca = ca
          env%pressure = pressure
+         env%vapor_pressure = vapor_pressure
          env%psi_leaf = psi_leaf(i)
          env%gb = gb(i)
          if (present(psi)) then
