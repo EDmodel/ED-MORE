@@ -135,6 +135,16 @@ def overtopping_lai(c):
 
 os.makedirs(OUT, exist_ok=True)
 census = {y: load(y) for y in YEARS}
+
+# Every species code needs a wood density: without one, np.digitize would put its trees in PFT 3
+# without a word, and their biomass would drop out of census_stand.csv.
+codes = pd.concat([c.sp[c.rho.isna()] for c in census.values()]).fillna("(no code)")
+if len(codes):
+    listed = "\n".join(f"  {sp}: {n} rows" for sp, n in codes.value_counts().sort_index().items())
+    raise SystemExit(f"ERROR: these species codes have no wood density in bci_wood_density.csv (rows over "
+                     f"the six censuses):\n{listed}\nAdd a row for each, by the table's rule (species, genus, "
+                     f"family), and run again.")
+
 for y in YEARS:
     census[y]["lai_over"] = overtopping_lai(census[y])
 

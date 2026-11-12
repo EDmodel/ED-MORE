@@ -161,6 +161,9 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   vaporises. The reported latent heat flux and the energy budget's outflows use it at the canopy
   air's temperature, so latent heat is no longer evapotranspiration times a constant: both are
   reported (`mean_et_py`, `mean_et_pa`). (#49)
+- Example 03: `prepare_census.py` stops and lists any species code without a wood density, instead
+  of putting its trees in PFT 3 and dropping their biomass. The wood-density table gains the three
+  codes of the current Dryad download (`ingaun`, `sipacr`, `tremsp`). (#63)
 
 ## [0.4.1] - 2026-10-26
 
