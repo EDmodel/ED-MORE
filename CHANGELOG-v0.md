@@ -73,18 +73,18 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   March −14 %; example 06 region 06 −14 % on 40 threads). Results move within the Newton's
   tolerance: at BCI (example 04) the five-year mean GPP, LE, H and ET by less than 1e-5 relative, in
   the region test's January–February run LE and snow water equivalent by about 1e-4. (#76)
-- A forcing record's humidity is held to saturation whatever its kind (relative humidity, dewpoint
-  or specific humidity) and whether the terrain lapse is on or off, and the terrain lapse takes the
-  relative humidity at the humidity sensor's pressure at both ends. The pressure lapses (the terrain
-  lapse, the lift to the canopy-air top, a tower's sensor height) and the air density use the gas
-  constant of moist air. BCI (example 04) and Palo Verde (ERA5-Land): the means move by less than
-  1e-4 relative (Palo Verde LE −0.003 %). (#80)
 - The irradiance above the atmosphere follows the Earth–Sun distance (about ±3.3 % over the year)
   in the clearness index, the Erbs and Weiss–Norman shortwave partitions, the longwave synthesis and
   the slope beam cap. Total shortwave is unchanged; its beam/diffuse and PAR/NIR split shift with
   the season. BCI (example 04, default/calibrated): LE +0.03/+0.04 %, GPP +0.04/+0.04 %; Palo Verde
   (ERA5-Land inventory check): LE +0.07 %, GPP +0.06 %. A passthrough partition with longwave from
   file is bit for bit. (#79)
+- A forcing record's humidity is held to saturation whatever its kind (relative humidity, dewpoint
+  or specific humidity) and whether the terrain lapse is on or off, and the terrain lapse takes the
+  relative humidity at the humidity sensor's pressure at both ends. The pressure lapses (the terrain
+  lapse, the lift to the canopy-air top, a tower's sensor height) and the air density use the gas
+  constant of moist air. BCI (example 04) and Palo Verde (ERA5-Land): the means move by less than
+  1e-4 relative (Palo Verde LE −0.003 %). (#80)
 
 ### Added
 
