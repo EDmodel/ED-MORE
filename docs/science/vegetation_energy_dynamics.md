@@ -59,6 +59,10 @@ The tissue is charged the full $`h_v`$, not the latent heat alone: charging it o
 liquid part $`h_v-L`$ charged to the soil, would charge the soil twice beside the explicit soil → wood
 → leaf chain of advected enthalpy, and heat the leaf for free. $`h_v`$ is taken at $`T_{cas}`$, the
 linearization base; the difference $`c_{p,vap}(T_{leaf}-T_{cas})`$ is about 0.2 % of $`h_v`$.
+Linearizing $`q_{sat}`$ about $`T_{cas}`$ also understates a warmer leaf's saturation humidity by the
+curve's curvature, $`\tfrac12\,(L/R_v T^2)^2\,\Delta T^2\,q_{sat}`$: about 0.2, 0.7 and 1.5 % of
+$`q_{sat}`$ for a leaf 1, 2 and 3 K above the canopy air at 30 °C. At 70 % relative humidity that is
+0.5 to 3 % of the deficit that drives its transpiration.
 
 **A thin tissue is a small tissue.** Every term of eq. (1), and the heat capacity of eq. (8), is a
 per-plant quantity times the plant density: the absorbed radiation, the sapflow's enthalpy, the
@@ -122,6 +126,17 @@ update reaches both integrators as a constant rate whose Euler step over the fas
 Under a snowpack nothing is intercepted: the pack takes the rain and the snow. Snowfall below the
 new-snow threshold forms no pack and joins the rain as liquid: the canopy intercepts it as surface
 water, and the rest reaches the pond.
+
+**A known bias under reanalysis rain.** Hourly reanalysis rain (ERA5-Land) falls as frequent light
+drizzle: at BCI it wets about four times as many hours as the tower's rain does, for the same total. The
+drizzle keeps the canopy wet, and its surface water evaporates between the showers. In example 04's
+calibrated BCI stand over five years, with the rain's amount scaled to the tower's total and only its
+timing taken from ERA5-Land, interception loss rises from about 10 % to about 44 % of the rain,
+evapotranspiration from about 900 to 1,400 mm yr⁻¹, and transpiration falls by about a third. With
+`[fast].canopy_water_on = false` the two rains give nearly the same evapotranspiration (about 740 and
+750 mm yr⁻¹). The bias comes from the rain's timing, not its amount: switching the canopy's
+surface water off removes most of it, at the cost of the interception process. The switch is off by
+default; examples 04 and 05 turn it on.
 
 The surface water is clamped at its boundary after the march, not inside it. It evaporates at a
 conductance frozen at the step's start and only roughly rescaled by what it holds, so it can overdraw

@@ -374,9 +374,12 @@ ed_add_pytest(output_budgets PATH ${CMAKE_CURRENT_SOURCE_DIR}/python/test_output
 ed_add_pytest(output_diel PATH ${CMAKE_CURRENT_SOURCE_DIR}/python/test_output_diel.py
               IMPORTS numpy netCDF4 pytest ENVIRONMENT EDMORE_MAIN=$<TARGET_FILE:ed_main> LABEL integration)
 #----- The input tools' tests (scripts/prepare_input): a tower forcing file from flux-tower         #
-#      data, a census from a ForestGEO table, and the PFT traits that follow published fits.        #
+#      data, an ERA5-Land forcing file from the archive or box files, a census from a ForestGEO     #
+#      table, and the PFT traits that follow published fits.                                        #
 ed_add_pytest(prepare_flux_tower PATH ${PROJECT_SOURCE_DIR}/scripts/prepare_input/flux_tower/tests
               IMPORTS numpy pandas netCDF4 pytest LABEL python)
+ed_add_pytest(prepare_era5 PATH ${PROJECT_SOURCE_DIR}/scripts/prepare_input/era5/tests
+              IMPORTS numpy netCDF4 pytest LABEL python)
 ed_add_pytest(prepare_census PATH ${PROJECT_SOURCE_DIR}/scripts/prepare_input/census/tests
               IMPORTS numpy pandas pytest LABEL python)
 ed_add_pytest(pft_traits PATH ${PROJECT_SOURCE_DIR}/scripts/prepare_input/pft_traits/tests

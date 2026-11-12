@@ -66,6 +66,7 @@ def prepare(site, short_gap_max=4, lw_holdout=None):
     stamps = ti.to_utc(values.index.values, site.utc_offset)
     starts, _ = ti.interval_bounds(stamps, site.stamp, site.timestep)
     mean_cosz = conv.window_mean_cosz(starts, site.timestep, site.latitude, site.longitude)
+    toa_scale = conv.earth_sun_distance_factor(starts)
     report["V2_sun"] = tc.check_sun(stamps, values["SWdown"].to_numpy(), site)
     n = len(stamps)
 
@@ -94,7 +95,7 @@ def prepare(site, short_gap_max=4, lw_holdout=None):
     records_per_day = int(round(86400.0 / site.timestep))
     for name in STATES:
         kind = {"Wind": "energy", "SWdown": "shortwave"}.get(name, "linear")
-        y[name], qc[name] = tg.fill_short(y[name], qc[name], short_gap_max, kind, mean_cosz)
+        y[name], qc[name] = tg.fill_short(y[name], qc[name], short_gap_max, kind, mean_cosz, toa_scale)
         if not np.isfinite(y[name]).all():
             y[name], qc[name] = tg.fill_mean_diurnal(y[name], qc[name], records_per_day)
             fills[name] = dict(method="mean_diurnal_variation", filled=int((qc[name] == tg.QC_SYNTH_OR_MDV).sum()))
@@ -107,15 +108,17 @@ def prepare(site, short_gap_max=4, lw_holdout=None):
         raise SystemExit(f"ERROR: Rainf has {int(missing_rain.sum())} missing records. ED-MORE does not invent rain: "
                          f"fill them in the tower file (from a nearby gauge or a reanalysis) before the build.")
 
-    # the pressure at the ground, where ED-MORE keeps it (docs/science/forcing.md §8)
-    y["PSurf"] = conv.pressure_at_height(y["PSurf"], y["Tair"], -site.pressure_height)
+    # the pressure at the ground, where ED-MORE keeps it (docs/science/forcing.md §8), moved as moist air
+    # holding the humidity the tower measures
+    q_air = conv.rh_to_specific_humidity(y["RH"], y["Tair"], y["PSurf"])
+    y["PSurf"] = conv.pressure_at_height(y["PSurf"], y["Tair"], -site.pressure_height, q_air)
 
     # the longwave, last, because the synthesis needs the filled states
     if lw_holdout is not None:
         y["LWdown"][lw_holdout] = np.nan
     y["LWdown"], qc["LWdown"] = tg.fill_short(y["LWdown"], qc["LWdown"], short_gap_max)
     groups_lw = tg.regression_groups(stamps, mean_cosz, by_day_night=True)
-    predictor = tg.synthesis_predictors(y["Tair"], y["RH"], y["PSurf"], y["SWdown"], mean_cosz)
+    predictor = tg.synthesis_predictors(y["Tair"], y["RH"], y["PSurf"], y["SWdown"], mean_cosz, toa_scale)
     y["LWdown"], qc["LWdown"], fills["LWdown"] = tg.fill_by_regression(
         y["LWdown"], qc["LWdown"], predictor, groups_lw, tg.QC_SYNTH_OR_MDV, 30.0, 650.0, tg.SYNTHESIS_FALLBACK)
     fills["LWdown"]["method"] = "synthesis_regression"
@@ -123,7 +126,7 @@ def prepare(site, short_gap_max=4, lw_holdout=None):
         print(f"WARNING: fewer than {tg.MIN_FIT_POINTS} observed longwave records to fit the synthesis to; the "
               f"longwave is the model synthesis as ED-MORE computes it, not regressed onto the tower")
     report["fills"] = fills
-    return dict(stamps=stamps, starts=starts, mean_cosz=mean_cosz, values=y, qc=qc, report=report,
+    return dict(stamps=stamps, starts=starts, mean_cosz=mean_cosz, toa_scale=toa_scale, values=y, qc=qc, report=report,
                 source=values)
 
 
@@ -158,7 +161,7 @@ def build(site, out, short_gap_max=4, start=None, end=None, report_path=None):
         wind_height_m=site.wind_height,
         height_above="ground",
         pressure_height_m=site.pressure_height,
-        pressure_note="PSurf is at the ground, brought down from the barometer height hypsometrically",
+        pressure_note="PSurf is at the ground, brought down from the barometer height hypsometrically, as moist air",
         source_utc_offset_hours=site.utc_offset,
         state_sampling=("Tair, RHair, PSurf, LWdown and Wind are values at the stamps, the mean of the two "
                         "intervals that meet there; Rainf and SWdown are means over each record's interval"),

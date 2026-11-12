@@ -5,14 +5,15 @@
 ! layout), laid end to end as one hourly axis over the months a run
 ! needs. era5land_open opens it, era5land_prefetch loads a month before the step that
 ! reads it, era5land_read_ahead loads the next one into a buffer of the caller's while the
-! polygons step, and era5land_record hands the shared ingest one record's values as stored.
-! era5land_grid is its grid (ed_met_grid). A month load checks every file, and ED-MORE
-! never gap-fills: a NaN in a selected cell is an error, never a fill.
+! polygons step, and era5land_record hands the shared ingest one record's values as stored,
+! the longwave centred at its stamp when its month is loaded (centre_longwave). era5land_grid
+! is its grid (ed_met_grid). A month load checks every file, and ED-MORE never gap-fills: a
+! NaN in a selected cell is an error, never a fill.
 !---~---
 module ed_met_era5land
    use, intrinsic :: ieee_arithmetic, only : ieee_is_nan
    use iso_c_binding,       only : c_int, c_size_t, c_double, c_float
-   use ed_kinds,            only : wp, ik
+   use ed_kinds,            only : wp, sp, ik
    use ed_constants,        only : day_sec
    use ed_time,             only : ed_time_t, time_advance_seconds, seconds_between, seconds_into_day,    &
                                    time_to_string, days_in_month, time_units_base
@@ -186,7 +187,8 @@ contains
    !---~---
    !   One record's values at the cursor's cell, as the archive stores them: the dewpoint
    ! (converted in the shared ingest), the wind components with their speed, and the total
-   ! shortwave, never the four streams (open_archive refuses "passthrough").
+   ! shortwave, never the four streams (open_archive refuses "passthrough"). The longwave is the
+   ! one value changed, centred at its stamp when its month was loaded (centre_longwave).
    !---~---
    subroutine era5land_record(src, cur, irec, rec, humidity_value, sw_total)
       type(met_source_t), intent(in)    :: src
@@ -578,7 +580,8 @@ contains
    !   MONTH LOAD (docs/science/forcing.md §1): every variable of one archive month for every
    ! domain cell. Each file's grid, stamps and units are checked against what the reader
    ! assumes; each touched chunk column is one hyperslab read of (month hours, <=16, <=16).
-   ! `message` names the offending file, cell or hour on a nonzero status.
+   ! The longwave is then centred at its stamps (centre_longwave). `message` names the
+   ! offending file, cell or hour on a nonzero status.
    !---~---
    subroutine era5land_load_month(template, data_path, dom, year, month, buf, stat, message)
       character(len=*),   intent(in)    :: template, data_path
@@ -588,12 +591,8 @@ contains
       integer(ik),        intent(out)   :: stat
       character(len=*),   intent(out)   :: message
       character(len=MET_PATH_LEN) :: path
-      character(len=64)  :: units
       integer(c_int)     :: ncid, vid, st
-      integer(c_size_t)  :: start3(3), count3(3)
-      real(c_float), allocatable :: block(:,:,:)
-      real(c_double)     :: fill
-      integer(ik) :: nt, v, k, m, c, nr, nc
+      integer(ik) :: nt, v
       integer(ik) :: bad(3)
 
       stat = ERA_OK
@@ -607,62 +606,14 @@ contains
 
       do v = 1_ik, ERA_NVAR
          path = era5land_path(template, data_path, ERA_VAR_NAME(v), year, month)
-         st = nc_open_f(trim(path), NC_NOWRITE, ncid)
-         if (st /= NC_NOERR) then
-            stat = ERA_ERR_OPEN
-            message = trim(path)
-            return
-         end if
-         call check_month_file(ncid, dom, year, month, nt, stat)
-         if (stat /= ERA_OK) then
-            st = nc_close(ncid)
-            message = trim(path)
-            return
-         end if
-         st = nc_inq_varid_f(ncid, trim(ERA_VAR_NAME(v)), vid)
-         if (st == NC_NOERR) st = nc_get_att_text_f(ncid, vid, 'units', units)
-         if (st /= NC_NOERR .or. trim(units) /= trim(ERA_VAR_UNITS(v))) then
-            st = nc_close(ncid)
-            stat = ERA_ERR_UNITS
-            message = trim(path)//': units "'//trim(units)//'", expected "'//trim(ERA_VAR_UNITS(v))//'"'
-            return
-         end if
-         !---~---
-         !   The reader recognises a missing value as NaN and nothing else (below). A file whose
-         ! _FillValue is a number would slip that number into the forcing as data, so it is
-         ! refused. The archive stores NaN, and a file without the attribute has no fill.
-         !---~---
-         st = nc_get_att_double_f(ncid, vid, '_FillValue', fill)
-         if (st == NC_NOERR) then
-            if (.not. ieee_is_nan(fill)) then
-               st = nc_close(ncid)
-               stat = ERA_ERR_FILL
-               write(message, '(2a,es12.4,a)') trim(path), ': _FillValue is ', fill, ', not NaN'
-               return
-            end if
-         end if
-         do k = 1_ik, dom%nchunk
-            nr = dom%chunk_nrow(k)
-            nc = dom%chunk_ncol(k)
-            allocate(block(nc, nr, nt))                      ! C order [time][lat][lon]
-            start3 = [0_c_size_t, int(dom%chunk_row(k), c_size_t), int(dom%chunk_col(k), c_size_t)]
-            count3 = [int(nt, c_size_t), int(nr, c_size_t), int(nc, c_size_t)]
-            st = nc_get_vara_float(ncid, vid, start3, count3, block)   ! the archive stores float32
-            if (st /= NC_NOERR) then
-               deallocate(block)
-               st = nc_close(ncid)
-               stat = ERA_ERR_OPEN
-               message = trim(path)//': read failed'
-               return
-            end if
-            do m = dom%chunk_first(k), dom%chunk_first(k + 1_ik) - 1_ik
-               c = dom%by_chunk(m)
-               buf%values(:, c, v) = block(dom%col(c) - dom%chunk_col(k) + 1_ik,                     &
-                                           dom%row(c) - dom%chunk_row(k) + 1_ik, :)
-            end do
-            deallocate(block)
-         end do
+         call open_month_variable(path, dom, year, month, v, ncid, vid, stat, message)
+         if (stat /= ERA_OK) return
+         call read_month_hours(ncid, vid, dom, buf%values(:, :, v), stat)
          st = nc_close(ncid)
+         if (stat /= ERA_OK) then
+            message = trim(path)//': read failed'
+            return
+         end if
       end do
 
       !---~---
@@ -677,10 +628,159 @@ contains
          stat = ERA_ERR_NAN
          return
       end if
+      call centre_longwave(template, data_path, dom, year, month, buf%values(:, :, ERA_LWDOWN), stat, message)
+      if (stat /= ERA_OK) return
       buf%year = year
       buf%month = month
       buf%nt = nt
    end subroutine era5land_load_month
+
+   !---~---
+   !   The longwave at its stamps (docs/science/forcing.md §1). The archive holds LWdown, like
+   ! every flux it de-accumulates, as the mean of the hour ending at each stamp, while the reader
+   ! takes a longwave as a value at the stamps (§3), which would put every hour's half an hour
+   ! late. So the value at stamp t_k becomes (LW(t_k) + LW(t_k + 1 h)) / 2, the mean of the hour
+   ! ending at the stamp and the hour after it, formed in double and rounded once to the
+   ! archive's float32, as make_forcing_file.py writes it, so the two ways of reading ERA5-Land
+   ! agree. The month's last stamp takes the first hour of the next month's file, which is
+   ! checked like any month file; at the archive's last hour, with no next month's file, the hour
+   ! keeps its own mean.
+   !---~---
+   subroutine centre_longwave(template, data_path, dom, year, month, lw, stat, message)
+      character(len=*),   intent(in)    :: template, data_path
+      type(met_cells_t),  intent(in)    :: dom
+      integer(ik),        intent(in)    :: year, month
+      real(sp),           intent(inout) :: lw(:,:)   ! (hour, cell) [W/m2]
+      integer(ik),        intent(out)   :: stat
+      character(len=*),   intent(out)   :: message
+      character(len=MET_PATH_LEN) :: path
+      real(sp)       :: after(1, size(lw, 2))
+      integer(c_int) :: ncid, vid, st
+      integer(ik)    :: nt, h, year_next, month_next
+      logical        :: exists
+      stat = ERA_OK
+      message = ''
+      nt = size(lw, 1, kind=ik)
+      do h = 1_ik, nt - 1_ik                             ! ascending: lw(h + 1, :) is still the mean
+         lw(h, :) = stamp_mean(lw(h, :), lw(h + 1_ik, :))
+      end do
+      year_next  = year
+      month_next = month + 1_ik
+      if (month_next > 12_ik) then
+         month_next = 1_ik
+         year_next  = year + 1_ik
+      end if
+      path = era5land_path(template, data_path, ERA_VAR_NAME(ERA_LWDOWN), year_next, month_next)
+      inquire(file=trim(path), exist=exists)
+      if (.not. exists) return                           ! the archive's last hour keeps its own mean
+      call open_month_variable(path, dom, year_next, month_next, ERA_LWDOWN, ncid, vid, stat, message)
+      if (stat /= ERA_OK) return
+      call read_month_hours(ncid, vid, dom, after, stat)
+      st = nc_close(ncid)
+      if (stat /= ERA_OK) then
+         message = trim(path)//': read failed'
+         return
+      end if
+      if (any(ieee_is_nan(after))) then
+         stat = ERA_ERR_NAN
+         message = trim(path)//': a missing value in the first hour, which the stamp before it needs'
+         return
+      end if
+      lw(nt, :) = stamp_mean(lw(nt, :), after(1, :))
+   end subroutine centre_longwave
+
+   !--- The mean of two float32 values, formed in double and rounded once to float32.
+   elemental real(sp) function stamp_mean(a, b) result(m)
+      real(sp), intent(in) :: a, b
+      m = real(0.5_wp * (real(a, wp) + real(b, wp)), sp)
+   end function stamp_mean
+
+   !---~---
+   !   Open variable v's file of an archive month (path) and check it: the static grid, the
+   ! month's end-stamped hours, the variable's units, and a _FillValue that is NaN or absent. The
+   ! reader recognises a missing value as NaN and nothing else, so a file whose _FillValue is a
+   ! number, which would slip that number into the forcing as data, is refused. On a nonzero
+   ! status the file is closed and `message` names it.
+   !---~---
+   subroutine open_month_variable(path, dom, year, month, v, ncid, vid, stat, message)
+      character(len=*),  intent(in)  :: path
+      type(met_cells_t), intent(in)  :: dom
+      integer(ik),       intent(in)  :: year, month, v
+      integer(c_int),    intent(out) :: ncid, vid
+      integer(ik),       intent(out) :: stat
+      character(len=*),  intent(out) :: message
+      character(len=64) :: units
+      real(c_double)    :: fill
+      integer(c_int)    :: st
+      message = ''
+      vid = -1_c_int
+      st = nc_open_f(trim(path), NC_NOWRITE, ncid)
+      if (st /= NC_NOERR) then
+         stat = ERA_ERR_OPEN
+         message = trim(path)
+         return
+      end if
+      call check_month_file(ncid, dom, year, month, era5land_month_hours(year, month), stat)
+      if (stat /= ERA_OK) then
+         st = nc_close(ncid)
+         message = trim(path)
+         return
+      end if
+      units = ''
+      st = nc_inq_varid_f(ncid, trim(ERA_VAR_NAME(v)), vid)
+      if (st == NC_NOERR) st = nc_get_att_text_f(ncid, vid, 'units', units)
+      if (st /= NC_NOERR .or. trim(units) /= trim(ERA_VAR_UNITS(v))) then
+         st = nc_close(ncid)
+         stat = ERA_ERR_UNITS
+         message = trim(path)//': units "'//trim(units)//'", expected "'//trim(ERA_VAR_UNITS(v))//'"'
+         return
+      end if
+      st = nc_get_att_double_f(ncid, vid, '_FillValue', fill)
+      if (st == NC_NOERR) then
+         if (.not. ieee_is_nan(fill)) then
+            st = nc_close(ncid)
+            stat = ERA_ERR_FILL
+            write(message, '(2a,es12.4,a)') trim(path), ': _FillValue is ', fill, ', not NaN'
+            return
+         end if
+      end if
+      stat = ERA_OK
+   end subroutine open_month_variable
+
+   !---~---
+   !   The first size(values, 1) hours of an open month file's variable vid at the domain's
+   ! cells, values(hour, cell): one hyperslab read per touched chunk column.
+   !---~---
+   subroutine read_month_hours(ncid, vid, dom, values, stat)
+      integer(c_int),    intent(in)    :: ncid, vid
+      type(met_cells_t), intent(in)    :: dom
+      real(sp),          intent(inout) :: values(:,:)
+      integer(ik),       intent(out)   :: stat
+      integer(c_size_t)  :: start3(3), count3(3)
+      real(c_float), allocatable :: block(:,:,:)
+      integer(c_int) :: st
+      integer(ik)    :: nt, k, m, c, nr, nc
+      stat = ERA_OK
+      nt = size(values, 1, kind=ik)
+      do k = 1_ik, dom%nchunk
+         nr = dom%chunk_nrow(k)
+         nc = dom%chunk_ncol(k)
+         allocate(block(nc, nr, nt))                      ! C order [time][lat][lon]
+         start3 = [0_c_size_t, int(dom%chunk_row(k), c_size_t), int(dom%chunk_col(k), c_size_t)]
+         count3 = [int(nt, c_size_t), int(nr, c_size_t), int(nc, c_size_t)]
+         st = nc_get_vara_float(ncid, vid, start3, count3, block)   ! the archive stores float32
+         if (st /= NC_NOERR) then
+            deallocate(block)
+            stat = ERA_ERR_OPEN
+            return
+         end if
+         do m = dom%chunk_first(k), dom%chunk_first(k + 1_ik) - 1_ik
+            c = dom%by_chunk(m)
+            values(:, c) = block(dom%col(c) - dom%chunk_col(k) + 1_ik, dom%row(c) - dom%chunk_row(k) + 1_ik, :)
+         end do
+         deallocate(block)
+      end do
+   end subroutine read_month_hours
 
    !--- A month file must have the static grid and exactly the month's end-stamped hours.
    subroutine check_month_file(ncid, dom, year, month, nt, stat)

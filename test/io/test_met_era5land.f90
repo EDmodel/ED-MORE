@@ -10,7 +10,7 @@
 !---~---
 program test_met_era5land
    use ed_test_assert,       only : check, check_true, test_report
-   use ed_kinds,             only : wp, ik
+   use ed_kinds,             only : wp, sp, ik
    use ed_constants,         only : h2o_dry_ratio
    use ed_time,              only : ed_time_t
    use ed_forcing_params,    only : forcing_params_t, MET_BACKEND_ERA5LAND, METAVG_END, CLAMP_ERROR
@@ -25,7 +25,7 @@ program test_met_era5land
                                     ERA_ERR_NAN, ERA_ERR_FILL, ERA_NVAR, ERA_TAIR, ERA_TDEW, ERA_PSURF,      &
                                     ERA_U10, ERA_V10, ERA_LWDOWN
    use ed_met_grid,          only : select_site_cell, select_box_cells, GRID_OK, GRID_ERR_NO_CELL
-   use ed_test_archive, only : T0, field, hour_index, write_archive, write_month, archive_grid
+   use ed_test_archive, only : T0, field, longwave_at, hour_index, write_archive, write_month, archive_grid
    implicit none
 
    character(len=*), parameter :: DIR = 'era5land_test_tmp'
@@ -43,6 +43,7 @@ program test_met_era5land
    call test_region_cursors()
    call test_driver_recycle_anchors()
    call test_read_ahead()
+   call test_longwave_centred()
 
    call test_report('test_met_era5land')
 
@@ -305,9 +306,9 @@ contains
       t0  = field(ERA_TAIR, 1_ik, 3_ik, g)
       p0 = field(ERA_PSURF, 1_ik, 3_ik, g)
       q0  = sat_specific_humidity(field(ERA_TDEW, 1_ik, 3_ik, g), p0)
-      lw0 = field(ERA_LWDOWN, 1_ik, 3_ik, g)
+      lw0 = longwave_at(1_ik, 3_ik, g)
       t1  = t0 - 0.0042_wp * 500.0_wp
-      p1 = lapse_pressure(p0, t0, 500.0_wp, 0.0042_wp)
+      p1 = lapse_pressure(p0, t0, 500.0_wp, 0.0042_wp, q0)
       call check('lapse: T by January''s rate', met%air_temp, t1, 1.0e-9_wp)
       call check('lapse: P hydrostatic', met%air_pressure, p1, 1.0e-6_wp)
       rh0 = q0 * p0 / (h2o_dry_ratio + (1.0_wp - h2o_dry_ratio) * q0) / sat_vapor_pressure(t0)
@@ -674,6 +675,74 @@ contains
       call met_close(src)
       call met_close(plain)
    end subroutine test_read_ahead
+
+   !---~---
+   !   11. The longwave at its stamps (docs/science/forcing.md §1): the archive holds the mean of
+   !     the hour ending at each stamp, and the reader centres it there, at the mean of that hour
+   !     and the next. The synthetic longwave steps 5 or -10 W/m2 an hour, so a value half an
+   !     hour late is off by 2.5 W/m2 or more. A month's last stamp takes the first hour of the
+   !     next month's file, across a year too; the archive's last hour keeps its own mean.
+   !---~---
+   subroutine test_longwave_centred()
+      type(met_source_t)     :: src
+      type(met_cursor_t)     :: cur
+      type(forcing_params_t) :: fc
+      type(met_forcing_t)    :: met
+      type(met_cells_t)      :: dom
+      type(met_month_t)      :: buf
+      character(len=512)     :: msg
+      real(wp)    :: d, lw_mean
+      integer(ik) :: st, g
+      print '(a)', '-- era5land 11: the longwave centred at its stamps --'
+      fc = archive_config()
+      call met_open(src, fc, stat=st, run_start=ed_time_t(2021_ik, 1_ik, 15_ik),               &
+                    run_end=ed_time_t(2021_ik, 3_ik, 1_ik))
+      call site_cursor(src, cur, fc)
+
+      !--- Mid-month, at a stamp and half an hour on.
+      g = hour_index(ed_time_t(2021_ik, 1_ik, 20_ik, 6_ik))
+      lw_mean = field(ERA_LWDOWN, 1_ik, 3_ik, g)
+      met = step_sample(src, cur, ed_time_t(2021_ik, 1_ik, 20_ik, 6_ik))
+      call check('at a stamp: the mean of the hour ending there and the hour after', met%lw_down,      &
+                 real(real(0.5_wp * (lw_mean + field(ERA_LWDOWN, 1_ik, 3_ik, g + 1_ik)), sp), wp), 1.0e-9_wp)
+      call check_true('not the hour''s own mean, half an hour late', abs(met%lw_down - lw_mean) > 2.0_wp, &
+                      met%lw_down - lw_mean)
+      met = step_sample(src, cur, ed_time_t(2021_ik, 1_ik, 20_ik, 6_ik, 30_ik))
+      call check('half an hour on: halfway between the two stamps'' values', met%lw_down,                   &
+                 0.5_wp * (longwave_at(1_ik, 3_ik, g) + longwave_at(1_ik, 3_ik, g + 1_ik)), 1.0e-9_wp)
+
+      !---~---
+      !   The month's last stamp, 1 February 00:00, is in January's file and takes February's
+      ! first hour: from January's buffer on 31 January, and carried into 1 February's step.
+      !---~---
+      g = hour_index(ed_time_t(2021_ik, 2_ik, 1_ik))
+      met = step_sample(src, cur, ed_time_t(2021_ik, 1_ik, 31_ik, 23_ik, 30_ik))
+      call check('31 January 23:30: halfway to the month''s last stamp, centred on February''s first hour', &
+                 met%lw_down, 0.5_wp * (longwave_at(1_ik, 3_ik, g - 1_ik) + longwave_at(1_ik, 3_ik, g)), 1.0e-9_wp)
+      met = step_sample(src, cur, ed_time_t(2021_ik, 2_ik, 1_ik))
+      call check('1 February 00:00, carried: the mean of January''s last hour and February''s first',       &
+                 met%lw_down, real(real(0.5_wp * (field(ERA_LWDOWN, 1_ik, 3_ik, g)                       &
+                                                + field(ERA_LWDOWN, 1_ik, 3_ik, g + 1_ik)), sp), wp), 1.0e-9_wp)
+      call met_close(src)
+
+      !--- A month load: December takes January's first hour from the next year's file.
+      call select_site_cell(archive_grid(DIR//'/ED_ERA5land_static.nc'), 35.0_wp, -120.0_wp, 50.0_wp, dom, d, st)
+      call era5land_load_month(era5land_default_template(), DIR, dom, 2021_ik, 12_ik, buf, st, msg)
+      g = hour_index(ed_time_t(2022_ik, 1_ik, 1_ik))
+      call check_true('December loads', st == ERA_OK)
+      call check('December''s last stamp takes the first hour of January''s file',                          &
+                 real(buf%values(buf%nt, 1, ERA_LWDOWN), wp), longwave_at(1_ik, 3_ik, g), 0.0_wp)
+      call check('the stamp before it, within the month', real(buf%values(buf%nt - 1_ik, 1, ERA_LWDOWN), wp), &
+                 longwave_at(1_ik, 3_ik, g - 1_ik), 0.0_wp)
+      !--- The archive's last month, January 2022: its last hour has none after it.
+      call era5land_load_month(era5land_default_template(), DIR, dom, 2022_ik, 1_ik, buf, st, msg)
+      g = hour_index(ed_time_t(2022_ik, 2_ik, 1_ik))
+      call check_true('the archive''s last month loads', st == ERA_OK)
+      call check('the archive''s last hour keeps its own mean', real(buf%values(buf%nt, 1, ERA_LWDOWN), wp), &
+                 field(ERA_LWDOWN, 1_ik, 3_ik, g), 0.0_wp)
+      call check('the stamp before it is centred', real(buf%values(buf%nt - 1_ik, 1, ERA_LWDOWN), wp),         &
+                 longwave_at(1_ik, 3_ik, g - 1_ik), 0.0_wp)
+   end subroutine test_longwave_centred
 
    !--- Two month buffers hold the same month, value for value.
    logical function same_month(a, b) result(same)

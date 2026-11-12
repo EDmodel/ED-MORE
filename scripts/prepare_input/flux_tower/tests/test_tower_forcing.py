@@ -15,7 +15,6 @@ from netCDF4 import Dataset
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
-sys.path.insert(0, os.path.join(HERE, "..", "..", "era5"))
 import make_tower_forcing as mt   # noqa: E402
 import tower_gapfill as tg        # noqa: E402
 import tower_inputs as ti         # noqa: E402
@@ -165,10 +164,13 @@ def test_states_are_recentred_to_the_stamps(tmp_path):
 
 
 def test_pressure_is_brought_down_to_the_ground(tmp_path):
+    # as moist air, holding the tower's humidity: dry air's R_d would put the ground 4e-5 low
     ds, _ = build(tmp_path, write_site(tmp_path, synthetic_tower()))
     p = ds["PSurf"][:, 0].astype(float)
     t = ds["Tair"][:, 0].astype(float)
-    assert np.allclose(p, 98800.0 * np.exp(conv.GRAV * 30.0 / (conv.R_DRY * t)), rtol=2e-6)
+    q = conv.rh_to_specific_humidity(ds["RHair"][:, 0].astype(float), t, 98800.0)
+    r_moist = conv.R_DRY * (1.0 + 0.60783 * q)
+    assert np.allclose(p, 98800.0 * np.exp(conv.GRAV * 30.0 / (r_moist * t)), rtol=2e-6)
 
 
 def test_rain_and_shortwave_stay_interval_means(tmp_path):
@@ -212,7 +214,7 @@ def test_a_tower_without_longwave_gets_the_model_synthesis(tmp_path, capsys):
     # the file's LWdown is re-centred; compare an interior stamp against the synthesis of its two intervals
     p = mt.prepare(site)
     y = p["values"]
-    lw = tg.synthesized_longwave(y["Tair"], y["RH"], y["PSurf"], y["SWdown"], p["mean_cosz"])
+    lw = tg.synthesized_longwave(y["Tair"], y["RH"], y["PSurf"], y["SWdown"], p["mean_cosz"], p["toa_scale"])
     assert np.allclose(ds["LWdown"][1:, 0], 0.5 * (lw[:-1] + lw[1:]), atol=1e-3)
     assert (ds["LWdown_qc"][:, 0] == tg.QC_SYNTH_OR_MDV).all()
     assert np.isfinite(t).all()
@@ -465,6 +467,17 @@ def test_humidity_round_trip_is_exact():
     assert np.allclose(conv.specific_humidity_to_vapor_pressure(q, p) / conv.sat_vapor_pressure(t), rh, atol=1e-13)
 
 
+def test_pressure_at_height_is_moist_airs():
+    # ed_therm_lib lapse_pressure at gamma = 0: q = 0 is dry air's barometric form exactly; moist air is
+    # dry air at the virtual temperature T (1 + 0.60783 q), so its pressure falls more slowly with height
+    t, dz = 290.0, 500.0
+    assert conv.pressure_at_height(95000.0, t, dz, 0.0) == 95000.0 * np.exp(-conv.GRAV * dz / (conv.R_DRY * t))
+    t_virtual = t * (1.0 + 0.60783 * 0.02)
+    moist = conv.pressure_at_height(95000.0, t, dz, 0.02)
+    assert moist == pytest.approx(95000.0 * np.exp(-conv.GRAV * dz / (conv.R_DRY * t_virtual)), rel=1e-8)
+    assert moist > conv.pressure_at_height(95000.0, t, dz, 0.0)
+
+
 def test_saturation_vapour_pressure_is_the_models():
     # ed_therm_lib sat_vapor_pressure: es_3ple at the triple point, and Murphy & Koop (2005) within 0.3 %
     # from -30 to 40 degC (the model's own Fortran test pins the same values).
@@ -565,20 +578,29 @@ def test_window_mean_cosz_matches_a_fine_integral_by_day():
     assert abs(coarse - fine) < 1e-3
 
 
-def test_make_forcing_file_writes_the_dewpoint(tmp_path):
-    import make_forcing_file as mf
-    times = [np.datetime64("2024-01-01T01:00:00") + np.timedelta64(3600 * k, "s") for k in range(5)]
-    times = [t.astype("datetime64[s]").astype(object) for t in times]
-    series = {name: np.full(5, value) for name, value in
-              dict(Tair=290.0, Tdew=285.0, PSurf=99000.0, u10=3.0, v10=-4.0, Rainf=0.0, SWdown=0.0,
-                   LWdown=300.0).items()}
-    arrays = mf.file_arrays([series])
-    path = str(tmp_path / "era5.nc")
-    mf.write_ed_forcing(path, times, [(42.4, -76.5, 367.5)], arrays,
-                          dict(avg_convention="end", sw_input_kind="total", timestep_seconds=3600,
-                               wind_meas_height_m=10.0, tq_height_m=2.0, height_above="zero_plane"))
-    with Dataset(path) as ds:
-        assert "Tdew" in ds.variables and "Qair" not in ds.variables
-        assert ds.time_zone == "UTC" and ds.Conventions == "ED-MORE-forcing-1.1"
-        assert np.allclose(ds["Wind"][:, 0], 5.0)
-        assert ds["Tdew"].height == "2 m"
+def test_earth_sun_distance_factor_matches_the_model_values():
+    """The same numbers test_radiation_lib checks in Fortran: 100th day = 0.9950481718546265, the
+    January perihelion about +3.3 %, the July aphelion about -3.3 %, a mean of 1 over the year."""
+    day = np.datetime64("2014-04-10T12:00:00")                       # day 100
+    assert abs(conv.earth_sun_distance_factor(day) - 0.9950481718546265) < 1e-12
+    assert 1.032 < conv.earth_sun_distance_factor(np.datetime64("2014-01-03T00:00:00")) < 1.034
+    assert 0.966 < conv.earth_sun_distance_factor(np.datetime64("2014-07-04T00:00:00")) < 0.968
+    year = np.datetime64("2014-01-01T00:00:00") + np.arange(365) * np.timedelta64(86400, "s")
+    assert abs(conv.earth_sun_distance_factor(year).mean() - 1.0) < 1e-4
+
+
+def test_clearness_index_scales_by_the_inverse_factor():
+    kt1 = conv.clearness_index(500.0, 0.5, 1.0)
+    kt2 = conv.clearness_index(500.0, 0.5, 1.033)
+    assert abs(kt1 - 500.0 / (1361.0 * 0.5)) < 1e-12
+    assert abs(kt2 - kt1 / 1.033) < 1e-12
+    assert conv.clearness_index(0.0, 0.0, 1.033) == -1.0
+
+
+def test_shortwave_gap_fill_holds_the_clearness_index_with_the_factor():
+    y = np.array([400.0, np.nan, 400.0])
+    qc = np.zeros(3, dtype=int)
+    cz = np.full(3, 0.5)
+    out, _ = tg.fill_short(y, qc, 2, "shortwave", cz, np.full(3, 1.033))
+    assert abs(out[1] - 400.0) < 1e-9                                 # kt held, same TOA all three
+

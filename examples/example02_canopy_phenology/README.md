@@ -65,6 +65,9 @@ python examples/example02_canopy_phenology/make_era5_par_hours.py --archive /pat
 
 ## Results
 
+The numbers here come from the first ED-MORE release, built with ifx and the production preset
+(`cmake --preset production`).
+
 ![Canopy phenology at four forests](canopy_phenology.png)
 
 **Top row:** model leaf cover and the two tendencies over three years at each site, with MODIS LAI

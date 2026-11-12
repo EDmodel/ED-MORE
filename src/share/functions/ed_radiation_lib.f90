@@ -2,8 +2,9 @@
 !---~---
 !   ed_radiation_lib -- the radiation above the canopy: the clearness index, the total
 ! shortwave split into beam and diffuse PAR and NIR (Erbs et al. 1982; Weiss & Norman
-! 1985), the clear-sky emissivity, the longwave synthesis and its lapse, and the beam on
-! a slope (docs/science/forcing.md §6, §8 and §11). Stateless laws over plain scalars,
+! 1985), both against the irradiance above the atmosphere at the day's Earth-Sun distance, the
+! clear-sky emissivity, the longwave synthesis and its lapse, and the beam on a slope
+! (docs/science/forcing.md §6, §8 and §11). Stateless laws over plain scalars,
 ! with their selector codes (SWPART_*, LW_CLEAR_*), which [forcing] takes.
 !---~---
 module ed_radiation_lib
@@ -26,7 +27,7 @@ module ed_radiation_lib
    integer(ik), parameter :: LW_CLEAR_BRUTSAERT = 0_ik   ! Brutsaert (1975), vapour-pressure power law
    integer(ik), parameter :: LW_CLEAR_IDSO      = 1_ik   ! Idso & Jackson (1969), temperature only
 
-   real(wp), parameter :: SOLAR_CONSTANT = 1361.0_wp   ! [W/m2] TOA normal irradiance (mean; eccentricity ~+-3% ignored)
+   real(wp), parameter :: SOLAR_CONSTANT = 1361.0_wp   ! [W/m2] TOA normal irradiance at the mean Earth-Sun distance
    real(wp), parameter :: COSZ_MIN       = 1.0e-3_wp   ! [-] cosz floor: below this it is night (SW = 0)
    real(wp), parameter :: FPAR_BEAM      = 0.43_wp     ! [-] PAR fraction of direct-beam SW energy
    real(wp), parameter :: FPAR_DIFFUSE   = 0.52_wp     ! [-] PAR fraction of diffuse SW energy (diffuse is PAR-enriched)
@@ -35,9 +36,9 @@ module ed_radiation_lib
    !   The Weiss & Norman (1985) partition's constants, as WN85 publish them. With them the
    ! scheme's PPFD is within 4 % of three towers' quantum sensors (docs/science/forcing.md §6).
    !---~---
-   real(wp), parameter :: WN_VIS_TOA = 600.0_wp    ! [W/m2] visible beam above the atmosphere (WN85 eq. 1)
-   real(wp), parameter :: WN_NIR_TOA = 720.0_wp    ! [W/m2] near-infrared beam above the atmosphere (WN85 eq. 4)
-   real(wp), parameter :: WN_W10_TOA = 1320.0_wp   ! [W/m2] scale of the NIR water-vapour absorption (WN85 eq. 6)
+   real(wp), parameter :: WN_VIS_TOA = 600.0_wp    ! [W/m2] visible beam above the atmosphere, mean distance (WN85 eq. 1)
+   real(wp), parameter :: WN_NIR_TOA = 720.0_wp    ! [W/m2] near-infrared beam above the atmosphere, mean distance (WN85 eq. 4)
+   real(wp), parameter :: WN_W10_TOA = 1320.0_wp   ! [W/m2] scale of the NIR water-vapour absorption, mean distance (WN85 eq. 6)
    real(wp), parameter :: WN_PAR_BEAM_EXPEXT = -0.185_wp   ! visible-beam atmospheric extinction (WN85 eq. 1)
    real(wp), parameter :: WN_NIR_BEAM_EXPEXT = -0.060_wp   ! NIR-beam atmospheric extinction (WN85 eq. 4)
    real(wp), parameter :: WN_PAR2DIFF_SUN    = 0.400_wp    ! visible beam->diffuse potential fraction (WN85 eq. 3)
@@ -56,11 +57,14 @@ contains
    ! (docs/science/forcing.md §6). SWPART_CLEARIDX (default): the Erbs et al. (1982) diffuse
    ! fraction of the clearness index kt = SW/(S0*cosz) (eq. (7)), then fixed PAR fractions.
    ! SWPART_WEISS_NORMAN: the band-specific, pressure-dependent Weiss & Norman (1985) split
-   ! (eqs. (8)-(10)). Both conserve energy exactly: the four streams sum to sw.
+   ! (eqs. (8)-(10)). Both conserve energy exactly: the four streams sum to sw. toa_scale is
+   ! the Earth-Sun distance factor of the day (ed_time earth_sun_distance_factor): the
+   ! irradiance above the atmosphere is its mean times it (docs/science/forcing.md §6).
    !---~---
-   pure subroutine partition_shortwave(swdown_total, cosz, psurf_pa, scheme,                   &
+   pure subroutine partition_shortwave(swdown_total, cosz, toa_scale, psurf_pa, scheme,        &
                                        par_beam, par_diffuse, nir_beam, nir_diffuse)
       real(wp),    intent(in)  :: swdown_total, cosz, psurf_pa
+      real(wp),    intent(in)  :: toa_scale   ! [-] (r0/r)^2 of the day
       integer(ik), intent(in)  :: scheme
       real(wp),    intent(out) :: par_beam, par_diffuse, nir_beam, nir_diffuse
       real(wp) :: sw, i_toa, kt, fdiff, beam, diff
@@ -76,9 +80,9 @@ contains
 
       select case (scheme)
       case (SWPART_WEISS_NORMAN)
-         call weiss_norman_partition(sw, cosz, psurf_pa, par_beam, par_diffuse, nir_beam, nir_diffuse)
+         call weiss_norman_partition(sw, cosz, toa_scale, psurf_pa, par_beam, par_diffuse, nir_beam, nir_diffuse)
       case default   ! SWPART_CLEARIDX (and anything else -- the reader rejects unknown spellings)
-         i_toa = SOLAR_CONSTANT * cosz                        ! TOA irradiance on a horizontal surface
+         i_toa = SOLAR_CONSTANT * toa_scale * cosz            ! TOA irradiance on a horizontal surface
          kt    = min(1.0_wp, max(0.0_wp, sw / max(i_toa, tiny_num)))
          fdiff = erbs_diffuse_fraction(kt)
          diff = fdiff * sw
@@ -97,13 +101,14 @@ contains
    ! diffuse). The four streams sum to sw exactly. A grazing sun (cosz <= WN_COSZ_MIN) is all
    ! diffuse.
    !---~---
-   pure subroutine weiss_norman_partition(sw, cosz, psurf_pa, par_beam, par_diffuse, nir_beam, nir_diffuse)
+   pure subroutine weiss_norman_partition(sw, cosz, toa_scale, psurf_pa, par_beam, par_diffuse, nir_beam, nir_diffuse)
       real(wp), intent(in)  :: sw, cosz, psurf_pa
+      real(wp), intent(in)  :: toa_scale   ! [-] (r0/r)^2: scales both bands above the atmosphere
       real(wp), intent(out) :: par_beam, par_diffuse, nir_beam, nir_diffuse
       real(wp) :: secz, log10secz, prat, w10
       real(wp) :: par_beam_pot, par_diff_pot, par_full_pot
       real(wp) :: nir_beam_pot, nir_diff_pot, nir_full_pot, ratio, par_full, nir_full
-      real(wp) :: aux_par, aux_nir, fvis_beam, fnir_beam
+      real(wp) :: aux_par, aux_nir, fvis_beam, fnir_beam, vis_toa, nir_toa
 
       if (cosz <= WN_COSZ_MIN) then                           ! grazing sun: secant unstable -> all diffuse
          par_beam = 0.0_wp
@@ -116,23 +121,25 @@ contains
       secz      = 1.0_wp / cosz
       log10secz = log10(secz)
       prat      = psurf_pa / p_std
+      vis_toa   = WN_VIS_TOA * toa_scale
+      nir_toa   = WN_NIR_TOA * toa_scale
 
       !---~---
       !   Clear-sky visible beam and diffuse (WN85 eqs. 1, 3, 9; docs/science/forcing.md
       ! eq. (8)). The diffuse term scales the beam it subtracts by cosz once more than other
       ! implementations of WN85 eq. 3 do (docs/science/forcing.md §6).
       !---~---
-      par_beam_pot = WN_VIS_TOA * exp(WN_PAR_BEAM_EXPEXT * prat * secz) * cosz
-      par_diff_pot = WN_PAR2DIFF_SUN * (WN_VIS_TOA - par_beam_pot) * cosz
+      par_beam_pot = vis_toa * exp(WN_PAR_BEAM_EXPEXT * prat * secz) * cosz
+      par_diff_pot = WN_PAR2DIFF_SUN * (vis_toa - par_beam_pot) * cosz
       par_full_pot = par_beam_pot + par_diff_pot
 
       !---~---
       !   Clear-sky NIR: the water-vapour absorption w10, then beam and diffuse (WN85 eqs. 6,
       ! 4, 5, 10; docs/science/forcing.md eq. (9)).
       !---~---
-      w10          = WN_W10_TOA * 10.0_wp ** (WN_W10_A + log10secz * (WN_W10_B + WN_W10_C * log10secz))
-      nir_beam_pot = (WN_NIR_TOA * exp(WN_NIR_BEAM_EXPEXT * prat * secz) - w10) * cosz
-      nir_diff_pot = WN_NIR2DIFF_SUN * (WN_NIR_TOA - nir_beam_pot - w10) * cosz
+      w10          = WN_W10_TOA * toa_scale * 10.0_wp ** (WN_W10_A + log10secz * (WN_W10_B + WN_W10_C * log10secz))
+      nir_beam_pot = (nir_toa * exp(WN_NIR_BEAM_EXPEXT * prat * secz) - w10) * cosz
+      nir_diff_pot = WN_NIR2DIFF_SUN * (nir_toa - nir_beam_pot - w10) * cosz
       nir_full_pot = nir_beam_pot + nir_diff_pot
 
       !---~---
@@ -170,18 +177,19 @@ contains
    !---~---
 
    !---~---
-   !   Clearness index kt = SW / (S0 cosz) in [0,1], the one index the shortwave partition and
-   ! the longwave synthesis share. Negative at night, where kt is undefined: a zero would
-   ! read as overcast (docs/science/forcing.md §11).
+   !   Clearness index kt = SW / (S0 f cosz) in [0,1], f = toa_scale the Earth-Sun distance factor
+   ! of the day, the one index the shortwave partition and the longwave synthesis share. Negative
+   ! at night, where kt is undefined: a zero would read as overcast (docs/science/forcing.md §11).
    !---~---
-   pure function clearness_index(swdown_total, cosz) result(kt)
+   pure function clearness_index(swdown_total, cosz, toa_scale) result(kt)
       real(wp), intent(in) :: swdown_total, cosz
+      real(wp), intent(in) :: toa_scale   ! [-] (r0/r)^2 of the day
       real(wp) :: kt, i_toa
       if (cosz <= COSZ_MIN) then
          kt = -1.0_wp                                   ! night: undefined, not zero
          return
       end if
-      i_toa = SOLAR_CONSTANT * cosz
+      i_toa = SOLAR_CONSTANT * toa_scale * cosz
       kt    = min(1.0_wp, max(0.0_wp, max(swdown_total, 0.0_wp) / max(i_toa, tiny_num)))
    end function clearness_index
 
@@ -251,16 +259,17 @@ contains
    !---~---
    !   The factor the direct beam takes on a slope: the beam normal to the sun, beam / cos z,
    ! times cos i, over the beam on level ground. The beam normal is held at most the solar
-   ! constant, which keeps a low sun's small cos z from inflating the beam a slope facing it
+   ! constant of the day (S0 times toa_scale), which keeps a low sun's small cos z from inflating the beam a slope facing it
    ! receives. 1 with no beam to scale.
    !---~---
-   pure real(wp) function slope_beam_factor(beam, cosz, cosi) result(f)
+   pure real(wp) function slope_beam_factor(beam, cosz, cosi, toa_scale) result(f)
       real(wp), intent(in) :: beam   ! [W/m2] direct beam on level ground (all bands)
       real(wp), intent(in) :: cosz   ! [-] cosine of the solar zenith angle
       real(wp), intent(in) :: cosi   ! [-] cosine of the incidence on the slope
+      real(wp), intent(in) :: toa_scale   ! [-] (r0/r)^2 of the day
       f = 1.0_wp
       if (beam <= 0.0_wp .or. cosz <= COSZ_MIN) return
-      f = min(cosi / cosz, SOLAR_CONSTANT * cosi / beam)
+      f = min(cosi / cosz, SOLAR_CONSTANT * toa_scale * cosi / beam)
    end function slope_beam_factor
 
 end module ed_radiation_lib

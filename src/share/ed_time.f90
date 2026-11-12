@@ -4,8 +4,8 @@
 ! end date on the proleptic Gregorian calendar, leap years included, and every output
 ! record carries its date. This module does the date arithmetic, through the Julian Day
 ! Number, and the solar geometry that follows from the date and the clock: the
-! declination, the zenith cosine at local solar or UTC time, its mean over a window, the
-! sun on a slope and the daylength (docs/science/forcing.md §4).
+! declination, the Earth-Sun distance factor, the zenith cosine at local solar or UTC time, its
+! mean over a window, the sun on a slope and the daylength (docs/science/forcing.md §4).
 !---~---
 module ed_time
    use ed_kinds,       only : wp, ik, lk
@@ -20,7 +20,7 @@ module ed_time
    public :: seconds_into_day, seconds_between, time_advance_seconds
    public :: time_lt, time_eq, time_valid
    public :: string_to_time, time_units_base, time_to_string, time_to_stamp, time_to_decimal_year
-   public :: solar_cosz, daylength, doy_effective, solar_declination
+   public :: solar_cosz, daylength, doy_effective, solar_declination, earth_sun_distance_factor
    public :: solar_cosz_utc, utc_to_solar_seconds, mean_solar_cosz, slope_incidence_cosz
 
    !--- A calendar instant; the defaults make ed_time_t() a valid date.
@@ -85,6 +85,18 @@ contains
       integer(ik), intent(in) :: doy          ! day of year (1 = 1 January)
       decl = 23.45_wp * pi / 180.0_wp * sin(2.0_wp * pi * (284.0_wp + real(doy, wp)) / 365.0_wp)
    end function solar_declination
+
+   !---~---
+   !   The Earth-Sun distance factor (r0/r)^2 = 1 + 0.033 cos(2 pi doy/365), Duffie & Beckman
+   ! (2013), Solar Engineering of Thermal Processes, 4th ed., Wiley, §1.4
+   ! (doi:10.1002/9781118671603), the same text the declination above comes from through Cooper
+   ! (1969). The irradiance above the atmosphere is the solar constant times it: +3.3 % in early
+   ! January, -3.3 % in early July (docs/science/forcing.md §6).
+   !---~---
+   elemental real(wp) function earth_sun_distance_factor(doy) result(f)
+      integer(ik), intent(in) :: doy          ! day of year (1 = 1 January)
+      f = 1.0_wp + 0.033_wp * cos(2.0_wp * pi * real(doy, wp) / 365.0_wp)
+   end function earth_sun_distance_factor
 
    !---~---
    !   The cosine of the solar zenith angle, 0 at night (docs/science/forcing.md

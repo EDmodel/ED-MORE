@@ -33,7 +33,8 @@ module ed_constants
    real(wp), parameter :: cp_vap = 1859.0_wp                  ! [J/kg/K] water-vapour specific heat
    !---~---
    !   The molar-mass ratios moist air needs: vapour pressure from specific humidity, and the
-   ! virtual temperature T (1 + virtual_temp_factor q).
+   ! virtual temperature T (1 + virtual_temp_factor q), or equally the moist-air gas constant
+   ! r_dry (1 + virtual_temp_factor q); virtual_temp_factor is R_v/R_d - 1 for ideal gases.
    !---~---
    real(wp), parameter :: h2o_dry_ratio       = mmh2o / mmdry           ! [-] 0.62196
    real(wp), parameter :: virtual_temp_factor = mmdry / mmh2o - 1.0_wp  ! [-] 0.60783
