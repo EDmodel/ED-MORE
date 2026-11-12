@@ -210,7 +210,7 @@ contains
 
    !---~---
    !   The saturation vapour pressure e [Pa] over one phase (phase = 1 liquid, 0 ice) and its
-   ! slope de/dT [Pa/K] (docs/science/snow_biophysics.md eq. (1)). The latent heat is the
+   ! slope de/dT [Pa/K] (docs/science/snow_biophysics.md eqs. (1), (2)). The latent heat is the
    ! Kirchhoff L(T) of latent_heat_vap, so the slope is the Clausius-Clapeyron equation
    ! e L / (Rv T**2) by construction, and both phases meet at es_3ple at t_3ple.
    !---~---

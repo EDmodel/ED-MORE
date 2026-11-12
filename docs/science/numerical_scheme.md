@@ -702,6 +702,22 @@ agreement of those aggregates in one realization is reassurance rather than a co
    checks of §5b run on a *sealed unit fixture* driven at 29 mm h⁻¹, far above typical temperate rain rates,
    because a forced temperate patch never saturates: a production-forced test suite is not a substitute
    for a fixture that deliberately visits the corner.
+6. **Three refinements are left out, to revisit with the scheme as a whole.**
+   - *An adaptive freeze cadence.* The coefficient pre-pass is 4–11 % of a step, so a cadence that
+     adapts to the step's own stiffness would win at most that. It would also have to stay the same for
+     every patch of a site, because the threaded patch loop shares the sub-step's forcing samples and
+     output staging.
+   - *Soil water inside the ARK tableau.* Taking the soil water into the stages costs 14–26 % (more
+     with few cohorts), to remove a split error of about 0.01 % of the column's water, dry or under 10
+     mm h⁻¹ rain. It would not close the plant-uptake seam alone either: that needs a root sink that
+     depends on the stage. The soil state and the fluxes the soil-heat stages use already come from one
+     solve.
+   - *The free-convection slope.* The tissue's linearization freezes the leaf-to-air temperature
+     difference, so the free-convection conductance's growth with it is not in the Jacobian. Including it
+     is a Newton linearization about the frozen difference that changes the numerator, the denominator,
+     the reported flux and the relaxation's time constant together, in the kernel with the tightest
+     conservation identity; it is not a factor on the denominator, which would break the exact
+     closure of `tissue_energy_balance`.
 
 ---
 

@@ -5,8 +5,9 @@
 # basal area), with that example's census-fitted mortality and BCI height curve. Their leaves sit on
 # the leaf economics spectrum, early to late from thin, short-lived, fast leaves to thick, long-lived,
 # slow ones; example 04's calibrated BCI leaf is the spectrum's anchor, and everything else a canopy
-# or a root does is example 04's. calibrate_growth.py fitted where the PFTs sit on the spectrum and
-# the carbon costs below to example 03's growth law (calibration.json).
+# or a root does is example 04's: the values calibrate_growth.py was fitted with (example 04's current
+# fit is in ../example04_column_biophysics/calibration/fit.json). calibrate_growth.py fitted where the
+# PFTs sit on the spectrum and the carbon costs below to example 03's growth law (calibration.json).
 # Every per-PFT array has length 3 (the PFT count = length of [pft].wood_density).
 
 [pft]
@@ -29,7 +30,7 @@ include_pft        = [1, 1, 1]
 #      leaves are ([trait_dynamics].fineroot_turnover_plastic).
 leaf_turnover_rate_toc = [2.0, 1.4286, 1.1111]   # [1/yr] 1 / (0.5, 0.7, 0.9 yr)
 sla                = [20.0, 18.18, 16.67]    # [m2/kgC] LMA 100, 110, 120 g/m2
-vcmax25            = [32.3321, 32.3321, 32.3321]   # [umol/m2/s] example 04's calibrated leaf
+vcmax25            = [32.3321, 32.3321, 32.3321]   # [umol/m2/s] example 04's calibration, as the growth fit used it
 root_to_leaf_ratio = [1.0, 1.0, 1.0]
 
 #----- Stem maintenance respiration on sapwood volume alone (no surface term). The rate puts the 1985

@@ -562,6 +562,26 @@ the tower's at the same canopy-air top, and its temperature 0.11 K warmer.
 difference, about ±1 K between day and night. Correcting it needs fluxes ERA5-Land does not carry, and its
 2 m value describes a clearing, so inverting similarity theory from it would add error.
 
+**Accepted: one pressure for the whole patch.** The ground sits below the canopy-air top, so its true
+pressure is higher than the one it is given: by the hypsometric relation, about 0.4 % for a top 35–39 m
+above it at tropical temperatures. The ground's saturation humidity, which scales as $`1/P`$, is
+overstated by the same fraction. The deficit that drives evaporation is a small part of the saturation
+humidity, so the ground evaporation it drives is overstated by a few times that: of order 0.1 W m⁻² at a
+humid tropical site. One pressure keeps the canopy air, the leaves and the ground on one parcel of air.
+
+**Accepted: supersaturation after the lift.** Moving the forcing air up the dry adiabat at constant
+specific humidity cools it, and cooler air has a lower saturation humidity: over 12–15 m at tropical
+temperatures the relative humidity rises by 0.6–0.7 % (the pressure falling with height offsets a little
+of the cooling's effect). Near-saturated 2 m air therefore arrives at the canopy-air top supersaturated
+by that margin. The canopy air's condensation (`cas_condensation`, with its time constant `TAU_COND`)
+removes the excess: the lifted air reaches condensation along a dry adiabat, not a moist one.
+
+**Accepted: rain at the air's temperature.** Rain and snow are valued at the canopy-air top's air
+temperature, but falling drops are nearer the wet-bulb temperature, which is lower in unsaturated air.
+The enthalpy rain carries is its rate times $`c_{liq}`$ times the temperature difference, about 0.3 W m⁻²
+in the yearly mean at a humid tropical site (2,000–2,800 mm yr⁻¹ with a wet-bulb depression of about 1 K)
+and about 12 W m⁻² in an hour of 10 mm h⁻¹ rain.
+
 **In the output**, the polygon's forcing echo (`mean_air_temp_py`, `mean_wind_py`, …) is the forcing after the
 terrain lapse, at its own heights; each patch's forcing is `mean_wind_cas_top_pa` and
 `mean_air_temp_cas_top_pa`, with the inputs that produced it: `mean_cas_depth_pa` ($`z_c`$),
