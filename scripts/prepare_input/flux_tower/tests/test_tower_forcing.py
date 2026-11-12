@@ -15,7 +15,6 @@ from netCDF4 import Dataset
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
-sys.path.insert(0, os.path.join(HERE, "..", "..", "era5"))
 import make_tower_forcing as mt   # noqa: E402
 import tower_gapfill as tg        # noqa: E402
 import tower_inputs as ti         # noqa: E402
@@ -605,21 +604,3 @@ def test_shortwave_gap_fill_holds_the_clearness_index_with_the_factor():
     out, _ = tg.fill_short(y, qc, 2, "shortwave", cz, np.full(3, 1.033))
     assert abs(out[1] - 400.0) < 1e-9                                 # kt held, same TOA all three
 
-
-def test_make_forcing_file_writes_the_dewpoint(tmp_path):
-    import make_forcing_file as mf
-    times = [np.datetime64("2024-01-01T01:00:00") + np.timedelta64(3600 * k, "s") for k in range(5)]
-    times = [t.astype("datetime64[s]").astype(object) for t in times]
-    series = {name: np.full(5, value) for name, value in
-              dict(Tair=290.0, Tdew=285.0, PSurf=99000.0, u10=3.0, v10=-4.0, Rainf=0.0, SWdown=0.0,
-                   LWdown=300.0).items()}
-    arrays = mf.file_arrays([series])
-    path = str(tmp_path / "era5.nc")
-    mf.write_ed_forcing(path, times, [(42.4, -76.5, 367.5)], arrays,
-                          dict(avg_convention="end", sw_input_kind="total", timestep_seconds=3600,
-                               wind_meas_height_m=10.0, tq_height_m=2.0, height_above="zero_plane"))
-    with Dataset(path) as ds:
-        assert "Tdew" in ds.variables and "Qair" not in ds.variables
-        assert ds.time_zone == "UTC" and ds.Conventions == "ED-MORE-forcing-1.1"
-        assert np.allclose(ds["Wind"][:, 0], 5.0)
-        assert ds["Tdew"].height == "2 m"

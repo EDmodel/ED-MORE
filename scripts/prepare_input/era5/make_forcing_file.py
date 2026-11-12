@@ -22,10 +22,19 @@ Both inputs give the same file (docs/science/forcing.md §1):
   * Tair [K], PSurf [Pa], the dewpoint Tdew [K] as ERA5-Land delivers it (the model makes specific
     humidity from it with its own saturation curve, as it does for the archive), the 10 m wind
     vector u10, v10 [m/s] and its speed Wind = sqrt(u10^2 + v10^2) (the model floors the speed
-    itself, for every source), and the hour-mean fluxes Rainf [kg m-2 s-1], SWdown (total; the model
-    partitions it) and LWdown [W m-2], each with the units, names and cell method the archive gives it;
+    itself, for every source), the hour-mean fluxes Rainf [kg m-2 s-1] and SWdown (total; the model
+    partitions it), and LWdown [W m-2] centred at the stamps (below), each with the units and names
+    the archive gives it;
   * end-stamped hourly records (avg_convention = "end"), UTC, written by the shared writer
     (edmore.forcing, python/edmore/forcing.py).
+
+LWdown at the stamps (docs/science/forcing.md §1): ERA5-Land's longwave, like its other fluxes, is
+the mean of the hour ending at each stamp, and the model reads a longwave as values at the stamps.
+So the file's value at stamp t is (LW(t) + LW(t + 1 h)) / 2, the mean of the hour ending at t and
+the hour after it, the rule the model's archive reader applies, so a run on this file and a run on
+the archive read the same longwave. The cut's last stamp takes the hour after it from the archive
+when the archive has it; box files, and an archive without that hour, leave the last stamp its own
+mean.
 No CO2air: CO2 is not meteorology, and the model takes it from [forcing].co2_source (a constant, or
 an ED-MORE CO2 file such as data/co2/), never from this file -- it rejects a file that carries one.
 ED-MORE never gap-fills: a missing value is an error, here as in the model.
@@ -75,8 +84,7 @@ HOUR = dt.timedelta(hours=1)
 # them: Wind from u10 and v10. The humidity is the dewpoint, as ERA5-Land delivers it.
 FILE_VARIABLES = ("Tair", "Tdew", "PSurf", "u10", "v10", "Wind", "Rainf", "SWdown", "LWdown")
 DERIVED = {
-    "Wind": dict(units="m s-1", long_name="wind speed", standard_name="wind_speed",
-                 cell_methods="time: point", height=10.0),
+    "Wind": dict(units="m s-1", long_name="wind speed", standard_name="wind_speed", height=10.0),
 }
 
 
@@ -171,6 +179,8 @@ def from_box_files(args):
         times, series = times[1:], {name: s[1:] for name, s in series.items()}
     cells = select_box_cells(lat, lon, args)
     per_cell = [{name: s[:, i, j] for name, s in series.items()} for _, _, i, j in cells]
+    for s in per_cell:
+        s["LWdown"] = centre_at_stamps(s["LWdown"])          # the box's last hour has none after it
     print("note: box files carry no orography, so the file has no elevation(grid); set [site].grid_elevation "
           "to the cell's ERA5-Land orography (geopotential / 9.80665)")
     return times, [(la, lo, None) for la, lo, _, _ in cells], per_cell, "ERA5-Land hourly (reanalysis-era5-land)"
@@ -242,13 +252,52 @@ def from_archive(args):
                 for g, (_, _, _, r, c) in enumerate(cells):
                     series[name][g].append(np.ma.filled(ds[name][keep, r, c], np.nan).astype(float))
     per_cell = [{name: np.concatenate(series[name][g]) for name in names} for g in range(len(cells))]
+    for s, after in zip(per_cell, longwave_after(args.data_path, t1, cells)):
+        s["LWdown"] = centre_at_stamps(s["LWdown"], after)
     with Dataset(common.archive_file(args.data_path, names[0], d0.year, d0.month)) as ds:
         source = f"{getattr(ds, 'product', 'ERA5-Land hourly')}, via the ED_ERA5land archive ({ds.source})"
     return times, [(la, lo, el) for la, lo, el, _, _ in cells], per_cell, source
 
 
+def longwave_after(data_path, last, cells):
+    """Each cell's archive LWdown for the hour after the stamp `last`, from the file that holds it
+    (the next month's when `last` closes a month); None for every cell when the archive has no such
+    file. A file that has it must hold that hour, with a value: ED-MORE never gap-fills."""
+    after = last + HOUR
+    path = common.archive_file(data_path, "LWdown", *common.stamp_month(after))
+    if not os.path.exists(path):
+        print(f"note: the archive has no {os.path.basename(path)}, so the last stamp's LWdown keeps its own "
+              f"hour's mean")
+        return [None] * len(cells)
+    with Dataset(path) as ds:
+        tv = ds["time"]
+        t = num2date(tv[:], tv.units, getattr(tv, "calendar", "standard"),
+                     only_use_cftime_datetimes=False, only_use_python_datetimes=True)
+        k = [i for i, s in enumerate(t) if s == after]
+        if not k:
+            raise SystemExit(f"ERROR: {os.path.basename(path)} has no {after:%Y-%m-%d %H}:00 stamp")
+        values = [float(np.ma.filled(ds["LWdown"][k[0], r, c], np.nan)) for _, _, _, r, c in cells]
+    if not np.isfinite(values).all():
+        raise SystemExit(f"ERROR: {os.path.basename(path)} has no LWdown at {after:%Y-%m-%d %H}:00 for a cell")
+    return values
+
+
 # ---------------------------------------------------------------------------------------------
 # THE FILE: the same for both sources from here on.
+# ---------------------------------------------------------------------------------------------
+def centre_at_stamps(lw, after=None):
+    """LWdown at the stamps from hour means that end at them (docs/science/forcing.md §1): the value
+    at stamp k is (lw[k] + lw[k + 1]) / 2, and at the last stamp (lw[-1] + after) / 2, or lw[-1]
+    without `after`. The model's archive reader centres the archive's longwave the same way
+    (ed_met_era5land, centre_longwave): the sum of two float32 values is exact in float64, so the
+    file's float32 is the same single rounding as the model's."""
+    lw = np.asarray(lw, dtype=float)
+    following = np.append(lw[1:], lw[-1] if after is None else after)
+    return 0.5 * (lw + following)
+
+
+# ---------------------------------------------------------------------------------------------
+# The file's arrays and attributes.
 # ---------------------------------------------------------------------------------------------
 def file_arrays(per_cell):
     """{file variable: (ntime, ngrid) array} from each grid point's series of the archive's variables."""
@@ -257,9 +306,12 @@ def file_arrays(per_cell):
 
 
 def variable_attributes(name):
-    """A file variable's CF attributes: the archive's own for an archive variable, else DERIVED's."""
+    """A file variable's CF attributes: the archive's own units and names for an archive variable,
+    else DERIVED's, and the cell method of an ED-MORE forcing file (edmore.forcing), which holds
+    LWdown at the stamps where the archive holds hour means."""
     spec = DERIVED.get(name) or common.ARCHIVE_VARIABLES[name]
-    attrs = {key: spec[key] for key in ("units", "long_name", "standard_name", "cell_methods")}
+    attrs = {key: spec[key] for key in ("units", "long_name", "standard_name")}
+    attrs["cell_methods"] = forcing_file.VARIABLE_ATTRIBUTES[name]["cell_methods"]
     if spec["height"] is not None:
         attrs["height"] = f"{spec['height']:g} m"
     return attrs
@@ -322,7 +374,7 @@ def main(argv=None):
         source=source,
         history="make_forcing_file.py",
         timestep_seconds=3600,
-        avg_convention="end",          # flux vars: mean over the hour ENDING at the stamp
+        avg_convention="end",          # Rainf, SWdown: mean over the hour ENDING at the stamp
         sw_input_kind="total",         # total SWdown; the Fortran reader partitions (docs/science/forcing.md §6)
         wind_meas_height_m=10.0,       # ERA5-Land wind is at 10 m; checked against [forcing].wind_height
         tq_height_m=2.0,               # 2 m temperature and dewpoint; checked against [forcing].tq_height

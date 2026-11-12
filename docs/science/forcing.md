@@ -38,11 +38,11 @@ variables:
     double latitude(grid) ["degrees_north"], longitude(grid) ["degrees_east"] ;
     double elevation(grid) ["m"] ;              // optional, not read: the cell's orography (archive only)
     float Tair(time,grid) ["K"], PSurf(time,grid) ["Pa"],          // cell_methods = "time: point"
-          Wind(time,grid) ["m s-1"] ;
+          Wind(time,grid) ["m s-1"], LWdown(time,grid) ["W m-2"] ;
     float Tdew(time,grid) ["K"] ;              // the humidity: exactly one of Tdew, RHair ["1"]
                                                // and Qair ["kg kg-1"]; see sec. 7
     float u10(time,grid), v10(time,grid) ["m s-1"] ;            // optional wind vector; see below
-    float Rainf(time,grid) ["kg m-2 s-1"], LWdown(time,grid) ["W m-2"],  // cell_methods = "time: mean"
+    float Rainf(time,grid) ["kg m-2 s-1"],                      // cell_methods = "time: mean"
           SWdown(time,grid) ["W m-2"] ;                         // SWdown is the TOTAL; see sec. 6
     // every float is stored with _FillValue = 1.e20; the writer refuses a missing value (sec. 10)
 // global attributes -- time_zone is required and must be "UTC"; avg_convention, sw_input_kind and,
@@ -132,6 +132,21 @@ last hour needs the 00:00 stamp of day D+1, so the downloader fetches that closi
 extra request; the box files therefore start at 01:00 on the first day and end at 00:00 after the
 last, and nothing is filled.
 
+*The longwave at the stamps.* Every de-accumulated flux is the mean of the hour **ending** at its
+stamp. Rain and shortwave are read as such means (§3, §5), but the reader takes the longwave, like a
+state, as a value *at* the stamps, which would put every hour's longwave half an hour late. So
+ERA5-Land's `LWdown` is centred at the stamps before the reader interpolates it: the value at stamp
+$`t_k`$ is $`\bigl(L(t_k) + L(t_k + 1\,\mathrm{h})\bigr)/2`$, the mean of the hour ending at $`t_k`$
+and the hour after it, with $L$ the stored hour means. `make_forcing_file.py` writes the file's
+`LWdown` that way (`centre_at_stamps`), and the archive reader applies the same rule as it loads a
+month, so a run on the archive and a run on a file cut from it read the same longwave. The last stamp
+of a cut takes the hour after it from the archive, the first hour of the next month's file when the
+stamp closes a month; where the source has no hour after it (the archive's last hour, or the end of
+the box files) the stamp keeps its own hour's mean. The sums are formed in double precision from the
+archive's float32 values and rounded once to float32 on both paths, so the two agree to the bit. A
+tower's longwave is centred by its own tool (below), and an ED-MORE forcing file's `LWdown` is
+labelled `cell_methods = "time: point"`.
+
 **Producing one from flux-tower data.** `scripts/prepare_input/flux_tower/make_tower_forcing.py` reads
 AmeriFlux BASE, FLUXNET (ONEFlux) or a plain CSV described by a site TOML, converts the clock to UTC,
 writes `RHair` as measured, fills gaps explicitly with a per-variable `<Var>_qc` flag, and states the
@@ -158,6 +173,10 @@ checked at config load), because the reader loads one month at a time before a s
 - **reads a month at a time**, one chunk column per variable, into a buffer, checking each file's
   grid, stamps and units, and rejecting a missing value in the cell. A missing value is NaN, as the
   archive stores it; a file whose `_FillValue` is a number is refused rather than read as data;
+- **centres the longwave at its stamps** as it loads the month (`centre_longwave`), by the rule
+  above: the month's last stamp, 00:00 on the 1st of the next month, takes the first hour of the next
+  month's `LWdown` file, checked like any month file. That file need not be one the run reads; without
+  it (the archive's last month) the last stamp keeps its own hour's mean;
 - **converts at each stamp:** $`q`$ from the stored dewpoint and pressure by eq. (11), and the wind
   speed from the stored components, whose vector the record also carries.
 
@@ -206,7 +225,9 @@ patch loop and reads each month at its prefetch. Reading ahead holds one more mo
 
 Within the bracket the weight is $`w_{next}=(t-t_{prev})/(t_{next}-t_{prev})`$, clipped to $[0,1]$. Each
 variable carries its own policy: **linear** for `Tair`, the humidity (as $q$), `PSurf` and `LWdown`
-(smooth atmospheric states, read as values *at* the stamps); **step-constant** for `Rainf`, held over
+(smooth atmospheric states, read as values *at* the stamps; a longwave delivered as hour means is
+centred at the stamps first, by the ERA5-Land tools and archive reader of §1 or by the tower tool);
+**step-constant** for `Rainf`, held over
 the interval it is the mean of, because interpolating precipitation smears intense events into
 physically wrong drizzle and breaks infiltration and runoff; **cosz reconstruction** for the four
 shortwave streams (§5), because those records are interval *means*, not point values. Rain and
@@ -869,14 +890,14 @@ each option requires are in the reference config `ed_config_main.toml` and in
 | canopy-air top (§8, Step 2) | `ed_met`: `cas_top_wind_factor`, `met_to_cas_top`; `ed_therm_lib`: `dry_adiabat_temperature`, `dry_adiabat_pressure`, `moist_gas_constant`; `canopy_roughness` (`ed_canopy_aerodynamics`); called per patch by `ed_fast_forcing` |
 | the reader | `ed_met`: `met_open`, `met_cursor_init`, `met_prefetch`, `met_read_ahead`, `met_advance`, `met_instant`, `met_close`; the one ingest `read_record`, `assert_finite` |
 | the two file sources | `ed_met_default`: `default_file_open`, `default_file_record`, `read_series`, `detect_humidity`; `ed_met_era5land`: `era5land_open`, `era5land_prefetch`, `era5land_read_ahead`, `era5land_record`, `open_archive`, `month_of_step`, `load_axis_month`, `locate_record`, `keep_window_head` |
-| the archive's files | `ed_met_era5land`: `era5land_path`, `era5land_month_hours`, `era5land_load_month` |
+| the archive's files | `ed_met_era5land`: `era5land_path`, `era5land_month_hours`, `era5land_load_month` (with `open_month_variable`, `read_month_hours` and the longwave's `centre_longwave`) |
 | recycling | `ed_met_share`: `validate_recycle_window`, `file_lookup_sec`, `recycle_model_to_file`; `ed_met`: `load_wrap_bracket` |
 | CO₂ | `ed_met_co2`: `co2_series_read`, `co2_series_at`, `co2_series_covers`; `ed_met`: `open_co2`, `met_open_co2`, `met_co2`; the `CO2air` rejection is in `validate_file_against_config` (`ed_met_share`) |
 | types | `ed_met_types`: `met_forcing_t`, `met_record_t`, `met_source_t`, `met_cursor_t`, `met_grid_t`, `met_cells_t`, `met_month_t`, `co2_series_t` |
 | config | `ed_forcing_params`: `forcing_params_t`, `MET_BACKEND_*`, `METAVG_*`, `LW_FILE`, `LW_SYNTHESIZE`, `CLAMP_*`, `GRIDMATCH_*`, `CO2_SOURCE_*`, `HEIGHT_ABOVE_*`, `WIND_EXPOSURE_*`; `SWPART_*` and `LW_CLEAR_*` in `ed_radiation_lib`; read by `load_forcing_params` (`ed_config_io`), checked by `check_forcing` (`ed_config_check`) |
 | fast-loop join | `ed_fast_forcing`: `sample_window` (the per-sub-step `met_advance` and `met_instant`), `site_forcing` (each site's sample), `patch_forcing` (the air at the patch's canopy-air top, from `fill_forcing`, and the radiation, which `apply_rt_forcing` hands to the canopy two-stream, [canopy radiative transfer](canopy_radiation_transfer.md) §3–§4) |
-| file production | the archive: `scripts/prepare_input/era5/download_era5land_gdex.py` or `download_era5land_cds.py`, then `build_era5land_static.py` and `build_era5land_archive.py`; a single file: `make_forcing_file.py` (from the archive, or from `download_era5land_cds.py` and `postprocess_era5land.py` box files) or `scripts/prepare_input/flux_tower/make_tower_forcing.py` (flux-tower data); the shared writer `edmore.forcing` (`python/edmore/forcing.py`); the tower tool's Python mirror of the model's conversions `scripts/prepare_input/flux_tower/tower_conversions.py`; the shipped CO₂ series `scripts/prepare_input/co2/make_co2_file.py` |
-| tests | ctest `met_file` (`test/io/test_met_file.f90`): the mean-conserving identity and the secant bias, the NetCDF round trip, start-clamp and recycle-window rejections, recycle phase over 29 years, prescribed CO₂ (every rejection, the shipped series, CO₂ not recycled with the met), the forcing at a site, and the flux-tower contract (humidity forms, the UTC requirement, stated heights, the interval each flux is read from, the move to the canopy-air top); `met_era5land` (`test/io/test_met_era5land.f90`): a synthetic archive, its cell selection, month loads, seam and recycling, and the next month read ahead (an ordinary month, the recycle wrap, a run's last month); `radiation_lib`, `therm_lib` and `numerics` (`test/share/`): the shortwave schemes, longwave synthesis, humidity, phase, lapse, the beam on a slope |
+| file production | the archive: `scripts/prepare_input/era5/download_era5land_gdex.py` or `download_era5land_cds.py`, then `build_era5land_static.py` and `build_era5land_archive.py`; a single file: `make_forcing_file.py` (from the archive, or from `download_era5land_cds.py` and `postprocess_era5land.py` box files; its longwave centred by `centre_at_stamps`) or `scripts/prepare_input/flux_tower/make_tower_forcing.py` (flux-tower data); the shared writer `edmore.forcing` (`python/edmore/forcing.py`); the tower tool's Python mirror of the model's conversions `scripts/prepare_input/flux_tower/tower_conversions.py`; the shipped CO₂ series `scripts/prepare_input/co2/make_co2_file.py` |
+| tests | ctest `met_file` (`test/io/test_met_file.f90`): the mean-conserving identity and the secant bias, the NetCDF round trip, start-clamp and recycle-window rejections, recycle phase over 29 years, prescribed CO₂ (every rejection, the shipped series, CO₂ not recycled with the met), the forcing at a site, and the flux-tower contract (humidity forms, the UTC requirement, stated heights, the interval each flux is read from, the move to the canopy-air top); `met_era5land` (`test/io/test_met_era5land.f90`): a synthetic archive, its cell selection, month loads, seam and recycling, the next month read ahead (an ordinary month, the recycle wrap, a run's last month), and the longwave centred at its stamps (within a month, across a month's and a year's end, the archive's last hour); `prepare_era5` (`scripts/prepare_input/era5/tests`): the same centring in `make_forcing_file.py`, from the archive and from box files; `radiation_lib`, `therm_lib` and `numerics` (`test/share/`): the shortwave schemes, longwave synthesis, humidity, phase, lapse, the beam on a slope |
 
 ## References
 

@@ -16,7 +16,7 @@ corrections, calendar recycling and CO₂. The `[forcing]` and `[site]` keys are
 | `ed_met_types` | The runtime types: `met_forcing_t` (the instantaneous air the fast loop reads), `met_record_t` (one ingested record), `met_source_t` (one per run: the file, time axis, cells and records in memory), `met_cursor_t` (one per polygon: its cell and the two records that bracket its model time), the grid types `met_grid_t`, `met_cells_t` and `met_month_t`, and `co2_series_t`. |
 | `ed_met` | The reader: `met_open`, `met_cursor_init`, `met_prefetch`, `met_read_ahead`, `met_advance`, `met_instant`, `met_close`; the one ingest `read_record`; the shortwave disaggregation; `met_at_site` (terrain and slope) and `met_to_cas_top` (a patch's canopy-air top). |
 | `ed_met_default` | The source for `[forcing].format = "default"`: one ED-MORE forcing file shaped `(time, grid)`. |
-| `ed_met_era5land` | The source for `"ERA5land"`: the monthly ED_ERA5land archive, laid end to end as one hourly axis. |
+| `ed_met_era5land` | The source for `"ERA5land"`: the monthly ED_ERA5land archive, laid end to end as one hourly axis; its hour-mean longwave is centred at the stamps as each month loads (forcing.md §1). |
 | `ed_met_share` | What both sources share: status codes, the time axis, the declared recycle window and the check of a file against its config. |
 | `ed_met_co2` | The prescribed CO₂: reads an ED-MORE CO₂ file and looks a value up at a model instant. |
 | `ed_met_grid` | Where the cells are: a site's cell, a region's box of cells, the cells a mask keeps, and `same_grid`. Reads only the static file, never weather. |
@@ -59,5 +59,6 @@ Commands are in each script's header and in forcing.md §1.
 
 ctest `met_file` (`test/io/test_met_file.f90`) covers the reader, a NetCDF round trip, the CO₂ file and
 the forcing at a site. ctest `met_era5land` (`test/io/test_met_era5land.f90`) writes a small synthetic
-archive and covers the archive source, reading ahead included. The laws are tested by `radiation_lib`, `therm_lib` and
+archive and covers the archive source, reading ahead and the longwave's centring included; ctest
+`prepare_era5` checks the same centring in `make_forcing_file.py`. The laws are tested by `radiation_lib`, `therm_lib` and
 `numerics` (`test/share/`).

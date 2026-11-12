@@ -85,6 +85,10 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   lapse, the lift to the canopy-air top, a tower's sensor height) and the air density use the gas
   constant of moist air. BCI (example 04) and Palo Verde (ERA5-Land): the means move by less than
   1e-4 relative (Palo Verde LE −0.003 %). (#80)
+- ERA5-Land's longwave, a mean over the hour ending at each stamp, is centred at the stamps, from the
+  archive and in the files `make_forcing_file.py` cuts alike; it acted half an hour late. Every
+  ERA5-Land run moves at the sub-daily scale (Palo Verde: hourly longwave by up to 10 W/m2, LE
+  −0.11 %, H +0.14 %, GPP −0.03 %); tower runs are bit for bit. (#81)
 
 ### Added
 
@@ -206,6 +210,9 @@ patch version; the names change, and the Upgrading notes list them.
   `meds_config_*.toml`), and their scripts take `--edmore` (was `--meds-main`). (#42)
 - The conda environment is `edmore` (was `meds`): `mamba env create -f environment.yml`, then
   `conda activate edmore`. It needs Python 3.11 or later and brings CMake. (#43)
+- ERA5-Land forcing files cut with `scripts/prepare_input/era5/make_forcing_file.py` before #81 hold
+  the longwave as hourly means ending at the stamps, which the model reads half an hour late: cut
+  them again. The archive is read correctly without any change. (#81)
 
 ### Added
 
