@@ -118,7 +118,8 @@ g_{ac} = \rho_{mol}\,u_*\,\mathrm{temp2} \qquad(6)
 ```
 
 $g_{ah}$ [kg m⁻² s⁻¹] drives the enthalpy, $g_{aw}$ the humidity, and $g_{ac}$ [mol m⁻² s⁻¹]
-the CO₂ (molar, using the dry-air molar density). The profile factor matters: dropping it
+the CO₂ (molar, using the dry-air molar density). $\rho$ and $`\rho_{mol}`$ are the canopy air's own, at
+its temperature and humidity and the pressure of its top. The profile factor matters: dropping it
 ($`\mathrm{temp1}=1`$) would over-couple the CAS to the free atmosphere by about $`1/\mathrm{temp1}`$
 and damp the nocturnal CO₂ build-up under the canopy. The kernel also reports the temperature scale
 $`t_*=\mathrm{temp1}\,\Delta\theta`$, and $`\mathrm{Rib}`$, $\zeta$ and $L$ as diagnostics.

@@ -16,7 +16,8 @@ module ed_met
    use ed_kinds, only : wp, ik
    use ed_numerics, only : linear_interpolate
    use ed_therm_lib,   only : air_density, lapse_air_temperature, lapse_pressure, lapse_specific_humidity,        &
-                              dry_adiabat_temperature, sat_specific_humidity, rh_to_specific_humidity
+                              dry_adiabat_temperature, dry_adiabat_pressure, sat_specific_humidity,          &
+                             rh_to_specific_humidity
    use ed_time,   only : ed_time_t, time_advance_seconds, seconds_into_day, time_to_string, solar_cosz_utc,     &
                          mean_solar_cosz
    use ed_forcing_params,   only : forcing_params_t, MET_BACKEND_DEFAULT, MET_BACKEND_ERA5LAND,                   &
@@ -38,7 +39,7 @@ module ed_met
    private
 
    public :: met_open, met_open_co2, met_co2, met_cursor_init, met_advance, met_instant, met_close, met_prefetch
-   public :: met_at_site, met_to_cas_top, cas_top_wind_factor
+   public :: met_at_site, met_to_cas_top, cas_top_wind_factor, tq_height_pressure
    public :: cosz_reconstruct_factor, disaggregate_sw
 
    integer(ik), parameter :: N_COSZ_SUB   = 10_ik      ! sub-samples per forcing interval for <cosz>_win
@@ -490,12 +491,29 @@ contains
    end function cas_top_wind_factor
 
    !---~---
+   !   The pressure of the air the forcing's temperature and humidity describe. A tower's sensor
+   ! sits tq_height above the ground, and its file's pressure is the ground's: that pressure moves
+   ! up the dry adiabat to the sensor, at the sensor's temperature brought down to the ground. A
+   ! reanalysis's 2 m air (heights above the zero plane) keeps the surface pressure it comes with
+   ! (docs/science/forcing.md eq. (11)).
+   !---~---
+   pure real(wp) function tq_height_pressure(f, t_air, p_surface) result(p)
+      type(forcing_params_t), intent(in) :: f
+      real(wp),               intent(in) :: t_air       ! [K]  the forcing's, at tq_height
+      real(wp),               intent(in) :: p_surface   ! [Pa] the forcing's, at the ground
+      p = p_surface
+      if (f%height_above /= HEIGHT_ABOVE_ZERO_PLANE)                                                &
+         p = dry_adiabat_pressure(p_surface, dry_adiabat_temperature(t_air, -f%tq_height), f%tq_height)
+   end function tq_height_pressure
+
+   !---~---
    !   A forcing record at a patch's canopy-air top: wind (and its vector) by the patch's factor,
    ! temperature along the dry adiabat from the forcing's temperature height (a reanalysis's
-   ! is above d), so the aerodynamics' theta is exactly the forcing's; air density re-derived.
-   ! Humidity is conserved and the radiation, precipitation and pressure are unchanged; the
-   ! rain/snow split is made from this record's temperature where the column's forcing is
-   ! filled (fill_forcing).
+   ! is above d), so the aerodynamics' theta is exactly the forcing's, and pressure along the
+   ! same adiabat from where the forcing's is (the ground, or a reanalysis's zero plane); air
+   ! density re-derived, so the record is one parcel of air at the top. Humidity is conserved and the radiation and precipitation
+   ! are unchanged; the rain/snow split is made from this record's temperature where the
+   ! column's forcing is filled (fill_forcing).
    !---~---
    pure function met_to_cas_top(met, f, z_top, displace, rough) result(top)
       type(met_forcing_t),    intent(in) :: met
@@ -504,7 +522,7 @@ contains
       real(wp),               intent(in) :: displace   ! [m] zero-plane displacement
       real(wp),               intent(in) :: rough      ! [m] roughness length (> 0)
       type(met_forcing_t) :: top
-      real(wp) :: factor, z_t
+      real(wp) :: factor, z_t, z_s
       top    = met
       factor = cas_top_wind_factor(f, z_top, displace, rough)
       top%wind = factor * met%wind
@@ -515,6 +533,15 @@ contains
       z_t = f%tq_height
       if (f%height_above == HEIGHT_ABOVE_ZERO_PLANE) z_t = displace + f%tq_height
       top%air_temp  = dry_adiabat_temperature(met%air_temp, z_top - z_t)
+      !---~---
+      !   Pressure along the same adiabat, from the height the forcing's surface pressure is at, at
+      ! the forcing's temperature brought down to it: the ground for heights above the ground (a
+      ! tower), the zero plane for heights above it (a reanalysis, whose surface the zero plane is).
+      !---~---
+      z_s = 0.0_wp
+      if (f%height_above == HEIGHT_ABOVE_ZERO_PLANE) z_s = displace
+      top%air_pressure = dry_adiabat_pressure(met%air_pressure, dry_adiabat_temperature(met%air_temp, z_s - z_t), &
+                                              z_top - z_s)
       top%air_density = air_density(top%air_temp, top%air_pressure, top%air_shv)
    end function met_to_cas_top
 
@@ -581,7 +608,7 @@ contains
       type(met_cursor_t), intent(in) :: cur
       integer(ik),        intent(in)    :: irec
       type(met_record_t), intent(out)   :: rec
-      real(wp)    :: sw_total, humidity_value
+      real(wp)    :: sw_total, humidity_value, p_tq
       rec%when   = time_advance_seconds(src%base_time, src%time_sec(irec))
       !--- The values as the source stores them; from here on, one ingest for both.
       if (src%backend == MET_BACKEND_ERA5LAND) then
@@ -593,15 +620,16 @@ contains
       call assert_finite(humidity_value, ED_FIELD(humidity_field(src%humidity)), irec, src%grid_index)
       call assert_finite(rec%air_pressure, 'PSurf', irec, src%grid_index)
       !---~---
-      !   Specific humidity at the forcing's own temperature and pressure: a dewpoint and a
-      ! relative humidity both go through the model's liquid-water saturation curve
-      ! (docs/science/forcing.md eq. (11)).
+      !   Specific humidity at the forcing's own temperature and the pressure of the air it was
+      ! measured in (tq_height_pressure): a dewpoint and a relative humidity both go through the
+      ! model's liquid-water saturation curve (docs/science/forcing.md eq. (11)).
       !---~---
+      p_tq = tq_height_pressure(src%fcfg, rec%air_temp, rec%air_pressure)
       select case (src%humidity)
       case (HUMIDITY_RHAIR)
-         rec%air_shv = rh_to_specific_humidity(humidity_value, rec%air_temp, rec%air_pressure)
+         rec%air_shv = rh_to_specific_humidity(humidity_value, rec%air_temp, p_tq)
       case (HUMIDITY_TDEW)
-         rec%air_shv = sat_specific_humidity(humidity_value, rec%air_pressure)
+         rec%air_shv = sat_specific_humidity(humidity_value, p_tq)
       case default
          rec%air_shv = humidity_value
       end select
@@ -626,7 +654,8 @@ contains
             rec%air_temp   = lapse_air_temperature(t_grid, dz, gamma)
             !--- Relative humidity is held: a measured one is used as is, any other is formed at the cell.
             if (src%humidity == HUMIDITY_RHAIR) then
-               rec%air_shv  = rh_to_specific_humidity(humidity_value, rec%air_temp, rec%air_pressure)
+               p_tq = tq_height_pressure(src%fcfg, rec%air_temp, rec%air_pressure)
+               rec%air_shv  = rh_to_specific_humidity(humidity_value, rec%air_temp, p_tq)
             else
                rec%air_shv  = lapse_specific_humidity(q_grid, t_grid, p_grid, rec%air_temp, rec%air_pressure)
             end if

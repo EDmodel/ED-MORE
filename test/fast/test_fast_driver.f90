@@ -676,7 +676,9 @@ program test_fast_driver
    ! pair would cross, fails this. The step controller is held off (rtol and atol_scale large)
    ! so both stands take the same steps: its error norm (docs/science/numerical_scheme.md eq. (3))
    ! counts the pair's states twice, each against the same atol, so under a stiff ground coupling
-   ! the two sub-step differently, by ~1e-3 K -- the integrator's error, not the physics'. Then the
+   ! the two sub-step differently, by ~1e-3 K -- the integrator's error, not the physics'. The water
+   ! network's own sub-step control (water_atol) counts them twice the same way, and is held off too:
+   ! left on, the pair's wood water, and so its temperature, can differ by ~1e-5 K. Then the
    ! same tree without leaves: its leaf temperature is its wood's (a bud sits on its twig), and the
    ! budgets close.
    !---~---
@@ -685,11 +687,13 @@ program test_fast_driver
       real(wp)           :: t_leaf(3), t_wood(3), t_cas(3), gpp(3), d_split
       real(wp), parameter :: NPLANT_THIN = 0.002_wp, DBH_THIN = 20.0_wp
       real(wp), parameter :: HOLD_OFF = 1.0e6_wp     ! tolerances no step error reaches
-      real(wp)           :: rtol0, atol_scale0
+      real(wp)           :: rtol0, atol_scale0, water_atol0
       rtol0 = cfg%rtol
       atol_scale0 = cfg%atol_scale
+      water_atol0 = cfg%water_atol
       cfg%rtol = HOLD_OFF
       cfg%atol_scale = HOLD_OFF
+      cfg%water_atol = HOLD_OFF
       call build_soil_profile(cfg%soil, test_profile)            ! the site's column from [soil] from here on
       do icase = 1_ik, 3_ik
          call init_bare_ground(poly, cfg, 1_ik)
@@ -730,6 +734,7 @@ program test_fast_driver
       call check(abs(t_wood(3) - t_cas(3)) > 1.0e-3_wp, 'leafless: the wood is not at the canopy air''s temperature')
       cfg%rtol = rtol0
       cfg%atol_scale = atol_scale0
+      cfg%water_atol = water_atol0
    end block
 
    call met_close(src)

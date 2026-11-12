@@ -35,6 +35,7 @@ module ed_therm_lib
    public :: air_density, cas_temp_to_enthalpy, cas_enthalpy_to_temp, cas_molar_density
    !--- The air at another height.
    public :: lapse_air_temperature, lapse_pressure, lapse_specific_humidity, dry_adiabat_temperature
+   public :: dry_adiabat_pressure
    !--- Plant tissue heat.
    public :: tissue_heat_capacity, tissue_dry_heat_capacity, tissue_temp_to_energy, tissue_energy_to_temp
    !--- Soil heat.
@@ -415,6 +416,16 @@ contains
       real(wp), intent(in) :: t_k, dz
       t_dz = t_k - (grav / cp_air) * dz
    end function dry_adiabat_temperature
+
+   !---~---
+   !   Air pressure dz above the air at (p_pa, t_k), along the same dry adiabat: the hydrostatic
+   ! integral under that linear temperature, p (T(dz)/T)**(cp/R_d), so pressure and temperature stay
+   ! on one adiabat (docs/science/forcing.md eq. (15)).
+   !---~---
+   elemental real(wp) function dry_adiabat_pressure(p_pa, t_k, dz) result(p_dz)
+      real(wp), intent(in) :: p_pa, t_k, dz
+      p_dz = p_pa * (dry_adiabat_temperature(t_k, dz) / t_k) ** (cp_air / r_dry)
+   end function dry_adiabat_pressure
 
    !--- Plant tissue heat (docs/science/vegetation_energy_dynamics.md eqs. (8)-(10)).
 

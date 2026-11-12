@@ -19,7 +19,7 @@
 program test_met_file
    use ed_test_assert,        only : check, check_true, test_report
    use ed_kinds,              only : wp, ik
-   use ed_constants,          only : t_3ple, h2o_dry_ratio, grav, cp_air
+   use ed_constants,          only : t_3ple, h2o_dry_ratio, grav, cp_air, r_dry
    use ed_time,               only : ed_time_t, time_advance_seconds, solar_cosz_utc
    use ed_therm_lib,          only : sat_vapor_pressure, air_density, sat_specific_humidity, &
                                      rh_to_specific_humidity, precip_phase, specific_humidity_to_vpd
@@ -30,7 +30,8 @@ program test_met_file
                                      LW_SYNTHESIZE
    use ed_met_types,          only : met_forcing_t, met_source_t, met_cursor_t, FLD_TAIR, FLD_QAIR, FLD_PSURF
    use ed_met,                only : cosz_reconstruct_factor, disaggregate_sw, cas_top_wind_factor, met_to_cas_top, &
-                                     met_open, met_cursor_init, met_advance, met_instant, met_close, met_at_site
+                                     met_open, met_cursor_init, met_advance, met_instant, met_close, met_at_site, &
+                                     tq_height_pressure
    use ed_met_grid,           only : great_circle_distance, nearest_grid_index
    use ed_met_share,          only : MET_OK, MET_ERR_WINDOW_NOT_WHOLE_YEARS, MET_ERR_START_NOT_A_RECORD, &
                                      MET_ERR_WINDOW_NOT_COVERED, MET_ERR_DT_MISMATCH, MET_ERR_ATTR_MISMATCH, &
@@ -705,7 +706,7 @@ contains
       real(wp), parameter :: ZC = 30.0_wp, D = 15.75_wp, Z0 = 3.25_wp, GC = grav / cp_air
       type(forcing_params_t) :: f
       type(met_forcing_t)    :: m, top
-      real(wp) :: fac, rain_top, snow_top, rain_ref, snow_ref
+      real(wp) :: fac, rain_top, snow_top, rain_ref, snow_ref, t_surf
       print '(a)', '-- test: forcing to the canopy-air top --'
       !--- ERA5-Land: open-terrain 10 m wind, heights above the zero plane.
       f%tq_height = 2.0_wp
@@ -735,7 +736,7 @@ contains
       call check('tower at the top: no change', cas_top_wind_factor(f, 40.0_wp, D, Z0), 1.0_wp, 1.0e-15_wp)
       call check('heights floored at 2 z0 above d', cas_top_wind_factor(f, D + 1.0_wp, D, Z0),       &
                  log(2.0_wp) / log((40.0_wp - D)/Z0), 1.0e-12_wp)
-      !--- The whole record: wind and vector scaled, temperature moved, rho re-derived, the rest kept.
+      !--- The whole record: wind and vector scaled, temperature and pressure moved, rho re-derived, the rest kept.
       f%height_above = HEIGHT_ABOVE_ZERO_PLANE
       f%wind_exposure = WIND_EXPOSURE_OPEN_TERRAIN
       f%tq_height = 2.0_wp
@@ -754,9 +755,29 @@ contains
       call check('record: vector scaled (v)', top%wind_v, -4.0_wp * fac, 1.0e-12_wp)
       call check('record: temperature moved', top%air_temp, 290.0_wp - GC * (ZC - (D + 2.0_wp)), 1.0e-12_wp)
       call check('record: humidity conserved', top%air_shv, 0.009_wp, 1.0e-15_wp)
-      call check('record: pressure stays at the ground', top%air_pressure, 98000.0_wp, 1.0e-12_wp)
+      !---~---
+      !   Pressure along the same adiabat from where the forcing's is: a reanalysis's heights are above
+      ! the zero plane, which is its surface, so from there, at the 2 m air brought down to it.
+      !---~---
+      t_surf = 290.0_wp + GC * 2.0_wp
+      call check('record: pressure along the dry adiabat from the zero plane', top%air_pressure,           &
+                 98000.0_wp * (top%air_temp / t_surf) ** (cp_air / r_dry), 1.0e-9_wp)
+      call check('record: the top is ~165 Pa below the zero plane, as rho g (z_c - d)',                    &
+                 98000.0_wp - top%air_pressure, air_density(top%air_temp, top%air_pressure, 0.0_wp) * grav * (ZC - D), &
+                 2.0_wp)
+      call check('record: one adiabat, the same Poisson theta at the zero plane and the top',             &
+                 top%air_temp * (98000.0_wp / top%air_pressure) ** (r_dry / cp_air), t_surf, 1.0e-9_wp)
       call check('record: shortwave unchanged', top%sw_down(), m%sw_down(), 1.0e-12_wp)
-      call check('record: air density re-derived', top%air_density, air_density(top%air_temp, 98000.0_wp, 0.009_wp), 1.0e-12_wp)
+      call check('record: air density re-derived at the top', top%air_density,                            &
+                 air_density(top%air_temp, top%air_pressure, 0.009_wp), 1.0e-12_wp)
+      !--- A tower's pressure is the ground's: from there, at its 40 m air brought down to the ground.
+      f%height_above = HEIGHT_ABOVE_GROUND
+      f%tq_height = 40.0_wp
+      top = met_to_cas_top(m, f, ZC, D, Z0)
+      call check('record: a tower''s pressure along the dry adiabat from the ground', top%air_pressure,      &
+                 98000.0_wp * ((290.0_wp + GC * 10.0_wp) / (290.0_wp + GC * 40.0_wp)) ** (cp_air / r_dry), 1.0e-9_wp)
+      f%height_above = HEIGHT_ABOVE_ZERO_PLANE
+      f%tq_height = 2.0_wp
       !---~---
       !   The record carries total precipitation, unchanged by the move; the rain/snow split is made
       ! from the moved temperature where the column's forcing is filled. At freezing, the cooler top
@@ -1350,8 +1371,19 @@ contains
       call check_true('an RHair file opens', st == MET_OK, real(st, wp))
       call met_cursor_init(src, cur, 1_ik, fc%latitude, fc%longitude, fc%elevation)
       met = sample(src, cur, stamp_seconds(K))
-      call check('RHair -> q by rh_to_specific_humidity at the record''s T and P', met%air_shv,           &
-                 rh_to_specific_humidity(rh_at(K), tair_at(K), PSURF), 1.0e-15_wp)
+      call check('RHair -> q by rh_to_specific_humidity at the record''s T and its height''s P', met%air_shv, &
+                 rh_to_specific_humidity(rh_at(K), tair_at(K), tq_height_pressure(fc, tair_at(K), PSURF)), 1.0e-15_wp)
+      !--- A 41 m tower's air sits ~0.47 % below the ground's pressure; a reanalysis's keeps it.
+      call check('a tower''s humidity is converted at its sensor''s pressure, rho g z below the ground''s', &
+                 PSURF - tq_height_pressure(fc, tair_at(K), PSURF),                                       &
+                 air_density(tair_at(K), PSURF, 0.0_wp) * grav * TOWER_HEIGHT, 2.0_wp)
+      block
+         type(forcing_params_t) :: fz
+         fz = fc
+         fz%height_above = HEIGHT_ABOVE_ZERO_PLANE
+         call check('a reanalysis''s humidity keeps its surface pressure', tq_height_pressure(fz, tair_at(K), PSURF), &
+                    PSURF, 0.0_wp)
+      end block
       call met_close(src)
 
       call write_tower_file('begin', 'Tdew', 'UTC', 1.0_wp, TOWER_HEIGHT, 'ground')
@@ -1359,8 +1391,8 @@ contains
       call check_true('a Tdew file opens', st == MET_OK, real(st, wp))
       call met_cursor_init(src, cur, 1_ik, fc%latitude, fc%longitude, fc%elevation)
       met = sample(src, cur, stamp_seconds(K))
-      call check('Tdew -> q by sat_specific_humidity', met%air_shv,                              &
-                 sat_specific_humidity(tair_at(K) - 3.0_wp, PSURF), 1.0e-15_wp)
+      call check('Tdew -> q by sat_specific_humidity at the height''s P', met%air_shv,               &
+                 sat_specific_humidity(tair_at(K) - 3.0_wp, tq_height_pressure(fc, tair_at(K), PSURF)), 1.0e-15_wp)
       call met_close(src)
 
       call write_tower_file('begin', 'Qair', 'UTC', 1.0_wp, TOWER_HEIGHT, 'ground')
@@ -1527,13 +1559,13 @@ contains
       do k = 1, NT - 1
          if (k == SATURATED_REC) cycle
          met = sample(src, cur, stamp_seconds(k))
-         vpd = specific_humidity_to_vpd(met%air_temp, met%air_shv, met%air_pressure)
+         vpd = specific_humidity_to_vpd(met%air_temp, met%air_shv, tq_height_pressure(fc, met%air_temp, met%air_pressure))
          rh_model = 1.0_wp - vpd / sat_vapor_pressure(met%air_temp)
          worst = max(worst, abs(rh_model - rh_at(k)))
       end do
       call check('the model''s RH at the forcing temperature is RHair at every stamp', worst, 0.0_wp, 1.0e-12_wp)
       met = sample(src, cur, stamp_seconds(SATURATED_REC))
-      vpd = specific_humidity_to_vpd(met%air_temp, met%air_shv, met%air_pressure)
+      vpd = specific_humidity_to_vpd(met%air_temp, met%air_shv, tq_height_pressure(fc, met%air_temp, met%air_pressure))
       call check('a saturated tower record reads back as VPD = 0', vpd, 0.0_wp, 1.0e-9_wp)
 
       call met_close(src)
