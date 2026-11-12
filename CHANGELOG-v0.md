@@ -73,6 +73,12 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   March −14 %; example 06 region 06 −14 % on 40 threads). Results move within the Newton's
   tolerance: at BCI (example 04) the five-year mean GPP, LE, H and ET by less than 1e-5 relative, in
   the region test's January–February run LE and snow water equivalent by about 1e-4. (#76)
+- The irradiance above the atmosphere follows the Earth–Sun distance (about ±3.3 % over the year)
+  in the clearness index, the Erbs and Weiss–Norman shortwave partitions, the longwave synthesis and
+  the slope beam cap. Total shortwave is unchanged; its beam/diffuse and PAR/NIR split shift with
+  the season. BCI (example 04, default/calibrated): LE +0.03/+0.04 %, GPP +0.04/+0.04 %; Palo Verde
+  (ERA5-Land inventory check): LE +0.07 %, GPP +0.06 %. A passthrough partition with longwave from
+  file is bit for bit. (#79)
 
 ### Added
 

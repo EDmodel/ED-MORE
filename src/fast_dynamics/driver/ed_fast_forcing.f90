@@ -10,7 +10,8 @@ module ed_fast_forcing
    use ed_constants,            only : tiny_num, par_w_2_umol
    use ed_config,               only : ed_config_t
    use ed_therm_lib,            only : cas_temp_to_enthalpy, precip_phase
-   use ed_time,                 only : ed_time_t, time_advance_seconds, seconds_into_day, slope_incidence_cosz
+   use ed_time,                 only : ed_time_t, time_advance_seconds, seconds_into_day, slope_incidence_cosz, day_of_year,   &
+                                       earth_sun_distance_factor
    use ed_met_types,            only : met_source_t, met_cursor_t, met_forcing_t
    use ed_met,                  only : met_advance, met_instant, met_to_cas_top, met_at_site
    use ed_radiation_lib,        only : slope_beam_factor
@@ -75,7 +76,8 @@ contains
                      slope_beam_factor(m%par_beam + m%nir_beam, m%cosz,                                  &
                                        slope_incidence_cosz(t_sample(isub), seconds_into_day(t_sample(isub)), &
                                                             met_cur%latitude_deg, met_cur%longitude_deg,      &
-                                                            surf%slope_deg, surf%aspect_deg)))
+                                                            surf%slope_deg, surf%aspect_deg),       &
+                                       earth_sun_distance_factor(day_of_year(t_sample(isub)))))
                end associate
             end do
          end associate
