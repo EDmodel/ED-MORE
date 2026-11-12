@@ -4,7 +4,8 @@
 ! through the netCDF C API: a 4 x 18 grid (10 deg x 20 deg) spanning the antimeridian and two
 ! 16-cell chunk columns wide, every month of 2021 and January 2022 (so a recycle window may start
 ! after January 1st), two no-data cells, a mostly-water column, and values that are analytic
-! functions of cell and hour, so every check has a known answer. Shared by test_met_era5land (the
+! functions of cell and hour, so every check has a known answer; longwave_at is the longwave the
+! reader holds at a stamp, centred there. Shared by test_met_era5land (the
 ! reader) and test_region (a region against site runs). write_surface_maps adds the [maps] maps:
 ! soil depth, texture and chemistry on SoilGrids' six layers, and Chave's E, each a function of the
 ! cell (soil_depth_at, ..., texture_at), empty at the no-data cells.
@@ -14,7 +15,7 @@ module ed_test_archive
    use ed_kinds,             only : wp, sp, ik
    use ed_time,              only : ed_time_t, seconds_between
    use ed_met_era5land,      only : era5land_path, era5land_default_template, era5land_month_hours, &
-                                    ERA_NVAR, ERA_VAR_NAME, ERA_VAR_UNITS, ERA_CHUNK
+                                    ERA_NVAR, ERA_VAR_NAME, ERA_VAR_UNITS, ERA_CHUNK, ERA_LWDOWN
    use ed_met_types,         only : met_grid_t
    use ed_netcdf_c
    use iso_c_binding,        only : c_int, c_size_t, c_double
@@ -23,7 +24,7 @@ module ed_test_archive
    private
 
    public :: NLAT, NLON, LAT0, DLAT, LON0, DLON, T0
-   public :: is_valid, field, air_temperature, hour_index, write_archive, write_static, write_month
+   public :: is_valid, field, longwave_at, air_temperature, hour_index, write_archive, write_static, write_month
    public :: archive_grid
    public :: write_map
    public :: write_surface_maps, soil_depth_at, bc_class_at, f_leak_at, deep_temp_at, chave_e_at, texture_at
@@ -34,6 +35,8 @@ module ed_test_archive
    real(wp),    parameter :: TWO_PI = 6.283185307179586_wp
    !--- The archive's first stamp; g below counts hours from it (0-based).
    type(ed_time_t), parameter :: T0 = ed_time_t(2021_ik, 1_ik, 1_ik, 1_ik, 0_ik, 0_ik)
+   !--- The archive's last stamp, which closes January 2022.
+   type(ed_time_t), parameter :: T_LAST = ed_time_t(2022_ik, 2_ik, 1_ik, 0_ik, 0_ik, 0_ik)
    !--- The soil maps' layers: SoilGrids 2.0's depths [m].
    real(wp), parameter :: SG_TOP(6)    = [0.0_wp, 0.05_wp, 0.15_wp, 0.30_wp, 0.60_wp, 1.00_wp]
    real(wp), parameter :: SG_BOTTOM(6) = [0.05_wp, 0.15_wp, 0.30_wp, 0.60_wp, 1.00_wp, 2.00_wp]
@@ -75,10 +78,25 @@ contains
       case (7)
          x = max(0.0_wp, 600.0_wp * sin(TWO_PI * (day - 6.0_wp) / 24.0_wp))                      ! SWdown
       case default
-         x = 300.0_wp + 0.001_wp * hr + real(c, wp)                                              ! LWdown
+         !--- LWdown, an hour mean that steps hour to hour (0, 5, 10 W/m2), so its centring is visible.
+         x = 300.0_wp + 0.001_wp * hr + real(c, wp) + 5.0_wp * real(modulo(g, 3_ik), wp)
       end select
       x = real(real(x, sp), wp)                              ! the archive holds float32
    end function field
+
+   !---~---
+   !   The longwave the reader holds at stamp g (docs/science/forcing.md §1): the mean of the hour
+   ! ending at the stamp and the hour after it, formed in double and rounded once to float32. The
+   ! archive's last hour, with no hour after it, keeps its own mean.
+   !---~---
+   real(wp) function longwave_at(r, c, g) result(x)
+      integer(ik), intent(in) :: r, c, g
+      if (g >= hour_index(T_LAST)) then
+         x = field(ERA_LWDOWN, r, c, g)
+      else
+         x = real(real(0.5_wp * (field(ERA_LWDOWN, r, c, g) + field(ERA_LWDOWN, r, c, g + 1_ik)), sp), wp)
+      end if
+   end function longwave_at
 
    pure real(wp) function air_temperature(r, c, hr) result(x)
       integer(ik), intent(in) :: r, c

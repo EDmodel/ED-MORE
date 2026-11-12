@@ -69,6 +69,19 @@ python make_forcing_file.py --data-path $ERA5LAND_ROOT/ED_ERA5land --start 2024-
   and writes no `elevation`.
 - The checks stop on a missing hour or an out-of-bounds value: ED-MORE never gap-fills.
 
+## Time stamps
+
+Every file here is on UTC and **end-stamped**: a month file runs from 01:00 on the 1st to 00:00 on the
+1st of the next month, and a de-accumulated flux (`Rainf`, `SWdown`, `LWdown`) at a stamp is the mean
+of the hour ending there. The model reads rain and shortwave as such means, but a longwave as values
+at the stamps, so ERA5-Land's longwave is **centred**: its value at stamp t is the mean of the hour
+ending at t and the hour after it, `(LW(t) + LW(t + 1 h)) / 2`. The archive keeps the hour means, and
+the model's archive reader centres them as it loads a month; `make_forcing_file.py` writes the
+centred values into its file (labelled `cell_methods = "time: point"`), so the two give a run the same
+longwave. The last stamp takes the hour after it from the next month's file when the archive has it;
+otherwise, and at the end of box files, it keeps its own hour's mean
+([`docs/science/forcing.md`](../../../docs/science/forcing.md) §1).
+
 ## Using the output
 
 For the archive, point the run at its folder:
