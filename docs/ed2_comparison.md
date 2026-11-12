@@ -12,9 +12,9 @@ each carry their own energy, and the soil is carried as internal energy, so free
 Photosynthesis is Farquhar–von Caemmerer–Berry with explicit Jmax and TPU, under a choice of three stomatal
 models. Phenology is one rate-based cue kernel whose per-PFT cues let deciduous habits coexist, allocation
 follows FATES's PARTEH, mortality is one growth-based hazard, and soil carbon is the CENTURY network written
-as a carbon matrix. The scope is narrower: no fire, land use, nitrogen or MPI, one soil column per site and
-one snow layer. *Engineering.* The default integrator is an L-stable ESDIRK2 with adaptive sub-steps, not
-ED2's RK4. Most processes have one implementation instead of a scheme selector. Every model parameter is
+as a carbon matrix. The scope is narrower: no fire, land use, nitrogen or MPI; the patches of a site
+share a soil design but not a soil state; one snow layer. *Engineering.* The default integrator is an
+L-stable ESDIRK2 with adaptive sub-steps, not ED2's RK4. Most processes have one implementation instead of a scheme selector. Every model parameter is
 read from TOML, with no built-in PFT defaults, and an unknown key stops the run. Output is netCDF, with
 each variable selectable per timescale. The state is passed as arguments, not held globally; each module
 has unit tests; every fast step closes water and energy ledgers; and output is identical at any thread
@@ -42,12 +42,14 @@ sub-daily biophysics loop (the fast loop): two-stream canopy radiative transfer,
 space, Monin–Obukhov aerodynamics, leaf photosynthesis with stomatal coupling, and soil carried as
 internal energy. It feeds the slow dynamics, run once per slow step (a day by default): growth, mortality,
 recruitment and disturbance. Many algorithms are ED2's: the `ICANRAD = 2` two-stream solver, the Nusselt
-leaf boundary layers, the CENTURY decomposition pools, the `IALLOM = 3` pan-tropical height curve, ED2's
-negative-*z* soil geometry and Chambers et al. (2004) stem respiration.
+leaf boundary-layer coefficients (forced and free convection combined as Churchill 1977), the CENTURY
+decomposition pools, the `IALLOM = 3` pan-tropical height curve, ED2's negative-*z* soil geometry and Chambers et al. (2004) stem respiration.
 
 **What is different.**
 
-- **Scope is narrower.** One soil column per site, no fire, no land use or harvest, no nitrogen, no MPI.
+- **Scope is narrower.** One soil design per site (depth, layers, texture and bottom boundaries; every
+  patch of the site has its own soil water, soil heat and snow), no fire, no land use or harvest, no
+  nitrogen, no MPI.
   The hierarchy is polygon › site › patch › cohort: a site run is one polygon, optionally split into
   several sites; a region is many polygons, one per ERA5-Land cell, each with one site
   ([configuration](configuration.md), "Several sites" and "Regional runs").
@@ -121,7 +123,7 @@ either on is a decision to leave the shipped baseline.
 | ED2 (`ED2IN`; ED2 default) | ED-MORE | Configured in | Read |
 |---|---|---|---|
 | `ICANRAD` 1/2; 2 (Liou two-stream) | Ported from `twostream_rad.f90`: multi-layer two-stream, one solver for every band (visible, near-infrared, thermal longwave), a Beta leaf-angle distribution, absolute W m⁻² throughout. No horizontal shading (`IHRZRAD`), no finite crown radius (`CROWN_MOD`), no big-leaf mode (`IBIGLEAF`). §5a lists the ED2 defects found in the port | PFT optics keys | [canopy_radiation_transfer](science/canopy_radiation_transfer.md) |
-| `ICANTURB` 0–4; 2 (Massman), `ISFCLYRM` 1–4; 3 (Beljaars–Holtslag) | CLM5 Monin–Obukhov surface layer, per-cohort exponential wind extinction, ED2's Nusselt leaf and wood boundary layers and a CLM ground conductance. Closest to `ICANTURB = 4` and `ISFCLYRM = 4`, not to ED2's defaults | `[aerodynamics]` | [canopy_aerodynamics](science/canopy_aerodynamics.md) |
+| `ICANTURB` 0–4; 2 (Massman), `ISFCLYRM` 1–4; 3 (Beljaars–Holtslag) | CLM5 Monin–Obukhov surface layer, per-cohort exponential wind extinction, ED2's Nusselt leaf and wood boundary-layer coefficients, forced and free convection combined as Churchill (1977), and a CLM ground conductance. Closest to `ICANTURB = 4` and `ISFCLYRM = 4`, not to ED2's defaults | `[aerodynamics]` | [canopy_aerodynamics](science/canopy_aerodynamics.md) |
 | prognostic canopy air in the RK4 state | Prognostic temperature, humidity and CO₂ in one box. Its depth is the tallest cohort plus a freeboard | `[aerodynamics].canopy_freeboard` | [canopy_air_space_biophysics](science/canopy_air_space_biophysics.md) |
 | `IBRANCH_THERMO` 0–2; 1 (branch and leaf as one pool) | Closest to option 2: leaf and wood are separate pools. Each cohort's leaf and wood energy [J per plant] is its state and temperatures are derived from it. Each step relaxes them exactly, because the tissue equation is linear under the frozen coefficients. Tissue water stays liquid below 0 °C | | [vegetation_energy_dynamics](science/vegetation_energy_dynamics.md) |
 | `SOIL_HYDRO_SCHEME` 0–2; 0 (Campbell, Cosby PTF) | Mixed-form Richards equation, implicit Euler with Newton on adaptive sub-steps, solved with the pond and the plants' water. Thickness-weighted geometric-mean face conductivity; no saturation clip. van Genuchten (default) or Campbell | `[soil].retention`, `theta_*`, `ksat`, `curve_par_*` | [soil_biophysics](science/soil_biophysics.md), [soil_plant_water](science/soil_plant_water.md) |
@@ -129,7 +131,7 @@ either on is a decision to leave the shipped baseline.
 | `ISOILBC` 0–3; 1, `SLDRAIN` | Drainage `q = f·K` (free drainage `f = 1`, bedrock `f = 0`, a soil map's leaky base at its `f_leak`) or an aquifer, a head-driven two-way boundary. No slope-scaled lateral drainage | `[soil].water_bottom_bc` | [soil_biophysics](science/soil_biophysics.md) |
 | soil heat in the RK4 state | Implicit backward-Euler heat diffusion on internal energy; freeze/thaw and ice-aware conductivity and heat capacity always on. The bottom is no-flux (`geothermal`) or an optional Dirichlet anchor below the column. A shallow column reflects the annual wave off a no-flux base; the anchor is the alternative to deepening it | `[soil].thermal_bottom_bc`, `deep_temp`, `deep_depth` | [soil_biophysics](science/soil_biophysics.md), "The bottom thermal boundary" |
 | `NZS` (4), `IPERCOL` | One bulk snow layer: Niu–Yang cover fraction, accumulation, meltwater percolation, surface balance. The clearest resolution loss | `[snow]` | [snow_biophysics](science/snow_biophysics.md) |
-| `therm_lib8` saturation vapour pressure (Murphy–Koop family) | Ambaum (2020) over liquid and over ice, blended on the liquid fraction; its slope is Clausius–Clapeyron with the model's latent heat | | [coupled_biophysics](science/coupled_biophysics.md) |
+| `therm_lib8` saturation vapour pressure (Murphy–Koop family) | Ambaum (2020) over liquid and over ice, blended on the liquid fraction; its slope is Clausius–Clapeyron with the model's latent heat | | [snow_biophysics](science/snow_biophysics.md), "Sublimation saturates over ice" |
 | `IED_GRNDVAP` 0–5; 0 (modified Lee–Pielke) | Dry-surface-layer resistance | `[soil].dsl_dmax`, `dsl_theta_init` | [soil_biophysics](science/soil_biophysics.md) |
 | `LEAF_MAXWHC` | Optional canopy interception into surface water with a Beer-law catch and a per-PFT storage capacity. Off by default | `[fast].canopy_water_on`, `intercept_*`; `[pft].*_surf_water_max` | [vegetation_energy_dynamics](science/vegetation_energy_dynamics.md) |
 | `DECOMP_SCHEME` 0–5; 2 | A seven-pool CENTURY carbon matrix (metabolic and structural litter above and below ground, microbial, slow, passive; lignin tracer). `"ed2"` has the topology of ED2's schemes 0–4 (three active pools) and the capped temperature and moisture responses of ED2's default; `"century5"` is ED2's scheme 5 (five active pools). Daily forward-Euler or matrix-exponential step; an optional semi-analytic steady-state spin-up that ED2 does not have. On by default | `[soil_carbon]` | [soil_carbon](science/soil_carbon.md) |
@@ -275,7 +277,7 @@ The output is the largest usability difference ([diagnostics](science/diagnostic
 | | ED-MORE | ED2 |
 |---|---|---|
 | Format | netCDF through the C library (no netCDF-Fortran dependency, so it builds under ifx and nvfortran) | HDF5 |
-| Statistics | A `mean_<x>` variable is the time mean over its record's period; `<x>` is a state's value at the period's end | Means; `IQOUTPUT` adds a mean diurnal cycle |
+| Statistics | A `mean_<x>` variable is the time mean over its record's period; `<x>` is a state's value at the period's end; `diel_<x>` is the mean diel cycle of `mean_<x>` (`[output].diel_interval`) | Means; `IQOUTPUT` adds a mean diurnal cycle |
 | Variable selection | Every variable is selectable per timescale, by name or pattern (`"*_co" = false`, `"mean_*_py" = "M Y"`): registry defaults, then the `[output].io_config` lines, the most specific winning | A fixed schema per file type, gated by `IFOUTPUT`, `IDOUTPUT`, `IMOUTPUT`, `IQOUTPUT`, `IYOUTPUT`, `ITOUTPUT`, `IOOUTPUT` and `IADD_{SITE,PATCH,COHORT}_MEANS` |
 | Timescales | Four tiers, each enabled and chunked on its own: sub-daily (F), daily (D), monthly (M), annual (Y) | Per-file-type frequencies plus `FRQFAST`, `FRQSTATE` |
 | Axes | polygon, site, patch, cohort, soil layer, PFT, DBH size class, and patch × soil layer | polygon, site, patch, cohort |
