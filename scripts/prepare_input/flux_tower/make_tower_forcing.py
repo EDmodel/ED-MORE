@@ -108,8 +108,10 @@ def prepare(site, short_gap_max=4, lw_holdout=None):
         raise SystemExit(f"ERROR: Rainf has {int(missing_rain.sum())} missing records. ED-MORE does not invent rain: "
                          f"fill them in the tower file (from a nearby gauge or a reanalysis) before the build.")
 
-    # the pressure at the ground, where ED-MORE keeps it (docs/science/forcing.md §8)
-    y["PSurf"] = conv.pressure_at_height(y["PSurf"], y["Tair"], -site.pressure_height)
+    # the pressure at the ground, where ED-MORE keeps it (docs/science/forcing.md §8), moved as moist air
+    # holding the humidity the tower measures
+    q_air = conv.rh_to_specific_humidity(y["RH"], y["Tair"], y["PSurf"])
+    y["PSurf"] = conv.pressure_at_height(y["PSurf"], y["Tair"], -site.pressure_height, q_air)
 
     # the longwave, last, because the synthesis needs the filled states
     if lw_holdout is not None:
@@ -159,7 +161,7 @@ def build(site, out, short_gap_max=4, start=None, end=None, report_path=None):
         wind_height_m=site.wind_height,
         height_above="ground",
         pressure_height_m=site.pressure_height,
-        pressure_note="PSurf is at the ground, brought down from the barometer height hypsometrically",
+        pressure_note="PSurf is at the ground, brought down from the barometer height hypsometrically, as moist air",
         source_utc_offset_hours=site.utc_offset,
         state_sampling=("Tair, RHair, PSurf, LWdown and Wind are values at the stamps, the mean of the two "
                         "intervals that meet there; Rainf and SWdown are means over each record's interval"),

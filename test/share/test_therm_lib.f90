@@ -32,7 +32,10 @@
 !   8. THE AIR AT ANOTHER HEIGHT (lapse_air_temperature, lapse_pressure,
 !      lapse_specific_humidity; forcing.md §8): the temperature falls at the rate given, the
 !      pressure drops, barometrically when isothermal, the humidity keeps its relative
-!      humidity, and nothing changes at dz = 0.
+!      humidity, and nothing changes at dz = 0. 8b: the pressure lapses are moist air's
+!      (moist_gas_constant, lapse_pressure, dry_adiabat_pressure; forcing.md eqs. (13), (15)):
+!      the dry forms without vapour, the barometric law at the virtual temperature, and the
+!      hydrostatic law integrated by small steps.
 !   9. A TISSUE'S ENERGY (tissue_temp_to_energy, tissue_energy_to_temp;
 !      docs/science/vegetation_energy_dynamics.md eqs. (9)-(10)): it is
 !      temp_to_internal_energy with liquid water, tissue_energy_to_temp inverts it, and
@@ -42,14 +45,15 @@ program test_therm_lib
    use ed_test_assert,   only : check, check_true, test_report
    use ed_kinds,         only : wp, ik
    use ed_constants,     only : t_kelvin, t_3ple, r_wv, es_3ple, cp_ice, latent_heat_fusion, k_water, k_ice,   &
-                                h2o_dry_ratio, latent_heat_vap_3ple
+                                h2o_dry_ratio, latent_heat_vap_3ple, grav, r_dry, cp_air, virtual_temp_factor
    use ed_therm_lib,     only : arrhenius_scale, peaked_arrhenius_scale, kattge_knorr_entropy,                    &
                                 temp_to_internal_energy, internal_energy_to_temp, internal_energy_ice,            &
                                 sat_vapor_pressure, sat_vapor_pressure_temp_deriv, sat_specific_humidity,         &
                                 soil_thermal_conductivity, soil_texture_to_thermal, rh_to_specific_humidity,      &
                                 precip_phase, lapse_air_temperature, lapse_pressure, lapse_specific_humidity,     &
                                 specific_humidity_to_vpd, tissue_temp_to_energy, tissue_energy_to_temp,          &
-                                internal_energy_liquid, latent_heat_vap, enthalpy_vapor
+                                internal_energy_liquid, latent_heat_vap, enthalpy_vapor, moist_gas_constant,      &
+                                dry_adiabat_pressure
    implicit none
    real(wp), parameter :: SCAN_LO = 5.0_wp, SCAN_HI = 55.0_wp   ! [C] the optimum scan's range
 
@@ -62,6 +66,7 @@ program test_therm_lib
    call test_soil_texture()
    call test_moist_air()
    call test_lapse()
+   call test_moist_lapse()
    call test_tissue_energy()
 
    call test_report('test_therm_lib')
@@ -334,14 +339,14 @@ contains
       t = lapse_air_temperature(290.0_wp, DZ, G)
       call check('lapse cools a higher site', t, 290.0_wp - G*DZ, 1.0e-9_wp)
       call check('lapse dz=0 -> T unchanged', lapse_air_temperature(290.0_wp, 0.0_wp, G), 290.0_wp, 1.0e-30_wp)
-      p = lapse_pressure(101325.0_wp, 290.0_wp, DZ, G)
+      p = lapse_pressure(101325.0_wp, 290.0_wp, DZ, G, Q0)
       call check_true('pressure drops at a higher site', p < 101325.0_wp, 101325.0_wp - p)
-      call check('lapse dz=0 -> P unchanged', lapse_pressure(101325.0_wp, 290.0_wp, 0.0_wp, G), 101325.0_wp, 1.0e-6_wp)
-      call check('isothermal (gamma=0) = barometric', lapse_pressure(101325.0_wp, 290.0_wp, DZ, 0.0_wp),        &
+      call check('lapse dz=0 -> P unchanged', lapse_pressure(101325.0_wp, 290.0_wp, 0.0_wp, G, Q0), 101325.0_wp, 1.0e-6_wp)
+      call check('isothermal (gamma=0), dry air = barometric', lapse_pressure(101325.0_wp, 290.0_wp, DZ, 0.0_wp, 0.0_wp), &
                  101325.0_wp*exp(-9.80665_wp*DZ/(287.04_wp*290.0_wp)), 1.0e-2_wp)
       !--- A site 500 m below its cell keeps the cell's relative humidity.
       t1 = lapse_air_temperature(T0, -DZ, G)
-      p1 = lapse_pressure(P0, T0, -DZ, G)
+      p1 = lapse_pressure(P0, T0, -DZ, G, Q0)
       q1 = lapse_specific_humidity(Q0, T0, P0, t1, p1)
       e0 = Q0 * P0 / (h2o_dry_ratio + (1.0_wp - h2o_dry_ratio) * Q0)
       e1 = q1 * p1 / (h2o_dry_ratio + (1.0_wp - h2o_dry_ratio) * q1)
@@ -349,6 +354,62 @@ contains
       call check_true('a site 500 m below its cell is warmer and holds more vapour', q1 > Q0, q1 - Q0)
       call check('dz = 0 leaves q unchanged', lapse_specific_humidity(Q0, T0, P0, T0, P0), Q0, 1.0e-15_wp)
    end subroutine test_lapse
+
+   !---~---
+   !   8b. Moist air in the pressure lapses (docs/science/forcing.md eqs. (13) and (15)): the
+   ! hydrostatic law takes the moist-air gas constant R_m = R_d (1 + 0.60783 q). Without vapour it
+   ! is dry air's, so both laws are the dry forms. With q = 0.02 the isothermal lapse is the
+   ! barometric law at the virtual temperature T (1 + 0.60783 q); the linear lapse and the dry
+   ! adiabat are the hydrostatic law dp/dz = -p g / (R_m T(z)) integrated by small steps, and the
+   ! adiabat is the linear lapse at gamma = g/cp. Moist air is lighter, so its pressure falls more
+   ! slowly: 500 m up, ln p falls by 1/(1 + 0.60783 q) of dry air's, and the site's pressure is
+   ! 0.07 % higher.
+   !---~---
+   subroutine test_moist_lapse()
+      real(wp), parameter :: P0 = 95000.0_wp, T0 = 290.0_wp, DZ = 500.0_wp, G = 0.0065_wp, Q = 0.02_wp
+      real(wp), parameter :: LIFT = 40.0_wp, GAMMA_DRY = grav / cp_air
+      real(wp) :: t_virtual, p_dry, p_moist
+      print '(a)', '-- 8b. moist air in the pressure lapses --'
+      call check('no vapour: R_m is R_d to the bit', moist_gas_constant(0.0_wp), r_dry, 0.0_wp)
+      call check('dry air: the linear lapse is the dry hypsometric form', lapse_pressure(P0, T0, DZ, G, 0.0_wp),   &
+                 P0 * ((T0 - G * DZ) / T0) ** (grav / (r_dry * G)), 1.0e-14_wp * P0)
+      call check('dry air: the isothermal lapse is the dry barometric form',                                     &
+                 lapse_pressure(P0, T0, DZ, 0.0_wp, 0.0_wp), P0 * exp(-grav * DZ / (r_dry * T0)), 1.0e-14_wp * P0)
+      call check('dry air: the adiabat is (T(dz)/T)**(cp/R_d)', dry_adiabat_pressure(P0, T0, LIFT, 0.0_wp),       &
+                 P0 * ((T0 - GAMMA_DRY * LIFT) / T0) ** (cp_air / r_dry), 1.0e-14_wp * P0)
+      t_virtual = T0 * (1.0_wp + virtual_temp_factor * Q)
+      call check('moist, isothermal: the barometric law at the virtual temperature',                             &
+                 lapse_pressure(P0, T0, DZ, 0.0_wp, Q), P0 * exp(-grav * DZ / (r_dry * t_virtual)), 1.0e-14_wp * P0)
+      call check('moist, linear T(z): the hydrostatic law integrated', lapse_pressure(P0, T0, DZ, G, Q),            &
+                 hydrostatic_pressure(P0, T0, DZ, G, Q), 1.0e-6_wp)
+      call check('moist, the dry adiabat''s T(z): the hydrostatic law integrated',                                 &
+                 dry_adiabat_pressure(P0, T0, LIFT, Q), hydrostatic_pressure(P0, T0, LIFT, GAMMA_DRY, Q), 1.0e-6_wp)
+      call check('the adiabat is the linear lapse at gamma = g/cp', dry_adiabat_pressure(P0, T0, LIFT, Q),         &
+                 lapse_pressure(P0, T0, LIFT, GAMMA_DRY, Q), 1.0e-9_wp)
+      p_dry   = lapse_pressure(P0, T0, DZ, G, 0.0_wp)
+      p_moist = lapse_pressure(P0, T0, DZ, G, Q)
+      call check('moist air: ln p falls by R_d/R_m of dry air''s', log(P0 / p_moist) / log(P0 / p_dry),             &
+                 1.0_wp / (1.0_wp + virtual_temp_factor * Q), 1.0e-12_wp)
+      call check('moist air 500 m up: 0.07 % above dry air''s pressure', (p_moist - p_dry) / P0, 6.7e-4_wp, 0.2e-4_wp)
+   end subroutine test_moist_lapse
+
+   !---~---
+   !   The pressure dz above air at (p0, t0) holding q, by the hydrostatic law dp/dz = -p g / (R T(z))
+   ! with T(z) = t0 - gamma z and R = R_d (1 + 0.60783 q), integrated in ln p by the midpoint rule
+   ! over 10,000 steps: a check independent of the closed forms.
+   !---~---
+   pure real(wp) function hydrostatic_pressure(p0, t0, dz, gamma, q) result(p)
+      real(wp), intent(in) :: p0, t0, dz, gamma, q
+      integer, parameter :: N_STEP = 10000
+      real(wp) :: h, ln_p
+      integer  :: i
+      h    = dz / real(N_STEP, wp)
+      ln_p = log(p0)
+      do i = 1, N_STEP
+         ln_p = ln_p - grav * h / (r_dry * (1.0_wp + virtual_temp_factor * q) * (t0 - gamma * (real(i, wp) - 0.5_wp) * h))
+      end do
+      p = exp(ln_p)
+   end function hydrostatic_pressure
 
    !---~---
    !   The latent heat of liquid equals enthalpy_vapor less internal_energy_liquid and that of ice

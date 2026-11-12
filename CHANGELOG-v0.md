@@ -79,6 +79,12 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   the season. BCI (example 04, default/calibrated): LE +0.03/+0.04 %, GPP +0.04/+0.04 %; Palo Verde
   (ERA5-Land inventory check): LE +0.07 %, GPP +0.06 %. A passthrough partition with longwave from
   file is bit for bit. (#79)
+- A forcing record's humidity is held to saturation whatever its kind (relative humidity, dewpoint
+  or specific humidity) and whether the terrain lapse is on or off, and the terrain lapse takes the
+  relative humidity at the humidity sensor's pressure at both ends. The pressure lapses (the terrain
+  lapse, the lift to the canopy-air top, a tower's sensor height) and the air density use the gas
+  constant of moist air. BCI (example 04) and Palo Verde (ERA5-Land): the means move by less than
+  1e-4 relative (Palo Verde LE −0.003 %). (#80)
 
 ### Added
 

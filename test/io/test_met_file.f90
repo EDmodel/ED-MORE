@@ -11,15 +11,16 @@
 !   - the vertical moves: a site above its polygon (met_at_site) and the forcing height to a
 !     canopy-air top (met_to_cas_top);
 !   - the CO2 series: its file, its period middles and every refusal;
-!   - the contract a flux-tower file relies on: the three humidity forms, UTC, the heights it
-!     states, rain and shortwave read from the interval that contains the instant on an end-
-!     and a begin-stamped file, and the model's relative humidity returning the file's RHair.
+!   - the contract a flux-tower file relies on: the three humidity forms, each held to
+!     saturation with the terrain lapse on and off, UTC, the heights it states, rain and
+!     shortwave read from the interval that contains the instant on an end- and a begin-stamped
+!     file, and the model's relative humidity returning the file's RHair.
 ! The laws it reads with are the libraries' tests': test_therm_lib, test_radiation_lib.
 !---~---
 program test_met_file
    use ed_test_assert,        only : check, check_true, test_report
    use ed_kinds,              only : wp, ik
-   use ed_constants,          only : t_3ple, h2o_dry_ratio, grav, cp_air, r_dry
+   use ed_constants,          only : t_3ple, h2o_dry_ratio, grav, cp_air, r_dry, virtual_temp_factor
    use ed_time,               only : ed_time_t, time_advance_seconds, solar_cosz_utc, day_of_year, earth_sun_distance_factor
    use ed_therm_lib,          only : sat_vapor_pressure, air_density, sat_specific_humidity, &
                                      rh_to_specific_humidity, precip_phase, specific_humidity_to_vpd
@@ -80,6 +81,7 @@ program test_met_file
 
    base = ed_time_t(year=2020_ik, month=7_ik, day=1_ik)
    call test_humidity_forms()
+   call test_supersaturated_humidity()
    call test_utc_required()
    call test_stated_heights()
    call test_flux_interval(METAVG_END)
@@ -756,17 +758,20 @@ contains
       call check('record: temperature moved', top%air_temp, 290.0_wp - GC * (ZC - (D + 2.0_wp)), 1.0e-12_wp)
       call check('record: humidity conserved', top%air_shv, 0.009_wp, 1.0e-15_wp)
       !---~---
-      !   Pressure along the same adiabat from where the forcing's is: a reanalysis's heights are above
-      ! the zero plane, which is its surface, so from there, at the 2 m air brought down to it.
+      !   Pressure under the same adiabat's temperature from where the forcing's is: a reanalysis's
+      ! heights are above the zero plane, which is its surface, so from there, at the 2 m air brought
+      ! down to it. The air is moist, so the exponent is cp/R_m, R_m = R_d (1 + 0.60783 q).
       !---~---
       t_surf = 290.0_wp + GC * 2.0_wp
-      call check('record: pressure along the dry adiabat from the zero plane', top%air_pressure,           &
-                 98000.0_wp * (top%air_temp / t_surf) ** (cp_air / r_dry), 1.0e-9_wp)
+      call check('record: moist air''s pressure under the dry adiabat from the zero plane', top%air_pressure,  &
+                 98000.0_wp * (top%air_temp / t_surf) ** (cp_air / (r_dry * (1.0_wp + virtual_temp_factor * 0.009_wp))), &
+                 1.0e-9_wp)
       call check('record: the top is ~165 Pa below the zero plane, as rho g (z_c - d)',                    &
-                 98000.0_wp - top%air_pressure, air_density(top%air_temp, top%air_pressure, 0.0_wp) * grav * (ZC - D), &
+                 98000.0_wp - top%air_pressure, air_density(top%air_temp, top%air_pressure, 0.009_wp) * grav * (ZC - D), &
                  2.0_wp)
-      call check('record: one adiabat, the same Poisson theta at the zero plane and the top',             &
-                 top%air_temp * (98000.0_wp / top%air_pressure) ** (r_dry / cp_air), t_surf, 1.0e-9_wp)
+      call check('record: one profile, the same theta_m = T (p0/p)**(R_m/cp) at the zero plane and the top',  &
+                 top%air_temp * (98000.0_wp / top%air_pressure) ** (r_dry * (1.0_wp + virtual_temp_factor * 0.009_wp) &
+                 / cp_air), t_surf, 1.0e-9_wp)
       call check('record: shortwave unchanged', top%sw_down(), m%sw_down(), 1.0e-12_wp)
       call check('record: air density re-derived at the top', top%air_density,                            &
                  air_density(top%air_temp, top%air_pressure, 0.009_wp), 1.0e-12_wp)
@@ -774,8 +779,9 @@ contains
       f%height_above = HEIGHT_ABOVE_GROUND
       f%tq_height = 40.0_wp
       top = met_to_cas_top(m, f, ZC, D, Z0)
-      call check('record: a tower''s pressure along the dry adiabat from the ground', top%air_pressure,      &
-                 98000.0_wp * ((290.0_wp + GC * 10.0_wp) / (290.0_wp + GC * 40.0_wp)) ** (cp_air / r_dry), 1.0e-9_wp)
+      call check('record: a tower''s pressure under the dry adiabat from the ground', top%air_pressure,     &
+                 98000.0_wp * ((290.0_wp + GC * 10.0_wp) / (290.0_wp + GC * 40.0_wp))                         &
+                 ** (cp_air / (r_dry * (1.0_wp + virtual_temp_factor * 0.009_wp))), 1.0e-9_wp)
       f%height_above = HEIGHT_ABOVE_ZERO_PLANE
       f%tq_height = 2.0_wp
       !---~---
@@ -1221,15 +1227,28 @@ contains
    !   A one-point ED-MORE forcing file, half-hourly from 2020-07-01 00:00 UTC. `humidity` names the
    ! variable(s) it carries ('RHair', 'Tdew', 'Qair', 'RHair+Qair' or 'none'); an empty
    ! `time_zone` or `height_above` leaves that attribute out, and so does stated_height <= 0.
+   ! With `supersaturated`, the dewpoint is 2 K above the air temperature and Qair 0.03 kg/kg,
+   ! above saturation at every record; otherwise 3 K below it and 0.018 kg/kg.
    !---~---
-   subroutine write_tower_file(convention, humidity, time_zone, rh_scale, stated_height, height_above)
+   subroutine write_tower_file(convention, humidity, time_zone, rh_scale, stated_height, height_above, &
+                               supersaturated)
       character(len=*), intent(in) :: convention, humidity, time_zone, height_above
       real(wp),         intent(in) :: rh_scale, stated_height
+      logical, optional, intent(in) :: supersaturated
       character(len=8)  :: names(9)
       integer(c_int)    :: st, ncid, td, gd, vt, vla, vlo, vid(9), dims1(1), dims2(2)
       integer(c_size_t) :: s1(1), c1(1), s2(2), c2(2)
       real(c_double)    :: tsec(NT), dat(1, NT), one(1)
+      real(wp) :: dewpoint_offset, qair
       integer :: nvar, j, k
+      dewpoint_offset = -3.0_wp
+      qair = 0.018_wp
+      if (present(supersaturated)) then
+         if (supersaturated) then
+            dewpoint_offset = 2.0_wp
+            qair = 0.03_wp
+         end if
+      end if
       names(1:6) = [character(len=8) :: 'Tair', 'PSurf', 'Wind', 'Rainf', 'SWdown', 'LWdown']
       nvar = 6
       select case (humidity)
@@ -1328,9 +1347,9 @@ contains
             case ('RHair')
                dat(1, k) = rh_scale * rh_at(k)
             case ('Tdew')
-               dat(1, k) = tair_at(k) - 3.0_wp
+               dat(1, k) = tair_at(k) + dewpoint_offset
             case ('Qair')
-               dat(1, k) = 0.018_wp
+               dat(1, k) = qair
             end select
          end do
          st = nc_put_vara_double(ncid, vid(j), s2, c2, dat)
@@ -1361,28 +1380,35 @@ contains
       type(met_cursor_t)     :: cur
       type(forcing_params_t) :: fc
       type(met_forcing_t)    :: met
+      real(wp) :: q_ground
       integer(ik) :: st
       integer, parameter :: K = 40
       print '(a)', '-- test 1: humidity forms --'
       fc = tower_config(METAVG_BEGIN)
 
+      !---~---
+      !   The sensor's pressure is moist air's, from the humidity formed at the ground's pressure
+      ! (q_ground); the humidity is then formed at the sensor's.
+      !---~---
       call write_tower_file('begin', 'RHair', 'UTC', 1.0_wp, TOWER_HEIGHT, 'ground')
       call met_open(src, fc, stat=st)
       call check_true('an RHair file opens', st == MET_OK, real(st, wp))
       call met_cursor_init(src, cur, 1_ik, fc%latitude, fc%longitude, fc%elevation)
       met = sample(src, cur, stamp_seconds(K))
+      q_ground = rh_to_specific_humidity(rh_at(K), tair_at(K), PSURF)
       call check('RHair -> q by rh_to_specific_humidity at the record''s T and its height''s P', met%air_shv, &
-                 rh_to_specific_humidity(rh_at(K), tair_at(K), tq_height_pressure(fc, tair_at(K), PSURF)), 1.0e-15_wp)
+                 rh_to_specific_humidity(rh_at(K), tair_at(K), tq_height_pressure(fc, tair_at(K), PSURF, q_ground)), &
+                 1.0e-15_wp)
       !--- A 41 m tower's air sits ~0.47 % below the ground's pressure; a reanalysis's keeps it.
       call check('a tower''s humidity is converted at its sensor''s pressure, rho g z below the ground''s', &
-                 PSURF - tq_height_pressure(fc, tair_at(K), PSURF),                                       &
-                 air_density(tair_at(K), PSURF, 0.0_wp) * grav * TOWER_HEIGHT, 2.0_wp)
+                 PSURF - tq_height_pressure(fc, tair_at(K), PSURF, q_ground),                             &
+                 air_density(tair_at(K), PSURF, q_ground) * grav * TOWER_HEIGHT, 2.0_wp)
       block
          type(forcing_params_t) :: fz
          fz = fc
          fz%height_above = HEIGHT_ABOVE_ZERO_PLANE
-         call check('a reanalysis''s humidity keeps its surface pressure', tq_height_pressure(fz, tair_at(K), PSURF), &
-                    PSURF, 0.0_wp)
+         call check('a reanalysis''s humidity keeps its surface pressure',                               &
+                    tq_height_pressure(fz, tair_at(K), PSURF, q_ground), PSURF, 0.0_wp)
       end block
       call met_close(src)
 
@@ -1391,8 +1417,10 @@ contains
       call check_true('a Tdew file opens', st == MET_OK, real(st, wp))
       call met_cursor_init(src, cur, 1_ik, fc%latitude, fc%longitude, fc%elevation)
       met = sample(src, cur, stamp_seconds(K))
+      q_ground = sat_specific_humidity(tair_at(K) - 3.0_wp, PSURF)
       call check('Tdew -> q by sat_specific_humidity at the height''s P', met%air_shv,               &
-                 sat_specific_humidity(tair_at(K) - 3.0_wp, tq_height_pressure(fc, tair_at(K), PSURF)), 1.0e-15_wp)
+                 sat_specific_humidity(tair_at(K) - 3.0_wp, tq_height_pressure(fc, tair_at(K), PSURF, q_ground)), &
+                 1.0e-15_wp)
       call met_close(src)
 
       call write_tower_file('begin', 'Qair', 'UTC', 1.0_wp, TOWER_HEIGHT, 'ground')
@@ -1418,6 +1446,48 @@ contains
       call check_true('RHair written in percent is refused', st == MET_ERR_HUMIDITY, real(st, wp))
       call met_close(src)
    end subroutine test_humidity_forms
+
+   !---~---
+   !   1b. Humidity above saturation (docs/science/forcing.md §7): a dewpoint above the air
+   ! temperature, as ERA5-Land can deliver, or a stored q above saturation is held to saturation
+   ! at the record's temperature and its sensor's pressure, and a polygon at its cell's elevation
+   ! reads the same air with the terrain lapse on as with it off.
+   !---~---
+   subroutine test_supersaturated_humidity()
+      character(len=4), parameter :: FORMS(2) = ['Tdew', 'Qair']
+      type(met_source_t)     :: src
+      type(met_cursor_t)     :: cur
+      type(forcing_params_t) :: fc
+      type(met_forcing_t)    :: lapse_off, lapse_on
+      real(wp) :: q_sat
+      integer(ik) :: st
+      integer :: i
+      integer, parameter :: K = 40
+      print '(a)', '-- test 1b: humidity above saturation --'
+      fc = tower_config(METAVG_BEGIN)
+      q_sat = sat_specific_humidity(tair_at(K), tq_height_pressure(fc, tair_at(K), PSURF,                   &
+                                                                   sat_specific_humidity(tair_at(K), PSURF)))
+      do i = 1, size(FORMS)
+         call write_tower_file('begin', FORMS(i), 'UTC', 1.0_wp, TOWER_HEIGHT, 'ground', supersaturated=.true.)
+         fc = tower_config(METAVG_BEGIN)
+         call met_open(src, fc, stat=st)
+         call check_true(FORMS(i)//' above saturation opens', st == MET_OK, real(st, wp))
+         call met_cursor_init(src, cur, 1_ik, fc%latitude, fc%longitude, fc%elevation)
+         lapse_off = sample(src, cur, stamp_seconds(K))
+         call met_close(src)
+         call check(FORMS(i)//' above saturation is saturated air', lapse_off%air_shv, q_sat, 1.0e-15_wp)
+
+         fc%apply_elevation_lapse = .true.
+         fc%lapse_rate_tair = 0.0065_wp
+         fc%grid_elevation = fc%elevation                   ! the polygon at its cell's elevation
+         call met_open(src, fc, stat=st)
+         call met_cursor_init(src, cur, 1_ik, fc%latitude, fc%longitude, fc%elevation)
+         lapse_on = sample(src, cur, stamp_seconds(K))
+         call met_close(src)
+         call check(FORMS(i)//': the same air with the terrain lapse on at dz = 0', lapse_on%air_shv,           &
+                    lapse_off%air_shv, 1.0e-15_wp)
+      end do
+   end subroutine test_supersaturated_humidity
 
    !--- 2. ED-MORE runs in UTC: a file that does not say time_zone = "UTC" is refused.
    subroutine test_utc_required()
@@ -1555,23 +1625,36 @@ contains
 
       !---~---
       !   At every stamp the model's own inverse returns the tower's relative humidity. This is
-      ! what storing RHair buys: the provider's saturation curve never enters.
+      ! what storing RHair buys: the provider's saturation curve never enters. The inverse reads
+      ! the vapour pressure at the pressure q was formed at, the sensor's (sensor_pressure).
       !---~---
       worst = 0.0_wp
       do k = 1, NT - 1
          if (k == SATURATED_REC) cycle
          met = sample(src, cur, stamp_seconds(k))
-         vpd = specific_humidity_to_vpd(met%air_temp, met%air_shv, tq_height_pressure(fc, met%air_temp, met%air_pressure))
+         vpd = specific_humidity_to_vpd(met%air_temp, met%air_shv, sensor_pressure(fc, met, rh_at(k)))
          rh_model = 1.0_wp - vpd / sat_vapor_pressure(met%air_temp)
          worst = max(worst, abs(rh_model - rh_at(k)))
       end do
       call check('the model''s RH at the forcing temperature is RHair at every stamp', worst, 0.0_wp, 1.0e-12_wp)
       met = sample(src, cur, stamp_seconds(SATURATED_REC))
-      vpd = specific_humidity_to_vpd(met%air_temp, met%air_shv, tq_height_pressure(fc, met%air_temp, met%air_pressure))
+      vpd = specific_humidity_to_vpd(met%air_temp, met%air_shv, sensor_pressure(fc, met, rh_at(SATURATED_REC)))
       call check('a saturated tower record reads back as VPD = 0', vpd, 0.0_wp, 1.0e-9_wp)
 
       call met_close(src)
    end subroutine test_tower_round_trip
+
+   !---~---
+   !   The pressure a tower record's humidity is formed at: the sensor's, as moist air holding the
+   ! humidity of its relative humidity rh at the ground's pressure, as read_record forms it.
+   !---~---
+   real(wp) function sensor_pressure(fc, met, rh) result(p)
+      type(forcing_params_t), intent(in) :: fc
+      type(met_forcing_t),    intent(in) :: met
+      real(wp),               intent(in) :: rh
+      p = tq_height_pressure(fc, met%air_temp, met%air_pressure,                                    &
+                             rh_to_specific_humidity(rh, met%air_temp, met%air_pressure))
+   end function sensor_pressure
 
    !---~---
    !   A site's forcing within its polygon (ed_met::met_at_site; docs/science/forcing.md §8): a

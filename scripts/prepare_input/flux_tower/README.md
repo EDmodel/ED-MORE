@@ -119,7 +119,8 @@ calibration reports them instead of stopping.
   (`avg_convention`).
 - **`RHair`:** the measured relative humidity, a fraction. ED-MORE converts it with its own saturation
   curve. Where RH is missing, it is recovered from the provider's VPD under the declared curve.
-- **`PSurf`:** at the ground, brought down from `pressure_height` hypsometrically.
+- **`PSurf`:** at the ground, brought down from `pressure_height` hypsometrically, as moist air
+  holding the measured humidity (the isothermal form of eq. (13) in `docs/science/forcing.md`).
 - **States** (`Tair`, `RHair`, `PSurf`, `LWdown`, `Wind`): values at the stamps, as ED-MORE reads a
   state. Each is the mean of the two half-hour means that meet there; wind uses the root mean square.
 - **Fluxes** (`Rainf`, `SWdown`): means over each interval.

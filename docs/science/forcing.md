@@ -396,9 +396,19 @@ A file carries the humidity its source measured, and the reader converts it to s
 each stamp, with that record's own temperature and the pressure of the air it was measured in: a
 dewpoint (`Tdew`, a reanalysis) or a relative humidity (`RHair`, a flux tower) by eq. (11), a specific
 humidity (`Qair`) as it is. A file's pressure is the ground's, so for heights above the ground (a
-tower) the reader moves it up the dry adiabat to `tq_height`, as Step 2 moves it to the canopy-air top
-(`tq_height_pressure`; about 0.5 % lower at a 41 m tower, and the specific humidity as much higher). A
-reanalysis's 2 m air keeps the surface pressure it comes with. Storing the
+tower) the reader moves it up to `tq_height` by eq. (15), as Step 2 moves it to the canopy-air top
+(`tq_height_pressure`; about 0.5 % lower at a 41 m tower, and the specific humidity as much higher).
+That move is moist air's, so it takes the humidity formed at the ground's pressure; the error of
+this one pass is second order, a few parts in 10⁷ of $q$ at a 41 m tower. A
+reanalysis's 2 m air keeps the surface pressure it comes with.
+
+**Every humidity is held to saturation.** Whatever its form, the specific humidity is held to
+$`[0,\,q_{sat}(T,P)]`$ at the record's temperature and that pressure (`record_specific_humidity`), as a
+relative humidity is held to $[0,1]$. A dewpoint above the air temperature, which ERA5-Land can
+deliver (the archive builder warns only above 0.5 K), or a specific humidity above saturation is
+saturated air: a value
+at a point cannot hold more, and the terrain lapse (§8), which goes through the relative humidity,
+gives the same air as a run without it. Storing the
 measured quantity is what keeps the provider's saturation curve out of the model: a tower's relative
 humidity is a sensor reading, while its vapour-pressure deficit, or a $q$ made from it offline, carries
 whichever curve the provider used (Barro Colorado Island's `vpd` column is the Alduchov–Eskridge
@@ -414,7 +424,8 @@ so the ice branch that `sat_vapor_pressure` has for frozen surfaces
 ([snow biophysics](snow_biophysics.md), "Sublimation saturates over ice") must not be applied here.
 Every diagnostic output file of an ED_ERA5land run names the formula in its `forcing_qair` global
 attribute. The dewpoint form uses the fact that the actual vapour pressure *is* the saturation vapour
-pressure at the dewpoint; RH is clipped to $[0,1]$ first. The model's own inverse,
+pressure at the dewpoint; RH is clipped to $[0,1]$ first, and every form to saturation after. The
+model's own inverse,
 `specific_humidity_to_vpd`, is the exact inverse of eq. (11), so a saturated record reads back as a
 vapour-pressure deficit of zero.
 
@@ -473,15 +484,22 @@ polygon's, `[site].elevation`, and the cell's: the archive's static orography, o
 (`[site].lapse_rate_tair`, 0 to 0.01 K m⁻¹: one value, or twelve picked by the record's calendar month,
 such as Kunkel's 1989 Northern Hemisphere rates tabulated by Liston & Elder 2006, from 4.4 K km⁻¹ in
 January to 8.2 in June), temperature and pressure move together so they stay ideal-gas consistent. The
-pressure form is the hypsometric integral of $`dP/dz=-Pg/(R_dT)`$ under the *same* linear $T(z)$:
+pressure form is the hypsometric integral of $`dP/dz=-Pg/(R_mT)`$ under the *same* linear $T(z)$:
 
 ```math
 T_{site} = T_{grid}-\Gamma\,\Delta z, \qquad
-P_{site} = P_{grid}\left(\frac{T_{site}}{T_{grid}}\right)^{g/(R_d\Gamma)} \qquad(13)
+P_{site} = P_{grid}\left(\frac{T_{site}}{T_{grid}}\right)^{g/(R_m\Gamma)}, \qquad
+R_m = R_d\left[1+\left(\frac{R_v}{R_d}-1\right)q\right] \qquad(13)
 ```
 
-with the isothermal limit $`P_{site}=P_{grid}\exp[-g\,\Delta z/(R_dT_{grid})]`$ when $`|\Gamma|\le 10^{-6}`$.
-Humidity and file longwave follow, as in NLDAS (Cosgrove et al. 2003):
+with the isothermal limit $`P_{site}=P_{grid}\exp[-g\,\Delta z/(R_mT_{grid})]`$ when $`|\Gamma|\le 10^{-6}`$.
+$`R_m`$ is the gas constant of moist air holding specific humidity $q$ (`moist_gas_constant`), with
+$`R_d`$ and $`R_v`$ the gas constants of dry air and water vapour and
+$`R_v/R_d-1=M_{dry}/M_{h2o}-1=0.60783`$ (`virtual_temp_factor`); $`R_mT=R_dT_v`$, the virtual
+temperature's form of the same law, which the air density $`\rho_{air}=P/(R_mT)`$ uses too. The
+humidity is the record's, held along the path. Moist air is lighter than dry air, so its pressure
+falls more slowly with height: over 500 m at $q$ = 0.02 the pressure drop is 1.2 % smaller, 0.07 % of
+the pressure. Humidity and file longwave follow, as in NLDAS (Cosgrove et al. 2003):
 
 ```math
 q_{site} = q\!\left(RH\,e_s(T_{site}),\,P_{site}\right),\quad RH=\frac{e(q_{grid},P_{grid})}{e_s(T_{grid})}, \qquad
@@ -489,12 +507,13 @@ L^{\downarrow}_{site} = L^{\downarrow}_{grid}\,\frac{\varepsilon(T_{site},q_{sit
 ```
 
 **Relative humidity is held**, not specific humidity: holding $q$ would dry a site below its cell by
-about 6 % RH per K of warming, 20 % over 500 m. A file's `RHair` is used directly at the site; a
-dewpoint or a specific humidity gives its relative humidity at the cell first. $\varepsilon$ is the
+about 6 % RH per K of warming, 20 % over 500 m. Every humidity form gives its relative humidity at the
+cell, and the pressures in it are those the humidity is formed at, the sensor's (§7), at both ends.
+$\varepsilon$ is the
 clear-sky emissivity of §11 (`[forcing].lw_clear_form`); a synthesized longwave is built afterwards from
 the lapsed $T$ and $q$ instead. Wind, shortwave and precipitation are unchanged; the rain/snow split
-(§7) is made later, at the canopy-air top. A region's polygons sit at their cells' own elevations, so
-there $\Delta z = 0$.
+(§7) is made later, at the canopy-air top. A polygon at its cell's elevation, $\Delta z = 0$, keeps the
+record as read. A region's polygons sit at their cells' own elevations, so there $\Delta z = 0$.
 
 ### Each site of a polygon
 
@@ -544,7 +563,7 @@ canopy). An open-terrain wind (`wind_exposure = "open_terrain"`, with `wind_expo
 ```math
 u(z_c) = u_m\,\frac{\ln(z_b/z_{0e})}{\ln(z_m/z_{0e})}\;\frac{\ln(h_c/z_0)}{\ln(h_b/z_0)}, \qquad
 T(z_c) = T_m-\frac{g}{c_p}\,(z_c-z_T), \qquad
-P(z_c) = P_s\left(\frac{T(z_c)}{T(z_s)}\right)^{c_p/R_d} \qquad(15)
+P(z_c) = P_s\left(\frac{T(z_c)}{T(z_s)}\right)^{c_p/R_m} \qquad(15)
 ```
 
 Here $`u_m`$ and $`T_m`$ are the forcing's wind and temperature, $`z_m`$ is `wind_height`, $`z_{0e}`$ is
@@ -553,9 +572,12 @@ first factor). $`h_c`$ and $`h_b`$ are $`z_c`$ and $`z_b`$ as heights above the 
 reanalysis's heights already are; a tower's are measured above the ground, so $d$ is subtracted),
 floored at $`2z_0`$ like the aerodynamics' own reference height. The temperature height is
 $`z_T = d + `$`tq_height` above the zero plane, or `tq_height` above the ground. The move conserves
-potential temperature, $\theta = T + (g/c_p)\,z$. Pressure moves along the same adiabat from
+potential temperature, $\theta = T + (g/c_p)\,z$. Pressure moves under the same temperature from
 $`z_s`$, where the forcing's surface pressure $`P_s`$ is, at the forcing's temperature brought down to
-it, $`T(z_s) = T_m + (g/c_p)\,(z_T - z_s)`$: the hydrostatic integral under that linear $T(z)$. For a
+it, $`T(z_s) = T_m + (g/c_p)\,(z_T - z_s)`$: the hydrostatic integral of moist air, with the $`R_m`$
+of eq. (13) at the forcing's humidity, under that linear $T(z)$. The temperature stays the dry
+adiabat's. Over a 40 m lift at $q$ = 0.02, moist air's pressure at the top is about 5 Pa above dry
+air's. For a
 tower $`z_s`$ is the ground; for a reanalysis, whose heights are above the zero plane, it is $d$, the
 reanalysis's own surface. The aerodynamics then references both the canopy air's potential
 temperature and this air's to $`z_c`$, where each equals its actual temperature ([canopy
@@ -839,12 +861,12 @@ each option requires are in the reference config `ed_config_main.toml` and in
 | SW disaggregation | `ed_met`: `cosz_reconstruct_factor`, `disaggregate_sw` |
 | Earth–Sun distance factor, §6 | `ed_time`: `earth_sun_distance_factor`, called by `ed_met` and `ed_fast_forcing` with the day of year |
 | SW partition | `ed_radiation_lib`: `partition_shortwave`, `erbs_diffuse_fraction`, `weiss_norman_partition` |
-| humidity, precip phase | `ed_therm_lib`: `sat_specific_humidity` (at the dewpoint), `rh_to_specific_humidity`, `vapor_pressure_to_specific_humidity`, `specific_humidity_to_vapor_pressure`, `precip_phase`; the pressure they use, `tq_height_pressure` (`ed_met`) |
+| humidity, precip phase | `ed_therm_lib`: `sat_specific_humidity` (at the dewpoint), `rh_to_specific_humidity`, `vapor_pressure_to_specific_humidity`, `specific_humidity_to_vapor_pressure`, `precip_phase`; `ed_met`: `record_specific_humidity` (each form, held to saturation) and the pressure it uses, `tq_height_pressure` |
 | longwave synthesis | `ed_radiation_lib`: `clearness_index`, `clear_sky_emissivity`, `synthesize_lwdown`; `ed_met`: `remember_clearness` (the night's $`k_t`$) |
 | the grid and its cells | `ed_met_grid`: `select_site_cell`, `select_box_cells`, `keep_cells`, `same_grid`, `great_circle_distance`, `nearest_grid_index`; the archive's grid, `ed_met_era5land`: `era5land_grid` |
-| terrain lapse (§8, Step 1) | the laws: `ed_therm_lib`: `lapse_air_temperature`, `lapse_pressure`, `lapse_specific_humidity`; `ed_radiation_lib`: `lapse_longwave`; applied in `read_record` (`ed_met`) |
+| terrain lapse (§8, Step 1) | the laws: `ed_therm_lib`: `lapse_air_temperature`, `lapse_pressure`, `moist_gas_constant`, `lapse_specific_humidity`; `ed_radiation_lib`: `lapse_longwave`; applied by `terrain_lapse` (`ed_met`) in `read_record` and `met_at_site` |
 | each site (§8) | `ed_met`: `met_at_site`, with `slope_incidence_cosz` (`ed_time`) and `slope_beam_factor` (`ed_radiation_lib`) |
-| canopy-air top (§8, Step 2) | `ed_met`: `cas_top_wind_factor`, `met_to_cas_top`; `ed_therm_lib`: `dry_adiabat_temperature`, `dry_adiabat_pressure`; `canopy_roughness` (`ed_canopy_aerodynamics`); called per patch by `ed_fast_forcing` |
+| canopy-air top (§8, Step 2) | `ed_met`: `cas_top_wind_factor`, `met_to_cas_top`; `ed_therm_lib`: `dry_adiabat_temperature`, `dry_adiabat_pressure`, `moist_gas_constant`; `canopy_roughness` (`ed_canopy_aerodynamics`); called per patch by `ed_fast_forcing` |
 | the reader | `ed_met`: `met_open`, `met_cursor_init`, `met_prefetch`, `met_read_ahead`, `met_advance`, `met_instant`, `met_close`; the one ingest `read_record`, `assert_finite` |
 | the two file sources | `ed_met_default`: `default_file_open`, `default_file_record`, `read_series`, `detect_humidity`; `ed_met_era5land`: `era5land_open`, `era5land_prefetch`, `era5land_read_ahead`, `era5land_record`, `open_archive`, `month_of_step`, `load_axis_month`, `locate_record`, `keep_window_head` |
 | the archive's files | `ed_met_era5land`: `era5land_path`, `era5land_month_hours`, `era5land_load_month` |

@@ -463,20 +463,42 @@ contains
       real(wp),               intent(in) :: dz            ! [m] site above polygon
       real(wp),               intent(in) :: beam_factor   ! [-] slope_beam_factor
       type(met_forcing_t) :: site
-      real(wp) :: gamma
       site = met
       if (f%apply_elevation_lapse .and. dz /= 0.0_wp) then
-         gamma         = f%lapse_rate_tair(month)
-         site%air_pressure = lapse_pressure(met%air_pressure, met%air_temp, dz, gamma)
-         site%air_temp   = lapse_air_temperature(met%air_temp, dz, gamma)
-         site%air_shv     = lapse_specific_humidity(met%air_shv, met%air_temp, met%air_pressure, site%air_temp, site%air_pressure)
-         site%lw_down   = lapse_longwave(met%lw_down, f%lw_clear_form, met%air_temp, met%air_shv, met%air_pressure,     &
-                                        site%air_temp, site%air_shv, site%air_pressure)
+         call terrain_lapse(f, dz, f%lapse_rate_tair(month), site%air_temp, site%air_pressure, site%air_shv,   &
+                            site%lw_down)
          site%air_density  = air_density(site%air_temp, site%air_pressure, site%air_shv)
       end if
       site%par_beam = met%par_beam * beam_factor
       site%nir_beam = met%nir_beam * beam_factor
    end function met_at_site
+
+   !---~---
+   !   The terrain step (docs/science/forcing.md §8 Step 1, eqs. (13)-(14)), for a record and for a
+   ! site: air at temperature t, pressure p and specific humidity q moved dz up (down when dz < 0)
+   ! at the lapse rate gamma, at constant relative humidity, and its longwave lw, when given, by
+   ! the clear-sky emissivity and T**4. The relative humidity is taken at the pressure the humidity
+   ! is formed at, the sensor's (tq_height_pressure), at both ends.
+   !---~---
+   pure subroutine terrain_lapse(f, dz, gamma, t, p, q, lw)
+      type(forcing_params_t), intent(in)    :: f
+      real(wp),               intent(in)    :: dz      ! [m]   the site above the air it is taken from
+      real(wp),               intent(in)    :: gamma   ! [K/m] environmental lapse rate
+      real(wp),               intent(inout) :: t       ! [K]
+      real(wp),               intent(inout) :: p       ! [Pa]  at the ground
+      real(wp),               intent(inout) :: q       ! [kg/kg]
+      real(wp), optional,     intent(inout) :: lw      ! [W/m2]
+      real(wp) :: t_from, p_from, q_from, p_tq_from, p_tq
+      t_from = t
+      p_from = p
+      q_from = q
+      p = lapse_pressure(p_from, t_from, dz, gamma, q_from)
+      t = lapse_air_temperature(t_from, dz, gamma)
+      p_tq_from = tq_height_pressure(f, t_from, p_from, q_from)
+      p_tq      = tq_height_pressure(f, t, p, q_from)
+      q = lapse_specific_humidity(q_from, t_from, p_tq_from, t, p_tq)
+      if (present(lw)) lw = lapse_longwave(lw, f%lw_clear_form, t_from, q_from, p_from, t, q, p)
+   end subroutine terrain_lapse
 
    !---~---
    !   AT A PATCH'S CANOPY-AIR TOP (docs/science/forcing.md §8, eq. (15)): from the forcing's own
@@ -509,27 +531,29 @@ contains
    !---~---
    !   The pressure of the air the forcing's temperature and humidity describe. A tower's sensor
    ! sits tq_height above the ground, and its file's pressure is the ground's: that pressure moves
-   ! up the dry adiabat to the sensor, at the sensor's temperature brought down to the ground. A
-   ! reanalysis's 2 m air (heights above the zero plane) keeps the surface pressure it comes with
+   ! up to the sensor under the dry adiabat's temperature, from the sensor's brought down to the
+   ! ground, as moist air holding shv (docs/science/forcing.md eq. (15)). A reanalysis's 2 m air
+   ! (heights above the zero plane) keeps the surface pressure it comes with
    ! (docs/science/forcing.md eq. (11)).
    !---~---
-   pure real(wp) function tq_height_pressure(f, t_air, p_surface) result(p)
+   pure real(wp) function tq_height_pressure(f, t_air, p_surface, shv) result(p)
       type(forcing_params_t), intent(in) :: f
       real(wp),               intent(in) :: t_air       ! [K]  the forcing's, at tq_height
       real(wp),               intent(in) :: p_surface   ! [Pa] the forcing's, at the ground
+      real(wp),               intent(in) :: shv         ! [kg/kg] the air's specific humidity
       p = p_surface
       if (f%height_above /= HEIGHT_ABOVE_ZERO_PLANE)                                                &
-         p = dry_adiabat_pressure(p_surface, dry_adiabat_temperature(t_air, -f%tq_height), f%tq_height)
+         p = dry_adiabat_pressure(p_surface, dry_adiabat_temperature(t_air, -f%tq_height), f%tq_height, shv)
    end function tq_height_pressure
 
    !---~---
    !   A forcing record at a patch's canopy-air top: wind (and its vector) by the patch's factor,
    ! temperature along the dry adiabat from the forcing's temperature height (a reanalysis's
-   ! is above d), so the aerodynamics' theta is exactly the forcing's, and pressure along the
-   ! same adiabat from where the forcing's is (the ground, or a reanalysis's zero plane); air
-   ! density re-derived, so the record is one parcel of air at the top. Humidity is conserved and the radiation and precipitation
-   ! are unchanged; the rain/snow split is made from this record's temperature where the
-   ! column's forcing is filled (fill_forcing).
+   ! is above d), so the aerodynamics' theta is exactly the forcing's, and the pressure of moist
+   ! air under that temperature from where the forcing's is (the ground, or a reanalysis's zero
+   ! plane); air density re-derived, so the record is one parcel of air at the top. Humidity is
+   ! conserved and the radiation and precipitation are unchanged; the rain/snow split is made from
+   ! this record's temperature where the column's forcing is filled (fill_forcing).
    !---~---
    pure function met_to_cas_top(met, f, z_top, displace, rough) result(top)
       type(met_forcing_t),    intent(in) :: met
@@ -550,14 +574,15 @@ contains
       if (f%height_above == HEIGHT_ABOVE_ZERO_PLANE) z_t = displace + f%tq_height
       top%air_temp  = dry_adiabat_temperature(met%air_temp, z_top - z_t)
       !---~---
-      !   Pressure along the same adiabat, from the height the forcing's surface pressure is at, at
-      ! the forcing's temperature brought down to it: the ground for heights above the ground (a
-      ! tower), the zero plane for heights above it (a reanalysis, whose surface the zero plane is).
+      !   Pressure under the same adiabat's temperature, from the height the forcing's surface
+      ! pressure is at, at the forcing's temperature brought down to it: the ground for heights
+      ! above the ground (a tower), the zero plane for heights above it (a reanalysis, whose surface
+      ! the zero plane is).
       !---~---
       z_s = 0.0_wp
       if (f%height_above == HEIGHT_ABOVE_ZERO_PLANE) z_s = displace
       top%air_pressure = dry_adiabat_pressure(met%air_pressure, dry_adiabat_temperature(met%air_temp, z_s - z_t), &
-                                              z_top - z_s)
+                                              z_top - z_s, met%air_shv)
       top%air_density = air_density(top%air_temp, top%air_pressure, top%air_shv)
    end function met_to_cas_top
 
@@ -625,7 +650,7 @@ contains
       type(met_cursor_t), intent(in) :: cur
       integer(ik),        intent(in)    :: irec
       type(met_record_t), intent(out)   :: rec
-      real(wp)    :: sw_total, humidity_value, p_tq
+      real(wp)    :: sw_total, humidity_value, q_surface, p_tq, dz
       rec%when   = time_advance_seconds(src%base_time, src%time_sec(irec))
       !--- The values as the source stores them; from here on, one ingest for both.
       if (src%backend == MET_BACKEND_ERA5LAND) then
@@ -638,49 +663,32 @@ contains
       call assert_finite(rec%air_pressure, 'PSurf', irec, src%grid_index)
       !---~---
       !   Specific humidity at the forcing's own temperature and the pressure of the air it was
-      ! measured in (tq_height_pressure): a dewpoint and a relative humidity both go through the
-      ! model's liquid-water saturation curve (docs/science/forcing.md eq. (11)).
+      ! measured in (tq_height_pressure), held to saturation there (record_specific_humidity). That
+      ! pressure is moist air's, so it takes the humidity formed at the surface pressure: one pass,
+      ! whose error in q is second order (a few parts in 1e7 at a 41 m tower).
       !---~---
-      p_tq = tq_height_pressure(src%fcfg, rec%air_temp, rec%air_pressure)
-      select case (src%humidity)
-      case (HUMIDITY_RHAIR)
-         rec%air_shv = rh_to_specific_humidity(humidity_value, rec%air_temp, p_tq)
-      case (HUMIDITY_TDEW)
-         rec%air_shv = sat_specific_humidity(humidity_value, p_tq)
-      case default
-         rec%air_shv = humidity_value
-      end select
+      q_surface   = record_specific_humidity(src%humidity, humidity_value, rec%air_temp, rec%air_pressure)
+      p_tq        = tq_height_pressure(src%fcfg, rec%air_temp, rec%air_pressure, q_surface)
+      rec%air_shv = record_specific_humidity(src%humidity, humidity_value, rec%air_temp, p_tq)
       call assert_finite(rec%wind, 'Wind', irec, src%grid_index)
       call assert_finite(rec%rain, 'Rainf', irec, src%grid_index)
       if (src%fcfg%lwdown_source /= LW_SYNTHESIZE)                                                  &
          call assert_finite(rec%lw_down, 'LWdown', irec, src%grid_index)
 
       !---~---
-      !   The terrain lapse, from the cell's elevation to the polygon's
-      ! (docs/science/forcing.md §8 Step 1, eqs. (13)-(14)).
+      !   The terrain lapse, from the cell's elevation to the polygon's (docs/science/forcing.md §8
+      ! Step 1, eqs. (13)-(14)); a polygon at its cell's elevation keeps the record as read. Only a
+      ! file's longwave moves: a synthesized one is built later from the lapsed T and q.
       !---~---
-      if (src%fcfg%apply_elevation_lapse) then
-         block
-            real(wp) :: dz, gamma, t_grid, p_grid, q_grid
-            dz     = cur%elevation_m - cur%grid_elevation_m       ! + when the polygon is higher
-            gamma  = src%fcfg%lapse_rate_tair(rec%when%month)
-            t_grid = rec%air_temp
-            p_grid = rec%air_pressure
-            q_grid = rec%air_shv   ! before it is overwritten
-            rec%air_pressure = lapse_pressure(p_grid, t_grid, dz, gamma)
-            rec%air_temp   = lapse_air_temperature(t_grid, dz, gamma)
-            !--- Relative humidity is held: a measured one is used as is, any other is formed at the cell.
-            if (src%humidity == HUMIDITY_RHAIR) then
-               p_tq = tq_height_pressure(src%fcfg, rec%air_temp, rec%air_pressure)
-               rec%air_shv  = rh_to_specific_humidity(humidity_value, rec%air_temp, p_tq)
-            else
-               rec%air_shv  = lapse_specific_humidity(q_grid, t_grid, p_grid, rec%air_temp, rec%air_pressure)
-            end if
-            !--- Only a file's longwave: a synthesized one is built later from the lapsed T and q.
-            if (src%fcfg%lwdown_source /= LW_SYNTHESIZE)                                           &
-               rec%lw_down = lapse_longwave(rec%lw_down, src%fcfg%lw_clear_form, t_grid, q_grid, p_grid, &
-                                           rec%air_temp, rec%air_shv, rec%air_pressure)
-         end block
+      dz = cur%elevation_m - cur%grid_elevation_m                ! + when the polygon is higher
+      if (src%fcfg%apply_elevation_lapse .and. dz /= 0.0_wp) then
+         if (src%fcfg%lwdown_source == LW_SYNTHESIZE) then
+            call terrain_lapse(src%fcfg, dz, src%fcfg%lapse_rate_tair(rec%when%month),                       &
+                               rec%air_temp, rec%air_pressure, rec%air_shv)
+         else
+            call terrain_lapse(src%fcfg, dz, src%fcfg%lapse_rate_tair(rec%when%month),                       &
+                               rec%air_temp, rec%air_pressure, rec%air_shv, rec%lw_down)
+         end if
       end if
 
       if (src%fcfg%sw_partition == SWPART_PASSTHROUGH) then
@@ -696,6 +704,31 @@ contains
                                   rec%par_beam, rec%par_diffuse, rec%nir_beam, rec%nir_diffuse)
       end if
    end subroutine read_record
+
+   !---~---
+   !   Specific humidity [kg/kg] from the humidity a file stores, of form `humidity` (HUMIDITY_*), at
+   ! the air temperature t_air and the pressure p_pa of the air it was measured in: a relative
+   ! humidity and a dewpoint through the liquid-water saturation curve, a specific humidity as it is
+   ! (docs/science/forcing.md eq. (11)). Every form is then held to [0, q_sat(t_air, p_pa)], as a
+   ! relative humidity is held to [0, 1]: a dewpoint above the air temperature, or a stored q above
+   ! saturation, gives saturated air, with the terrain lapse and without it alike
+   ! (docs/science/forcing.md §7).
+   !---~---
+   elemental real(wp) function record_specific_humidity(humidity, stored, t_air, p_pa) result(q)
+      integer(ik), intent(in) :: humidity
+      real(wp),    intent(in) :: stored   ! RHair [1], Tdew [K] or Qair [kg/kg]
+      real(wp),    intent(in) :: t_air    ! [K]
+      real(wp),    intent(in) :: p_pa     ! [Pa]
+      select case (humidity)
+      case (HUMIDITY_RHAIR)
+         q = rh_to_specific_humidity(stored, t_air, p_pa)
+      case (HUMIDITY_TDEW)
+         q = sat_specific_humidity(stored, p_pa)
+      case default                                          ! HUMIDITY_QAIR
+         q = stored
+      end select
+      q = min(max(q, 0.0_wp), sat_specific_humidity(t_air, p_pa))
+   end function record_specific_humidity
 
    !---~---
    !   The sun the shortwave partition uses for one record: the mean of max(cosz, 0) over the
