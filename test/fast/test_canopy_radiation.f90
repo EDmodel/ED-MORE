@@ -22,6 +22,9 @@
 !                             leaves of the shortwave and its emissivity's share of the sky less its
 !                             emission, the canopy nothing, every band closes, and the light is a
 !                             cohort of no leaf or wood area's.
+!  11. WOOD ANGLE           : the wood's own G(mu) sets its beam extinction.
+!  12. BEAM SPLIT           : leaves and wood take the beam's first hit by the area each shows the
+!                             sun, and tied cohorts of different leaf-to-wood ratios are their merger.
 ! The leaf-angle distribution and its moments are test_optics_lib's.
 !---~---
 program test_canopy_radiation
@@ -48,6 +51,7 @@ program test_canopy_radiation
    call test_tissue_longwave()
    call test_no_cohorts()
    call test_wood_angle()
+   call test_beam_split()
 
    call test_report('test_canopy_radiation')
 
@@ -289,11 +293,12 @@ contains
          call check('absorbed, one cohort or five', sum(five%abs_leaf(b,:)) + sum(five%abs_wood(b,:)),     &
                     one%abs_leaf(b,1) + one%abs_wood(b,1), TOL * 1.0e3_wp)
       end do
-      call layer_beam_sources(0.15_wp, 0.5_wp, 0.4_wp, 0.6_wp, 1.0e-6_wp, 100.0_wp, up, dn)
+      !--- The beam's albedo (0.25) differs from the diffuse (0.15): the scattered beam takes the beam's.
+      call layer_beam_sources(0.15_wp, 0.5_wp, 0.25_wp, 0.4_wp, 0.6_wp, 1.0e-6_wp, 100.0_wp, up, dn)
       intercept = 100.0_wp * (1.0_wp - exp(-0.6_wp * 1.0e-6_wp))
-      call check('thin layer: up = omega beta0 x intercepted', up, 0.15_wp * 0.4_wp * intercept,           &
+      call check('thin layer: up = omega_beam beta0 x intercepted', up, 0.25_wp * 0.4_wp * intercept,      &
                  1.0e-4_wp * up)
-      call check('thin layer: down = omega (1 - beta0) x intercepted', dn, 0.15_wp * 0.6_wp * intercept,  &
+      call check('thin layer: down = omega_beam (1 - beta0) x intercepted', dn, 0.25_wp * 0.6_wp * intercept, &
                  1.0e-4_wp * dn)
    end subroutine test_cutting_invariance
 
@@ -579,5 +584,67 @@ contains
                                * (exp(-k_expect * steep%clumping_wood(1) * WAI) + 0.2_wp))
       end do
    end subroutine test_wood_angle
+
+   !---~---
+   !   12. BEAM SPLIT: the beam meets leaves and wood in proportion to the area each shows the
+   ! sun, clumped area times its extinction, the diffuse light in proportion to their areas.
+   !   (a) With the wood at the leaves' angle the two coincide: a cohort's leaves take
+   !       absorptivity-weighted area's share of what it absorbs.
+   !   (b) A thin cohort under a beam alone absorbs little but the first hit, which leaves and
+   !       wood share by ELAI k_leaf (1 - omega_leaf) to EWAI k_wood (1 - omega_wood): steep
+   !       wood takes less of a high sun than its area's share.
+   !   (c) Two tied cohorts of different leaf-to-wood ratios absorb, leaves and wood, what one
+   !       cohort of their summed areas does, in every band.
+   !---~---
+   subroutine test_beam_split()
+      type(rad_pft_optics_t) :: same, steep
+      type(rad_env_t)        :: f
+      type(rad_out_t)        :: one, two
+      real(wp), parameter :: COSZ = 0.95_wp, THIN = 1.0e-5_wp
+      real(wp) :: aleaf, awood, kleaf, kwood, share, expect
+      integer(ik) :: b
+      print '(a)', '[12] beam split: leaves and wood share the beam by the area each shows the sun'
+      call build_optics(45.0_wp, same)
+      call build_optics(45.0_wp, steep, wood_deg=80.0_wp)
+      call build_forcing(COSZ, 290.0_wp, 298.0_wp, f)
+
+      !--- (a) wood at the leaves' angle: the absorptivity-weighted area split.
+      call canopy_radiation(same, f, 1_ik, [1_ik], [10.0_wp], [3.0_wp], [0.8_wp], [298.0_wp], [298.0_wp], one)
+      aleaf = (1.0_wp - same%omega_leaf(RAD_VIS,1)) * same%clumping_leaf(1) * 3.0_wp
+      awood = (1.0_wp - same%omega_wood(RAD_VIS,1)) * same%clumping_wood(1) * 0.8_wp
+      share = one%abs_leaf(RAD_VIS,1) / (one%abs_leaf(RAD_VIS,1) + one%abs_wood(RAD_VIS,1))
+      call check('wood at the leaves'' angle: leaves take their absorptivity-weighted area''s share', &
+                 share, aleaf / (aleaf + awood), 1.0e-12_wp)
+
+      !--- (b) a thin cohort under the beam alone, over black ground: the first hit by the area the sun sees.
+      f%incid_diff(RAD_VIS) = 0.0_wp
+      f%grnd_refl(RAD_VIS)  = 0.0_wp
+      call canopy_radiation(steep, f, 1_ik, [1_ik], [10.0_wp], [THIN], [THIN], [298.0_wp], [298.0_wp], one)
+      kleaf = gfun_direct(steep%lidf(:, 1), COSZ) / COSZ
+      kwood = gfun_direct(steep%lidf_wood(:, 1), COSZ) / COSZ
+      aleaf = (1.0_wp - steep%omega_leaf(RAD_VIS,1)) * steep%clumping_leaf(1) * kleaf
+      awood = (1.0_wp - steep%omega_wood(RAD_VIS,1)) * steep%clumping_wood(1) * kwood
+      share = one%abs_wood(RAD_VIS,1) / (one%abs_leaf(RAD_VIS,1) + one%abs_wood(RAD_VIS,1))
+      call check('thin cohort, beam alone: wood takes its share of the first hit', share,            &
+                 awood / (aleaf + awood), 1.0e-3_wp * share)
+      expect = (1.0_wp - steep%omega_wood(RAD_VIS,1)) * steep%clumping_wood(1)                        &
+               / ((1.0_wp - steep%omega_leaf(RAD_VIS,1)) * steep%clumping_leaf(1)                     &
+                  + (1.0_wp - steep%omega_wood(RAD_VIS,1)) * steep%clumping_wood(1))
+      call check_true('steep wood takes less of a high sun than its area''s share', share < expect, &
+                      share / expect)
+
+      !--- (c) two tied cohorts of different leaf-to-wood ratios against their merger.
+      call build_forcing(COSZ, 290.0_wp, 298.0_wp, f)
+      call canopy_radiation(steep, f, 2_ik, [1_ik, 1_ik], [10.0_wp, 10.0_wp], [2.0_wp, 0.5_wp],      &
+                            [0.1_wp, 0.8_wp], [298.0_wp, 298.0_wp], [298.0_wp, 298.0_wp], two)
+      call canopy_radiation(steep, f, 1_ik, [1_ik], [10.0_wp], [2.5_wp], [0.9_wp], [298.0_wp], [298.0_wp], one)
+      do b = RAD_VIS, RAD_LW
+         call check('tied cohorts = their merger: leaves', sum(two%abs_leaf(b,:)), one%abs_leaf(b,1),   &
+                    1.0e-10_wp * max(abs(one%abs_leaf(b,1)), 1.0_wp))
+         call check('tied cohorts = their merger: wood', sum(two%abs_wood(b,:)), one%abs_wood(b,1),     &
+                    1.0e-10_wp * max(abs(one%abs_wood(b,1)), 1.0_wp))
+         call check('tied cohorts = their merger: albedo', two%albedo(b), one%albedo(b), 1.0e-12_wp)
+      end do
+   end subroutine test_beam_split
 
 end program test_canopy_radiation
