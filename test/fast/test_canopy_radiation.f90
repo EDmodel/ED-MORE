@@ -47,18 +47,21 @@ program test_canopy_radiation
    call test_cutting_invariance()
    call test_tissue_longwave()
    call test_no_cohorts()
+   call test_wood_angle()
 
    call test_report('test_canopy_radiation')
 
 contains
 
-   !--- Build a 2-PFT, 3-band optics table (VIS/NIR/LW) with a chosen leaf-angle mean.
-   subroutine build_optics(mean_deg, opt)
+   !--- Build a 2-PFT, 3-band optics table (VIS/NIR/LW) with a chosen leaf-angle mean, and a
+   !    wood-surface angle mean (the leaves' when absent).
+   subroutine build_optics(mean_deg, opt, wood_deg)
       real(wp),               intent(in)  :: mean_deg
       type(rad_pft_optics_t), intent(out) :: opt
+      real(wp), optional,     intent(in)  :: wood_deg
       integer(ik), parameter :: NB = N_RAD_BAND_DEFAULT, NP = 2_ik
       real(wp) :: rl(NB,NP), tl(NB,NP), rw(NB,NP), tw(NB,NP)
-      real(wp) :: cl(NP), cw(NP), bp(NP), bq(NP)
+      real(wp) :: cl(NP), cw(NP), bp(NP), bq(NP), bpw(NP), bqw(NP)
       logical  :: hb(NB), he(NB)
       integer(ik) :: p
       real(wp) :: emiss_leaf, emiss_wood
@@ -82,10 +85,16 @@ contains
       cw = [0.50_wp, 0.50_wp]
       do p = 1_ik, NP
          call moments_to_beta_params(mean_deg, 20.0_wp, bp(p), bq(p))
+         if (present(wood_deg)) then
+            call moments_to_beta_params(wood_deg, 20.0_wp, bpw(p), bqw(p))
+         else
+            bpw(p) = bp(p)
+            bqw(p) = bq(p)
+         end if
       end do
       hb = [.true.,  .true.,  .false.]        ! VIS/NIR have a beam; LW does not
       he = [.false., .false., .true. ]        ! only LW emits
-      call derive_rad_optics(NB, NP, rl, tl, rw, tw, cl, cw, bp, bq, hb, he, opt)
+      call derive_rad_optics(NB, NP, rl, tl, rw, tw, cl, cw, bp, bq, bpw, bqw, hb, he, opt)
    end subroutine build_optics
 
    !--- Fill shortwave + longwave forcing from a surface state.
@@ -533,5 +542,42 @@ contains
                     1.0e-12_wp)
       end do
    end subroutine test_no_cohorts
+
+   !---~---
+   !   11. WOOD ANGLE: the wood surface has its own angle distribution. A leafless cohort under a
+   ! beam alone attenuates it by Beer's law with the wood's own G(mu): near-vertical wood (80 deg)
+   ! passes more of a high sun and less of a low one than wood at the leaves' 45 deg. With the
+   ! wood at the leaves' angle the light is the leaves'.
+   !---~---
+   subroutine test_wood_angle()
+      type(rad_pft_optics_t) :: same, steep
+      type(rad_env_t)        :: f
+      type(rad_out_t)        :: a, s
+      real(wp), parameter :: WAI = 1.5_wp, LAI0 = 1.0e-9_wp
+      real(wp) :: cosz, k_expect
+      integer :: i
+      print '(a)', '[11] wood angle: the wood''s own G(mu) sets its beam extinction'
+      call build_optics(45.0_wp, same)
+      call build_optics(45.0_wp, steep, wood_deg=80.0_wp)
+      do i = 1, 2
+         cosz = merge(0.3_wp, 0.95_wp, i == 1)
+         call build_forcing(cosz, 290.0_wp, 298.0_wp, f)
+         f%incid_diff(RAD_VIS) = 0.0_wp
+         call canopy_radiation(same,  f, 1_ik, [1_ik], [10.0_wp], [LAI0], [WAI], [298.0_wp], [298.0_wp], a)
+         call canopy_radiation(steep, f, 1_ik, [1_ik], [10.0_wp], [LAI0], [WAI], [298.0_wp], [298.0_wp], s)
+         if (i == 1) then
+            call check_true('wood angle: steep wood passes less of a low sun', s%dn_ground(RAD_VIS) < a%dn_ground(RAD_VIS))
+         else
+            call check_true('wood angle: steep wood passes more of a high sun', s%dn_ground(RAD_VIS) > a%dn_ground(RAD_VIS))
+         end if
+         !--- Below the cohort: at least the unscattered beam, Beer's law with the wood's own
+         !    extinction, plus at most the little the near-black wood scatters down.
+         k_expect = gfun_direct(steep%lidf_wood(:, 1), cosz) / cosz
+         call check_true('wood angle: the light below is the beam through exp(-k_wood EWAI) plus a little scatter', &
+                         s%dn_ground(RAD_VIS) >= f%incid_beam(RAD_VIS) * exp(-k_expect * steep%clumping_wood(1) * WAI) &
+                         .and. s%dn_ground(RAD_VIS) <= f%incid_beam(RAD_VIS)                                          &
+                               * (exp(-k_expect * steep%clumping_wood(1) * WAI) + 0.2_wp))
+      end do
+   end subroutine test_wood_angle
 
 end program test_canopy_radiation

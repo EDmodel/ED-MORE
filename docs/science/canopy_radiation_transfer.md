@@ -71,6 +71,23 @@ k \;=\; \frac{G(\mu)}{\mu} \qquad(3)
 not depend on the band, so `canopy_radiation` evaluates it once per PFT present and reuses it for every
 cohort of that PFT and every beam band.
 
+**The wood surface has its own angle distribution.** A stem or branch is a cylinder: its surface
+elements' normals lie perpendicular to its axis, so a vertical trunk is a set of vertical elements and
+a horizontal branch spreads its elements over every inclination. The wood takes the same Beta family as
+the leaves, with its own mean and spread (`[pft].wood_angle_mean`, `wood_angle_std`), and so its own
+$`\mathrm{bf}_{wood}`$ (eq. (2)) and $`G_{wood}(\mu)`$ (eq. (3)). The default, 75° ± 20°, is the
+area-weighted inclination of the woody surface in TLS cylinder models (QSMs) of two leaf-off temperate
+stands (72–76° mean, 18–21° spread; most of the area is the near-vertical stems). QSMs miss the
+finest twigs, which lie flatter. A cohort's beam extinction weights the two by their clumped areas, so
+the beam crosses its layer as $`\exp[-(k_{leaf}\,\mathrm{ELAI} + k_{wood}\,\mathrm{EWAI})]`$:
+
+```math
+k \;=\; \frac{\mathrm{ELAI}\,G_{leaf}(\mu) + \mathrm{EWAI}\,G_{wood}(\mu)}{\mathrm{ETAI}\;\mu} \qquad(3')
+```
+
+Near-vertical wood intercepts little of a high sun and much of a low one; leaves at 45° have the
+opposite tendency. In a leafless canopy this sets how the light under it changes with the sun.
+
 ## 2. Single-scatter albedo, asymmetry, and the scattering coefficients
 
 For each PFT and band the $\mu$-independent optics are built once (`derive_rad_optics` over
@@ -301,7 +318,8 @@ vegetation indices are built on. A snow-covered ground raises both.
 | Symbol | Source | Meaning |
 |---|---|---|
 | $`\overline{\theta}, \sigma_\theta`$ | `[pft].leaf_angle_mean`, `leaf_angle_std` | mean and standard deviation of the leaf inclination [deg] |
-| $p, q$ | derived from $`\overline{\theta}, \sigma_\theta`$ (`moments_to_beta_params`) | Beta-LIDF shape parameters |
+| $`\overline{\theta}_{wood}, \sigma_{\theta,wood}`$ | `[pft].wood_angle_mean`, `wood_angle_std` | the same for the wood surface [deg]; default 75, 20 (TLS cylinder models) |
+| $p, q$ | derived from each mean and std (`moments_to_beta_params`) | Beta shape parameters, leaves and wood |
 | $`\rho_{leaf},\tau_{leaf}`$ | `[pft].leaf_reflect_vis`, `leaf_reflect_nir`, `leaf_transmit_vis`, `leaf_transmit_nir` | leaf reflectance and transmittance |
 | $`\rho_{wood},\tau_{wood}`$ | `[pft].wood_reflect_vis`, `wood_reflect_nir`, `wood_transmit_vis`, `wood_transmit_nir` | wood reflectance and transmittance |
 | $`\varepsilon_{leaf},\varepsilon_{wood}`$ | `[pft].leaf_emissivity`, `wood_emissivity` | longwave: $`\rho=1-\varepsilon,\ \tau=0`$ |

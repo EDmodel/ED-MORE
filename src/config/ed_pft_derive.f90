@@ -275,10 +275,12 @@ contains
       integer(ik), parameter :: NB = N_RAD_BAND_DEFAULT
       integer(ik) :: np, ipf
       real(wp), allocatable :: rl(:,:), tl(:,:), rw(:,:), tw(:,:), cl(:), cw(:), bp(:), bq(:)
+      real(wp), allocatable :: bpw(:), bqw(:)
       logical  :: hb(NB), he(NB)
       real(wp) :: bpp, bqq
       np = pft%n
       allocate(rl(NB,np), tl(NB,np), rw(NB,np), tw(NB,np), cl(np), cw(np), bp(np), bq(np))
+      allocate(bpw(np), bqw(np))
       !---~---
       !   Shortwave comes as reflectance and transmittance; longwave as emissivity, whose band
       ! reflectance is 1 - emissivity with zero transmittance (a leaf is opaque there).
@@ -297,15 +299,19 @@ contains
       tw(RAD_LW,1:np) = 0.0_wp
       cl(1:np) = pft%leaf_clumping(1:np)
       cw(1:np) = pft%wood_clumping(1:np)
-      !--- The Beta leaf-angle shape parameters, from the angle's measured mean and std.
+      !--- The Beta shape parameters of the leaves' and the wood surface's angles, from each one's
+      !    measured mean and std.
       do ipf = 1_ik, np
          call moments_to_beta_params(pft%leaf_angle_mean(ipf), pft%leaf_angle_std(ipf), bpp, bqq)
          bp(ipf) = bpp
          bq(ipf) = bqq
+         call moments_to_beta_params(pft%wood_angle_mean(ipf), pft%wood_angle_std(ipf), bpp, bqq)
+         bpw(ipf) = bpp
+         bqw(ipf) = bqq
       end do
       hb = [.true.,  .true.,  .false.]                         ! VIS/NIR have a beam; LW does not
       he = [.false., .false., .true. ]                         ! only LW emits
-      call derive_rad_optics(NB, np, rl, tl, rw, tw, cl, cw, bp, bq, hb, he, optics)
+      call derive_rad_optics(NB, np, rl, tl, rw, tw, cl, cw, bp, bq, bpw, bqw, hb, he, optics)
    end subroutine build_rad_optics
 
    !---~---
@@ -329,16 +335,18 @@ contains
    !---~---
    !   Fill the per-PFT optics table (docs/science/canopy_radiation_transfer.md eqs. (1),
    ! (2) and (4)) from (band, pft) spectra: reflectance and transmittance for a shortwave
-   ! band, 1 - emissivity and 0 for the thermal band; beta_p, beta_q shape the Beta LIDF.
+   ! band, 1 - emissivity and 0 for the thermal band; beta_p, beta_q shape the leaves' Beta
+   ! angle distribution and beta_p_wood, beta_q_wood the wood surface's.
    !---~---
    subroutine derive_rad_optics(n_band, n_pft, reflect_leaf, trans_leaf, reflect_wood,       &
                                 trans_wood, clumping_leaf, clumping_wood, beta_p, beta_q,     &
-                                has_beam, has_emission, optics)
+                                beta_p_wood, beta_q_wood, has_beam, has_emission, optics)
       integer(ik), intent(in) :: n_band, n_pft
       real(wp),    intent(in) :: reflect_leaf(n_band, n_pft), trans_leaf(n_band, n_pft)
       real(wp),    intent(in) :: reflect_wood(n_band, n_pft), trans_wood(n_band, n_pft)
       real(wp),    intent(in) :: clumping_leaf(n_pft), clumping_wood(n_pft)
       real(wp),    intent(in) :: beta_p(n_pft), beta_q(n_pft)
+      real(wp),    intent(in) :: beta_p_wood(n_pft), beta_q_wood(n_pft)
       logical,     intent(in) :: has_beam(n_band), has_emission(n_band)
       type(rad_pft_optics_t), intent(out) :: optics
       integer(ik) :: b, p
@@ -350,12 +358,14 @@ contains
       optics%has_emission  = has_emission
 
       do p = 1_ik, n_pft
-         optics%lidf(:,p) = beta_lidf(beta_p(p), beta_q(p))
-         optics%bf(p)     = leaf_bf(optics%lidf(:,p))
+         optics%lidf(:,p)      = beta_lidf(beta_p(p), beta_q(p))
+         optics%bf(p)          = leaf_bf(optics%lidf(:,p))
+         optics%lidf_wood(:,p) = beta_lidf(beta_p_wood(p), beta_q_wood(p))
+         optics%bf_wood(p)     = leaf_bf(optics%lidf_wood(:,p))
          do b = 1_ik, n_band
             call scatter_pair(reflect_leaf(b,p), trans_leaf(b,p), optics%bf(p),               &
                               optics%omega_leaf(b,p), optics%g_leaf(b,p))
-            call scatter_pair(reflect_wood(b,p), trans_wood(b,p), optics%bf(p),               &
+            call scatter_pair(reflect_wood(b,p), trans_wood(b,p), optics%bf_wood(p),          &
                               optics%omega_wood(b,p), optics%g_wood(b,p))
          end do
       end do
@@ -370,6 +380,7 @@ contains
       allocate(optics%g_leaf(n_band, n_pft),     optics%g_wood(n_band, n_pft))
       allocate(optics%clumping_leaf(n_pft),      optics%clumping_wood(n_pft))
       allocate(optics%lidf(n_class, n_pft),      optics%bf(n_pft))
+      allocate(optics%lidf_wood(n_class, n_pft), optics%bf_wood(n_pft))
       allocate(optics%has_beam(n_band),          optics%has_emission(n_band))
       optics%omega_leaf = 0.0_wp
       optics%omega_wood = 0.0_wp
@@ -379,6 +390,8 @@ contains
       optics%clumping_wood = 1.0_wp
       optics%lidf = 0.0_wp
       optics%bf = 0.0_wp
+      optics%lidf_wood = 0.0_wp
+      optics%bf_wood = 0.0_wp
       optics%has_beam = .false.
       optics%has_emission = .false.
    end subroutine alloc_rad_pft_optics

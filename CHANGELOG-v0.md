@@ -42,8 +42,14 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   capacity budget terms `mean_budget_cas_cap_{energy,water,co2}_py`; switch them off in
   `[output].io_config`. State files gain `cas_air_mass_capacity_pa` and `cas_air_molar_capacity_pa`;
   a state file without them still loads. (#66)
+- Every PFT file needs `[pft].wood_angle_mean` and `wood_angle_std`, the inclination of the wood
+  surface [deg]. The shipped files use 75 and 20; giving the PFT's leaf angles keeps a run's earlier light.
 
 ### Answer changes
+
+- The wood intercepts the beam with its own angle distribution, 75° ± 20° by default (TLS cylinder
+  models), instead of the leaves'. In a canopy with wood, the beam reaching the lower layers rises
+  under a high sun and falls under a low one; a leafless canopy changes the most.
 
 - The latent heat flux (`mean_le_pa`, `mean_le_py`) rises by 13 % on average (January 2021: 16.6 to
   18.8 W/m2), and by at most 3.2 W/m2 on a day, in the region test's synthetic January-February
