@@ -127,7 +127,10 @@ k = w_l\,k_{leaf} + w_w\,k_{wood}, \qquad
 
 $\beta$ is the diffuse backscatter fraction and $\beta_0$ the direct-beam upscatter fraction
 (computed for beam bands only); $\beta_0$ is the tissues' $`\tfrac12(1+g_t/k_t)`$ averaged by the beam
-each intercepts. With the wood at the leaves' angle, $`k_{wood}=k_{leaf}`$ and $`\omega_0=\omega`$. The
+each intercepts. Like $g$ in $\beta$, which is averaged by area, it is a simplification: the exact
+weight is the light each tissue scatters, $`h_t\,\omega_t`$, and the two differ where leaves and wood
+scatter unlike amounts. With the wood at the leaves' angle, $`k_{wood}=k_{leaf}`$ and
+$`\omega_0=\omega`$. The
 routine also returns the **leaf absorption shares**, the fraction of what a cohort absorbs that lands
 on leaves rather than wood: of the diffuse light by absorptivity $1-\omega$ and clumped area, of the
 beam's first hit by absorptivity and the area the sun sees:
