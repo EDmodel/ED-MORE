@@ -44,8 +44,9 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   a state file without them still loads. (#66)
 - Every PFT file needs `[pft].wood_angle_mean` and `wood_angle_std`, the inclination of the wood
   surface [deg]. The shipped files use 75 and 20; giving the wood the PFT's leaf angles keeps a run's
-  earlier light to round-off. An angle spread too wide for a Beta distribution, with the standard
-  deviation at or above `sqrt(mean (90 - mean))`, is refused, for the leaves too. (#84)
+  earlier light to round-off, unless equally tall cohorts of PFTs with different leaf angles share a
+  layer. An angle spread too wide for a Beta distribution, with the standard deviation at or above
+  `sqrt(mean (90 - mean))`, is refused, for the leaves too. (#84)
 
 ### Answer changes
 
