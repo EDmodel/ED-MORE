@@ -1,13 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 """Readers for example 07's Harvard Forest data: NEON's PAR sensors, the EMS tower's beam/diffuse PAR,
-MODIS leaf area, and the ForestGEO census around each sensor.
+and the ForestGEO census around each sensor.
 
 Every reader takes the data folder laid out as the fetch scripts leave it:
     <data>/neon_2019/DP1.00024.001/<YYYY-MM>/...     NEON PAR at the tower levels (30 min)
     <data>/neon_2019/DP1.00066.001/<YYYY-MM>/...     NEON line-quantum PAR at the forest floor
     <data>/hf_archive/hf004/hf004-01-final.csv       EMS tower, hourly (direct and diffuse PAR)
     <data>/hf_archive/hf253/hf253-0[26]-*.csv        ForestGEO 35-ha plot: species, 2019 stems
-    <data>/modis/mcd15a3h_*.csv                      MODIS LAI around the EMS tower
 """
 from __future__ import annotations
 
@@ -109,68 +108,6 @@ def ems_diffuse_fraction(data: Path, index: pd.DatetimeIndex) -> pd.Series:
 
 
 #----------------------------------------------------------------------------------------------------#
-#   The deciduous leaf area through the year: MODIS LAI around the EMS tower
-#----------------------------------------------------------------------------------------------------#
-def deciduous_fraction(data: Path, year: int) -> pd.Series:
-    """The deciduous canopy's leaf-out fraction, 0 (bare) to 1 (full), by day of the year: MODIS
-    MCD15A3H LAI, median of the 3 x 3 pixels at the subset's centre (the EMS tower), good-quality
-    retrievals only, scaled between the year's winter floor and summer peak and smoothed."""
-    lai = pd.read_csv(data / "modis" / "mcd15a3h_Lai_500m.csv")
-    qc = pd.read_csv(data / "modis" / "mcd15a3h_FparLai_QC.csv")
-    n = int(round(math.sqrt(lai.shape[1] - 2)))
-    c = n // 2
-    pix = [f"p{(c + i) * n + (c + j)}" for i in (-1, 0, 1) for j in (-1, 0, 1)]
-    vals = lai[pix].to_numpy(float)
-    good = ((qc[pix].to_numpy(int) & 1) == 0) & (vals <= 100)
-    v = pd.Series(np.nanmedian(np.where(good, vals * 0.1, np.nan), axis=1),
-                  index=pd.to_datetime(lai["calendar_date"]))
-    v = v[(v.index.year >= year - 1) & (v.index.year <= year + 1)].dropna()
-    daily = v.resample("D").mean().interpolate().rolling(9, center=True, min_periods=1).median()
-    daily = daily[daily.index.year == year]
-    lo, hi = np.percentile(daily, 5), np.percentile(daily, 95)
-    return ((daily - lo) / (hi - lo)).clip(0.0, 1.0)
-
-
-def species_leaf_fraction(data: Path, year: int) -> pd.DataFrame:
-    """Each deciduous species' leaf area as a fraction of its summer full (0-1), by day of the year,
-    from the ground observations of tagged trees (HF003, O'Keefe): in spring, the share of buds
-    broken times the leaves' mean size as a share of their final size (bbrk x lfin); in autumn,
-    one minus the share of leaves fallen (lfall). One column per HF003 species code (ACRU, QURU, ...)
-    and 'mean', the mean over species, for species the observations do not cover."""
-    hf = data / "hf_archive" / "hf003"
-    days = pd.date_range(f"{year}-01-01", f"{year}-12-31", freq="D")
-    spring = pd.read_csv(hf / "hf003-03-spring.csv", low_memory=False)
-    fall = pd.read_csv(hf / "hf003-04-fall.csv", low_memory=False)
-    out = {}
-    for name, d, value in (("spring", spring, lambda x: pd.to_numeric(x["bbrk"], errors="coerce") / 100.0
-                                                        * pd.to_numeric(x["lfin"], errors="coerce") / 100.0),
-                           ("fall", fall, lambda x: 1.0 - pd.to_numeric(x["lfall"], errors="coerce") / 100.0)):
-        d = d[d["date"].astype(str).str.startswith(str(year))].copy()
-        d["v"] = value(d)
-        d["sp"] = d["tree.id"].str[:4]
-        g = d.groupby([pd.to_datetime(d["date"]), "sp"])["v"].mean().unstack()
-        g["mean"] = g.mean(axis=1)
-        out[name] = g
-    frac = pd.DataFrame(index=days, columns=sorted(set(out["spring"]) | set(out["fall"])), dtype=float)
-    for sp in frac.columns:
-        s = out["spring"].get(sp, out["spring"]["mean"]).dropna()
-        f = out["fall"].get(sp, out["fall"]["mean"]).dropna()
-        series = pd.Series(np.nan, index=days)
-        series[days < s.index.min()] = 0.0                       # before the first spring survey: bare
-        series[(days > s.index.max()) & (days < f.index.min())] = 1.0
-        series[days > f.index.max()] = 0.0
-        series.loc[s.index] = s.clip(0, 1).to_numpy()
-        series.loc[f.index] = f.clip(0, 1).to_numpy()
-        frac[sp] = series.interpolate(limit_direction="both").clip(0, 1)
-    return frac
-
-
-def hf003_code(sp: str) -> str:
-    """The HF003 code of a ForestGEO species code: 'acerru' -> 'ACRU', 'querru' -> 'QURU'."""
-    return (sp[:2] + sp[4:6]).upper()
-
-
-#----------------------------------------------------------------------------------------------------#
 #   The stand around a point: the ForestGEO census's live stems, one patch per cell
 #----------------------------------------------------------------------------------------------------#
 def live_stems(data: Path) -> pd.DataFrame:
@@ -184,13 +121,24 @@ def live_stems(data: Path) -> pd.DataFrame:
     return s[["gx", "gy", "dbh", "sp", "pft"]]
 
 
+def dbh_to_height(a: dict, d: np.ndarray) -> np.ndarray:
+    """ED-MORE's height from diameter (ed_allometry_lib dbh_to_height), per stem: the power law, or
+    the log-quadratic of Chave et al. (2014) for a PFT on "chave2014", capped at hgt_max."""
+    x = np.log(np.maximum(d, 1e-30))
+    power = np.exp(a["b1Ht"] + a["b2Ht"] * x)
+    if "height_allometry" not in a:
+        return np.minimum(power, a["hgt_max"])
+    chave = np.exp(a["chave_a"] - a["chave_e"] + 0.5 * a["chave_rse"] ** 2 + a["chave_b"] * x + a["chave_c"] * x * x)
+    return np.minimum(np.where(a["height_allometry"] == "chave2014", chave, power), a["hgt_max"])
+
+
 def _patch(sub: pd.DataFrame, area: float, allom: dict, cx: float, cy: float) -> dict:
     """One patch: each stem a cohort, with ED-MORE's allometry (the PFT file's [allometry]): height,
     leaf area and wood area per stem, divided by the patch's area into LAI and WAI."""
     d = sub["dbh"].to_numpy(float)
     p = sub["pft"].to_numpy(int)
     a = {k: np.array([allom[k][q - 1] for q in p]) for k in allom}
-    h = np.minimum(np.exp(a["b1Ht"] + a["b2Ht"] * np.log(d)), a["hgt_max"])
+    h = dbh_to_height(a, d)
     leaf_area = a["lai_b1"] * (d * d * h) ** a["lai_b2"]
     wood_area = a["wai_b1"] * d ** a["wai_b2"]
     return dict(cx=cx, cy=cy, area=area, pft=p.astype(np.int32), height=h, sp=sub["sp"].to_numpy(),
