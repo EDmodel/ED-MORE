@@ -18,7 +18,7 @@ import pandas as pd               # noqa: E402
 HERE = Path(__file__).resolve().parent
 MODEL, DEFAULT, OBS, GRID = "#2a78d6", "#eb6834", "#2b2b2b", "#d8d7d1"
 SEASON_COLOR = {"leaf-off": "#eb6834", "leaf-on": "#2a78d6"}
-LABEL = {"mod": "model, foliage at random in each layer", "def": "model, default clumping (leaf 0.8, wood 0.5)"}
+LABEL = {"mod": "model, calibrated optics", "def": "model, default optics"}
 FLOOR = ["SP1", "SP3", "SP5"]
 LEVELS = ["L5", "L4", "L3", "L2", "L1", "floor"]
 
@@ -97,8 +97,8 @@ def main():
                 m = (df["window"] == season) & sun & km
                 o, mo, de = ratio(df, s, m, "obs"), ratio(df, s, m, "mod"), ratio(df, s, m, "def")
                 ax.plot([min(o, mo, de), max(o, mo, de)], [y, y], "-", color=GRID, lw=1.2, zorder=1)
-                ax.plot(de, y, "s", ms=5, color=DEFAULT, zorder=2, label="default clumping" if not ys else None)
-                ax.plot(mo, y, "D", ms=5.5, color=MODEL, zorder=3, label="foliage at random" if not ys else None)
+                ax.plot(de, y, "s", ms=5, color=DEFAULT, zorder=2, label="default optics" if not ys else None)
+                ax.plot(mo, y, "D", ms=5.5, color=MODEL, zorder=3, label="calibrated" if not ys else None)
                 ax.plot(o, y, "o", ms=6, color=OBS, zorder=4, label="observed" if not ys else None)
                 ys.append(y)
                 labels.append(f"{season.split('-')[1]}, {sl}, {kname}")
@@ -128,7 +128,7 @@ def main():
                 c.append(0.5 * (b0 + b1))
             ax.plot(c, mo, "-", color=MODEL, lw=1.6)
             ax.plot(c, o, marker, ms=6, color=OBS, ls="none", label=f"observed, {sl}")
-        ax.plot([], [], "-", color=MODEL, lw=1.6, label="model (foliage at random)")
+        ax.plot([], [], "-", color=MODEL, lw=1.6, label="model (calibrated)")
         ax.set_yscale("log")
         ax.set_xlabel("cosine of the sun's zenith angle (half-hour mean)")
         ax.set_title(f"({'de'[season == 'leaf-on']}) {season}, clear sky: transmittance against the sun",
@@ -139,21 +139,30 @@ def main():
             ax.set_ylim(top=0.8)                                            # room for the legend
             ax.legend(loc="upper left", frameon=False, fontsize=7.5, ncol=2)
 
-    #----- (f) Every half hour at 5 m. --------------------------------------------------------------------#
+    #----- (f) A point sensor on clear leaf-off days: the sun's path over one spot, day after day. -------#
     ax = axs[1, 2]
-    for season, color in SEASON_COLOR.items():
-        m = (df["window"] == season) & sun & df["obs_L2"].notna() & df["mod_L2"].notna()
-        ax.plot(df.loc[m, "obs_L2"] / df.loc[m, "par_top"], df.loc[m, "mod_L2"] / df.loc[m, "par_top"], "o",
-                ms=3, alpha=0.5, color=color, label=season)
-    ax.plot([1e-3, 2], [1e-3, 2], "-", color="#8a8a85", lw=1)
-    ax.set_xscale("log")
-    ax.set_yscale("log")
-    ax.set_xlim(5e-3, 1.5)
-    ax.set_ylim(5e-3, 1.5)
-    ax.set_xlabel("observed PAR / PAR above the canopy, 5 m")
-    ax.set_ylabel("modelled")
-    ax.set_title("(f) every half hour at 5 m", loc="left", fontsize=9)
-    ax.legend(loc="upper left", frameon=False, fontsize=8)
+    lst = df.index - pd.Timedelta(hours=5)                                    # local standard time
+    hour = lst.hour + lst.minute / 60.0 + 0.25                                # the half hour's middle
+    off = (df["window"] == "leaf-off") & (df["par_top"] > 50) & df["obs_L2"].notna() & df["mod_L2"].notna()
+    midday = off & (hour >= 10) & (hour < 14)
+    day_clear = df[midday].groupby(lst[midday].normalize())["diffuse_frac"].mean() < 0.3
+    clear_days = day_clear[day_clear].index
+    for k, d in enumerate(clear_days):
+        m = off & (lst.normalize() == d)
+        ax.plot(hour[m], df.loc[m, "obs_L2"] / df.loc[m, "par_top"], "-", color=OBS, lw=0.9, alpha=0.75,
+                label=f"observed, {len(clear_days)} clear days" if k == 0 else None)
+    m = off & lst.normalize().isin(clear_days)
+    g = pd.DataFrame({"h": hour[m], "mod": df.loc[m, "mod_L2"] / df.loc[m, "par_top"],
+                      "p10": df.loc[m, "mod_L2_p10"] / df.loc[m, "par_top"],
+                      "p90": df.loc[m, "mod_L2_p90"] / df.loc[m, "par_top"]}).groupby("h").median()
+    ax.fill_between(g.index, g["p10"], g["p90"], color=MODEL, alpha=0.15, lw=0, label="model, patch 10-90 %")
+    ax.plot(g.index, g["mod"], "-", color=MODEL, lw=1.8, label="model, horizontal mean")
+    ax.set_xlim(6, 18.5)
+    ax.set_ylim(0, 1.05)
+    ax.set_xlabel("local standard time [h]")
+    ax.set_ylabel("PAR / PAR above the canopy, 5 m")
+    ax.set_title("(f) 5 m on clear leaf-off days: the sun's path over one sensor", loc="left", fontsize=9)
+    ax.legend(loc="upper left", frameon=False, fontsize=7.5)
 
     fig.suptitle("ED-MORE's two-stream against NEON's PAR sensors, Harvard Forest, 2019 (prototype)",
                  x=0.06, ha="left", fontsize=11)
