@@ -142,8 +142,9 @@ module ed_pft_params
    end type hydraulics_table_t
 
    !---~---
-   !   Per-PFT optics (docs/science/canopy_radiation_transfer.md eqs. (4)-(6)), leaf and
-   ! wood apart, blended per cohort by clumped area; lidf is kept to evaluate G(mu).
+   !   Per-PFT optics (docs/science/canopy_radiation_transfer.md eqs. (1)-(4)), leaf and
+   ! wood apart, blended per cohort (eqs. (5)-(7)); each one's angle distribution is kept to
+   ! evaluate its G(mu).
    !---~---
    type :: rad_pft_optics_t
       integer(ik) :: n_pft  = 0_ik

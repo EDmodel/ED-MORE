@@ -78,21 +78,25 @@ contains
    !---~---
    !   Blend leaf and wood optics for every cohort, for one band, and add the solar geometry
    ! (docs/science/canopy_radiation_transfer.md eqs. (5)-(7)): omega, beta, beta0, k and
-   ! leaf_frac, from the clumping-corrected leaf and wood area indices elai, ewai. A
-   ! cohort with no leaf or wood area takes the leaf optics, and one that absorbs nothing
-   ! has leaf_frac = 1.
+   ! leaf_frac, from the clumping-corrected leaf and wood area indices elai, ewai. The
+   ! diffuse light meets leaves and wood in proportion to their areas, the beam in proportion
+   ! to the area each shows the sun, area times its extinction; so the beam's albedo
+   ! omega_beam and the leaves' share of the beam they absorb, beam_leaf_frac, weight the two
+   ! by interception. A cohort with no leaf or wood area takes the leaf optics, and one that
+   ! absorbs nothing has its leaf shares 1.
    !---~---
-   subroutine blend_cohort_optics(optics, band, ncoh, pft, elai, ewai, kdir_in,              &
-                                  omega, beta, beta0, kdir, leaf_frac)
+   subroutine blend_cohort_optics(optics, band, ncoh, pft, elai, ewai, kleaf, kwood,         &
+                                  omega, beta, omega_beam, beta0, kdir, leaf_frac, beam_leaf_frac)
       type(rad_pft_optics_t), intent(in)  :: optics     ! the per-PFT optics table
       integer(ik),            intent(in)  :: band, ncoh ! band index, number of cohorts
       integer(ik),            intent(in)  :: pft(ncoh)  ! each cohort's PFT
       real(wp),               intent(in)  :: elai(ncoh), ewai(ncoh)   ! [m2/m2] clumping-corrected leaf, wood area index
-      real(wp),               intent(in)  :: kdir_in(ncoh)   ! [-] beam extinction per unit area index, the same in every band
-      real(wp),               intent(out) :: omega(ncoh), beta(ncoh), beta0(ncoh)   ! [-] the cohort's blended optics
-      real(wp),               intent(out) :: kdir(ncoh), leaf_frac(ncoh)   ! [-] beam extinction (0 with no beam), leaf share
+      real(wp),               intent(in)  :: kleaf(ncoh), kwood(ncoh) ! [-] beam extinction per unit leaf, wood area (any band)
+      real(wp),               intent(out) :: omega(ncoh), beta(ncoh)  ! [-] the cohort's diffuse optics
+      real(wp),               intent(out) :: omega_beam(ncoh), beta0(ncoh), kdir(ncoh) ! [-] its beam optics (0 with no beam)
+      real(wp),               intent(out) :: leaf_frac(ncoh), beam_leaf_frac(ncoh)    ! [-] leaf share, diffuse and beam
       integer(ik) :: i, ip
-      real(wp)    :: etai, wl, ww, gc, aleaf, awood
+      real(wp)    :: etai, wl, ww, gc, aleaf, awood, hleaf, hwood, sw
 
       do i = 1_ik, ncoh
          ip   = pft(i)
@@ -108,21 +112,40 @@ contains
          omega(i) = wl * optics%omega_leaf(band,ip) + ww * optics%omega_wood(band,ip)
          gc       = wl * optics%g_leaf(band,ip)     + ww * optics%g_wood(band,ip)
          beta(i)  = 0.5_wp * (1.0_wp + gc)
-         !--- Direct-beam extinction and upscatter, for beam bands only.
-         if (optics%has_beam(band)) then
-            kdir(i)  = kdir_in(i)                              ! band-independent Ross-G extinction
-            beta0(i) = 0.5_wp * (1.0_wp + gc / max(kdir(i), tiny_num))
-         else
-            kdir(i)  = 0.0_wp
-            beta0(i) = 0.0_wp
-         end if
-         !--- Leaf share of absorbed radiation (absorptivity 1-omega, clumping-weighted).
+         !--- Leaf share of absorbed diffuse radiation (absorptivity 1-omega, clumping-weighted).
          aleaf = (1.0_wp - optics%omega_leaf(band,ip)) * elai(i)
          awood = (1.0_wp - optics%omega_wood(band,ip)) * ewai(i)
          if (aleaf + awood > tiny_num) then
             leaf_frac(i) = aleaf / (aleaf + awood)
          else
             leaf_frac(i) = 1.0_wp
+         end if
+         !---~---
+         !   The beam, for beam bands only. Its extinction is the area-weighted mean of the
+         ! tissues', written so that equal tissue extinctions give exactly kleaf. hleaf and
+         ! hwood are the areas the sun sees; beta0 = (1 + gc/k)/2 is the mean of the tissues'
+         ! upscatter (1 + g/k)/2 weighted by them.
+         !---~---
+         if (optics%has_beam(band)) then
+            kdir(i)  = kleaf(i) + ww * (kwood(i) - kleaf(i))
+            beta0(i) = 0.5_wp * (1.0_wp + gc / max(kdir(i), tiny_num))
+            hleaf    = elai(i) * kleaf(i)
+            hwood    = ewai(i) * kwood(i)
+            sw       = 0.0_wp                                 ! wood's share of the intercepted beam
+            if (hleaf + hwood > tiny_num) sw = hwood / (hleaf + hwood)
+            omega_beam(i) = optics%omega_leaf(band,ip) + sw * (optics%omega_wood(band,ip) - optics%omega_leaf(band,ip))
+            aleaf = (1.0_wp - optics%omega_leaf(band,ip)) * hleaf
+            awood = (1.0_wp - optics%omega_wood(band,ip)) * hwood
+            if (aleaf + awood > tiny_num) then
+               beam_leaf_frac(i) = aleaf / (aleaf + awood)
+            else
+               beam_leaf_frac(i) = 1.0_wp
+            end if
+         else
+            kdir(i)  = 0.0_wp
+            beta0(i) = 0.0_wp
+            omega_beam(i) = omega(i)
+            beam_leaf_frac(i) = leaf_frac(i)
          end if
       end do
    end subroutine blend_cohort_optics
@@ -162,15 +185,17 @@ contains
    ! and the beam + downward diffuse at its top, the ground's downward and upward fluxes,
    ! and the albedo (upward over incident at the top; 0 when nothing is incident).
    !---~---
-   subroutine solve_band(ncoh, etai, omega, beta, beta0, kdir, emission, incid_beam,         &
+   subroutine solve_band(ncoh, etai, omega, beta, omega_beam, beta0, kdir, emission, incid_beam, &
                          incid_diff, grnd_refl, grnd_emiss, has_beam, has_emission,           &
-                         absorbed, incident, dn_ground, up_ground, albedo)
+                         absorbed, beam_hit, incident, dn_ground, up_ground, albedo)
       integer(ik), intent(in)  :: ncoh   ! number of layers (one cohort, or a group of equally tall cohorts)
-      real(wp),    intent(in)  :: etai(ncoh), omega(ncoh), beta(ncoh), beta0(ncoh), kdir(ncoh) ! [m2/m2] etai; rest [-]
+      real(wp),    intent(in)  :: etai(ncoh), omega(ncoh), beta(ncoh)   ! [m2/m2] area index; [-] diffuse optics
+      real(wp),    intent(in)  :: omega_beam(ncoh), beta0(ncoh), kdir(ncoh) ! [-] the beam's scattering and extinction
       real(wp),    intent(in)  :: emission(ncoh)   ! [W/m2] blackbody emission sigma T^4 (thermal band)
       real(wp),    intent(in)  :: incid_beam, incid_diff, grnd_refl, grnd_emiss   ! [W/m2], [W/m2], [-], [W/m2]
       logical,     intent(in)  :: has_beam, has_emission   ! the band carries a direct beam; it carries emission
       real(wp),    intent(out) :: absorbed(ncoh), incident(ncoh)   ! [W/m2] absorbed; beam + down diffuse at the top
+      real(wp),    intent(out) :: beam_hit(ncoh)                   ! [W/m2] beam the layer intercepts
       real(wp),    intent(out) :: dn_ground, up_ground, albedo     ! [W/m2], [W/m2], [-]
 
       real(wp), dimension(ncoh)   :: rdd, tdd, sup, sdn          ! layer R/T + up/down sources
@@ -198,8 +223,8 @@ contains
          call layer_rt(omega(i), beta(i), etai(i), rdd(i), tdd(i))
          beam_up = 0.0_wp
          beam_dn = 0.0_wp
-         if (has_beam) call layer_beam_sources(omega(i), beta(i), beta0(i), kdir(i), etai(i), down0(i+1),  &
-                                                beam_up, beam_dn)
+         if (has_beam) call layer_beam_sources(omega(i), beta(i), omega_beam(i), beta0(i), kdir(i),       &
+                                                etai(i), down0(i+1), beam_up, beam_dn)
          emit_face = 0.0_wp
          if (has_emission) emit_face = (1.0_wp - rdd(i) - tdd(i)) * emission(i)
          sup(i) = beam_up + emit_face                             ! up-source (top of layer)
@@ -234,7 +259,8 @@ contains
       ! beam and downward diffuse reaching the layer's top (the light a cohort sees).
       !---~---
       do i = 1_ik, ncoh
-         absorbed(i) = (down0(i+1) - down0(i)) + (din(i) + uup(i)) - (utop(i) + dbot(i))
+         beam_hit(i) = down0(i+1) - down0(i)
+         absorbed(i) = beam_hit(i) + (din(i) + uup(i)) - (utop(i) + dbot(i))
          incident(i) = down0(i+1) + din(i)
       end do
 
@@ -275,14 +301,17 @@ contains
    !---~---
    !   The diffuse light a homogeneous layer scatters out of the beam entering its top, as it
    ! leaves the layer's two faces (docs/science/canopy_radiation_transfer.md eqs.
-   ! (10)-(11)): the two-stream equations with the beam's source omega k S0 exp(-k x)
+   ! (10)-(11)): the two-stream equations with the beam's source omega_beam k S0 exp(-k x)
    ! through the layer's depth, split up by beta0 and down by 1 - beta0, solved exactly with
    ! no diffuse entering either face. Their solution is a particular part in exp(-k x) plus
    ! the two diffuse modes of layer_rt. The adding method then combines the layers exactly,
-   ! so the light does not depend on how a canopy is cut into cohorts.
+   ! so the light does not depend on how a canopy is cut into cohorts. omega_beam is the
+   ! albedo of what the beam hits, which differs from the diffuse omega when leaves and wood
+   ! catch the beam in other proportions than their areas.
    !---~---
-   pure subroutine layer_beam_sources(omega, beta, beta0, kdir, etai, beam_top, src_up, src_dn)
-      real(wp), intent(in)  :: omega, beta, beta0   ! [-] single-scatter albedo, diffuse backscatter, beam upscatter
+   pure subroutine layer_beam_sources(omega, beta, omega_beam, beta0, kdir, etai, beam_top, src_up, src_dn)
+      real(wp), intent(in)  :: omega, beta           ! [-] diffuse single-scatter albedo and backscatter
+      real(wp), intent(in)  :: omega_beam, beta0     ! [-] the beam's single-scatter albedo and upscatter
       real(wp), intent(in)  :: kdir, etai            ! [-] beam extinction per unit area; [m2/m2] area index
       real(wp), intent(in)  :: beam_top              ! [W/m2] beam entering the layer's top
       real(wp), intent(out) :: src_up, src_dn        ! [W/m2] scattered beam leaving the top and the bottom
@@ -297,8 +326,8 @@ contains
       if (abs(m - k) < RESONANCE_REL * m) k = m * (1.0_wp + RESONANCE_REL)
       !--- The particular solution, up a_up e^(-k x) and down b_dn e^(-k x).
       det  = m * m - k * k
-      a_up = w * k * beam_top * (beta0 * (att - k) + sigb * (1.0_wp - beta0)) / det
-      b_dn = w * k * beam_top * ((1.0_wp - beta0) * (att + k) + sigb * beta0) / det
+      a_up = omega_beam * k * beam_top * (beta0 * (att - k) + sigb * (1.0_wp - beta0)) / det
+      b_dn = omega_beam * k * beam_top * ((1.0_wp - beta0) * (att + k) + sigb * beta0) / det
       !---~---
       !   The diffuse modes' weights, c1 for e^(-m x) and c2 for e^(m (x - etai)), so that no
       ! diffuse enters the top (down = 0 at x = 0) or the bottom (up = 0 at x = etai).
@@ -330,19 +359,20 @@ contains
       type(rad_out_t),       intent(out) :: flux        ! absorbed, incident and ground fluxes, and the albedo
 
       real(wp), dimension(max(ncoh,1)) :: elai, ewai, etai, omega, beta, beta0, kdir, leaf_frac
-      real(wp), dimension(max(ncoh,1)) :: emission, absorbed, kdir_coh
+      real(wp), dimension(max(ncoh,1)) :: omega_beam, beam_leaf_frac
+      real(wp), dimension(max(ncoh,1)) :: emission, absorbed, beam_abs, kleaf_coh, kwood_coh
       !--- Each tissue's thermal emission from both faces, and their sum.
       real(wp), dimension(max(ncoh,1)) :: emit_leaf, emit_wood, emit_coh
       !--- Layer arrays: one entry per layer, a group of exactly tied cohorts.
-      real(wp), dimension(max(ncoh,1)) :: etai_l, omega_l, beta_l, beta0_l, kdir_l, emis_l, abs_l
-      real(wp), dimension(max(ncoh,1)) :: inc_l, emit_l
-      real(wp), dimension(max(ncoh,1)) :: wabs, wsum_l
+      real(wp), dimension(max(ncoh,1)) :: etai_l, omega_l, beta_l, omega_beam_l, beta0_l, kdir_l, emis_l
+      real(wp), dimension(max(ncoh,1)) :: abs_l, hit_l, inc_l, emit_l
+      real(wp), dimension(max(ncoh,1)) :: wabs, wsum_l, wbeam, wbeam_l
       integer(ik) :: lyr(max(ncoh,1)), nmemb(max(ncoh,1))
       integer(ik) :: nlayer, il
       !--- Each PFT's beam extinction coefficients, leaves and wood, computed once for its cohorts.
       real(wp)    :: kleaf_pft(size(optics%lidf, 2)), kwood_pft(size(optics%lidf, 2))
       logical     :: kdir_done(size(optics%lidf, 2))
-      real(wp)    :: gc_l, dn_ground, up_ground, albedo, incid_tot
+      real(wp)    :: gc_l, dn_ground, up_ground, albedo, incid_tot, beam_abs_l
       integer(ik) :: b, i, ip
 
       call alloc_rad_out(flux, forcing%n_band, ncoh)
@@ -380,10 +410,11 @@ contains
       !---~---
       !   Ross-G beam extinction depends only on the angles of the PFT's leaves and of its
       ! wood surface, and the sun, not the band: once per PFT present, shared by its cohorts
-      ! and every band. A cohort's extinction weights the two by their clumped areas, so the
-      ! beam crosses its layer as exp(-(k_leaf ELAI + k_wood EWAI)).
+      ! and every band. blend_cohort_optics weights the two by the cohort's clumped areas, so
+      ! the beam crosses its layer as exp(-(k_leaf ELAI + k_wood EWAI)).
       !---~---
-      kdir_coh(1:ncoh) = 0.0_wp
+      kleaf_coh(1:ncoh) = 0.0_wp
+      kwood_coh(1:ncoh) = 0.0_wp
       if (any(optics%has_beam(1:forcing%n_band))) then
          kdir_done = .false.
          do i = 1_ik, ncoh
@@ -393,11 +424,8 @@ contains
                kwood_pft(ip) = gfun_direct(optics%lidf_wood(:, ip), forcing%cosz) / max(forcing%cosz, tiny_num)
                kdir_done(ip) = .true.
             end if
-            if (etai(i) > tiny_num) then
-               kdir_coh(i) = (elai(i) * kleaf_pft(ip) + ewai(i) * kwood_pft(ip)) / etai(i)
-            else
-               kdir_coh(i) = kleaf_pft(ip)
-            end if
+            kleaf_coh(i) = kleaf_pft(ip)
+            kwood_coh(i) = kwood_pft(ip)
          end do
       end if
 
@@ -409,18 +437,24 @@ contains
       do b = 1_ik, forcing%n_band
          if (.not. optics%has_emission(b) .and. forcing%incid_beam(b) == 0.0_wp .and.                    &
              forcing%incid_diff(b) == 0.0_wp .and. forcing%grnd_emiss(b) == 0.0_wp) cycle
-         call blend_cohort_optics(optics, b, ncoh, pft, elai(1:ncoh), ewai(1:ncoh), kdir_coh(1:ncoh), &
-                                  omega(1:ncoh), beta(1:ncoh), beta0(1:ncoh), kdir(1:ncoh),         &
-                                  leaf_frac(1:ncoh))
+         call blend_cohort_optics(optics, b, ncoh, pft, elai(1:ncoh), ewai(1:ncoh),                 &
+                                  kleaf_coh(1:ncoh), kwood_coh(1:ncoh), omega(1:ncoh), beta(1:ncoh), &
+                                  omega_beam(1:ncoh), beta0(1:ncoh), kdir(1:ncoh), leaf_frac(1:ncoh), &
+                                  beam_leaf_frac(1:ncoh))
 
          !---~---
          !   A cohort's absorptivity-weighted area (1-omega)*etai, the weight leaf_frac is
-         ! built from and the layer's members share its absorption by (eq. (14)).
+         ! built from and the layer's members share its absorbed diffuse light by (eq. (14));
+         ! and the same for the beam's first hit, (1-omega_beam)*k*etai, the absorptivity-
+         ! weighted area the sun sees.
          !---~---
-         wsum_l(1:nlayer) = 0.0_wp
+         wsum_l(1:nlayer)  = 0.0_wp
+         wbeam_l(1:nlayer) = 0.0_wp
          do i = 1_ik, ncoh
-            wabs(i) = (1.0_wp - omega(i)) * etai(i)
-            wsum_l(lyr(i)) = wsum_l(lyr(i)) + wabs(i)
+            wabs(i)  = (1.0_wp - omega(i)) * etai(i)
+            wbeam(i) = (1.0_wp - omega_beam(i)) * kdir(i) * etai(i)
+            wsum_l(lyr(i))  = wsum_l(lyr(i))  + wabs(i)
+            wbeam_l(lyr(i)) = wbeam_l(lyr(i)) + wbeam(i)
          end do
 
          !---~---
@@ -448,13 +482,15 @@ contains
 
          !---~---
          !   Aggregate cohorts onto their layer by area index etai, the weight
-         ! blend_cohort_optics mixes leaf and wood by; the emission, like a cohort's, by
-         ! absorptivity-weighted area. gc is recovered from beta = 0.5*(1+gc) and averaged,
-         ! which keeps beta0 (gc over kdir) consistent with beta.
+         ! blend_cohort_optics mixes leaf and wood by; the beam's albedo by the beam each
+         ! intercepts, k*etai; the emission, like a cohort's, by absorptivity-weighted area. gc
+         ! is recovered from beta = 0.5*(1+gc) and averaged, which keeps beta0 (gc over kdir)
+         ! consistent with beta.
          !---~---
          etai_l(1:nlayer) = 0.0_wp
          omega_l(1:nlayer) = 0.0_wp
          beta_l(1:nlayer) = 0.0_wp
+         omega_beam_l(1:nlayer) = 0.0_wp
          beta0_l(1:nlayer) = 0.0_wp
          kdir_l(1:nlayer) = 0.0_wp
          emis_l(1:nlayer) = 0.0_wp
@@ -465,11 +501,17 @@ contains
             omega_l(il) = omega_l(il) + omega(i) * etai(i)
             beta_l(il)  = beta_l(il)  + (2.0_wp*beta(i) - 1.0_wp) * etai(i)    ! accumulate gc*etai
             kdir_l(il)  = kdir_l(il)  + kdir(i)  * etai(i)
+            omega_beam_l(il) = omega_beam_l(il) + omega_beam(i) * kdir(i) * etai(i)
             emis_l(il)  = emis_l(il)  + emission(i) * wabs(i)
             emit_l(il)  = emit_l(il)  + emit_coh(i)
          end do
          do il = 1_ik, nlayer
             if (nmemb(il) == 1_ik) cycle       ! single member: filled verbatim below, bit-identical
+            if (kdir_l(il) > tiny_num) then
+               omega_beam_l(il) = omega_beam_l(il) / kdir_l(il)     ! kdir_l still holds sum(k*etai)
+            else
+               omega_beam_l(il) = 0.0_wp
+            end if
             if (etai_l(il) > tiny_num) then
                omega_l(il) = omega_l(il) / etai_l(il)
                gc_l        = beta_l(il)  / etai_l(il)
@@ -498,42 +540,53 @@ contains
             etai_l(il) = etai(i)
             omega_l(il) = omega(i)
             beta_l(il) = beta(i)
+            omega_beam_l(il) = omega_beam(i)
             beta0_l(il) = beta0(i)
             kdir_l(il) = kdir(i)
             emis_l(il) = emission(i)
          end do
 
-         call solve_band(nlayer, etai_l(1:nlayer), omega_l(1:nlayer),                          &
-                         beta_l(1:nlayer), beta0_l(1:nlayer), kdir_l(1:nlayer), emis_l(1:nlayer), &
-                         forcing%incid_beam(b), forcing%incid_diff(b), forcing%grnd_refl(b),    &
-                         forcing%grnd_emiss(b), optics%has_beam(b), optics%has_emission(b),      &
-                         abs_l(1:nlayer), inc_l(1:nlayer), dn_ground, up_ground, albedo)
+         call solve_band(nlayer, etai_l(1:nlayer), omega_l(1:nlayer), beta_l(1:nlayer),        &
+                         omega_beam_l(1:nlayer), beta0_l(1:nlayer), kdir_l(1:nlayer),           &
+                         emis_l(1:nlayer), forcing%incid_beam(b), forcing%incid_diff(b),        &
+                         forcing%grnd_refl(b), forcing%grnd_emiss(b), optics%has_beam(b),        &
+                         optics%has_emission(b), abs_l(1:nlayer), hit_l(1:nlayer),              &
+                         inc_l(1:nlayer), dn_ground, up_ground, albedo)
 
          !---~---
          !   The solve's absorbed flux is net of the layer's emission. Every element of a layer
-         ! sees the same radiation, so what the layer takes in, that net plus all its members
-         ! emit, goes to its members by absorptivity-weighted area (eq. (14)), and each is
-         ! charged its own emission; members that absorb nothing get nothing.
+         ! sees the same light, which it absorbs in two parts (eq. (14)). The beam's first hit,
+         ! the intercepted beam times 1 - omega_beam, goes to the members by the absorptivity-
+         ! weighted area the sun sees; the rest, diffuse light, plus all the members emit, by
+         ! absorptivity-weighted area. Each is charged its own emission; members that absorb
+         ! nothing get nothing.
          !---~---
          do i = 1_ik, ncoh
             il = lyr(i)
+            beam_abs_l = hit_l(il) * (1.0_wp - omega_beam_l(il))
             if (nmemb(il) == 1_ik) then
                absorbed(i) = abs_l(il)
-            else if (wsum_l(il) > tiny_num) then
-               absorbed(i) = (abs_l(il) + emit_l(il)) * wabs(i) / wsum_l(il) - emit_coh(i)
+               beam_abs(i) = beam_abs_l
             else
-               absorbed(i) = 0.0_wp
+               beam_abs(i) = 0.0_wp
+               if (wbeam_l(il) > tiny_num) beam_abs(i) = beam_abs_l * wbeam(i) / wbeam_l(il)
+               absorbed(i) = beam_abs(i) - emit_coh(i)
+               if (wsum_l(il) > tiny_num)                                                        &
+                  absorbed(i) = absorbed(i) + (abs_l(il) + emit_l(il) - beam_abs_l) * wabs(i) / wsum_l(il)
             end if
          end do
 
          !---~---
-         !   The same within a cohort (eq. (15)): leaves and wood share what it takes in by
-         ! leaf_frac, and each is charged its own emission. Every member of a layer sees the
-         ! light reaching the layer's top.
+         !   The same within a cohort (eq. (15)): leaves and wood share the beam's first hit by
+         ! beam_leaf_frac and the rest it takes in by leaf_frac, and each is charged its own
+         ! emission. Every member of a layer sees the light reaching the layer's top.
          !---~---
          do i = 1_ik, ncoh
-            flux%abs_leaf(b,i)  = (absorbed(i) + emit_coh(i)) * leaf_frac(i) - emit_leaf(i)
-            flux%abs_wood(b,i)  = (absorbed(i) + emit_coh(i)) * (1.0_wp - leaf_frac(i)) - emit_wood(i)
+            flux%abs_leaf(b,i)  = beam_abs(i) * beam_leaf_frac(i)                                 &
+                                  + (absorbed(i) + emit_coh(i) - beam_abs(i)) * leaf_frac(i) - emit_leaf(i)
+            flux%abs_wood(b,i)  = beam_abs(i) * (1.0_wp - beam_leaf_frac(i))                      &
+                                  + (absorbed(i) + emit_coh(i) - beam_abs(i)) * (1.0_wp - leaf_frac(i))  &
+                                  - emit_wood(i)
             flux%incid_top(b,i) = inc_l(lyr(i))
          end do
          flux%albedo(b)    = albedo
