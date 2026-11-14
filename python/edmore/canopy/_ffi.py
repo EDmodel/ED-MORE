@@ -28,7 +28,7 @@ def _lib():
         lib.ed_canopy_leaf.restype = None
         lib.ed_canopy_leaf.argtypes = [c_int, _I] + [_D] * 14
         lib.ed_canopy_two_stream.restype = None
-        lib.ed_canopy_two_stream.argtypes = [c_int] + [_D] * 5 + [c_int, _I] + [_D] * 3 + [_D] * 6
+        lib.ed_canopy_two_stream.argtypes = [c_int] + [_D] * 5 + [c_int, _I] + [_D] * 3 + [_D] * 7
         _LIB = lib
     return _LIB
 
@@ -74,9 +74,11 @@ def radiation(cosz, vis_beam, vis_diff, nir_beam, nir_diff, pft, height, lai, wa
     nc = int(np.asarray(height).size)
     out = {k: np.empty(nh) for k in ("up_vis", "up_nir", "leaf_vis", "wood_vis", "ground_vis")}
     coh = np.empty((nc, nh))                      # Fortran (nh, ncoh): the hour runs fastest
+    inc = np.empty((nc, nh))
     _lib().ed_canopy_two_stream(nh, _d(cosz.ravel(), nh), _d(vis_beam, nh), _d(vis_diff, nh),
                                  _d(nir_beam, nh), _d(nir_diff, nh), nc, _i(pft, nc), _d(height, nc),
                                  _d(lai, nc), _d(wai, nc), out["up_vis"], out["up_nir"], out["leaf_vis"],
-                                 out["wood_vis"], out["ground_vis"], coh)
+                                 out["wood_vis"], out["ground_vis"], coh, inc)
     out["cohort_leaf_vis"] = coh.T
+    out["cohort_incid_vis"] = inc.T
     return out

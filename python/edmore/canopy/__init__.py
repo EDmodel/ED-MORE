@@ -79,7 +79,9 @@ class Canopy:
     def radiation(self, cosz, vis_beam, vis_diff, nir_beam, nir_diff, pft, height, lai, wai) -> dict:
         """The two-stream for one patch's cohorts (any order) over the given hours of shortwave
         [W/m2]: up_vis, up_nir (at the canopy top), leaf_vis, wood_vis (absorbed), ground_vis (down at
-        the ground), each per hour, and cohort_leaf_vis (hours x cohorts). The ground is the
-        configuration's bare soil."""
+        the ground), each per hour; and per cohort (hours x cohorts) cohort_leaf_vis, its leaves'
+        absorbed VIS, and cohort_incid_vis, the downwelling VIS (beam plus diffuse) at the top of its
+        layer, what an upward-facing sensor there would read. The ground is the configuration's
+        bare soil."""
         self._open()
         return _ffi.radiation(cosz, vis_beam, vis_diff, nir_beam, nir_diff, np.asarray(pft), height, lai, wai)
