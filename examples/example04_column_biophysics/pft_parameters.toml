@@ -68,6 +68,8 @@ leaf_clumping      = [0.80]    # [--] leaf clumping factor in (0,1]
 wood_clumping      = [0.50]    # [--] wood clumping factor in (0,1]
 leaf_angle_mean    = [45.0]   # [deg] mean leaf inclination (spherical: mean 57.3, std 21.6)
 leaf_angle_std     = [20.0]   # [deg] its standard deviation
+wood_angle_mean    = [75.0]   # [deg] mean inclination of the wood surface (TLS cylinder models: 72-76)
+wood_angle_std     = [20.0]   # [deg] its standard deviation
 storage_cushion        = [0.5]  # [--] storage target, x (leaf + fine-root target):
                                 #      0.5 is the leaf carbon at root_to_leaf_ratio 1
 growth_resp_factor     = [0.3]

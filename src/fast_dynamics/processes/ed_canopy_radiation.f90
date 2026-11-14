@@ -339,8 +339,8 @@ contains
       real(wp), dimension(max(ncoh,1)) :: wabs, wsum_l
       integer(ik) :: lyr(max(ncoh,1)), nmemb(max(ncoh,1))
       integer(ik) :: nlayer, il
-      !--- Each PFT's beam extinction coefficient, computed once for its cohorts.
-      real(wp)    :: kdir_pft(size(optics%lidf, 2))
+      !--- Each PFT's beam extinction coefficients, leaves and wood, computed once for its cohorts.
+      real(wp)    :: kleaf_pft(size(optics%lidf, 2)), kwood_pft(size(optics%lidf, 2))
       logical     :: kdir_done(size(optics%lidf, 2))
       real(wp)    :: gc_l, dn_ground, up_ground, albedo, incid_tot
       integer(ik) :: b, i, ip
@@ -378,8 +378,10 @@ contains
       end do
 
       !---~---
-      !   Ross-G beam extinction depends only on the PFT's leaf angles and the sun, not the
-      ! band: once per PFT present, shared by its cohorts and every band.
+      !   Ross-G beam extinction depends only on the angles of the PFT's leaves and of its
+      ! wood surface, and the sun, not the band: once per PFT present, shared by its cohorts
+      ! and every band. A cohort's extinction weights the two by their clumped areas, so the
+      ! beam crosses its layer as exp(-(k_leaf ELAI + k_wood EWAI)).
       !---~---
       kdir_coh(1:ncoh) = 0.0_wp
       if (any(optics%has_beam(1:forcing%n_band))) then
@@ -387,10 +389,15 @@ contains
          do i = 1_ik, ncoh
             ip = pft(i)
             if (.not. kdir_done(ip)) then
-               kdir_pft(ip)  = gfun_direct(optics%lidf(:, ip), forcing%cosz) / max(forcing%cosz, tiny_num)
+               kleaf_pft(ip) = gfun_direct(optics%lidf(:, ip), forcing%cosz) / max(forcing%cosz, tiny_num)
+               kwood_pft(ip) = gfun_direct(optics%lidf_wood(:, ip), forcing%cosz) / max(forcing%cosz, tiny_num)
                kdir_done(ip) = .true.
             end if
-            kdir_coh(i) = kdir_pft(ip)
+            if (etai(i) > tiny_num) then
+               kdir_coh(i) = (elai(i) * kleaf_pft(ip) + ewai(i) * kwood_pft(ip)) / etai(i)
+            else
+               kdir_coh(i) = kleaf_pft(ip)
+            end if
          end do
       end if
 

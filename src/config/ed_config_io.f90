@@ -1228,6 +1228,8 @@ contains
       call req_pa(tp, 'pft.wood_clumping',     cfg%pft%wood_clumping,     npft, miss)
       call req_pa(tp, 'pft.leaf_angle_mean',   cfg%pft%leaf_angle_mean,   npft, miss)
       call req_pa(tp, 'pft.leaf_angle_std',    cfg%pft%leaf_angle_std,    npft, miss)
+      call req_pa(tp, 'pft.wood_angle_mean',   cfg%pft%wood_angle_mean,   npft, miss)
+      call req_pa(tp, 'pft.wood_angle_std',    cfg%pft%wood_angle_std,    npft, miss)
       call req_pa(tp, 'pft.vcmax25',          cfg%pft%vcmax25,          npft, miss)
       call req_pa(tp, 'pft.jmax_vcmax_ratio', cfg%pft%jmax_vcmax_ratio, npft, miss)
       call req_pa(tp, 'pft.tpu_vcmax_ratio',  cfg%pft%tpu_vcmax_ratio,  npft, miss)

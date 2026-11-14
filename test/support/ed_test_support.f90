@@ -182,6 +182,8 @@ contains
          p%wood_clumping     = [ 0.50_wp, 0.50_wp, 0.50_wp ]
          p%leaf_angle_mean   = [ 45.0_wp, 45.0_wp, 45.0_wp ]
          p%leaf_angle_std    = [ 20.0_wp, 20.0_wp, 20.0_wp ]
+         p%wood_angle_mean   = [ 75.0_wp, 75.0_wp, 75.0_wp ]
+         p%wood_angle_std    = [ 20.0_wp, 20.0_wp, 20.0_wp ]
          p%storage_cushion        = [ 3.0_wp, 3.0_wp, 3.0_wp ]
          p%growth_resp_factor     = [ 0.3_wp, 0.3_wp, 0.3_wp ]
          p%leaf_turnover_rate_toc = [ 1.0_wp, 0.5_wp, 0.33_wp ]          ! [1/yr]
