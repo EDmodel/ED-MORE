@@ -164,7 +164,7 @@ def main():
     ax.set_title("(f) 5 m on clear leaf-off days: the sun's path over one sensor", loc="left", fontsize=9)
     ax.legend(loc="upper left", frameon=False, fontsize=7.5)
 
-    fig.suptitle("ED-MORE's two-stream against NEON's PAR sensors, Harvard Forest, 2019 (prototype)",
+    fig.suptitle("ED-MORE's two-stream against NEON's PAR sensors, Harvard Forest, 2019",
                  x=0.06, ha="left", fontsize=11)
     fig.savefig(a.out / "canopy_radiation.png", dpi=150, bbox_inches="tight")
     print("wrote", a.out / "canopy_radiation.png")

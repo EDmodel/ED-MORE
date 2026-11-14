@@ -74,7 +74,7 @@ def radiation(cosz, vis_beam, vis_diff, nir_beam, nir_diff, pft, height, lai, wa
     nc = int(np.asarray(height).size)
     out = {k: np.empty(nh) for k in ("up_vis", "up_nir", "leaf_vis", "wood_vis", "ground_vis")}
     coh = np.empty((nc, nh))                      # Fortran (nh, ncoh): the hour runs fastest
-    inc = np.empty((nc, nh))
+    inc = np.full((nc, nh), np.nan)
     _lib().ed_canopy_two_stream(nh, _d(cosz.ravel(), nh), _d(vis_beam, nh), _d(vis_diff, nh),
                                  _d(nir_beam, nh), _d(nir_diff, nh), nc, _i(pft, nc), _d(height, nc),
                                  _d(lai, nc), _d(wai, nc), out["up_vis"], out["up_nir"], out["leaf_vis"],

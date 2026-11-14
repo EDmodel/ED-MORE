@@ -7,8 +7,8 @@
   deciduous tree is 28.5 m, and the lidar puts the tallest crowns near the tower at 26-28 m.
 - Leaf area: the deciduous July LAI from three sources: leaf litterfall (HF069) over leaf mass per area
   (NEON foliar traits, DP1.10026.001), MODIS (MCD15A3H) minus its leaf-off value, and LAI-2000 (HF069)
-  over the default leaf clumping. The deciduous lai_b1 is scaled so the census around the two towers
-  holds their middle value; the evergreen keeps the default, which gives the needle litter's LAI.
+  over a stand-scale clumping. The deciduous lai_b1 is scaled so the census within RADIUS of the two
+  towers holds their middle value; the evergreen keeps the default, which gives the needle litter's LAI.
 
     python fit_allometry.py --data <data>
 """
@@ -30,12 +30,15 @@ import harvard_data as hd                       # noqa: E402
 
 DBH_CLASSES = [1, 5, 10, 20, 30, 40, 60, 100]  # [cm]
 HGT_MAX = 28.0                                 # [m] the canopy top (above)
+RADIUS = 40.0                                  # [m] the stand around a tower, as in run_example.py
 LAI_B1_DEFAULT, LAI_B2 = 0.23384770, 0.6410495
-#----- Canopy-mean leaf mass per area over the sun leaves NEON samples, and litter mass over green mass:
-#      both make a sun-leaf, litter-mass LAI too small. Middle values of the shade-to-sun and resorption
-#      ranges reported for temperate broadleaf trees. -------------------------------------------------#
+#----- Two assumed ratios, each of which makes a sun-leaf, litter-mass LAI too small: the canopy's mean
+#      leaf mass per area over that of the sun leaves NEON samples (shade leaves are thinner), and litter
+#      mass over green mass (the mass a leaf loses in senescence). ------------------------------------#
 CANOPY_LMA_OVER_SUN, LITTER_OVER_GREEN = 0.75, 0.875
-LEAF_CLUMPING_DEFAULT = 0.8
+#----- LAI-2000 sees the stand's effective LAI, the gaps between crowns included; this clumping (the PFT
+#      file's default) turns it into LAI. The model's 20 m patches hold those gaps themselves. --------#
+STAND_CLUMPING = 0.8
 
 
 def neon_trees(data: Path) -> pd.DataFrame:
@@ -107,8 +110,8 @@ def deciduous_lai(data: Path) -> float:
           f"{s[s.index.month.isin([3, 4])].median():.2f} -> deciduous LAI {lai_modis:.2f}")
     l2 = pd.read_csv(hf / "hf069-02-lai-site.csv", parse_dates=["date"])
     eff = l2[(l2["site"] == "ems") & (l2["year"] == 2019) & (l2["date"].dt.month == 7)]["decid_mean"].mean()
-    lai_2000 = eff / LEAF_CLUMPING_DEFAULT
-    print(f"LAI-2000 July 2019: effective deciduous {eff:.2f} -> LAI {lai_2000:.2f} at clumping {LEAF_CLUMPING_DEFAULT}")
+    lai_2000 = eff / STAND_CLUMPING
+    print(f"LAI-2000 July 2019: effective deciduous {eff:.2f} -> LAI {lai_2000:.2f} at clumping {STAND_CLUMPING}")
     target = float(np.median([lai_litter, lai_modis, lai_2000]))
     print(f"-> July deciduous LAI {target:.2f} (the median)\n")
     return target
@@ -126,10 +129,10 @@ def main():
     for k in ("chave_a", "chave_b", "chave_c", "chave_rse"):
         allom[k] = [fit[1][k], fit[2][k]]
     stems = hd.live_stems(a.data)
-    dec = [hd.stand_around(stems, *xy, 50.0, allom, cell=0)[0] for xy in
+    dec = [hd.stand_around(stems, *xy, RADIUS, allom, cell=0)[0] for xy in
            (hd.plot_xy(hd.TOWER_LAT, hd.TOWER_LON), hd.plot_xy(42.537755, -72.171478))]   # NEON, EMS towers
     lai_now = np.mean([p["lai"][p["pft"] == 1].sum() for p in dec])
-    print(f"the census within 50 m of the NEON and EMS towers at the default lai_b1: deciduous LAI {lai_now:.2f}")
+    print(f"the census within {RADIUS:.0f} m of the NEON and EMS towers at the default lai_b1: deciduous LAI {lai_now:.2f}")
     print("\nHARVARD_PFT for run_example.py (PFT 1 deciduous, PFT 2 evergreen):")
     for k in ("chave_a", "chave_b", "chave_c", "chave_rse"):
         print(f'    "allometry.{k}": [{fit[1][k]:.5g}, {fit[2][k]:.5g}],')

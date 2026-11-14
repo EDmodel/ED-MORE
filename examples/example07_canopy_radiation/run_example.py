@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Example 07 (prototype): ED-MORE's canopy radiation against NEON's vertical PAR sensors at Harvard Forest.
+"""Example 07: ED-MORE's canopy radiation against NEON's vertical PAR sensors at Harvard Forest.
 
-The two-stream (edmore.canopy) runs every daytime half hour of two windows of 2019: leaf-off (1-25
-April: the snow gone, the buds not yet broken; only the conifers have leaves) and leaf-on (July). It is
+The two-stream (edmore.canopy) runs every daytime half hour of two windows of a year, 2019 by default:
+leaf-off (1-25 April: the snow gone, the buds not yet broken; only the conifers have leaves) and leaf-on
+(July). It is
 driven by the PAR measured above the canopy (NEON's top level, 39 m), split into beam and diffuse by
 the EMS tower's direct and diffuse PAR sensors. The stand around each sensor comes from the 2019 census
 of the ForestGEO 35-ha plot: one patch per 20 m quadrat, one cohort per stem, with Harvard's height and
@@ -11,12 +12,14 @@ the tallest cohort layer at or below z (the ground's when none is), averaged ove
 the horizontal mean a 1-D layered canopy predicts.
 
 Two optics run side by side: "mod", the clumping and leaf angle calibrate_optics.py fitted to the
-sensors below the crowns (calibrated_optics.json), and "def", the repository's defaults.
+sensors below the crowns in 2019 (calibrated_optics.json), and "def", the repository's defaults.
+--year 2021 tests the 2019 fit on a year it did not see.
 
-    python run_example.py --data <data>        (<data>: the folder the fetch scripts fill)
+    python run_example.py --data <data> [--year 2021]      (<data>: the folder fetch_data.py fills)
 
 Writes output/model_vs_sensors.csv (one row per half hour: drivers, each sensor observed and modelled,
-and the modelled 10th/90th patch percentiles) and output/transmittance_summary.csv, and prints the table.
+and the modelled 10th/90th patch percentiles) and output/transmittance_summary.csv, and prints the
+table; another year's go to output/<year>/.
 """
 from __future__ import annotations
 
@@ -40,7 +43,9 @@ import tower_conversions as conv               # noqa: E402  (the model's sun, i
 import harvard_data as hd                       # noqa: E402
 
 PAR_PER_WATT = 4.57          # [umol J-1] PAR photons per joule; only the absolute fluxes depend on it
-WINDOWS = {"leaf-off": ("2019-04-01", "2019-04-25"), "leaf-on": ("2019-07-01", "2019-07-31")}
+#----- Each window's first and last day; a year with snow on the ground in early April does not fit. ---#
+WINDOWS = {"leaf-off": ("04-01", "04-25"), "leaf-on": ("07-01", "07-31")}
+YEAR = 2019                  # the calibration's year
 #----- Harvard's allometry on the repository's PFT file: PFT 1 deciduous, PFT 2 evergreen (the conifers).
 #      Heights: ED-MORE's log-quadratic curve fitted to NEON's measured trees at HARV (3,400 trees, each
 #      DBH class weighted equally), capped at the canopy top the lidar shows. Deciduous leaf area: scaled
@@ -53,7 +58,7 @@ HARVARD_PFT = {
     "allometry.chave_c":   [-0.097823, 0.00026528],
     "allometry.chave_rse": [0.25066, 0.25667],
     "allometry.hgt_max":   [28.0, 28.0],
-    "allometry.lai_b1":    [0.1711, 0.23384770],
+    "allometry.lai_b1":    [0.1746, 0.23384770],
 }
 ALLOM_KEYS = ("height_allometry", "chave_a", "chave_b", "chave_c", "chave_rse", "chave_e", "b1Ht", "b2Ht",
               "hgt_max", "lai_b1", "lai_b2", "wai_b1", "wai_b2")
@@ -74,16 +79,18 @@ def harvard_config(out: Path | None, extra: dict) -> RunConfig:
     return cfg
 
 
-def prepare(data: Path, cell: float = 20.0, radius: float = 40.0) -> dict:
-    """The drivers, the sensors and the stand around each, for the two windows."""
+def prepare(data: Path, year: int = YEAR, cell: float = 20.0, radius: float = 40.0) -> dict:
+    """The drivers, the sensors and the stand around each, for the year's two windows."""
     cfg = harvard_config(None, {})
     allom = {k: [cfg.get(f"allometry.{k}", file="pft", pft=p) for p in (1, 2)] for k in ALLOM_KEYS}
-    tower, heights = hd.neon_tower_par(data)
-    floor, floor_xy = hd.neon_floor_par(data)
+    months = [f"{year}-{first[:2]}" for first, _ in WINDOWS.values()]
+    tower, heights = hd.neon_tower_par(data, months)
+    floor, floor_xy = hd.neon_floor_par(data, months)
     obs = tower.join(floor, how="outer")
     window = pd.Series(np.nan, index=obs.index, dtype=object)
-    for name, (t_start, t_end) in WINDOWS.items():
-        window[(obs.index >= t_start) & (obs.index < pd.Timestamp(t_end) + pd.Timedelta(days=1))] = name
+    for name, (first, last) in WINDOWS.items():
+        t_start, t_end = pd.Timestamp(f"{year}-{first}"), pd.Timestamp(f"{year}-{last}") + pd.Timedelta(days=1)
+        window[(obs.index >= t_start) & (obs.index < t_end)] = name
     obs = obs[window.notna()]
     idx = obs.index
     drv = pd.DataFrame(index=idx)
@@ -171,16 +178,19 @@ def summary(df: pd.DataFrame, sensors: list[str]) -> pd.DataFrame:
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--data", type=Path, required=True)
-    ap.add_argument("--out", type=Path, default=HERE / "output")
+    ap.add_argument("--year", type=int, default=YEAR, help=f"the windows' year (calibrated on {YEAR})")
+    ap.add_argument("--out", type=Path, default=None, help="default output/, or output/<year>/ for another year")
     ap.add_argument("--cell", type=float, default=20.0, help="patch size [m]; 0 = one uniform patch")
     ap.add_argument("--radius", type=float, default=40.0, help="the stand around each sensor [m]")
     a = ap.parse_args()
+    if a.out is None:
+        a.out = HERE / "output" if a.year == YEAR else HERE / "output" / str(a.year)
     t0 = time.time()
 
     calibrated = json.loads(CALIBRATED.read_text())["keys"] if CALIBRATED.exists() else {}
     if not calibrated:
         print(f"no {CALIBRATED.name}: 'mod' runs the defaults too (run calibrate_optics.py)")
-    prep = prepare(a.data, a.cell, a.radius)
+    prep = prepare(a.data, a.year, a.cell, a.radius)
     out = prep["drv"].copy()
     for name, keys in (("mod", calibrated), ("def", {})):
         harvard_config(a.out / f"config_{name}", keys)

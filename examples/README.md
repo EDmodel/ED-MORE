@@ -1,6 +1,6 @@
 # Examples
 
-Six runnable examples of ED-MORE: one module on its own (01–03), the coupled column at a flux tower (04),
+Seven runnable examples of ED-MORE: one module on its own (01–03, 07), the coupled column at a flux tower (04),
 and the whole model at a site and over a region (05–06). Each folder holds the config, the scripts, the
 figures and a README with the commands that reproduce it, run from the repository root. Data the
 repository does not hold (the processed ERA5-Land archive, the BCI census tables, the soil maps) is
@@ -15,3 +15,4 @@ which.
 | [`example04_column_biophysics/`](example04_column_biophysics/) | The coupled column (canopy radiation, leaf gas exchange, energy balances, plant hydraulics, soil water) every 15 minutes at the Barro Colorado Island flux tower, Panama. It starts from the plot's 2010 census, calibrates the fast parameters against the tower, compares the default and calibrated runs with the tower's fluxes, and shows ten days at half-hourly output. |
 | [`example05_forest_regeneration/`](example05_forest_regeneration/) | The whole model at once: the column of example 04 with the demography of example 03, regrowing forests from bare ground on repeated ERA5-Land weather and the CO₂ of its history. Barro Colorado Island from 1600 to 2020 (three successional PFTs, checked against the census and the carbon budget), and Palo Verde's dry forest for 150 years (four leaf habits after Xu et al. 2016, set against the plots' 2009 inventory). |
 | [`example06_regional_run/`](example06_regional_run/) | The whole model over a region: example 05's four dry-forest leaf habits regrow from bare ground in every cell of a Central American box, run as ED-MORE region runs with each cell's own ERA5-Land weather, soil and height allometry. The leaf area's seasonality is set against MODIS and the biomass against Neotropical chronosequences (Poorter et al. 2016). |
+| [`example07_canopy_radiation/`](example07_canopy_radiation/) | The canopy radiation on its own, driven from Python: the two-stream over stands built from the ForestGEO census around NEON's tower at Harvard Forest, against PAR sensors at six heights and on the forest floor, leaf-off and leaf-on. Harvard's height and leaf-area allometry, the wood's own angle distribution, and the foliage clumping and leaf angle calibrated to the light below the crowns in one year and tested on another. |

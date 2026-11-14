@@ -1,12 +1,18 @@
 {
  "keys": {
-  "pft.leaf_clumping": 0.949,
-  "pft.leaf_angle_mean": 34.266,
+  "pft.leaf_clumping": 0.933,
+  "pft.leaf_angle_mean": 33.927,
   "pft.wood_clumping": 1.0
  },
- "cost": 0.1636150617644784,
- "cost_default": 0.612876276937435,
+ "cost": 0.16344790454870944,
+ "cost_default": 0.5756317737015901,
+ "default": {
+  "pft.leaf_clumping": 0.8,
+  "pft.leaf_angle_mean": 45.0,
+  "pft.wood_clumping": 0.5
+ },
  "wood_angle_mean": "the PFT file's default (75)",
+ "year": 2019,
  "sensors": [
   "L2",
   "L1",
@@ -25,5 +31,5 @@
   "leaf-on, overcast"
  ],
  "evaluations": 210,
- "seconds": 365
+ "seconds": 518
 }

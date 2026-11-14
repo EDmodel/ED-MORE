@@ -47,6 +47,8 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   earlier light to round-off, unless equally tall cohorts of PFTs with different leaf angles share a
   layer. An angle spread too wide for a Beta distribution, with the standard deviation at or above
   `sqrt(mean (90 - mean))`, is refused, for the leaves too. (#84)
+- The C API's `ed_canopy_two_stream` takes one more output array, `coh_incid_vis` (hours by cohorts),
+  after `coh_leaf_vis`; `edmore.canopy` passes it. (#85)
 
 ### Answer changes
 
@@ -146,6 +148,11 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - The canopy air's content change when its capacity (density times depth) moves between fast steps
   is booked as a budget term, `mean_budget_cas_cap_{energy,water,co2}_py` and `_pa`, so its stored
   amounts add up across steps. H, LE, NEE and the model state are unchanged. (#66)
+- `edmore.canopy.Canopy.radiation` also returns `cohort_incid_vis`, the downwelling VIS at the top of
+  each cohort's layer, what an upward-facing sensor there reads. (#85)
+- Example 07, canopy radiation against NEON's PAR sensors at six heights and on the floor at Harvard
+  Forest, leaf-off and leaf-on, with stands from the ForestGEO census and the foliage optics calibrated
+  to the light below the crowns in 2019 and tested on 2021. (#85)
 
 ### Changed
 

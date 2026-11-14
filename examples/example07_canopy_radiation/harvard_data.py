@@ -2,9 +2,9 @@
 """Readers for example 07's Harvard Forest data: NEON's PAR sensors, the EMS tower's beam/diffuse PAR,
 and the ForestGEO census around each sensor.
 
-Every reader takes the data folder laid out as the fetch scripts leave it:
-    <data>/neon_2019/DP1.00024.001/<YYYY-MM>/...     NEON PAR at the tower levels (30 min)
-    <data>/neon_2019/DP1.00066.001/<YYYY-MM>/...     NEON line-quantum PAR at the forest floor
+Every reader takes the data folder laid out as fetch_data.py leaves it:
+    <data>/neon/DP1.00024.001/<YYYY-MM>/...          NEON PAR at the tower levels (30 min)
+    <data>/neon/DP1.00066.001/<YYYY-MM>/...          NEON line-quantum PAR at the forest floor
     <data>/hf_archive/hf004/hf004-01-final.csv       EMS tower, hourly (direct and diffuse PAR)
     <data>/hf_archive/hf253/hf253-0[26]-*.csv        ForestGEO 35-ha plot: species, 2019 stems
 """
@@ -54,40 +54,53 @@ def plot_xy(lat, lon, east_offset=0.0, north_offset=0.0):
 #----------------------------------------------------------------------------------------------------#
 #   NEON sensors
 #----------------------------------------------------------------------------------------------------#
-def _neon_months(folder: Path, pattern: str) -> pd.DataFrame:
-    frames = []
-    for f in sorted(folder.glob(f"*/{pattern}")):
-        frames.append(pd.read_csv(f, parse_dates=["startDateTime"]))
+def _neon_months(folder: Path, months: list[str], pattern: str) -> pd.DataFrame:
+    """One NEON table over the given months ("YYYY-MM")."""
+    frames = [pd.read_csv(f, parse_dates=["startDateTime"])
+              for m in months for f in sorted((folder / m).glob(pattern))]
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
-def neon_tower_par(data: Path) -> tuple[pd.DataFrame, dict]:
-    """The tower's six up-facing PAR levels, 30 min, one column per level (umol m-2 s-1; NaN where
-    PARFinalQF is not 0), indexed by the interval's UTC start; and each level's height [m]."""
-    folder = data / "neon_2019" / "DP1.00024.001"
-    pos = pd.read_csv(sorted(folder.glob("*/*sensor_positions*"))[-1], dtype={"HOR.VER": str})
+def _positions(folder: Path, month: str) -> pd.DataFrame:
+    """The sensors' positions in force at the start of `month`, one row per sensor. NEON's files list
+    a sensor's every position, under one of two sets of column names."""
+    pos = pd.read_csv(next((folder / month).glob("*sensor_positions*")), dtype={"HOR.VER": str})
+    pos = pos.rename(columns={"sensorLocationDescription": "description", "positionStartDateTime": "start",
+                              "positionEndDateTime": "end"})
+    t = pd.Timestamp(f"{month}-01", tz="UTC")
+    start, end = pd.to_datetime(pos["start"], utc=True), pd.to_datetime(pos["end"], utc=True)
+    pos = pos[(start.isna() | (start <= t)) & (end.isna() | (end > t))]
+    return pos.drop_duplicates(subset=["HOR.VER", "description"])
+
+
+def neon_tower_par(data: Path, months: list[str]) -> tuple[pd.DataFrame, dict]:
+    """The tower's six up-facing PAR levels over `months`, 30 min, one column per level (umol m-2 s-1;
+    NaN where PARFinalQF is not 0), indexed by the interval's UTC start; and each level's height [m]
+    in the first month."""
+    folder = data / "neon" / "DP1.00024.001"
+    pos = _positions(folder, months[0])
     pos = pos[pos["description"].str.contains("Up|L[1-5]", regex=True)]
     heights = {f"L{int(hv.split('.')[1]) // 10}": float(z) for hv, z in zip(pos["HOR.VER"], pos["zOffset"])}
     cols = {}
     for level in heights:
         ver = f"0{int(level[1:]) * 10:02d}"
-        d = _neon_months(folder, f"*.000.{ver}.030.PARPAR_30min.*.csv")
+        d = _neon_months(folder, months, f"*.000.{ver}.030.PARPAR_30min.*.csv")
         cols[level] = pd.Series(np.where(d["PARFinalQF"] == 0, d["PARMean"], np.nan),
                                 index=d["startDateTime"].dt.tz_localize(None))
     return pd.DataFrame(cols), heights
 
 
-def neon_floor_par(data: Path) -> tuple[pd.DataFrame, dict]:
-    """The three forest-floor line-quantum sensors (soil plots 1, 3, 5), 30 min, QF-screened; and each
-    sensor's plot coordinates (gx, gy) [m]."""
-    folder = data / "neon_2019" / "DP1.00066.001"
-    pos = pd.read_csv(sorted(folder.glob("*/*sensor_positions*"))[-1], dtype={"HOR.VER": str})
+def neon_floor_par(data: Path, months: list[str]) -> tuple[pd.DataFrame, dict]:
+    """The three forest-floor line-quantum sensors (soil plots 1, 3, 5) over `months`, 30 min,
+    QF-screened; and each sensor's plot coordinates (gx, gy) [m] in the first month."""
+    folder = data / "neon" / "DP1.00066.001"
+    pos = _positions(folder, months[0])
     where, cols = {}, {}
     for _, p in pos.iterrows():
         sp = f"SP{int(p['HOR.VER'].split('.')[0])}"
         where[sp] = plot_xy(p["locationReferenceLatitude"], p["locationReferenceLongitude"],
                             p["eastOffset"], p["northOffset"])
-        d = _neon_months(folder, f"*.{p['HOR.VER']}.030.PARQL_30min.*.csv")
+        d = _neon_months(folder, months, f"*.{p['HOR.VER']}.030.PARQL_30min.*.csv")
         cols[sp] = pd.Series(np.where(d["finalQF"] == 0, d["linePARMean"], np.nan),
                              index=d["startDateTime"].dt.tz_localize(None))
     return pd.DataFrame(cols), where
