@@ -12,7 +12,7 @@ module ed_leaf_gas_exchange
    use ed_leaf_params,     only : COLIM_QUADRATIC, SM_LEUNING, SM_KATUL
    use ed_pft_params,      only : PATH_C4
    use ed_pft_params,  only : leaf_photo_pft_t, leaf_photo_table_t
-   use ed_therm_lib,       only : temp_response, arrhenius_scale, dry_air_pressure
+   use ed_therm_lib,       only : temp_response, low_temperature_limit, arrhenius_scale, dry_air_pressure
    use ed_numerics,        only : quadratic_smaller_root, root_bracket_t, regula_falsi_point, illinois_narrow
    implicit none
    private
@@ -334,7 +334,7 @@ contains
       type(leaf_out_t),         intent(out) :: flux    ! the leaf's fluxes
 
       real(wp) :: t_leaf, pressure, p_dry, ca_ppm, o2_ppm, ddef, beta_nonstomata, beta_stomata, g1_eff
-      real(wp) :: vcmax, jmax, jrate, tpu, rd, kc_ppm, ko_ppm, gstar_ppm
+      real(wp) :: vcmax, jmax, jrate, tpu, rd, kc_ppm, ko_ppm, gstar_ppm, f_cold
       real(wp) :: Aj_light, kp_eff, lambda_eff
       real(wp) :: lo0, hi0, ci_sol, An_open
       real(wp) :: A_gross, Ac, Aj, Ap, An, cs_sol, gs_sol
@@ -357,6 +357,15 @@ contains
       jmax  = temp_response(temp_response_form, p%jmax25,  p%ea_jmax,  p%hd_jmax,  p%ds_jmax,  t_leaf)
       tpu   = temp_response(temp_response_form, p%tpu25,   p%ea_vcmax, p%hd_vcmax, p%ds_vcmax, t_leaf)
       rd    = temp_response(temp_response_form, p%rd25,    p%ea_rd,    p%hd_rd,    p%ds_rd,    t_leaf)
+      !---~---
+      !   The low-temperature limit, eq. (3b): the capacities fall away as the leaf nears and
+      ! passes freezing, where the temperature response alone keeps a tenth of them at 0 degC.
+      ! Rd keeps its own response.
+      !---~---
+      f_cold = low_temperature_limit(t_leaf, p%low_temp, p%low_temp_slope)
+      vcmax  = vcmax * f_cold
+      jmax   = jmax  * f_cold
+      tpu    = tpu   * f_cold
 
       !---~---
       !   Water stress, two controls on two time scales (§4): the fast one, eq. (9), ramps the

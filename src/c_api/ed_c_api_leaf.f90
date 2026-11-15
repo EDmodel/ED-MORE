@@ -45,7 +45,7 @@ module ed_c_api_leaf
 
    !---~---
    !   C-interoperable mirror of leaf_photo_pft_t (1 int + 37 doubles, same order), less
-   ! psi_onset and vpd_min (see to_params).
+   ! psi_onset, vpd_min, low_temp and low_temp_slope (see to_params).
    !---~---
    type, bind(c) :: leaf_args_c
       integer(c_int) :: pathway
@@ -211,8 +211,9 @@ contains
       ! by one each time leaf_photo_pft_t gains a component mid-type, and could not omit
       ! psi_onset and vpd_min, which carry defaults.
       !
-      !   psi_onset and vpd_min are absent from leaf_args_c and take their type defaults
-      ! (0 MPa, 0.05 kPa; edmore.canopy builds its parameters from the run's config instead).
+      !   psi_onset, vpd_min, low_temp and low_temp_slope are absent from leaf_args_c and take
+      ! their type defaults (0 MPa, 0.05 kPa, and 0 K: no low-temperature limit, eq. (3b));
+      ! edmore.canopy builds its parameters from the run's config instead, limit included.
       ! Adding a field to a bind(c) struct breaks the ABI for every existing caller, so they stay
       ! out. psi_open/psi_close do cross: the caller sets the ramp of the fast capacity limb
       ! (docs/science/leaf_gas_exchange.md §4.1, eq. (9)), which is always applied; sref_stomata

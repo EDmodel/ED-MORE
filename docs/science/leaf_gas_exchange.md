@@ -122,6 +122,24 @@ $`V_{cmax}`$, $`J_{max}`$, TPU, $`R_d`$ and the C4 $`k_p`$ take the form that
 their own: both take $`V_{cmax}`$'s, and with them its high-temperature deactivation under the peaked
 form.
 
+**The low-temperature limit.** Neither form shuts a leaf down in the cold: at 0 °C the peaked form still
+keeps about a tenth of $`V_{cmax,25}`$, and evergreen conifers photosynthesize through the winter where
+flux towers measure none. Every PFT's capacities are therefore divided by ED2's low-temperature term
+(Moorcroft et al. 2001; ED2's `Vm_low_temp`):
+
+```math
+V_{cmax},\ J_{max},\ \mathrm{TPU} \;\leftarrow\; \frac{V_{cmax},\ J_{max},\ \mathrm{TPU}}{1 + \exp\!\left[s_{\mathrm{low}}\left(T_{\mathrm{low}} - T_\ell\right)\right]}
+\qquad(3b)
+```
+
+with $`T_{\mathrm{low}}`$ = `capacity_low_temp` and $`s_{\mathrm{low}}`$ = `capacity_low_temp_slope`
+(optional PFT keys; by default ED2's temperate and conifer values, 4.71 °C and 0.4 K⁻¹; ED2 gives its
+tropical PFTs 10 °C). The term is a half at $`T_{\mathrm{low}}`$, 0.13 at 0 °C and 0.02 at −5 °C, and
+above 0.99 from 17 °C. It acts on the leaf's own temperature, hour by hour, and on every PFT alike.
+$`R_d`$ keeps its own response (ED2 limits it too by default). At Harvard Forest it takes the conifers'
+GPP in sunny January hours from about 2 µmol m⁻² s⁻¹ toward the tower's near zero, and leaves the summer
+unchanged ([example 04's Harvard site](../../examples/example04_column_biophysics/sites/harvard/README.md)).
+
 ### The co-limitation curvatures are not $`\theta_J`$
 
 When two limiting rates are combined smoothly, a curvature says how sharply the leaf switches from one
@@ -437,6 +455,7 @@ selectors are in `[leaf_physiology]`.
 | $V_{cmax,25}$, $J_{max}/V_{cmax}$, $\mathrm{TPU}/V_{cmax}$, $R_{d,25}/V_{cmax}$ | `[pft]` `vcmax25`, `jmax_vcmax_ratio`, `tpu_vcmax_ratio`, `rd_vcmax_ratio` | capacities at 25 °C and their ratios (a cohort's plastic $V_{cmax,25}$ and $R_{d,25}$ replace the table's) |
 | $k_{p,25}$, $\phi_{C4}$ | `[pft]` `kp25`, `quantum_yield_c4` | C4 PEP-carboxylase slope and light-limited quantum yield |
 | $\theta_J$ | `[pft]` `theta_j` | curvature of the electron-transport hyperbola only |
+| $T_{\mathrm{low}}$, $s_{\mathrm{low}}$ | `[pft]` `capacity_low_temp`, `capacity_low_temp_slope` | the low-temperature limit, eq. (3b) [K], [K⁻¹] (optional: 277.86 K, 0.4 K⁻¹) |
 | co-limitation curvatures | `[pft]` `theta_cj_c3`, `theta_ip_c3`, `theta_cj_c4`, `theta_ic_c4` | the two transitions of each pathway (§2) |
 | $g_0$ | `[pft]` `stomatal_g0` | cuticular (minimum) conductance |
 | $g_1$ | `[pft]` `stomatal_g1` | stomatal slope (Leuning dimensionless, Medlyn kPa⁰·⁵) |
@@ -476,6 +495,8 @@ selectors are in `[leaf_physiology]`.
 - Collatz, Ribas-Carbo & Berry (1992). *Aust. J. Plant Physiol.* 19:519–538: C4.
 - Bernacchi et al. (2001). *Plant Cell Environ.* 24:253–259: Rubisco kinetics and their temperature response.
 - Kattge & Knorr (2007). *Plant Cell Environ.* 30:1176–1190: thermal acclimation of photosynthetic capacity.
+- Moorcroft, Hurtt & Pacala (2001). *Ecol. Monogr.* 71:557–586: ED's photosynthesis, with its
+  low- and high-temperature limits on Vcmax.
 - Long et al. (1993) and Björkman & Demmig (1987): maximum quantum yield of C3 leaves.
 - Leuning (1995). *Plant Cell Environ.* 18:339–355: semi-empirical $g_s$.
 - Medlyn et al. (2011). *Glob. Change Biol.* 17:2134–2144: USO $g_s$.

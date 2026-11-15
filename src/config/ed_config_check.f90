@@ -668,6 +668,10 @@ contains
                error stop TAG//'pft.theta_cj_c4 outside (0, 1]'
             if (p%theta_ic_c4(pf) <= 0.0_wp .or. p%theta_ic_c4(pf) > 1.0_wp)                            &
                error stop TAG//'pft.theta_ic_c4 outside (0, 1]'
+            if (p%capacity_low_temp(pf) < 200.0_wp .or. p%capacity_low_temp(pf) > 330.0_wp)             &
+               error stop TAG//'pft.capacity_low_temp is a leaf temperature [K] in 200-330'
+            if (p%capacity_low_temp_slope(pf) <= 0.0_wp)                                                &
+               error stop TAG//'pft.capacity_low_temp_slope must be > 0 [1/K]'
             if (p%leaf_reflect_vis(pf) + p%leaf_transmit_vis(pf) >= 1.0_wp)                             &
                error stop TAG//'pft.leaf_reflect_vis + leaf_transmit_vis >= 1'
             if (p%leaf_reflect_nir(pf) + p%leaf_transmit_nir(pf) >= 1.0_wp)                             &
