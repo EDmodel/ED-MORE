@@ -20,7 +20,7 @@ Each site is a folder in [`sites/`](sites), with its own README, data, configura
 | Site | Biome | Tower | Years | Stand | Status |
 |---|---|---|---|---|---|
 | [Barro Colorado Island](sites/bci/README.md), Panama | moist tropical forest | PA-Bar (Zenodo 6456527), 41 m | 2012–2017 | the 50-ha plot's 2010 census, one evergreen PFT | calibrated |
-| [Harvard Forest](sites/harvard/README.md), Massachusetts | temperate broadleaf and conifer forest | NEON HARV (AmeriFlux US-xHA), 39 m | 2019–2024 | the ForestGEO plot's 2019 census within 200 m of the tower, a deciduous and a conifer PFT | default parameters; not calibrated |
+| [Harvard Forest](sites/harvard/README.md), Massachusetts | temperate broadleaf and conifer forest | NEON HARV (AmeriFlux US-xHA), 39 m | 2019–2024 | the ForestGEO plot's 2019 census within 200 m of the tower, a deciduous and a conifer PFT | calibrated (the broadleaves) |
 | Guánica, Puerto Rico | tropical dry forest | NEON GUAN (PR-xGU) | 2019–2024 | NEON's vegetation structure | planned |
 | Tonzi Ranch, California | oak savanna | US-Ton | to choose | the tree map | planned (grass and shrub life forms) |
 | Toolik, Alaska | tussock tundra | NEON TOOL (US-xTL) | 2019–2024 | NEON's plant cover | planned (organic soil) |
@@ -34,6 +34,7 @@ Means over each tower's measured hours ([`evaluation.py`](evaluation.py), each s
 | BCI, default | 7.46 / 10.50 | 75.5 / 81.0 | 91.3 / 161.0 (by day) | 136.3 / 139.8 |
 | BCI, calibrated | 7.46 / 8.75 | 75.5 / 66.9 | 91.3 / 174.8 (by day) | 136.3 / 139.3 |
 | Harvard, default | 6.60 / 7.53 | 53.7 / 63.2 | 26.3 / 46.0 | 86.3 / 86.9 |
+| Harvard, calibrated | 6.60 / 7.55 | 53.7 / 63.4 | 26.3 / 46.4 | 86.3 / 86.9 |
 
 Both towers close their energy balance to about 0.75 of the net radiation, and at both the calibration's
 attribution test gives the gap to H: most of the model's higher H is the tower's missing H. Each site's

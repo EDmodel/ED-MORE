@@ -3,7 +3,7 @@
 Example 04's pipeline at a second tower: a cold-deciduous and conifer forest in Massachusetts, NEON's
 HARV tower (AmeriFlux US-xHA, 39 m), 2019–2024. As at BCI, the forcing is the tower's own meteorology,
 the stand is the ForestGEO census around the tower, and the runs are compared with the tower's fluxes.
-**Status: prototype, not calibrated.** The results below are the default parameters.
+**Status: prototype, calibrated.** The results below are the default and the calibrated parameters.
 
 ## Run
 
@@ -38,11 +38,12 @@ account. Six years take about 6 minutes on 8 threads with the dev build.
   one van Genuchten curve from the megapit's horizons by the model's texture formulas.
 - **CO₂** is held at 418 µmol mol⁻¹: the repository's CO₂ file ends in 2022.
 
-## Results (default parameters, no calibration)
+## Results
 
-![ED-MORE against NEON's HARV tower, 2019-2024: summer and winter diurnal cycles and the seasonal cycle](evaluation.png)
+![ED-MORE against NEON's HARV tower, 2019-2024, default and calibrated: summer and winter diurnal cycles and the seasonal cycle](evaluation.png)
 
-Means over the tower's measured hours, 2019–2024 ([`plot_evaluation.py`](plot_evaluation.py)):
+Means over the tower's measured hours, 2019–2024, with the default parameters ([`plot_evaluation.py`](plot_evaluation.py);
+the calibrated run is in [The calibration](#the-calibration)):
 
 | | tower | ED-MORE | bias in June–August | bias in December–February |
 |---|---|---|---|---|
@@ -73,6 +74,39 @@ Means over the tower's measured hours, 2019–2024 ([`plot_evaluation.py`](plot_
 - **Soil water.** At 15–60 cm NEON's sensors (DP1.00094.001) read 0.12–0.14 m³ m⁻³ in summer; the column
   holds 0.15–0.17. With a sealed base instead of a free-draining one it holds 0.32–0.34 and LE rises by
   17 W m⁻²: the free-draining base is the one to keep.
+
+## The calibration
+
+[`calibration.toml`](calibration.toml) fits the fast parameters with
+[`scripts/calibrate_fast`](../../../../scripts/calibrate_fast/README.md), as at BCI, from the default
+parameters above. Harvard's choices and what the rules made of them:
+- **PFT 1 only**, the broadleaves (the registry's keys are one PFT's), with the deciduous-broadleaf priors;
+  the conifers keep their file's values.
+- **Leaf-on windows** (June–September): three calibration windows (10 June and 11 July 2024, 13 September
+  2020) and one validation window (15 June 2021). No year's water deficit qualifies for a seasonal run,
+  so the drought key is fixed.
+- **The energy-balance gap goes to H**: the tower closes to 0.76, and H/Rnet rises 77 % from the calmest
+  to the most turbulent hours while LE/Rnet does not.
+
+| key | calibrated (68 % range) | prior centre |
+|---|---|---|
+| `vcmax25` [µmol m⁻² s⁻¹] | 56.2 (53.3–59.2) | 74.0 (from the climate) |
+| `stomatal_g1` [kPa^0.5] | 5.34 (4.97–5.72) | 1.99 (from the climate; Lin et al. 2015 give deciduous trees 4.45) |
+| `stomatal_g0` [mol m⁻² s⁻¹] | 0.0025 (0.0010–0.0065) | 0.01 |
+| `leaf_angle_mean` [°] | 33.8 (26.2–42.9: the data barely constrain it) | 33.9 (example 07's fit) |
+| `z0m_ratio` | 0.064 (0.060–0.069) | 0.13 |
+| κ | 0.917 (0.880–0.955) | 1 |
+
+On the validation window (RMSE in units of each target's error), default → calibrated: u\* 1.26 → 0.60,
+GPP 2.64 → 2.29, LE 2.90 → 2.81, H 4.61 → 4.94, upwelling longwave 1.79 → 1.94. **The validation
+passes**: no target does more than 10 % worse. The energy-balance gap is the largest uncertainty again:
+sharing it between H and LE instead moves `stomatal_g1` to 10.5, and the tower's daytime partitioning
+moves `vcmax25` to 48. The fit took 257 trials, 8 minutes on 200 cores of five nodes.
+
+Over the six years the calibrated run changes the means little (GPP 7.55, LE 63.4, H 46.4) and the hourly
+errors more (RMSE: GPP 4.19 → 4.07, LE 49.9 → 48.4, H 59.5 → 55.4): what is left is the winter, the
+spring and the conifers, outside the fit's windows and keys. The calibrated configs, the fit and its
+report are in [`calibration/`](calibration).
 
 ### Snow and albedo
 
@@ -107,8 +141,11 @@ the snow), and its midday albedo (10–14 h, shortwave above 200 W m⁻²) again
 - **The leafless canopy's brightness** and **autumn's leaf optics** (albedo above).
 - **Late summer:** H stays high in August–October beyond the closure gap, and GPP falls below the tower's
   in August, with the soil water at NEON's level: the stress on the column's sandy curve is the suspect.
-- **The calibration** ([`calibration.toml`](calibration.toml)) fits PFT 1's keys only; the leaf-on rule
-  finds three calibration windows and one validation window, and no seasonal run.
+- **The calibration** fits PFT 1's keys only, on three calibration windows and one validation window.
+- **The start:** the stand starts on 2 January 2019 from the census in full leaf, and the broadleaves keep
+  those leaves until the summer (the shed side counts cold only from midsummer), so January–May 2019 has
+  a leafy canopy. Without that spring, March's and April's conifer GPP is 2.2 and 5.1 µmol m⁻² s⁻¹, not 2.8
+  and 5.4.
 - **MODIS albedo** (MCD43A3) joins the albedo panel once NASA's AppEEARS request completes.
 - The tower's FLUXNET soil water (`SWC_F_MDS`) is almost all gap-filled; NEON's own soil sensors are the
   ones to score against.
