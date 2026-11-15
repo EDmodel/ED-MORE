@@ -119,7 +119,9 @@ specific_root_length = 20000.0
 fine_root_radius     = 0.00025
 
 # Leaf phenology (docs/science/plant_phenology.md). PFT 1: example 02's Harvard fit (its
-# fitted_parameters.json), warmth and day length on both sides; PFT 2 always flushing, never senescing.
+# fitted_parameters.json), warmth and day length on both sides; PFT 2 always flushing, never senescing,
+# its capacity acclimating to the cold season (§7) with PRELES's Scots pine values at Hyytiala
+# (Peltoniemi et al. 2015: tau 12.75 d, S0 -3.57 degC, Smax 18.45 K).
 [phenology]
 flush_cue_mask        = [3, 0]
 shed_cue_mask         = [3, 0]
@@ -141,3 +143,6 @@ flush_light_sharpness = [7.99321, 1.0]
 shed_light_hours      = [9.05994, 11.0]
 shed_light_sharpness  = [-1.0, -1.0]
 light_window          = [1.00135, 10.0]
+cold_acclim_timescale = [0.0, 12.74915]        # [day] the broadleaves have none
+cold_acclim_temp_zero = [0.0, 269.583033]      # [K]   -3.566967 degC
+cold_acclim_temp_span = [0.0, 18.4513]         # [K]

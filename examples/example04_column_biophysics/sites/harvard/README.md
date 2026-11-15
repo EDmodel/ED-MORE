@@ -16,7 +16,7 @@ python run_site.py ... --calibrate --workers 40
 
 `<harvard data>` is example 07's data folder (its `fetch_data.py`), with NEON's weighing gauge
 (DP1.00044.001) and soil megapit (DP1.00096.001) in `neon/`. The FLUXNET zip comes from AmeriFlux with an
-account. Six years take about 12 minutes on 8 threads with the dev build.
+account. Six years take about 6 minutes on 8 threads with the dev build.
 
 ## The data
 
@@ -30,8 +30,10 @@ account. Six years take about 12 minutes on 8 threads with the dev build.
 ## The model
 
 - **Two PFTs** ([`pft_parameters.toml`](pft_parameters.toml)): a cold-deciduous broadleaf (example 02's
-  Harvard phenology) and an evergreen conifer. Example 07's Harvard allometry and foliage optics. The stand
-  starts at LAI 3.9 (broadleaf, in leaf) + 1.8 (conifer) and 14.7 kgC m⁻² aboveground.
+  Harvard phenology) and an evergreen conifer whose capacity acclimates to the cold season
+  ([`plant_phenology.md`](../../../../docs/science/plant_phenology.md) §7, with PRELES's Scots pine values).
+  Example 07's Harvard allometry and foliage optics. The stand starts at LAI 3.9 (broadleaf, in leaf) +
+  1.8 (conifer) and 14.7 kgC m⁻² aboveground.
 - **The soil** ([`ed_config_eval.toml`](ed_config_eval.toml)): 1.09 m of stony sandy loam above the dense till,
   one van Genuchten curve from the megapit's horizons by the model's texture formulas.
 - **CO₂** is held at 418 µmol mol⁻¹: the repository's CO₂ file ends in 2022.
@@ -44,27 +46,36 @@ Means over the tower's measured hours, 2019–2024 ([`plot_evaluation.py`](plot_
 
 | | tower | ED-MORE | bias in June–August | bias in December–February |
 |---|---|---|---|---|
-| GPP [µmol m⁻² s⁻¹] | 6.60 | 7.95 | −0.34 | +0.93 |
-| NEE [µmol m⁻² s⁻¹] | −3.38 | −5.57 | −0.88 | −1.29 |
-| LE [W m⁻²] | 53.7 | 64.2 | +7.5 | +13.8 |
-| H [W m⁻²] | 26.3 | 45.2 | +45.0 | +4.0 |
+| GPP [µmol m⁻² s⁻¹] | 6.60 | 7.40 | −0.32 | +0.20 |
+| NEE [µmol m⁻² s⁻¹] | −3.38 | −5.13 | −0.95 | −0.64 |
+| LE [W m⁻²] | 53.7 | 62.7 | +8.1 | +12.6 |
+| H [W m⁻²] | 26.3 | 46.6 | +44.6 | +5.1 |
 | net radiation [W m⁻²] | 86.3 | 86.9 | −0.8 | +3.3 |
 
 - **Summer:** GPP's diurnal cycle and its July peak (22 µmol m⁻² s⁻¹) match, and net radiation is within
   1 W m⁻². The tower closes its energy balance to 0.76, and the calibration's attribution test gives the gap
   to H (H/Rnet rises 77 % from calm to turbulent hours, LE/Rnet does not), as at BCI: most of the model's
   higher summer H is that gap.
-- **Winter and spring: the conifers photosynthesize.** Midday GPP in December–February is 2.9 µmol m⁻² s⁻¹
-  in the model and 0.1 at the tower, and from January to April the model's forest is a sink where the
-  tower's is a source. ED-MORE has no cold down-regulation of an evergreen's photosynthesis. May is early
-  too (GPP 12 against 7, LE 90 against 56 W m⁻²).
+- **Winter: the conifers' cold acclimation.** Without it the model's conifers photosynthesized through the
+  winter. With it, in sunny hours while the broadleaves are bare:
+
+  | GPP [µmol m⁻² s⁻¹] | Jan | Feb | Mar | Apr | Nov | Dec |
+  |---|---|---|---|---|---|---|
+  | tower | 0.00 | 0.00 | 0.43 | 1.55 | 1.00 | 0.15 |
+  | without | 2.00 | 2.74 | 3.82 | 6.16 | 4.34 | 2.68 |
+  | with | 0.23 | 0.18 | 0.80 | 3.06 | 2.70 | 0.73 |
+
+  December–February's NEE turns from a sink (−0.43 µmol m⁻² s⁻¹) to a source (+0.22; the tower +0.86).
+  April and November remain twice the tower's: the conifers' capacity and leaf area, the calibration's.
+- **Spring is early.** March–May's NEE is −3.45 µmol m⁻² s⁻¹ against −0.2 at the tower: April's conifers
+  and May's leaf-out (GPP 12 against 7 in May).
 - **Soil water.** At 15–60 cm NEON's sensors (DP1.00094.001) read 0.12–0.14 m³ m⁻³ in summer; the column
   holds 0.15–0.17. With a sealed base instead of a free-draining one it holds 0.32–0.34 and LE rises by
   17 W m⁻²: the free-draining base is the one to keep.
 
 ## Open
 
-- **Cold down-regulation of evergreen photosynthesis** (above): a missing process, not a parameter.
+- **Spring** (above): the broadleaves' leaf-out and the conifers' April capacity.
 - **Late summer:** H stays high in August–October beyond the closure gap, and GPP falls below the tower's
   in August, with the soil water at NEON's level: the stress on the column's sandy curve is the suspect.
 - **The calibration** ([`calibration.toml`](calibration.toml)) fits PFT 1's keys only; the leaf-on rule
