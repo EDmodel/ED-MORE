@@ -9,6 +9,16 @@ read_model(pattern, utc_offset_h)   the hourly records of the PAIRS variables, o
 read_tower(site, fit, config)       the tower's measured hours on local time, and, with a calibration's
                                     fit, the tower as the calibration scores it (calibration_targets)
 stats(m, t)                         bias, RMSE and hourly r of a model against the tower
+cycle_bins(x, month, hour)          the climatology every mean is made of: each (calendar month, hour of
+                                    the day) averaged over the years
+monthly / diurnal / annual_mean     a month's mean (its 24 hours), a season's diurnal cycle (its months),
+                                    the year's mean (its 12 months), from the bins
+cycle_stats(m, t, month, hour)      the means and bias from the bins, RMSE and r from the paired hours
+
+Why the bins: the tower measures some hours far more often than others (ONEFlux keeps a half hour's NEE
+only above its u* threshold, so few calm nights). A mean over the measured hours is then mostly a mean of
+days -- July's GPP at Harvard is 21 umol m-2 s-1 averaged over them and 12 over all hours -- and the share
+of days changes with the month and the flux. The bins weigh every hour of the day the same.
 """
 import glob
 import json
@@ -28,6 +38,9 @@ import observation_models as om  # noqa: E402  (the calibration's observation mo
 import settings as calibration_settings  # noqa: E402
 from edmore.config import load_toml  # noqa: E402
 MIN_MONTH_HOURS = 240          # a calendar month needs at least ten days of hours the tower measured
+MIN_BIN_HOURS = 5              # ... and each hour of the day in it at least this many measured hours,
+MAX_FILL_HOURS = 3             #   else it is interpolated from the month's neighbouring hours, across at
+                               #   most this many (July's calm nights at Harvard: 3-7 hours in six years)
 INK, MUTED, GRID = "#0b0b0b", "#52514e", "#d9d8d4"
 MODEL, TOWER, CALIBRATED = "#2a78d6", INK, "#d4661c"
 #        model variable    tower flux  group      name             units
@@ -95,4 +108,49 @@ def stats(m, t):
     return {"n_hours": int(len(d)), "model_mean": float(m.mean()), "tower_mean": float(t.mean()),
             "bias": float(d.mean()), "rmse": float(np.sqrt((d ** 2).mean())),
             "r_hourly": float(np.corrcoef(m, t)[0, 1])}
+
+
+def cycle_bins(x, month, hour, min_bin=MIN_BIN_HOURS, max_fill=MAX_FILL_HOURS):
+    """The mean of each (calendar month, hour of the day) over the years: rows months 1-12, columns hours
+    0-23. A bin with fewer than min_bin values is interpolated along its month's diurnal cycle (around
+    midnight too) across a gap of at most max_fill hours, else NaN; a month with fewer than
+    MIN_MONTH_HOURS values is NaN."""
+    s = pd.Series(np.asarray(x, float))
+    g = s.groupby([np.asarray(month), np.asarray(hour)])
+    bins = g.mean().where(g.count() >= min_bin).unstack().reindex(index=range(1, 13), columns=range(24))
+    wrapped = pd.concat([bins, bins, bins], axis=1, ignore_index=True)     # three days, to cross midnight
+    filled = wrapped.interpolate(axis=1, limit=max_fill, limit_area="inside").iloc[:, 24:48]
+    filled.columns = range(24)
+    n = s.groupby(np.asarray(month)).count().reindex(range(1, 13), fill_value=0)
+    ok = np.repeat((n.to_numpy() >= MIN_MONTH_HOURS)[:, None], 24, axis=1)
+    return filled.where(ok)
+
+
+def monthly(bins):
+    """Each calendar month's mean: its 24 hours' bins averaged (NaN unless all 24 have values)."""
+    return bins.mean(axis=1).where(bins.notna().all(axis=1))
+
+
+def diurnal(bins, months):
+    """The mean diurnal cycle over `months`: each hour's bins averaged over them (NaN unless all have one)."""
+    b = bins.reindex(list(months))
+    return b.mean(axis=0).where(b.notna().all(axis=0))
+
+
+def annual_mean(bins, months=range(1, 13)):
+    """The mean over `months` of their monthly means: NaN unless every one of them is shown."""
+    mm = monthly(bins).reindex(list(months))
+    return float(mm.mean()) if mm.notna().all() else float("nan")
+
+
+def cycle_stats(m, t, month, hour, months=range(1, 13)):
+    """A model against the tower on their paired hours: the means and the bias from the climatology
+    (cycle_bins: every hour of the day and every month weighs the same), RMSE and r from the hours."""
+    sel = np.isin(np.asarray(month), list(months))
+    mb, tb = cycle_bins(m, month, hour), cycle_bins(t, month, hour)
+    mmean, tmean = annual_mean(mb, months), annual_mean(tb, months)
+    out = stats(m[sel], t[sel])
+    out.update(model_mean=mmean, tower_mean=tmean, bias=mmean - tmean,
+               measured_hours_bias=float((m[sel] - t[sel]).mean()))
+    return out
 

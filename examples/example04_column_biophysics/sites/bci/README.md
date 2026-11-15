@@ -91,22 +91,24 @@ The numbers here come from the first ED-MORE release, built with ifx and the pro
 ![ED-MORE against the BCI tower: mean diurnal and seasonal cycles of carbon, water and energy](evaluation.png)
 
 The dashed lines are the calibration's targets: GPP with κ, and H with the energy-balance gap added.
-Means over the tower's measured hours, 2012-08 to 2017-07:
+Means over the tower's measured hours, 2012-08 to 2017-07, every hour of the day weighted alike (each
+calendar month's hours of the day averaged over the years: [`evaluation.py`](../../evaluation.py)):
 
 | | tower | target | default | calibrated |
 |---|---|---|---|---|
-| GPP [µmol m⁻² s⁻¹] | 7.46 | 8.23 | 10.50 | 8.75 |
-| LE [W m⁻²] | 75.5 | 75.5 | 81.0 | 66.9 |
-| H by day [W m⁻²] | 91.3 | 166.6 | 161.0 | 174.8 |
-| NEE [µmol m⁻² s⁻¹] | −4.24 | | −3.79 | −3.00 |
-| net radiation [W m⁻²] | 136.3 | | 139.8 | 139.3 |
+| GPP [µmol m⁻² s⁻¹] | 7.64 | 8.43 | 10.78 | 8.99 |
+| LE [W m⁻²] | 76.7 | 76.7 | 82.9 | 68.5 |
+| H [W m⁻²] | 35.1 | 72.6 | 73.6 | 84.8 |
+| NEE [µmol m⁻² s⁻¹] | −4.42 | | −4.09 | −3.24 |
+| net radiation [W m⁻²] | 136.0 | | 139.7 | 139.1 |
 
-- **Carbon:** the calibration brings GPP from 28 % above its target to 6 % above.
+- **Carbon:** the calibration brings GPP from 28 % above its target to 7 % above. Through the year the
+  model's GPP is highest in the dry season (March) and the tower's in the wet season (June–August).
 - **Energy:** the model's canopy still reflects more than the tower sees (daytime albedo 0.163–0.168
   against 0.131), but its net radiation, the leaves', the wood's and the ground's as their balances
-  book it, is within 3–4 W m⁻² of the tower's. The default's daytime H is 3 % below the target; the
-  calibrated run's is 5 % above it.
-- **Water:** the calibration lowers LE to 66.9 W m⁻², below the tower's 75.5, although it improves LE
+  book it, is within 3–4 W m⁻² of the tower's. The default's H is 1 % above the target; the calibrated
+  run's is 17 % above it.
+- **Water:** the calibration lowers LE to 68.5 W m⁻², below the tower's 76.7, although it improves LE
   on the validation windows.
 - Whole-site energy and water close in both runs.
 

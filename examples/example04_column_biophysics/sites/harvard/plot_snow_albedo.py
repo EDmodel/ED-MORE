@@ -8,8 +8,8 @@ default parameters (no calibration).
   SWE, 2009-). ED-MORE holds no snow in the canopy, so all of its snow lies on the ground, as the
   pillow's does.
 * Albedo: the midday (10-14 local, incoming shortwave above 200 W m-2) ratio of reflected to incoming
-  shortwave, the model's at its canopy top against the tower's four-component radiometer at 39 m, by
-  calendar month and against the snow on the ground; and MODIS MCD43A3 (the 3 x 3 500 m pixels around
+  shortwave, the model's at its canopy top against the tower's four-component radiometer at 39 m, both
+  on the hours the radiometer measured, by calendar month and against the snow on the ground; and MODIS MCD43A3 (the 3 x 3 500 m pixels around
   the towers, shortwave white- and black-sky, good-quality retrievals) where it has been fetched.
 
 Usage: python plot_snow_albedo.py --data <harvard data> [--model output/eval] [--out snow_albedo.png]
@@ -106,8 +106,10 @@ def main(argv=None):
 
     daily, hourly = read_model(args.model)
     pillow = read_pillow(args.data).reindex(daily.index)
-    a_model = midday_albedo(hourly)
-    a_tower = midday_albedo(read_tower_albedo(args.site)).reindex(a_model.index)
+    tower_sw = read_tower_albedo(args.site).reindex(hourly.index)
+    measured = tower_sw.notna().all(axis=1)                       # the model on the radiometer's hours
+    a_model = midday_albedo(hourly[measured])
+    a_tower = midday_albedo(tower_sw[measured]).reindex(a_model.index)
     modis = read_modis(args.data)
     days = pd.DataFrame({"swe_model": daily["swe"], "swe_pillow": pillow, "a_model": a_model, "a_tower": a_tower})
 

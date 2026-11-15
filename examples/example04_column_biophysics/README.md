@@ -27,14 +27,17 @@ Each site is a folder in [`sites/`](sites), with its own README, data, configura
 
 ## Results at a glance
 
-Means over each tower's measured hours ([`evaluation.py`](evaluation.py), each site's `plot_evaluation.py`).
+Means over each tower's measured hours ([`evaluation.py`](evaluation.py), each site's `plot_evaluation.py`),
+every hour of the day weighted alike: each calendar month's hours of the day are averaged over the years,
+then the months. A tower keeps some hours far more often than others (few calm nights, where the CO₂ flux
+is u\*-filtered), and a plain mean over its measured hours would be mostly a mean of days.
 
 | Site, run | GPP [µmol m⁻² s⁻¹] tower / model | LE [W m⁻²] | H [W m⁻²] | net radiation [W m⁻²] |
 |---|---|---|---|---|
-| BCI, default | 7.46 / 10.50 | 75.5 / 81.0 | 91.3 / 161.0 (by day) | 136.3 / 139.8 |
-| BCI, calibrated | 7.46 / 8.75 | 75.5 / 66.9 | 91.3 / 174.8 (by day) | 136.3 / 139.3 |
-| Harvard, default | 6.60 / 7.53 | 53.7 / 63.2 | 26.3 / 46.0 | 86.3 / 86.9 |
-| Harvard, calibrated | 6.60 / 7.45 | 53.7 / 60.4 | 26.3 / 48.8 | 86.3 / 86.8 |
+| BCI, default | 7.64 / 10.78 | 76.7 / 82.9 | 35.1 / 73.6 | 136.0 / 139.7 |
+| BCI, calibrated | 7.64 / 8.99 | 76.7 / 68.5 | 35.1 / 84.8 | 136.0 / 139.1 |
+| Harvard, default | 4.58 / 5.20 | 42.5 / 51.6 | 23.9 / 43.3 | 85.7 / 86.2 |
+| Harvard, calibrated | 4.58 / 5.16 | 42.5 / 48.3 | 23.9 / 46.1 | 85.7 / 86.1 |
 
 Both towers close their energy balance to about 0.75 of the net radiation, and at both the calibration's
 attribution test gives the gap to H: most of the model's higher H is the tower's missing H. Each site's

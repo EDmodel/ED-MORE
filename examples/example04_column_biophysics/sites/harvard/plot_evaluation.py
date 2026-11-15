@@ -6,8 +6,10 @@ The tower and the model are read as at every site (../../evaluation.py: the site
 where it was measured, the model's UTC hours moved to local time). A cold-deciduous forest has two
 diurnal regimes, so the figure has three rows for carbon (GPP, NEE), water (LE) and energy (H, net
 radiation): the mean diurnal cycle in summer (June-August) and in winter (December-February), and the
-mean seasonal cycle by calendar month. Every mean uses only the hours both have; a calendar month is
-shown when the tower measured at least ten days of it over the years. NEE is positive toward the
+mean seasonal cycle by calendar month. Every mean uses only the hours both have, and is made from each
+(calendar month, hour of the day) averaged over the years (../../evaluation.py, cycle_bins): a month's mean
+weighs its 24 hours the same, however few calm nights the tower kept. A month is shown when the tower
+measured at least ten days of it, and each of its hours at least five times. NEE is positive toward the
 atmosphere in both. The band around the tower's diurnal cycle is its mean +-2 standard errors: an hour of
 the day averages only the hours the tower measured, few on calm nights (README, Results).
 
@@ -59,24 +61,26 @@ def main(argv=None):
         for _, run, _ in runs:
             both &= run[mv].notna()
         t = tower.loc[both, tv]
+        mo, ho = month[both], hour[both]
+        bins = {"tower": ev.cycle_bins(t, mo, ho)}
         for label, run, _ in runs:
-            s = ev.stats(run.loc[both, mv], t)
+            bins[label] = ev.cycle_bins(run.loc[both, mv], mo, ho)
+            s = ev.cycle_stats(run.loc[both, mv], t, mo, ho)
             for season, months in SEASONS.items():
-                sel = np.isin(month[both], months)
-                s[season] = ev.stats(run.loc[both, mv][sel], t[sel])
+                s[season] = ev.cycle_stats(run.loc[both, mv], t, mo, ho, months)
             out[label][name] = s
         #----- the mean diurnal cycle in each season ----------------------------------------------#
         for row, (season, months) in enumerate(SEASONS.items()):
             sel = both & np.isin(month, months)
             a = ax[row, i]
             g = tower.loc[sel, tv].groupby(hour[sel])
-            td, se = g.mean(), g.std() / np.sqrt(g.size())
+            td, se = ev.diurnal(bins["tower"], months), g.std() / np.sqrt(g.size())
             a.fill_between(td.index + 0.5, td - 2 * se, td + 2 * se, color=ev.TOWER, alpha=0.12, lw=0,
                            label="tower ±2 standard errors")
             a.plot(td.index + 0.5, td.values, color=ev.TOWER, lw=2, label="tower")
             notes = []
             for label, run, colour in runs:
-                md = run.loc[sel, mv].groupby(hour[sel]).mean()
+                md = ev.diurnal(bins[label], months)
                 a.plot(md.index + 0.5, md.values, color=colour, lw=1.8, label=label)
                 notes.append(f"{out[label][name][season]['bias']:+.1f}")
             a.text(0.03, 0.97, "bias " + " / ".join(notes), transform=a.transAxes, va="top", color=ev.MUTED,
@@ -91,11 +95,10 @@ def main(argv=None):
         a = ax[2, i]
         for m in LEAF_OFF:
             a.axvspan(m - 0.5, m + 0.5, color=ev.GRID, alpha=0.35, lw=0)
-        n = t.groupby(month[both]).size()
-        ts = t.groupby(month[both]).mean().where(n >= ev.MIN_MONTH_HOURS)
+        ts = ev.monthly(bins["tower"])
         a.plot(ts.index, ts.values, color=ev.TOWER, lw=2, marker="o", ms=3.5, label="tower")
         for label, run, colour in runs:
-            ms = run.loc[both, mv].groupby(month[both]).mean().where(n >= ev.MIN_MONTH_HOURS)
+            ms = ev.monthly(bins[label])
             a.plot(ms.index, ms.values, color=colour, lw=1.8, marker="o", ms=3.5, label=label)
         a.set(xlim=(0.5, 12.5), xticks=range(1, 13), xticklabels=list(ev.MONTHS), xlabel="month (local)")
     ax[2, 0].set_ylabel("mean seasonal cycle")
@@ -104,7 +107,8 @@ def main(argv=None):
     fig.legend(handles, labels, loc="lower center", ncol=len(labels), frameon=False, fontsize=9)
     years = f"{model.index.min():%Y-%m} to {model.index.max():%Y-%m}"
     fig.suptitle(f"ED-MORE started from the 2019 ForestGEO census around NEON's HARV tower, driven by the tower, "
-                 f"against it ({years}; fluxes where measured)", color=ev.INK, fontsize=11)
+                 f"against it ({years}; fluxes where measured, every hour of the day weighted alike)",
+                 color=ev.INK, fontsize=11)
     fig.tight_layout(rect=(0, 0.04, 1, 1))
     fig.savefig(args.out, dpi=130)
     os.makedirs(os.path.dirname(os.path.abspath(args.stats)), exist_ok=True)

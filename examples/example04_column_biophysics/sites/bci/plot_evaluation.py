@@ -11,9 +11,11 @@ moved to local time -- the post-processing step that UTC-only forcing leaves to 
 
 The figure: for carbon (GPP, NEE), water (LE) and energy (H, net radiation), the mean diurnal cycle
 in local time over the evaluation years (top), and the mean seasonal cycle by calendar month
-(bottom). Every mean uses only the hours both have, so the two curves see the same sample; a
-calendar month is shown when the tower measured at least ten days of it over the five years.
-NEE is positive toward the atmosphere in both.
+(bottom). Every mean uses only the hours both have, so the two curves see the same sample, and is
+made from each (calendar month, hour of the day) averaged over the years (../../evaluation.py,
+cycle_bins): a month's mean weighs its 24 hours the same, however few of some the tower measured. A
+calendar month is shown when the tower measured at least ten days of it over the five years, and each
+of its hours at least five times. NEE is positive toward the atmosphere in both.
 
 With --calibrated, the calibrated run (run_site.py --calibrate) is drawn beside the default,
 and the statistics hold both. With the calibration's fit (--fit, calibration/fit.json by default),
@@ -36,8 +38,8 @@ import numpy as np  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", ".."))
-from evaluation import (CALIBRATED, GRID, INK, MIN_MONTH_HOURS, MODEL, MONTHS, MUTED, PAIRS,  # noqa: E402
-                        TOWER, read_model, read_tower, stats)
+from evaluation import (CALIBRATED, GRID, INK, MODEL, MONTHS, MUTED, PAIRS, TOWER,  # noqa: E402
+                        annual_mean, cycle_bins, cycle_stats, diurnal, monthly, read_model, read_tower)
 import tower_inputs as ti  # noqa: E402  (on the path evaluation set)
 
 
@@ -75,12 +77,16 @@ def main(argv=None):
             both &= target[tv].notna()
         m, t = model.loc[both, mv], tower.loc[both, tv]
         tt = target.loc[both, tv] if scored else t                    # what the bias and r are against
-        s = stats(m, tt)
-        s["tower_measured_mean"] = float(t.mean())
+        mo, ho = month[both], hour[both]
+        mb, tb, ttb = cycle_bins(m, mo, ho), cycle_bins(t, mo, ho), cycle_bins(tt, mo, ho)
+        s = cycle_stats(m, tt, mo, ho)
+        s["tower_measured_mean"] = annual_mean(tb)
         c = cal.loc[both, mv] if cal is not None else None
-        sc = stats(c, tt) if c is not None else None
+        sc = cycle_stats(c, tt, mo, ho) if c is not None else None
+        cb = cycle_bins(c, mo, ho) if c is not None else None
         #----- the mean diurnal cycle ----------------------------------------------------------#
-        md, td, ttd = m.groupby(hour[both]).mean(), t.groupby(hour[both]).mean(), tt.groupby(hour[both]).mean()
+        year = range(1, 13)
+        md, td, ttd = diurnal(mb, year), diurnal(tb, year), diurnal(ttb, year)
         s["r_diurnal"] = float(np.corrcoef(md, ttd)[0, 1])
         a = ax[0, i]
         a.plot(td.index + 0.5, td.values, color=TOWER, lw=2, label="tower")
@@ -88,7 +94,7 @@ def main(argv=None):
             a.plot(ttd.index + 0.5, ttd.values, color=TOWER, lw=1.6, ls="--", label="tower, as the calibration scores it")
         a.plot(md.index + 0.5, md.values, color=MODEL, lw=1.8, label="ED-MORE")
         if c is not None:
-            cd = c.groupby(hour[both]).mean()
+            cd = diurnal(cb, year)
             sc["r_diurnal"] = float(np.corrcoef(cd, ttd)[0, 1])
             a.plot(cd.index + 0.5, cd.values, color=CALIBRATED, lw=1.8, label="ED-MORE calibrated")
         a.set(title=f"{group}: {name}\n({units})", xlabel=f"local time (UTC{site.utc_offset:+g})",
@@ -100,10 +106,7 @@ def main(argv=None):
             note += "\n(against the dashed line)"
         a.text(0.03, 0.97, note, transform=a.transAxes, va="top", color=MUTED, fontsize=8.5)
         #----- the mean seasonal cycle, by calendar month --------------------------------------#
-        n = m.groupby(month[both]).size()
-        ms = m.groupby(month[both]).mean().where(n >= MIN_MONTH_HOURS)
-        ts = t.groupby(month[both]).mean().where(n >= MIN_MONTH_HOURS)
-        tts = tt.groupby(month[both]).mean().where(n >= MIN_MONTH_HOURS)
+        ms, ts, tts = monthly(mb), monthly(tb), monthly(ttb)
         ok = ms.notna() & ts.notna()
         s["r_seasonal"] = float(np.corrcoef(ms[ok], tts[ok])[0, 1]) if ok.sum() > 2 else None
         s["months_shown"] = [int(k) for k in ms.index[ok]]
@@ -115,7 +118,7 @@ def main(argv=None):
                    label="tower, as the calibration scores it")
         a.plot(ms.index, ms.values, color=MODEL, lw=1.8, marker="o", ms=3.5, label="ED-MORE")
         if c is not None:
-            cs = c.groupby(month[both]).mean().where(n >= MIN_MONTH_HOURS)
+            cs = monthly(cb)
             sc["r_seasonal"] = float(np.corrcoef(cs[ok], tts[ok])[0, 1]) if ok.sum() > 2 else None
             a.plot(cs.index, cs.values, color=CALIBRATED, lw=1.8, marker="o", ms=3.5, label="ED-MORE calibrated")
             out_cal[name] = sc
@@ -128,7 +131,8 @@ def main(argv=None):
     ax[1, 0].set_ylabel("mean seasonal cycle")
     years = f"{model.index.min():%Y-%m} to {model.index.max():%Y-%m}"
     fig.suptitle(f"ED-MORE started from the 2010 BCI census, driven by the BCI tower, against the same tower "
-                 f"({years}; turbulent fluxes where FLAG = 1)", color=INK, fontsize=11)
+                 f"({years}; turbulent fluxes where FLAG = 1, every hour of the day weighted alike)",
+                 color=INK, fontsize=11)
     fig.tight_layout(rect=(0, 0.05, 1, 1))
     fig.savefig(args.out, dpi=130)
     os.makedirs(os.path.dirname(os.path.abspath(args.stats)), exist_ok=True)
