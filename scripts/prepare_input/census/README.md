@@ -25,7 +25,8 @@ The declaration TOML names the table, its checksum and how to read it (`[source]
 `x_extent`, `y_extent`, `cell_size` (default 20 m) and `min_dbh_mm` (default 10) (`[plot]`), the one PFT
 of every tree (`[output].pft`, default 1), and optionally an ED-MORE PFT file (`[pft]`) and an earlier census
 (`[mortality]`). With those two, the summary JSON also carries the stand's steady-state litter input
-for `[soil_carbon].spinup_steady`: leaf and fine-root turnover from the PFT, and wood from the plot's
+for `[soil_carbon].spinup_steady`: leaf and fine-root turnover from the PFT (with a deciduous PFT's
+yearly leaf fall, down to its `min_leaf_cover`), less the share it resorbs (`retained_carbon_fraction`), and wood from the plot's
 observed biomass mortality between the two censuses, routed as ED-MORE routes necromass.
 
 | Kept | Dropped, and counted in the summary |

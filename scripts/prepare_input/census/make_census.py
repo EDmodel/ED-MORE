@@ -217,13 +217,21 @@ def pft_params(pft_file, pft):
         v = a.get(name, default)
         return v[k] if isinstance(v, list) else v
 
+    # A PFT with a shed cue drops its canopy to min_leaf_cover once a year, on top of its background
+    # turnover (docs/science/plant_phenology.md); without a [phenology] section no PFT sheds.
+    phen = t.get("phenology", {})
+    sheds = "shed_cue_mask" in phen and int(phen["shed_cue_mask"][k]) != 0
+    seasonal_fall = 1.0 - float(phen["min_leaf_cover"][k]) if sheds else 0.0
+    retained = p.get("retained_carbon_fraction")              # the PFT file's default: 0.3
     return {"b1Ht": allom("b1Ht"), "b2Ht": allom("b2Ht"), "agb_c1": allom("agb_c1"), "agb_c2": allom("agb_c2"),
             "height_allometry": allom("height_allometry", "power"),
             "chave": (allom("chave_a", 0.893), allom("chave_b", 0.760), allom("chave_c", -0.0340),
                       allom("chave_rse", 0.243), a.get("chave_e", 0.0)),
             "lai_b1": allom("lai_b1"), "lai_b2": allom("lai_b2"), "hgt_max": allom("hgt_max"),
             "rho": pick("wood_density"), "sla": pick("sla"), "root_to_leaf": pick("root_to_leaf_ratio"),
-            "aboveground_frac": allom("aboveground_frac"), "leaf_turnover": pick("leaf_turnover_rate_toc"),
+            "aboveground_frac": allom("aboveground_frac"),
+            "leaf_turnover": pick("leaf_turnover_rate_toc") + seasonal_fall,
+            "retained": float(retained[k]) if retained is not None else 0.3,
             "fineroot_turnover": pick("fineroot_turnover_rate"), "f_labile_leaf": pick("f_labile_leaf"),
             "f_labile_stem": pick("f_labile_stem")}
 
@@ -266,8 +274,9 @@ def litter_input(dbh_cm, plot_area, pp, wood_mortality):
     leaf_c = la.sum() / pp["sla"] / plot_area
     root_c = pp["root_to_leaf"] * leaf_c
     wood_c = agb.sum() / pp["aboveground_frac"] / plot_area
-    leaf_l = leaf_c * pp["leaf_turnover"]              # [kgC m-2 yr-1]
-    root_l = root_c * pp["fineroot_turnover"]
+    littered = 1.0 - pp.get("retained", 0.0)          # the rest of the leaf and root loss is resorbed
+    leaf_l = leaf_c * pp["leaf_turnover"] * littered   # [kgC m-2 yr-1]
+    root_l = root_c * pp["fineroot_turnover"] * littered
     wood_l = wood_c * wood_mortality
     fl, fs, agf = pp["f_labile_leaf"], pp["f_labile_stem"], pp["aboveground_frac"]
     streams = {

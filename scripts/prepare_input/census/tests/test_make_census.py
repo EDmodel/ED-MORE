@@ -158,3 +158,36 @@ def test_mortality_matches_trees_by_id_and_takes_the_declared_dead_status():
     rate, years = mc.biomass_mortality(earlier, later, dead_status=("G",))
     assert years == pytest.approx(5.0) and rate == pytest.approx(0.25 / 5.0)
     assert mc.biomass_mortality(earlier, later)[0] == 0.0     # under the default "D", nobody died
+
+
+def test_a_deciduous_pft_litters_its_canopy_each_year_less_what_it_resorbs(tmp_path):
+    pft = tmp_path / "pft.toml"
+    pft.write_text("""
+[pft]
+wood_density = [0.6, 0.4]
+sla = [20.0, 10.0]
+root_to_leaf_ratio = [1.0, 1.0]
+leaf_turnover_rate_toc = [0.01, 0.33]
+fineroot_turnover_rate = [1.0, 0.8]
+f_labile_leaf = [0.7, 0.6]
+f_labile_stem = [0.05, 0.05]
+retained_carbon_fraction = [0.3, 0.3]
+[allometry]
+b1Ht = 1.139963
+b2Ht = 0.564899
+agb_c1 = 0.03365
+agb_c2 = 0.976
+lai_b1 = 0.23384770
+lai_b2 = 0.6410495
+hgt_max = [46.0, 46.0]
+aboveground_frac = [0.7, 0.7]
+[phenology]
+shed_cue_mask = [3, 0]
+min_leaf_cover = [0.0, 0.0]
+""")
+    deciduous, evergreen = mc.pft_params(str(pft), 1), mc.pft_params(str(pft), 2)
+    assert deciduous["leaf_turnover"] == pytest.approx(1.01)          # the whole canopy, and the background
+    assert evergreen["leaf_turnover"] == pytest.approx(0.33)          # no shed cue: the background alone
+    _, per_year = mc.litter_input(np.array([30.0]), 400.0, deciduous, 0.0)
+    _, la, _ = mc.allometry(np.array([30.0]), deciduous)
+    assert per_year["leaf"] == pytest.approx(la[0] / 20.0 / 400.0 * 1.01 * 0.7)   # 30 % resorbed
