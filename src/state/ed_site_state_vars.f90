@@ -69,9 +69,17 @@ module ed_site_state_vars
       !---~---
       real(wp),    allocatable :: t_growth_avg(:)   ! [K] running-mean growth temperature
       !---~---
+      !   COLD ACCLIMATION STATE of each PFT's leaves (docs/science/plant_phenology.md §7;
+      ! Makela et al. 2004): the daily-mean air temperature lagged by the PFT's
+      ! cold_acclim_timescale. PROGNOSTIC (written to the state file); unset until the first
+      ! slow step seeds it with that day's mean. A PFT without the timescale leaves it unset.
+      !---~---
+      real(wp),    allocatable :: cold_acclim_temp(:,:)   ! [K] (pft, site)
+      !---~---
       !   Each site's leaf table: the PFT table's, its entropy terms and Jmax:Vcmax ratio
-      ! acclimated to the site's growth temperature (acclimate_site_leaf_tables). Derived
-      ! from t_growth_avg, so never restarted.
+      ! acclimated to the site's growth temperature (acclimate_site_leaf_tables) and its
+      ! capacity factors to the cold (set_capacity_factors). Derived from t_growth_avg and
+      ! cold_acclim_temp, so never restarted.
       !---~---
       type(leaf_photo_table_t), allocatable :: leaf_photo(:)
       !--- 5. FAST-TO-SLOW ACCUMULATORS (the model reads them)
@@ -109,6 +117,8 @@ contains
       !--- 4. Climate memory
       allocate(site%t_growth_avg(cap))
       site%t_growth_avg = UNSET_POSITIVE
+      allocate(site%cold_acclim_temp(max(leaf_photo%n_pft, 1_ik), cap))
+      site%cold_acclim_temp = UNSET_POSITIVE
       allocate(site%leaf_photo(cap), source=leaf_photo)
       !--- 5. Fast-to-slow accumulators
       allocate(site%pheno_tair_sum(cap), site%pheno_tair_n(cap))
@@ -122,8 +132,8 @@ contains
       site%n = 0_ik
       site%cap = 0_ik
       if (allocated(site%area)) deallocate(site%area, site%patch_offset, site%patch_count, site%surface,     &
-                                           site%t_growth_avg, site%leaf_photo, site%pheno_tair_sum,          &
-                                           site%pheno_tair_n)
+                                           site%t_growth_avg, site%cold_acclim_temp, site%leaf_photo,        &
+                                           site%pheno_tair_sum, site%pheno_tair_n)
       if (allocated(site%diag%v)) deallocate(site%diag%v, site%diag%w)
       site%diag%active = .false.
    end subroutine free_site_block

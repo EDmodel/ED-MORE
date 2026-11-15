@@ -765,6 +765,16 @@ contains
              any(p%pheno(1:n)%flush_water_sharpness == 0.0_wp) .or.                                    &
              any(p%pheno(1:n)%shed_water_sharpness  == 0.0_wp))                                        &
             error stop TAG//'a phenology sharpness is 0: its switch would be a constant 0.5'
+         !--- The cold acclimation (plant_phenology.md §7): a PFT with a timescale needs a span and a zero.
+         associate (ca => p%pheno(1:n))
+            if (any(ca%cold_acclim_timescale < 0.0_wp))                                                     &
+               error stop TAG//'phenology.cold_acclim_timescale must be >= 0 (0: no cold acclimation)'
+            if (any(ca%cold_acclim_timescale > 0.0_wp .and. ca%cold_acclim_temp_span <= 0.0_wp))           &
+               error stop TAG//'phenology.cold_acclim_temp_span must be > 0 for a PFT with a timescale'
+            if (any(ca%cold_acclim_timescale > 0.0_wp .and. (ca%cold_acclim_temp_zero < 200.0_wp .or.      &
+                    ca%cold_acclim_temp_zero > 330.0_wp)))                                                  &
+               error stop TAG//'phenology.cold_acclim_temp_zero is a temperature [K] in 200-330'
+         end associate
       end associate
    end subroutine check_phenology
 

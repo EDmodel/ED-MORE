@@ -660,8 +660,9 @@ contains
 
    !---~---
    !   leaf_params_at_capacity -- a PFT's table entry with one leaf's plastic capacities on
-   ! top: Jmax25 and TPU25 scale with the leaf's Vcmax25 by the PFT's ratios. It is the
-   ! one place a leaf's capacities meet the table, so every solve applies them alike.
+   ! top: Jmax25 and TPU25 scale with the leaf's Vcmax25 by the PFT's ratios, and all three
+   ! with the site's cold-season capacity factor (1 outside it). It is the one place a leaf's
+   ! capacities meet the table, so every solve applies them alike.
    !---~---
    pure function leaf_params_at_capacity(table, ipft, vcmax25, rd25) result(p)
       type(leaf_photo_table_t), intent(in) :: table          ! the per-PFT leaf parameters
@@ -669,9 +670,9 @@ contains
       real(wp),                 intent(in) :: vcmax25, rd25  ! [umol/m2 leaf/s] the leaf's capacities at 25 degC
       type(leaf_photo_pft_t)               :: p              ! the PFT's parameters with those capacities
       p         = table%pft(ipft)
-      p%vcmax25 = vcmax25
-      p%jmax25  = table%jmax_vcmax_ratio(ipft) * vcmax25
-      p%tpu25   = table%tpu_vcmax_ratio(ipft)  * vcmax25
+      p%vcmax25 = p%capacity_factor * vcmax25         ! the cold season's share (plant_phenology.md §7)
+      p%jmax25  = table%jmax_vcmax_ratio(ipft) * p%vcmax25
+      p%tpu25   = table%tpu_vcmax_ratio(ipft)  * p%vcmax25
       p%rd25    = rd25
    end function leaf_params_at_capacity
 

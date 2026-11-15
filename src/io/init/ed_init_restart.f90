@@ -421,6 +421,8 @@ contains
       call define_site_statics(d%ncid, d%polygon, d%site, [SOIL_BC_DRAIN, SOIL_BC_AQUIFER], 'drain aquifer',    &
                                by_row=.true., deflate=RESTART_DEFLATE)
       call def_var(d, 't_growth_avg_si', NC_DOUBLE, [d%site], 'the site''s running-mean growth temperature [K]')
+      call def_var(d, 'cold_acclim_temp_si', NC_DOUBLE, [d%site, d%pft],                                     &
+                   'each PFT''s cold-acclimation state at the site [K] (plant_phenology.md §7)')
    end subroutine define_polygon_vars
 
    subroutine put_polygon_vars(r, poly, now)
@@ -460,6 +462,9 @@ contains
       end do
       call write_site_statics(r%ncid, r%row - 1_ik, area, elev, slope, aspect, nsoil, depth, bc, drain, tdeep)
       call put_dbl(r, 't_growth_avg_si', poly%site%t_growth_avg(1:ns))
+      do is = 1_ik, ns
+         call put_dbl(r, 'cold_acclim_temp_si', poly%site%cold_acclim_temp(1:poly%n_pft, is), item=is)
+      end do
    end subroutine put_polygon_vars
 
    !---~---
@@ -534,6 +539,9 @@ contains
       end block
       !--- 4. Growth temperature.
       call get_dbl(r, 't_growth_avg_si', poly%site%t_growth_avg(1:ns))
+      do is = 1_ik, ns
+         call get_dbl(r, 'cold_acclim_temp_si', poly%site%cold_acclim_temp(1:cfg%pft%n, is), item=is)
+      end do
    end subroutine get_polygon_vars
 
    !--- 2. THE COHORTS, in ed_cohort_state_vars' section order

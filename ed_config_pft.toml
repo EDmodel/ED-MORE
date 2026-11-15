@@ -246,3 +246,11 @@ fine_root_radius     = 2.5e-4     # [m]     fine-root radius: tropical fine-root
 # flush_water_sharpness = [0.5, 0.5, 0.5]          # [1/(MPa day)]
 # shed_water_sum        = [10.0, 10.0, 10.0]       # [MPa day] dry sum that triggers shedding
 # shed_water_sharpness  = [0.5, 0.5, 0.5]          # [1/(MPa day)]
+#
+# OPTIONAL: the cold acclimation of an evergreen's capacity (plant_phenology.md §7; Makela et al. 2004).
+# A state follows the daily air temperature with a lag; Vcmax25 (Jmax25, TPU25) keep the share
+# (state - temp_zero) / temp_span, clamped to [0, 1]. A timescale of 0, the default, is none.
+# The values are PRELES's Scots pine at Hyytiala (Peltoniemi et al. 2015).
+# cold_acclim_timescale = [0.0, 12.75, 0.0]      # [day]
+# cold_acclim_temp_zero = [0.0, 269.58, 0.0]     # [K]   (-3.57 degC)
+# cold_acclim_temp_span = [0.0, 18.45, 0.0]      # [K]

@@ -13,7 +13,7 @@ module ed_stepper
    use ed_budget_check,         only : budget_t
    use ed_polygon_state_vars,   only : polygon_t
    use ed_slow_dynamics,        only : advance_slow_dynamics, advance_boundary_dynamics, settle_tissue_water
-   use ed_slow_state,           only : acclimate_site_leaf_tables
+   use ed_slow_state,           only : acclimate_site_leaf_tables, set_capacity_factors
    use ed_slow_ledger,          only : slow_ledger_t
    use ed_fast_dynamics,        only : fast_dynamics
    use ed_met_types,            only : met_source_t, met_cursor_t
@@ -72,6 +72,12 @@ contains
       !---~---
       if (cfg%leaf_physiology%thermal_acclimation)                                                  &
          call acclimate_site_leaf_tables(poly, cfg%leaf_physiology, max(1_ik, nint(cfg%dt_slow / day_sec, ik)))
+      !---~---
+      !   Cold acclimation (docs/science/plant_phenology.md §7): each site's leaf table takes
+      ! its PFTs' capacity factors from their acclimation states, which the last slow step
+      ! advanced. Set before every fast loop, so a restart rebuilds them from the state.
+      !---~---
+      call set_capacity_factors(poly, cfg)
 
       !---~---
       !   The fast loop. The tissue water above what each cohort's biomass now holds is shed

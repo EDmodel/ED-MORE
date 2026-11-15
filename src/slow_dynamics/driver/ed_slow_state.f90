@@ -5,7 +5,7 @@
 ! calls a law of slow_dynamics/processes and writes that process's own fields; the step's
 ! tendencies and decisions go into slow_step_data_t, which ed_slow_update commits.
 !   * leaf: advance_leaf_phenology, advance_plant_traits, reacclimate_plant_traits,
-!     acclimate_site_leaf_tables;
+!     acclimate_site_leaf_tables, advance_cold_acclimation, set_capacity_factors;
 !   * carbon: compute_carbon_allocation, compute_vital_rates, accumulate_mortality_litter;
 !   * tissue water: shed_turnover_water, fill_new_leaf_water, shed_mortality_water,
 !     shed_excess_tissue_water;
@@ -45,6 +45,7 @@ module ed_slow_state
 
    public :: slow_step_data_t
    public :: advance_leaf_phenology, advance_plant_traits, reacclimate_plant_traits, acclimate_site_leaf_tables
+   public :: advance_cold_acclimation, set_capacity_factors
    public :: compute_carbon_allocation, compute_vital_rates, accumulate_mortality_litter
    public :: shed_turnover_water, fill_new_leaf_water, shed_mortality_water, shed_excess_tissue_water
    public :: advance_soil_carbon, decide_recruitment, decide_disturbance
@@ -277,6 +278,57 @@ contains
          end associate
       end do
    end subroutine acclimate_site_leaf_tables
+
+   !---~---
+   !   advance_cold_acclimation -- move each site's cold-acclimation state of every PFT that has
+   ! one toward the day's mean air temperature, at a weight dt/timescale (plant_phenology.md
+   ! §7, eq. (10)). An unset state takes the day's mean. It runs in the slow step after the
+   ! fast loop that made the mean, so the state file holds the advanced state.
+   !---~---
+   subroutine advance_cold_acclimation(poly, cfg)
+      type(polygon_t),   intent(inout) :: poly
+      type(ed_config_t), intent(in)    :: cfg
+      real(wp)    :: t_day, dt_days, w
+      integer(ik) :: is, ipft
+      dt_days = cfg%dt_slow / day_sec
+      do is = 1_ik, poly%site%n
+         if (poly%site%pheno_tair_n(is) < 1_ik) cycle      ! no fast sub-steps ran: nothing to average
+         t_day = site_air_temp_day(poly, is)
+         do ipft = 1_ik, cfg%pft%n
+            associate (tau => cfg%pft%pheno(ipft)%cold_acclim_timescale, s => poly%site%cold_acclim_temp(ipft, is))
+               if (tau <= 0.0_wp) cycle
+               if (is_unset_positive(s)) then
+                  s = t_day
+               else
+                  w = dt_days / max(tau, dt_days)
+                  s = s + w * (t_day - s)
+               end if
+            end associate
+         end do
+      end do
+   end subroutine advance_cold_acclimation
+
+   !---~---
+   !   set_capacity_factors -- each site's leaf table's capacity factor of every PFT with a
+   ! cold-acclimation state, from that state (plant_phenology.md §7, eq. (11)): 0 at or below
+   ! temp_zero, rising linearly to 1 at temp_zero + temp_span. A state not yet seeded keeps the
+   ! factor at 1. The stepper calls it before every fast loop, so a restart rebuilds the
+   ! factor from the state it reads.
+   !---~---
+   subroutine set_capacity_factors(poly, cfg)
+      type(polygon_t),   intent(inout) :: poly
+      type(ed_config_t), intent(in)    :: cfg
+      integer(ik) :: is, ipft
+      do is = 1_ik, poly%site%n
+         do ipft = 1_ik, cfg%pft%n
+            associate (ph => cfg%pft%pheno(ipft), s => poly%site%cold_acclim_temp(ipft, is),             &
+                       factor => poly%site%leaf_photo(is)%pft(ipft)%capacity_factor)
+               if (ph%cold_acclim_timescale <= 0.0_wp .or. is_unset_positive(s)) cycle
+               factor = min(1.0_wp, max(0.0_wp, (s - ph%cold_acclim_temp_zero) / ph%cold_acclim_temp_span))
+            end associate
+         end do
+      end do
+   end subroutine set_capacity_factors
 
    !---~---
    !   A site's daily-mean air temperature [K] over the fast loop's sub-steps: its own forcing,

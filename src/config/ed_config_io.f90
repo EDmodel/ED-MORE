@@ -931,6 +931,10 @@ contains
       call opt_pa(t, 'phenology.flush_water_sharpness',   cfg%pft%pheno%flush_water_sharpness, npft, m)
       call opt_pa(t, 'phenology.shed_water_sum',          cfg%pft%pheno%shed_water_sum,        npft, m)
       call opt_pa(t, 'phenology.shed_water_sharpness',    cfg%pft%pheno%shed_water_sharpness,  npft, m)
+      !--- Optional: the cold acclimation of the leaves' capacity; a timescale of 0 is none.
+      call opt_pa(t, 'phenology.cold_acclim_timescale',   cfg%pft%pheno%cold_acclim_timescale, npft, m)
+      call opt_pa(t, 'phenology.cold_acclim_temp_zero',   cfg%pft%pheno%cold_acclim_temp_zero, npft, m)
+      call opt_pa(t, 'phenology.cold_acclim_temp_span',   cfg%pft%pheno%cold_acclim_temp_span, npft, m)
    end subroutine load_phenology_pft
 
    subroutine req_date(t, key, out, m)

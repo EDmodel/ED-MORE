@@ -202,6 +202,10 @@ in `ed_slow_state`, `acclimate_leaf_photo_table` in `ed_plant_traits`). `thermal
 requires the peaked form: with the Arrhenius form there is no $`\Delta S`$ to shift, and the loader
 refuses the combination.
 
+Thermal acclimation moves where the response peaks; it does not shut a leaf down. An evergreen's
+winter loss of capacity is a separate, per-PFT factor on Vcmax25 (with Jmax25 and TPU25) from a lagged
+temperature state: [`plant_phenology.md`](plant_phenology.md) §7.
+
 ## 3. Stomatal-conductance models
 
 The model is selected by `[leaf_physiology].stomatal_model` (`"leuning"`, `"medlyn"` or `"katul"`;

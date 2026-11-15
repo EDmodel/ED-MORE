@@ -209,6 +209,8 @@ contains
       p%kt_last_day = 0.61_wp
       p%growth_hist_pos = 7_ik
       p%site%t_growth_avg(1:2) = [296.5_wp, 297.25_wp]
+      p%site%cold_acclim_temp(:, 1:2) = 280.0_wp + reshape([(0.25_wp * real(i, wp), i = 1_ik, 2_ik * cfg%pft%n)],  &
+                                                           [cfg%pft%n, 2_ik])
       nwin = int(size(p%cohort%growth_hist, 1), ik)
       do i = 1_ik, p%cohort%n
          x = 0.01_wp * real(i, wp)
