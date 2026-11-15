@@ -161,13 +161,16 @@ def cmd_check(args):
     fk = fit.FreeKeys(runner, [[p.name for p in keys].index(name)], start.copy())
     u0 = fk.u_prior
     r0 = fk.residuals([u0])[0]
+    # The values the prior trial ran with: each key's centre through its transform and back, which need
+    # not return the centre's last bit (a leaf angle of 33.9 comes back 33.900000000000006).
+    x0 = fk.values(u0)
     J, _ = fit.gradient_central(fk, u0, r0)
     moved = bool(np.any(J[:, 0] != 0.0))
     log(f"the gradient column of {name} moves the output: {moved} (|J| = {np.linalg.norm(J[:, 0]):.4g})")
 
     def run_again(subdir, write_state=False):
         threads = trials.threads_for(w.days, max_threads)
-        tdir = trials.build_trial(cal.base, keys, start, w, states[w.name], work / subdir, cal.overrides, write_state,
+        tdir = trials.build_trial(cal.base, keys, x0, w, states[w.name], work / subdir, cal.overrides, write_state,
                                   threads)
         status = workers.run([Task(subdir, trials.command(args.runner, tdir / "main.toml"), str(tdir),
                                    str(tdir / "run.log"), trials.timeout_for(w.days, per_day), threads)])[subdir][0]
@@ -175,7 +178,7 @@ def cmd_check(args):
             raise trials.TrialError(f"{tdir.name}: {status}\n{trials.log_tail(tdir / 'run.log')}")
         return tdir, trials.finish(tdir, keys, start, cal.step)
     _, again = run_again("repeat")
-    first = trials.load_series(trials.build_trial(cal.base, keys, start, w, states[w.name], work / "trials", cal.overrides))
+    first = trials.load_series(trials.build_trial(cal.base, keys, x0, w, states[w.name], work / "trials", cal.overrides))
     same = all(np.array_equal(first[v].values, again[v].values) for v in trials.TRIAL_VARIABLES)
     log(f"a repeated trial is byte-identical: {same}")
     sdir, _ = run_again("stand", write_state=True)
