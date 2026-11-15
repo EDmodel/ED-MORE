@@ -47,6 +47,8 @@ __pycache__/
 /runs/
 # What each example's scripts download, and every run an example makes.
 /examples/*/data/
+/examples/*/sites/*/data/
+/examples/*/sites/*/calibration/run/
 /examples/**/output/
 /examples/*/calibration/run/
 # Logs from runs and batch jobs.

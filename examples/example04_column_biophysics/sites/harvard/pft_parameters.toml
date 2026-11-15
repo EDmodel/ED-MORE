@@ -1,0 +1,143 @@
+# SPDX-License-Identifier: Apache-2.0
+# The Harvard site's two PFTs: 1 the cold-deciduous broadleaves (red oak, red maple, birches, beech),
+# 2 the evergreen conifers (hemlock, red and white pine). Every key is the repository PFT file's
+# (ed_config_pft.toml), at its default unless a comment gives the source. harvard_traits.py prints the
+# values measured at the site; example 07 fitted the allometry and the foliage optics to the same stand
+# and NEON's PAR sensors; example 02 fitted the deciduous phenology to Harvard's leaf fall and MODIS.
+
+[pft]
+wood_density       = [0.539, 0.379]   # [g/cm3] Global Wood Density Database, the stand's basal-area mean (harvard_traits.py)
+# The mortality hazard and the conductivity below from wood density (scripts/prepare_input/pft_traits).
+mort_gamma         = [0.011448947829223977, 0.021881162848053196]   # [1/yr]
+mort_alpha         = [0.05655672702033209, 0.08477527209895015]     # [1/yr]
+mort_beta          = [18.167936301425534, 16.466529734492482]       # [yr/cm]
+leaf_width         = [0.04, 0.002]    # [m] a broad leaf; a needle (hemlock 2 mm, pine 1 mm)
+branch_diameter    = [0.02, 0.02]     # [m]
+reproduction_investment_fraction = [0.3, 0.3]
+recruit_carbon_efficiency          = [1.0e-3, 1.0e-3]
+seed_rain_recruits = [0.01, 0.01]     # [plant/m2/yr]
+include_pft        = [1, 1]
+min_cohort_height  = 2.0              # [m]
+min_repro_height   = [13.9, 13.9]     # [m]
+photosynthetic_pathway = [1, 1]
+vcmax25            = [60.0, 45.0]     # [umol/m2/s] the repository's PFT 1 and 2; the calibration fits it
+jmax_vcmax_ratio   = [1.8, 1.7]
+tpu_vcmax_ratio    = [0.167, 0.167]
+rd_vcmax_ratio     = [0.015, 0.015]
+kp25               = [1.0e-9, 1.0e-9]
+stomatal_g0        = [0.01, 0.01]
+stomatal_g1        = [4.45, 2.35]     # Medlyn [kPa^0.5]: deciduous angiosperm trees and evergreen gymnosperms
+                                      #   (Lin et al. 2015, Nat. Clim. Change 5:459; CLM5's BDT and NET)
+stomatal_d0        = [1500.0, 1500.0]
+quantum_yield_c4   = [0.0, 0.0]
+theta_j            = [0.70, 0.70]
+theta_cj_c3        = [0.98, 0.98]
+theta_ip_c3        = [0.95, 0.95]
+theta_cj_c4        = [0.80, 0.80]
+theta_ic_c4        = [0.95, 0.95]
+katul_lambda25     = [800.0, 800.0]
+wstress_lambda_exp = [1.0, 1.0]
+wstress_sref_stomata = [2.0, 2.0]     # [1/MPa]
+sla                = [21.2, 10.6]     # [m2/kgC] NEON's sun-leaf mass per area at HARV, 94 and 189 g/m2 (harvard_traits.py)
+root_to_leaf_ratio = [1.0, 1.0]
+is_woody           = [1, 1]
+stem_resp_factor25 = [0.06, 0.06]
+root_resp_factor25 = [0.30, 0.30]
+leaf_reflect_vis   = [0.10, 0.10]
+leaf_transmit_vis  = [0.05, 0.05]
+leaf_reflect_nir   = [0.45, 0.45]
+leaf_transmit_nir  = [0.25, 0.25]
+leaf_emissivity    = [0.97, 0.97]
+wood_reflect_vis   = [0.11, 0.11]
+wood_transmit_vis  = [0.001, 0.001]
+wood_reflect_nir   = [0.25, 0.25]
+wood_transmit_nir  = [0.001, 0.001]
+wood_emissivity    = [0.90, 0.90]
+# Example 07's fit of the foliage to NEON's PAR sensors below the crowns, 2019 (its calibrated_optics.json):
+# the 20 m patches already hold the gaps between crowns, so the clumping within a layer is near 1.
+leaf_clumping      = [0.933, 0.933]
+wood_clumping      = [1.0, 1.0]
+leaf_angle_mean    = [33.9, 33.9]     # [deg]
+leaf_angle_std     = [20.0, 20.0]
+wood_angle_mean    = [75.0, 75.0]     # [deg] the woody surface (unpublished TLS data: 72-76)
+wood_angle_std     = [20.0, 20.0]
+storage_cushion    = [3.0, 3.0]       # the repository's: a deciduous canopy rebuilds itself from storage each spring
+growth_resp_factor = [0.3, 0.3]
+leaf_turnover_rate_toc = [0.000106781, 0.33]   # [1/yr] deciduous: example 02's Harvard fit (its leaves go at
+                                               #   senescence); conifers: needles live about three years
+kplastic_vcmax         = [-0.1459341188305866, -0.11760191025318557]   # pft_traits.py from vcmax25
+kplastic_rd            = [-0.1459341188305866, -0.11760191025318557]
+kplastic_sla           = [0.15654750929099287, 0.12615477645341722]
+kplastic_leaf_turnover = [0.0, 0.0]
+fineroot_turnover_rate = [1.0, 0.8]   # [1/yr]
+f_labile_leaf          = [0.70, 0.60]
+f_labile_stem          = [0.05, 0.05]
+struct_lignin_frac     = [0.25, 0.30]
+
+[allometry]
+# Example 07's Harvard allometry (its run_example.py, HARVARD_PFT; fit_allometry.py): height on Chave's
+# log-quadratic, each PFT fitted to the 3,400 trees NEON measured at HARV, capped at the lidar canopy top;
+# the deciduous leaf area scaled to a July LAI of 3.95 around NEON's sensors.
+height_allometry = ["chave2014", "chave2014"]
+chave_a    = [0.47289, 0.43288]
+chave_b    = [1.0693, 0.71177]
+chave_c    = [-0.097823, 0.00026528]
+chave_rse  = [0.25066, 0.25667]
+chave_e    = 0.0
+hgt_max    = [28.0, 28.0]             # [m]
+b1Ht       = 1.139963                 # the power law, unused on "chave2014"
+b2Ht       = 0.564899
+agb_c1     = 0.03365
+agb_c2     = 0.976
+lai_b1     = [0.1746, 0.23384770]
+lai_b2     = 0.6410495
+wai_b1     = [0.0096, 0.0096]
+wai_b2     = [2.0947, 2.0947]
+sapwood_area_b1  = [1.582, 1.582]
+sapwood_area_b2  = [1.764, 1.764]
+aboveground_frac = [0.7, 0.7]
+
+[hydraulics]
+leaf_pi0             = -1.5
+leaf_elastic_mod     = 12.0
+leaf_apoplast_frac   = 0.3
+leaf_water_sat       = 2.0
+wood_pi0             = -1.0
+wood_elastic_mod     = 8.0
+wood_apoplast_frac   = 0.2
+wood_water_sat       = 1.0
+wood_psi50           = -2.0
+wood_kexp            = 2.0
+# From wood density (Xu et al. 2016, pft_traits.py). The fit is to angiosperm wood: a conifer's tracheids
+# conduct less than its density says.
+wood_kmax            = [3.796406646461244, 5.622941918589475]   # [kg/m/s/MPa]
+vessel_curl          = 1.5
+root_beta            = 0.1
+root_depth_b1        = 1.114058
+root_depth_b2        = 0.4223014
+specific_root_length = 20000.0
+fine_root_radius     = 0.00025
+
+# Leaf phenology (docs/science/plant_phenology.md). PFT 1: example 02's Harvard fit (its
+# fitted_parameters.json), warmth and day length on both sides; PFT 2 always flushing, never senescing.
+[phenology]
+flush_cue_mask        = [3, 0]
+shed_cue_mask         = [3, 0]
+flush_cue_timescale   = [5.0, 5.0]
+shed_cue_timescale    = [5.0, 5.0]
+flush_rate_max        = [0.0333098, 0.06667]
+shed_rate_max         = [0.333333, 0.05]
+min_leaf_cover        = [0.0, 0.0]
+bare_leaf_cover       = [0.02, 0.02]
+flush_base_temp       = [278.15, 278.15]
+flush_degree_days     = [91.7506, 100.0]
+flush_temp_sharpness  = [0.04, 0.04]
+shed_base_temp        = [290.25, 290.15]
+shed_degree_days      = [47.889, 50.0]
+shed_temp_sharpness   = [0.1, 0.1]
+par_min               = [2.0001, 5.0]
+flush_light_hours     = [13.6528, 12.0]
+flush_light_sharpness = [7.99321, 1.0]
+shed_light_hours      = [9.05994, 11.0]
+shed_light_sharpness  = [-1.0, -1.0]
+light_window          = [1.00135, 10.0]
