@@ -27,7 +27,7 @@ def save_json(path, obj):
         if isinstance(o, tuple):
             return list(o)
         raise TypeError(type(o).__name__)
-    Path(path).write_text(json.dumps(obj, indent=1, default=conv))
+    Path(path).write_text(json.dumps(obj, indent=1, default=conv) + "\n")   # a text file ends in a newline
 
 
 # ------------------------------------------------------------------------------------------------
