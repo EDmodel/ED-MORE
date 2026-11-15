@@ -71,12 +71,6 @@ module ed_pft_params
       real(wp) :: hd_vcmax, hd_jmax, hd_rd, ds_vcmax, ds_jmax, ds_rd
       real(wp) :: o2_mol_frac, absorptance, phi_psii
       real(wp) :: vpd_min = 0.05_wp   ! [kPa] the VPD the Medlyn and Katul models use at least ([leaf_physiology])
-      !---~---
-      !   [-] The share of its capacity a leaf keeps through the cold season (plant_phenology.md
-      ! §7): it scales Vcmax25, and with it Jmax25 and TPU25, but not Rd25. Each site's table
-      ! sets it daily from its acclimation state; 1 for a PFT without one.
-      !---~---
-      real(wp) :: capacity_factor = 1.0_wp
    end type leaf_photo_pft_t
 
    !---~---
@@ -210,15 +204,6 @@ module ed_pft_params
       real(wp)    :: shed_water_sum        = 10.0_wp     ! [MPa day] dry sum that triggers shedding
       real(wp)    :: shed_water_sharpness  = 0.5_wp      ! [1/(MPa day)]
       real(wp)    :: leaf_psi_tlp          = -2.0_wp     ! [MPa] the leaf's turgor-loss point (derive_pft_tables)
-      !---~---
-      !   The seasonal acclimation of the leaves' capacity to the cold (plant_phenology.md §7;
-      ! Makela et al. 2004): a state that follows the daily air temperature with a lag, and the
-      ! capacity rising from 0 at temp_zero to 1 at temp_zero + temp_span. A timescale of 0, the
-      ! default, keeps the capacity whole all year.
-      !---~---
-      real(wp)    :: cold_acclim_timescale = 0.0_wp      ! [day] the state's lag behind the air temperature
-      real(wp)    :: cold_acclim_temp_zero = 0.0_wp      ! [K]   the state at which the capacity is 0
-      real(wp)    :: cold_acclim_temp_span = 0.0_wp      ! [K]   the state's rise above it to full capacity
    end type phenology_traits_t
 
    !--- PFT trait table (SoA).  Units in brackets.

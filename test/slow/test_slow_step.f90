@@ -283,16 +283,13 @@ module test_slow_step_acclimation
    use ed_state_defaults,       only : is_unset_positive
    use ed_init_bare_ground,     only : init_bare_sites, finalize_init
    use ed_plant_traits,         only : acclimate_leaf_photo_table
-   use ed_slow_state,           only : acclimate_site_leaf_tables, advance_cold_acclimation, set_capacity_factors
-   use ed_leaf_gas_exchange,    only : leaf_params_at_capacity
-   use ed_pft_params,           only : leaf_photo_pft_t
+   use ed_slow_state,           only : acclimate_site_leaf_tables
    use ed_stepper,              only : advance_one_step, run_ledgers_t
-   use ed_time,                 only : ed_time_t
    use ed_test_support,         only : banner, build_test_config, check_close, check_true
    implicit none
    private
 
-   public :: run_thermal_acclimation, run_cold_acclimation
+   public :: run_thermal_acclimation
 
    real(wp), parameter :: T_COOL = t_kelvin + 10.0_wp   ! [K] the cool site's daily mean
    real(wp), parameter :: T_WARM = t_kelvin + 30.0_wp   ! [K] the warm site's
@@ -375,91 +372,6 @@ contains
                        0.0_wp)
       call check_tables_follow(poly, cfg, 'through the step')
    end subroutine run_thermal_acclimation
-
-   !---~---
-   !   The cold acclimation of a PFT's capacity (docs/science/plant_phenology.md §7, eqs.
-   ! (10)-(11)): PFT 1 carries a state (10-day lag, zero at 270 K, full 20 K above), the
-   ! other PFTs none. A cold site and a cool one.
-   !---~---
-   subroutine run_cold_acclimation()
-      real(wp), parameter :: TAU = 10.0_wp, T_ZERO = 270.0_wp, T_SPAN = 20.0_wp
-      real(wp), parameter :: T_COLD = t_kelvin - 10.0_wp      ! [K] the cold site's day: below T_ZERO
-      type(ed_config_t)      :: cfg
-      type(polygon_t)        :: poly
-      type(run_ledgers_t)    :: ledgers   ! never activated: the step books nothing
-      type(leaf_photo_pft_t) :: p
-      real(wp)    :: t_new, gap0, f
-      integer(ik) :: iday, is
-      call banner('cold acclimation: each site''s state of PFT 1 and its capacity factor')
-      cfg = build_test_config()
-      cfg%pft%pheno(1)%cold_acclim_timescale = TAU
-      cfg%pft%pheno(1)%cold_acclim_temp_zero = T_ZERO
-      cfg%pft%pheno(1)%cold_acclim_temp_span = T_SPAN
-
-      !--- 1. Before the first slow step every state is unset, and every factor 1.
-      call two_sites(cfg, poly)
-      call set_capacity_factors(poly, cfg)
-      call check_true('an unset state keeps the factor at 1', all(poly%site%leaf_photo(1)%pft%capacity_factor == 1.0_wp))
-
-      !---~---
-      !   2. A first day, 10 C at one site and -10 C at the other: PFT 1's unset state takes its
-      ! site's day, the other PFTs' stay unset; the factor is (S - zero)/span at the cool site,
-      ! 0 at the cold one, and 1 for every other PFT.
-      !---~---
-      call set_day(poly, [T_COOL, T_COLD])
-      call advance_cold_acclimation(poly, cfg)
-      call set_capacity_factors(poly, cfg)
-      call check_close('an unset state takes the cool site''s day', poly%site%cold_acclim_temp(1, 1), T_COOL, 0.0_wp)
-      call check_close('and the cold site''s', poly%site%cold_acclim_temp(1, 2), T_COLD, 0.0_wp)
-      call check_true('a PFT without a timescale has no state', is_unset_positive(poly%site%cold_acclim_temp(2, 1)), &
-                      poly%site%cold_acclim_temp(2, 1))
-      call check_close('the cool site keeps (S - zero)/span', poly%site%leaf_photo(1)%pft(1)%capacity_factor,     &
-                       (T_COOL - T_ZERO) / T_SPAN, 1.0e-12_wp)
-      call check_close('the cold site keeps none', poly%site%leaf_photo(2)%pft(1)%capacity_factor, 0.0_wp, 0.0_wp)
-      call check_close('another PFT keeps all', poly%site%leaf_photo(2)%pft(2)%capacity_factor, 1.0_wp, 0.0_wp)
-
-      !---~---
-      !   3. Ten days at 30 C at the cool site: each day closes 1/TAU of the gap, (1 - 1/TAU)**10
-      ! of it is left, and past zero + span the factor is 1. The cold site's fast loop runs no
-      ! sub-step: its state stays.
-      !---~---
-      t_new = t_kelvin + 30.0_wp
-      gap0  = poly%site%cold_acclim_temp(1, 1) - t_new
-      do iday = 1_ik, 10_ik
-         call set_day(poly, [t_new, T_COOL])
-         poly%site%pheno_tair_n(2) = 0_ik
-         call advance_cold_acclimation(poly, cfg)
-      end do
-      call set_capacity_factors(poly, cfg)
-      call check_close('ten days later (1 - 1/tau)**10 of the gap is left', poly%site%cold_acclim_temp(1, 1) - t_new, &
-                       gap0 * (1.0_wp - 1.0_wp / TAU)**10, 1.0e-9_wp)
-      call check_close('past zero + span the factor is 1', poly%site%leaf_photo(1)%pft(1)%capacity_factor, 1.0_wp,   &
-                       0.0_wp)
-      call check_close('a site with no sub-step keeps its state', poly%site%cold_acclim_temp(1, 2), T_COLD, 0.0_wp)
-
-      !--- 4. A leaf keeps the factor's share of Vcmax25, Jmax25 and TPU25, and all its Rd25.
-      poly%site%cold_acclim_temp(1, 1) = T_ZERO + 0.25_wp * T_SPAN
-      call set_capacity_factors(poly, cfg)
-      f = poly%site%leaf_photo(1)%pft(1)%capacity_factor
-      call check_close('a quarter of the span keeps a quarter', f, 0.25_wp, 1.0e-12_wp)
-      p = leaf_params_at_capacity(poly%site%leaf_photo(1), 1_ik, 40.0_wp, 0.6_wp)
-      call check_close('the leaf''s Vcmax25', p%vcmax25, f * 40.0_wp, 1.0e-12_wp)
-      call check_close('its Jmax25', p%jmax25, poly%site%leaf_photo(1)%jmax_vcmax_ratio(1) * f * 40.0_wp, 1.0e-12_wp)
-      call check_close('its TPU25', p%tpu25, poly%site%leaf_photo(1)%tpu_vcmax_ratio(1) * f * 40.0_wp, 1.0e-12_wp)
-      call check_close('its Rd25 stays', p%rd25, 0.6_wp, 0.0_wp)
-
-      !---~---
-      !   5. Through advance_one_step, on a dated step (the slow step advances the leaves' seasons
-      ! only with a date): the step seeds each site's state, and the next sets the factors.
-      !---~---
-      call two_sites(cfg, poly)
-      call set_day(poly, [T_COOL, T_COLD])
-      call advance_one_step(poly, cfg, ledgers, step_start=ed_time_t(2000_ik, 1_ik, 15_ik))
-      do is = 1_ik, poly%site%n
-         call check_true('the step seeds the state', .not. is_unset_positive(poly%site%cold_acclim_temp(1, is)),    &
-                         poly%site%cold_acclim_temp(1, is))
-      end do
-   end subroutine run_cold_acclimation
 
    !--- A polygon of two bare sites, each half of it, on the run's config.
    subroutine two_sites(cfg, poly)
@@ -1905,7 +1817,7 @@ end module test_slow_step_diag
 !---~---
 program test_slow_step
    use test_slow_step_phenology, only : run_phenology_wiring
-   use test_slow_step_acclimation, only : run_thermal_acclimation, run_cold_acclimation
+   use test_slow_step_acclimation, only : run_thermal_acclimation
    use test_slow_step_carbon, only : run_carbon_step
    use test_slow_step_ledger_paths, only : run_ledger_paths
    use test_slow_step_mortality, only : run_mortality_pathways
@@ -1916,7 +1828,6 @@ program test_slow_step
 
    call run_phenology_wiring()
    call run_thermal_acclimation()
-   call run_cold_acclimation()
    call run_carbon_step()
    call run_ledger_paths()
    call run_mortality_pathways()

@@ -204,44 +204,7 @@ Evergreen and deciduous differ in one number. The emergent leaf lifespan follows
 the floor; it is not a parameter of the kernel. The fitted values of the four habits are in
 [`examples/example02_canopy_phenology`](../../examples/example02_canopy_phenology/README.md).
 
-## 7. The cold season's photosynthetic capacity
-
-An evergreen keeps its leaves through the winter but not their capacity. Conifers harden against frost
-in autumn and shut photosynthesis down, then recover it over weeks in spring (Öquist & Huner 2003).
-The leaf's temperature response ([`leaf_gas_exchange.md`](leaf_gas_exchange.md) §2) does not do this:
-at 0 °C the peaked curve still keeps about a tenth of Vcmax25, and it answers the hour's temperature, not
-the season's. At Harvard Forest, the model's conifers photosynthesized through every winter where the
-tower measured none (§8).
-
-A PFT may carry the state of acclimation of Mäkelä et al. (2004), in the form PRELES uses (Peltoniemi et
-al. 2015). A state $`S`$ follows the site's daily-mean air temperature $`T_d`$ with a lag $`\tau`$, one
-slow step $`\Delta t`$ at a time,
-
-```math
-S \leftarrow S + \frac{\Delta t}{\max(\tau, \Delta t)}\,\left(T_d - S\right)
-\qquad(10)
-```
-
-and the leaf keeps the share
-
-```math
-f_S = \min\!\left(1,\ \max\!\left(0,\ \frac{S - S_0}{S_{\mathrm{span}}}\right)\right)
-\qquad(11)
-```
-
-of its capacity: $`f_S`$ scales its Vcmax25, and with it Jmax25 and TPU25 by the PFT's ratios, in every
-leaf solve. Its dark respiration Rd25 stays.
-
-- **The state** is per site and PFT and is written to the state file. The first slow step seeds it with
-  that day's mean; until then $`f_S = 1`$.
-- **The order:** the slow step advances $`S`$ on the mean the fast loop just made, beside the phenology;
-  the stepper sets $`f_S`$ in the site's leaf table before every fast loop, so a restart rebuilds it from
-  the state it reads.
-- **The values:** PRELES's fit to the Scots pine at Hyytiälä (Peltoniemi et al. 2015) is
-  $`\tau`$ = 12.7 days, $`S_0`$ = −3.6 °C and $`S_{\mathrm{span}}`$ = 18.5 °C, so a leaf has its whole
-  capacity once $`S`$ passes 14.9 °C. A PFT without a timescale keeps $`f_S = 1`$ all year.
-
-## 8. Evidence
+## 7. Evidence
 
 [`examples/example02_canopy_phenology`](../../examples/example02_canopy_phenology/README.md) fits the
 compiled kernel at four sites, every one with its light from ERA5-Land through ED-MORE's forcing reader:
@@ -311,13 +274,10 @@ The `[phenology]` block of the PFT file, one value per PFT for every key.
 | $`M^{*}_{\mathrm{dry}}, s_{\mathrm{dry}}`$ | `shed_water_sum`, `shed_water_sharpness` | dry sum that triggers senescence [MPa day] (optional) |
 | $`\psi_{\mathrm{tlp}}`$ | *(derived)* | turgor-loss point from `leaf_pi0` and `leaf_elastic_mod` |
 | $`k_{\mathrm{turn}}`$ | `leaf_turnover_rate_toc` ([pft]) | background turnover [yr⁻¹] at the canopy top |
-| $`\tau`$ | `cold_acclim_timescale` | the cold-acclimation state's lag [day]; 0, the default, is none (optional, §7) |
-| $`S_0`$ | `cold_acclim_temp_zero` | the state at which the capacity is 0 [K] (optional) |
-| $`S_{\mathrm{span}}`$ | `cold_acclim_temp_span` | the state's rise above $`S_0`$ to full capacity [K] (optional) |
 
 The `[phenology]` section is gated by its presence: absent, every PFT keeps the no-cue defaults (both
 masks 0, so it always flushes and never senesces, and `flush_rate_max` = 0.06667 day⁻¹, about 15 days
-to full leaf); present, every `[phenology]` key above is required except the optional water and cold-acclimation keys. The gate is the
+to full leaf); present, every `[phenology]` key above is required except the optional water keys. The gate is the
 section, not a key in it: gated on one key, a `[phenology]` block that misspelt that key would be
 skipped in silence, and every PFT would run with no cues whatever its leaf habit. A sharpness of 0 is
 rejected (the switch would be a constant 0.5). A key the PFT reference does not list stops the run,
@@ -345,7 +305,6 @@ per-cohort state and are written to the state file.
 | cue bits | `ed_pft_params`: `CUE_*`, beside the cue masks |
 | helpers | `ed_numerics`: `logistic`, `clamp01`; `ed_time`: `doy_effective` |
 | per-cohort advance (slow step) | `ed_slow_state`: `advance_leaf_phenology` |
-| cold acclimation (§7) | `ed_slow_state`: `advance_cold_acclimation` (slow step), `set_capacity_factors` (`ed_stepper`, before each fast loop); `ed_site_state_vars`: `cold_acclim_temp`; `ed_leaf_gas_exchange`: `leaf_params_at_capacity` (`capacity_factor`) |
 | hours of light at each cohort's top | `ed_canopy_radiation`: `rad_out_t%incid_top`; `ed_fast_forcing` (`par_top`); `ed_fast_state`: `accumulate_fast_to_slow` (`light_hours_accum`) |
 | turnover-first carbon demand | `ed_plant_carbon_allocation`: `cohort_carbon_demand` (called from `ed_slow_state`: `compute_carbon_allocation`) |
 | C API | `ed_c_api_phenology`: `ed_phenology_step`, `ed_leaf_turnover_step`, `ed_daylength` |
@@ -364,12 +323,6 @@ per-cohort state and are written to the state file.
   forest trees before the rains.
 - **Kim et al. (2012)**, *Glob. Change Biol.* 18:1322 — seasonal carbon and water fluxes of an Amazon
   rainforest, with a light-controlled leaf phenology in ED2.
-- **Mäkelä et al. (2004)**, *Tree Physiol.* 24:369 — the state of acclimation: Scots pine's
-  photosynthetic capacity follows the annual cycle of temperature with a delay.
-- **Peltoniemi et al. (2015)**, *Boreal Environ. Res.* 20:151 — PRELES, with the state of acclimation
-  fitted at Hyytiälä (the values of §7, from its code, Rpreles).
-- **Öquist & Huner (2003)**, *Annu. Rev. Plant Biol.* 54:329 — the winter down-regulation of evergreen
-  photosynthesis.
 - **Kupers et al. (2019)**, *Sci. Data* 6:63 — dry-season soil water potential maps of the Barro
   Colorado Island 50-ha plot.
 - ED2 `ED/src/dynamics/phenology_driv.f90`, `phenology_aux.f90`.

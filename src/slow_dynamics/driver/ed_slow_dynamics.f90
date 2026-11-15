@@ -28,8 +28,7 @@ module ed_slow_dynamics
                                        slow_co2_handoff, litter_carbon_total
    use ed_slow_state,           only : slow_step_data_t, decide_recruitment, decide_disturbance,         &
                                        kill_report_t, kill_litter, clear_litter,                         &
-                                       advance_leaf_phenology, advance_cold_acclimation,                 &
-                                       advance_plant_traits,                                             &
+                                       advance_leaf_phenology, advance_plant_traits,                     &
                                        compute_carbon_allocation, shed_turnover_water,                   &
                                        compute_vital_rates, fill_new_leaf_water,                         &
                                        accumulate_mortality_litter, shed_mortality_water,                &
@@ -109,8 +108,6 @@ contains
       ! slow-only path) omits doy, and the tendencies are not advanced.
       !---~---
       if (present(doy)) call advance_leaf_phenology(poly, cfg, doy)
-      !--- 0a. The cold acclimation of the leaves' capacity, on the same daily mean (plant_phenology.md §7).
-      if (present(doy)) call advance_cold_acclimation(poly, cfg)
 
       !--- The litter the step opens with, the last boundary's kills, was declared there.
       litter_open = 0.0_wp
