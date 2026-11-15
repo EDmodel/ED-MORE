@@ -290,14 +290,6 @@ run the cue reads the run's own predawn leaf potential, feedback included; examp
 maximum and minimum leaf area, and its leaf cover, against MODIS across a rainfall gradient, but no
 coupled run's month-by-month leaf-area cycle is scored.
 
-The cold acclimation (§7) is tested in the coupled model at Harvard Forest
-([`examples/example04_column_biophysics/sites/harvard`](../../examples/example04_column_biophysics/sites/harvard/README.md)),
-where NEON's tower sees the conifers alone while the broadleaves are bare. With PRELES's Hyytiälä values,
-the conifers' GPP in sunny January and February hours falls from 2.0–2.7 µmol m⁻² s⁻¹ to 0.2 (the tower
-measures 0), and the winter's NEE turns from a sink to a source, as the tower's is. April and November
-stay about twice the tower's.
-
-
 ## Parameters
 
 The `[phenology]` block of the PFT file, one value per PFT for every key.
