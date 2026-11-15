@@ -33,7 +33,7 @@ Means over each tower's measured hours ([`evaluation.py`](evaluation.py), each s
 |---|---|---|---|---|
 | BCI, default | 7.46 / 10.50 | 75.5 / 81.0 | 91.3 / 161.0 (by day) | 136.3 / 139.8 |
 | BCI, calibrated | 7.46 / 8.75 | 75.5 / 66.9 | 91.3 / 174.8 (by day) | 136.3 / 139.3 |
-| Harvard, default | 6.60 / 7.40 | 53.7 / 62.7 | 26.3 / 46.6 | 86.3 / 86.9 |
+| Harvard, default | 6.60 / 7.53 | 53.7 / 63.2 | 26.3 / 46.0 | 86.3 / 86.9 |
 
 Both towers close their energy balance to about 0.75 of the net radiation, and at both the calibration's
 attribution test gives the gap to H: most of the model's higher H is the tower's missing H. Each site's

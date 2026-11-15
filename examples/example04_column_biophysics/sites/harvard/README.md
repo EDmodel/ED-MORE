@@ -16,7 +16,7 @@ python run_site.py ... --calibrate --workers 40
 
 `<harvard data>` is example 07's data folder (its `fetch_data.py`), with NEON's weighing gauge
 (DP1.00044.001) and soil megapit (DP1.00096.001) in `neon/`. The FLUXNET zip comes from AmeriFlux with an
-account. Six years take about 12 minutes on 8 threads with the dev build.
+account. Six years take about 6 minutes on 8 threads with the dev build.
 
 ## The data
 
@@ -32,11 +32,13 @@ account. Six years take about 12 minutes on 8 threads with the dev build.
 - **Two PFTs** ([`pft_parameters.toml`](pft_parameters.toml)): a cold-deciduous broadleaf (example 02's
   Harvard phenology) and an evergreen conifer. Example 07's Harvard allometry and foliage optics. The stand
   starts at LAI 3.9 (broadleaf, in leaf) + 1.8 (conifer) and 14.7 kgC m⁻² aboveground.
+- **Both PFTs' capacities fall away near freezing**, by every PFT's low-temperature limit at its default
+  (ED2's 4.7 °C; [`leaf_gas_exchange.md`](../../../../docs/science/leaf_gas_exchange.md) eq. (3b)).
 - **The soil** ([`ed_config_eval.toml`](ed_config_eval.toml)): 1.09 m of stony sandy loam above the dense till,
   one van Genuchten curve from the megapit's horizons by the model's texture formulas.
 - **CO₂** is held at 418 µmol mol⁻¹: the repository's CO₂ file ends in 2022.
 
-## Results (default parameters)
+## Results (default parameters, no calibration)
 
 ![ED-MORE against NEON's HARV tower, 2019-2024: summer and winter diurnal cycles and the seasonal cycle](evaluation.png)
 
@@ -44,31 +46,69 @@ Means over the tower's measured hours, 2019–2024 ([`plot_evaluation.py`](plot_
 
 | | tower | ED-MORE | bias in June–August | bias in December–February |
 |---|---|---|---|---|
-| GPP [µmol m⁻² s⁻¹] | 6.60 | 7.95 | −0.34 | +0.93 |
-| NEE [µmol m⁻² s⁻¹] | −3.38 | −5.57 | −0.88 | −1.29 |
-| LE [W m⁻²] | 53.7 | 64.2 | +7.5 | +13.8 |
-| H [W m⁻²] | 26.3 | 45.2 | +45.0 | +4.0 |
+| GPP [µmol m⁻² s⁻¹] | 6.60 | 7.53 | −0.37 | +0.26 |
+| NEE [µmol m⁻² s⁻¹] | −3.38 | −5.24 | −0.90 | −0.70 |
+| LE [W m⁻²] | 53.7 | 63.2 | +7.7 | +12.5 |
+| H [W m⁻²] | 26.3 | 46.0 | +44.9 | +5.1 |
 | net radiation [W m⁻²] | 86.3 | 86.9 | −0.8 | +3.3 |
 
 - **Summer:** GPP's diurnal cycle and its July peak (22 µmol m⁻² s⁻¹) match, and net radiation is within
   1 W m⁻². The tower closes its energy balance to 0.76, and the calibration's attribution test gives the gap
   to H (H/Rnet rises 77 % from calm to turbulent hours, LE/Rnet does not), as at BCI: most of the model's
   higher summer H is that gap.
-- **Winter and spring: the conifers photosynthesize.** Midday GPP in December–February is 2.9 µmol m⁻² s⁻¹
-  in the model and 0.1 at the tower, and from January to April the model's forest is a sink where the
-  tower's is a source. ED-MORE has no cold down-regulation of an evergreen's photosynthesis. May is early
-  too (GPP 12 against 7, LE 90 against 56 W m⁻²).
+- **Winter: the conifers.** While the broadleaves are bare, the tower sees the conifers alone. Without the
+  low-temperature limit they photosynthesized through the winter; with it, in sunny hours:
+
+  | GPP [µmol m⁻² s⁻¹] | Jan | Feb | Mar | Apr | Nov | Dec |
+  |---|---|---|---|---|---|---|
+  | tower | 0.01 | 0.01 | 0.34 | 1.58 | 1.20 | 0.15 |
+  | without the limit | 2.05 | 3.30 | 5.13 | 6.48 | 5.44 | 2.68 |
+  | with it | 0.38 | 1.20 | 2.80 | 5.37 | 4.12 | 0.87 |
+
+  December–February's NEE turns from a sink (−0.43 µmol m⁻² s⁻¹) to a source (+0.16; the tower +0.86),
+  and the summer is unchanged. The tower measures no photosynthesis at all in winter, not even at midday:
+  its daytime NEE stays at +0.7 to +0.95.
+- **Spring is early.** April's conifers keep over three times the tower's GPP, and March–May's NEE is −3.9
+  µmol m⁻² s⁻¹ against −0.2 at the tower, with May's leaf-out (GPP 18 against 11 in May).
 - **Soil water.** At 15–60 cm NEON's sensors (DP1.00094.001) read 0.12–0.14 m³ m⁻³ in summer; the column
   holds 0.15–0.17. With a sealed base instead of a free-draining one it holds 0.32–0.34 and LE rises by
   17 W m⁻²: the free-draining base is the one to keep.
 
+### Snow and albedo
+
+![Snow water equivalent against the snow pillow, and the midday albedo against NEON's radiometer](snow_albedo.png)
+
+[`plot_snow_albedo.py`](plot_snow_albedo.py) sets the model's snow pack against the Harvard Forest snow
+pillow (HF155, in a 15 m canopy opening 1.2 km west of the tower, cut so that branches do not intercept
+the snow), and its midday albedo (10–14 h, shortwave above 200 W m⁻²) against the tower's radiometer.
+
+| winter (Nov–Apr) | 2019 | 2020 | 2021 | 2022 | 2023 | 2024 |
+|---|---|---|---|---|---|---|
+| peak SWE [mm], pillow / model | 85 / 108 | 82 / 60 | 89 / 73 | 69 / 37 | 109 / 100 | 31 / 55 |
+| days with ≥ 5 mm, pillow / model | 88 / 97 | 100 / 105 | 102 / 98 | 83 / 72 | 94 / 105 | 52 / 60 |
+
+- **The pack comes and goes on the right days**, and lasts about as many days. Its depth is right within
+  about a third: in 2020–2022 the model melts more of it in the mid-winter thaws, and in 2019 and 2024 it
+  holds more. On 3–4 April 2024 it turned 46 mm of precipitation near 0 °C into a 33 mm pack the pillow
+  never saw.
+- **Albedo, leaf-on:** 0.161 in June–August against the tower's 0.159. From August the tower's falls as
+  the leaves age (0.146–0.151 in August–October); the model's leaf optics do not change (0.156–0.162).
+- **Albedo, bare and snow-free:** the leafless canopy is too bright, 0.141 against 0.125 in December–March,
+  0.140 against 0.126 in April and 0.141 against 0.128 in November.
+- **Albedo, snow:** the tower's rises from 0.125 to 0.181 as the pillow's pack passes 40 mm; the model's
+  from 0.141 to 0.163, under half the rise. The snow ED-MORE does not hold in the crowns is the likely
+  reason: the model's snow lies only under them.
+
 ## Open
 
-- **Cold down-regulation of evergreen photosynthesis** (above): a missing process, not a parameter.
+- **Spring** (above): the conifers' April capacity, the broadleaves' leaf-out, and a lag the instantaneous
+  low-temperature limit does not have.
+- **Snow in the crowns:** the winter albedo's response to snow, and snow's interception and sublimation.
+- **The leafless canopy's brightness** and **autumn's leaf optics** (albedo above).
 - **Late summer:** H stays high in August–October beyond the closure gap, and GPP falls below the tower's
   in August, with the soil water at NEON's level: the stress on the column's sandy curve is the suspect.
 - **The calibration** ([`calibration.toml`](calibration.toml)) fits PFT 1's keys only; the leaf-on rule
   finds three calibration windows and one validation window, and no seasonal run.
-- **Snow:** the single-layer pack is not yet scored (HF155 SWE, NEON soil temperature under the pack).
+- **MODIS albedo** (MCD43A3) joins the albedo panel once NASA's AppEEARS request completes.
 - The tower's FLUXNET soil water (`SWC_F_MDS`) is almost all gap-filled; NEON's own soil sensors are the
   ones to score against.
