@@ -30,7 +30,17 @@ observed biomass mortality between the two censuses, routed as ED-MORE routes ne
 
 | Kept | Dropped, and counted in the summary |
 |---|---|
-| status `A` (`[plot].alive_status`), a diameter of at least `min_dbh_mm`, coordinates inside the plot | every other status, live trees without a diameter, smaller trees, trees outside the plot |
+| status `A` (`[plot].alive_status`), a diameter of at least `min_dbh_mm`, coordinates inside the plot (and the circle) | every other status, live trees without a diameter, smaller trees, trees outside the plot or the circle |
+
+Tables other than BCI's, and stands of several PFTs:
+
+| Key | What it does |
+|---|---|
+| `[source].columns` | maps the tool's column names (`treeID`, `status`, `dbh`, `gx`, `gy`, `date`, `ExactDate`, `agb`, `sp`) to the table's, e.g. `{ treeID = "stem.id", date = "jd" }`; `[mortality]` takes its own |
+| `[source].dbh_units` | `"mm"` (default) or `"cm"` |
+| `[output].pft_by_species` | a PFT per species code (`{ tsugca = 2 }`); every other tree takes `[output].pft`. The rows are then one per (cell, diameter, PFT), and the summary's allometry and litter are each tree's own PFT's |
+| `[plot].circle` | `{ x, y, radius }` [m, plot coordinates]: only the cells whose centre lies within, such as a tower's surroundings. The summary's per-hectare values, and the earlier census's mortality, are over those cells |
+| `[mortality].dead_status` | the later census's statuses of a tree that died (default `["D"]`); the two censuses are matched by `treeID` |
 
 A grid that does not tile the plot, such as 40 m cells on a 500 m side, ends in partial cells, and
 each keeps its true area. The tool warns about cells with no kept tree, whose area is lost to the

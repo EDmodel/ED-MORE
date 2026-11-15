@@ -113,3 +113,48 @@ def test_litter_streams_carry_all_the_litter():
     per_day, per_year = mc.litter_input(np.array([10.0, 30.0, 60.0]), 400.0, pp, 0.02)
     assert sum(per_day.values()) * mc.YR_DAY == pytest.approx(sum(per_year.values()))
     assert per_year["fine_root"] == pytest.approx(per_year["leaf"] / 0.5 * 0.8)   # same carbon, 0.8/yr vs 0.5/yr
+
+
+def test_a_table_with_its_own_column_names_and_diameters_in_cm():
+    t = table([("A", 25.0, 5, 5), ("A", 12.0, 45, 25)]).rename(
+        columns={"treeID": "stem.id", "date": "jd"})
+    t["dbh"] = t["dbh"] / 10.0                          # the table records cm
+    src = {"columns": {"treeID": "stem.id", "date": "jd"}, "dbh_units": "cm"}
+    std = mc.standard_columns(t, src)
+    assert list(std["dbh"]) == [25.0, 12.0] and "treeID" in std and "date" in std
+    with pytest.raises(SystemExit, match="does not have"):
+        mc.standard_columns(t, {"columns": {"treeID": "no.such"}})
+
+
+def test_each_species_takes_its_pft():
+    t = table([("A", 25.0, 5, 5), ("A", 30.0, 5, 5), ("A", 30.0, 5, 5)])
+    t["sp"] = ["tsugca", "querru", "tsugca"]
+    pft = mc.tree_pfts(t, {"pft": 1, "pft_by_species": {"tsugca": 2}})
+    assert list(pft) == [2, 1, 2]
+    rows, _, _ = mc.census_rows(t, PLOT, pft)
+    # one row per (cell, diameter, PFT): the two 3 cm trees of different PFTs stay apart
+    assert sorted(zip(rows.dbh.round(1), rows.pft)) == [(2.5, 2), (3.0, 1), (3.0, 2)]
+    assert math.isclose((rows.nplant * rows.patch_area).sum(), 3.0)
+
+
+def test_a_circle_keeps_the_cells_whose_centre_lies_in_it():
+    plot = dict(PLOT, circle={"x": 10.0, "y": 10.0, "radius": 25.0})
+    # cell centres (10,10) and (30,10) lie within 25 m; (50,10) and (30,30) do not (28.3 m)
+    t = table([("A", 20.0, 5, 5), ("A", 20.0, 35, 5), ("A", 20.0, 55, 5), ("A", 20.0, 35, 25)])
+    kept, dropped = mc.live_trees(t, plot)
+    assert sorted(kept["gx"]) == [5, 35] and dropped["alive, outside the circle"] == 2
+    mask = mc.stand_cell_mask(plot)
+    assert mask.sum() == 3                              # (10,10), (30,10) and (10,30)
+    _, _, empty = mc.census_rows(kept, plot, 1)
+    assert empty == 1
+
+
+def test_mortality_matches_trees_by_id_and_takes_the_declared_dead_status():
+    earlier = table([("A", 20, 1, 1)] * 4)
+    later = earlier.iloc[::-1].copy()                   # another order, and a recruit
+    later.loc[later["treeID"] == 2, "status"] = "G"
+    later["date"] = later["date"] + 5 * mc.YR_DAY
+    later = pd.concat([later, table([("A", 12, 1, 1)]).assign(treeID=99, date=18000 + 5 * mc.YR_DAY)])
+    rate, years = mc.biomass_mortality(earlier, later, dead_status=("G",))
+    assert years == pytest.approx(5.0) and rate == pytest.approx(0.25 / 5.0)
+    assert mc.biomass_mortality(earlier, later)[0] == 0.0     # under the default "D", nobody died

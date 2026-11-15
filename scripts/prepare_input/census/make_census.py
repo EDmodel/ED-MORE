@@ -3,7 +3,7 @@
 """Turn a ForestGEO tree table into an ED-MORE census file (scripts/prepare_input/census/README.md).
 
 The tool only maps trees to patches. Each square plot cell is one patch, and each distinct
-(cell, diameter) is one row, with `nplant` the number of those trees over the cell's area. It does
+(cell, diameter, PFT) is one row, with `nplant` the number of those trees over the cell's area. It does
 no binning and no fusion: ED-MORE restructures the stand itself before the first step
 (`restructure_census_stand`), with the same operators the slow step uses.
 
@@ -38,6 +38,11 @@ except ImportError:                     # Python < 3.11
 
 YR_DAY = 365.2425                       # days per year, as ed_constants
 ALIVE = ("A",)
+DEAD = ("D",)                           # a later census's status of a tree that died since the earlier one
+# The columns the tool reads, by their names in a ForestGEO tree table (BCI's). A table that names them
+# otherwise maps them in [source].columns, e.g. { treeID = "stem.id", date = "jd" }.
+COLUMNS = ("treeID", "status", "dbh", "gx", "gy", "date", "ExactDate", "agb", "sp")
+DBH_TO_MM = {"mm": 1.0, "cm": 10.0}
 
 
 # --------------------------------------------------------------------------------------------- #
@@ -52,7 +57,8 @@ def sha256(path):
 
 
 def read_table(src, base):
-    """One census tree table as a DataFrame, checked against its declared checksum."""
+    """One census tree table as a DataFrame, checked against its declared checksum, with the tool's
+    column names (COLUMNS) and its diameters in mm."""
     path = os.path.join(base, src["path"])
     if not os.path.exists(path):
         raise SystemExit(f"ERROR: census table not found: {path}")
@@ -63,21 +69,56 @@ def read_table(src, base):
             raise SystemExit(f"ERROR: {path} has SHA-256 {got}, the declaration says {want}")
     fmt = src.get("format", "csv")
     if fmt == "csv":
-        return pd.read_csv(path, low_memory=False), path
-    if fmt == "rdata":
+        table = pd.read_csv(path, low_memory=False)
+    elif fmt == "rdata":
         try:
             import pyreadr
         except ImportError:
             raise SystemExit("ERROR: reading .rdata needs pyreadr (pip install pyreadr), or export a CSV from R")
-        return pyreadr.read_r(path)[src["rdata_object"]], path
-    raise SystemExit(f"ERROR: unknown census format {fmt!r} (csv | rdata)")
+        table = pyreadr.read_r(path)[src["rdata_object"]]
+    else:
+        raise SystemExit(f"ERROR: unknown census format {fmt!r} (csv | rdata)")
+    return standard_columns(table, src), path
+
+
+def standard_columns(table, src):
+    """The table under the tool's column names, its diameters in mm ([source].dbh_units)."""
+    mapping = dict(src.get("columns", {}))
+    unknown = sorted(set(mapping) - set(COLUMNS))
+    if unknown:
+        raise SystemExit(f"ERROR: [source].columns names {unknown}; the tool reads {list(COLUMNS)}")
+    absent = sorted(col for col in mapping.values() if col not in table.columns)
+    if absent:
+        raise SystemExit(f"ERROR: [source].columns maps to {absent}, which the table does not have")
+    table = table.drop(columns=[c for c in mapping if c in table.columns and c != mapping[c]])
+    table = table.rename(columns={col: name for name, col in mapping.items()})
+    units = src.get("dbh_units", "mm")
+    if units not in DBH_TO_MM:
+        raise SystemExit(f"ERROR: [source].dbh_units = {units!r}; one of {list(DBH_TO_MM)}")
+    if units != "mm":
+        table["dbh"] = pd.to_numeric(table["dbh"], errors="coerce") * DBH_TO_MM[units]
+    return table
+
+
+def in_stand(gx, gy, plot):
+    """True where a position lies in the plot and, with [plot].circle, in a cell whose centre lies
+    within the circle: the stand the census starts."""
+    xext, yext = float(plot["x_extent"]), float(plot["y_extent"])
+    inside = (gx >= 0) & (gx < xext) & (gy >= 0) & (gy < yext)
+    circle = plot.get("circle")
+    if circle:
+        size = float(plot.get("cell_size", 20.0))
+        cx = (np.floor(gx / size) + 0.5) * size
+        cy = (np.floor(gy / size) + 0.5) * size
+        inside &= np.hypot(cx - float(circle["x"]), cy - float(circle["y"])) <= float(circle["radius"])
+    return inside
 
 
 def live_trees(table, plot):
-    """The trees the census initializes: alive, measured, at least the minimum diameter, in the plot.
-    Returns the kept rows and a count of every exclusion, by reason."""
+    """The trees the census initializes: alive, measured, at least the minimum diameter, in the stand
+    (the plot, or its cells within [plot].circle). Returns the kept rows and a count of every
+    exclusion, by reason."""
     alive_status = tuple(plot.get("alive_status", ALIVE))
-    xext, yext = float(plot["x_extent"]), float(plot["y_extent"])
     dmin = float(plot.get("min_dbh_mm", 10.0))
     status = table["status"].astype(str)
     dbh = pd.to_numeric(table["dbh"], errors="coerce")
@@ -86,12 +127,26 @@ def live_trees(table, plot):
     alive = status.isin(alive_status)
     measured = alive & dbh.notna()
     big = measured & (dbh >= dmin)
-    inside = big & (gx >= 0) & (gx < xext) & (gy >= 0) & (gy < yext)
+    inside = big & in_stand(gx, gy, {**plot, "circle": None})
+    kept = inside & in_stand(gx, gy, plot)
     dropped = {f"status {s}": int(n) for s, n in status[~alive].value_counts().items()}
     dropped["alive without a diameter"] = int((alive & ~measured).sum())
     dropped[f"alive, below {dmin:g} mm"] = int((measured & ~big).sum())
     dropped["alive, outside the plot"] = int((big & ~inside).sum())
-    return table[inside].copy(), dropped
+    if plot.get("circle"):
+        dropped["alive, outside the circle"] = int((inside & ~kept).sum())
+    return table[kept].copy(), dropped
+
+
+def tree_pfts(trees, out_decl):
+    """Each tree's PFT: [output].pft_by_species by its species code, else [output].pft (default 1)."""
+    default = int(out_decl.get("pft", 1))
+    by_species = {str(k): int(v) for k, v in out_decl.get("pft_by_species", {}).items()}
+    if not by_species:
+        return np.full(len(trees), default, dtype=int)
+    if "sp" not in trees:
+        raise SystemExit("ERROR: [output].pft_by_species needs a species column (sp, or [source].columns)")
+    return trees["sp"].astype(str).map(by_species).fillna(default).astype(int).to_numpy()
 
 
 # --------------------------------------------------------------------------------------------- #
@@ -111,18 +166,29 @@ def cells(trees, plot):
     return iy * nx + ix + 1, area, nx, ny
 
 
+def stand_cell_mask(plot):
+    """True for each cell of the plot's grid (numbered as cells() numbers them) that is in the stand."""
+    size = float(plot.get("cell_size", 20.0))
+    nx = int(math.ceil(float(plot["x_extent"]) / size - 1e-9))
+    ny = int(math.ceil(float(plot["y_extent"]) / size - 1e-9))
+    cx, cy = np.meshgrid((np.arange(nx) + 0.5) * size, (np.arange(ny) + 0.5) * size)
+    corner_x, corner_y = cx.ravel() - 0.5 * size, cy.ravel() - 0.5 * size
+    return in_stand(corner_x, corner_y, plot)          # a cell's south-west corner lies in the cell
+
+
 def census_rows(trees, plot, pft):
-    """One row per distinct (cell, diameter): the census file's content, and the cell areas."""
+    """One row per distinct (cell, diameter, PFT): the census file's content, the cell areas, and the
+    number of the stand's cells without a kept tree. `pft` is one PFT, or one per tree."""
     pid, area, nx, ny = cells(trees, plot)
-    frame = pd.DataFrame({"patch_id": pid, "dbh_mm": trees["dbh"].to_numpy(float)})
-    rows = frame.groupby(["patch_id", "dbh_mm"]).size().reset_index(name="n")
+    frame = pd.DataFrame({"patch_id": pid, "dbh_mm": trees["dbh"].to_numpy(float),
+                          "pft": np.broadcast_to(np.asarray(pft, dtype=int), (len(pid),))})
+    rows = frame.groupby(["patch_id", "dbh_mm", "pft"]).size().reset_index(name="n")
     rows["patch_area"] = area[rows["patch_id"].to_numpy() - 1]
     rows["nplant"] = rows["n"] / rows["patch_area"]
     rows["dbh"] = rows["dbh_mm"] / 10.0
-    rows["pft"] = int(pft)
     rows["site_id"] = 1
-    rows = rows.sort_values(["patch_id", "dbh"], ascending=[True, False]).reset_index(drop=True)
-    empty = nx * ny - rows["patch_id"].nunique()
+    rows = rows.sort_values(["patch_id", "dbh", "pft"], ascending=[True, False, True]).reset_index(drop=True)
+    empty = int(stand_cell_mask(plot).sum()) - rows["patch_id"].nunique()
     return rows, area, empty
 
 
@@ -174,15 +240,21 @@ def allometry(dbh_cm, pp):
     return h, pp["lai_b1"] * x ** pp["lai_b2"], pp["agb_c1"] * pp["rho"] ** pp["agb_c2"] * x ** pp["agb_c2"]
 
 
-def biomass_mortality(earlier, later):
+def biomass_mortality(earlier, later, dead_status=DEAD):
     """The fraction of standing biomass dying per year between two censuses of the same trees, from
-    the tables' own `agb` (rows are in the same tree order in every ForestGEO tree table)."""
-    if len(earlier) != len(later) or not (earlier["treeID"].to_numpy() == later["treeID"].to_numpy()).all():
-        raise SystemExit("ERROR: the two censuses do not list the same trees in the same order")
-    alive0 = earlier["status"].astype(str).isin(ALIVE).to_numpy()
-    dead1 = (later["status"].astype(str) == "D").to_numpy()
-    agb0 = pd.to_numeric(earlier["agb"], errors="coerce").fillna(0.0).to_numpy()
-    days = (pd.to_numeric(later["date"], errors="coerce") - pd.to_numeric(earlier["date"], errors="coerce"))
+    the earlier table's own `agb`. The trees are matched by treeID; a tree alive in the earlier census
+    died if the later one gives it a status in `dead_status`. The interval is the median of the
+    survivors' dates."""
+    if earlier["treeID"].duplicated().any() or later["treeID"].duplicated().any():
+        raise SystemExit("ERROR: a census lists a treeID twice; map treeID to a unique id ([source].columns)")
+    pair = earlier[["treeID", "status", "agb", "date"]].merge(
+        later[["treeID", "status", "date"]], on="treeID", how="left", suffixes=("0", "1"), validate="one_to_one")
+    alive0 = pair["status0"].astype(str).isin(ALIVE).to_numpy()
+    if pair["status1"][alive0].isna().any():
+        raise SystemExit("ERROR: a tree alive in the earlier census is missing from the later one")
+    dead1 = pair["status1"].astype(str).isin(tuple(dead_status)).to_numpy()
+    agb0 = pd.to_numeric(pair["agb"], errors="coerce").fillna(0.0).to_numpy()
+    days = pd.to_numeric(pair["date1"], errors="coerce") - pd.to_numeric(pair["date0"], errors="coerce")
     years = float(days[alive0].median()) / YR_DAY
     return float(agb0[alive0 & dead1].sum() / agb0[alive0].sum() / years), years
 
@@ -230,12 +302,13 @@ def main(argv=None):
     with open(args.declaration, "rb") as fh:
         decl = tomllib.load(fh)
     src, plot, out_decl = decl["source"], decl["plot"], decl.get("output", {})
-    pft = int(out_decl.get("pft", 1))
 
     table, path = read_table(src, base)
     trees, dropped = live_trees(table, plot)
+    pft = tree_pfts(trees, out_decl)
     rows, area, empty = census_rows(trees, plot, pft)
-    plot_area = float(plot["x_extent"]) * float(plot["y_extent"])
+    stand = stand_cell_mask(plot)
+    plot_area = float(area[stand].sum())               # the stand's area: the plot, or its cells in the circle
     if empty:
         print(f"WARNING: {empty} cells hold no kept tree and are left out; their area is lost to the site")
 
@@ -246,7 +319,7 @@ def main(argv=None):
     header = [f"ED-MORE census: {src.get('census', os.path.basename(path))}, measured {date_note}",
               f"source {os.path.basename(path)}, SHA-256 {sha256(path)[:16]}...; {src.get('citation', '')}".rstrip("; "),
               f"{len(trees)} live trees >= {plot.get('min_dbh_mm', 10.0):g} mm; one patch per "
-              f"{float(plot.get('cell_size', 20.0)):g} m cell; one row per distinct (cell, dbh)",
+              f"{float(plot.get('cell_size', 20.0)):g} m cell; one row per distinct (cell, dbh, pft)",
               "patch_area [m2]; dbh [cm]; nplant [plants per m2 of the patch]; "
               f"made by scripts/prepare_input/census/make_census.py at {git_commit(base)} on "
               f"{datetime.date.today().isoformat()}"]
@@ -257,7 +330,8 @@ def main(argv=None):
     summary = {
         "census": src.get("census"), "source": path, "measured": date_note,
         "kept_trees": int(len(trees)), "dropped": dropped,
-        "cells": int(len(area)), "cells_without_trees": int(empty),
+        "cells": int(stand.sum()), "cells_without_trees": int(empty), "stand_area_ha": plot_area / 1e4,
+        "trees_by_pft": {str(p): int(n) for p, n in zip(*np.unique(pft, return_counts=True))},
         "cell_size_m": float(plot.get("cell_size", 20.0)), "rows": int(len(rows)),
         "stems_in_file": stems,
         "stems_per_ha": len(trees) / plot_area * 1e4,
@@ -268,15 +342,26 @@ def main(argv=None):
 
     pft_file = decl.get("pft", {}).get("pft_file")
     if pft_file:
-        pp = pft_params(os.path.join(base, pft_file), pft)
-        _, la, agb = allometry(dbh_cm, pp)
-        summary["pft_allometry"] = {"lai": float(la.sum() / plot_area),
-                                    "agb_kgC_per_m2": float(agb.sum() / plot_area)}
+        params = {p: pft_params(os.path.join(base, pft_file), p) for p in np.unique(pft)}
+        by_pft = {}
+        for p, pp in params.items():
+            _, la, agb = allometry(dbh_cm[pft == p], pp)
+            by_pft[str(p)] = {"lai": float(la.sum() / plot_area), "agb_kgC_per_m2": float(agb.sum() / plot_area)}
+        summary["pft_allometry"] = {k: sum(v[k] for v in by_pft.values()) for k in ("lai", "agb_kgC_per_m2")}
+        if len(by_pft) > 1:
+            summary["pft_allometry"]["by_pft"] = by_pft
         mort = decl.get("mortality")
         if mort:
             earlier, _ = read_table(mort, base)
-            rate, years = biomass_mortality(earlier, table)
-            per_day, per_year = litter_input(dbh_cm, plot_area, pp, rate)
+            if plot.get("circle"):                     # the stand's own trees
+                earlier = earlier[in_stand(pd.to_numeric(earlier["gx"], errors="coerce"),
+                                           pd.to_numeric(earlier["gy"], errors="coerce"), plot)]
+            rate, years = biomass_mortality(earlier, table, mort.get("dead_status", DEAD))
+            per_day, per_year = {}, {}
+            for p, pp in params.items():               # each PFT's litter, at the stand's one wood mortality
+                d, y = litter_input(dbh_cm[pft == p], plot_area, pp, rate)
+                per_day = {k: per_day.get(k, 0.0) + v for k, v in d.items()}
+                per_year = {k: per_year.get(k, 0.0) + v for k, v in y.items()}
             summary["biomass_mortality_per_yr"] = rate
             summary["mortality_interval_yr"] = years
             summary["litter_kgC_per_m2_per_yr"] = per_year
