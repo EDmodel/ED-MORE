@@ -142,9 +142,11 @@ class Calibration:
 
     def climate_priors(self, keys):
         """The priors from the site's climate (priors.py): the Kattge & Knorr shape keys set in the
-        base config (so in every trial and chain), and the EEO centres of stomatal_g1 and vcmax25."""
+        base config (so in every trial and chain), on every fitted PFT, and the EEO centres of stomatal_g1
+        and vcmax25."""
         fitted = {p.name for p in keys}
-        need_kk = [p for p in self.registry() if p.fixed_at == "kattge_knorr" and p.name not in fitted]
+        need_kk = [p for p in parameters.candidates(self.registry(), self.fit_settings)
+                   if p.fixed_at == "kattge_knorr" and p.name not in fitted]
         eeo = [p for p in keys if p.prior.get("centre") == "eeo"]
         if not need_kk and not eeo:
             return None
@@ -173,10 +175,10 @@ class Calibration:
                     v = priors.eeo_vcmax25(lp, pft, clim, ca, str(self.setting("leaf_physiology.temp_response_form", "peaked")))
                 p.prior = {**p.prior, "centre": float(v), "source": "EEO: " + p.prior.get("source", "")}
                 entry = {"eeo": float(v)}
-                meta = p.meta.get(self.fit_settings["plant_type"])
+                meta = p.meta.get(p.plant_type)
                 if meta:
                     sd = meta.get("log_sd") or (meta.get("sd", 0.0) / meta["centre"])
-                    entry["meta"] = meta
+                    entry["meta"], entry["plant_type"] = meta, p.plant_type
                     entry["meta_apart_sd"] = float(abs(math.log(v / meta["centre"])) / sd) if sd else None
                 out.setdefault("eeo", {})[p.name] = entry
         return out
@@ -220,7 +222,8 @@ class Calibration:
         scores = data_rules.day_scores(obs, observed, self.daytime_sw, self.utc_offset_h)
         windows = {"source": "the calibration's list"}
         if not self.windows:
-            chosen, windows = data_rules.select_windows(scores, s["windows"], self.site.leaf_on_months, first)
+            months = s["windows"]["months"] or self.site.leaf_on_months
+            chosen, windows = data_rules.select_windows(scores, s["windows"], months, first)
             windows["source"] = "the rule (data_rules.select_windows)"
             self.windows = [Window(n, start, int(s["windows"]["days"]), role) for n, start, role in chosen]
             if not any(w.role == "cal" for w in self.windows):

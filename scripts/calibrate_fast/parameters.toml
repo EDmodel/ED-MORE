@@ -5,7 +5,8 @@
 #   file      = "pft" (the PFT TOML), "main", or "obs" (an observation key, kappa: a term of a target's
 #               observation model, never written to a config)
 #   key       = the dotted TOML key as ED-MORE reads it
-#   pft       = the element of a per-PFT array (1-based; default 1)
+#   pft       = the element of a per-PFT array (1-based; default 1); a calibration's [fit].pfts fits the
+#               key once per listed PFT instead (`<key>_pft<k>` for PFT k > 1)
 #   range     = [lo, hi]: a hard bound, through the transform
 #   transform = "linear" (logit on the range) or "log" (log, then logit): a positive scale is "log"
 #   state     = "fit" (in the default set), "optional" (fitted when the calibration asks: [fit].add or
@@ -23,7 +24,8 @@
 #   scope     = "plant_type" (shared by every tower of the type), "site" or "observation"
 #   fixed_at  = "kattge_knorr": fixed at Kattge & Knorr's value for the site's growth temperature (priors.py)
 #   meta      = { <plant type> = { centre, sd | log_sd, source } }: a meta-analysis prior by plant type
-#               ([fit].plant_type); the prior of a key without an EEO centre, reported beside the EEO one
+#               ([fit].plant_type, or the PFT's entry of [fit].plant_types); the prior of a key without an
+#               EEO centre, reported beside the EEO one
 #   source    = what the key is, and where its range comes from; its "plan §4.n" is §4.n of MEDS's
 #               fast-calibration plan, where each key's range is argued:
 #               https://github.com/xiangtaoxu/MEDS/blob/v0.4.0/docs/dev_plans/MEDS_FAST_CALIBRATION_PLAN.md

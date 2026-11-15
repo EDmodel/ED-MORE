@@ -132,7 +132,8 @@ python calibrate_fast.py fit ... --queue
   one ten-day calibration window per 1.5-month slot of the year inside the leaf-on months, each the
   slot's best covered (the share of daytime records with H, LE and GPP measured, times the share with
   observed forcing, `[tower].forcing_qc`). Validation windows are in the same slots of other years. A
-  calibration may list its own windows.
+  calibration may list its own windows, or name the months the rule draws from (`[windows].months`:
+  a mixed stand adds the months only its evergreens are in leaf).
 - **Seasonal runs follow a rule** (`[seasonal_runs]`): up to two 120-day runs, each ending at a year's
   deepest cumulative water deficit (rain minus Priestley–Taylor evaporation, from the forcing) inside
   the leaf-on months, scored on LE only. A year under 100 mm gives none; without any, the drought keys
@@ -160,6 +161,13 @@ python calibrate_fast.py fit ... --queue
 - **Priors by plant type** (`[fit].plant_type`, the registry's `meta`) apply to a key without an EEO
   centre. Beside an EEO centre, the type's prior is reported and flagged when more than 2 sd apart.
   Site leaf data in `[priors]` come first.
+- **Several PFTs** (a mixed stand): `[fit].pfts = [1, 2]` fits every per-PFT key once per listed PFT,
+  `vcmax25` on PFT 1 and `vcmax25_pft2` on PFT 2, and `[fit].plant_types` gives each PFT its plant
+  type for the priors above. The EEO centres use each PFT's own leaf, and the Kattge & Knorr values
+  are set on every fitted PFT. In `keys`, `add`, `remove` and `[priors]` a registry name means every
+  PFT's copy and a suffixed name that PFT's alone. Site keys (`z0m_ratio`, κ) are fitted once. A PFT's
+  keys are informed only by windows in which it makes the fluxes: a bare deciduous canopy leaves the
+  conifers to the tower.
 - **Keys fixed from coverage.** A key that acts through one process (the registry's `process`: wet
   canopy, night, snow, drought) is fixed when the kept records sample that process fewer than
   `[fit].min_process_records` (48) times.

@@ -255,8 +255,9 @@ def slot_of(doy: int, per_year: int) -> int:
 
 
 def candidate_windows(scores: pd.Series, days: int, per_year: int, leaf_on: list, first_start) -> pd.DataFrame:
-    """Every span of `days` inside one slot and inside the leaf-on months, starting on or after
-    first_start: its start, year, slot and mean daily coverage."""
+    """Every span of `days` inside one slot and inside the months `leaf_on` ([windows].months, else the
+    site's leaf-on months), starting on or after first_start: its start, year, slot and mean daily
+    coverage."""
     roll = scores.rolling(days).mean().shift(-(days - 1))
     rows = []
     for start, sc in roll.dropna().items():

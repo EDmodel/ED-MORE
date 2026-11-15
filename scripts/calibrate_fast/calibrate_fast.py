@@ -251,7 +251,7 @@ def cmd_fit(args):
     if isinstance(cp.get("kattge_knorr"), dict):
         log(f"Kattge & Knorr at the growth temperature {cp['climate']['t_growth_c']:.1f} C: {cp['kattge_knorr']}")
     for k, e in (cp.get("eeo") or {}).items():
-        log(f"EEO prior centre of {k}: {e['eeo']:.4g}" + (f" (the {fs['plant_type']} meta-analysis: "
+        log(f"EEO prior centre of {k}: {e['eeo']:.4g}" + (f" (the {e['plant_type']} meta-analysis: "
             f"{e['meta']['centre']:.4g}, {e['meta_apart_sd']:.1f} sd apart{' -- FLAGGED' if e['meta_apart_sd'] > 2 else ''})"
             if e.get("meta") else ""))
     out["data"] = report.data_report(cal, rows, log)

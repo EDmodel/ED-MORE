@@ -637,6 +637,12 @@ def test_windows_one_per_slot_with_validation_in_another_year():
     chosen, _ = data_rules.select_windows(scores, wcfg, [5, 6, 7, 8, 9], obs.index[0] + pd.Timedelta(days=400))
     assert chosen and all(5 <= c[1].month <= 9 and c[1].year == 2016 for c in chosen)
     assert not [c for c in chosen if c[2] == "val"]
+    #----- [windows].months need not be contiguous (a mixed stand's leaf-off months): no day of a window
+    #      falls in a month left out
+    months = [4, 6, 7, 8, 9, 11]
+    chosen, _ = data_rules.select_windows(scores, wcfg, months, obs.index[0])
+    spans = [pd.date_range(c[1], periods=10, freq="D") for c in chosen]
+    assert {4, 11} <= {c[1].month for c in chosen} and all(set(s.month) <= set(months) for s in spans)
 
 
 def test_seasonal_runs_end_at_the_deepest_water_deficit():
@@ -964,6 +970,41 @@ def test_select_follows_the_calibration():
             select(registry(), bad, {})
     with pytest.raises(ValueError):
         select(registry(), {}, {"a": {"width": 1}})
+
+
+def test_select_fits_several_pfts():
+    def registry():
+        return [Param("v", "pft", "pft.vcmax25", 5, 150, "log", pft=1, state="fit", default=50.0),
+                Param("g1", "pft", "pft.stomatal_g1", 0.5, 15.0, "log", pft=1, state="fit", default=3.0,
+                      meta={"deciduous_broadleaf": {"centre": 4.45, "log_sd": 0.35},
+                            "needleleaf": {"centre": 2.35, "log_sd": 0.35}}),
+                Param("z", "main", "x.z0m_ratio", 0.02, 0.2, state="fit", default=0.1)]
+    two = {"pfts": [1, 2], "plant_types": ["deciduous_broadleaf", "needleleaf"]}
+    ps = {p.name: p for p in select(registry(), two, {})}
+    assert list(ps) == ["v", "v_pft2", "g1", "g1_pft2", "z"]                 # site keys once
+    assert (ps["v"].pft, ps["v_pft2"].pft, ps["z"].pft) == (1, 2, None)
+    assert ps["g1"].centre == 4.45 and ps["g1_pft2"].centre == 2.35            # each PFT its type's prior
+    assert ps["v_pft2"].base == "v" and ps["v_pft2"].key == "pft.vcmax25"
+    # a registry name means every PFT's copy, a suffixed name one PFT's
+    assert [p.name for p in select(registry(), {**two, "keys": ["v_pft2", "z"]}, {})] == ["v_pft2", "z"]
+    assert [p.name for p in select(registry(), {**two, "remove": ["g1"]}, {})] == ["v", "v_pft2", "z"]
+    ps = {p.name: p for p in select(registry(), two, {"v": {"centre": 60.0, "log_sd": 0.3},
+                                                      "v_pft2": {"centre": 40.0}})}
+    assert ps["v"].centre == 60.0 and ps["v_pft2"].centre == 40.0 and ps["v_pft2"].prior["log_sd"] == 0.3
+    # one PFT by default; the same plant type for every PFT when plant_types is left out
+    assert [p.name for p in select(registry(), {}, {})] == ["v", "g1", "z"]
+    ps = {p.name: p for p in select(registry(), {"pfts": [1, 2], "plant_type": "needleleaf"}, {})}
+    assert ps["g1"].centre == ps["g1_pft2"].centre == 2.35
+    for bad in ({"pfts": [1, 1]}, {"pfts": [0]}, {"pfts": [1, 2], "plant_types": ["needleleaf"]}):
+        with pytest.raises(ValueError):
+            select(registry(), bad, {})
+    with pytest.raises(ValueError, match="not in the registry"):
+        select(registry(), {"keys": ["v_pft2"]}, {})                           # PFT 2 is not fitted
+    # the schema takes the optional [fit] settings, and gives them no default
+    base = {"base": {"main": "a", "parameters": "b"}, "tower": {"site": "c"}}
+    s = settings.complete({**base, "fit": {**two, "keys": ["v"]}})
+    assert s["fit"]["pfts"] == [1, 2] and s["fit"]["keys"] == ["v"]
+    assert not {"keys", "add", "remove", "pfts", "plant_types"} & set(settings.complete(base)["fit"])
 
 
 def test_the_registry():
