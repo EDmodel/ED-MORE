@@ -7,7 +7,7 @@ ED-MORE's own conventions, fills gaps explicitly with a flag on every value, and
 heights in the file. ED-MORE then moves each sample from those heights to every patch's canopy-air top.
 The same site TOML declares the tower's fluxes (`[fluxes]`) for the fast calibration
 ([`../../calibrate_fast`](../../calibrate_fast/README.md)): `tower_inputs.py` is the one reader of tower
-files for both tools. The worked example is [`examples/example04_column_biophysics/`](../../../examples/example04_column_biophysics/);
+files for both tools. The worked examples are the sites of [`examples/example04_column_biophysics/`](../../../examples/example04_column_biophysics/README.md);
 the design record is
 MEDS's [flux-tower forcing plan](https://github.com/xiangtaoxu/MEDS/blob/v0.4.0/docs/dev_plans/MEDS_FLUX_TOWER_FORCING_PLAN.md).
 
@@ -144,7 +144,23 @@ such as ERA5-Land or a nearby station, is the user's to do in the tower file bef
   takes the pooled fit. With fewer than 48 observed longwave records in all there is nothing to fit, and
   the fill is the model's synthesis as ED-MORE computes it, with a warning.
 - [`compare_longwave_fill.py`](compare_longwave_fill.py) scores the longwave fill against
-  observations it never saw, beside a monthly climatology and the synthesis as ED-MORE computes it.
+  observations it never saw, beside a monthly climatology and the synthesis as ED-MORE computes it
+  (below).
+
+## The longwave fill at Barro Colorado Island
+
+BCI's tower measured longwave only from 2015 (61 % of 2012–2017 is filled). With 20 % of the observed
+longwave hidden in 10-day blocks, the fill scores an RMSE of 14.5 W m⁻² on the hidden half hours, against
+18.6 for a monthly climatology:
+
+![The longwave fill at BCI scored on hidden observations](bci_lw_comparison.png)
+
+```bash
+cd examples/example04_column_biophysics/sites/bci
+python run_site.py --forcing-only        # the tower data and the forcing
+python ../../../../scripts/prepare_input/flux_tower/compare_longwave_fill.py --site bci_site.toml \
+    --out data/lw_comparison.json --figure ../../../../scripts/prepare_input/flux_tower/bci_lw_comparison.png
+```
 
 ## Files
 

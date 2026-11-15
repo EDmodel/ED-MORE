@@ -150,7 +150,7 @@ labelled `cell_methods = "time: point"`.
 **Producing one from flux-tower data.** `scripts/prepare_input/flux_tower/make_tower_forcing.py` reads
 AmeriFlux BASE, FLUXNET (ONEFlux) or a plain CSV described by a site TOML, converts the clock to UTC,
 writes `RHair` as measured, fills gaps explicitly with a per-variable `<Var>_qc` flag, and states the
-tower's heights; `examples/example04_column_biophysics/` builds Barro Colorado Island's file with it. Its
+tower's heights; each site of `examples/example04_column_biophysics/` builds its file with it. Its
 conversions and checks are in `scripts/prepare_input/flux_tower/README.md`.
 
 **The ED_ERA5land archive (`[forcing].format = "ERA5land"`).** The global archive built by

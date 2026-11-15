@@ -4,26 +4,26 @@
 `[init].init_mode = 1`. It only maps trees to patches:
 
 - each square plot cell, of side `cell_size`, is one patch, with `patch_area` its true area;
-- each distinct (cell, diameter) is one row, with `nplant` the number of those trees over the area.
+- each distinct (cell, diameter, PFT) is one row, with `nplant` the number of those trees over the area.
 
 It does no binning and no fusion. ED-MORE restructures the stand before the first step with the slow
 step's own operators ([How a run starts](../../../docs/configuration.md#how-a-run-starts)), so the census
 can carry every measured size and every cell.
 
 ```bash
-python make_census.py --declaration ../../../examples/example04_column_biophysics/bci_census.toml \
-    --out ../../../examples/example04_column_biophysics/data/bci_census2010_ed.csv
+python make_census.py --declaration ../../../examples/example04_column_biophysics/sites/bci/bci_census.toml \
+    --out ../../../examples/example04_column_biophysics/sites/bci/data/bci_census2010_ed.csv
 ```
 
 It writes the census CSV (`site_id`, `patch_id`, `patch_area`, `dbh`, `pft`, `nplant`) and a summary
 JSON, by default the CSV's path with `_summary.json`.
 
 (Example 04's declaration names its tables' folder as `/path/to/bci_census`: point the two paths at
-your copy, or let `examples/example04_column_biophysics/run_example.py --census-dir` do it.)
+your copy, or let `examples/example04_column_biophysics/sites/bci/run_site.py --census-dir` do it.)
 
 The declaration TOML names the table, its checksum and how to read it (`[source]`), the plot's
-`x_extent`, `y_extent`, `cell_size` (default 20 m) and `min_dbh_mm` (default 10) (`[plot]`), the one PFT
-of every tree (`[output].pft`, default 1), and optionally an ED-MORE PFT file (`[pft]`) and an earlier census
+`x_extent`, `y_extent`, `cell_size` (default 20 m) and `min_dbh_mm` (default 10) (`[plot]`), the PFT
+of every tree (`[output].pft`, default 1, or one per species), and optionally an ED-MORE PFT file (`[pft]`) and an earlier census
 (`[mortality]`). With those two, the summary JSON also carries the stand's steady-state litter input
 for `[soil_carbon].spinup_steady`: leaf and fine-root turnover from the PFT (with a deciduous PFT's
 yearly leaf fall, down to its `min_leaf_cover`), less the share it resorbs (`retained_carbon_fraction`), and wood from the plot's

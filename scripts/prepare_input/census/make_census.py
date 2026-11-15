@@ -8,7 +8,7 @@ no binning and no fusion: ED-MORE restructures the stand itself before the first
 (`restructure_census_stand`), with the same operators the slow step uses.
 
 A declaration TOML names the table and says how to read it; `bci_census.toml` in
-examples/example04_column_biophysics is the worked example. The tool writes:
+examples/example04_column_biophysics/sites/bci is the worked example. The tool writes:
   * the census CSV `init_from_census` reads: site_id, patch_id, patch_area [m2], dbh [cm], pft,
     nplant [plants per m2 of the patch];
   * a summary JSON: what was kept and dropped, the stand under the PFT's allometry beside the table's

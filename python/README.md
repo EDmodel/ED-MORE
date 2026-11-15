@@ -58,7 +58,7 @@ builds every trial with it.
 ```python
 from edmore.config import RunConfig
 from edmore.model import run
-cfg = RunConfig.load("examples/example04_column_biophysics/ed_config_eval.toml")
+cfg = RunConfig.load("examples/example04_column_biophysics/sites/bci/ed_config_eval.toml")
 cfg.set("pft.vcmax25", 50.0, file="pft", pft=1)              # the first PFT's top-of-canopy Vcmax25
 cfg.set("run.end_time", "2012-09-01 00:00:00")
 run(cfg.write("trial"))                                       # trial/main.toml + trial/pft.toml

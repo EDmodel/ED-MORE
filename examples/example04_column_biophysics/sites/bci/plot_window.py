@@ -24,7 +24,7 @@ import pandas as pd  # noqa: E402
 from netCDF4 import Dataset  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, "..", "..", "scripts", "prepare_input", "flux_tower"))
+sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "..", "scripts", "prepare_input", "flux_tower"))
 import tower_inputs as ti  # noqa: E402  (the site TOML's reader)
 
 DEPTHS = [0.05, 0.15, 0.40, 1.00]           # [m] the soil layers drawn: the ones whose nodes are nearest
@@ -56,7 +56,7 @@ def read(pattern):
                     data.setdefault(name, []).append(np.ma.filled(one_polygon(var), np.nan))
             soil_z = np.ma.filled(one_polygon(ds["soil_z"]), np.nan) if "soil_z" in ds.variables else None
     if not stamps:
-        raise SystemExit(f"ERROR: no output matches {pattern}; run the window first (run_example.py)")
+        raise SystemExit(f"ERROR: no output matches {pattern}; run the window first (run_site.py)")
     data = {k: np.concatenate(v) for k, v in data.items()}
     return pd.DatetimeIndex(np.concatenate(stamps)), data, soil_z
 

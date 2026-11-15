@@ -59,7 +59,7 @@ program test_c_api_run
    pft_seeded    = trim(work)//'/pft_seeded.toml'
 
    !---~---
-   !   1. Both SHIPPED example04_column_biophysics configs load.
+   !   1. Both SHIPPED example04_column_biophysics/sites/bci configs load.
    ! The schema-drift guard: the example's scripts are outside the build, so nothing else
    ! here would notice its configs falling behind the config reader.
    !---~---

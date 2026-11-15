@@ -11,7 +11,7 @@ alternatives, and the validation. The data rules (data_rules.py), the targets' o
 (observation_models.py) and the priors from the site's climate (priors.py) come first. Every setting
 of a calibration is documented, with its default, in calibration_reference.toml.
 
-Commands (each reads a calibration's settings, e.g. examples/example04_column_biophysics/calibration.toml):
+Commands (each reads a calibration's settings, e.g. examples/example04_column_biophysics/sites/bci/calibration.toml):
   report    the data report only: every target's records through every filter, the u* and closure
             diagnostics, sigma, and the windows and seasonal runs (printed as calibration.toml entries)
   check     the tool and the model's restart on one window: a chain, a trial with its parameter

@@ -664,7 +664,7 @@ def test_priestley_taylor_and_the_range_coverage():
 
 
 # ----- the calibration's settings against calibration_reference.toml ----------------------------------
-BCI = Path(__file__).resolve().parents[3] / "examples/example04_column_biophysics/calibration.toml"
+BCI = Path(__file__).resolve().parents[3] / "examples/example04_column_biophysics/sites/bci/calibration.toml"
 MINIMAL = {"base": {"main": "m.toml", "parameters": "r.toml"}, "tower": {"site": "site.toml"}}
 
 
