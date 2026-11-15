@@ -59,3 +59,5 @@ USTAR   = { column = "USTAR",           units = "m s-1" }
 gpp_method  = "ONEFlux (Pastorello et al. 2020): NEE_VUT_REF partitioned by the night-time method (Reichstein et al. 2005, GPP_NT) and the daytime method (Lasslop et al. 2010, GPP_DT)"
 notes       = "NEON's eddy covariance (Metzger et al. 2019) processed by AmeriFlux ONEFlux v1.3_r1. The meteorology is measured only (prepare_tower.py blanks the product's MDS and ERA5 fills)."
 uncertainty = { LE = "LE_RANDUNC", H = "H_RANDUNC", NEE = "NEE_VUT_REF_RANDUNC" }
+# [m s-1] ONEFlux's CO2 u* threshold, each year's median of the VUT bootstrap (the product's BADM, GRP_UST_THR)
+ustar_threshold = { 2019 = 0.437, 2020 = 0.416, 2021 = 0.412, 2022 = 0.396, 2023 = 0.385, 2024 = 0.368 }

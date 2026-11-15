@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: Apache-2.0
+# The fast-parameter calibration at Harvard Forest (scripts/calibrate_fast; the protocol its README links).
+# run_site.py --calibrate runs it. Every setting, its default and why: scripts/calibrate_fast/
+# calibration_reference.toml. Only the choices that differ from the defaults are here. Paths are relative
+# to this file.
+
+[base]
+main       = "ed_config_eval.toml"     # with the PFT file it names (pft_parameters.toml) and its forcing
+parameters = "../../../../scripts/calibrate_fast/parameters.toml"
+
+# The tower's facts (file, clock, columns, units, which values were measured, the u* thresholds) are
+# harvard_site.toml, the forcing build's own. Its leaf-on months, June to September, hold the windows.
+[tower]
+site = "harvard_site.toml"
+
+# The registry's keys are PFT 1's: the deciduous broadleaves, 74 % of the stand's basal area and most of
+# the leaf-on canopy. The conifers keep their file's values. kappa keeps the registry's prior: ONEFlux's
+# night-time partitioning has no known respiration bias here (BCI's tower respiration is the soil's alone).
+[fit]
+plant_type      = "deciduous_broadleaf"   # the meta-analysis priors beside the EEO centres
+timeout_per_day = 30.0
+
+[windows]
+skip_hours = 3                 # the first hours after a restart with changed traits are not scored
+
+# Set in the calibrated main config the fit writes (ed_config_calibrated.toml), beside the MAP.
+[calibrated]
+"init.pft_config" = "calibration/pft_parameters_calibrated.toml"
+"output.prefix"   = "cal"
