@@ -8,7 +8,8 @@ diurnal regimes, so the figure has three rows for carbon (GPP, NEE), water (LE) 
 radiation): the mean diurnal cycle in summer (June-August) and in winter (December-February), and the
 mean seasonal cycle by calendar month. Every mean uses only the hours both have; a calendar month is
 shown when the tower measured at least ten days of it over the years. NEE is positive toward the
-atmosphere in both.
+atmosphere in both. The band around the tower's diurnal cycle is its mean +-2 standard errors: an hour of
+the day averages only the hours the tower measured, few on calm nights (README, Results).
 
 Usage: python plot_evaluation.py [--model "output/eval-F-*.nc"] [--out evaluation.png]
                                  [--stats output/evaluation_stats.json] [--calibrated "output/cal-F-*.nc"]
@@ -68,7 +69,10 @@ def main(argv=None):
         for row, (season, months) in enumerate(SEASONS.items()):
             sel = both & np.isin(month, months)
             a = ax[row, i]
-            td = tower.loc[sel, tv].groupby(hour[sel]).mean()
+            g = tower.loc[sel, tv].groupby(hour[sel])
+            td, se = g.mean(), g.std() / np.sqrt(g.size())
+            a.fill_between(td.index + 0.5, td - 2 * se, td + 2 * se, color=ev.TOWER, alpha=0.12, lw=0,
+                           label="tower ±2 standard errors")
             a.plot(td.index + 0.5, td.values, color=ev.TOWER, lw=2, label="tower")
             notes = []
             for label, run, colour in runs:

@@ -13,15 +13,30 @@ parameters = "../../../../scripts/calibrate_fast/parameters.toml"
 [tower]
 site = "harvard_site.toml"
 
-# The registry's keys are PFT 1's: the deciduous broadleaves, 74 % of the stand's basal area and most of
-# the leaf-on canopy. The conifers keep their file's values. kappa keeps the registry's prior: ONEFlux's
-# night-time partitioning has no known respiration bias here (BCI's tower respiration is the soil's alone).
+# Both PFTs' keys: the deciduous broadleaves (PFT 1, 74 % of the stand's basal area) and the evergreen
+# conifers (PFT 2: stomatal_g1_pft2, ...), each with its plant type's meta-analysis priors. kappa keeps the
+# registry's prior: ONEFlux's night-time partitioning has no known respiration bias here (BCI's tower
+# respiration is the soil's alone).
+#
+# The conifers' vcmax25 stays at its file's value: the tower cannot tell the two PFTs' capacities apart.
+# A trial fit with it (and with the April and November windows below) found the two correlated at -0.97;
+# the screening fixed the conifers' at its prior's centre (the climate's 74, the same for both PFTs), and
+# the broadleaves' fell to 25 to keep the canopy's total.
 [fit]
-plant_type      = "deciduous_broadleaf"   # the meta-analysis priors beside the EEO centres
+pfts            = [1, 2]
+plant_types     = ["deciduous_broadleaf", "needleleaf"]
+remove          = ["vcmax25_pft2"]
 timeout_per_day = 30.0
 
+# The windows: the rule's, in the site's leaf-on months (June-September). Not in April and November, when
+# the tower sees the conifers alone: there the model's GPP is three times the tower's (the conifers keep
+# their summer capacity; README, Open), GPP's sigma rises to its cap, and LE and the longwave then pull
+# the broadleaves' vcmax25 to 32, g1 to 8.6 and the leaf angle to 63 degrees.
+# HARV's tower measures fewer hours than BCI's (NEON's gaps, and almost none from March to August 2020):
+# at the default coverage of 0.5 only one validation window qualifies.
 [windows]
-skip_hours = 3                 # the first hours after a restart with changed traits are not scored
+min_coverage = 0.4
+skip_hours   = 3               # the first hours after a restart with changed traits are not scored
 
 # Set in the calibrated main config the fit writes (ed_config_calibrated.toml), beside the MAP.
 [calibrated]

@@ -3,11 +3,14 @@
 # Every line is the base file's, comments included, except these keys the fit set
 # (calibrated value, the base file's value; EFFECTIVE: its value belongs to this model structure;
 # KATTGE & KNORR: fixed at the growth temperature's value, not fitted):
-#   pft.leaf_angle_mean            33.8319  (33.9)
-#   pft.vcmax25                    56.2081  (60)
-#   pft.stomatal_g1                5.33924  (4.45)
-#   pft.stomatal_g0                0.00248358  (0.01)
+#   pft.leaf_angle_mean            31.193  (33.9)
+#   pft.vcmax25                    59.8215  (60)
+#   pft.stomatal_g1                6.40643  (4.45)
+#   pft.stomatal_g1 (PFT 2)        0.948153  (2.35)
+#   pft.stomatal_g0                0.00351302  (0.01)
+#   pft.stomatal_g0 (PFT 2)        0.00233735  (0.01)
 #   pft.jmax_vcmax_ratio           1.92554  (1.8)  KATTGE & KNORR
+#   pft.jmax_vcmax_ratio (PFT 2)   1.92554  (1.7)  KATTGE & KNORR
 # The Harvard site's two PFTs: 1 the cold-deciduous broadleaves (red oak, red maple, birches, beech),
 # 2 the evergreen conifers (hemlock, red and white pine). Every key is the repository PFT file's
 # (ed_config_pft.toml), at its default unless a comment gives the source. harvard_traits.py prints the
@@ -29,13 +32,13 @@ include_pft        = [1, 1]
 min_cohort_height  = 2.0              # [m]
 min_repro_height   = [13.9, 13.9]     # [m]
 photosynthetic_pathway = [1, 1]
-vcmax25            = [56.2081, 45.0]     # [umol/m2/s] the repository's PFT 1 and 2; the calibration fits it
-jmax_vcmax_ratio   = [1.92554, 1.7]
+vcmax25            = [59.8215, 45.0]     # [umol/m2/s] the repository's PFT 1 and 2; the calibration fits it
+jmax_vcmax_ratio   = [1.92554, 1.92554]
 tpu_vcmax_ratio    = [0.167, 0.167]
 rd_vcmax_ratio     = [0.015, 0.015]
 kp25               = [1.0e-9, 1.0e-9]
-stomatal_g0        = [0.00248358, 0.01]
-stomatal_g1        = [5.33924, 2.35]     # Medlyn [kPa^0.5]: deciduous angiosperm trees and evergreen gymnosperms
+stomatal_g0        = [0.00351302, 0.00233735]
+stomatal_g1        = [6.40643, 0.948153]     # Medlyn [kPa^0.5]: deciduous angiosperm trees and evergreen gymnosperms
                                       #   (Lin et al. 2015, Nat. Clim. Change 5:459; CLM5's BDT and NET)
 stomatal_d0        = [1500.0, 1500.0]
 quantum_yield_c4   = [0.0, 0.0]
@@ -66,7 +69,7 @@ wood_emissivity    = [0.90, 0.90]
 # the 20 m patches already hold the gaps between crowns, so the clumping within a layer is near 1.
 leaf_clumping      = [0.933, 0.933]
 wood_clumping      = [1.0, 1.0]
-leaf_angle_mean    = [33.8319, 33.9]     # [deg]
+leaf_angle_mean    = [31.193, 33.9]     # [deg]
 leaf_angle_std     = [20.0, 20.0]
 wood_angle_mean    = [75.0, 75.0]     # [deg] the woody surface (unpublished TLS data: 72-76)
 wood_angle_std     = [20.0, 20.0]
