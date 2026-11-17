@@ -42,6 +42,10 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   capacity budget terms `mean_budget_cas_cap_{energy,water,co2}_py`; switch them off in
   `[output].io_config`. State files gain `cas_air_mass_capacity_pa` and `cas_air_molar_capacity_pa`;
   a state file without them still loads. (#66)
+- `[demography].demography_on = false` now freezes the whole stand: no growth in size and no mortality,
+  as well as no recruitment or restructuring. For growth and mortality without restructuring, set
+  `demography_on = true` with `recruitment_on`, `cohort_fusion_on`, `cohort_fission_on`,
+  `patch_disturbance_on` and `patch_fusion_on` false, as example 05's inventory run now does. (#87)
 
 ### Answer changes
 
@@ -136,6 +140,10 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - The canopy air's content change when its capacity (density times depth) moves between fast steps
   is booked as a budget term, `mean_budget_cas_cap_{energy,water,co2}_py` and `_pa`, so its stored
   amounts add up across steps. H, LE, NEE and the model state are unchanged. (#66)
+- A frozen stand (`[demography].demography_on = false`): the leaves follow the season on a fixed stand,
+  for flux-tower biophysics or a spin-up. The wood and recruits the stand cannot build leave it as
+  frozen growth carbon (`mean_frozen_growth_carbon_py`, `_co`, on request), and a census start is
+  restructured whatever `demography_on` is (docs/science/demography.md §7). (#87)
 
 ### Changed
 
