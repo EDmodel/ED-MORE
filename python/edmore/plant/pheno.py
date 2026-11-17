@@ -32,8 +32,12 @@ import ctypes
 from ctypes import c_double, c_int, byref, POINTER
 from dataclasses import dataclass, asdict, fields
 from enum import IntFlag
+from typing import TYPE_CHECKING
 
 from ._ffi import _lib   # the shared libedmore.so handle (also used by leaf gas exchange)
+
+if TYPE_CHECKING:        # numpy is imported where it is used, so importing the module stays light
+    import numpy as np
 
 __all__ = [
     "Cue", "Params", "State", "Out", "Day", "Run", "Phenology", "step", "run", "leaf_step", "par_hours",
