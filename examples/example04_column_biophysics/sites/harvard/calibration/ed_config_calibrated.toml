@@ -3,7 +3,7 @@
 # Every line is the base file's, comments included, except these keys the fit set
 # (calibrated value, the base file's value; EFFECTIVE: its value belongs to this model structure;
 # KATTGE & KNORR: fixed at the growth temperature's value, not fitted):
-#   aerodynamics.z0m_ratio         0.0637815  (0.13)  EFFECTIVE
+#   aerodynamics.z0m_ratio         0.0580716  (0.13)  EFFECTIVE
 #   leaf_physiology.ds_vcmax       648.076  (650)  KATTGE & KNORR
 #   leaf_physiology.ds_jmax        645.462  (640)  KATTGE & KNORR
 # and these settings of the calibration (calibration.toml [overrides], the variant, [calibrated]):
@@ -161,11 +161,14 @@ spinup_struct_grnd = 4.190357e-04
 spinup_struct_soil = 3.889388e-04
 
 # Harvard's soil at NEON's megapit: a stony sandy loam over sandy till, with an organic-rich top, above a
-# dense till at 113 cm that roots do not enter. One curve for the column: each horizon's from its texture
-# by the model's own formulas, thickness-weighted (harvard_traits.py). The till drains slowly; the
-# column's base is free-draining here.
+# dense till at 113 cm. One curve for the column: each horizon's from its texture by the model's own
+# formulas, thickness-weighted (harvard_traits.py). The column is 1.5 m deep: the mineral soil above the
+# till and 0.4 m of the till's top, the water the trees draw on in a dry August. In 2022's drought a
+# 1.09 m column dries to its residual water and its LE falls to 82 W m-2 against the tower's 117 over
+# 15-28 August; at 1.5 m it is 116, and its top 15 cm keep 0.11 m3/m3 on 28 August (HF006's TDR found
+# 0.06-0.07 in dry summers). The base is free-draining.
 [soil]
-depth       = 1.09               # [m] the mineral soil above the dense till (the megapit's 4-113 cm)
+depth       = 1.5                # [m] the megapit's 4-113 cm above the dense till, and the till's top
 theta_sat   = 0.422              # [m3/m3]
 theta_res   = 0.079              # [m3/m3]
 curve_par_a = 3.26               # [1/m]  van Genuchten alpha
@@ -173,7 +176,7 @@ curve_par_n = 1.553              # [-]    van Genuchten n
 ksat        = 1.35e-5            # [m/s]
 thermal_bottom_bc = "dirichlet"
 deep_temp  = 282.15              # [K] the tower's mean air temperature, 2019-2024 (its soil at 46 cm: 282.3)
-deep_depth = 2.240               # [m] the bottom node (0.845 m) + 1.973 / sqrt(2), the default's rule
+deep_depth = 2.645               # [m] the bottom node (1.25 m) + 1.973 / sqrt(2), the default's rule
 
 [aerodynamics]
-z0m_ratio = 0.0637815   # set by calibrate_fast
+z0m_ratio = 0.0580716   # set by calibrate_fast

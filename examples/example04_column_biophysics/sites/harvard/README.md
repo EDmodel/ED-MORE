@@ -33,12 +33,16 @@ albedo, and the ten-day window (below).
 ## The model
 
 - **Two PFTs** ([`pft_parameters.toml`](pft_parameters.toml)): a cold-deciduous broadleaf and an evergreen
-  conifer, their phenology fitted with each cohort's own cues (Phenology, below). Example 07's Harvard allometry and foliage optics. The stand
-  starts at LAI 3.9 (broadleaf, in leaf) + 1.8 (conifer) and 14.7 kgC m⁻² aboveground.
+  conifer, their phenology fitted with each cohort's own cues (Phenology, below). Example 07's Harvard
+  allometry and foliage optics, the broadleaves' leaf area scaled so that the summer canopy is the mean of
+  MODIS and the LAI-2000 surveys (Leaf area). The stand starts at LAI 2.8 (broadleaf, in leaf) + 1.8
+  (conifer) and 14.7 kgC m⁻² aboveground.
 - **Both PFTs' capacities fall away near freezing**, by every PFT's low-temperature limit at its default
   (ED2's 4.7 °C; [`leaf_gas_exchange.md`](../../../../docs/science/leaf_gas_exchange.md) eq. (3b)).
-- **The soil** ([`ed_config_eval.toml`](ed_config_eval.toml)): 1.09 m of stony sandy loam above the dense till,
-  one van Genuchten curve from the megapit's horizons by the model's texture formulas.
+- **The soil** ([`ed_config_eval.toml`](ed_config_eval.toml)): 1.5 m, the megapit's 1.09 m of stony sandy loam
+  above the dense till and 0.4 m of the till's top, the water the trees draw on in a dry August (a 1.09 m
+  column runs dry in mid-August 2022 while the tower's LE holds); one van Genuchten curve from the
+  megapit's horizons by the model's texture formulas, free-draining at its base.
 - **CO₂** is held at 418 µmol mol⁻¹: the repository's CO₂ file ends in 2022.
 - **The stand is frozen** (`[demography].demography_on = false`, [`ed_config_eval.toml`](ed_config_eval.toml)):
   every cohort keeps the census's size and number, while the leaves follow the season. 2019 takes the
@@ -64,23 +68,24 @@ GPP for about a fifth of the hours, few of them calm nights, and a plain mean ov
 a mean of days.
 
 The dashed lines are the tower as the calibration scores it, as at BCI: GPP with the tower's respiration
-divided by the fitted κ (0.92), and H with the energy-balance gap, which the attribution test gives to H
+divided by the fitted κ (0.91), and H with the energy-balance gap, which the attribution test gives to H
 (below). Each bias is against the dashed line where there is one.
 
 | | tower | tower, as the calibration scores it | ED-MORE | bias in June–August | bias in December–February |
 |---|---|---|---|---|---|
-| GPP [µmol m⁻² s⁻¹] | 4.56 | 4.70 | 5.07 | −0.26 | +0.12 |
-| NEE [µmol m⁻² s⁻¹] | −1.33 | | −2.80 | −1.18 | −0.78 |
-| LE [W m⁻²] | 41.1 | | 52.0 | +13.4 | +14.2 |
-| H [W m⁻²] | 25.2 | 51.3 | 45.7 | −8.4 | +2.8 |
-| net radiation [W m⁻²] | 87.3 | | 87.6 | −2.5 | +3.6 |
+| GPP [µmol m⁻² s⁻¹] | 4.56 | 4.74 | 4.87 | −0.51 | +0.11 |
+| NEE [µmol m⁻² s⁻¹] | −1.33 | | −2.81 | −1.43 | −0.80 |
+| LE [W m⁻²] | 41.1 | | 50.3 | +10.9 | +14.7 |
+| H [W m⁻²] | 25.2 | 51.3 | 47.5 | −5.5 | +2.5 |
+| net radiation [W m⁻²] | 87.3 | | 88.0 | −1.6 | +3.6 |
 
-- **Summer:** GPP's diurnal cycle and its June–August level match (bias −0.26 µmol m⁻² s⁻¹), and net
-  radiation is within 2.5 W m⁻². The model's sink is the larger (NEE −1.18 µmol m⁻² s⁻¹ in June–August),
+- **Summer:** GPP's diurnal cycle follows the tower's, 0.5 µmol m⁻² s⁻¹ low in June–August, most of it
+  at the midday peak, and net radiation is within 1.6 W m⁻². The model's sink is the larger (NEE −1.43 µmol m⁻² s⁻¹ in June–August),
   mostly at night. The tower closes its energy balance to 0.76, and the calibration's attribution test
   gives the gap to H (H/Rnet rises 77 % from calm to turbulent hours, LE/Rnet does not), as at BCI.
-  Against the tower with that gap in H, the model's summer H is 8 W m⁻² low and its LE 13 W m⁻² high:
-  the model splits the energy too much toward water.
+  Against the tower with that gap in H, the model's summer H is 6 W m⁻² low and its LE 11 W m⁻² high:
+  the default parameters split the energy too much toward water (the calibration takes LE's summer bias
+  to +2.3 W m⁻²).
 - **Winter and spring: the conifers.** While the broadleaves are bare, the tower sees the conifers alone,
   at two thirds of their needles from October to June (Phenology) and with every PFT's low-temperature
   limit. In the hours the tower measured with incoming shortwave above 300 W m⁻²:
@@ -88,18 +93,23 @@ divided by the fitted κ (0.92), and H with the energy-balance gap, which the at
   | GPP [µmol m⁻² s⁻¹] | Jan | Feb | Mar | Apr | Nov | Dec |
   |---|---|---|---|---|---|---|
   | tower | −0.07 | −0.07 | 0.43 | 1.60 | 1.50 | 0.21 |
-  | ED-MORE | 0.18 | 0.63 | 1.58 | 3.70 | 4.29 | 0.56 |
-  | ED-MORE calibrated | 0.16 | 0.44 | 0.94 | 1.97 | 3.32 | 0.42 |
+  | ED-MORE | 0.18 | 0.64 | 1.62 | 3.76 | 3.81 | 0.57 |
+  | ED-MORE calibrated | 0.18 | 0.47 | 1.00 | 2.09 | 3.22 | 0.46 |
 
   The tower measures no photosynthesis in January and February, not even at midday: its NEE stays a
-  flat +0.87 µmol m⁻² s⁻¹ in December–February, the model's +0.09. April's and November's conifers keep
-  2.3 and 2.9 times the tower's GPP, and March–May's NEE is −2.6 µmol m⁻² s⁻¹ against −0.18 at the tower.
-  The calibration fits the conifers' capacity on April windows, and brings April's GPP to 1.2 times the
+  flat +0.87 µmol m⁻² s⁻¹ in December–February, the model's +0.07. April's and November's conifers keep
+  2.4 and 2.5 times the tower's GPP, and March–May's NEE is −2.3 µmol m⁻² s⁻¹ against −0.18 at the tower.
+  The calibration fits the conifers' capacity on April windows, and brings April's GPP to 1.3 times the
   tower's (The calibration).
-- **Soil water.** At 15–60 cm NEON's sensors (DP1.00094.001) read 0.12–0.14 m³ m⁻³ in summer. A sealed
-  base instead of the free-draining one holds twice the water and raises LE by 17 W m⁻²: the
-  free-draining base is the one to keep. In a dry summer the column runs out of water long before the
-  forest does ([Ten days inside the column](#ten-days-inside-the-column)).
+- **Soil water.** The tower's own soil water is gap-filled in every summer, and NEON's sensors
+  (DP1.00094.001) read low (0.05 m³ m⁻³ at 46 cm in June 2022) and pass their quality flag on 15–60 % of
+  the readings; they date 2022's driest days to the second half of August. Harvard Forest's TDR record
+  near the EMS tower (HF006, the top 15 cm, 1995–2004) gives summer means of 0.19–0.33 m³ m⁻³ and
+  0.06–0.07 at the driest. The calibrated model's top 15 cm hold 0.21 in July–August 2021 and 0.11 at
+  2022's low (28 August). A sealed base instead of the free-draining one keeps the column near saturation
+  all summer (0.31–0.42). Over the megapit's 1.09 m alone the column runs dry by mid-August 2022 and LE
+  falls a third below the tower's; with the till's top (1.5 m) the calibrated LE is 115 W m⁻² against
+  the tower's 117 over 15–28 August ([Ten days inside the column](#ten-days-inside-the-column)).
 - **Reading the tower's curves** (the grey band: the tower's mean ±2 standard errors). An hour of the
   diurnal cycle averages only the half hours ONEFlux marks as measured, and it keeps one only when u\*
   passes its threshold (0.37–0.44 m s⁻¹ here). Each summer night-time hour averages 31–55 hours from five
@@ -107,7 +117,7 @@ divided by the fitted κ (0.92), and H with the energy-balance gap, which the at
   neighbouring night-time hours are that sampling. In winter each hour holds 98–135 hours, but the panel
   spans only 0.35 µmol m⁻² s⁻¹. The model's lines are smooth because they have no measurement noise.
   What is not sampling: on the summer nights the tower measured (21–04 h), its NEE is 5.83 against the
-  model's 4.61.
+  model's 4.25 (calibrated 4.77).
 
 ## Leaf area
 
@@ -116,15 +126,16 @@ divided by the fitted κ (0.92), and H with the energy-balance gap, which the at
 [`plot_lai.py`](plot_lai.py) sets the calibrated run's mean seasonal leaf area by PFT against MODIS (the median of the
 3 × 3 500 m pixels around the tower, good retrievals only) and the LAI-2000 surveys around the EMS tower,
 which read the whole canopy and its deciduous part (the leaf-off reading subtracted).
-- **The summer canopy:** LAI 5.7 in July–August (broadleaves 3.9, conifers 1.7), against 4.6 from the
-  surveys (deciduous part 3.05) and 4.5 from MODIS. The surveys see stems too and do not correct for
-  clumping, so their level is a bound, their timing the reference.
-- **Leaf-out** (halfway from leaf-off to summer) comes within 4 days of the surveys' in 2021–2024, and 9
+- **The summer canopy:** LAI 4.5 in July–August (broadleaves 2.8, conifers 1.8), the mean of the
+  surveys' 4.6 (deciduous part 3.05) and MODIS's 4.5: the broadleaves' leaf allometry (`lai_b1`) is
+  scaled to it. The surveys see stems too and do not correct for clumping, and MODIS saturates in a
+  closed canopy; the calibration's capacities rest on this level.
+- **Leaf-out** (halfway from leaf-off to summer) comes within 4 days of the surveys' in 2021–2024, and 10
   days after it in 2020, the spring NEON's tower measured almost nothing and the forcing is filled.
-  **Leaf fall** comes within 3 days of it in three of the five years, and 7 and 12 days after it in 2024
+  **Leaf fall** comes within 3 days of it in three of the five years, and 8 and 12 days after it in 2024
   and 2022; in 2022, the drought year, the surveys' canopy fell early, and the model's phenology has no
   water cue.
-- **The conifers** keep 1.2 in January–March, two thirds of their summer 1.7, against the surveys'
+- **The conifers** keep 1.2 in January–March, two thirds of their summer 1.8, against the surveys'
   leaf-off reading of 1.66 (stems included). MODIS reads 0.74, under snow and a low sun.
 - **2019** is the spin-up: the stand starts on 2 January from the census in full leaf, and its broadleaves
   keep those leaves until the autumn (the shed side counts cold only from midsummer).
@@ -147,13 +158,18 @@ Harvard's choices and what the rules made of them:
   2021), at a coverage of 0.4: HARV's tower measures fewer hours than BCI's. The rule leaves out 3–9
   April 2024 (`[windows].exclude`), when the model makes a snow pack the pillow never saw. December to
   March (snow most days), May and October (the broadleaves' flush and fall) and November (their last
-  leaves still at full capacity) are not used. No year's water deficit qualifies for a seasonal run, so
-  the drought keys are fixed.
+  leaves still at full capacity) are not used.
+- **One seasonal run: 2022's drought** (`[seasonal_runs].days = 90`). The rule ends a run at each year's
+  deepest water deficit inside the leaf-on months and keeps a year over 100 mm whose run lies inside
+  June–September and whose LE is measured often enough. 2022's, 412 mm on 4 September, qualifies: 6 June
+  to 4 September, scored on LE. Its LE does not inform the stomatal water-stress keys (posterior/prior sd
+  1.00): with 1.5 m of soil the stand transpires through the drought (Ten days inside the column), and
+  they keep the PFT file's 2.0 MPa⁻¹.
 - **The energy-balance gap goes to H**: the tower closes to 0.76, and H/Rnet rises 77 % from the calmest
   to the most turbulent hours while LE/Rnet does not.
 - **Both PFTs' capacities.** In summer the tower barely tells them apart (a summer-only fit found them
   correlated at −0.97); with the April windows they separate (|r| < 0.3). The conifers' `vcmax25` takes
-  Kattge et al.'s (2009) evergreen coniferous 58 as its prior, and April takes it to 19.6. Their cold
+  Kattge et al.'s (2009) evergreen coniferous 58 as its prior, and April takes it to 19.9. Their cold
   limit (`capacity_low_temp_pft2`, the leaf temperature that halves their capacity) stays where it
   starts, uninformed: April's GPP is low at all its temperatures, so the fit lowers the capacity, not
   the cold limit. The one capacity serves April and the summer alike; whether the conifers' summer
@@ -162,27 +178,30 @@ Harvard's choices and what the rules made of them:
 
 | key | calibrated (68 % range) | prior centre |
 |---|---|---|
-| `vcmax25` [µmol m⁻² s⁻¹] | 67.4 (64.0–70.9) | 74.0 (from the climate) |
-| `vcmax25_pft2` [µmol m⁻² s⁻¹] | 19.6 (17.6–22.3) | 58 (Kattge et al. 2009 for evergreen conifers, as BETHY uses it: Rogers 2014, Table 1) |
-| `capacity_low_temp_pft2` [°C] | 1.6 (0.4–4.1: uninformed) | 4.7 (ED2's) |
-| `stomatal_g1` [kPa^0.5] | 5.70 (5.26–6.16) | 1.99 (from the climate; Lin et al. 2015 give deciduous trees 4.45) |
-| `stomatal_g1_pft2` [kPa^0.5] | 2.07 (1.45–3.03) | 1.99 (Lin et al. 2015 give needleleaf trees 2.35) |
-| `stomatal_g0`, `stomatal_g0_pft2` [mol m⁻² s⁻¹] | 0.0029, 0.0081 (each within a factor 2.5–3) | 0.01 |
-| `leaf_angle_mean` [°] | 31.8 (24.1–41.2) | 33.9 (example 07's fit) |
-| `z0m_ratio` | 0.064 (0.060–0.068) | 0.13 |
-| κ | 0.924 (0.885–0.965) | 1 |
+| `vcmax25` [µmol m⁻² s⁻¹] | 93.0 (88.3–97.5) | 74.0 (from the climate) |
+| `vcmax25_pft2` [µmol m⁻² s⁻¹] | 19.9 (17.9–22.5) | 58 (Kattge et al. 2009 for evergreen conifers, as BETHY uses it: Rogers 2014, Table 1) |
+| `capacity_low_temp_pft2` [°C] | 1.4 (0.5–3.7: uninformed) | 4.7 (ED2's) |
+| `stomatal_g1` [kPa^0.5] | 3.44 (3.28–3.60) | 1.99 (from the climate; Lin et al. 2015 give deciduous trees 4.45) |
+| `stomatal_g1_pft2` [kPa^0.5] | 3.62 (3.01–4.33) | 1.99 (Lin et al. 2015 give needleleaf trees 2.35) |
+| `stomatal_g0`, `stomatal_g0_pft2` [mol m⁻² s⁻¹] | 0.0013, 0.0021 (each within a factor 2.2–2.8) | 0.01 |
+| `leaf_angle_mean` [°] | 24.4 (18.6–32.6) | 33.9 (example 07's fit) |
+| `z0m_ratio` | 0.058 (0.055–0.062) | 0.13 |
+| κ | 0.905 (0.869–0.943) | 1 |
 
 Both PFTs' Jmax/Vcmax ratio is Kattge & Knorr's 1.93 for the growth temperature. On the validation
-windows (RMSE in units of each target's error), default → calibrated: u\* 1.07 → 0.58, GPP 3.09 → 2.08,
-LE 2.41 → 2.41, upwelling longwave 1.66 → 1.69, H 3.51 → 3.81. **The validation passes**: no target does
-more than 10 % worse. The energy-balance gap is the largest uncertainty: sharing it between H and LE
-instead moves `stomatal_g1` to 10.1 (the conifers' to 4.5), and the tower's daytime partitioning moves
-`vcmax25` to 60 and the conifers' to 16.7. The fit took 444 trials, 15 minutes on one 40-core node.
+windows (RMSE in units of each target's error), default → calibrated: u\* 1.12 → 0.63, GPP 2.80 → 2.13,
+LE 2.24 → 2.03, upwelling longwave 1.49 → 1.66, H 3.32 → 3.45. **The validation fails** on upwelling
+longwave alone: it is 12 % worse than the default's, and the rule allows 10 % (Open). The energy-balance
+gap is the largest uncertainty: sharing it between H and LE instead moves the conifers' `stomatal_g1` to
+11.1 and the broadleaves' leaf angle to 19°, and the tower's daytime partitioning moves `vcmax25` to 86
+and the conifers' to 16.9. The fit took 558 trials, 32 minutes on one 40-core node.
 
-Over 2020–2024 the calibrated run lowers GPP to 4.89 µmol m⁻² s⁻¹ and LE to 50.4 W m⁻², and the hourly
-errors (RMSE: GPP 3.74 → 3.40, LE 49.1 → 48.2, H 59.3 → 55.3). The conifers' spring comes closest to the
-tower: in the sunny hours of April their GPP is 1.97 µmol m⁻² s⁻¹ against the tower's 1.60 (the default
-3.70), and March–May's NEE −2.2 against −0.18 (the default −2.6). The calibrated configs, the fit and
+Over 2020–2024 the calibrated run takes LE to 45.0 W m⁻² (June–August +2.3) and summer H to the scored
+tower's (+0.1), and raises GPP to 5.22 µmol m⁻² s⁻¹ against the scored tower's 4.74 (June–August +0.63).
+The hourly errors (RMSE) fall for LE (44.0 → 39.5 W m⁻²) and H (59.5 → 58.3) and rise for GPP (2.86 →
+3.17 µmol m⁻² s⁻¹). The conifers' spring comes closest to the tower: in the sunny hours of April their
+GPP is 2.09 µmol m⁻² s⁻¹ against the tower's 1.60 (the default 3.76), and March–May's NEE −2.2 against
+−0.18 (the default −2.3). The calibrated configs, the fit and
 its report are in [`calibration/`](calibration).
 
 ## Ten days inside the column
@@ -193,22 +212,23 @@ The example runs the calibrated model to 28 August 2022, then restarts it for te
 patch's and cohort's states written each half hour ([`output_window.toml`](output_window.toml)). These
 are the last days of the 2022 drought, the six years' deepest water deficit: eight bright days with
 showers of 5.5 mm (31 August) and 2.7 mm (4 September), then 97 mm on 5–6 September. The figure shows the
-largest patch holding both PFTs (7.5 % of the site, LAI 6.3) and each PFT's tallest cohort, a 24 m
+largest patch holding both PFTs (7.5 % of the site, LAI 3.7) and each PFT's tallest cohort, a 24 m
 broadleaf and a 24 m conifer.
-- **The column is dry to the bottom.** All three layers drawn sit at the soil's residual water
-  (0.085 m³ m⁻³) until the storm. The top broadleaf's leaf water potential falls to −3.9 MPa and the
-  conifer's to −4.7, and neither assimilates at midday on 28–30 August. The 5.5 mm shower on 31 August
-  wets only the top 2.5 cm, yet the broadleaf recovers by 1.4 MPa and the conifer by 2.6: near its
-  residual water the soil's water potential rises steeply with any water.
-- **The forest is not.** On 28–30 August, between 10 and 15 h, the tower's LE averages 200 W m⁻² and its
-  GPP 24 µmol m⁻² s⁻¹; the model's, on the same hours, 37 and 4.3. After the storm the model overshoots:
-  LE 292 against 211 on 8–10 September. The 1.09 m free-draining column holds too little water for an
-  August, or the trees reach water below it (Open).
+- **The column is dry, not empty.** Every layer down to 1.5 m holds 0.10 m³ m⁻³ on 28 August, just
+  above the soil's residual water (0.079), and 0.093 by 4 September. The top broadleaf's leaf water
+  potential falls to −1.3 to −1.6 MPa at midday on 28–31 August and to −2.2 by 3–4 September, the
+  conifer's to −1.0 and then −1.6; each night both recover to the soil's. The 5.5 mm shower on 31 August
+  wets only the top layer, yet lifts both cohorts' night-time potential from −0.72 to −0.35 MPa for a
+  day: near its residual water the soil's water potential rises steeply with any water.
+- **Both keep assimilating.** The top broadleaf's midday gross assimilation is 19–20 µmol m⁻² s⁻¹ on 28
+  August–1 September and 15 on 3–4 September, as the soil dries further; the conifer's stays at 4.5. On
+  28–30 August, between 10 and 15 h, the tower's LE averages 200 W m⁻² and its GPP 24 µmol m⁻² s⁻¹; the
+  model's, on the same hours, 173 and 26. After the storm the model overshoots: LE 242 against 211 on
+  8–10 September.
 - **Temperatures.** Only the air at 38.5 m is forcing. On the bright days the top broadleaf's leaves run
-  4.5 K above it at midday and the conifer's 2.5 K; in the storm both fall to the air's temperature.
-- **Canopy-air CO₂** builds up to 427 µmol mol⁻¹ on the night of 4–5 September and falls to 407 at
-  midday on 6 September, when the rewetted canopy assimilates fastest (the top broadleaf 6.5 µmol m⁻² s⁻¹,
-  the conifer 2.8).
+  2.7 K above it at midday and the conifer's 1.8 K; in the storm both fall to the air's temperature.
+- **Canopy-air CO₂** builds up to 429 µmol mol⁻¹ on the night after the 31 August shower and falls to
+  400 at midday on 4 September.
 - NEON's soil sensors are not drawn: in these days 26 of their 28 plot-depths fail the quality flag
   for more than a tenth of the time, and the rest read 0.01–0.03 m³ m⁻³, under any soil's residual
   water (NEON's expanded uncertainty on them is about ±0.2 m³ m⁻³).
@@ -225,17 +245,17 @@ pixels around the tower, full inversions only).
 
 | winter (Nov–Apr) | 2019 | 2020 | 2021 | 2022 | 2023 | 2024 |
 |---|---|---|---|---|---|---|
-| peak SWE [mm], pillow / model | 85 / 109 | 82 / 60 | 89 / 67 | 69 / 34 | 109 / 87 | 31 / 55 |
-| days with ≥ 5 mm, pillow / model | 88 / 97 | 100 / 74 | 102 / 93 | 83 / 65 | 94 / 91 | 52 / 38 |
+| peak SWE [mm], pillow / model | 85 / 101 | 82 / 59 | 89 / 66 | 69 / 33 | 108 / 87 | 31 / 55 |
+| days with ≥ 5 mm, pillow / model | 88 / 96 | 100 / 88 | 102 / 94 | 83 / 65 | 94 / 94 | 52 / 38 |
 
 - **The pack comes and goes on the right days.** It is shallower than the pillow's in 2020–2023 and
   shorter-lived in 2020 and 2022: the model melts more of it in the mid-winter thaws. Its peak is the
   higher in 2019 and 2024; on 3–4 April 2024 it turned 46 mm of precipitation near 0 °C into a pack the
   pillow never saw.
-- **Albedo, leaf-on:** 0.161 in June–August against the tower's 0.159. From August the tower's falls as
-  the leaves age (0.146–0.151 in August–October); the model's leaf optics do not change (0.157–0.162).
-- **Albedo, bare and snow-free:** the leafless canopy is too bright, 0.132 against 0.125 in December–March,
-  0.133 against 0.126 in April and 0.135 against 0.128 in November.
+- **Albedo, leaf-on:** 0.156 in June–August against the tower's 0.159. From August the tower's falls as
+  the leaves age (0.146–0.151 in August–October); the model's leaf optics do not change (0.151–0.157).
+- **Albedo, bare and snow-free:** the leafless canopy is too bright, 0.131 against 0.125 in December–March,
+  0.132 against 0.126 in April and 0.132 against 0.128 in November.
 - **Albedo, snow:** with snow on the ground the tower reads 0.165, the model 0.154: its albedo rises less
   with the pack. The snow ED-MORE does not hold in the crowns is the likely reason: the model's snow lies
   only under them.
@@ -245,27 +265,29 @@ pixels around the tower, full inversions only).
 
 ## Open
 
-- **The conifers' capacity across the seasons:** fitted on April windows, their `vcmax25` is 19.6, a
+- **The conifers' capacity across the seasons:** fitted on April windows, their `vcmax25` is 19.9, a
   third of Kattge et al.'s evergreen-conifer value, and the same value serves the summer, where the tower
   cannot tell it apart. A conifer whose capacity recovers by summer needs a cold-season course the
   instantaneous low-temperature limit cannot give (fitted, the limit stays uninformed).
 - **November:** the broadleaves' last leaves keep their full capacity until they fall, and the calibrated
-  model's GPP in November's sunny hours is 2.2 times the tower's.
+  model's GPP in November's sunny hours is 2.1 times the tower's.
 - **Spring:** March–May's NEE is −2.2 µmol m⁻² s⁻¹ (calibrated) against the tower's −0.18: the model's
   respiration in spring, or a capacity that recovers with a lag.
 - **Snow in the crowns:** the winter albedo's response to snow, and snow's interception and sublimation.
   The pack melts more in the mid-winter thaws than the pillow's.
 - **The leafless canopy's brightness** and **autumn's leaf optics** (albedo above).
-- **Late summer:** H stays high in August–October beyond the closure gap, and GPP falls below the tower's
-  in August. In August 2022 the column dried to its residual water while the tower's LE and GPP stayed
-  near their summer level (above): the soil's depth and curve, and the roots' reach into the till, are
-  the suspects. The calibration's drought keys are fixed (no seasonal run qualifies).
+- **Upwelling longwave:** the calibration's validation fails on it alone, 12 % further from the tower
+  on the validation windows than the default (The calibration). Not yet diagnosed.
+- **Drought:** the 1.5 m column's last 0.4 m stands for water the trees draw from the till's top, which
+  no measurement here gives, and the stomatal water-stress keys stay uninformed: the record's one dry
+  summer barely stresses the model with it.
 - **Drought and the leaves:** in 2022 the surveys' canopy fell 12 days before the model's. The
   broadleaves' phenology has no water cue.
-- **The night-time respiration:** on the measured summer nights the model's NEE is 21 % below the
-  tower's (4.61 against 5.83 µmol m⁻² s⁻¹), and in winter its NEE is a tenth of the tower's.
+- **The night-time respiration:** on the measured summer nights the calibrated model's NEE is 18 % below the
+  tower's (4.77 against 5.83 µmol m⁻² s⁻¹), and in winter its NEE is under a tenth of the tower's.
 - **The conifers' phenology** rests on climatologies (HF003 to 2001, the EMS baskets to 2015), and the
   depth of their winter dip on their needles' lifespan, not on a measurement.
 - **Soil water to score against:** the tower's FLUXNET soil water (`SWC_F_MDS`) is almost all gap-filled,
   and NEON's own sensors pass their quality flag only part of the time (in August 2022, 2 of 28
-  plot-depths for 90 % of the days) and read under any residual water when dry.
+  plot-depths for 90 % of the days) and read under any residual water when dry; HF006's calibrated TDR
+  record ends in 2014.
