@@ -88,6 +88,7 @@ def test_the_pft_file_keeps_its_comments(tmp_path):
     assert "shed_degree_days = [47.889, 61.5]   # [K day]" in text
     assert "leaf_turnover_rate_toc = [0.0001, 0.25]   # [1/yr] two PFTs" in text
     assert "flush_degree_days = [90.0, 100.0]" in text and "# a note" in text
+    assert pft_file.set_element("[phenology]\nx = [1.5, 2.5]\n", "phenology.x", 0, 4.0) == "[phenology]\nx = [4.0, 2.5]\n"
     with pytest.raises(pft_file.PftFileError, match="no one-line array"):
         pft_file.set_element(src.read_text(), "phenology.light_window", 0, 1.0)
 
