@@ -3,7 +3,7 @@
 # Every line is the base file's, comments included, except these keys the fit set
 # (calibrated value, the base file's value; EFFECTIVE: its value belongs to this model structure;
 # KATTGE & KNORR: fixed at the growth temperature's value, not fitted):
-#   aerodynamics.z0m_ratio         0.062964  (0.13)  EFFECTIVE
+#   aerodynamics.z0m_ratio         0.0637815  (0.13)  EFFECTIVE
 #   leaf_physiology.ds_vcmax       648.076  (650)  KATTGE & KNORR
 #   leaf_physiology.ds_jmax        645.462  (640)  KATTGE & KNORR
 # and these settings of the calibration (calibration.toml [overrides], the variant, [calibrated]):
@@ -176,4 +176,4 @@ deep_temp  = 282.15              # [K] the tower's mean air temperature, 2019-20
 deep_depth = 2.240               # [m] the bottom node (0.845 m) + 1.973 / sqrt(2), the default's rule
 
 [aerodynamics]
-z0m_ratio = 0.062964   # set by calibrate_fast
+z0m_ratio = 0.0637815   # set by calibrate_fast

@@ -18,26 +18,36 @@ site = "harvard_site.toml"
 # registry's prior: ONEFlux's night-time partitioning has no known respiration bias here (BCI's tower
 # respiration is the soil's alone).
 #
-# The conifers' vcmax25 stays at its file's value: in the leaf-on months the tower cannot tell the two
-# PFTs' capacities apart.
+# The conifers' capacity comes from two seasons. In April the broadleaves are bare and the tower sees the
+# conifers alone, at 5-15 C: those windows set the leaf temperature that halves their capacity
+# (capacity_low_temp_pft2, an optional key), which barely acts in summer. In summer the tower sees both
+# PFTs and barely tells their capacities apart, so vcmax25_pft2 takes a needleleaf prior ([priors]).
+# Their leaf angle is offered to the screening.
 [fit]
 pfts            = [1, 2]
 plant_types     = ["deciduous_broadleaf", "needleleaf"]
-remove          = ["vcmax25_pft2"]
+add             = ["capacity_low_temp_pft2"]
 timeout_per_day = 30.0
 
-# The windows: the rule's, in the site's leaf-on months (June-September). Not in April and November: a
-# test fit with them (README, The calibration) takes the conifers' vcmax25 to 11.6, which brings April's
-# GPP to the tower's but leaves the summer's to the broadleaves (their vcmax25 68), and early November's
-# GPP stays 6-12 times the tower's, from the broadleaves' last leaves at full capacity. One vcmax25 cannot
-# serve the conifers' summer and their cold season (README, Open).
+# The windows: the rule's, as at BCI over the year, in the full-canopy months (June-September) and in
+# April, the off-season month the tower sees the conifers alone without snow. Not December-March (snow
+# most days: errors no fast key fixes), May and October (the broadleaves' flush and fall) or November
+# (their last leaves still at full capacity).
 # HARV's tower measures fewer hours than BCI's (NEON's gaps, and almost none from March to August 2020):
 # at the default coverage of 0.5 only one validation window qualifies.
 [windows]
+months          = [4, 6, 7, 8, 9]
 min_coverage    = 0.4
 skip_hours      = 3            # the first hours after a restart with changed traits are not scored
+exclude         = [ { start = "2024-04-03", end = "2024-04-09", reason = "the model's own snow: on 3-4 April 2024 it makes a pack of up to 33 mm from rain near 0 C that the snow pillow never saw (README, Snow and albedo)" } ]
 chain_lead_days = 365          # the stand is frozen, so each chain runs the phenology: a year of it, from
                                #   the census's full leaf to the window's own canopy (windows from 2020)
+
+# The conifers' summer capacity: Kattge et al. 2009's evergreen coniferous forest.
+[priors.vcmax25_pft2]
+centre = 58.0
+log_sd = 0.35
+source = "Kattge et al. 2009 (Glob. Change Biol. 15:976) for evergreen coniferous forest, as BETHY uses it (Rogers 2014, Photosynth. Res. 119:15, Table 1; the models there give temperate needleleaf trees 17-75)"
 
 # Set in the calibrated main config the fit writes (ed_config_calibrated.toml), beside the MAP.
 [calibrated]

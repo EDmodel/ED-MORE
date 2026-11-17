@@ -276,10 +276,14 @@ def candidate_windows(scores: pd.Series, days: int, per_year: int, leaf_on: list
 
 def select_windows(scores: pd.Series, settings: dict, leaf_on: list, first_start):
     """The calibration and validation windows by the rule (module docstring), from each day's
-    coverage (day_scores), and the report. Returns ([(name, start, role)], report)."""
+    coverage (day_scores), and the report. A window touching a span of [windows].exclude is no
+    candidate. Returns ([(name, start, role)], report)."""
     days, per_year, need = int(settings["days"]), int(settings["per_year"]), float(settings["min_coverage"])
     cand = candidate_windows(scores, days, per_year, leaf_on, first_start)
     cand = cand[cand["coverage"] >= need]
+    for span in settings.get("exclude", []):
+        lo, hi = pd.Timestamp(span["start"]), pd.Timestamp(span["end"])
+        cand = cand[(cand["start"] > hi) | (cand["start"] + pd.Timedelta(days=days - 1) < lo)]
     chosen, report = [], {"slots": {}}
     for s in range(per_year):
         c = cand[cand["slot"] == s].sort_values(["coverage", "start"], ascending=[False, True])

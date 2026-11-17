@@ -1,11 +1,14 @@
-# The phenology calibration at Harvard Forest (scripts/calibrate_phenology), the tool's worked example.
-# prepare_phenology.py writes the observations below into data/phenology/ from example 02's downloads.
+# Example 02, part 2: Harvard Forest's broadleaf and conifer phenology fitted with every cohort's own
+# cues (scripts/calibrate_phenology, its worked example). prepare_observations.py writes the observations
+# below into ../data/harvard_stand/; the coupled runs are example 04's Harvard stand.
 #
-#   python ../../../../scripts/calibrate_phenology/calibrate_phenology.py iterate \
-#          --config phenology.toml --work data/phenology_runs --workers 40
+#   python ../../../scripts/calibrate_phenology/calibrate_phenology.py iterate \
+#          --config phenology.toml --work ../data/harvard_stand_runs --workers 40
 
 [run]
-config     = "ed_config_eval.toml"   # the tower run, its stand frozen; 2019-2024
+# Example 04's Harvard run: the tower's forcing, the census stand frozen, 2019-2024, and the PFT file the
+# fitted values go into (prepare its forcing and census first: its README, Run).
+config     = "../../example04_column_biophysics/sites/harvard/ed_config_eval.toml"
 score_from = "2020-01-01"            # 2019 spins up the cue memory and the canopy from the census
 threads    = 16
 
@@ -13,10 +16,11 @@ threads    = 16
 # The broadleaves (PFT 1): when warmth and long days flush the canopy and how fast, when cold and
 # short days drop it and how fast. The conifers (PFT 2): the warmth their shoots wait for and the day
 # length that ends their flush, the cold and short days that start the needle fall, and the needles lost
-# through the season. The share each autumn keeps is set, not fitted (pft_parameters.toml): a needle lives
-# about three years, so the oldest third falls and two thirds stay (min_leaf_cover 0.67). Nothing in these
-# years measures how deep the conifers' winter dip is; fitted, it went to 5 %, the year's needles turning
-# over in an autumn exchange (falling while the canopy re-flushed), which conifers that flush once do not do.
+# through the season. The share each autumn keeps is set, not fitted, in the PFT file: a needle lives
+# about three years, so the oldest third falls and two thirds stay (min_leaf_cover 0.67). Nothing in
+# these years measures how deep the conifers' winter dip is; fitted, it went to 5 %, the year's needles
+# turning over in an autumn exchange (falling while the canopy re-flushed), which conifers that flush
+# once do not do.
 keys = ["flush_degree_days_pft1", "flush_light_hours_pft1", "flush_rate_max_pft1", "shed_base_temp_pft1",
         "shed_degree_days_pft1", "shed_light_hours_pft1", "shed_rate_max_pft1",
         "flush_degree_days_pft2", "flush_light_hours_pft2", "shed_degree_days_pft2", "shed_light_hours_pft2",
@@ -36,7 +40,7 @@ leaf_turnover_rate_pft2 = [0.0001, 0.05]    # the background loss acts while the
 [[target]]
 name       = "HF003 canopy, fallen"
 kind       = "fallen"
-file       = "data/phenology/hf003_fall_canopy.csv"
+file       = "../data/harvard_stand/hf003_fall_canopy.csv"
 pfts       = [1]
 min_height = 15.0
 sigma      = 0.1
@@ -44,7 +48,7 @@ sigma      = 0.1
 [[target]]
 name       = "HF003 understorey, fallen"
 kind       = "fallen"
-file       = "data/phenology/hf003_fall_understorey.csv"
+file       = "../data/harvard_stand/hf003_fall_understorey.csv"
 pfts       = [1]
 max_height = 10.0
 sigma      = 0.1
@@ -54,7 +58,7 @@ sigma      = 0.1
 [[target]]
 name       = "HF003 canopy, leaf-out day"
 kind       = "date"
-file       = "data/phenology/hf003_leafout_canopy.csv"
+file       = "../data/harvard_stand/hf003_leafout_canopy.csv"
 pfts       = [1]
 min_height = 15.0
 direction  = "up"
@@ -65,7 +69,7 @@ sigma      = 5.0
 [[target]]
 name       = "HF003 understorey, leaf-out day"
 kind       = "date"
-file       = "data/phenology/hf003_leafout_understorey.csv"
+file       = "../data/harvard_stand/hf003_leafout_understorey.csv"
 pfts       = [1]
 max_height = 10.0
 direction  = "up"
@@ -79,7 +83,7 @@ sigma      = 5.0
 [[target]]
 name       = "understorey full in July"
 kind       = "fraction"
-file       = "data/phenology/full_broadleaf_july.csv"
+file       = "../data/harvard_stand/full_broadleaf_july.csv"
 pfts       = [1]
 max_height = 10.0
 sigma      = 0.05
@@ -88,7 +92,7 @@ sigma      = 0.05
 [[target]]
 name  = "LAI-2000 deciduous"
 kind  = "fraction"
-file  = "data/phenology/lai2000_deciduous.csv"
+file  = "../data/harvard_stand/lai2000_deciduous.csv"
 pfts  = [1]
 sigma = 0.1
 
@@ -96,7 +100,7 @@ sigma = 0.1
 [[target]]
 name       = "HF069 leaf litter"
 kind       = "litter_fraction"
-file       = "data/phenology/litter_broadleaf.csv"
+file       = "../data/harvard_stand/litter_broadleaf.csv"
 pfts       = [1]
 year_start = "08-01"
 sigma      = 0.1
@@ -116,7 +120,7 @@ sigma = 0.05
 [[target]]
 name        = "MODIS LAI"
 kind        = "fraction"
-file        = "data/phenology/modis_lai.csv"
+file        = "../data/harvard_stand/modis_lai.csv"
 pfts        = [1, 2]
 scale       = "year_minmax"
 window_days = 8
@@ -124,13 +128,13 @@ sigma       = 0.15
 
 #----- The conifers ---------------------------------------------------------------------------------#
 # Climatologies: HF003 recorded hemlock and white pine only to 2001, and the EMS baskets caught
-# needles only to 2015. sigma is each record's year-to-year spread (prepare_phenology.py prints it),
+# needles only to 2015. sigma is each record's year-to-year spread (prepare_observations.py prints it),
 # at least 5 days. The shoots' half-way day (their l75 code half-way to its plateau) is the canopy's
 # half refill from its winter floor; half of the autumn's needle litter, its half fall.
 [[target]]
 name      = "hemlock shoots (HF003 1990-2001)"
 kind      = "date"
-file      = "data/phenology/hf003_shoots_tsca.csv"
+file      = "../data/harvard_stand/hf003_shoots_tsca.csv"
 pfts      = [2]
 direction = "up"
 doy_min   = 60
@@ -140,7 +144,7 @@ sigma     = 5.0
 [[target]]
 name      = "white pine shoots (HF003 1990-2001)"
 kind      = "date"
-file      = "data/phenology/hf003_shoots_pist.csv"
+file      = "../data/harvard_stand/hf003_shoots_pist.csv"
 pfts      = [2]
 direction = "up"
 doy_min   = 60
@@ -150,7 +154,7 @@ sigma     = 20.0
 [[target]]
 name      = "needle fall (HF069 1998-2015)"
 kind      = "date"
-file      = "data/phenology/hf069_needlefall.csv"
+file      = "../data/harvard_stand/hf069_needlefall.csv"
 pfts      = [2]
 direction = "down"
 doy_min   = 213
@@ -172,6 +176,6 @@ sigma = 0.1
 [[target]]
 name  = "conifers full at August's end"
 kind  = "fraction"
-file  = "data/phenology/full_conifer_august.csv"
+file  = "../data/harvard_stand/full_conifer_august.csv"
 pfts  = [2]
 sigma = 0.05

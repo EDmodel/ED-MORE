@@ -133,7 +133,9 @@ python calibrate_fast.py fit ... --queue
   slot's best covered (the share of daytime records with H, LE and GPP measured, times the share with
   observed forcing, `[tower].forcing_qc`). Validation windows are in the same slots of other years. A
   calibration may list its own windows, or name the months the rule draws from (`[windows].months`:
-  a mixed stand adds the months only its evergreens are in leaf).
+  a mixed stand adds the months only its evergreens are in leaf), and the spans it leaves out
+  (`[windows].exclude`, each with its reason: what the model cannot be scored on, such as a snow pack it
+  makes and the site did not have).
 - **Seasonal runs follow a rule** (`[seasonal_runs]`): up to two 120-day runs, each ending at a year's
   deepest cumulative water deficit (rain minus Priestley–Taylor evaporation, from the forcing) inside
   the leaf-on months, scored on LE only. A year under 100 mm gives none; without any, the drought keys

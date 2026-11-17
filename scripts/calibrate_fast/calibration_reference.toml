@@ -89,6 +89,10 @@ per_year     = 8
 min_coverage = 0.5               # a window's (and a seasonal run's) mean daily coverage must reach this
 # EXAMPLE: the calibration's own windows (name, start [UTC date], role "cal" or "val", optionally days); empty = the rule.
 list         = [ { name = "example", start = "2015-09-11", role = "cal" } ]
+# EXAMPLE: spans the rule leaves out (start and end [UTC dates], both included, and why): a window touching one is not a
+# candidate, so the rule takes the slot's next best. For what the model cannot be scored on, such as a snow pack it
+# makes and the site did not have.
+exclude      = [ { start = "2016-01-03", end = "2016-01-09", reason = "example" } ]
 
 # The seasonal runs (soil drying): frozen runs long enough for the soil to dry, scored on LE only, rows of the joint fit
 # beside the ten-day windows. By the rule, up to max_runs runs, each ending at a year's deepest cumulative water deficit

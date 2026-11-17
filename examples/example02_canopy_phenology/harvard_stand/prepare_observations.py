@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""The observations the Harvard phenology calibration (phenology.toml) fits, as the files
-scripts/calibrate_phenology reads, written to data/phenology/.
+"""The observations example 02's Harvard stand fit (phenology.toml) is scored on, as the files
+scripts/calibrate_phenology reads, written to ../data/harvard_stand/.
 
-They come from example 02's downloads (run its fetch_phenology_data.py first):
+They come from the example's downloads (run fetch_phenology_data.py first):
 - HF003 tagged trees (O'Keefe), 2019 on, separately for canopy and understorey species: the leaves
   fallen in autumn, averaged over the trees of each date; and each spring's day the trees' mean `l75`
   (a code for the leaves at 75 % of their size, which tops out at 80) reaches half its plateau;
@@ -17,7 +17,7 @@ They come from example 02's downloads (run its fetch_phenology_data.py first):
 - full canopies: the census gives each cohort its full canopy, so the broadleaves are full in mid-July
   and the conifers at the end of August, once the year's shoots have grown (1.0 on those days).
 
-Usage: prepare_phenology.py [example 02's data directory]
+Usage: prepare_observations.py [the example's data directory]
 """
 import sys
 from pathlib import Path
@@ -26,9 +26,9 @@ import numpy as np
 import pandas as pd
 
 HERE = Path(__file__).resolve().parent
-SRC = Path(sys.argv[1]) if len(sys.argv) > 1 else HERE.parents[2] / "example02_canopy_phenology" / "data"
-OUT = HERE / "data" / "phenology"
-FIRST, LAST = 2019, 2024             # the run's years (ed_config_eval.toml)
+SRC = Path(sys.argv[1]) if len(sys.argv) > 1 else HERE.parent / "data"
+OUT = SRC / "harvard_stand"
+FIRST, LAST = 2019, 2024             # the run's years (example 04's ed_config_eval.toml)
 SCORED = range(2020, LAST + 1)       # its scored years
 #----- HF003 species by where their crowns are. Canopy: red and sugar maple, yellow, black and paper
 #      birch, beech, white ash, black gum, black cherry, the oaks, aspen. Understorey: striped maple,

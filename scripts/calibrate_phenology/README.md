@@ -88,10 +88,11 @@ largest daily difference and its day, and stops above `[fit].closure`.
 
 ## Worked example: Harvard Forest
 
-[`examples/example04_column_biophysics/sites/harvard/phenology.toml`](../../examples/example04_column_biophysics/sites/harvard/phenology.toml)
-fits a cold-deciduous broadleaf and an evergreen conifer at NEON's HARV tower, 2019–2024, to HF003's
-tagged trees, HF069's LAI-2000 and litter baskets, MODIS, and the conifers' climatologies. Its README
-(Phenology) shows the result. Four lessons from it hold at any site:
+[Example 02, part 2](../../examples/example02_canopy_phenology/README.md#part-2--fitting-a-stand-harvard-forest)
+([`harvard_stand/phenology.toml`](../../examples/example02_canopy_phenology/harvard_stand/phenology.toml))
+fits a cold-deciduous broadleaf and an evergreen conifer on example 04's Harvard stand, 2019–2024, to
+HF003's tagged trees, HF069's LAI-2000 and litter baskets, MODIS, and the conifers' climatologies.
+Four lessons from it hold at any site:
 
 - **Scaled targets need an anchor.** A target scaled within each year (MODIS, a crossing day) says nothing
   about how full the canopy gets. With only such targets a fit can lower the whole cycle, leaving a canopy

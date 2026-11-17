@@ -643,6 +643,14 @@ def test_windows_one_per_slot_with_validation_in_another_year():
     chosen, _ = data_rules.select_windows(scores, wcfg, months, obs.index[0])
     spans = [pd.date_range(c[1], periods=10, freq="D") for c in chosen]
     assert {4, 11} <= {c[1].month for c in chosen} and all(set(s.month) <= set(months) for s in spans)
+    #----- [windows].exclude: no window touches an excluded span; its slot takes the next best
+    first = chosen[0]
+    span = {"start": str((first[1] + pd.Timedelta(days=9)).date()), "end": str((first[1] + pd.Timedelta(days=9)).date()),
+            "reason": "the model's own snow"}
+    again, _ = data_rules.select_windows(scores, {**wcfg, "exclude": [span]}, months, obs.index[0])
+    lo = pd.Timestamp(span["start"])
+    assert all(c[1] > lo or c[1] + pd.Timedelta(days=9) < lo for c in again)
+    assert len(again) == len(chosen) and first not in again
 
 
 def test_seasonal_runs_end_at_the_deepest_water_deficit():

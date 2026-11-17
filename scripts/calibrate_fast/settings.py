@@ -22,13 +22,14 @@ REFERENCE = Path(__file__).resolve().parent / "calibration_reference.toml"
 #: settings every calibration must give (their reference values are examples)
 REQUIRED = {("base", "main"), ("base", "parameters"), ("tower", "site")}
 #: lists whose reference entries are examples: the default is empty
-EXAMPLES = {("windows", "list"), ("seasonal_runs", "list")}
+EXAMPLES = {("windows", "list"), ("windows", "exclude"), ("seasonal_runs", "list")}
 #: settings a calibration may give that have no default (the reference shows them as comments)
 OPTIONAL = {("fit", "keys"), ("fit", "add"), ("fit", "remove"), ("fit", "pfts"), ("fit", "plant_types")}
 #: tables that take any keys
 FREE = {("overrides",), ("variants",), ("calibrated",), ("priors",)}
 #: the keys of one entry of a list of tables
 LIST_ENTRY = {("windows", "list"): {"name", "start", "role", "days"},
+              ("windows", "exclude"): {"start", "end", "reason"},
               ("seasonal_runs", "list"): {"name", "start", "days"}}
 PRIOR_ENTRY = {"centre", "sd", "log_sd", "source", "range"}
 

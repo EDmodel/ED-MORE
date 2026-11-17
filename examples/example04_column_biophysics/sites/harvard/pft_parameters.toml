@@ -31,6 +31,9 @@ stomatal_g1        = [4.45, 2.35]     # Medlyn [kPa^0.5]: deciduous angiosperm t
 stomatal_d0        = [1500.0, 1500.0]
 quantum_yield_c4   = [0.0, 0.0]
 theta_j            = [0.70, 0.70]
+capacity_low_temp       = [277.8637, 277.8637]   # [K] the leaf temperature that halves Vcmax, Jmax and TPU
+                                                 #   (ED2's; the calibration fits the conifers': calibration.toml)
+capacity_low_temp_slope = [0.4, 0.4]             # [1/K]
 theta_cj_c3        = [0.98, 0.98]
 theta_ip_c3        = [0.95, 0.95]
 theta_cj_c4        = [0.80, 0.80]
@@ -63,9 +66,9 @@ wood_angle_mean    = [75.0, 75.0]     # [deg] the woody surface (unpublished TLS
 wood_angle_std     = [20.0, 20.0]
 storage_cushion    = [3.0, 3.0]       # the repository's: a deciduous canopy rebuilds itself from storage each spring
 growth_resp_factor = [0.3, 0.3]
-leaf_turnover_rate_toc = [0.000106781, 0.023449]   # [1/yr] the background loss while flushing. Deciduous: example
-                                                   #   02's fit (its leaves go at senescence); conifers: phenology.toml's,
-                                                   #   with the autumn shed about a third of the needles a year
+leaf_turnover_rate_toc = [0.000106781, 0.017088]   # [1/yr] the background loss while flushing. Deciduous: example
+                                                   #   02's part 1 (its leaves go at senescence); conifers: example 02's
+                                                   #   part 2, with the autumn shed about a third of the needles a year
 kplastic_vcmax         = [-0.1459341188305866, -0.11760191025318557]   # pft_traits.py from vcmax25
 kplastic_rd            = [-0.1459341188305866, -0.11760191025318557]
 kplastic_sla           = [0.15654750929099287, 0.12615477645341722]
@@ -119,34 +122,30 @@ root_depth_b2        = 0.4223014
 specific_root_length = 20000.0
 fine_root_radius     = 0.00025
 
-# Leaf phenology (docs/science/plant_phenology.md), warmth and day length on both sides, fitted by
-# phenology.toml (scripts/calibrate_phenology) with each cohort's own cues: the broadleaves to HF003's
-# tagged trees, HF069's LAI-2000 and litter, and MODIS; the conifers, which shed a share of their needles
-# each autumn down to min_leaf_cover and grow new shoots in early summer, to HF003's and HF069's
-# climatologies and their needles' lifespan. par_min, the cue masks, the conifers' flush_light_sharpness and
-# min_leaf_cover are set, not fitted. A needle lives about three years, so each autumn the oldest third falls
-# and two thirds stay (0.67); a conifer flushes once, in early summer, so its day-length gate is sharp (4 /h) and
-# shuts as the days shorten; a gentle one would let it refill while its needles fall in autumn. Its par_min is
-# 0.5 umol/m2/s: the conifers flush in June under a closed broadleaf canopy, where a shaded one counts only
-# 9-11 h above 2 umol/m2/s, and shaded hemlocks still flush: the day length they sense is the photoperiod.
+# Leaf phenology (docs/science/plant_phenology.md), warmth and day length on both sides, fitted in example
+# 02's part 2 (examples/example02_canopy_phenology/harvard_stand/phenology.toml) with each cohort's own cues.
+# Set there, not fitted: par_min, the cue masks, and three of the conifers' traits: min_leaf_cover 0.67 (a
+# needle lives about three years, so each autumn the oldest third falls), a sharp day-length gate (4 /h: a
+# conifer flushes once, in early summer), and par_min 0.5 umol/m2/s (shaded conifers flush in June under the
+# closed broadleaf canopy, where they count only 9-11 h above 2 umol/m2/s).
 [phenology]
 flush_cue_mask        = [3, 3]
 shed_cue_mask         = [3, 3]
 flush_cue_timescale   = [5.0, 5.0]
 shed_cue_timescale    = [5.0, 5.0]
-flush_rate_max        = [0.135836, 0.06667]
-shed_rate_max         = [0.163941, 0.05]
+flush_rate_max        = [0.140691, 0.06667]
+shed_rate_max         = [0.175928, 0.05]
 min_leaf_cover        = [0.0, 0.67]
 bare_leaf_cover       = [0.02, 0.02]
 flush_base_temp       = [278.15, 278.15]
-flush_degree_days     = [261.917, 487.962]
+flush_degree_days     = [265.853, 484.074]
 flush_temp_sharpness  = [0.04, 0.04]
-shed_base_temp        = [292.002, 290.15]
-shed_degree_days      = [181.036, 59.732]
+shed_base_temp        = [292.042, 290.15]
+shed_degree_days      = [180.668, 58.2251]
 shed_temp_sharpness   = [0.1, 0.1]
 par_min               = [2.0001, 0.5]
-flush_light_hours     = [11.9629, 12.9272]
+flush_light_hours     = [12.0996, 12.9751]
 flush_light_sharpness = [7.99321, 4.0]
-shed_light_hours      = [10.2179, 16.1453]
+shed_light_hours      = [9.98798, 14.1313]
 shed_light_sharpness  = [-1.0, -1.0]
 light_window          = [1.00135, 10.0]
