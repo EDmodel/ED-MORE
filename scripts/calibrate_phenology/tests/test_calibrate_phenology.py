@@ -313,3 +313,17 @@ def test_a_run_is_written_with_absolute_paths(tmp_path, monkeypatch):
     for key in ("output.dir", "output.io_config"):
         assert Path(cfg.get(key)).is_absolute() and Path(cfg.get(key)).parent.exists()
     assert cfg.get("phenology.shed_degree_days", file="pft") == [60.0]
+
+
+def test_a_run_is_reused_only_with_the_same_configuration(tmp_path):
+    """The digest a finished run is found by covers the whole configuration, not only the fitted values."""
+    from edmore.config import RunConfig
+    keys = settings.load(site_file(tmp_path))["keys"]
+    base = RunConfig({"run": {}, "output": {}}, {"pft": {"wood_density": [0.5], "lai_b1": [0.17]},
+                                                 "phenology": {"shed_degree_days": [50.0]}})
+    values = {"shed_degree_days_pft1": 60.0}
+    d0 = coupled.config_digest(coupled.build(base, keys, values, tmp_path / "a", threads=1))
+    assert coupled.config_digest(coupled.build(base, keys, values, tmp_path / "a", threads=1)) == d0
+    leafier = base.copy()
+    leafier.set("pft.lai_b1", 0.12, file="pft", pft=1)
+    assert coupled.config_digest(coupled.build(leafier, keys, values, tmp_path / "a", threads=1)) != d0
