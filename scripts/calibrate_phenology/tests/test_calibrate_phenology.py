@@ -299,3 +299,16 @@ def test_the_fit_finds_the_values_the_observations_were_made_with(tmp_path):
     assert res["score"] < 0.01 * sum(res["scores_start"].values())
     assert abs(res["values"]["shed_degree_days_pft1"] - 60.0) < 3.0
     assert abs(res["values"]["flush_degree_days_pft1"] - 120.0) < 6.0
+
+
+def test_a_run_is_written_with_absolute_paths(tmp_path, monkeypatch):
+    """The run starts in its own directory, so a relative work directory must not reach its files."""
+    from edmore.config import RunConfig
+    monkeypatch.chdir(tmp_path)
+    base = RunConfig({"run": {}, "output": {}}, {"pft": {"wood_density": [0.5]}, "phenology": {"shed_degree_days": [50.0]}})
+    keys = settings.load(site_file(tmp_path))["keys"]
+    main = coupled.build(base, keys, {"shed_degree_days_pft1": 60.0}, Path("runs") / "run0", threads=1)
+    cfg = RunConfig.load(main)
+    for key in ("output.dir", "output.io_config"):
+        assert Path(cfg.get(key)).is_absolute() and Path(cfg.get(key)).parent.exists()
+    assert cfg.get("phenology.shed_degree_days", file="pft") == [60.0]

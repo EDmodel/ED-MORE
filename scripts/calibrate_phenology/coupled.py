@@ -46,7 +46,9 @@ def pft_values(cfg: RunConfig, keys) -> dict:
 
 
 def build(base: RunConfig, keys, values: dict, rundir: Path, threads: int) -> Path:
-    """Write the run's files into `rundir` and return its main file."""
+    """Write the run's files into `rundir` and return its main file. The paths it writes are absolute:
+    the run starts in its own directory."""
+    rundir = Path(rundir).resolve()
     cfg = base.copy()
     for k in keys:
         cfg.set(pft_file_key(k.name), float(values[k.label]), file="pft", pft=k.pft)
