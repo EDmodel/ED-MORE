@@ -188,7 +188,7 @@ ED-MORE's pedotransfer function.
 [`palo_verde/ed_config_inventory.toml`](palo_verde/ed_config_inventory.toml) runs the 2009
 inventory of the Palo Verde dry forest ([`palo_verde/data/pv_2009_census.csv`](palo_verde/data/pv_2009_census.csv):
 6 plots, 12 patches, 336 cohorts) from July 2008 to December 2010 on the cell's ERA5-Land weather and
-soil, with the structure frozen (trees grow and die, none recruit). The PFT traits were set against
+soil: trees grow and die, and none recruits, fuses or splits. The PFT traits were set against
 this stand:
 
 | 2009–2010 | ED-MORE | Target |

@@ -773,6 +773,7 @@ module test_slow_step_ledger_paths
    use ed_constants,            only : grav_head, n_soil_layer_max, umol_2_kgc
    use ed_test_support, only : banner, build_test_config, check, check_close
    use ed_constants,          only : rho_air_ref
+   use ed_diag_vars,          only : alloc_cohort_diag, CO_FROZEN_GROWTH
    implicit none
    private
 
@@ -832,6 +833,7 @@ contains
       call check_litter_patch_lockstep()
       call check_litter_without_soil_carbon()
       call check_recruit_pool()
+      call check_frozen_stand()
    end subroutine run_ledger_paths
 
    subroutine check_routing()
@@ -900,7 +902,7 @@ contains
       type(polygon_t)     :: st
       c = build_test_config()
       c%fast_biophysics_on = .true.
-      c%demography%demography_on      = .false.        ! isolate allocation from the structural operators
+      c%demography%demography_on      = .true.         ! grows and dies; the structural operators run at boundaries only
       c%soil_carbon%soil_carbon_on     = .true.
       c%pft%growth_resp_factor(:)      = g_resp
       c%pft%recruit_carbon_efficiency(:) = repro_eff
@@ -960,7 +962,7 @@ contains
       real(wp) :: tis0, tis1, shed0, shed1
       c = build_test_config()
       c%fast_biophysics_on = .true.
-      c%demography%demography_on      = .false.        ! isolate the commit from the structural operators
+      c%demography%demography_on      = .true.         ! the commit kills; the structural operators run at boundaries only
       call init_bare_ground(st, c, 1_ik)
       call add_cohort(st, c, 1_ik, 1_ik, 0.3_wp, 40.0_wp)
       call finalize_init(st)
@@ -1100,7 +1102,7 @@ contains
       type(slow_ledger_t) :: lg
       c = build_test_config()
       c%fast_biophysics_on = .true.
-      c%demography%demography_on      = .false.        ! one step of growth, turnover and mortality, no restructuring
+      c%demography%demography_on      = .true.         ! one step of growth, turnover and mortality, no boundary
       c%soil_carbon%soil_carbon_on     = soil_carbon_on
       call init_bare_ground(st, c, 1_ik)
       call add_cohort(st, c, 1_ik, 1_ik, 0.3_wp, 40.0_wp)
@@ -1162,7 +1164,7 @@ contains
       integer(ik)         :: k
       c = build_test_config()
       c%fast_biophysics_on = .true.
-      c%demography%demography_on      = .false.
+      c%demography%demography_on      = .true.         ! the pool is credited; no boundary founds a cohort
       c%pft%recruit_carbon_efficiency(:) = repro_eff
       if (present(shade_decay)) c%pft%recruit_shade_decay(:) = shade_decay
       c%pft%seed_rain_recruits(:)      = 0.0_wp
@@ -1180,6 +1182,85 @@ contains
       end do
       pool = st%patch%recruit_pool(1, 1)
    end subroutine pool_after_steps
+
+   !---~---
+   !   The frozen stand ([demography].demography_on = false): one step on two copies of one
+   ! stand, demography on and off. Frozen, nothing changes the structure (wood, size,
+   ! density, the recruit pool), the leaves, fine roots and storage take the allocation a
+   ! growing step gives them, the carbon held out is the wood the growing step built plus
+   ! the carbon it put in the recruit pool, the growth phase still closes, and the growth
+   ! history records the diameter rate the growing step made.
+   !---~---
+   subroutine check_frozen_stand()
+      type(ed_config_t)   :: c_on, c_off
+      type(polygon_t)     :: grow, frozen
+      type(slow_ledger_t) :: lg_on, lg_off
+      real(wp) :: wood0, dbh0, height0, n0, held, built, pos_ring
+      integer(ik) :: pos
+      call frozen_fixture(.true.,  c_on,  grow)
+      call frozen_fixture(.false., c_off, frozen)
+      wood0 = frozen%cohort%wood_carbon(1)
+      dbh0 = frozen%cohort%dbh(1)
+      height0 = frozen%cohort%height(1)
+      n0 = frozen%cohort%nplant(1)
+      lg_on%active = .true.
+      call slow_ledger_open(lg_on, grow, c_on)
+      call vegetation_dynamics(grow, c_on, lg_on)
+      lg_off%active = .true.
+      call slow_ledger_open(lg_off, frozen, c_off)
+      call vegetation_dynamics(frozen, c_off, lg_off)
+      !--- The growing step grows, reproduces and kills, so the frozen checks below are not vacuous.
+      call check(grow%cohort%wood_carbon(1) > wood0, 'frozen: the growing step builds wood')
+      call check(grow%patch%recruit_pool(1, 1) > 0.0_wp, 'frozen: the growing step credits the recruit pool')
+      call check(grow%cohort%nplant(1) < n0, 'frozen: the growing step kills')
+      !--- Frozen: the structure as it was.
+      call check(frozen%cohort%wood_carbon(1) == wood0 .and. frozen%cohort%dbh(1) == dbh0                 &
+                 .and. frozen%cohort%height(1) == height0, 'frozen: no wood, no growth in size')
+      call check(frozen%cohort%nplant(1) == n0, 'frozen: nobody dies')
+      call check(frozen%patch%recruit_pool(1, 1) == 0.0_wp, 'frozen: no recruit is credited')
+      !--- The leaves, fine roots and storage take the growing step's allocation.
+      call check_close(frozen%cohort%leaf_carbon(1), grow%cohort%leaf_carbon(1), 1.0e-12_wp,              &
+                       'frozen: the leaves take the same allocation')
+      call check_close(frozen%cohort%fineroot_carbon(1), grow%cohort%fineroot_carbon(1), 1.0e-12_wp,      &
+                       'frozen: the fine roots take the same allocation')
+      call check_close(frozen%cohort%nonstructural_carbon(1), grow%cohort%nonstructural_carbon(1),         &
+                       1.0e-12_wp, 'frozen: storage takes the same allocation')
+      !--- What is held out is what the growing step built: its wood and its recruits' carbon.
+      built = (grow%cohort%wood_carbon(1) - wood0)                                                         &
+            + grow%patch%recruit_pool(1, 1) * grow%cohort%pft_table%recruit_carbon(1) / n0
+      held  = frozen%cohort%sdiag%v(CO_FROZEN_GROWTH, 1) * c_off%dt_years
+      call check(built > 0.0_wp, 'frozen: the growing step built something to hold out')
+      call check_close(held, built, 1.0e-10_wp, 'frozen: the carbon held out is the growth not built')
+      !--- The growth phase closes as a growing step's does.
+      call check_close(lg_off%resid_sum(SLOW_PHASE_GROW)%carbon, lg_on%resid_sum(SLOW_PHASE_GROW)%carbon,    &
+                       1.0e-12_wp, 'frozen: the growth phase closes as a growing step''s does')
+      !--- The growth memory is the growing step's diameter rate.
+      pos = frozen%growth_hist_pos
+      pos_ring = grow%cohort%growth_hist(pos, 1)
+      call check(pos_ring > 0.0_wp, 'frozen: the growing step records a diameter rate')
+      call check_close(frozen%cohort%growth_hist(pos, 1), pos_ring, 1.0e-10_wp,                           &
+                       'frozen: the growth history records the diameter rate the step would have made')
+   end subroutine check_frozen_stand
+
+   !--- One cohort above the reproduction height, a generous day's carbon, no seed rain.
+   subroutine frozen_fixture(demography_on, c, st)
+      logical,           intent(in)  :: demography_on
+      type(ed_config_t), intent(out) :: c
+      type(polygon_t),   intent(out) :: st
+      c = build_test_config()
+      c%fast_biophysics_on = .true.
+      c%demography%demography_on       = demography_on
+      c%pft%seed_rain_recruits(:)      = 0.0_wp
+      c%pft%leaf_turnover_rate_toc(:)  = 0.01_wp    ! [1/yr] keep turnover from eating the supply
+      call init_bare_ground(st, c, 1_ik)
+      call add_cohort(st, c, 1_ik, 1_ik, 0.3_wp, 40.0_wp)
+      call finalize_init(st)
+      call alloc_cohort_diag(st%cohort%sdiag, st%cohort%n, .true., slow_rows=.true.)
+      st%cohort%gpp_accum(1:st%cohort%n)       = 1.0_wp
+      st%cohort%leaf_resp_accum(1:st%cohort%n) = 0.0_wp
+      st%cohort%stem_resp_accum(1:st%cohort%n) = 0.0_wp
+      st%cohort%root_resp_accum(1:st%cohort%n) = 0.0_wp
+   end subroutine frozen_fixture
 
 end module test_slow_step_ledger_paths
 

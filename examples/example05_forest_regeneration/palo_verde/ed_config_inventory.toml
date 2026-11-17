@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # ED-MORE example 05, Palo Verde: the PFTs' check against the 2009 inventory of the Palo Verde dry forest
 # (Costa Rica; 6 plots, 12 patches, 336 cohorts) at its ERA5-Land cell, July 2008 - December 2010, with
-# Xu et al. (2016)'s four leaf habits (Ds, D, BD, E; pft_parameters.toml). The stand's structure is
-# frozen (trees grow and die, none recruit); the run tests each PFT's leaf habit, growth and mortality.
+# Xu et al. (2016)'s four leaf habits (Ds, D, BD, E; pft_parameters.toml). Trees grow and die; none
+# recruits, fuses or splits, and no gap opens; the run tests each PFT's leaf habit, growth and mortality.
 # Paths are relative to this folder.
 
 [run]
@@ -26,11 +26,11 @@ fineroot_turnover_plastic = true      # fine roots, like leaves, turn over more 
 
 #----- The demography (example 03). -------------------------------------------------------------------
 [demography]
-demography_on             = false    # structure frozen: growth and mortality only
-recruitment_on            = true
-cohort_fusion_on          = true
-patch_disturbance_on      = true
-patch_fusion_on           = true
+demography_on             = true     # trees grow and die; the inventory's cohorts and patches stay as
+recruitment_on            = false    #   they are: no recruitment, fusion, fission or treefall (the cull
+cohort_fusion_on          = false    #   and patch termination still keep the blocks bounded)
+patch_disturbance_on      = false
+patch_fusion_on           = false
 max_cohort                = 60
 n_cohort_fusion_iter      = 6
 cohort_size_tol_min       = 0.02
@@ -39,7 +39,7 @@ cohort_lai_cap            = 1.0
 min_cohort_agb            = 1.0e-6
 negligible_nplant         = 1.0e-8
 split_eps                 = 1.0e-4
-cohort_fission_on         = true
+cohort_fission_on         = false
 n_height_layers           = 16
 max_patch                 = 25       # enough that gaps stay apart from the closed canopy
 n_patch_fusion_iter       = 6

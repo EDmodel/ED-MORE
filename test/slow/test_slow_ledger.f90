@@ -268,7 +268,7 @@ contains
 
       !--- (b) A dormant canopy sheds every leaf in one step, its water with it.
       c%fast_biophysics_on = .true.
-      c%demography%demography_on      = .false.
+      c%demography%demography_on      = .true.         ! the step grows and dies, as it did when written
       c%pft%pheno(:)%shed_rate_max = 1.0_wp          ! [1/day]: the whole canopy in one day
       call init_bare_ground(st, c, 1_ik)
       call add_cohort(st, c, 1_ik, 1_ik, 0.3_wp, 20.0_wp)
@@ -333,7 +333,7 @@ contains
       real(wp) :: w_plant0, w_plant1, psi_leaf, psi_wood
       c = build_test_config()
       c%fast_biophysics_on = .true.
-      c%demography%demography_on      = .false.
+      c%demography%demography_on      = .true.         ! the step grows and dies, as it did when written
       c%pft%fineroot_turnover_rate(:) = 0.0_wp      ! no fine-root shed: only the fill moves water
       call init_bare_ground(st, c, 1_ik)
       call add_cohort(st, c, 1_ik, 1_ik, 0.3_wp, 20.0_wp)
