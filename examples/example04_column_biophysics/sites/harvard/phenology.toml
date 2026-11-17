@@ -1,0 +1,177 @@
+# The phenology calibration at Harvard Forest (scripts/calibrate_phenology), the tool's worked example.
+# prepare_phenology.py writes the observations below into data/phenology/ from example 02's downloads.
+#
+#   python ../../../../scripts/calibrate_phenology/calibrate_phenology.py iterate \
+#          --config phenology.toml --work data/phenology_runs --workers 40
+
+[run]
+config     = "ed_config_eval.toml"   # the tower run, its stand frozen; 2019-2024
+score_from = "2020-01-01"            # 2019 spins up the cue memory and the canopy from the census
+threads    = 16
+
+[fit]
+# The broadleaves (PFT 1): when warmth and long days flush the canopy and how fast, when cold and
+# short days drop it and how fast. The conifers (PFT 2): the warmth their shoots wait for and the day
+# length that ends their flush, the cold and short days that start the needle fall, and the needles lost
+# through the season. The share each autumn keeps is set, not fitted (pft_parameters.toml): a needle lives
+# about three years, so the oldest third falls and two thirds stay (min_leaf_cover 0.67). Nothing in these
+# years measures how deep the conifers' winter dip is; fitted, it went to 5 %, the year's needles turning
+# over in an autumn exchange (falling while the canopy re-flushed), which conifers that flush once do not do.
+keys = ["flush_degree_days_pft1", "flush_light_hours_pft1", "flush_rate_max_pft1", "shed_base_temp_pft1",
+        "shed_degree_days_pft1", "shed_light_hours_pft1", "shed_rate_max_pft1",
+        "flush_degree_days_pft2", "flush_light_hours_pft2", "shed_degree_days_pft2", "shed_light_hours_pft2",
+        "leaf_turnover_rate_pft2"]
+
+[bounds]
+flush_degree_days_pft2  = [100.0, 1200.0]   # mid-June shoots: about 570 K day above 5 C at Harvard
+flush_light_hours_pft2  = [8.0, 15.0]       # Harvard's longest day is 15.3 h: a threshold above it would
+                                            #   leave the flush never fully on
+leaf_turnover_rate_pft2 = [0.0001, 0.05]    # the background loss acts while the canopy flushes, in summer, and
+                                            #   HF069's June and August collections hold under 5 % of a year's
+                                            #   needle litter at EMS (1998-2015): the needles fall in autumn
+
+#----- The broadleaves ------------------------------------------------------------------------------#
+# HF003's tagged trees: canopy species on the cohorts above 15 m, understorey species (striped
+# maple, serviceberry, witch hazel) on those below 10 m.
+[[target]]
+name       = "HF003 canopy, fallen"
+kind       = "fallen"
+file       = "data/phenology/hf003_fall_canopy.csv"
+pfts       = [1]
+min_height = 15.0
+sigma      = 0.1
+
+[[target]]
+name       = "HF003 understorey, fallen"
+kind       = "fallen"
+file       = "data/phenology/hf003_fall_understorey.csv"
+pfts       = [1]
+max_height = 10.0
+sigma      = 0.1
+
+# Leaf-out: the day the trees' l75 code (the leaves at 75 % of their size, which tops out at 80)
+# reaches half its plateau, against the day the cohorts' leaf cover reaches half its summer level.
+[[target]]
+name       = "HF003 canopy, leaf-out day"
+kind       = "date"
+file       = "data/phenology/hf003_leafout_canopy.csv"
+pfts       = [1]
+min_height = 15.0
+direction  = "up"
+doy_min    = 60
+doy_max    = 213
+sigma      = 5.0
+
+[[target]]
+name       = "HF003 understorey, leaf-out day"
+kind       = "date"
+file       = "data/phenology/hf003_leafout_understorey.csv"
+pfts       = [1]
+max_height = 10.0
+direction  = "up"
+doy_min    = 60
+doy_max    = 213
+sigma      = 5.0
+
+# The census gives each cohort its full canopy: the broadleaves of the understorey are full in
+# mid-July (the canopy's are held there by the LAI-2000). Without it a fit could leave a shaded
+# canopy part-flushed while every timing still matched.
+[[target]]
+name       = "understorey full in July"
+kind       = "fraction"
+file       = "data/phenology/full_broadleaf_july.csv"
+pfts       = [1]
+max_height = 10.0
+sigma      = 0.05
+
+# The deciduous LAI the LAI-2000 sees from below at EMS, over its summer level: every layer.
+[[target]]
+name  = "LAI-2000 deciduous"
+kind  = "fraction"
+file  = "data/phenology/lai2000_deciduous.csv"
+pfts  = [1]
+sigma = 0.1
+
+# The EMS baskets' broadleaf litter: the share of each autumn's caught by each collection.
+[[target]]
+name       = "HF069 leaf litter"
+kind       = "litter_fraction"
+file       = "data/phenology/litter_broadleaf.csv"
+pfts       = [1]
+year_start = "08-01"
+sigma      = 0.1
+
+# A deciduous canopy is built once a year and every leaf falls (example 02's constraint): without it
+# a fit can flush again in October, when the warmth sum is still high.
+[[target]]
+name  = "broadleaf annual loss"
+kind  = "annual_loss"
+pfts  = [1]
+value = 1.0
+sigma = 0.05
+
+#----- The whole stand ------------------------------------------------------------------------------#
+# MODIS LAI over the tower, scaled each year between its winter and summer levels; the model's leaf
+# area scaled the same way, over the 8 days of a composite.
+[[target]]
+name        = "MODIS LAI"
+kind        = "fraction"
+file        = "data/phenology/modis_lai.csv"
+pfts        = [1, 2]
+scale       = "year_minmax"
+window_days = 8
+sigma       = 0.15
+
+#----- The conifers ---------------------------------------------------------------------------------#
+# Climatologies: HF003 recorded hemlock and white pine only to 2001, and the EMS baskets caught
+# needles only to 2015. sigma is each record's year-to-year spread (prepare_phenology.py prints it),
+# at least 5 days. The shoots' half-way day (their l75 code half-way to its plateau) is the canopy's
+# half refill from its winter floor; half of the autumn's needle litter, its half fall.
+[[target]]
+name      = "hemlock shoots (HF003 1990-2001)"
+kind      = "date"
+file      = "data/phenology/hf003_shoots_tsca.csv"
+pfts      = [2]
+direction = "up"
+doy_min   = 60
+doy_max   = 250
+sigma     = 5.0
+
+[[target]]
+name      = "white pine shoots (HF003 1990-2001)"
+kind      = "date"
+file      = "data/phenology/hf003_shoots_pist.csv"
+pfts      = [2]
+direction = "up"
+doy_min   = 60
+doy_max   = 250
+sigma     = 20.0
+
+[[target]]
+name      = "needle fall (HF069 1998-2015)"
+kind      = "date"
+file      = "data/phenology/hf069_needlefall.csv"
+pfts      = [2]
+direction = "down"
+doy_min   = 213
+doy_max   = 366
+sigma     = 7.0
+
+# Needles live about three years in hemlock and red pine and two in white pine (Silvics of North
+# America, USDA Agriculture Handbook 654, 1990), so the conifers lose about a third of theirs a year.
+[[target]]
+name  = "conifer annual loss"
+kind  = "annual_loss"
+pfts  = [2]
+value = 0.35
+sigma = 0.1
+
+# The conifers are full at the end of August, once the year's shoots have grown: the census's
+# canopy. Every other conifer target is scaled within the year, so without it a fit could lower the
+# whole cycle (a canopy that never fills, half bare all winter) and match them all.
+[[target]]
+name  = "conifers full at August's end"
+kind  = "fraction"
+file  = "data/phenology/full_conifer_august.csv"
+pfts  = [2]
+sigma = 0.05

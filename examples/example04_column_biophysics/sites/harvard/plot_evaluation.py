@@ -11,9 +11,11 @@ mean seasonal cycle by calendar month. Every mean uses only the hours both have,
 weighs its 24 hours the same, however few calm nights the tower kept. A month is shown when the tower
 measured at least ten days of it, and each of its hours at least five times. NEE is positive toward the
 atmosphere in both. The band around the tower's diurnal cycle is its mean +-2 standard errors: an hour of
-the day averages only the hours the tower measured, few on calm nights (README, Results).
+the day averages only the hours the tower measured, few on calm nights (README, Results). The scoring
+starts in 2020: 2019 takes the canopy from the census, which starts in full leaf in January, to its own
+season.
 
-Usage: python plot_evaluation.py [--model "output/eval-F-*.nc"] [--out evaluation.png]
+Usage: python plot_evaluation.py [--model "output/eval-F-*.nc"] [--out evaluation.png] [--score-from 2020-01-01]
                                  [--stats output/evaluation_stats.json] [--calibrated "output/cal-F-*.nc"]
 """
 import argparse
@@ -42,9 +44,11 @@ def main(argv=None):
     ap.add_argument("--out", default=os.path.join(HERE, "evaluation.png"))
     ap.add_argument("--stats", default=os.path.join(HERE, "output", "evaluation_stats.json"))
     ap.add_argument("--calibrated", default=None, help="the calibrated run's hourly files (a glob)")
+    ap.add_argument("--score-from", default="2020-01-01", help="the first day scored (after the spin-up year)")
     args = ap.parse_args(argv)
     site = ti.read_site(args.site)
     model = ev.read_model(args.model, site.utc_offset)
+    model = model[model.index >= args.score_from]
     tower, _, _ = ev.read_tower(site)
     tower = tower.reindex(model.index)
     cal = ev.read_model(args.calibrated, site.utc_offset).reindex(model.index) if args.calibrated else None

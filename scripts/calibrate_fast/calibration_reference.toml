@@ -76,7 +76,9 @@ skip_hours      = 0              # Hours left unscored at each window's start (t
 chain_lead_days = 180            # Every window restarts from its own state: a frozen run from the initial stand (the
                                  #   base config's census or state) that starts this many days before the window, so the
                                  #   soil water and temperature are the model's own. Half a year spans a wet season
-                                 #   before any dry-season window.
+                                 #   before any dry-season window. A chain of a frozen stand ([demography].
+                                 #   demography_on = false) runs the slow tier, so its leaves follow the season:
+                                 #   give it a year (365).
 # The windows are chosen by the rule (best-practice plan §6.2) unless the calibration lists them: one calibration window
 # per slot of the year (`per_year` equal slots, 1.5 months for 8) inside `months`, each the slot's best covered -- the
 # share of daytime records with H, LE and GPP measured, times the share with observed forcing -- and a validation

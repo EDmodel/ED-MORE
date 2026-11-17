@@ -1088,3 +1088,17 @@ def test_the_priors_kinetics_are_the_leafs():
         assert k["kc"] * to_mf == pytest.approx(m.kc, rel=1e-10)
         assert k["ko"] * to_mf == pytest.approx(m.ko, rel=1e-10)
         assert k["o2"] * to_mf == pytest.approx(m.o2, rel=1e-12)
+
+
+def test_a_chain_runs_the_leaves_only_of_a_frozen_stand():
+    """A chain runs the slow tier (phenology) when the base config freezes the stand, and is frozen
+    like a trial otherwise."""
+    import chains
+    from edmore.config import RunConfig
+
+    def cfg(main):
+        return RunConfig(main, {"pft": {"wood_density": [0.5]}})
+    assert chains.leaves_follow(cfg({"demography": {"demography_on": False}}))
+    assert not chains.leaves_follow(cfg({"demography": {"demography_on": True}}))
+    assert not chains.leaves_follow(cfg({}))                                         # demography on by default
+    assert not chains.leaves_follow(cfg({"demography": {"demography_on": False}, "run": {"slow_on": False}}))

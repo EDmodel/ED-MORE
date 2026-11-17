@@ -36,8 +36,10 @@ timeout_per_day = 30.0
 # HARV's tower measures fewer hours than BCI's (NEON's gaps, and almost none from March to August 2020):
 # at the default coverage of 0.5 only one validation window qualifies.
 [windows]
-min_coverage = 0.4
-skip_hours   = 3               # the first hours after a restart with changed traits are not scored
+min_coverage    = 0.4
+skip_hours      = 3            # the first hours after a restart with changed traits are not scored
+chain_lead_days = 365          # the stand is frozen, so each chain runs the phenology: a year of it, from
+                               #   the census's full leaf to the window's own canopy (windows from 2020)
 
 # Set in the calibrated main config the fit writes (ed_config_calibrated.toml), beside the MAP.
 [calibrated]

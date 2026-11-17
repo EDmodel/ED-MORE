@@ -19,7 +19,9 @@ rtol                = 2.0e-3
 canopy_water_on     = true
 
 [demography]
-demography_on             = true
+# The stand is frozen at the census: no growth, mortality or restructuring, while the leaves follow
+# the season (docs/science/demography.md §7). The keys below build the starting stand from the census.
+demography_on             = false
 recruitment_on            = true
 cohort_fusion_on          = true
 patch_disturbance_on      = true

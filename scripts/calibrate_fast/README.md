@@ -138,8 +138,12 @@ python calibrate_fast.py fit ... --queue
   deepest cumulative water deficit (rain minus Priestley–Taylor evaporation, from the forcing) inside
   the leaf-on months, scored on LE only. A year under 100 mm gives none; without any, the drought keys
   are fixed.
-- **Chains.** Every window has its own chain: a frozen run from the initial stand (the base config's
-  census or state) that starts `[windows].chain_lead_days` (180) before it. The chains run at once.
+- **Chains.** Every window has its own chain: a run from the initial stand (the base config's census
+  or state) that starts `[windows].chain_lead_days` (180) before it. The chains run at once. When the
+  base config freezes the stand (`[demography].demography_on = false`), a chain runs the slow tier, so
+  the leaves follow the season to the window: a deciduous canopy is bare in a winter window, not the
+  census's full leaf. Give such a chain a year's lead, so its phenology has seen a whole season. A
+  chain of a stand that is not frozen is frozen like a trial (`[run].slow_on = false`).
 
 ## Keys and priors
 

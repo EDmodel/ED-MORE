@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 """The state chains (protocol §6.1).
 
-Every window has its own chain: a frozen run from the initial stand (the base config's census or
-state) that starts `chain_lead_days` before the window and writes a state at its start. Every trial
-of that window restarts from it, so the soil water and temperature a window starts with are the
-model's own, not the census's initialization. A chain runs with one set of key values (the start's,
+Every window has its own chain: a run from the initial stand (the base config's census or state)
+that starts `chain_lead_days` before the window and writes a state at its start. Every trial of that
+window restarts from it, so the soil water and temperature a window starts with are the model's own,
+not the census's initialization. When the base config freezes the stand ([demography].demography_on
+= false), the chain runs the slow tier too, so the leaves follow the season to the window (a census
+starts in full leaf); otherwise the chain is frozen like a trial ([run].slow_on = false). A chain runs with one set of key values (the start's,
 and again the fit's at the refresh); a chain already run with the same values is reused.
 """
 from __future__ import annotations
@@ -17,6 +19,12 @@ from trials import TrialError, command, digest, log_tail, stamp, threads_for, ti
 from workers import Task
 
 PREFIX = "c"
+
+
+def leaves_follow(cfg) -> bool:
+    """Whether a chain runs the slow tier: only when the stand is frozen, so the slow tier moves the
+    leaves (phenology) and nothing structural."""
+    return cfg.get("demography.demography_on", default=True) is False and cfg.get("run.slow_on", default=True) is True
 
 
 def run_chain(window, lead_days: int, base, keys, values, root: Path, workers, runner, overrides,
@@ -32,7 +40,7 @@ def run_chain(window, lead_days: int, base, keys, values, root: Path, workers, r
         return state
     cfg = with_keys(base, keys, values, overrides)
     threads = threads_for(lead_days, max_threads)
-    for k, v in {"run.start_time": stamp(start), "run.end_time": stamp(window.start), "run.slow_on": False,
+    for k, v in {"run.start_time": stamp(start), "run.end_time": stamp(window.start), "run.slow_on": leaves_follow(cfg),
                  "run.n_threads": threads, "init.init_mode": 1,
                  "output.state_write": True, "output.state_file_dir": str(cdir / "out"),
                  "output.state_file_prefix": PREFIX, "output.state_interval": "1000 years",
