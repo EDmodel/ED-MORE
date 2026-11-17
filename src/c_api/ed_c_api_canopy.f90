@@ -143,19 +143,20 @@ contains
    !---~---
    !   The two-stream for ONE patch over nh hours of shortwave, the stand fixed: per hour the
    ! upwelling VIS and NIR at the canopy top, the VIS absorbed by leaves and by wood, the VIS
-   ! reaching the ground, and each cohort's leaf-absorbed VIS (nh x ncoh, hour fastest). Cohorts
-   ! come in any order and are sorted by height as the fast loop does (apply_rt_forcing). The
-   ! ground is the configuration's bare soil; no snow.
+   ! reaching the ground, and for each cohort (nh x ncoh, hour fastest) its leaf-absorbed VIS and
+   ! the downwelling VIS (beam plus diffuse) at the top of its layer, what an upward-facing sensor
+   ! there would read. Cohorts come in any order and are sorted by height as the fast loop does
+   ! (apply_rt_forcing). The ground is the configuration's bare soil; no snow.
    !---~---
    subroutine ed_canopy_two_stream(nh, cosz, vis_beam, vis_diff, nir_beam, nir_diff, ncoh, pft,    &
                                     height, lai, wai, up_vis, up_nir, leaf_vis, wood_vis, ground_vis, &
-                                    coh_leaf_vis) bind(c, name="ed_canopy_two_stream")
+                                    coh_leaf_vis, coh_incid_vis) bind(c, name="ed_canopy_two_stream")
       integer(c_int), value, intent(in)  :: nh, ncoh
       real(c_double),        intent(in)  :: cosz(nh), vis_beam(nh), vis_diff(nh), nir_beam(nh), nir_diff(nh)
       integer(c_int),        intent(in)  :: pft(ncoh)
       real(c_double),        intent(in)  :: height(ncoh), lai(ncoh), wai(ncoh)
       real(c_double),        intent(out) :: up_vis(nh), up_nir(nh), leaf_vis(nh), wood_vis(nh), ground_vis(nh)
-      real(c_double),        intent(out) :: coh_leaf_vis(nh, ncoh)
+      real(c_double),        intent(out) :: coh_leaf_vis(nh, ncoh), coh_incid_vis(nh, ncoh)
       integer(ik), parameter :: NB = N_RAD_BAND_DEFAULT
       integer(ik) :: perm(max(ncoh,1)), pft_bt(max(ncoh,1))
       real(wp)    :: hgt_bt(max(ncoh,1)), lai_bt(max(ncoh,1)), wai_bt(max(ncoh,1)), tcan_bt(max(ncoh,1))
@@ -197,7 +198,8 @@ contains
          wood_vis(h)   = sum(flux%abs_wood(RAD_VIS, 1:nc))
          ground_vis(h) = flux%dn_ground(RAD_VIS)
          do j = 1_ik, nc
-            coh_leaf_vis(h, perm(j)) = flux%abs_leaf(RAD_VIS, j)
+            coh_leaf_vis(h, perm(j))  = flux%abs_leaf(RAD_VIS, j)
+            coh_incid_vis(h, perm(j)) = flux%incid_top(RAD_VIS, j)
          end do
       end do
    end subroutine ed_canopy_two_stream

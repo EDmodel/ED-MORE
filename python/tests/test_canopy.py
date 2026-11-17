@@ -85,6 +85,12 @@ def test_the_two_stream_conserves_the_beam(tmp_path):
     #----- the taller cohort, on top, absorbs more per unit of leaf area than the one below
     per_leaf = r["cohort_leaf_vis"][2] / np.array([3.0, 1.5])
     assert per_leaf[0] > per_leaf[1]
+    #----- the downwelling light at each layer's top: the incident light above the tallest cohort,
+    #----- then less at the lower cohort's top, and less again at the ground
+    top = r["cohort_incid_vis"]
+    assert top.shape == (3, 2)
+    assert np.allclose(top[:, 0], inc)
+    assert np.all(top[1:, 0] > top[1:, 1]) and np.all(top[1:, 1] > r["ground_vis"][1:])
 
 
 def test_thermal_acclimation_is_refused(tmp_path):
