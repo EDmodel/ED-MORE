@@ -61,7 +61,8 @@ module ed_output_registry
                                     PY_NIR_DIFFUSE, PY_SNOWFALL, PY_CO2, PY_COSZ, PY_RHO_AIR, PY_RAINF,           &
                                     CO_DDBH_DT, CO_DAGB_DT, CO_MORT_RATE, CO_NPP_LEAF, CO_NPP_FINEROOT,           &
                                     CO_NPP_WOOD, CO_NPP_STORAGE, CO_NPP_REPRO, CO_GROWTH_RESP,                    &
-                                    CO_EXUDATE, PA_LITTER_LEAF, PA_LITTER_FINEROOT, PA_MORT_C_BACKGROUND,         &
+                                    CO_EXUDATE, CO_FROZEN_GROWTH, PA_LITTER_LEAF, PA_LITTER_FINEROOT,             &
+                                    PA_MORT_C_BACKGROUND,                                                         &
                                     PA_MORT_C_CULL, PA_MORT_C_DISTURB, PA_LITTER_STRUCT, PA_LITTER_WOOD,          &
                                     PA_LITTER_REPRO, PA_RECRUIT_NPLANT, PA_DISTURB_AREA, PA_APAR, PA_H_CANOPY,    &
                                     PA_H_GROUND, PA_HEAT_BOTTOM, PA_PRECIP_ENTH, PA_OUTFLOW_ENTH,                 &
@@ -229,6 +230,10 @@ contains
                         GRP_STRUCTURE, MON, FLD_C_DIAG0 + CO_DAGB_DT, flux=.true.)
       call add_variable(reg, 'mean_mort_rate_co', 'mortality hazard rate', '1/yr', DIM_COHORT, AGG_MEAN, GRP_STRUCTURE, MON,    &
                         FLD_C_DIAG0 + CO_MORT_RATE, flux=.true.)
+      !--- With the stand frozen ([demography].demography_on = false): on request.
+      call add_variable(reg, 'mean_frozen_growth_carbon_co', 'growth a frozen stand does not build: wood and recruits', &
+                        'kgC/plant/yr', DIM_COHORT, AGG_MEAN, GRP_STRUCTURE, FREQ_NONE, FLD_C_DIAG0 + CO_FROZEN_GROWTH,   &
+                        flux=.true.)
    end subroutine register_structure_cohort
 
    !--- Per-patch structure: geometry + identity, plus cohort fields reduced to the patch.
@@ -629,6 +634,10 @@ contains
                         MON_YR, FLD_C_DIAG0 + CO_GROWTH_RESP, weight=W_NPLANT, flux=.true.)
       call add_variable(reg, 'mean_root_exudate_py', 'root exudate: carbon the growth sink could not use', 'kgC/m2/yr',         &
                         DIM_SCALAR, AGG_TMEAN, GRP_CARBON, MON_YR, FLD_C_DIAG0 + CO_EXUDATE, weight=W_NPLANT, flux=.true.)
+      !--- With the stand frozen ([demography].demography_on = false), the carbon held out of it: on request.
+      call add_variable(reg, 'mean_frozen_growth_carbon_py', 'growth a frozen stand does not build: wood and recruits',      &
+                        'kgC/m2/yr', DIM_SCALAR, AGG_TMEAN, GRP_CARBON, FREQ_NONE, FLD_C_DIAG0 + CO_FROZEN_GROWTH,          &
+                        weight=W_NPLANT, flux=.true.)
       !---~---
       !   The polygon's demographic rates, the terms that make the AGB trajectory: d(agb)/dt
       ! against growth - mortality from the file (docs/science/diagnostics.md eq. (4)).

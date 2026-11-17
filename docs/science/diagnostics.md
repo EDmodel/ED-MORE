@@ -659,6 +659,12 @@ soil pools. A boundary's kills (`mean_mort_carbon_cull_py`, `mean_mort_carbon_di
 litter of the step after it. With soil carbon off, all of it leaves the model. `mean_litter_struct_py`
 is a destination, the structural pools, so it overlaps the others.
 
+With the stand frozen (`[demography].demography_on = false`), the wood and the recruits' carbon the
+allocation made leave the model instead of the stand: `mean_frozen_growth_carbon_py` (per m² of ground)
+and `mean_frozen_growth_carbon_co` (per plant), both on request ([demography](demography.md) §7). In a
+frozen run `mean_npp_wood_py` and `mean_npp_repro_py` are still the allocation's split, so the
+budget closes with them; the stand's wood does not change.
+
 The three `mean_mort_carbon_*_py` pathways (background, cull, disturbance) are exclusive and together
 the whole-individual mortality carbon, every pool of the plant included. They are reported apart
 because a stand thinning steadily and a stand knocked over lose the same carbon and mean different

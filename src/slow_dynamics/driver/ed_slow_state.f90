@@ -26,7 +26,7 @@ module ed_slow_state
    use ed_plant_carbon_allocation,   only : plant_carbon_allocation, cohort_carbon_demand,               &
                                             growth_window_so_far, growth_sink_limitation
    use ed_diag_vars,                 only : CO_NPP_LEAF, CO_NPP_FINEROOT, CO_NPP_WOOD, CO_NPP_STORAGE,   &
-                                            CO_NPP_REPRO, CO_GROWTH_RESP, CO_EXUDATE,   &
+                                            CO_NPP_REPRO, CO_GROWTH_RESP, CO_EXUDATE, CO_FROZEN_GROWTH,   &
                                             PA_MORT_C_BACKGROUND
    use ed_leaf_params,               only : leaf_physiology_params_t
    use ed_patch_state_vars,          only : litter_input_t, add_shed_water, soil_carbon_state_t
@@ -45,7 +45,7 @@ module ed_slow_state
 
    public :: slow_step_data_t
    public :: advance_leaf_phenology, advance_plant_traits, reacclimate_plant_traits, acclimate_site_leaf_tables
-   public :: compute_carbon_allocation, compute_vital_rates, accumulate_mortality_litter
+   public :: compute_carbon_allocation, compute_vital_rates, accumulate_mortality_litter, hold_frozen_growth
    public :: shed_turnover_water, fill_new_leaf_water, shed_mortality_water, shed_excess_tissue_water
    public :: advance_soil_carbon, decide_recruitment, decide_disturbance
    public :: kill_report_t, open_kill_report, report_kill, kill_litter, clear_litter
@@ -78,6 +78,14 @@ module ed_slow_state
       ! it, so the two add up to the reproduction carbon.
       !---~---
       real(wp), allocatable :: recruit_efficiency(:) ! [-]
+      !---~---
+      !   With the stand frozen ([demography].demography_on = false), the wood growth the
+      ! allocation computed and the step did not build (hold_frozen_growth): the growth history
+      ! records the diameter rate it would have made, so a later run with demography on starts
+      ! from a growth memory, not from years of zero growth. Zero in a step that grows; a step
+      ! built by hand may leave it unallocated, which means the same.
+      !---~---
+      real(wp), allocatable :: wood_unbuilt(:)       ! [kgC/plant]
    end type slow_step_data_t
 
    !---~---
@@ -316,7 +324,8 @@ contains
       dt_yr  = cfg%dt_years
       dt_day = cfg%dt_slow / day_sec            ! days in the slow step (phenology rates are [1/day])
       allocate(step%d_leaf(n), step%d_fineroot(n), step%d_wood(n), step%d_nonstructural(n),          &
-               step%npp_repro(n), step%exhausted(n))
+               step%npp_repro(n), step%exhausted(n), step%wood_unbuilt(n))
+      step%wood_unbuilt = 0.0_wp
       allocate(co2_owed(poly%patch%n))
       co2_owed = 0.0_wp
       step%recruit_efficiency = cohort_recruit_efficiency(poly)
@@ -407,6 +416,7 @@ contains
                cohort%sdiag%v(CO_NPP_REPRO,    j) = g_repro    / dt_yr
                cohort%sdiag%v(CO_GROWTH_RESP,  j) = growth_resp / dt_yr
                cohort%sdiag%v(CO_EXUDATE,      j) = exudate / dt_yr
+               cohort%sdiag%v(CO_FROZEN_GROWTH, j) = 0.0_wp     ! hold_frozen_growth's, with the stand frozen
                cohort%sdiag%w(j)                  = 1.0_wp
             end if
             !---~---
@@ -524,6 +534,38 @@ contains
          end do
       end associate
    end subroutine compute_vital_rates
+
+   !---~---
+   !   With the stand frozen ([demography].demography_on = false) the step computes everything
+   ! (the allocation, the vital rates) and applies none of what changes the stand's structure:
+   ! the wood growth and the recruits' share of the reproduction carbon are held out of the
+   ! stand as frozen growth carbon, and nobody dies. The seed that fails to establish is
+   ! litter as in any step (compute_carbon_allocation), and the leaves, fine roots and storage
+   ! take their allocation. `held` [kgC per polygon m2] is the carbon the slow ledger
+   ! declares out of the site (docs/science/demography.md §7).
+   !---~---
+   subroutine hold_frozen_growth(poly, cfg, step, held)
+      type(polygon_t),        intent(inout) :: poly   ! the slow cohort rows
+      type(ed_config_t),      intent(in)    :: cfg
+      type(slow_step_data_t), intent(inout) :: step   ! wood growth, mortality and recruitment set to none
+      real(wp),               intent(out)   :: held
+      integer(ik) :: j
+      real(wp)    :: frozen
+
+      held = 0.0_wp
+      associate (cohort => poly%cohort)
+         do j = 1_ik, cohort%n
+            frozen = step%d_wood(j)                                                                 &
+                   + step%npp_repro(j) * min(max(step%recruit_efficiency(j), 0.0_wp), 1.0_wp)
+            step%wood_unbuilt(j) = step%d_wood(j)
+            step%d_wood(j)       = 0.0_wp
+            step%mortality(j)    = 0.0_wp
+            held = held + frozen * cohort%nplant(j) * patch_polygon_area(poly, cohort%owner_patch(j))
+            if (cohort%sdiag%active) cohort%sdiag%v(CO_FROZEN_GROWTH, j) = frozen / cfg%dt_years
+         end do
+      end associate
+      step%recruitment = 0.0_wp
+   end subroutine hold_frozen_growth
 
    !---~---
    !   Mortality litter: every pool of the plants that died this step, (n0 - n1).p1, on the pools

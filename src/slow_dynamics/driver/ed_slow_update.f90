@@ -90,7 +90,8 @@ contains
       integer(ik),              intent(in)    :: n_window, hist_pos
       integer(ik) :: i
       real(wp)    :: lc_new, fc_new, wc_new, nc_new
-      real(wp)    :: dbh_new, height_new, ba_new, agb_new, la_new, dbh_rate
+      real(wp)    :: dbh_new, height_new, ba_new, agb_new, la_new, dbh_rate, ring_rate, ring_dbh
+      real(wp)    :: ring_scratch(4)   ! the would-be height, basal area, AGB, leaf area: unused
 
       associate (cohort => poly%cohort, mortality => step%mortality)
          do i = 1_ik, cohort%n
@@ -109,9 +110,24 @@ contains
             call carbon_to_structure(cohort%pft_table%allom(cohort%pft(i)), wc_new, lc_new,          &
                                      cohort%pft_table%wood_density(cohort%pft(i)), cohort%sla(i),   &
                                      dbh_new, height_new, ba_new, agb_new, la_new)
-            !--- The pools' tendencies, and the realized diameter rate into the growth history.
+            !---~---
+            !   The pools' tendencies, and the diameter rate into the growth history: the realized
+            ! one, or with the stand frozen the one the unbuilt wood would have made
+            ! (hold_frozen_growth), so the growth memory is a growing stand's.
+            !---~---
             dbh_rate = (dbh_new - cohort%dbh(i)) / dt_yr
-            call fill_cohort_deriv(cohort, i, poly%deriv, dt_yr, mortality(i), dbh_rate,            &
+            ring_rate = dbh_rate
+            if (allocated(step%wood_unbuilt)) then        ! a step built by hand may carry none
+               if (step%wood_unbuilt(i) > 0.0_wp) then
+                  call carbon_to_structure(cohort%pft_table%allom(cohort%pft(i)),                      &
+                                           advance_pool(wc_new, step%wood_unbuilt(i)), lc_new,        &
+                                           cohort%pft_table%wood_density(cohort%pft(i)), cohort%sla(i), &
+                                           ring_dbh, ring_scratch(1), ring_scratch(2), ring_scratch(3), &
+                                           ring_scratch(4))
+                  ring_rate = (ring_dbh - cohort%dbh(i)) / dt_yr
+               end if
+            end if
+            call fill_cohort_deriv(cohort, i, poly%deriv, dt_yr, mortality(i), ring_rate,           &
                                    lc_new, fc_new, wc_new, nc_new, n_window, hist_pos)
             !---~---
             !   Copy the reported rates into the slow cohort block, which follows the cohort

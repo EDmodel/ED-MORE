@@ -191,7 +191,9 @@ which advances the cohorts by one slow step:
      [plant_respiration](plant_respiration.md));
    - the turnover's tissue water, shed to the ground.
 4. **Vital rates**: growth, mortality and recruitment. The patch's recruit pool is credited with the
-   day's recruitment.
+   day's recruitment. With the stand frozen (`[demography].demography_on = false`) nothing recruits,
+   grows or dies: the wood growth and the recruits' share of the reproduction carbon are held out as
+   frozen growth carbon instead ([demography](demography.md) §7).
 5. **Growth and mortality commit**: the cohorts' tendencies are applied, and new leaves are filled
    with water. The dead plants' carbon goes to litter and their water to the ground.
 6. **Re-sort** the cohorts by height. Record the day's litterfall and recruitment diagnostics, and
