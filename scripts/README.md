@@ -10,6 +10,7 @@
 | [`prepare_input/co2/`](prepare_input/co2/) | the CO₂ record shipped in `data/co2/` |
 | [`prepare_input/pft_traits/`](prepare_input/pft_traits/README.md) | the PFT traits that follow published fits |
 | [`calibrate_fast/`](calibrate_fast/README.md) | fit the fast processes' parameters to a flux tower |
+| [`calibrate_phenology/`](calibrate_phenology/README.md) | fit a stand's leaf phenology to observations of its canopy, with each cohort's own cues |
 
 The tools write the model's files through the `edmore` package (`edmore.forcing`, `edmore.config`),
 which they import from [`python/`](../python/README.md). Each folder with tests runs them under

@@ -18,7 +18,7 @@ module ed_c_api_phenology
    private
 
    public :: pheno_env_c, pheno_args_c, pheno_state_c, pheno_out_c
-   public :: ed_phenology_step, ed_leaf_turnover_step, ed_daylength
+   public :: ed_phenology_step, ed_phenology_run, ed_leaf_turnover_step, ed_daylength
 
    !--- C mirror of pheno_env_t (3 doubles + 2 ints; hemis_north 0/1).
    type, bind(c) :: pheno_env_c
@@ -73,7 +73,75 @@ contains
       env%predawn_leaf_psi = env_c%predawn_leaf_psi
       env%doy              = int(env_c%doy, ik)
       env%hemis_north      = env_c%hemis_north /= 0_c_int
+      p = traits_from_c(p_c)
+      call state_from_c(state_c, state)
 
+      call phenology_kernel(env, p, real(dt, wp), state, out)
+
+      call state_to_c(state, state_c)
+      out_c%leaf_flush_potential  = out%leaf_flush_potential
+      out_c%leaf_shed_potential   = out%leaf_shed_potential
+   end subroutine ed_phenology_step
+
+   !---~---
+   !   The kernel and the leaf rule over many columns and days in one call: each column a cohort
+   ! (or a site) with its own daily drivers, all of one PFT's traits. Each day is what
+   ! edmore.plant.pheno.Phenology.step does: the kernel (docs/science/plant_phenology.md §1-§4),
+   ! then the leaf rule on the leaf cover (§5, eq. (9)) with carbon never limiting the flush. The
+   ! drivers, the leaf turnover rate among them (a cohort's, which follows its light), are
+   ! (n_day, n_col) in Fortran order, a C (n_col, n_day) array; `state_c` and `cover`
+   ! hold each column's memory and leaf cover in and out, so a run can continue in a later call.
+   ! `cover_out` is the leaf cover after each day, `loss_out` the cover lost that day (senescence
+   ! plus background turnover, before resorption).
+   !---~---
+   subroutine ed_phenology_run(n_col, n_day, p_c, min_leaf_cover, bare_leaf_cover, dt, hemis_north, doy,  &
+                               temp, hours, psi, turnover, state_c, cover, cover_out, loss_out)           &
+                               bind(c, name="ed_phenology_run")
+      integer(c_int), value, intent(in)  :: n_col, n_day, hemis_north
+      type(pheno_args_c),    intent(in)  :: p_c
+      real(c_double), value, intent(in)  :: min_leaf_cover, bare_leaf_cover, dt
+      integer(c_int),        intent(in)  :: doy(n_day)
+      real(c_double),        intent(in)  :: temp(n_day, n_col), hours(n_day, n_col), psi(n_day, n_col)
+      real(c_double),        intent(in)  :: turnover(n_day, n_col)   ! [1/yr] leaf turnover rate
+      type(pheno_state_c),   intent(inout) :: state_c(n_col)
+      real(c_double),        intent(inout) :: cover(n_col)
+      real(c_double),        intent(out) :: cover_out(n_day, n_col), loss_out(n_day, n_col)
+      type(phenology_traits_t) :: p
+      type(pheno_env_t)    :: env
+      type(pheno_state_t)  :: state
+      type(pheno_out_t)    :: out
+      real(wp)    :: c, sen, bg, cap, post
+      integer(ik) :: ic, id
+
+      p = traits_from_c(p_c)
+      env%hemis_north = hemis_north /= 0_c_int
+      do ic = 1_ik, int(n_col, ik)
+         call state_from_c(state_c(ic), state)
+         c = cover(ic)
+         do id = 1_ik, int(n_day, ik)
+            env%temp_day         = temp(id, ic)
+            env%par_hours        = hours(id, ic)
+            env%predawn_leaf_psi = psi(id, ic)
+            env%doy              = int(doy(id), ik)
+            call phenology_kernel(env, p, real(dt, wp), state, out)
+            call leaf_turnover_step(c, 1.0_wp, state%leaf_flush_tendency, state%leaf_shed_tendency,   &
+                                    p%flush_rate_max, p%shed_rate_max, real(turnover(id, ic), wp),    &
+                                    real(min_leaf_cover, wp), real(bare_leaf_cover, wp), real(dt, wp),  &
+                                    sen, bg, cap)
+            post = c - sen - bg
+            c = post + min(max(0.0_wp, 1.0_wp - post), cap)
+            cover_out(id, ic)  = c
+            loss_out(id, ic) = sen + bg
+         end do
+         call state_to_c(state, state_c(ic))
+         cover(ic) = c
+      end do
+   end subroutine ed_phenology_run
+
+   !--- The kernel's PFT record from its C mirror.
+   function traits_from_c(p_c) result(p)
+      type(pheno_args_c), intent(in) :: p_c
+      type(phenology_traits_t)       :: p
       p%flush_cue_mask        = int(p_c%flush_cue_mask, ik)
       p%shed_cue_mask         = int(p_c%shed_cue_mask, ik)
       p%flush_cue_timescale   = p_c%flush_cue_timescale
@@ -97,7 +165,12 @@ contains
       p%flush_water_sharpness = p_c%flush_water_sharpness
       p%shed_water_sum        = p_c%shed_water_sum
       p%shed_water_sharpness  = p_c%shed_water_sharpness
+   end function traits_from_c
 
+   !--- The prognostic memory from and to its C mirror.
+   subroutine state_from_c(state_c, state)
+      type(pheno_state_c), intent(in)  :: state_c
+      type(pheno_state_t), intent(out) :: state
       state%leaf_flush_tendency = state_c%leaf_flush_tendency
       state%leaf_shed_tendency  = state_c%leaf_shed_tendency
       state%growing_degree_days = state_c%growing_degree_days
@@ -105,9 +178,11 @@ contains
       state%wet_psi_sum         = state_c%wet_psi_sum
       state%dry_psi_sum         = state_c%dry_psi_sum
       state%light_hours_mean    = state_c%light_hours_mean
+   end subroutine state_from_c
 
-      call phenology_kernel(env, p, real(dt, wp), state, out)
-
+   subroutine state_to_c(state, state_c)
+      type(pheno_state_t), intent(in)  :: state
+      type(pheno_state_c), intent(out) :: state_c
       state_c%leaf_flush_tendency = state%leaf_flush_tendency
       state_c%leaf_shed_tendency  = state%leaf_shed_tendency
       state_c%growing_degree_days = state%growing_degree_days
@@ -115,9 +190,7 @@ contains
       state_c%wet_psi_sum         = state%wet_psi_sum
       state_c%dry_psi_sum         = state%dry_psi_sum
       state_c%light_hours_mean    = state%light_hours_mean
-      out_c%leaf_flush_potential  = out%leaf_flush_potential
-      out_c%leaf_shed_potential   = out%leaf_shed_potential
-   end subroutine ed_phenology_step
+   end subroutine state_to_c
 
    !---~---
    !   One step of leaf loss and the flush cap (ed_plant_phenology::leaf_turnover_step,

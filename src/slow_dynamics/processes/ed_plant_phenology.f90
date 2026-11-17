@@ -27,7 +27,7 @@ module ed_plant_phenology
 
    !--- Daily environmental drivers (read-only).
    type :: pheno_env_t
-      real(wp)    :: temp_day         = 0.0_wp    ! [K]   daily-mean air temperature
+      real(wp)    :: temp_day         = 0.0_wp    ! [K]   daily-mean temperature of the canopy air around the cohort
       real(wp)    :: par_hours        = 12.0_wp   ! [h/day] hours with PAR at the cohort's top above par_min
       real(wp)    :: predawn_leaf_psi = 0.0_wp    ! [MPa, <=0] predawn (daily-max) leaf water potential
       integer(ik) :: doy              = 1_ik      ! [-]   day of year

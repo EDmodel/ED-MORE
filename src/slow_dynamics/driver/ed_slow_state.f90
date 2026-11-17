@@ -27,6 +27,7 @@ module ed_slow_state
                                             growth_window_so_far, growth_sink_limitation
    use ed_diag_vars,                 only : CO_NPP_LEAF, CO_NPP_FINEROOT, CO_NPP_WOOD, CO_NPP_STORAGE,   &
                                             CO_NPP_REPRO, CO_GROWTH_RESP, CO_EXUDATE, CO_FROZEN_GROWTH,   &
+                                            CO_PHENO_TEMP, CO_PHENO_LIGHT,                                &
                                             PA_MORT_C_BACKGROUND
    use ed_leaf_params,               only : leaf_physiology_params_t
    use ed_patch_state_vars,          only : litter_input_t, add_shed_water, soil_carbon_state_t
@@ -103,10 +104,10 @@ contains
 
    !---~---
    !   Advance every cohort's leaf phenology one slow step (docs/science/plant_phenology.md): build
-   ! the daily drivers from the fast loop's accumulators (each site's air temperature, each
-   ! cohort's PAR hours) and the cohort's predawn leaf psi, run the kernel, and write back the
-   ! tendencies and cue memory. No carbon moves here. A step with no fast sub-steps is skipped,
-   ! so the memory never advances on a 0/0 mean.
+   ! the daily drivers from the fast loop's accumulators (each cohort's own: the canopy air it
+   ! sits in and the hours of light at its top) and the cohort's predawn leaf psi, run the kernel,
+   ! and write back the tendencies and cue memory. No carbon moves here. A step with no fast
+   ! sub-steps is skipped, so the memory never advances on a 0/0 mean.
    !---~---
    subroutine advance_leaf_phenology(poly, cfg, doy)
       type(polygon_t),     intent(inout) :: poly
@@ -115,15 +116,12 @@ contains
       type(pheno_env_t)    :: env
       type(pheno_state_t)  :: state
       type(pheno_out_t)    :: out
-      integer(ik) :: i, pf, is
-      real(wp)    :: dt_days, temp_day(poly%site%n)
+      integer(ik) :: i, pf
+      real(wp)    :: dt_days
       logical     :: north
 
-      if (all(poly%site%pheno_tair_n(1:poly%site%n) < 1_ik)) return   ! no fast sub-steps -> no drivers
+      if (all(poly%site%tair_day_n(1:poly%site%n) < 1_ik)) return   ! no fast sub-steps -> no drivers
       dt_days  = cfg%dt_slow / day_sec
-      do is = 1_ik, poly%site%n
-         temp_day(is) = site_air_temp_day(poly, is)
-      end do
       north = poly%latitude_deg >= 0.0_wp   ! the season windows' hemisphere
 
       do i = 1_ik, poly%cohort%n
@@ -133,9 +131,14 @@ contains
          !   The daily drivers. dmax_psi_leaf is the last completed predawn value; a cohort born
          ! today reads 0, well watered, for one day, as in the leaf kernel.
          !---~---
-         env%temp_day         = temp_day(poly%patch%owner_site(poly%cohort%owner_patch(i)))
+         !--- The mean canopy-air temperature of the cohort's patch over the step.
+         env%temp_day         = poly%cohort%pheno_temp_accum(i) / (24.0_wp * dt_days)
          !--- Hours the PAR at the cohort's top exceeded par_min over the step, per day.
          env%par_hours        = poly%cohort%light_hours_accum(i) / dt_days
+         if (poly%cohort%sdiag%active) then
+            poly%cohort%sdiag%v(CO_PHENO_TEMP,  i) = env%temp_day
+            poly%cohort%sdiag%v(CO_PHENO_LIGHT, i) = env%par_hours
+         end if
          env%predawn_leaf_psi = min(0.0_wp, poly%cohort%dmax_psi_leaf(i))
          env%doy              = doy
          env%hemis_north      = north
@@ -270,7 +273,7 @@ contains
       real(wp)    :: t_day, w
       integer(ik) :: is
       do is = 1_ik, poly%site%n
-         if (poly%site%pheno_tair_n(is) < 1_ik) cycle      ! no fast sub-steps ran: nothing to average
+         if (poly%site%tair_day_n(is) < 1_ik) cycle      ! no fast sub-steps ran: nothing to average
          t_day = site_air_temp_day(poly, is)
          associate (t_growth => poly%site%t_growth_avg(is))
             if (is_unset_positive(t_growth)) then
@@ -293,7 +296,7 @@ contains
    pure real(wp) function site_air_temp_day(poly, is) result(t_day)
       type(polygon_t), intent(in) :: poly
       integer(ik),     intent(in) :: is
-      t_day = poly%site%pheno_tair_sum(is) / real(max(poly%site%pheno_tair_n(is), 1_ik), wp)
+      t_day = poly%site%tair_day_sum(is) / real(max(poly%site%tair_day_n(is), 1_ik), wp)
    end function site_air_temp_day
 
    !---~---

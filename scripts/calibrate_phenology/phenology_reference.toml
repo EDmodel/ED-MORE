@@ -1,0 +1,94 @@
+# SPDX-License-Identifier: Apache-2.0
+# Every setting of a site's phenology calibration file, with its default and the reason for it.
+# This file is also the schema: a setting it does not list stops the tool, so a misspelt key cannot
+# fall back to its default. "" or [] marks a setting without a default, which the site's file gives.
+
+[run]
+config     = ""        # The site's main file. Its stand must be frozen ([demography].demography_on =
+                       # false) and its slow tier on, so the leaves follow the season while every
+                       # cohort keeps its size and place: the cohorts are the offline fit's columns.
+score_from = ""        # The first day scored ("YYYY-MM-DD"). The days before it spin up the cue
+                       # memory and the canopy from the census, which starts in full leaf: a year.
+threads    = 8         # The coupled run's threads.
+runner     = "python"  # "python" runs through the Python API (python -m edmore.model); any other
+                       # value is the path of an edmore executable. The two give the same output.
+
+[fit]
+keys       = []        # The fitted keys, each a phenology key of one PFT named key_pftN
+                       # (flush_degree_days_pft1). leaf_turnover_rate is the PFT file's
+                       # [pft].leaf_turnover_rate_toc. par_min and the cue masks are the user's.
+iterations = 4         # At most this many fits, each on the drivers of a coupled run made with the
+                       # values the fit before found.
+settle     = 0.02      # The iteration stops when no key moved more than this share of its range
+                       # between two fits: the canopy the drivers came from no longer changes.
+closure    = 0.02      # The offline stand run with a coupled run's own values must give that run's
+                       # leaf cover to within this, every day and PFT, or the tool stops: the two
+                       # would not be the same model.
+popsize    = 15        # Differential evolution's population, per key.
+maxiter    = 300       # Its generations at most.
+tol        = 0.01      # Its convergence tolerance (scipy's).
+seed       = 1         # Its random seed: a fit repeats exactly.
+
+# Each key's range [lo, hi]. A bare name sets it for every PFT, key_pftN for one PFT. The defaults
+# span temperate and boreal habits; a site narrows them where its data cannot tell values apart.
+[bounds]
+flush_cue_timescale   = [1.0, 30.0]       # [day]
+shed_cue_timescale    = [1.0, 30.0]       # [day]
+flush_rate_max        = [0.0167, 0.333]   # [1/day] a flush of 60 to 3 days
+shed_rate_max         = [0.0005, 0.333]   # [1/day]
+flush_base_temp       = [268.15, 283.15]  # [K]
+flush_degree_days     = [10.0, 600.0]     # [K day] warmth requirement
+flush_temp_sharpness  = [0.01, 0.5]       # [1/(K day)]
+shed_base_temp        = [278.15, 300.15]  # [K]
+shed_degree_days      = [5.0, 600.0]      # [K day] cold requirement
+shed_temp_sharpness   = [0.01, 0.5]       # [1/(K day)]
+flush_light_hours     = [6.0, 18.0]       # [h/day]
+flush_light_sharpness = [0.2, 8.0]        # [1/h]
+shed_light_hours      = [4.0, 18.0]       # [h/day]
+shed_light_sharpness  = [-8.0, -0.2]      # [1/h] negative: short or dim days trigger senescence
+light_window          = [1.0, 30.0]       # [day]
+min_leaf_cover        = [0.0, 0.98]       # [-] an evergreen keeps this share of its leaves
+leaf_turnover_rate    = [0.0001, 1.5]     # [1/yr] the top of the canopy's; a cohort's follows its light
+
+# A target ([[target]] in a site's file) compares a series of observations with the same quantity
+# of the offline stand: the cohorts of `pfts` with min_height <= height < max_height, each counted
+# by its full-canopy leaf area. Its score is the mean squared error in units of sigma, times weight;
+# the fit minimises the sum over the targets. Only observations from score_from to the run's end
+# count. These keys apply to every kind; each kind's table below lists its own.
+[target]
+name       = ""        # A label for the reports.
+kind       = ""        # fraction | fallen | litter_fraction | annual_loss | date
+pfts       = []        # The PFTs it sees.
+min_height = 0.0       # [m]
+max_height = 1.0e9     # [m]
+sigma      = 0.0       # The error that counts as one unit: a fraction, days, or canopies a year.
+weight     = 1.0
+
+[target.fraction]      # How full the canopy is, 0 to 1. File columns: date, value.
+file        = ""
+scale       = "none"   # "none": leaf / full leaf. "year_minmax": the leaf area scaled between each
+                       # year's least and most, for observations scaled the same way (MODIS LAI,
+                       # whose winter level is the evergreens and whose summer level saturates).
+window_days = 1        # The model's value is the mean over this many days from the date (MODIS: 8).
+
+[target.fallen]        # The share of the leaves fallen (tagged trees). File columns: date, value.
+file     = ""
+from_doy = 213         # The fall counts from this day of the year (1 August): the share of the
+                       # year's fullest canopy gone since.
+
+[target.litter_fraction]  # The share of each leaf year's litter caught by each date (litter
+                          # baskets). File columns: date, value.
+file       = ""
+year_start = "04-01"   # The leaf year starts on this day (MM-DD).
+
+[target.annual_loss]   # Leaves lost a year, as canopies: about 1 for a deciduous canopy, the
+                       # inverse of the leaf lifespan for an evergreen. One residual a scored year.
+value = 0.0
+
+[target.date]          # The day of the year the canopy crosses `level`, scaled between the year's
+                       # least and most, in each year. File columns: year, doy.
+file      = ""
+level     = 0.5
+direction = "up"       # "up": filling (spring), "down": emptying (autumn).
+doy_min   = 1          # The crossing is looked for from doy_min to doy_max; a year without one
+doy_max   = 366        # counts as doy_max (the event did not come in time).

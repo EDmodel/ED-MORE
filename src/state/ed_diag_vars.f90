@@ -151,7 +151,10 @@ module ed_diag_vars
    integer(ik), parameter, public :: CO_GROWTH_RESP  = 38_ik  ! [kgC/plant/yr]  growth respiration
    integer(ik), parameter, public :: CO_EXUDATE      = 39_ik  ! [kgC/plant/yr]  root exudate (carbon the growth sink could not use)
    integer(ik), parameter, public :: CO_FROZEN_GROWTH = 40_ik ! [kgC/plant/yr]  growth a frozen stand does not build
-   integer(ik), parameter, public :: N_CO_ROWS       = 40_ik
+   !--- 10. The phenology's drivers
+   integer(ik), parameter, public :: CO_PHENO_TEMP   = 41_ik  ! [K]    the canopy-air temperature the cue read
+   integer(ik), parameter, public :: CO_PHENO_LIGHT  = 42_ik  ! [h/day] the hours of light at its top above par_min
+   integer(ik), parameter, public :: N_CO_ROWS       = 42_ik
 
    !---~---
    !   Fusion kind of each cohort row. The leaf and wood temperatures fuse on the heat capacity
@@ -181,7 +184,9 @@ module ed_diag_vars
         !--- 8. Carbon allocation
         FSK_EXTENSIVE, FSK_EXTENSIVE, FSK_EXTENSIVE, FSK_EXTENSIVE, FSK_EXTENSIVE,                               &
         !--- 9. Carbon losses
-        FSK_EXTENSIVE, FSK_EXTENSIVE, FSK_EXTENSIVE                                                              ]
+        FSK_EXTENSIVE, FSK_EXTENSIVE, FSK_EXTENSIVE,                                                             &
+        !--- 10. The phenology's drivers
+        FSK_INTENSIVE, FSK_INTENSIVE                                                                             ]
 
    !---~---
    !   PER-PATCH diagnostic fields. The fast loop fills the fast rows once per (patch, sub-step)

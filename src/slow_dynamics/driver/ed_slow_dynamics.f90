@@ -102,6 +102,9 @@ contains
       real(wp)               :: mort_water, seed_rain_carbon, handover, litter_open, frozen_carbon
       real(wp), allocatable  :: leaf_carbon_new(:), storage_new(:)
 
+      !--- The step's slow cohort rows, opened before the phenology writes its cues to them.
+      call open_slow_cohort_rows(poly)
+
       !---~---
       !   0. Leaf phenology: advance the leaf tendencies one daily step, before the allocation
       ! reads them (docs/science/plant_phenology.md). A caller with no calendar (the C API's
@@ -127,7 +130,6 @@ contains
       end if
 
       !--- 1. Carbon allocation, which adds the turnover litter to the per-patch accumulator.
-      call open_slow_cohort_rows(poly)
       call compute_carbon_allocation(poly, cfg, step)
 
       !---~---

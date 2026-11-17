@@ -83,6 +83,7 @@ contains
       poly%cohort%stem_resp_accum(1:poly%cohort%n) = 0.0_wp
       poly%cohort%root_resp_accum(1:poly%cohort%n) = 0.0_wp
       poly%cohort%light_hours_accum(1:poly%cohort%n) = 0.0_wp
+      poly%cohort%pheno_temp_accum(1:poly%cohort%n)  = 0.0_wp
       where (poly%cohort%dmax_psi_leaf_accum(1:poly%cohort%n) > 0.5_wp * DMAX_PSI_LEAF_ACCUM_RESET)          &
          poly%cohort%dmax_psi_leaf(1:poly%cohort%n) = poly%cohort%dmax_psi_leaf_accum(1:poly%cohort%n)
       poly%cohort%dmax_psi_leaf_accum(1:poly%cohort%n) = DMAX_PSI_LEAF_ACCUM_RESET
@@ -223,12 +224,13 @@ contains
    !   Add one fast step of patch ip to the sums the slow step reads. The cohorts' slots are
    ! disjoint across patches, so the threads need no reduction.
    !---~---
-   subroutine accumulate_fast_to_slow(poly, cfg, ip, forcing, out)
+   subroutine accumulate_fast_to_slow(poly, cfg, ip, forcing, out, can_temp)
       type(polygon_t),      intent(inout) :: poly
       type(ed_config_t),    intent(in)    :: cfg
       integer(ik),          intent(in)    :: ip
       type(fast_forcing_t), intent(in)    :: forcing
       type(fast_output_t),  intent(in)    :: out
+      real(wp),             intent(in)    :: can_temp   ! [K] the patch's canopy air at the step's end
       real(wp)    :: dt_fast_days
       integer(ik) :: i0, i, j
       !---~---
@@ -259,6 +261,11 @@ contains
          !---~---
          if (forcing%par_top(j) * par_w_2_umol > cfg%pft%pheno(poly%cohort%pft(i))%par_min)               &
             poly%cohort%light_hours_accum(i) = poly%cohort%light_hours_accum(i) + cfg%dt_fast / 3600.0_wp
+         !---~---
+         !   The phenology's temperature: the canopy air the cohort's buds and leaves sit in, its
+         ! patch's, time-integrated over the step (docs/science/plant_phenology.md §2).
+         !---~---
+         poly%cohort%pheno_temp_accum(i) = poly%cohort%pheno_temp_accum(i) + can_temp * cfg%dt_fast / 3600.0_wp
          !---~---
          !   Running daily maximum of psi_leaf, the predawn value that drives tomorrow's stomatal
          ! control (docs/science/leaf_gas_exchange.md §4.2).

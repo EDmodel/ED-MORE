@@ -61,6 +61,7 @@ run it.
 | see worked examples | [`examples/`](examples/README.md): leaf gas exchange, phenology, demography, a flux tower, forest regrowth, a region |
 | prepare forcing, census and trait inputs | [`scripts/prepare_input/`](scripts/README.md): ERA5-Land, flux-tower, census, CO₂ and PFT-trait tools |
 | calibrate the fast processes at a flux tower | [`scripts/calibrate_fast/`](scripts/calibrate_fast/README.md) |
+| calibrate a stand's leaf phenology | [`scripts/calibrate_phenology/`](scripts/calibrate_phenology/README.md) |
 | drive it from Python | [`python/README.md`](python/README.md): the `edmore` package |
 | plot the output | [example 03](examples/example03_demography/README.md#plotting-the-stand-file) (its stand file) and [example 05](examples/example05_forest_regeneration/README.md#plotting-the-diagnostic-files) (`edmore`'s diagnostic files) |
 | change the code | [Developing ED-MORE](#developing-ed-more) below, then [`CONTRIBUTING.md`](CONTRIBUTING.md) |

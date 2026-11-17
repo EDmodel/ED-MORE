@@ -3,16 +3,19 @@
 
 A Pythonic front end to the ED-MORE Fortran phenology kernel (ed_plant_phenology.f90, exposed through the
 same libedmore.so as edmore.plant's gas exchange -- one C-API for the whole model). Each day it takes
-the cues (air temperature, hours of light, predawn leaf water potential) and per-PFT traits, and
-advances two smoothed tendencies in [0,1]: leaf_flush_tendency and leaf_shed_tendency. The hours
-of light are the hours the PAR reaching the canopy exceeds the PFT's par_min (`par_hours` counts
-them from sub-daily PAR, as the coupled model's fast loop does).
+the cues (the temperature of the air around the plant, hours of light, predawn leaf water potential)
+and per-PFT traits, and advances two smoothed tendencies in [0,1]: leaf_flush_tendency and
+leaf_shed_tendency. In the coupled model the temperature is the daily mean of the cohort's canopy air
+and the hours of light are the hours the PAR at the cohort's top exceeds the PFT's par_min
+(`par_hours` counts them from sub-daily PAR, as the coupled model's fast loop does).
 
     import edmore.plant.pheno as pheno
 
     ph = pheno.Phenology(pheno.temperate_deciduous())     # params + cue memory + leaf cover
     day = ph.step(temp_day=290.0, par_hours=14.5, doy=150)
     print(day.leaf_cover, day.senescence)                 # canopy fullness, leaf lost today
+
+`run` does the same for many cohorts and many days in one library call (an offline fit's inner loop).
 
 `Phenology.step` applies the coupled model's own leaf rule (`leaf_step`, the Fortran
 leaf_turnover_step through the C-API) with carbon never limiting the flush: senescence at
@@ -33,7 +36,8 @@ from enum import IntFlag
 from ._ffi import _lib   # the shared libedmore.so handle (also used by leaf gas exchange)
 
 __all__ = [
-    "Cue", "Params", "State", "Out", "Day", "Phenology", "step", "leaf_step", "par_hours", "daylength",
+    "Cue", "Params", "State", "Out", "Day", "Run", "Phenology", "step", "run", "leaf_step", "par_hours",
+    "daylength",
     "temperate_deciduous", "boreal_evergreen", "drought_deciduous", "light_exchanging",
     "self_test",
 ]
@@ -97,6 +101,9 @@ def _pheno_lib():
         lib.ed_leaf_turnover_step.argtypes = [c_double] * 10 + [POINTER(c_double)] * 3
         lib.ed_daylength.restype = c_double
         lib.ed_daylength.argtypes = [c_double, c_int]
+        lib.ed_phenology_run.restype = None
+        lib.ed_phenology_run.argtypes = ([c_int, c_int, POINTER(_ParamsC)] + [c_double] * 3 + [c_int, POINTER(c_int)]
+                                         + [POINTER(c_double)] * 4 + [POINTER(_StateC)] + [POINTER(c_double)] * 3)
         _BOUND = True
     return lib
 
@@ -220,6 +227,57 @@ def leaf_step(leaf_cover, leaf_flush_tendency, leaf_shed_tendency, params, dt=1.
         byref(sen), byref(bg), byref(cap))
     post = leaf_cover - sen.value - bg.value
     return post + min(max(0.0, 1.0 - post), cap.value), sen.value, bg.value
+
+
+@dataclass(frozen=True)
+class Run:
+    """A `run` over many columns (cohorts or sites) and days."""
+    leaf_cover: "np.ndarray"       # [-] (n_col, n_day) leaf / full leaf after each day
+    leaf_loss: "np.ndarray"        # [-] (n_col, n_day) leaf cover lost each day (senescence + background)
+    state: list                    # [State] each column's cue memory at the end
+
+
+def run(params, temp_day, par_hours, doy, predawn_leaf_psi=None, *, leaf_turnover_rate=None, state=None,
+        leaf_cover=1.0, dt=1.0, hemis_north=True) -> Run:
+    """Many columns, many days, one library call: each day what `Phenology.step` does, the kernel and
+    then the leaf rule, for every column with one PFT's `params`.
+
+    `temp_day` [K], `par_hours` [h/day] and `predawn_leaf_psi` [MPa] are (n_col, n_day) arrays, or
+    anything that broadcasts to that shape: a (n_day,) series is every column's, a (n_col, 1) array
+    one value per column; psi defaults to 0 (wet).
+    So is `leaf_turnover_rate` [1/yr], each column's own (a cohort's follows its light); it defaults
+    to params.leaf_turnover_rate. `doy` is (n_day,). `state` is one State for every column, a list of them (a previous run's
+    `state`, to continue), or None (born flushing); `leaf_cover` the cover to start from."""
+    import numpy as np
+    temp = np.atleast_2d(np.asarray(temp_day, dtype=np.float64))
+    n_col, n_day = temp.shape
+
+    def grid(x):
+        return np.ascontiguousarray(np.broadcast_to(np.asarray(x, dtype=np.float64), (n_col, n_day)))
+
+    temp, hours = grid(temp), grid(par_hours)
+    psi = grid(0.0 if predawn_leaf_psi is None else predawn_leaf_psi)
+    turnover = grid(params.leaf_turnover_rate if leaf_turnover_rate is None else leaf_turnover_rate)
+    days = np.ascontiguousarray(doy, dtype=np.int32)
+    if days.shape != (n_day,):
+        raise ValueError(f"doy has shape {days.shape}, the drivers {n_day} days")
+    if state is None or isinstance(state, (State, dict)):
+        state = [state if state is not None else State()] * n_col
+    if len(state) != n_col:
+        raise ValueError(f"{len(state)} states for {n_col} columns")
+    state_c = (_StateC * n_col)(*[_make(_StateC, asdict(s) if isinstance(s, State) else dict(s)) for s in state])
+    cover = np.array(np.broadcast_to(np.asarray(leaf_cover, dtype=np.float64), (n_col,)))
+    cover_out, loss_out = np.empty((n_col, n_day)), np.empty((n_col, n_day))
+    p = params
+
+    def ptr(a, ct=c_double):
+        return a.ctypes.data_as(POINTER(ct))
+
+    _pheno_lib().ed_phenology_run(
+        n_col, n_day, byref(_make(_ParamsC, asdict(p))), float(p.min_leaf_cover), float(p.bare_leaf_cover),
+        float(dt), int(bool(hemis_north)), ptr(days, c_int), ptr(temp), ptr(hours), ptr(psi), ptr(turnover),
+        state_c, ptr(cover), ptr(cover_out), ptr(loss_out))
+    return Run(cover_out, loss_out, [State(**{n: getattr(s, n) for n, _ in _STATE_FIELDS}) for s in state_c])
 
 
 def par_hours(par, step_hours, par_min):
