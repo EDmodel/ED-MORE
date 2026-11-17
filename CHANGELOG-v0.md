@@ -46,6 +46,13 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   as well as no recruitment or restructuring. For growth and mortality without restructuring, set
   `demography_on = true` with `recruitment_on`, `cohort_fusion_on`, `cohort_fission_on`,
   `patch_disturbance_on` and `patch_fusion_on` false, as example 05's inventory run now does. (#87)
+- Every PFT file needs `[pft].wood_angle_mean` and `wood_angle_std`, the inclination of the wood
+  surface [deg]. The shipped files use 75 and 20; giving the wood the PFT's leaf angles keeps a run's
+  earlier light to round-off, unless equally tall cohorts of PFTs with different leaf angles share a
+  layer. An angle spread too wide for a Beta distribution, with the standard deviation at or above
+  `sqrt(mean (90 - mean))`, is refused, for the leaves too. (#84)
+- The C API's `ed_canopy_two_stream` takes one more output array, `coh_incid_vis` (hours by cohorts),
+  after `coh_leaf_vis`; `edmore.canopy` passes it. (#85)
 
 ### Answer changes
 
@@ -104,6 +111,11 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   q c_p,v, not the dry one. BCI (example 04, default/calibrated): H +1.86/+1.82 % (mostly the moist
   c_p in the reported split; `mean_outflow_enth_py` moves the other way), LE −0.23/−0.25 %; Palo
   Verde (ERA5-Land): H +1.42 %, LE −0.07 %. (#83)
+- The wood intercepts the beam with its own angle distribution, 75° ± 20° by default (unpublished TLS
+  data), and leaves and wood share the beam by the area each shows the sun, not by their areas: steep
+  wood passes more of a high sun and less of a low one, most visibly in a leafless canopy. BCI (example
+  04, calibrated, August 2012 to July 2013): GPP +0.26 %, LE +0.46 %, H +0.03 %, upwelling shortwave
+  −1.0 %. Examples 03–06 are not rerun. (#84)
 
 ### Added
 
@@ -144,6 +156,11 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   for flux-tower biophysics or a spin-up. The wood and recruits the stand cannot build leave it as
   frozen growth carbon (`mean_frozen_growth_carbon_py`, `_co`, on request), and a census start is
   restructured whatever `demography_on` is (docs/science/demography.md §7). (#87)
+- `edmore.canopy.Canopy.radiation` also returns `cohort_incid_vis`, the downwelling VIS at the top of
+  each cohort's layer, what an upward-facing sensor there reads. (#85)
+- Example 07, canopy radiation against NEON's PAR sensors at six heights and on the floor at Harvard
+  Forest, leaf-off and leaf-on, with stands from the ForestGEO census and the foliage optics calibrated
+  to the light below the crowns in 2019 and tested on 2021. (#85)
 
 ### Changed
 

@@ -45,7 +45,10 @@ w_c \;\propto\; \int_{t_{c-1}}^{t_c} t^{\,p-1}(1-t)^{\,q-1}\,dt , \qquad \sum_c 
 ```
 
 evaluated by a 64-panel midpoint rule (`beta_lidf` over `beta_log_kernel`). It needs no special
-function and never evaluates the integrable endpoint singularities at $t=0,1$. The kernel is summed
+function and never evaluates the integrable endpoint singularities at $t=0,1$. A shape parameter below 1
+makes the density infinite at that end, as for near-vertical wood ($q<1$ at 90°), where a midpoint
+undercounts the end panel; that panel takes the exact integral of its singular factor instead,
+$`\int_0^h s^{a-1}\,ds = h^a/a`$, times the other factor at its middle. The kernel is summed
 relative to its largest value on the grid, so a narrow distribution (a spread of a few degrees, or 0),
 whose unnormalized density would underflow, still sums to one. The mean and standard deviation of the
 leaf angle, $`(\overline{\theta},\,\sigma_\theta)`$, map to $(p,q)$ by moment matching
@@ -70,6 +73,19 @@ k \;=\; \frac{G(\mu)}{\mu} \qquad(3)
 `gfun_direct` returns $G(\mu)$; the direct-beam extinction coefficient is $`k=G(\mu)/\mu`$. $G$ does
 not depend on the band, so `canopy_radiation` evaluates it once per PFT present and reuses it for every
 cohort of that PFT and every beam band.
+
+**The wood surface has its own angle distribution.** A stem or branch is a cylinder: its surface
+elements' normals lie perpendicular to its axis, so a vertical trunk is a set of vertical elements and
+a horizontal branch spreads its elements over every inclination. The wood takes the same Beta family as
+the leaves, with its own mean and spread (`[pft].wood_angle_mean`, `wood_angle_std`), and so its own
+$`\mathrm{bf}_{wood}`$ (eq. (2)) and $`G_{wood}(\mu)`$ (eq. (3)). The default, 75° ± 20°, is the
+area-weighted inclination of the woody surface in unpublished terrestrial lidar (TLS) data: cylinder
+models (QSMs) of two leaf-off temperate stands give 72–76° mean and 18–21° spread, most of the area
+being the near-vertical stems. QSMs miss the finest twigs, which lie flatter. A cohort's beam
+extinction weights the two by their clumped areas (eq. (6)), so the beam crosses its layer as
+$`\exp[-(k_{leaf}\,\mathrm{ELAI} + k_{wood}\,\mathrm{EWAI})]`$. Near-vertical wood intercepts little
+of a high sun and much of a low one; leaves at 45° have the opposite tendency. In a leafless canopy
+this sets how the light under it changes with the sun.
 
 ## 2. Single-scatter albedo, asymmetry, and the scattering coefficients
 
@@ -96,19 +112,34 @@ solar geometry:
 g = w_l\,g_{leaf} + w_w\,g_{wood} \qquad(5)
 ```
 
+The diffuse light meets leaves and wood in proportion to their areas; the beam meets them in
+proportion to the area each shows the sun, $`h_{leaf}=k_{leaf}\,\mathrm{ELAI}`$ and
+$`h_{wood}=k_{wood}\,\mathrm{EWAI}`$ ($`k_{leaf}`$, $`k_{wood}`$ from eq. (3) with each tissue's own
+LIDF). The beam's extinction $k$, its upscatter fraction $\beta_0$ and the albedo $`\omega_0`$ of what
+it hits are therefore
+
 ```math
+k = w_l\,k_{leaf} + w_w\,k_{wood}, \qquad
 \beta = \tfrac12\,(1 + g), \qquad
-\beta_0 = \tfrac12\!\left(1 + \frac{g}{k}\right) \qquad(6)
+\beta_0 = \tfrac12\!\left(1 + \frac{g}{k}\right), \qquad
+\omega_0 = \frac{h_{leaf}\,\omega_{leaf} + h_{wood}\,\omega_{wood}}{h_{leaf}+h_{wood}} \qquad(6)
 ```
 
 $\beta$ is the diffuse backscatter fraction and $\beta_0$ the direct-beam upscatter fraction
-(computed for beam bands only). The routine also returns the **leaf absorption share**, the fraction of
-a cohort's absorbed radiation that lands on leaves rather than wood, weighted by absorptivity $1-\omega$
-and clumped area:
+(computed for beam bands only); $\beta_0$ is the tissues' $`\tfrac12(1+g_t/k_t)`$ averaged by the beam
+each intercepts. Like $g$ in $\beta$, which is averaged by area, it is a simplification: the exact
+weight is the light each tissue scatters, $`h_t\,\omega_t`$, and the two differ where leaves and wood
+scatter unlike amounts. With the wood at the leaves' angle, $`k_{wood}=k_{leaf}`$ and
+$`\omega_0=\omega`$. The
+routine also returns the **leaf absorption shares**, the fraction of what a cohort absorbs that lands
+on leaves rather than wood: of the diffuse light by absorptivity $1-\omega$ and clumped area, of the
+beam's first hit by absorptivity and the area the sun sees:
 
 ```math
 \mathrm{leaf\_frac} = \frac{(1-\omega_{leaf})\,\mathrm{ELAI}}
-{(1-\omega_{leaf})\,\mathrm{ELAI} + (1-\omega_{wood})\,\mathrm{EWAI}} \qquad(7)
+{(1-\omega_{leaf})\,\mathrm{ELAI} + (1-\omega_{wood})\,\mathrm{EWAI}}, \qquad
+\mathrm{beam\_leaf\_frac} = \frac{(1-\omega_{leaf})\,h_{leaf}}
+{(1-\omega_{leaf})\,h_{leaf} + (1-\omega_{wood})\,h_{wood}} \qquad(7)
 ```
 
 ## 3. The single-band two-stream (adding) solve
@@ -149,8 +180,9 @@ $`\sigma_b\to0`$ collapses to pure Beer attenuation with $r_{dd}=0$.)
 I^\downarrow_0(i) = I^\downarrow_0(i{+}1)\,e^{-k_i\,\mathrm{ETAI}_i} \qquad(10)
 ```
 
-and inside a layer, at depth $x$ in area index, it scatters $`\omega k S_0 e^{-kx}`$ into the diffuse
-field, a fraction $\beta_0$ of it upward ($`S_0 = I^\downarrow_0(i{+}1)`$, the beam at the layer's top).
+and inside a layer, at depth $x$ in area index, it scatters $`\omega_0 k S_0 e^{-kx}`$ into the
+diffuse field, a fraction $\beta_0$ of it upward ($`S_0 = I^\downarrow_0(i{+}1)`$, the beam at the
+layer's top; $`\omega_0`$ of eq. (6)).
 The layer's up- and down-sources are the part of this light that leaves its top and its bottom. They
 come from the two-stream equations solved through the layer's depth with no diffuse entering either
 face (`layer_beam_sources`). With the attenuation att and backscatter $`\sigma_b`$ of eq. (8), the
@@ -158,16 +190,16 @@ particular solution is
 
 ```math
 u_p = a\,e^{-kx},\quad d_p = b\,e^{-kx},\qquad
-a = \frac{\omega k S_0\,[\beta_0(\mathrm{att}-k) + \sigma_b(1-\beta_0)]}{m^2-k^2},\quad
-b = \frac{\omega k S_0\,[(1-\beta_0)(\mathrm{att}+k) + \sigma_b\beta_0]}{m^2-k^2} \qquad(11)
+a = \frac{\omega_0 k S_0\,[\beta_0(\mathrm{att}-k) + \sigma_b(1-\beta_0)]}{m^2-k^2},\quad
+b = \frac{\omega_0 k S_0\,[(1-\beta_0)(\mathrm{att}+k) + \sigma_b\beta_0]}{m^2-k^2} \qquad(11)
 ```
 
 The diffuse modes $`e^{-mx}`$ and $`e^{m(x-\mathrm{ETAI})}`$, in the ratio $`r_\infty`$ of up to
 down, take the boundary conditions. $k = m$ is a removable singularity, avoided by moving $k$ off $m$ by
 a relative $`10^{-6}`$.
 
-A thin layer's sources tend to the single-scatter split, $`\beta_0\,\omega\,\Delta I`$ up and
-$`(1-\beta_0)\,\omega\,\Delta I`$ down of the beam it intercepts. A thick layer's do not, because light
+A thin layer's sources tend to the single-scatter split, $`\beta_0\,\omega_0\,\Delta I`$ up and
+$`(1-\beta_0)\,\omega_0\,\Delta I`$ down of the beam it intercepts. A thick layer's do not, because light
 scattered deep in the layer is absorbed on its way out. Injecting the single-scatter split at the faces
 instead would make the result depend on how the canopy is cut into cohorts; the exact source gives the
 same albedo for any cut.
@@ -223,15 +255,18 @@ passes each band to `solve_band`.
 
 **Co-dominant cohorts share a layer.** Cohorts of exactly equal height form one radiative layer. Its
 ETAI is the sum of the members', its $\omega$, $g$ (hence $\beta$, $\beta_0$) and $k$ are ETAI-weighted
-means of theirs, and its $`\sigma T^4`$ is weighted, as within a cohort, by the absorptivity-weighted
-area $`(1-\omega_i)\,\mathrm{ETAI}_i`$. The solve's absorbed flux $`A_\ell`$ is net of the layer's
-emission. Every member of the layer meets the same radiation, so what the layer takes in, $`A_\ell`$
-plus the emission $`E_\ell=\sum_{j\in\ell}E_j`$ of its members, goes back to the members by
-absorptivity-weighted area (the weight `leaf_frac` is built from), and each is charged its own
-emission:
+means of theirs, its $`\omega_0`$ the mean weighted by the beam each intercepts, $`k_i\,\mathrm{ETAI}_i`$,
+and its $`\sigma T^4`$ is weighted, as within a cohort, by the absorptivity-weighted area
+$`(1-\omega_i)\,\mathrm{ETAI}_i`$. The solve's absorbed flux $`A_\ell`$ is net of the layer's emission.
+Every member of the layer meets the same radiation, which it absorbs in two parts. The beam's first
+hit, $`B_\ell=(1-\omega_{0,\ell})\,\big(I^\downarrow_0(\ell{+}1)-I^\downarrow_0(\ell)\big)`$, goes to
+the members by the absorptivity-weighted area the sun sees; the rest, diffuse light, plus the emission
+$`E_\ell=\sum_{j\in\ell}E_j`$ of its members, by absorptivity-weighted area (the weight `leaf_frac` is
+built from); and each member is charged its own emission:
 
 ```math
-A_{b,i} = \big(A_{b,\ell}+E_{b,\ell}\big)\,\frac{(1-\omega_i)\,\mathrm{ETAI}_i}{\sum_{j\in\ell}(1-\omega_j)\,\mathrm{ETAI}_j}
+A_{b,i} = \underbrace{B_{b,\ell}\,\frac{(1-\omega_{0,i})\,k_i\,\mathrm{ETAI}_i}{\sum_{j\in\ell}(1-\omega_{0,j})\,k_j\,\mathrm{ETAI}_j}}_{B_{b,i}}
+          + \big(A_{b,\ell}+E_{b,\ell}-B_{b,\ell}\big)\,\frac{(1-\omega_i)\,\mathrm{ETAI}_i}{\sum_{j\in\ell}(1-\omega_j)\,\mathrm{ETAI}_j}
           - E_{b,i}
 \qquad(14)
 ```
@@ -246,15 +281,17 @@ split between the tied cohorts would show it. Ties arise at recruitment, when ev
 the one smallest tracked height, `min_cohort_height`.
 
 `canopy_radiation` then splits each cohort's absorbed radiation into leaves and wood the same way:
-they share what the cohort takes in by the `leaf_frac` weight the optics blend produced, and each is
-charged its own emission:
+they share its first hit of the beam $`B_{b,i}`$ by `beam_leaf_frac` and the rest it takes in by
+`leaf_frac` (eq. (7)), and each is charged its own emission:
 
 ```math
-A^{leaf}_{b,i} = \big(A_{b,i}+E_{b,i}\big)\,\mathrm{leaf\_frac}_i - E^{leaf}_{b,i}, \qquad
-A^{wood}_{b,i} = \big(A_{b,i}+E_{b,i}\big)\,(1-\mathrm{leaf\_frac}_i) - E^{wood}_{b,i} \qquad(15)
+A^{leaf}_{b,i} = B_{b,i}\,\mathrm{beam\_leaf\_frac}_i + \big(A_{b,i}+E_{b,i}-B_{b,i}\big)\,\mathrm{leaf\_frac}_i - E^{leaf}_{b,i}
+\qquad(15)
 ```
 
-In a shortwave band this is the split by `leaf_frac`. In the thermal band it is exact for the
+and the wood the complement. In a shortwave band, steep wood under a high sun therefore takes less of
+the beam than its area's share, and more under a low sun. In the thermal band, which has no beam, it is
+exact for the
 two-stream's well-mixed layer: leaves and wood meet the same radiation through its depth and absorb it
 in the proportion `leaf_frac`, and the solve's net is what the layer absorbs less what it emits. Wood
 warmer than its leaves therefore warms them: with the sky, the ground and the leaves at one temperature
@@ -301,7 +338,8 @@ vegetation indices are built on. A snow-covered ground raises both.
 | Symbol | Source | Meaning |
 |---|---|---|
 | $`\overline{\theta}, \sigma_\theta`$ | `[pft].leaf_angle_mean`, `leaf_angle_std` | mean and standard deviation of the leaf inclination [deg] |
-| $p, q$ | derived from $`\overline{\theta}, \sigma_\theta`$ (`moments_to_beta_params`) | Beta-LIDF shape parameters |
+| $`\overline{\theta}_{wood}, \sigma_{\theta,wood}`$ | `[pft].wood_angle_mean`, `wood_angle_std` | the same for the wood surface [deg]; default 75, 20 (unpublished TLS cylinder models) |
+| $p, q$ | derived from each mean and std (`moments_to_beta_params`) | Beta shape parameters, leaves and wood |
 | $`\rho_{leaf},\tau_{leaf}`$ | `[pft].leaf_reflect_vis`, `leaf_reflect_nir`, `leaf_transmit_vis`, `leaf_transmit_nir` | leaf reflectance and transmittance |
 | $`\rho_{wood},\tau_{wood}`$ | `[pft].wood_reflect_vis`, `wood_reflect_nir`, `wood_transmit_vis`, `wood_transmit_nir` | wood reflectance and transmittance |
 | $`\varepsilon_{leaf},\varepsilon_{wood}`$ | `[pft].leaf_emissivity`, `wood_emissivity` | longwave: $`\rho=1-\varepsilon,\ \tau=0`$ |
@@ -318,7 +356,7 @@ vegetation indices are built on. A snow-covered ground raises both.
 | moments $`\mathrm{bf}`$, $G(\mu)$ | `ed_optics_lib`: `leaf_bf`, `gfun_direct` |
 | $\omega, g$ single-scatter pair | `ed_optics_lib`: `scatter_pair` |
 | per-PFT optics table ($\omega, g$), eq. (4) | `ed_pft_derive`: `build_rad_optics`, `derive_rad_optics`, once at load onto the PFT table (`cfg%pft%optics`) |
-| per-cohort blend ($\beta, \beta_0, k$, `leaf_frac`), eqs. (5)–(7) | `ed_canopy_radiation`: `blend_cohort_optics` |
+| per-cohort blend ($\beta, \beta_0, k, \omega_0$, `leaf_frac`, `beam_leaf_frac`), eqs. (5)–(7) | `ed_canopy_radiation`: `blend_cohort_optics` |
 | ground reflectance and emission | `ed_canopy_radiation`: `ground_optics` (`ground_optics_env_t`) |
 | single-band adding solve, eqs. (8)–(13) | `ed_canopy_radiation`: `solve_band`, `layer_rt`, `layer_beam_sources` |
 | the per-patch entry point, tied-cohort layers, each tissue's emission and the leaf/wood split, eqs. (14)–(15) | `ed_canopy_radiation`: `canopy_radiation` |

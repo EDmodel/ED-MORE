@@ -269,6 +269,8 @@ contains
          call check_key(t, 'pft.wood_clumping',     p%wood_clumping,     p%n)
          call check_key(t, 'pft.leaf_angle_mean',   p%leaf_angle_mean,   p%n)
          call check_key(t, 'pft.leaf_angle_std',    p%leaf_angle_std,    p%n)
+         call check_key(t, 'pft.wood_angle_mean',   p%wood_angle_mean,   p%n)
+         call check_key(t, 'pft.wood_angle_std',    p%wood_angle_std,    p%n)
          call check_key(t, 'hydraulics.leaf_pi0',             p%hydro(1:p%n)%leaf_curve%pi0,           p%n)
          call check_key(t, 'hydraulics.leaf_elastic_mod',     p%hydro(1:p%n)%leaf_curve%elastic_mod,   p%n)
          call check_key(t, 'hydraulics.leaf_apoplast_frac',   p%hydro(1:p%n)%leaf_curve%apoplast_frac, p%n)

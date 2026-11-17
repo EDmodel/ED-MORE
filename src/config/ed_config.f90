@@ -278,6 +278,7 @@ contains
                pft%wood_transmit_nir(n), pft%wood_emissivity(n),                             &
                pft%leaf_clumping(n), pft%wood_clumping(n),                                   &
                pft%leaf_angle_mean(n), pft%leaf_angle_std(n),                                &
+               pft%wood_angle_mean(n), pft%wood_angle_std(n),                                &
                pft%leaf_turnover_rate_toc(n), pft%fineroot_turnover_rate(n))
       allocate(pft%max_relative_growth_rate(n), pft%max_absolute_growth_rate(n),                     &
                pft%max_absolute_growth_exponent(n))

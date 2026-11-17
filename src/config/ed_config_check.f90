@@ -687,6 +687,14 @@ contains
             if (p%leaf_angle_mean(pf) <= 0.0_wp .or. p%leaf_angle_mean(pf) >= 90.0_wp)                  &
                error stop TAG//'pft.leaf_angle_mean outside (0,90) degrees'
             if (p%leaf_angle_std(pf) < 0.0_wp) error stop TAG//'pft.leaf_angle_std < 0'
+            !--- A Beta on 0-90 deg with mean m [deg] has std below sqrt(m (90 - m)).
+            if (p%leaf_angle_std(pf) >= sqrt(p%leaf_angle_mean(pf) * (90.0_wp - p%leaf_angle_mean(pf)))) &
+               error stop TAG//'pft.leaf_angle_std >= sqrt(mean (90 - mean)), too wide for a Beta'
+            if (p%wood_angle_mean(pf) <= 0.0_wp .or. p%wood_angle_mean(pf) >= 90.0_wp)                  &
+               error stop TAG//'pft.wood_angle_mean outside (0,90) degrees'
+            if (p%wood_angle_std(pf) < 0.0_wp) error stop TAG//'pft.wood_angle_std < 0'
+            if (p%wood_angle_std(pf) >= sqrt(p%wood_angle_mean(pf) * (90.0_wp - p%wood_angle_mean(pf)))) &
+               error stop TAG//'pft.wood_angle_std >= sqrt(mean (90 - mean)), too wide for a Beta'
             if (pft_wstress_psi_open(p, pf) > 0.0_wp) error stop TAG//'wstress_psi_open must be <= 0'
             if (pft_wstress_psi_close(p, pf) >= pft_wstress_psi_open(p, pf))                            &
                error stop TAG//'wstress_psi_close must be below wstress_psi_open'

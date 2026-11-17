@@ -193,6 +193,7 @@ contains
       real(c_double), parameter :: HEIGHT(2) = [25.0_c_double, 5.0_c_double], LAI(2) = [3.0_c_double, 1.5_c_double]
       real(c_double), parameter :: WAI(2) = [0.4_c_double, 0.1_c_double]
       real(c_double) :: up_vis(3), up_nir(3), leaf_vis(3), wood_vis(3), ground_vis(3), coh_leaf_vis(3, 2)
+      real(c_double) :: coh_incid_vis(3, 2)
       real(wp)       :: albedo, budget
       integer        :: h
       call load_ed_config(CONFIG, cfg)
@@ -225,7 +226,8 @@ contains
 
       !--- The two-stream over three hours: night, a low sun and a high one; NIR at 1.1 x VIS.
       call ed_canopy_two_stream(3_c_int, COSZ, VB, VD, 1.1_c_double * VB, 1.1_c_double * VD, 2_c_int, pft2,    &
-                                HEIGHT, LAI, WAI, up_vis, up_nir, leaf_vis, wood_vis, ground_vis, coh_leaf_vis)
+                                HEIGHT, LAI, WAI, up_vis, up_nir, leaf_vis, wood_vis, ground_vis, coh_leaf_vis, &
+                                coh_incid_vis)
       albedo = cfg%soil%ground_albedo_vis
       do h = 2, 3
          budget = real(up_vis(h) + leaf_vis(h) + wood_vis(h), wp) + (1.0_wp - albedo) * real(ground_vis(h), wp)
@@ -233,6 +235,10 @@ contains
                     'C-API canopy: every VIS photon is reflected, absorbed by the stand or by the ground')
          call check(abs(sum(coh_leaf_vis(h, :)) - leaf_vis(h)) <= 1.0e-12_wp * leaf_vis(h),                  &
                     'C-API canopy: the cohorts'' leaf VIS sums to the stand''s')
+         call check(abs(coh_incid_vis(h, 1) - (VB(h) + VD(h))) <= 1.0e-12_wp * (VB(h) + VD(h)),             &
+                    'C-API canopy: the light at the top cohort''s top is the incident light')
+         call check(coh_incid_vis(h, 1) > coh_incid_vis(h, 2) .and. coh_incid_vis(h, 2) > ground_vis(h),    &
+                    'C-API canopy: the downwelling light falls from layer top to layer top to the ground')
       end do
       call check(leaf_vis(1) == 0.0_c_double .and. leaf_vis(3) > leaf_vis(2) .and. leaf_vis(2) > 0.0_c_double,  &
                  'C-API canopy: no light absorbed at night, more under the higher sun')
