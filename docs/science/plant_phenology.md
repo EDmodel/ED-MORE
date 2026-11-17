@@ -65,10 +65,11 @@ requirement: the light gate (below; at a low `par_min`, the photoperiod) does th
 meant to do, holding the flush until days are long enough (§7).
 
 The temperature is the canopy air's, not the leaf's: a deciduous cohort has no leaves while its buds
-sum the spring warmth, and the canopy air is the air its buds and twigs sit in. It differs from the
-air above the canopy at the reference height by the canopy's own warming and cooling (shaded
-understorey air on a sunny day, the radiative cooling of a clear night), so cohorts of the same PFT in
-an open and a closed patch keep different calendars.
+sum the spring warmth, and the canopy air is the air its buds and twigs sit in. A patch has one canopy
+air space, which its cohorts share. It differs from the air above the canopy at the reference height
+by the canopy's own warming and cooling (a closed canopy's shaded air on a sunny day, the radiative
+cooling of a clear night), so cohorts of one PFT in an open and a closed patch keep different
+calendars; within a patch, the cohorts' calendars differ through their light.
 
 **Light (`CUE_LIGHT`).** The hours of light $H$ [h day⁻¹]: the time each day the PAR reaching the
 cohort's top exceeds the PFT's `par_min` [µmol m⁻² s⁻¹], as a running mean $`\bar H`$ over

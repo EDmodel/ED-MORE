@@ -782,8 +782,8 @@ module test_slow_step_ledger_paths
    use ed_plant_hydr_lib,       only : water_curve_t, tissue_water_to_psi
    use ed_constants,            only : grav_head, n_soil_layer_max, umol_2_kgc
    use ed_test_support, only : banner, build_test_config, check, check_close
-   use ed_constants,          only : rho_air_ref
-   use ed_diag_vars,          only : alloc_cohort_diag, CO_FROZEN_GROWTH
+   use ed_constants,          only : rho_air_ref, day_sec
+   use ed_diag_vars,          only : alloc_cohort_diag, CO_FROZEN_GROWTH, CO_PHENO_TEMP, CO_PHENO_LIGHT
    implicit none
    private
 
@@ -844,6 +844,7 @@ contains
       call check_litter_without_soil_carbon()
       call check_recruit_pool()
       call check_frozen_stand()
+      call check_cue_rows()
    end subroutine run_ledger_paths
 
    subroutine check_routing()
@@ -1251,6 +1252,27 @@ contains
       call check_close(frozen%cohort%growth_hist(pos, 1), pos_ring, 1.0e-10_wp,                           &
                        'frozen: the growth history records the diameter rate the step would have made')
    end subroutine check_frozen_stand
+
+   !---~---
+   !   The cue rows: a vegetation step's phenology writes each cohort's cues (its canopy-air
+   ! temperature and hours of light) into its slow rows, which the step opens before anything
+   ! writes to them, so the output reads what the kernel read.
+   !---~---
+   subroutine check_cue_rows()
+      type(ed_config_t)   :: c
+      type(polygon_t)     :: st
+      type(slow_ledger_t) :: lg
+      call frozen_fixture(.true., c, st)
+      st%site%tair_day_sum(1)        = 290.0_wp
+      st%site%tair_day_n(1)          = 1_ik
+      st%cohort%pheno_temp_accum(1)  = 288.0_wp * 24.0_wp * c%dt_slow / day_sec
+      st%cohort%light_hours_accum(1) = 13.0_wp * c%dt_slow / day_sec
+      call vegetation_dynamics(st, c, lg, 150_ik)
+      call check_close(st%cohort%sdiag%v(CO_PHENO_TEMP, 1), 288.0_wp, 1.0e-12_wp,                         &
+                       'cue rows: the phenology temperature reaches its slow row')
+      call check_close(st%cohort%sdiag%v(CO_PHENO_LIGHT, 1), 13.0_wp, 1.0e-12_wp,                         &
+                       'cue rows: the hours of light reach their slow row')
+   end subroutine check_cue_rows
 
    !--- One cohort above the reproduction height, a generous day's carbon, no seed rain.
    subroutine frozen_fixture(demography_on, c, st)
