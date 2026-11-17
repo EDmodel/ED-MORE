@@ -61,7 +61,8 @@ module ed_output_registry
                                     PY_NIR_DIFFUSE, PY_SNOWFALL, PY_CO2, PY_COSZ, PY_RHO_AIR, PY_RAINF,           &
                                     CO_DDBH_DT, CO_DAGB_DT, CO_MORT_RATE, CO_NPP_LEAF, CO_NPP_FINEROOT,           &
                                     CO_NPP_WOOD, CO_NPP_STORAGE, CO_NPP_REPRO, CO_GROWTH_RESP,                    &
-                                    CO_EXUDATE, CO_FROZEN_GROWTH, PA_LITTER_LEAF, PA_LITTER_FINEROOT,             &
+                                    CO_EXUDATE, CO_FROZEN_GROWTH, CO_PHENO_TEMP, CO_PHENO_LIGHT,                  &
+                                    PA_LITTER_LEAF, PA_LITTER_FINEROOT,                                           &
                                     PA_MORT_C_BACKGROUND,                                                         &
                                     PA_MORT_C_CULL, PA_MORT_C_DISTURB, PA_LITTER_STRUCT, PA_LITTER_WOOD,          &
                                     PA_LITTER_REPRO, PA_RECRUIT_NPLANT, PA_DISTURB_AREA, PA_APAR, PA_H_CANOPY,    &
@@ -221,6 +222,11 @@ contains
                         GRP_STRUCTURE, MON, FLD_C_LEAF_FLUSH_TENDENCY)
       call add_variable(reg, 'mean_leaf_shed_tendency_co', 'smoothed leaf senescence tendency', '-', DIM_COHORT, AGG_MEAN,      &
                         GRP_STRUCTURE, MON, FLD_C_LEAF_SHED_TENDENCY)
+      !--- The phenology's daily drivers, as the kernel read them: on request.
+      call add_variable(reg, 'mean_pheno_temp_co', 'phenology temperature: the canopy air around the cohort', 'K',          &
+                        DIM_COHORT, AGG_MEAN, GRP_STRUCTURE, FREQ_NONE, FLD_C_DIAG0 + CO_PHENO_TEMP)
+      call add_variable(reg, 'mean_pheno_light_hours_co', 'phenology light cue: hours of PAR at the cohort top above par_min', &
+                        'h/day', DIM_COHORT, AGG_MEAN, GRP_STRUCTURE, FREQ_NONE, FLD_C_DIAG0 + CO_PHENO_LIGHT)
       call add_variable(reg, 'mean_dmax_psi_leaf_co', 'predawn (daily-max) leaf water potential', 'MPa', DIM_COHORT, AGG_MEAN,  &
                         GRP_STRUCTURE, DAY_MON, FLD_C_DMAX_PSI_LEAF)
       !--- Slow-loop rates off the per-step diagnostic block (poly%cohort%sdiag).

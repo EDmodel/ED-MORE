@@ -266,7 +266,7 @@ program test_fast_driver
    ! met_instant -> the fast loop.
    !---~---
    block
-      real(wp)           :: gpp_night, gpp_day, tcas_n, light_night, light_day
+      real(wp)           :: gpp_night, gpp_day, tcas_n, light_night, light_day, temp_night
       real(wp)           :: g1_ref, g2_ref, g3_ref   ! 1-thread multi-patch GPP, for the thread-invariance check
       cfg%gpp_ref = 0.0_wp     ! isolate the FORCING-driven GPP
       call build_soil_profile(cfg%soil, test_profile)            ! the site's column from [soil] from here on
@@ -282,6 +282,7 @@ program test_fast_driver
       call fast_dynamics(poly, cfg, met_src=src, met_cur=cur, step_start=NIGHT)    ! 02-04 UTC (night)
       gpp_night = poly%cohort%gpp_accum(1)
       light_night = poly%cohort%light_hours_accum(1)
+      temp_night  = poly%cohort%pheno_temp_accum(1)
       tcas_n    = poly%patch%cas(1)%can_temp      ! night canopy-air temp after the SW=0 window
 
       call init_fast_state(poly, cfg)
@@ -400,6 +401,12 @@ program test_fast_driver
       call check(light_night == 0.0_wp, 'night window -> no hours of light counted')
       call check(abs(light_day - cfg%n_fast_per_slow * cfg%dt_fast / 3600.0_wp) < 1.0e-9_wp, &
                  'day window -> every fast step counted as light (the window''s hours)')
+      !---~---
+      !   The phenology temperature: the cohort integrates its patch's canopy air [K h], so over
+      ! the night window's hours it averages to within a few K of where the canopy air ended.
+      !---~---
+      call check(abs(temp_night / (cfg%n_fast_per_slow * cfg%dt_fast / 3600.0_wp) - tcas_n) < 3.0_wp, &
+                 'night window -> the canopy-air integral averages to the canopy-air temperature')
 
       !---~---
       !   MULTI-PATCH x FORCING.

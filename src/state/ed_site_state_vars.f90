@@ -76,13 +76,14 @@ module ed_site_state_vars
       type(leaf_photo_table_t), allocatable :: leaf_photo(:)
       !--- 5. FAST-TO-SLOW ACCUMULATORS (the model reads them)
       !---~---
-      !   The daily-mean air-temperature accumulator for phenology: the fast loop sums the
+      !   The daily-mean air-temperature accumulator: the fast loop sums the
       ! site's air temperature over the slow step (reset each step), and the slow-loop
-      ! phenology and growth temperature read the mean (sum/n) then. Transient (never
-      ! restarted).
+      ! growth temperature reads the mean (sum/n) then; a count of 0 says no fast sub-step ran,
+      ! so the phenology has no drivers. (The phenology's temperature is each cohort's patch
+      ! canopy air, pheno_temp_accum.) Transient (never restarted).
       !---~---
-      real(wp),    allocatable :: pheno_tair_sum(:)
-      integer(ik), allocatable :: pheno_tair_n(:)
+      real(wp),    allocatable :: tair_day_sum(:)
+      integer(ik), allocatable :: tair_day_n(:)
       !--- 6. OUTPUT ACCUMULATORS (only output reads them; never restarted)
       type(site_diag_block) :: diag                 ! the forcing each site receives (SI_*)
    end type site_block
@@ -111,9 +112,9 @@ contains
       site%t_growth_avg = UNSET_POSITIVE
       allocate(site%leaf_photo(cap), source=leaf_photo)
       !--- 5. Fast-to-slow accumulators
-      allocate(site%pheno_tair_sum(cap), site%pheno_tair_n(cap))
-      site%pheno_tair_sum = 0.0_wp
-      site%pheno_tair_n = 0_ik
+      allocate(site%tair_day_sum(cap), site%tair_day_n(cap))
+      site%tair_day_sum = 0.0_wp
+      site%tair_day_n = 0_ik
    end subroutine alloc_site_block
 
    !--- Free every per-site array.
@@ -122,8 +123,8 @@ contains
       site%n = 0_ik
       site%cap = 0_ik
       if (allocated(site%area)) deallocate(site%area, site%patch_offset, site%patch_count, site%surface,     &
-                                           site%t_growth_avg, site%leaf_photo, site%pheno_tair_sum,          &
-                                           site%pheno_tair_n)
+                                           site%t_growth_avg, site%leaf_photo, site%tair_day_sum,          &
+                                           site%tair_day_n)
       if (allocated(site%diag%v)) deallocate(site%diag%v, site%diag%w)
       site%diag%active = .false.
    end subroutine free_site_block
