@@ -126,7 +126,7 @@ def moved(keys, a: dict, b: dict) -> float:
 def cmd_iterate(a, s) -> None:
     cfg = base_config(s)
     values = coupled.pft_values(cfg, s["keys"])
-    work = Path(a.work)
+    work = Path(a.work).resolve()
     history = []
     for i in range(int(s["fit"]["iterations"])):
         print(f"iteration {i + 1}")
@@ -150,7 +150,7 @@ def cmd_iterate(a, s) -> None:
 def cmd_run(a, s) -> None:
     cfg = base_config(s)
     values = json.loads(Path(a.values).read_text())["values"] if a.values else coupled.pft_values(cfg, s["keys"])
-    rundir = Path(a.work) / "run"
+    rundir = Path(a.work).resolve() / "run"
     path = drivers_for(s, cfg, values, rundir)
     d = coupled.Drivers.load(path)
     check_closure(s, offline.Stand(d, stand_params(cfg, values, s["keys"], d)))
@@ -161,7 +161,7 @@ def cmd_run(a, s) -> None:
 def cmd_fit(a, s) -> None:
     cfg = base_config(s)
     values = json.loads(Path(a.values).read_text())["values"] if a.values else coupled.pft_values(cfg, s["keys"])
-    one_fit(s, cfg, values, Path(a.work) / "run", a.workers)
+    one_fit(s, cfg, values, Path(a.work).resolve() / "run", a.workers)
 
 
 def main(argv=None) -> None:
