@@ -41,7 +41,7 @@ module ed_fast_dynamics
    ! order after the loop, so the sums do not move with the thread count
    ! (docs/science/numerical_scheme.md §6a).
    !---~---
-   integer(ik), parameter :: RED_PHENO_TAIR  = 1_ik   ! daily-mean air-temperature accumulator [K]
+   integer(ik), parameter :: RED_TAIR_DAY  = 1_ik   ! daily-mean air-temperature accumulator [K]
    !--- The step report's work counters, area-weighted: slot RED_WORK + WORK_*.
    integer(ik), parameter :: RED_WORK        = 1_ik
    !--- Rain and snow as split at each patch's canopy-air top, area-weighted (docs/science/forcing.md §7).
@@ -230,9 +230,9 @@ contains
          !---~---
          sd%work%stages%slopes = surface_source_slopes_t()
          do isub = 1_ik, nsub
-            !--- The patch's forcing, the phenology's air temperature and the precipitation split.
+            !--- The patch's forcing, the site's air temperature (thermal acclimation) and the precipitation split.
             call patch_forcing(cfg, sd%static, sd%dynamic, met_site(isub, is_p), do_forcing, sd%forcing)
-            red_site(RED_PHENO_TAIR, isub, ip) = met_site(isub, is_p)%air_temp
+            red_site(RED_TAIR_DAY, isub, ip) = met_site(isub, is_p)%air_temp
             red_site(RED_RAINF,      isub, ip) = area * sd%forcing%rainfall
             red_site(RED_SNOWFALL,   isub, ip) = area * sd%forcing%snowfall
 
@@ -245,7 +245,7 @@ contains
             end do
             call record_substep(poly, ip, isub, cfg%dt_fast, sd%static, sd%dynamic, sd%forcing, sd%out,  &
                                 do_fast, out_bufs)
-            call accumulate_fast_to_slow(poly, cfg, ip, sd%forcing, sd%out)
+            call accumulate_fast_to_slow(poly, cfg, ip, sd%forcing, sd%out, sd%dynamic%cas%can_temp)
          end do
          call scatter_patch(sd%dynamic, poly, ip)
 
@@ -269,8 +269,8 @@ contains
       ! (docs/science/numerical_scheme.md §6a). A site's patches share its air temperature,
       ! so the mean over (patch, sub-step) samples is the daily mean.
       !---~---
-      poly%site%pheno_tair_sum = 0.0_wp
-      poly%site%pheno_tair_n   = 0_ik
+      poly%site%tair_day_sum = 0.0_wp
+      poly%site%tair_day_n   = 0_ik
       poly%work_integ_steps    = 0.0_wp
       poly%work_integ_rej      = 0.0_wp
       poly%work_water_nsub     = 0.0_wp
@@ -282,8 +282,8 @@ contains
       do ip = 1_ik, npatch
          do isub = 1_ik, nsub
             associate (is_s => poly%patch%owner_site(ip))
-               poly%site%pheno_tair_sum(is_s) = poly%site%pheno_tair_sum(is_s) + red_site(RED_PHENO_TAIR, isub, ip)
-               poly%site%pheno_tair_n(is_s)   = poly%site%pheno_tair_n(is_s) + 1_ik
+               poly%site%tair_day_sum(is_s) = poly%site%tair_day_sum(is_s) + red_site(RED_TAIR_DAY, isub, ip)
+               poly%site%tair_day_n(is_s)   = poly%site%tair_day_n(is_s) + 1_ik
             end associate
             associate (w => red_site(RED_WORK + 1_ik:RED_WORK + N_WORK, isub, ip))
                poly%work_integ_steps  = poly%work_integ_steps  + w(WORK_INTEG_STEPS)

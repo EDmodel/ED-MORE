@@ -107,6 +107,7 @@ module ed_cohort_state_vars
       real(wp),    allocatable :: stem_resp_accum(:)      ! [kgC/plant] stem maintenance respiration
       real(wp),    allocatable :: root_resp_accum(:)      ! [kgC/plant] fine-root maintenance respiration
       real(wp),    allocatable :: light_hours_accum(:)    ! [h] time the PAR at its top exceeded par_min
+      real(wp),    allocatable :: pheno_temp_accum(:)     ! [K h] its patch's canopy-air temperature, time-integrated
       real(wp),    allocatable :: dmax_psi_leaf_accum(:)  ! [MPa] today's running max leaf potential
       !--- 10. OUTPUT ACCUMULATORS (ed_diag_vars; never restarted)
       type(cohort_diag_block) :: diag    ! fast-loop diagnostics
@@ -213,12 +214,14 @@ contains
       cohort%growth_hist = 0.0_wp
       !--- 9. Fast-to-slow accumulators
       allocate(cohort%gpp_accum(cap), cohort%leaf_resp_accum(cap), cohort%stem_resp_accum(cap),                &
-               cohort%root_resp_accum(cap), cohort%light_hours_accum(cap), cohort%dmax_psi_leaf_accum(cap))
+               cohort%root_resp_accum(cap), cohort%light_hours_accum(cap), cohort%pheno_temp_accum(cap),     &
+               cohort%dmax_psi_leaf_accum(cap))
       cohort%gpp_accum = 0.0_wp
       cohort%leaf_resp_accum = 0.0_wp
       cohort%stem_resp_accum = 0.0_wp
       cohort%root_resp_accum = 0.0_wp
       cohort%light_hours_accum = 0.0_wp
+      cohort%pheno_temp_accum = 0.0_wp
       cohort%dmax_psi_leaf_accum = DMAX_PSI_LEAF_ACCUM_RESET
    end subroutine alloc_cohort_block
 
@@ -244,7 +247,8 @@ contains
                                                cohort%growth_accum, cohort%growth_count, cohort%growth_hist,   &
                                                cohort%gpp_accum, cohort%leaf_resp_accum,                       &
                                                cohort%stem_resp_accum, cohort%root_resp_accum,                 &
-                                               cohort%light_hours_accum, cohort%dmax_psi_leaf_accum)
+                                               cohort%light_hours_accum, cohort%pheno_temp_accum,        &
+                                               cohort%dmax_psi_leaf_accum)
    end subroutine free_cohort_block
 
    !---~---
@@ -329,6 +333,7 @@ contains
       tmp%stem_resp_accum(1:m)     = cohort%stem_resp_accum(1:m)
       tmp%root_resp_accum(1:m)     = cohort%root_resp_accum(1:m)
       tmp%light_hours_accum(1:m)   = cohort%light_hours_accum(1:m)
+      tmp%pheno_temp_accum(1:m)    = cohort%pheno_temp_accum(1:m)
       tmp%dmax_psi_leaf_accum(1:m) = cohort%dmax_psi_leaf_accum(1:m)
       !--- 10. Output accumulators
       !---~---
@@ -401,6 +406,7 @@ contains
       call move_alloc(src%stem_resp_accum, dst%stem_resp_accum)
       call move_alloc(src%root_resp_accum, dst%root_resp_accum)
       call move_alloc(src%light_hours_accum, dst%light_hours_accum)
+      call move_alloc(src%pheno_temp_accum, dst%pheno_temp_accum)
       call move_alloc(src%dmax_psi_leaf_accum, dst%dmax_psi_leaf_accum)
    end subroutine move_cohort_block
 
@@ -468,6 +474,7 @@ contains
       cohort%stem_resp_accum(1:m)     = cohort%stem_resp_accum(perm(1:m))
       cohort%root_resp_accum(1:m)     = cohort%root_resp_accum(perm(1:m))
       cohort%light_hours_accum(1:m)   = cohort%light_hours_accum(perm(1:m))
+      cohort%pheno_temp_accum(1:m)    = cohort%pheno_temp_accum(perm(1:m))
       cohort%dmax_psi_leaf_accum(1:m) = cohort%dmax_psi_leaf_accum(perm(1:m))
       !--- 10. Output accumulators
       !---~---
@@ -555,6 +562,7 @@ contains
       cohort%stem_resp_accum(dst)     = cohort%stem_resp_accum(src)
       cohort%root_resp_accum(dst)     = cohort%root_resp_accum(src)
       cohort%light_hours_accum(dst)   = cohort%light_hours_accum(src)
+      cohort%pheno_temp_accum(dst)    = cohort%pheno_temp_accum(src)
       cohort%dmax_psi_leaf_accum(dst) = cohort%dmax_psi_leaf_accum(src)
       !--- 10. Output accumulators
       call copy_cohort_diag(cohort%diag,  dst, src)
@@ -810,6 +818,7 @@ contains
       cohort%growth_hist(:, m)   = 0.0_wp             ! a reused slot keeps a dead cohort's samples otherwise
       cohort%overtopping_lai(m)  = 0.0_wp             ! fresh competition context (recomputed each slow step)
       cohort%light_hours_accum(m)        = 0.0_wp             ! no light seen yet this step
+      cohort%pheno_temp_accum(m)         = 0.0_wp             ! no temperature seen yet this step
       call clear_cohort_diag(cohort%diag,  m)    ! fresh diagnostics (slot may be a reused, stale cull)
       call clear_cohort_diag(cohort%sdiag, m)
       cohort%leaf_flush_tendency(m) = PHENO_FLUSH_INIT  ! born flushing
@@ -888,8 +897,9 @@ contains
       call blend(cohort%wood_surf_water,  np_r, np_d)
       !---~---
       !   SURVIVOR-KEEPS, declared rather than left implicit: the phenology memories
-      ! (the two tendencies, the degree-day and psi sums, the light mean), light_hours_accum
-      ! (already consumed this step) and dmax_psi_leaf are absent from this routine ON PURPOSE,
+      ! (the two tendencies, the degree-day and psi sums, the light mean), light_hours_accum and
+      ! pheno_temp_accum (already consumed this step) and dmax_psi_leaf are absent from this
+      ! routine ON PURPOSE,
       ! so the survivor keeps its own. Two cohorts only fuse when they already match in size,
       ! height and PFT, and every one of these is driven by a signal both of them saw (the PAR at a
       ! shared height included), so the two memories are near-identical at fusion and a blend would

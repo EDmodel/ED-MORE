@@ -120,3 +120,30 @@ def test_daylength_is_the_model_formula():
 def test_unknown_preset_override_is_rejected():
     with pytest.raises(TypeError):
         pheno.temperate_deciduous(k_flush_max=0.1)            # not a Params field
+
+
+def test_run_is_phenology_step_over_many_columns():
+    """The batch `run` gives, column by column and day by day, what `Phenology.step` gives; a run
+    split in two, carrying the state and the cover, gives what one call gives."""
+    _lib_or_skip()
+    import numpy as np
+    p = pheno.temperate_deciduous(leaf_turnover_rate=0.2)
+    days = np.arange(500)
+    doy = days % 365 + 1
+    temp = 283.15 + 12.0 * np.cos(2.0 * np.pi * (doy - 201) / 365.0)
+    temp = np.vstack([temp, temp - 3.0, temp + 2.0])                 # three cohorts, three canopy airs
+    hours = np.array([pheno.daylength(42.5, int(d)) for d in doy])
+    out = pheno.run(p, temp, hours, doy)
+    assert out.leaf_cover.shape == out.leaf_loss.shape == (3, 500)
+    for c in range(3):
+        ph = pheno.Phenology(p)
+        for i, d in enumerate(doy):
+            day = ph.step(temp_day=temp[c, i], par_hours=hours[i], doy=int(d))
+            assert abs(out.leaf_cover[c, i] - day.leaf_cover) < 1e-12
+            assert abs(out.leaf_loss[c, i] - (day.senescence + day.background)) < 1e-12
+        assert out.state[c] == ph.state
+    first = pheno.run(p, temp[:, :180], hours[:180], doy[:180])
+    rest = pheno.run(p, temp[:, 180:], hours[180:], doy[180:], state=first.state, leaf_cover=first.leaf_cover[:, -1])
+    assert np.array_equal(np.hstack([first.leaf_cover, rest.leaf_cover]), out.leaf_cover)
+    first_gdd = [s.growing_degree_days for s in first.state]            # each column's own warmth (day 1 resets)
+    assert np.allclose(first_gdd, np.maximum(temp[:, :180] - p.flush_base_temp, 0.0).sum(axis=1), rtol=1e-12)

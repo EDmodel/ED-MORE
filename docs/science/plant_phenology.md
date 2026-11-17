@@ -17,8 +17,9 @@ phenology scheme switch. An evergreen is a PFT whose senescence stops at a **lea
 **Timescale and inputs.** The cue kernel runs once per slow step (`[run].dt_slow`, a day by default),
 at the start of the vegetation phase, before trait acclimation and carbon allocation
 (`ed_slow_dynamics`: `vegetation_dynamics`; [`order_of_processes.md`](order_of_processes.md)). Its
-drivers are accumulated by the fast loop over the step's fast steps (see Drivers, below): the site's
-mean air temperature, each cohort's hours of light and its predawn leaf water potential. A slow step
+drivers are accumulated by the fast loop over the step's fast steps (see Drivers, below): the mean
+temperature of the canopy air around each cohort, each cohort's hours of light and its predawn leaf
+water potential. Each cue is what the cohort itself feels where it stands. A slow step
 with no fast steps does not advance the memory. The carbon layer (`leaf_turnover_step`) runs in the
 same slow step, inside the carbon allocation ([`plant_carbon_allocation.md`](plant_carbon_allocation.md)).
 Phenology never reads soil data.
@@ -48,7 +49,8 @@ There is no separate width parameter: the sharpness is the only scale.
 
 ## 2. The cues
 
-**Temperature (`CUE_TEMP`).** Two degree-day sums of the daily-mean air temperature $T$:
+**Temperature (`CUE_TEMP`).** Two degree-day sums of the daily-mean temperature $T$ of the canopy air
+around the cohort (its patch's canopy air space):
 
 ```math
 W \mathrel{+}= \max(0,\ T - T_{\mathrm{fl}})\,dt, \qquad
@@ -61,6 +63,12 @@ Both restart at midwinter (the first step of the northern-equivalent year). In t
 (`doy_effective`), so the same parameters describe the same seasons. There is no chilling
 requirement: the light gate (below; at a low `par_min`, the photoperiod) does the work chilling was
 meant to do, holding the flush until days are long enough (§7).
+
+The temperature is the canopy air's, not the leaf's: a deciduous cohort has no leaves while its buds
+sum the spring warmth, and the canopy air is the air its buds and twigs sit in. It differs from the
+air above the canopy at the reference height by the canopy's own warming and cooling (shaded
+understorey air on a sunny day, the radiative cooling of a clear night), so cohorts of the same PFT in
+an open and a closed patch keep different calendars.
 
 **Light (`CUE_LIGHT`).** The hours of light $H$ [h day⁻¹]: the time each day the PAR reaching the
 cohort's top exceeds the PFT's `par_min` [µmol m⁻² s⁻¹], as a running mean $`\bar H`$ over
@@ -287,7 +295,7 @@ with the listed key it most likely meant.
 
 | cue | driver | source |
 |---|---|---|
-| TEMP | daily-mean air temperature | fast-loop `pheno_tair` reduction |
+| TEMP | the daily-mean temperature of the canopy air around the cohort | its patch's canopy-air temperature (`cas%can_temp`), time-integrated per fast step in `pheno_temp_accum` |
 | LIGHT | the hours a day the visible light (beam + downward diffuse) reaching the top of the cohort's layer exceeds `par_min` | two-stream `incid_top`, counted per fast step in `light_hours_accum` |
 | WATER | the cohort's predawn (daily-maximum) leaf water potential | `dmax_psi_leaf`, the last completed day's maximum, the same value that drives the stomatal stress limb |
 
@@ -305,10 +313,12 @@ per-cohort state and are written to the state file.
 | cue bits | `ed_pft_params`: `CUE_*`, beside the cue masks |
 | helpers | `ed_numerics`: `logistic`, `clamp01`; `ed_time`: `doy_effective` |
 | per-cohort advance (slow step) | `ed_slow_state`: `advance_leaf_phenology` |
+| canopy-air temperature around each cohort | `ed_fast_state`: `accumulate_fast_to_slow` (`pheno_temp_accum`) |
 | hours of light at each cohort's top | `ed_canopy_radiation`: `rad_out_t%incid_top`; `ed_fast_forcing` (`par_top`); `ed_fast_state`: `accumulate_fast_to_slow` (`light_hours_accum`) |
+| what each cohort's cues read (outputs, off by default) | `mean_pheno_temp_co` [K], `mean_pheno_light_hours_co` [h/day] (slow rows `CO_PHENO_TEMP`, `CO_PHENO_LIGHT`) |
 | turnover-first carbon demand | `ed_plant_carbon_allocation`: `cohort_carbon_demand` (called from `ed_slow_state`: `compute_carbon_allocation`) |
-| C API | `ed_c_api_phenology`: `ed_phenology_step`, `ed_leaf_turnover_step`, `ed_daylength` |
-| Python front end + example | `edmore.plant.pheno`; `examples/example02_canopy_phenology/` |
+| C API | `ed_c_api_phenology`: `ed_phenology_step`, `ed_phenology_run` (many columns, many days, one call), `ed_leaf_turnover_step`, `ed_daylength` |
+| Python front end + example | `edmore.plant.pheno` (`Phenology.step`, `run`); `examples/example02_canopy_phenology/` |
 
 ## References
 

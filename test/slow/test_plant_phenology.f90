@@ -19,13 +19,14 @@
 !   7. DEGENERATE / FPE    : extreme drivers keep the potentials finite and >= 0.
 !   8. LEAF TURNOVER STEP  : background, senescence, the leaf-cover floor (an emergent
 !                            evergreen), the dormant snap to bare, the pool clamp.
-!   9. THE C-API SHIM      : the bind(c) mirrors carry every value to the kernel and back.
+!   9. THE C-API SHIM      : the bind(c) mirrors carry every value to the kernel and back;
+!                            the batch run gives what the one-day calls give.
 !---~---
 program test_plant_phenology
    use ed_test_assert, only : check, check_close, check_true, banner, test_report
    use, intrinsic :: iso_c_binding, only : c_double, c_int
    use ed_c_api_phenology,   only : pheno_env_c, pheno_args_c, pheno_state_c, pheno_out_c,        &
-                                    ed_phenology_step, ed_leaf_turnover_step, ed_daylength
+                                    ed_phenology_step, ed_phenology_run, ed_leaf_turnover_step, ed_daylength
    use ed_kinds,             only : wp, ik
    use ed_constants,         only : yr_day
    use ed_time,              only : daylength
@@ -440,6 +441,80 @@ contains
       call check_close(ed_daylength(0.0_c_double, 172_c_int), 12.0_wp, 0.5_wp, 'daylength: equator ~12 h')
       call check(ed_daylength(60.0_c_double, 172_c_int) > 18.0_wp, 'daylength: 60 N in June > 18 h')
       call check(ed_daylength(80.0_c_double, 355_c_int) < 0.5_wp, 'daylength: 80 N in December ~0 h')
+
+      !---~---
+      !   7. ed_phenology_run, the batch an offline fit calls: two columns, one 3 K cooler, over
+      ! 400 days must give what the one-day calls give, day by day (the kernel, then the leaf
+      ! rule); a run split in two, carrying the state and the cover, the same as one call; and
+      ! after the first half each column's warmth sum is its own temperatures' (from midwinter,
+      ! day 1) -- each column keeps its own memory.
+      !---~---
+      block
+         integer(c_int), parameter :: ND = 400_c_int, NC = 2_c_int, NH = 200_c_int
+         real(c_double), parameter :: TURN = 0.1_c_double, FLOOR = 0.0_c_double, BARE = 0.02_c_double
+         integer(c_int)      :: doy(ND)
+         real(c_double)      :: temp(ND, NC), hours(ND, NC), psi(ND, NC), rate(ND, NC)
+         real(c_double)      :: cover(NC), cover_out(ND, NC), loss_out(ND, NC)
+         real(c_double)      :: cover2(NC), cover_a(ND, NC), loss_a(ND, NC)
+         type(pheno_state_c) :: st_run(NC), st_two(NC), st_one
+         real(c_double)      :: c, post, worst, worst_split, gdd_own
+         integer             :: id, ic
+
+         p = base_params(CUE_TEMP + CUE_LIGHT, CUE_TEMP + CUE_LIGHT)
+         do id = 1, ND
+            doy(id)      = int(mod(id - 1, 365) + 1, c_int)
+            hours(id, :) = ed_daylength(real(LAT, c_double), doy(id))
+            temp(id, 1)  = annual_temp(int(doy(id), ik))
+            temp(id, 2)  = temp(id, 1) - 3.0_c_double
+         end do
+         psi    = -0.1_c_double
+         rate(:, 1) = TURN
+         rate(:, 2) = 2.0_c_double * TURN                     ! a shaded cohort turns its leaves over faster
+         st_run = birth_state()
+         cover  = 1.0_c_double
+         call ed_phenology_run(NC, ND, p, FLOOR, BARE, DT, 1_c_int, doy, temp, hours, psi, rate, st_run, cover,  &
+                               cover_out, loss_out)
+         worst = 0.0_c_double
+         do ic = 1, NC
+            st_one = birth_state()
+            c      = 1.0_c_double
+            do id = 1, ND
+               env%temp_day         = temp(id, ic)
+               env%par_hours        = hours(id, ic)
+               env%predawn_leaf_psi = psi(id, ic)
+               env%doy              = doy(id)
+               env%hemis_north      = 1_c_int
+               call ed_phenology_step(env, p, DT, st_one, out)
+               call ed_leaf_turnover_step(c, 1.0_c_double, st_one%leaf_flush_tendency, st_one%leaf_shed_tendency,  &
+                                          p%flush_rate_max, p%shed_rate_max, rate(id, ic), FLOOR, BARE, DT,      &
+                                          sen, bg, cap)
+               post  = c - sen - bg
+               c     = post + min(max(0.0_c_double, 1.0_c_double - post), cap)
+               worst = max(worst, abs(cover_out(id, ic) - c), abs(loss_out(id, ic) - (sen + bg)))
+            end do
+            worst = max(worst, abs(cover(ic) - c),                                                             &
+                        abs(st_run(ic)%cold_degree_days - st_one%cold_degree_days),                            &
+                        abs(st_run(ic)%leaf_shed_tendency - st_one%leaf_shed_tendency),                        &
+                        abs(st_run(ic)%light_hours_mean - st_one%light_hours_mean))
+         end do
+         call check(worst <= 1.0e-12_wp, 'batch run: every day and column as the one-day calls give')
+
+         st_two = birth_state()
+         cover2 = 1.0_c_double
+         call ed_phenology_run(NC, NH, p, FLOOR, BARE, DT, 1_c_int, doy(1:NH), temp(1:NH, :), hours(1:NH, :),       &
+                               psi(1:NH, :), rate(1:NH, :), st_two, cover2, cover_a(1:NH, :), loss_a(1:NH, :))
+         do ic = 1, NC
+            gdd_own = sum(max(0.0_c_double, temp(1:NH, ic) - p%flush_base_temp))
+            call check_close(st_two(ic)%growing_degree_days, gdd_own, 1.0e-9_wp,                              &
+                             'batch run: each column sums its own warmth (columns keep their own memory)')
+         end do
+         call ed_phenology_run(NC, ND - NH, p, FLOOR, BARE, DT, 1_c_int, doy(NH+1:), temp(NH+1:, :),                &
+                               hours(NH+1:, :), psi(NH+1:, :), rate(NH+1:, :), st_two, cover2, cover_a(NH+1:, :),   &
+                               loss_a(NH+1:, :))
+         worst_split = max(maxval(abs(cover_a - cover_out)), maxval(abs(loss_a - loss_out)),                       &
+                           maxval(abs(cover2 - cover)))
+         call check(worst_split <= 1.0e-12_wp, 'batch run: two calls carrying state and cover == one call')
+      end block
    end subroutine test_c_api_shim
 
 
