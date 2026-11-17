@@ -43,6 +43,11 @@ exclude         = [ { start = "2024-04-03", end = "2024-04-09", reason = "the mo
 chain_lead_days = 365          # the stand is frozen, so each chain runs the phenology: a year of it, from
                                #   the census's full leaf to the window's own canopy (windows from 2020)
 
+# The seasonal run (the soil drying, scored on LE): 90 days, so a run ending at a summer's deepest deficit lies
+# inside the leaf-on months (June-September, 122 days); 2022's drought (412 mm on 4 September) qualifies.
+[seasonal_runs]
+days = 90
+
 # The conifers' summer capacity: Kattge et al. 2009's evergreen coniferous forest.
 [priors.vcmax25_pft2]
 centre = 58.0

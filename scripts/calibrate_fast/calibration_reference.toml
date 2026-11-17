@@ -97,7 +97,9 @@ exclude      = [ { start = "2016-01-03", end = "2016-01-09", reason = "example" 
 # The seasonal runs (soil drying): frozen runs long enough for the soil to dry, scored on LE only, rows of the joint fit
 # beside the ten-day windows. By the rule, up to max_runs runs, each ending at a year's deepest cumulative water deficit
 # (rain minus Priestley-Taylor evaporation, from the forcing) inside the leaf-on months, the deepest years first; a year
-# whose deficit stays under min_deficit_mm gives none, and without any the drought keys are fixed.
+# whose deficit stays under min_deficit_mm gives none, and so does a run that would start outside the leaf-on months
+# (a season shorter than `days`: shorten them) or whose coverage of its own targets is under [windows].min_coverage.
+# Without any the drought keys are fixed; `report` gives each year's reasons.
 [seasonal_runs]
 days           = 120
 targets        = ["le"]          # LE only: scored on GPP too, a tower GPP with a biased respiration sets the strongest stress

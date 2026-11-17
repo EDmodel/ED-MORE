@@ -231,8 +231,11 @@ class Calibration:
         deficit = data_rules.water_deficit(data_rules.forcing_daily(self.forcing, self.forcing_grid))
         seasonal = {"source": "the calibration's list"}
         if not self.seasonal_runs and int(s["seasonal_runs"]["max_runs"]) > 0:
+            #----- a run's coverage counts the fluxes it is scored on (LE), not a window's three
+            run_scores = data_rules.day_scores(obs, observed, self.daytime_sw, self.utc_offset_h,
+                                               targets=s["seasonal_runs"]["targets"])
             runs, seasonal = data_rules.seasonal_runs(deficit, s["seasonal_runs"], self.site.leaf_on_months, first,
-                                                      scores, float(s["windows"]["min_coverage"]))
+                                                      run_scores, float(s["windows"]["min_coverage"]))
             self.seasonal_runs = [Window(n, start, days, "seasonal") for n, start, days in runs]
         self.data = Data(obs=obs, forcing_observed=observed, sun_elevation=sun, reader=reader, ustar=ustar,
                          closure=closure, sigma=sigma, windows=windows, seasonal=seasonal, deficit=deficit,

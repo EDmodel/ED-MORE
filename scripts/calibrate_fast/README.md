@@ -138,8 +138,10 @@ python calibrate_fast.py fit ... --queue
   makes and the site did not have).
 - **Seasonal runs follow a rule** (`[seasonal_runs]`): up to two 120-day runs, each ending at a year's
   deepest cumulative water deficit (rain minus Priestley–Taylor evaporation, from the forcing) inside
-  the leaf-on months, scored on LE only. A year under 100 mm gives none; without any, the drought keys
-  are fixed.
+  the leaf-on months, scored on LE only. A run must lie inside the leaf-on months and reach the
+  coverage of LE alone (its own target, not the windows' three); a site with a short growing season
+  shortens the runs (`days`). A year under 100 mm gives none; without any, the drought keys are fixed,
+  and `report` gives each year's reasons.
 - **Chains.** Every window has its own chain: a run from the initial stand (the base config's census
   or state) that starts `[windows].chain_lead_days` (180) before it. The chains run at once. When the
   base config freezes the stand (`[demography].demography_on = false`), a chain runs the slow tier, so

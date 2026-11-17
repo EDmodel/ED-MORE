@@ -667,7 +667,22 @@ def test_seasonal_runs_end_at_the_deepest_water_deficit():
     assert {y["year"]: y["usable"] for y in rep["years"]} == {2015: False, 2016: True, 2017: False}
     runs, rep = data_rules.seasonal_runs(deficit, {"days": 120, "max_runs": 2, "min_deficit_mm": 1000.0},
                                          list(range(1, 13)), pd.Timestamp("2015-01-01"), scores, 0.5)
-    assert runs == [] and "drought keys are fixed" in rep["note"]
+    assert runs == [] and "drought keys are fixed" in rep["note"] and "deficit under 1000 mm" in rep["note"]
+    #----- a run longer than the leaf-on season says so
+    runs, rep = data_rules.seasonal_runs(deficit, {"days": 120, "max_runs": 2, "min_deficit_mm": 100.0},
+                                         [2, 3, 4], pd.Timestamp("2015-01-01"), scores, 0.5)
+    assert runs == [] and "outside the leaf-on months" in rep["note"]
+
+
+def test_a_seasonal_run_counts_the_fluxes_it_is_scored_on():
+    """GPP measured on few records drags a window's coverage down, not an LE-only run's."""
+    idx = pd.date_range("2016-06-01", "2016-06-10 23:00", freq="1h")
+    sw = np.clip(800 * np.sin(np.pi * (idx.hour.to_numpy() - 6) / 12), 0, None)
+    obs = pd.DataFrame({"sw_in": sw, "h": 1.0, "le": 1.0, "gpp": np.where(idx.hour % 3 == 0, 1.0, np.nan)}, index=idx)
+    forcing = pd.Series(True, index=idx)
+    three = data_rules.day_scores(obs, forcing, 10.0, 0.0)
+    le = data_rules.day_scores(obs, forcing, 10.0, 0.0, targets=["le"])
+    assert three.mean() < 0.5 and le.mean() == pytest.approx(1.0)
 
 
 def test_priestley_taylor_and_the_range_coverage():

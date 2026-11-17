@@ -81,7 +81,9 @@ struct_lignin_frac     = [0.25, 0.30]
 [allometry]
 # Example 07's Harvard allometry (its run_example.py, HARVARD_PFT; fit_allometry.py): height on Chave's
 # log-quadratic, each PFT fitted to the 3,400 trees NEON measured at HARV, capped at the lidar canopy top;
-# the deciduous leaf area scaled to a July LAI of 3.95 around NEON's sensors.
+# the deciduous leaf area scaled to a July LAI of 3.95 around NEON's sensors. Here the broadleaves'
+# lai_b1 is scaled down so the stand's July-August LAI is the mean of MODIS and the LAI-2000 (4.54:
+# broadleaves 2.80, conifers 1.74); the conifers' winter LAI, 1.19, already matches their mean (1.20).
 height_allometry = ["chave2014", "chave2014"]
 chave_a    = [0.47289, 0.43288]
 chave_b    = [1.0693, 0.71177]
@@ -93,7 +95,7 @@ b1Ht       = 1.139963                 # the power law, unused on "chave2014"
 b2Ht       = 0.564899
 agb_c1     = 0.03365
 agb_c2     = 0.976
-lai_b1     = [0.1746, 0.23384770]
+lai_b1     = [0.12457, 0.23384770]   # the broadleaves' scaled by 0.713: see the comment above
 lai_b2     = 0.6410495
 wai_b1     = [0.0096, 0.0096]
 wai_b2     = [2.0947, 2.0947]
