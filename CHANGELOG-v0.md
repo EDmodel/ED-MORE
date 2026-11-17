@@ -116,6 +116,12 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   wood passes more of a high sun and less of a low one, most visibly in a leafless canopy. BCI (example
   04, calibrated, August 2012 to July 2013): GPP +0.26 %, LE +0.46 %, H +0.03 %, upwelling shortwave
   −1.0 %. Examples 03–06 are not rerun. (#84)
+- The phenology temperature cue reads the canopy air around each cohort (its patch's canopy-air
+  temperature, the day's mean) instead of the site's air temperature above the canopy; the light cue
+  already read each cohort's own top. At Harvard Forest (example 04's tower forcing, the frozen stand,
+  example 02's broadleaf parameters, 2019–2021) the broadleaf canopy's half-green and half-fallen days
+  move by under a day above 10 m and by up to 2.7 days below it. The region test's January–February
+  run is bit for bit: its canopy air stays below the warmth base. (#88)
 
 ### Added
 
@@ -161,6 +167,12 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - Example 07, canopy radiation against NEON's PAR sensors at six heights and on the floor at Harvard
   Forest, leaf-off and leaf-on, with stands from the ForestGEO census and the foliage optics calibrated
   to the light below the crowns in 2019 and tested on 2021. (#85)
+- Each cohort's phenology cues as output, off by default: `mean_pheno_temp_co` [K], the daily-mean
+  canopy air around it, and `mean_pheno_light_hours_co` [h/day], the hours of PAR at its top above
+  `par_min`. (#88)
+- The C API's `ed_phenology_run` and `edmore.plant.pheno.run`: the phenology kernel and leaf rule over
+  many cohorts and days in one call, each with its own daily cues and leaf turnover rate; day by day
+  what `Phenology.step` gives, bit for bit. (#88)
 
 ### Changed
 
