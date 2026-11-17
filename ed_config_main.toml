@@ -131,10 +131,14 @@ t_ref_air        = 273.15     # [K]   reference temperature of the two air prope
 
 [demography]
 # The stand's structure (docs/science/demography.md; docs/configuration.md "Cohort and patch fusion").
-demography_on             = true     # false: the stand's structure is frozen (growth and mortality run)
-# ---- One switch per operator, each under demography_on. The cull (min_cohort_agb,
-# negligible_nplant) and patch termination (min_patch_area) have no switch of their own: they run
-# whenever demography_on does, to keep the blocks bounded. ----
+demography_on             = true     # false: the stand is frozen: no growth in size, no mortality, no
+                                     #   recruitment, no restructuring; phenology, the carbon allocation,
+                                     #   storage and soil carbon run, and the wood and recruits the stand
+                                     #   cannot build leave it as frozen growth carbon (demography.md §7)
+# ---- One switch per operator, each under demography_on; the fusion and fission switches also
+# restructure a census start, whatever demography_on is. The cull (min_cohort_agb, negligible_nplant)
+# and patch termination (min_patch_area) have no switch of their own: they run whenever
+# demography_on does, to keep the blocks bounded. ----
 recruitment_on            = true     # monthly: a recruit pool of min_recruit_size founds a cohort
 cohort_fusion_on          = true     # monthly, and yearly after patch fusion: similar cohorts fuse
 cohort_fission_on         = true     # monthly: a cohort above cohort_lai_cap splits

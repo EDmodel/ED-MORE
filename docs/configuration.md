@@ -118,8 +118,11 @@ records its thread count ([`science/numerical_scheme.md`](science/numerical_sche
 ### Slow-step switches
 
 - `[run].slow_on = false` skips the whole slow step: growth, mortality, phenology, traits, demography
-  and soil carbon. The stand stays as it is while the fast loop runs. It is broader than
-  `[demography].demography_on`, which freezes only the restructuring.
+  and soil carbon. The stand stays as it is while the fast loop runs, leaves included. It is broader than
+  `[demography].demography_on`, whose `false` freezes the stand's structure (no growth in size, no
+  mortality, no recruitment, no restructuring) while the phenology, the carbon allocation, storage
+  and soil carbon run: the leaves follow the season on a fixed stand
+  ([demography](science/demography.md) §7).
 - `[run].slow_ledger_on` (default on) snapshots the site's carbon, water and energy stores either side
   of every slow-step operator, and prints at the end of the run what each operator could not account
   for, judged against the flux it declared

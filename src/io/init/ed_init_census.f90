@@ -231,13 +231,14 @@ contains
    ! and switches: its monthly cohort block, then its yearly patch block, less recruitment
    ! and disturbance. A census carries a cohort per measured size and a patch per plot
    ! cell, far more than a step should carry (docs/configuration.md, How a run starts).
+   ! This builds the starting stand, so it runs whether or not the stand then changes
+   ! ([demography].demography_on): a frozen run starts from the stand a dynamic one does.
    !---~---
    subroutine restructure_census_stand(poly, cfg)
       type(polygon_t),     intent(inout) :: poly
       type(ed_config_t), intent(in)      :: cfg
       real(wp) :: water_shed, kill_carbon   ! what the cull handed on; a start books no ledger
       type(kill_report_t) :: kills
-      if (.not. cfg%demography%demography_on) return
       if (cfg%demography%cohort_fusion_on) call fuse_cohorts(poly, cfg)
       call terminate_cohorts(poly, cfg, water_shed, kills)
       call kill_litter(poly, kills, kill_carbon)

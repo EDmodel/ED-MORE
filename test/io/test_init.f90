@@ -153,12 +153,25 @@ contains
       call check_close(sum([(poly%patch%area(poly%cohort%owner_patch(i)) * poly%cohort%nplant(i)             &
                              * poly%cohort%agb(i), i = 1_ik, poly%cohort%n)]), agb0, 1.0e-12_wp,         &
                        'restructuring must conserve the site''s biomass')
-      !--- With demography off it leaves the stand alone.
+      !---~---
+      !   Restructuring builds the starting stand, so a frozen run ([demography].demography_on =
+      ! false) gets the same one; with the fusion switches off it leaves the stand alone.
+      !---~---
       call init_from_census(poly, cfg, 'test_census_cells.csv', found)
       cfg%demography%demography_on = .false.
       call restructure_census_stand(poly, cfg)
-      call check(poly%patch%n == 20_ik .and. poly%cohort%n == 60_ik, 'restructuring must honour the switches')
+      call check(poly%patch%n == 1_ik .and. poly%cohort%n == 2_ik,                                       &
+                 'a census start fuses whether or not the stand then changes')
       cfg%demography%demography_on = .true.
+      call init_from_census(poly, cfg, 'test_census_cells.csv', found)
+      cfg%demography%cohort_fusion_on  = .false.
+      cfg%demography%cohort_fission_on = .false.
+      cfg%demography%patch_fusion_on   = .false.
+      call restructure_census_stand(poly, cfg)
+      call check(poly%patch%n == 20_ik .and. poly%cohort%n == 60_ik, 'restructuring must honour the switches')
+      cfg%demography%cohort_fusion_on  = .true.
+      cfg%demography%cohort_fission_on = .true.
+      cfg%demography%patch_fusion_on   = .true.
       open(newunit=u, file='test_census_cells.csv', status='old', action='read')
       close(u, status='delete')
       !---~---

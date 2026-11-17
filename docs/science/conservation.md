@@ -110,7 +110,12 @@ would hide it. The declared terms:
   canopy air, against the frozen pool. The soil step debits it, and the ledger declares the step's
   own debit, so what is left in the residual is exactly the seam gap the soil-carbon contract asserts
   on ([soil_carbon](soil_carbon.md) §7).
-- **The seed rain** (grow+mortality, in): recruits no parent at the site paid for.
+- **The seed rain** (grow+mortality, in): recruits no parent at the site paid for. A frozen stand
+  takes none.
+- **The frozen growth carbon** (grow+mortality, out): with the stand frozen
+  (`[demography].demography_on = false`), the wood the allocation built and the recruits' share of the
+  reproduction carbon, which the step does not apply ([demography](demography.md) §7). It leaves the
+  model, as wood would leave the air.
 - **A recruit's draw from outside the model** (recruit, in): its carbon beyond $`c_{\min}`$ per plant,
   its tissues' heat and its water ([demography](demography.md) §3). Recruitment is marked in a phase of its own
   because it is the one operator that creates matter: what it reports drawing from outside is

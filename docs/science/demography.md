@@ -318,6 +318,33 @@ L_{\uparrow,j} = \sum_{i\,:\,h_i > h_j} n_i\,A_{\mathrm{leaf},i} \qquad(11)
   the competition index of the demography.
 - It is refreshed after every step's re-sort and after every calendar restructuring.
 
+## 7. The frozen stand
+
+With `[demography].demography_on = false` the stand is **frozen**: its structure does not change,
+while everything else a slow step does still runs. A frozen run is for questions that want a fixed
+stand with living leaves: the fast biophysics against a flux tower over a few years, or a spin-up
+of the phenology, soil water and soil temperature before a run starts.
+
+- **Computed as in any step:** the phenology, the carbon allocation ([plant_carbon_allocation](plant_carbon_allocation.md))
+  with its growth respiration and exudate, the vital rates, the trait acclimation and the soil carbon.
+  The leaves, fine roots and storage take their allocation, so they and the canopy follow the season.
+- **Not applied:** the wood growth, so diameter, height and the full-canopy leaf target stay; the
+  mortality, so no plant dies and no mortality litter falls; the recruits' share of the reproduction
+  carbon and the seed rain, so the recruit pool stays; and no calendar restructuring (recruitment,
+  fusion, fission, treefall, the cull, patch termination).
+- **The frozen growth carbon:** the wood the allocation built and the recruits' share of the
+  reproduction carbon (eq. (5)) leave the stand as frozen growth carbon, which the slow ledger
+  declares out of the site with the litter ([conservation](conservation.md) §3). Like wood it was taken
+  from the air, so the canopy's CO₂ exchange is a growing stand's. The seed that fails to establish
+  is litter, as in any step. `mean_frozen_growth_carbon_py` and `mean_frozen_growth_carbon_co`
+  report it, on request ([diagnostics](diagnostics.md)).
+- **The growth memory:** the growth history (eq. (2)) records the diameter rate the unbuilt wood would
+  have made, so a run that turns demography on from a frozen run's state starts with a growing
+  stand's memory, not with a spell of zero growth that mortality would read as decline.
+- **A census start** is restructured as usual (§3–§4: by the fusion and fission switches and their
+  tolerances): restructuring builds the starting stand, so a frozen run starts from the stand a
+  dynamic one does.
+
 ## Parameters
 
 | Key | Meaning |
@@ -332,7 +359,7 @@ L_{\uparrow,j} = \sum_{i\,:\,h_i > h_j} n_i\,A_{\mathrm{leaf},i} \qquad(11)
 | `[demography].max_patch`, `n_patch_fusion_iter`, `patch_light_tol`, `patch_light_tol_max`, `patch_light_maxdev_factor`, `n_height_layers`, `light_ext_coeff_fusefiss`, `min_patch_area` | patch fusion and termination (§4) |
 | `[demography].patch_disturbance_rate`, `disturbance_survive_height` | eq. (7) and the survivors (§4) |
 | `[demography].min_recruit_size` | the pool that founds a cohort (§3) |
-| `[demography].demography_on`, `recruitment_on`, `cohort_fusion_on`, `cohort_fission_on`, `patch_disturbance_on`, `patch_fusion_on` | `demography_on` gates every operator below; each of the others switches one. The cull and patch termination have no switch of their own and run with `demography_on` (§3–§4) |
+| `[demography].demography_on`, `recruitment_on`, `cohort_fusion_on`, `cohort_fission_on`, `patch_disturbance_on`, `patch_fusion_on` | `demography_on = false` freezes the stand (§7); with it on, each of the others switches one operator. The cull and patch termination have no switch of their own and run with `demography_on` (§3–§4). The fusion and fission switches also restructure a census start, whatever `demography_on` is |
 
 ## Code map
 
@@ -348,6 +375,7 @@ L_{\uparrow,j} = \sum_{i\,:\,h_i > h_j} n_i\,A_{\mathrm{leaf},i} \qquad(11)
 | treefall gaps, patch fusion, termination, eq. (10) | `ed_slow_update`: `apply_patch_disturbance`, `fuse_patches`, `fuse_patch_into`, `terminate_patches`, `light_profile_of` |
 | the overtopping LAI, eq. (11) | `ed_slow_update`: `update_overtopping_lai`; `ed_numerics`: `equal_height_layers` |
 | the order of the operators | `ed_slow_dynamics`: `vegetation_dynamics`, `restructure_stand` |
+| the frozen stand (§7) | `ed_slow_state`: `hold_frozen_growth`; the growth memory in `ed_slow_update`: `update_cohort_derivatives` |
 | tests | `test/slow/test_demography.f90` (the laws), `test/slow/test_slow_update.f90` (the operators), `test/slow/test_slow_step.f90` (the step) |
 
 ## References

@@ -32,7 +32,7 @@ module ed_slow_dynamics
                                        compute_carbon_allocation, shed_turnover_water,                   &
                                        compute_vital_rates, fill_new_leaf_water,                         &
                                        accumulate_mortality_litter, shed_mortality_water,                &
-                                       shed_excess_tissue_water, advance_soil_carbon
+                                       shed_excess_tissue_water, advance_soil_carbon, hold_frozen_growth
    use ed_slow_update,          only : accumulate_recruit_pool, commit_vegetation_step, sort_cohorts,    &
                                        update_overtopping_lai, age_patches, refresh_canopy_depth,        &
                                        apply_recruitment, fuse_cohorts, terminate_cohorts,               &
@@ -99,7 +99,7 @@ contains
       type(slow_ledger_t), intent(inout) :: ledger   ! the slow ledger; an inactive one books nothing
       integer(ik),         intent(in), optional :: doy   ! day-of-year at the step start (drives phenology)
       type(slow_step_data_t) :: step
-      real(wp)               :: mort_water, seed_rain_carbon, handover, litter_open
+      real(wp)               :: mort_water, seed_rain_carbon, handover, litter_open, frozen_carbon
       real(wp), allocatable  :: leaf_carbon_new(:), storage_new(:)
 
       !---~---
@@ -149,10 +149,18 @@ contains
 
       !---~---
       !   2b. Credit the recruit pool with this step's recruitment, and declare the seed rain
-      ! as carbon in: no parent at the site paid for it (docs/science/demography.md §2).
+      ! as carbon in: no parent at the site paid for it (docs/science/demography.md §2). With
+      ! the stand frozen ([demography].demography_on = false) nothing recruits, grows or dies:
+      ! the wood growth and the recruits' share of the reproduction are held out of the stand
+      ! as frozen growth carbon, declared out below (demography.md §7).
       !---~---
-      call accumulate_recruit_pool(poly, cfg, step%recruitment, cfg%dt_years, seed_rain_carbon)
-      call slow_ledger_declare(ledger, carbon_in = seed_rain_carbon)
+      frozen_carbon = 0.0_wp
+      if (cfg%demography%demography_on) then
+         call accumulate_recruit_pool(poly, cfg, step%recruitment, cfg%dt_years, seed_rain_carbon)
+         call slow_ledger_declare(ledger, carbon_in = seed_rain_carbon)
+      else
+         call hold_frozen_growth(poly, cfg, step, frozen_carbon)
+      end if
 
       !---~---
       !   3. Growth and mortality. The commit and the new leaves' water leave the temperatures
@@ -179,15 +187,16 @@ contains
       call sort_cohorts(poly)
 
       !---~---
-      !   The growth phase declares the fast loop's net carbon (in), the litter and the CO2 owed
-      ! to the canopy air (out) and the dying plants' water, so it closes to round-off
-      ! (docs/science/conservation.md §3).
+      !   The growth phase declares the fast loop's net carbon (in), the litter, the CO2 owed
+      ! to the canopy air and a frozen stand's unbuilt growth (out) and the dying plants' water,
+      ! so it closes to round-off (docs/science/conservation.md §3).
       !---~---
       if (ledger%active) then
          call slow_ledger_declare(ledger, carbon_in  = handover,                                    &
                                           carbon_out = litter_carbon_total(poly, poly%patch%litter_in)  &
                                                      - litter_open                                    &
-                                                     + slow_co2_handoff(poly, cfg),                &
+                                                     + slow_co2_handoff(poly, cfg)                 &
+                                                     + frozen_carbon,                              &
                                           water_out  = mort_water)
       end if
       call slow_ledger_mark(ledger, poly, cfg, SLOW_PHASE_GROW)

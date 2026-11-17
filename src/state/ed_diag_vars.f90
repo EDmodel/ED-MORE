@@ -150,7 +150,8 @@ module ed_diag_vars
    !--- 9. Carbon losses
    integer(ik), parameter, public :: CO_GROWTH_RESP  = 38_ik  ! [kgC/plant/yr]  growth respiration
    integer(ik), parameter, public :: CO_EXUDATE      = 39_ik  ! [kgC/plant/yr]  root exudate (carbon the growth sink could not use)
-   integer(ik), parameter, public :: N_CO_ROWS       = 39_ik
+   integer(ik), parameter, public :: CO_FROZEN_GROWTH = 40_ik ! [kgC/plant/yr]  growth a frozen stand does not build
+   integer(ik), parameter, public :: N_CO_ROWS       = 40_ik
 
    !---~---
    !   Fusion kind of each cohort row. The leaf and wood temperatures fuse on the heat capacity
@@ -180,7 +181,7 @@ module ed_diag_vars
         !--- 8. Carbon allocation
         FSK_EXTENSIVE, FSK_EXTENSIVE, FSK_EXTENSIVE, FSK_EXTENSIVE, FSK_EXTENSIVE,                               &
         !--- 9. Carbon losses
-        FSK_EXTENSIVE, FSK_EXTENSIVE                                                                             ]
+        FSK_EXTENSIVE, FSK_EXTENSIVE, FSK_EXTENSIVE                                                              ]
 
    !---~---
    !   PER-PATCH diagnostic fields. The fast loop fills the fast rows once per (patch, sub-step)
