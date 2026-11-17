@@ -3,12 +3,12 @@
 # Every line is the base file's, comments included, except these keys the fit set
 # (calibrated value, the base file's value; EFFECTIVE: its value belongs to this model structure;
 # KATTGE & KNORR: fixed at the growth temperature's value, not fitted):
-#   pft.leaf_angle_mean            31.193  (33.9)
-#   pft.vcmax25                    59.8215  (60)
-#   pft.stomatal_g1                6.40643  (4.45)
-#   pft.stomatal_g1 (PFT 2)        0.948153  (2.35)
-#   pft.stomatal_g0                0.00351302  (0.01)
-#   pft.stomatal_g0 (PFT 2)        0.00233735  (0.01)
+#   pft.leaf_angle_mean            32.453  (33.9)
+#   pft.vcmax25                    58.2835  (60)
+#   pft.stomatal_g1                6.20226  (4.45)
+#   pft.stomatal_g1 (PFT 2)        1.1055  (2.35)
+#   pft.stomatal_g0                0.0038647  (0.01)
+#   pft.stomatal_g0 (PFT 2)        0.00196405  (0.01)
 #   pft.jmax_vcmax_ratio           1.92554  (1.8)  KATTGE & KNORR
 #   pft.jmax_vcmax_ratio (PFT 2)   1.92554  (1.7)  KATTGE & KNORR
 # The Harvard site's two PFTs: 1 the cold-deciduous broadleaves (red oak, red maple, birches, beech),
@@ -32,13 +32,13 @@ include_pft        = [1, 1]
 min_cohort_height  = 2.0              # [m]
 min_repro_height   = [13.9, 13.9]     # [m]
 photosynthetic_pathway = [1, 1]
-vcmax25            = [59.8215, 45.0]     # [umol/m2/s] the repository's PFT 1 and 2; the calibration fits it
+vcmax25            = [58.2835, 45.0]     # [umol/m2/s] the repository's PFT 1 and 2; the calibration fits it
 jmax_vcmax_ratio   = [1.92554, 1.92554]
 tpu_vcmax_ratio    = [0.167, 0.167]
 rd_vcmax_ratio     = [0.015, 0.015]
 kp25               = [1.0e-9, 1.0e-9]
-stomatal_g0        = [0.00351302, 0.00233735]
-stomatal_g1        = [6.40643, 0.948153]     # Medlyn [kPa^0.5]: deciduous angiosperm trees and evergreen gymnosperms
+stomatal_g0        = [0.0038647, 0.00196405]
+stomatal_g1        = [6.20226, 1.1055]     # Medlyn [kPa^0.5]: deciduous angiosperm trees and evergreen gymnosperms
                                       #   (Lin et al. 2015, Nat. Clim. Change 5:459; CLM5's BDT and NET)
 stomatal_d0        = [1500.0, 1500.0]
 quantum_yield_c4   = [0.0, 0.0]
@@ -69,14 +69,15 @@ wood_emissivity    = [0.90, 0.90]
 # the 20 m patches already hold the gaps between crowns, so the clumping within a layer is near 1.
 leaf_clumping      = [0.933, 0.933]
 wood_clumping      = [1.0, 1.0]
-leaf_angle_mean    = [31.193, 33.9]     # [deg]
+leaf_angle_mean    = [32.453, 33.9]     # [deg]
 leaf_angle_std     = [20.0, 20.0]
 wood_angle_mean    = [75.0, 75.0]     # [deg] the woody surface (unpublished TLS data: 72-76)
 wood_angle_std     = [20.0, 20.0]
 storage_cushion    = [3.0, 3.0]       # the repository's: a deciduous canopy rebuilds itself from storage each spring
 growth_resp_factor = [0.3, 0.3]
-leaf_turnover_rate_toc = [0.000106781, 0.33]   # [1/yr] deciduous: example 02's Harvard fit (its leaves go at
-                                               #   senescence); conifers: needles live about three years
+leaf_turnover_rate_toc = [0.000106781, 0.023449]   # [1/yr] the background loss while flushing. Deciduous: example
+                                                   #   02's fit (its leaves go at senescence); conifers: phenology.toml's,
+                                                   #   with the autumn shed about a third of the needles a year
 kplastic_vcmax         = [-0.1459341188305866, -0.11760191025318557]   # pft_traits.py from vcmax25
 kplastic_rd            = [-0.1459341188305866, -0.11760191025318557]
 kplastic_sla           = [0.15654750929099287, 0.12615477645341722]
@@ -130,26 +131,34 @@ root_depth_b2        = 0.4223014
 specific_root_length = 20000.0
 fine_root_radius     = 0.00025
 
-# Leaf phenology (docs/science/plant_phenology.md). PFT 1: example 02's Harvard fit (its
-# fitted_parameters.json), warmth and day length on both sides; PFT 2 always flushing, never senescing.
+# Leaf phenology (docs/science/plant_phenology.md), warmth and day length on both sides, fitted by
+# phenology.toml (scripts/calibrate_phenology) with each cohort's own cues: the broadleaves to HF003's
+# tagged trees, HF069's LAI-2000 and litter, and MODIS; the conifers, which shed a share of their needles
+# each autumn down to min_leaf_cover and grow new shoots in early summer, to HF003's and HF069's
+# climatologies and their needles' lifespan. par_min, the cue masks, the conifers' flush_light_sharpness and
+# min_leaf_cover are set, not fitted. A needle lives about three years, so each autumn the oldest third falls
+# and two thirds stay (0.67); a conifer flushes once, in early summer, so its day-length gate is sharp (4 /h) and
+# shuts as the days shorten; a gentle one would let it refill while its needles fall in autumn. Its par_min is
+# 0.5 umol/m2/s: the conifers flush in June under a closed broadleaf canopy, where a shaded one counts only
+# 9-11 h above 2 umol/m2/s, and shaded hemlocks still flush: the day length they sense is the photoperiod.
 [phenology]
-flush_cue_mask        = [3, 0]
-shed_cue_mask         = [3, 0]
+flush_cue_mask        = [3, 3]
+shed_cue_mask         = [3, 3]
 flush_cue_timescale   = [5.0, 5.0]
 shed_cue_timescale    = [5.0, 5.0]
-flush_rate_max        = [0.0333098, 0.06667]
-shed_rate_max         = [0.333333, 0.05]
-min_leaf_cover        = [0.0, 0.0]
+flush_rate_max        = [0.135836, 0.06667]
+shed_rate_max         = [0.163941, 0.05]
+min_leaf_cover        = [0.0, 0.67]
 bare_leaf_cover       = [0.02, 0.02]
 flush_base_temp       = [278.15, 278.15]
-flush_degree_days     = [91.7506, 100.0]
+flush_degree_days     = [261.917, 487.962]
 flush_temp_sharpness  = [0.04, 0.04]
-shed_base_temp        = [290.25, 290.15]
-shed_degree_days      = [47.889, 50.0]
+shed_base_temp        = [292.002, 290.15]
+shed_degree_days      = [181.036, 59.732]
 shed_temp_sharpness   = [0.1, 0.1]
-par_min               = [2.0001, 5.0]
-flush_light_hours     = [13.6528, 12.0]
-flush_light_sharpness = [7.99321, 1.0]
-shed_light_hours      = [9.05994, 11.0]
+par_min               = [2.0001, 0.5]
+flush_light_hours     = [11.9629, 12.9272]
+flush_light_sharpness = [7.99321, 4.0]
+shed_light_hours      = [10.2179, 16.1453]
 shed_light_sharpness  = [-1.0, -1.0]
 light_window          = [1.00135, 10.0]

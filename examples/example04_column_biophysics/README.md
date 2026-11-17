@@ -20,7 +20,7 @@ Each site is a folder in [`sites/`](sites), with its own README, data, configura
 | Site | Biome | Tower | Years | Stand | Status |
 |---|---|---|---|---|---|
 | [Barro Colorado Island](sites/bci/README.md), Panama | moist tropical forest | PA-Bar (Zenodo 6456527), 41 m | 2012–2017 | the 50-ha plot's 2010 census, one evergreen PFT | calibrated |
-| [Harvard Forest](sites/harvard/README.md), Massachusetts | temperate broadleaf and conifer forest | NEON HARV (AmeriFlux US-xHA), 39 m | 2019–2024 | the ForestGEO plot's 2019 census within 200 m of the tower, a deciduous and a conifer PFT | calibrated (both PFTs' stomata; the broadleaves' capacity) |
+| [Harvard Forest](sites/harvard/README.md), Massachusetts | temperate broadleaf and conifer forest | NEON HARV (AmeriFlux US-xHA), 39 m | 2019–2024 (scored from 2020) | the ForestGEO plot's 2019 census within 200 m of the tower, frozen; a deciduous and a conifer PFT, their phenology fitted with each cohort's own cues | calibrated (both PFTs' stomata; the broadleaves' capacity) |
 | Guánica, Puerto Rico | tropical dry forest | NEON GUAN (PR-xGU) | 2019–2024 | NEON's vegetation structure | planned |
 | Tonzi Ranch, California | oak savanna | US-Ton | to choose | the tree map | planned (grass and shrub life forms) |
 | Toolik, Alaska | tussock tundra | NEON TOOL (US-xTL) | 2019–2024 | NEON's plant cover | planned (organic soil) |
@@ -36,8 +36,8 @@ is u\*-filtered), and a plain mean over its measured hours would be mostly a mea
 |---|---|---|---|---|
 | BCI, default | 7.64 / 10.78 | 76.7 / 82.9 | 35.1 / 73.6 | 136.0 / 139.7 |
 | BCI, calibrated | 7.64 / 8.99 | 76.7 / 68.5 | 35.1 / 84.8 | 136.0 / 139.1 |
-| Harvard, default | 4.58 / 5.20 | 42.5 / 51.6 | 23.9 / 43.3 | 85.7 / 86.2 |
-| Harvard, calibrated | 4.58 / 5.16 | 42.5 / 48.3 | 23.9 / 46.1 | 85.7 / 86.1 |
+| Harvard, default | 4.56 / 5.07 | 41.1 / 52.1 | 23.7 / 43.6 | 87.3 / 87.6 |
+| Harvard, calibrated | 4.56 / 5.09 | 41.1 / 49.5 | 23.7 / 45.7 | 87.3 / 87.4 |
 
 Both towers close their energy balance to about 0.75 of the net radiation, and at both the calibration's
 attribution test gives the gap to H: most of the model's higher H is the tower's missing H. Each site's

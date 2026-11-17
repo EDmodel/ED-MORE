@@ -18,21 +18,19 @@ site = "harvard_site.toml"
 # registry's prior: ONEFlux's night-time partitioning has no known respiration bias here (BCI's tower
 # respiration is the soil's alone).
 #
-# The conifers' vcmax25 stays at its file's value: the tower cannot tell the two PFTs' capacities apart.
-# A trial fit with it (and with the April and November windows below) found the two correlated at -0.97;
-# the screening fixed the conifers' at its prior's centre (the climate's 74, the same for both PFTs), and
-# the broadleaves' fell to 25 to keep the canopy's total.
+# The conifers' vcmax25 stays at its file's value: in the leaf-on months the tower cannot tell the two
+# PFTs' capacities apart.
 [fit]
 pfts            = [1, 2]
 plant_types     = ["deciduous_broadleaf", "needleleaf"]
 remove          = ["vcmax25_pft2"]
 timeout_per_day = 30.0
 
-# The windows: the rule's, in the site's leaf-on months (June-September). Not in April and November, when
-# the tower sees the conifers alone: there the model's GPP is three times the tower's, GPP's sigma rises to
-# its cap, and LE and the longwave then pull the broadleaves' vcmax25 to 32, g1 to 8.6 and the leaf angle
-# to 63 degrees. Fitting the conifers' keys alone there takes their vcmax25 to 13 and leaves their GPP 6.8
-# times the tower's: what is missing is the cold season's lower light use (README, Open).
+# The windows: the rule's, in the site's leaf-on months (June-September). Not in April and November: a
+# test fit with them (README, The calibration) takes the conifers' vcmax25 to 11.6, which brings April's
+# GPP to the tower's but leaves the summer's to the broadleaves (their vcmax25 68), and early November's
+# GPP stays 6-12 times the tower's, from the broadleaves' last leaves at full capacity. One vcmax25 cannot
+# serve the conifers' summer and their cold season (README, Open).
 # HARV's tower measures fewer hours than BCI's (NEON's gaps, and almost none from March to August 2020):
 # at the default coverage of 0.5 only one validation window qualifies.
 [windows]
