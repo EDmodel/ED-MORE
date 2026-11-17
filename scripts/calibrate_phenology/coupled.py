@@ -9,6 +9,7 @@ water potential), its leaf turnover rate, and its leaf area.
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import subprocess
 import sys
@@ -62,6 +63,11 @@ def build(base: RunConfig, keys, values: dict, rundir: Path, threads: int) -> Pa
                  "output.annual.enabled": False, "run.n_threads": int(threads)}.items():
         cfg.set(k, v)
     return cfg.write(rundir)
+
+
+def config_digest(main: Path) -> str:
+    """A digest of a run's configuration: its main file and the PFT file written beside it."""
+    return hashlib.sha256(main.read_bytes() + (main.parent / "pft.toml").read_bytes()).hexdigest()
 
 
 def run(main: Path, runner: str) -> None:

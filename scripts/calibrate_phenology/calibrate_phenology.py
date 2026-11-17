@@ -27,7 +27,6 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(ROOT / "python"))
 os.environ["PYTHONPATH"] = os.pathsep.join(filter(None, [str(ROOT / "python"), os.environ.get("PYTHONPATH")]))
 
-import numpy as np                     # noqa: E402
 import pandas as pd                    # noqa: E402
 
 import coupled                         # noqa: E402
@@ -54,17 +53,18 @@ def with_values(cfg: RunConfig, keys, values: dict) -> RunConfig:
 
 def drivers_for(s, cfg: RunConfig, values: dict, rundir: Path) -> Path:
     """The drivers of a coupled run with these values: made, or found when a finished run in
-    `rundir` used the same values."""
-    path = rundir / "drivers.npz"
-    if path.exists():
-        old = coupled.Drivers.load(path).values
-        if old.keys() == values.keys() and all(np.isclose(old[k], values[k], rtol=0, atol=1e-12) for k in values):
-            print(f"  {rundir.name}: reusing the coupled run")
-            return path
-    print(f"  {rundir.name}: the coupled run ...", flush=True)
+    `rundir` had the same configuration (its main and PFT files, the fitted values among them: a
+    change anywhere else, such as the stand's leaf area, makes a new run)."""
     main = coupled.build(cfg, s["keys"], values, rundir, s["run"]["threads"])
+    digest = coupled.config_digest(main)
+    path, stamp = rundir / "drivers.npz", rundir / "config.sha256"
+    if path.exists() and stamp.exists() and stamp.read_text().strip() == digest:
+        print(f"  {rundir.name}: reusing the coupled run")
+        return path
+    print(f"  {rundir.name}: the coupled run ...", flush=True)
     coupled.run(main, s["run"]["runner"])
     coupled.read(rundir / "out", values).save(path)
+    stamp.write_text(digest + "\n")
     return path
 
 
