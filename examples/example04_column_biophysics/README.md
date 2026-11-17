@@ -36,8 +36,8 @@ is u\*-filtered), and a plain mean over its measured hours would be mostly a mea
 |---|---|---|---|---|
 | BCI, default | 7.64 / 10.78 | 76.7 / 82.9 | 35.1 / 73.6 | 136.0 / 139.7 |
 | BCI, calibrated | 7.64 / 8.99 | 76.7 / 68.5 | 35.1 / 84.8 | 136.0 / 139.1 |
-| Harvard, default | 4.56 / 5.07 | 41.1 / 52.0 | 23.7 / 43.6 | 87.3 / 87.6 |
-| Harvard, calibrated | 4.56 / 4.89 | 41.1 / 50.4 | 23.7 / 44.9 | 87.3 / 87.5 |
+| Harvard, default | 4.56 / 5.07 | 41.1 / 52.0 | 25.2 / 45.7 | 87.3 / 87.6 |
+| Harvard, calibrated | 4.56 / 4.89 | 41.1 / 50.4 | 25.2 / 46.7 | 87.3 / 87.5 |
 
 Both towers close their energy balance to about 0.75 of the net radiation, and at both the calibration's
 attribution test gives the gap to H: most of the model's higher H is the tower's missing H. Each site's

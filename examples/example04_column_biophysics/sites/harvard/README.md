@@ -63,19 +63,24 @@ hours of the day averaged over the years, so that every hour weighs the same: th
 GPP for about a fifth of the hours, few of them calm nights, and a plain mean over them would be mostly
 a mean of days.
 
-| | tower | ED-MORE | bias in June–August | bias in December–February |
-|---|---|---|---|---|
-| GPP [µmol m⁻² s⁻¹] | 4.56 | 5.07 | +0.05 | +0.15 |
-| NEE [µmol m⁻² s⁻¹] | −1.33 | −2.80 | −1.18 | −0.78 |
-| LE [W m⁻²] | 41.1 | 52.0 | +13.4 | +14.2 |
-| H [W m⁻²] | 23.7 | 43.6 | +40.8 | +5.0 |
-| net radiation [W m⁻²] | 87.3 | 87.6 | −2.5 | +3.6 |
+The dashed lines are the tower as the calibration scores it, as at BCI: GPP with the tower's respiration
+divided by the fitted κ (0.92), and H with the energy-balance gap, which the attribution test gives to H
+(below). Each bias is against the dashed line where there is one.
 
-- **Summer:** GPP's diurnal cycle and its June–August level match (bias +0.05 µmol m⁻² s⁻¹), and net
+| | tower | tower, as the calibration scores it | ED-MORE | bias in June–August | bias in December–February |
+|---|---|---|---|---|---|
+| GPP [µmol m⁻² s⁻¹] | 4.56 | 4.70 | 5.07 | −0.26 | +0.12 |
+| NEE [µmol m⁻² s⁻¹] | −1.33 | | −2.80 | −1.18 | −0.78 |
+| LE [W m⁻²] | 41.1 | | 52.0 | +13.4 | +14.2 |
+| H [W m⁻²] | 25.2 | 51.3 | 45.7 | −8.4 | +2.8 |
+| net radiation [W m⁻²] | 87.3 | | 87.6 | −2.5 | +3.6 |
+
+- **Summer:** GPP's diurnal cycle and its June–August level match (bias −0.26 µmol m⁻² s⁻¹), and net
   radiation is within 2.5 W m⁻². The model's sink is the larger (NEE −1.18 µmol m⁻² s⁻¹ in June–August),
   mostly at night. The tower closes its energy balance to 0.76, and the calibration's attribution test
-  gives the gap to H (H/Rnet rises 77 % from calm to turbulent hours, LE/Rnet does not), as at BCI: most
-  of the model's higher summer H is that gap.
+  gives the gap to H (H/Rnet rises 77 % from calm to turbulent hours, LE/Rnet does not), as at BCI.
+  Against the tower with that gap in H, the model's summer H is 8 W m⁻² low and its LE 13 W m⁻² high:
+  the model splits the energy too much toward water.
 - **Winter and spring: the conifers.** While the broadleaves are bare, the tower sees the conifers alone,
   at two thirds of their needles from October to June (Phenology) and with every PFT's low-temperature
   limit. In the hours the tower measured with incoming shortwave above 300 W m⁻²:
@@ -106,9 +111,9 @@ a mean of days.
 
 ## Leaf area
 
-![The model's leaf area by PFT against MODIS and the LAI-2000 surveys, 2019-2024](lai.png)
+![The model's leaf area by PFT against MODIS and the LAI-2000 surveys: the mean seasonal cycle, 2020-2024](lai.png)
 
-[`plot_lai.py`](plot_lai.py) sets the calibrated run's leaf area by PFT against MODIS (the median of the
+[`plot_lai.py`](plot_lai.py) sets the calibrated run's mean seasonal leaf area by PFT against MODIS (the median of the
 3 × 3 500 m pixels around the tower, good retrievals only) and the LAI-2000 surveys around the EMS tower,
 which read the whole canopy and its deciduous part (the leaf-off reading subtracted).
 - **The summer canopy:** LAI 5.7 in July–August (broadleaves 3.9, conifers 1.7), against 4.6 from the
@@ -174,7 +179,7 @@ more than 10 % worse. The energy-balance gap is the largest uncertainty: sharing
 instead moves `stomatal_g1` to 10.1 (the conifers' to 4.5), and the tower's daytime partitioning moves
 `vcmax25` to 60 and the conifers' to 16.7. The fit took 444 trials, 15 minutes on one 40-core node.
 
-Over 2020–2024 the calibrated run lowers GPP to 4.89 µmol m⁻² s⁻¹ (LE 50.4, H 44.9 W m⁻²) and the hourly
+Over 2020–2024 the calibrated run lowers GPP to 4.89 µmol m⁻² s⁻¹ and LE to 50.4 W m⁻², and the hourly
 errors (RMSE: GPP 3.74 → 3.40, LE 49.1 → 48.2, H 59.3 → 55.3). The conifers' spring comes closest to the
 tower: in the sunny hours of April their GPP is 1.97 µmol m⁻² s⁻¹ against the tower's 1.60 (the default
 3.70), and March–May's NEE −2.2 against −0.18 (the default −2.6). The calibrated configs, the fit and

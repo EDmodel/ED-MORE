@@ -13,7 +13,10 @@ measured at least ten days of it, and each of its hours at least five times. NEE
 atmosphere in both. The band around the tower's diurnal cycle is its mean +-2 standard errors: an hour of
 the day averages only the hours the tower measured, few on calm nights (README, Results). The scoring
 starts in 2020: 2019 takes the canopy from the census, which starts in full leaf in January, to its own
-season.
+season. With the calibration's fit (--fit, calibration/fit.json by default), the tower is also drawn as the
+calibration scores it (dashed), as at BCI: GPP with the tower's respiration divided by the fitted kappa,
+and H and LE with the energy-closure gap shared as the fit shared it (at Harvard all of it to H). Each
+panel's bias is then against that line.
 
 Usage: python plot_evaluation.py [--model "output/eval-F-*.nc"] [--out evaluation.png] [--score-from 2020-01-01]
                                  [--stats output/evaluation_stats.json] [--calibrated "output/cal-F-*.nc"]
@@ -45,12 +48,16 @@ def main(argv=None):
     ap.add_argument("--stats", default=os.path.join(HERE, "output", "evaluation_stats.json"))
     ap.add_argument("--calibrated", default=None, help="the calibrated run's hourly files (a glob)")
     ap.add_argument("--score-from", default="2020-01-01", help="the first day scored (after the spin-up year)")
+    ap.add_argument("--fit", default=os.path.join(HERE, "calibration", "fit.json"),
+                    help="the calibration's fit.json, for the tower as the calibration scores it")
+    ap.add_argument("--config", default=os.path.join(HERE, "calibration.toml"), help="the calibration's settings")
     args = ap.parse_args(argv)
     site = ti.read_site(args.site)
     model = ev.read_model(args.model, site.utc_offset)
     model = model[model.index >= args.score_from]
-    tower, _, _ = ev.read_tower(site)
-    tower = tower.reindex(model.index)
+    fit = args.fit if os.path.exists(args.fit) else None
+    tower, target, kappa = ev.read_tower(site, fit, args.config)
+    tower, target = tower.reindex(model.index), target.reindex(model.index)
     cal = ev.read_model(args.calibrated, site.utc_offset).reindex(model.index) if args.calibrated else None
     runs = [("ED-MORE", model, ev.MODEL)] + ([("ED-MORE calibrated", cal, ev.CALIBRATED)] if cal is not None else [])
 
@@ -64,14 +71,20 @@ def main(argv=None):
         both = tower[tv].notna()
         for _, run, _ in runs:
             both &= run[mv].notna()
+        #----- scored against the calibration's target where it differs from the measured flux
+        scored = tv in target
+        if scored:
+            both &= target[tv].notna()
         t = tower.loc[both, tv]
+        tt = target.loc[both, tv] if scored else t                    # what the bias is against
         mo, ho = month[both], hour[both]
-        bins = {"tower": ev.cycle_bins(t, mo, ho)}
+        bins = {"tower": ev.cycle_bins(t, mo, ho), "scored": ev.cycle_bins(tt, mo, ho)}
         for label, run, _ in runs:
             bins[label] = ev.cycle_bins(run.loc[both, mv], mo, ho)
-            s = ev.cycle_stats(run.loc[both, mv], t, mo, ho)
+            s = ev.cycle_stats(run.loc[both, mv], tt, mo, ho)
+            s["tower_measured_mean"] = ev.annual_mean(bins["tower"])
             for season, months in SEASONS.items():
-                s[season] = ev.cycle_stats(run.loc[both, mv], t, mo, ho, months)
+                s[season] = ev.cycle_stats(run.loc[both, mv], tt, mo, ho, months)
             out[label][name] = s
         #----- the mean diurnal cycle in each season ----------------------------------------------#
         for row, (season, months) in enumerate(SEASONS.items()):
@@ -82,13 +95,17 @@ def main(argv=None):
             a.fill_between(td.index + 0.5, td - 2 * se, td + 2 * se, color=ev.TOWER, alpha=0.12, lw=0,
                            label="tower ±2 standard errors")
             a.plot(td.index + 0.5, td.values, color=ev.TOWER, lw=2, label="tower")
+            if scored:
+                tsd = ev.diurnal(bins["scored"], months)
+                a.plot(tsd.index + 0.5, tsd.values, color=ev.TOWER, lw=1.6, ls="--",
+                       label="tower, as the calibration scores it")
             notes = []
             for label, run, colour in runs:
                 md = ev.diurnal(bins[label], months)
                 a.plot(md.index + 0.5, md.values, color=colour, lw=1.8, label=label)
                 notes.append(f"{out[label][name][season]['bias']:+.1f}")
-            a.text(0.03, 0.97, "bias " + " / ".join(notes), transform=a.transAxes, va="top", color=ev.MUTED,
-                   fontsize=8.5)
+            a.text(0.03, 0.97, "bias " + " / ".join(notes) + (" (to the dashed line)" if scored else ""),
+                   transform=a.transAxes, va="top", color=ev.MUTED, fontsize=8.5)
             a.set(xticks=range(0, 25, 6))
             if row == 0:
                 a.set_title(f"{group}: {name}\n({units})")
@@ -101,6 +118,10 @@ def main(argv=None):
             a.axvspan(m - 0.5, m + 0.5, color=ev.GRID, alpha=0.35, lw=0)
         ts = ev.monthly(bins["tower"])
         a.plot(ts.index, ts.values, color=ev.TOWER, lw=2, marker="o", ms=3.5, label="tower")
+        if scored:
+            tss = ev.monthly(bins["scored"])
+            a.plot(tss.index, tss.values, color=ev.TOWER, lw=1.6, ls="--", marker="o", ms=3, mfc="white",
+                   label="tower, as the calibration scores it")
         for label, run, colour in runs:
             ms = ev.monthly(bins[label])
             a.plot(ms.index, ms.values, color=colour, lw=1.8, marker="o", ms=3.5, label=label)
@@ -117,7 +138,7 @@ def main(argv=None):
     fig.savefig(args.out, dpi=130)
     os.makedirs(os.path.dirname(os.path.abspath(args.stats)), exist_ok=True)
     with open(args.stats, "w") as fh:
-        json.dump(out, fh, indent=2)
+        json.dump({"kappa": kappa, **out}, fh, indent=2)
     print(f"figure: {args.out}")
     for label, table in out.items():
         print(f"{label:15s} {'hours':>6} {'tower':>8} {'model':>8} {'bias':>8} {'RMSE':>8} {'r hour':>7} "

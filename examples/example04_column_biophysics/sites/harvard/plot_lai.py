@@ -11,9 +11,10 @@
   subtracted). The instrument sees stems and branches too and does not correct for clumping, so its
   level is a lower bound on the leaves and its timing is the reference.
 
-The leaf-out and leaf-fall dates are where each year's broadleaf (model), deciduous (LAI-2000, between
-the surveys) or total (MODIS, a running median of five retrievals) leaf area crosses halfway between its
-leaf-off and its summer level.
+The figure is the mean seasonal cycle over the scored years. The statistics also hold each year's
+leaf-out and leaf-fall dates: where the broadleaf (model), deciduous (LAI-2000, between the surveys) or
+total (MODIS, a running median of five retrievals) leaf area crosses halfway between its leaf-off and
+its summer level.
 
 Usage: python plot_lai.py --data <harvard data> [--model output/cal] [--out lai.png]
 """
@@ -141,54 +142,22 @@ def main(argv=None):
     plt.rcParams.update({"axes.edgecolor": ev.MUTED, "axes.labelcolor": ev.INK, "xtick.color": ev.MUTED,
                          "ytick.color": ev.MUTED, "axes.grid": True, "grid.color": ev.GRID, "grid.linewidth": 0.6,
                          "axes.spines.top": False, "axes.spines.right": False, "axes.axisbelow": True})
-    fig = plt.figure(figsize=(14, 8.2))
-    ax = fig.add_subplot(2, 1, 1)
-    ax.stackplot(model.index, model["conifer"], model["broad"], colors=[CONIFER, BROAD], alpha=0.55, lw=0,
+    fig, ax = plt.subplots(figsize=(9, 5.2))
+    ax.stackplot(clim_c.index, clim_c.values, clim_b.values, colors=[CONIFER, BROAD], alpha=0.55, lw=0,
                  labels=["ED-MORE, conifers (PFT 2)", "ED-MORE, broadleaves (PFT 1)"])
-    ax.plot(total.index, total, color=ev.MODEL, lw=1.2, label="ED-MORE, total")
-    ax.plot(modis.index, modis, ls="none", marker="o", ms=2.6, color=ev.MUTED, label="MODIS MCD15A3H (3 × 3 median)")
-    ax.plot(survey.index, survey["all_mean"], ls="none", marker="s", ms=4.5, color=ev.INK,
+    ax.plot(clim_b.index, clim_b.values + clim_c.values, color=ev.MODEL, lw=1.6, label="ED-MORE, total")
+    ax.plot(clim_modis.index.dayofyear, clim_modis.values, ls="none", marker="o", ms=2.6, color=ev.MUTED,
+            label="MODIS MCD15A3H (3 × 3 median)")
+    ax.plot(clim_survey.index.dayofyear, clim_survey["all_mean"], ls="none", marker="s", ms=4, color=ev.INK,
             label="LAI-2000, whole canopy (HF069)")
-    ax.plot(survey.index, survey["decid_mean"], ls="none", marker="s", ms=4.5, mfc="white", mec=ev.INK,
-            label="LAI-2000, deciduous part")
-    ax.set(ylabel="leaf area index [m² m⁻²]", xlim=span, ylim=(0, None),
-           title="every day; the first year starts from the census in full leaf")
-    ax.legend(frameon=False, fontsize=8.5, ncol=3, loc="upper right")
-
-    ax = fig.add_subplot(2, 2, 3)
-    ax.stackplot(clim_c.index, clim_c.values, clim_b.values, colors=[CONIFER, BROAD], alpha=0.55, lw=0)
-    ax.plot(clim_b.index, clim_b.values + clim_c.values, color=ev.MODEL, lw=1.6)
-    ax.plot(clim_modis.index.dayofyear, clim_modis.values, ls="none", marker="o", ms=2.6, color=ev.MUTED)
-    ax.plot(clim_survey.index.dayofyear, clim_survey["all_mean"], ls="none", marker="s", ms=4, color=ev.INK)
     ax.plot(clim_survey.index.dayofyear, clim_survey["decid_mean"], ls="none", marker="s", ms=4, mfc="white",
-            mec=ev.INK)
-    box = {"boxstyle": "round,pad=0.2", "fc": "white", "ec": "none", "alpha": 0.8}
-    ax.text(30, float(clim_c.mean()) * 0.5, "conifers", color=ev.INK, fontsize=9, ha="left", va="center", bbox=box)
-    ax.text(200, float(clim_c.mean()) + 0.5 * float(clim_b[180:240].mean()), "broadleaves", color=ev.INK,
-            fontsize=9, ha="center", va="center", bbox=box)
+            mec=ev.INK, label="LAI-2000, deciduous part")
     ticks = pd.date_range("2021-01-01", periods=12, freq="MS")
     ax.set(xlim=(1, 366), xticks=ticks.dayofyear, xticklabels=list(ev.MONTHS), ylim=(0, None),
-           xlabel="month", ylabel="leaf area index [m² m⁻²]", title=f"the seasonal cycle, {later[0]}-{later[-1]}")
-
-    ax = fig.add_subplot(2, 2, 4)
-    sources = [("halfway_model_broad", -0.18, {"marker": "o", "ms": 7, "color": ev.MODEL}, "ED-MORE, broadleaves"),
-               ("halfway_lai2000_deciduous", 0.0, {"marker": "s", "ms": 6, "mfc": "white", "mec": ev.INK},
-                "LAI-2000, deciduous part"),
-               ("halfway_modis", 0.18, {"marker": "o", "ms": 4, "color": ev.MUTED}, "MODIS (running median)")]
-    for name, dy, style, label in sources:
-        for i, y in enumerate(later):
-            for key in ("leaf_out", "leaf_fall"):
-                day = stats[name].get(y, {}).get(key)
-                if day:
-                    ax.plot(pd.Timestamp(day).dayofyear, i + dy, ls="none", **style)
-        ax.plot([], [], ls="none", label=label, **style)
-    ax.set(yticks=range(len(later)), yticklabels=[str(y) for y in later], xlim=(110, 330),
-           xticks=ticks[4:11].dayofyear, xticklabels=list(ev.MONTHS[4:11]), xlabel="day of the year",
-           title="leaf-out and leaf-fall: halfway between leaf-off and summer")
-    ax.invert_yaxis()
-    ax.legend(frameon=False, fontsize=9, loc="center")
-    fig.suptitle("Harvard Forest: ED-MORE's leaf area by PFT against MODIS and the LAI-2000 surveys",
-                 color=ev.INK, fontsize=11)
+           xlabel="month", ylabel="leaf area index [m² m⁻²]")
+    ax.legend(frameon=False, fontsize=8.5, loc="upper left")
+    ax.set_title(f"Harvard Forest: leaf area by PFT, the mean seasonal cycle {later[0]}-{later[-1]}",
+                 color=ev.INK, fontsize=11, loc="left")
     fig.tight_layout()
     fig.savefig(args.out, dpi=130)
     os.makedirs(os.path.dirname(os.path.abspath(args.stats)), exist_ok=True)
