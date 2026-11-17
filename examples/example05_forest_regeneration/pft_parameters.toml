@@ -112,6 +112,8 @@ leaf_clumping      = [0.80, 0.80, 0.80]
 wood_clumping      = [0.50, 0.50, 0.50]
 leaf_angle_mean    = [54.9255, 54.9255, 54.9255]   # [deg]
 leaf_angle_std     = [20.0, 20.0, 20.0]
+wood_angle_mean    = [75.0, 75.0, 75.0]   # [deg] mean inclination of the wood surface (unpublished TLS data: 72-76)
+wood_angle_std     = [20.0, 20.0, 20.0]   # [deg] its standard deviation
 
 # Mortality m = mort_gamma + mort_alpha * exp(-mort_beta * g), g a cohort's dbh growth [cm/yr] over
 # the growth window (growth_memory_days, a year): example 03's fit to the BCI censuses

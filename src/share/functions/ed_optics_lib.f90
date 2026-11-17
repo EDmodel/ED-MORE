@@ -1,9 +1,9 @@
 ! SPDX-License-Identifier: Apache-2.0
 !---~---
-!   ed_optics_lib -- the optical kernels of the canopy radiation: the leaf-inclination
-! distribution (LIDF), a Beta distribution on the SCOPE 13-class grid; its moments bf and
-! G(mu); and the single-scatter pair of a leaf or wood surface (Goel & Strebel 1984;
-! Verhoef 1984; van der Tol et al. 2009). The equations are
+!   ed_optics_lib -- the optical kernels of the canopy radiation: the inclination
+! distribution of the leaves' or the wood's surface (LIDF), a Beta distribution on the SCOPE
+! 13-class grid; its moments bf and G(mu); and the single-scatter pair of a leaf or wood
+! surface (Goel & Strebel 1984; Verhoef 1984; van der Tol et al. 2009). The equations are
 ! docs/science/canopy_radiation_transfer.md §1-§2, eqs. (1)-(4); ed_pft_derive builds
 ! the per-PFT optics from these kernels and ed_canopy_radiation the per-cohort.
 !---~---
@@ -31,12 +31,15 @@ module ed_optics_lib
 contains
 
    !---~---
-   !   The Beta LIDF: the leaf-area share of each inclination class, for shape
-   ! parameters (p, q) (docs/science/canopy_radiation_transfer.md eq. (1)), by a
-   ! midpoint rule: no special function, and the singular endpoints are never hit.
-   ! The density is summed relative to its largest value on the grid, so a narrow
-   ! distribution, whose unnormalized density underflows everywhere, still sums to
-   ! one; the Beta normalizing constant cancels.
+   !   The Beta LIDF: the area share of each inclination class, for shape parameters
+   ! (p, q) (docs/science/canopy_radiation_transfer.md eq. (1)), by a midpoint rule: no
+   ! special function, and the singular endpoints are never hit. The density is summed
+   ! relative to its largest value on the grid, so a narrow distribution, whose
+   ! unnormalized density underflows everywhere, still sums to one; the Beta normalizing
+   ! constant cancels. A shape parameter below 1 makes the density infinite at that end
+   ! (steep wood has q < 1: infinite at 90 deg), where a midpoint undercounts the end panel
+   ! (by 29% at q = 0.5). That panel takes the exact integral of its singular factor,
+   ! int_0^h s^(a-1) ds = h^a / a, times the other factor at the panel's middle.
    !---~---
    pure function beta_lidf(p, q) result(lidf)
       real(wp), intent(in) :: p, q
@@ -58,7 +61,13 @@ contains
          dt  = (LEAF_BND_DEG(k) / 90.0_wp - tlo) / real(NSUB, wp)
          acc = 0.0_wp
          do j = 1_ik, NSUB
-            acc = acc + exp(beta_log_kernel(tlo + (real(j, wp) - 0.5_wp) * dt, p, q) - log_max) * dt
+            if (k == 1_ik .and. j == 1_ik .and. p < 1.0_wp) then                 ! t^(p-1), infinite at 0
+               acc = acc + exp((q - 1.0_wp) * log(1.0_wp - 0.5_wp * dt) + p * log(dt) - log(p) - log_max)
+            else if (k == N_LEAF_CLASS .and. j == NSUB .and. q < 1.0_wp) then   ! (1-t)^(q-1), infinite at 1
+               acc = acc + exp((p - 1.0_wp) * log(1.0_wp - 0.5_wp * dt) + q * log(dt) - log(q) - log_max)
+            else
+               acc = acc + exp(beta_log_kernel(tlo + (real(j, wp) - 0.5_wp) * dt, p, q) - log_max) * dt
+            end if
          end do
          lidf(k) = acc
          tlo     = LEAF_BND_DEG(k) / 90.0_wp

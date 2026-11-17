@@ -142,8 +142,9 @@ module ed_pft_params
    end type hydraulics_table_t
 
    !---~---
-   !   Per-PFT optics (docs/science/canopy_radiation_transfer.md eqs. (4)-(6)), leaf and
-   ! wood apart, blended per cohort by clumped area; lidf is kept to evaluate G(mu).
+   !   Per-PFT optics (docs/science/canopy_radiation_transfer.md eqs. (1)-(4)), leaf and
+   ! wood apart, blended per cohort (eqs. (5)-(7)); each one's angle distribution is kept to
+   ! evaluate its G(mu).
    !---~---
    type :: rad_pft_optics_t
       integer(ik) :: n_pft  = 0_ik
@@ -156,6 +157,8 @@ module ed_pft_params
       real(wp), allocatable :: clumping_wood(:)    ! (pft) wood clumping factor (0,1]
       real(wp), allocatable :: lidf(:,:)           ! (class,pft) leaf-angle distribution weights
       real(wp), allocatable :: bf(:)               ! (pft) <cos^2(theta_leaf)>
+      real(wp), allocatable :: lidf_wood(:,:)      ! (class,pft) the wood surface's angle distribution weights
+      real(wp), allocatable :: bf_wood(:)          ! (pft) <cos^2(theta_wood)>
       logical,  allocatable :: has_beam(:)         ! (band) band has a collimated (solar) beam
       logical,  allocatable :: has_emission(:)     ! (band) band has thermal emission (LW)
    end type rad_pft_optics_t
@@ -286,6 +289,8 @@ module ed_pft_params
       real(wp),    allocatable :: leaf_clumping(:), wood_clumping(:)          ! [--] clumping factor in (0,1]
       real(wp),    allocatable :: leaf_angle_mean(:)                          ! [deg] mean leaf inclination
       real(wp),    allocatable :: leaf_angle_std(:)                           ! [deg] its standard deviation
+      real(wp),    allocatable :: wood_angle_mean(:)                          ! [deg] mean inclination of the wood surface
+      real(wp),    allocatable :: wood_angle_std(:)                           ! [deg] its standard deviation
       !--- Tissue turnover.
       real(wp),    allocatable :: leaf_turnover_rate_toc(:) ! [1/yr]   top-of-canopy baseline leaf turnover
       real(wp),    allocatable :: fineroot_turnover_rate(:) ! [1/yr]   baseline fine-root turnover

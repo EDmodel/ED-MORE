@@ -12,6 +12,8 @@
 !      at one inclination theta_L project mu cos(theta_L) while theta_L + theta_s <= 90
 !      deg (G = mu for horizontal leaves); near-vertical leaves project (2/pi) sin theta_s;
 !      a spherical LIDF projects G = 1/2 toward every sun.
+!   5. SINGULAR ENDS (beta_lidf): a Beta infinite at 0 or 90 deg (a shape parameter below
+!      1, as for near-vertical wood) gets each class's share right.
 !---~---
 program test_optics_lib
    use ed_test_assert,   only : check, check_true, test_report
@@ -25,6 +27,7 @@ program test_optics_lib
    call test_lidf_normalization()
    call test_lidf_delta()
    call test_g_function()
+   call test_lidf_singular_ends()
 
    call test_report('test_optics_lib')
 
@@ -136,5 +139,66 @@ contains
       end do
       call check('a spherical LIDF: G = 1/2 toward every sun', worst_sph, 0.0_wp, 2.5e-3_wp)
    end subroutine test_g_function
+
+   !---~---
+   !   5. A shape parameter below 1 makes the Beta density infinite at that end, as for
+   ! near-vertical wood (q < 1 at 90 deg). Beta(1, q) and Beta(p, 1) have closed-form CDFs,
+   ! 1 - (1 - t)^q and t^p, so each class's share is known exactly. A plain midpoint rule
+   ! misses 0.5-0.9% of the area in the class at the infinite end (p or q = 1/2); beta_lidf's
+   ! exact end panel holds every class within 5e-4. The default wood, 75 +- 20 deg, is
+   ! Beta(1.51, 0.30), whose finite factor at the infinite end is not 1: its shares come from
+   ! the substitution u = (1 - t)^q, which leaves the smooth (1 - u^(1/q))^(p-1) to integrate.
+   ! The plain midpoint rule gives its 88-90 deg class 0.335 instead of 0.371; beta_lidf holds
+   ! every class within 1e-3.
+   !---~---
+   subroutine test_lidf_singular_ends()
+      !--- [deg] SCOPE's 13 inclination classes: upper bounds, 10 deg wide to 80, then 2 deg.
+      real(wp), parameter :: CLASS_TOP_DEG(N_LEAF_CLASS) =                                          &
+         [ 10.0_wp, 20.0_wp, 30.0_wp, 40.0_wp, 50.0_wp, 60.0_wp, 70.0_wp, 80.0_wp,                     &
+           82.0_wp, 84.0_wp, 86.0_wp, 88.0_wp, 90.0_wp ]
+      real(wp), parameter :: HALF = 0.5_wp
+      integer(ik), parameter :: NREF = 4000_ik          ! midpoint panels per class for the reference
+      real(wp) :: lidf(N_LEAF_CLASS), ref(N_LEAF_CLASS), lo, hi, worst_q, worst_p
+      real(wp) :: p, q, u, u_lo, du
+      integer(ik) :: k, j
+      print '(a)', 'test_lidf_singular_ends:'
+      worst_q = 0.0_wp
+      lidf = beta_lidf(1.0_wp, HALF)                              ! infinite at 90 deg
+      lo = 0.0_wp
+      do k = 1_ik, N_LEAF_CLASS
+         hi = CLASS_TOP_DEG(k) / 90.0_wp
+         worst_q = max(worst_q, abs(lidf(k) - ((1.0_wp - lo) ** HALF - (1.0_wp - hi) ** HALF)))
+         lo = hi
+      end do
+      call check('Beta(1, 1/2), infinite at 90 deg: each class''s exact share', worst_q, 0.0_wp, 5.0e-4_wp)
+      worst_p = 0.0_wp
+      lidf = beta_lidf(HALF, 1.0_wp)                              ! infinite at 0 deg
+      lo = 0.0_wp
+      do k = 1_ik, N_LEAF_CLASS
+         hi = CLASS_TOP_DEG(k) / 90.0_wp
+         worst_p = max(worst_p, abs(lidf(k) - (hi ** HALF - lo ** HALF)))
+         lo = hi
+      end do
+      call check('Beta(1/2, 1), infinite at 0 deg: each class''s exact share', worst_p, 0.0_wp, 5.0e-4_wp)
+      !--- The default wood against the substituted integral (the factor 1/q cancels).
+      call moments_to_beta_params(75.0_wp, 20.0_wp, p, q)
+      lidf = beta_lidf(p, q)
+      lo = 0.0_wp
+      do k = 1_ik, N_LEAF_CLASS
+         hi   = CLASS_TOP_DEG(k) / 90.0_wp
+         u_lo = (1.0_wp - hi) ** q
+         du   = ((1.0_wp - lo) ** q - u_lo) / real(NREF, wp)
+         ref(k) = 0.0_wp
+         do j = 1_ik, NREF
+            u = u_lo + (real(j, wp) - 0.5_wp) * du
+            ref(k) = ref(k) + (1.0_wp - u ** (1.0_wp / q)) ** (p - 1.0_wp) * du
+         end do
+         lo = hi
+      end do
+      ref = ref / sum(ref)
+      call check_true('the default wood is infinite at 90 deg (q < 1)', q < 1.0_wp, q)
+      call check('the default wood, Beta(1.51, 0.30): each class''s share', maxval(abs(lidf - ref)), 0.0_wp, &
+                 1.0e-3_wp)
+   end subroutine test_lidf_singular_ends
 
 end program test_optics_lib

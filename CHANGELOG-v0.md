@@ -42,6 +42,11 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   capacity budget terms `mean_budget_cas_cap_{energy,water,co2}_py`; switch them off in
   `[output].io_config`. State files gain `cas_air_mass_capacity_pa` and `cas_air_molar_capacity_pa`;
   a state file without them still loads. (#66)
+- Every PFT file needs `[pft].wood_angle_mean` and `wood_angle_std`, the inclination of the wood
+  surface [deg]. The shipped files use 75 and 20; giving the wood the PFT's leaf angles keeps a run's
+  earlier light to round-off, unless equally tall cohorts of PFTs with different leaf angles share a
+  layer. An angle spread too wide for a Beta distribution, with the standard deviation at or above
+  `sqrt(mean (90 - mean))`, is refused, for the leaves too. (#84)
 
 ### Answer changes
 
@@ -100,6 +105,11 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   q c_p,v, not the dry one. BCI (example 04, default/calibrated): H +1.86/+1.82 % (mostly the moist
   c_p in the reported split; `mean_outflow_enth_py` moves the other way), LE −0.23/−0.25 %; Palo
   Verde (ERA5-Land): H +1.42 %, LE −0.07 %. (#83)
+- The wood intercepts the beam with its own angle distribution, 75° ± 20° by default (unpublished TLS
+  data), and leaves and wood share the beam by the area each shows the sun, not by their areas: steep
+  wood passes more of a high sun and less of a low one, most visibly in a leafless canopy. BCI (example
+  04, calibrated, August 2012 to July 2013): GPP +0.26 %, LE +0.46 %, H +0.03 %, upwelling shortwave
+  −1.0 %. Examples 03–06 are not rerun. (#84)
 
 ### Added
 
