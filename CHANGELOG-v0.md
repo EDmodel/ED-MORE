@@ -173,6 +173,11 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - The C API's `ed_phenology_run` and `edmore.plant.pheno.run`: the phenology kernel and leaf rule over
   many cohorts and days in one call, each with its own daily cues and leaf turnover rate; day by day
   what `Phenology.step` gives, bit for bit. (#88)
+- `scripts/calibrate_phenology`: fits a stand's leaf phenology to observations of its canopy (satellite
+  and LAI-2000 LAI, tagged trees, litter baskets, bud-break dates) with each cohort's own cues. It
+  alternates coupled runs of the frozen stand, which give every cohort's daily cues, with fits of the
+  offline stand (the model's kernel and leaf rule, every cohort a column), after checking that the
+  offline stand reproduces the coupled run; it writes the PFT file with the fitted values. (#89)
 
 ### Changed
 

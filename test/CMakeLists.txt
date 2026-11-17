@@ -389,6 +389,11 @@ ed_add_pytest(pft_traits PATH ${PROJECT_SOURCE_DIR}/scripts/prepare_input/pft_tr
 #      Python API when libedmore.so is built), and a short end-to-end fit.                          #
 ed_add_pytest(calibrate_fast PATH ${PROJECT_SOURCE_DIR}/scripts/calibrate_fast/tests
               IMPORTS numpy pandas scipy netCDF4 pytest ENVIRONMENT ${ed_program_env} LABEL python)
+#----- The phenology calibration (scripts/calibrate_phenology/tests): the settings, the targets,   #
+#      the coupled run's daily file read into cues, and an offline fit on synthetic cohorts (with  #
+#      libedmore.so; without it that test skips).                                                   #
+ed_add_pytest(calibrate_phenology PATH ${PROJECT_SOURCE_DIR}/scripts/calibrate_phenology/tests
+              IMPORTS numpy pandas scipy netCDF4 pytest ENVIRONMENT ${ed_program_env} LABEL python)
 
 #----- Every test stops at 10 minutes. The longest takes about 1.5 in a Debug build, so a test that #
 #      hangs, or slows by an order of magnitude, fails instead of holding the suite. The long runs, #
