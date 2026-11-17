@@ -54,7 +54,7 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - The C API's `ed_canopy_two_stream` takes one more output array, `coh_incid_vis` (hours by cohorts),
   after `coh_leaf_vis`; `edmore.canopy` passes it. (#85)
 - Example 04 holds one folder per site: BCI's files are in `examples/example04_column_biophysics/sites/bci/`,
-  and its `run_example.py` is `run_site.py` there. (#PR)
+  and its `run_example.py` is `run_site.py` there. (#91)
 
 ### Answer changes
 
@@ -128,7 +128,7 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   low-temperature limit; the optional `[pft]` keys `capacity_low_temp` and `capacity_low_temp_slope`,
   default 4.7 °C and 0.4 K⁻¹). At Harvard Forest the conifers' sunny-hour GPP in January falls from
   2.05 to 0.38 µmol m⁻² s⁻¹ (tower 0.01), and December–February's NEE turns from a sink to a source;
-  BCI moves by about 0.1 % or less. (#PR)
+  BCI moves by about 0.1 % or less. (#91)
 
 ### Added
 
@@ -188,13 +188,13 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - Example 04's Harvard Forest site (prototype): NEON's HARV tower, 2019–2024, the ForestGEO stand
   frozen with a deciduous and a conifer PFT, both calibrated, against the tower's fluxes, the leaf area,
   the snow pack and the albedo. Example 02's part 2 fits the stand's phenology with
-  `scripts/calibrate_phenology`, every cohort reading its own cues; example 04 runs with the values. (#PR)
+  `scripts/calibrate_phenology`, every cohort reading its own cues; example 04 runs with the values. (#91)
 - `calibrate_fast`: `[fit].pfts` and `plant_types` fit each per-PFT key for several PFTs
   (`vcmax25_pft2`, ...); `[windows].months` and `[windows].exclude` choose the window months and leave
   out spans; a seasonal run's coverage counts its own targets, and `[seasonal_runs].days` sets its
-  length; a frozen stand's chains run the phenology. (#PR)
+  length; a frozen stand's chains run the phenology. (#91)
 - `make_census.py` reads other ForestGEO tables: their column names, diameters in cm, a PFT per
-  species, and the cells within a circle around a tower. (#PR)
+  species, and the cells within a circle around a tower. (#91)
 
 ### Changed
 
@@ -253,11 +253,11 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - Example 04: `run_example.py` runs to its end. `plot_window.py` looked for the window's daily output
   as `window-D-*.nc`, while the example writes it as one file, `window-D.nc`. (#78)
 - `make_census.py`'s steady-state litter counts a deciduous PFT's yearly leaf fall and the share it
-  resorbs: Harvard Forest's leaf litter rises from 0.055 to 0.168 kgC m⁻² yr⁻¹; BCI's is unchanged. (#PR)
+  resorbs: Harvard Forest's leaf litter rises from 0.055 to 0.168 kgC m⁻² yr⁻¹; BCI's is unchanged. (#91)
 - The flux-tower forcing reads a declared FLUXNET column's own `_QC` flags, so the provider's fills of
-  `TA_F_MDS` or `SW_IN_F_MDS` count as fills, not observations. (#PR)
+  `TA_F_MDS` or `SW_IN_F_MDS` count as fills, not observations. (#91)
 - `calibrate_fast.py check` rebuilds its trials from the values the prior trial ran with, so a key
-  whose transform does not round-trip exactly no longer stops it. (#PR)
+  whose transform does not round-trip exactly no longer stops it. (#91)
 
 ## [0.4.1] - 2026-10-26
 
