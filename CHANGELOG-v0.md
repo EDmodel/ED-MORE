@@ -53,6 +53,8 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   `sqrt(mean (90 - mean))`, is refused, for the leaves too. (#84)
 - The C API's `ed_canopy_two_stream` takes one more output array, `coh_incid_vis` (hours by cohorts),
   after `coh_leaf_vis`; `edmore.canopy` passes it. (#85)
+- Example 04 holds one folder per site: BCI's files are in `examples/example04_column_biophysics/sites/bci/`,
+  and its `run_example.py` is `run_site.py` there. (#PR)
 
 ### Answer changes
 
@@ -122,6 +124,11 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   example 02's broadleaf parameters, 2019–2021) the broadleaf canopy's half-green and half-fallen days
   move by under a day above 10 m and by up to 2.7 days below it. The region test's January–February
   run is bit for bit: its canopy air stays below the warmth base. (#88)
+- Every PFT's Vcmax, Jmax and TPU fall away near freezing on the leaf's own temperature (ED2's
+  low-temperature limit; the optional `[pft]` keys `capacity_low_temp` and `capacity_low_temp_slope`,
+  default 4.7 °C and 0.4 K⁻¹). At Harvard Forest the conifers' sunny-hour GPP in January falls from
+  2.05 to 0.38 µmol m⁻² s⁻¹ (tower 0.01), and December–February's NEE turns from a sink to a source;
+  BCI moves by about 0.1 % or less. (#PR)
 
 ### Added
 
@@ -178,6 +185,16 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   alternates coupled runs of the frozen stand, which give every cohort's daily cues, with fits of the
   offline stand (the model's kernel and leaf rule, every cohort a column), after checking that the
   offline stand reproduces the coupled run; it writes the PFT file with the fitted values. (#89)
+- Example 04's Harvard Forest site (prototype): NEON's HARV tower, 2019–2024, the ForestGEO stand
+  frozen with a deciduous and a conifer PFT, both calibrated, against the tower's fluxes, the leaf area,
+  the snow pack and the albedo. Example 02's part 2 fits the stand's phenology with
+  `scripts/calibrate_phenology`, every cohort reading its own cues; example 04 runs with the values. (#PR)
+- `calibrate_fast`: `[fit].pfts` and `plant_types` fit each per-PFT key for several PFTs
+  (`vcmax25_pft2`, ...); `[windows].months` and `[windows].exclude` choose the window months and leave
+  out spans; a seasonal run's coverage counts its own targets, and `[seasonal_runs].days` sets its
+  length; a frozen stand's chains run the phenology. (#PR)
+- `make_census.py` reads other ForestGEO tables: their column names, diameters in cm, a PFT per
+  species, and the cells within a circle around a tower. (#PR)
 
 ### Changed
 
@@ -235,6 +252,12 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   codes of the current Dryad download (`ingaun`, `sipacr`, `tremsp`). (#63)
 - Example 04: `run_example.py` runs to its end. `plot_window.py` looked for the window's daily output
   as `window-D-*.nc`, while the example writes it as one file, `window-D.nc`. (#78)
+- `make_census.py`'s steady-state litter counts a deciduous PFT's yearly leaf fall and the share it
+  resorbs: Harvard Forest's leaf litter rises from 0.055 to 0.168 kgC m⁻² yr⁻¹; BCI's is unchanged. (#PR)
+- The flux-tower forcing reads a declared FLUXNET column's own `_QC` flags, so the provider's fills of
+  `TA_F_MDS` or `SW_IN_F_MDS` count as fills, not observations. (#PR)
+- `calibrate_fast.py check` rebuilds its trials from the values the prior trial ran with, so a key
+  whose transform does not round-trip exactly no longer stops it. (#PR)
 
 ## [0.4.1] - 2026-10-26
 

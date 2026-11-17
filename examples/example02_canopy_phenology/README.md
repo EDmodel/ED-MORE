@@ -110,11 +110,11 @@ leaf fall, observed and modelled.
 ![Example 04's Harvard stand: its broadleaves and conifers fitted with each cohort's own cues, against HF003's tagged trees, the LAI-2000 and the conifers' climatologies](harvard_stand/harvard_stand.png)
 
 Part 1 feeds the kernel the site's air and the light above the canopy. In the coupled model each
-cohort reads its own: the canopy air of its patch and the hours of light at its top, which under a
-closed canopy are fewer. Part 2 fits both PFTs of example 04's Harvard stand (its census, frozen; the
-tower's forcing, 2019–2024) that way, with [`scripts/calibrate_phenology`](../../scripts/calibrate_phenology/README.md).
-Coupled runs of the stand give every cohort's cues, the model's own kernel is fitted on them offline,
-and the two alternate until the values settle.
+cohort reads its own: the canopy air of its patch and the hours of light at its top, which are fewer
+under a closed canopy. Part 2 fits both PFTs of example 04's Harvard stand (its census, frozen; the
+tower's forcing, 2019–2024) this way, with [`scripts/calibrate_phenology`](../../scripts/calibrate_phenology/README.md):
+a coupled run gives every cohort's cues, the kernel is fitted on them offline, and the two alternate
+until the values settle.
 
 ### Run
 
@@ -128,10 +128,9 @@ python ../../../scripts/calibrate_phenology/calibrate_phenology.py iterate \
 python plot_fit.py                       # harvard_stand.png
 ```
 
-A round is a coupled run of the stand (about 5 minutes) and a fit of the offline stand (10–15
-minutes) on one 40-core node. From an earlier fit's values the fit settles in two or three rounds (the
-last, after example 04 deepened its soil, took two: 31 minutes); from part 1's values it takes four,
-about an hour. The fit writes example 04's PFT file with the fitted values to
+A round is a coupled run of the stand (about 5 minutes) and an offline fit (10–15 minutes) on one
+40-core node. From example 04's values the fit settles in two rounds (31 minutes); from part 1's it
+takes four, about an hour. The fit writes example 04's PFT file with its values to
 `../data/harvard_stand_runs/pft_parameters_fitted.toml`; example 04's file carries them.
 
 ### What is fitted
@@ -142,10 +141,10 @@ about an hour. The fit writes example 04's PFT file with the fitted values to
 - **the conifers** (PFT 2): the warmth and day length of their June flush, the cold and day length that
   start the needle fall, and the needles lost through the season.
 
-Three of the conifers' traits are set, not fitted: their winter floor (two thirds of the needles: a
+Three of the conifers' traits are set, not fitted: their winter floor (two thirds of the needles; a
 needle lives about three years), a sharp day-length gate (they flush once), and a `par_min` of 0.5
-µmol m⁻² s⁻¹ (at 2, a conifer under the closed broadleaf canopy counts too few hours of light in June
-ever to refill). The tool's README tells why each was needed.
+µmol m⁻² s⁻¹ (at 2, a conifer under the broadleaf canopy counts too few hours of light in June to
+refill). The tool's README explains each.
 
 ### Results
 
@@ -168,13 +167,13 @@ ever to refill). The tool's README tells why each was needed.
 
 - **The cohorts' own cues change the answer.** With part 1's values (the dashed lines), fitted to the
   site's air and the light above the canopy, the understorey fills only two thirds and falls two to
-  three weeks early: under the canopy the hours of light are fewer, and its light cue reads them. Fitted with
-  the cohorts' own cues, the broadleaves need more warmth to flush (264 against 92 K day above 5 °C) and
-  more cold to drop (169 K day below 292.0 K, against 48 below 290.3 K).
+  three weeks early, because its light cue reads the fewer hours under the canopy. With the cohorts'
+  own cues, the broadleaves need more warmth to flush (264 against 92 K day above 5 °C) and more cold to
+  drop (169 K day below 292.0 K, against 48 below 290.3 K).
 - **The conifers** keep two thirds of their needles from October to June, grow their shoots in June
-  and are full by the end of August; the needle fall comes in early October. White pine's shoots, the
-  loosest target (a 20-day spread), pull against hemlock's and lose.
-- **The fit settled**, and the offline stand reproduced each coupled run's leaf cover to within 0.002.
+  and are full by the end of August; the needles fall in early October. White pine's shoots, the
+  loosest target (a 20-day spread), lose to hemlock's.
+- **The fit settled**, and the offline stand matched each coupled run's leaf cover to within 0.002.
 
 ## Files
 
