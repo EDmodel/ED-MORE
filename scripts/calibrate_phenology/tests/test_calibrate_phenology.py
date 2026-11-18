@@ -323,6 +323,11 @@ def test_the_fit_finds_the_values_the_observations_were_made_with(tmp_path):
     assert abs(res["values"]["flush_degree_days_pft1"] - 120.0) < 6.0
 
 
+def test_an_unsettled_fit_keeps_the_values_its_own_run_scored_best():
+    trials = [({"k": 1.0}, 30.0, "run0"), ({"k": 2.0}, 12.0, "run1"), ({"k": 3.0}, 25.0, "run2")]
+    assert calibrate_phenology.best_coupled(trials) == ({"k": 2.0}, 12.0, "run1")
+
+
 def test_a_run_is_written_with_absolute_paths(tmp_path, monkeypatch):
     """The run starts in its own directory, so a relative work directory must not reach its files."""
     from edmore.config import RunConfig
