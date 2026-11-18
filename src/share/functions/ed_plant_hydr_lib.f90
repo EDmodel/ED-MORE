@@ -3,7 +3,7 @@
 !   ed_plant_hydr_lib -- the water relations of a plant's tissues and xylem: how
 ! much water a tissue holds at a given potential, its pressure-volume curve
 ! (docs/science/plant_hydraulics.md §2), the vulnerability curve of its xylem (§3),
-! and the conductances its sapwood and roots have from their size (§3-§4).
+! and the conductances its sapwood, leaves and roots have from their size (§3-§4).
 !
 !   The read-offs (tissue_psi_to_rwc, tissue_water_to_psi, ...) carry floors that keep
 ! a diagnostic finite. The solver's relations (tissue_water_relations) have none and
@@ -13,7 +13,7 @@
 !---~---
 module ed_plant_hydr_lib
    use ed_kinds,       only : wp
-   use ed_constants,   only : grav_head, rho_h2o, pi, tiny_num
+   use ed_constants,   only : grav_head, rho_h2o, pi, tiny_num, mmh2o
    implicit none
    private
 
@@ -22,9 +22,10 @@ module ed_plant_hydr_lib
    public :: tissue_psi_tlp, tissue_psi_to_rwc, tissue_rwc_to_psi
    public :: tissue_psi_to_water, tissue_capacitance, tissue_water_to_psi, tissue_capped_water
    public :: tissue_water_relations, tissue_rwc_to_unknown, tissue_water_to_rwc
-   !--- Vulnerability curve; the sapwood's and the roots' conductances.
+   !--- Vulnerability curve; the sapwood's, the leaves' and the roots' conductances.
    public :: conductance_retained_fraction, KEXP_TOL
-   public :: xylem_max_conductance, root_fraction_profile, rhizosphere_conductance
+   public :: xylem_max_conductance, leaf_max_conductance, plant_max_conductance
+   public :: root_fraction_profile, rhizosphere_conductance
 
    !---~---
    !   One tissue's pressure-volume curve: the four traits every tissue-water routine
@@ -44,10 +45,13 @@ module ed_plant_hydr_lib
    real(wp), parameter :: RWC_FLOOR = 1.0e-4_wp
 
    !---~---
-   !   [kg/s/MPa per plant] Intact conductance of a plant without sapwood, so its leaves stay
-   ! joined to its wood.
+   !   [kg/s/MPa per plant] Intact wood-to-leaf conductance of a plant without sapwood or
+   ! without leaves, so its leaves stay joined to its wood.
    !---~---
    real(wp), parameter :: XYLEM_COND_MIN = 1.0e-15_wp
+
+   !--- [kg/mmol] Water per mmol: a leaf conductance per mmol becomes one per kg.
+   real(wp), parameter :: KG_PER_MMOL_H2O = 1.0e-3_wp * mmh2o
 
    !---~---
    !   [-] How close the vulnerability exponent kexp must be to 1 or 2 to take that exponent's
@@ -260,21 +264,54 @@ contains
       end if
    end function conductance_retained_fraction
 
-   !--- Xylem (docs/science/plant_hydraulics.md eqs. (9)-(10)).
+   !--- Xylem and leaves (docs/science/plant_hydraulics.md eqs. (9)-(10)).
 
    !---~---
    !   One plant's intact-xylem conductance [kg/s/MPa]: the sapwood's specific
-   ! conductivity over its cross-section and its path, height x vessel_curl, floored
-   ! for a plant with no sapwood yet (docs/science/plant_hydraulics.md eq. (10)).
+   ! conductivity over its cross-section and its path, the plant's height
+   ! (docs/science/plant_hydraulics.md eq. (10)). Zero for a plant with no sapwood.
    !---~---
-   elemental function xylem_max_conductance(wood_kmax, sap_area, height, vessel_curl) result(k)
+   elemental function xylem_max_conductance(wood_kmax, sap_area, height) result(k)
       real(wp), intent(in) :: wood_kmax    ! [kg/m/s/MPa] sapwood specific conductivity
       real(wp), intent(in) :: sap_area     ! [m2] sapwood cross-section
       real(wp), intent(in) :: height       ! [m]
-      real(wp), intent(in) :: vessel_curl  ! [-] path length per unit height
       real(wp) :: k
-      k = max(wood_kmax * sap_area / max(height * vessel_curl, tiny_num), XYLEM_COND_MIN)
+      k = max(wood_kmax, 0.0_wp) * max(sap_area, 0.0_wp) / max(height, tiny_num)
    end function xylem_max_conductance
+
+   !---~---
+   !   One plant's intact leaf conductance [kg/s/MPa]: the leaf hydraulic conductance per
+   ! unit leaf area, from the petiole to the sites of evaporation, times the plant's leaf
+   ! area (docs/science/plant_hydraulics.md eq. (10)). Zero for a leafless plant.
+   !---~---
+   elemental function leaf_max_conductance(leaf_kmax, leaf_area) result(k)
+      real(wp), intent(in) :: leaf_kmax    ! [mmol/m2/s/MPa] leaf hydraulic conductance per unit leaf area
+      real(wp), intent(in) :: leaf_area    ! [m2] the plant's leaf area
+      real(wp) :: k
+      k = max(leaf_kmax, 0.0_wp) * KG_PER_MMOL_H2O * max(leaf_area, 0.0_wp)
+   end function leaf_max_conductance
+
+   !---~---
+   !   One plant's intact wood-to-leaf conductance [kg/s/MPa]: its xylem and its leaves in
+   ! series, 1/k = 1/k_xylem + 1/k_leaf, floored so the leaves of a plant without sapwood
+   ! or without leaves stay joined to its wood (docs/science/plant_hydraulics.md eq. (10)).
+   !---~---
+   elemental function plant_max_conductance(wood_kmax, sap_area, height, leaf_kmax, leaf_area) result(k)
+      real(wp), intent(in) :: wood_kmax    ! [kg/m/s/MPa] sapwood specific conductivity
+      real(wp), intent(in) :: sap_area     ! [m2] sapwood cross-section
+      real(wp), intent(in) :: height       ! [m]
+      real(wp), intent(in) :: leaf_kmax    ! [mmol/m2/s/MPa] leaf hydraulic conductance per unit leaf area
+      real(wp), intent(in) :: leaf_area    ! [m2] the plant's leaf area
+      real(wp) :: k, k_xylem, k_leaf
+      k_xylem = xylem_max_conductance(wood_kmax, sap_area, height)
+      k_leaf  = leaf_max_conductance(leaf_kmax, leaf_area)
+      if (k_xylem > 0.0_wp .and. k_leaf > 0.0_wp) then
+         k = k_xylem * k_leaf / (k_xylem + k_leaf)
+      else
+         k = 0.0_wp
+      end if
+      k = max(k, XYLEM_COND_MIN)
+   end function plant_max_conductance
 
    !--- Roots (docs/science/plant_hydraulics.md eqs. (13)-(15)).
 

@@ -146,7 +146,7 @@ program test_pft_config
       call check_close(tab%pft(2)%wood_kmax, 2.0_wp, 0.0_wp, 'PFT 2 takes its own conductivity')
       call check_close(tab%pft(1)%wood_kmax, cfg%pft%hydro(1)%wood_kmax, 0.0_wp,                  &
                        'PFT 1 keeps its own conductivity')
-      call check_close(tab%pft(2)%vessel_curl, cfg%pft%hydro(2)%vessel_curl, 0.0_wp,              &
+      call check_close(tab%pft(2)%leaf_kmax, cfg%pft%hydro(2)%leaf_kmax, 0.0_wp,                  &
                        'every trait of the table is the PFT''s own')
       !--- And it MATTERS: at the same potential the more vulnerable xylem has lost more.
       plc1 = 1.0_wp - conductance_retained_fraction(-1.5_wp, tab%pft(1)%wood_psi50, tab%pft(1)%wood_kexp)
@@ -282,7 +282,7 @@ contains
          call check_key(t, 'hydraulics.wood_psi50',           p%hydro(1:p%n)%wood_psi50,               p%n)
          call check_key(t, 'hydraulics.wood_kexp',            p%hydro(1:p%n)%wood_kexp,                p%n)
          call check_key(t, 'hydraulics.wood_kmax',            p%hydro(1:p%n)%wood_kmax,                p%n)
-         call check_key(t, 'hydraulics.vessel_curl',          p%hydro(1:p%n)%vessel_curl,              p%n)
+         call check_key(t, 'hydraulics.leaf_kmax',            p%hydro(1:p%n)%leaf_kmax,                p%n)
          call check_key(t, 'hydraulics.root_beta',            p%hydro(1:p%n)%root_beta,                p%n)
          call check_key(t, 'hydraulics.root_depth_b1',        p%hydro(1:p%n)%root_depth_b1,            p%n)
          call check_key(t, 'hydraulics.root_depth_b2',        p%hydro(1:p%n)%root_depth_b2,            p%n)

@@ -180,11 +180,15 @@ wood_apoplast_frac = 0.20    # [-]          wood apoplastic fraction
 wood_water_sat     = 1.0     # [kg H2O/kgC] wood saturated water content
 wood_psi50         = -2.0    # [MPa, < 0]   xylem potential at 50 % loss of conductance
 wood_kexp          = 2.0     # [-]          vulnerability shape (1 or 2: closed form; else lookup table)
-# The plant's maximum internal conductance is its sapwood's, wood_kmax * sapwood area / (height *
-# vessel_curl) (eq. (10)). These wood_kmax are Xu et al. (2016)'s fit to each PFT's wood density
-# (eq. (11)), from scripts/prepare_input/pft_traits/pft_traits.py.
+# The plant's maximum internal conductance is its sapwood's, wood_kmax * sapwood area / height, in
+# series with its leaves', leaf_kmax * leaf area (eq. (10)). These wood_kmax are Xu et al. (2016)'s fit
+# to each PFT's wood density (eq. (11)), from scripts/prepare_input/pft_traits/pft_traits.py.
 wood_kmax          = [5.340397027887704, 3.2683981418222547, 1.7692398658114543]  # [kg/m/s/MPa] sapwood specific conductivity
-vessel_curl        = 1.5     # [-]          xylem path length per unit height
+# Leaf hydraulic conductance per unit leaf area, in series with the sapwood (docs/science/plant_hydraulics.md
+# eq. (10)): 10 BCI canopy species, whole leaf by high-pressure flowmeter in high light (Sack, Tyree & Holbrook
+# 2005, New Phytol 167:403-413, doi:10.1111/j.1469-8137.2005.01432.x, Fig. 2): the mean of the five
+# sun-establishing species, of all ten, and of the five shade-establishing species.
+leaf_kmax          = [15.4, 10.5, 5.6]   # [mmol/m2/s/MPa] leaf hydraulic conductance per unit leaf area (pioneer/mid/climax)
 # Roots. A cohort roots to root_depth_b1 * height^root_depth_b2 [m] (ED2's height allometry, IALLOM 1:
 # 5 m at 35 m), capped at the soil column; its fine roots fall off within that depth as ED2's
 # (1 - root_beta^(d/D)) / (1 - root_beta) above depth d. Its root length (fine-root carbon *

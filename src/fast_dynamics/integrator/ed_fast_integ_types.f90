@@ -175,7 +175,7 @@ module ed_fast_integ_types
       !---~---
       real(wp),    allocatable :: root_frac(:,:)          ! (n_soil_layer_max, n) [-] each cohort's fine roots
       real(wp)                 :: root_frac_patch(n_soil_layer_max) = 0.0_wp   ! [-] the patch's, summing to 1
-      real(wp),    allocatable :: k_xylem(:)              ! [kg/s/MPa per m2 ground] intact xylem conductance
+      real(wp),    allocatable :: k_plant(:)              ! [kg/s/MPa per m2 ground] intact wood-to-leaf conductance
       real(wp),    allocatable :: g_rhizo(:,:)            ! (n_soil_layer_max, n) rhizosphere conductance per
                                                           ! unit soil conductivity [kg/s/MPa per m2, per m/s]
       real(wp),    allocatable :: crown_head(:)           ! [MPa] hydrostatic head from the wood to the leaves
@@ -804,7 +804,7 @@ contains
                static%leaf_area(n), static%nplant(n),                                                          &
                static%dbh(n), static%broot(n), static%bleaf(n), static%bsap(n), static%sap_area(n),           &
                static%bwood(n), static%vcmax25(n), static%rd25(n), static%dmax_psi_leaf(n))
-      allocate(static%root_frac(n_soil_layer_max, n), static%k_xylem(n), static%g_rhizo(n_soil_layer_max, n),      &
+      allocate(static%root_frac(n_soil_layer_max, n), static%k_plant(n), static%g_rhizo(n_soil_layer_max, n),      &
                static%crown_head(n), static%bwood_water(n), static%leaf_dry_hcap(n), static%wood_dry_hcap(n))
       static%pft = 1_ik
       static%order = [(n - i + 1_ik, i = 1_ik, n)]   ! tallest first, as the gather leaves them
@@ -837,7 +837,7 @@ contains
       !---~---
       static%dmax_psi_leaf = UNSET_NEGATIVE
       static%root_frac = 0.0_wp
-      static%k_xylem = 0.0_wp
+      static%k_plant = 0.0_wp
       static%g_rhizo = 0.0_wp
       static%crown_head = 0.0_wp
       static%bwood_water = 0.0_wp

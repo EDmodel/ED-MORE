@@ -105,7 +105,7 @@ module ed_pft_params
       real(wp) :: wood_psi50           = 0.0_wp  ! [MPa, < 0] xylem potential at 50 % loss of conductance
       real(wp) :: wood_kexp            = 0.0_wp  ! [-] vulnerability-curve shape
       real(wp) :: wood_kmax            = 0.0_wp  ! [kg/m/s/MPa] sapwood specific conductivity
-      real(wp) :: vessel_curl          = 0.0_wp  ! [-] xylem path length per unit height
+      real(wp) :: leaf_kmax            = 0.0_wp  ! [mmol/m2/s/MPa] leaf hydraulic conductance per unit leaf area
       real(wp) :: root_beta            = 0.0_wp  ! [-] the untruncated profile's share below the rooting depth (eq. (13))
       real(wp) :: root_depth_b1        = 0.0_wp  ! [m] rooting depth = b1 * height[m]^b2
       real(wp) :: root_depth_b2        = 0.0_wp  ! [-]

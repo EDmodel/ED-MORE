@@ -131,7 +131,12 @@ wood_kexp            = 2.0
 # From wood density (Xu et al. 2016, pft_traits.py). The fit is to angiosperm wood: a conifer's tracheids
 # conduct less than its density says.
 wood_kmax            = [3.796406646461244, 5.622941918589475]   # [kg/m/s/MPa]
-vessel_curl          = 1.5
+# Leaf hydraulic conductance per unit leaf area, in series with the sapwood (docs/science/plant_hydraulics.md
+# eq. (10)). Broadleaf: the mean whole-leaf conductance of sun leaves of Quercus rubra, Acer rubrum, A. saccharum
+# and Betula papyrifera, 14.3, 8.5, 5.6 and 14.0 (Sack, Cowan, Jaikumar & Holbrook 2003, Plant Cell Environ
+# 26:1343-1356, doi:10.1046/j.0016-8025.2003.01058.x, Fig. 2). Conifer: Tsuga canadensis, 8.4 at 20 C (Brodribb,
+# Feild & Jordan 2007, Plant Physiol 144:1890-1898, doi:10.1104/pp.107.101352, Table I).
+leaf_kmax            = [10.6, 8.4]   # [mmol/m2/s/MPa]
 root_beta            = 0.1
 root_depth_b1        = 1.114058
 root_depth_b2        = 0.4223014

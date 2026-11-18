@@ -10,9 +10,11 @@
 !      soil_plant_water.md §2): the water network's tissue unknown gives the
 !      pressure-volume curve's potential and water, with derivatives that match finite
 !      differences.
-!   3. SAPWOOD (xylem_max_conductance, eq. (10)): the intact conductance scales with the
-!      conductivity and the sapwood area and inversely with the path, and stays positive
-!      with no sapwood.
+!   3. WOOD TO LEAF (xylem_max_conductance, leaf_max_conductance, plant_max_conductance,
+!      eq. (10)): the xylem's conductance scales with the conductivity and the sapwood area
+!      and inversely with the height; the leaves' with their conductance per area and their
+!      area; the two in series give the plant's, which stays positive with no sapwood or no
+!      leaves.
 !   4. ROOT PROFILE (root_fraction_profile, eq. (13)): shallower layers hold more roots,
 !      the column to the rooting depth holds 1 - beta of them, and none lie below it.
 !   5. GARDNER (rhizosphere_conductance, eq. (14)): a layer split in two keeps its
@@ -24,16 +26,17 @@
 program test_plant_hydr_lib
    use ed_test_assert,      only : check, check_true, test_report
    use ed_kinds,            only : wp, ik
-   use ed_constants,        only : pi
+   use ed_constants,        only : pi, mmh2o
    use ed_plant_hydr_lib,   only : water_curve_t, tissue_psi_to_rwc, tissue_rwc_to_psi, tissue_psi_to_water,      &
                                    tissue_capacitance, tissue_water_to_psi, tissue_capped_water,                  &
                                    tissue_water_relations, tissue_water_to_rwc, xylem_max_conductance,            &
+                                   leaf_max_conductance, plant_max_conductance,                                   &
                                    root_fraction_profile, rhizosphere_conductance
    implicit none
 
    call test_pv_curve()
    call test_tissue_water_relations()
-   call test_sapwood_conductance()
+   call test_wood_leaf_conductance()
    call test_root_profile()
    call test_gardner()
    call test_growth_seam()
@@ -114,21 +117,35 @@ contains
    end subroutine test_tissue_water_relations
 
    !---~---
-   !   3. The maximum conductance scales with wood_kmax and the sapwood area and inversely with
-   ! the path factor: doubling the conductivity, doubling the sapwood area and halving the path
-   ! factor give the same step, and a faster one than the base.
+   !   3. A plant's intact wood-to-leaf conductance: its xylem, 9 kg/m/s/MPa over 0.01 m2 of
+   ! sapwood and 20 m, in series with 2 m2 of leaves at 10 mmol/m2/s/MPa. Doubling the
+   ! conductivity or the sapwood area, or halving the height, doubles the xylem's; the leaves'
+   ! is their conductance per area times their area; the series value is their harmonic
+   ! combination; with no sapwood or no leaves the plant keeps a positive floor.
    !---~---
-   subroutine test_sapwood_conductance()
-      real(wp) :: k0
-      print '(a)', '-- Sapwood conductance --'
-      k0 = xylem_max_conductance(9.0_wp, 0.01_wp, 20.0_wp, 1.5_wp)
-      call check('2 x sapwood area = 2 x wood_kmax', xylem_max_conductance(9.0_wp, 0.02_wp, 20.0_wp, 1.5_wp), &
-                 xylem_max_conductance(18.0_wp, 0.01_wp, 20.0_wp, 1.5_wp), 1.0e-15_wp)
-      call check('vessel_curl / 2 = 2 x the conductance', xylem_max_conductance(9.0_wp, 0.01_wp, 20.0_wp, 0.75_wp), &
-                 2.0_wp * k0, 1.0e-15_wp)
+   subroutine test_wood_leaf_conductance()
+      real(wp) :: kx, kl, kp
+      print '(a)', '-- Wood-to-leaf conductance --'
+      kx = xylem_max_conductance(9.0_wp, 0.01_wp, 20.0_wp)
+      call check('xylem = wood_kmax x sapwood area / height', kx, 9.0_wp * 0.01_wp / 20.0_wp, 1.0e-15_wp)
+      call check('2 x sapwood area = 2 x wood_kmax', xylem_max_conductance(9.0_wp, 0.02_wp, 20.0_wp), &
+                 xylem_max_conductance(18.0_wp, 0.01_wp, 20.0_wp), 1.0e-15_wp)
+      call check('height / 2 = 2 x the xylem conductance', xylem_max_conductance(9.0_wp, 0.01_wp, 10.0_wp), &
+                 2.0_wp * kx, 1.0e-15_wp)
+      kl = leaf_max_conductance(10.0_wp, 2.0_wp)
+      call check('leaves = leaf_kmax [mmol] x area, as kg', kl, 10.0_wp * 1.0e-3_wp * mmh2o * 2.0_wp, 1.0e-18_wp)
+      kp = plant_max_conductance(9.0_wp, 0.01_wp, 20.0_wp, 10.0_wp, 2.0_wp)
+      call check('plant = xylem and leaves in series', kp, kx * kl / (kx + kl), 1.0e-15_wp)
+      call check_true('the series is below each part', kp < kx .and. kp < kl)
+      call check('very conductive leaves leave the xylem', plant_max_conductance(9.0_wp, 0.01_wp, 20.0_wp,       &
+                 1.0e12_wp, 2.0_wp), kx, 1.0e-9_wp * kx)
       call check_true('a plant with no sapwood keeps a positive conductance',                         &
-                      xylem_max_conductance(9.0_wp, 0.0_wp, 20.0_wp, 1.5_wp) > 0.0_wp)
-   end subroutine test_sapwood_conductance
+                      plant_max_conductance(9.0_wp, 0.0_wp, 20.0_wp, 10.0_wp, 2.0_wp) > 0.0_wp)
+      call check_true('a leafless plant keeps a positive conductance',                                &
+                      plant_max_conductance(9.0_wp, 0.01_wp, 20.0_wp, 10.0_wp, 0.0_wp) > 0.0_wp)
+      call check_true('... far below a leafy one',                                                    &
+                      plant_max_conductance(9.0_wp, 0.01_wp, 20.0_wp, 10.0_wp, 0.0_wp) < 1.0e-9_wp * kp)
+   end subroutine test_wood_leaf_conductance
 
    !--- 4. ED2's root-fraction profile, beta = 0.96 to a 2 m rooting depth.
    subroutine test_root_profile()

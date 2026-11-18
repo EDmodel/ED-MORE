@@ -58,7 +58,7 @@ contains
       p%wood_psi50 = -2.0_wp
       p%wood_kexp  = 2.0_wp
       p%wood_kmax  = 9.0_wp
-      p%vessel_curl = 1.5_wp      ! 3.0e-3 kg/s/MPa over the 20 m path
+      p%leaf_kmax = 10.0_wp       ! [mmol/m2/s/MPa] leaf hydraulic conductance
       p%root_beta = 0.1_wp
       p%root_depth_b1 = 1.1140580_wp
       p%root_depth_b2 = 0.4223014_wp
@@ -231,7 +231,7 @@ contains
       print '(a)', '-- Xylem flow --'
       call build_kirchhoff_table(tab3, 3.0_wp)
       call build_kirchhoff_table(tab2, 2.0_wp)
-      kc = xylem_max_conductance(3.3_wp, 2.0e-3_wp, 18.0_wp, 1.0_wp) * 0.05_wp
+      kc = xylem_max_conductance(3.3_wp, 2.0e-3_wp, 18.0_wp) * 0.05_wp
       grav = grav_head * 18.0_wp
       ok2 = .true.
       ok3 = .true.

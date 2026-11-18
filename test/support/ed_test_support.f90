@@ -228,7 +228,7 @@ contains
          h%wood_psi50           = [ -2.0_wp, -2.5_wp, -3.0_wp ]
          h%wood_kexp            = [ 2.0_wp, 1.0_wp, 3.0_wp ]
          h%wood_kmax            = [ 5.340397027887704_wp, 3.2683981418222547_wp, 1.7692398658114543_wp ]
-         h%vessel_curl          = [ 1.5_wp, 1.6_wp, 1.7_wp ]
+         h%leaf_kmax            = [ 15.0_wp, 10.0_wp, 5.0_wp ]
          h%root_beta            = [ 0.10_wp, 0.15_wp, 0.20_wp ]
          h%root_depth_b1        = [ 1.1140580_wp, 1.20_wp, 1.30_wp ]
          h%root_depth_b2        = [ 0.4223014_wp, 0.43_wp, 0.44_wp ]

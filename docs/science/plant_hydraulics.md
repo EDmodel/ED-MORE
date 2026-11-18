@@ -90,21 +90,29 @@ K_{ij}=k_{\text{cond}}\,\frac{\Phi(\psi_{up})-\Phi(\psi_{down})}{\psi_{up}-\psi_
 \;\xrightarrow[\Delta\psi\to0]{}\; k_{\text{cond}}\,k(\psi) \qquad(9)
 ```
 
-$k_{\text{cond}}$ is the maximum (fully hydrated) per-plant conductance, the sapwood's over the path from the stem base to the crown:
+$k_{\text{cond}}$ is the maximum (fully hydrated) per-plant conductance from the wood to the leaves. Two parts carry the water in series: the sapwood, from the stem base to the crown, and the leaves, from the petiole to the sites of evaporation:
 
 ```math
-k_{\text{cond}}=\frac{K_s\,A_{sap}}{H\cdot\text{vessel\_curl}} \qquad(10)
+\frac{1}{k_{\text{cond}}}=\frac{1}{k_{\text{xylem}}}+\frac{1}{k_{\text{leaf}}},\qquad
+k_{\text{xylem}}=\frac{K_s\,A_{sap}}{H},\qquad
+k_{\text{leaf}}=K_L\,M_w\,\mathrm{LA} \qquad(10)
 ```
 
 ```math
 K_s=\exp\!\left(2.348-2.455\,\rho+\tfrac{1}{2}\,0.6186\right) \qquad(11)
 ```
 
-$A_{sap}$ is the sapwood area of the stem allometry, $H$ the plant's height, and `vessel_curl` (1.5, as in ED2) lengthens the path beyond the height. $K_s$ [kg m⁻¹ s⁻¹ MPa⁻¹], the sapwood specific conductivity, is a PFT trait, `[hydraulics].wood_kmax`. The shipped PFTs take it from their wood density $\rho$ [g cm⁻³] through the fit of Xu et al. (2016, New Phytol 212:80) to 72 species of neotropical seasonally dry forests, as ED2 codes it (`plant_hydro_scheme` 2), eq. (11). The fit is computed outside the model, by `scripts/prepare_input/pft_traits`. It is lognormal, so the residual variance 0.6186 turns its median into the mean (×1.36); $\rho$ outside 0.35–0.95 takes the nearest edge. $K_s$ is 6.0 at $\rho$ = 0.35, 3.3 at 0.60 and 1.4 at 0.95. Wood density explains a fifth of the variance ($R^2$ 0.21): one species' $K_s$ can lie a factor of 2 either side. Branches of Panama canopy trees span about 1.6–12, and 2–4 at $\rho$ = 0.6 (Meinzer et al. 2008), and FATES's default is 3.0. For a 35 m BCI canopy tree (72 cm dbh, 0.30 m² of sapwood, 553 m² of leaf) the 0.60 value gives $k_{\text{cond}}$ = 0.019 kg s⁻¹ MPa⁻¹: 1.9 mmol m⁻² s⁻¹ MPa⁻¹ per unit leaf area, and 63 g m⁻² s⁻¹ MPa⁻¹ per unit sapwood, inside the 25–131 measured from soil to branch on Panama canopy trees (Meinzer et al. 2003).
+$A_{sap}$ is the sapwood area of the stem allometry and $H$ the plant's height, the xylem's path. ED2 lengthens that path by a factor of 1.5 (`vessel_curl`) with no measurement behind it; here the leaves' measured resistance, in series, carries the rest of the path. $K_s$ [kg m⁻¹ s⁻¹ MPa⁻¹], the sapwood specific conductivity, is a PFT trait, `[hydraulics].wood_kmax`. The shipped PFTs take it from their wood density $\rho$ [g cm⁻³] through the fit of Xu et al. (2016, New Phytol 212:80) to 72 species of neotropical seasonally dry forests, as ED2 codes it (`plant_hydro_scheme` 2), eq. (11). The fit is computed outside the model, by `scripts/prepare_input/pft_traits`. It is lognormal, so the residual variance 0.6186 turns its median into the mean (×1.36); $\rho$ outside 0.35–0.95 takes the nearest edge. $K_s$ is 6.0 at $\rho$ = 0.35, 3.3 at 0.60 and 1.4 at 0.95. Wood density explains a fifth of the variance ($R^2$ 0.21): one species' $K_s$ can lie a factor of 2 either side. Branches of Panama canopy trees span about 1.6–12, and 2–4 at $\rho$ = 0.6 (Meinzer et al. 2008), and FATES's default is 3.0.
+
+$K_L$ [mmol m⁻² s⁻¹ MPa⁻¹], the leaf hydraulic conductance per unit leaf area, is a PFT trait, `[hydraulics].leaf_kmax`, in the unit leaf hydraulics is measured in; $M_w$ (18.015 g mol⁻¹, `mmh2o`) turns it into kg, and LA is the plant's leaf area. Leaves hold a large share of a plant's resistance, often a third or more (Sack & Holbrook 2006). On Barro Colorado Island, 10 canopy species span 2.2–21 mmol m⁻² s⁻¹ MPa⁻¹, sun-establishing species about three times shade-establishing ones (Sack, Tyree & Holbrook 2005); temperate woody sun leaves span about 5–14 (Sack et al. 2003), and Harvard Forest's sugar maple has a lamina conductance of 6.9 (Sack et al. 2002). The leaf term scales with the leaves present, so the leaf conductance grows as a canopy flushes and a leafless plant has none.
+
+For a 35 m BCI canopy tree (72 cm dbh, 0.30 m² of sapwood, 553 m² of leaf), the 0.60 wood density's $K_s$ gives $k_{\text{xylem}}$ = 0.028 kg s⁻¹ MPa⁻¹, and a $K_L$ of 10 gives $k_{\text{leaf}}$ = 0.100. In series, $k_{\text{cond}}$ = 0.022 kg s⁻¹ MPa⁻¹: 2.2 mmol m⁻² s⁻¹ MPa⁻¹ per unit leaf area, and 73 g m⁻² s⁻¹ MPa⁻¹ per unit sapwood, inside the 25–131 measured from soil to branch on Panama canopy trees (Meinzer et al. 2003). The leaves hold 22 % of this tree's resistance. Small stems hold more: their xylem path is short, so their leaves carry most of it.
+
+The vulnerability curve of eq. (7) applies to the series conductance as a whole, so eq. (9) keeps its exact Kirchhoff form. Separate curves for xylem and leaves would need the potential between the two parts inside every evaluation of the water network's Newton.
 
 For general $`a\notin\{1,2\}`$ the Kirchhoff integral, eq. (8), is precomputed once into a fixed uniform-grid **lookup table** $G(r)$ over $`0\le r\le 8`$ and read by linear interpolation on the hot path (the closed forms are kept for $`a\in\{1,2\}`$). The table stores the $r$-normalized $G$, so $\psi_{50}$ is a runtime scale. It is built panel by panel, so it rises monotonically, and past $r = 8$ the tail $`\int u^{-a}\,du`$ is added analytically, so the potential keeps approaching its asymptote even for a leaf dried far beyond the vulnerability curve. Each of the table's 512 intervals is one 7-point Gauss–Legendre panel: a single rule over a long range misses the integrand's fall near $u = 1$ (at $r$ = 7800 and $a$ = 4 it gives about 10⁻⁶ instead of 1.11), which would hand the xylem of a desiccated leaf a negative conductance.
 
-**In the flow.** Above zero potential nothing is embolised, so the sapflow takes $\Phi(\psi) = \psi$ there. When the two ends of eq. (9) are within 10⁻⁶ MPa, the conductance and its slopes are taken at their midpoint, where the difference quotient loses its digits. Farther apart, for $a=2$ with both ends at or below zero, the difference is one arctangent, $`\Phi(\psi_{up})-\Phi(\psi_{down})=\psi_{50}\arctan\big((r_{up}-r_{down})/(1+r_{up}\,r_{down})\big)`$, which keeps the digits two close potentials share. The slopes in the solver's Jacobian are those of exactly the $\Phi$ computed (the retained fraction for the closed forms, the slope of the table's linear piece inside the table, the tail's beyond it), so the Jacobian is the derivative of the flow that moves the water. A fully embolised cohort keeps a 10⁻¹² share of $k_{\text{cond}}$, and a plant with no sapwood yet a $k_{\text{cond}}$ of 10⁻¹⁵ kg s⁻¹ MPa⁻¹, so the leaves of every cohort stay joined to its wood and its equations stay solvable.
+**In the flow.** Above zero potential nothing is embolised, so the sapflow takes $\Phi(\psi) = \psi$ there. When the two ends of eq. (9) are within 10⁻⁶ MPa, the conductance and its slopes are taken at their midpoint, where the difference quotient loses its digits. Farther apart, for $a=2$ with both ends at or below zero, the difference is one arctangent, $`\Phi(\psi_{up})-\Phi(\psi_{down})=\psi_{50}\arctan\big((r_{up}-r_{down})/(1+r_{up}\,r_{down})\big)`$, which keeps the digits two close potentials share. The slopes in the solver's Jacobian are those of exactly the $\Phi$ computed (the retained fraction for the closed forms, the slope of the table's linear piece inside the table, the tail's beyond it), so the Jacobian is the derivative of the flow that moves the water. A fully embolised cohort keeps a 10⁻¹² share of $k_{\text{cond}}$, and a plant with no sapwood or no leaves a $k_{\text{cond}}$ of 10⁻¹⁵ kg s⁻¹ MPa⁻¹, so the leaves of every cohort stay joined to its wood and its equations stay solvable. A leafless cohort's leaf node takes the wood's potential less the head to the crown (§2), not a flow.
 
 ## 4. Root water uptake
 
@@ -159,7 +167,7 @@ These are the PFT file's `[hydraulics]` keys (record `plant_hydraulics_t`). Each
 | $\psi_{50}$ | `wood_psi50` | xylem potential at 50 % loss of conductance [MPa] |
 | $a$ | `wood_kexp` | vulnerability-curve shape [–] |
 | $K_s$ | `wood_kmax` | sapwood specific conductivity [kg m⁻¹ s⁻¹ MPa⁻¹]; the shipped values from wood density, eq. (11) (`scripts/prepare_input/pft_traits`) |
-| — | `vessel_curl` | tortuosity / path-length factor [–] |
+| $K_L$ | `leaf_kmax` | leaf hydraulic conductance per unit leaf area, petiole to the sites of evaporation [mmol m⁻² s⁻¹ MPa⁻¹]; in series with the xylem, eq. (10) |
 | $\beta$ | `root_beta` | the root profile within the rooting depth [–], $0<\beta<1$ (ED2: 0.1) |
 | $`b_{1Rd}, b_{2Rd}`$ | `root_depth_b1`, `root_depth_b2` | rooting depth $`b_{1Rd}\,h^{b_{2Rd}}`$ [m], capped at the soil column (ED2 IALLOM 1) |
 | SRL | `specific_root_length` | fine-root length per unit fine-root carbon [m kgC⁻¹] |
@@ -175,7 +183,7 @@ These are the PFT file's `[hydraulics]` keys (record `plant_hydraulics_t`). Each
 | vulnerability curve | `ed_plant_hydr_lib`: `conductance_retained_fraction` |
 | Kirchhoff potential and mean | `ed_plant_hydraulics`: `kirchhoff_potential` (closed forms, or the PFT's table); the Kirchhoff mean conductance inside `xylem_sapflow`, from `kirchhoff_difference` |
 | Kirchhoff table | `kirchhoff_table_t` (`ed_pft_params`), built at load by `build_kirchhoff_table` (`ed_pft_derive`: one 7-point Gauss–Legendre panel per interval, written out in `kirchhoff_panel`); `kirchhoff_tail` past the table (`ed_plant_hydraulics`) |
-| xylem and root conductances | `ed_plant_hydr_lib`: `xylem_max_conductance`, `rhizosphere_conductance`, `root_fraction_profile` |
+| wood-to-leaf and root conductances | `ed_plant_hydr_lib`: `plant_max_conductance` (`xylem_max_conductance` and `leaf_max_conductance` in series), `rhizosphere_conductance`, `root_fraction_profile`; per cohort in `derive_cohort_terms` (`ed_fast_state`) |
 | xylem and root flows | `ed_plant_hydraulics`: `xylem_sapflow`, `root_water_uptake`, `root_water_uptake_profile`, and the leaves' supply limit `supply_limited_transpiration` |
 | rooting depth and profile | `ed_plant_hydraulics`: `cohort_root_depth`, `cohort_root_profile`; `crown_gravity_head`, `leaf_node_psi` |
 | the solve | `ed_fast_integ_backward_euler`: `water_step` ([soil_plant_water](soil_plant_water.md)) |
@@ -183,6 +191,10 @@ These are the PFT file's `[hydraulics]` keys (record `plant_hydraulics_t`). Each
 
 ## References
 - Xu, Medvigy, Powers, Becknell & Guan (2016), *New Phytologist* — X16 hydraulics.
+- Sack & Holbrook (2006), *Annual Review of Plant Biology* 57:361–381 — leaf hydraulics.
+- Sack, Tyree & Holbrook (2005), *New Phytologist* 167:403–413, doi:10.1111/j.1469-8137.2005.01432.x — leaf hydraulic conductance of 10 BCI tree species.
+- Sack, Melcher, Zwieniecki & Holbrook (2002), *Journal of Experimental Botany* 53:2177–2184, doi:10.1093/jxb/erf069 — lamina conductance of Harvard Forest trees.
+- Sack, Cowan, Jaikumar & Holbrook (2003), *Plant, Cell & Environment* 26:1343–1356 — leaf hydraulics of temperate woody species.
 - Bartlett, Scoffoni & Sack (2012); Tyree & Hammel (1972) — pressure–volume theory.
 - Gardner (1960) *Soil Science* 89:63–73; Cowan (1965) *J. Appl. Ecol.* 2:221–239 — single-root rhizosphere conductance.
 - Christoffersen (2013), PhD thesis, University of Arizona — the rooting-depth allometry (ED2 IALLOM 1).

@@ -183,7 +183,12 @@ wood_water_sat         = [4.4071, 2.539, 1.3955, 0.9917]   # [kg H2O/kgC] ED2: 2
 wood_psi50             = [-1.649, -2.159, -2.819, -3.209]   # [MPa] X16: -3.0 WD - 0.599
 wood_kexp              = [4, 4, 4, 4]   # [-] X16
 wood_kmax              = [6.0378621462769955, 3.9776850327121633, 2.3177572139966176, 1.6844683588774712]   # [kg/m/s/MPa] Xu et al. (2016) in WD (scripts/prepare_input/pft_traits)
-vessel_curl            = 1.5   # [-]
+# Leaf hydraulic conductance per unit leaf area, in series with the sapwood (docs/science/plant_hydraulics.md
+# eq. (10)): Santa Rosa, Guanacaste, by rehydration kinetics (Brodribb & Holbrook 2003, Plant Physiol
+# 132:2166-2173, doi:10.1104/pp.103.023879): the evergreen Simarouba glauca 24.1 and the deciduous Rehdera
+# trinervis 16.7. No brevi-deciduous or stem-succulent species was measured, so Ds and BD take the four
+# species' mean, 20.4.
+leaf_kmax              = [20.4, 16.7, 20.4, 24.1]   # [mmol/m2/s/MPa] Ds, D, BD, E
 root_depth_b1          = [0.6499, 0.9655, 1.374, 1.6154]   # [m] 1.114 * WD/0.6
 root_depth_b2          = [0.422301, 0.422301, 0.422301, 0.422301]   # [-] ED-MORE default (ED2 IALLOM 1)
 root_beta              = [0.001, 0.002, 0.005, 0.01]   # [-] deeper profiles with wood density (the default 0.1
