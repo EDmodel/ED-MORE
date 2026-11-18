@@ -183,6 +183,8 @@ contains
       p%theta_ip_c3    = pft%theta_ip_c3(ipft)
       p%theta_cj_c4    = pft%theta_cj_c4(ipft)
       p%theta_ic_c4    = pft%theta_ic_c4(ipft)
+      p%low_temp       = pft%capacity_low_temp(ipft)
+      p%low_temp_slope = pft%capacity_low_temp_slope(ipft)
       p%lambda25       = pft%katul_lambda25(ipft)
       p%psi_open       = pft_wstress_psi_open(pft, ipft)    ! turgor loss unless the PFT file sets it
       p%psi_close      = pft_wstress_psi_close(pft, ipft)   ! twice it unless the PFT file sets it

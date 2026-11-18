@@ -266,6 +266,9 @@ contains
       allocate(pft%katul_lambda25(n), pft%wstress_psi_open(n), pft%wstress_psi_close(n),     &
                pft%wstress_lambda_exp(n), pft%wstress_sref_stomata(n), pft%stomata_psi_onset(n))
       allocate(pft%leaf_surf_water_max(n), pft%wood_surf_water_max(n))
+      allocate(pft%capacity_low_temp(n), pft%capacity_low_temp_slope(n))
+      pft%capacity_low_temp       = 277.8637_wp   ! optional keys: ED2's Vm_low_temp (4.7137 degC) and
+      pft%capacity_low_temp_slope = 0.4_wp        !   Vm_decay_elow, its temperate and conifer PFTs'
       allocate(pft%jmax25(n), pft%tpu25(n), pft%rd25(n))
       allocate(pft%leaf_width(n), pft%branch_diameter(n))
       allocate(pft%sla(n), pft%root_to_leaf_ratio(n),                                        &

@@ -5,7 +5,7 @@
 #
 # The tables are ForestGEO tree tables, one row per tree, from Condit et al. 2019, Dryad
 # doi:10.15146/5xcp-0d46 (download bci.tree.zip in a browser). The two paths below name the tables'
-# folder as /path/to/bci_census, which is installation-specific: run_example.py writes the folder
+# folder as /path/to/bci_census, which is installation-specific: run_site.py writes the folder
 # (--census-dir, or the environment variable BCI_CENSUS_DIR) into the copy of this file it runs,
 # data/bci_census.toml. The checksums are of the CSV exports the example was made with; for another
 # export, or bci.tree7.rdata with format = "rdata" and rdata_object = "bci.tree7", drop or replace them.

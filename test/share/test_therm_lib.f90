@@ -51,7 +51,8 @@ program test_therm_lib
    use ed_kinds,         only : wp, ik
    use ed_constants,     only : t_kelvin, t_3ple, r_wv, es_3ple, cp_ice, latent_heat_fusion, k_water, k_ice,   &
                                 h2o_dry_ratio, latent_heat_vap_3ple, grav, r_dry, cp_air, virtual_temp_factor
-   use ed_therm_lib,     only : arrhenius_scale, peaked_arrhenius_scale, kattge_knorr_entropy,                    &
+   use ed_therm_lib,     only : arrhenius_scale, peaked_arrhenius_scale, low_temperature_limit,                   &
+                                kattge_knorr_entropy,                                                              &
                                 temp_to_internal_energy, internal_energy_to_temp, internal_energy_ice,            &
                                 sat_vapor_pressure, sat_vapor_pressure_temp_deriv, sat_specific_humidity,         &
                                 soil_thermal_conductivity, soil_texture_to_thermal, rh_to_specific_humidity,      &
@@ -119,6 +120,19 @@ contains
       call check_true('both optima lie inside the scan, not at its ends',                                       &
                       min(topt_cold, topt_warm) > t_kelvin + SCAN_LO .and. max(topt_cold, topt_warm) < t_kelvin + SCAN_HI, &
                       topt_warm - t_kelvin)
+
+      !---~---
+      !   The low-temperature limit, eq. (3b), at ED2's temperate values (4.7137 C, 0.4 /K):
+      ! a half at the threshold, 1 / (1 + exp(0.4 x 4.7137)) = 0.132 at 0 C, near 1 when warm.
+      !---~---
+      call check('the low-temperature limit is a half at its threshold',                                      &
+                 low_temperature_limit(t_kelvin + 4.7137_wp, t_kelvin + 4.7137_wp, 0.4_wp), 0.5_wp, 1.0e-15_wp)
+      call check('and 1/(1 + exp(0.4 x 4.7137)) at 0 C', low_temperature_limit(t_kelvin, t_kelvin + 4.7137_wp, 0.4_wp), &
+                 1.0_wp / (1.0_wp + exp(0.4_wp * 4.7137_wp)), 1.0e-15_wp)
+      call check_true('above 0.999 at 25 C', low_temperature_limit(t_kelvin + 25.0_wp, t_kelvin + 4.7137_wp, 0.4_wp)  &
+                      > 0.999_wp, low_temperature_limit(t_kelvin + 25.0_wp, t_kelvin + 4.7137_wp, 0.4_wp))
+      call check_true('and it falls as the leaf cools', low_temperature_limit(t_kelvin - 5.0_wp, t_kelvin + 4.7137_wp,  &
+                      0.4_wp) < low_temperature_limit(t_kelvin, t_kelvin + 4.7137_wp, 0.4_wp))
    end subroutine test_temperature_response
 
    !---~---

@@ -11,11 +11,13 @@ moved to local time -- the post-processing step that UTC-only forcing leaves to 
 
 The figure: for carbon (GPP, NEE), water (LE) and energy (H, net radiation), the mean diurnal cycle
 in local time over the evaluation years (top), and the mean seasonal cycle by calendar month
-(bottom). Every mean uses only the hours both have, so the two curves see the same sample; a
-calendar month is shown when the tower measured at least ten days of it over the five years.
-NEE is positive toward the atmosphere in both.
+(bottom). Every mean uses only the hours both have, so the two curves see the same sample, and is
+made from each (calendar month, hour of the day) averaged over the years (../../evaluation.py,
+cycle_bins): a month's mean weighs its 24 hours the same, however few of some the tower measured. A
+calendar month is shown when the tower measured at least ten days of it over the five years, and each
+of its hours at least five times. NEE is positive toward the atmosphere in both.
 
-With --calibrated, the calibrated run (run_example.py --calibrate) is drawn beside the default,
+With --calibrated, the calibrated run (run_site.py --calibrate) is drawn beside the default,
 and the statistics hold both. With the calibration's fit (--fit, calibration/fit.json by default),
 the tower is also drawn as the calibration scores it (dashed): GPP with the tower's respiration
 divided by the fitted kappa, and H and LE with the energy-closure gap shared as the fit shared it
@@ -25,7 +27,6 @@ Usage: python plot_evaluation.py [--out evaluation.png] [--stats output/evaluati
                                  [--calibrated "output/cal-F-*.nc"] [--fit calibration/fit.json]
 """
 import argparse
-import glob
 import json
 import os
 import sys
@@ -34,85 +35,12 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
-import pandas as pd  # noqa: E402
-from netCDF4 import Dataset  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.join(HERE, "..", "..")
-for path in ("scripts/prepare_input/flux_tower", "scripts/calibrate_fast", "python"):
-    sys.path.insert(0, os.path.join(ROOT, path))
-import tower_inputs as ti  # noqa: E402  (the one reader of tower files)
-import observation_models as om  # noqa: E402  (the calibration's observation models)
-import settings as calibration_settings  # noqa: E402
-from edmore.config import load_toml  # noqa: E402
-MIN_MONTH_HOURS = 240          # a calendar month needs at least ten days of hours the tower measured
-INK, MUTED, GRID = "#0b0b0b", "#52514e", "#d9d8d4"
-MODEL, TOWER, CALIBRATED = "#2a78d6", INK, "#d4661c"
-#        model variable    tower flux  group      name             units
-PAIRS = [("mean_gpp_py", "GPP",   "carbon", "GPP",             "µmol m⁻² s⁻¹"),
-         ("mean_nee_py",      "NEE",   "carbon", "NEE",             "µmol m⁻² s⁻¹"),
-         ("mean_le_py",  "LE",    "water",  "latent heat",     "W m⁻²"),
-         ("mean_h_py",   "H",     "energy", "sensible heat",   "W m⁻²"),
-         ("mean_rnet_py",     "Rnet",  "energy", "net radiation",   "W m⁻²")]
-MONTHS = "JFMAMJJASOND"
-
-
-def read_model(pattern, utc_offset_h):
-    """The hourly records as a DataFrame on LOCAL time (the start of each hour)."""
-    frames = []
-    for path in sorted(glob.glob(pattern)):
-        with Dataset(path) as ds:
-            cols = {v: np.asarray(ds[v][:], dtype=float).squeeze() for v, *_ in PAIRS}
-            stamp = pd.to_datetime(dict(year=ds["year"][:], month=ds["month"][:], day=ds["day"][:],
-                                        hour=ds["hour"][:], minute=ds["minute"][:]))
-        frames.append(pd.DataFrame(cols, index=stamp + pd.Timedelta(hours=utc_offset_h)))
-    if not frames:
-        raise SystemExit(f"ERROR: no model output matches {pattern}; run the model first")
-    model = pd.concat(frames).sort_index()
-    return model.where(model.abs() < 1e30)
-
-
-def calibration_targets(table, site, fit_path, config_path):
-    """The tower as the calibration scores it, on its measured half hours: by day (the calibration's
-    targets are daytime ones), GPP with the tower's respiration divided by kappa, and H and LE with
-    the closure gap shared as the fit shared it; at night the measured flux. Returns the columns
-    (named as the tower's) that differ from the measured flux -- GPP, and H or LE where the fit gave
-    it a share of the gap -- and kappa."""
-    with open(fit_path) as fh:
-        fit = json.load(fh)
-    settings = calibration_settings.complete(load_toml(config_path))
-    f, _ = om.closure_factor(table.values, table.measured, site.utc_offset, settings["closure"])
-    shares = fit["data"]["closure"]["shares"]
-    v = table.values.where(table.measured)
-    h, le = om.corrected(pd.DataFrame({"h": v["H"], "le": v["LE"], "closure_f": f}), shares["h"], shares["le"])
-    kappa = fit["map"]["kappa"]
-    day = table.values["SWdown"] > float(settings["tower"]["daytime_sw"])
-    target = pd.DataFrame({"GPP": v["GPP"] + (1.0 / kappa - 1.0) * v["RECO"], "H": h, "LE": le})
-    target = target[["GPP"] + [name for name in ("H", "LE") if shares[name.lower()] != 0.0]]
-    return target.where(day, v[target.columns]), kappa
-
-
-def read_tower(site, fit_path=None, config_path=None):
-    """The tower's measured half hours (the site TOML's reader), averaged to the model's UTC hours
-    -- an hour counts when both its half hours were measured -- and moved to local time. With the
-    calibration's fit, also the tower as the calibration scores it (calibration_targets)."""
-    table = ti.read_standard(site)
-    cols = [col for _, col, *_ in PAIRS]
-    tower = table.values[cols].where(table.measured[cols])
-    target, kappa = (calibration_targets(table, site, fit_path, config_path) if fit_path
-                     else (pd.DataFrame(index=tower.index), None))
-
-    def hourly(df):
-        h = df.resample("1h").mean().where(df.resample("1h").count() == 2)
-        return h.set_axis(h.index + pd.Timedelta(hours=site.utc_offset))
-    return hourly(tower), hourly(target), kappa
-
-
-def stats(m, t):
-    d = m - t
-    return {"n_hours": int(len(d)), "model_mean": float(m.mean()), "tower_mean": float(t.mean()),
-            "bias": float(d.mean()), "rmse": float(np.sqrt((d ** 2).mean())),
-            "r_hourly": float(np.corrcoef(m, t)[0, 1])}
+sys.path.insert(0, os.path.join(HERE, "..", ".."))
+from evaluation import (CALIBRATED, GRID, INK, MODEL, MONTHS, MUTED, PAIRS, TOWER,  # noqa: E402
+                        annual_mean, cycle_bins, cycle_stats, diurnal, monthly, read_model, read_tower)
+import tower_inputs as ti  # noqa: E402  (on the path evaluation set)
 
 
 def main(argv=None):
@@ -149,12 +77,16 @@ def main(argv=None):
             both &= target[tv].notna()
         m, t = model.loc[both, mv], tower.loc[both, tv]
         tt = target.loc[both, tv] if scored else t                    # what the bias and r are against
-        s = stats(m, tt)
-        s["tower_measured_mean"] = float(t.mean())
+        mo, ho = month[both], hour[both]
+        mb, tb, ttb = cycle_bins(m, mo, ho), cycle_bins(t, mo, ho), cycle_bins(tt, mo, ho)
+        s = cycle_stats(m, tt, mo, ho)
+        s["tower_measured_mean"] = annual_mean(tb)
         c = cal.loc[both, mv] if cal is not None else None
-        sc = stats(c, tt) if c is not None else None
+        sc = cycle_stats(c, tt, mo, ho) if c is not None else None
+        cb = cycle_bins(c, mo, ho) if c is not None else None
         #----- the mean diurnal cycle ----------------------------------------------------------#
-        md, td, ttd = m.groupby(hour[both]).mean(), t.groupby(hour[both]).mean(), tt.groupby(hour[both]).mean()
+        year = range(1, 13)
+        md, td, ttd = diurnal(mb, year), diurnal(tb, year), diurnal(ttb, year)
         s["r_diurnal"] = float(np.corrcoef(md, ttd)[0, 1])
         a = ax[0, i]
         a.plot(td.index + 0.5, td.values, color=TOWER, lw=2, label="tower")
@@ -162,7 +94,7 @@ def main(argv=None):
             a.plot(ttd.index + 0.5, ttd.values, color=TOWER, lw=1.6, ls="--", label="tower, as the calibration scores it")
         a.plot(md.index + 0.5, md.values, color=MODEL, lw=1.8, label="ED-MORE")
         if c is not None:
-            cd = c.groupby(hour[both]).mean()
+            cd = diurnal(cb, year)
             sc["r_diurnal"] = float(np.corrcoef(cd, ttd)[0, 1])
             a.plot(cd.index + 0.5, cd.values, color=CALIBRATED, lw=1.8, label="ED-MORE calibrated")
         a.set(title=f"{group}: {name}\n({units})", xlabel=f"local time (UTC{site.utc_offset:+g})",
@@ -174,10 +106,7 @@ def main(argv=None):
             note += "\n(against the dashed line)"
         a.text(0.03, 0.97, note, transform=a.transAxes, va="top", color=MUTED, fontsize=8.5)
         #----- the mean seasonal cycle, by calendar month --------------------------------------#
-        n = m.groupby(month[both]).size()
-        ms = m.groupby(month[both]).mean().where(n >= MIN_MONTH_HOURS)
-        ts = t.groupby(month[both]).mean().where(n >= MIN_MONTH_HOURS)
-        tts = tt.groupby(month[both]).mean().where(n >= MIN_MONTH_HOURS)
+        ms, ts, tts = monthly(mb), monthly(tb), monthly(ttb)
         ok = ms.notna() & ts.notna()
         s["r_seasonal"] = float(np.corrcoef(ms[ok], tts[ok])[0, 1]) if ok.sum() > 2 else None
         s["months_shown"] = [int(k) for k in ms.index[ok]]
@@ -189,7 +118,7 @@ def main(argv=None):
                    label="tower, as the calibration scores it")
         a.plot(ms.index, ms.values, color=MODEL, lw=1.8, marker="o", ms=3.5, label="ED-MORE")
         if c is not None:
-            cs = c.groupby(month[both]).mean().where(n >= MIN_MONTH_HOURS)
+            cs = monthly(cb)
             sc["r_seasonal"] = float(np.corrcoef(cs[ok], tts[ok])[0, 1]) if ok.sum() > 2 else None
             a.plot(cs.index, cs.values, color=CALIBRATED, lw=1.8, marker="o", ms=3.5, label="ED-MORE calibrated")
             out_cal[name] = sc
@@ -202,7 +131,8 @@ def main(argv=None):
     ax[1, 0].set_ylabel("mean seasonal cycle")
     years = f"{model.index.min():%Y-%m} to {model.index.max():%Y-%m}"
     fig.suptitle(f"ED-MORE started from the 2010 BCI census, driven by the BCI tower, against the same tower "
-                 f"({years}; turbulent fluxes where FLAG = 1)", color=INK, fontsize=11)
+                 f"({years}; turbulent fluxes where FLAG = 1, every hour of the day weighted alike)",
+                 color=INK, fontsize=11)
     fig.tight_layout(rect=(0, 0.05, 1, 1))
     fig.savefig(args.out, dpi=130)
     os.makedirs(os.path.dirname(os.path.abspath(args.stats)), exist_ok=True)

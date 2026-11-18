@@ -76,20 +76,30 @@ skip_hours      = 0              # Hours left unscored at each window's start (t
 chain_lead_days = 180            # Every window restarts from its own state: a frozen run from the initial stand (the
                                  #   base config's census or state) that starts this many days before the window, so the
                                  #   soil water and temperature are the model's own. Half a year spans a wet season
-                                 #   before any dry-season window.
+                                 #   before any dry-season window. A chain of a frozen stand ([demography].
+                                 #   demography_on = false) runs the slow tier, so its leaves follow the season:
+                                 #   give it a year (365).
 # The windows are chosen by the rule (best-practice plan §6.2) unless the calibration lists them: one calibration window
-# per slot of the year (`per_year` equal slots, 1.5 months for 8) inside the site TOML's leaf-on months, each the slot's
-# best covered -- the share of daytime records with H, LE and GPP measured, times the share with observed forcing --
-# and a validation window in the same slot of another year. `report` prints the choice as entries for this list.
+# per slot of the year (`per_year` equal slots, 1.5 months for 8) inside `months`, each the slot's best covered -- the
+# share of daytime records with H, LE and GPP measured, times the share with observed forcing -- and a validation
+# window in the same slot of another year. `report` prints the choice as entries for this list.
+months       = []                # the months a window lies in (every day of it); empty = the site TOML's leaf-on months.
+                                 #   A mixed stand adds the months only its evergreens are in leaf, for their keys.
 per_year     = 8
 min_coverage = 0.5               # a window's (and a seasonal run's) mean daily coverage must reach this
 # EXAMPLE: the calibration's own windows (name, start [UTC date], role "cal" or "val", optionally days); empty = the rule.
 list         = [ { name = "example", start = "2015-09-11", role = "cal" } ]
+# EXAMPLE: spans the rule leaves out (start and end [UTC dates], both included, and why): a window touching one is not a
+# candidate, so the rule takes the slot's next best. For what the model cannot be scored on, such as a snow pack it
+# makes and the site did not have.
+exclude      = [ { start = "2016-01-03", end = "2016-01-09", reason = "example" } ]
 
 # The seasonal runs (soil drying): frozen runs long enough for the soil to dry, scored on LE only, rows of the joint fit
 # beside the ten-day windows. By the rule, up to max_runs runs, each ending at a year's deepest cumulative water deficit
 # (rain minus Priestley-Taylor evaporation, from the forcing) inside the leaf-on months, the deepest years first; a year
-# whose deficit stays under min_deficit_mm gives none, and without any the drought keys are fixed.
+# whose deficit stays under min_deficit_mm gives none, and so does a run that would start outside the leaf-on months
+# (a season shorter than `days`: shorten them) or whose coverage of its own targets is under [windows].min_coverage.
+# Without any the drought keys are fixed; `report` gives each year's reasons.
 [seasonal_runs]
 days           = 120
 targets        = ["le"]          # LE only: scored on GPP too, a tower GPP with a biased respiration sets the strongest stress
@@ -184,6 +194,13 @@ sigma_rel = 0.2
 plant_type = ""                  # the plant type of the fitted PFT, for the registry's meta-analysis priors (`meta`):
                                  #   e.g. "tropical_evergreen_broadleaf". A key without an EEO centre takes its type's
                                  #   prior; an EEO centre is reported beside it and flagged when more than 2 sd apart.
+# Which PFTs (a mixed stand): the per-PFT keys (registry file "pft") are fitted on PFT 1 by default. `pfts` fits each
+# of them once per listed PFT, `vcmax25` on PFT 1 and `vcmax25_pft2` on PFT 2, with `plant_types` (one per PFT, in
+# the same order; default plant_type for each) choosing each copy's meta-analysis prior. In keys / add / remove and
+# [priors.*] a registry name means every PFT's copy, a suffixed name that PFT's alone. Site keys (z0m_ratio, kappa)
+# are fitted once. A PFT is only constrained where it makes the fluxes: give windows in which it does.
+#   pfts        = [1, 2]
+#   plant_types = ["deciduous_broadleaf", "needleleaf"]
 uninformed_sd_ratio = 0.9        # the screening fixes at its prior's centre a key that is dead (a zero column), rough
                                  #   (the two one-sided slopes disagree 3x: make the model continuous), uninformed
                                  #   (posterior/prior sd ratio at least this) or the less informed of a pair correlated

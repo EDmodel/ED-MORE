@@ -58,7 +58,7 @@ min_recruit_size          = 1.0e-2
 
 [init]
 init_mode    = 1                  # a census: one patch per 20 m quadrat, fused by ED-MORE before the first step
-census_file  = "data/bci_census2010_ed.csv"   # run_example.py builds it from bci_census.toml
+census_file  = "data/bci_census2010_ed.csv"   # run_site.py builds it from bci_census.toml
 pft_config   = "calibration/pft_parameters_calibrated.toml"
 soil_temp    = 298.65             # [K] the tower's mean air temperature, as [soil].deep_temp
 soil_theta   = 0.42               # [m3/m3] wet season: August is three months into it ([soil] field capacity)
@@ -137,7 +137,7 @@ apply_elevation_lapse = false         # the tower measures at the site: no terra
 [forcing]
 forcing_on     = true
 format         = "default"
-path           = "data/bci_forcing.nc"             # run_example.py builds it (make_tower_forcing.py)
+path           = "data/bci_forcing.nc"             # run_site.py builds it (make_tower_forcing.py)
 grid_index     = 1
 grid_match     = "explicit"
 # The tower's own heights, above the ground at its base (41 m). Each sample is moved from them to
@@ -153,7 +153,7 @@ avg_convention = "begin"           # the tower stamps the START of each half hou
 sw_partition   = "clearidx"
 lwdown_source  = "file"
 co2_source     = "file"
-co2_file       = "../../data/co2/co2_cmip7_global_annual_1000-2022.txt"
+co2_file       = "../../../../data/co2/co2_cmip7_global_annual_1000-2022.txt"
 recycle        = true
 recycle_start  = "2012-08-01 00:00:00"   # a record stamp of the begin-stamped UTC file
 recycle_end    = "2017-08-01 00:00:00"   # five whole calendar years later

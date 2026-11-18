@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""plot_calibration.py -- the fast-parameter calibration at BCI in one figure.
+"""plot_fit.py -- a fast-parameter calibration in one figure, from the fit.json that `fit` writes.
 
 Left: each fitted key's prior z at the MAP (the fit's most probable values, given the tower and
 the priors) -- how far the fit moved it from its prior's centre, in prior standard deviations of
@@ -10,19 +10,19 @@ beyond 2 is a question for the model (the report flags it). Right: each target's
 its observation error, on the validation windows, which the fit never saw, for the default and the
 calibrated set.
 
-Usage: python plot_calibration.py [--fit calibration/fit.json] [--out calibration.png]
+Usage: python plot_fit.py --fit <work>/fit.json --out fit.png [--site "Barro Colorado Island"]
+The README's worked example: python plot_fit.py
+    --fit ../../examples/example04_column_biophysics/sites/bci/calibration/fit.json
+    --out bci_calibration.png --site "Barro Colorado Island"
 """
 import argparse
 import json
 import math
-import os
 
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
-
-HERE = os.path.dirname(os.path.abspath(__file__))
 
 INK, MUTED, GRID = "#0b0b0b", "#52514e", "#d9d8d4"
 CALIBRATED = "#d4661c"
@@ -31,8 +31,9 @@ TARGET_NAMES = {"albedo": "albedo", "lw_up": "LW up", "le": "LE", "h": "H", "gpp
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("--fit", default=os.path.join(HERE, "calibration", "fit.json"))
-    ap.add_argument("--out", default=os.path.join(HERE, "calibration.png"))
+    ap.add_argument("--fit", required=True, help="the fit.json that calibrate_fast.py fit writes")
+    ap.add_argument("--out", required=True, help="the figure to write")
+    ap.add_argument("--site", default="", help="the site's name, for the title")
     args = ap.parse_args(argv)
     with open(args.fit) as fh:
         rep = json.load(fh)
@@ -65,8 +66,8 @@ def main(argv=None):
            ylabel="RMSE / observation error, validation windows")
     a2.legend(frameon=False, fontsize=9)
     a2.set_title("the validation windows (never fitted)", color=INK, fontsize=10)
-    fig.suptitle("ED-MORE fast-parameter calibration at Barro Colorado Island (scripts/calibrate_fast)",
-                 color=INK, fontsize=11)
+    where = f" at {args.site}" if args.site else ""
+    fig.suptitle(f"ED-MORE fast-parameter calibration{where} (scripts/calibrate_fast)", color=INK, fontsize=11)
     fig.tight_layout()
     fig.savefig(args.out, dpi=130)
     print(f"figure: {args.out}")

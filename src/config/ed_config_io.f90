@@ -1252,6 +1252,8 @@ contains
       call opt_pa(tp, 'pft.wstress_psi_close',   cfg%pft%wstress_psi_close,   npft, miss)
       call opt_pa(tp, 'pft.leaf_surf_water_max', cfg%pft%leaf_surf_water_max, npft, miss)
       call opt_pa(tp, 'pft.wood_surf_water_max', cfg%pft%wood_surf_water_max, npft, miss)
+      call opt_pa(tp, 'pft.capacity_low_temp',       cfg%pft%capacity_low_temp,       npft, miss)
+      call opt_pa(tp, 'pft.capacity_low_temp_slope', cfg%pft%capacity_low_temp_slope, npft, miss)
 
       !--- Carbon-allocation per-PFT traits (ed_plant_carbon_allocation).
       call req_pa(tp, 'pft.sla',                    cfg%pft%sla,                    npft, miss)
@@ -1370,7 +1372,7 @@ contains
            //'min_cohort_height,min_repro_height,'                                         &
            //'photosynthetic_pathway,vcmax25,jmax25,tpu25,rd25,kp25,'                                  &
            //'stomatal_g0,stomatal_g1,stomatal_d0,quantum_yield_c4,theta_j,theta_cj_c3,theta_ip_c3,'   &
-           //'theta_cj_c4,theta_ic_c4,'                                                               &
+           //'theta_cj_c4,theta_ic_c4,capacity_low_temp,capacity_low_temp_slope,'                     &
            //'katul_lambda25,wstress_psi_open,wstress_psi_close,wstress_lambda_exp,wstress_sref_stomata,' &
            //'stomata_psi_onset,leaf_surf_water_max,wood_surf_water_max,'                                &
            //'sla,root_to_leaf_ratio,aboveground_frac,storage_cushion,growth_resp_factor,'      &
@@ -1388,11 +1390,11 @@ contains
       associate (p => cfg%pft)
          do pf = 1_ik, p%n
             !---~---
-            !   91 items: i0 + 8 + i0 + 2 + i0 + 45 + i0 + 32. Keep the format in step with
+            !   93 items: i0 + 8 + i0 + 2 + i0 + 47 + i0 + 32. Keep the format in step with
             ! the header and the list: a shorter format reuses its last group, printing a
             ! real into an integer slot and dropping the trailing columns.
             !---~---
-            write(u,'(i0,8(",",es15.8),",",i0,2(",",es15.8),",",i0,45(",",es15.8),",",i0,32(",",es15.8))') &
+            write(u,'(i0,8(",",es15.8),",",i0,2(",",es15.8),",",i0,47(",",es15.8),",",i0,32(",",es15.8))') &
                  pf, p%wood_density(pf), p%allom(pf)%hgt_max,                                           &
                  p%reproduction_investment_fraction(pf), p%recruit_carbon_efficiency(pf),                &
                  p%mort_gamma(pf), p%mort_alpha(pf), p%mort_beta(pf), p%seed_rain_recruits(pf),         &
@@ -1400,7 +1402,7 @@ contains
                  p%photosynthetic_pathway(pf), p%vcmax25(pf), p%jmax25(pf), p%tpu25(pf),                &
                  p%rd25(pf), p%kp25(pf), p%stomatal_g0(pf), p%stomatal_g1(pf), p%stomatal_d0(pf),       &
                  p%quantum_yield_c4(pf), p%theta_j(pf), p%theta_cj_c3(pf), p%theta_ip_c3(pf),           &
-                 p%theta_cj_c4(pf), p%theta_ic_c4(pf),                                                  &
+                 p%theta_cj_c4(pf), p%theta_ic_c4(pf), p%capacity_low_temp(pf), p%capacity_low_temp_slope(pf), &
                  p%katul_lambda25(pf), pft_wstress_psi_open(p, pf), pft_wstress_psi_close(p, pf),       &
                  p%wstress_lambda_exp(pf), p%wstress_sref_stomata(pf), pft_stomata_psi_onset(p, pf),     &
                  p%leaf_surf_water_max(pf), p%wood_surf_water_max(pf),                                &

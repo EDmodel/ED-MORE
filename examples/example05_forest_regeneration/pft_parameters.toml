@@ -6,7 +6,7 @@
 # the leaf economics spectrum, early to late from thin, short-lived, fast leaves to thick, long-lived,
 # slow ones; example 04's calibrated BCI leaf is the spectrum's anchor, and everything else a canopy
 # or a root does is example 04's: the values calibrate_growth.py was fitted with (example 04's current
-# fit is in ../example04_column_biophysics/calibration/fit.json). calibrate_growth.py fitted where the
+# fit is in ../example04_column_biophysics/sites/bci/calibration/fit.json). calibrate_growth.py fitted where the
 # PFTs sit on the spectrum and the carbon costs below to example 03's growth law (calibration.json).
 # Every per-PFT array has length 3 (the PFT count = length of [pft].wood_density).
 

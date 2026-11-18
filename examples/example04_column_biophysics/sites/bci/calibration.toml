@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # The fast-parameter calibration at Barro Colorado Island (scripts/calibrate_fast;
-# the protocol its README links). run_example.py --calibrate runs it. Every
+# the protocol its README links). run_site.py --calibrate runs it. Every
 # setting, its default and why: scripts/calibrate_fast/calibration_reference.toml. Only the choices
 # that differ from the defaults are here. Paths are relative to this file.
 
 [base]
 main       = "ed_config_eval.toml"     # with the PFT file it names (pft_parameters.toml) and its forcing
-parameters = "../../scripts/calibrate_fast/parameters.toml"
+parameters = "../../../../scripts/calibrate_fast/parameters.toml"
 
 # The tower's facts (file, clock, columns, units, which values were measured) are bci_site.toml, the
 # forcing build's own. Its forcing qc variables (LWdown_qc, Wind_qc: the defaults) keep every window

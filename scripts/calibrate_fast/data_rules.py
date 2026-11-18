@@ -238,12 +238,14 @@ def fix_by_coverage(keys, coverage: dict, min_records: int) -> dict:
 # ------------------------------------------------------------------------------------------------
 # the windows
 # ------------------------------------------------------------------------------------------------
-def day_scores(obs: pd.DataFrame, forcing_observed: pd.Series, daytime_sw: float, utc_offset_h: float) -> pd.Series:
-    """Each local day's coverage: the share of its daytime records with H, LE and GPP measured,
-    times the share of all its records with observed forcing."""
+def day_scores(obs: pd.DataFrame, forcing_observed: pd.Series, daytime_sw: float, utc_offset_h: float,
+               targets=("h", "le", "gpp")) -> pd.Series:
+    """Each local day's coverage: the share of its daytime records with every flux of `targets`
+    measured (a window's: H, LE and GPP; a seasonal run's: its own targets), times the share of all
+    its records with observed forcing."""
     day = (obs.index + pd.Timedelta(hours=utc_offset_h)).floor("D")
     daytime = obs["sw_in"] > daytime_sw
-    turb = daytime & obs[["h", "le", "gpp"]].notna().all(axis=1)
+    turb = daytime & obs[list(targets)].notna().all(axis=1)
     frac_turb = turb.groupby(day).sum() / daytime.groupby(day).sum().replace(0, np.nan)
     frac_forc = forcing_observed.reindex(obs.index, fill_value=False).astype(float).groupby(day).mean()
     s = (frac_turb * frac_forc).fillna(0.0)
@@ -255,8 +257,9 @@ def slot_of(doy: int, per_year: int) -> int:
 
 
 def candidate_windows(scores: pd.Series, days: int, per_year: int, leaf_on: list, first_start) -> pd.DataFrame:
-    """Every span of `days` inside one slot and inside the leaf-on months, starting on or after
-    first_start: its start, year, slot and mean daily coverage."""
+    """Every span of `days` inside one slot and inside the months `leaf_on` ([windows].months, else the
+    site's leaf-on months), starting on or after first_start: its start, year, slot and mean daily
+    coverage."""
     roll = scores.rolling(days).mean().shift(-(days - 1))
     rows = []
     for start, sc in roll.dropna().items():
@@ -275,10 +278,14 @@ def candidate_windows(scores: pd.Series, days: int, per_year: int, leaf_on: list
 
 def select_windows(scores: pd.Series, settings: dict, leaf_on: list, first_start):
     """The calibration and validation windows by the rule (module docstring), from each day's
-    coverage (day_scores), and the report. Returns ([(name, start, role)], report)."""
+    coverage (day_scores), and the report. A window touching a span of [windows].exclude is no
+    candidate. Returns ([(name, start, role)], report)."""
     days, per_year, need = int(settings["days"]), int(settings["per_year"]), float(settings["min_coverage"])
     cand = candidate_windows(scores, days, per_year, leaf_on, first_start)
     cand = cand[cand["coverage"] >= need]
+    for span in settings.get("exclude", []):
+        lo, hi = pd.Timestamp(span["start"]), pd.Timestamp(span["end"])
+        cand = cand[(cand["start"] > hi) | (cand["start"] + pd.Timedelta(days=days - 1) < lo)]
     chosen, report = [], {"slots": {}}
     for s in range(per_year):
         c = cand[cand["slot"] == s].sort_values(["coverage", "start"], ascending=[False, True])
@@ -341,8 +348,10 @@ def seasonal_runs(deficit: pd.Series, settings: dict, leaf_on: list, first_start
                   min_coverage: float):
     """Up to max_runs runs of `days` days, each ending at a year's deepest deficit inside the
     leaf-on months, deepest years first. A year is skipped when its deepest deficit is under
-    min_deficit_mm, or when the run's mean daily coverage (day_scores) is under min_coverage -- a
-    run the data barely see scores nothing. Returns ([(name, start, days)], report)."""
+    min_deficit_mm, when the run would start before the chains' lead or outside the leaf-on months,
+    or when its mean daily coverage (day_scores, on the runs' own targets) is under min_coverage -- a
+    run the data barely see scores nothing. Returns ([(name, start, days)], report); the report gives
+    each year's reasons."""
     days, n_max, need = int(settings["days"]), int(settings["max_runs"]), float(settings["min_deficit_mm"])
     d = deficit[deficit.index.month.isin(leaf_on)]
     found = []
@@ -351,19 +360,20 @@ def seasonal_runs(deficit: pd.Series, settings: dict, leaf_on: list, first_start
         start = end - pd.Timedelta(days=days)
         span = pd.date_range(start, end, freq="D")
         cover = float(scores.reindex(span, fill_value=0.0).mean())
+        why = [why for fails, why in ((-g.min() < need, f"deficit under {need:g} mm"),
+                                      (start < first_start, "starts before the chains' lead"),
+                                      (not set(span.month) <= set(leaf_on), f"starts on {start.date()}, outside the leaf-on months"),
+                                      (cover < min_coverage, f"coverage {cover:.2f} under {min_coverage:g}")) if fails]
         found.append({"year": int(year), "end": str(end.date()), "deficit_mm": float(-g.min()),
-                      "coverage": round(cover, 3),
-                      "usable": bool(-g.min() >= need and start >= first_start and set(span.month) <= set(leaf_on)
-                                     and cover >= min_coverage),
-                      "start": start})
+                      "coverage": round(cover, 3), "usable": not why, "why_not": why, "start": start})
     usable = sorted([f for f in found if f["usable"]], key=lambda f: -f["deficit_mm"])[:n_max]
     runs = [(f"seasonal_{f['year']}", f["start"].to_pydatetime(), days)
             for f in sorted(usable, key=lambda f: f["start"])]
     report = {"years": [{k: v for k, v in f.items() if k != "start"} for f in found],
               "runs": [[n, str(s.date()), dd] for n, s, dd in runs]}
     if not runs:
-        report["note"] = (f"no year's deficit reaches {need:g} mm inside the leaf-on months, after the chains' lead "
-                          f"and with coverage {min_coverage:g}: no seasonal runs, the drought keys are fixed")
+        reasons = "; ".join(f"{f['year']}: {', '.join(f['why_not'])}" for f in found)
+        report["note"] = f"no year qualifies ({reasons}): no seasonal runs, the drought keys are fixed"
     return runs, report
 
 

@@ -42,7 +42,7 @@ module ed_therm_lib
    !--- Soil heat.
    public :: soil_texture_to_thermal, soil_thermal_conductivity, soil_volumetric_heat_capacity
    !--- Temperature response of enzyme rates.
-   public :: arrhenius_scale, peaked_arrhenius_scale, temp_response
+   public :: arrhenius_scale, peaked_arrhenius_scale, temp_response, low_temperature_limit
    public :: kattge_knorr_entropy, kattge_knorr_jv_ratio
    public :: TEMP_RESPONSE_ARRHENIUS, TEMP_RESPONSE_PEAKED
 
@@ -636,5 +636,18 @@ contains
          k = arrhenius_scale(k25, ea, t_leaf)
       end select
    end function temp_response
+
+   !---~---
+   !   The capacities' low-temperature limit (docs/science/leaf_gas_exchange.md §2, eq. (3b);
+   ! ED2's Vm_low_temp, Moorcroft et al. 2001): 1 / (1 + exp(slope (t_low - t_leaf))), a half at
+   ! t_low and falling exponentially below it.
+   !---~---
+   elemental pure function low_temperature_limit(t_leaf, t_low, slope) result(f)
+      real(wp), intent(in) :: t_leaf   ! [K]   tissue temperature
+      real(wp), intent(in) :: t_low    ! [K]   the temperature at which the limit is a half
+      real(wp), intent(in) :: slope    ! [1/K] its steepness
+      real(wp)             :: f
+      f = 1.0_wp / (1.0_wp + safe_exp(slope * (t_low - t_leaf)))
+   end function low_temperature_limit
 
 end module ed_therm_lib

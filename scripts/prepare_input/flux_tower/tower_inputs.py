@@ -261,16 +261,19 @@ def read_tower(site):
     columns = {name: spec["column"] for name, spec in site.variables.items()}
     qc_columns = {}
     if site.input_format == "fluxnet":
-        qc_columns = {name: col + "_QC" for name, col in columns.items() if col.endswith("_F")}
+        # Every gap-filled FLUXNET column has a _QC column beside it: the consolidated TA_F, and the
+        # MDS-filled TA_F_MDS or SW_IN_F_MDS alike. A raw column (RH, PA) has none and is never filled.
+        qc_columns = {name: col + "_QC" for name, col in columns.items()}
     flux_columns = {name: spec["column"] for name, spec in site.fluxes.items() if "column" in spec}
     rule_columns = {spec["measured"]["column"] for spec in site.fluxes.values() if "measured" in spec}
     uncertainty_columns = dict(site.provider.get("uncertainty", {}))
     flux_qc = {}
     if site.input_format == "fluxnet":
         flux_qc = {name: col + "_QC" for name, col in flux_columns.items() if "measured" not in site.fluxes[name]}
-    wanted = ([site.timestamp] + list(columns.values()) + list(qc_columns.values()) + list(flux_columns.values())
+    wanted = ([site.timestamp] + list(columns.values()) + list(flux_columns.values())
               + sorted(rule_columns) + list(uncertainty_columns.values()))
-    optional = set(flux_qc.values())                      # a FLUXNET flux without a _QC column: present = measured
+    # A FLUXNET column without a _QC column: a variable was never filled, a flux is measured where present.
+    optional = set(flux_qc.values()) | set(qc_columns.values())
     raw = pd.read_csv(site.input_path, comment=site.comment, na_values=[str(m) for m in site.missing],
                       usecols=lambda c: c in wanted or c in optional, dtype={site.timestamp: str}, low_memory=False)
     missing_cols = [c for c in wanted if c not in raw.columns]
@@ -288,7 +291,7 @@ def read_tower(site):
             x = convert(x)
         values[name] = x
         flags = np.zeros(len(x), dtype=bool)
-        if name in qc_columns:
+        if name in qc_columns and qc_columns[name] in raw.columns:
             q = pd.to_numeric(raw[qc_columns[name]], errors="coerce").to_numpy()
             flags = np.nan_to_num(q, nan=0.0) > 0
         provider[name] = flags

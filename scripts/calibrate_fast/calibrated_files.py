@@ -78,6 +78,11 @@ def with_header(text: str, head: str) -> str:
     return head + text
 
 
+def label(key: str, file: str, pft) -> str:
+    """A changed key as the header lists it: with its PFT when that is not the first."""
+    return f"{key} (PFT {pft})" if file == "pft" and pft and pft > 1 else key
+
+
 def write(cal, keys, values, out_dir: Path):
     """pft_parameters_calibrated.toml and ed_config_calibrated.toml in out_dir: the base files with
     the fitted values and the Kattge & Knorr values written in, then the calibration's overrides (the
@@ -88,10 +93,12 @@ def write(cal, keys, values, out_dir: Path):
         if p.file == "obs" or abs(v - p.default) <= 1e-12 * max(1.0, abs(p.default)):
             continue
         text[p.file] = set_toml_text(text[p.file], p.key, v, index=p.pft - 1 if p.file == "pft" else None)
-        changed[p.file].append((p.key, float(v), float(p.default), "EFFECTIVE" if p.kind == "effective" else ""))
+        changed[p.file].append((label(p.key, p.file, p.pft), float(v), float(p.default),
+                                "EFFECTIVE" if p.kind == "effective" else ""))
     for (file, key, pft), v in cal.kattge_knorr.items():
         text[file] = set_toml_text(text[file], key, v, index=pft - 1 if file == "pft" else None)
-        changed[file].append((key, float(v), float(cal.kattge_knorr_replaced[(file, key, pft)]), "KATTGE & KNORR"))
+        changed[file].append((label(key, file, pft), float(v), float(cal.kattge_knorr_replaced[(file, key, pft)]),
+                              "KATTGE & KNORR"))
     settings = dict(cal.overrides) | dict(cal.settings["calibrated"])
     for k, v in settings.items():
         text["main"] = set_toml_text(text["main"], k, v)

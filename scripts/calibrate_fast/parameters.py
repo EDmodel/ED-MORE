@@ -35,7 +35,7 @@ every run. A key that acts through one process (the wet canopy, night, snow, dro
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 
@@ -77,6 +77,8 @@ class Param:
     fixed_at: str = ""         # "kattge_knorr": fixed at the growth temperature's value (priors.py)
     meta: dict = field(default_factory=dict)    # plant type -> a meta-analysis prior {centre, sd | log_sd, source}
     prior: dict = field(default_factory=dict)   # centre, sd or log_sd, source
+    plant_type: str = ""       # the plant type of the key's PFT ([fit].plant_type, or its entry of plant_types)
+    base: str = ""             # the registry's name of a per-PFT key fitted on several PFTs (name_of)
 
     # ----- the transform ------------------------------------------------------------------------
     def _g(self, x):
@@ -182,17 +184,55 @@ def load(path) -> list[Param]:
     return out
 
 
+def name_of(name: str, pft: int) -> str:
+    """A per-PFT key's name on a PFT: the registry's on PFT 1, and `<name>_pft<k>` on PFT k."""
+    return name if pft == 1 else f"{name}_pft{pft}"
+
+
+def fit_pfts(fit_settings: dict) -> list[tuple[int, str]]:
+    """The PFTs whose per-PFT keys a fit moves, each with its plant type: [fit].pfts (default [1]) with
+    [fit].plant_types, one per PFT (default [fit].plant_type for each)."""
+    pfts = [int(k) for k in fit_settings.get("pfts", [1])]
+    types = list(fit_settings.get("plant_types") or [fit_settings.get("plant_type", "")] * len(pfts))
+    if not pfts or len(set(pfts)) != len(pfts) or min(pfts) < 1:
+        raise ValueError(f"[fit].pfts = {pfts}: distinct PFT numbers from 1")
+    if len(types) != len(pfts):
+        raise ValueError(f"[fit].plant_types has {len(types)} entries; [fit].pfts has {len(pfts)}")
+    return list(zip(pfts, types))
+
+
+def candidates(registry: list[Param], fit_settings: dict) -> list[Param]:
+    """Every key a fit could move: a per-PFT key (file "pft") once for each PFT of [fit].pfts, named by
+    name_of and carrying that PFT's plant type; any other key once, with the first PFT's plant type."""
+    pfts = fit_pfts(fit_settings)
+    out = []
+    for p in registry:
+        if p.file != "pft":
+            out.append(replace(p, plant_type=pfts[0][1], base=p.name))
+            continue
+        for k, ptype in pfts:
+            out.append(replace(p, name=name_of(p.name, k), pft=k, plant_type=ptype, base=p.name,
+                               meta=dict(p.meta), prior=dict(p.prior)))
+    return out
+
+
 def select(registry: list[Param], fit_settings: dict, priors: dict) -> list[Param]:
     """The keys a fit moves, from the registry and the calibration's [fit] and [priors] tables:
 
-      [fit].keys       the exact list (any state, a fixed key included)
-      [fit].add        keys added to the registry's default set (state "fit")
-      [fit].remove     keys removed from it
-      [fit].plant_type the plant type whose meta-analysis prior a key without an EEO centre takes
-      [priors.<key>]   a key's prior and range: centre, sd or log_sd, source, range
+      [fit].keys        the exact list (any state, a fixed key included)
+      [fit].add         keys added to the registry's default set (state "fit")
+      [fit].remove      keys removed from it
+      [fit].plant_type  the plant type whose meta-analysis prior a key without an EEO centre takes
+      [fit].pfts        the PFTs whose per-PFT keys are fitted (default [1]), each key once per PFT,
+                        `vcmax25` on PFT 1 and `vcmax25_pft2` on PFT 2 (name_of)
+      [fit].plant_types each of those PFTs' plant type (default plant_type for each)
+      [priors.<key>]    a key's prior and range: centre, sd or log_sd, source, range
 
-    An unknown name is an error, so a misspelling cannot silently drop a key."""
-    names = {p.name for p in registry}
+    A name in keys, add, remove or [priors] is a registry name (every PFT's copy) or a PFT's own
+    (`vcmax25_pft2`); the PFT's own [priors] entry overrides the registry name's. An unknown name is an
+    error, so a misspelling cannot silently drop a key."""
+    cands = candidates(registry, fit_settings)
+    names = {c.name for c in cands} | {c.base for c in cands}
     for k in ("keys", "add", "remove"):
         unknown = [n for n in fit_settings.get(k, []) if n not in names]
         if unknown:
@@ -202,22 +242,22 @@ def select(registry: list[Param], fit_settings: dict, priors: dict) -> list[Para
         raise ValueError(f"[priors]: {unknown} are not in the registry")
     if "keys" in fit_settings and ("add" in fit_settings or "remove" in fit_settings):
         raise ValueError("[fit]: give `keys` (the exact list) or `add`/`remove`, not both")
+
+    def named(c, listed):
+        return c.name in listed or c.base in listed
     if "keys" in fit_settings:
-        chosen = set(fit_settings["keys"])
+        chosen = [c for c in cands if named(c, fit_settings["keys"])]
     else:
-        chosen = {p.name for p in registry if p.state == "fit"} | set(fit_settings.get("add", []))
-        chosen -= set(fit_settings.get("remove", []))
-    numerical = [p.name for p in registry if p.name in chosen and p.kind == "numerical"]
+        chosen = [c for c in cands if (c.state == "fit" or named(c, fit_settings.get("add", [])))
+                  and not named(c, fit_settings.get("remove", []))]
+    numerical = [c.name for c in chosen if c.kind == "numerical"]
     if numerical:
         raise ValueError(f"[fit]: {numerical} are numerical keys: never calibrated")
-    plant_type = fit_settings.get("plant_type", "")
     out = []
-    for p in registry:
-        if p.name not in chosen:
-            continue
-        if plant_type and plant_type in p.meta and p.prior.get("centre") != "eeo":
-            p.prior = {**p.meta[plant_type]}
-        over = dict(priors.get(p.name, {}))
+    for p in chosen:
+        if p.plant_type and p.plant_type in p.meta and p.prior.get("centre") != "eeo":
+            p.prior = {**p.meta[p.plant_type]}
+        over = {**priors.get(p.base, {}), **priors.get(p.name, {})} if p.name != p.base else dict(priors.get(p.name, {}))
         if "range" in over:
             p.lo, p.hi = (float(x) for x in over.pop("range"))
         p.prior = {**p.prior, **over}

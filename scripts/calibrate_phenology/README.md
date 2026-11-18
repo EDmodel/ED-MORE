@@ -86,6 +86,28 @@ slowly. A closure that fails means the offline stand is not the coupled run. The
 a cohort that changed (a stand that was not frozen), or cues misaligned in time. The tool reports each PFT's
 largest daily difference and its day, and stops above `[fit].closure`.
 
+## Worked example: Harvard Forest
+
+[Example 02, part 2](../../examples/example02_canopy_phenology/README.md#part-2--fitting-a-stand-harvard-forest)
+([`harvard_stand/phenology.toml`](../../examples/example02_canopy_phenology/harvard_stand/phenology.toml))
+fits a cold-deciduous broadleaf and an evergreen conifer on example 04's Harvard stand, 2019–2024, to
+HF003's tagged trees, HF069's LAI-2000 and litter baskets, MODIS, and the conifers' climatologies.
+Four lessons from it hold at any site:
+
+- **Scaled targets need an anchor.** A target scaled within each year (MODIS, a crossing day) says nothing
+  about how full the canopy gets. With only such targets a fit can lower the whole cycle, leaving a canopy
+  that never fills while every target matches. Add a `fraction` target with `scale = "none"` where the
+  canopy is known to be full: the census gives each cohort its full canopy.
+- **Read what an observation is.** HF003's `l75` is a code that tops out at 80, not a share of the
+  canopy. Use the day it reaches half its plateau (a `date` target), not `l75 / 100`.
+- **An evergreen's winter dip needs a constraint.** Its annual loss can come from an autumn dip and a
+  spring refill, or from an exchange: falling while the canopy re-flushes. Timing targets cannot tell the
+  two apart. Set `min_leaf_cover` from the needles' lifespan (two thirds stay when they live three years),
+  and give the flush a sharp day-length gate.
+- **The light cue reads the light where the cohort is.** Under a closed canopy a cohort counts fewer
+  hours above `par_min`. If its flush comes after the canopy closes (a conifer in June), a `par_min` set
+  for open-grown trees can keep it from ever refilling. A photoperiod is sensed at very low light.
+
 ## Tests
 
 `tests/` (CTest `calibrate_phenology`) checks the settings, the fitted PFT file, each target kind on series made

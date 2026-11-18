@@ -71,6 +71,13 @@ module ed_pft_params
       real(wp) :: hd_vcmax, hd_jmax, hd_rd, ds_vcmax, ds_jmax, ds_rd
       real(wp) :: o2_mol_frac, absorptance, phi_psii
       real(wp) :: vpd_min = 0.05_wp   ! [kPa] the VPD the Medlyn and Katul models use at least ([leaf_physiology])
+      !---~---
+      !   The low-temperature limit on the capacities (docs/science/leaf_gas_exchange.md §2,
+      ! eq. (3b)): Vcmax, Jmax and TPU are divided by 1 + exp(slope (low_temp - T_leaf)). A run
+      ! sets them per PFT; the 0 K here, for a record built by hand, never limits.
+      !---~---
+      real(wp) :: low_temp       = 0.0_wp   ! [K]   the leaf temperature at which the capacities are halved
+      real(wp) :: low_temp_slope = 0.4_wp   ! [1/K] how sharply they fall below it
    end type leaf_photo_pft_t
 
    !---~---
@@ -240,6 +247,9 @@ module ed_pft_params
       real(wp), allocatable :: stomatal_d0(:)        ! [Pa]    Leuning humidity sensitivity
       real(wp), allocatable :: quantum_yield_c4(:)   ! [mol CO2/mol photon] C4 light-limited slope
       real(wp), allocatable :: theta_j(:)            ! [--]    non-rectangular hyperbola curvature (C3 J)
+      !--- The capacities' low-temperature limit (docs/science/leaf_gas_exchange.md §2, eq. (3b)).
+      real(wp), allocatable :: capacity_low_temp(:)       ! [K]   the leaf temperature that halves them
+      real(wp), allocatable :: capacity_low_temp_slope(:) ! [1/K] how sharply they fall below it
       !--- Co-limitation, not theta_j (docs/science/leaf_gas_exchange.md §2).
       real(wp), allocatable :: theta_cj_c3(:)        ! [--]    C3 Ac/Aj co-limitation curvature
       real(wp), allocatable :: theta_ip_c3(:)        ! [--]    C3 (Ac,Aj)/Ap co-limitation curvature

@@ -1,32 +1,33 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""ED-MORE example 04 -- the coupled column at the Barro Colorado Island flux tower, end to end.
+"""ED-MORE example 04, the Barro Colorado Island site -- the coupled column at the BCI flux tower, end to end.
 
 Steps (the data, the forcing and the census file are kept once made; --force remakes them):
   1. fetch the tower data into data/ (Zenodo 6456527, CC0; checked by md5)
   2. build the forcing file data/bci_forcing.nc from the tower's meteorology
-     (scripts/prepare_input/flux_tower/make_tower_forcing.py); score its longwave fill on hidden
-     observations (compare_longwave_fill.py) and draw its fill flags (plot_forcing.py)
+     (scripts/prepare_input/flux_tower/make_tower_forcing.py) and draw its fill flags (plot_forcing.py);
+     the longwave fill's score on hidden observations is the tool's worked example (its README)
   3. build the census file from the 2010 BCI census (bci_census.toml, scripts/prepare_input/census), whose
      tables are read from --census-dir (or the environment variable BCI_CENSUS_DIR)
   4. run the five tower years from the census, with hourly output (ed_config_eval.toml)
   5. with --calibrate: fit the fast parameters to the tower (calibration.toml, scripts/calibrate_fast)
      into calibration/; the fit ships with the example, so this is only to redo it
   6. run the five years again with the calibrated parameters (calibration/ed_config_calibrated.toml)
-  7. compare both runs with the tower (plot_evaluation.py) and summarize the fit (plot_calibration.py)
+  7. compare both runs with the tower (plot_evaluation.py); the fit's own figure is scripts/calibrate_fast's
+     worked example (plot_fit.py)
   8. ten days at half-hourly output (WINDOW): run the calibrated configuration to the window's start,
      writing its state, restart from it with every patch's and cohort's states on (output_window.toml),
      and draw them (plot_window.py)
 
 Usage:
-  python run_example.py --census-dir /path/to/bci_census  # everything (the census tables: once, for step 3)
-  python run_example.py --copy-from ~/BCI_flux            # take the tower data from a local copy
-  python run_example.py --forcing-only                    # steps 1-2: no model run
-  python run_example.py --edmore ../../build-production/edmore   # the production build, not build-dev's
-  python run_example.py --calibrate --workers 40          # redo the fit: 836 runs; a cluster's queue: scripts/calibrate_fast
+  python run_site.py --census-dir /path/to/bci_census     # everything (the census tables: once, for step 3)
+  python run_site.py --copy-from ~/BCI_flux               # take the tower data from a local copy
+  python run_site.py --forcing-only                       # steps 1-2: no model run
+  python run_site.py --edmore ../../../../build-production/edmore   # the production build, not build-dev's
+  python run_site.py --calibrate --workers 40             # redo the fit: 836 runs; a cluster's queue: scripts/calibrate_fast
 
 Needs numpy, pandas, netCDF4, matplotlib, and a built edmore (--edmore, or the environment variable
-EDMORE_MAIN; default ../../build-dev/edmore, the dev preset's build).
+EDMORE_MAIN; default ../../../../build-dev/edmore, the dev preset's build).
 """
 import argparse
 import os
@@ -35,7 +36,7 @@ import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(os.path.dirname(HERE))
+ROOT = os.path.abspath(os.path.join(HERE, "..", "..", "..", ".."))
 sys.path.insert(0, os.path.join(ROOT, "python"))
 from edmore.config import RunConfig, load_toml, write_toml  # noqa: E402
 
@@ -113,8 +114,6 @@ def main(argv=None):
     forcing = os.path.join(DATA, "bci_forcing.nc")
     if args.force or not os.path.exists(forcing):
         run([py, os.path.join(TOOLS, "make_tower_forcing.py"), "--site", "bci_site.toml", "--out", forcing])
-    run([py, os.path.join(TOOLS, "compare_longwave_fill.py"), "--site", "bci_site.toml",
-         "--out", os.path.join(DATA, "lw_comparison.json"), "--figure", os.path.join(HERE, "lw_comparison.png")])
     run([py, "plot_forcing.py", "--forcing", forcing])
     if args.forcing_only:
         return
@@ -136,7 +135,6 @@ def main(argv=None):
     calibrated = os.path.join(CALIB, "ed_config_calibrated.toml")
     run([args.edmore, calibrated], log=os.path.join(OUTPUT, "cal.log"))
     run([py, "plot_evaluation.py", "--calibrated", os.path.join(OUTPUT, "cal-F-*.nc")])
-    run([py, "plot_calibration.py"])
     run_window(args.edmore, calibrated)
     run([py, "plot_window.py"])
 

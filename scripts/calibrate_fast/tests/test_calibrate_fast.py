@@ -637,6 +637,20 @@ def test_windows_one_per_slot_with_validation_in_another_year():
     chosen, _ = data_rules.select_windows(scores, wcfg, [5, 6, 7, 8, 9], obs.index[0] + pd.Timedelta(days=400))
     assert chosen and all(5 <= c[1].month <= 9 and c[1].year == 2016 for c in chosen)
     assert not [c for c in chosen if c[2] == "val"]
+    #----- [windows].months need not be contiguous (a mixed stand's leaf-off months): no day of a window
+    #      falls in a month left out
+    months = [4, 6, 7, 8, 9, 11]
+    chosen, _ = data_rules.select_windows(scores, wcfg, months, obs.index[0])
+    spans = [pd.date_range(c[1], periods=10, freq="D") for c in chosen]
+    assert {4, 11} <= {c[1].month for c in chosen} and all(set(s.month) <= set(months) for s in spans)
+    #----- [windows].exclude: no window touches an excluded span; its slot takes the next best
+    first = chosen[0]
+    span = {"start": str((first[1] + pd.Timedelta(days=9)).date()), "end": str((first[1] + pd.Timedelta(days=9)).date()),
+            "reason": "the model's own snow"}
+    again, _ = data_rules.select_windows(scores, {**wcfg, "exclude": [span]}, months, obs.index[0])
+    lo = pd.Timestamp(span["start"])
+    assert all(c[1] > lo or c[1] + pd.Timedelta(days=9) < lo for c in again)
+    assert len(again) == len(chosen) and first not in again
 
 
 def test_seasonal_runs_end_at_the_deepest_water_deficit():
@@ -653,7 +667,22 @@ def test_seasonal_runs_end_at_the_deepest_water_deficit():
     assert {y["year"]: y["usable"] for y in rep["years"]} == {2015: False, 2016: True, 2017: False}
     runs, rep = data_rules.seasonal_runs(deficit, {"days": 120, "max_runs": 2, "min_deficit_mm": 1000.0},
                                          list(range(1, 13)), pd.Timestamp("2015-01-01"), scores, 0.5)
-    assert runs == [] and "drought keys are fixed" in rep["note"]
+    assert runs == [] and "drought keys are fixed" in rep["note"] and "deficit under 1000 mm" in rep["note"]
+    #----- a run longer than the leaf-on season says so
+    runs, rep = data_rules.seasonal_runs(deficit, {"days": 120, "max_runs": 2, "min_deficit_mm": 100.0},
+                                         [2, 3, 4], pd.Timestamp("2015-01-01"), scores, 0.5)
+    assert runs == [] and "outside the leaf-on months" in rep["note"]
+
+
+def test_a_seasonal_run_counts_the_fluxes_it_is_scored_on():
+    """GPP measured on few records drags a window's coverage down, not an LE-only run's."""
+    idx = pd.date_range("2016-06-01", "2016-06-10 23:00", freq="1h")
+    sw = np.clip(800 * np.sin(np.pi * (idx.hour.to_numpy() - 6) / 12), 0, None)
+    obs = pd.DataFrame({"sw_in": sw, "h": 1.0, "le": 1.0, "gpp": np.where(idx.hour % 3 == 0, 1.0, np.nan)}, index=idx)
+    forcing = pd.Series(True, index=idx)
+    three = data_rules.day_scores(obs, forcing, 10.0, 0.0)
+    le = data_rules.day_scores(obs, forcing, 10.0, 0.0, targets=["le"])
+    assert three.mean() < 0.5 and le.mean() == pytest.approx(1.0)
 
 
 def test_priestley_taylor_and_the_range_coverage():
@@ -664,7 +693,7 @@ def test_priestley_taylor_and_the_range_coverage():
 
 
 # ----- the calibration's settings against calibration_reference.toml ----------------------------------
-BCI = Path(__file__).resolve().parents[3] / "examples/example04_column_biophysics/calibration.toml"
+BCI = Path(__file__).resolve().parents[3] / "examples/example04_column_biophysics/sites/bci/calibration.toml"
 MINIMAL = {"base": {"main": "m.toml", "parameters": "r.toml"}, "tower": {"site": "site.toml"}}
 
 
@@ -966,6 +995,41 @@ def test_select_follows_the_calibration():
         select(registry(), {}, {"a": {"width": 1}})
 
 
+def test_select_fits_several_pfts():
+    def registry():
+        return [Param("v", "pft", "pft.vcmax25", 5, 150, "log", pft=1, state="fit", default=50.0),
+                Param("g1", "pft", "pft.stomatal_g1", 0.5, 15.0, "log", pft=1, state="fit", default=3.0,
+                      meta={"deciduous_broadleaf": {"centre": 4.45, "log_sd": 0.35},
+                            "needleleaf": {"centre": 2.35, "log_sd": 0.35}}),
+                Param("z", "main", "x.z0m_ratio", 0.02, 0.2, state="fit", default=0.1)]
+    two = {"pfts": [1, 2], "plant_types": ["deciduous_broadleaf", "needleleaf"]}
+    ps = {p.name: p for p in select(registry(), two, {})}
+    assert list(ps) == ["v", "v_pft2", "g1", "g1_pft2", "z"]                 # site keys once
+    assert (ps["v"].pft, ps["v_pft2"].pft, ps["z"].pft) == (1, 2, None)
+    assert ps["g1"].centre == 4.45 and ps["g1_pft2"].centre == 2.35            # each PFT its type's prior
+    assert ps["v_pft2"].base == "v" and ps["v_pft2"].key == "pft.vcmax25"
+    # a registry name means every PFT's copy, a suffixed name one PFT's
+    assert [p.name for p in select(registry(), {**two, "keys": ["v_pft2", "z"]}, {})] == ["v_pft2", "z"]
+    assert [p.name for p in select(registry(), {**two, "remove": ["g1"]}, {})] == ["v", "v_pft2", "z"]
+    ps = {p.name: p for p in select(registry(), two, {"v": {"centre": 60.0, "log_sd": 0.3},
+                                                      "v_pft2": {"centre": 40.0}})}
+    assert ps["v"].centre == 60.0 and ps["v_pft2"].centre == 40.0 and ps["v_pft2"].prior["log_sd"] == 0.3
+    # one PFT by default; the same plant type for every PFT when plant_types is left out
+    assert [p.name for p in select(registry(), {}, {})] == ["v", "g1", "z"]
+    ps = {p.name: p for p in select(registry(), {"pfts": [1, 2], "plant_type": "needleleaf"}, {})}
+    assert ps["g1"].centre == ps["g1_pft2"].centre == 2.35
+    for bad in ({"pfts": [1, 1]}, {"pfts": [0]}, {"pfts": [1, 2], "plant_types": ["needleleaf"]}):
+        with pytest.raises(ValueError):
+            select(registry(), bad, {})
+    with pytest.raises(ValueError, match="not in the registry"):
+        select(registry(), {"keys": ["v_pft2"]}, {})                           # PFT 2 is not fitted
+    # the schema takes the optional [fit] settings, and gives them no default
+    base = {"base": {"main": "a", "parameters": "b"}, "tower": {"site": "c"}}
+    s = settings.complete({**base, "fit": {**two, "keys": ["v"]}})
+    assert s["fit"]["pfts"] == [1, 2] and s["fit"]["keys"] == ["v"]
+    assert not {"keys", "add", "remove", "pfts", "plant_types"} & set(settings.complete(base)["fit"])
+
+
 def test_the_registry():
     ps = {p.name: p for p in load(REGISTRY)}
     assert ps["theta_j"].state == "fixed" and ps["phi_psii"].state == "fixed" and ps["ea_vcmax"].state == "optional"
@@ -1047,3 +1111,17 @@ def test_the_priors_kinetics_are_the_leafs():
         assert k["kc"] * to_mf == pytest.approx(m.kc, rel=1e-10)
         assert k["ko"] * to_mf == pytest.approx(m.ko, rel=1e-10)
         assert k["o2"] * to_mf == pytest.approx(m.o2, rel=1e-12)
+
+
+def test_a_chain_runs_the_leaves_only_of_a_frozen_stand():
+    """A chain runs the slow tier (phenology) when the base config freezes the stand, and is frozen
+    like a trial otherwise."""
+    import chains
+    from edmore.config import RunConfig
+
+    def cfg(main):
+        return RunConfig(main, {"pft": {"wood_density": [0.5]}})
+    assert chains.leaves_follow(cfg({"demography": {"demography_on": False}}))
+    assert not chains.leaves_follow(cfg({"demography": {"demography_on": True}}))
+    assert not chains.leaves_follow(cfg({}))                                         # demography on by default
+    assert not chains.leaves_follow(cfg({"demography": {"demography_on": False}, "run": {"slow_on": False}}))

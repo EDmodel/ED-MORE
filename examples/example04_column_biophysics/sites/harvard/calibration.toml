@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: Apache-2.0
+# The fast-parameter calibration at Harvard Forest (scripts/calibrate_fast; the protocol its README links).
+# run_site.py --calibrate runs it. Every setting, its default and why: scripts/calibrate_fast/
+# calibration_reference.toml. Only the choices that differ from the defaults are here. Paths are relative
+# to this file.
+
+[base]
+main       = "ed_config_eval.toml"     # with the PFT file it names (pft_parameters.toml) and its forcing
+parameters = "../../../../scripts/calibrate_fast/parameters.toml"
+
+# The tower's facts (file, clock, columns, units, which values were measured, the u* thresholds) are
+# harvard_site.toml, the forcing build's own. Its leaf-on months, June to September, hold the windows.
+[tower]
+site = "harvard_site.toml"
+
+# Both PFTs' keys: the deciduous broadleaves (PFT 1, 74 % of the stand's basal area) and the evergreen
+# conifers (PFT 2: stomatal_g1_pft2, ...), each with its plant type's meta-analysis priors. kappa keeps the
+# registry's prior: ONEFlux's night-time partitioning has no known respiration bias here (BCI's tower
+# respiration is the soil's alone).
+#
+# The conifers' capacity comes from two seasons. In April the broadleaves are bare and the tower sees the
+# conifers alone, at 5-15 C: those windows set the leaf temperature that halves their capacity
+# (capacity_low_temp_pft2, an optional key), which barely acts in summer. In summer the tower sees both
+# PFTs and barely tells their capacities apart, so vcmax25_pft2 takes a needleleaf prior ([priors]).
+# Their leaf angle is offered to the screening.
+[fit]
+pfts            = [1, 2]
+plant_types     = ["deciduous_broadleaf", "needleleaf"]
+add             = ["capacity_low_temp_pft2"]
+timeout_per_day = 30.0
+
+# The windows: the rule's, as at BCI over the year, in the full-canopy months (June-September) and in
+# April, the off-season month the tower sees the conifers alone without snow. Not December-March (snow
+# most days: errors no fast key fixes), May and October (the broadleaves' flush and fall) or November
+# (their last leaves still at full capacity).
+# HARV's tower measures fewer hours than BCI's (NEON's gaps, and almost none from March to August 2020):
+# at the default coverage of 0.5 only one validation window qualifies.
+[windows]
+months          = [4, 6, 7, 8, 9]
+min_coverage    = 0.4
+skip_hours      = 3            # the first hours after a restart with changed traits are not scored
+exclude         = [ { start = "2024-04-03", end = "2024-04-09", reason = "the model's own snow: on 3-4 April 2024 it makes a pack of up to 33 mm from rain near 0 C that the snow pillow never saw (README, Snow and albedo)" } ]
+chain_lead_days = 365          # the stand is frozen, so each chain runs the phenology: a year of it, from
+                               #   the census's full leaf to the window's own canopy (windows from 2020)
+
+# The seasonal run (the soil drying, scored on LE): 90 days, so a run ending at a summer's deepest deficit lies
+# inside the leaf-on months (June-September, 122 days); 2022's drought (412 mm on 4 September) qualifies.
+[seasonal_runs]
+days = 90
+
+# The conifers' summer capacity: Kattge et al. 2009's evergreen coniferous forest.
+[priors.vcmax25_pft2]
+centre = 58.0
+log_sd = 0.35
+source = "Kattge et al. 2009 (Glob. Change Biol. 15:976) for evergreen coniferous forest, as BETHY uses it (Rogers 2014, Photosynth. Res. 119:15, Table 1; the models there give temperate needleleaf trees 17-75)"
+
+# Set in the calibrated main config the fit writes (ed_config_calibrated.toml), beside the MAP.
+[calibrated]
+"init.pft_config" = "calibration/pft_parameters_calibrated.toml"
+"output.prefix"   = "cal"

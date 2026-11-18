@@ -25,7 +25,7 @@ curve, so the provider's never enters the model. The clock of the file is UTC; s
 back to local time in post-processing.
 
 Usage:
-  python make_tower_forcing.py --site examples/example04_column_biophysics/bci_site.toml --out bci_forcing.nc
+  python make_tower_forcing.py --site examples/example04_column_biophysics/sites/bci/bci_site.toml --out bci_forcing.nc
 
 Dependencies: numpy, pandas, netCDF4 (and tomli on Python < 3.11).
 """

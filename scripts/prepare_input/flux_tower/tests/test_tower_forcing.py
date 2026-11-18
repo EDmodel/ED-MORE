@@ -313,15 +313,16 @@ Tair = { column = "TA", units = "degC" }
         ti.read_site(str(toml))
 
 
-def test_fluxnet_provider_filled_values_are_flagged(tmp_path):
+@pytest.mark.parametrize("tair", ["TA_F", "TA_F_MDS"])     # the consolidated column, and the MDS-filled one
+def test_fluxnet_provider_filled_values_are_flagged(tmp_path, tair):
     frame = synthetic_tower()
     local = pd.to_datetime(frame["date"])
     flx = pd.DataFrame({"TIMESTAMP_START": local.dt.strftime("%Y%m%d%H%M"),
-                        "TA_F": frame["tair"], "TA_F_QC": 0, "VPD_F": frame["vpd"] * 10.0, "VPD_F_QC": 0,
+                        tair: frame["tair"], f"{tair}_QC": 0, "VPD_F": frame["vpd"] * 10.0, "VPD_F_QC": 0,
                         "PA_F": frame["p_kpa"], "PA_F_QC": 0, "P_F": frame["PPT"], "P_F_QC": 0,
                         "SW_IN_F": frame["Rs"], "SW_IN_F_QC": 0, "LW_IN_F": frame["Rl_dn"], "LW_IN_F_QC": 0,
                         "WS_F": frame["ubar"], "WS_F_QC": 0, "LE_F_MDS": 0.4 * frame["Rs"], "LE_F_MDS_QC": 0})
-    flx.loc[100:140, "TA_F_QC"] = 2                     # the provider filled these
+    flx.loc[100:140, f"{tair}_QC"] = 2                  # the provider filled these
     flx.loc[200:220, "LE_F_MDS_QC"] = 1
     flx.to_csv(tmp_path / "flx.csv", index=False)
     toml = tmp_path / "flx.toml"
@@ -342,7 +343,7 @@ tq_height = 30.0
 wind_height = 30.0
 pressure_height = 0.0
 [variables]
-Tair = {{ column = "TA_F", units = "degC" }}
+Tair = {{ column = "{tair}", units = "degC" }}
 VPD = {{ column = "VPD_F", units = "hPa", curve = "alduchov_eskridge" }}
 PSurf = {{ column = "PA_F", units = "kPa" }}
 Rainf = {{ column = "P_F", units = "mm" }}

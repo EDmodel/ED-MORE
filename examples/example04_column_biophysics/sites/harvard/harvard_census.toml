@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: Apache-2.0
+# The stand that starts the Harvard site: census 2 (2018-2019) of the Harvard Forest ForestGEO 35-ha plot
+# (HF253), every live stem in the 20 m cells around NEON's tower, for scripts/prepare_input/census/make_census.py.
+# Each 20 m cell is one patch; ED-MORE fuses the stand before the first step.
+#
+# The tables are the plot's stem tables, one row per stem: a tree with several stems is several plants.
+# The paths name the Harvard data folder as /path/to/harvard_data (fetch_data.py's layout, hf_archive/hf253/),
+# which is installation-specific: run_site.py writes the folder (--data) into the copy it runs,
+# data/harvard_census.toml.
+
+[source]
+path      = "/path/to/harvard_data/hf_archive/hf253/hf253-06-stems-2019.csv"
+sha256    = "bb48448b8a2cd920fcac7df21a352a0c70174652f11d76423b03770a565ce2e7"
+format    = "csv"
+columns   = { treeID = "stem.id", date = "jd", ExactDate = "exact.date" }
+dbh_units = "cm"
+census    = "Harvard Forest ForestGEO 35-ha plot (HF253), census 2 (2018-2019), live stems"
+citation  = "Orwig et al. 2022, doi:10.7717/peerj.12693; HF253, doi:10.6073/pasta/818789a882a318c1d7f3fc43a2289e12"
+
+[plot]
+x_extent   = 700.0           # [m] gx, west to east
+y_extent   = 500.0           # [m] gy, south to north
+cell_size  = 20.0            # [m] the plot's own quadrats
+min_dbh_mm = 10.0            # the census's own threshold
+# The tower's surroundings: the cells whose centre lies within 200 m of NEON's tower (TOWER100450,
+# 42.536910 N, 72.172650 W), at plot gx 591.1, gy 44.3 m (UTM 18N against the plot's south-west corner,
+# 731592.9 E, 4713221.9 N). The plot's south edge is 44 m from the tower, so the stand is the
+# tower's northern half-disc and around it: 161 cells, 6.4 ha. Broadleaves hold 74 % of its basal area
+# (red oak 43 %, red maple 21 %); the plot as a whole is half conifer, most of it hemlock north of the
+# central swamp.
+circle = { x = 591.1, y = 44.3, radius = 200.0 }
+
+[output]
+pft = 1                      # deciduous broadleaf: oaks, maples, birches, beech, and the larch
+pft_by_species = { tsugca = 2, pinust = 2, pinure = 2, pinuxx = 2, piceab = 2, piceru = 2, picexx = 2, junico = 2 }
+
+# For the summary's stand totals and the steady-state litter input of [soil_carbon].
+[pft]
+pft_file = "pft_parameters.toml"
+
+# Census 1 (2010-2014), for the stand's biomass mortality. A stem alive then and gone by census 2
+# ("G": dead or vanished) died.
+[mortality]
+path        = "/path/to/harvard_data/hf_archive/hf253/hf253-05-stems-2014.csv"
+sha256      = "1f788262ff77ba5bb24394d6674914962cd393438680c16e9d6eecba3be864cb"
+format      = "csv"
+columns     = { treeID = "stem.id", date = "jd", ExactDate = "exact.date" }
+dbh_units   = "cm"
+dead_status = ["G"]

@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: Apache-2.0
+# Harvard Forest, Massachusetts: NEON's HARV flux tower (AmeriFlux US-xHA), the site TOML that DECLARES
+# what the tower file is, for scripts/prepare_input/flux_tower/make_tower_forcing.py and the fast
+# calibration. prepare_tower.py makes the file from the tower's FLUXNET product (ONEFlux v1.3_r1,
+# AmeriFlux, CC-BY-4.0) and NEON's weighing-gauge precipitation (DP1.00044.001, CC BY 4.0): only the
+# measured meteorology, so the build fills every gap by its own rules.
+
+[input]
+format = "fluxnet"
+path   = "data/harvard_tower.csv"           # prepare_tower.py writes it
+
+[site]
+name      = "Harvard Forest, NEON HARV (US-xHA)"
+latitude  = 42.53691                        # [deg N]  the tower (NEON TOWER100450)
+longitude = -72.17265                       # [deg E]
+elevation = 351.0                           # [m]      AmeriFlux BADM
+leaf_on_months = [6, 7, 8, 9]               # the deciduous canopy is full; May and October are its turnovers
+
+[clock]
+utc_offset = -5.0                           # [h] AmeriFlux files are in local standard time (EST)
+stamp      = "begin"                        # TIMESTAMP_START marks the start of each half hour
+timestep   = 1800                           # [s]
+
+[heights]                                   # [m] above the ground at the tower base (the product's BADM)
+tq_height       = 38.5                      # the aspirated temperature and humidity probe (38.51, 38.63)
+wind_height     = 39.2                      # the CSAT3 sonic (39.16)
+pressure_height = 5.65                      # the barometer, near the tower base
+
+[variables]                                 # ED-MORE variable -> the file's column and units
+Tair   = { column = "TA",      units = "degC" }
+RH     = { column = "RH",      units = "%" }
+PSurf  = { column = "PA",      units = "kPa" }
+Rainf  = { column = "P_GAUGE", units = "mm" }                # per half hour; P_GAUGE_QC = 1 where the tower's bucket stands in
+SWdown = { column = "SW_IN",   units = "W m-2" }
+LWdown = { column = "LW_IN",   units = "W m-2" }
+Wind   = { column = "WS",      units = "m s-1" }
+PAR    = { column = "PPFD_IN", units = "umol m-2 s-1" }       # reports only
+
+[gapfill]
+short_gap_max = 4                           # [records] interpolate gaps up to 2 h
+
+# The tower's fluxes, for the calibration and the evaluation. A FLUXNET flux is measured where its _QC
+# column is 0. The partitioned GPP and respiration count where the NEE they come from was measured.
+[fluxes]
+SW_out  = { column = "SW_OUT",          units = "W m-2" }
+LW_out  = { column = "LW_OUT",          units = "W m-2" }
+Rnet    = { column = "NETRAD",          units = "W m-2" }
+G       = { column = "G_F_MDS",         units = "W m-2" }
+LE      = { column = "LE_F_MDS",        units = "W m-2" }
+H       = { column = "H_F_MDS",         units = "W m-2" }
+NEE     = { column = "NEE_VUT_REF",     units = "umol m-2 s-1" }
+GPP     = { column = "GPP_NT_VUT_REF",  units = "umol m-2 s-1", measured = { column = "NEE_VUT_REF_QC", equals = 0 } }
+RECO    = { column = "RECO_NT_VUT_REF", units = "umol m-2 s-1", measured = { column = "NEE_VUT_REF_QC", equals = 0 } }
+GPP_DT  = { column = "GPP_DT_VUT_REF",  units = "umol m-2 s-1", measured = { column = "NEE_VUT_REF_QC", equals = 0 } }
+RECO_DT = { column = "RECO_DT_VUT_REF", units = "umol m-2 s-1", measured = { column = "NEE_VUT_REF_QC", equals = 0 } }
+USTAR   = { column = "USTAR",           units = "m s-1" }
+
+[provider]
+gpp_method  = "ONEFlux (Pastorello et al. 2020): NEE_VUT_REF partitioned by the night-time method (Reichstein et al. 2005, GPP_NT) and the daytime method (Lasslop et al. 2010, GPP_DT)"
+notes       = "NEON's eddy covariance (Metzger et al. 2019) processed by AmeriFlux ONEFlux v1.3_r1. The meteorology is measured only (prepare_tower.py blanks the product's MDS and ERA5 fills)."
+uncertainty = { LE = "LE_RANDUNC", H = "H_RANDUNC", NEE = "NEE_VUT_REF_RANDUNC" }
+# [m s-1] ONEFlux's CO2 u* threshold, each year's median of the VUT bootstrap (the product's BADM, GRP_UST_THR)
+ustar_threshold = { 2019 = 0.437, 2020 = 0.416, 2021 = 0.412, 2022 = 0.396, 2023 = 0.385, 2024 = 0.368 }

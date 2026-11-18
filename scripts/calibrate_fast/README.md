@@ -7,9 +7,8 @@ at any tower; the tower's numbers come from its own data and climate. The protoc
 in it are in
 MEDS's [fast-calibration protocol](https://github.com/xiangtaoxu/MEDS/blob/v0.4.0/docs/dev_plans/MEDS_FAST_CALIBRATION_BEST_PRACTICE.md) (MEDS v0.4.0); the code
 cites its sections as "protocol §N".
-Barro Colorado Island is the worked example:
-[`examples/example04_column_biophysics/calibration.toml`](../../examples/example04_column_biophysics/calibration.toml),
-with what the rules chose there and the results in the example's README.
+Barro Colorado Island is the worked example ([below](#worked-example-barro-colorado-island)); each site
+of [example 04](../../examples/example04_column_biophysics/README.md) keeps its own `calibration.toml`.
 
 **The user decides, the tool recommends and reports.** Every setting of a site's `calibration.toml`
 is listed in [`calibration_reference.toml`](calibration_reference.toml) with its default and the
@@ -133,13 +132,22 @@ python calibrate_fast.py fit ... --queue
   one ten-day calibration window per 1.5-month slot of the year inside the leaf-on months, each the
   slot's best covered (the share of daytime records with H, LE and GPP measured, times the share with
   observed forcing, `[tower].forcing_qc`). Validation windows are in the same slots of other years. A
-  calibration may list its own windows.
+  calibration may list its own windows, or name the months the rule draws from (`[windows].months`:
+  a mixed stand adds the months only its evergreens are in leaf), and the spans it leaves out
+  (`[windows].exclude`, each with its reason: what the model cannot be scored on, such as a snow pack it
+  makes and the site did not have).
 - **Seasonal runs follow a rule** (`[seasonal_runs]`): up to two 120-day runs, each ending at a year's
   deepest cumulative water deficit (rain minus Priestley–Taylor evaporation, from the forcing) inside
-  the leaf-on months, scored on LE only. A year under 100 mm gives none; without any, the drought keys
-  are fixed.
-- **Chains.** Every window has its own chain: a frozen run from the initial stand (the base config's
-  census or state) that starts `[windows].chain_lead_days` (180) before it. The chains run at once.
+  the leaf-on months, scored on LE only. A run must lie inside the leaf-on months and reach the
+  coverage of LE alone (its own target, not the windows' three); a site with a short growing season
+  shortens the runs (`days`). A year under 100 mm gives none; without any, the drought keys are fixed,
+  and `report` gives each year's reasons.
+- **Chains.** Every window has its own chain: a run from the initial stand (the base config's census
+  or state) that starts `[windows].chain_lead_days` (180) before it. The chains run at once. When the
+  base config freezes the stand (`[demography].demography_on = false`), a chain runs the slow tier, so
+  the leaves follow the season to the window: a deciduous canopy is bare in a winter window, not the
+  census's full leaf. Give such a chain a year's lead, so its phenology has seen a whole season. A
+  chain of a stand that is not frozen is frozen like a trial (`[run].slow_on = false`).
 
 ## Keys and priors
 
@@ -161,6 +169,13 @@ python calibrate_fast.py fit ... --queue
 - **Priors by plant type** (`[fit].plant_type`, the registry's `meta`) apply to a key without an EEO
   centre. Beside an EEO centre, the type's prior is reported and flagged when more than 2 sd apart.
   Site leaf data in `[priors]` come first.
+- **Several PFTs** (a mixed stand): `[fit].pfts = [1, 2]` fits every per-PFT key once per listed PFT,
+  `vcmax25` on PFT 1 and `vcmax25_pft2` on PFT 2, and `[fit].plant_types` gives each PFT its plant
+  type for the priors above. The EEO centres use each PFT's own leaf, and the Kattge & Knorr values
+  are set on every fitted PFT. In `keys`, `add`, `remove` and `[priors]` a registry name means every
+  PFT's copy and a suffixed name that PFT's alone. Site keys (`z0m_ratio`, κ) are fitted once. A PFT's
+  keys are informed only by windows in which it makes the fluxes: a bare deciduous canopy leaves the
+  conifers to the tower.
 - **Keys fixed from coverage.** A key that acts through one process (the registry's `process`: wet
   canopy, night, snow, drought) is fixed when the kept records sample that process fewer than
   `[fit].min_process_records` (48) times.
@@ -222,6 +237,44 @@ One fit of every key at once (best-practice plan §6.3):
 | `fit.log` | the run's log |
 | `trials/`, `chains/` | every trial and state (cached: a re-run reuses them) |
 
+## Worked example: Barro Colorado Island
+
+[`sites/bci/calibration.toml`](../../examples/example04_column_biophysics/sites/bci/calibration.toml) fits
+example 04's BCI site. The fit sees the tower's LE, H, GPP, upwelling longwave and u\* in eight 10-day
+windows spread over the year, and LE over the 2016 and 2017 dry seasons; eight other windows validate it.
+Two choices are BCI's own:
+- the tower's energy balance closes to 0.75 of its net radiation, and the attribution test finds the gap
+  behaves like missing H, so the fit gives the whole gap to H;
+- the tower's respiration is about the soil's alone, so its GPP is too low; κ gets a prior below 1
+  (centre 0.65).
+
+![The BCI calibration: each fitted key's prior z, and the validation scores](bci_calibration.png)
+
+| key | calibrated (68 % range) | prior centre |
+|---|---|---|
+| `vcmax25` [µmol m⁻² s⁻¹] | 33.6 (32.7–34.5) | 39.9 (from the climate) |
+| `stomatal_g1` [kPa^0.5] | 2.88 (2.81–2.95) | 2.80 (from the climate) |
+| `stomatal_g0` [mol m⁻² s⁻¹] | 0.0003 (0.0002–0.0006) | 0.01 |
+| `leaf_angle_mean` [°] | 51.6 (47.7–55.4) | 45 |
+| `z0m_ratio` | 0.049 (0.048–0.051) | 0.13 |
+| `wstress_sref_stomata` | 2.8 (1.4–4.7: the data barely constrain it) | 2 |
+| κ | 0.714 (0.680–0.747) | 0.65 |
+
+On the validation windows, the RMSE in units of each target's error goes from default to calibrated:
+u\* 2.16 → 0.73, GPP 2.32 → 1.59, upwelling longwave 4.12 → 3.93, LE 1.66 → 1.59, and H 3.85 → 4.29.
+**The validation fails on H**: the protocol asks that no target do more than 10 % worse than the default,
+and H does 11 % worse. The calibrated parameters ship as the fit's best, with H flagged: lowering the
+canopy's sensible heat would cost GPP, u\* and the longwave. Sharing the energy-balance gap between H and
+LE instead moves `stomatal_g1` to 4.75 and `vcmax25` to 30.6. The fit's 996 runs took 60 minutes on 200
+cores of five nodes, with the queue workers of [Run](#run).
+
+```bash
+cd examples/example04_column_biophysics/sites/bci
+python run_site.py --calibrate --workers 40                       # redo the fit
+python ../../../../scripts/calibrate_fast/plot_fit.py --fit calibration/fit.json \
+    --out ../../../../scripts/calibrate_fast/bci_calibration.png --site "Barro Colorado Island"
+```
+
 ## Files
 
 | File | Role |
@@ -244,4 +297,5 @@ One fit of every key at once (best-practice plan §6.3):
 | `uncertainty.py` | the linearity check, the key table, the declared alternatives |
 | `report.py` | the data report, the model/tower ratios, κ, the validation's verdict, `report.md` |
 | `calibrated_files.py` | the calibrated configs |
+| `plot_fit.py` | a fit in one figure: each key's prior z and the validation scores (the worked example's) |
 | `tests/` | unit tests, `check`, and an end-to-end fit with ED-MORE (ctest `calibrate_fast`) |

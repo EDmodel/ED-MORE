@@ -5,7 +5,8 @@
 #   file      = "pft" (the PFT TOML), "main", or "obs" (an observation key, kappa: a term of a target's
 #               observation model, never written to a config)
 #   key       = the dotted TOML key as ED-MORE reads it
-#   pft       = the element of a per-PFT array (1-based; default 1)
+#   pft       = the element of a per-PFT array (1-based; default 1); a calibration's [fit].pfts fits the
+#               key once per listed PFT instead (`<key>_pft<k>` for PFT k > 1)
 #   range     = [lo, hi]: a hard bound, through the transform
 #   transform = "linear" (logit on the range) or "log" (log, then logit): a positive scale is "log"
 #   state     = "fit" (in the default set), "optional" (fitted when the calibration asks: [fit].add or
@@ -23,7 +24,8 @@
 #   scope     = "plant_type" (shared by every tower of the type), "site" or "observation"
 #   fixed_at  = "kattge_knorr": fixed at Kattge & Knorr's value for the site's growth temperature (priors.py)
 #   meta      = { <plant type> = { centre, sd | log_sd, source } }: a meta-analysis prior by plant type
-#               ([fit].plant_type); the prior of a key without an EEO centre, reported beside the EEO one
+#               ([fit].plant_type, or the PFT's entry of [fit].plant_types); the prior of a key without an
+#               EEO centre, reported beside the EEO one
 #   source    = what the key is, and where its range comes from; its "plan §4.n" is §4.n of MEDS's
 #               fast-calibration plan, where each key's range is argued:
 #               https://github.com/xiangtaoxu/MEDS/blob/v0.4.0/docs/dev_plans/MEDS_FAST_CALIBRATION_PLAN.md
@@ -182,6 +184,16 @@ prior = { centre = 43540.0, sd = 10000.0, source = "Medlyn et al. 2002 / CLM5 43
 source = "Jmax activation energy [J mol-1]. Optional, as ea_vcmax"
 
 # ----- 3 STOMATA, AERODYNAMICS AND THE WET CANOPY: H, LE, u* -----------------------------------
+[capacity_low_temp]
+file = "pft"
+key = "pft.capacity_low_temp"
+kind = "effective"
+range = [273.15, 288.15]
+state = "optional"
+prior = { centre = 277.8637, sd = 4.0, source = "ED2's temperate and conifer Vm_low_temp, 4.71 C (Moorcroft et al. 2001); ED2 gives its tropical PFTs 10 C" }
+reason = "it acts only in the cold: windows at leaf temperatures of about 5-15 C (an evergreen's spring) inform it, summer windows barely"
+source = "the leaf temperature [K] that halves Vcmax, Jmax and TPU (leaf_gas_exchange.md eq. (3b)): an evergreen's lower capacity in the cold season. Range 0-15 C"
+
 [stomatal_g1]
 file = "pft"
 key = "pft.stomatal_g1"

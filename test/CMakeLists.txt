@@ -194,7 +194,7 @@ ed_add_test(state_file SOURCES io/test_state_file.f90 LINK ed_model ed_output_st
 #      so it runs from that example's directory; it writes only under the build tree.               #
 ed_add_test(sites SOURCES driver/test_sites.f90 LINK ed_testsupport ed_run
             ARGS ${PROJECT_BINARY_DIR}/work/sites $<TARGET_FILE:ed_main>
-            WORKDIR ${PROJECT_SOURCE_DIR}/examples/example04_column_biophysics LABELS integration)
+            WORKDIR ${PROJECT_SOURCE_DIR}/examples/example04_column_biophysics/sites/bci LABELS integration)
 #----- A region against its site runs, on the synthetic archive. It runs from driver/region, whose  #
 #      site config it derives its configs from; it writes everything under the work directory in   #
 #      the build tree.                                                                               #
@@ -220,12 +220,12 @@ ed_add_test(c_api_leaf SOURCES c_api/test_c_api_leaf.f90 LINK ed_testsupport ed_
 #      exactly like a shim nothing compiles.                                                         #
 ed_add_test(c_api_demography SOURCES c_api/test_c_api_demography.f90 LINK ed_testsupport ed_c_api
             WORKDIR ${PROJECT_SOURCE_DIR} LABELS unit)
-#----- Runs from examples/example04_column_biophysics: it loads both of that example's shipped     #
+#----- Runs from examples/example04_column_biophysics/sites/bci: it loads both of that site's shipped#
 #      configs (the default and the calibrated run), so the build notices when they fall behind    #
 #      the config reader. It writes only under the build tree.                                      #
 ed_add_test(c_api_run SOURCES c_api/test_c_api_run.f90 LINK ed_testsupport ed_c_api
             ARGS ${PROJECT_BINARY_DIR}/c_api_run
-            WORKDIR ${PROJECT_SOURCE_DIR}/examples/example04_column_biophysics LABELS integration)
+            WORKDIR ${PROJECT_SOURCE_DIR}/examples/example04_column_biophysics/sites/bci LABELS integration)
 
 #==========================================================================================#
 #  checks/: the CMake scripts that check the source tree and edmore as a program.             #
