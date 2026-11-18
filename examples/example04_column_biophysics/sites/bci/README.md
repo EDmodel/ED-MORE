@@ -96,19 +96,19 @@ calendar month's hours of the day averaged over the years: [`evaluation.py`](../
 
 | | tower | target | default | calibrated |
 |---|---|---|---|---|
-| GPP [µmol m⁻² s⁻¹] | 7.64 | 8.43 | 10.78 | 8.99 |
-| LE [W m⁻²] | 76.7 | 76.7 | 82.9 | 68.5 |
-| H [W m⁻²] | 35.1 | 72.6 | 73.6 | 84.8 |
-| NEE [µmol m⁻² s⁻¹] | −4.42 | | −4.09 | −3.24 |
-| net radiation [W m⁻²] | 136.0 | | 139.7 | 139.1 |
+| GPP [µmol m⁻² s⁻¹] | 7.64 | 8.43 | 10.74 | 8.93 |
+| LE [W m⁻²] | 76.7 | 76.7 | 80.8 | 66.5 |
+| H [W m⁻²] | 35.1 | 72.6 | 74.8 | 86.3 |
+| NEE [µmol m⁻² s⁻¹] | −4.42 | | −4.05 | −3.19 |
+| net radiation [W m⁻²] | 136.0 | | 139.8 | 139.1 |
 
-- **Carbon:** the calibration brings GPP from 28 % above its target to 7 % above. Through the year the
+- **Carbon:** the calibration brings GPP from 27 % above its target to 6 % above. Through the year the
   model's GPP is highest in the dry season (March) and the tower's in the wet season (June–August).
 - **Energy:** the model's canopy still reflects more than the tower sees (daytime albedo 0.163–0.168
   against 0.131), but its net radiation, the leaves', the wood's and the ground's as their balances
-  book it, is within 3–4 W m⁻² of the tower's. The default's H is 1 % above the target; the calibrated
-  run's is 17 % above it.
-- **Water:** the calibration lowers LE to 68.5 W m⁻², below the tower's 76.7, although it improves LE
+  book it, is within 3–4 W m⁻² of the tower's. The default's H is 3 % above the target; the calibrated
+  run's is 19 % above it.
+- **Water:** the calibration lowers LE to 66.5 W m⁻², below the tower's 76.7, although it improves LE
   on the validation windows.
 - Whole-site energy and water close in both runs.
 
@@ -125,8 +125,8 @@ LAI 5.4) and its tallest tree.
   top tree's leaves 2.7–5.5 K above it at midday. The soil at 2.5 cm swings 1–5.5 K a day.
 - **Canopy-air CO₂** falls to about 399 µmol mol⁻¹ by day as the canopy draws it down, and builds up
   again to 404–409 at night, and to 415 in the calm last night.
-- **Leaf water potential** refills to about −0.5 MPa each night of the dry spell (−0.31 after the
-  storm) and falls to −1.3 MPa at midday on the bright days: the tension that pulls the day's
+- **Leaf water potential** refills to −0.5 to −0.6 MPa each night of the dry spell (−0.36 after the
+  storm) and falls to −1.2 to −1.3 MPa at midday on the bright days: the tension that pulls the day's
   transpiration up through the sapwood. Panama's canopy trees measure −0.6 to −1.0 MPa before dawn
   and −1.4 to −2.0 at midday in a dry season, so the model's tree is at the wet end of the measured
   range.
