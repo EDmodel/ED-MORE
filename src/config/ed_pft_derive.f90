@@ -14,7 +14,7 @@ module ed_pft_derive
                                    RAD_NIR, RAD_LW, kirchhoff_table_t, KIRCHHOFF_TABLE_NTAB,                &
                                    KIRCHHOFF_TABLE_RMAX
    use ed_plant_hydr_lib,   only : tissue_psi_tlp, tissue_psi_to_rwc
-   use ed_allometry_lib,    only : min_cohort_carbon
+   use ed_allometry_lib,    only : recruit_agb, size_to_leaf_carbon, storage_carbon_target, GROWTH_GRASS
    use ed_optics_lib,       only : N_LEAF_CLASS, beta_lidf, leaf_bf, scatter_pair
    implicit none
    private
@@ -71,16 +71,26 @@ contains
 
    !---~---
    !   Each PFT's recruit carbon, from the table's own allometry: called on a polygon's copy,
-   ! once the cell's allometry is in it (docs/science/demography.md §3).
+   ! once the cell's allometry is in it (docs/science/demography.md §3). A tree recruit's is
+   ! its AGB at min_cohort_height. A grass has no wood, so its recruit's is the whole plant
+   ! at its PFT's height: leaves on allometry, their fine roots and the storage target.
    !---~---
    subroutine derive_recruit_carbon(pft)
       type(pft_table_t), intent(inout) :: pft
       integer(ik) :: ipft
+      real(wp)    :: leaf_c, root_c
       if (allocated(pft%recruit_carbon)) deallocate(pft%recruit_carbon)
       allocate(pft%recruit_carbon(pft%n))
       do ipft = 1_ik, pft%n
-         pft%recruit_carbon(ipft) = min_cohort_carbon(pft%allom(ipft), pft%min_cohort_height,           &
-                                                      pft%wood_density(ipft))
+         if (pft%allom(ipft)%growth_form == GROWTH_GRASS) then
+            leaf_c = size_to_leaf_carbon(pft%allom(ipft), 0.0_wp, pft%allom(ipft)%hgt_max, pft%sla(ipft))
+            root_c = pft%root_to_leaf_ratio(ipft) * leaf_c
+            pft%recruit_carbon(ipft) = leaf_c + root_c                                                &
+                                     + storage_carbon_target(pft%storage_cushion(ipft), leaf_c, root_c)
+         else
+            pft%recruit_carbon(ipft) = recruit_agb(pft%allom(ipft), pft%min_cohort_height,             &
+                                                   pft%wood_density(ipft))
+         end if
       end do
    end subroutine derive_recruit_carbon
 

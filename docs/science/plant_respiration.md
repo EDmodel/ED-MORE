@@ -67,7 +67,8 @@ Four details are load-bearing:
   $`f_{\mathrm{ag}}`$ = `aboveground_frac` scales it to the whole woody plant, so belowground structure
   respires in proportion. It is a per-PFT trait gathered per cohort — the same number demography and
   cohort fusion read — never a run-uniform constant.
-- **The woody gate.** `is_woody = .false.` (a grass) returns exactly zero, whatever the rates.
+- **The woody gate.** A grass (`[pft].growth_form = "grass"`), which has no stem, returns exactly zero,
+  whatever the rates.
 - **Surface or sapwood.** Maintenance respiration of stems is linear in sapwood (live-cell) volume in
   conifers (Ryan 1990; Ryan et al. 1995), while tropical stem efflux follows surface and volume both
   (Cavaleri et al. 2006; Rowland et al. 2018). The two bases spread a stand's stem respiration over
@@ -201,7 +202,7 @@ Per-PFT traits the respiration consumes (PFT file, `[pft]`).
 
 | Symbol | Config key | Meaning |
 |---|---|---|
-| — | `is_woody` | woody gate; `.false.` ⇒ stem respiration is identically 0 |
+| — | `growth_form` | woody gate; `"grass"` ⇒ stem respiration is identically 0 |
 | $`r^{\mathrm{stem}}_{25}`$ | `stem_resp_factor25` | stem rate per surface $`[\mathrm{\mu mol\,CO_2\,m^{-2}\,stem\,s^{-1}}]`$ at 25 °C (shipped 0.06) |
 | $`r^{\mathrm{sap}}_{25}`$ | `stem_resp_sapwood25` | stem rate per sapwood volume $`[\mathrm{\mu mol\,CO_2\,m^{-3}\,sapwood\,s^{-1}}]`$ at 25 °C (optional, default 0) |
 | $`r^{\mathrm{root}}_{25}`$ | `root_resp_factor25` | fine-root baseline $`[\mathrm{\mu mol\,CO_2\,kgC^{-1}\,s^{-1}}]`$ at 25 °C (shipped 0.30) |

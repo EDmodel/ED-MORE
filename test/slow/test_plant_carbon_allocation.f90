@@ -25,7 +25,8 @@ program test_plant_carbon_allocation
    use ed_kinds,           only : wp, ik
    use ed_plant_carbon_allocation,   only : plant_carbon_allocation, growth_respiration,                 &
                                             growth_sink_limitation
-   use ed_allometry_lib,             only : allometry_t, size_to_wood_carbon, wood_to_dbh, dbh_to_height
+   use ed_allometry_lib,             only : allometry_t, size_to_wood_carbon, wood_to_dbh, dbh_to_height,  &
+                                            GROWTH_GRASS
    implicit none
 
    !--- A stem for the sink-limit tests: wood density, height cap and aboveground share.
@@ -210,6 +211,21 @@ contains
            wood_growth_max=limit(10.0_wp, 10.0_wp, 0.0_wp, 0.0_wp, 1.0_wp), exudate=ex)
       call check_true('sink cap: no limit => bit-identical wood', gw == gw0 .and. gresp == gresp0)
       call check_close('sink cap: no limit => no exudate', ex, 0.0_wp)
+      !--- A grass builds no wood, whatever the limits: all its residual is exudate.
+      block
+         type(allometry_t) :: grass
+         grass = ALLOM
+         grass%growth_form = GROWTH_GRASS
+         call check_close('sink cap: a grass builds no wood',                                          &
+                          growth_sink_limitation(grass, 0.0_wp, 0.0_wp, RHO, 0.0_wp, 0.0_wp, 0.0_wp,    &
+                                                 1.0_wp, 1.0_wp, 0.0_wp), 0.0_wp)
+         call plant_carbon_allocation(1.0_wp, 0.0_wp, 0.5_wp, 0.0_wp, 0.3_wp, 0.0_wp, 0.0_wp, 0.0_wp, &
+              gl, gf, gw, gs, gr, gresp, def,                                                &
+              wood_growth_max=growth_sink_limitation(grass, 0.0_wp, 0.0_wp, RHO, 0.0_wp, 0.0_wp,         &
+                                                     0.0_wp, 1.0_wp, 1.0_wp, 0.0_wp), exudate=ex)
+         call check_close('sink cap: a grass grows no wood', gw, 0.0_wp)
+         call check_close('sink cap: a grass exudes its residual', ex, 0.55_wp / 1.5_wp)
+      end block
    end subroutine test_sink_cap
 
    !---~---

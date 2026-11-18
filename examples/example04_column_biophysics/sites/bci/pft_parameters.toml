@@ -6,6 +6,7 @@
 # Every per-PFT array has length 1 (the PFT count = length of [pft].wood_density).
 
 [pft]
+growth_form        = "tree"
 wood_density       = [0.60]      # [g/cm3] mid-successional
 # The mortality hazard, mort_gamma + mort_alpha*exp(-mort_beta*growth_avg).
 mort_gamma         = [0.0094]   # [1/yr]
@@ -45,7 +46,6 @@ sla                    = [13.0]
 root_to_leaf_ratio     = [1.0]
 
 #----- Non-leaf maintenance respiration (leaf Rd is rd_vcmax_ratio above).
-is_woody           = [1]     # 1 = woody (0 = grass: no stem respiration)
 stem_resp_factor25 = [0.06]  # [umol CO2/m2 stem/s @25C]
 root_resp_factor25 = [0.30]  # [umol CO2/kgC fine root/s @25C]
 

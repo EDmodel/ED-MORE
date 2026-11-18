@@ -9,7 +9,7 @@
 !---~---
 module ed_config_io
    use ed_kinds,      only : wp, ik
-   use ed_allometry_lib, only : HEIGHT_POWER, HEIGHT_CHAVE
+   use ed_allometry_lib, only : HEIGHT_POWER, HEIGHT_CHAVE, GROWTH_TREE, GROWTH_GRASS
    use ed_config,       only : ed_config_t, derive_parameters, alloc_pft_table, INIT_CENSUS,        &
                                INIT_RESTART
    use ed_pft_derive,   only : pft_stomata_psi_onset, pft_wstress_psi_open, pft_wstress_psi_close
@@ -544,7 +544,7 @@ contains
       call req_r(tm, 'demography.cohort_size_tol_max',        d%cohort_size_tol_max,        m)
       call req_r(tm, 'demography.cohort_lai_cap',             d%cohort_lai_cap,             m)
       call req_r(tm, 'demography.split_eps',                  d%split_eps,                  m)
-      call req_r(tm, 'demography.min_cohort_agb',             d%min_cohort_agb,             m)
+      call req_r(tm, 'demography.min_cohort_carbon',          d%min_cohort_carbon,          m)
       call req_r(tm, 'demography.negligible_nplant',          d%negligible_nplant,          m)
       call req_r(tm, 'demography.patch_disturbance_rate',     d%patch_disturbance_rate,     m)
       call req_r(tm, 'demography.disturbance_survive_height', d%disturbance_survive_height, m)
@@ -567,6 +567,33 @@ contains
       call req_r(tm, 'demography.growth_memory_days',         d%growth_memory_days,         m)
    end subroutine load_demography_params
 
+
+   !---~---
+   !   [pft].growth_form, one name for every PFT or one per PFT: "tree" or "grass"
+   ! (docs/configuration.md, "The PFT file").
+   !---~---
+   subroutine req_growth_form(t, cfg, npft, m)
+      type(toml_table_t), intent(in) :: t
+      type(ed_config_t), intent(inout) :: cfg
+      integer(ik), intent(in) :: npft
+      type(keymiss_t), intent(inout) :: m
+      character(len=16) :: forms(MAXPFT)
+      integer(ik) :: nform, pf, k
+      call toml_string_array(t, 'pft.growth_form', forms, nform)
+      if (nform == 1_ik) forms(1:npft) = forms(1)
+      if (nform /= 1_ik .and. nform /= npft) then
+         call note_missing(m, 'pft.growth_form')
+         return
+      end if
+      do pf = 1_ik, npft
+         k = int(findloc([character(len=16) :: 'tree', 'grass'], forms(pf), dim=1), ik)
+         if (k == 0_ik) then
+            call note_missing(m, 'pft.growth_form = "'//trim(forms(pf))//'" is not one of tree | grass')
+            return
+         end if
+         cfg%pft%allom(pf)%growth_form = merge(GROWTH_TREE, GROWTH_GRASS, k == 1_ik)
+      end do
+   end subroutine req_growth_form
 
    !---~---
    !   [allometry].height_allometry, one name for every PFT or one per PFT, and for
@@ -1051,26 +1078,6 @@ contains
    end subroutine req_pa_int
 
    !---~---
-   !   A per-PFT logical array, written 0/1 (`is_woody = [1, 1, 0]`) so the real-array
-   ! parser serves it. Any value other than 0 is true, so a typo cannot read as false.
-   !---~---
-   subroutine req_pa_log(t, key, out, npft, m)
-      type(toml_table_t), intent(in)    :: t
-      character(len=*),   intent(in)    :: key
-      logical,            intent(inout) :: out(:)
-      integer(ik),        intent(in)    :: npft
-      type(keymiss_t),    intent(inout) :: m
-      real(wp)    :: buf(MAXPFT)
-      integer(ik) :: nout
-      call toml_real_array(t, key, buf, nout)
-      if (nout == npft) then
-         out(1:npft) = nint(buf(1:npft), ik) /= 0_ik
-      else
-         call note_missing(m, key)
-      end if
-   end subroutine req_pa_log
-
-   !---~---
    !   Load the configuration from `path`, the main file. Both files are mandatory; a
    ! missing file or a missing required key stops the run.
    !---~---
@@ -1191,6 +1198,8 @@ contains
       npft = nout
       call alloc_pft_table(cfg%pft, npft)
       cfg%pft%wood_density = buf(1:npft)
+      !--- Each PFT's growth form: a tree, or a grass with no wood.
+      call req_growth_form(tp, cfg, npft, miss)
 
       call req_pa(tp, 'pft.reproduction_investment_fraction', cfg%pft%reproduction_investment_fraction, npft, miss)
       call req_pa(tp, 'pft.recruit_carbon_efficiency',        cfg%pft%recruit_carbon_efficiency,        npft, miss)
@@ -1203,7 +1212,6 @@ contains
 
       !--- Leaf-photosynthesis per-PFT traits.
       call req_pa_int(tp, 'pft.photosynthetic_pathway', cfg%pft%photosynthetic_pathway, npft, miss)
-      call req_pa_log(tp, 'pft.is_woody',           cfg%pft%is_woody,           npft, miss)
       call req_pa(tp,     'pft.stem_resp_factor25', cfg%pft%stem_resp_factor25, npft, miss)
       call opt_pa(tp,     'pft.stem_resp_sapwood25', cfg%pft%stem_resp_sapwood25, npft, miss)
       call opt_pa(tp,     'pft.max_relative_growth_rate', cfg%pft%max_relative_growth_rate, npft, miss)
@@ -1366,7 +1374,7 @@ contains
          write(*,'(3a)') ' warning: could not write PFT parameters CSV "', trim(path), '"'
          return
       end if
-      write(u,'(a)') 'pft,wood_density,hgt_max,'                                                    &
+      write(u,'(a)') 'pft,growth_form,wood_density,hgt_max,'                                                    &
            //'reproduction_investment_fraction,recruit_carbon_efficiency,'                            &
            //'mort_gamma,mort_alpha,mort_beta,seed_rain_recruits,include_pft,'                         &
            //'min_cohort_height,min_repro_height,'                                         &
@@ -1390,12 +1398,12 @@ contains
       associate (p => cfg%pft)
          do pf = 1_ik, p%n
             !---~---
-            !   93 items: i0 + 8 + i0 + 2 + i0 + 47 + i0 + 32. Keep the format in step with
+            !   94 items: 2 i0 + 8 + i0 + 2 + i0 + 47 + i0 + 32. Keep the format in step with
             ! the header and the list: a shorter format reuses its last group, printing a
             ! real into an integer slot and dropping the trailing columns.
             !---~---
-            write(u,'(i0,8(",",es15.8),",",i0,2(",",es15.8),",",i0,47(",",es15.8),",",i0,32(",",es15.8))') &
-                 pf, p%wood_density(pf), p%allom(pf)%hgt_max,                                           &
+            write(u,'(i0,",",i0,8(",",es15.8),",",i0,2(",",es15.8),",",i0,47(",",es15.8),",",i0,32(",",es15.8))') &
+                 pf, p%allom(pf)%growth_form, p%wood_density(pf), p%allom(pf)%hgt_max,                                           &
                  p%reproduction_investment_fraction(pf), p%recruit_carbon_efficiency(pf),                &
                  p%mort_gamma(pf), p%mort_alpha(pf), p%mort_beta(pf), p%seed_rain_recruits(pf),         &
                  p%include_pft(pf), p%min_cohort_height, p%min_repro_height(pf),                        &

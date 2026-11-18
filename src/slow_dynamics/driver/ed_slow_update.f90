@@ -28,7 +28,7 @@ module ed_slow_update
                                        expand_patch_block, reorder_patch_block, cas_set_depth
    use ed_polygon_state_vars,   only : polygon_t, rebuild_cohort_map, assign_cohort_id,                  &
                                        patch_polygon_area, rebuild_patch_map, assign_patch_id
-   use ed_allometry_lib,        only : height_to_dbh, carbon_to_structure
+   use ed_allometry_lib,        only : height_to_dbh, carbon_to_structure, GROWTH_GRASS
    use ed_config,               only : ed_config_t, growth_window_steps
    use ed_diag_vars,            only : fuse_cohort_diag, PA_MORT_C_CULL, blend_patch_diag,               &
                                        inherit_patch_diag, PA_DISTURB_AREA, PA_MORT_C_DISTURB,           &
@@ -703,7 +703,9 @@ contains
    !---~---
    !   Cohort fusion in passes, the tolerance growing geometrically from
    ! cohort_size_tol_min, until no patch holds more than max_cohort cohorts
-   ! (demography.md §3).
+   ! (demography.md §3). The LAI cap keeps one cohort's leaves from spanning much of the
+   ! light profile; a grass's leaves stand at one height, so two grass cohorts of one PFT
+   ! fuse whatever their LAI.
    !---~---
    subroutine fuse_cohorts(poly, cfg)
       type(polygon_t),  intent(inout) :: poly
@@ -750,7 +752,7 @@ contains
                   if (.not. alive(donc)) cycle
                   if (cohort%pft(donc) /= cohort%pft(recc)) cycle
                   lai_comb = cohort%nplant(recc) * cohort%leaf_area(recc) + cohort%nplant(donc) * cohort%leaf_area(donc)
-                  if (lai_comb >= cfg%demography%cohort_lai_cap) cycle
+                  if (lai_comb >= cfg%demography%cohort_lai_cap .and. .not. is_grass(recc)) cycle
                   diff_height = abs(cohort%height(donc) - cohort%height(recc))
                   if (diff_height < h_top * tol) then
                      call fuse_2_cohorts(poly, recc, donc, cfg%demography%conservation_tol)
@@ -766,6 +768,12 @@ contains
          call rebuild_cohort_map(poly)
          call sort_cohorts(poly)
       end if
+   contains
+      !--- Cohort i is a grass.
+      logical function is_grass(i)
+         integer(ik), intent(in) :: i
+         is_grass = poly%cohort%pft_table%allom(poly%cohort%pft(i))%growth_form == GROWTH_GRASS
+      end function is_grass
    end subroutine fuse_pass
 
    !---~---
@@ -864,7 +872,8 @@ contains
 
    !---~---
    !   Split every cohort whose LAI exceeds cohort_lai_cap into two of half the density,
-   ! repeating until none does (demography.md §3).
+   ! repeating until none does (demography.md §3). A grass is not split: its halves would
+   ! stand at one height, in one layer of the light profile (fuse_cohorts).
    !---~---
    subroutine split_cohorts(poly, cfg)
       type(polygon_t),  intent(inout) :: poly
@@ -878,7 +887,7 @@ contains
          n0 = poly%cohort%n
          nsplit = 0_ik
          do i = 1_ik, n0
-            if (poly%cohort%nplant(i) * poly%cohort%leaf_area(i) > cfg%demography%cohort_lai_cap) nsplit = nsplit + 1_ik
+            if (too_leafy(i)) nsplit = nsplit + 1_ik
          end do
          if (nsplit == 0_ik) exit
          agb_before = sum(poly%cohort%nplant(1:n0) * poly%cohort%agb(1:n0))
@@ -886,7 +895,7 @@ contains
          m = n0
          associate (cohort => poly%cohort)
             do i = 1_ik, n0
-               if (cohort%nplant(i) * cohort%leaf_area(i) <= cfg%demography%cohort_lai_cap) cycle
+               if (.not. too_leafy(i)) cycle
                cohort%nplant(i) = 0.5_wp * cohort%nplant(i)
                m = m + 1_ik
                !---~---
@@ -922,11 +931,18 @@ contains
          call rebuild_cohort_map(poly)
          call sort_cohorts(poly)
       end do
+   contains
+      !--- A cohort above the LAI cap, other than a grass.
+      logical function too_leafy(i)
+         integer(ik), intent(in) :: i
+         too_leafy = poly%cohort%nplant(i) * poly%cohort%leaf_area(i) > cfg%demography%cohort_lai_cap   &
+                     .and. poly%cohort%pft_table%allom(poly%cohort%pft(i))%growth_form /= GROWTH_GRASS
+      end function too_leafy
    end subroutine split_cohorts
 
    !---~---
-   !   The cull: remove the cohorts whose n x AGB is below min_cohort_agb, and those at or
-   ! below the density floor; mortality stops a cohort exactly on the floor, so the test
+   !   The cull: remove the cohorts whose carbon, n times the plant's four pools, is below
+   ! min_cohort_carbon, and those at or below the density floor; mortality stops a cohort exactly on the floor, so the test
    ! includes equality. A culled cohort's water goes to the ground; its carbon is reported
    ! in `kills`, for its patch's litter (demography.md §3; soil_carbon.md §5).
    !---~---
@@ -951,7 +967,9 @@ contains
       allocate(keep(n))
       associate (cohort => poly%cohort, pft => poly%cohort%pft_table, patch => poly%patch)
          do i = 1_ik, n
-            keep(i) = (cohort%nplant(i) * cohort%agb(i) >= cfg%demography%min_cohort_agb) .and.               &
+            keep(i) = (cohort%nplant(i) * (cohort%leaf_carbon(i) + cohort%fineroot_carbon(i)                &
+                                           + cohort%wood_carbon(i) + cohort%nonstructural_carbon(i))      &
+                       >= cfg%demography%min_cohort_carbon) .and.                                         &
                       (cohort%nplant(i) > cfg%demography%negligible_nplant)
             if (keep(i)) cycle
             ip = cohort%owner_patch(i)

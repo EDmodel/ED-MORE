@@ -59,6 +59,12 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   conductance per unit leaf area, in series with the sapwood's. `vessel_curl` is removed and stops the run.
   The shipped and example PFT files carry measured values, each with its source; add the key to your own
   PFT files. (#93)
+- `[pft].is_woody` is replaced by the required `[pft].growth_form`, `"tree"` or `"grass"`, one name for
+  every PFT or one per PFT; `is_woody` stops the run. Replace `is_woody = [1, 1]` with
+  `growth_form = "tree"`. The PFT parameter CSV a run writes has a `growth_form` column after `pft`
+  (1 tree, 2 grass). (#TBD)
+- `[demography].min_cohort_agb` is now `min_cohort_carbon` [kgC m⁻²], the cull's threshold on a cohort's
+  carbon in its four pools; the old name stops the run. (#TBD)
 
 ### Answer changes
 
@@ -204,6 +210,12 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   length; a frozen stand's chains run the phenology. (#91)
 - `make_census.py` reads other ForestGEO tables: their column names, diameters in cm, a PFT per
   species, and the cells within a circle around a tower. (#91)
+- A grass growth form, `[pft].growth_form = "grass"`: a plant with no stem, whose individual is a
+  tiller. It stands at its PFT's `hgt_max` with leaves, fine roots and storage; one tiller's leaf area
+  follows its height alone; it has no stem respiration; and its water path runs from its fine roots
+  through its leaves alone. A census gives its rows dbh 0. Its cohorts are not split at the LAI cap,
+  and a patch's grass of one PFT fuses into one cohort. It runs in a frozen stand only
+  (`demography_on = false`) until its growth in number, mortality and recruitment are written. (#TBD)
 
 ### Changed
 

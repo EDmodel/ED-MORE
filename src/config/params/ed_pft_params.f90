@@ -217,7 +217,7 @@ module ed_pft_params
    type :: pft_table_t
       integer(ik) :: n = 0_ik
       !--- The size allometry and the wood-density axis.
-      type(allometry_t),        allocatable :: allom(:) ! each PFT's allometry ([allometry])
+      type(allometry_t),        allocatable :: allom(:) ! each PFT's allometry ([allometry]) and growth form
       type(plant_hydraulics_t), allocatable :: hydro(:) ! each PFT's hydraulic traits ([hydraulics])
       real(wp), allocatable :: wood_density(:)   ! [g/cm3] rho: the wood's dry mass per volume
       !--- Reproduction and recruitment.
@@ -285,7 +285,6 @@ module ed_pft_params
       real(wp),    allocatable :: max_absolute_growth_exponent(:) ! [--] its scaling with dbh [cm]
       real(wp),    allocatable :: growth_resp_factor(:)     ! [--]     construction cost (fraction of metabolic NPP)
       !--- Stem and root respiration (docs/science/plant_respiration.md §2-§3).
-      logical,     allocatable :: is_woody(:)               ! .false. (e.g. grass) => stem respiration is 0
       real(wp),    allocatable :: stem_resp_factor25(:)     ! [umol CO2/m2 stem/s @25C] stem rate per surface
       real(wp),    allocatable :: stem_resp_sapwood25(:)    ! [umol CO2/m3 sapwood/s @25C] stem rate per sapwood volume
       real(wp),    allocatable :: root_resp_factor25(:)     ! [umol CO2/kgC fine root/s @25C] baseline root rate
@@ -319,9 +318,10 @@ module ed_pft_params
       type(hydraulics_table_t) :: hydraulics   ! DERIVED each PFT's hydraulics and Kirchhoff lookup
       type(rad_pft_optics_t)   :: optics       ! DERIVED the two-stream's per-PFT optics
       !---~---
-      !   A recruit's carbon [kgC/plant] at min_cohort_height on its PFT's allometry, the
-      ! value of one plant of the recruit pool; derived on a polygon's own copy of the table,
-      ! which carries the cell's allometry (derive_recruit_carbon).
+      !   A recruit's carbon [kgC/plant] on its PFT's allometry (a tree's AGB at
+      ! min_cohort_height, a grass's whole plant), the value of one plant of the recruit pool;
+      ! derived on a polygon's own copy of the table, which carries the cell's allometry
+      ! (derive_recruit_carbon).
       !---~---
       real(wp), allocatable :: recruit_carbon(:)   ! DERIVED (pft)
    end type pft_table_t
