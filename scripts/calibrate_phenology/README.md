@@ -57,8 +57,9 @@ canopy from the census, which starts in full leaf.
 - **`par_min` is not fitted.** The coupled run counts each cohort's hours of light at the PFT file's `par_min`, and the
   hour thresholds (`flush_light_hours`, `shed_light_hours`) absorb a different choice. At a low `par_min` (a few
   µmol m⁻² s⁻¹) the hours are the photoperiod the cohort senses at its height.
-- **The WATER cue is not fitted yet.** Its turgor-loss point is derived from the hydraulic traits, which the
-  offline stand does not do; a fitted PFT with a WATER cue stops the tool.
+- **The WATER cue** sums each cohort's predawn leaf water potential above and below the PFT's turgor-loss point,
+  which the offline stand derives from the leaf's pressure-volume curve as the model does
+  (`[hydraulics].leaf_pi0` and `leaf_elastic_mod`). Its sums and sharpnesses are fitted; the curve is not.
 
 ## Targets
 
