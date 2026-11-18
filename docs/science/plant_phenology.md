@@ -180,9 +180,10 @@ S = \min\!\Big(k_{\mathrm{sh}}\, s\, L\, dt,\ \max\big(0,\ L - B - c_{\min} L_{\
   against the post-loss pool $`L_{\mathrm{post}} = L - B - S`$, funded from NPP and then storage by the
   allocation ladder ([`plant_carbon_allocation.md`](plant_carbon_allocation.md)). Fine roots regrow toward `root_to_leaf_ratio` of
   the full canopy under the same cap.
-- **Snap to bare**: a dormant canopy (flush rate $`k_{\mathrm{fl}} f \le 10^{-6}`$ day⁻¹) whose
-  senescence would leave it below $`c_{\mathrm{bare}}`$ = `bare_leaf_cover` goes bare, when its floor
-  lies below that cover. A sharp flush light gate (§7) turns the flush off in autumn and the
+- **Dormancy and the snap to bare**: a dormant canopy (flush rate $`k_{\mathrm{fl}} f \le 10^{-6}`$
+  day⁻¹) does not flush: a bare canopy stays bare until its flush starts, instead of growing leaves
+  too few to count. One whose senescence would leave it below $`c_{\mathrm{bare}}`$ = `bare_leaf_cover`
+  goes bare, when its floor lies below that cover. A sharp flush light gate (§7) turns the flush off in autumn and the
   snap acts; with a gradual one the flush tendency can stay above that rate, and a deciduous canopy
   then keeps a small residual cover, about $`k_{\mathrm{fl}} f / (k_{\mathrm{sh}} s)`$, that it keeps
   refilling and shedding.
