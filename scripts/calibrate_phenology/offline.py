@@ -17,13 +17,22 @@ from settings import pft_file_key
 #----- The coupled run's daily record of a day holds the leaf area after that day's slow step, the
 #      step that read the day's cues, so an offline day lines up with the record of the same date.
 LAG = 0
-#----- Kernel keys with no place in the PFT file: the turgor-loss point is derived from the
-#      hydraulic traits (the tool stops on a WATER cue).
+#----- Kernel keys with no place in the PFT file: the turgor-loss point the WATER cue sums against is
+#      derived from the leaf's pressure-volume curve (leaf_psi_tlp).
 DERIVED = {"leaf_psi_tlp"}
 
 
 class StandError(RuntimeError):
     pass
+
+
+def leaf_psi_tlp(cfg: RunConfig, pft: int) -> float:
+    """A PFT's leaf turgor-loss point [MPa] from its leaf pressure-volume curve, as the model derives it
+    (Bartlett et al. 2012 eq. 1; ed_plant_hydr_lib's tissue_psi_tlp, docs/science/plant_hydraulics.md
+    eq. (3)): pi0 eps / (pi0 + eps)."""
+    pi0 = float(cfg.get("hydraulics.leaf_pi0", file="pft", pft=pft))
+    eps = float(cfg.get("hydraulics.leaf_elastic_mod", file="pft", pft=pft))
+    return pi0 * eps / (pi0 + eps)
 
 
 def pft_params(cfg: RunConfig, pft: int) -> pheno.Params:
@@ -35,11 +44,8 @@ def pft_params(cfg: RunConfig, pft: int) -> pheno.Params:
             continue
         v = cfg.get(pft_file_key(f.name), file="pft", pft=pft, default=getattr(defaults, f.name))
         values[f.name] = int(v) if f.name.endswith("_mask") else float(v)
-    p = pheno.Params(**values)
-    if (p.flush_cue_mask | p.shed_cue_mask) & pheno.Cue.WATER:
-        raise StandError(f"PFT {pft} has a WATER cue: its turgor-loss point is derived from the hydraulic "
-                         "traits, which the offline stand does not do yet")
-    return p
+    values["leaf_psi_tlp"] = leaf_psi_tlp(cfg, pft)
+    return pheno.Params(**values)
 
 
 class Stand:

@@ -54,7 +54,10 @@ gpp_ref             = 0.3      # [kgC/m2 leaf/yr] the GPP of a run without the l
 [soil]
 # The ground: the column, its surface and its two bottom boundaries. Every key is optional, at the
 # value shown: a generic loam, not a measured soil. With the [maps] soil maps each polygon takes its
-# column and its boundaries from its cell, and those keys are refused here.
+# column and its boundaries from its cell, and those keys are refused here. Each texture key (theta_sat
+# to curve_par_n, and the three thermal ones) may instead be a list with one value per layer, top down;
+# the column then has a texture per layer, each layer starts at its field capacity, and
+# [init].soil_theta is refused.
 # ---- The column (docs/configuration.md "The soil layers"). ----
 depth       = 2.0          # [m]      column depth
 # layer_bottoms = [0.05, 0.15, 0.30, 0.60, 1.00, 1.50, 2.00]   # [m] measured layer bottoms, positive down
@@ -136,7 +139,7 @@ demography_on             = true     # false: the stand is frozen: no growth in 
                                      #   storage and soil carbon run, and the wood and recruits the stand
                                      #   cannot build leave it as frozen growth carbon (demography.md §7)
 # ---- One switch per operator, each under demography_on; the fusion and fission switches also
-# restructure a census start, whatever demography_on is. The cull (min_cohort_agb, negligible_nplant)
+# restructure a census start, whatever demography_on is. The cull (min_cohort_carbon, negligible_nplant)
 # and patch termination (min_patch_area) have no switch of their own: they run whenever
 # demography_on does, to keep the blocks bounded. ----
 recruitment_on            = true     # monthly: a recruit pool of min_recruit_size founds a cohort
@@ -153,7 +156,7 @@ cohort_size_tol_min       = 0.02     # [-] height tolerance, a share of the patc
 cohort_size_tol_max       = 0.10     # [-] its ceiling
 cohort_lai_cap            = 1.0      # [m2/m2] one cohort's LAI at most: split above it, no fusion above it
 split_eps                 = 1.0e-4   # [-] a split's relative perturbation of the two halves' wood carbon
-min_cohort_agb            = 1.0e-6   # [kgC/m2] a cohort below this nplant * agb is culled
+min_cohort_carbon         = 1.0e-6   # [kgC/m2] a cohort holding less carbon (all four pools) is culled
 negligible_nplant         = 1.0e-8   # [plant/m2] the density mortality stops at and the cull removes
 # ---- Treefall gaps. ----
 patch_disturbance_rate    = 0.014    # [1/yr] the share of the area a year's treefall gaps open (above 0)

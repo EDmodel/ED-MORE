@@ -293,22 +293,29 @@ contains
 
    !---~---
    !   One plant's intact wood-to-leaf conductance [kg/s/MPa]: its xylem and its leaves in
-   ! series, 1/k = 1/k_xylem + 1/k_leaf, floored so the leaves of a plant without sapwood
-   ! or without leaves stay joined to its wood (docs/science/plant_hydraulics.md eq. (10)).
+   ! series, 1/k = 1/k_xylem + 1/k_leaf. A plant with no stem (a grass) has no xylem in the
+   ! path, as if its xylem conducted without limit: its leaves join its root store through
+   ! their own conductance alone. Floored so the leaves of a plant without sapwood or
+   ! without leaves stay joined to its wood (docs/science/plant_hydraulics.md eq. (10)).
    !---~---
-   elemental function plant_max_conductance(wood_kmax, sap_area, height, leaf_kmax, leaf_area) result(k)
+   elemental function plant_max_conductance(has_xylem, wood_kmax, sap_area, height, leaf_kmax, leaf_area) result(k)
+      logical,  intent(in) :: has_xylem    ! the plant has a stem; false for a grass
       real(wp), intent(in) :: wood_kmax    ! [kg/m/s/MPa] sapwood specific conductivity
       real(wp), intent(in) :: sap_area     ! [m2] sapwood cross-section
       real(wp), intent(in) :: height       ! [m]
       real(wp), intent(in) :: leaf_kmax    ! [mmol/m2/s/MPa] leaf hydraulic conductance per unit leaf area
       real(wp), intent(in) :: leaf_area    ! [m2] the plant's leaf area
       real(wp) :: k, k_xylem, k_leaf
-      k_xylem = xylem_max_conductance(wood_kmax, sap_area, height)
-      k_leaf  = leaf_max_conductance(leaf_kmax, leaf_area)
-      if (k_xylem > 0.0_wp .and. k_leaf > 0.0_wp) then
-         k = k_xylem * k_leaf / (k_xylem + k_leaf)
+      k_leaf = leaf_max_conductance(leaf_kmax, leaf_area)
+      if (.not. has_xylem) then
+         k = k_leaf
       else
-         k = 0.0_wp
+         k_xylem = xylem_max_conductance(wood_kmax, sap_area, height)
+         if (k_xylem > 0.0_wp .and. k_leaf > 0.0_wp) then
+            k = k_xylem * k_leaf / (k_xylem + k_leaf)
+         else
+            k = 0.0_wp
+         end if
       end if
       k = max(k, XYLEM_COND_MIN)
    end function plant_max_conductance

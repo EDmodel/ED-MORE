@@ -83,7 +83,7 @@ Water and heat share one grid. Every profile cuts one list of layer bottoms at i
 - **A shallow soil gets a few layers rather than thin ones:** 0.3 m is 5, 10 and 15 cm.
 - **Soil maps line up with the layers,** because every profile is cut from the same list.
 
-`[soil].layer_bottoms` replaces the list for a site with a measured profile, and the profile then ends at its last bottom unless `[soil].depth` cuts it.
+`[soil].layer_bottoms` replaces the list for a site with a measured profile, and the profile then ends at its last bottom unless `[soil].depth` cuts it. A site's texture keys may be lists with one value per layer, top down, for a profile whose texture changes with depth; the soil maps give every layer its own texture the same way.
 
 ### Hydraulic parameters from soil texture
 

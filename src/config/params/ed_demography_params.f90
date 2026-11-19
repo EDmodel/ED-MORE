@@ -35,7 +35,7 @@ module ed_demography_params
       real(wp)    :: cohort_size_tol_min, cohort_size_tol_max
       real(wp)    :: cohort_lai_cap                  ! [m2/m2]
       real(wp)    :: split_eps
-      real(wp)    :: min_cohort_agb                  ! [kgC/m2]
+      real(wp)    :: min_cohort_carbon               ! [kgC/m2]
       real(wp)    :: negligible_nplant               ! [plant/m2]
       !--- Treefall gaps.
       real(wp)    :: patch_disturbance_rate          ! [1/yr]

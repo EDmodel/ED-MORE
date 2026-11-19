@@ -778,7 +778,8 @@ module test_slow_step_ledger_paths
                                        slow_ledger_open, slow_ledger_declare, slow_ledger_mark,    &
                                        slow_fast_carbon_handover, slow_tissue_energy, SLOW_PHASE_GROW, &
                                        SLOW_PHASE_ALLOCATE, SLOW_PHASE_RECRUIT, SLOW_PHASE_TISSUE_WATER, &
-                                       litter_carbon_total
+                                       litter_carbon_total, slow_ledger_failures
+   use ed_allometry_lib,        only : GROWTH_GRASS
    use ed_plant_hydr_lib,       only : water_curve_t, tissue_water_to_psi
    use ed_constants,            only : grav_head, n_soil_layer_max, umol_2_kgc
    use ed_test_support, only : banner, build_test_config, check, check_close
@@ -844,6 +845,7 @@ contains
       call check_litter_without_soil_carbon()
       call check_recruit_pool()
       call check_frozen_stand()
+      call check_frozen_grass()
       call check_cue_rows()
    end subroutine run_ledger_paths
 
@@ -1252,6 +1254,58 @@ contains
       call check_close(frozen%cohort%growth_hist(pos, 1), pos_ring, 1.0e-10_wp,                           &
                        'frozen: the growth history records the diameter rate the step would have made')
    end subroutine check_frozen_stand
+
+   !---~---
+   !   A grass in a frozen stand: a cohort with no wood, set at its PFT's height from a dbh of
+   ! 0, is born on its allometry with the whole plant its recruit carbon, and takes a step
+   ! with its structure unchanged. It builds no wood, so the carbon its leaves, roots,
+   ! storage and seed leave over is root exudate, and the step closes.
+   !---~---
+   subroutine check_frozen_grass()
+      real(wp), parameter :: HGRASS = 0.3_wp, NTILLER = 20.0_wp
+      type(ed_config_t)   :: c
+      type(polygon_t)     :: st
+      type(slow_ledger_t) :: lg
+      real(wp) :: whole_plant
+      c = build_test_config()
+      c%fast_biophysics_on = .true.
+      c%demography%demography_on      = .false.
+      c%pft%seed_rain_recruits(:)     = 0.0_wp
+      c%pft%leaf_turnover_rate_toc(:) = 0.01_wp
+      c%pft%allom(2)%growth_form      = GROWTH_GRASS
+      c%pft%allom(2)%hgt_max          = HGRASS
+      call init_bare_ground(st, c, 1_ik)
+      call add_cohort(st, c, 1_ik, 2_ik, NTILLER, 0.0_wp)
+      call finalize_init(st)
+      associate (co => st%cohort)
+         call check(co%dbh(1) == 0.0_wp .and. co%wood_carbon(1) == 0.0_wp .and. co%agb(1) == 0.0_wp       &
+                    .and. co%sapwood_area(1) == 0.0_wp .and. co%wood_area(1) == 0.0_wp,                 &
+                    'frozen grass: born with no wood')
+         call check(co%height(1) == HGRASS, 'frozen grass: born at its PFT''s height')
+         call check(co%leaf_carbon(1) > 0.0_wp .and. co%fineroot_carbon(1) > 0.0_wp                       &
+                    .and. co%nonstructural_carbon(1) > 0.0_wp, 'frozen grass: born with leaves, roots and storage')
+         whole_plant = co%leaf_carbon(1) + co%fineroot_carbon(1) + co%nonstructural_carbon(1)
+         call check_close(co%pft_table%recruit_carbon(2), whole_plant, 1.0e-12_wp,                           &
+                          'frozen grass: a recruit''s carbon is the whole plant at its height')
+      end associate
+      call alloc_cohort_diag(st%cohort%sdiag, st%cohort%n, .true., slow_rows=.true.)
+      st%cohort%gpp_accum(1:st%cohort%n)       = 0.05_wp
+      st%cohort%leaf_resp_accum(1:st%cohort%n) = 0.0_wp
+      st%cohort%stem_resp_accum(1:st%cohort%n) = 0.0_wp
+      st%cohort%root_resp_accum(1:st%cohort%n) = 0.0_wp
+      lg%active = .true.
+      call slow_ledger_open(lg, st, c)
+      call vegetation_dynamics(st, c, lg)
+      associate (co => st%cohort)
+         call check(co%dbh(1) == 0.0_wp .and. co%wood_carbon(1) == 0.0_wp .and. co%height(1) == HGRASS    &
+                    .and. co%nplant(1) == NTILLER, 'frozen grass: no wood, its height, nobody dies')
+         call check(co%leaf_carbon(1) > 0.0_wp .and. co%fineroot_carbon(1) > 0.0_wp                       &
+                    .and. co%nonstructural_carbon(1) > 0.0_wp, 'frozen grass: its pools stay positive')
+      end associate
+      call check(st%patch%litter_in(1)%exudate_c > 0.0_wp, 'frozen grass: the carbon it cannot build is exudate')
+      call check(slow_ledger_failures(lg, SLOW_PHASE_ALLOCATE) == 0_ik                                      &
+                 .and. slow_ledger_failures(lg, SLOW_PHASE_GROW) == 0_ik, 'frozen grass: the step closes')
+   end subroutine check_frozen_grass
 
    !---~---
    !   The cue rows: a vegetation step's phenology writes each cohort's cues (its canopy-air

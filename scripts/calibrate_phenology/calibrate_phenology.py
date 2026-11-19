@@ -123,16 +123,25 @@ def moved(keys, a: dict, b: dict) -> float:
     return max(abs(a[k.label] - b[k.label]) / (k.hi - k.lo) for k in keys)
 
 
+def best_coupled(trials: list) -> tuple:
+    """Of (values, coupled score, run) triples -- each the values a coupled run was made with and that
+    run's score of them -- the one whose own run scored best."""
+    return min(trials, key=lambda t: t[1])
+
+
 def cmd_iterate(a, s) -> None:
     cfg = base_config(s)
     values = coupled.pft_values(cfg, s["keys"])
     work = Path(a.work).resolve()
-    history = []
+    history, trials, drivers_run = [], [], None
     for i in range(int(s["fit"]["iterations"])):
         print(f"iteration {i + 1}")
         res = one_fit(s, cfg, values, work / f"run{i}", a.workers)
+        coupled_score = float(sum(res["scores_start"].values()))     # the run's own values, on its own cues
+        trials.append((values, coupled_score, f"run{i}"))
         step = moved(s["keys"], res["values"], values)
-        history.append({"run": f"run{i}", "score": res["score"], "moved": step, "closure": res["closure"]})
+        history.append({"run": f"run{i}", "coupled_score": coupled_score, "score": res["score"], "moved": step,
+                        "closure": res["closure"]})
         print(f"  the largest move: {step:.3f} of a key's range")
         settled = i > 0 and step < s["fit"]["settle"]
         values = res["values"]
@@ -140,8 +149,15 @@ def cmd_iterate(a, s) -> None:
             print("settled")
             break
     else:
-        print(f"not settled after {s['fit']['iterations']} fits: the values written are the last fit's")
-    (work / "iterations.json").write_text(json.dumps({"history": history, "values": values}, indent=1))
+        #----- A cue the canopy feeds back on (WATER: the leaves dry the soil whose potential is the cue) can
+        #      keep the fits from settling: each overshoots on the last run's cues. The values kept are then
+        #      those whose own coupled run scored best, not the last fit's, which no run has tried.
+        values, best, drivers_run = best_coupled(trials)
+        print(f"not settled after {s['fit']['iterations']} fits: the values written are those {drivers_run} was "
+              f"made with, whose own run scored best ({best:.3f})")
+    #----- drivers_run: the coupled run made with the values written, when one was (an unsettled fit)
+    (work / "iterations.json").write_text(json.dumps({"history": history, "values": values,
+                                                      "drivers_run": drivers_run}, indent=1))
     out = pft_file.write(Path(cfg.pft_path), work / "pft_parameters_fitted.toml", s["keys"], values,
                          f"From {s['path'].name}: {len(history)} fit(s); see {work.name}/iterations.json.")
     print(f"wrote {out}")

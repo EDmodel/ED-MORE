@@ -31,6 +31,7 @@ program test_pft_config
    use ed_config_io,        only : load_ed_config, write_pft_params_csv
    use ed_toml,             only : toml_table_t, toml_parse_file, toml_has, toml_is_array, toml_real, toml_real_array
    use ed_pft_params,       only : hydraulics_table_t, RAD_VIS, RAD_NIR, RAD_LW
+   use ed_allometry_lib,    only : GROWTH_TREE
    use ed_constants,        only : stefan_boltzmann
    use ed_met_types,        only : met_forcing_t
    use ed_fast_integ_types,     only : fast_static_state_t, fast_dynamic_state_t, fast_forcing_t,       &
@@ -254,6 +255,7 @@ contains
       call check(ok, 'the PFT file ed_config_main.toml names parses on its own')
       call toml_real_array(t, 'pft.wood_density', buf, n)
       call check(n > 1_ik .and. shipped%pft%n == n, 'the loader gives as many PFTs as pft.wood_density lists')
+      call check(all(shipped%pft%allom(1:n)%growth_form == GROWTH_TREE), 'pft.growth_form = "tree" reaches every PFT')
       associate (p => shipped%pft)
          call check_key(t, 'pft.leaf_reflect_vis',  p%leaf_reflect_vis,  p%n)
          call check_key(t, 'pft.leaf_transmit_vis', p%leaf_transmit_vis, p%n)
