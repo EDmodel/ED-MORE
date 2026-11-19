@@ -1,0 +1,3309 @@
+{
+ "variant": null,
+ "config": "examples/example04_column_biophysics/sites/tonzi/calibration.toml",
+ "windows": {
+  "cal1_2018": [
+   "2018-02-06 00:00:00",
+   "cal",
+   10
+  ],
+  "val1_2014": [
+   "2014-01-28 00:00:00",
+   "val",
+   10
+  ],
+  "cal2_2018": [
+   "2018-02-16 00:00:00",
+   "cal",
+   10
+  ],
+  "val2_2014": [
+   "2014-02-16 00:00:00",
+   "val",
+   10
+  ],
+  "cal3_2019": [
+   "2019-04-06 00:00:00",
+   "cal",
+   10
+  ],
+  "val3_2018": [
+   "2018-04-20 00:00:00",
+   "val",
+   10
+  ],
+  "cal5_2014": [
+   "2014-07-14 00:00:00",
+   "cal",
+   10
+  ],
+  "val5_2017": [
+   "2017-08-07 00:00:00",
+   "val",
+   10
+  ],
+  "cal6_2014": [
+   "2014-08-22 00:00:00",
+   "cal",
+   10
+  ],
+  "val6_2019": [
+   "2019-08-20 00:00:00",
+   "val",
+   10
+  ],
+  "seasonal_2019": [
+   "2019-08-27 00:00:00",
+   "seasonal",
+   90
+  ],
+  "seasonal_2020": [
+   "2019-10-03 00:00:00",
+   "seasonal",
+   90
+  ]
+ },
+ "registry": {
+  "leaf_reflect_nir": {
+   "state": "fixed",
+   "kind": "trait",
+   "scope": "plant_type",
+   "reason": "held at the PFT file's value with the albedo target off (owner, 2026-10-04): at realistic leaf optics the model's canopy reflects too much NIR, and the albedo pushed the leaf's reflectance to 0.32 (prior z -3.1; reflectance + transmittance 0.57 against ~0.70 for tropical leaves) to make up for it. Revisit with the canopy's structure (clumping, wood optics)"
+  },
+  "leaf_transmit_nir": {
+   "state": "optional",
+   "kind": "trait",
+   "scope": "plant_type",
+   "reason": "the albedo sees the leaf's NIR reflectance and transmittance only as their sum: fit one of the two"
+  },
+  "leaf_reflect_vis": {
+   "state": "optional",
+   "kind": "trait",
+   "scope": "plant_type",
+   "reason": "a tower barely sees the visible optics: the leaf absorbs most of the PAR at any value in the range"
+  },
+  "leaf_transmit_vis": {
+   "state": "optional",
+   "kind": "trait",
+   "scope": "plant_type",
+   "reason": "a tower barely sees the visible optics: the leaf absorbs most of the PAR at any value in the range"
+  },
+  "leaf_clumping": {
+   "state": "fixed",
+   "kind": "effective",
+   "scope": "site",
+   "reason": "held at the base value (0.80: ED2's tropical trees and lianas; FATES uses 0.85 for broadleaf evergreen tropical trees): the albedo cannot tell it from the leaf NIR reflectance (Jacobian correlation 0.986), and the fits sent it to either bound with the energy targets' treatment (owner, 2026-10-02)"
+  },
+  "leaf_angle_mean": {
+   "state": "fit",
+   "kind": "trait",
+   "scope": "plant_type",
+   "reason": ""
+  },
+  "vcmax25": {
+   "state": "fit",
+   "kind": "trait",
+   "scope": "plant_type",
+   "reason": ""
+  },
+  "theta_j": {
+   "state": "fixed",
+   "kind": "effective",
+   "scope": "plant_type",
+   "reason": "held at the PFT file's value (0.7 in the reference PFTs: the effective curvature of a mean-light cohort). A tower cannot tell it from the canopy's light distribution or from the error in its respiration; fit 3 drove it to its floor to absorb the GPP offset. Revisit with sunlit/shaded leaves (see docs/ROADMAP.md)"
+  },
+  "jmax_vcmax_ratio": {
+   "state": "fixed",
+   "kind": "trait",
+   "scope": "plant_type",
+   "reason": "fixed at Kattge & Knorr (2007) for the site's growth temperature (2.59 - 0.035 T), computed from the forcing; a shape key, never fitted beside kappa (best-practice plan \u00a73.5, \u00a74.3)"
+  },
+  "phi_psii": {
+   "state": "fixed",
+   "kind": "trait",
+   "scope": "plant_type",
+   "reason": "the electron yield of linear transport in low light (0.74: 0.37 electrons per absorbed photon, the measured maximum CO2 yield 0.093 of Long et al. 1993 at 4 electrons per CO2). A tower's dim-light GPP cannot tell it from the error in the tower's respiration, so the leaf measurements set it"
+  },
+  "ds_vcmax": {
+   "state": "fixed",
+   "kind": "trait",
+   "scope": "plant_type",
+   "reason": "fixed at Kattge & Knorr (2007) for the site's growth temperature (668.39 - 1.07 T), computed from the forcing (best-practice plan \u00a73.5)"
+  },
+  "ds_jmax": {
+   "state": "fixed",
+   "kind": "trait",
+   "scope": "plant_type",
+   "reason": "fixed at Kattge & Knorr (2007) for the site's growth temperature (659.70 - 0.75 T), computed from the forcing (best-practice plan \u00a73.5)"
+  },
+  "ea_vcmax": {
+   "state": "optional",
+   "kind": "trait",
+   "scope": "plant_type",
+   "reason": ""
+  },
+  "ea_jmax": {
+   "state": "optional",
+   "kind": "trait",
+   "scope": "plant_type",
+   "reason": ""
+  },
+  "capacity_low_temp": {
+   "state": "optional",
+   "kind": "effective",
+   "scope": "plant_type",
+   "reason": "it acts only in the cold: windows at leaf temperatures of about 5-15 C (an evergreen's spring) inform it, summer windows barely"
+  },
+  "stomatal_g1": {
+   "state": "fit",
+   "kind": "trait",
+   "scope": "plant_type",
+   "reason": ""
+  },
+  "stomatal_g0": {
+   "state": "fit",
+   "kind": "trait",
+   "scope": "plant_type",
+   "reason": ""
+  },
+  "z0m_ratio": {
+   "state": "fit",
+   "kind": "effective",
+   "scope": "site",
+   "reason": ""
+  },
+  "d_ratio": {
+   "state": "optional",
+   "kind": "effective",
+   "scope": "site",
+   "reason": "it moves the fluxes as z0m_ratio does: fit one of the two"
+  },
+  "leaf_width": {
+   "state": "optional",
+   "kind": "trait",
+   "scope": "plant_type",
+   "reason": "it sets only the leaves' boundary-layer conductance, which a tower's fluxes barely inform"
+  },
+  "dsl_dmax": {
+   "state": "optional",
+   "kind": "effective",
+   "scope": "site",
+   "reason": "it sets only soil evaporation, a small part of LE under a closed canopy"
+  },
+  "leaf_surf_water_max": {
+   "state": "fixed",
+   "kind": "effective",
+   "scope": "plant_type",
+   "reason": "the tower does not see the wet canopy: at BCI FLAG gap-fills every raining hour and 56 % of the three hours after (an open-path analyser's usual loss), so a fit tunes it on dry hours only (owner, 2026-10-02). A tower that measures through rain may fit it"
+  },
+  "wood_surf_water_max": {
+   "state": "fixed",
+   "kind": "effective",
+   "scope": "plant_type",
+   "reason": "as leaf_surf_water_max; the tower cannot tell the wood's surface water from the leaf's"
+  },
+  "intercept_k": {
+   "state": "optional",
+   "kind": "effective",
+   "scope": "site",
+   "reason": "it acts only through the wet canopy, which a tower that gap-fills its rain hours never samples, and its response can be rough"
+  },
+  "wstress_sref_stomata": {
+   "state": "fit",
+   "kind": "effective",
+   "scope": "plant_type",
+   "reason": ""
+  },
+  "stomata_psi_onset": {
+   "state": "fixed",
+   "kind": "trait",
+   "scope": "plant_type",
+   "reason": "held at half the PFT's turgor-loss point (owner, 2026-10-04): the BCI fit took it to its bound (-0.16 MPa, prior z +2.6), set by the ten-day windows' upwelling longwave and LE rather than the drought runs (test T6), and traded it against stomatal_g1 (correlation 0.91). wstress_sref_stomata carries the drought response"
+  },
+  "root_beta": {
+   "state": "optional",
+   "kind": "trait",
+   "scope": "plant_type",
+   "reason": ""
+  },
+  "rd_vcmax_ratio": {
+   "state": "fixed",
+   "kind": "trait",
+   "scope": "plant_type",
+   "reason": "night NEE leaves the fast fit (owner, 2026-10-02); the target that informed it pulled it to its floor"
+  },
+  "kappa": {
+   "state": "fit",
+   "kind": "observation",
+   "scope": "observation",
+   "reason": ""
+  }
+ },
+ "keys": {
+  "vcmax25": {
+   "kind": "trait",
+   "scope": "plant_type",
+   "range": [
+    10.0,
+    150.0
+   ],
+   "default": 130.0,
+   "prior_centre": 113.26403934258785,
+   "prior_sd_u": 1.9859109562228519,
+   "prior_source": "EEO: the coordination of the Rubisco- and light-limited rates at the site's growing-season daytime climate, with ED-MORE's own leaf (priors.py; Wang et al. 2017, Smith et al. 2019)"
+  },
+  "vcmax25_pft2": {
+   "kind": "trait",
+   "scope": "plant_type",
+   "range": [
+    10.0,
+    150.0
+   ],
+   "default": 60.0,
+   "prior_centre": 113.26403934258785,
+   "prior_sd_u": 1.9859109562228519,
+   "prior_source": "EEO: the coordination of the Rubisco- and light-limited rates at the site's growing-season daytime climate, with ED-MORE's own leaf (priors.py; Wang et al. 2017, Smith et al. 2019)"
+  },
+  "stomatal_g1": {
+   "kind": "trait",
+   "scope": "plant_type",
+   "range": [
+    0.5,
+    15.0
+   ],
+   "default": 4.45,
+   "prior_centre": 4.45,
+   "prior_sd_u": 0.4481372415724409,
+   "prior_source": "CLM5 medlynslope for deciduous broadleaf trees (Lin et al. 2015, Nature Climate Change 5:459)"
+  },
+  "stomatal_g1_pft2": {
+   "kind": "trait",
+   "scope": "plant_type",
+   "range": [
+    0.5,
+    15.0
+   ],
+   "default": 5.25,
+   "prior_centre": 1.919742034924382,
+   "prior_sd_u": 0.6148611101880281,
+   "prior_source": "EEO: the least-cost optimum at the site's growing-season daytime climate (priors.py)"
+  },
+  "stomatal_g0": {
+   "kind": "trait",
+   "scope": "plant_type",
+   "range": [
+    0.0001,
+    0.1
+   ],
+   "default": 0.01,
+   "prior_centre": 0.01,
+   "prior_sd_u": 0.6514417228548774,
+   "prior_source": "the PFT file's value, a factor e either way: the residual conductance is poorly known"
+  },
+  "stomatal_g0_pft2": {
+   "kind": "trait",
+   "scope": "plant_type",
+   "range": [
+    0.0001,
+    0.1
+   ],
+   "default": 0.01,
+   "prior_centre": 0.01,
+   "prior_sd_u": 0.6514417228548774,
+   "prior_source": "the PFT file's value, a factor e either way: the residual conductance is poorly known"
+  },
+  "z0m_ratio": {
+   "kind": "effective",
+   "scope": "site",
+   "range": [
+    0.02,
+    0.3
+   ],
+   "default": 0.13,
+   "prior_centre": 0.13,
+   "prior_sd_u": 0.5989304812834225,
+   "prior_source": "the base value (ED2 0.13), +-0.04: closed canopies give z0/h of about 0.06-0.15 (Raupach 1994). Effective: it carries the canopy-air scheme's errors"
+  },
+  "wstress_sref_stomata": {
+   "kind": "effective",
+   "scope": "plant_type",
+   "range": [
+    0.1,
+    10.0
+   ],
+   "default": 0.6,
+   "prior_centre": 0.6,
+   "prior_sd_u": 0.6394857607515504,
+   "prior_source": "the PFT file's value, a factor 2 either way (Sabot et al. 2022 fit 0.5-5 across species)"
+  },
+  "wstress_sref_stomata_pft2": {
+   "kind": "effective",
+   "scope": "plant_type",
+   "range": [
+    0.1,
+    10.0
+   ],
+   "default": 2.0,
+   "prior_centre": 2.0,
+   "prior_sd_u": 0.668600194678462,
+   "prior_source": "the PFT file's value, a factor 2 either way (Sabot et al. 2022 fit 0.5-5 across species)"
+  },
+  "kappa": {
+   "kind": "observation",
+   "scope": "observation",
+   "range": [
+    0.5,
+    1.5
+   ],
+   "default": 1.0,
+   "prior_centre": 1.0,
+   "prior_sd_u": 0.2,
+   "prior_source": "the gap between the provider's night-time and daytime partitionings (RECO against RECO_DT)"
+  }
+ },
+ "climate_priors": {
+  "climate": {
+   "t_growth_c": 16.649640955303482,
+   "t_day_k": 292.47786007303745,
+   "vpd_day_pa": 1500.4899279388903,
+   "e_day_pa": 1004.2401458013651,
+   "p_day_pa": 99209.50427430205,
+   "par_day": 908.6956490366448,
+   "years": [
+    2010,
+    2011,
+    2012,
+    2013,
+    2014,
+    2015,
+    2016,
+    2017,
+    2018,
+    2019,
+    2020
+   ],
+   "leaf_on_months": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12
+   ]
+  },
+  "kattge_knorr": {
+   "jmax_vcmax_ratio": 2.007262566564378,
+   "jmax_vcmax_ratio_pft2": 2.007262566564378,
+   "ds_vcmax": 650.5748841778253,
+   "ds_jmax": 647.2127692835224
+  },
+  "co2_ppm": 400.6071818181818,
+  "eeo": {
+   "vcmax25": {
+    "eeo": 113.26403934258785
+   },
+   "vcmax25_pft2": {
+    "eeo": 113.26403934258785
+   },
+   "stomatal_g1_pft2": {
+    "eeo": 1.919742034924382,
+    "meta": {
+     "centre": 5.25,
+     "log_sd": 0.35,
+     "source": "CLM5 medlynslope (from Lin et al. 2015)"
+    },
+    "plant_type": "c3_grass",
+    "meta_apart_sd": 2.874392161144985
+   }
+  }
+ },
+ "kattge_knorr": [
+  [
+   "pft",
+   "pft.jmax_vcmax_ratio",
+   1,
+   2.007262566564378
+  ],
+  [
+   "pft",
+   "pft.jmax_vcmax_ratio",
+   2,
+   2.007262566564378
+  ],
+  [
+   "main",
+   "leaf_physiology.ds_vcmax",
+   null,
+   650.5748841778253
+  ],
+  [
+   "main",
+   "leaf_physiology.ds_jmax",
+   null,
+   647.2127692835224
+  ]
+ ],
+ "data": {
+  "filters": {
+   "lw_up": {
+    "counts": [
+     [
+      "measured",
+      103188
+     ],
+     [
+      "forcing observed",
+      97436
+     ]
+    ],
+    "diurnal": {
+     "0": [
+      364.44129874908015,
+      364.44129874908015,
+      4077,
+      4077
+     ],
+     "1": [
+      362.2910431565968,
+      362.2910431565968,
+      4055,
+      4055
+     ],
+     "2": [
+      360.640054532056,
+      360.640054532056,
+      4071,
+      4071
+     ],
+     "3": [
+      358.98447828232975,
+      358.98447828232975,
+      4052,
+      4052
+     ],
+     "4": [
+      357.50957454185243,
+      357.50957454185243,
+      4038,
+      4038
+     ],
+     "5": [
+      359.04929222720483,
+      359.04929222720483,
+      4014,
+      4014
+     ],
+     "6": [
+      368.0018650214052,
+      368.0018650214052,
+      3971,
+      3971
+     ],
+     "7": [
+      383.780510989011,
+      383.780510989011,
+      4004,
+      4004
+     ],
+     "8": [
+      403.0127280766397,
+      403.0127280766397,
+      4071,
+      4071
+     ],
+     "9": [
+      422.87969327111983,
+      422.87969327111983,
+      4072,
+      4072
+     ],
+     "10": [
+      440.1940147674132,
+      440.1940147674132,
+      4063,
+      4063
+     ],
+     "11": [
+      453.028552404439,
+      453.028552404439,
+      4055,
+      4055
+     ],
+     "12": [
+      458.91622253024195,
+      458.91622253024195,
+      3968,
+      3968
+     ],
+     "13": [
+      461.58660910440375,
+      461.58660910440375,
+      4042,
+      4042
+     ],
+     "14": [
+      456.61893740831295,
+      456.61893740831295,
+      4090,
+      4090
+     ],
+     "15": [
+      445.9212397159647,
+      445.9212397159647,
+      4084,
+      4084
+     ],
+     "16": [
+      431.17239544005884,
+      431.17239544005884,
+      4079,
+      4079
+     ],
+     "17": [
+      413.4779085142718,
+      413.4779085142718,
+      4099,
+      4099
+     ],
+     "18": [
+      397.8983794031312,
+      397.8983794031312,
+      4088,
+      4088
+     ],
+     "19": [
+      385.91901204819277,
+      385.91901204819277,
+      4067,
+      4067
+     ],
+     "20": [
+      378.30468651960786,
+      378.30468651960786,
+      4080,
+      4080
+     ],
+     "21": [
+      373.3014076885407,
+      373.3014076885407,
+      4084,
+      4084
+     ],
+     "22": [
+      369.6233188899708,
+      369.6233188899708,
+      4108,
+      4108
+     ],
+     "23": [
+      366.65339814814814,
+      366.65339814814814,
+      4104,
+      4104
+     ]
+    }
+   },
+   "le": {
+    "counts": [
+     [
+      "measured",
+      128938
+     ],
+     [
+      "forcing observed",
+      77329
+     ],
+     [
+      "daytime",
+      43710
+     ]
+    ],
+    "diurnal": {
+     "4": [
+      2.471294117647059,
+      2.471294117647059,
+      17,
+      17
+     ],
+     "5": [
+      3.5909251247920135,
+      3.5909251247920135,
+      1202,
+      1202
+     ],
+     "6": [
+      18.153039049235993,
+      18.153039049235993,
+      2356,
+      2356
+     ],
+     "7": [
+      32.835101541251134,
+      32.835101541251134,
+      3309,
+      3309
+     ],
+     "8": [
+      52.97687874583796,
+      52.97687874583796,
+      3604,
+      3604
+     ],
+     "9": [
+      72.89576041666666,
+      72.89576041666666,
+      3648,
+      3648
+     ],
+     "10": [
+      87.47244822850865,
+      87.47244822850865,
+      3641,
+      3641
+     ],
+     "11": [
+      93.5609455801105,
+      93.5609455801105,
+      3620,
+      3620
+     ],
+     "12": [
+      92.82332773109245,
+      92.82332773109245,
+      3570,
+      3570
+     ],
+     "13": [
+      90.56937807183365,
+      90.56937807183365,
+      3703,
+      3703
+     ],
+     "14": [
+      78.7928237486688,
+      78.7928237486688,
+      3756,
+      3756
+     ],
+     "15": [
+      62.71289744272776,
+      62.71289744272776,
+      3754,
+      3754
+     ],
+     "16": [
+      45.88410263157895,
+      45.88410263157895,
+      3420,
+      3420
+     ],
+     "17": [
+      32.958179991799916,
+      32.958179991799916,
+      2439,
+      2439
+     ],
+     "18": [
+      17.15386417186417,
+      17.15386417186417,
+      1443,
+      1443
+     ],
+     "19": [
+      4.690508771929824,
+      4.690508771929824,
+      228,
+      228
+     ]
+    }
+   },
+   "h": {
+    "counts": [
+     [
+      "measured",
+      163981
+     ],
+     [
+      "forcing observed",
+      95956
+     ],
+     [
+      "daytime",
+      46990
+     ],
+     [
+      "u* >= 0.4",
+      21529
+     ]
+    ],
+    "diurnal": {
+     "4": [
+      -16.30870588235294,
+      -15.396,
+      17,
+      1
+     ],
+     "5": [
+      -10.050722264150941,
+      -24.387999999999995,
+      1325,
+      21
+     ],
+     "6": [
+      10.268506192568918,
+      31.112067226890762,
+      2503,
+      119
+     ],
+     "7": [
+      51.97321954634556,
+      87.09061124694377,
+      3571,
+      409
+     ],
+     "8": [
+      106.95908706592854,
+      160.7056321709786,
+      3974,
+      889
+     ],
+     "9": [
+      166.4201458438287,
+      218.2569405477622,
+      3970,
+      1497
+     ],
+     "10": [
+      209.51040561031084,
+      254.26359554455445,
+      3957,
+      2020
+     ],
+     "11": [
+      230.6144992385787,
+      272.2254197938144,
+      3940,
+      2425
+     ],
+     "12": [
+      232.16360505076804,
+      270.58961855257894,
+      3841,
+      2501
+     ],
+     "13": [
+      219.65269176351694,
+      256.4715403750478,
+      3958,
+      2613
+     ],
+     "14": [
+      182.4097940663176,
+      223.32105620155036,
+      4011,
+      2580
+     ],
+     "15": [
+      125.94467025268952,
+      166.82180772495755,
+      3997,
+      2356
+     ],
+     "16": [
+      74.4485805830583,
+      113.2354814241486,
+      3636,
+      1938
+     ],
+     "17": [
+      34.89654161781946,
+      56.17539787985865,
+      2559,
+      1415
+     ],
+     "18": [
+      0.8712257849031395,
+      9.391692196531793,
+      1497,
+      692
+     ],
+     "19": [
+      -16.436918803418802,
+      -18.50458490566038,
+      234,
+      53
+     ]
+    }
+   },
+   "gpp": {
+    "counts": [
+     [
+      "measured",
+      65085
+     ],
+     [
+      "forcing observed",
+      38559
+     ],
+     [
+      "daytime",
+      31108
+     ],
+     [
+      "u* >= the provider's yearly threshold",
+      31096
+     ]
+    ],
+    "diurnal": {
+     "5": [
+      1.2825152248,
+      1.2825152248,
+      125,
+      125
+     ],
+     "6": [
+      4.485108939789916,
+      4.493737762821052,
+      476,
+      475
+     ],
+     "7": [
+      6.407811985906383,
+      6.410709210093777,
+      1175,
+      1173
+     ],
+     "8": [
+      7.305681787303973,
+      7.308529945169264,
+      1862,
+      1861
+     ],
+     "9": [
+      7.708881918060758,
+      7.711277088338194,
+      2403,
+      2401
+     ],
+     "10": [
+      7.313874781320754,
+      7.313874781320754,
+      2862,
+      2862
+     ],
+     "11": [
+      6.813030490677803,
+      6.813030490677803,
+      3113,
+      3113
+     ],
+     "12": [
+      6.370850250235164,
+      6.370850250235164,
+      3168,
+      3168
+     ],
+     "13": [
+      6.2011739964591435,
+      6.2011739964591435,
+      3341,
+      3341
+     ],
+     "14": [
+      5.73977122651497,
+      5.738591123069544,
+      3340,
+      3336
+     ],
+     "15": [
+      5.1450440600186855,
+      5.1450440600186855,
+      3211,
+      3211
+     ],
+     "16": [
+      4.439076110387777,
+      4.438477198238977,
+      2700,
+      2699
+     ],
+     "17": [
+      3.533603367789634,
+      3.5328203395068636,
+      1968,
+      1967
+     ],
+     "18": [
+      2.1097839371440608,
+      2.1097839371440608,
+      1187,
+      1187
+     ],
+     "19": [
+      0.820301778742857,
+      0.820301778742857,
+      175,
+      175
+     ]
+    }
+   },
+   "ustar": {
+    "counts": [
+     [
+      "measured",
+      167251
+     ],
+     [
+      "forcing observed",
+      97705
+     ],
+     [
+      "daytime",
+      47597
+     ]
+    ],
+    "diurnal": {
+     "4": [
+      0.15211764705882352,
+      0.15211764705882352,
+      17,
+      17
+     ],
+     "5": [
+      0.1517287753568745,
+      0.1517287753568745,
+      1331,
+      1331
+     ],
+     "6": [
+      0.21113916500994034,
+      0.21113916500994034,
+      2515,
+      2515
+     ],
+     "7": [
+      0.261377316735823,
+      0.261377316735823,
+      3615,
+      3615
+     ],
+     "8": [
+      0.3138040826487428,
+      0.3138040826487428,
+      4017,
+      4017
+     ],
+     "9": [
+      0.36968034610630407,
+      0.36968034610630407,
+      4045,
+      4045
+     ],
+     "10": [
+      0.419894449950446,
+      0.419894449950446,
+      4036,
+      4036
+     ],
+     "11": [
+      0.45891216720577255,
+      0.45891216720577255,
+      4019,
+      4019
+     ],
+     "12": [
+      0.47659827103991864,
+      0.47659827103991864,
+      3933,
+      3933
+     ],
+     "13": [
+      0.48295156482861396,
+      0.48295156482861396,
+      4026,
+      4026
+     ],
+     "14": [
+      0.4772125925925926,
+      0.4772125925925926,
+      4050,
+      4050
+     ],
+     "15": [
+      0.4528093346573982,
+      0.4528093346573982,
+      4028,
+      4028
+     ],
+     "16": [
+      0.418253682487725,
+      0.418253682487725,
+      3666,
+      3666
+     ],
+     "17": [
+      0.41449415432579895,
+      0.41449415432579895,
+      2566,
+      2566
+     ],
+     "18": [
+      0.375126751167445,
+      0.375126751167445,
+      1499,
+      1499
+     ],
+     "19": [
+      0.30835042735042734,
+      0.30835042735042734,
+      234,
+      234
+     ]
+    }
+   }
+  },
+  "ustar": {
+   "lw_up": {
+    "rule": null,
+    "diagnostic": null,
+    "reason": "no u* filter",
+    "ustar_min": null
+   },
+   "le": {
+    "rule": "diagnostic",
+    "diagnostic": {
+     "outcome": "flat",
+     "threshold": 0.0,
+     "records": 56835,
+     "driver": "rnet",
+     "by_driver_class": [
+      "rising",
+      "rising",
+      "flat",
+      "flat"
+     ],
+     "ratio": [
+      [
+       0.17849443938020132,
+       0.22809939687821174,
+       0.2694847853787446,
+       0.2876742516273595,
+       0.2999753723400621,
+       0.32731916017252266,
+       0.3463647542154844,
+       0.37640733715147523,
+       0.45637677642793195,
+       0.6606423080797854
+      ],
+      [
+       0.17880872058379196,
+       0.18118012621560242,
+       0.19082498061727174,
+       0.1897578801237125,
+       0.1951551830845728,
+       0.2098354071820056,
+       0.22643905619631757,
+       0.23045274796051118,
+       0.27220341417665445,
+       0.37754722506469096
+      ],
+      [
+       0.1903528887556311,
+       0.18259221890095065,
+       0.1836210661379505,
+       0.18790790924325554,
+       0.18711070935076213,
+       0.18423703796912486,
+       0.18341158451310272,
+       0.18250538042563222,
+       0.20509744071830552,
+       0.3062693291134755
+      ],
+      [
+       0.22572604490594553,
+       0.23329623148669154,
+       0.2222848867332326,
+       0.2162371106746237,
+       0.20279166622986164,
+       0.2016833797276349,
+       0.1859246310590865,
+       0.18004105682518814,
+       0.19050512772630807,
+       0.2892501223888871
+      ]
+     ],
+     "classes": [
+      0.0,
+      0.15,
+      0.2,
+      0.25,
+      0.3,
+      0.35,
+      0.4,
+      0.5,
+      0.6,
+      0.8,
+      3.0
+     ],
+     "driver_class_edges": [
+      50.0,
+      195.394,
+      349.782,
+      534.529,
+      897.117
+     ],
+     "bootstrap": {
+      "n": 200,
+      "threshold_p05_p50_p95": [
+       0.0,
+       0.0,
+       0.075
+      ],
+      "outcome_share": {
+       "flat": 0.51,
+       "plateau": 0.095,
+       "rising": 0.395
+      }
+     }
+    },
+    "reason": "the ratio is flat: no filter",
+    "ustar_min": null
+   },
+   "h": {
+    "rule": "diagnostic",
+    "diagnostic": {
+     "outcome": "plateau",
+     "threshold": 0.4,
+     "records": 61212,
+     "driver": "rnet",
+     "by_driver_class": [
+      "plateau",
+      "plateau",
+      "plateau",
+      "plateau"
+     ],
+     "ratio": [
+      [
+       0.18951301032067644,
+       0.26499068486179506,
+       0.31787575875099205,
+       0.38160577527770745,
+       0.42709382955509695,
+       0.48971625250103556,
+       0.5496945297205275,
+       0.6113259330370784,
+       0.5405808618618864,
+       0.35596600916283583
+      ],
+      [
+       0.3410705613202908,
+       0.3663613013592766,
+       0.40734025923045075,
+       0.4391227248810413,
+       0.47066389041776446,
+       0.5009560451495854,
+       0.5400718237507115,
+       0.583613351868468,
+       0.5711827841357421,
+       0.4360909396220674
+      ],
+      [
+       0.35246524750952085,
+       0.3837274929972784,
+       0.4092470699161128,
+       0.43258869141232925,
+       0.4683098514840049,
+       0.4989974463636418,
+       0.5380747512481296,
+       0.5862584375061382,
+       0.5980924298587647,
+       0.46951279311510447
+      ],
+      [
+       0.31653440642356095,
+       0.33902724646833476,
+       0.34800897149417637,
+       0.3756649915412878,
+       0.41213742471137765,
+       0.4436886561213459,
+       0.49225714165092016,
+       0.5404540325428621,
+       0.5667202568410462,
+       0.422395602892552
+      ]
+     ],
+     "classes": [
+      0.0,
+      0.15,
+      0.2,
+      0.25,
+      0.3,
+      0.35,
+      0.4,
+      0.5,
+      0.6,
+      0.8,
+      3.0
+     ],
+     "driver_class_edges": [
+      50.0,
+      187.193,
+      342.156,
+      529.493,
+      897.117
+     ],
+     "bootstrap": {
+      "n": 200,
+      "threshold_p05_p50_p95": [
+       0.375,
+       0.4,
+       0.4
+      ],
+      "outcome_share": {
+       "plateau": 1.0
+      }
+     }
+    },
+    "reason": "a plateau: filtered at it",
+    "ustar_min": 0.4
+   },
+   "gpp": {
+    "rule": "provider",
+    "diagnostic": {
+     "outcome": "flat",
+     "threshold": 0.0,
+     "records": 50631,
+     "driver": "par",
+     "by_driver_class": [
+      "flat",
+      "flat",
+      "flat",
+      "flat"
+     ],
+     "ratio": [
+      [
+       null,
+       null,
+       0.010191603133206242,
+       0.01020975589180053,
+       0.00973201735811385,
+       0.00967447852458325,
+       0.009234885151913137,
+       0.00908686228611918,
+       0.009851750695152024,
+       0.011060416104700724
+      ],
+      [
+       null,
+       null,
+       0.006537727759900258,
+       0.006505201695480548,
+       0.00653880125696078,
+       0.006418690372864891,
+       0.006130805449415964,
+       0.005786050261913298,
+       0.006155941513240888,
+       0.006632170263468482
+      ],
+      [
+       null,
+       null,
+       0.00520686254756925,
+       0.005441070769267109,
+       0.005016162116595597,
+       0.004803660889539947,
+       0.004650590819426641,
+       0.004227623600542855,
+       0.004396903816078608,
+       0.005233899461737209
+      ],
+      [
+       null,
+       null,
+       0.004899913990571035,
+       0.004585332865522386,
+       0.004459578109934346,
+       0.004086981137313849,
+       0.003720226243761014,
+       0.0035623920912252627,
+       0.0035305525097273013,
+       0.004905376722822122
+      ]
+     ],
+     "classes": [
+      0.0,
+      0.15,
+      0.2,
+      0.25,
+      0.3,
+      0.35,
+      0.4,
+      0.5,
+      0.6,
+      0.8,
+      3.0
+     ],
+     "driver_class_edges": [
+      100.0,
+      731.201,
+      1243.8,
+      1761.63,
+      2534.88
+     ],
+     "bootstrap": {
+      "n": 200,
+      "threshold_p05_p50_p95": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "outcome_share": {
+       "flat": 1.0
+      }
+     }
+    },
+    "reason": "the provider's CO2 threshold",
+    "ustar_min": {
+     "2001": 0.172,
+     "2002": 0.186,
+     "2003": 0.208,
+     "2004": 0.208,
+     "2005": 0.202,
+     "2006": 0.198,
+     "2007": 0.207,
+     "2008": 0.219,
+     "2009": 0.224,
+     "2010": 0.225,
+     "2011": 0.229,
+     "2012": 0.224,
+     "2013": 0.233,
+     "2014": 0.222,
+     "2015": 0.23,
+     "2016": 0.229,
+     "2017": 0.232,
+     "2018": 0.231,
+     "2019": 0.229,
+     "2020": 0.232,
+     "2021": 0.241,
+     "2022": 0.252,
+     "2023": 0.254,
+     "2024": 0.241,
+     "2025": 0.229
+    }
+   },
+   "ustar": {
+    "rule": null,
+    "diagnostic": null,
+    "reason": "no u* filter",
+    "ustar_min": null
+   }
+  },
+  "windows": {
+   "slots": {
+    "1": {
+     "cal": [
+      "2018-02-06",
+      0.653
+     ],
+     "val": [
+      "2014-01-28",
+      0.567
+     ]
+    },
+    "2": {
+     "cal": [
+      "2018-02-16",
+      0.781
+     ],
+     "val": [
+      "2014-02-16",
+      0.624
+     ]
+    },
+    "3": {
+     "cal": [
+      "2019-04-06",
+      0.741
+     ],
+     "val": [
+      "2018-04-20",
+      0.727
+     ]
+    },
+    "4": {
+     "note": "no window covers 0.5 or more"
+    },
+    "5": {
+     "cal": [
+      "2014-07-14",
+      0.829
+     ],
+     "val": [
+      "2017-08-07",
+      0.807
+     ]
+    },
+    "6": {
+     "cal": [
+      "2014-08-22",
+      0.793
+     ],
+     "val": [
+      "2019-08-20",
+      0.79
+     ]
+    },
+    "7": {
+     "note": "no window covers 0.5 or more"
+    },
+    "8": {
+     "note": "no window covers 0.5 or more"
+    }
+   },
+   "source": "the rule (data_rules.select_windows)"
+  },
+  "seasonal": {
+   "years": [
+    {
+     "year": 2010,
+     "end": "2010-10-22",
+     "deficit_mm": 870.1658363540058,
+     "coverage": 0.0,
+     "usable": false,
+     "why_not": [
+      "starts before the chains' lead",
+      "coverage 0.00 under 0.5"
+     ]
+    },
+    {
+     "year": 2011,
+     "end": "2011-10-04",
+     "deficit_mm": 1101.2964691338823,
+     "coverage": 0.0,
+     "usable": false,
+     "why_not": [
+      "coverage 0.00 under 0.5"
+     ]
+    },
+    {
+     "year": 2012,
+     "end": "2012-10-20",
+     "deficit_mm": 1801.9143926676873,
+     "coverage": 0.0,
+     "usable": false,
+     "why_not": [
+      "coverage 0.00 under 0.5"
+     ]
+    },
+    {
+     "year": 2013,
+     "end": "2013-11-19",
+     "deficit_mm": 2592.2672541480943,
+     "coverage": 0.0,
+     "usable": false,
+     "why_not": [
+      "coverage 0.00 under 0.5"
+     ]
+    },
+    {
+     "year": 2014,
+     "end": "2014-10-30",
+     "deficit_mm": 3318.8370731516056,
+     "coverage": 0.953,
+     "usable": true,
+     "why_not": []
+    },
+    {
+     "year": 2015,
+     "end": "2015-10-31",
+     "deficit_mm": 4030.002041681328,
+     "coverage": 0.861,
+     "usable": true,
+     "why_not": []
+    },
+    {
+     "year": 2016,
+     "end": "2016-10-13",
+     "deficit_mm": 4578.30757781119,
+     "coverage": 0.882,
+     "usable": true,
+     "why_not": []
+    },
+    {
+     "year": 2017,
+     "end": "2017-11-07",
+     "deficit_mm": 4711.302729332857,
+     "coverage": 0.951,
+     "usable": true,
+     "why_not": []
+    },
+    {
+     "year": 2018,
+     "end": "2018-11-20",
+     "deficit_mm": 5282.6424368512,
+     "coverage": 0.967,
+     "usable": true,
+     "why_not": []
+    },
+    {
+     "year": 2019,
+     "end": "2019-11-25",
+     "deficit_mm": 5602.71499069635,
+     "coverage": 0.972,
+     "usable": true,
+     "why_not": []
+    },
+    {
+     "year": 2020,
+     "end": "2020-01-01",
+     "deficit_mm": 5462.154657293862,
+     "coverage": 0.91,
+     "usable": true,
+     "why_not": []
+    }
+   ],
+   "runs": [
+    [
+     "seasonal_2019",
+     "2019-08-27",
+     90
+    ],
+    [
+     "seasonal_2020",
+     "2019-10-03",
+     90
+    ]
+   ]
+  },
+  "range_coverage": {
+   "sw_in": {
+    "record": [
+     13.082,
+     997.0
+    ],
+    "kept": [
+     0.0,
+     1000.4
+    ],
+    "share": 1.0
+   },
+   "tair": {
+    "record": [
+     277.4204,
+     310.10999999999996
+    ],
+    "kept": [
+     271.726,
+     312.42999999999995
+    ],
+    "share": 1.0
+   },
+   "vpd": {
+    "record": [
+     25.70438405003483,
+     5265.119363865197
+    ],
+    "kept": [
+     4.343396241114586,
+     6187.985781589488
+    ],
+    "share": 1.0
+   },
+   "deficit_mm": {
+    "record": [
+     -5581.828599787451,
+     -2.1771842522566227
+    ],
+    "kept": [
+     -5602.71499069635,
+     -2913.956460348517
+    ],
+    "share": 0.478143156400575
+   }
+  },
+  "closure": {
+   "attribution": {
+    "rises_by_vpd_class": {
+     "h": [
+      0.3394796232299526,
+      0.23255633575779577,
+      0.32552426690445535,
+      0.2889739762639163
+     ],
+     "le": [
+      0.5099515778412553,
+      0.4198445310753023,
+      0.011834676605010808,
+      -0.06539468508063861
+     ]
+    },
+    "rises": {
+     "h": 0.3072491215841858,
+     "le": 0.21583960384015655
+    },
+    "records": 56243
+   },
+   "shares": {
+    "h": 0.0,
+    "le": 0.0
+   },
+   "reason": "as measured (the calibration's choice)"
+  },
+  "sigma": {
+   "le": {
+    "source": "provider",
+    "flux": "le",
+    "sigma_abs": 7.066136186700411,
+    "sigma_rel": 0.22386197729271826,
+    "estimate": {
+     "records": 128828,
+     "bin_level": [
+      0.36793627260731193,
+      1.3136172475355117,
+      2.709741675075681,
+      4.983982923232166,
+      9.290124970891872,
+      17.716164014592877,
+      31.98715027555694,
+      53.02851261352169,
+      87.94063887595094,
+      186.97992974693372
+     ],
+     "bin_sigma": [
+      4.7631,
+      5.03303,
+      5.35619,
+      5.8196,
+      7.12744,
+      12.2763,
+      19.4784,
+      24.3395,
+      30.2311,
+      44.95715
+     ]
+    }
+   },
+   "h": {
+    "source": "provider",
+    "flux": "h",
+    "sigma_abs": 12.051737735814061,
+    "sigma_rel": 0.14720722776643855,
+    "estimate": {
+     "records": 163953,
+     "bin_level": [
+      1.1459090631861428,
+      4.1561480848987555,
+      8.334432971456453,
+      13.79709240622141,
+      20.891084172003655,
+      31.308940469655383,
+      52.747618054284835,
+      112.18148929551693,
+      202.51274144556265,
+      351.0767624885636
+     ],
+     "bin_sigma": [
+      11.486650000000001,
+      11.91305,
+      12.3491,
+      12.9981,
+      13.9169,
+      15.7028,
+      21.0536,
+      33.5899,
+      44.1393,
+      60.8619
+     ]
+    }
+   },
+   "gpp": {
+    "source": "provider",
+    "flux": "nee",
+    "sigma_abs": 1.292205,
+    "sigma_rel": 0.16292360521968713,
+    "estimate": {
+     "records": 64919,
+     "bin_level": [
+      0.22757290440788663,
+      0.6573632241219963,
+      1.1052721250770179,
+      1.5969799229821315,
+      2.16781463185459,
+      2.8616314109673446,
+      3.749801048983364,
+      4.990542917436846,
+      7.005594865988909,
+      12.353038958558002
+     ],
+     "bin_sigma": [
+      1.292205,
+      1.30289,
+      1.36402,
+      1.4730150000000002,
+      1.5787,
+      1.7090200000000002,
+      1.859215,
+      2.05362,
+      2.327645,
+      3.23842
+     ]
+    }
+   }
+  },
+  "tower_checks": {
+   "V1_axis": {
+    "records": 175296,
+    "first": "2010-01-01T00:00:00",
+    "last": "2019-12-31T23:30:00"
+   },
+   "V4_bounds": {
+    "Tair": {
+     "present": 173664,
+     "out_of_bounds": 0
+    },
+    "RH": {
+     "present": 173727,
+     "out_of_bounds": 0
+    },
+    "PSurf": {
+     "present": 175252,
+     "out_of_bounds": 0
+    },
+    "Rainf": {
+     "present": 175296,
+     "out_of_bounds": 0
+    },
+    "SWdown": {
+     "present": 174203,
+     "out_of_bounds": 0
+    },
+    "LWdown": {
+     "present": 172607,
+     "out_of_bounds": 0
+    },
+    "Wind": {
+     "present": 175296,
+     "out_of_bounds": 0
+    },
+    "PAR": {
+     "present": 172969,
+     "out_of_bounds": 0
+    }
+   },
+   "V4_flux_bounds": {
+    "SW_out": {
+     "present": 103548,
+     "out_of_bounds": 0
+    },
+    "LW_out": {
+     "present": 103188,
+     "out_of_bounds": 0
+    },
+    "Rnet": {
+     "present": 167675,
+     "out_of_bounds": 0
+    },
+    "LE": {
+     "present": 175296,
+     "out_of_bounds": 0
+    },
+    "H": {
+     "present": 175296,
+     "out_of_bounds": 0
+    },
+    "NEE": {
+     "present": 175296,
+     "out_of_bounds": 0
+    },
+    "GPP": {
+     "present": 175296,
+     "out_of_bounds": 86
+    },
+    "RECO": {
+     "present": 175296,
+     "out_of_bounds": 0
+    },
+    "USTAR": {
+     "present": 167259,
+     "out_of_bounds": 8
+    }
+   },
+   "fluxes": {
+    "F1_rnet_components": {
+     "records": 101168,
+     "median_abs_residual": 7.7270000000000465,
+     "p95_abs_residual": 60.52499999999998
+    },
+    "F2_longwave_at_night": {
+     "records": 50510,
+     "median_lw_out_minus_lw_in": 69.64699999999999,
+     "lw_out_over_sigma_t4": 0.9376791073235832,
+     "lw_in_over_sigma_t4": 0.7518354942822667
+    },
+    "F3_sw_out": {
+     "records": 35458,
+     "median_albedo": 0.1436029963059251,
+     "fraction_above_sw_in": 0.0
+    },
+    "F3_lw_out": {
+     "records": 103188,
+     "fraction_outside_band": 8.721944412140947e-05
+    },
+    "failures": []
+   }
+  }
+ },
+ "process_coverage": {
+  "wet_canopy": 18,
+  "night": 0,
+  "snow": 0,
+  "drought": 3599
+ },
+ "fixed_by_coverage": {},
+ "weights_start": {
+  "cal1_2018/lw_up": 0.020461025048002787,
+  "cal1_2018/le": 0.31993241581098075,
+  "cal1_2018/h": 0.41501044692713407,
+  "cal1_2018/gpp": 0.5736712106074262,
+  "cal1_2018/ustar": 0.3508566669814578,
+  "cal2_2018/lw_up": 0.022692242486463995,
+  "cal2_2018/le": 0.3721183653014349,
+  "cal2_2018/h": 0.17975465263340434,
+  "cal2_2018/gpp": 0.3145849681752893,
+  "cal2_2018/ustar": 0.5373259391841572,
+  "cal3_2019/lw_up": 0.022884244982867286,
+  "cal3_2019/le": 0.36213444719860877,
+  "cal3_2019/h": 0.24879692155393235,
+  "cal3_2019/gpp": 0.41671581065107294,
+  "cal3_2019/ustar": 0.37530539200321483,
+  "cal5_2014/lw_up": 0.03835805393285285,
+  "cal5_2014/le": 0.7525559345691233,
+  "cal5_2014/h": 0.3286709600950172,
+  "cal5_2014/gpp": 0.5878702216436602,
+  "cal5_2014/ustar": 0.5463874898024864,
+  "cal6_2014/lw_up": 0.02119877002940512,
+  "cal6_2014/le": 0.6976957399697247,
+  "cal6_2014/h": 0.5033234859787726,
+  "cal6_2014/gpp": 0.6931619184254815,
+  "cal6_2014/ustar": 0.6244775341152425,
+  "seasonal_2019/le": 0.4576675613325738,
+  "seasonal_2020/le": 0.30939397177623246
+ },
+ "screening": {
+  "keys": [
+   "vcmax25",
+   "vcmax25_pft2",
+   "stomatal_g1",
+   "stomatal_g1_pft2",
+   "stomatal_g0",
+   "stomatal_g0_pft2",
+   "z0m_ratio",
+   "wstress_sref_stomata",
+   "wstress_sref_stomata_pft2",
+   "kappa"
+  ],
+  "sigma_ratio": {
+   "vcmax25": 0.12966245864407475,
+   "vcmax25_pft2": 0.06912541682493382,
+   "stomatal_g1": 0.253601341054659,
+   "stomatal_g1_pft2": 0.20096216380369042,
+   "stomatal_g0": 0.12222132889095225,
+   "stomatal_g0_pft2": 0.6718982304697725,
+   "z0m_ratio": 0.17925541817495802,
+   "wstress_sref_stomata": 0.2247483217797212,
+   "wstress_sref_stomata_pft2": 1.0,
+   "kappa": 0.7292589598428791
+  },
+  "smoothness": {
+   "vcmax25": 0.9685611756196337,
+   "vcmax25_pft2": 0.967595788891545,
+   "stomatal_g1": 0.9913867645807954,
+   "stomatal_g1_pft2": 1.0172904373021137,
+   "stomatal_g0": 1.0511221592029476,
+   "stomatal_g0_pft2": 1.0395287607486539,
+   "z0m_ratio": 0.9916635169808774,
+   "wstress_sref_stomata": 1.0406906877071065,
+   "wstress_sref_stomata_pft2": 1.0,
+   "kappa": 0.9788698317655647
+  },
+  "sensitivity": {
+   "vcmax25": {
+    "lw_up": 0.0049834809353344785,
+    "le": 0.12905672709381155,
+    "h": 0.04971950796140238,
+    "gpp": 0.22100230561960166,
+    "ustar": 0.0076751331002501075
+   },
+   "vcmax25_pft2": {
+    "lw_up": 0.015646867350116885,
+    "le": 0.09768202641935599,
+    "h": 0.1438499253736794,
+    "gpp": 0.6854887816341001,
+    "ustar": 0.012785765639321843
+   },
+   "stomatal_g1": {
+    "lw_up": 0.003928281607296735,
+    "le": 0.10091546410763008,
+    "h": 0.04252833714421403,
+    "gpp": 0.11966258364640914,
+    "ustar": 0.0072231402778140715
+   },
+   "stomatal_g1_pft2": {
+    "lw_up": 0.01889059684848476,
+    "le": 0.11421146373032777,
+    "h": 0.18505382943972867,
+    "gpp": 0.11433000892295866,
+    "ustar": 0.01660113565496453
+   },
+   "stomatal_g0": {
+    "lw_up": 0.0055498794573661725,
+    "le": 0.10811944379572862,
+    "h": 0.02314814374264811,
+    "gpp": 0.2291004266238665,
+    "ustar": 0.009143108139292656
+   },
+   "stomatal_g0_pft2": {
+    "lw_up": 0.005014268804743143,
+    "le": 0.029117190852087756,
+    "h": 0.04285228980389574,
+    "gpp": 0.02311812286193121,
+    "ustar": 0.0048973064694937535
+   },
+   "z0m_ratio": {
+    "lw_up": 0.008441137420802375,
+    "le": 0.05128493185294282,
+    "h": 0.030429485960893784,
+    "gpp": 0.013881700403990439,
+    "ustar": 0.12202358937485568
+   },
+   "wstress_sref_stomata": {
+    "lw_up": 0.0029142246163864653,
+    "le": 0.08735185302380574,
+    "h": 0.01079445935546612,
+    "gpp": 0.15183705521316548,
+    "ustar": 0.006929907025721765
+   },
+   "wstress_sref_stomata_pft2": {
+    "lw_up": 0.0,
+    "le": 0.0,
+    "h": 0.0,
+    "gpp": 0.0,
+    "ustar": 0.0
+   },
+   "kappa": {
+    "lw_up": 0.0,
+    "le": 0.0,
+    "h": 0.0,
+    "gpp": 0.051878381274723405,
+    "ustar": 0.0
+   }
+  },
+  "collinear": [],
+  "singular_values": [
+   23.469051629944463,
+   13.231147855790859,
+   11.26293738012298,
+   8.0491246986793,
+   6.259500849258403,
+   5.422640952507588,
+   2.8968160524572575,
+   1.1096235579983977,
+   0.878887405536242,
+   0.0
+  ],
+  "fitted": [
+   "vcmax25",
+   "vcmax25_pft2",
+   "stomatal_g1",
+   "stomatal_g1_pft2",
+   "stomatal_g0",
+   "stomatal_g0_pft2",
+   "z0m_ratio",
+   "wstress_sref_stomata",
+   "kappa"
+  ],
+  "fixed": {
+   "wstress_sref_stomata_pft2": "dead: its gradient column is zero (a key the windows never use)"
+  }
+ },
+ "cost_start": 9307.722248121903,
+ "scores_cal_start": {
+  "lw_up": {
+   "nrmse": 3.3906087195801313,
+   "n": 2321,
+   "share": 0.04830220900434184
+  },
+  "le": {
+   "nrmse": 1.9200320357636098,
+   "n": 4780,
+   "share": 0.66025252376631
+  },
+  "h": {
+   "nrmse": 2.0797718227230115,
+   "n": 677,
+   "share": 0.08078660675187158
+  },
+  "gpp": {
+   "nrmse": 2.5228280286636844,
+   "n": 941,
+   "share": 0.19129582510367316
+  },
+  "ustar": {
+   "nrmse": 0.5562641319905155,
+   "n": 1208,
+   "share": 0.019362835373803428
+  }
+ },
+ "lm": {
+  "first": {
+   "cost": 8163.800326769199,
+   "iterations": 6,
+   "history": [
+    {
+     "iter": 0,
+     "cost": 9307.722248121903,
+     "lambda": 0.01,
+     "u": [
+      2.156420459630393,
+      2.156420459630393,
+      0.5872325258292634,
+      -0.4240486675845829,
+      0.6931471805599452,
+      0.6931471805599452,
+      -0.43531807125784533,
+      -0.45119944473617424,
+      0.0
+     ]
+    },
+    {
+     "iter": 1,
+     "cost": 8286.65546759701,
+     "lambda": 0.01,
+     "u": [
+      0.15642045963039308,
+      1.094881016625389,
+      0.7752500293912018,
+      -0.23192514247798685,
+      0.8431809361597473,
+      -0.9774903966578334,
+      -0.28036230254773997,
+      0.33170265812168076,
+      -0.5086824321503793
+     ],
+     "accepted": true
+    },
+    {
+     "iter": 2,
+     "cost": 8286.65546759701,
+     "lambda": 1000000.0,
+     "u": [
+      0.15642045963039308,
+      1.094881016625389,
+      0.7752500293912018,
+      -0.23192514247798685,
+      0.8431809361597473,
+      -0.9774903966578334,
+      -0.28036230254773997,
+      0.33170265812168076,
+      -0.5086824321503793
+     ],
+     "accepted": false
+    },
+    {
+     "iter": 3,
+     "cost": 8197.546990053503,
+     "lambda": 0.001,
+     "u": [
+      0.31751789861409974,
+      1.0726555513272444,
+      0.42917927207158263,
+      -0.18916933430140057,
+      0.6772834814308344,
+      0.5210336638854709,
+      -0.022596978327690087,
+      0.6927564245481804,
+      -0.5406603712750693
+     ],
+     "accepted": true
+    },
+    {
+     "iter": 4,
+     "cost": 8197.546990053503,
+     "lambda": 100000.0,
+     "u": [
+      0.31751789861409974,
+      1.0726555513272444,
+      0.42917927207158263,
+      -0.18916933430140057,
+      0.6772834814308344,
+      0.5210336638854709,
+      -0.022596978327690087,
+      0.6927564245481804,
+      -0.5406603712750693
+     ],
+     "accepted": false
+    },
+    {
+     "iter": 5,
+     "cost": 8164.206737650052,
+     "lambda": 0.01,
+     "u": [
+      0.4018543846402844,
+      1.0135458761137923,
+      0.12435460520265845,
+      0.05723949886397711,
+      0.6054449897523142,
+      -0.48962087396050147,
+      0.04139256806116824,
+      0.8119696376257207,
+      -0.5219995073260717
+     ],
+     "accepted": true
+    },
+    {
+     "iter": 6,
+     "cost": 8163.800326769199,
+     "lambda": 10.0,
+     "u": [
+      0.4009299709145371,
+      1.0110052646178456,
+      0.12106493610868058,
+      0.04990680377306391,
+      0.6046859857965833,
+      -0.6229173999355436,
+      0.04374134208883766,
+      0.8148477700287048,
+      -0.522674181516816
+     ],
+     "accepted": true
+    }
+   ]
+  },
+  "after_refresh": {
+   "cost": 2647.9518966234273,
+   "iterations": 2,
+   "history": [
+    {
+     "iter": 0,
+     "cost": 2780.307147595409,
+     "lambda": 0.01,
+     "u": [
+      0.4009299709145374,
+      1.0110052646178465,
+      0.12106493610868063,
+      0.04990680377306401,
+      0.604685985796584,
+      -0.6229173999355437,
+      0.0437413420888377,
+      0.8148477700287049,
+      -0.5226741815168163
+     ]
+    },
+    {
+     "iter": 1,
+     "cost": 2648.3104688915546,
+     "lambda": 0.001,
+     "u": [
+      0.6220706564008119,
+      0.4936075071833117,
+      -0.3323626367272246,
+      0.13966788880160375,
+      0.37720266519099477,
+      0.6820983741093716,
+      -0.10929342397667896,
+      2.2240962345282913,
+      -0.34475031785486143
+     ],
+     "accepted": true
+    },
+    {
+     "iter": 2,
+     "cost": 2647.9518966234273,
+     "lambda": 10.0,
+     "u": [
+      0.6213621147332377,
+      0.4947621517437113,
+      -0.3398360158877363,
+      0.13724529622319084,
+      0.383009203166584,
+      0.6298371857330661,
+      -0.10663173305077346,
+      2.293589929160693,
+      -0.3388040855230091
+     ],
+     "accepted": true
+    }
+   ]
+  }
+ },
+ "values_refresh": {
+  "vcmax25": 50.62605427293272,
+  "vcmax25_pft2": 72.83328706558206,
+  "stomatal_g1": 3.0351698849998088,
+  "stomatal_g1_pft2": 2.8573037265186647,
+  "stomatal_g0": 0.008713305839855343,
+  "stomatal_g0_pft2": 0.0011152049192366294,
+  "z0m_ratio": 0.16306140584485537,
+  "wstress_sref_stomata": 2.43379022812775,
+  "wstress_sref_stomata_pft2": 2.0,
+  "kappa": 0.8722271335254832
+ },
+ "weights_refresh": {
+  "cal1_2018/lw_up": 0.01766111968759639,
+  "cal1_2018/le": 0.34129423518632496,
+  "cal1_2018/h": 0.4552123625601237,
+  "cal1_2018/gpp": 0.40504228463103387,
+  "cal1_2018/ustar": 0.36949536251382414,
+  "cal2_2018/lw_up": 0.01751935779140485,
+  "cal2_2018/le": 0.36522092670758755,
+  "cal2_2018/h": 0.15706046365640575,
+  "cal2_2018/gpp": 0.24303147031342298,
+  "cal2_2018/ustar": 0.5817638842939116,
+  "cal3_2019/lw_up": 0.02596440283696406,
+  "cal3_2019/le": 0.31522137227652697,
+  "cal3_2019/h": 0.20106125902195196,
+  "cal3_2019/gpp": 0.7028065231416766,
+  "cal3_2019/ustar": 0.3729238955198997,
+  "cal5_2014/lw_up": 0.04133511380160338,
+  "cal5_2014/le": 0.6928150125406747,
+  "cal5_2014/h": 0.3448919079132735,
+  "cal5_2014/gpp": 0.5852990043528827,
+  "cal5_2014/ustar": 0.49716188512951326,
+  "cal6_2014/lw_up": 0.021304968105403214,
+  "cal6_2014/le": 0.6274901462095579,
+  "cal6_2014/h": 0.5292632455776766,
+  "cal6_2014/gpp": 0.7838168312377976,
+  "cal6_2014/ustar": 0.5976448049746506,
+  "seasonal_2019/le": 0.46040997459882005,
+  "seasonal_2020/le": 0.2949303476469929
+ },
+ "sigma_scale_refresh": {
+  "lw_up": 3.0,
+  "le": 1.8816226966004241,
+  "h": 2.0767268993348478,
+  "gpp": 1.9300584605340851,
+  "ustar": 1.0
+ },
+ "chi2_per_row": {
+  "lw_up": 1.0830421427641537,
+  "le": 0.9605194787079967,
+  "h": 1.0260006673854918,
+  "gpp": 0.7107461537145198,
+  "ustar": 0.28182292128461506
+ },
+ "fitted": [
+  "vcmax25",
+  "vcmax25_pft2",
+  "stomatal_g1",
+  "stomatal_g1_pft2",
+  "stomatal_g0",
+  "stomatal_g0_pft2",
+  "z0m_ratio",
+  "wstress_sref_stomata",
+  "kappa"
+ ],
+ "smoothness_map": {
+  "vcmax25": 0.9860367477792533,
+  "vcmax25_pft2": 1.0037943672401421,
+  "stomatal_g1": 1.002358671791562,
+  "stomatal_g1_pft2": 1.0088575840988325,
+  "stomatal_g0": 0.9814784363891388,
+  "stomatal_g0_pft2": 1.0404732800579044,
+  "z0m_ratio": 0.9976232164724341,
+  "wstress_sref_stomata": 0.9619858727921351,
+  "kappa": 0.985607120716907
+ },
+ "covariance": [
+  [
+   33.333065291267154,
+   0.0982694453412885,
+   -1.1455127866449142,
+   -0.10273231977187258,
+   0.0002784884709832086,
+   0.0013332240523831484,
+   -0.0005316228226887329,
+   1.05669670384593,
+   -0.08413633124310317
+  ],
+  [
+   0.09826944534129027,
+   7.113720948852989,
+   -0.006482299843208159,
+   -0.49261082109035137,
+   -9.540478419409422e-06,
+   0.000554615402647159,
+   -0.00034220018009588577,
+   -0.052137113373907994,
+   -0.06020667437684965
+  ],
+  [
+   -1.1455127866449142,
+   -0.006482299843208112,
+   0.06415679909411424,
+   0.003400130297902084,
+   -4.43181692096398e-05,
+   -0.0001303904259681286,
+   7.848254320680426e-05,
+   -0.06556156100049278,
+   0.0027077707411344502
+  ],
+  [
+   -0.10273231977187271,
+   -0.4926108210903516,
+   0.003400130297902086,
+   0.18625448804525982,
+   7.3651313557983865e-06,
+   -0.0022978203504787913,
+   0.00021914265327266244,
+   -0.0018695749575756528,
+   0.003193279407612391
+  ],
+  [
+   0.0002784884709832086,
+   -9.540478419409446e-06,
+   -4.43181692096398e-05,
+   7.3651313557983865e-06,
+   6.33600202909302e-07,
+   -1.7961156348936064e-07,
+   -2.1495721590025626e-07,
+   0.00022236264942340376,
+   -2.5600132346040274e-07
+  ],
+  [
+   0.001333224052383149,
+   0.0005546154026471619,
+   -0.00013039042596812867,
+   -0.0022978203504787917,
+   -1.7961156348936075e-07,
+   6.700710937239728e-05,
+   1.2585304501131024e-06,
+   0.00015955865738195735,
+   -6.030541996457865e-06
+  ],
+  [
+   -0.0005316228226887326,
+   -0.0003422001800958859,
+   7.848254320680423e-05,
+   0.00021914265327266247,
+   -2.1495721590025626e-07,
+   1.258530450113103e-06,
+   7.766842870562578e-05,
+   -0.0001617999652685544,
+   -3.170028821491381e-06
+  ],
+  [
+   1.0566967038459303,
+   -0.052137113373908035,
+   -0.0655615610004928,
+   -0.0018695749575756513,
+   0.00022236264942340382,
+   0.00015955865738195737,
+   -0.0001617999652685544,
+   1.1233047186428096,
+   -0.001064928129550542
+  ],
+  [
+   -0.08413633124310321,
+   -0.06020667437684965,
+   0.0027077707411344515,
+   0.00319327940761239,
+   -2.56001323460403e-07,
+   -6.03054199645784e-06,
+   -3.170028821491381e-06,
+   -0.0010649281295505423,
+   0.0016381758473317932
+  ]
+ ],
+ "correlation": [
+  [
+   1.0,
+   0.0063816424182281725,
+   -0.7833231664368473,
+   -0.04123026206097677,
+   0.06059850924079435,
+   0.028210128988738207,
+   -0.010448254218841525,
+   0.1726887057564485,
+   -0.3600523791114498
+  ],
+  [
+   0.006381642418228287,
+   1.0,
+   -0.009595317710102419,
+   -0.42795899792076597,
+   -0.004493803593029605,
+   0.02540288676847045,
+   -0.014558263030050218,
+   -0.018443773415065638,
+   -0.5577196768193432
+  ],
+  [
+   -0.7833231664368473,
+   -0.00959531771010235,
+   0.9999999999999999,
+   0.031104329428393532,
+   -0.21981271653110265,
+   -0.06288744036008867,
+   0.035158429256507306,
+   -0.2442188319761661,
+   0.2641254730318263
+  ],
+  [
+   -0.04123026206097682,
+   -0.42795899792076614,
+   0.031104329428393553,
+   1.0000000000000002,
+   0.021439737798368278,
+   -0.6504325346777318,
+   0.05761708505211957,
+   -0.004087339547435687,
+   0.1828114056044069
+  ],
+  [
+   0.06059850924079435,
+   -0.004493803593029617,
+   -0.21981271653110265,
+   0.021439737798368278,
+   1.0000000000000002,
+   -0.027565520532908918,
+   -0.03064235326805697,
+   0.26357571574136374,
+   -0.007946104960842991
+  ],
+  [
+   0.02821012898873822,
+   0.02540288676847058,
+   -0.0628874403600887,
+   -0.650432534677732,
+   -0.02756552053290894,
+   1.0000000000000002,
+   0.017445403810844803,
+   0.018391245427819482,
+   -0.018201854788249715
+  ],
+  [
+   -0.01044825421884152,
+   -0.014558263030050225,
+   0.03515842925650729,
+   0.05761708505211958,
+   -0.03064235326805697,
+   0.017445403810844813,
+   1.0000000000000002,
+   -0.017322372478339718,
+   -0.008887112788574777
+  ],
+  [
+   0.17268870575644854,
+   -0.018443773415065652,
+   -0.24421883197616617,
+   -0.004087339547435684,
+   0.2635757157413638,
+   0.018391245427819485,
+   -0.017322372478339718,
+   1.0000000000000002,
+   -0.024825113797841497
+  ],
+  [
+   -0.36005237911145,
+   -0.5577196768193432,
+   0.26412547303182643,
+   0.18281140560440678,
+   -0.007946104960843,
+   -0.01820185478824964,
+   -0.008887112788574777,
+   -0.024825113797841504,
+   0.9999999999999999
+  ]
+ ],
+ "intervals": {
+  "vcmax25": {
+   "map": 58.221128646822486,
+   "sd_u": 0.16107275056527814,
+   "i68": [
+    52.60673453845097,
+    64.12675823119318
+   ],
+   "i95": [
+    47.55796645467879,
+    69.98888103970356
+   ],
+   "sigma_ratio": 0.08110774053617897,
+   "prior_centre": 113.26403934258785,
+   "range": [
+    10.0,
+    150.0
+   ],
+   "kind": "trait"
+  },
+  "vcmax25_pft2": {
+   "map": 53.779948964123136,
+   "sd_u": 0.077829145308209,
+   "i68": [
+    51.15498515671714,
+    56.48677131712995
+   ],
+   "i95": [
+    48.71858030373607,
+    59.154843503181205
+   ],
+   "sigma_ratio": 0.03919065206037128,
+   "prior_centre": 113.26403934258785,
+   "range": [
+    10.0,
+    150.0
+   ],
+   "kind": "trait"
+  },
+  "stomatal_g1": {
+   "map": 2.0569790137349733,
+   "sd_u": 0.14903860175939707,
+   "i68": [
+    1.821841212267482,
+    2.3296242088786285
+   ],
+   "i95": [
+    1.6279149841587595,
+    2.6297337908780807
+   ],
+   "sigma_ratio": 0.33257356883896727,
+   "prior_centre": 4.45,
+   "range": [
+    0.5,
+    15.0
+   ],
+   "kind": "trait"
+  },
+  "stomatal_g1_pft2": {
+   "map": 3.077040499043064,
+   "sd_u": 0.16572645294706595,
+   "i68": [
+    2.6730914211526375,
+    3.5364221322844513
+   ],
+   "i95": [
+    2.335952244891849,
+    4.028943351355964
+   ],
+   "sigma_ratio": 0.2695347781816707,
+   "prior_centre": 1.919742034924382,
+   "range": [
+    0.5,
+    15.0
+   ],
+   "kind": "trait"
+  },
+  "stomatal_g0": {
+   "map": 0.0060784946936872685,
+   "sd_u": 0.07864399547647688,
+   "i68": [
+    0.005327553741074514,
+    0.006921797064873367
+   ],
+   "i95": [
+    0.004687107112510368,
+    0.007824355256431355
+   ],
+   "sigma_ratio": 0.1207229944250846,
+   "prior_centre": 0.01,
+   "range": [
+    0.0001,
+    0.1
+   ],
+   "kind": "trait"
+  },
+  "stomatal_g0_pft2": {
+   "map": 0.009064787567683686,
+   "sd_u": 0.5765046629703359,
+   "i68": [
+    0.003467287977488998,
+    0.020368222203561933
+   ],
+   "i95": [
+    0.0013568851168385496,
+    0.03627009480284761
+   ],
+   "sigma_ratio": 0.8849673619980349,
+   "prior_centre": 0.01,
+   "range": [
+    0.0001,
+    0.1
+   ],
+   "kind": "trait"
+  },
+  "z0m_ratio": {
+   "map": 0.1525428432067438,
+   "sd_u": 0.12625778110649333,
+   "i68": [
+    0.1437710194336593,
+    0.16137377926795682
+   ],
+   "i95": [
+    0.13546899474911447,
+    0.16984208423887306
+   ],
+   "sigma_ratio": 0.21080540238316295,
+   "prior_centre": 0.13,
+   "range": [
+    0.02,
+    0.3
+   ],
+   "kind": "effective"
+  },
+  "wstress_sref_stomata": {
+   "map": 6.556763708707539,
+   "sd_u": 0.4216048398012349,
+   "i68": [
+    5.412222016188366,
+    7.513367667611336
+   ],
+   "i95": [
+    4.219649586591316,
+    8.230291638607474
+   ],
+   "sigma_ratio": 0.6592872987597836,
+   "prior_centre": 0.6,
+   "range": [
+    0.1,
+    10.0
+   ],
+   "kind": "effective"
+  },
+  "kappa": {
+   "map": 0.9161000082066293,
+   "sd_u": 0.16658813484773333,
+   "i68": [
+    0.8762743162700395,
+    0.9570521068114024
+   ],
+   "i95": [
+    0.839546272763207,
+    0.9969272033802985
+   ],
+   "sigma_ratio": 0.8329406742386666,
+   "prior_centre": 1.0,
+   "range": [
+    0.5,
+    1.5
+   ],
+   "kind": "observation"
+  }
+ },
+ "sigma_ratio": {
+  "vcmax25": 0.08110774053617897,
+  "vcmax25_pft2": 0.03919065206037128,
+  "stomatal_g1": 0.33257356883896727,
+  "stomatal_g1_pft2": 0.2695347781816707,
+  "stomatal_g0": 0.1207229944250846,
+  "stomatal_g0_pft2": 0.8849673619980349,
+  "z0m_ratio": 0.21080540238316295,
+  "wstress_sref_stomata": 0.6592872987597836,
+  "kappa": 0.8329406742386666
+ },
+ "unconverged_sd": {
+  "vcmax25": 1.6159012831665338,
+  "vcmax25_pft2": -0.8052079896224799,
+  "stomatal_g1": -2.595355481924733,
+  "stomatal_g1_pft2": 0.5875662205323773,
+  "stomatal_g0": 0.11687736901755107,
+  "stomatal_g0_pft2": -0.8572787557486209,
+  "z0m_ratio": 0.015389072442107663,
+  "wstress_sref_stomata": -0.49929894458105323,
+  "kappa": 0.3093208552740008
+ },
+ "linearity": [
+  {
+   "direction": 8,
+   "sd_u": 0.5872376761661698,
+   "predicted": 0.9999999999999988,
+   "delta_cost_plus": 0.07342847029804034,
+   "delta_cost_minus": 3.2880574900427746,
+   "curvature_ratio": 1.6807429801704095,
+   "slope_ratio": -1.6073145098723691,
+   "local_only": false,
+   "loadings": {
+    "vcmax25": -0.011191304792282952,
+    "vcmax25_pft2": -0.006592285600913829,
+    "stomatal_g1": 0.019078974640857053,
+    "stomatal_g1_pft2": 0.19236396968035252,
+    "stomatal_g0": 0.002858559071336881,
+    "stomatal_g0_pft2": -0.9805684641614048,
+    "z0m_ratio": -0.0029588575321345687,
+    "wstress_sref_stomata": -0.02900766566505675,
+    "kappa": 0.009513600265933219
+   }
+  },
+  {
+   "direction": 7,
+   "sd_u": 0.4252318471382449,
+   "predicted": 0.999999999999999,
+   "delta_cost_plus": 0.8031236261376762,
+   "delta_cost_minus": 1.7678353599962975,
+   "curvature_ratio": 1.2854794930669882,
+   "slope_ratio": -0.48235586692931115,
+   "local_only": false,
+   "loadings": {
+    "vcmax25": -0.08876189834458595,
+    "vcmax25_pft2": 0.0029400915282902945,
+    "stomatal_g1": 0.10676692501278583,
+    "stomatal_g1_pft2": -0.00885659212030153,
+    "stomatal_g0": -0.05167484498366602,
+    "stomatal_g0_pft2": 0.030597908724422234,
+    "z0m_ratio": 0.006309538730125588,
+    "wstress_sref_stomata": -0.9882110499301264,
+    "kappa": 0.02067981281381034
+   }
+  },
+  {
+   "direction": 6,
+   "sd_u": 0.21804786115336708,
+   "predicted": 0.9999999999999999,
+   "delta_cost_plus": -2.708816720306004,
+   "delta_cost_minus": 4.145497716569935,
+   "curvature_ratio": 0.7183404981319657,
+   "slope_ratio": -3.42715721843797,
+   "local_only": false,
+   "loadings": {
+    "vcmax25": 0.6308791406383447,
+    "vcmax25_pft2": 0.1093609615971187,
+    "stomatal_g1": -0.527586762392326,
+    "stomatal_g1_pft2": -0.0977675470095827,
+    "stomatal_g0": 0.01984552968175609,
+    "stomatal_g0_pft2": -0.03872501572722657,
+    "z0m_ratio": -0.014429933637695451,
+    "wstress_sref_stomata": -0.125949431119395,
+    "kappa": -0.5330670228128708
+   }
+  }
+ ],
+ "local_only": false,
+ "key_table": {
+  "vcmax25": {
+   "z": -0.7729744075820977,
+   "kind": "trait",
+   "scope": "plant_type",
+   "prior_centre": 113.26403934258785,
+   "prior_source": "EEO: the coordination of the Rubisco- and light-limited rates at the site's growing-season daytime climate, with ED-MORE's own leaf (priors.py; Wang et al. 2017, Smith et al. 2019)",
+   "pushed_by": "le",
+   "near_bound": null,
+   "bound_pushed_by": null,
+   "range": [
+    10.0,
+    150.0
+   ]
+  },
+  "vcmax25_pft2": {
+   "z": -0.8367234707477064,
+   "kind": "trait",
+   "scope": "plant_type",
+   "prior_centre": 113.26403934258785,
+   "prior_source": "EEO: the coordination of the Rubisco- and light-limited rates at the site's growing-season daytime climate, with ED-MORE's own leaf (priors.py; Wang et al. 2017, Smith et al. 2019)",
+   "pushed_by": "gpp",
+   "near_bound": null,
+   "bound_pushed_by": null,
+   "range": [
+    10.0,
+    150.0
+   ]
+  },
+  "stomatal_g1": {
+   "z": -2.0687156873284325,
+   "kind": "trait",
+   "scope": "plant_type",
+   "prior_centre": 4.45,
+   "prior_source": "CLM5 medlynslope for deciduous broadleaf trees (Lin et al. 2015, Nature Climate Change 5:459)",
+   "pushed_by": "le",
+   "near_bound": null,
+   "bound_pushed_by": null,
+   "range": [
+    0.5,
+    15.0
+   ]
+  },
+  "stomatal_g1_pft2": {
+   "z": 0.9128792738837017,
+   "kind": "trait",
+   "scope": "plant_type",
+   "prior_centre": 1.919742034924382,
+   "prior_source": "EEO: the least-cost optimum at the site's growing-season daytime climate (priors.py)",
+   "pushed_by": "h",
+   "near_bound": null,
+   "bound_pushed_by": null,
+   "range": [
+    0.5,
+    15.0
+   ]
+  },
+  "stomatal_g0": {
+   "z": -0.4760793890115178,
+   "kind": "trait",
+   "scope": "plant_type",
+   "prior_centre": 0.01,
+   "prior_source": "the PFT file's value, a factor e either way: the residual conductance is poorly known",
+   "pushed_by": "le",
+   "near_bound": null,
+   "bound_pushed_by": null,
+   "range": [
+    0.0001,
+    0.1
+   ]
+  },
+  "stomatal_g0_pft2": {
+   "z": -0.09718443355060076,
+   "kind": "trait",
+   "scope": "plant_type",
+   "prior_centre": 0.01,
+   "prior_source": "the PFT file's value, a factor e either way: the residual conductance is poorly known",
+   "pushed_by": "le",
+   "near_bound": null,
+   "bound_pushed_by": null,
+   "range": [
+    0.0001,
+    0.1
+   ]
+  },
+  "z0m_ratio": {
+   "z": 0.5487887968278783,
+   "kind": "effective",
+   "scope": "site",
+   "prior_centre": 0.13,
+   "prior_source": "the base value (ED2 0.13), +-0.04: closed canopies give z0/h of about 0.06-0.15 (Raupach 1994). Effective: it carries the canopy-air scheme's errors",
+   "pushed_by": "le",
+   "near_bound": null,
+   "bound_pushed_by": null,
+   "range": [
+    0.02,
+    0.3
+   ]
+  },
+  "wstress_sref_stomata": {
+   "z": 4.292182160039149,
+   "kind": "effective",
+   "scope": "plant_type",
+   "prior_centre": 0.6,
+   "prior_source": "the PFT file's value, a factor 2 either way (Sabot et al. 2022 fit 0.5-5 across species)",
+   "pushed_by": "le",
+   "near_bound": null,
+   "bound_pushed_by": null,
+   "range": [
+    0.1,
+    10.0
+   ]
+  },
+  "kappa": {
+   "z": -1.6940204276150455,
+   "kind": "observation",
+   "scope": "observation",
+   "prior_centre": 1.0,
+   "prior_source": "the gap between the provider's night-time and daytime partitionings (RECO against RECO_DT)",
+   "pushed_by": "gpp",
+   "near_bound": null,
+   "bound_pushed_by": null,
+   "range": [
+    0.5,
+    1.5
+   ]
+  }
+ },
+ "cost": {
+  "start": 9307.722248121903,
+  "map": 2647.951896598899
+ },
+ "scores_cal": {
+  "start": {
+   "lw_up": {
+    "nrmse": 3.3906087195801313,
+    "n": 2321,
+    "share": 0.04830220900434184
+   },
+   "le": {
+    "nrmse": 1.9200320357636098,
+    "n": 4780,
+    "share": 0.66025252376631
+   },
+   "h": {
+    "nrmse": 2.0797718227230115,
+    "n": 677,
+    "share": 0.08078660675187158
+   },
+   "gpp": {
+    "nrmse": 2.5228280286636844,
+    "n": 941,
+    "share": 0.19129582510367316
+   },
+   "ustar": {
+    "nrmse": 0.5562641319905155,
+    "n": 1208,
+    "share": 0.019362835373803428
+   }
+  },
+  "map": {
+   "lw_up": {
+    "nrmse": 1.0406931069071965,
+    "n": 2321,
+    "share": 0.022324759158563502
+   },
+   "le": {
+    "nrmse": 0.9800609566287174,
+    "n": 4780,
+    "share": 0.7065901482780015
+   },
+   "h": {
+    "nrmse": 1.0129169104055336,
+    "n": 677,
+    "share": 0.08198989487817777
+   },
+   "gpp": {
+    "nrmse": 0.8430576218233957,
+    "n": 941,
+    "share": 0.12709606020943717
+   },
+   "ustar": {
+    "nrmse": 0.5308699664556426,
+    "n": 1208,
+    "share": 0.06199913747582012
+   }
+  }
+ },
+ "alternatives": {
+  "gpp_ustar": {
+   "note": "the fit did not use the provider's threshold, or GPP's diagnostic finds no plateau"
+  },
+  "closure": {
+   "note": "the fit scored H and LE as measured ([closure].shares = \"none\"): no closure factor"
+  },
+  "partitioning": {
+   "what": "the provider's daytime partitioning (GPP_DT, RECO_DT)",
+   "keys": {
+    "vcmax25": {
+     "map": 58.221128646822486,
+     "linear": 50.540378112817585,
+     "shift_sd": -1.3846860629857922,
+     "refit": 59.40676722658759,
+     "refit_shift_sd": 0.2043218789515368
+    },
+    "vcmax25_pft2": {
+     "map": 53.779948964123136,
+     "linear": 43.46173843255348,
+     "shift_sd": -4.164058976875568,
+     "refit": 41.57471076503918,
+     "refit_shift_sd": -5.010569399068624
+    },
+    "stomatal_g1": {
+     "map": 2.0569790137349733,
+     "linear": 2.315908021117129,
+     "shift_sd": 0.9529616989598431,
+     "refit": 1.670929192050741,
+     "refit_shift_sd": -1.7341131334802082
+    },
+    "stomatal_g1_pft2": {
+     "map": 3.077040499043064,
+     "linear": 3.80593793938044,
+     "shift_sd": 1.5371798416961473,
+     "refit": 4.157460765271904,
+     "refit_shift_sd": 2.196008521828208
+    },
+    "stomatal_g0": {
+     "map": 0.0060784946936872685,
+     "linear": 0.006137326561314111,
+     "shift_sd": 0.07359539485254198,
+     "refit": 0.006202397308673069,
+     "refit_shift_sd": 0.1542720199373841
+    },
+    "stomatal_g0_pft2": {
+     "map": 0.009064787567683686,
+     "linear": 0.008522573485665737,
+     "shift_sd": -0.06790333523106781,
+     "refit": 0.002937427457690187,
+     "refit_shift_sd": -1.1666066032801061
+    },
+    "z0m_ratio": {
+     "map": 0.1525428432067438,
+     "linear": 0.15257579918628034,
+     "shift_sd": 0.0037394395075762976,
+     "refit": 0.15273884141417055,
+     "refit_shift_sd": 0.022238098445380227
+    },
+    "wstress_sref_stomata": {
+     "map": 6.556763708707539,
+     "linear": 6.876781882351906,
+     "shift_sd": 0.31101384433621476,
+     "refit": 6.295269529667597,
+     "refit_shift_sd": -0.2415279370622282
+    },
+    "kappa": {
+     "map": 0.9161000082066293,
+     "linear": 1.0000035783679373,
+     "shift_sd": 2.0338687344356727,
+     "refit": 1.0174437902983782,
+     "refit_shift_sd": 2.45280119482111
+    }
+   },
+   "refit": {
+    "cost": 2480.64535902602,
+    "iterations": 2
+   },
+   "worst_shift_sd": 4.164058976875568
+  }
+ },
+ "ratios": {
+  "lw_up": {
+   "overall": 1.0315160833400183,
+   "by_local_hour": {
+    "0": 1.0449245261713427,
+    "1": 1.045351687331426,
+    "2": 1.0439039980145943,
+    "3": 1.0421898306383621,
+    "4": 1.0417856476380254,
+    "5": 1.0378764994325107,
+    "6": 1.0256645139221119,
+    "7": 1.0210645949362926,
+    "8": 1.0129838905515256,
+    "9": 1.0035083069102928,
+    "10": 0.9986266187962556,
+    "11": 0.9995820843475632,
+    "12": 1.0036684689080733,
+    "13": 1.0136016819942295,
+    "14": 1.02237225485313,
+    "15": 1.0328739345781097,
+    "16": 1.0404341545212332,
+    "17": 1.0470722382846493,
+    "18": 1.05453005532897,
+    "19": 1.0538315763771875,
+    "20": 1.051881029977331,
+    "21": 1.0516162111118676,
+    "22": 1.0496646269188254,
+    "23": 1.0473103003930957
+   },
+   "by_light": {
+    "SW quartile 2": 1.0484348709696456,
+    "SW quartile 3": 1.0265258063039349,
+    "SW quartile 4": 1.0093472468345612
+   }
+  },
+  "le": {
+   "overall": 0.9533537836545476,
+   "by_local_hour": {
+    "5": -57.52920868594722,
+    "6": 1.4912360782675453,
+    "7": 0.8067817608569438,
+    "8": 0.6608132200463619,
+    "9": 0.7186887462851479,
+    "10": 0.7336997381466062,
+    "11": 0.7958374925557438,
+    "12": 0.8785981255206236,
+    "13": 0.9780603873133119,
+    "14": 1.1134338254721543,
+    "15": 1.4740449216318705,
+    "16": 1.7840679843823306,
+    "17": 2.453080196717719,
+    "18": 2.470422888007562
+   },
+   "by_light": {
+    "SW quartile 1": 1.3992923310286003,
+    "SW quartile 2": 0.9277265010243718,
+    "SW quartile 3": 1.01009799117271,
+    "SW quartile 4": 0.8550099122826571
+   }
+  },
+  "h": {
+   "overall": 0.9471737171977911,
+   "by_local_hour": {
+    "8": 0.5560015351421265,
+    "9": 0.6940456003448959,
+    "10": 0.809740213376995,
+    "11": 0.8834677670632026,
+    "12": 0.9505760639301046,
+    "13": 0.9691682714157117,
+    "14": 1.01404778344058,
+    "15": 1.1060084262350278,
+    "16": 1.2203292357854043,
+    "17": 1.5435793722960456,
+    "18": 4.073389259662584
+   },
+   "by_light": {
+    "SW quartile 1": 1.5190930246407541,
+    "SW quartile 2": 0.8997973351374192,
+    "SW quartile 3": 0.8914597460792045,
+    "SW quartile 4": 0.9266613547459948
+   }
+  },
+  "gpp": {
+   "overall": 1.0477042641238543,
+   "by_local_hour": {
+    "6": 1.0814224578128533,
+    "7": 0.8882292636480119,
+    "8": 0.8576435675311092,
+    "9": 0.7956397636423006,
+    "10": 0.932958644311895,
+    "11": 1.0172011282271087,
+    "12": 1.0699897022597713,
+    "13": 1.1422087665409844,
+    "14": 1.178956663199715,
+    "15": 1.1896734757823595,
+    "16": 1.2638570373860425,
+    "17": 1.2674984224838988,
+    "18": 1.6023968893389833
+   },
+   "by_light": {
+    "SW quartile 1": 1.192473432238788,
+    "SW quartile 2": 1.0147408456388254,
+    "SW quartile 3": 1.0405228564001099,
+    "SW quartile 4": 0.9935284336834018
+   }
+  },
+  "ustar": {
+   "overall": 0.9320125955751539,
+   "by_local_hour": {
+    "5": 1.2331608349012528,
+    "6": 0.7940888855529852,
+    "7": 0.7960984650178705,
+    "8": 0.7606057940706624,
+    "9": 0.8334037204898989,
+    "10": 0.8927625823122427,
+    "11": 0.9271813212956808,
+    "12": 0.9649471095558241,
+    "13": 0.9527089816372828,
+    "14": 0.969447935182973,
+    "15": 0.9774239535960467,
+    "16": 0.9675450125885081,
+    "17": 1.0240800473906655,
+    "18": 1.1488656973124611
+   },
+   "by_light": {
+    "SW quartile 1": 1.0280768297505345,
+    "SW quartile 2": 0.8656967120295993,
+    "SW quartile 3": 0.9194443778022392,
+    "SW quartile 4": 0.9422928366377982
+   }
+  }
+ },
+ "kappa": {
+  "kappa": 0.9161000082066293,
+  "records": 65085,
+  "reco_tower": 2.8793085453791196,
+  "reco_implied": 3.143006789199463,
+  "gpp_tower": 4.9620288968071895,
+  "gpp_implied": 5.181581263736752,
+  "gpp_tower_kgc_yr": 1.8807991643208435,
+  "gpp_implied_kgc_yr": 1.9640179276197607,
+  "note": "means over the records with GPP and its respiration measured, day and night; GPP gains the scaled respiration by day only"
+ },
+ "map": {
+  "vcmax25": 58.221128646822486,
+  "vcmax25_pft2": 53.779948964123136,
+  "stomatal_g1": 2.0569790137349733,
+  "stomatal_g1_pft2": 3.077040499043064,
+  "stomatal_g0": 0.0060784946936872685,
+  "stomatal_g0_pft2": 0.009064787567683686,
+  "z0m_ratio": 0.15254284320674383,
+  "wstress_sref_stomata": 6.556763708707539,
+  "wstress_sref_stomata_pft2": 2.0,
+  "kappa": 0.9161000082066293
+ },
+ "default": {
+  "vcmax25": 130.0,
+  "vcmax25_pft2": 60.0,
+  "stomatal_g1": 4.45,
+  "stomatal_g1_pft2": 5.25,
+  "stomatal_g0": 0.01,
+  "stomatal_g0_pft2": 0.01,
+  "z0m_ratio": 0.13,
+  "wstress_sref_stomata": 0.6,
+  "wstress_sref_stomata_pft2": 2.0,
+  "kappa": 1.0
+ },
+ "start": {
+  "vcmax25": 113.26403934258785,
+  "vcmax25_pft2": 113.26403934258785,
+  "stomatal_g1": 4.45,
+  "stomatal_g1_pft2": 1.919742034924382,
+  "stomatal_g0": 0.01,
+  "stomatal_g0_pft2": 0.01,
+  "z0m_ratio": 0.13,
+  "wstress_sref_stomata": 0.6,
+  "wstress_sref_stomata_pft2": 2.0,
+  "kappa": 1.0
+ },
+ "scores_val": {
+  "default": {
+   "lw_up": {
+    "nrmse": 3.0817132713231246,
+    "n": 2388,
+    "share": 0.6122978365960192
+   },
+   "le": {
+    "nrmse": 2.1505162166899185,
+    "n": 1137,
+    "share": 0.1413771369141647
+   },
+   "h": {
+    "nrmse": 2.284002044310639,
+    "n": 551,
+    "share": 0.0797603765615841
+   },
+   "gpp": {
+    "nrmse": 2.572831065608305,
+    "n": 869,
+    "share": 0.15435641243200157
+   },
+   "ustar": {
+    "nrmse": 0.5341012641432578,
+    "n": 1186,
+    "share": 0.012208237496230468
+   }
+  },
+  "map": {
+   "lw_up": {
+    "nrmse": 3.286760844653329,
+    "n": 2388,
+    "share": 0.7223105695781826
+   },
+   "le": {
+    "nrmse": 1.9811531244839733,
+    "n": 1137,
+    "share": 0.12761510186963032
+   },
+   "h": {
+    "nrmse": 2.1099300932863376,
+    "n": 551,
+    "share": 0.07428091314915723
+   },
+   "gpp": {
+    "nrmse": 1.4853524788426717,
+    "n": 869,
+    "share": 0.06281459654941515
+   },
+   "ustar": {
+    "nrmse": 0.5341610391488637,
+    "n": 1186,
+    "share": 0.012978818853614689
+   }
+  }
+ },
+ "cost_val": {
+  "default": 27712.705809560404,
+  "map": 26073.07785488796
+ },
+ "validation": {
+  "pass": true,
+  "nrmse_change": {
+   "lw_up": 0.06653687584704082,
+   "le": -0.07875462221188434,
+   "h": -0.07621357058672851,
+   "gpp": -0.4226778047351182,
+   "ustar": 0.00011191698956536378
+  },
+  "rule": "the calibrated cost below the default's, and no target's RMSE more than 10% worse"
+ },
+ "trials": {
+  "run": 836,
+  "median_s": 1.8689801692962646,
+  "wall_s": 447.45928049087524
+ }
+}
