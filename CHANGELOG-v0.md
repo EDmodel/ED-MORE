@@ -226,6 +226,13 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   through its leaves alone. A census gives its rows dbh 0. Its cohorts are not split at the LAI cap,
   and a patch's grass of one PFT fuses into one cohort. It runs in a frozen stand only
   (`demography_on = false`) until its growth in number, mortality and recruitment are written. (#95)
+- A `[soil]` texture per layer: each texture key (`theta_sat`, `theta_res`, `ksat`, `curve_par_a`,
+  `curve_par_n` and the three thermal ones) may be a list with one value per layer, top down, for a site
+  whose soil changes with depth; each layer then starts at its own field capacity, as with the soil
+  maps, and `[init].soil_theta` is refused. (#96)
+- `calibrate_phenology` fits the WATER cue, the turgor-loss point derived from the leaf's pressure-volume
+  curve as in the model, and when its fits do not settle it keeps the values whose own coupled run scored
+  best. (#96)
 
 ### Changed
 
@@ -269,6 +276,8 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ### Fixed
 
+- `calibrate_fast` with `[closure].shares = "none"` no longer stops at the closure alternative: with H and LE
+  scored as measured there is no closure factor, and the alternative is skipped with that reason. (#96)
 - Cohort output under daily growth: the stand is re-sorted every day, so a monthly cohort record could
   average two cohorts in one slot. Every record of a month is now written in the month's end order,
   keyed by cohort id, and a fast-loop row reduced to a coarser axis pairs each cohort with the weight
