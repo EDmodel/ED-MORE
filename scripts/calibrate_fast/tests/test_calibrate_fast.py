@@ -927,6 +927,10 @@ def test_the_declared_alternatives():
     assert uncertainty.alternative_inputs(cal, "gpp_ustar")[0] is None
     cal.data.closure["shares"]["h"] = None                                         # the fit already used Bowen
     assert uncertainty.alternative_inputs(cal, "closure")[0] is None
+    cal.data.closure["shares"]["h"] = 0.0                                          # shares = "none": no closure factor
+    cal.data.obs = obs.drop(columns="closure_f")
+    ts, o, what = uncertainty.alternative_inputs(cal, "closure")
+    assert ts is None and "as measured" in what
 
 
 def test_the_validation_verdict():

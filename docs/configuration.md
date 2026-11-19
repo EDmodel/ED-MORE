@@ -147,6 +147,12 @@ generic loam, not a measured soil.
 - **Retention.** `retention` is `"van_genuchten"` (default) or `"campbell"`. `curve_par_a` and
   `curve_par_n` are van Genuchten's α [m⁻¹] and n (> 1), or Campbell's air-entry head ψ_sat [m, negative]
   and exponent b. `psi_fc` is the field-capacity matric head [m, negative].
+- **A texture per layer.** Each texture key (`theta_sat`, `theta_res`, `ksat`, `curve_par_a`,
+  `curve_par_n`, `solid_conductivity`, `dry_conductivity`, `dry_heat_capacity`) is one value for the
+  column, or a list with one value per layer, top down, for a soil that changes with depth: a loam over
+  weathered rock, say. The keys given as one value repeat it in every layer. Every list has one value per
+  layer of the column (`layer_bottoms`, or the default layers, cut at `depth`), or the run stops. Each layer
+  then starts at its own field capacity, as with the soil maps, and `[init].soil_theta` is refused.
 - **The science:** [`science/soil_biophysics.md`](science/soil_biophysics.md), "The soil layers".
 
 ### The bottom water boundary
@@ -190,7 +196,7 @@ within its target.
 
 | | Cohorts | Patches |
 |---|---|---|
-| similar when | they are of one PFT, their heights differ by less than `tol · h_top`, with `h_top` the height of the patch's tallest cohort, and their combined LAI is below `cohort_lai_cap` | they are in one site and of one disturbance type, and their light profiles differ by at most `tol` on average, and by at most `tol · patch_light_maxdev_factor` in any layer |
+| similar when | they are of one PFT, their heights differ by less than `tol · h_top`, with `h_top` the height of the patch's tallest cohort, and their combined LAI is below `cohort_lai_cap` (any LAI for a grass, whose cohorts are also never split) | they are in one site and of one disturbance type, and their light profiles differ by at most `tol` on average, and by at most `tol · patch_light_maxdev_factor` in any layer |
 | tolerance, first pass | `cohort_size_tol_min` | `patch_light_tol` |
 | tolerance ceiling | `cohort_size_tol_max` | `patch_light_tol_max` |
 | passes, at most | `n_cohort_fusion_iter` | `n_patch_fusion_iter` |
@@ -224,7 +230,7 @@ whatever the mode.
 | Mode | Start from | Needs |
 |---|---|---|
 | `0` | near-bare ground | nothing; `[pft].nbg_init_density` seeds it (below) |
-| `1` | a cohort census | `[init].census_file`, a CSV with one row per cohort. Columns are matched by name from its header: `patch_id`, `dbh` [cm], `pft` and `nplant` [plants m⁻² of the patch] are required; `patch_area`, `site_id`, `cohort_id` and `height` are optional. `dbh` drives the allometry |
+| `1` | a cohort census | `[init].census_file`, a CSV with one row per cohort. Columns are matched by name from its header: `patch_id`, `dbh` [cm], `pft` and `nplant` [plants m⁻² of the patch] are required; `patch_area`, `site_id`, `cohort_id` and `height` are optional. `dbh` drives the allometry. A grass's row has `dbh` 0: its size is its PFT's height |
 | `2` | a state file | `[init].restart_file`, a `<prefix>-S-*.nc` written by a previous run. It continues the exact instantaneous state: a run split at a restart ends where the unsplit run ends, bit for bit |
 
 A bare-ground start lays out six identical patches per site. In a census, each distinct `patch_id` (per
@@ -272,8 +278,8 @@ every soil layer of every patch starts there, unless a state file restores the s
 temperature, for instance, keeps a warm site's column from starting cold. Below the freezing point
 (273.16 K) the soil's water starts as ice, at that temperature. The loader refuses a temperature outside
 233–333 K and a water content outside (`[soil].theta_res`, `[soil].theta_sat`]. A column from the soil
-maps has a texture per layer, so each layer starts at its own field capacity instead, and `soil_theta`
-is refused.
+maps, or one whose `[soil]` texture is given per layer, has a texture per layer, so each layer starts at
+its own field capacity instead, and `soil_theta` is refused.
 
 **A start's canopy air is the air above it.** On a bare-ground or census start the fast loop's first
 window sets each patch's canopy-air temperature, humidity and CO₂ from its site's first forcing sample,
@@ -387,6 +393,14 @@ reproduction parameters are per PFT but ship uniform.
 carbon (seed set, germination and seedling survival together) becomes recruits at `min_cohort_height`
 (one value for every PFT), a share that falls as exp(−`recruit_shade_decay` × patch LAI).
 `include_pft = 0` keeps a PFT from recruiting.
+
+**Growth form.** `[pft].growth_form` is `"tree"` or `"grass"`, one name for every PFT or one per PFT
+(`["tree", "grass"]`). A tree's wood carbon sets its diameter, and the diameter its height. A grass has
+no stem: no diameter, wood, stem respiration or xylem. It stands at its PFT's `[allometry].hgt_max`,
+one plant (a tiller) has the leaf area `lai_b1 · hgt_max^lai_b2`, and its fine roots are its only water
+store ([`science/plant_carbon_allocation.md`](science/plant_carbon_allocation.md) §2). A PFT file with a
+grass needs `[demography].demography_on = false`, a positive `hgt_max` and `lai_b1`, and a positive
+`[pft].root_to_leaf_ratio`; the stem's keys take a value for it that it does not use.
 
 **Height allometry.** Each PFT's height follows the curve `[allometry].height_allometry` names for it
 (one name for every PFT, or one per PFT, `["chave2014", "power", "power"]`).

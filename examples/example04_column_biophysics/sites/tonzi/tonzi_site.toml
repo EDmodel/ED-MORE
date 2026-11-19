@@ -1,0 +1,96 @@
+# SPDX-License-Identifier: Apache-2.0
+# Tonzi Ranch, California: the blue-oak savanna flux tower AmeriFlux US-Ton, the site TOML that DECLARES
+# what the tower file is, for scripts/prepare_input/flux_tower/make_tower_forcing.py and the fast
+# calibration. prepare_tower.py makes the file from the tower's FLUXNET product (ONEFlux v1.3_r1,
+# AmeriFlux, CC-BY-4.0) and the BASE files of US-Ton and of Vaira Ranch, US-Var, 2.4 km away (AmeriFlux,
+# CC-BY-4.0): only the measured meteorology, with US-Var's longwave, pressure and rain and the product's
+# ERA5 wind where US-Ton measured nothing (flagged <VAR>_QC), so the build fills every other gap by its
+# own rules.
+
+[input]
+format = "fluxnet"
+path   = "data/tonzi_tower.csv"             # prepare_tower.py writes it
+
+[site]
+name      = "Tonzi Ranch (US-Ton)"
+latitude  = 38.4309                         # [deg N]  the tower (the product's BADM, LOCATION_LAT)
+longitude = -120.9660                       # [deg E]  (LOCATION_LONG)
+elevation = 177.0                           # [m]      (LOCATION_ELEV)
+# Some canopy is green every month: the oaks from bud-break (11 Mar - 10 Apr) to leaf-off (11 Sep -
+# 17 Nov), the annual grass from germination (10 Oct - 23 Dec) to senescence (3 May - 23 Jun); the
+# BADM's phenology dates (US-Ton's oaks 2001-2013, US-Var's grass 2000-2013). The calibration takes its
+# windows, seasonal runs and growth climate from these months; [windows].months narrows the windows.
+leaf_on_months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+
+[clock]
+utc_offset = -8.0                           # [h] AmeriFlux files are in local standard time (PST)
+stamp      = "begin"                        # TIMESTAMP_START marks the start of each half hour
+timestep   = 1800                           # [s]
+
+[heights]                                   # [m] above the ground at the tower base (the product's BADM)
+tq_height       = 23.5                      # the aspirated temperature and humidity probe (TA, RH)
+wind_height     = 23.5                      # the Gill Windmaster sonic (WS)
+pressure_height = 10.0                      # the barometers, from 2021; the BADM gives no height before
+
+[variables]                                 # ED-MORE variable -> the file's column and units
+Tair   = { column = "TA",      units = "degC" }
+RH     = { column = "RH",      units = "%" }
+PSurf  = { column = "PA",      units = "kPa" }               # PA_QC = 1 where it is US-Var's barometer (48 m lower)
+Rainf  = { column = "P",       units = "mm" }                # per half hour; P_QC = 1 US-Var's gauge, 2 ERA5
+SWdown = { column = "SW_IN",   units = "W m-2" }
+LWdown = { column = "LW_IN",   units = "W m-2" }             # LW_IN_QC = 1 where it is US-Var's less its excess (all before 2014)
+Wind   = { column = "WS",      units = "m s-1" }             # WS_QC = 2 where it is the product's ERA5
+PAR    = { column = "PPFD_IN", units = "umol m-2 s-1" }       # reports only
+
+[gapfill]
+short_gap_max = 4                           # [records] interpolate gaps up to 2 h
+
+# The top tower's fluxes (23.5 m), for the calibration and the evaluation. A FLUXNET flux is measured
+# where its _QC column is 0. The partitioned GPP and respiration count where the NEE they come from was
+# measured.
+[fluxes]
+SW_out  = { column = "SW_OUT",          units = "W m-2" }
+LW_out  = { column = "LW_OUT",          units = "W m-2" }
+Rnet    = { column = "NETRAD",          units = "W m-2" }
+G       = { column = "G_F_MDS",         units = "W m-2" }
+LE      = { column = "LE_F_MDS",        units = "W m-2" }
+H       = { column = "H_F_MDS",         units = "W m-2" }
+NEE     = { column = "NEE_VUT_REF",     units = "umol m-2 s-1" }
+GPP     = { column = "GPP_NT_VUT_REF",  units = "umol m-2 s-1", measured = { column = "NEE_VUT_REF_QC", equals = 0 } }
+RECO    = { column = "RECO_NT_VUT_REF", units = "umol m-2 s-1", measured = { column = "NEE_VUT_REF_QC", equals = 0 } }
+GPP_DT  = { column = "GPP_DT_VUT_REF",  units = "umol m-2 s-1", measured = { column = "NEE_VUT_REF_QC", equals = 0 } }
+RECO_DT = { column = "RECO_DT_VUT_REF", units = "umol m-2 s-1", measured = { column = "NEE_VUT_REF_QC", equals = 0 } }
+USTAR   = { column = "USTAR",           units = "m s-1" }
+
+[provider]
+gpp_method  = "ONEFlux (Pastorello et al. 2020): NEE_VUT_REF partitioned by the night-time method (Reichstein et al. 2005, GPP_NT) and the daytime method (Lasslop et al. 2010, GPP_DT)"
+notes       = "The Berkeley Biometeorology Lab's eddy covariance (Baldocchi et al. 2004) processed by AmeriFlux ONEFlux v1.3_r1. The meteorology is measured only (prepare_tower.py blanks the product's MDS and ERA5 fills); US-Var's longwave, pressure and rain (_QC = 1) and the product's ERA5 wind (WS_QC = 2) stand in where US-Ton has none."
+uncertainty = { LE = "LE_RANDUNC", H = "H_RANDUNC", NEE = "NEE_VUT_REF_RANDUNC" }
+
+# [m s-1] ONEFlux's CO2 u* threshold, each year's median of the VUT bootstrap (the product's BADM, GRP_UST_THR)
+[provider.ustar_threshold]
+2001 = 0.172
+2002 = 0.186
+2003 = 0.208
+2004 = 0.208
+2005 = 0.202
+2006 = 0.198
+2007 = 0.207
+2008 = 0.219
+2009 = 0.224
+2010 = 0.225
+2011 = 0.229
+2012 = 0.224
+2013 = 0.233
+2014 = 0.222
+2015 = 0.230
+2016 = 0.229
+2017 = 0.232
+2018 = 0.231
+2019 = 0.229
+2020 = 0.232
+2021 = 0.241
+2022 = 0.252
+2023 = 0.254
+2024 = 0.241
+2025 = 0.229

@@ -59,6 +59,12 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   conductance per unit leaf area, in series with the sapwood's. `vessel_curl` is removed and stops the run.
   The shipped and example PFT files carry measured values, each with its source; add the key to your own
   PFT files. (#93)
+- `[pft].is_woody` is replaced by the required `[pft].growth_form`, `"tree"` or `"grass"`, one name for
+  every PFT or one per PFT; `is_woody` stops the run. Replace `is_woody = [1, 1]` with
+  `growth_form = "tree"`. The PFT parameter CSV a run writes has a `growth_form` column after `pft`
+  (1 tree, 2 grass). (#95)
+- `[demography].min_cohort_agb` is now `min_cohort_carbon` [kgC m⁻²], the cull's threshold on a cohort's
+  carbon in its four pools; the old name stops the run. (#95)
 
 ### Answer changes
 
@@ -138,6 +144,16 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   0.07–0.15 MPa, and GPP, LE and H move by under 0.1 %. At Harvard Forest the broadleaves' midday potential
   falls by 0.13–0.24 MPa in the August 2022 drought and their assimilation by up to 1.6 µmol m⁻² s⁻¹ on
   1–4 September; the six-year means move by under 0.1 %. (#93)
+- The cull removes a cohort whose carbon in all four pools, not its aboveground biomass, is below
+  `min_cohort_carbon`, so a dying cohort leaves a little later. Frozen stands are bit for bit (example
+  04's BCI and Harvard runs, Palo Verde's inventory). Example 03 first moves in 1990 (from the census) and
+  in year 138 (from bare ground), its biomass by at most 0.03 % and 0.3 % and its stems by 0.9 % and 1.4 %.
+  (#95)
+- A dormant canopy (flush rate at most 10⁻⁶ day⁻¹) does not flush: a bare canopy stays bare until its
+  flush starts, instead of growing leaves too few to count, whose temperature a leafless grass ran to a
+  NaN. Harvard's means move in the fifth digit and its LAI by at most 1.4·10⁻⁴; BCI is bit for bit. With the
+  cull, Palo Verde's 150-year regrowth ends with 1.6 % more biomass and 2.1 % more LAI (7.57 to 7.69 kgC
+  m⁻², 4.85 to 4.95). (#95)
 
 ### Added
 
@@ -204,6 +220,27 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   length; a frozen stand's chains run the phenology. (#91)
 - `make_census.py` reads other ForestGEO tables: their column names, diameters in cm, a PFT per
   species, and the cells within a circle around a tower. (#91)
+- A grass growth form, `[pft].growth_form = "grass"`: a plant with no stem, whose individual is a
+  tiller. It stands at its PFT's `hgt_max` with leaves, fine roots and storage; one tiller's leaf area
+  follows its height alone; it has no stem respiration; and its water path runs from its fine roots
+  through its leaves alone. A census gives its rows dbh 0. Its cohorts are not split at the LAI cap,
+  and a patch's grass of one PFT fuses into one cohort. It runs in a frozen stand only
+  (`demography_on = false`) until its growth in number, mortality and recruitment are written. (#95)
+- Example 04's Tonzi Ranch site (prototype): the blue-oak savanna tower AmeriFlux US-Ton, 2010–2019, the
+  oaks at the field survey's size distributions over a C3 annual grass, against the tower, MODIS
+  leaf area and the clip LAI, with ten April days at hourly resolution under the oaks and in the open.
+  Vaira Ranch's longwave, pressure and rain stand in where US-Ton has none. The oaks' water path is blue
+  oak's (the site's sapwood, the leaf's pressure-volume curve, a leaf conductance and stomatal closure
+  fitted to their measured midday leaf water potential), over 1 m of loam on weathered rock, the ground's
+  albedo from MODIS; it is calibrated with H and LE as measured. Example 02's part 3 fits the stand's
+  phenology, the oaks' and the grass's. (#97)
+- A `[soil]` texture per layer: each texture key (`theta_sat`, `theta_res`, `ksat`, `curve_par_a`,
+  `curve_par_n` and the three thermal ones) may be a list with one value per layer, top down, for a site
+  whose soil changes with depth; each layer then starts at its own field capacity, as with the soil
+  maps, and `[init].soil_theta` is refused. (#96)
+- `calibrate_phenology` fits the WATER cue, the turgor-loss point derived from the leaf's pressure-volume
+  curve as in the model, and when its fits do not settle it keeps the values whose own coupled run scored
+  best. (#96)
 
 ### Changed
 
@@ -247,6 +284,8 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ### Fixed
 
+- `calibrate_fast` with `[closure].shares = "none"` no longer stops at the closure alternative: with H and LE
+  scored as measured there is no closure factor, and the alternative is skipped with that reason. (#96)
 - Cohort output under daily growth: the stand is re-sorted every day, so a monthly cohort record could
   average two cohorts in one slot. Every record of a month is now written in the month's end order,
   keyed by cohort id, and a fast-loop row reduced to a coarser axis pairs each cohort with the weight

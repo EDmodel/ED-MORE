@@ -12,6 +12,7 @@
 
 [pft]
 #----- Wood, size and recruitment (example 03). ----------------------------------------------------
+growth_form        = "tree"
 wood_density       = [0.36, 0.50, 0.68]    # [g/cm3] early, mid, late: the BCI wood-density classes
 min_cohort_height  = 1.5                   # [m] recruits are born here: dbh 0.55 cm on the BCI height curve
 recruit_carbon_efficiency = [1.0e-3, 1.0e-3, 1.0e-3]  # [--] reproduction carbon -> recruits
@@ -90,7 +91,6 @@ f_labile_stem          = [0.05, 0.05, 0.05]
 struct_lignin_frac     = [0.25, 0.25, 0.25]
 
 #----- Maintenance respiration of fine roots (leaf Rd is rd_vcmax_ratio, stems above). ----------------
-is_woody           = [1, 1, 1]
 # The roots' autotrophic respiration, rhizosphere included: 5.8 MgC/ha/yr at Gigante (soil respiration
 # 15.3, Sayer et al. 2007, of which roots 38 % by trenching, Sayer & Tanner 2010), 5.5 at Manaus
 # (Chambers et al. 2004). 2.7 gives the census stand 5.6 with the coarse roots' share of stem

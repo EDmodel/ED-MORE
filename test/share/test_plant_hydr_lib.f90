@@ -134,17 +134,23 @@ contains
                  2.0_wp * kx, 1.0e-15_wp)
       kl = leaf_max_conductance(10.0_wp, 2.0_wp)
       call check('leaves = leaf_kmax [mmol] x area, as kg', kl, 10.0_wp * 1.0e-3_wp * mmh2o * 2.0_wp, 1.0e-18_wp)
-      kp = plant_max_conductance(9.0_wp, 0.01_wp, 20.0_wp, 10.0_wp, 2.0_wp)
+      kp = plant_max_conductance(.true., 9.0_wp, 0.01_wp, 20.0_wp, 10.0_wp, 2.0_wp)
       call check('plant = xylem and leaves in series', kp, kx * kl / (kx + kl), 1.0e-15_wp)
       call check_true('the series is below each part', kp < kx .and. kp < kl)
-      call check('very conductive leaves leave the xylem', plant_max_conductance(9.0_wp, 0.01_wp, 20.0_wp,       &
+      call check('very conductive leaves leave the xylem', plant_max_conductance(.true., 9.0_wp, 0.01_wp, 20.0_wp,       &
                  1.0e12_wp, 2.0_wp), kx, 1.0e-9_wp * kx)
       call check_true('a plant with no sapwood keeps a positive conductance',                         &
-                      plant_max_conductance(9.0_wp, 0.0_wp, 20.0_wp, 10.0_wp, 2.0_wp) > 0.0_wp)
+                      plant_max_conductance(.true., 9.0_wp, 0.0_wp, 20.0_wp, 10.0_wp, 2.0_wp) > 0.0_wp)
       call check_true('a leafless plant keeps a positive conductance',                                &
-                      plant_max_conductance(9.0_wp, 0.01_wp, 20.0_wp, 10.0_wp, 0.0_wp) > 0.0_wp)
+                      plant_max_conductance(.true., 9.0_wp, 0.01_wp, 20.0_wp, 10.0_wp, 0.0_wp) > 0.0_wp)
       call check_true('... far below a leafy one',                                                    &
-                      plant_max_conductance(9.0_wp, 0.01_wp, 20.0_wp, 10.0_wp, 0.0_wp) < 1.0e-9_wp * kp)
+                      plant_max_conductance(.true., 9.0_wp, 0.01_wp, 20.0_wp, 10.0_wp, 0.0_wp) < 1.0e-9_wp * kp)
+      call check('a plant with no stem: its leaves alone', plant_max_conductance(.false., 9.0_wp, 0.0_wp,  &
+                 0.3_wp, 10.0_wp, 2.0_wp), kl, 1.0e-18_wp)
+      call check('... whatever its wood traits', plant_max_conductance(.false., 0.0_wp, 0.0_wp, 0.3_wp,   &
+                 10.0_wp, 2.0_wp), kl, 1.0e-18_wp)
+      call check_true('a leafless plant with no stem keeps a positive conductance',                   &
+                      plant_max_conductance(.false., 9.0_wp, 0.0_wp, 0.3_wp, 10.0_wp, 0.0_wp) > 0.0_wp)
    end subroutine test_wood_leaf_conductance
 
    !--- 4. ED2's root-fraction profile, beta = 0.96 to a 2 m rooting depth.

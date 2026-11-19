@@ -1,12 +1,14 @@
 # Example 02 — Canopy phenology
 
-The leaf-phenology module of ED-MORE, in two parts.
+The leaf-phenology module of ED-MORE, in three parts.
 - **[Part 1](#part-1--the-module-at-four-forests)** shows how the module is built — one kernel, three
   cues, and leaf habits as parameter sets — at four forests. It is not a calibration of any of them.
 - **[Part 2](#part-2--fitting-a-stand-harvard-forest)** fits it: the broadleaves and conifers of
   example 04's Harvard Forest stand, every cohort reading its own cues, with
   [`scripts/calibrate_phenology`](../../scripts/calibrate_phenology/README.md). Example 04 runs with
   those values.
+- **[Part 3](#part-3--a-savanna-tonzi-ranch)** fits a savanna the same way: the blue oaks and the annual
+  grass of example 04's Tonzi Ranch stand, the grass on the WATER cue.
 
 Every habit runs the same compiled kernel
 ([`ed_plant_phenology.f90`](../../src/slow_dynamics/processes/ed_plant_phenology.f90)) and differs only
@@ -175,6 +177,70 @@ refill). The tool's README explains each.
   loosest target (a 20-day spread), lose to hemlock's.
 - **The fit settled**, and the offline stand matched each coupled run's leaf cover to within 0.002.
 
+## Part 3 — a savanna: Tonzi Ranch
+
+![Example 04's Tonzi stand: its blue oaks and annual grass fitted with each cohort's own cues, against the BADM's dates, the grass's PhenoCam greenness and the understory's clip LAI](tonzi_stand/tonzi_stand.png)
+
+Two canopies that take turns: blue oaks, in leaf from April to October, over a C3 annual grass, green
+from the first big autumn rain to May. The grass has one cue, WATER: its predawn leaf water potential
+summed above its turgor-loss point sets it growing, and summed below it kills it. The fit is example
+04's Tonzi stand (the oak census at the field survey's size distributions and its grass, frozen; the tower's forcing, 2010–2019).
+
+### Run
+
+Prepare example 04's Tonzi forcing and census first ([its README](../example04_column_biophysics/sites/tonzi/README.md#run)), then:
+
+```bash
+cd examples/example02_canopy_phenology/tonzi_stand
+python prepare_observations.py --ton-badm <base>/AMF_US-Ton_BASE-BADM_27-5.zip \
+       --var-badm <base>/AMF_US-Var_BASE-BADM_27-5.zip --phenocam <phenocam folder>
+python ../../../scripts/calibrate_phenology/calibrate_phenology.py iterate \
+       --config phenology.toml --work ../data/tonzi_stand_runs --workers 60
+python plot_fit.py                       # tonzi_stand.png
+```
+
+The BADM workbooks are AmeriFlux's BASE-BADM zips (an account); the PhenoCam folder holds
+`tonzi_GR_1000_1day.csv` (phenocam.nau.edu). A round is a coupled run (about a minute) and an offline fit
+(5–10 minutes) on 60 cores.
+
+### What is fitted
+
+[`phenology.toml`](tonzi_stand/phenology.toml) fits 8 keys:
+- **the oaks** (PFT 1): the warmth their buds wait for, and the cold that drops the canopy, its base and
+  its sum. They flush on warmth and long days: on warmth alone, summed from midwinter and still high in
+  autumn, they would flush again all autumn. Their day-length gate is Harvard's broadleaves' (part 2),
+  their flush and fall rates the repository's: three scored years of BADM dates cannot tell the rates
+  from the cues;
+- **the grass** (PFT 2): the wet sum that sets it growing and how fast it fills, and the dry sum, its
+  sharpness and the rate that kill it.
+
+The oak crowns' camera is not a target: their greenness peaks with the young leaves and falls all
+summer while the leaf area holds.
+
+### Results
+
+| target | model − observed (RMSE) |
+|---|---|
+| oak bud break (BADM, 2011–2013) | +1 day (2.5) |
+| oak total leaf-off (BADM, 2011–2013) | +21 days (30) |
+| grass germination (BADM, 2011–2012) | +6 days (40) |
+| grass senescence (BADM, 2011–2013) | +8 days (9) |
+| grass PhenoCam greenness, scaled within each year | +0.05 (0.24) |
+| understory clip LAI, scaled within each year | +0.13 (0.32) |
+| canopies lost a year (1), oaks / grass | +0.08 / −0.01 |
+
+- **The grass fills over the winter**, at 0.45 % of its full canopy a day once the wet sum has reached
+  91 MPa day, and dies in May and June within days of the dry sum's 4.4 MPa day. Its peak follows the
+  year's rain: lower in the dry winters of 2013–2015.
+- **Germination is the weak target.** One first rain can come in September and the next only in
+  November: the grass started 34 days early in 2011 and 45 days late in 2012.
+- **The oaks miss the dry year's early fall.** In 2013 they lost their leaves on day 268; the model
+  drops them on day 318. Their drought sum is not fitted, and their summer potentials (−2 to −2.5 MPa)
+  stay too close to their turgor-loss point for it to act.
+- **The fit does not settle.** The grass's leaves dry the soil whose potential is its cue, so each fit,
+  made on the last run's cues, overshoots on its own run. The tool keeps the values whose own coupled
+  run scored best (the fourth of six); the oaks' keys settled.
+
 ## Files
 
 - [`fetch_phenology_data.py`](fetch_phenology_data.py) — downloads the Harvard Forest, Hyytiälä and
@@ -190,6 +256,10 @@ refill). The tool's README explains each.
   keys and targets), [`prepare_observations.py`](harvard_stand/prepare_observations.py) (HF003, HF069
   and MODIS into the tool's files, in `data/harvard_stand/`), [`plot_fit.py`](harvard_stand/plot_fit.py)
   and its figure.
+- [`tonzi_stand/`](tonzi_stand) — part 3: [`phenology.toml`](tonzi_stand/phenology.toml),
+  [`prepare_observations.py`](tonzi_stand/prepare_observations.py) (the BADM's dates and clip LAI and the
+  grass's PhenoCam greenness, in `data/tonzi_stand/`), [`plot_fit.py`](tonzi_stand/plot_fit.py) and its
+  figure.
 
 References: Borchert, R. & Rivera, G. (2001) *Tree Physiology* 21: 213–221; Rivera, G. et al.
 (2002) *Trees* 16: 445–456; Xu, X. et al. (2016) *New Phytologist* 212: 80–95.

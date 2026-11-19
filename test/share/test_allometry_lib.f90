@@ -6,6 +6,8 @@
 !      forward laws, the carbon targets as re-expressions of the size allometry, Chave et al.
 !      (2014) eq. 6a against BIOMASS's retrieveH, a local log-quadratic fit, and one record
 !      per PFT.
+!   1b. A GRASS: no wood at any size, its height its PFT's hgt_max, its leaf area following
+!      that height alone, and the carbon->geometry kernel giving no wood geometry.
 !   2. THE SHIPPED DEFAULTS: ed_config_pft.toml's [allometry] block equals the library's
 !      initializers, and those are Chave et al. (2014) eq. 4 in carbon and ED2's BAAD leaf fit
 !      over C2B. The initializers exist for the Python library, which reaches the allometry
@@ -20,7 +22,8 @@ program test_allometry_lib
    use ed_toml,            only : toml_table_t, toml_parse_file, toml_has, toml_real, toml_string, toml_real_array
    use ed_allometry_lib,   only : dbh_to_height, height_to_dbh, dbh_to_agb, agb_to_dbh, dbh_to_leaf_area,  &
                                   allometry_t, size_to_leaf_carbon, size_to_wood_carbon, wood_to_dbh,      &
-                                  HEIGHT_CHAVE, HEIGHT_POWER
+                                  dbh_to_wai, sapwood_fraction, carbon_to_structure,                       &
+                                  HEIGHT_CHAVE, HEIGHT_POWER, GROWTH_TREE, GROWTH_GRASS
    use ed_test_assert,     only : banner, check, check_close
    implicit none
 
@@ -32,6 +35,7 @@ program test_allometry_lib
    type(toml_table_t)  :: t          ! the shipped PFT file
 
    call test_allometry_laws()
+   call test_grass_allometry()
    call test_shipped_defaults()
    write(*,'(a)') 'test_allometry_lib: ALL PASSED'
 
@@ -173,6 +177,41 @@ contains
       call check(hh(1) < hh(2), 'the understorey PFT is shorter at the same diameter')
 
    end subroutine test_allometry_laws
+
+   !--- 1b. A grass.
+   subroutine test_grass_allometry()
+      real(wp), parameter :: HGRASS = 0.3_wp      ! [m] the grass PFT's height
+      real(wp), parameter :: RHO    = 0.60_wp
+      real(wp), parameter :: SLA    = 20.0_wp     ! [m2/kgC]
+      type(allometry_t) :: grass
+      real(wp) :: dbh, h, basal_area, agb, leaf_area
+
+      call banner('a grass: no wood, its PFT''s height')
+      grass = allometry_t()
+      call check(grass%growth_form == GROWTH_TREE, 'a record is a tree unless set otherwise')
+      grass%growth_form = GROWTH_GRASS
+      grass%hgt_max     = HGRASS
+      grass%lai_b1      = 2.0_wp
+      grass%lai_b2      = 1.0_wp
+      call check(dbh_to_height(grass, 0.0_wp) == HGRASS .and. dbh_to_height(grass, 40.0_wp) == HGRASS,   &
+                 'a grass stands at its hgt_max whatever the diameter passed')
+      call check(height_to_dbh(grass, HGRASS) == 0.0_wp, 'a grass has no diameter')
+      call check(dbh_to_agb(grass, 0.0_wp, HGRASS, RHO) == 0.0_wp, 'a grass has no aboveground wood')
+      call check(agb_to_dbh(grass, 1.0_wp, RHO) == 0.0_wp .and. wood_to_dbh(grass, 1.0_wp, RHO) == 0.0_wp, &
+                 'no diameter from any wood carbon')
+      call check(size_to_wood_carbon(grass, 0.0_wp, HGRASS, RHO) == 0.0_wp, 'a grass''s wood target is 0')
+      call check_close(dbh_to_leaf_area(grass, 0.0_wp, HGRASS), 2.0_wp * HGRASS, RTOL,                    &
+                       'a grass''s leaf area is lai_b1 * height^lai_b2')
+      call check_close(size_to_leaf_carbon(grass, 0.0_wp, HGRASS, SLA), 2.0_wp * HGRASS / SLA, RTOL,     &
+                       'its leaf target is that area over SLA')
+      call check(dbh_to_wai(grass, 0.0_wp, 100.0_wp) == 0.0_wp, 'a grass has no wood area')
+      call check(sapwood_fraction(grass, 0.0_wp) == 0.0_wp, 'a grass has no sapwood')
+      call carbon_to_structure(grass, 0.0_wp, 0.05_wp, RHO, SLA, dbh, h, basal_area, agb, leaf_area)
+      call check(dbh == 0.0_wp .and. basal_area == 0.0_wp .and. agb == 0.0_wp,                          &
+                 'carbon_to_structure: a grass has no wood geometry')
+      call check(h == HGRASS, 'carbon_to_structure: a grass stands at its hgt_max')
+      call check_close(leaf_area, 0.05_wp * SLA, RTOL, 'carbon_to_structure: leaf area from leaf carbon')
+   end subroutine test_grass_allometry
 
    !--- 2. The shipped [allometry] block and the initializers behind it.
    subroutine test_shipped_defaults()

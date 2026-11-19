@@ -12,6 +12,9 @@
 !      list; and the texture, retention and thermal keys reach every layer of the profile
 !      (docs/science/soil_biophysics.md, The soil layers). A mis-threaded key leaves the model
 !      running on a default with every budget closed, so these assert that the keys turn.
+!   3. A [soil] TEXTURE PER LAYER (ed_config_io::load_soil_texture): a texture key given as a
+!      list sets each layer, one given once repeats it, lists of different lengths are marked
+!      for validate_config, and a [[sites]] table replaces an inherited list key by key.
 !---~---
 program test_params_config
    use ed_test_assert,         only : check, check_true, test_report
@@ -29,6 +32,7 @@ program test_params_config
 
    call test_block_loaders()
    call test_soil_column()
+   call test_soil_texture_lists()
 
    call test_report('test_params_config')
 
@@ -302,5 +306,84 @@ contains
       call check('dry_conductivity reaches the top layer', p2%dry_conductivity(1), 0.20_wp, 1.0e-14_wp)
       call check('dry_heat_capacity reaches the bottom layer', p2%dry_heat_capacity(p2%n_active), 1.5e6_wp, 1.0e-8_wp)
    end subroutine test_soil_column
+
+   !---~---
+   !   3. A [soil] texture per layer: a texture key given as a list sets one value per layer
+   ! (top down) and the keys given as one value repeat it in every layer; lists of different
+   ! lengths are marked for validate_config (n_layer_values = -1); a [[sites]] table that
+   ! inherits the lists replaces one key's with its own value and keeps the others'; a column
+   ! with no list keeps the one texture.
+   !---~---
+   subroutine test_soil_texture_lists()
+      character(len=*), parameter :: TOMLFILE = 'test_params_config_lists_tmp.toml'
+      type(toml_table_t)   :: tm
+      type(soil_params_t)  :: s, s_site, s_bad, s_one
+      type(soil_profile_t) :: p
+      integer(ik) :: u
+      logical     :: ok
+      print '(a)', 'test_soil_texture_lists:'
+
+      !--- A loam over a low-porosity rock: two lists, one key given once, the rest defaults.
+      open(newunit=u, file=TOMLFILE, status='replace', action='write')
+      write(u,'(a)') '[soil]'
+      write(u,'(a)') 'layer_bottoms = [0.5, 1.0, 3.0]'
+      write(u,'(a)') 'theta_sat     = [0.40, 0.40, 0.10]'
+      write(u,'(a)') 'theta_res     = [0.08, 0.08, 0.02]'
+      write(u,'(a)') 'ksat          = 3.0e-6'
+      close(u)
+      call toml_parse_file(TOMLFILE, tm, ok)
+      call check_true('the list fixture parses', ok)
+      call load_soil(tm, s)
+      call check_true('a list gives the column a texture per layer', s%n_layer_values == 3_ik,          &
+                      real(s%n_layer_values, wp))
+      call check('a list sets each layer: the rock''s porosity', s%layer_theta_sat(3), 0.10_wp, 0.0_wp)
+      call check('a list sets each layer: the loam''s residual content', s%layer_theta_res(1), 0.08_wp, 0.0_wp)
+      call check_true('a key given once reaches every layer', all(s%layer_ksat(1:3) == 3.0e-6_wp))
+      call check_true('an absent key keeps its default in every layer',                                &
+                      all(s%layer_curve_par_a(1:3) == 3.6_wp) .and. all(s%layer_solid_conductivity(1:3) == 3.0_wp))
+      call build_soil_profile(s, p)
+      call check_true('the profile has the listed layers', p%n_active == 3_ik, real(p%n_active, wp))
+      call check('the profile''s bottom layer is the rock', p%theta_sat(3), 0.10_wp, 0.0_wp)
+      call check('the profile''s top layer is the loam', p%theta_sat(1), 0.40_wp, 0.0_wp)
+      call check_true('the rock''s field capacity lies within its own range',                            &
+                      p%theta_fc(3) > 0.02_wp .and. p%theta_fc(3) < 0.10_wp, p%theta_fc(3))
+
+      !--- A [[sites]] table inherits the lists and replaces one key's with one value.
+      s_site = s
+      open(newunit=u, file=TOMLFILE, status='replace', action='write')
+      write(u,'(a)') '[soil]'
+      write(u,'(a)') 'theta_sat = 0.35'
+      close(u)
+      call toml_parse_file(TOMLFILE, tm, ok)
+      call load_soil(tm, s_site)
+      call check_true('a site''s one value replaces the inherited list', s_site%n_layer_values == 3_ik    &
+                      .and. all(s_site%layer_theta_sat(1:3) == 0.35_wp))
+      call check('a site keeps the inherited lists it does not set', s_site%layer_theta_res(3), 0.02_wp, 0.0_wp)
+
+      !--- Lists of different lengths are marked for validate_config to stop.
+      open(newunit=u, file=TOMLFILE, status='replace', action='write')
+      write(u,'(a)') '[soil]'
+      write(u,'(a)') 'layer_bottoms = [0.5, 1.0, 3.0]'
+      write(u,'(a)') 'theta_sat     = [0.40, 0.10]'
+      write(u,'(a)') 'theta_res     = [0.08, 0.08, 0.02]'
+      close(u)
+      call toml_parse_file(TOMLFILE, tm, ok)
+      call load_soil(tm, s_bad)
+      call check_true('lists of different lengths are marked', s_bad%n_layer_values == -1_ik,            &
+                      real(s_bad%n_layer_values, wp))
+
+      !--- One value per key keeps the one texture.
+      open(newunit=u, file=TOMLFILE, status='replace', action='write')
+      write(u,'(a)') '[soil]'
+      write(u,'(a)') 'theta_sat = 0.45'
+      close(u)
+      call toml_parse_file(TOMLFILE, tm, ok)
+      call load_soil(tm, s_one)
+      call check_true('one value per key keeps the one texture', s_one%n_layer_values == 0_ik             &
+                      .and. s_one%theta_sat == 0.45_wp)
+
+      open(newunit=u, file=TOMLFILE, status='old', action='write')
+      close(u, status='delete')
+   end subroutine test_soil_texture_lists
 
 end program test_params_config

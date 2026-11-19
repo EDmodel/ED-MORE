@@ -299,6 +299,13 @@ contains
                               1.0_wp, sen, bg, cap)
       call check_close('dormant: no background turnover', bg,  0.0_wp, 0.0_wp)
       call check_close('dormant: no flush cap',           cap, 0.0_wp, 0.0_wp)
+      !--- A bare canopy whose flush tendency is a trace stays bare: dormant, it does not flush.
+      call leaf_turnover_step(0.0_wp, 1.0_wp, 1.0e-12_wp, 0.0_wp, 0.06_wp, 0.3_wp, TURN, 0.0_wp, 0.02_wp, &
+                              1.0_wp, sen, bg, cap)
+      call check_close('dormant: a trace of flush tendency grows no leaf', cap, 0.0_wp, 0.0_wp)
+      call leaf_turnover_step(0.0_wp, 1.0_wp, 1.0e-3_wp, 0.0_wp, 0.06_wp, 0.3_wp, TURN, 0.0_wp, 0.02_wp, &
+                              1.0_wp, sen, bg, cap)
+      call check_close('... a started flush does', cap, 6.0e-5_wp, 1.0e-15_wp)
       !---~---
       !   Senescence = shed_rate_max * tendency * pool * dt; background stops while leaves
       ! drop, so a drop is not also counted as ageing (turnover_gate).

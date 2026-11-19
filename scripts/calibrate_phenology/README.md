@@ -25,7 +25,11 @@ would cost a full simulation each time. Instead, the tool alternates between two
    cues and scores it on the targets. A trial costs a fraction of a second where a coupled run costs minutes.
 4. **Again**: a coupled run with the fitted values gives new cues, and the next fit starts from those values. The
    iteration stops when no key moves more than `[fit].settle` of its range between two fits (the canopy the cues
-   came from no longer changes), or after `[fit].iterations` fits.
+   came from no longer changes), or after `[fit].iterations` fits. A cue the canopy feeds back on can keep the
+   fits from settling: a grass's leaves dry the soil whose potential is its WATER cue, so each fit, made on
+   the last run's cues, overshoots on its own. The tool then keeps the values whose own coupled run scored
+   best (each run's score of the values it was made with, `coupled_score` in `iterations.json`), not the
+   last fit's, which no run has tried.
 
 The tool writes the site's PFT file with the fitted values, every other line and comment kept:
 `<work>/pft_parameters_fitted.toml`. Each fit writes `fit.json` (the values, the scores before and after, the
@@ -57,8 +61,9 @@ canopy from the census, which starts in full leaf.
 - **`par_min` is not fitted.** The coupled run counts each cohort's hours of light at the PFT file's `par_min`, and the
   hour thresholds (`flush_light_hours`, `shed_light_hours`) absorb a different choice. At a low `par_min` (a few
   µmol m⁻² s⁻¹) the hours are the photoperiod the cohort senses at its height.
-- **The WATER cue is not fitted yet.** Its turgor-loss point is derived from the hydraulic traits, which the
-  offline stand does not do; a fitted PFT with a WATER cue stops the tool.
+- **The WATER cue** sums each cohort's predawn leaf water potential above and below the PFT's turgor-loss point,
+  which the offline stand derives from the leaf's pressure-volume curve as the model does
+  (`[hydraulics].leaf_pi0` and `leaf_elastic_mod`). Its sums and sharpnesses are fitted; the curve is not.
 
 ## Targets
 

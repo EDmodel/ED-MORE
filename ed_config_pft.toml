@@ -5,6 +5,11 @@
 # The number of PFTs is the length of [pft].wood_density; every per-PFT array must match it.
 
 [pft]
+growth_form        = "tree"   # "tree" or "grass", one for every PFT or one per PFT. A grass has no
+                              #   wood: no diameter, stem respiration or xylem; it stands at
+                              #   allometry.hgt_max, its leaf area lai_b1 * hgt_max^lai_b2 per plant,
+                              #   and needs [demography].demography_on = false
+                              #   (docs/science/plant_carbon_allocation.md §2)
 wood_density       = [0.40, 0.60, 0.85]    # [g/cm3] the growth-mortality trade-off axis (pioneer/mid/climax)
 # The mortality hazard, mort_gamma + mort_alpha*exp(-mort_beta*growth_avg) (Camac et al. 2018). The values
 # are Camac's power laws in wood density at each PFT's, from scripts/prepare_input/pft_traits/pft_traits.py.
@@ -78,7 +83,6 @@ root_to_leaf_ratio     = [1.0, 1.0, 1.0]            # [--] fine-root:leaf target
 
 #----- Non-leaf MAINTENANCE respiration (per-PFT; leaf Rd is rd_vcmax_ratio above):
 #      docs/science/plant_respiration.md eqs. (3)-(4).
-is_woody           = [1, 1, 1]     # 1 = woody (0 = grass: no stem respiration)
 stem_resp_factor25 = [0.06, 0.06, 0.06]  # [umol CO2/m2 stem/s @25C] per stem surface (cylinder + branches)
 # stem_resp_sapwood25 = [0.0, 0.0, 0.0]  # [umol CO2/m3 sapwood/s @25C] per sapwood volume, added to the
 #                                         # surface term; optional, default 0 (set the surface rate to 0 to use it alone)

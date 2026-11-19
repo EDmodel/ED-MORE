@@ -10,6 +10,10 @@
 ! share of its wood above ground. The records are the PFT table's (pft%allom(pft)); each
 ! polygon holds its own copy, whose chave_e is its cell's (docs/configuration.md §Regional
 ! runs). Biomass and leaf area are in carbon.
+!
+!   A grass (growth_form GROWTH_GRASS) has no stem: its height is the PFT's hgt_max, its
+! diameter, AGB, wood carbon, wood area and sapwood are zero, and its leaf area follows its
+! height alone (docs/science/plant_carbon_allocation.md §2).
 !---~---
 module ed_allometry_lib
    use ed_kinds,       only : wp, ik
@@ -17,9 +21,9 @@ module ed_allometry_lib
    implicit none
    private
 
-   public :: allometry_t, HEIGHT_POWER, HEIGHT_CHAVE
+   public :: allometry_t, HEIGHT_POWER, HEIGHT_CHAVE, GROWTH_TREE, GROWTH_GRASS
    public :: dbh_to_height, height_to_dbh
-   public :: dbh_to_agb, agb_to_dbh, min_cohort_carbon
+   public :: dbh_to_agb, agb_to_dbh, recruit_agb
    public :: dbh_to_leaf_area, dbh_to_wai, sapwood_fraction
    public :: size_to_leaf_carbon, size_to_wood_carbon, wood_to_dbh, carbon_to_structure, storage_carbon_target
 
@@ -30,11 +34,18 @@ module ed_allometry_lib
    integer(ik), parameter :: HEIGHT_POWER = 1_ik, HEIGHT_CHAVE = 2_ik
 
    !---~---
+   !   Growth forms: a tree, whose wood carbon sets its diameter and so its height, or a grass,
+   ! which has no wood and stands at its PFT's height.
+   !---~---
+   integer(ik), parameter :: GROWTH_TREE = 1_ik, GROWTH_GRASS = 2_ik
+
+   !---~---
    !   One PFT's allometry, from the PFT file's [allometry] block. The defaults are the
    ! shipped pan-tropical values, so a record made without a config (a unit test, a
    ! Python call) is usable.
    !---~---
    type :: allometry_t
+      integer(ik) :: growth_form = GROWTH_TREE    ! GROWTH_TREE | GROWTH_GRASS ([pft].growth_form)
       !--- Height: the curve, and the cap on every curve.
       integer(ik) :: height_allometry = HEIGHT_POWER   ! the height curve: power law or log-quadratic
       real(wp)    :: hgt_max     = 46.0_wp        ! [m]   the largest height
@@ -61,11 +72,15 @@ contains
 
    !--- Height: the PFT's curve, capped at hgt_max, and its inverse.
 
-   !--- Diameter [cm] -> height [m] on the PFT's curve, capped at hgt_max.
+   !--- Diameter [cm] -> height [m] on the PFT's curve, capped at hgt_max; a grass's is hgt_max.
    elemental pure function dbh_to_height(allom, dbh) result(h)
       type(allometry_t), intent(in) :: allom
       real(wp),          intent(in) :: dbh
       real(wp)                      :: h, x
+      if (allom%growth_form == GROWTH_GRASS) then
+         h = allom%hgt_max
+         return
+      end if
       select case (allom%height_allometry)
       case (HEIGHT_CHAVE)
          x  = log(max(dbh, tiny_num))
@@ -76,11 +91,15 @@ contains
       h = min(h, allom%hgt_max)
    end function dbh_to_height
 
-   !--- Height [m] -> diameter [cm], the inverse of the uncapped curve.
+   !--- Height [m] -> diameter [cm], the inverse of the uncapped curve; a grass has none.
    elemental pure function height_to_dbh(allom, h) result(dbh)
       type(allometry_t), intent(in) :: allom
       real(wp),          intent(in) :: h
       real(wp)                      :: dbh
+      if (allom%growth_form == GROWTH_GRASS) then
+         dbh = 0.0_wp
+         return
+      end if
       select case (allom%height_allometry)
       case (HEIGHT_CHAVE)
          dbh = exp(chave_small_root(allom%chave_c, allom%chave_b, chave_intercept(allom) - log(max(h, tiny_num))))
@@ -111,11 +130,15 @@ contains
 
    !--- Aboveground biomass (Chave et al. 2014 eq. 4, in carbon) and its inverse.
 
-   !--- Aboveground biomass [kgC/plant], Chave et al. (2014) eq. 4 in carbon.
+   !--- Aboveground biomass [kgC/plant], Chave et al. (2014) eq. 4 in carbon; a grass's wood has none.
    elemental pure function dbh_to_agb(allom, dbh, h, rho) result(agb)
       type(allometry_t), intent(in) :: allom
       real(wp),          intent(in) :: dbh, h, rho
       real(wp)                      :: agb
+      if (allom%growth_form == GROWTH_GRASS) then
+         agb = 0.0_wp
+         return
+      end if
       agb = allom%agb_c1 * rho ** allom%agb_c2 * (dbh * dbh * h) ** allom%agb_c2
    end function dbh_to_agb
 
@@ -128,6 +151,10 @@ contains
       type(allometry_t), intent(in) :: allom
       real(wp),          intent(in) :: agb, rho
       real(wp)                      :: dbh, k_un, p_un, k_cap, p_cap, h
+      if (allom%growth_form == GROWTH_GRASS) then
+         dbh = 0.0_wp
+         return
+      end if
       if (allom%height_allometry == HEIGHT_CHAVE) then
          dbh = agb_to_dbh_chave(allom, agb, rho)
          return
@@ -160,23 +187,30 @@ contains
    end function agb_to_dbh_chave
 
    !---~---
-   !   The AGB [kgC/plant] of a recruit at min_cohort_height: the carbon per recruit
+   !   The AGB [kgC/plant] of a tree recruit at min_cohort_height: the carbon per recruit
    ! that turns reproduction carbon into recruit numbers.
    !---~---
-   elemental pure function min_cohort_carbon(allom, min_cohort_height, rho) result(carbon_min)
+   elemental pure function recruit_agb(allom, min_cohort_height, rho) result(carbon_min)
       type(allometry_t), intent(in) :: allom
       real(wp),          intent(in) :: min_cohort_height, rho
       real(wp)                      :: carbon_min
       carbon_min = dbh_to_agb(allom, height_to_dbh(allom, min_cohort_height), min_cohort_height, rho)
-   end function min_cohort_carbon
+   end function recruit_agb
 
    !--- Leaf area, wood area and sapwood.
 
-   !--- One-sided leaf area of one stem [m2]; the cohort's LAI is nplant times it.
+   !---~---
+   !   One-sided leaf area of one stem [m2]; the cohort's LAI is nplant times it. A tree's
+   ! follows dbh^2 h, a grass's its height alone.
+   !---~---
    elemental pure function dbh_to_leaf_area(allom, dbh, h) result(leaf_area)
       type(allometry_t), intent(in) :: allom
       real(wp),          intent(in) :: dbh, h
       real(wp)                      :: leaf_area
+      if (allom%growth_form == GROWTH_GRASS) then
+         leaf_area = allom%lai_b1 * max(h, 0.0_wp) ** allom%lai_b2
+         return
+      end if
       leaf_area = allom%lai_b1 * (dbh * dbh * h) ** allom%lai_b2
    end function dbh_to_leaf_area
 
@@ -190,6 +224,10 @@ contains
       real(wp),          intent(in) :: dbh      ! [cm]    diameter at breast height
       real(wp),          intent(in) :: nplant   ! [pl/m2] plant density
       real(wp)                      :: wai      ! [m2/m2] wood area index
+      if (allom%growth_form == GROWTH_GRASS) then
+         wai = 0.0_wp
+         return
+      end if
       wai = nplant * allom%wai_b1 * max(dbh, tiny_num) ** allom%wai_b2
    end function dbh_to_wai
 
@@ -201,8 +239,12 @@ contains
    elemental pure function sapwood_fraction(allom, dbh) result(f_sap)
       type(allometry_t), intent(in) :: allom
       real(wp),          intent(in) :: dbh      ! [cm] diameter at breast height
-      real(wp)                      :: f_sap    ! [--] sapwood area / basal area, in (0,1]
+      real(wp)                      :: f_sap    ! [--] sapwood area / basal area, in (0,1]; 0 for a grass
       real(wp) :: d, sapw_area, basal_area
+      if (allom%growth_form == GROWTH_GRASS) then
+         f_sap = 0.0_wp
+         return
+      end if
       d          = max(dbh, tiny_num)
       sapw_area  = allom%sapwood_area_b1 * d ** allom%sapwood_area_b2
       basal_area = pio4 * d * d

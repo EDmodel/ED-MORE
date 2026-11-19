@@ -1,0 +1,225 @@
+# SPDX-License-Identifier: Apache-2.0
+# CALIBRATED by scripts/calibrate_fast from pft_parameters.toml.
+# Every line is the base file's, comments included, except these keys the fit set
+# (calibrated value, the base file's value; EFFECTIVE: its value belongs to this model structure;
+# KATTGE & KNORR: fixed at the growth temperature's value, not fitted):
+#   pft.vcmax25                    58.2211  (130)
+#   pft.vcmax25 (PFT 2)            53.7799  (60)
+#   pft.stomatal_g1                2.05698  (4.45)
+#   pft.stomatal_g1 (PFT 2)        3.07704  (5.25)
+#   pft.stomatal_g0                0.00607849  (0.01)
+#   pft.stomatal_g0 (PFT 2)        0.00906479  (0.01)
+#   pft.wstress_sref_stomata       6.55676  (0.6)  EFFECTIVE
+#   pft.jmax_vcmax_ratio           2.00726  (1.5)  KATTGE & KNORR
+#   pft.jmax_vcmax_ratio (PFT 2)   2.00726  (1.8)  KATTGE & KNORR
+# The Tonzi site's two PFTs: 1 blue oak (Quercus douglasii), cold- and drought-deciduous; 2 the C3 annual
+# grasses beneath and between the oaks (Brachypodium distachyon, Bromus hordeaceus, Avena and Vulpia),
+# as one grass with no stem. Every key is the repository PFT file's (ed_config_pft.toml), at its default
+# unless a comment gives the source. A grass takes a value for the stem's keys that it does not use.
+#
+# Sources cited by tag:
+#   B04  Baldocchi, Xu & Kiang 2004, Agric. For. Meteorol. 123:13-39, doi:10.1016/j.agrformet.2003.11.006
+#   M11  Ma, Baldocchi, Mambelli & Dawson 2011, Funct. Ecol. 25:258-270, doi:10.1111/j.1365-2435.2010.01779.x
+#   O15  Osuna, Baldocchi, Kobayashi & Dawson 2015, Tree Physiol. 35:485-500, doi:10.1093/treephys/tpv023
+#   Mi09 Miller 2009, PhD dissertation, University of California, Berkeley
+#   Mi10 Miller, Chen, Rubin, Ma & Baldocchi 2010, Water Resour. Res. 46:W10503, doi:10.1029/2009WR008902
+#   Me16 Meinzer et al. 2016, Ecol. Lett. 19:1343-1352, doi:10.1111/ele.12670
+#   A25  Anderegg et al. 2025, bioRxiv, doi:10.1101/2025.08.22.666972
+#   XB03 Xu & Baldocchi 2003, Tree Physiol. 23:865-877, doi:10.1093/treephys/23.13.865
+#   R10  Ryu 2010, PhD dissertation, University of California, Berkeley (its chapter 2: Ryu et al. 2010,
+#        Agric. For. Meteorol. 150:63-76)
+#   S19  Skelton et al. 2019, New Phytol. 223:1296-1306, doi:10.1111/nph.15886
+#   DK15 De Kauwe et al. 2015, Geosci. Model Dev. 8:431-452, doi:10.5194/gmd-8-431-2015 (Medlyn g1 fitted
+#        to the Lin et al. 2015 data)
+#   GN19 Griffin-Nolan et al. 2019, Oecologia 191:39-51, doi:10.1007/s00442-019-04336-w
+#   Li19 Liu et al. 2019, J. Exp. Bot. 70:1567-1580, doi:10.1093/jxb/ery462
+
+[pft]
+growth_form        = ["tree", "grass"]
+wood_density       = [0.661, 0.661]   # [g/cm3] the mean of the North American Quercus records in the Global Wood
+                                      #   Density Database (Zanne et al. 2009), which has no Q. douglasii; the grass has no wood
+# The mortality hazard and the conductivity below from wood density (scripts/prepare_input/pft_traits);
+# the stand is frozen, so the hazard only sets the oaks' wood litter for the soil carbon's spin-up.
+mort_gamma         = [0.007866636974231808, 0.007866636974231808]   # [1/yr]
+mort_alpha         = [0.04473440847421196, 0.04473440847421196]     # [1/yr]
+mort_beta          = [19.23296595235912, 19.23296595235912]         # [yr/cm]
+leaf_width         = [0.03, 0.004]    # [m] blue oak's blade 2-4 cm wide (oaksoftheworld.fr); Bromus hordeaceus 2-7 mm
+                                      #   (Kew GrassBase)
+branch_diameter    = [0.02, 0.02]     # [m]
+reproduction_investment_fraction = [0.3, 0.3]
+recruit_carbon_efficiency          = [1.0e-3, 1.0e-3]
+seed_rain_recruits = [0.01, 0.01]     # [plant/m2/yr]
+include_pft        = [1, 1]
+min_cohort_height  = 2.0              # [m]
+min_repro_height   = [13.9, 0.3]      # [m] the grass sets seed at its height
+photosynthetic_pathway = [1, 1]
+vcmax25            = [58.2211, 53.7799]    # [umol/m2/s] blue oak at Tonzi, the largest of 2006-08 (O15, p. 8: Vcmax and Jmax
+                                      #   130 and 195 at 25 C, DOY 127 2008); the grass: no leaf value was found, the
+                                      #   repository's PFT 1
+jmax_vcmax_ratio   = [2.00726, 2.00726]       # the oak: O15's 195 / 130; the grass: the repository's
+tpu_vcmax_ratio    = [0.167, 0.167]
+rd_vcmax_ratio     = [0.004, 0.015]   # the oak: mature blue oak leaves respire "about 0.5" umol/m2/s at a Vcmax of
+                                      #   127 (Xu & Baldocchi 2003, Tree Physiol. 23:865, doi:10.1093/treephys/23.13.865);
+                                      #   the grass: the repository's
+kp25               = [1.0e-9, 1.0e-9]
+stomatal_g0        = [0.00607849, 0.00906479]
+stomatal_g1        = [2.05698, 3.07704]     # Medlyn [kPa^0.5]: deciduous broadleaf and C3 grassland (DK15, Table 1)
+stomatal_d0        = [1500.0, 1500.0]
+quantum_yield_c4   = [0.0, 0.0]
+theta_j            = [0.70, 0.70]
+capacity_low_temp       = [277.8637, 277.8637]   # [K]
+capacity_low_temp_slope = [0.4, 0.4]             # [1/K]
+theta_cj_c3        = [0.98, 0.98]
+theta_ip_c3        = [0.95, 0.95]
+theta_cj_c4        = [0.80, 0.80]
+theta_ic_c4        = [0.95, 0.95]
+katul_lambda25     = [800.0, 800.0]
+wstress_lambda_exp = [1.0, 1.0]
+# The oaks' stomata narrow slowly as their predawn potential falls: blue oak's conductance at saturating
+# light is about half its spring value at a predawn -2.5 MPa and a quarter at -5 (XB03, Fig. 4, read off
+# the figure), slopes of 0.8 and 0.4 per MPa from the onset, half the turgor-loss point. The grass keeps
+# the repository's.
+wstress_sref_stomata = [6.55676, 2.0]     # [1/MPa]
+# The oaks' leaves lose their capacity, and with it their stomata close, as they dry through the day: from
+# -2.0 MPa to nothing at -4.5 MPa, between blue oak's leaf and stem P50 (-3.88 and -4.47 MPa, S19); its
+# stomata close near the leaf's (A25). The start is fitted by hand with the oaks' leaf_kmax ([hydraulics])
+# to their measured midday potentials and the tower's summer diurnal GPP. The grass keeps the model's
+# default: its turgor-loss point and twice it.
+wstress_psi_open   = [-2.0, -2.1]     # [MPa]
+wstress_psi_close  = [-4.5, -4.2]     # [MPa]
+sla                = [15.2, 28.1]     # [m2/kgC] the leaf mass per area at Tonzi and Vaira, 2001-07 means, oak 132 and
+                                      #   grass 71.3 g/m2 (M11), at a carbon fraction of 0.5
+root_to_leaf_ratio = [1.0, 1.0]
+stem_resp_factor25 = [0.06, 0.06]
+root_resp_factor25 = [0.30, 0.30]
+leaf_reflect_vis   = [0.10, 0.10]
+leaf_transmit_vis  = [0.05, 0.05]
+leaf_reflect_nir   = [0.45, 0.45]
+leaf_transmit_nir  = [0.25, 0.25]
+leaf_emissivity    = [0.97, 0.97]
+wood_reflect_vis   = [0.11, 0.11]
+wood_transmit_vis  = [0.001, 0.001]
+wood_reflect_nir   = [0.25, 0.25]
+wood_transmit_nir  = [0.001, 0.001]
+wood_emissivity    = [0.90, 0.90]
+leaf_clumping      = [0.80, 0.80]
+wood_clumping      = [0.50, 0.50]
+leaf_angle_mean    = [63.0, 63.24]    # [deg] blue oak at Tonzi, 1200 leaves, "overall erectophile... The mean angle was
+                                      #   63" (R10, p. 14); the grass: de Wit's (1965) erectophile distribution
+leaf_angle_std     = [21.6, 18.5]     # [deg] the oak's G is "close to that of the spherical orientation" (R10), whose
+                                      #   spread this is; the erectophile distribution's
+wood_angle_mean    = [75.0, 75.0]     # [deg]
+wood_angle_std     = [20.0, 20.0]
+storage_cushion    = [3.0, 3.0]
+growth_resp_factor = [0.3, 0.3]
+leaf_turnover_rate_toc = [0.000106781, 0.000106781]   # [1/yr] the background loss while in leaf: Harvard's deciduous
+                                                    #   broadleaves' (example 02); both lose their leaves at senescence
+kplastic_vcmax         = [-0.3995964964055718, -0.1459341188305866]   # pft_traits.py from vcmax25
+kplastic_rd            = [-0.3995964964055718, -0.1459341188305866]
+kplastic_sla           = [0.4286580597805224, 0.15654750929099287]
+kplastic_leaf_turnover = [0.0, 0.0]
+fineroot_turnover_rate = [1.0, 1.0]   # [1/yr]
+f_labile_leaf          = [0.70, 0.70]
+f_labile_stem          = [0.05, 0.05]
+struct_lignin_frac     = [0.25, 0.25]
+
+[allometry]
+# The oaks: a power law fitted to the field survey's DBH and height distributions matched quantile by quantile
+# (Johnston's dissertation; make_tonzi_census.py), capped at the heights' 99th percentile, and the leaf area
+# scaled to the trees' LAI, 0.65 (B04, p. 16), all printed by make_tonzi_census.py.
+# The grass stands at Vaira's mean height at its peak LAI, 0.30 m on 18 April 2002 (AmeriFlux BADM US-Var,
+# height and clip LAI); one tiller's leaf area is the open grassland's peak LAI over the tillers per m2
+# (make_tonzi_census.py), with lai_b2 = 0.
+height_allometry = "power"
+hgt_max    = [16.6, 0.3]              # [m]
+b1Ht       = -0.17154
+b2Ht       = 0.74112
+agb_c1     = 0.03365
+agb_c2     = 0.976
+lai_b1     = [0.126578, 0.001275]
+lai_b2     = [0.6410495, 0.0]
+wai_b1     = [0.0096, 0.0096]
+wai_b2     = [2.0947, 2.0947]
+# The oaks' sapwood area: a power law through the relation measured on blue oaks felled at Tonzi, 23.772 DBH -
+# 227.65 cm2 (Mi09, Fig. 5.4), within 7 % from 20 to 70 cm; the repository's gave 1.3-1.8 times as much. The
+# grass has none.
+sapwood_area_b1  = [3.33, 1.582]
+sapwood_area_b2  = [1.446, 1.764]
+aboveground_frac = [0.7, 0.7]
+
+[hydraulics]
+# The oaks' leaves: blue oak's osmotic potential at full turgor, about -2.6 MPa, with the repository's elastic
+# modulus, a turgor-loss point of -3.3 MPa (Me16, Figs 3-4: -3.1 to -3.4 MPa, read off the figure; the most
+# anisohydric of its eight species). The grass: its leaves' curve from Poa secunda, a cool-season C3 grass,
+# osmotic potential -1.5 and turgor-loss point -2.1 MPa (GN19, Table 1), the elastic modulus the turgor-loss
+# point implies (plant_hydraulics.md eq. (3)); its "wood" is its fine roots, on the repository's wood curve.
+leaf_pi0             = [-2.6, -1.5]
+leaf_elastic_mod     = [12.0, 5.25]
+leaf_apoplast_frac   = 0.3
+leaf_water_sat       = 2.0
+wood_pi0             = -1.0
+wood_elastic_mod     = 8.0
+wood_apoplast_frac   = 0.2
+wood_water_sat       = 1.0
+# The potential at half loss of conductance: blue oak's stem, -4.47 MPa across its range (S19); the grass's
+# leaves, its only path, -1.8 to -2.3 MPa in C3 grasses (GN19, Table 1).
+wood_psi50           = [-4.47, -2.0]
+wood_kexp            = 2.0
+wood_kmax            = [2.8138256536413477, 2.8138256536413477]   # [kg/m/s/MPa] from wood density (pft_traits.py)
+# Leaf hydraulic conductance per leaf area. No blue oak value was found. The oaks' is fitted by hand, with
+# wstress_psi_open, to their midday leaf potential in the dry summers of 2007-2008, -2.9 to -4.0 MPa in early
+# July (O15, Fig. 2; Mi10, Fig. 7): the model gives -3.2 in its dry summers, 2012-2015. Harvard's broadleaves'
+# 10.6 left them at -1 MPa at midday in a wet July and -2.4 in a dry one. The grass: the mean of four C3
+# annual grasses, 1.4-5.8 (Li19, Table S2).
+leaf_kmax            = [3.0, 3.8]    # [mmol/m2/s/MPa]
+# The roots. The oaks reach the water table (blue oaks root through up to 24 m of fractured rock to
+# groundwater, Lewis & Burgy 1964 in Miller 2009, PhD dissertation, UC Berkeley, p. 74), which gives them
+# most of their summer transpiration (over 80 %, Miller 2009, p. 198). Their root_beta sets how much root
+# reaches it: fitted by hand to the tower's dry-season LE (July-September, 2011-2019), it puts 59 % of their
+# roots above 0.5 m (B04, p. 19: 70 %). In the drought summers it leaves their late-summer predawn leaf water
+# potential at about -3 MPa, above the -3.7 to -5.2 MPa measured in 2007-2008 (O15, Mi10) and the -6.8 of
+# 2001 (XB03): roots at the water table keep them wetter than the real oaks, which do not come to
+# equilibrium with the groundwater (Mi09). The profile of B04's 70 % puts no root near the water table: the
+# oaks then starve in the 2012-2015 drought.
+# Annual grasses root no deeper than 0.5 m (Holmes & Rice 1996, in Parker & Schimel 2010, Invasive Plant
+# Sci. Manag. 3:41), with the share in the top 10 cm of the grassland profile B04 uses (Jackson et al.
+# 1996's beta 0.94).
+root_beta            = [1.0e-7, 0.0577]
+root_depth_b1        = [9.0, 0.5]    # [m] with root_depth_b2 = 0, each PFT's rooting depth
+root_depth_b2        = [0.0, 0.0]
+specific_root_length = 20000.0
+fine_root_radius     = 0.00025
+
+# Leaf phenology (docs/science/plant_phenology.md), fitted in example 02's part 3
+# (examples/example02_canopy_phenology/tonzi_stand/phenology.toml) with each cohort's own cues, to the BADM's
+# dates (the oaks break bud 11 March - 10 April and lose their leaves 11 September - 17 November, US-Ton
+# 2001-2013; the grass germinates 10 October - 23 December after the first big rain and senesces 3 May -
+# 23 June, US-Var 2000-2013), the grass's PhenoCam greenness and the understory's clip LAI. The oaks flush on
+# warmth and long days, and shed on cold or drought: on warmth alone they would flush again all autumn, when
+# the warmth summed since midwinter is still high. Their day-length gate is Harvard's broadleaves' (example
+# 02, part 2), their flush and fall rates the repository's. The grass flushes and sheds on water alone.
+[phenology]
+flush_cue_mask        = [3, 4]
+shed_cue_mask         = [5, 4]
+flush_cue_timescale   = [5.0, 5.0]
+shed_cue_timescale    = [5.0, 5.0]
+flush_rate_max        = [0.06667, 0.00454569]
+shed_rate_max         = [0.05, 0.122446]
+min_leaf_cover        = [0.0, 0.0]
+bare_leaf_cover       = [0.02, 0.02]
+flush_base_temp       = [278.15, 278.15]
+flush_degree_days     = [325.369, 100.0]
+flush_temp_sharpness  = [0.04, 0.04]
+shed_base_temp        = [302.322, 290.15]
+shed_degree_days      = [529.169, 50.0]
+shed_temp_sharpness   = [0.1, 0.1]
+par_min               = [2.0, 2.0]
+flush_light_hours     = [12.1698, 12.0]
+flush_light_sharpness = [7.99321, 1.0]
+shed_light_hours      = [9.61012, 11.0]
+shed_light_sharpness  = [-1.0, -1.0]
+light_window          = [1.00135, 10.0]
+flush_water_sum       = [10.0, 90.5117]
+flush_water_sharpness = [0.5, 0.5]
+shed_water_sum        = [332.88, 4.36544]
+shed_water_sharpness  = [0.1, 15.7579]

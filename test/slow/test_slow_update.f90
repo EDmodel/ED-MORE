@@ -187,8 +187,8 @@ contains
          call finalize_init(poly)
          poly%cohort%nplant(1) = cfg%demography%negligible_nplant
          poly%cohort%nplant(2) = nearest(cfg%demography%negligible_nplant, 1.0_wp)
-         call check(all(poly%cohort%nplant(1:2) * poly%cohort%agb(1:2) >= cfg%demography%min_cohort_agb),        &
-                    'cull fixture: both cohorts clear the AGB floor, so only the density floor acts')
+         call check(all(poly%cohort%nplant(1:2) * poly%cohort%agb(1:2) >= cfg%demography%min_cohort_carbon),     &
+                    'cull fixture: both cohorts clear the carbon floor, so only the density floor acts')
          n_cut = poly%cohort%n
          call terminate_cohorts(poly, cfg, shed_water, kills)
          call check(poly%cohort%n == n_cut - 1_ik, 'cull: exactly one cohort removed')

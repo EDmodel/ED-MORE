@@ -102,6 +102,8 @@ def alternative_inputs(cal, name):
     if name == "closure":
         if data.closure["shares"]["h"] is None:
             return None, None, "the fit already used Bowen"
+        if "closure_f" not in data.obs:
+            return None, None, 'the fit scored H and LE as measured ([closure].shares = "none"): no closure factor'
         obs = data.obs.copy()
         obs["h_c"], obs["le_c"] = observation_models.corrected(obs, None, None)
         return ts, obs, "Bowen (H and LE scaled together) against the fit's attribution shares"

@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: Apache-2.0
+# The fast-parameter calibration at Tonzi Ranch (scripts/calibrate_fast; the protocol its README links).
+# run_site.py --calibrate runs it. Every setting, its default and why: scripts/calibrate_fast/
+# calibration_reference.toml. Only the choices that differ from the defaults are here. Paths are relative
+# to this file.
+
+[base]
+main       = "ed_config_eval.toml"     # with the PFT file it names (pft_parameters.toml) and its forcing
+parameters = "../../../../scripts/calibrate_fast/parameters.toml"
+
+# The tower's facts (file, clock, columns, units, which values were measured, the u* thresholds) are
+# tonzi_site.toml, the forcing build's own.
+[tower]
+site = "tonzi_site.toml"
+
+# Both PFTs' keys, each with its plant type's meta-analysis priors: the blue oaks (PFT 1) and the C3
+# annual grass (PFT 2). The two take turns in the tower's footprint: the grass alone from December to
+# February, when the oaks are bare, the oaks alone from July to September, when the grass is dead; in
+# March to May the tower sees both.
+[fit]
+pfts            = [1, 2]
+plant_types     = ["deciduous_broadleaf", "c3_grass"]
+timeout_per_day = 30.0
+# The leaf angles stay at the PFT file's: the oaks' was measured at Tonzi (1200 leaves, 63 degrees), the grass's
+# is the erectophile distribution. Fitted, both fell to 22-27 degrees, flat leaves no grass or blue oak has,
+# pushed by LE.
+remove          = ["leaf_angle_mean"]
+
+# The windows: the grass's months (January-February) and the oaks' (July-August), which tell the two
+# PFTs' keys apart, and April, when both are in full leaf. Not March and May (the oaks' flush, the grass's
+# death), September to December (the oaks' fall, the grass's germination), or June (both changing).
+[windows]
+months          = [1, 2, 4, 7, 8]
+chain_lead_days = 365          # the stand is frozen, so each chain runs the phenology: a year of it, from
+                               #   the census's full leaf to the window's own canopy (windows from 2011)
+
+# H and LE are scored as measured, not with the tower's energy-closure gap shared between them: its net
+# radiometer, a metre off the tower, saw a mix of open canopy, tower and trees, and its soil heat flux plates
+# were too few to stand for the fluxes' footprint (Baldocchi, Xu & Kiang 2004, Agric. For. Meteorol. 123:13,
+# section 2.4). In summer its net radiation is 15 W/m2 above its own four components' (2011-2019).
+[closure]
+shares = "none"
+
+# The oaks' Medlyn g1: the meta-analysis prior for deciduous broadleaf trees (CLM5's medlynslope, from Lin et
+# al. 2015). The least-cost centre comes from the site's leaf-on months, here the whole year, the grass's
+# winter included: 1.92, where the oaks' own April-October give 2.33. The grass keeps its least-cost centre.
+[priors.stomatal_g1]
+centre = 4.45
+log_sd = 0.35
+source = "CLM5 medlynslope for deciduous broadleaf trees (Lin et al. 2015, Nature Climate Change 5:459)"
+
+[priors.stomatal_g1_pft2]
+centre = "eeo"
+log_sd = 0.5
+source = "the least-cost optimum at the site's growing-season daytime climate (priors.py)"
+
+# The seasonal run (the soil drying, scored on LE): 90 days, from the grass's last weeks in spring into
+# the oaks' summer on the deep water.
+[seasonal_runs]
+days = 90
+
+# Set in the calibrated main config the fit writes (ed_config_calibrated.toml), beside the MAP.
+[calibrated]
+"init.pft_config" = "calibration/pft_parameters_calibrated.toml"
+"output.prefix"   = "cal"

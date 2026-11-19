@@ -1,0 +1,118 @@
+# Example 02, part 3: Tonzi Ranch's blue oaks and annual grass fitted with every cohort's own cues
+# (scripts/calibrate_phenology). The oaks flush on warmth and lose their leaves to cold or drought; the
+# grass flushes and dies on water alone, its predawn leaf water potential summed above and below its
+# turgor-loss point. prepare_observations.py writes the observations below into ../data/tonzi_stand/;
+# the coupled runs are example 04's Tonzi stand.
+#
+#   python ../../../scripts/calibrate_phenology/calibrate_phenology.py iterate \
+#          --config phenology.toml --work ../data/tonzi_stand_runs --workers 40
+
+[run]
+# Example 04's Tonzi run: the tower's forcing, the imputed oak stand and its grass frozen, 2010-2019, and
+# the PFT file the fitted values go into (prepare its forcing and census first: its README, Run).
+config     = "../../example04_column_biophysics/sites/tonzi/ed_config_eval.toml"
+score_from = "2011-01-01"            # 2010 spins up the cue memory and the canopy from the census
+threads    = 16
+
+[fit]
+# The oaks (PFT 1): the warmth their buds wait for, and the cold that drops the canopy (its base
+# temperature and its sum). Their day-length gate is Harvard's broadleaves' (example 02, part 2), which ends
+# the flush in autumn; their flush and fall rates the repository's (about 15 and 20 days): the BADM's three
+# scored years of dates cannot tell the rates apart from the cues.
+# The grass (PFT 2): the wet sum that sets it growing after the first autumn rains and how fast it
+# fills; the dry sum that kills it in spring and how fast it dies.
+keys = ["flush_degree_days_pft1", "shed_base_temp_pft1", "shed_degree_days_pft1",
+        "flush_water_sum_pft2", "flush_rate_max_pft2", "shed_water_sum_pft2", "shed_water_sharpness_pft2",
+        "shed_rate_max_pft2"]
+
+iterations = 6
+
+[bounds]
+flush_rate_max      = [0.002, 0.333]     # [1/day] from a slow fill (500 days at full tendency) to a flush of 3
+flush_water_sum     = [0.1, 400.0]       # [MPa day] the grass waits out the autumn's first light rains
+shed_water_sum      = [0.1, 600.0]       # [MPa day]
+shed_base_temp      = [278.15, 305.15]   # [K]
+
+#----- The oaks -----------------------------------------------------------------------------------#
+# BADM's dates at US-Ton: bud break, when the canopy starts to fill; total leaf-off, when it is bare.
+[[target]]
+name      = "oak bud break (BADM)"
+kind      = "date"
+file      = "../data/tonzi_stand/oak_budbreak.csv"
+pfts      = [1]
+level     = 0.1
+direction = "up"
+doy_min   = 32
+doy_max   = 181
+sigma     = 7.0
+
+[[target]]
+name      = "oak total leaf-off (BADM)"
+kind      = "date"
+file      = "../data/tonzi_stand/oak_leafoff.csv"
+pfts      = [1]
+level     = 0.1
+direction = "down"
+doy_min   = 182
+doy_max   = 366
+sigma     = 10.0
+
+# Not the oak crowns' greenness: it peaks with the young leaves in spring and falls all summer while the
+# leaf area holds, so it is not a leaf-cover series.
+
+[[target]]
+name  = "oak annual loss"
+kind  = "annual_loss"
+pfts  = [1]
+value = 1.0
+sigma = 0.05
+
+#----- The grass ----------------------------------------------------------------------------------#
+# BADM's dates at US-Var: germination (cotyledons), when the canopy starts to fill; leaf senescence,
+# when half of it has died.
+[[target]]
+name      = "grass germination (BADM)"
+kind      = "date"
+file      = "../data/tonzi_stand/grass_germination.csv"
+pfts      = [2]
+level     = 0.05
+direction = "up"
+doy_min   = 244
+doy_max   = 366
+sigma     = 10.0
+
+[[target]]
+name      = "grass senescence (BADM)"
+kind      = "date"
+file      = "../data/tonzi_stand/grass_senescence.csv"
+pfts      = [2]
+level     = 0.5
+direction = "down"
+doy_min   = 91
+doy_max   = 213
+sigma     = 7.0
+
+# The grass's greenness and its clip LAI, each scaled within its year: how the sward fills over the
+# winter and dies in spring.
+[[target]]
+name  = "PhenoCam grass"
+kind  = "fraction"
+file  = "../data/tonzi_stand/phenocam_grass.csv"
+pfts  = [2]
+scale = "year_minmax"
+sigma = 0.15
+
+[[target]]
+name  = "understory clip LAI (BADM)"
+kind  = "fraction"
+file  = "../data/tonzi_stand/lai_understory.csv"
+pfts  = [2]
+scale = "year_minmax"
+sigma = 0.2
+
+[[target]]
+name  = "grass annual loss"
+kind  = "annual_loss"
+pfts  = [2]
+value = 1.0
+sigma = 0.05

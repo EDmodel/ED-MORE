@@ -58,6 +58,27 @@ def test_settings_stop_on_what_they_cannot_do(tmp_path, fit, extra, message):
         settings.load(site_file(tmp_path, fit=fit, extra=extra))
 
 
+def test_the_water_cue_is_fitted(tmp_path):
+    s = settings.load(site_file(tmp_path, fit='keys = ["shed_water_sum_pft2", "flush_water_sharpness_pft2"]'))
+    assert [(k.name, k.pft, k.lo, k.hi) for k in s["keys"]] == [("shed_water_sum", 2, 0.1, 300.0),
+                                                                  ("flush_water_sharpness", 2, 0.02, 20.0)]
+
+
+def test_a_water_cue_reads_the_leafs_turgor_loss_point():
+    """The turgor-loss point the WATER cue sums against is the model's, from the leaf's pressure-volume
+    curve: pi0 eps / (pi0 + eps), one value for every PFT or one per PFT."""
+    pheno = lib_or_skip()
+    import offline
+    from edmore.config import RunConfig
+    cfg = RunConfig({"run": {}}, {"pft": {"wood_density": [0.66, 0.5]},
+                                  "hydraulics": {"leaf_pi0": [-2.0, -1.2], "leaf_elastic_mod": 12.0},
+                                  "phenology": {"flush_cue_mask": [1, 4], "shed_cue_mask": [5, 4]}})
+    grass = offline.pft_params(cfg, 2)
+    assert grass.flush_cue_mask == pheno.Cue.WATER
+    assert grass.leaf_psi_tlp == pytest.approx(-1.2 * 12.0 / (-1.2 + 12.0))
+    assert offline.pft_params(cfg, 1).leaf_psi_tlp == pytest.approx(-2.0 * 12.0 / 10.0)
+
+
 def test_a_bound_for_one_pft_overrides_the_default(tmp_path):
     s = settings.load(site_file(tmp_path, fit='keys = ["shed_degree_days_pft1", "shed_degree_days_pft2"]',
                                 extra="[bounds]\nshed_degree_days_pft2 = [20.0, 80.0]"))
@@ -300,6 +321,11 @@ def test_the_fit_finds_the_values_the_observations_were_made_with(tmp_path):
     assert res["score"] < 0.01 * sum(res["scores_start"].values())
     assert abs(res["values"]["shed_degree_days_pft1"] - 60.0) < 3.0
     assert abs(res["values"]["flush_degree_days_pft1"] - 120.0) < 6.0
+
+
+def test_an_unsettled_fit_keeps_the_values_its_own_run_scored_best():
+    trials = [({"k": 1.0}, 30.0, "run0"), ({"k": 2.0}, 12.0, "run1"), ({"k": 3.0}, 25.0, "run2")]
+    assert calibrate_phenology.best_coupled(trials) == ({"k": 2.0}, 12.0, "run1")
 
 
 def test_a_run_is_written_with_absolute_paths(tmp_path, monkeypatch):

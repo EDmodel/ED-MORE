@@ -98,7 +98,9 @@ A cohort's reproduction carbon $r$ [kgC plant⁻¹ per step] is its allocation's
   ```
 
 - $`c_{\min}`$ is the carbon of one plant at the smallest tracked height (`[pft].min_cohort_height`), on
-  the PFT's allometry.
+  the PFT's allometry: a tree's aboveground biomass there. A grass has no wood, so its $`c_{\min}`$
+  is the whole plant at its PFT's height: its leaves on the allometry, their fine roots and its
+  storage target.
 - A PFT with `[pft].include_pft = 0` recruits nothing, seed rain included.
 
 ### Disturbance
@@ -192,7 +194,9 @@ founded.
   the tolerance geometrically, toward `cohort_size_tol_max`.
 - Within a patch, a taller cohort absorbs every shorter cohort of its PFT whose height differs by
   less than the tolerance times the patch's top height, unless their combined LAI would reach
-  `cohort_lai_cap`.
+  `cohort_lai_cap`. The cap keeps one cohort's leaves from spanning much of the light profile. A
+  grass's leaves stand at one height, so a patch's grass of one PFT fuses into one cohort whatever its
+  LAI.
 - The tolerance scales with the stand, so a cohort that has pulled ahead in a young stand keeps its
   place in the light.
   - At a 2 % tolerance, two cohorts in a 3 m regrowth stand merge only within about 6 cm, and in a
@@ -215,7 +219,8 @@ founded.
 - Each fusion asserts that carbon, biomass and leaf area are conserved, or stops the run.
 
 **The cull** removes the cohorts too small to track:
-- those whose $`n\cdot\mathrm{AGB}`$ is below `min_cohort_agb`;
+- those whose carbon, $`n`$ times the plant's leaf, fine-root, wood and storage carbon, is below
+  `min_cohort_carbon`;
 - those at or below the density floor, which mortality stops at (§2). The test includes equality, or
   a cohort that died out would be kept for ever.
 
@@ -231,6 +236,7 @@ passes that repeat until none exceeds it (at most `n_cohort_fusion_iter`).
   split stays exact where the height is capped at `hgt_max`; a perturbed diameter would conserve
   the carbon only through the allometry's inverse.
 - Both daughters keep the parent's temperatures. The second takes a new identity.
+- A grass is not split: its halves would stand at one height, in one layer of the light profile.
 
 ## 4. Patches
 
@@ -344,6 +350,9 @@ of the phenology, soil water and soil temperature before a run starts.
 - **A census start** is restructured as usual (§3–§4: by the fusion and fission switches and their
   tolerances): restructuring builds the starting stand, so a frozen run starts from the stand a
   dynamic one does.
+- **A grass** (`[pft].growth_form = "grass"`) runs only in a frozen stand: its growth in number, its
+  mortality and its recruits are not yet written, and the configuration check stops a dynamic run with
+  one. Its leaves, fine roots and storage follow the season as any cohort's.
 
 ## Parameters
 
@@ -354,7 +363,7 @@ of the phenology, soil water and soil temperature before a run starts.
 | `[pft].seed_rain_recruits`, `include_pft` | eq. (6) |
 | `[pft].min_cohort_height` | the smallest tracked height, at which recruits are born |
 | `[demography].growth_memory_days` | the growth history's window, eq. (2) |
-| `[demography].negligible_nplant`, `min_cohort_agb` | the density floor (eq. (4)) and the cull (§3) |
+| `[demography].negligible_nplant`, `min_cohort_carbon` | the density floor (eq. (4)) and the cull (§3) |
 | `[demography].max_cohort`, `n_cohort_fusion_iter`, `cohort_size_tol_min`, `cohort_size_tol_max`, `cohort_lai_cap`, `split_eps`, `conservation_tol` | cohort fusion and fission (§3) |
 | `[demography].max_patch`, `n_patch_fusion_iter`, `patch_light_tol`, `patch_light_tol_max`, `patch_light_maxdev_factor`, `n_height_layers`, `light_ext_coeff_fusefiss`, `min_patch_area` | patch fusion and termination (§4) |
 | `[demography].patch_disturbance_rate`, `disturbance_survive_height` | eq. (7) and the survivors (§4) |

@@ -67,7 +67,7 @@ contains
       cfg%demography%cohort_size_tol_min = 0.02_wp
       cfg%demography%cohort_size_tol_max = 0.10_wp
       cfg%demography%cohort_lai_cap = 1.0_wp
-      cfg%demography%min_cohort_agb = 1.0e-6_wp
+      cfg%demography%min_cohort_carbon = 1.0e-6_wp
       cfg%demography%negligible_nplant = 1.0e-8_wp
       cfg%demography%split_eps = 1.0e-4_wp
 
@@ -164,7 +164,6 @@ contains
          p%branch_diameter        = [ 0.02_wp, 0.02_wp, 0.02_wp ]
          p%root_to_leaf_ratio     = [ 1.0_wp, 1.0_wp, 1.0_wp ]
          !--- Non-leaf maintenance respiration.
-         p%is_woody               = [ .true., .true., .true. ]
          p%stem_resp_factor25     = [ 0.06_wp, 0.06_wp, 0.06_wp ]
          p%root_resp_factor25     = [ 0.30_wp, 0.30_wp, 0.30_wp ]
          !--- Canopy optics.

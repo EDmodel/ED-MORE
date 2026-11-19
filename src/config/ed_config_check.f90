@@ -16,7 +16,7 @@ module ed_config_check
    use ed_output_params,        only : STATE_DAYS, FC_DAY, FC_MONTH, TIER_MONTHLY, TIER_ANNUAL
    use ed_time,                 only : time_lt, time_valid, time_to_string, whole_years_between
    use ed_toml,                 only : toml_table_t, toml_has, toml_has_section
-   use ed_allometry_lib,        only : HEIGHT_CHAVE
+   use ed_allometry_lib,        only : HEIGHT_CHAVE, GROWTH_GRASS
    use ed_therm_lib,            only : TEMP_RESPONSE_PEAKED
    use ed_soil_hydr_lib,        only : SOIL_RETENTION_VG
    use ed_pft_params,           only : PATH_C3, PATH_C4
@@ -232,6 +232,10 @@ contains
                call add_line(report, '[[sites]] [soil] keys (in '//trim(tm%source)//') with the soil '// &
                                      'maps: every site takes its cell''s soil')
          end if
+      else if (cfg%soil%n_layer_values /= 0_ik) then
+         !--- [soil]: a texture per layer starts each layer at its own field capacity.
+         call refuse(report, tm, 'init.soil_theta', 'applies to a column of one texture: with a [soil] '// &
+                     'texture per layer, each layer starts at its field capacity')
       end if
       !--- [allometry]: the log-quadratic's keys need a PFT on it; its E comes from a map when set.
       if (.not. any(cfg%pft%allom(1:cfg%pft%n)%height_allometry == HEIGHT_CHAVE)) then
@@ -343,8 +347,10 @@ contains
             error stop TAG//'soil.depth is below the deepest default layer (27 m): set soil.layer_bottoms'
          end if
          call soil_layers(sc, bottoms, n)
-         if (sc%n_layer_values > 0_ik .and. sc%n_layer_values /= n)                                     &
-            error stop TAG//'soil: the per-layer texture does not match the column''s layers'
+         if (sc%n_layer_values /= 0_ik .and. sc%n_layer_values /= n)                                    &
+            error stop TAG//'soil: the per-layer texture does not match the column''s layers: a [soil] '// &
+                       'texture list takes one value per layer (soil.layer_bottoms, or the default '//   &
+                       'layers, cut at soil.depth), and every list the same number'
          call soil_layer_textures(sc, tex)
          !---~---
          !   Each layer check states what must hold, so a NaN fails it: a map layer with no sand
@@ -651,7 +657,11 @@ contains
    ! root in the physical branch; reflectance + transmittance is the single-scatter albedo,
    ! below 1 for a two-stream that conserves energy
    ! (docs/science/canopy_radiation_transfer.md); a leaf turnover rate of 0 would keep
-   ! every leaf, and the plasticity slope divides by it.
+   ! every leaf, and the plasticity slope divides by it. A grass stands at its PFT's height,
+   ! which must be positive, with leaves on it (lai_b1 > 0); its fine roots are its only
+   ! water store, so it has some (root_to_leaf_ratio > 0). It does not yet grow in number,
+   ! die or recruit: a PFT table with a grass runs a frozen stand
+   ! (docs/science/demography.md §7).
    !---~---
    subroutine check_pft(cfg)
       type(ed_config_t), intent(in) :: cfg
@@ -739,6 +749,14 @@ contains
          if (any(p%photosynthetic_pathway == PATH_C4 .and.                                               &
                  (p%theta_ic_c4 <= 0.0_wp .or. p%theta_ic_c4 >= 1.0_wp)))                                &
             error stop TAG//'C4 theta_ic_c4 must be in (0,1)'
+         if (any(p%allom(1:p%n)%growth_form == GROWTH_GRASS .and. p%allom(1:p%n)%hgt_max <= 0.0_wp))      &
+            error stop TAG//'a grass PFT needs allometry.hgt_max > 0, its height'
+         if (any(p%allom(1:p%n)%growth_form == GROWTH_GRASS .and. p%allom(1:p%n)%lai_b1 <= 0.0_wp))       &
+            error stop TAG//'a grass PFT needs allometry.lai_b1 > 0, its leaf area at its height'
+         if (any(p%allom(1:p%n)%growth_form == GROWTH_GRASS .and. p%root_to_leaf_ratio(1:p%n) <= 0.0_wp)) &
+            error stop TAG//'a grass PFT needs pft.root_to_leaf_ratio > 0: its fine roots hold its water'
+         if (any(p%allom(1:p%n)%growth_form == GROWTH_GRASS) .and. cfg%demography%demography_on)          &
+            error stop TAG//'a PFT with growth_form = "grass" needs [demography].demography_on = false'
       end associate
    end subroutine check_pft
 
