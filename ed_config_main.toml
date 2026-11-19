@@ -54,7 +54,10 @@ gpp_ref             = 0.3      # [kgC/m2 leaf/yr] the GPP of a run without the l
 [soil]
 # The ground: the column, its surface and its two bottom boundaries. Every key is optional, at the
 # value shown: a generic loam, not a measured soil. With the [maps] soil maps each polygon takes its
-# column and its boundaries from its cell, and those keys are refused here.
+# column and its boundaries from its cell, and those keys are refused here. Each texture key (theta_sat
+# to curve_par_n, and the three thermal ones) may instead be a list with one value per layer, top down;
+# the column then has a texture per layer, each layer starts at its field capacity, and
+# [init].soil_theta is refused.
 # ---- The column (docs/configuration.md "The soil layers"). ----
 depth       = 2.0          # [m]      column depth
 # layer_bottoms = [0.05, 0.15, 0.30, 0.60, 1.00, 1.50, 2.00]   # [m] measured layer bottoms, positive down

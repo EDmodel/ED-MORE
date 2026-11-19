@@ -232,6 +232,10 @@ contains
                call add_line(report, '[[sites]] [soil] keys (in '//trim(tm%source)//') with the soil '// &
                                      'maps: every site takes its cell''s soil')
          end if
+      else if (cfg%soil%n_layer_values /= 0_ik) then
+         !--- [soil]: a texture per layer starts each layer at its own field capacity.
+         call refuse(report, tm, 'init.soil_theta', 'applies to a column of one texture: with a [soil] '// &
+                     'texture per layer, each layer starts at its field capacity')
       end if
       !--- [allometry]: the log-quadratic's keys need a PFT on it; its E comes from a map when set.
       if (.not. any(cfg%pft%allom(1:cfg%pft%n)%height_allometry == HEIGHT_CHAVE)) then
@@ -343,8 +347,10 @@ contains
             error stop TAG//'soil.depth is below the deepest default layer (27 m): set soil.layer_bottoms'
          end if
          call soil_layers(sc, bottoms, n)
-         if (sc%n_layer_values > 0_ik .and. sc%n_layer_values /= n)                                     &
-            error stop TAG//'soil: the per-layer texture does not match the column''s layers'
+         if (sc%n_layer_values /= 0_ik .and. sc%n_layer_values /= n)                                    &
+            error stop TAG//'soil: the per-layer texture does not match the column''s layers: a [soil] '// &
+                       'texture list takes one value per layer (soil.layer_bottoms, or the default '//   &
+                       'layers, cut at soil.depth), and every list the same number'
          call soil_layer_textures(sc, tex)
          !---~---
          !   Each layer check states what must hold, so a NaN fails it: a map layer with no sand
