@@ -122,8 +122,17 @@ leaf display. With $D$ the diameter [cm], $H$ the height [m] and $\rho$ the wood
   area from its wood and leaf carbon. Under the power law the inverse is closed form,
   $`\mathrm{AGB} \propto D^{P}`$ with $`P = c_2(2 + b_2)`$ below the height cap and $`P = 2c_2`$ above it,
   the two meeting at the cap; under the log-quadratic it is the smaller root of a quadratic in $`\ln D`$.
+- **A grass** (`[pft].growth_form = "grass"`) has no stem: no diameter, biomass, wood carbon, wood area
+  or sapwood. It stands at its PFT's `hgt_max` [m], and one plant's leaf area follows that height
+  alone, $`A_{leaf} = l_1\,H^{l_2}`$, so its leaf target is its PFT's and its LAI moves only with its
+  leaves (the phenology) and its density. A plant is one tiller or culm, and `nplant` counts them per
+  m², as it counts a multi-stemmed tree's stems. Its pools are leaves, fine roots and storage; the
+  stem's `[allometry]` keys take a value for it that it does not use.
 
 ### Sink limitation of wood growth
+
+A grass builds no wood: its limit is zero, so the carbon its leaves, roots, storage and seed leave over
+is all root exudate.
 
 Carbon supply is not the only limit on growth: cambial cell division and expansion run at a bounded
 rate however much carbon the leaves fix (sink limitation; Körner 2015). Wood growth is therefore capped

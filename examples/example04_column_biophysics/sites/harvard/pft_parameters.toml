@@ -6,6 +6,7 @@
 # and NEON's PAR sensors; example 02 fitted the deciduous phenology to Harvard's leaf fall and MODIS.
 
 [pft]
+growth_form        = "tree"
 wood_density       = [0.539, 0.379]   # [g/cm3] Global Wood Density Database, the stand's basal-area mean (harvard_traits.py)
 # The mortality hazard and the conductivity below from wood density (scripts/prepare_input/pft_traits).
 mort_gamma         = [0.011448947829223977, 0.021881162848053196]   # [1/yr]
@@ -43,7 +44,6 @@ wstress_lambda_exp = [1.0, 1.0]
 wstress_sref_stomata = [2.0, 2.0]     # [1/MPa]
 sla                = [21.2, 10.6]     # [m2/kgC] NEON's sun-leaf mass per area at HARV, 94 and 189 g/m2 (harvard_traits.py)
 root_to_leaf_ratio = [1.0, 1.0]
-is_woody           = [1, 1]
 stem_resp_factor25 = [0.06, 0.06]
 root_resp_factor25 = [0.30, 0.30]
 leaf_reflect_vis   = [0.10, 0.10]

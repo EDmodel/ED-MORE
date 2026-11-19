@@ -16,7 +16,7 @@
 !---~---
 module ed_plant_carbon_allocation
    use ed_kinds,             only : wp, ik
-   use ed_allometry_lib,     only : allometry_t, size_to_wood_carbon, dbh_to_height
+   use ed_allometry_lib,     only : allometry_t, size_to_wood_carbon, dbh_to_height, GROWTH_GRASS
    use ed_constants,         only : yr_day
    use ed_plant_phenology,   only : leaf_turnover_step, turnover_gate
    implicit none
@@ -100,7 +100,7 @@ contains
    ! carbon, on the model's own allometry, between today's diameter and today's plus the
    ! window's budget less grown_in_window, so a step it binds brings the window's growth
    ! to exactly the cap; window_yr = dt_yr with grown_in_window = 0 is a per-step cap.
-   ! With both limits off the result is huge(1.0_wp): no limit.
+   ! With both limits off the result is huge(1.0_wp): no limit. A grass builds no wood: 0.
    !---~---
    elemental pure function growth_sink_limitation(allom, wood_carbon, dbh, wood_density,                &
                                                   max_relative_growth_rate,                          &
@@ -119,6 +119,10 @@ contains
       real(wp)             :: growth_max                ! [kgC/plant] the most wood the step can build
       real(wp) :: dt, dbh_room, dbh_max, wood_now, wood_max
 
+      if (allom%growth_form == GROWTH_GRASS) then
+         growth_max = 0.0_wp
+         return
+      end if
       dt = max(dt_yr, 0.0_wp)
       growth_max = huge(1.0_wp)
       if (max_relative_growth_rate > 0.0_wp)                                                        &

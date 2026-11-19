@@ -54,8 +54,8 @@ module ed_plant_phenology
    !--- Northern-equivalent day of the summer solstice, where the cold sum starts (§2).
    integer(ik), parameter :: MIDSUMMER_DOY     = 172_ik
    !---~---
-   !   At or below this flush rate a canopy is dormant and may snap to bare (§5): a numerical
-   ! threshold, not a trait.
+   !   At or below this flush rate a canopy is dormant: it does not flush, and may snap to bare
+   ! (§5). A numerical threshold, not a trait.
    !---~---
    real(wp),    parameter :: DORMANT_FLUSH_EPS = 1.0e-6_wp    ! [1/day]
    !--- At or below this shed tendency no leaves drop, so background turnover runs (§5).
@@ -182,8 +182,9 @@ contains
    !---~---
    !   One step of leaf loss and the flush cap, in whatever carbon unit `leaf` is in: the
    ! background turnover (gated by turnover_gate), the senescence that stops at
-   ! min_leaf_cover, and the flush cap. A dormant canopy that senescence would leave
-   ! below bare_leaf_cover snaps to bare, when its floor lies below that cover (§5, eq. (9)).
+   ! min_leaf_cover, and the flush cap. A dormant canopy (flush rate at most
+   ! DORMANT_FLUSH_EPS) does not flush, and one that senescence would leave below
+   ! bare_leaf_cover snaps to bare, when its floor lies below that cover (§5, eq. (9)).
    !---~---
    pure subroutine leaf_turnover_step(leaf, leaf_full, leaf_flush_tendency, leaf_shed_tendency,   &
                                       flush_rate_max, shed_rate_max, leaf_turnover_rate,          &
@@ -197,17 +198,19 @@ contains
       real(wp), intent(in)  :: dt                                       ! [day]
       real(wp), intent(out) :: senescence, background, flush_cap        ! [carbon] this step
       real(wp) :: pool
+      logical  :: dormant
 
       pool       = max(leaf, 0.0_wp)
       background = min(max(leaf_turnover_rate, 0.0_wp) / yr_day                                    &
                        * turnover_gate(leaf_flush_tendency, leaf_shed_tendency) * pool * dt, pool)
       senescence = min(max(shed_rate_max, 0.0_wp) * leaf_shed_tendency * pool * dt,                  &
                        max(0.0_wp, pool - background - min_leaf_cover * leaf_full))
-      if (flush_rate_max * leaf_flush_tendency <= DORMANT_FLUSH_EPS .and. senescence > 0.0_wp      &
-          .and. min_leaf_cover < bare_leaf_cover                                                  &
+      dormant = flush_rate_max * leaf_flush_tendency <= DORMANT_FLUSH_EPS
+      if (dormant .and. senescence > 0.0_wp .and. min_leaf_cover < bare_leaf_cover                &
           .and. pool - background - senescence < bare_leaf_cover * leaf_full)                     &
          senescence = pool - background
-      flush_cap  = max(flush_rate_max, 0.0_wp) * leaf_flush_tendency * leaf_full * dt
+      flush_cap = 0.0_wp
+      if (.not. dormant) flush_cap = max(flush_rate_max, 0.0_wp) * leaf_flush_tendency * leaf_full * dt
    end subroutine leaf_turnover_step
 
    !---~---

@@ -24,6 +24,10 @@
 !  12. VANISHING STORES: a near-leafless leaf and a trace pond stay in range, and water closes.
 !  13. CAMPBELL        : on a Campbell clay the soil potentials are the Campbell curve's, finite
 !                        and below zero; the stand takes up water, and every step closes.
+!  13b. GRASS          : a tree over a grass sward, whose leaves join its fine roots with no
+!                        stem between: its path is its leaves' conductance alone; two days of
+!                        transpiration and a shower, and an autumn storm on dry soil that
+!                        refills its roots within the hour, close with no sub-step forced.
 ! The soil column alone, on a 2 m loam (docs/science/soil_biophysics.md §The soil water column
 ! and §Boundary conditions):
 !  14. DRAINAGE        : a wet column drains freely, and through a leaky base about f of that;
@@ -44,7 +48,7 @@ program test_water_network
    use ed_test_assert, only : check_true, check_close, check_int, test_report
    use, intrinsic :: iso_fortran_env, only : int64
    use ed_kinds,         only : wp, ik
-   use ed_constants,     only : grav_head, rho_h2o, pi, tiny_num, n_soil_layer_max, grav, r_wv, p_std
+   use ed_constants,     only : grav_head, rho_h2o, pi, tiny_num, n_soil_layer_max, grav, r_wv, p_std, mmh2o
    use ed_linear_algebra,  only : arrowhead_system_t, arrowhead_allocate, arrowhead_factor, arrowhead_solve
    use ed_fast_integ_types,  only : fast_static_state_t, water_drive_t, water_work_t, tol_set_t,                    &
                                 ensure_static_capacity, POND, WOOD, LEAF, GRP_THETA, N_WORK, WORK_WATER_NSUB,   &
@@ -103,6 +107,7 @@ program test_water_network
    call test_accuracy()
    call test_vanishing_stores()
    call test_campbell()
+   call test_grass_sward()
    call test_column_scenarios()
    call test_report('test_water_network')
 
@@ -149,13 +154,15 @@ contains
    !---~---
    !   A stand of n cohorts on the fixture soil, a canopy tree first and smaller ones after,
    ! with the roots and water paths the gather derives for them, each cohort's demand its
-   ! share of e_total by leaf, and the network started from the given water.
+   ! share of e_total by leaf, and the network started from the given water. With grass, the
+   ! last cohort is a 0.3 m grass sward of 2000 tillers per m2 at LAI 3.2: no stem, its fine
+   ! roots its only store.
    !---~---
-   subroutine make_stand(st, n, theta, w_pond, leaf_rwc, wood_rwc, e_total, leafless)
+   subroutine make_stand(st, n, theta, w_pond, leaf_rwc, wood_rwc, e_total, leafless, grass)
       type(stand_t),     intent(out) :: st
       integer(ik),       intent(in)  :: n
       real(wp),          intent(in)  :: theta(:), w_pond, leaf_rwc, wood_rwc, e_total
-      logical, optional, intent(in)  :: leafless
+      logical, optional, intent(in)  :: leafless, grass
       real(wp)    :: leaf_w(n), wood_w(n), lai_share(n)
       integer(ik) :: i
       call ensure_static_capacity(st%static, n)
@@ -170,6 +177,17 @@ contains
       end do
       if (present(leafless)) then
          if (leafless) st%static%bleaf(n) = 0.0_wp
+      end if
+      if (present(grass)) then
+         if (grass) then
+            st%static%is_woody(n) = .false.
+            st%static%height(n)   = 0.3_wp
+            st%static%nplant(n)   = 2000.0_wp
+            st%static%bleaf(n)    = 1.0e-4_wp
+            st%static%broot(n)    = 1.0e-4_wp
+            st%static%bsap(n)     = 0.0_wp
+            st%static%sap_area(n) = 0.0_wp
+         end if
       end if
       !--- Each cohort's leaf area at 16 m2/kgC, which the leaves' conductance scales with.
       st%static%leaf_area(1:n) = 16.0_wp * st%static%bleaf(1:n)
@@ -565,6 +583,62 @@ contains
    ! A day of them: no sub-step forced, the leaf never above saturation, the pond never below
    ! empty.
    !---~---
+   subroutine test_grass_sward()
+      type(stand_t) :: st
+      real(wp) :: theta(soil%n_active), w0, flows, hour, k_leaf, psi_root_min
+      integer(ik) :: step, nfail
+      !---~---
+      !   The stores start near the soil's potential, as a cohort is born. A sward's small root
+      ! store behind its large root length relaxes to the soil within a step; from the fixture's
+      ! default start, 0.9 MPa away, that first step forces sub-steps through.
+      !---~---
+      theta = 0.30_wp
+      call make_stand(st, 2_ik, theta, 0.0_wp, 0.95_wp, 0.99_wp, 0.0_wp, grass=.true.)
+      k_leaf = hyd%pft(1)%leaf_kmax * 1.0e-3_wp * mmh2o * st%static%leaf_area(2)
+      call check_close('grass: its water path is its leaves'' conductance alone', st%static%k_plant(2),     &
+                       st%static%nplant(2) * k_leaf, 1.0e-12_wp * st%static%k_plant(2))
+      call check_close('grass: its only store is its fine roots', st%static%bwood_water(2), st%static%broot(2), 0.0_wp)
+      w0 = total_water(st)
+      flows = 0.0_wp
+      nfail = 0_ik
+      psi_root_min = 0.0_wp
+      do step = 1_ik, 192_ik
+         hour = mod(real(step, wp) * 900.0_wp / 3600.0_wp, 24.0_wp)
+         st%drive%e_demand = 5.0e-5_wp * max(0.0_wp, sin(pi * (hour - 6.0_wp) / 12.0_wp))                     &
+                             * st%static%nplant * st%static%bleaf / sum(st%static%nplant * st%static%bleaf)
+         st%drive%rain = merge(2.0e-3_wp, 0.0_wp, step >= 60 .and. step < 68)
+         call advance(st, sopts, 900.0_wp)
+         flows = flows + boundary_water(st, 900.0_wp)
+         nfail = nfail + st%work(WORK_WATER_NFAIL)
+         psi_root_min = min(psi_root_min, st%water%state%psi_coh(WOOD, 2))
+      end do
+      call check_int('grass: no sub-step forced through', nfail, 0_ik)
+      call check_close('grass: water conserved', total_water(st) - w0, flows, 1.0e-10_wp * w0)
+      call check_true('grass: its root store stays on its curve, above -5 MPa', psi_root_min > -5.0_wp, psi_root_min)
+      call check_true('grass: its leaves sit below its roots by the day''s draw',                              &
+                      st%water%state%psi_coh(LEAF, 2) <= st%water%state%psi_coh(WOOD, 2), st%water%state%psi_coh(LEAF, 2))
+      !---~---
+      !   Autumn's first storm: a summer-dry soil (about -1.5 MPa), the stores at its potential,
+      ! then 72 mm/h for two hours.
+      !---~---
+      theta = 0.16_wp
+      call make_stand(st, 2_ik, theta, 0.0_wp, 0.893_wp, 0.685_wp, 0.0_wp, grass=.true.)
+      w0 = total_water(st)
+      flows = 0.0_wp
+      nfail = 0_ik
+      do step = 1_ik, 48_ik
+         st%drive%e_demand = 0.0_wp
+         st%drive%rain = merge(2.0e-2_wp, 0.0_wp, step >= 4 .and. step < 12)
+         call advance(st, sopts, 900.0_wp)
+         flows = flows + boundary_water(st, 900.0_wp)
+         nfail = nfail + st%work(WORK_WATER_NFAIL)
+      end do
+      call check_int('grass storm: no sub-step forced through', nfail, 0_ik)
+      call check_close('grass storm: water conserved', total_water(st) - w0, flows, 1.0e-10_wp * w0)
+      call check_true('grass storm: the roots refill from the wetted soil', st%water%state%psi_coh(WOOD, 2) > -0.1_wp, &
+                      st%water%state%psi_coh(WOOD, 2))
+   end subroutine test_grass_sward
+
    subroutine test_vanishing_stores()
       type(stand_t) :: st
       real(wp) :: theta(soil%n_active), leaf_w(3), wood_w(3), w0, flows, rwc_max, pond_min

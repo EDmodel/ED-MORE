@@ -6,7 +6,9 @@
 !      filter, the patch map, the allometry from dbh, comment and blank lines, a header-less
 !      file read positionally, columns by name in any order, patch_area normalized to the site,
 !      and restructure_census_stand conserving the stand's stems and biomass and honouring its
-!      switches. A missing file or a site with no row is reported, not a crash.
+!      switches. A grass row has dbh 0 and its PFT's height, and a census stand's grass of one
+!      PFT restructures to one cohort per patch whatever its LAI. A missing file or a site with
+!      no row is reported, not a crash.
 !   2. THE CENSUS REFUSALS: every reason the reader gives for a file it cannot use, each from a
 !      file written to give exactly that reason. The driver stops the run with the reason.
 !   3. THE INITIAL SOIL STATE (ed_init_bare_ground, ed_init): [init].soil_temp and
@@ -37,6 +39,7 @@ program test_init
    use ed_init,                 only : init_fast_state, init_polygon
    use ed_met_types,            only : met_forcing_t
    use ed_time,                 only : ed_time_t
+   use ed_allometry_lib,        only : GROWTH_GRASS
    use ed_test_support,         only : banner, build_test_config, check, check_close
    implicit none
 
@@ -175,6 +178,49 @@ contains
       open(newunit=u, file='test_census_cells.csv', status='old', action='read')
       close(u, status='delete')
       !---~---
+      !   A grass (PFT 1 here): its rows have dbh 0 and its size is its PFT's height. Twenty
+      ! cells of one tree size and one grass row, the grass's LAI about 3, three times the
+      ! cohort cap, restructure to one patch holding one tree cohort and ONE grass cohort:
+      ! a grass is not split and fuses whatever the cap. A grass row with a dbh is refused.
+      !---~---
+      cfg%demography%demography_on = .false.
+      cfg%pft%allom(1)%growth_form = GROWTH_GRASS
+      cfg%pft%allom(1)%hgt_max     = 0.3_wp
+      open(newunit=u, file='test_census_grass.csv', status='replace', action='write')
+      write(u,'(a)') 'patch_id,patch_area,dbh,pft,nplant'
+      do ip = 1_ik, 20_ik
+         write(u,'(i0,a)') ip, ',400.0,25.0,2,0.0025'
+         write(u,'(i0,a)') ip, ',400.0,0.0,1,30.0'
+      end do
+      close(u)
+      call init_from_census(poly, cfg, 'test_census_grass.csv', found)
+      call check(found .and. poly%cohort%n == 40_ik, 'the oak-grass census did not load')
+      do i = 1_ik, poly%cohort%n
+         if (poly%cohort%pft(i) /= 1_ik) cycle
+         call check(poly%cohort%dbh(i) == 0.0_wp .and. poly%cohort%wood_carbon(i) == 0.0_wp             &
+                    .and. poly%cohort%height(i) == 0.3_wp, 'a grass row starts with no wood, at its PFT''s height')
+      end do
+      n0 = total_nplant(poly)
+      call restructure_census_stand(poly, cfg)
+      call check(poly%patch%n == 1_ik .and. poly%cohort%n == 2_ik,                                        &
+                 'an oak-grass census restructures to one tree and one grass cohort')
+      call check_close(total_nplant(poly), n0, 1.0e-12_wp, 'restructuring the grass conserves its plants')
+      do i = 1_ik, poly%cohort%n
+         if (poly%cohort%pft(i) /= 1_ik) cycle
+         call check(poly%cohort%nplant(i) * poly%cohort%leaf_area(i) > 2.0_wp * cfg%demography%cohort_lai_cap, &
+                    'the grass cohort keeps its LAI above the cap')
+      end do
+      open(newunit=u, file='test_census_grass.csv', status='replace', action='write')
+      write(u,'(a)') 'patch_id,dbh,pft,nplant'
+      write(u,'(a)') '1,5.0,1,30.0'
+      close(u, status='keep')
+      call init_from_census(poly, cfg, 'test_census_grass.csv', found, why=why)
+      call check(.not. found .and. why == 'has a tree row with dbh 0, or a grass row with a dbh other than 0', &
+                 'a grass row with a dbh is refused')
+      open(newunit=u, file='test_census_grass.csv', status='old', action='read')
+      close(u, status='delete')
+      cfg = build_test_config()
+      !---~---
       !   A missing file, or a site the file has no row for, is reported (found=.false.) with
       ! the reason, not a crash: the driver stops the run with it.
       !---~---
@@ -196,9 +242,9 @@ contains
    ! full: a file the reader accepted, or refused for another reason, fails.
    !---~---
    subroutine test_census_refusals()
-      integer, parameter  :: N_CASE = 12
+      integer, parameter  :: N_CASE = 13
       character(len=64)   :: header(N_CASE), row1(N_CASE), row2(N_CASE)
-      character(len=72)   :: expect(N_CASE)
+      character(len=80)   :: expect(N_CASE)
       character(len=256)  :: wide
       type(ed_config_t)   :: cfg
       type(polygon_t)     :: poly
@@ -237,10 +283,12 @@ contains
       row1(9)   = '1,ten,1,0.01'
       expect(9) = 'has a malformed row'
       row1(10)  = '1,-10.0,1,0.01'
-      expect(10) = 'has a row with a non-positive dbh, height, nplant or patch_area'
+      expect(10) = 'has a row with a negative dbh, or a non-positive height, nplant or patch_area'
       row1(11)  = '1,10.0,99,0.01'                                     ! the fixture has 3 PFTs
       expect(11) = 'has a pft index out of range'
-      expect(12) = 'has a header with too many columns'                ! 33 names, one past the 32 it takes
+      row1(12)  = '1,0.0,1,0.01'                                      ! the fixture's PFTs are trees
+      expect(12) = 'has a tree row with dbh 0, or a grass row with a dbh other than 0'
+      expect(13) = 'has a header with too many columns'                ! 33 names, one past the 32 it takes
       do i = 1, N_CASE
          open(newunit=u, file='test_init_refused_tmp.csv', status='replace', action='write')
          if (i == N_CASE) then

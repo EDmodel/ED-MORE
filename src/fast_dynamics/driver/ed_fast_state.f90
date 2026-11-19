@@ -18,6 +18,7 @@ module ed_fast_state
    use ed_numerics,              only : ascending_order
    use ed_config,                only : ed_config_t
    use ed_pft_params,            only : pft_table_t, hydraulics_table_t
+   use ed_allometry_lib,         only : GROWTH_TREE
    use ed_soil_params,           only : soil_profile_t
    use ed_plant_hydraulics,      only : cohort_root_profile, crown_gravity_head
    use ed_plant_hydr_lib,        only : plant_max_conductance, rhizosphere_conductance
@@ -319,7 +320,7 @@ contains
          static%leaf_width(j)          = pft%leaf_width(pf)
          static%branch_diam(j)         = pft%branch_diameter(pf)
          static%aboveground_frac(j)    = pft%allom(pf)%aboveground_frac
-         static%is_woody(j)            = pft%is_woody(pf)
+         static%is_woody(j)            = pft%allom(pf)%growth_form == GROWTH_TREE
          static%stem_resp_factor25(j)  = pft%stem_resp_factor25(pf)
          static%stem_resp_sapwood25(j) = pft%stem_resp_sapwood25(pf)
          !---~---
@@ -340,8 +341,8 @@ contains
    ! cohort's fine roots by layer, within its own rooting depth, and the patch's profile,
    ! the cohorts' weighted by their fine-root carbon (a patch with no roots puts its weight
    ! in the top layer: it has no root respiration to weight); the water network's paths
-   ! the intact wood-to-leaf path from the sapwood and the leaves in series
-   ! (docs/science/plant_hydraulics.md eq. (10)), the head to the crown, each layer's rhizosphere from
+   ! the intact wood-to-leaf path from the sapwood and the leaves in series, a grass's from its
+   ! leaves alone (docs/science/plant_hydraulics.md eq. (10)), the head to the crown, each layer's rhizosphere from
    ! the roots' length there, half the distance between the roots of every cohort in it
    ! (docs/science/plant_hydraulics.md eq. (14)), and the carbon of the wood store (sapwood
    ! and fine roots); and the dry heat capacity of the leaves and of all the wood
@@ -365,9 +366,9 @@ contains
             static%root_frac_patch(1:nsl) = static%root_frac_patch(1:nsl)                                    &
                                             + static%nplant(i)*static%broot(i)*static%root_frac(1:nsl, i)
             root_len(1:nsl, i)   = static%broot(i) * static%root_frac(1:nsl, i) * hp%specific_root_length
-            static%k_plant(i)    = static%nplant(i) * plant_max_conductance(hp%wood_kmax, static%sap_area(i),   &
-                                                                            static%height(i), hp%leaf_kmax,      &
-                                                                            static%leaf_area(i))
+            static%k_plant(i)    = static%nplant(i) * plant_max_conductance(static%is_woody(i), hp%wood_kmax,   &
+                                                                            static%sap_area(i), static%height(i), &
+                                                                            hp%leaf_kmax, static%leaf_area(i))
             static%crown_head(i) = crown_gravity_head(static%height(i))
          end associate
          static%bwood_water(i)   = static%bsap(i) + static%broot(i)

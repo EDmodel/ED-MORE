@@ -4,6 +4,7 @@
 # The number of PFTs is the length of [pft].wood_density; every per-PFT array must match it.
 
 [pft]
+growth_form        = "tree"
 wood_density       = [0.36, 0.50, 0.68]    # [g/cm3] basal-area means of the BCI wood-density classes
 # The mortality hazard, mort_gamma + mort_alpha*exp(-mort_beta*growth_avg) (unused here: mortality is a census law).
 mort_gamma         = [0.02405204866515945, 0.013144921634338494, 0.0074671218975402125]   # [1/yr]
@@ -42,7 +43,6 @@ wstress_sref_stomata = [2.0, 2.0, 2.0]              # [1/MPa] Sabot stomatal-str
 #      respiration and canopy optics, the wood geometry, the carbon-allocation and litter traits.
 #      Values follow the root ed_config_pft.toml, which has the same three PFTs, except where a
 #      line says.
-is_woody           = [1, 1, 1]     # 1 = woody (0 = grass: no stem respiration)
 stem_resp_factor25 = [0.06, 0.06, 0.06]  # [umol CO2/m2 stem/s @25C]
 root_resp_factor25 = [0.30, 0.30, 0.30]  # [umol CO2/kgC fine root/s @25C]
 leaf_reflect_vis   = [0.10, 0.10, 0.10]   # [--] leaf VIS reflectance
