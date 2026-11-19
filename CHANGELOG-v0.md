@@ -55,6 +55,10 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   after `coh_leaf_vis`; `edmore.canopy` passes it. (#85)
 - Example 04 holds one folder per site: BCI's files are in `examples/example04_column_biophysics/sites/bci/`,
   and its `run_example.py` is `run_site.py` there. (#91)
+- `[hydraulics]` has a new required key, `leaf_kmax` [mmol m⁻² s⁻¹ MPa⁻¹]: the leaves' hydraulic
+  conductance per unit leaf area, in series with the sapwood's. `vessel_curl` is removed and stops the run.
+  The shipped and example PFT files carry measured values, each with its source; add the key to your own
+  PFT files. (#93)
 
 ### Answer changes
 
@@ -129,6 +133,11 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   default 4.7 °C and 0.4 K⁻¹). At Harvard Forest the conifers' sunny-hour GPP in January falls from
   2.05 to 0.38 µmol m⁻² s⁻¹ (tower 0.01), and December–February's NEE turns from a sink to a source;
   BCI moves by about 0.1 % or less. (#91)
+- The wood-to-leaf conductance is the sapwood's and the leaves' in series, without ED2's path factor 1.5.
+  At BCI the stand's conductance is about unchanged: the top tree's midday leaf water potential rises by
+  0.07–0.15 MPa, and GPP, LE and H move by under 0.1 %. At Harvard Forest the broadleaves' midday potential
+  falls by 0.13–0.24 MPa in the August 2022 drought and their assimilation by up to 1.6 µmol m⁻² s⁻¹ on
+  1–4 September; the six-year means move by under 0.1 %. (#93)
 
 ### Added
 

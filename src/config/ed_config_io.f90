@@ -1298,7 +1298,7 @@ contains
          call req_pa_bcast(tp, 'hydraulics.wood_psi50',           hydro%wood_psi50,               npft, miss)
          call req_pa_bcast(tp, 'hydraulics.wood_kexp',            hydro%wood_kexp,                npft, miss)
          call req_pa_bcast(tp, 'hydraulics.wood_kmax',            hydro%wood_kmax,                npft, miss)
-         call req_pa_bcast(tp, 'hydraulics.vessel_curl',          hydro%vessel_curl,              npft, miss)
+         call req_pa_bcast(tp, 'hydraulics.leaf_kmax',            hydro%leaf_kmax,                npft, miss)
          call req_pa_bcast(tp, 'hydraulics.root_beta',            hydro%root_beta,                npft, miss)
          call req_pa_bcast(tp, 'hydraulics.root_depth_b1',        hydro%root_depth_b1,            npft, miss)
          call req_pa_bcast(tp, 'hydraulics.root_depth_b2',        hydro%root_depth_b2,            npft, miss)
@@ -1385,7 +1385,7 @@ contains
            //'height_allometry,b1Ht,b2Ht,chave_a,chave_b,chave_c,chave_rse,chave_e,'                          &
            //'agb_c1,agb_c2,lai_b1,lai_b2,wai_b1,wai_b2,sapwood_area_b1,sapwood_area_b2,'            &
            //'leaf_pi0,leaf_elastic_mod,leaf_apoplast_frac,leaf_water_sat,wood_pi0,wood_elastic_mod,'   &
-           //'wood_apoplast_frac,wood_water_sat,wood_psi50,wood_kexp,wood_kmax,vessel_curl,root_beta,'  &
+           //'wood_apoplast_frac,wood_water_sat,wood_psi50,wood_kexp,wood_kmax,leaf_kmax,root_beta,'  &
            //'root_depth_b1,root_depth_b2,specific_root_length,fine_root_radius'
       associate (p => cfg%pft)
          do pf = 1_ik, p%n
@@ -1428,7 +1428,7 @@ contains
                  p%hydro(pf)%wood_curve%pi0, p%hydro(pf)%wood_curve%elastic_mod,                      &
                  p%hydro(pf)%wood_curve%apoplast_frac, p%hydro(pf)%wood_curve%water_sat,              &
                  p%hydro(pf)%wood_psi50, p%hydro(pf)%wood_kexp, p%hydro(pf)%wood_kmax,                &
-                 p%hydro(pf)%vessel_curl, p%hydro(pf)%root_beta, p%hydro(pf)%root_depth_b1,           &
+                 p%hydro(pf)%leaf_kmax, p%hydro(pf)%root_beta, p%hydro(pf)%root_depth_b1,             &
                  p%hydro(pf)%root_depth_b2, p%hydro(pf)%specific_root_length,                         &
                  p%hydro(pf)%fine_root_radius
          end do

@@ -478,7 +478,7 @@ contains
          end do
          ev%inflow_coh(WOOD, i) = ev%inflow_coh(WOOD, i) + u_sum
          associate (hp => hyd%pft(static%pft(i)))
-            call xylem_sapflow(static%k_xylem(i), ev%psi_coh(WOOD, i), ev%psi_coh(LEAF, i), static%crown_head(i),  &
+            call xylem_sapflow(static%k_plant(i), ev%psi_coh(WOOD, i), ev%psi_coh(LEAF, i), static%crown_head(i),  &
                                hp%wood_psi50, hp%wood_kexp, hp%vuln_table, s, ds_w, ds_l)
          end associate
          ev%sapflow(i) = s

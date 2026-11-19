@@ -188,11 +188,12 @@ are the last days of the 2022 drought: eight bright days with showers of 5.5 mm 
 (4 September), then 97 mm on 5–6 September. The figure shows the largest patch holding both PFTs (7.5 %
 of the site, LAI 3.7) and each PFT's tallest cohort, both 24 m.
 - **The soil is dry but not empty:** every layer down to 1.5 m holds 0.10 m³ m⁻³ on 28 August (the
-  residual is 0.079), and 0.093 by 4 September. The broadleaf's leaf water potential falls to −1.3 to
-  −1.6 MPa at midday, and to −2.2 by 3–4 September; the conifer's to −1.0, then −1.6. The 5.5 mm shower
-  wets only the top layer, yet raises both trees' night-time potential from −0.72 to −0.35 MPa for a day.
-- **Both trees keep assimilating:** the broadleaf at 19–20 µmol m⁻² s⁻¹ at midday until 1 September and
-  15 by 3–4 September, the conifer at 4.5. On 28–30 August, 10–15 h, the tower's LE is 200 W m⁻² and
+  residual is 0.079), and 0.093 by 4 September. The broadleaf's leaf water potential falls to −1.5 to
+  −1.9 MPa at midday, and to −2.3 by 3–4 September; the conifer's to −0.9 to −1.1, then −1.7. The 5.5 mm
+  shower wets only the top layer, yet raises both trees' night-time potential from −0.65 to −0.33 MPa for a
+  day.
+- **Both trees keep assimilating:** the broadleaf at 19–20 µmol m⁻² s⁻¹ at midday until 31 August, 18
+  on 1 September and 14 by 3–4 September, the conifer at 4.5. On 28–30 August, 10–15 h, the tower's LE is 200 W m⁻² and
   its GPP 24 µmol m⁻² s⁻¹; the model's 173 and 26. After the storm the model overshoots (LE 242
   against 211 on 8–10 September).
 - **Temperatures:** only the air at 38.5 m is forcing. At midday on the bright days the broadleaf's

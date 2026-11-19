@@ -20,7 +20,7 @@ module ed_fast_state
    use ed_pft_params,            only : pft_table_t, hydraulics_table_t
    use ed_soil_params,           only : soil_profile_t
    use ed_plant_hydraulics,      only : cohort_root_profile, crown_gravity_head
-   use ed_plant_hydr_lib,        only : xylem_max_conductance, rhizosphere_conductance
+   use ed_plant_hydr_lib,        only : plant_max_conductance, rhizosphere_conductance
    use ed_therm_lib,             only : tissue_dry_heat_capacity, cas_temp_to_enthalpy
    use ed_cohort_state_vars,     only : cohort_block, alloc_cohort_block, init_cohort, cohort_tissue_temps,       &
                                         set_cohort_tissue_temps, hold_cohort_tissue_temps
@@ -340,7 +340,8 @@ contains
    ! cohort's fine roots by layer, within its own rooting depth, and the patch's profile,
    ! the cohorts' weighted by their fine-root carbon (a patch with no roots puts its weight
    ! in the top layer: it has no root respiration to weight); the water network's paths
-   ! the intact xylem from the sapwood, the head to the crown, each layer's rhizosphere from
+   ! the intact wood-to-leaf path from the sapwood and the leaves in series
+   ! (docs/science/plant_hydraulics.md eq. (10)), the head to the crown, each layer's rhizosphere from
    ! the roots' length there, half the distance between the roots of every cohort in it
    ! (docs/science/plant_hydraulics.md eq. (14)), and the carbon of the wood store (sapwood
    ! and fine roots); and the dry heat capacity of the leaves and of all the wood
@@ -364,8 +365,9 @@ contains
             static%root_frac_patch(1:nsl) = static%root_frac_patch(1:nsl)                                    &
                                             + static%nplant(i)*static%broot(i)*static%root_frac(1:nsl, i)
             root_len(1:nsl, i)   = static%broot(i) * static%root_frac(1:nsl, i) * hp%specific_root_length
-            static%k_xylem(i)    = static%nplant(i) * xylem_max_conductance(hp%wood_kmax, static%sap_area(i),   &
-                                                                            static%height(i), hp%vessel_curl)
+            static%k_plant(i)    = static%nplant(i) * plant_max_conductance(hp%wood_kmax, static%sap_area(i),   &
+                                                                            static%height(i), hp%leaf_kmax,      &
+                                                                            static%leaf_area(i))
             static%crown_head(i) = crown_gravity_head(static%height(i))
          end associate
          static%bwood_water(i)   = static%bsap(i) + static%broot(i)

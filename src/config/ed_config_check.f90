@@ -790,7 +790,7 @@ contains
          if (any(hydro%specific_root_length <= 0.0_wp))                                                 &
             error stop TAG//'hydraulics.specific_root_length must be > 0'
          if (any(hydro%fine_root_radius <= 0.0_wp)) error stop TAG//'hydraulics.fine_root_radius must be > 0'
-         if (any(hydro%vessel_curl <= 0.0_wp))      error stop TAG//'hydraulics.vessel_curl must be > 0'
+         if (any(hydro%leaf_kmax <= 0.0_wp))        error stop TAG//'hydraulics.leaf_kmax must be > 0'
          if (any(hydro%wood_kmax <= 0.0_wp))        error stop TAG//'hydraulics.wood_kmax must be > 0'
          !---~---
          !   The curves one PFT at a time: an array expression over hydro%leaf_curve%<key>,

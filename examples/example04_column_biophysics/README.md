@@ -34,8 +34,8 @@ is u\*-filtered), and a plain mean over its measured hours would be mostly a mea
 
 | Site, run | GPP [µmol m⁻² s⁻¹] tower / model | LE [W m⁻²] | H [W m⁻²] | net radiation [W m⁻²] |
 |---|---|---|---|---|
-| BCI, default | 7.64 / 10.78 | 76.7 / 82.9 | 35.1 / 73.6 | 136.0 / 139.7 |
-| BCI, calibrated | 7.64 / 8.99 | 76.7 / 68.5 | 35.1 / 84.8 | 136.0 / 139.1 |
+| BCI, default | 7.64 / 10.74 | 76.7 / 80.8 | 35.1 / 74.8 | 136.0 / 139.8 |
+| BCI, calibrated | 7.64 / 8.93 | 76.7 / 66.5 | 35.1 / 86.3 | 136.0 / 139.1 |
 | Harvard, default | 4.56 / 4.87 | 41.1 / 50.3 | 25.2 / 47.5 | 87.3 / 88.0 |
 | Harvard, calibrated | 4.56 / 5.22 | 41.1 / 45.0 | 25.2 / 51.3 | 87.3 / 87.3 |
 

@@ -173,7 +173,11 @@ wood_water_sat       = 1.0                                                      
 wood_psi50           = -2.0                                                         # [MPa]
 wood_kexp            = 2.0                                                          # [-]
 wood_kmax            = [5.8914373491131515, 4.177863535653273, 2.685588809977599]   # [kg/m/s/MPa]
-vessel_curl          = 1.5                                                          # [-]
+# Leaf hydraulic conductance per unit leaf area, in series with the sapwood (docs/science/plant_hydraulics.md
+# eq. (10)): 10 BCI canopy species, whole leaf by high-pressure flowmeter in high light (Sack, Tyree & Holbrook
+# 2005, New Phytol 167:403-413, doi:10.1111/j.1469-8137.2005.01432.x, Fig. 2): the mean of the five
+# sun-establishing species, of all ten, and of the five shade-establishing species.
+leaf_kmax            = [15.4, 10.5, 5.6]                                            # [mmol/m2/s/MPa] early/mid/late
 root_beta            = 0.1                                                          # [-]
 root_depth_b1        = 1.114058                                                     # [m]
 root_depth_b2        = 0.4223014                                                    # [-]

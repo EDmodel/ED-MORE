@@ -123,7 +123,7 @@ contains
       h%pft(1)%wood_psi50  = -2.0_wp
       h%pft(1)%wood_kexp = 2.0_wp
       h%pft(1)%wood_kmax   = 3.3_wp
-      h%pft(1)%vessel_curl = 1.5_wp
+      h%pft(1)%leaf_kmax = 10.0_wp
       h%pft(1)%root_beta = 0.1_wp
       h%pft(1)%root_depth_b1 = 1.1140580_wp
       h%pft(1)%root_depth_b2 = 0.4223014_wp
@@ -171,6 +171,8 @@ contains
       if (present(leafless)) then
          if (leafless) st%static%bleaf(n) = 0.0_wp
       end if
+      !--- Each cohort's leaf area at 16 m2/kgC, which the leaves' conductance scales with.
+      st%static%leaf_area(1:n) = 16.0_wp * st%static%bleaf(1:n)
       call derive_cohort_terms(st%static, hyd, soil)
       associate (s => st%static, lc => hyd%pft(1)%leaf_curve, wc => hyd%pft(1)%wood_curve)
          lai_share = s%nplant * s%bleaf / max(sum(s%nplant * s%bleaf), tiny_num)
@@ -427,7 +429,7 @@ contains
       theta = 0.15_wp
       call make_stand(st, 1_ik, theta, 0.0_wp, 0.6_wp, 0.5_wp, 0.0_wp)
       st%static%bleaf(1) = 1.0e-3_wp                            ! a few grams of leaf
-      st%static%k_xylem(1) = 1.0e-3_wp * st%static%k_xylem(1)   ! and a xylem that can hardly feed it
+      st%static%k_plant(1) = 1.0e-3_wp * st%static%k_plant(1)   ! and a wood-to-leaf path that can hardly feed it
       call set_water_state(st%static, soil, hyd, theta, st%drive%ice,                                                &
                            0.0_wp, 0.0_wp, [1.0e-3_wp * 2.0_wp * 0.75_wp],         &
                            [st%water%state%water_coh(WOOD, 1) / st%static%nplant(1)], st%water)

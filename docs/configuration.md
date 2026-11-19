@@ -367,7 +367,8 @@ it. Every `[allometry]` and `[hydraulics]` key takes one value, for every PFT, o
 per PFT.
 
 `[hydraulics]` holds the leaf and wood pressure–volume curves, the xylem's vulnerability (`wood_psi50`,
-`wood_kexp`), its sapwood specific conductivity `wood_kmax` and path factor `vessel_curl`, and the roots
+`wood_kexp`), its sapwood specific conductivity `wood_kmax`, the leaves' hydraulic conductance per unit leaf
+area `leaf_kmax` [mmol m⁻² s⁻¹ MPa⁻¹] in series with the xylem, and the roots
 (`root_beta`, `root_depth_b1`/`root_depth_b2`, `specific_root_length`, `fine_root_radius`). The root
 profile is a plant trait, so these keys live in the PFT file only.
 
