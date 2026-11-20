@@ -11,8 +11,8 @@ module ed_config_io
    use ed_kinds,      only : wp, ik
    use ed_constants,  only : n_soil_layer_max
    use ed_allometry_lib, only : HEIGHT_POWER, HEIGHT_CHAVE, GROWTH_TREE, GROWTH_GRASS
-   use ed_config,       only : ed_config_t, derive_parameters, alloc_pft_table, INIT_CENSUS,        &
-                               INIT_RESTART
+   use ed_config,       only : ed_config_t, init_params_t, derive_parameters, alloc_pft_table,       &
+                               INIT_CENSUS, INIT_RESTART
    use ed_pft_derive,   only : pft_stomata_psi_onset, pft_wstress_psi_open, pft_wstress_psi_close
    use ed_fast_params,     only : INTEG_ESDIRK2, INTEG_RK45, RK45_RTOL
    use ed_soil_params,     only : soil_params_t, ENERGY_BC_GEOTHERMAL, ENERGY_BC_DIRICHLET,           &
@@ -46,7 +46,7 @@ module ed_config_io
    private
 
    public :: load_ed_config, write_pft_params_csv
-   public :: load_fast_params, load_soil, load_snow_params, load_aero_params   ! exposed for unit tests
+   public :: load_fast_params, load_soil, load_snow_params, load_aero_params, load_soil_temp   ! exposed for unit tests
 
    integer(ik), parameter :: MAXPFT  = 64_ik    ! largest PFT count the array buffers handle
    integer,     parameter :: MAXMISS = 256       ! largest missing-key list
@@ -441,6 +441,25 @@ contains
          one = toml_real(tm, key, one)                 ! recorded, set or default
       end if
    end subroutine opt_texture
+
+   !---~---
+   !   [init].soil_temp: one value for every soil layer, or a list of one per layer, top down
+   ! (n_soil_temp counts it; validate_config matches it to the column's layers).
+   !---~---
+   subroutine load_soil_temp(tm, init)
+      type(toml_table_t),  intent(in)    :: tm
+      type(init_params_t), intent(inout) :: init
+      real(wp) :: temps(n_soil_layer_max)
+      if (.not. toml_is_array(tm, 'init.soil_temp')) then
+         init%soil_temp   = toml_real(tm, 'init.soil_temp', init%soil_temp(1))
+         init%n_soil_temp = 0_ik
+         return
+      end if
+      call toml_real_array(tm, 'init.soil_temp', temps, init%n_soil_temp)
+      if (init%n_soil_temp == 0_ik) return                         ! an empty list keeps the default
+      init%soil_temp = temps(init%n_soil_temp)                     ! below the list: no layer
+      init%soil_temp(1:init%n_soil_temp) = temps(1:init%n_soil_temp)
+   end subroutine load_soil_temp
 
    !---~---
    !   [soil].water_bottom_bc: the column's water boundary and its drainage factor, kept when
@@ -1237,7 +1256,7 @@ contains
          cfg%init%census_file = toml_string(tm, 'init.census_file', '')
       end if
       call req_s(tm, 'init.pft_config',    cfg%init%pft_config,        miss)
-      cfg%init%soil_temp  = toml_real(tm, 'init.soil_temp',  cfg%init%soil_temp)
+      call load_soil_temp(tm, cfg%init)
       cfg%init%soil_theta = toml_real(tm, 'init.soil_theta', cfg%init%soil_theta)
       cfg%init%reacclimate_traits = toml_logical(tm, 'init.reacclimate_traits', cfg%init%reacclimate_traits)
 

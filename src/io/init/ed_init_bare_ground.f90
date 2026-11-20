@@ -80,11 +80,11 @@ contains
 
    !---~---
    !   A start's patch stores, the same on every patch of a site: the soil at its site's
-   ! theta_start and [init].soil_temp, its water liquid and ice as the layer's freezing curve
-   ! holds them there (soil_layer_energy); the pond dry; and the canopy air at the reference
-   ! climate (met_forcing_t's air, at the run's CO2), which the fast loop's first window
-   ! replaces with the first forcing sample (docs/science/canopy_air_space_biophysics.md, The
-   ! start).
+   ! theta_start and [init].soil_temp (one value, or one per layer), its water liquid and ice
+   ! as the layer's freezing curve holds them there (soil_layer_energy); the pond dry; and the
+   ! canopy air at the reference climate (met_forcing_t's air, at the run's CO2), which the
+   ! fast loop's first window replaces with the first forcing sample
+   ! (docs/science/canopy_air_space_biophysics.md, The start).
    !---~---
    subroutine seed_patch_stores(poly, cfg)
       type(polygon_t),     intent(inout) :: poly
@@ -96,11 +96,13 @@ contains
          associate (cas => poly%patch%cas(ip), se => poly%patch%soil_energy(ip), sw => poly%patch%soil_water(ip), &
                     surf => poly%site%surface(poly%patch%owner_site(ip)))
             nsl = surf%soil_profile%n_active
+            if (cfg%init%n_soil_temp /= 0_ik .and. cfg%init%n_soil_temp /= nsl)                                 &
+               error stop 'seed_patch_stores: [init].soil_temp lists another number of layers than the column has'
             sw%theta(1:nsl)     = surf%theta_start(1:nsl)
             sw%w_surface        = 0.0_wp
             sw%w_surface_energy = 0.0_wp        ! dry pond -> zero enthalpy
             do k = 1_ik, nsl
-               se%soil_energy(k) = soil_layer_energy(cfg%init%soil_temp, surf%theta_start(k),                  &
+               se%soil_energy(k) = soil_layer_energy(cfg%init%soil_temp(k), surf%theta_start(k),               &
                                                      surf%soil_profile%dry_heat_capacity(k),                    &
                                                      surf%soil_profile%layer_curve(k))
                call soil_layer_temp(se%soil_energy(k), surf%theta_start(k), surf%soil_profile%dry_heat_capacity(k), &

@@ -179,6 +179,9 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ### Added
 
+- `[init].soil_temp` may list one temperature per soil layer, top down, for a column whose start
+  differs with depth, such as a thawed top over permafrost. One value starts every layer there, as
+  before; a list needs as many values as the column has layers. (#TBD)
 - `[allometry].diameter_height` [m]: the height a PFT's stem diameter is measured at, the diameter every
   curve takes, one value or one per PFT. 1.3 m, breast height, by default (the results are unchanged);
   0, the root collar, for a shrub. A tree's lies in [0, `hgt_max`), and `"chave2014"` needs 1.3 m or more.

@@ -275,7 +275,9 @@ starts from bare ground instead. `edmore` stops, and `edmore.model.Run` raises `
 **The initial soil state** is `[init].soil_temp` [K] and `[init].soil_theta` [m³ m⁻³], both optional:
 every soil layer of every patch starts there, unless a state file restores the soil. They default to
 288 K and 0.30. A run with no spin-up starts from them, so set them to the site: the mean annual air
-temperature, for instance, keeps a warm site's column from starting cold. Below the freezing point
+temperature, for instance, keeps a warm site's column from starting cold. `soil_temp` may instead list
+one temperature per layer, top down (as many as the column's layers), for a column whose start differs
+with depth, such as permafrost below a thawed active layer. Below the freezing point
 (273.16 K) the soil's water starts as ice, at that temperature. The loader refuses a temperature outside
 233–333 K and a water content outside (`[soil].theta_res`, `[soil].theta_sat`]. A column from the soil
 maps, or one whose `[soil]` texture is given per layer, has a texture per layer, so each layer starts at

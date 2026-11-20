@@ -30,6 +30,8 @@
 #                              builds only: a Debug build traps the NaN at that comparison)
 #   toml_unclosed_string       a string value with no closing quote, which would otherwise read as ""
 #   toml_duplicate_key         a key set twice ([soil] depth), which TOML forbids
+#   init_soil_temp_layers      an [init].soil_temp list with another number of values than the column's
+#                              layers
 #   init_census_missing        a census file that is not there (init mode 1)
 #   init_census_empty          a census file with no row for the site
 #   init_restart_missing       a state file that is not there (init mode 2)
@@ -181,6 +183,9 @@ elseif(CASE STREQUAL "toml_unclosed_string")
 elseif(CASE STREQUAL "toml_duplicate_key")
    replace_or_fail(text "\ndepth *= *([0-9.]+)" "\ndepth = \\1\ndepth = 3.0" "[soil] depth")
    set(expects "soil\\.depth[^\n]*twice")
+elseif(CASE STREQUAL "init_soil_temp_layers")
+   replace_or_fail(text "\n# *soil_temp *= *[^ #\n]+" "\nsoil_temp = [280.0, 275.0]" "[init] soil_temp, commented out")
+   set(expects "init\\.soil_temp: a list takes one value per soil layer")
 elseif(CASE MATCHES "^hydraulics_")
    #----- The PFT file's copy beside the run, with one trait made impossible for every PFT. --------#
    file(READ "${SOURCE_DIR}/ed_config_pft.toml" pft)

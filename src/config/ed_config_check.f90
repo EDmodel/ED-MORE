@@ -351,6 +351,10 @@ contains
             error stop TAG//'soil: the per-layer texture does not match the column''s layers: a [soil] '// &
                        'texture list takes one value per layer (soil.layer_bottoms, or the default '//   &
                        'layers, cut at soil.depth), and every list the same number'
+         !--- A map's column takes its layers from its cell: seed_patch_stores checks the list there.
+         if (cfg%init%n_soil_temp /= 0_ik .and. cfg%init%n_soil_temp /= n .and. .not. soil_maps_on(cfg%maps)) &
+            error stop TAG//'init.soil_temp: a list takes one value per soil layer (soil.layer_bottoms, '//   &
+                       'or the default layers, cut at soil.depth)'
          call soil_layer_textures(sc, tex)
          !---~---
          !   Each layer check states what must hold, so a NaN fails it: a map layer with no sand
@@ -437,7 +441,7 @@ contains
    !--- [init].
    subroutine check_init(cfg)
       type(ed_config_t), intent(in) :: cfg
-      if (cfg%init%soil_temp < 233.0_wp .or. cfg%init%soil_temp > 333.0_wp)                           &
+      if (.not. all(cfg%init%soil_temp >= 233.0_wp .and. cfg%init%soil_temp <= 333.0_wp))               &
          error stop TAG//'init.soil_temp outside 233-333 K'
       if (cfg%init%reacclimate_traits .and. cfg%init%init_mode /= INIT_RESTART)                            &
          error stop TAG//'init.reacclimate_traits applies to a restart (init.init_mode = 2) only'

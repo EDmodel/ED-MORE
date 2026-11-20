@@ -325,7 +325,8 @@ contains
       cfg = build_test_config()
 
       !--- 1. The defaults: 288 K and theta = 0.30.
-      call check_close(cfg%init%soil_temp,  288.0_wp, 1.0e-14_wp, 'default soil_temp changed (was 288 K)')
+      call check(all(cfg%init%soil_temp == 288.0_wp) .and. cfg%init%n_soil_temp == 0_ik,                 &
+                 'default soil_temp changed (was 288 K in every layer)')
       call check_close(cfg%init%soil_theta, 0.30_wp,  1.0e-14_wp, 'default soil_theta changed (was 0.30)')
 
       !--- 2. Set values reach the site, then every layer of every patch.
@@ -398,6 +399,19 @@ contains
       call init_fast_state(poly, cfg)
       call check(all(poly%patch%soil_water(2)%theta(1:n) == prof%theta_fc(1:n)),                                          &
                  'a patch''s soil did not start at field capacity')
+
+      !--- 3b. A temperature per layer, top down: each layer starts at its own, thawed or frozen.
+      cfg%init%n_soil_temp = n
+      do k = 1_ik, n
+         cfg%init%soil_temp(k) = 280.0_wp - 25.0_wp * real(k - 1_ik, wp) / real(max(n - 1_ik, 1_ik), wp)
+      end do
+      call init_bare_ground(poly, cfg, 3_ik)
+      call check(all(abs(poly%patch%soil_energy(2)%soil_temp(1:n) - cfg%init%soil_temp(1:n)) < 1.0e-10_wp), &
+                 'a soil layer did not start at its own [init].soil_temp')
+      call check(poly%patch%soil_energy(2)%soil_fliq(1) == 1.0_wp .and.                                      &
+                 poly%patch%soil_energy(2)%soil_fliq(n) < 0.5_wp, 'a thawed top over a frozen bottom did not start so')
+      cfg%init%n_soil_temp = 0_ik
+      cfg%init%soil_temp   = 298.65_wp
 
       !--- 4. Bare ground is empty by default; nbg_init_density seeds each patch with each PFT.
       call init_bare_ground(poly, cfg, 3_ik)

@@ -25,14 +25,15 @@ program test_params_config
                                       ENERGY_BC_GEOTHERMAL, ENERGY_BC_DIRICHLET
    use ed_soil_derive,         only : soil_layers, build_soil_profile
    use ed_soil_hydr_lib,       only : SOIL_RETENTION_VG, SOIL_RETENTION_CAMPBELL
-   use ed_config,              only : ed_config_t
+   use ed_config,              only : ed_config_t, init_params_t
    use ed_toml,                only : toml_table_t, toml_parse_file, toml_write_record
-   use ed_config_io,           only : load_fast_params, load_soil, load_snow_params, load_aero_params
+   use ed_config_io,           only : load_fast_params, load_soil, load_snow_params, load_aero_params, load_soil_temp
    implicit none
 
    call test_block_loaders()
    call test_soil_column()
    call test_soil_texture_lists()
+   call test_init_soil_temp()
 
    call test_report('test_params_config')
 
@@ -385,5 +386,39 @@ contains
       open(newunit=u, file=TOMLFILE, status='old', action='write')
       close(u, status='delete')
    end subroutine test_soil_texture_lists
+
+   !---~---
+   !   4. [init].soil_temp: one value starts every soil layer there; a list starts each layer at
+   ! its own value, top down, and counts them for validate_config.
+   !---~---
+   subroutine test_init_soil_temp()
+      character(len=*), parameter :: TOMLFILE = 'test_params_config_soil_temp_tmp.toml'
+      type(toml_table_t)  :: tm
+      type(init_params_t) :: one, listed
+      integer(ik) :: u
+      logical     :: ok
+      print '(a)', 'test_init_soil_temp:'
+      call check_true('the default starts every layer at 288 K', all(one%soil_temp == 288.0_wp)       &
+                      .and. one%n_soil_temp == 0_ik)
+      open(newunit=u, file=TOMLFILE, status='replace', action='write')
+      write(u,'(a)') '[init]'
+      write(u,'(a)') 'soil_temp = 271.5'
+      close(u)
+      call toml_parse_file(TOMLFILE, tm, ok)
+      call load_soil_temp(tm, one)
+      call check_true('one value starts every layer there', all(one%soil_temp == 271.5_wp)             &
+                      .and. one%n_soil_temp == 0_ik)
+      open(newunit=u, file=TOMLFILE, status='replace', action='write')
+      write(u,'(a)') '[init]'
+      write(u,'(a)') 'soil_temp = [276.0, 272.0, 268.5]   # a thawed top over permafrost'
+      close(u)
+      call toml_parse_file(TOMLFILE, tm, ok)
+      call load_soil_temp(tm, listed)
+      call check_true('a list counts its layers', listed%n_soil_temp == 3_ik, real(listed%n_soil_temp, wp))
+      call check_true('a list starts each layer at its own value, top down',                            &
+                      all(listed%soil_temp(1:3) == [276.0_wp, 272.0_wp, 268.5_wp]))
+      open(newunit=u, file=TOMLFILE, status='old')
+      close(u, status='delete')
+   end subroutine test_init_soil_temp
 
 end program test_params_config
