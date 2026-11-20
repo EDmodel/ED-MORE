@@ -1,7 +1,7 @@
 ! SPDX-License-Identifier: Apache-2.0
 !---~---
 !   ed_biophysics_params -- the [snow] and [aerodynamics] blocks: the snow store's and the
-! canopy aerodynamics' parameters. A config leaf (ed_kinds only), so the device-eligible
+! canopy aerodynamics' parameters ([surface_layer]'s are ed_organic_lib's). A config leaf (ed_kinds only), so the device-eligible
 ! kernels import it without ed_config. The ground's are in ed_soil_params.
 !---~---
 module ed_biophysics_params
@@ -29,6 +29,7 @@ module ed_biophysics_params
       real(wp) :: ny07_a            = 2.5_wp      ! [-] Niu-Yang07 snow-cover-fraction shape factor
       real(wp) :: ny07_m            = 1.0_wp      ! [-] Niu-Yang07 snow-cover-fraction exponent
    end type snow_params_t
+
 
    !---~---
    !   The [aerodynamics] block (docs/science/canopy_aerodynamics.md); the von Karman

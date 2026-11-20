@@ -17,7 +17,7 @@
 module ed_fast_integ_frozen
    use ed_kinds,              only : wp, ik
    use ed_constants,          only : tiny_num, rho_h2o, pi, r_gas,                              &
-                                     kgcday_2_umols
+                                     kgcday_2_umols, n_organic_slot
    use ed_diag_vars,          only : CO_ANET, CO_AGROSS, CO_GSW, CO_GBW, CO_CI, CO_CS, CO_RD, CO_BETA_STOM,     &
                                      CO_BETA_NONSTOM, CO_LEAF_TEMP, CO_WOOD_TEMP, CO_LEAF_VPD, CO_PSI_LEAF,      &
                                      CO_ABS_PAR, CO_ABS_SW, CO_ABS_LW, CO_WIND, CO_LEAF_WATER, CO_WOOD_WATER,    &
@@ -42,6 +42,7 @@ module ed_fast_integ_frozen
    use ed_state_defaults,   only : is_unset_negative
    use ed_biophysics_params, only : aero_params_t
    use ed_patch_state_vars, only : cas_state_t, soil_carbon_state_t, cas_capacities, cas_capacity_change
+   use ed_organic_lib,      only : organic_params_t, organic_present, organic_layer_sums, organic_take_water
    use ed_biogeochem_params, only : N_SOIL_POOL
    use ed_canopy_aerodynamics, only : canopy_aerodynamics, cas_atm_conductances
    use ed_plant_energy,   only : plant_energy_env_t, sensible_heat_coeff, leaf_transp_coeff, leaf_surface_evap_coeff, &
@@ -51,7 +52,7 @@ module ed_fast_integ_frozen
    use ed_respiration,   only : stem_maintenance_respiration, fine_root_maintenance_respiration, root_zone_temp_scale, &
                                 decomposition_env_scalar, decomposition_transfer_matrix, heterotrophic_respiration
    use ed_surface, only : surface_env_t, prepare_snow_stage
-   use ed_soil_water, only : pond_inflow
+   use ed_soil_water, only : pond_inflow, organic_cover_path
    use ed_therm_lib,          only : internal_energy_liquid, liquid_energy_to_temp,                              &
                                      cas_enthalpy_to_temp, cas_heat_capacity, air_vpd, air_density,             &
                                      soil_thermal_conductivity, specific_humidity_to_vapor_pressure
@@ -92,15 +93,26 @@ contains
       real(wp)    :: gpp, ra_leaf, ra_stem, ra_root, rh, soil_temp_root, theta_mean
       real(wp)    :: throughfall   ! [kg/m2/s] the rain and snow through the canopy
       real(wp)    :: w_pond, e_pond   ! [kg/m2], [J/m2] the pond the step starts from, after the snow stage
+      real(wp)    :: taken, w_max     ! [kg/m2] the pond water the organic layer took; what it holds at capacity
+      real(wp)    :: t_surface        ! [K] the ground's surface: the organic layer's, else the top soil node's
+      real(wp)    :: t_soil_top       ! [K] the top soil node's
+      real(wp)    :: dry_cap, org_w, org_e, resist   ! the organic layer's sums at the step's start
       integer(ik) :: n, nsl
 
       n   = static%n
       nsl = site%soil_profile%n_active
       call prepare_frozen(n, nsl, frozen)
 
-      !--- The processes' rates at the start state.
+      !---~---
+      !   The processes' rates at the start state. The ground's surface is the organic layer where
+      ! there is one (docs/science/surface_organic_layer.md): the aerodynamics and the litter's
+      ! decomposition read its temperature, the soil's own evaporation the top soil node's.
+      !---~---
+      t_soil_top = dynamic%soil_energy%soil_temp(1)
+      t_surface  = t_soil_top
+      if (organic_present(dynamic%organic)) t_surface = dynamic%organic%temp
       call refresh_canopy_aerodynamics(cfg%aero, frozen%cas%env, static, forcing, dynamic%cas,               &
-                                       dynamic%soil_energy%soil_temp(1), dynamic%leaf_temp, dynamic%wood_temp, &
+                                       t_surface, dynamic%leaf_temp, dynamic%wood_temp,                       &
                                        out%aero, tcas, qcas, press, rho, cp_cas, t_ground)
       call root_zone_environment(site%soil_profile, static%root_frac_patch(1:nsl), dynamic%soil_energy%soil_temp, &
                                  dynamic%soil_water%theta, soil_temp_root, theta_mean)
@@ -113,8 +125,14 @@ contains
                                           static%root_frac_patch(1:nsl), static, dynamic%wood_temp,               &
                                           dynamic%soil_energy%soil_temp, ra_stem, ra_root, out%stem_resp_coh,     &
                                           out%root_resp_coh)
-      call patch_heterotrophic_respiration(cfg, site%soil_profile, static%soil_carbon, t_ground, soil_temp_root, &
-                                           theta_mean, rh, out%report%exports)
+      if (organic_present(dynamic%organic)) then
+         call organic_layer_sums(dynamic%organic, cfg%organic, dry_cap, org_w, org_e, w_max, resist)
+         call patch_heterotrophic_respiration(cfg, site%soil_profile, static%soil_carbon, t_ground, soil_temp_root, &
+                                              theta_mean, rh, out%report%exports, surf_rel=org_w / max(w_max, tiny_num))
+      else
+         call patch_heterotrophic_respiration(cfg, site%soil_profile, static%soil_carbon, t_ground, soil_temp_root, &
+                                              theta_mean, rh, out%report%exports)
+      end if
       !---~---
       !   The biotic CO2 source (docs/science/plant_respiration.md eq. (7)), positive to the canopy
       ! air. slow_co2_rate is the autotrophic part this loop cannot compute, the allocator's daily
@@ -152,6 +170,18 @@ contains
       e_pond = dynamic%soil_water%w_surface_energy
       call prepare_snow_stage(forcing%snowfall, forcing%rainfall, forcing%air_temp, cfg%aero%soil_rough,          &
                               frozen%ground, frozen%snow, w_pond, e_pond)
+      !---~---
+      !   The organic layer (docs/science/surface_organic_layer.md): the pond refills its slots,
+      ! the water then on the ground being its and the pond's together.
+      !---~---
+      frozen%org = dynamic%organic
+      call organic_take_water(frozen%org, cfg%organic, w_pond, e_pond, taken)
+      if (taken > 0.0_wp) then
+         e_pond = e_pond * (1.0_wp - taken / w_pond)
+         w_pond = w_pond - taken
+      end if
+      frozen%org_water0  = sum(frozen%org%water)
+      frozen%org_energy0 = sum(frozen%org%energy)
       !--- The top soil node the ground surface conducts to, under the snow's base.
       associate (prof => site%soil_profile)
          frozen%ground%dz_soil_top = max(-prof%z_node(1), tiny_num)
@@ -165,8 +195,16 @@ contains
                                frozen%veg_surface, frozen%plant)
       call canopy_air_boundary(cfg%aero, static%geom, out%aero, forcing, rho, cp_cas, press, frozen%cas, frozen%ground)
       call ground_inflow(static, site%soil_profile, forcing, dynamic, out%aero%ggnet, throughfall, tcas, qcas, rho, &
-                         t_ground, nsl, frozen)
-      call transpiration_demand(dt_fast, cfg%canopy_water_on, n, dynamic, t_ground, frozen)
+                         t_soil_top, nsl, cfg%organic, dt_fast, frozen)
+      !--- The organic layer the ground surface's balance reads, after the water it took.
+      frozen%ground%ground_emiss = cfg%soil%ground_emissivity
+      frozen%ground%has_org      = organic_present(frozen%org)
+      if (frozen%ground%has_org) then
+         call organic_layer_sums(frozen%org, cfg%organic, frozen%ground%org_dry_cap, frozen%ground%org_water,          &
+                                 frozen%ground%org_energy, w_max, frozen%ground%org_resistance)
+         frozen%ground%org_fill = min(1.0_wp, frozen%ground%org_water / max(w_max, tiny_num))
+      end if
+      call transpiration_demand(dt_fast, cfg%canopy_water_on, n, dynamic, t_soil_top, frozen)
 
       !--- The start states: the water network's, from the stores' state^n water, and the march's.
       call set_water_state(static, site%soil_profile, cfg%pft%hydraulics, dynamic%soil_water%theta(1:nsl),       &
@@ -514,18 +552,19 @@ contains
    ! soil carbon off.
    !---~---
    subroutine patch_heterotrophic_respiration(cfg, soil, soil_carbon, t_ground, soil_temp_root,          &
-                                              theta_mean, rh, exports)
+                                              theta_mean, rh, exports, surf_rel)
       type(ed_config_t),    intent(in)    :: cfg
       type(soil_profile_t), intent(in)    :: soil          ! the surface layer's retention limits
       type(soil_carbon_state_t),  intent(in)    :: soil_carbon
       real(wp),             intent(in)    :: t_ground, soil_temp_root, theta_mean
       real(wp),             intent(out)   :: rh              ! [umol/m2/s]
       type(step_exports_t), intent(inout) :: exports
+      real(wp), optional,   intent(in)    :: surf_rel        ! [-] the organic layer's fill (pools 1 and 3)
       real(wp) :: xi(N_SOIL_POOL), a_mat(N_SOIL_POOL, N_SOIL_POOL), k_diag(N_SOIL_POOL), er(N_SOIL_POOL)
       real(wp) :: rh_kgc                                     ! [kgC/m2/day] the matrix's own currency
       if (cfg%soil_carbon%soil_carbon_on) then
          call decomposition_env_scalar(t_ground, soil_temp_root, theta_mean, soil%theta_res(1),                    &
-                                  soil%theta_sat(1), soil_carbon, cfg%soil_carbon, xi)
+                                  soil%theta_sat(1), soil_carbon, cfg%soil_carbon, xi, surf_rel)
          call decomposition_transfer_matrix(soil_carbon, cfg%soil_carbon, a_mat, k_diag, er)
          !---~---
          !   The matrix returns kgC/m2/day, the pools' currency, which exports%rh_matrix_step keeps for
@@ -723,7 +762,7 @@ contains
    ! which the start-of-step surface solves read, so it runs before them.
    !---~---
    subroutine ground_inflow(static, profile, forcing, dynamic, ggnet, throughfall, tcas, qcas, rho, t_ground, nsl, &
-                            frozen)
+                            organic, dt, frozen)
       type(fast_static_state_t),  intent(in)    :: static
       type(soil_profile_t),       intent(in)    :: profile
       type(fast_forcing_t),       intent(in)    :: forcing
@@ -732,12 +771,30 @@ contains
       real(wp),                   intent(in)    :: throughfall   ! [kg/m2/s]
       real(wp),                   intent(in)    :: tcas, qcas, rho, t_ground
       integer(ik),                intent(in)    :: nsl
+      type(organic_params_t),     intent(in)    :: organic   ! the organic layer's materials
+      real(wp),                   intent(in)    :: dt        ! [s] the step
       type(frozen_t),      intent(inout) :: frozen
       real(wp) :: t_water_base   ! [K] the meltwater's or the rain's, before the shed water joins it
+      real(wp) :: taken, depth   ! [kg/m2] the water the organic layer took; [m] a slot's depth
+      integer(ik) :: k
       associate (snow => frozen%snow, drive => frozen%water_drive)
          call pond_inflow(snow%exists, snow%melt_rate, snow%t_melt, throughfall, forcing%rainfall, forcing%snowfall,  &
                           forcing%air_temp, tcas, static%shed_water_rate, static%shed_water_enth, drive%rain,         &
                           drive%t_rain, t_water_base, frozen%hydrology%ground_inflow_enth)
+         !---~---
+         !   The organic layer's slots take the water reaching the ground first, the rest reaching
+         ! the pond; the soil's vapour diffuses up through them.
+         !---~---
+         call organic_take_water(frozen%org, organic, drive%rain * dt,                                           &
+                                 drive%rain * dt * internal_energy_liquid(drive%t_rain), taken)
+         drive%rain = max(0.0_wp, drive%rain - taken / dt)
+         drive%ground%cover_path = 0.0_wp
+         do k = 1_ik, n_organic_slot
+            if (frozen%org%mass(k) <= 0.0_wp) cycle
+            depth = frozen%org%mass(k) / frozen%org%density(k)
+            drive%ground%cover_path = drive%ground%cover_path                                                    &
+                                      + organic_cover_path(depth, frozen%org%water(k) / (rho_h2o * depth))
+         end do
          drive%ground%snow_free_frac  = 1.0_wp - frozen%ground%snowfac
          drive%ground%t_ground        = t_ground
          drive%ground%q_air           = qcas

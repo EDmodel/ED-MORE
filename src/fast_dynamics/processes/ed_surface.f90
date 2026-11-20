@@ -22,6 +22,7 @@ module ed_surface
    use ed_therm_lib,            only : internal_energy_to_temp, sat_specific_humidity,                        &
                                        sat_specific_humidity_temp_deriv, enthalpy_vapor,           &
                                        internal_energy_liquid, precip_enthalpy, liquid_energy_to_temp
+   use ed_numerics,             only : smooth_max0
    use ed_patch_state_vars,     only : snow_state_t
    use ed_biophysics_params,    only : snow_params_t
    implicit none
@@ -29,13 +30,19 @@ module ed_surface
 
    !--- [kg/m3] The snow density Niu & Yang (2007)'s cover-fraction scale is referenced to.
    real(wp), parameter :: NY07_RHO_REF = 100.0_wp
+   !---~---
+   !   [kg/kg] The humidity deficit over which the organic layer's evaporation is rounded off at
+   ! zero, as the soil's is (ed_soil_water): it evaporates, and takes no dew.
+   !---~---
+   real(wp), parameter :: ORGANIC_EVAP_WIDTH = 1.0e-6_wp
 
    public :: ground_surface_exchange, ground_surface_fluxes, prepare_snow_stage
    public :: snow_cover_fraction, snow_accumulate, snow_take_pond, pond_freezes, snow_drain_meltwater
    public :: snow_blend_ground_optics
    public :: ground_tile_radiation
    public :: snow_take_exchange
-   public :: surface_env_t, snow_out_t
+   public :: surface_env_t, snow_out_t, organic_out_t
+   public :: organic_surface_balance
 
    !---~---
    !   The ground surface's surroundings, read by the snow balance and the bare ground alike:
@@ -56,6 +63,18 @@ module ed_surface
       real(wp) :: k_soil_top = 0.0_wp                   ! [W/m/K] top soil layer's thermal conductivity
       real(wp) :: dz_soil_top = 0.05_wp                 ! [m] top soil node's depth |z_node(1)| below the snow base
       real(wp) :: soil_evap  = 0.0_wp                   ! [kg/m2/s] the bare ground's evaporation, already area-weighted
+      !---~---
+      !   The organic layer above the soil (docs/science/surface_organic_layer.md), one node:
+      ! its dry heat capacity, water, energy, fill and thermal resistance at the step's start,
+      ! and its emissivity, the ground's. With it, rnet_soil is its net radiation.
+      !---~---
+      logical  :: has_org        = .false.
+      real(wp) :: org_dry_cap    = 0.0_wp               ! [J/m2/K]
+      real(wp) :: org_water      = 0.0_wp               ! [kg/m2]
+      real(wp) :: org_energy     = 0.0_wp               ! [J/m2]
+      real(wp) :: org_fill       = 0.0_wp               ! [-] its water over what it holds at capacity
+      real(wp) :: org_resistance = 0.0_wp               ! [m2 K/W] top to bottom
+      real(wp) :: ground_emiss   = 0.95_wp              ! [-]
       type(snow_state_t)  :: pack                       ! the pack after the step's precipitation and drainage
       real(wp) :: snowfac    = 0.0_wp                   ! [-] its Niu-Yang cover fraction (0 without a pack)
       type(snow_params_t) :: params                     ! the snow parameters
@@ -104,6 +123,21 @@ module ed_surface
       real(wp) :: pond_enth = 0.0_wp                    ! [J/m2]  its energy
    end type snow_out_t
 
+   !---~---
+   !   What the organic layer's balance returns, per unit ground area, positive away from it: its
+   ! net radiation, sensible and latent heat and vapour on the snow-free ground, the conduction
+   ! into the soil top, and its net gain.
+   !---~---
+   type :: organic_out_t
+      real(wp) :: t_surf    = 273.16_wp                 ! [K]
+      real(wp) :: rad       = 0.0_wp                    ! [W/m2]
+      real(wp) :: h         = 0.0_wp                    ! [W/m2]
+      real(wp) :: le        = 0.0_wp                    ! [W/m2]
+      real(wp) :: w_flux    = 0.0_wp                    ! [kg/m2/s]
+      real(wp) :: g_soil    = 0.0_wp                    ! [W/m2]
+      real(wp) :: energy_in = 0.0_wp                    ! [W/m2]
+   end type organic_out_t
+
 contains
 
    !--- Ground / surface skin
@@ -117,7 +151,7 @@ contains
    ! snow-free area factor (ground_evap_env_t%snow_free_frac), so le_soil is added whole.
    !---~---
    pure subroutine ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, snow_energy_in,           &
-                                           snow_vapour_out)
+                                           snow_vapour_out, org_energy_in, org_vapour_out)
       type(surface_env_t),    intent(in)  :: env               !           the ground surface's surroundings
       real(wp),               intent(out) :: h_ground          ! [W/m2]    sensible heat to the canopy air
       real(wp),               intent(out) :: le_ground         ! [W/m2]    latent heat to the canopy air
@@ -125,17 +159,45 @@ contains
       real(wp),               intent(out) :: ground_rad        ! [W/m2]    net radiation, snow's and bare soil's
       real(wp),               intent(out) :: snow_energy_in    ! [W/m2]    energy into the pack
       real(wp),               intent(out) :: snow_vapour_out   ! [kg/m2/s] vapour from the pack to the canopy air
-      type(snow_out_t) :: sfx
-      real(wp) :: h_bare, le_soil
-      call snow_surface_balance(env, sfx)
-      call ground_surface_fluxes(env%t_soil_top, env%can_temp, env%ggnet, env%rho_air, env%cp_cas, env%soil_evap,   &
-                                 h_bare, le_soil)
-      h_ground  = sfx%h_snow  + (1.0_wp - env%snowfac) * h_bare
-      le_ground = sfx%le_snow + le_soil
-      g_top     = sfx%g_base                                                                         &
-                  + (1.0_wp - env%snowfac) * (env%rnet_soil - h_bare)                                 &
-                  - le_soil
-      ground_rad      = sfx%rnet + (1.0_wp - env%snowfac) * env%rnet_soil
+      real(wp),               intent(out) :: org_energy_in     ! [W/m2]    energy into the organic layer
+      real(wp),               intent(out) :: org_vapour_out    ! [kg/m2/s] vapour from it to the canopy air
+      type(snow_out_t)    :: sfx
+      type(organic_out_t) :: ofx
+      type(surface_env_t) :: below
+      real(wp) :: h_bare, le_soil, t_org, fl_org
+      org_energy_in  = 0.0_wp
+      org_vapour_out = 0.0_wp
+      if (env%has_org) then
+         !---~---
+         !   The organic layer is the ground's surface: the pack's base conducts into it, through its
+         ! upper half, at its temperature at the step's start, and it into the soil top.
+         !---~---
+         call internal_energy_to_temp(env%org_energy, env%org_water, env%org_dry_cap, t_org, fl_org)
+         below = env
+         below%t_soil_top  = t_org
+         below%k_soil_top  = 1.0_wp
+         below%dz_soil_top = 0.5_wp * env%org_resistance
+         call snow_surface_balance(below, sfx)
+         call organic_surface_balance(env, sfx%g_base, ofx)
+         call ground_surface_fluxes(env%t_soil_top, env%can_temp, env%ggnet, env%rho_air, env%cp_cas,               &
+                                    env%soil_evap, h_bare, le_soil)
+         h_ground   = sfx%h_snow  + ofx%h
+         le_ground  = sfx%le_snow + ofx%le + le_soil
+         g_top      = ofx%g_soil - le_soil
+         ground_rad = sfx%rnet + ofx%rad
+         org_energy_in  = ofx%energy_in
+         org_vapour_out = ofx%w_flux
+      else
+         call snow_surface_balance(env, sfx)
+         call ground_surface_fluxes(env%t_soil_top, env%can_temp, env%ggnet, env%rho_air, env%cp_cas,               &
+                                    env%soil_evap, h_bare, le_soil)
+         h_ground  = sfx%h_snow  + (1.0_wp - env%snowfac) * h_bare
+         le_ground = sfx%le_snow + le_soil
+         g_top     = sfx%g_base                                                                         &
+                     + (1.0_wp - env%snowfac) * (env%rnet_soil - h_bare)                                 &
+                     - le_soil
+         ground_rad = sfx%rnet + (1.0_wp - env%snowfac) * env%rnet_soil
+      end if
       snow_energy_in  = sfx%energy_in
       snow_vapour_out = sfx%w_flux
    end subroutine ground_surface_exchange
@@ -613,6 +675,101 @@ contains
          flux%energy_in = flux%rnet - flux%h_snow - flux%le_snow - flux%g_base
       end associate
    end subroutine snow_surface_balance
+
+   !---~---
+   !   The organic layer's exchange over dt, from a linearized backward-Euler balance of its
+   ! energy, as the pack's (snow_surface_balance), with its dry heat capacity on each line
+   ! (docs/science/surface_organic_layer.md): on the snow-free ground its net radiation, sensible
+   ! heat and evaporation, the evaporation the wet-surface rate times its fill; under the pack
+   ! the pack's base flux g_snow, held; and over the whole patch conduction into the soil top,
+   ! its half-depth and the top soil node in series. Implicit in its own temperature, so a thin
+   ! layer of little heat capacity relaxes without overshooting.
+   !---~---
+   pure subroutine organic_surface_balance(env, g_snow, flux)
+      type(surface_env_t), intent(in)  :: env
+      real(wp),            intent(in)  :: g_snow     ! [W/m2] the pack's base flux into the layer
+      type(organic_out_t), intent(out) :: flux
+      real(wp) :: af, dt, w, cd, e_old, t_n, fliq_n, g_os, h_n, dh_dt, f, df, w_n, dw_dt, demit_dt
+      real(wp) :: rad_n, u_w, l_vap, g_n, r0, drdt, u_freeze, u_melt, e_bal, t_new, dtemp, h_s, w_s, g_s, emit
+      real(wp) :: u_w_new, le_s, fl_new, w_cap
+      integer  :: pass
+      flux = organic_out_t()
+      af    = 1.0_wp - max(0.0_wp, min(1.0_wp, env%snowfac))     ! the snow-free ground
+      dt    = env%dt
+      w     = env%org_water
+      cd    = env%org_dry_cap
+      e_old = env%org_energy
+      call internal_energy_to_temp(e_old, w, cd, t_n, fliq_n)
+      g_os = 1.0_wp / max(0.5_wp * env%org_resistance + max(env%dz_soil_top, tiny_num) / max(env%k_soil_top, tiny_num), &
+                          tiny_num)
+
+      !--- The fluxes at T^n and their slopes; a kilogram of vapour takes its enthalpy less the water's energy.
+      h_n   = env%ggnet * env%rho_air * env%cp_cas * (t_n - env%can_temp)
+      dh_dt = env%ggnet * env%rho_air * env%cp_cas
+      call smooth_max0(sat_specific_humidity(t_n, env%press, fliq_n) - env%can_shv, ORGANIC_EVAP_WIDTH, f, df)
+      w_n   = env%org_fill * env%ggnet * env%rho_air * f
+      dw_dt = env%org_fill * env%ggnet * env%rho_air * df * sat_specific_humidity_temp_deriv(t_n, env%press, fliq_n)
+      demit_dt = 4.0_wp * env%ground_emiss * stefan_boltzmann * t_n ** 3
+      rad_n = env%rnet_soil                                      ! at T^n: its own emission included
+      u_w   = water_specific_energy(t_n, fliq_n)                ! from the datum: a trace of water stays exact
+      l_vap = enthalpy_vapor(t_n) - u_w
+      g_n   = g_os * (t_n - env%t_soil_top)
+      w_cap = huge(1.0_wp)
+      if (af > 0.0_wp) w_cap = w / (dt * af)                    ! the evaporation that empties the layer over dt
+
+      !---~---
+      !   Solve e(T) = E^n + dt (r0 + drdt (T - T^n)): on the plateau first, else on the ice or the
+      ! liquid line. An evaporation the linearization takes below zero or past the water the layer
+      ! holds is held there and the balance solved again, so the energy the layer takes is the
+      ! root's: with a few joules per kelvin, any mismatch would be a large temperature error.
+      !---~---
+      do pass = 1, 2
+         r0    = af * (rad_n - h_n - l_vap * w_n) + g_snow - g_n
+         drdt  = -(af * (demit_dt + dh_dt + l_vap * dw_dt) + g_os)  ! < 0
+         u_freeze = (cd + w * cp_ice) * t_3ple
+         u_melt   = u_freeze + w * latent_heat_fusion
+         t_new    = t_3ple
+         e_bal    = e_old + dt * (r0 + drdt * (t_3ple - t_n))
+         fl_new   = min(1.0_wp, max(0.0_wp, (e_bal - u_freeze) / max(w * latent_heat_fusion, tiny_num)))
+         if (e_bal < u_freeze) then
+            t_new  = (e_old + dt * (r0 - drdt * t_n)) / (cd + w * cp_ice - dt * drdt)
+            e_bal  = (cd + w * cp_ice) * t_new
+            fl_new = 0.0_wp
+         else if (e_bal > u_melt) then
+            t_new  = (e_old + w * cp_liq * tsupercool_liq + dt * (r0 - drdt * t_n)) / (cd + w * cp_liq - dt * drdt)
+            e_bal  = cd * t_new + w * internal_energy_liquid(t_new)
+            fl_new = 1.0_wp
+         end if
+         dtemp = t_new - t_n
+         w_s   = w_n + dw_dt * dtemp
+         if (w_s >= 0.0_wp .and. w_s <= w_cap) exit
+         w_n   = min(max(w_s, 0.0_wp), w_cap)                   ! held, and solved again
+         dw_dt = 0.0_wp
+      end do
+      w_s = min(max(w_s, 0.0_wp), w_cap)
+
+      !--- The fluxes at T, on the linearization.
+      h_s   = h_n + dh_dt * dtemp
+      g_s   = g_n + g_os * dtemp
+      emit  = demit_dt * dtemp
+      u_w_new = water_specific_energy(t_new, fl_new)
+      le_s = w_s * (l_vap + u_w_new)                           ! the latent heat plus the leaving water's own energy
+
+      flux%t_surf    = t_new
+      flux%rad       = af * (rad_n - emit)
+      flux%h         = af * h_s
+      flux%le        = af * le_s
+      flux%w_flux    = af * w_s
+      flux%g_soil    = g_s
+      flux%energy_in = flux%rad - flux%h - flux%le + g_snow - g_s
+   end subroutine organic_surface_balance
+
+   !--- [J/kg] Water's specific internal energy at a temperature and liquid fraction (the inverter's datum).
+   elemental function water_specific_energy(temp, fliq) result(u)
+      real(wp), intent(in) :: temp, fliq   ! [K], [-]
+      real(wp) :: u
+      u = fliq * internal_energy_liquid(temp) + (1.0_wp - fliq) * cp_ice * temp
+   end function water_specific_energy
 
    !---~---
    !   The pack takes an exchange's amounts, energy in and vapour out, keeping e(T) per

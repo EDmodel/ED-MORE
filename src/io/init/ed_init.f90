@@ -23,6 +23,10 @@ module ed_init
    use ed_slow_ledger,           only : slow_ledger_t
    use ed_soil_carbon,           only : soil_carbon_steady_pools
    use ed_patch_state_vars,      only : soil_carbon_state_t
+   use ed_organic_lib,           only : organic_state_t, organic_material_t, SLOT_LITTER, SLOT_MOSS,      &
+                                        organic_split_energy, organic_slot_material
+   use ed_biogeochem_params,     only : IP_FAST_GRND, IP_STRUCT_GRND
+   use ed_constants,             only : c2b_organic, cp_organic, rho_h2o, t_3ple, n_organic_slot
    use ed_slow_state,            only : advance_plant_traits, reacclimate_plant_traits
    use ed_init_bare_ground,      only : init_bare_ground, init_bare_sites, seed_bare_ground, seed_patch_stores, &
                                          N_PATCH_INIT
@@ -155,8 +159,50 @@ contains
          if (verbose) write(*,'(a,f8.3,a)') ' soilc : steady-state spin-up, total = ',            &
             sum(pools%carbon), ' kgC/m2'
       end if
+      if (cfg%init%init_mode /= INIT_RESTART) call seed_organic_layer(poly, cfg)
       ok = .true.
    end subroutine init_polygon
+
+   !---~---
+   !   Each patch's organic layer at the start (docs/science/surface_organic_layer.md): the
+   ! litter, the above-ground litter pools' dry matter, with [surface_layer].litter_on; the moss,
+   ! its site's [soil].moss_depth; each slot holding the top soil layer's share of saturation
+   ! of its capacity, at the top soil layer's temperature (its water frozen below t_3ple).
+   !---~---
+   subroutine seed_organic_layer(poly, cfg)
+      type(polygon_t),   intent(inout) :: poly
+      type(ed_config_t), intent(in)    :: cfg
+      type(organic_material_t) :: m
+      real(wp)    :: rel, temp, fliq
+      integer(ik) :: ip, k
+      do ip = 1_ik, poly%patch%n
+         associate (org => poly%patch%organic(ip), surf => poly%site%surface(poly%patch%owner_site(ip)),     &
+                    sc => poly%patch%soil_carbon(ip))
+            org = organic_state_t()
+            if (cfg%organic%litter_on) then
+               org%mass(SLOT_LITTER)    = c2b_organic * (sc%carbon(IP_FAST_GRND) + sc%carbon(IP_STRUCT_GRND))
+               org%density(SLOT_LITTER) = cfg%organic%litter%bulk_density
+            end if
+            if (surf%soil%moss_depth > 0.0_wp) then
+               org%density(SLOT_MOSS) = cfg%organic%moss%bulk_density
+               org%mass(SLOT_MOSS)    = surf%soil%moss_depth * org%density(SLOT_MOSS)
+            end if
+            rel  = min(1.0_wp, surf%theta_start(1) / surf%soil_profile%theta_sat(1))
+            temp = poly%patch%soil_energy(ip)%soil_temp(1)
+            fliq = merge(1.0_wp, 0.0_wp, temp >= t_3ple)
+            do k = 1_ik, n_organic_slot
+               if (org%mass(k) <= 0.0_wp) then
+                  org%density(k) = 0.0_wp
+                  cycle
+               end if
+               m = organic_slot_material(cfg%organic, k)
+               org%water(k) = rel * m%water_capacity * rho_h2o * org%mass(k) / org%density(k)
+            end do
+            call organic_split_energy(org, temp_to_internal_energy(cp_organic * sum(org%mass), sum(org%water),   &
+                                                                   temp, fliq))
+         end associate
+      end do
+   end subroutine seed_organic_layer
 
    !--- Each site's terrain: the polygon's elevation, flat, unless its [[sites]] table gives its own.
    subroutine set_site_terrain(poly, cfg)

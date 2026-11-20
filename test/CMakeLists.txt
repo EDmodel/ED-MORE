@@ -271,7 +271,8 @@ set(refused_cases config_unknown_keys config_bad_choice config_inapplicable_keys
 if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
    list(APPEND refused_cases soil_nan_layer)
 endif()
-list(APPEND refused_cases toml_unclosed_string toml_duplicate_key config_fineroot_plastic init_soil_temp_layers)
+list(APPEND refused_cases toml_unclosed_string toml_duplicate_key config_fineroot_plastic init_soil_temp_layers
+                          surface_layer_capacity)
 foreach(case IN LISTS refused_cases)
    ed_add_test(${case}_refused
                COMMAND ${CMAKE_COMMAND} -DEDMORE_MAIN=$<TARGET_FILE:ed_main> -DSOURCE_DIR=${PROJECT_SOURCE_DIR}

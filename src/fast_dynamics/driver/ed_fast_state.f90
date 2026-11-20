@@ -27,6 +27,7 @@ module ed_fast_state
                                         set_cohort_tissue_temps, hold_cohort_tissue_temps
    use ed_met_types,             only : met_forcing_t
    use ed_patch_state_vars,      only : decomp_xi_t
+   use ed_organic_lib,           only : organic_diagnose
    use ed_polygon_state_vars,    only : polygon_t
    use ed_state_defaults,        only : DMAX_PSI_LEAF_ACCUM_RESET
    use ed_canopy_aerodynamics,   only : canopy_roughness, open_canopy_fraction, canopy_burial_fraction
@@ -166,6 +167,8 @@ contains
                               dynamic%soil_energy%soil_fliq(1:prof%n_active))
       end associate
       dynamic%snow          = poly%patch%snow(ip)
+      dynamic%organic       = poly%patch%organic(ip)
+      call organic_diagnose(dynamic%organic)                   ! after a blend, as the soil's
       dynamic%adapt_dt_last = poly%patch%adapt_dt_last(ip)   ! per-patch, not loop-carried
       do j = 1_ik, ncoh
          i = i0 + j - 1_ik
@@ -208,6 +211,7 @@ contains
       poly%patch%soil_energy(ip)   = dynamic%soil_energy
       poly%patch%soil_water(ip)    = dynamic%soil_water
       poly%patch%snow(ip)          = dynamic%snow
+      poly%patch%organic(ip)       = dynamic%organic
       poly%patch%adapt_dt_last(ip) = dynamic%adapt_dt_last
       do j = 1_ik, poly%patch%cohort_count(ip)
          i = i0 + j - 1_ik

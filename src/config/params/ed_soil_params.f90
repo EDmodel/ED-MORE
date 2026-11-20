@@ -69,6 +69,7 @@ module ed_soil_params
       real(wp)    :: ground_albedo_vis = 0.15_wp    ! [-] soil albedo, visible
       real(wp)    :: ground_albedo_nir = 0.30_wp    ! [-] soil albedo, near infrared
       real(wp)    :: ground_emissivity = 0.95_wp    ! [-] soil longwave emissivity
+      real(wp)    :: moss_depth        = 0.0_wp     ! [m] the moss on the soil, under the litter (0: none)
       !--- The water bottom boundary, with drainage's factor f of q = f K.
       integer(ik) :: water_bottom_bc = SOIL_BC_DRAIN    ! SOIL_BC_DRAIN | SOIL_BC_AQUIFER
       real(wp)    :: drain_factor    = 1.0_wp           ! [-] f in [0, 1]: free_drain 1, bedrock 0

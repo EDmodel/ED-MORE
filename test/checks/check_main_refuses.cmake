@@ -32,6 +32,7 @@
 #   toml_duplicate_key         a key set twice ([soil] depth), which TOML forbids
 #   init_soil_temp_layers      an [init].soil_temp list with another number of values than the column's
 #                              layers
+#   surface_layer_capacity     an organic material holding more water than its pores (water_capacity > 0.9)
 #   init_census_missing        a census file that is not there (init mode 1)
 #   init_census_empty          a census file with no row for the site
 #   init_restart_missing       a state file that is not there (init mode 2)
@@ -186,6 +187,9 @@ elseif(CASE STREQUAL "toml_duplicate_key")
 elseif(CASE STREQUAL "init_soil_temp_layers")
    replace_or_fail(text "\n# *soil_temp *= *[^ #\n]+" "\nsoil_temp = [280.0, 275.0]" "[init] soil_temp, commented out")
    set(expects "init\\.soil_temp: a list takes one value per soil layer")
+elseif(CASE STREQUAL "surface_layer_capacity")
+   replace_or_fail(text "\nmoss_water_capacity *= *[^ #\n]+" "\nmoss_water_capacity = 0.95" "[surface_layer] moss_water_capacity")
+   set(expects "surface_layer\\.moss_water_capacity must lie in \\(0, 0\\.9\\]")
 elseif(CASE MATCHES "^hydraulics_")
    #----- The PFT file's copy beside the run, with one trait made impossible for every PFT. --------#
    file(READ "${SOURCE_DIR}/ed_config_pft.toml" pft)

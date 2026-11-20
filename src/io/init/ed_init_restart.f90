@@ -13,7 +13,7 @@ module ed_init_restart
    use iso_c_binding,       only : c_int, c_size_t
    use ed_kinds,            only : wp, ik
    use ed_biogeochem_params, only : N_SOIL_POOL, SOIL_POOL_NAME
-   use ed_constants,        only : n_soil_layer_max, n_snow_layer_max
+   use ed_constants,        only : n_soil_layer_max, n_snow_layer_max, n_organic_slot
    use ed_state_defaults,   only : is_unset_positive
    use ed_config,           only : ed_config_t, growth_window_steps
    use ed_time,             only : ed_time_t, time_to_stamp, time_to_decimal_year
@@ -49,6 +49,7 @@ module ed_init_restart
    type :: file_dims_t
       integer(c_int) :: ncid = -1_c_int
       integer(c_int) :: polygon, cohort, patch, site, pft, meta_int, meta_real, soil_layer, snow_layer
+      integer(c_int) :: organic_slot
       integer(c_int) :: growth_window
    end type file_dims_t
 
@@ -100,6 +101,8 @@ contains
       call nc_check(nc_def_dim_f(ncid, 'nmeta_real', int(N_META_REAL, c_size_t), d%meta_real), 'state dim mr')
       call nc_check(nc_def_dim_f(ncid, 'soil_layer', int(n_soil_layer_max, c_size_t), d%soil_layer), 'state dim soill')
       call nc_check(nc_def_dim_f(ncid, 'snow_layer', int(n_snow_layer_max, c_size_t), d%snow_layer), 'state dim snowl')
+      call nc_check(nc_def_dim_f(ncid, 'organic_slot', int(n_organic_slot, c_size_t), d%organic_slot),            &
+                    'state dim orgs')
       call nc_check(nc_def_dim_f(ncid, 'growth_window', int(max(n_window,1_ik), c_size_t), d%growth_window),     &
                     'state dim gwin')
       call define_polygon_vars(d)
@@ -766,6 +769,10 @@ contains
                    'snow layer bulk density [kg/m3] (prognostic)')
       call def_var(d, 'snow_temp_layer_pa',   NC_DOUBLE, [d%patch, d%snow_layer], 'snow temperature [K] (diagnosed twin)')
       call def_var(d, 'snow_fliq_layer_pa',   NC_DOUBLE, [d%patch, d%snow_layer], 'snow liquid fraction [-] (diagnosed twin)')
+      call def_var(d, 'organic_mass_pa',    NC_DOUBLE, [d%patch, d%organic_slot], 'organic layer dry matter [kg/m2], litter, moss')
+      call def_var(d, 'organic_water_pa',   NC_DOUBLE, [d%patch, d%organic_slot], 'organic layer water [kg/m2] (prognostic)')
+      call def_var(d, 'organic_energy_pa',  NC_DOUBLE, [d%patch, d%organic_slot], 'organic layer energy [J/m2] (prognostic)')
+      call def_var(d, 'organic_density_pa', NC_DOUBLE, [d%patch, d%organic_slot], 'organic layer bulk density [kg/m3]')
       call def_var(d, 'soil_theta_layer_pa',  NC_DOUBLE, [d%patch, d%soil_layer], 'soil volumetric moisture [m3/m3] (prognostic)')
       call def_var(d, 'soil_energy_layer_pa', NC_DOUBLE, [d%patch, d%soil_layer],                                   &
                    'soil volumetric internal energy [J/m3] (prognostic)')
@@ -836,6 +843,10 @@ contains
             call put_dbl(r, 'snow_density_layer_pa', p%snow(ip)%density(1:n_snow_layer_max),    item=ip)
             call put_dbl(r, 'snow_temp_layer_pa',   p%snow(ip)%snow_temp(1:n_snow_layer_max),   item=ip)
             call put_dbl(r, 'snow_fliq_layer_pa',   p%snow(ip)%snow_fliq(1:n_snow_layer_max),   item=ip)
+            call put_dbl(r, 'organic_mass_pa',      p%organic(ip)%mass,                          item=ip)
+            call put_dbl(r, 'organic_water_pa',     p%organic(ip)%water,                         item=ip)
+            call put_dbl(r, 'organic_energy_pa',    p%organic(ip)%energy,                        item=ip)
+            call put_dbl(r, 'organic_density_pa',   p%organic(ip)%density,                       item=ip)
          end do
          !--- 6. Soil water and heat, and the pond.
          do ip = 1_ik, npat
@@ -922,6 +933,16 @@ contains
                elsewhere
                   p%snow(ip)%density = 0.0_wp
                end where
+            end if
+            !---~---
+            !   A state file from before the organic layer has none: its litter returns from the pools
+            ! at the first slow step.
+            !---~---
+            if (has_var(r%ncid, 'organic_mass_pa')) then
+               call get_dbl(r, 'organic_mass_pa',    p%organic(ip)%mass,    item=ip)
+               call get_dbl(r, 'organic_water_pa',   p%organic(ip)%water,   item=ip)
+               call get_dbl(r, 'organic_energy_pa',  p%organic(ip)%energy,  item=ip)
+               call get_dbl(r, 'organic_density_pa', p%organic(ip)%density, item=ip)
             end if
          end do
          !--- 6. Soil water and heat, and the pond.

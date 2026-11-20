@@ -17,7 +17,9 @@ module ed_slow_dynamics
    use ed_kinds,                only : wp, ik
    use ed_config,               only : ed_config_t
    use ed_time,                 only : ed_time_t, day_of_year
-   use ed_polygon_state_vars,   only : polygon_t
+   use ed_constants,            only : c2b_organic
+   use ed_biogeochem_params,    only : IP_FAST_GRND, IP_STRUCT_GRND
+   use ed_polygon_state_vars,   only : polygon_t, patch_polygon_area
    use ed_patch_state_vars,     only : soil_carbon_state_t
    use ed_slow_ledger,          only : slow_ledger_t, slow_ledger_open, slow_ledger_heat_open,           &
                                        slow_ledger_heat_close, slow_ledger_mark, slow_ledger_rebase,     &
@@ -38,7 +40,7 @@ module ed_slow_dynamics
                                        apply_recruitment, fuse_cohorts, terminate_cohorts,               &
                                        split_cohorts, apply_patch_disturbance, sort_patches,             &
                                        fuse_patches, terminate_patches, commit_trait_carbon,             &
-                                       commit_soil_carbon
+                                       commit_soil_carbon, follow_litter_pools
    use ed_slow_diag,            only : open_slow_cohort_rows, write_slow_patch_rows
    implicit none
    private
@@ -83,10 +85,32 @@ contains
       if (cfg%soil_carbon%soil_carbon_on) then
          call advance_soil_carbon(poly, cfg, ledger, soil_pools)
          call commit_soil_carbon(poly%patch, soil_pools)
+         if (cfg%organic%litter_on) call litter_follows_pools(poly, cfg, ledger)
       end if
       call slow_ledger_mark(ledger, poly, cfg, SLOW_PHASE_SOILC)
       call clear_litter(poly)
    end subroutine advance_slow_dynamics
+
+   !---~---
+   !   The organic layer's litter follows the above-ground litter pools, which the soil-carbon
+   ! step has just advanced (docs/science/surface_organic_layer.md); the energy its dry matter
+   ! brings or takes, at the layer's temperature, is declared.
+   !---~---
+   subroutine litter_follows_pools(poly, cfg, ledger)
+      type(polygon_t),     intent(inout) :: poly
+      type(ed_config_t),   intent(in)    :: cfg
+      type(slow_ledger_t), intent(inout) :: ledger
+      real(wp)    :: mass(poly%patch%n), t_new(poly%patch%n), heat(poly%patch%n)
+      integer(ik) :: ip
+      do ip = 1_ik, poly%patch%n
+         mass(ip)  = c2b_organic * (poly%patch%soil_carbon(ip)%carbon(IP_FAST_GRND)                        &
+                                    + poly%patch%soil_carbon(ip)%carbon(IP_STRUCT_GRND))
+         t_new(ip) = poly%patch%soil_energy(ip)%soil_temp(1)
+      end do
+      call follow_litter_pools(poly%patch, cfg%organic, mass, t_new, heat)
+      call slow_ledger_declare(ledger, energy_in = sum([(patch_polygon_area(poly, ip) * heat(ip),            &
+                                                         ip = 1_ik, poly%patch%n)]))
+   end subroutine litter_follows_pools
 
    !---~---
    !   Advance the vegetation one slow step: phenology, trait plasticity, carbon allocation, the

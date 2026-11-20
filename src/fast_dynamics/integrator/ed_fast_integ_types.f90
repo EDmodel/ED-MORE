@@ -19,6 +19,7 @@ module ed_fast_integ_types
    use ed_constants, only : n_soil_layer_max
    use ed_pft_params, only : leaf_photo_table_t
    use ed_patch_state_vars,   only : cas_state_t, soil_water_state_t, soil_energy_state_t, snow_state_t, soil_carbon_state_t
+   use ed_organic_lib,        only : organic_state_t
    use ed_therm_lib, only : cas_temp_to_enthalpy, cas_enthalpy_to_temp
    use ed_biophysics_params,   only : aero_params_t
    use ed_biogeochem_params,   only : N_SOIL_POOL
@@ -217,6 +218,7 @@ module ed_fast_integ_types
       type(soil_energy_state_t)  :: soil_energy       ! soil thermal column (internal energy; temp diagnosed)
       type(soil_water_state_t)   :: soil_water        ! soil water column (theta; psi_soil diagnosed)
       type(snow_state_t)         :: snow              ! temporary-surface-water / snow store (swe + energy)
+      type(organic_state_t)      :: organic           ! the organic layer: litter and moss
       real(wp), allocatable      :: leaf_energy(:)    ! [J/m2 ground] per-cohort leaf internal energy
       real(wp), allocatable      :: wood_energy(:)    ! [J/m2 ground] per-cohort wood internal energy
       real(wp), allocatable      :: leaf_temp(:)      ! [K] derived from leaf_energy
@@ -480,6 +482,8 @@ module ed_fast_integ_types
       real(wp) :: ground_rad     = 0.0_wp     ! [W/m2]     the ground's net radiation, snow's and bare soil's
       real(wp) :: snow_enth_in   = 0.0_wp     ! [W/m2]     energy into the snow pack (0 without one)
       real(wp) :: snow_vap_out   = 0.0_wp     ! [kg/m2/s]  vapour from the snow pack to the CAS
+      real(wp) :: org_enth_in    = 0.0_wp     ! [W/m2]     energy into the organic layer (0 without one)
+      real(wp) :: org_vap_out    = 0.0_wp     ! [kg/m2/s]  vapour from it to the CAS
       real(wp), allocatable :: leaf_temp(:)   ! [K]        diagnosed per-cohort leaf temperature
       real(wp), allocatable :: wood_temp(:)   ! [K]        diagnosed per-cohort wood temperature
       real(wp), allocatable :: transp_c(:)    ! [kg/m2/s]  per-cohort transpiration demand
@@ -661,6 +665,13 @@ module ed_fast_integ_types
       type(root_zone_t)            :: roots        ! the network's root uptake and its placement by layer
       type(plant_water_t)          :: plant        ! the network's sapflow and uptake per plant
       type(water_drive_t)          :: water_drive  ! what drives the water network over the step
+      !---~---
+      !   The organic layer over the step, after the pond and the ground's inflow fill it, which
+      ! the update commits; and its water and energy after the pond's, the ledgers' start.
+      !---~---
+      type(organic_state_t)        :: org
+      real(wp)                     :: org_water0  = 0.0_wp    ! [kg/m2]
+      real(wp)                     :: org_energy0 = 0.0_wp    ! [J/m2]
    end type frozen_t
 
    !---~---
@@ -732,6 +743,8 @@ module ed_fast_integ_types
       real(wp) :: whole_cond_enth = 0.0_wp                       ! [W/m2] its liquid enthalpy at the stage CAS temperature
       real(wp) :: snow_enth_in = 0.0_wp                          ! [W/m2]    energy into the snow pack
       real(wp) :: snow_vap_out = 0.0_wp                          ! [kg/m2/s] vapour from it to the CAS
+      real(wp) :: org_enth_in  = 0.0_wp                          ! [W/m2]    energy into the organic layer
+      real(wp) :: org_vap_out  = 0.0_wp                          ! [kg/m2/s] vapour from it to the CAS
       real(wp) :: veg_surface_evap = 0.0_wp                      ! [kg/m2/s] leaf and wood surface water evaporated (dew < 0)
       real(wp) :: h_canopy     = 0.0_wp                          ! [W/m2]    the leaves' and wood's sensible heat to the CAS
       real(wp) :: h_ground     = 0.0_wp                          ! [W/m2]    the ground's (soil, snow) sensible heat to the CAS
@@ -769,6 +782,9 @@ module ed_fast_integ_types
       !--- The snow pack's exchange over the step, which the update commits to the pack.
       real(wp) :: snow_enth_in = 0.0_wp    ! [J/m2]  energy into the pack
       real(wp) :: snow_vap_out = 0.0_wp    ! [kg/m2] vapour from it to the CAS
+      !--- The organic layer's, which the update commits to it.
+      real(wp) :: org_enth_in  = 0.0_wp    ! [J/m2]  energy into the layer
+      real(wp) :: org_vap_out  = 0.0_wp    ! [kg/m2] vapour from it to the CAS
       real(wp) :: veg_surface_evap    = 0.0_wp    ! [kg/m2] leaf and wood surface water evaporated (dew < 0)
       real(wp) :: h_canopy     = 0.0_wp    ! [J/m2]  the leaves' and wood's sensible heat to the CAS
       real(wp) :: h_ground     = 0.0_wp    ! [J/m2]  the ground's (soil, snow) sensible heat to the CAS
@@ -1187,6 +1203,8 @@ contains
       acc%whole_cond_enth = b2*s2%whole_cond_enth + b3*s3%whole_cond_enth
       acc%snow_enth_in  = b2*s2%snow_enth_in  + b3*s3%snow_enth_in
       acc%snow_vap_out  = b2*s2%snow_vap_out  + b3*s3%snow_vap_out
+      acc%org_enth_in   = b2*s2%org_enth_in   + b3*s3%org_enth_in
+      acc%org_vap_out   = b2*s2%org_vap_out   + b3*s3%org_vap_out
       acc%veg_surface_evap = b2*s2%veg_surface_evap + b3*s3%veg_surface_evap
       acc%h_canopy      = b2*s2%h_canopy      + b3*s3%h_canopy
       acc%h_ground      = b2*s2%h_ground      + b3*s3%h_ground
@@ -1228,6 +1246,8 @@ contains
       acc%whole_cond_enth = acc%whole_cond_enth + s%whole_cond_enth
       acc%snow_enth_in  = acc%snow_enth_in  + s%snow_enth_in
       acc%snow_vap_out  = acc%snow_vap_out  + s%snow_vap_out
+      acc%org_enth_in   = acc%org_enth_in   + s%org_enth_in
+      acc%org_vap_out   = acc%org_vap_out   + s%org_vap_out
       acc%veg_surface_evap = acc%veg_surface_evap + s%veg_surface_evap
       acc%h_canopy      = acc%h_canopy      + s%h_canopy
       acc%h_ground      = acc%h_ground      + s%h_ground

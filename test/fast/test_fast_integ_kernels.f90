@@ -1203,7 +1203,7 @@ contains
       real(wp),       intent(in) :: h, q, t_ground   ! [J/kg], [kg/kg], [K]
       type(surface_env_t) :: env
       type(snow_state_t)  :: pack
-      real(wp) :: h_ground, le_ground, g_top, ground_rad, energy_in, vapour_out
+      real(wp) :: h_ground, le_ground, g_top, ground_rad, energy_in, vapour_out, org_in, org_out
       env            = frozen%ground
       env%can_temp   = cas_enthalpy_to_temp(h, q)
       env%can_shv    = q
@@ -1211,7 +1211,8 @@ contains
       env%cp_cas     = frozen%cas%cp
       env%press      = frozen%cas%press
       env%t_soil_top = t_ground
-      call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, energy_in, vapour_out)
+      call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, energy_in, vapour_out,           &
+                                   org_in, org_out)
       pack = env%pack
       call snow_take_exchange(pack, env%dt * energy_in, env%dt * vapour_out, env%params)
       select case (k - SNOW_FIRST)

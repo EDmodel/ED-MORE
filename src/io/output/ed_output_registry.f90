@@ -54,6 +54,7 @@ module ed_output_registry
                                     PA_DISPLACE, PA_GPP, PA_NEE, PA_TRANSP, PA_SOIL_TEMP_TOP, PA_RESID_ENERGY,    &
                                     PA_VEG_SURFACE_EVAP, PA_GROUND_EVAP, PA_DEW,                                  &
                                     PA_CAS_VPD, PA_W_SURFACE, PA_CAS_TEMP, PA_CAS_SHV, PA_CAS_CO2,                &
+                                    PA_ORGANIC_TEMP, PA_ORGANIC_WATER,                                            &
                                     PA_WIND_CAS_TOP, PA_TAIR_CAS_TOP, PA_Z_CAS_TOP, PA_RESID_WATER, PA_NPP,       &
                                     PA_BUDGET_CAS_CAP_ENERGY, PA_BUDGET_CAS_CAP_WATER, PA_BUDGET_CAS_CAP_CO2,     &
                                     PA_RECO, PA_SW_UP, PA_SKIN_TEMP, PY_SW_IN, PY_PRECIP, PY_TAIR, PY_QAIR,       &
@@ -429,6 +430,15 @@ contains
                         FLD_P_SNOW_DEPTH)
       call add_variable(reg, 'mean_w_surface_pa', 'patch ponded surface water', 'kg/m2', DIM_PATCH, AGG_TMEAN, GRP_WATER, MON,  &
                         FLD_P_DIAG0 + PA_W_SURFACE)
+      !--- The organic layer above the soil: litter and moss (docs/science/surface_organic_layer.md).
+      call add_variable(reg, 'mean_organic_water_py', 'organic layer (litter, moss) water', 'kg/m2', DIM_SCALAR, AGG_TMEAN,  &
+                        GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_ORGANIC_WATER)
+      call add_variable(reg, 'mean_organic_temp_py', 'organic layer temperature, the soil top''s without one', 'K',         &
+                        DIM_SCALAR, AGG_TMEAN, GRP_ENERGY, DAY_MON_YR, FLD_P_DIAG0 + PA_ORGANIC_TEMP)
+      call add_variable(reg, 'mean_organic_water_pa', 'patch organic layer water', 'kg/m2', DIM_PATCH, AGG_TMEAN, GRP_WATER,  &
+                        FREQ_NONE, FLD_P_DIAG0 + PA_ORGANIC_WATER)
+      call add_variable(reg, 'mean_organic_temp_pa', 'patch organic layer temperature', 'K', DIM_PATCH, AGG_TMEAN,           &
+                        GRP_ENERGY, FREQ_NONE, FLD_P_DIAG0 + PA_ORGANIC_TEMP)
       call add_variable(reg, 'mean_swe_pa', 'patch snow water equivalent', 'kg/m2', DIM_PATCH, AGG_TMEAN, GRP_WATER, MON,       &
                         FLD_P_SWE)
       !---~---

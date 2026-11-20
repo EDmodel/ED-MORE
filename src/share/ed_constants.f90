@@ -42,6 +42,10 @@ module ed_constants
    !--- Physical constants: liquid water and ice.
    real(wp), parameter :: rho_h2o            = 1000.0_wp      ! [kg/m3] liquid-water density
    real(wp), parameter :: rho_ice            = 917.0_wp       ! [kg/m3] ice density at 0 degC (Cuffey & Paterson 2010)
+   !--- Organic matter: litter and moss.
+   real(wp), parameter :: cp_organic         = 1926.0_wp      ! [J/kg/K] dry organic matter's specific heat (Farouki 1986)
+   real(wp), parameter :: organic_porosity   = 0.9_wp         ! [m3/m3] organic matter's porosity (Letts et al. 2000)
+   real(wp), parameter :: c2b_organic        = 2.0_wp         ! [kg/kgC] dry litter per carbon, half carbon as c2b_wood
    real(wp), parameter :: t_3ple             = 273.16_wp      ! [K] triple point of water (0.01 degC)
    real(wp), parameter :: cp_liq             = 4186.0_wp      ! [J/kg/K] liquid-water specific heat
    real(wp), parameter :: cp_ice             = 2093.0_wp      ! [J/kg/K] ice specific heat
@@ -109,6 +113,8 @@ module ed_constants
    !---~---
    integer(ik), parameter :: n_soil_layer_max = 20_ik
    integer(ik), parameter :: n_snow_layer_max = 1_ik
+   !--- The organic layer's slots, top down: leaf litter over moss.
+   integer(ik), parameter :: n_organic_slot = 2_ik
 
    !--- Floating-point guards: keep a division or an exp() inside its domain.
    real(wp), parameter :: tiny_num   = 1.0e-30_wp             ! keeps a divisor away from zero

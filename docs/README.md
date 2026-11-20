@@ -44,6 +44,7 @@ The changelog is at the repository root: [`../CHANGELOG-v0.md`](../CHANGELOG-v0.
 | [`vegetation_energy_dynamics.md`](science/vegetation_energy_dynamics.md) | Leaf and wood temperature as an exact relaxation toward each tissue's energy balance. |
 | [`soil_biophysics.md`](science/soil_biophysics.md) | Soil water (mixed-form Richards) and soil heat as conserved quantities, frozen soil, and the soil parameters from texture and maps. |
 | [`snow_biophysics.md`](science/snow_biophysics.md) | The snow and temporary surface-water store. |
+| [`surface_organic_layer.md`](science/surface_organic_layer.md) | The organic layer on the soil: litter and moss. |
 | [`forcing.md`](science/forcing.md) | Meteorological forcing: the file format, interpolation, shortwave disaggregation and partition, the corrections to the site and the canopy-air top, calendar recycling, and CO₂. |
 
 **Once per slow step (`dt_slow`, a day by default)**

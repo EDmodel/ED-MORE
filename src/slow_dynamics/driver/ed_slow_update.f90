@@ -14,7 +14,11 @@
 !---~---
 module ed_slow_update
    use ed_kinds,                only : wp, ik
-   use ed_constants,            only : tiny_num, lnexp_min, lnexp_max, almost_one, yr_sec, rho_air_ref, umol_2_kgc
+   use ed_constants,            only : tiny_num, lnexp_min, lnexp_max, almost_one, yr_sec, rho_air_ref, umol_2_kgc, &
+                                       rho_h2o, cp_organic
+   use ed_therm_lib,            only : temp_to_internal_energy
+   use ed_organic_lib,          only : organic_params_t, SLOT_LITTER, organic_present, organic_diagnose,     &
+                                       organic_split_energy
    use ed_numerics,             only : equal_height_layers, conserved, pair_mean
    use ed_cohort_state_vars,    only : cohort_block, cohort_deriv_block, set_cohort_size_from_carbon,    &
                                        hold_cohort_tissue_temps, reorder_cohort_block,                   &
@@ -40,7 +44,7 @@ module ed_slow_update
 
    public :: commit_vegetation_step, update_cohort_derivatives, fill_cohort_deriv, update_cohort_states
    public :: advance_pool, accumulate_recruit_pool, age_patches, update_overtopping_lai
-   public :: commit_trait_carbon, commit_soil_carbon
+   public :: commit_trait_carbon, commit_soil_carbon, follow_litter_pools
    public :: refresh_canopy_depth, apply_recruitment, apply_patch_disturbance
    public :: sort_cohorts, max_cohort_count, fuse_cohorts, fuse_2_cohorts, split_cohorts, terminate_cohorts
    public :: sort_patches, patch_light_profile, fuse_patches, fuse_2_patches, terminate_patches
@@ -278,6 +282,48 @@ contains
       type(soil_carbon_state_t), intent(in)    :: pools_new(:)   ! (patch)
       patch%soil_carbon(1:patch%n) = pools_new(1:patch%n)
    end subroutine commit_soil_carbon
+
+   !---~---
+   !   The litter slot of each patch's organic layer follows its above-ground litter pools
+   ! (docs/science/surface_organic_layer.md): its dry matter set to litter_mass, entering or
+   ! leaving at the layer's temperature (t_new for a layer the litter starts), and the water
+   ! beyond its new capacity, or all of it when the litter is gone, passed to the pond with its
+   ! energy. heat returns each patch's matter energy, which the caller declares.
+   !---~---
+   subroutine follow_litter_pools(patch, organic, litter_mass, t_new, heat)
+      type(patch_block),      intent(inout) :: patch
+      type(organic_params_t), intent(in)    :: organic
+      real(wp),               intent(in)    :: litter_mass(:)   ! [kg/m2] (patch)
+      real(wp),               intent(in)    :: t_new(:)         ! [K] (patch) the top soil layer's
+      real(wp),               intent(out)   :: heat(:)          ! [J/m2] (patch) in with the matter, out if < 0
+      real(wp)    :: temp, e_total, cap, excess, e_excess
+      integer(ik) :: ip
+      heat(1:patch%n) = 0.0_wp
+      do ip = 1_ik, patch%n
+         associate (org => patch%organic(ip), sw => patch%soil_water(ip))
+            if (litter_mass(ip) == org%mass(SLOT_LITTER)) cycle
+            call organic_diagnose(org)
+            temp = org%temp
+            if (.not. organic_present(org)) temp = t_new(ip)
+            e_total  = sum(org%energy)
+            heat(ip) = cp_organic * (litter_mass(ip) - org%mass(SLOT_LITTER)) * temp
+            org%mass(SLOT_LITTER)    = max(0.0_wp, litter_mass(ip))
+            org%density(SLOT_LITTER) = merge(organic%litter%bulk_density, 0.0_wp, org%mass(SLOT_LITTER) > 0.0_wp)
+            cap    = 0.0_wp
+            if (org%mass(SLOT_LITTER) > 0.0_wp)                                                          &
+               cap = organic%litter%water_capacity * rho_h2o * org%mass(SLOT_LITTER) / org%density(SLOT_LITTER)
+            excess = max(0.0_wp, org%water(SLOT_LITTER) - cap)
+            e_excess = 0.0_wp
+            if (excess > 0.0_wp) then
+               e_excess = temp_to_internal_energy(0.0_wp, excess, temp, org%fliq)
+               org%water(SLOT_LITTER) = org%water(SLOT_LITTER) - excess
+               sw%w_surface        = sw%w_surface + excess
+               sw%w_surface_energy = sw%w_surface_energy + e_excess
+            end if
+            call organic_split_energy(org, e_total + heat(ip) - e_excess)
+         end associate
+      end do
+   end subroutine follow_litter_pools
 
    !---~---
    !   The leaf and storage carbon a trait change leaves, at constant total carbon: the

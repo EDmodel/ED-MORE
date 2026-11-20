@@ -63,8 +63,8 @@ module ed_slow_ledger
    !--- One total per currency, per m2 of site, area-weighted over the patches (§2).
    type :: slow_store_t
       real(wp) :: carbon = 0.0_wp   ! [kgC/m2] live pools + necromass + canopy air + recruit pool
-      real(wp) :: water  = 0.0_wp   ! [kg/m2]  soil + pond + snow + canopy vapour + tissue + surface water
-      real(wp) :: energy = 0.0_wp   ! [J/m2]   soil + pond + snow + canopy air + tissue heat
+      real(wp) :: water  = 0.0_wp   ! [kg/m2]  soil + pond + snow + organic layer + canopy vapour + tissue + surface water
+      real(wp) :: energy = 0.0_wp   ! [J/m2]   soil + pond + snow + organic layer + canopy air + tissue heat
    end type slow_store_t
 
    !--- The run's accumulator, held in the polygon's run record (polygon_run_t).
@@ -315,6 +315,9 @@ contains
          store%energy = store%energy + a * poly%patch%soil_water(ip)%w_surface_energy
          store%water  = store%water  + a * sum(poly%patch%snow(ip)%swe)
          store%energy = store%energy + a * sum(poly%patch%snow(ip)%snow_energy)
+         !--- The organic layer above the soil: its water and energy (its dry matter's carbon is the pools').
+         store%water  = store%water  + a * sum(poly%patch%organic(ip)%water)
+         store%energy = store%energy + a * sum(poly%patch%organic(ip)%energy)
 
          !---~---
          !   Canopy air at the fast step's capacities; a depth change is the

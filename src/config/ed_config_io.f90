@@ -33,6 +33,7 @@ module ed_config_io
                                  FC_YEAR, FC_ALL, STATE_DAYS, STATE_MONTHS, STATE_YEARS
    use ed_time,       only : ed_time_t, string_to_time
    use ed_biophysics_params,   only : snow_params_t, aero_params_t
+   use ed_organic_lib,         only : organic_params_t
    use ed_biogeochem_params,   only : soil_carbon_params_t, DECOMP_STEP_EULER, DECOMP_STEP_EXPM,   &
                                     DECOMP_SCHEME_ED2, DECOMP_SCHEME_CENTURY5
    use ed_demography_params,     only : demography_params_t
@@ -46,7 +47,8 @@ module ed_config_io
    private
 
    public :: load_ed_config, write_pft_params_csv
-   public :: load_fast_params, load_soil, load_snow_params, load_aero_params, load_soil_temp   ! exposed for unit tests
+   public :: load_fast_params, load_soil, load_snow_params, load_aero_params, load_soil_temp,  &
+             load_organic_params                                                         ! exposed for unit tests
 
    integer(ik), parameter :: MAXPFT  = 64_ik    ! largest PFT count the array buffers handle
    integer,     parameter :: MAXMISS = 256       ! largest missing-key list
@@ -350,6 +352,7 @@ contains
       call load_water_bottom_bc(tm, s%water_bottom_bc, s%drain_factor)
       s%deep_temp   = toml_real(tm, 'soil.deep_temp',   s%deep_temp)
       s%deep_depth  = toml_real(tm, 'soil.deep_depth',  s%deep_depth)
+      s%moss_depth  = toml_real(tm, 'soil.moss_depth',  s%moss_depth)
    end subroutine load_soil_ground
 
    !---~---
@@ -483,6 +486,21 @@ contains
       if (choice == FREE_DRAIN) drain_factor = 1.0_wp
       if (choice == BEDROCK)    drain_factor = 0.0_wp
    end subroutine load_water_bottom_bc
+
+   !--- [surface_layer] -> the organic layer's switch and its two materials.
+   subroutine load_organic_params(tm, o)
+      type(toml_table_t),     intent(in)    :: tm
+      type(organic_params_t), intent(inout) :: o
+      o%litter_on = toml_logical(tm, 'surface_layer.litter_on', o%litter_on)
+      o%litter%bulk_density   = toml_real(tm, 'surface_layer.litter_bulk_density',   o%litter%bulk_density)
+      o%litter%water_capacity = toml_real(tm, 'surface_layer.litter_water_capacity', o%litter%water_capacity)
+      o%litter%k_dry          = toml_real(tm, 'surface_layer.litter_k_dry',          o%litter%k_dry)
+      o%litter%k_wet          = toml_real(tm, 'surface_layer.litter_k_wet',          o%litter%k_wet)
+      o%moss%bulk_density     = toml_real(tm, 'surface_layer.moss_bulk_density',     o%moss%bulk_density)
+      o%moss%water_capacity   = toml_real(tm, 'surface_layer.moss_water_capacity',   o%moss%water_capacity)
+      o%moss%k_dry            = toml_real(tm, 'surface_layer.moss_k_dry',            o%moss%k_dry)
+      o%moss%k_wet            = toml_real(tm, 'surface_layer.moss_k_wet',            o%moss%k_wet)
+   end subroutine load_organic_params
 
    subroutine load_snow_params(tm, s)                   ! [snow] -> snow physical params
       type(toml_table_t), intent(in)    :: tm
@@ -1229,9 +1247,10 @@ contains
       !--- Optional fast-loop settings, at their defaults when absent.
       call load_fast_params(tm, cfg, miss)
 
-      !--- [soil], [snow], [aerodynamics], every key optional.
+      !--- [soil], [snow], [surface_layer], [aerodynamics], every key optional.
       call load_soil       (tm, cfg%soil)
       call load_snow_params(tm, cfg%snow)
+      call load_organic_params(tm, cfg%organic)
       call load_aero_params   (tm, cfg%aero)
 
       !--- [soil_carbon] (docs/science/soil_carbon.md): every key optional, at its type default.

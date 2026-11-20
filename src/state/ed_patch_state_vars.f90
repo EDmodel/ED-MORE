@@ -17,8 +17,9 @@
 module ed_patch_state_vars
    use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
    use ed_kinds,              only : wp, ik
-   use ed_constants,          only : n_soil_layer_max, n_snow_layer_max, tiny_num, t_3ple, rho_h2o
+   use ed_constants,          only : n_soil_layer_max, n_snow_layer_max, n_organic_slot, tiny_num, t_3ple, rho_h2o
    use ed_therm_lib,          only : cas_molar_density
+   use ed_organic_lib,        only : organic_state_t
    use ed_diag_vars,          only : patch_diag_block, expand_patch_diag, reorder_patch_diag
    use ed_state_defaults,     only : UNSET_POSITIVE, CAN_CO2_UNSEEDED, CAN_DEPTH_UNSET
    use ed_soil_derive,        only : top_soil_psi
@@ -30,7 +31,7 @@ module ed_patch_state_vars
    public :: cas_state_t, snow_state_t, soil_water_state_t, soil_energy_state_t, soil_carbon_state_t
    public :: decomp_xi_t, litter_input_t
    public :: blend_cas, cas_set_depth, cas_capacities, cas_capacity_change
-   public :: blend_snow, blend_soil_water, blend_soil_energy, blend_soil_carbon
+   public :: blend_snow, blend_organic, blend_soil_water, blend_soil_energy, blend_soil_carbon
    public :: soil_water_store, soil_energy_store
    public :: blend_decomp_xi, blend_litter_input, blend_patch_stores, add_shed_water
    public :: patch_block, alloc_patch_block, expand_patch_block, reorder_patch_block, free_patch_block
@@ -72,6 +73,7 @@ module ed_patch_state_vars
       real(wp) :: snow_fliq(n_snow_layer_max)   = 0.0_wp   ! [-]     liquid fraction, diagnosed
       integer(ik) :: nlayer                     = 0_ik     ! layers in use (0 = no snow)
    end type snow_state_t
+
 
    !---~---
    !   Soil water, and the pond on top of it. The pond holds its own energy, so water
@@ -164,6 +166,7 @@ module ed_patch_state_vars
       type(cas_state_t),          allocatable :: cas(:)          ! canopy air
       !--- 5. SNOW
       type(snow_state_t),         allocatable :: snow(:)         ! snow, or temporary surface water
+      type(organic_state_t),      allocatable :: organic(:)      ! the organic layer: litter and moss
       !--- 6. SOIL WATER AND HEAT
       type(soil_water_state_t),   allocatable :: soil_water(:)   ! soil water and the pond
       type(soil_energy_state_t),  allocatable :: soil_energy(:)  ! soil heat
@@ -360,6 +363,34 @@ contains
       c%nlayer      = max(a%nlayer, b%nlayer)
    end function blend_snow
 
+   !---~---
+   !   Each organic slot's matter, water and energy area-weighted; the volumes add, so its
+   ! density is the blended matter over the blended depth, or the one density both share.
+   ! The temperature is read off the blend in the fast loop.
+   !---~---
+   pure function blend_organic(w1, a, w2, b) result(c)
+      real(wp),              intent(in) :: w1, w2
+      type(organic_state_t), intent(in) :: a, b
+      type(organic_state_t)             :: c
+      real(wp) :: depth
+      integer  :: k
+      c%mass   = w1 * a%mass   + w2 * b%mass
+      c%water  = w1 * a%water  + w2 * b%water
+      c%energy = w1 * a%energy + w2 * b%energy
+      do k = 1, n_organic_slot
+         if (b%mass(k) <= 0.0_wp .or. a%density(k) == b%density(k)) then
+            c%density(k) = a%density(k)
+         else if (a%mass(k) <= 0.0_wp) then
+            c%density(k) = b%density(k)
+         else
+            depth = w1 * a%mass(k) / a%density(k) + w2 * b%mass(k) / b%density(k)
+            c%density(k) = c%mass(k) / depth
+         end if
+      end do
+      c%temp = w1 * a%temp + w2 * b%temp                   ! provisional
+      c%fliq = w1 * a%fliq + w2 * b%fliq                   ! provisional
+   end function blend_organic
+
    pure function blend_soil_water(w1, a, w2, b) result(c)
       real(wp),                  intent(in) :: w1, w2
       type(soil_water_state_t),  intent(in) :: a, b
@@ -439,6 +470,7 @@ contains
       allocate(patch%cas(cap))                                   ! default-initialised by its type
       !--- 5. Snow
       allocate(patch%snow(cap))                                  ! default-initialised by its type
+      allocate(patch%organic(cap))                               ! default-initialised by its type
       !--- 6. Soil water and heat
       allocate(patch%soil_water(cap), patch%soil_energy(cap))    ! default-initialised by its type
       !--- 7. Soil carbon
@@ -488,6 +520,7 @@ contains
       tmp%cas(1:m) = patch%cas(1:m)
       !--- 5. Snow
       tmp%snow(1:m) = patch%snow(1:m)
+      tmp%organic(1:m) = patch%organic(1:m)
       !--- 6. Soil water and heat
       tmp%soil_water(1:m)  = patch%soil_water(1:m)
       tmp%soil_energy(1:m) = patch%soil_energy(1:m)
@@ -520,6 +553,7 @@ contains
       call move_alloc(tmp%cas, patch%cas)
       !--- 5. Snow
       call move_alloc(tmp%snow, patch%snow)
+      call move_alloc(tmp%organic, patch%organic)
       !--- 6. Soil water and heat
       call move_alloc(tmp%soil_water, patch%soil_water)
       call move_alloc(tmp%soil_energy, patch%soil_energy)
@@ -562,6 +596,7 @@ contains
       patch%cas(1:m) = patch%cas(perm(1:m))
       !--- 5. Snow
       patch%snow(1:m) = patch%snow(perm(1:m))
+      patch%organic(1:m) = patch%organic(perm(1:m))
       !--- 6. Soil water and heat
       patch%soil_water(1:m)  = patch%soil_water(perm(1:m))
       patch%soil_energy(1:m) = patch%soil_energy(perm(1:m))
@@ -590,7 +625,8 @@ contains
       if (allocated(patch%area)) deallocate(patch%global_id, patch%dist_type, patch%owner_site, patch%area,    &
                                             patch%age,                                                         &
                                             patch%cohort_offset, patch%cohort_count, patch%recruit_pool,       &
-                                            patch%cas, patch%snow, patch%soil_water, patch%soil_energy,        &
+                                            patch%cas, patch%snow, patch%organic, patch%soil_water,            &
+                                            patch%soil_energy,                                                 &
                                             patch%soil_carbon, patch%shed_water_rate, patch%shed_water_enth,   &
                                             patch%slow_co2_rate,                                               &
                                             patch%decomp_xi, patch%litter_in, patch%adapt_dt_last,      &
@@ -659,6 +695,7 @@ contains
       patch%recruit_pool(:, dst) = w1 * patch%recruit_pool(:, src1) + w2 * patch%recruit_pool(:, src2)
       patch%cas(dst)         = blend_cas(w1, patch%cas(src1), w2, patch%cas(src2))
       patch%snow(dst)        = blend_snow(w1, patch%snow(src1), w2, patch%snow(src2))
+      patch%organic(dst)     = blend_organic(w1, patch%organic(src1), w2, patch%organic(src2))
       patch%soil_water(dst)  = blend_soil_water(w1, patch%soil_water(src1), w2, patch%soil_water(src2))
       patch%soil_energy(dst) = blend_soil_energy(w1, patch%soil_energy(src1), w2, patch%soil_energy(src2))
       patch%soil_carbon(dst) = blend_soil_carbon(w1, patch%soil_carbon(src1), w2, patch%soil_carbon(src2))

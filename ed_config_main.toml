@@ -77,7 +77,8 @@ dsl_dmax       = 0.015        # [m]      dry-surface-layer thickness at most (so
 dsl_theta_init = 0.8          # [-]      the top layer's theta/theta_sat at which it starts
 ground_albedo_vis = 0.15      # [-]      bare-soil albedo, visible
 ground_albedo_nir = 0.30      # [-]      bare-soil albedo, near infrared
-ground_emissivity = 0.95      # [-]      bare-soil longwave emissivity
+ground_emissivity = 0.95      # [-]      bare-soil longwave emissivity; the litter's and the moss's too
+moss_depth     = 0.0          # [m]      the moss on the soil, under the litter ([surface_layer]); 0: none
 # ---- The bottom boundaries (docs/configuration.md "The bottom thermal boundary"). ----
 water_bottom_bc = "free_drain" # free_drain | bedrock | aquifer: drainage q = f K at f = 1 and 0, or a
                                #   water table at the base (wet sites)
@@ -103,6 +104,20 @@ min_new_snow_mass  = 1.0e-3   # [kg/m2] the snowfall that starts a pack
 tiny_snow_mass     = 1.0e-6   # [kg/m2] the pack that melts out into the soil
 ny07_a             = 2.5      # [-]     snow-cover fraction shape factor (Niu & Yang 2007)
 ny07_m             = 1.0      # [-]     snow-cover fraction exponent
+
+[surface_layer]
+# The ground's organic layer above the soil (docs/science/surface_organic_layer.md): leaf litter over
+# moss, one thermal node with each slot's water. The litter is the above-ground litter pools' dry
+# matter; the moss a site's [soil].moss_depth. Every key optional, at the value shown.
+litter_on              = true     # the litter slot
+litter_bulk_density    = 45.0     # [kg/m3] dry mass per volume (Napoly et al. 2017)
+litter_water_capacity  = 0.12     # [m3/m3] water it holds (Putuhena & Cordery 1996)
+litter_k_dry           = 0.10     # [W/m/K] conductivity, dry (de Vries 1963, after Napoly et al. 2017)
+litter_k_wet           = 0.1036   # [W/m/K] at its water capacity, 0.1 + 0.03 x 0.12 (the same)
+moss_bulk_density      = 43.0     # [kg/m3] MAT tundra's top organic 5 cm (ARC LTER knb-lter-arc.20129.1)
+moss_water_capacity    = 0.90     # [m3/m3] (Chadburn et al. 2015)
+moss_k_dry             = 0.06     # [W/m/K] (Chadburn et al. 2015)
+moss_k_wet             = 0.50     # [W/m/K] saturated (Chadburn et al. 2015)
 
 [aerodynamics]
 # Canopy aerodynamics (docs/science/canopy_aerodynamics.md, whose equations are cited). Every key

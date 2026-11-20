@@ -31,17 +31,28 @@
 !      as ice; a pack at the plateau takes none of a pond's liquid; a warm pond with no pack is left as it is; an empty
 !      pond leaves a pack as it was; snow on ice mixes the densities by volume. The stores
 !      the stage reports for the ledger, with the pond it leaves, are the stores it began from.
+!  10. THE ORGANIC LAYER (ed_patch_state_vars' organic_* and organic_surface_balance): water
+!      fills the litter, then the moss, each to its capacity; one temperature, the slots'
+!      energies summing to the total; vapour leaves the litter first. Its balance closes on its
+!      energy, a thin layer of little heat capacity relaxes over an hour without passing its
+!      surroundings, a dry layer does not evaporate, and a wet one gives no more than it holds;
+!      the soil takes what it conducts down, less the soil's own evaporation's latent heat, and
+!      with a pack on it the ground's energy closes on what the pack and the layer keep.
 ! The energy datum the pack is held in is test_therm_lib's.
 !---~---
 program test_surface
    use ed_test_assert,        only : check, check_true, test_report
    use ed_kinds,              only : wp, ik
-   use ed_constants,          only : t_3ple, stefan_boltzmann, rho_ice
+   use ed_constants,          only : t_3ple, stefan_boltzmann, rho_ice, cp_organic
    use ed_therm_lib,          only : temp_to_internal_energy, internal_energy_to_temp, internal_energy_ice,      &
-                                     internal_energy_liquid, sat_specific_humidity, cas_heat_capacity
+                                     internal_energy_liquid, sat_specific_humidity, cas_heat_capacity,     &
+                                     enthalpy_vapor
    use ed_patch_state_vars,   only : snow_state_t
+   use ed_organic_lib,        only : organic_state_t, organic_params_t, SLOT_LITTER, SLOT_MOSS, organic_layer_sums, &
+                                     organic_take_water, organic_split_energy, organic_take_exchange
    use ed_biophysics_params, only : snow_params_t
-   use ed_surface,            only : surface_env_t, snow_out_t, snow_cover_fraction, snow_accumulate,            &
+   use ed_surface,            only : surface_env_t, snow_out_t, organic_out_t, organic_surface_balance,          &
+                                     snow_cover_fraction, snow_accumulate,                                      &
                                      snow_drain_meltwater, ground_surface_exchange, snow_take_exchange,         &
                                      snow_blend_ground_optics, ground_tile_radiation, ground_surface_fluxes,    &
                                      prepare_snow_stage
@@ -56,6 +67,8 @@ program test_surface
    call test_tile_radiation()
    call test_ground_balance()
    call test_pond_stage()
+   call test_organic_slots()
+   call test_organic_balance()
 
    call test_report('test_surface')
 
@@ -103,12 +116,13 @@ contains
       real(wp),            intent(in)    :: cover, dt     ! [-], [s]
       real(wp),            intent(out)   :: energy_gain, vapour_loss, g_top   ! [J/m2], [kg/m2], [W/m2]
       type(surface_env_t) :: e
-      real(wp) :: h_ground, le_ground, ground_rad, snow_energy_in, snow_vapour_out
+      real(wp) :: h_ground, le_ground, ground_rad, snow_energy_in, snow_vapour_out, org_in, org_out
       e = env
       e%pack    = snow
       e%snowfac = cover
       e%dt      = dt
-      call ground_surface_exchange(e, h_ground, le_ground, g_top, ground_rad, snow_energy_in, snow_vapour_out)
+      call ground_surface_exchange(e, h_ground, le_ground, g_top, ground_rad, snow_energy_in, snow_vapour_out,     &
+                                   org_in, org_out)
       call snow_take_exchange(snow, dt * snow_energy_in, dt * snow_vapour_out, e%params)
       energy_gain = dt * (ground_rad - h_ground - le_ground - g_top)
       vapour_loss = dt * snow_vapour_out
@@ -378,6 +392,7 @@ contains
       real(wp), parameter :: GGNET = 0.02_wp, RHO = 1.2_wp, T_GROUND = 300.0_wp, Q_CAS = 0.015_wp
       type(surface_env_t) :: env
       real(wp) :: cp_cas, h_bare, le_soil, h_2k, h_ground, le_ground, g_top, ground_rad, energy_in, vapour_out
+      real(wp) :: org_in, org_out
       print '(a)', 'test_ground_balance:'
       cp_cas = cas_heat_capacity(Q_CAS)
       call ground_surface_fluxes(T_GROUND, T_GROUND, GGNET, RHO, cp_cas, 0.0_wp, h_bare, le_soil)
@@ -395,7 +410,8 @@ contains
       env%rho_air    = RHO
       env%cp_cas     = cp_cas
       env%t_soil_top = T_GROUND
-      call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, energy_in, vapour_out)
+      call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, energy_in, vapour_out,           &
+                                   org_in, org_out)
       call check('the ground surface''s exchange takes the canopy air''s specific heat', h_ground, h_bare,        &
                  1.0e-12_wp * h_bare)
    end subroutine test_ground_balance
@@ -507,5 +523,126 @@ contains
       mix = 3.9_wp / (3.0_wp / rho_ice + 0.9_wp / p%rho_snow)
       call check('snow on ice mixes the densities by volume', env%pack%density(1), mix, 1.0e-9_wp)
    end subroutine test_pond_stage
+
+   !--- 10a. The organic layer's slots: 1.35 kg of litter (3 cm) over 2.15 kg of moss (5 cm), dry, at 280 K.
+   function two_slots(o) result(org)
+      type(organic_params_t), intent(in) :: o
+      type(organic_state_t) :: org
+      org = organic_state_t()
+      org%density = [o%litter%bulk_density, o%moss%bulk_density]
+      org%mass    = [0.03_wp * o%litter%bulk_density, 0.05_wp * o%moss%bulk_density]
+      call organic_split_energy(org, temp_to_internal_energy(cp_organic * sum(org%mass), 0.0_wp, 280.0_wp, 1.0_wp))
+   end function two_slots
+
+   subroutine test_organic_slots()
+      type(organic_params_t) :: o
+      type(organic_state_t)  :: org
+      real(wp) :: taken, cap_litter, cap_moss, dry_cap, w, e, w_max, resist, e_in
+      print '(a)', 'test_organic_slots:'
+      org = two_slots(o)
+      cap_litter = o%litter%water_capacity * 1000.0_wp * 0.03_wp            ! 3.6 kg/m2
+      cap_moss   = o%moss%water_capacity   * 1000.0_wp * 0.05_wp            ! 45 kg/m2
+      call organic_take_water(org, o, 10.0_wp, 10.0_wp * internal_energy_liquid(285.0_wp), taken)
+      call check('the litter fills to its capacity first', org%water(SLOT_LITTER), cap_litter, 1.0e-12_wp)
+      call check('the moss takes the rest', org%water(SLOT_MOSS), 10.0_wp - cap_litter, 1.0e-12_wp)
+      call check('all of it taken: the layer has room', taken, 10.0_wp, 1.0e-12_wp)
+      call check_true('one temperature, between the layer''s and the water''s',                                    &
+                      org%temp > 280.0_wp .and. org%temp < 285.0_wp, org%temp)
+      call check('the slots'' energies sum to the total', sum(org%energy),                                          &
+                 temp_to_internal_energy(cp_organic * sum(org%mass), 10.0_wp, org%temp, org%fliq), 1.0e-6_wp)
+      call organic_take_water(org, o, 100.0_wp, 0.0_wp, taken)
+      call check('a full layer passes the rest on', taken, cap_moss - (10.0_wp - cap_litter), 1.0e-9_wp)
+      call organic_layer_sums(org, o, dry_cap, w, e, w_max, resist)
+      call check('its water capacity is the slots''', w_max, cap_litter + cap_moss, 1.0e-9_wp)
+      call check('its resistance: each slot''s depth over its wet conductivity', resist,                          &
+                 0.03_wp / o%litter%k_wet + 0.05_wp / o%moss%k_wet, 1.0e-12_wp)
+      e_in = sum(org%energy)
+      call organic_take_exchange(org, -1.0e5_wp, 4.0_wp)
+      call check_true('vapour leaves the litter first', org%water(SLOT_LITTER) == 0.0_wp                           &
+                      .and. abs(org%water(SLOT_MOSS) - (cap_moss - (4.0_wp - cap_litter))) < 1.0e-9_wp)
+      call check('the exchange''s energy reaches the layer', sum(org%energy), e_in - 1.0e5_wp, 1.0e-6_wp)
+   end subroutine test_organic_slots
+
+   !--- 10b. The organic layer's balance, and the ground surface with it.
+   subroutine test_organic_balance()
+      real(wp), parameter :: DT = 3600.0_wp
+      type(organic_params_t) :: o
+      type(organic_state_t)  :: org
+      type(surface_env_t)    :: env
+      type(organic_out_t)    :: ofx, ofx0
+      type(snow_params_t)    :: p
+      real(wp) :: w_max, h_ground, le_ground, g_top, ground_rad, s_in, s_out, o_in, o_out, taken, w_save, e_save
+      print '(a)', 'test_organic_balance:'
+      org = organic_state_t()                                    ! litter alone: 1.35 kg/m2, 2.6 kJ/m2/K dry
+      org%density(SLOT_LITTER) = o%litter%bulk_density
+      org%mass(SLOT_LITTER)    = 0.03_wp * o%litter%bulk_density
+      call organic_split_energy(org, temp_to_internal_energy(cp_organic * org%mass(SLOT_LITTER), 0.0_wp, 280.0_wp, &
+                                                             1.0_wp))
+      call organic_take_water(org, o, 1.0_wp, internal_energy_liquid(280.0_wp), taken)
+      call cold_env(env)
+      env%dt           = DT
+      env%can_temp     = 270.0_wp
+      env%t_soil_top   = 285.0_wp
+      env%ggnet        = 0.05_wp
+      env%rnet_soil    = 0.0_wp
+      env%has_org      = .true.
+      env%ground_emiss = 0.95_wp
+      call organic_layer_sums(org, o, env%org_dry_cap, env%org_water, env%org_energy, w_max, env%org_resistance)
+      env%org_fill = env%org_water / w_max
+      call organic_surface_balance(env, 0.0_wp, ofx0)
+      call check_true('a thin layer relaxes over an hour without passing its surroundings',                         &
+                      ofx0%t_surf > 268.0_wp .and. ofx0%t_surf < 286.0_wp, ofx0%t_surf)
+      call check('its energy: what its surroundings give it', ofx0%energy_in,                                       &
+                 ofx0%rad - ofx0%h - ofx0%le - ofx0%g_soil, 1.0e-9_wp)
+      call check_true('a wet layer evaporates, no more than it holds',                                              &
+                      ofx0%w_flux > 0.0_wp .and. ofx0%w_flux * DT <= env%org_water, ofx0%w_flux)
+      !---~---
+      !   What the layer takes is its balance's root: its energy and water after the exchange give
+      ! back the temperature the balance solved for, on a wet layer and on a trace of water whose
+      ! evaporation the layer's water caps (a few joules per kelvin turn a mismatch into kelvins).
+      !---~---
+      call check('the exchange it takes gives back its root', committed_temp(env, ofx0), ofx0%t_surf, 1.0e-6_wp)
+      w_save = env%org_water
+      e_save = env%org_energy
+      env%org_water  = 1.0e-6_wp
+      env%org_energy = temp_to_internal_energy(env%org_dry_cap, env%org_water, 280.0_wp, 1.0_wp)
+      env%org_fill   = env%org_water / w_max
+      call organic_surface_balance(env, 0.0_wp, ofx)
+      call check('a trace of water: the layer still takes its root', committed_temp(env, ofx), ofx%t_surf, 1.0e-6_wp)
+      call check_true('and evaporates no more than it holds', ofx%w_flux * DT <= env%org_water * (1.0_wp + 1.0e-12_wp), &
+                      ofx%w_flux)
+      env%org_water  = w_save
+      env%org_energy = e_save
+      env%org_fill = 0.0_wp
+      call organic_surface_balance(env, 0.0_wp, ofx)
+      call check('a dry layer does not evaporate', ofx%w_flux, 0.0_wp, 0.0_wp)
+      !--- The ground with the layer: the soil takes its conduction less the soil's own evaporation's heat.
+      env%org_fill  = env%org_water / w_max
+      env%soil_evap = 1.0e-6_wp
+      env%snowfac   = 0.0_wp
+      call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, s_in, s_out, o_in, o_out)
+      call organic_surface_balance(env, 0.0_wp, ofx)
+      call check('the soil takes what the layer conducts, less its evaporation''s heat', g_top,                    &
+                 ofx%g_soil - env%soil_evap * enthalpy_vapor(env%t_soil_top), 1.0e-9_wp)
+      call check('the layer is the ground''s surface: its sensible heat, the ground''s', h_ground, ofx%h, 1.0e-12_wp)
+      call check('no pack, no pack exchange', s_in, 0.0_wp, 0.0_wp)
+      call check('the layer''s own energy', o_in, ofx%energy_in, 1.0e-12_wp)
+      !--- A pack on the layer: it conducts into the layer, and what the ground absorbs is what both keep.
+      env%params  = p
+      env%pack    = cold_pack(30.0_wp, 265.0_wp, p)
+      env%snowfac = 0.9_wp
+      call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, s_in, s_out, o_in, o_out)
+      call check('pack and layer: the ground''s energy closes', ground_rad - h_ground - le_ground - g_top,          &
+                 s_in + o_in, 1.0e-9_wp)
+   end subroutine test_organic_balance
+
+   !--- The layer's temperature after it takes an exchange over the balance's step.
+   real(wp) function committed_temp(env, ofx) result(t)
+      type(surface_env_t), intent(in) :: env
+      type(organic_out_t), intent(in) :: ofx
+      real(wp) :: fl
+      call internal_energy_to_temp(env%org_energy + env%dt * ofx%energy_in, env%org_water - env%dt * ofx%w_flux,       &
+                                   env%org_dry_cap, t, fl)
+   end function committed_temp
 
 end program test_surface

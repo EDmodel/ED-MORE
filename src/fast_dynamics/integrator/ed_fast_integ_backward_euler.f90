@@ -250,6 +250,8 @@ contains
             bf%whole_cond_enth = surf_tend%cond_enth   ! exactly what surface_derivs debited from the CAS
             bf%snow_enth_in = surf_tend%snow_enth_in
             bf%snow_vap_out = surf_tend%snow_vap_out
+            bf%org_enth_in  = surf_tend%org_enth_in
+            bf%org_vap_out  = surf_tend%org_vap_out
             bf%veg_surface_evap    = sum(surf_tend%leaf_surface_evap(1:n)) + sum(surf_tend%wood_surface_evap(1:n))
             bf%h_canopy     = surf_tend%h_canopy
             bf%h_ground     = surf_tend%h_ground

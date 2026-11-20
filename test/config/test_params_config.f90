@@ -27,13 +27,16 @@ program test_params_config
    use ed_soil_hydr_lib,       only : SOIL_RETENTION_VG, SOIL_RETENTION_CAMPBELL
    use ed_config,              only : ed_config_t, init_params_t
    use ed_toml,                only : toml_table_t, toml_parse_file, toml_write_record
-   use ed_config_io,           only : load_fast_params, load_soil, load_snow_params, load_aero_params, load_soil_temp
+   use ed_config_io,           only : load_fast_params, load_soil, load_snow_params, load_aero_params, load_soil_temp, &
+                                      load_organic_params
+   use ed_organic_lib,         only : organic_params_t
    implicit none
 
    call test_block_loaders()
    call test_soil_column()
    call test_soil_texture_lists()
    call test_init_soil_temp()
+   call test_surface_layer()
 
    call test_report('test_params_config')
 
@@ -420,5 +423,32 @@ contains
       open(newunit=u, file=TOMLFILE, status='old')
       close(u, status='delete')
    end subroutine test_init_soil_temp
+
+   !---~---
+   !   5. [surface_layer]: the defaults are the sourced materials, and a key replaces its one value.
+   !---~---
+   subroutine test_surface_layer()
+      character(len=*), parameter :: TOMLFILE = 'test_params_config_surface_tmp.toml'
+      type(toml_table_t)     :: tm
+      type(organic_params_t) :: o, d
+      integer(ik) :: u
+      logical     :: ok
+      print '(a)', 'test_surface_layer:'
+      call check_true('litter is on by default', d%litter_on)
+      call check('the litter''s default bulk density', d%litter%bulk_density, 45.0_wp, 0.0_wp)
+      call check('the moss''s default water capacity', d%moss%water_capacity, 0.90_wp, 0.0_wp)
+      open(newunit=u, file=TOMLFILE, status='replace', action='write')
+      write(u,'(a)') '[surface_layer]'
+      write(u,'(a)') 'litter_on = false'
+      write(u,'(a)') 'moss_bulk_density = 64.0'
+      close(u)
+      call toml_parse_file(TOMLFILE, tm, ok)
+      call load_organic_params(tm, o)
+      call check_true('a key turns the litter off', .not. o%litter_on)
+      call check('a key sets the moss''s bulk density', o%moss%bulk_density, 64.0_wp, 0.0_wp)
+      call check('the keys it leaves keep their defaults', o%litter%k_dry, d%litter%k_dry, 0.0_wp)
+      open(newunit=u, file=TOMLFILE, status='old')
+      close(u, status='delete')
+   end subroutine test_surface_layer
 
 end program test_params_config

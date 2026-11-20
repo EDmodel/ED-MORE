@@ -84,6 +84,12 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ### Answer changes
 
+- The ground has an organic layer: leaf litter, the above-ground litter pools' dry matter, over moss
+  (`[soil].moss_depth`, none by default). It is the ground's surface where it exists: it absorbs the
+  ground's radiation, holds water up to its capacity (rain fills it before it ponds), evaporates, and
+  insulates the soil, the snow conducting into it. The above-ground litter decays at its temperature
+  and moisture. Litter is on by default (`[surface_layer].litter_on`), so every run with litter pools
+  moves (docs/science/surface_organic_layer.md). (#TBD)
 - The pond is the free water of the ground's water layer, which can now freeze. At each fast step's
   start a pond joins a snow pack, sharing its energy: the pack freezes what its cold can, and the
   rest stays the pond. A pond below its freezing point (sub-threshold snow, freezing rain) starts a layer of ice. It
@@ -190,6 +196,10 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ### Added
 
+- `[surface_layer]`: the organic layer's materials, litter and moss (bulk density, water capacity,
+  conductivity dry and wet), and `[soil].moss_depth`, per site. Outputs `mean_organic_temp_py` and
+  `mean_organic_water_py` (and `_pa`). A state file carries the layer (`organic_*_pa`); one from
+  before starts without it, the litter returning from its pools at the first slow step. (#TBD)
 - `[init].soil_temp` may list one temperature per soil layer, top down, for a column whose start
   differs with depth, such as a thawed top over permafrost. One value starts every layer there, as
   before; a list needs as many values as the column has layers. (#TBD)

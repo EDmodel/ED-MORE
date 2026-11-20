@@ -94,6 +94,8 @@ contains
       bf%whole_cond_enth = surf_tend%cond_enth   ! exactly what surface_derivs debited from the CAS
       bf%snow_enth_in  = surf_tend%snow_enth_in
       bf%snow_vap_out  = surf_tend%snow_vap_out
+      bf%org_enth_in   = surf_tend%org_enth_in
+      bf%org_vap_out   = surf_tend%org_vap_out
       bf%veg_surface_evap     = sum(surf_tend%leaf_surface_evap) + sum(surf_tend%wood_surface_evap)
       bf%h_canopy      = surf_tend%h_canopy
       bf%h_ground      = surf_tend%h_ground
@@ -270,6 +272,10 @@ contains
                             + B6*s(6)%snow_enth_in) * dt
       acc%snow_vap_out   = (B1*s(1)%snow_vap_out   + B3*s(3)%snow_vap_out   + B4*s(4)%snow_vap_out             &
                             + B6*s(6)%snow_vap_out) * dt
+      acc%org_enth_in    = (B1*s(1)%org_enth_in    + B3*s(3)%org_enth_in    + B4*s(4)%org_enth_in              &
+                            + B6*s(6)%org_enth_in) * dt
+      acc%org_vap_out    = (B1*s(1)%org_vap_out    + B3*s(3)%org_vap_out    + B4*s(4)%org_vap_out              &
+                            + B6*s(6)%org_vap_out) * dt
       acc%veg_surface_evap = (B1*s(1)%veg_surface_evap + B3*s(3)%veg_surface_evap + B4*s(4)%veg_surface_evap     &
                               + B6*s(6)%veg_surface_evap) * dt
       acc%h_canopy       = (B1*s(1)%h_canopy       + B3*s(3)%h_canopy       + B4*s(4)%h_canopy                 &

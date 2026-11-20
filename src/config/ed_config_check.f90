@@ -12,7 +12,8 @@
 module ed_config_check
    use ed_kinds,              only : wp, ik
    use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
-   use ed_constants,            only : n_soil_layer_max, day_sec, breast_height
+   use ed_constants,            only : n_soil_layer_max, day_sec, breast_height, organic_porosity
+   use ed_organic_lib,          only : organic_material_t
    use ed_output_params,        only : STATE_DAYS, FC_DAY, FC_MONTH, TIER_MONTHLY, TIER_ANNUAL
    use ed_time,                 only : time_lt, time_valid, time_to_string, whole_years_between
    use ed_toml,                 only : toml_table_t, toml_has, toml_has_section
@@ -47,10 +48,10 @@ module ed_config_check
    !   The [soil] keys a [[sites]] table may set, under the same names: the site's soil column
    ! and its bottom. The ground's surface and its thermal boundary are the run's.
    !---~---
-   character(len=*), parameter :: SITE_GROUND_KEYS(15) = [character(len=24) ::                     &
+   character(len=*), parameter :: SITE_GROUND_KEYS(16) = [character(len=24) ::                     &
       'depth', 'layer_bottoms', 'retention', 'theta_sat', 'theta_res', 'ksat', 'curve_par_a',        &
       'curve_par_n', 'psi_fc', 'solid_conductivity', 'dry_conductivity', 'dry_heat_capacity',         &
-      'water_bottom_bc', 'deep_temp', 'deep_depth']
+      'water_bottom_bc', 'deep_temp', 'deep_depth', 'moss_depth']
 
    !--- The keys the soil maps provide, refused while they are set.
    character(len=*), parameter :: SOIL_MAP_KEYS(15) = [character(len=32) ::                          &
@@ -333,6 +334,9 @@ contains
       if (cfg%soil%ground_albedo_vis < 0.0_wp .or. cfg%soil%ground_albedo_vis >= 1.0_wp .or.          &
           cfg%soil%ground_albedo_nir < 0.0_wp .or. cfg%soil%ground_albedo_nir >= 1.0_wp)              &
          error stop TAG//'soil.ground_albedo_vis and ground_albedo_nir must lie in [0, 1)'
+      if (.not. (cfg%soil%moss_depth >= 0.0_wp)) error stop TAG//'soil.moss_depth must be >= 0 [m]'
+      call check_material('litter', cfg%organic%litter)
+      call check_material('moss', cfg%organic%moss)
       if (cfg%soil%ground_emissivity <= 0.0_wp .or. cfg%soil%ground_emissivity > 1.0_wp)              &
          error stop TAG//'soil.ground_emissivity must lie in (0, 1]'
       associate (sc => cfg%soil)
@@ -411,6 +415,21 @@ contains
                        '(it is measured down from the surface, and the anchor conducts to it)'
       end if
    end subroutine check_soil
+
+   !---~---
+   !   An organic material: a positive bulk density and conductivities, and a water capacity in
+   ! (0, organic_porosity], the pores' share of the volume.
+   !---~---
+   subroutine check_material(name, m)
+      character(len=*),         intent(in) :: name
+      type(organic_material_t), intent(in) :: m
+      if (.not. (m%bulk_density > 0.0_wp))                                                           &
+         error stop TAG//'surface_layer.'//name//'_bulk_density must be > 0 [kg/m3]'
+      if (.not. (m%water_capacity > 0.0_wp .and. m%water_capacity <= organic_porosity))              &
+         error stop TAG//'surface_layer.'//name//'_water_capacity must lie in (0, 0.9] m3/m3, the pores'
+      if (.not. (m%k_dry > 0.0_wp .and. m%k_wet > 0.0_wp))                                            &
+         error stop TAG//'surface_layer.'//name//'_k_dry and _k_wet must be > 0 [W/m/K]'
+   end subroutine check_material
 
    !---~---
    !   [demography]. A recruit must survive its own birth: the pool threshold exceeds the

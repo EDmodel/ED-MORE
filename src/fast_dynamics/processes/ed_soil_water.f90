@@ -12,7 +12,8 @@
 !---~---
 module ed_soil_water
    use ed_kinds,              only : wp, ik
-   use ed_constants,          only : rho_h2o, grav, grav_head, r_wv, tiny_num, p_std, safe_exp, t_kelvin
+   use ed_constants,          only : rho_h2o, grav, grav_head, r_wv, tiny_num, p_std, safe_exp, t_kelvin, &
+                                     organic_porosity
    use ed_soil_params,        only : soil_profile_t, soil_params_t, SOIL_BC_AQUIFER
    use ed_soil_hydr_lib,      only : soil_head_to_theta
    use ed_numerics,           only : smooth_max0
@@ -22,7 +23,7 @@ module ed_soil_water
    private
 
    public :: soil_water_flux, ground_evaporation_rate, bottom_flux
-   public :: ground_evap_env_t, ground_evaporation_setup, pond_inflow
+   public :: ground_evap_env_t, ground_evaporation_setup, pond_inflow, organic_cover_path
 
    !---~---
    !   Widths of the two rounded corners in ground_evaporation_rate: [kg/kg] where the surface's
@@ -55,12 +56,18 @@ module ed_soil_water
                                                           ! (1/ggnet), not inflated for snow
       real(wp) :: snow_free_frac = 1.0_wp                 ! [-] snow-free area fraction (1-snowfac) that evaporates,
                                                           ! an area-weighted tile flux (snow_biophysics.md)
+      !---~---
+      !   The organic layer above the soil: its depth as an equivalent path in free air, each
+      ! slot's depth over its Millington-Quirk tortuosity (0 without one).
+      !---~---
+      real(wp) :: cover_path = 0.0_wp                     ! [m]
       !--- Set by ground_evaporation_setup from the fields above and the top layer's curve.
       real(wp) :: rv_t            = 0.0_wp   ! [J/kg] R_v T of the ground skin, the scale of Philip's humidity
       real(wp) :: q_sat           = 0.0_wp   ! [kg/kg] saturation specific humidity at the ground skin
       real(wp) :: theta_init      = 0.0_wp   ! [m3/m3] top-layer water content below which the dry layer forms
       real(wp) :: theta_span      = 0.0_wp   ! [m3/m3] theta_init less the air-dry water content
       real(wp) :: dsl_diffusivity = 0.0_wp   ! [m2/s] vapour diffusivity through the dry surface layer
+      real(wp) :: r_cover         = 0.0_wp   ! [s/m]  the vapour's resistance through the organic layer
    end type ground_evap_env_t
 
 contains
@@ -149,7 +156,20 @@ contains
       tau     = phi_air ** MQ_TORTUOSITY_EXP / max(phi * phi, tiny_num)   ! [-] Millington-Quirk tortuosity
       forcing%theta_span      = max(forcing%theta_init - theta_air, tiny_num)
       forcing%dsl_diffusivity = max(dvap * tau, tiny_num)
+      forcing%r_cover         = forcing%cover_path / dvap
    end subroutine ground_evaporation_setup
+
+   !---~---
+   !   One organic slot's path for the soil's vapour [m], as a depth of free air: its depth over the
+   ! Millington-Quirk tortuosity of its air-filled pores, the organic porosity less its water.
+   !---~---
+   elemental function organic_cover_path(depth, theta) result(path)
+      real(wp), intent(in) :: depth   ! [m]
+      real(wp), intent(in) :: theta   ! [m3/m3] its water, per volume
+      real(wp) :: path, phi_air
+      phi_air = max(organic_porosity - theta, tiny_num)
+      path    = depth * organic_porosity ** 2 / phi_air ** MQ_TORTUOSITY_EXP
+   end function organic_cover_path
 
    !---~---
    !   ground_evaporation_rate -- ground evaporation [kg/m2/s] from the top layer, with its
@@ -175,7 +195,7 @@ contains
       call smooth_max0(forcing%theta_init - theta1, DSL_THETA_WIDTH, dry, ddry)
       r_soil    = soil%dsl_dmax * dry / forcing%theta_span / forcing%dsl_diffusivity
       dr_dtheta = -soil%dsl_dmax * ddry / forcing%theta_span / forcing%dsl_diffusivity
-      resist    = forcing%r_aero + r_soil
+      resist    = forcing%r_aero + r_soil + forcing%r_cover
       e_soil    = forcing%snow_free_frac * forcing%rho_air * drive / resist
       de_dpsi   = forcing%snow_free_frac * forcing%rho_air * ddrive * forcing%q_sat * dalpha / resist
       de_dtheta = -e_soil * dr_dtheta / resist

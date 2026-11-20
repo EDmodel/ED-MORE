@@ -52,7 +52,7 @@ Two kinds of value are not in the config:
   plasticity slopes from Vcmax25) is computed outside ED-MORE, by
   `scripts/prepare_input/pft_traits/README.md`, and written into the PFT file.
 - **Optional keys** read with a fallback to a default. They are the solver settings, process switches and
-  whole blocks (`[soil]`, `[snow]`, `[aerodynamics]`, `[soil_carbon]`, `[trait_dynamics]`, most of
+  whole blocks (`[soil]`, `[snow]`, `[surface_layer]`, `[aerodynamics]`, `[soil_carbon]`, `[trait_dynamics]`, most of
   `[fast]` and `[output]`). The reference file lists each one commented out at its default.
 
 **Every key ED-MORE reads is listed in the two reference configs**, set or commented out at its default.
@@ -90,8 +90,9 @@ The main file holds all non-PFT settings. It names the PFT file in `[init].pft_c
 |---|---|
 | `[run]` | the slow step `dt_slow` (`"1d"`, `"12h"`, `"900s"`: a number and a unit `s`, `m`, `h`, `d` or `w`; a bare number is seconds), the span as calendar dates (`start_time`, `end_time`, exclusive; `"YYYY-MM-DD[ HH:MM:SS]"`, Gregorian with leap years), `mode` (`"site"`, the default, or `"region"`), the thread count and two slow-step switches |
 | `[fast]` | the sub-daily loop: whether it runs (`fast_biophysics_on`), its step `dt_fast`, the GPP of a run without it (`gpp_ref`; its soil carbon decays at `[soil_carbon].spinup_xi`), the integrator and its error control (`time_integrator`, `rtol`, `atol_scale`, `water_atol`), the budget checks (`soil_energy_budget_atol`, `debug_error`), canopy interception, and the initial snow |
-| `[soil]` | the ground: column, hydraulic and thermal texture, surface, and the two bottom boundaries |
+| `[soil]` | the ground: column, hydraulic and thermal texture, surface (and the moss on it, `moss_depth`), and the two bottom boundaries |
 | `[snow]`, `[aerodynamics]` | the snow store's and the canopy aerodynamics' parameters |
+| `[surface_layer]` | the organic layer on the soil: the litter's switch, and the litter's and the moss's materials ([surface_organic_layer](science/surface_organic_layer.md)) |
 | `[demography]` | the stand's structure: one switch per operator, and the settings of cohort and patch fusion, fission, the cull, treefall gaps and recruitment |
 | `[init]` | how the run starts, and the path to the PFT file |
 | `[trait_dynamics]` | light acclimation of leaf traits (`trait_plasticity_on`) |

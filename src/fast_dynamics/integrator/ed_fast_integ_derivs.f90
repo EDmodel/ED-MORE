@@ -134,10 +134,10 @@ contains
       senv%press      = cas%press
       senv%t_soil_top = t_ground
       call ground_surface_exchange(senv, f%h_ground, f%le_ground, f%g_top, f%ground_rad, f%snow_enth_in,         &
-                                   f%snow_vap_out)
+                                   f%snow_vap_out, f%org_enth_in, f%org_vap_out)
 
       f%src_enth   = coh_h + coh_qw + f%h_ground + f%le_ground
-      f%src_vap    = coh_transp + coh_surface_evap + ground%soil_evap + f%snow_vap_out
+      f%src_vap    = coh_transp + coh_surface_evap + ground%soil_evap + f%snow_vap_out + f%org_vap_out
       f%coh_rnet   = coh_rnet
       f%h_canopy   = coh_h
 

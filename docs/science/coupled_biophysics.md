@@ -16,6 +16,7 @@ are compared in [numerical_scheme](numerical_scheme.md).
 - [vegetation_energy_dynamics](vegetation_energy_dynamics.md) — the leaf/wood tissue energy balance
   (diagnostic and prognostic modes).
 - [snow_biophysics](snow_biophysics.md) — the always-active snow / temporary-surface-water store.
+- [surface_organic_layer](surface_organic_layer.md) — the organic layer on the soil, litter over moss.
 - [canopy_aerodynamics](canopy_aerodynamics.md) — the Monin-Obukhov surface layer and boundary-layer
   conductances that set the shared $`u_*`$ atm↔CAS transfer.
 - [canopy_radiation_transfer](canopy_radiation_transfer.md) — the two-stream absorbed SW / net LW that
