@@ -290,8 +290,8 @@ layer count that differs stops the run, since the soil state would be read onto 
 
 Each group of variables is stored because the rest of the state cannot rebuild it:
 
-- **The carbon pools as the run holds them**, not re-derived from dbh. Cohort fusion and phenology
-  leave a cohort's pools off the allometry for its dbh, so re-deriving them would move the leaf area
+- **The carbon pools as the run holds them**, not re-derived from the diameter. Cohort fusion and phenology
+  leave a cohort's pools off the allometry for its diameter, so re-deriving them would move the leaf area
   and reset the fine-root carbon. The reader derives the geometry from the pools, as the run does;
   height, basal area, aboveground biomass and leaf area are written for the file's readers only. The
   overtopping LAI is stored because the plastic traits were acclimated to it

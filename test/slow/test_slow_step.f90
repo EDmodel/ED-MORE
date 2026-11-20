@@ -439,7 +439,7 @@ module test_slow_step_carbon
    use ed_constants,                only : grav_head
    use ed_therm_lib,                only : internal_energy_liquid
    use ed_plant_hydr_lib,           only : water_curve_t, tissue_water_to_psi, tissue_psi_to_water
-   use ed_allometry_lib, only : dbh_to_wai, sapwood_fraction, carbon_to_structure
+   use ed_allometry_lib, only : diameter_to_wai, sapwood_fraction, carbon_to_structure
    use ed_config,                 only : ed_config_t, growth_window_steps
    use ed_cohort_state_vars,   only : cohort_deriv_alloc, cohort_bad_field, cohort_field_finite, cohort_field_name
    use ed_patch_state_vars,    only : canopy_air_bad_field
@@ -463,7 +463,7 @@ module test_slow_step_carbon
 
    type(ed_config_t)   :: cfg
    type(polygon_t)     :: poly
-   real(wp)    :: wood0, dbh0
+   real(wp)    :: wood0, diameter0
    integer(ik) :: istep
 
 contains
@@ -472,18 +472,18 @@ contains
       call banner('the carbon step: growth, its geometry, plasticity and the turnover shed')
       cfg = build_test_config()
 
-      !--- 2. A step without the fast loop grows wood_carbon -> dbh; leaf_area stays leaf_carbon*sla.
+      !--- 2. A step without the fast loop grows wood_carbon -> diameter; leaf_area stays leaf_carbon*sla.
       cfg%gpp_ref = 0.5_wp
       call init_bare_ground(poly, cfg, 1_ik)
       call add_cohort(poly, cfg, 1_ik, 3_ik, 0.1_wp, 20.0_wp)       ! climax cohort
       call finalize_init(poly)
       wood0 = poly%cohort%wood_carbon(1)
-      dbh0 = poly%cohort%dbh(1)
+      diameter0 = poly%cohort%diameter(1)
       do istep = 1_ik, 30_ik
          call advance_one_step(poly, cfg, ledgers)                  ! growth + mortality only
       end do
       call check(poly%cohort%wood_carbon(1) > wood0, 'carbon growth did not add wood_carbon')
-      call check(poly%cohort%dbh(1) > dbh0,          'dbh did not increase with wood_carbon (the flip)')
+      call check(poly%cohort%diameter(1) > diameter0,          'diameter did not increase with wood_carbon (the flip)')
       call check_close(poly%cohort%leaf_area(1), poly%cohort%leaf_carbon(1) * cfg%pft%sla(3_ik),   &
                        1.0e-9_wp, 'leaf_area /= leaf_carbon*sla after a slow-only step')
       call check(cohort_bad_field(poly%cohort, 1_ik) == 0_ik, 'a slow-only step left the cohort out of bounds')
@@ -515,15 +515,15 @@ contains
       !   2b. The cached WOOD geometry must describe TODAY's tree, not the one 30 steps ago.
       ! wood_area / sapwood_carbon / sapwood_area are derived once per size change rather
       ! than recomputed every dt_fast, so the fast loop reads them in place. That is only
-      ! safe while every path that moves dbh, basal_area or wood_carbon re-derives them,
+      ! safe while every path that moves diameter, basal_area or wood_carbon re-derives them,
       ! growth included. Assert it directly: a stale cache is invisible in a conservation
       ! ledger and shows up only as a slowly wrong tree.
       !---~---
       block
          real(wp) :: wa_fresh, fs_fresh
          associate (pft => poly%cohort%pft_table, pf => poly%cohort%pft(1))
-            wa_fresh = dbh_to_wai(pft%allom(pf), poly%cohort%dbh(1), 1.0_wp)
-            fs_fresh = sapwood_fraction(pft%allom(pf), poly%cohort%dbh(1))
+            wa_fresh = diameter_to_wai(pft%allom(pf), poly%cohort%diameter(1), 1.0_wp)
+            fs_fresh = sapwood_fraction(pft%allom(pf), poly%cohort%diameter(1))
          end associate
          call check(wa_fresh > 0.0_wp, 'wood-geometry fixture is degenerate (zero wood area)')
          call check_close(poly%cohort%wood_area(1), wa_fresh, 1.0e-13_wp,                           &
@@ -893,12 +893,12 @@ contains
       call check_close(co2_off, co2_on, 1.0e-9_wp,                                                 &
                        'sink limit: the exudate pays the growth respiration the wood would have')
       !--- An ABSOLUTE limit that binds grows the stem by exactly the limit: 0.2 cm/yr for a step.
-      call run_variant(0.3_wp, 1.0_wp, dummy, dummy, max_agr=0.2_wp, ddbh=dd, dt_yr=dty, immortal=.true.)
-      call check_close(dd, 0.2_wp * dty, 1.0e-9_wp, 'sink limit: a binding absolute limit grows dbh by rate x dt')
+      call run_variant(0.3_wp, 1.0_wp, dummy, dummy, max_agr=0.2_wp, ddiameter=dd, dt_yr=dty, immortal=.true.)
+      call check_close(dd, 0.2_wp * dty, 1.0e-9_wp, 'sink limit: a binding absolute limit grows diameter by rate x dt')
    end subroutine check_routing
    !--- One slow step on a FRESH stand, returning the two routed quantities (CO2 rate, litter).
    subroutine run_variant(g_resp, repro_eff, co2_rate, litter_total, starve, max_rgr,              &
-                          lab_soil, wood, nplant0, immortal, max_agr, ddbh, dt_yr)
+                          lab_soil, wood, nplant0, immortal, max_agr, ddiameter, dt_yr)
       real(wp), intent(in)  :: g_resp, repro_eff
       real(wp), intent(out) :: co2_rate, litter_total
       logical, optional, intent(in) :: starve
@@ -908,9 +908,9 @@ contains
       real(wp), optional, intent(out) :: nplant0    ! the cohort's density before the step
       logical,  optional, intent(in)  :: immortal   ! .true. => no background or low-growth mortality
       real(wp), optional, intent(in)  :: max_agr    ! pft.max_absolute_growth_rate (default 0, no limit)
-      real(wp), optional, intent(out) :: ddbh       ! the cohort's dbh growth over the step
+      real(wp), optional, intent(out) :: ddiameter       ! the cohort's diameter growth over the step
       real(wp), optional, intent(out) :: dt_yr      ! the step's length [yr]
-      real(wp) :: dbh_start
+      real(wp) :: diameter_start
       type(ed_config_t)   :: c
       type(polygon_t)     :: st
       c = build_test_config()
@@ -956,9 +956,9 @@ contains
          end if
       end if
       if (present(nplant0)) nplant0 = st%cohort%nplant(1)
-      dbh_start = st%cohort%dbh(1)
+      diameter_start = st%cohort%diameter(1)
       call vegetation_dynamics(st, c, no_ledger)
-      if (present(ddbh)) ddbh = st%cohort%dbh(1) - dbh_start
+      if (present(ddiameter)) ddiameter = st%cohort%diameter(1) - diameter_start
       if (present(lab_soil)) lab_soil = st%patch%litter_in(1)%labile_soil
       if (present(wood))     wood     = st%cohort%wood_carbon(1)
       co2_rate     = st%patch%slow_co2_rate(1)
@@ -1208,12 +1208,12 @@ contains
       type(ed_config_t)   :: c_on, c_off
       type(polygon_t)     :: grow, frozen
       type(slow_ledger_t) :: lg_on, lg_off
-      real(wp) :: wood0, dbh0, height0, n0, held, built, pos_ring
+      real(wp) :: wood0, diameter0, height0, n0, held, built, pos_ring
       integer(ik) :: pos
       call frozen_fixture(.true.,  c_on,  grow)
       call frozen_fixture(.false., c_off, frozen)
       wood0 = frozen%cohort%wood_carbon(1)
-      dbh0 = frozen%cohort%dbh(1)
+      diameter0 = frozen%cohort%diameter(1)
       height0 = frozen%cohort%height(1)
       n0 = frozen%cohort%nplant(1)
       lg_on%active = .true.
@@ -1227,7 +1227,7 @@ contains
       call check(grow%patch%recruit_pool(1, 1) > 0.0_wp, 'frozen: the growing step credits the recruit pool')
       call check(grow%cohort%nplant(1) < n0, 'frozen: the growing step kills')
       !--- Frozen: the structure as it was.
-      call check(frozen%cohort%wood_carbon(1) == wood0 .and. frozen%cohort%dbh(1) == dbh0                 &
+      call check(frozen%cohort%wood_carbon(1) == wood0 .and. frozen%cohort%diameter(1) == diameter0                 &
                  .and. frozen%cohort%height(1) == height0, 'frozen: no wood, no growth in size')
       call check(frozen%cohort%nplant(1) == n0, 'frozen: nobody dies')
       call check(frozen%patch%recruit_pool(1, 1) == 0.0_wp, 'frozen: no recruit is credited')
@@ -1256,7 +1256,7 @@ contains
    end subroutine check_frozen_stand
 
    !---~---
-   !   A grass in a frozen stand: a cohort with no wood, set at its PFT's height from a dbh of
+   !   A grass in a frozen stand: a cohort with no wood, set at its PFT's height from a diameter of
    ! 0, is born on its allometry with the whole plant its recruit carbon, and takes a step
    ! with its structure unchanged. It builds no wood, so the carbon its leaves, roots,
    ! storage and seed leave over is root exudate, and the step closes.
@@ -1278,7 +1278,7 @@ contains
       call add_cohort(st, c, 1_ik, 2_ik, NTILLER, 0.0_wp)
       call finalize_init(st)
       associate (co => st%cohort)
-         call check(co%dbh(1) == 0.0_wp .and. co%wood_carbon(1) == 0.0_wp .and. co%agb(1) == 0.0_wp       &
+         call check(co%diameter(1) == 0.0_wp .and. co%wood_carbon(1) == 0.0_wp .and. co%agb(1) == 0.0_wp       &
                     .and. co%sapwood_area(1) == 0.0_wp .and. co%wood_area(1) == 0.0_wp,                 &
                     'frozen grass: born with no wood')
          call check(co%height(1) == HGRASS, 'frozen grass: born at its PFT''s height')
@@ -1297,7 +1297,7 @@ contains
       call slow_ledger_open(lg, st, c)
       call vegetation_dynamics(st, c, lg)
       associate (co => st%cohort)
-         call check(co%dbh(1) == 0.0_wp .and. co%wood_carbon(1) == 0.0_wp .and. co%height(1) == HGRASS    &
+         call check(co%diameter(1) == 0.0_wp .and. co%wood_carbon(1) == 0.0_wp .and. co%height(1) == HGRASS    &
                     .and. co%nplant(1) == NTILLER, 'frozen grass: no wood, its height, nobody dies')
          call check(co%leaf_carbon(1) > 0.0_wp .and. co%fineroot_carbon(1) > 0.0_wp                       &
                     .and. co%nonstructural_carbon(1) > 0.0_wp, 'frozen grass: its pools stay positive')

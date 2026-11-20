@@ -107,7 +107,7 @@ def main(argv=None):
             print(f"skipped {rdir}: {d.n_covered} of {N_MONTHS} months")
             d.close()
             continue
-        lower = np.asarray(d["dbh_lower"][:])                                 # the classes' lower edges [cm]
+        lower = np.asarray(d["diameter_lower"][:])                                 # the classes' lower edges [cm]
         for k, v in (("polygon_id", "polygon_id"), ("lat", "lat"), ("lon", "lon"), ("row", "row"), ("col", "col"),
                      ("soil_depth", "soil_depth_si"), ("bottom_bc", "bottom_bc_si"), ("chave_e", "chave_e_py")):
             x = np.asarray(d[v][:])

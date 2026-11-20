@@ -65,13 +65,13 @@ Yearly values. The census is the 50-ha plot's 2010 census on the model's allomet
 growth over the census interval 2005–2010 and against the forest's carbon budget
 ([`calibration.json`](calibration.json)). It starts the model from the 2005 census, runs the same
 five years on ERA5-Land's weather, and measures each cohort's growth the way the census measures a
-tree's: its dbh change over the five years (or to the month before it fused with another cohort),
+tree's: its diameter change over the five years (or to the month before it fused with another cohort),
 credited to its size and overtopping LAI at the start. The census side is every tree alive in 2005,
 the ones that died by 2010 with their last measured growth, averaged per class as measured.
 
 Diameter growth [cm yr⁻¹], model / census, by size class:
 
-| dbh [cm] | early | mid | late |
+| diameter [cm] | early | mid | late |
 |---|---|---|---|
 | 1–2 | 0.093 / 0.130 | 0.089 / 0.056 | 0.056 / 0.044 |
 | 2–5 | 0.132 / 0.155 | 0.103 / 0.070 | 0.078 / 0.052 |
@@ -143,7 +143,7 @@ Set for this example:
 - **Shade**: Vcmax25, Rd25 and leaf mass per area fall with the leaf area above a cohort as Ma et
   al. (2025) measured at BCI; leaf turnover slows at half the rate their leaf lifespans lengthen,
   1.8 times slower under 5 m² m⁻² of taller leaves.
-- **Sink limit**: a cohort's diameter grows at most g_max · dbh^0.5 a year (the census's shape);
+- **Sink limit**: a cohort's diameter grows at most g_max · diameter^0.5 a year (the census's shape);
   the carbon left over is exuded by the roots.
 - **Respiration**: of the fine roots, whose carbon equals the leaves', and of the stems, on sapwood
   volume, at rates that give the census stand the field's 5.5–5.8 (roots) and 4.2–5.1 (stems) MgC
@@ -259,7 +259,7 @@ With `[output].enabled = true`, each tier writes files named from `[output].dir`
 `<prefix>-M-YYYY.nc` (monthly) and `<prefix>-Y.nc` (annual). The stamp follows each tier's
 `file_chunk`; the shipped values are day, month, year and all, and an `all` chunk, one file for all
 of the run's records, has no stamp (the BCI run writes `output/regen-M.nc`). [`plot_pft_size.py`](plot_pft_size.py) reads any monthly or
-annual tier that carries the PFT and DBH-class axes, from `edmore` or `edmore.model`, given one file
+annual tier that carries the PFT and diameter-class axes, from `edmore` or `edmore.model`, given one file
 or a quoted glob:
 
 ```bash
@@ -267,7 +267,7 @@ python examples/example05_forest_regeneration/plot_pft_size.py 'OUTDIR/PREFIX-M-
 ```
 
 It draws six panels: aboveground biomass and leaf area by PFT over time, stem density and biomass by
-DBH class (first against last record), biomass by class stacked over the run, and growth and
+diameter class (first against last record), biomass by class stacked over the run, and growth and
 mortality against size. Before drawing, it prints the closure identities the two axes promise: the
 sum over PFTs, and over classes, equals the polygon total
 ([`diagnostics.md`](../../docs/science/diagnostics.md)); ctest `output_closure` checks them on every
@@ -281,7 +281,7 @@ and slots beyond the live count hold the fill value.
 
 **Reading the files yourself.** The files are plain netCDF with CF metadata, and which variables
 exist depends on the config (`edmore --dump-io-config` lists them all). Read coordinates from the file
-(`soil_z`, `dbh_lower`, `dbh_upper`, `pft`) and the reference CO₂ from `mean_atm_co2_py`, so a figure
+(`soil_z`, `diameter_lower`, `diameter_upper`, `pft`) and the reference CO₂ from `mean_atm_co2_py`, so a figure
 stays right when a run changes its grid or forcing. Two habits keep a budget computed from the files
 closed: a rate becomes an amount with the width of its own record, `time_bnds[:, 1] - time_bnds[:, 0]`
 (days), the last, partial record included; and the litter variables are not all the carbon
@@ -297,7 +297,7 @@ pools, so closing the soil-carbon budget also needs the `mean_mort_carbon_*_py` 
 | [`calibrate_growth.py`](calibrate_growth.py), [`calibration.json`](calibration.json) | BCI: the census check (and the search) and its result |
 | [`calibrate_recruitment.py`](calibrate_recruitment.py) | BCI: ingrowth past 1 cm against the census |
 | [`plot_regeneration.py`](plot_regeneration.py) | BCI: the figure |
-| [`plot_pft_size.py`](plot_pft_size.py) | any run's monthly or annual files: composition by PFT and structure by DBH class |
+| [`plot_pft_size.py`](plot_pft_size.py) | any run's monthly or annual files: composition by PFT and structure by diameter class |
 | [`palo_verde/run_palo_verde.py`](palo_verde/run_palo_verde.py) | Palo Verde: cuts the forcing, runs the inventory check and the regrowth, draws the figure |
 | [`palo_verde/pft_parameters.toml`](palo_verde/pft_parameters.toml) | Palo Verde: the four PFTs (also example 06's) |
 | [`palo_verde/ed_config_inventory.toml`](palo_verde/ed_config_inventory.toml), [`palo_verde/ed_config_regrowth.toml`](palo_verde/ed_config_regrowth.toml) | Palo Verde: the inventory check and the regrowth |

@@ -17,13 +17,13 @@ aggregation engine underneath is described in §4.
   raw prognostic state (cohort SoA, patch reservoirs, site scalars)
       │
   [1] DERIVE      ed_output_extract         quantities that are a closed-form function of state
-      │                                       (LAI, gsc, WUE, soil psi/wetness, CAS VPD, DBH class)
+      │                                       (LAI, gsc, WUE, soil psi/wetness, CAS VPD, diameter class)
       │
   [2] CAPTURE     ed_diag_vars              dt-weighted accumulators for everything the fast loop
       │                                       computes per dt_fast and would otherwise discard
       │
   [3] REDUCE      ed_output_reduce      ONE weighted aggregation:
-      │                                       cohort -> {patch, site, PFT, DBH class}; patch -> site
+      │                                       cohort -> {patch, site, PFT, diameter class}; patch -> site
       │
   [4] INTEGRATE   ed_output_integrate       temporal folding per (variable, tier)
       │
@@ -66,9 +66,9 @@ goes silently wrong.
 | | reduction | typical weight | examples |
 |---|---|---|---|
 | **Extensive** (per plant) | weighted **SUM** → per unit ground area | `nplant` | `agb`, `leaf_area`, `gpp_accum` |
-| **Intensive** (a state or a rate per unit leaf) | weighted **MEAN** | leaf area, basal area, `nplant` | `leaf_temp`, `gsw`, `psi_leaf`, `dbh` |
+| **Intensive** (a state or a rate per unit leaf) | weighted **MEAN** | leaf area, basal area, `nplant` | `leaf_temp`, `gsw`, `psi_leaf`, `diameter` |
 
-**Which weight is itself a physical statement.** `dbh` is reported basal-area-weighted — the
+**Which weight is itself a physical statement.** `diameter` is reported basal-area-weighted — the
 forestry convention, dominated by the trees that hold the stand — not stem-weighted, which a
 regenerating understory would swamp. Canopy temperatures and conductances are leaf-area-weighted,
 so a bare sapling does not pull the canopy mean as hard as a closed overstory. Demographic rates
@@ -128,7 +128,7 @@ output):
 ## 3. The axes
 
 **Names.** A variable is named `[mean_]<quantity>[_<breakdown>]_<level>`. The level is `_co`
-(cohort), `_pa` (patch), `_si` (site) or `_py` (polygon); the breakdown `_pft`, `_size` (DBH class) or
+(cohort), `_pa` (patch), `_si` (site) or `_py` (polygon); the breakdown `_pft`, `_size` (diameter class) or
 `_layer` (soil layer). `mean_` marks a mean over the record's period, and a name without it is the
 value at the period's end, its snapshot (§4, Snapshots). The tier is the file, `<prefix>-F-…`, `-D-`,
 `-M-` or `-Y-`, so one variable has one name at every tier. The axes' coordinates and bookkeeping (`n_cohort`, `n_patch`,
@@ -142,15 +142,15 @@ value at the period's end, its snapshot (§4, Snapshots). The tier is the file, 
 | `patch` | unlimited: the file's largest live count | one patch per slot through a calendar year; `global_patch_id` names each record's patches |
 | `soil` | `n_soil_layer_max` | behind `site`: each site's column on its own layers, its patches area-weighted |
 | `pft` | **run-time** PFT count | carries a `pft` coordinate variable, so the file stays self-describing |
-| `dbh_class` | from `[output].dbh_class_edges` | carries `dbh_lower` / `dbh_upper` coordinates |
+| `diameter_class` | from `[output].diameter_class_edges` | carries `diameter_lower` / `diameter_upper` coordinates |
 | `(patch, soil)` | 2-D | per-patch soil profiles; off by default |
 | `polygon` | every file; length 1 in a site run | after `time`; coordinates `polygon_id`, `lat`, `lon`, `row`, `col`; how a region chooses its polygons: [configuration](../configuration.md), Regional runs |
 | `site` | every file; the largest polygon's site count | after `polygon`; `n_site`, `area_si`, the terrain and the soil column of each site; `patch_site` gives each patch's site |
 
-**DBH classes are a size class of *plants*, ED2-style.** A cohort is assigned whole to the bin
-containing its mean `dbh` — never split — and contributes with weight `area · nplant`. Bins are
-half-open `[lo, hi)` except the last, which also takes every `dbh` at or above its upper edge, so the
-largest tree in the stand is never dropped; a `dbh` below the first edge clamps into bin 1 for the
+**Diameter classes are a size class of *plants*, ED2-style.** A cohort is assigned whole to the bin
+containing its mean `diameter` — never split — and contributes with weight `area · nplant`. Bins are
+half-open `[lo, hi)` except the last, which also takes every `diameter` at or above its upper edge, so the
+largest tree in the stand is never dropped; a `diameter` below the first edge clamps into bin 1 for the
 same reason. Both choices
 preserve the closure identity, which is what makes `mean_nplant_size_py` a genuine stem-density
 distribution comparable to a forest inventory.
@@ -245,7 +245,7 @@ states that are snapshots by default (`nplant_co`, `area_pa`, `age_pa`, `n_cohor
 have their means. The category codes `pft_co` and `dist_type_pa` are snapshots with no mean. What the
 end of the period means depends on where the state comes from:
 
-- **A state of the slow step** is read as the period's last step left it: the daily `dbh_co` stamped
+- **A state of the slow step** is read as the period's last step left it: the daily `diameter_co` stamped
   31 July is the diameter at 1 August 00:00 (Which steps a record holds, below), and the monthly one
   stamped July is the same value.
 - **A state the fast loop records each sub-step** — the canopy air, a leaf's temperature, potential or
@@ -679,7 +679,7 @@ It is generated from the registry, so it cannot drift; the page states no count 
 
 | Group | What it holds |
 |---|---|
-| `structure` | demography and size: plant number, DBH, biomass, patch geometry, ids |
+| `structure` | demography and size: plant number, diameter, biomass, patch geometry, ids |
 | `carbon` | GPP, NPP, respiration, allocation, vegetation carbon stocks |
 | `water` | evapotranspiration, soil moisture and potential, snow, surface water |
 | `energy` | latent and sensible heat, net radiation, temperatures, canopy-air state |
@@ -698,7 +698,7 @@ A variable's axis is the dimension after `time` and `polygon` (§3):
 | `site` | `_si` scalars: each site's forcing and growth temperature |
 | `soil` | `_si` soil columns by layer |
 | `(patch, soil)` | `_pa` soil columns by layer |
-| `pft`, `dbh_class` | `_pft_py` and `_size_py` breakdowns |
+| `pft`, `diameter_class` | `_pft_py` and `_size_py` breakdowns |
 
 ---
 

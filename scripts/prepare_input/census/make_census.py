@@ -9,7 +9,7 @@ no binning and no fusion: ED-MORE restructures the stand itself before the first
 
 A declaration TOML names the table and says how to read it; `bci_census.toml` in
 examples/example04_column_biophysics/sites/bci is the worked example. The tool writes:
-  * the census CSV `init_from_census` reads: site_id, patch_id, patch_area [m2], dbh [cm], pft,
+  * the census CSV `init_from_census` reads: site_id, patch_id, patch_area [m2], diameter [cm], pft,
     nplant [plants per m2 of the patch];
   * a summary JSON: what was kept and dropped, the stand under the PFT's allometry beside the table's
     own biomass, and, when the declaration names a PFT file and an earlier census, the steady-state
@@ -180,14 +180,14 @@ def census_rows(trees, plot, pft):
     """One row per distinct (cell, diameter, PFT): the census file's content, the cell areas, and the
     number of the stand's cells without a kept tree. `pft` is one PFT, or one per tree."""
     pid, area, nx, ny = cells(trees, plot)
-    frame = pd.DataFrame({"patch_id": pid, "dbh_mm": trees["dbh"].to_numpy(float),
+    frame = pd.DataFrame({"patch_id": pid, "diameter_mm": trees["dbh"].to_numpy(float),
                           "pft": np.broadcast_to(np.asarray(pft, dtype=int), (len(pid),))})
-    rows = frame.groupby(["patch_id", "dbh_mm", "pft"]).size().reset_index(name="n")
+    rows = frame.groupby(["patch_id", "diameter_mm", "pft"]).size().reset_index(name="n")
     rows["patch_area"] = area[rows["patch_id"].to_numpy() - 1]
     rows["nplant"] = rows["n"] / rows["patch_area"]
-    rows["dbh"] = rows["dbh_mm"] / 10.0
+    rows["diameter"] = rows["diameter_mm"] / 10.0
     rows["site_id"] = 1
-    rows = rows.sort_values(["patch_id", "dbh", "pft"], ascending=[True, False, True]).reset_index(drop=True)
+    rows = rows.sort_values(["patch_id", "diameter", "pft"], ascending=[True, False, True]).reset_index(drop=True)
     empty = int(stand_cell_mask(plot).sum()) - rows["patch_id"].nunique()
     return rows, area, empty
 
@@ -196,9 +196,9 @@ def write_census(rows, out, header_lines):
     with open(out, "w") as fh:
         for line in header_lines:
             fh.write(f"# {line}\n")
-        fh.write("site_id,patch_id,patch_area,dbh,pft,nplant\n")
+        fh.write("site_id,patch_id,patch_area,diameter,pft,nplant\n")
         for r in rows.itertuples(index=False):
-            fh.write(f"{r.site_id},{r.patch_id},{r.patch_area:.3f},{r.dbh:.4f},{r.pft},{r.nplant:.9e}\n")
+            fh.write(f"{r.site_id},{r.patch_id},{r.patch_area:.3f},{r.diameter:.4f},{r.pft},{r.nplant:.9e}\n")
 
 
 # --------------------------------------------------------------------------------------------- #
@@ -328,8 +328,8 @@ def main(argv=None):
     header = [f"ED-MORE census: {src.get('census', os.path.basename(path))}, measured {date_note}",
               f"source {os.path.basename(path)}, SHA-256 {sha256(path)[:16]}...; {src.get('citation', '')}".rstrip("; "),
               f"{len(trees)} live trees >= {plot.get('min_dbh_mm', 10.0):g} mm; one patch per "
-              f"{float(plot.get('cell_size', 20.0)):g} m cell; one row per distinct (cell, dbh, pft)",
-              "patch_area [m2]; dbh [cm]; nplant [plants per m2 of the patch]; "
+              f"{float(plot.get('cell_size', 20.0)):g} m cell; one row per distinct (cell, diameter, pft)",
+              "patch_area [m2]; diameter [cm]; nplant [plants per m2 of the patch]; "
               f"made by scripts/prepare_input/census/make_census.py at {git_commit(base)} on "
               f"{datetime.date.today().isoformat()}"]
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)

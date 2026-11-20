@@ -12,7 +12,7 @@ A spatially explicit synthesis in five steps:
      a CONTIGUOUS patch mosaic.
   3. STEMS. An overlaid two-Poisson field: the patch mosaic assigns every location a patch, and within
      each patch's territory each cohort is scattered by a Poisson process at its own nplant. Every
-     stem carries its cohort's height / dbh / pft / leaf_area.
+     stem carries its cohort's height / diameter / pft / leaf_area.
   4. CROWNS. Each stem gets an allometric crown disk of radius crown_scaler * sqrt(ca/pi). Crowns are
      trimmed against ONLY the neighbours within `--height-tol` metres of their own height (a same-
      layer power/Voronoi split), so an emergent crown may overlap the understory beneath it but
@@ -79,7 +79,7 @@ def read_patch(ncfile, patch, rec):
         if not np.any(sel):
             sys.exit(f"patch {patch} has no cohorts at record {r}")
         get = lambda name, dt=float: np.asarray(ds.variables[name][r, sl], dtype=dt)[sel]
-        cols = dict(pft=get("pft", int), nplant=get("nplant"), dbh=get("dbh"),
+        cols = dict(pft=get("pft", int), nplant=get("nplant"), diameter=get("diameter"),
                     height=get("height"), leaf_area=get("leaf_area"))
         cols["lai"] = cols["nplant"] * cols["leaf_area"]     # cohort LAI [m2/m2]
         return cols
@@ -134,7 +134,7 @@ def mosaic_labels(seeds, target_fracs, side, ngrid, rng, iters=120, lr=0.5, tol=
 def generate_stems(patches, label_map, side, rng):
     """Scatter every cohort of every patch inside that patch's mosaic territory at its own nplant.
 
-    Returns a dict of parallel per-stem arrays: xy, h, dbh, pft, leaf_area, lai_above."""
+    Returns a dict of parallel per-stem arrays: xy, h, diameter, pft, leaf_area, lai_above."""
     ngrid = label_map.shape[0]
     cell = side / ngrid
     cell_area = cell * cell
@@ -153,11 +153,11 @@ def generate_stems(patches, label_map, side, rng):
             xy.append(np.column_stack([(cols[pick] + rng.random(n_c)) * cell,
                                        (rows[pick] + rng.random(n_c)) * cell]))
             hh.append(np.full(n_c, c["height"][ic]))
-            dd.append(np.full(n_c, c["dbh"][ic]))
+            dd.append(np.full(n_c, c["diameter"][ic]))
             pp.append(np.full(n_c, int(c["pft"][ic])))
             la.append(np.full(n_c, c["leaf_area"][ic]))
             lab.append(np.full(n_c, c["lai_above"][ic]))
-    return dict(xy=np.vstack(xy), h=np.concatenate(hh), dbh=np.concatenate(dd),
+    return dict(xy=np.vstack(xy), h=np.concatenate(hh), diameter=np.concatenate(dd),
                 pft=np.concatenate(pp), leaf_area=np.concatenate(la), lai_above=np.concatenate(lab))
 
 
@@ -188,9 +188,9 @@ def build_crowns(pv, stems, args):
 
     so the canopy top is bright and the understory darkens smoothly with no shadow-map artifact."""
     xy = stems["xy"]
-    h, dbh, pft, leaf, lai_above = (stems["h"], stems["dbh"], stems["pft"],
+    h, diameter, pft, leaf, lai_above = (stems["h"], stems["diameter"], stems["pft"],
                                     stems["leaf_area"], stems["lai_above"])
-    ca = args.ca_b1 * (dbh ** 2 * h) ** args.ca_b2                    # allometric crown area [m2]
+    ca = args.ca_b1 * (diameter ** 2 * h) ** args.ca_b2                    # allometric crown area [m2]
     radii = args.crown_scaler * np.sqrt(ca / np.pi)                  # crown disk radius [m]
     depth = np.clip(args.crown_depth_scaler * leaf / ca,             # depth ~ leaf_area / crown_area
                     args.min_thick, np.maximum(args.min_thick, args.max_crown_frac * h))
@@ -232,9 +232,9 @@ def build_crowns(pv, stems, args):
 
 
 def build_trunks(pv, stems, args, sides=6):
-    """One low-poly cylinder per stem (radius dbh/2 * trunk_scale, full height), batched to one mesh."""
-    xy, h, dbh = stems["xy"], stems["h"], stems["dbh"]
-    r = np.maximum(dbh / 200.0, 1.0e-3) * args.trunk_scale
+    """One low-poly cylinder per stem (radius diameter/2 * trunk_scale, full height), batched to one mesh."""
+    xy, h, diameter = stems["xy"], stems["h"], stems["diameter"]
+    r = np.maximum(diameter / 200.0, 1.0e-3) * args.trunk_scale
     ang = np.linspace(0.0, 2.0 * np.pi, sides, endpoint=False)
     cs, sn = np.cos(ang), np.sin(ang)
     pts_acc, fac_acc, off = [], [], 0

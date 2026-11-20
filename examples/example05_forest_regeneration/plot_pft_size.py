@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Plot the per-PFT and per-DBH-class axes of an ED-MORE diagnostic file.
+"""Plot the per-PFT and per-diameter-class axes of an ED-MORE diagnostic file.
 
-ED-MORE aggregates every cohort quantity onto five axes; two of them -- PFT and DBH size class --
+ED-MORE aggregates every cohort quantity onto five axes; two of them -- PFT and diameter size class --
 describe *who* the stand is made of rather than how much of it there is, and they are what a
 demographic model exists to produce. This is their reference consumer.
 
@@ -10,10 +10,10 @@ It draws six panels:
 
     1. aboveground biomass by PFT, over time        -- successional composition
     2. leaf area index by PFT, over time            -- who holds the canopy
-    3. stem density by DBH class, first vs last     -- the size distribution (the inverse-J)
-    4. aboveground biomass by DBH class, first/last -- where the carbon actually is
-    5. biomass by DBH class over time, stacked      -- how the structure moves
-    6. growth and mortality by DBH class            -- the size dependence of the vital rates
+    3. stem density by diameter class, first vs last     -- the size distribution (the inverse-J)
+    4. aboveground biomass by diameter class, first/last -- where the carbon actually is
+    5. biomass by diameter class over time, stacked      -- how the structure moves
+    6. growth and mortality by diameter class            -- the size dependence of the vital rates
 
 and prints the two closure identities the aggregation contract promises
 (docs/science/diagnostics.md eq. (3)):
@@ -25,7 +25,7 @@ Those are worth printing rather than assuming. They are the statement that the t
 the stand, and a half-open/closed class-edge error or a wrong reduction weight breaks them while
 every individual number still looks plausible.
 
-EMPTY SETS ARE NOT ZEROS. A *mean* over an empty PFT or size class (mean_mort_rate_size_py, mean_dbh_pft_py)
+EMPTY SETS ARE NOT ZEROS. A *mean* over an empty PFT or size class (mean_mort_rate_size_py, mean_diameter_pft_py)
 is the fill value, while a *sum* over one (mean_agb_size_py, mean_nplant_size_py) is a true zero -- otherwise the
 identities above would break the moment a class emptied. netCDF4 returns masked arrays, so the fill
 is masked out here rather than plotted as 1e37; a reader that strips the mask with np.array() gets
@@ -158,9 +158,9 @@ def main():
     #----- A decimal calendar year for the plot axis: `time` counts days since the run's start. -----#
     t = get(ds, "year") + (get(ds, "month") - 1 + (get(ds, "day") - 1) / 31.0) / 12.0
     pft_ids = get(ds, "pft")
-    lower, upper = get(ds, "dbh_lower"), get(ds, "dbh_upper")
+    lower, upper = get(ds, "diameter_lower"), get(ds, "diameter_upper")
     if lower is None or upper is None:
-        raise SystemExit("this file has no dbh_class axis -- enable the size axis in [output]")
+        raise SystemExit("this file has no diameter_class axis -- enable the size axis in [output]")
     labels = class_labels(lower, upper)
     npft = len(pft_ids) if pft_ids is not None else 0
 
@@ -173,7 +173,7 @@ def main():
 
     #----- The identities first: a figure drawn from axes that do not partition the stand is a     !
     #      picture of a bug, so say whether they do before drawing anything. ----------------------#
-    print(f"\nclosure of the reduction axes ({len(t)} records, {npft} PFT(s), {len(labels)} DBH classes):")
+    print(f"\nclosure of the reduction axes ({len(t)} records, {npft} PFT(s), {len(labels)} diameter classes):")
     report_closure(ds, mean_agb_pft_py, "mean_agb_py", "PFT", "sum_pft mean_agb_pft_py == mean_agb_py")
     report_closure(ds, mean_agb_size_py, "mean_agb_py", "class", "sum_class mean_agb_size_py == mean_agb_py")
     report_closure(ds, get(ds, "mean_nplant_size_py"), "mean_nplant_py", "class",
@@ -217,7 +217,7 @@ def main():
             ax.set_yscale("log")
         ax.set_xticks(x)
         ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=8)
-        ax.set_xlabel("DBH class [cm]")
+        ax.set_xlabel("diameter class [cm]")
         ax.set_ylabel(f"{name} [{ds.variables['mean_nplant_size_py' if logy else 'mean_agb_size_py'].units}]")
         ax.set_title(f"{name} by size class")
         ax.legend(fontsize=8, title="year")
@@ -232,7 +232,7 @@ def main():
         ax.set_xlabel("year")
         ax.set_ylabel(f"aboveground biomass [{ds.variables['mean_agb_size_py'].units}]")
         ax.set_title("biomass by size class over time")
-        ax.legend(fontsize=7, title="DBH [cm]", loc="upper left", ncol=2)
+        ax.legend(fontsize=7, title="diameter [cm]", loc="upper left", ncol=2)
         ax.grid(alpha=0.3)
 
     #----- 6. The vital rates against size -- the demographic content of the size axis. Growth is   !
@@ -255,7 +255,7 @@ def main():
     #      the largest occupied class, which is exactly where an in-axes annotation would land. ----#
     ax.set_xticks(x)
     ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=8)
-    note = "DBH class [cm]"
+    note = "diameter class [cm]"
     if mort_size is not None and n_empty:
         note += f"      ({n_empty} empty class: a MEAN there is fill, a SUM is a true 0)"
     ax.set_xlabel(note, fontsize=8)

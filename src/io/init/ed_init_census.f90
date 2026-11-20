@@ -28,7 +28,7 @@ module ed_init_census
    type :: census_columns_t
       logical :: header = .false.
       integer :: n = 0
-      integer :: site = 0, patch = 0, cohort = 0, dbh = 0, height = 0, pft = 0, nplant = 0, area = 0
+      integer :: site = 0, patch = 0, cohort = 0, diameter = 0, height = 0, pft = 0, nplant = 0, area = 0
    end type census_columns_t
 
    !--- A census file's rows, in file order: one cohort each.
@@ -38,7 +38,7 @@ module ed_init_census
       integer(ik), allocatable :: site_id(:)            ! 1 where the file has no site_id column
       integer(ik), allocatable :: patch_id(:)
       integer(ik), allocatable :: pft(:)
-      real(wp),    allocatable :: dbh(:)                ! [cm]
+      real(wp),    allocatable :: diameter(:)                ! [cm]
       real(wp),    allocatable :: nplant(:)             ! [plants per m2 of the patch]
       real(wp),    allocatable :: patch_area(:)         ! [any unit]; 1 without the column
    end type census_table_t
@@ -47,12 +47,12 @@ contains
 
    !---~---
    !   Read a census CSV into `table` (docs/configuration.md, How a run starts). Columns are
-   ! matched by header name: patch_id, dbh [cm], pft and nplant required; patch_area,
+   ! matched by header name: patch_id, diameter [cm], pft and nplant required; patch_area,
    ! site_id, cohort_id and height [m] optional. A first data line of seven numbers is
-   ! read positionally as site_id, patch_id, cohort_id, dbh, height, pft, nplant. Blank
+   ! read positionally as site_id, patch_id, cohort_id, diameter, height, pft, nplant. Blank
    ! and '#' lines are skipped. why says what is wrong with the file, '' when it reads: it
    ! cannot be opened, or has an unknown, repeated or missing column, a malformed row, a
-   ! negative dbh or a non-positive height, nplant or patch_area. A grass row has dbh 0
+   ! negative diameter or a non-positive height, nplant or patch_area. A grass row has diameter 0
    ! (init_from_census checks it against the row's PFT).
    !---~---
    subroutine read_census_file(path, table, why)
@@ -63,11 +63,11 @@ contains
       character(len=LINELEN) :: line
       type(census_columns_t) :: cols
       integer(ik)            :: sid, pid, ipft
-      real(wp)               :: dbh, height, nplant, area
+      real(wp)               :: diameter, height, nplant, area
       logical                :: have_layout
       integer                :: u, ios
 
-      allocate(table%site_id(0), table%patch_id(0), table%pft(0), table%dbh(0), table%nplant(0),      &
+      allocate(table%site_id(0), table%patch_id(0), table%pft(0), table%diameter(0), table%nplant(0),      &
                table%patch_area(0))
       why = 'cannot be opened'
       open(newunit=u, file=path, status='old', action='read', iostat=ios)
@@ -84,12 +84,12 @@ contains
             have_layout = .true.
             if (cols%header) cycle
          end if
-         call parse_census_line(line, cols, sid, pid, dbh, height, ipft, nplant, area, why)
+         call parse_census_line(line, cols, sid, pid, diameter, height, ipft, nplant, area, why)
          if (len(why) > 0) exit
          table%site_id    = [table%site_id, sid]
          table%patch_id   = [table%patch_id, pid]
          table%pft        = [table%pft, ipft]
-         table%dbh        = [table%dbh, dbh]
+         table%diameter        = [table%diameter, diameter]
          table%nplant     = [table%nplant, nplant]
          table%patch_area = [table%patch_area, area]
       end do
@@ -105,7 +105,7 @@ contains
    ! site is built from use_site_id (else the first site_id seen); with site_ids, site k
    ! from the rows of site_ids(k), with site_cfg(k) and site_area(k). found = .false. and
    ! `why` say what is wrong with the file (read_census_file), that it has no row for the
-   ! site, a patch whose rows disagree on patch_area, a pft out of range, or a dbh that does
+   ! site, a patch whose rows disagree on patch_area, a pft out of range, or a diameter that does
    ! not fit the row's PFT: a tree's is positive, a grass's 0, its size being its PFT's height.
    !---~---
    subroutine init_from_census(poly, cfg, path, found, use_site_id, why, site_ids, site_cfg, site_area)
@@ -206,11 +206,11 @@ contains
             if (present(why)) why = 'has a pft index out of range'
             return
          end if
-         if ((cfg%pft%allom(table%pft(r))%growth_form == GROWTH_GRASS) .neqv. (table%dbh(r) == 0.0_wp)) then
-            if (present(why)) why = 'has a tree row with dbh 0, or a grass row with a dbh other than 0'
+         if ((cfg%pft%allom(table%pft(r))%growth_form == GROWTH_GRASS) .neqv. (table%diameter(r) == 0.0_wp)) then
+            if (present(why)) why = 'has a tree row with diameter 0, or a grass row with a diameter other than 0'
             return
          end if
-         call add_cohort(poly, cfg, slot_of(ip), table%pft(r), table%nplant(r), table%dbh(r))
+         call add_cohort(poly, cfg, slot_of(ip), table%pft(r), table%nplant(r), table%diameter(r))
       end do
 
       call finalize_init(poly)
@@ -278,18 +278,18 @@ contains
       character(len=:), allocatable, intent(inout) :: why   ! what is wrong with the header ('' if nothing)
       character(len=CENSUS_FIELD_LEN) :: names(CENSUS_MAX_COLS)
       integer(ik) :: sid, pid, cid, ipft
-      real(wp)    :: dbh, height, nplant
+      real(wp)    :: diameter, height, nplant
       logical     :: numeric
       integer     :: k
 
-      call parse_census_row(line, sid, pid, cid, dbh, height, ipft, nplant, numeric)
+      call parse_census_row(line, sid, pid, cid, diameter, height, ipft, nplant, numeric)
       if (numeric) then
          cols%header = .false.
          cols%n = 7
          cols%site = 1
          cols%patch = 2
          cols%cohort = 3
-         cols%dbh = 4
+         cols%diameter = 4
          cols%height = 5
          cols%pft = 6
          cols%nplant = 7
@@ -310,8 +310,10 @@ contains
             call claim(cols%patch,  k, 'patch_id')
          case ('cohort_id')
             call claim(cols%cohort, k, 'cohort_id')
+         case ('diameter')
+            call claim(cols%diameter, k, 'diameter')
          case ('dbh')
-            call claim(cols%dbh,    k, 'dbh')
+            why = 'has a "dbh" column: the stem diameter [cm] is the "diameter" column'
          case ('height')
             call claim(cols%height, k, 'height')
          case ('pft')
@@ -325,10 +327,10 @@ contains
          end select
          if (len(why) > 0) return
       end do
-      if (cols%patch  == 0) why = 'has no patch_id column'
-      if (cols%dbh    == 0) why = 'has no dbh column'
-      if (cols%pft    == 0) why = 'has no pft column'
-      if (cols%nplant == 0) why = 'has no nplant column'
+      if (cols%patch    == 0) why = 'has no patch_id column'
+      if (cols%diameter == 0) why = 'has no diameter column'
+      if (cols%pft      == 0) why = 'has no pft column'
+      if (cols%nplant   == 0) why = 'has no nplant column'
    contains
       subroutine claim(slot, k, name)
          integer,          intent(inout) :: slot
@@ -340,11 +342,11 @@ contains
    end subroutine census_layout
 
    !--- One data row under the layout; an absent site, area or height is 1.
-   subroutine parse_census_line(line, cols, sid, pid, dbh, height, ipft, nplant, area, why)
+   subroutine parse_census_line(line, cols, sid, pid, diameter, height, ipft, nplant, area, why)
       character(len=*),              intent(in)    :: line
       type(census_columns_t),        intent(in)    :: cols
       integer(ik),                   intent(out)   :: sid, pid, ipft
-      real(wp),                      intent(out)   :: dbh, height, nplant, area
+      real(wp),                      intent(out)   :: diameter, height, nplant, area
       character(len=:), allocatable, intent(inout) :: why   ! what is wrong with the row ('' if nothing)
       character(len=CENSUS_FIELD_LEN) :: f(CENSUS_MAX_COLS)
       integer(ik) :: cid
@@ -353,7 +355,7 @@ contains
 
       area = 1.0_wp
       if (.not. cols%header) then
-         call parse_census_row(line, sid, pid, cid, dbh, height, ipft, nplant, ok)
+         call parse_census_row(line, sid, pid, cid, diameter, height, ipft, nplant, ok)
          if (.not. ok) then
             why = 'has a malformed row'
             return
@@ -369,7 +371,7 @@ contains
          ios = 0
          if (cols%site   > 0 .and. ios == 0) read(f(cols%site),   *, iostat=ios) sid
          if (ios == 0) read(f(cols%patch),  *, iostat=ios) pid
-         if (ios == 0) read(f(cols%dbh),    *, iostat=ios) dbh
+         if (ios == 0) read(f(cols%diameter), *, iostat=ios) diameter
          if (ios == 0) read(f(cols%pft),    *, iostat=ios) ipft
          if (ios == 0) read(f(cols%nplant), *, iostat=ios) nplant
          if (cols%height > 0 .and. ios == 0) read(f(cols%height), *, iostat=ios) height
@@ -379,15 +381,15 @@ contains
             return
          end if
       end if
-      if (dbh < 0.0_wp .or. height <= 0.0_wp .or. nplant <= 0.0_wp .or. area <= 0.0_wp)          &
-         why = 'has a row with a negative dbh, or a non-positive height, nplant or patch_area'
+      if (diameter < 0.0_wp .or. height <= 0.0_wp .or. nplant <= 0.0_wp .or. area <= 0.0_wp)          &
+         why = 'has a row with a negative diameter, or a non-positive height, nplant or patch_area'
    end subroutine parse_census_line
 
    !--- Parse one comma-separated census row (commas -> blanks, then list-directed read).
-   subroutine parse_census_row(line, sid, pid, cid, dbh, height, ipft, nplant, ok)
+   subroutine parse_census_row(line, sid, pid, cid, diameter, height, ipft, nplant, ok)
       character(len=*), intent(in)  :: line
       integer(ik),      intent(out) :: sid, pid, cid, ipft
-      real(wp),         intent(out) :: dbh, height, nplant
+      real(wp),         intent(out) :: diameter, height, nplant
       logical,          intent(out) :: ok
       character(len=len(line)) :: buf
       integer :: k, ios
@@ -395,7 +397,7 @@ contains
       do k = 1, len(buf)
          if (buf(k:k) == ',') buf(k:k) = ' '
       end do
-      read(buf, *, iostat=ios) sid, pid, cid, dbh, height, ipft, nplant
+      read(buf, *, iostat=ios) sid, pid, cid, diameter, height, ipft, nplant
       ok = (ios == 0)
    end subroutine parse_census_row
 

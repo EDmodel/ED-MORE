@@ -35,7 +35,7 @@ program test_containers
    call init_bare_ground(poly, cfg, 2_ik)
 
    !--- 1. THE COHORT CSR.
-   !--- Add cohorts (same PFT so height order == DBH order), unsorted.
+   !--- Add cohorts (same PFT so height order == diameter order), unsorted.
    call add_cohort(poly, cfg, 1_ik, 1_ik, 0.2_wp,  5.0_wp)
    call add_cohort(poly, cfg, 2_ik, 1_ik, 0.2_wp, 20.0_wp)
    call add_cohort(poly, cfg, 1_ik, 1_ik, 0.3_wp, 15.0_wp)

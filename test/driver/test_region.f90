@@ -554,7 +554,7 @@ contains
       case (DIM_PFT)
          sh = [dim_len(ncid, 'pft')]
       case (DIM_SIZE)
-         sh = [dim_len(ncid, 'dbh_class')]
+         sh = [dim_len(ncid, 'diameter_class')]
       case (DIM_SOIL_PATCH)
          sh = [dim_len(ncid, 'patch'), dim_len(ncid, 'soil')]
       case (DIM_SITE)
@@ -806,7 +806,7 @@ contains
       character(len=*),    intent(in) :: path
       type(ed_region_t),   intent(in) :: r
       integer(c_int) :: ncid
-      real(c_double), allocatable :: meta(:), gid(:), nplant(:), dbh(:), leafc(:), woodc(:)
+      real(c_double), allocatable :: meta(:), gid(:), nplant(:), diameter(:), leafc(:), woodc(:)
       real(c_double), allocatable :: pgid(:), area(:), theta(:)
       integer(ik), allocatable :: row_ids(:)
       integer(ik) :: q, row, nc, np_, nmeta, ncoh, npat, nsoil, i, j, base
@@ -819,7 +819,7 @@ contains
       call read_var(ncid, 'meta_int',            [NP, nmeta],       meta,   found(1))
       call read_var(ncid, 'global_cohort_id',    [NP, nc],          gid,    found(2))
       call read_var(ncid, 'nplant_co',           [NP, nc],          nplant, found(3))
-      call read_var(ncid, 'dbh_co',              [NP, nc],          dbh,    found(4))
+      call read_var(ncid, 'diameter_co',              [NP, nc],          diameter,    found(4))
       call read_var(ncid, 'leaf_carbon_co',      [NP, nc],          leafc,  found(5))
       call read_var(ncid, 'wood_carbon_co',      [NP, nc],          woodc,  found(6))
       call read_var(ncid, 'global_patch_id',     [NP, np_],         pgid,   found(7))
@@ -843,7 +843,7 @@ contains
                   return
                end if
                base = row*nc + j
-               same = same .and. c%nplant(i) == nplant(base) .and. c%dbh(i) == dbh(base)            &
+               same = same .and. c%nplant(i) == nplant(base) .and. c%diameter(i) == diameter(base)            &
                            .and. c%leaf_carbon(i) == leafc(base) .and. c%wood_carbon(i) == woodc(base)
             end do
             row_ids = nint(pgid(row*np_ + 1_ik : row*np_ + npat), ik)

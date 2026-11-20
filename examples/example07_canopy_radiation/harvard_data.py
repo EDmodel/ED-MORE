@@ -134,8 +134,8 @@ def live_stems(data: Path) -> pd.DataFrame:
     return s[["gx", "gy", "dbh", "sp", "pft"]]
 
 
-def dbh_to_height(a: dict, d: np.ndarray) -> np.ndarray:
-    """ED-MORE's height from diameter (ed_allometry_lib dbh_to_height), per stem: the power law, or
+def diameter_to_height(a: dict, d: np.ndarray) -> np.ndarray:
+    """ED-MORE's height from diameter (ed_allometry_lib diameter_to_height), per stem: the power law, or
     the log-quadratic of Chave et al. (2014) for a PFT on "chave2014", capped at hgt_max."""
     x = np.log(np.maximum(d, 1e-30))
     power = np.exp(a["b1Ht"] + a["b2Ht"] * x)
@@ -151,7 +151,7 @@ def _patch(sub: pd.DataFrame, area: float, allom: dict, cx: float, cy: float) ->
     d = sub["dbh"].to_numpy(float)
     p = sub["pft"].to_numpy(int)
     a = {k: np.array([allom[k][q - 1] for q in p]) for k in allom}
-    h = dbh_to_height(a, d)
+    h = diameter_to_height(a, d)
     leaf_area = a["lai_b1"] * (d * d * h) ** a["lai_b2"]
     wood_area = a["wai_b1"] * d ** a["wai_b2"]
     return dict(cx=cx, cy=cy, area=area, pft=p.astype(np.int32), height=h, sp=sub["sp"].to_numpy(),

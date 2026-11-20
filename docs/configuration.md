@@ -230,13 +230,13 @@ whatever the mode.
 | Mode | Start from | Needs |
 |---|---|---|
 | `0` | near-bare ground | nothing; `[pft].nbg_init_density` seeds it (below) |
-| `1` | a cohort census | `[init].census_file`, a CSV with one row per cohort. Columns are matched by name from its header: `patch_id`, `dbh` [cm], `pft` and `nplant` [plants m⁻² of the patch] are required; `patch_area`, `site_id`, `cohort_id` and `height` are optional. `dbh` drives the allometry. A grass's row has `dbh` 0: its size is its PFT's height |
+| `1` | a cohort census | `[init].census_file`, a CSV with one row per cohort. Columns are matched by name from its header: `patch_id`, `diameter` [cm], `pft` and `nplant` [plants m⁻² of the patch] are required; `patch_area`, `site_id`, `cohort_id` and `height` are optional. `diameter` drives the allometry. A grass's row has `diameter` 0: its size is its PFT's height |
 | `2` | a state file | `[init].restart_file`, a `<prefix>-S-*.nc` written by a previous run. It continues the exact instantaneous state: a run split at a restart ends where the unsplit run ends, bit for bit |
 
 A bare-ground start lays out six identical patches per site. In a census, each distinct `patch_id` (per
 site) is a patch of age 0. With `patch_area`, in any unit, the patches take their areas normalized to the
 site; without it they share it equally. A file without a header whose rows are seven numbers is read
-positionally as `site_id, patch_id, cohort_id, dbh, height, pft, nplant`. An unknown or repeated column,
+positionally as `site_id, patch_id, cohort_id, diameter, height, pft, nplant`. An unknown or repeated column,
 a missing required one, or a patch whose rows disagree on `patch_area` stops the run, naming it. An
 example file is `data/census_example.csv`; the reader is
 `init_from_census` in [`src/io/init/ed_init_census.f90`](../src/io/init/ed_init_census.f90).
@@ -405,9 +405,9 @@ grass needs `[demography].demography_on = false`, a positive `hgt_max` and `lai_
 **Height allometry.** Each PFT's height follows the curve `[allometry].height_allometry` names for it
 (one name for every PFT, or one per PFT, `["chave2014", "power", "power"]`).
 
-- `"power"`, the default, is the pan-tropical power law $`\exp(b_{1Ht} + b_{2Ht} \ln \text{dbh})`$.
+- `"power"`, the default, is the pan-tropical power law $`\exp(b_{1Ht} + b_{2Ht} \ln D)`$, with $`D`$ the diameter.
 - `"chave2014"` is the log-quadratic
-  ln H = `chave_a` − E + `chave_b` ln dbh + `chave_c` (ln dbh)² + `chave_rse`²/2, taken at its mean as
+  ln H = `chave_a` − E + `chave_b` ln D + `chave_c` (ln D)² + `chave_rse`²/2, taken at its mean as
   BIOMASS's `retrieveH` does. Its coefficients default to Chave et al. (2014)'s pantropical fit (0.893,
   0.760, −0.0340, 0.243), and a site's own heights give a local fit (examples 03 and 05 use one for
   Barro Colorado Island). The `chave_*` keys are refused when no PFT uses `"chave2014"`.
@@ -474,7 +474,7 @@ row ([Regional runs](#regional-runs) gives the layout).
 | `diel_interval` | `"1 hour"` | the bins of a `diel_` variable's mean diel cycle: `"1 hour"`, `"2 hours"`, `"3 hours"` or `"4 hours"`; `[fast].dt_fast` must divide it ([diagnostics](science/diagnostics.md) §4) |
 | `sync_every` | `"flush"` | `"flush"`: records reach the disk each month; `"never"` |
 | `overwrite` | `false` | `true`: a run replaces the diagnostic files of its own names where they exist; `false`: it stops before its first step (below) |
-| `dbh_class_edges` | 0, 10, 20, 30, 50, 70, 100 | ascending edges [cm] of the `dbh_class` axis |
+| `diameter_class_edges` | 0, 10, 20, 30, 50, 70, 100 | ascending edges [cm] of the `diameter_class` axis |
 | `[output.fast]`, `[output.daily]`, `[output.monthly]`, `[output.annual]` | fast off, the others on | `enabled` switches a tier (an off tier writes nothing, whatever `io_config` says); `file_chunk` (`"day"`, `"month"`, `"year"` or `"all"`, one file for all of the run's records) is the span of one file, at least one of its tier's records (a monthly file a month or more, an annual one a year or more): defaults day, month, year and all |
 
 **A run never overwrites output.** Before its first step a run lists every diagnostic file it would

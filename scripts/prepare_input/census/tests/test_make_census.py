@@ -61,7 +61,7 @@ def test_rows_share_a_diameter_and_conserve_every_stem():
     t = table([("A", 25.0, 1, 1), ("A", 25.0, 2, 2), ("A", 31.0, 3, 3), ("A", 25.0, 41, 1)])
     kept, _ = mc.live_trees(t, PLOT)
     rows, _, empty = mc.census_rows(kept, PLOT, pft=1)
-    first = rows[(rows.patch_id == 1) & np.isclose(rows.dbh, 2.5)]
+    first = rows[(rows.patch_id == 1) & np.isclose(rows.diameter, 2.5)]
     assert len(first) == 1 and math.isclose(first.nplant.iloc[0], 2 / 400.0)
     assert math.isclose((rows.nplant * rows.patch_area).sum(), len(kept))
     assert empty == 15 - 2
@@ -77,9 +77,9 @@ def test_writes_the_file_ed_reads(tmp_path):
     summary = mc.main(["--declaration", str(decl), "--out", str(out)])
     lines = out.read_text().splitlines()
     data = [ln for ln in lines if not ln.startswith("#")]
-    assert data[0] == "site_id,patch_id,patch_area,dbh,pft,nplant"
+    assert data[0] == "site_id,patch_id,patch_area,diameter,pft,nplant"
     parsed = pd.read_csv(out, comment="#")
-    assert sorted(parsed.dbh.round(4)) == [1.2, 25.3]
+    assert sorted(parsed.diameter.round(4)) == [1.2, 25.3]
     assert summary["kept_trees"] == 2 and summary["rows"] == 2
     assert json.loads((tmp_path / "census_ed_summary.json").read_text())["stems_in_file"] == pytest.approx(2.0)
 
@@ -133,7 +133,7 @@ def test_each_species_takes_its_pft():
     assert list(pft) == [2, 1, 2]
     rows, _, _ = mc.census_rows(t, PLOT, pft)
     # one row per (cell, diameter, PFT): the two 3 cm trees of different PFTs stay apart
-    assert sorted(zip(rows.dbh.round(1), rows.pft)) == [(2.5, 2), (3.0, 1), (3.0, 2)]
+    assert sorted(zip(rows.diameter.round(1), rows.pft)) == [(2.5, 2), (3.0, 1), (3.0, 2)]
     assert math.isclose((rows.nplant * rows.patch_area).sum(), 3.0)
 
 

@@ -3,10 +3,10 @@
 !   test_init -- how a run's polygon starts (src/io/init; docs/configuration.md, How a run
 ! starts).
 !   1. THE CENSUS READER (ed_init_census): a site is built from a cohort CSV -- the site
-!      filter, the patch map, the allometry from dbh, comment and blank lines, a header-less
+!      filter, the patch map, the allometry from diameter, comment and blank lines, a header-less
 !      file read positionally, columns by name in any order, patch_area normalized to the site,
 !      and restructure_census_stand conserving the stand's stems and biomass and honouring its
-!      switches. A grass row has dbh 0 and its PFT's height, and a census stand's grass of one
+!      switches. A grass row has diameter 0 and its PFT's height, and a census stand's grass of one
 !      PFT restructures to one cohort per patch whatever its LAI. A missing file or a site with
 !      no row is reported, not a crash.
 !   2. THE CENSUS REFUSALS: every reason the reader gives for a file it cannot use, each from a
@@ -68,7 +68,7 @@ contains
       !--- Write a small census file (with a comment + blank line to exercise skipping).
       open(newunit=u, file='test_census_tmp.csv', status='replace', action='write')
       write(u,'(a)') '# pseudo cohort census (two patches in site 1, one row for site 2)'
-      write(u,'(a)') 'site_id,patch_id,cohort_id,dbh,height,pft,nplant'
+      write(u,'(a)') 'site_id,patch_id,cohort_id,diameter,height,pft,nplant'
       write(u,'(a)') ''
       write(u,'(a)') '1,1,1,30.0,21.0,3,0.05'
       write(u,'(a)') '1,1,2,10.0,12.0,2,0.20'
@@ -82,7 +82,7 @@ contains
       call check(poly%patch%n  == 2_ik, 'site 1 should yield 2 patches')
       call check(poly%cohort%n == 3_ik, 'site 1 should yield 3 cohorts (site 2 row excluded)')
       call check(sum(poly%patch%cohort_count(1:poly%patch%n)) == poly%cohort%n, 'CSR count mismatch')
-      !--- dbh drove the allometry: every cohort has a positive derived height/agb/leaf area.
+      !--- diameter drove the allometry: every cohort has a positive derived height/agb/leaf area.
       call check(all(poly%cohort%height(1:poly%cohort%n)    > 0.0_wp), 'derived height not positive')
       call check(all(poly%cohort%agb(1:poly%cohort%n)       > 0.0_wp), 'derived agb not positive')
       call check(all(poly%cohort%leaf_area(1:poly%cohort%n) > 0.0_wp), 'derived leaf area not positive')
@@ -112,7 +112,7 @@ contains
       !---~---
       open(newunit=u, file='test_census_named.csv', status='replace', action='write')
       write(u,'(a)') '# columns reordered, areas in m2'
-      write(u,'(a)') 'nplant,pft,dbh,patch_area,patch_id'
+      write(u,'(a)') 'nplant,pft,diameter,patch_area,patch_id'
       write(u,'(a)') '0.05,1,30.0,300.0,7'
       write(u,'(a)') '0.20,1,10.0,300.0,7'
       write(u,'(a)') '0.40,1,5.0,100.0,9'
@@ -125,7 +125,7 @@ contains
       call check_close(poly%patch%area(1), 0.75_wp, 1.0e-12_wp, 'patch_area not normalized to the site (7)')
       call check_close(poly%patch%area(2), 0.25_wp, 1.0e-12_wp, 'patch_area not normalized to the site (9)')
       do i = 1_ik, poly%cohort%n
-         if (abs(poly%cohort%dbh(i) - 5.0_wp) < 1.0e-9_wp) then
+         if (abs(poly%cohort%diameter(i) - 5.0_wp) < 1.0e-9_wp) then
             call check(poly%cohort%owner_patch(i) == 2_ik, 'the 5 cm cohort must sit in patch 9')
             call check_close(poly%cohort%nplant(i), 0.40_wp, 1.0e-12_wp, 'nplant not read by name')
          end if
@@ -137,7 +137,7 @@ contains
       ! fuse to one patch and one cohort per size, conserving the site's stems and biomass.
       !---~---
       open(newunit=u, file='test_census_cells.csv', status='replace', action='write')
-      write(u,'(a)') 'patch_id,patch_area,dbh,pft,nplant'
+      write(u,'(a)') 'patch_id,patch_area,diameter,pft,nplant'
       do ip = 1_ik, 20_ik
          write(u,'(i0,a)') ip, ',400.0,25.0,1,0.0025'
          write(u,'(i0,a)') ip, ',400.0,25.0,1,0.0025'
@@ -178,16 +178,16 @@ contains
       open(newunit=u, file='test_census_cells.csv', status='old', action='read')
       close(u, status='delete')
       !---~---
-      !   A grass (PFT 1 here): its rows have dbh 0 and its size is its PFT's height. Twenty
+      !   A grass (PFT 1 here): its rows have diameter 0 and its size is its PFT's height. Twenty
       ! cells of one tree size and one grass row, the grass's LAI about 3, three times the
       ! cohort cap, restructure to one patch holding one tree cohort and ONE grass cohort:
-      ! a grass is not split and fuses whatever the cap. A grass row with a dbh is refused.
+      ! a grass is not split and fuses whatever the cap. A grass row with a diameter is refused.
       !---~---
       cfg%demography%demography_on = .false.
       cfg%pft%allom(1)%growth_form = GROWTH_GRASS
       cfg%pft%allom(1)%hgt_max     = 0.3_wp
       open(newunit=u, file='test_census_grass.csv', status='replace', action='write')
-      write(u,'(a)') 'patch_id,patch_area,dbh,pft,nplant'
+      write(u,'(a)') 'patch_id,patch_area,diameter,pft,nplant'
       do ip = 1_ik, 20_ik
          write(u,'(i0,a)') ip, ',400.0,25.0,2,0.0025'
          write(u,'(i0,a)') ip, ',400.0,0.0,1,30.0'
@@ -197,7 +197,7 @@ contains
       call check(found .and. poly%cohort%n == 40_ik, 'the oak-grass census did not load')
       do i = 1_ik, poly%cohort%n
          if (poly%cohort%pft(i) /= 1_ik) cycle
-         call check(poly%cohort%dbh(i) == 0.0_wp .and. poly%cohort%wood_carbon(i) == 0.0_wp             &
+         call check(poly%cohort%diameter(i) == 0.0_wp .and. poly%cohort%wood_carbon(i) == 0.0_wp             &
                     .and. poly%cohort%height(i) == 0.3_wp, 'a grass row starts with no wood, at its PFT''s height')
       end do
       n0 = total_nplant(poly)
@@ -211,12 +211,12 @@ contains
                     'the grass cohort keeps its LAI above the cap')
       end do
       open(newunit=u, file='test_census_grass.csv', status='replace', action='write')
-      write(u,'(a)') 'patch_id,dbh,pft,nplant'
+      write(u,'(a)') 'patch_id,diameter,pft,nplant'
       write(u,'(a)') '1,5.0,1,30.0'
       close(u, status='keep')
       call init_from_census(poly, cfg, 'test_census_grass.csv', found, why=why)
-      call check(.not. found .and. why == 'has a tree row with dbh 0, or a grass row with a dbh other than 0', &
-                 'a grass row with a dbh is refused')
+      call check(.not. found .and. why == 'has a tree row with diameter 0, or a grass row with a diameter other than 0', &
+                 'a grass row with a diameter is refused')
       open(newunit=u, file='test_census_grass.csv', status='old', action='read')
       close(u, status='delete')
       cfg = build_test_config()
@@ -242,7 +242,7 @@ contains
    ! full: a file the reader accepted, or refused for another reason, fails.
    !---~---
    subroutine test_census_refusals()
-      integer, parameter  :: N_CASE = 13
+      integer, parameter  :: N_CASE = 14
       character(len=64)   :: header(N_CASE), row1(N_CASE), row2(N_CASE)
       character(len=80)   :: expect(N_CASE)
       character(len=256)  :: wide
@@ -253,29 +253,29 @@ contains
       integer             :: i, j, u
       call banner('the census refusals')
       cfg = build_test_config()
-      header = 'patch_id,dbh,pft,nplant'
+      header = 'patch_id,diameter,pft,nplant'
       row1 = ''
       row2 = ''
-      header(1) = 'patch_id,basal,dbh,pft,nplant'
+      header(1) = 'patch_id,basal,diameter,pft,nplant'
       row1(1) = '1,0.5,10.0,1,0.01'
       expect(1) = 'has an unknown column "basal"'
-      header(2) = 'patch_id,patch_area,dbh,pft,nplant'
+      header(2) = 'patch_id,patch_area,diameter,pft,nplant'
       row1(2) = '1,400.0,10.0,1,0.01'
       row2(2) = '1,300.0,20.0,1,0.01'
       expect(2) = 'has two different patch_area values for patch_id 1'
-      header(3) = 'patch_id,dbh,dbh,pft,nplant'
+      header(3) = 'patch_id,diameter,diameter,pft,nplant'
       row1(3) = '1,10.0,10.0,1,0.01'
-      expect(3) = 'has the column "dbh" twice'
-      header(4) = 'dbh,pft,nplant'
+      expect(3) = 'has the column "diameter" twice'
+      header(4) = 'diameter,pft,nplant'
       row1(4) = '10.0,1,0.01'
       expect(4) = 'has no patch_id column'
       header(5) = 'patch_id,pft,nplant'
       row1(5) = '1,1,0.01'
-      expect(5) = 'has no dbh column'
-      header(6) = 'patch_id,dbh,nplant'
+      expect(5) = 'has no diameter column'
+      header(6) = 'patch_id,diameter,nplant'
       row1(6) = '1,10.0,0.01'
       expect(6) = 'has no pft column'
-      header(7) = 'patch_id,dbh,pft'
+      header(7) = 'patch_id,diameter,pft'
       row1(7) = '1,10.0,1'
       expect(7) = 'has no nplant column'
       row1(8)   = '1,10.0,1'
@@ -283,12 +283,15 @@ contains
       row1(9)   = '1,ten,1,0.01'
       expect(9) = 'has a malformed row'
       row1(10)  = '1,-10.0,1,0.01'
-      expect(10) = 'has a row with a negative dbh, or a non-positive height, nplant or patch_area'
+      expect(10) = 'has a row with a negative diameter, or a non-positive height, nplant or patch_area'
       row1(11)  = '1,10.0,99,0.01'                                     ! the fixture has 3 PFTs
       expect(11) = 'has a pft index out of range'
       row1(12)  = '1,0.0,1,0.01'                                      ! the fixture's PFTs are trees
-      expect(12) = 'has a tree row with dbh 0, or a grass row with a dbh other than 0'
-      expect(13) = 'has a header with too many columns'                ! 33 names, one past the 32 it takes
+      expect(12) = 'has a tree row with diameter 0, or a grass row with a diameter other than 0'
+      header(13) = 'patch_id,dbh,pft,nplant'
+      row1(13) = '1,10.0,1,0.01'
+      expect(13) = 'has a "dbh" column: the stem diameter [cm] is the "diameter" column'
+      expect(14) = 'has a header with too many columns'                ! 33 names, one past the 32 it takes
       do i = 1, N_CASE
          open(newunit=u, file='test_init_refused_tmp.csv', status='replace', action='write')
          if (i == N_CASE) then

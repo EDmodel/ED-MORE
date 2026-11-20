@@ -28,7 +28,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import harvard_data as hd                       # noqa: E402
 
-DBH_CLASSES = [1, 5, 10, 20, 30, 40, 60, 100]  # [cm]
+DIAMETER_CLASSES = [1, 5, 10, 20, 30, 40, 60, 100]  # [cm]
 HGT_MAX = 28.0                                 # [m] the canopy top (above)
 RADIUS = 40.0                                  # [m] the stand around a tower, as in run_example.py
 LAI_B1_DEFAULT, LAI_B2 = 0.23384770, 0.6410495
@@ -49,10 +49,10 @@ def neon_trees(data: Path) -> pd.DataFrame:
     x = ai.merge(mt.drop_duplicates("individualID", keep="last")[["individualID", "genus"]], on="individualID")
     x = x[x["plantStatus"].astype(str).str.startswith("Live") & x["height"].notna() & x["heightQualifier"].isna()
           & x["growthForm"].isin(["single bole tree", "multi-bole tree", "small tree"])
-          & (x["stemDiameter"] > DBH_CLASSES[0]) & (x["stemDiameter"] <= DBH_CLASSES[-1])]
+          & (x["stemDiameter"] > DIAMETER_CLASSES[0]) & (x["stemDiameter"] <= DIAMETER_CLASSES[-1])]
     x = x.sort_values("date").drop_duplicates("individualID", keep="last")
     x["pft"] = np.where(x["genus"].isin(hd.EVERGREEN_GENERA), 2, 1)
-    x["cls"] = pd.cut(x["stemDiameter"], DBH_CLASSES)
+    x["cls"] = pd.cut(x["stemDiameter"], DIAMETER_CLASSES)
     return x
 
 

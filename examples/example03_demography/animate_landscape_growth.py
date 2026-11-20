@@ -21,7 +21,7 @@ yearly records give that spatial continuity:
   2. RENDER PASS (FORWARD, first record -> last). Each cohort draws the FIRST n of its pooled
      positions (n = round(patch area * nplant that year)); because the pool only ever grew toward the
      past, that prefix is stable, so a surviving tree keeps its exact spot while thinned-out
-     neighbours simply drop off the pool's tail. Every year's own state sets the sizes (dbh / height /
+     neighbours simply drop off the pool's tail. Every year's own state sets the sizes (diameter / height /
      allometric crown / Beer-Lambert shading). Frames are written in forward order, so the GIF PLAYS
      FORWARD: bare ground -> pioneer flush -> canopy closure.
 
@@ -68,7 +68,7 @@ def read_all_frames(ncfile):
                 gid = np.asarray(V["global_cohort_id"][r, :nco], dtype=int)
                 pft = np.asarray(V["pft"][r, :nco], dtype=int)
                 nplant = np.asarray(V["nplant"][r, :nco], dtype=float)
-                dbh = np.asarray(V["dbh"][r, :nco], dtype=float)
+                diameter = np.asarray(V["diameter"][r, :nco], dtype=float)
                 height = np.asarray(V["height"][r, :nco], dtype=float)
                 leaf = np.asarray(V["leaf_area"][r, :nco], dtype=float)
                 lai = nplant * leaf
@@ -78,7 +78,7 @@ def read_all_frames(ncfile):
                         continue
                     order = idx[np.argsort(-height[idx])]                     # tallest first
                     fr["patches"][pl] = dict(
-                        gid=gid[order], pft=pft[order], nplant=nplant[order], dbh=dbh[order],
+                        gid=gid[order], pft=pft[order], nplant=nplant[order], diameter=diameter[order],
                         height=height[order], leaf_area=leaf[order], lai=lai[order],
                         lai_above=np.cumsum(lai[order]) - lai[order])         # LAI of taller cohorts
             frames.append(fr)
@@ -103,7 +103,7 @@ def assign_positions(frames, side, args, rng):
     """Walk records last -> first, giving every cohort a growing pool of stem (x,y) positions.
 
     Returns (pos, plans): `pos` maps global_cohort_id -> (k,2) array of stem positions; `plans[r]` is
-    the render list for record r -- tuples (gid, n_stems, pft, height, dbh, leaf_area, lai_above),
+    the render list for record r -- tuples (gid, n_stems, pft, height, diameter, leaf_area, lai_above),
     where the frame draws pos[gid][:n_stems]. Patch territories come from a per-record area-weighted
     mosaic whose seeds are STABLE per global_patch_id (a persistent patch keeps its ground), so the
     mosaic is temporally coherent; stem COUNTS use the true patch-area fraction (grid-independent)."""
@@ -136,7 +136,7 @@ def assign_positions(frames, side, args, rng):
                         new = _sample_points(rows, colc, cell, seeds[pl - 1], area_p, k, rng, side)
                         pos[gid] = new if gid not in pos else np.vstack([pos[gid], new])
                     plan.append((gid, n_need, int(cols["pft"][ic]), float(cols["height"][ic]),
-                                 float(cols["dbh"][ic]), float(cols["leaf_area"][ic]),
+                                 float(cols["diameter"][ic]), float(cols["leaf_area"][ic]),
                                  float(cols["lai_above"][ic])))
         plans[r] = plan
     return pos, plans
@@ -160,7 +160,7 @@ def assemble_stems(plan, pos):
     if not plan:
         return None
     xy, hh, dd, pp, la, lab = [], [], [], [], [], []
-    for gid, n, pf, h, dbh, leaf, lai_above in plan:
+    for gid, n, pf, h, diameter, leaf, lai_above in plan:
         pts = pos.get(gid)
         if pts is None:
             continue
@@ -168,11 +168,11 @@ def assemble_stems(plan, pos):
         if n < 1:
             continue
         xy.append(pts[:n])
-        hh.append(np.full(n, h)); dd.append(np.full(n, dbh)); pp.append(np.full(n, pf))
+        hh.append(np.full(n, h)); dd.append(np.full(n, diameter)); pp.append(np.full(n, pf))
         la.append(np.full(n, leaf)); lab.append(np.full(n, lai_above))
     if not xy:
         return None
-    return dict(xy=np.vstack(xy), h=np.concatenate(hh), dbh=np.concatenate(dd),
+    return dict(xy=np.vstack(xy), h=np.concatenate(hh), diameter=np.concatenate(dd),
                 pft=np.concatenate(pp), leaf_area=np.concatenate(la), lai_above=np.concatenate(lab))
 
 

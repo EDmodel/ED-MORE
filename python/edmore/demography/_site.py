@@ -14,7 +14,7 @@ import numpy as np
 
 from ._ffi import lib
 
-_REAL = {"dbh": 0, "height": 1, "nplant": 2, "agb": 3, "leaf_area": 4,
+_REAL = {"diameter": 0, "height": 1, "nplant": 2, "agb": 3, "leaf_area": 4,
          "overtopping_lai": 5, "growth_avg": 6, "wood_carbon": 7}
 _INT = {"pft": 0, "owner_patch": 1, "global_id": 2}
 #----- PATCH-level fields. Every extensive cohort quantity is per m2 of its OWN patch, so
@@ -148,7 +148,7 @@ class Site:
             "generation": self.generation,
             "global_id": self.get("global_id"),
             "pft": self.get("pft"),
-            "dbh": self.get("dbh"),
+            "diameter": self.get("diameter"),
             "height": self.get("height"),
             "nplant": self.get("nplant"),
             "agb": self.get("agb"),

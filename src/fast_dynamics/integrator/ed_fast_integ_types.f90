@@ -151,7 +151,7 @@ module ed_fast_integ_types
       real(wp),    allocatable :: sap_volume(:)                 ! [m3/plant] sapwood volume (stem respiration)
       real(wp),    allocatable :: root_resp_factor25(:)         ! [umol CO2/kgC root/s @25C] gathered per-PFT
       real(wp),    allocatable :: leaf_emissivity(:), wood_emissivity(:)   ! [-] gathered per-PFT (tissue longwave)
-      real(wp),    allocatable :: leaf_area(:), nplant(:), dbh(:), broot(:)   ! [m2/plant],[plant/m2],[cm],[kgC/plant]
+      real(wp),    allocatable :: leaf_area(:), nplant(:), diameter(:), broot(:)   ! [m2/plant],[plant/m2],[cm],[kgC/plant]
       real(wp),    allocatable :: bleaf(:), bsap(:), sap_area(:)              ! [kgC/plant],[kgC/plant],[m2] (hydraulics)
       !---~---
       !   Total wood carbon, not interchangeable with bsap: the sapwood sets the hydraulic
@@ -802,7 +802,7 @@ contains
                static%stem_resp_sapwood25(n), static%sap_volume(n),                                         &
                static%leaf_emissivity(n), static%wood_emissivity(n),                                         &
                static%leaf_area(n), static%nplant(n),                                                          &
-               static%dbh(n), static%broot(n), static%bleaf(n), static%bsap(n), static%sap_area(n),           &
+               static%diameter(n), static%broot(n), static%bleaf(n), static%bsap(n), static%sap_area(n),           &
                static%bwood(n), static%vcmax25(n), static%rd25(n), static%dmax_psi_leaf(n))
       allocate(static%root_frac(n_soil_layer_max, n), static%k_plant(n), static%g_rhizo(n_soil_layer_max, n),      &
                static%crown_head(n), static%bwood_water(n), static%leaf_dry_hcap(n), static%wood_dry_hcap(n))
@@ -823,7 +823,7 @@ contains
       static%wood_emissivity = 1.0_wp
       static%leaf_area = 0.0_wp
       static%nplant = 0.0_wp
-      static%dbh = 0.0_wp
+      static%diameter = 0.0_wp
       static%broot = 0.0_wp
       static%bleaf = 0.0_wp
       static%bsap = 0.0_wp

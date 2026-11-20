@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-"""The PFT and DBH-class axes partition the stand: in the monthly diagnostics edmore writes, the sum
-over PFTs and the sum over DBH classes equal the polygon total (docs/science/diagnostics.md eq. (3)).
+"""The PFT and diameter-class axes partition the stand: in the monthly diagnostics edmore writes, the sum
+over PFTs and the sum over diameter classes equal the polygon total (docs/science/diagnostics.md eq. (3)).
 
 A half-open or closed class-edge error, or a wrong reduction weight, breaks these sums while every
 number on its own still looks plausible. The run starts from the shipped census
@@ -22,7 +22,7 @@ from edmore.config import RunConfig  # noqa: E402
 
 EDMORE_MAIN = os.environ.get("EDMORE_MAIN", str(ROOT / "build-dev" / "edmore"))
 
-# (the variable on a PFT or DBH-class axis, the polygon total it partitions)
+# (the variable on a PFT or diameter-class axis, the polygon total it partitions)
 PARTS = [("mean_agb_pft_py", "mean_agb_py"), ("mean_agb_size_py", "mean_agb_py"),
          ("mean_nplant_pft_py", "mean_nplant_py"), ("mean_nplant_size_py", "mean_nplant_py"),
          ("mean_lai_pft_py", "mean_lai_py")]
@@ -51,7 +51,7 @@ def test_the_pft_and_size_axes_partition_the_stand(tmp_path):
         with Dataset(path) as ds:
             for part, whole in PARTS:
                 v = ds[part]
-                axis = next(k for k, d in enumerate(v.dimensions) if d in ("pft", "dbh_class"))
+                axis = next(k for k, d in enumerate(v.dimensions) if d in ("pft", "diameter_class"))
                 parts = np.ma.filled(v[:], np.nan).sum(axis=axis)
                 total = np.ma.filled(ds[whole][:], np.nan)
                 assert np.all(total > 0), f"{whole} in {path.name}"

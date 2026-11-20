@@ -138,7 +138,7 @@ module ed_diag_vars
    ! lockstep removes the failure mode rather than timing around it.
    !---~---
    !--- 7. Growth and mortality
-   integer(ik), parameter, public :: CO_DDBH_DT      = 30_ik  ! [cm/yr]         diameter growth
+   integer(ik), parameter, public :: CO_DDIAMETER_DT      = 30_ik  ! [cm/yr]         diameter growth
    integer(ik), parameter, public :: CO_DAGB_DT      = 31_ik  ! [kgC/plant/yr]  AGB growth
    integer(ik), parameter, public :: CO_MORT_RATE    = 32_ik  ! [1/yr]          mortality hazard (positive)
    !--- 8. Carbon allocation

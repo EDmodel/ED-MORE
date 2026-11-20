@@ -9,7 +9,7 @@
 !      switches, the unknown-key trap, and the snapshot each state has.
 !   2. THE REDUCTION (ed_output_reduce: reduce_cohort_to_polygon, reduce_cohort_to_patch,
 !      reduce_cohort_to_pft, reduce_cohort_to_size, reduce_patch_columns_to_sites,
-!      gather_patch_columns, dbh_class_index; §2 eqs. (1)-(3)): the weighted aggregation,
+!      gather_patch_columns, diameter_class_index; §2 eqs. (1)-(3)): the weighted aggregation,
 !      extensive against intensive, the PFT and size-class closure, empty sets, unsampled
 !      cohorts, the class edges and the soil columns.
 !   3. THE EXTRACT (ed_output_extract: extract_variable, extract_fast_scalar): a
@@ -67,7 +67,7 @@ program test_output
                                        OVR_MASK
    use ed_output_reduce,        only : reduce_cohort_to_polygon, reduce_cohort_to_patch, reduce_cohort_to_pft,  &
                                        reduce_cohort_to_size, reduce_patch_columns_to_sites,                    &
-                                       gather_patch_columns, dbh_class_index, W_NONE, W_NPLANT, W_LEAF_AREA,    &
+                                       gather_patch_columns, diameter_class_index, W_NONE, W_NPLANT, W_LEAF_AREA,    &
                                        W_BASAL_AREA, total_agb, total_lai, total_nplant
    use ed_output_extract,       only : extract_variable, extract_fast_scalar, FLD_C_AGB, FLD_C_DIAG0,           &
                                        FLD_P_DIAG0, SRC_F_PA0, SRC_F_PY0, SRC_F_CO0
@@ -213,7 +213,7 @@ contains
                  .not. glob_match('gpp_py', 'mean_gpp_py'), 'glob_match: the literal parts must match')
       call build_output_registry(reg, cfg)
 
-      !--- PFT + DBH-size axes are registered and live at the monthly cadence.
+      !--- PFT + diameter-size axes are registered and live at the monthly cadence.
       call check(find_var_index(reg, 'mean_agb_pft_py')  > 0_ik, 'mean_agb_pft_py present')
       call check(find_var_index(reg, 'mean_agb_size_py') > 0_ik, 'mean_agb_size_py present')
       call check(in_tier(reg, 'mean_agb_pft_py',  3_ik), 'mean_agb_pft_py in MONTHLY')
@@ -280,9 +280,9 @@ contains
          call check(files%reg%var(k)%agg == AGG_LAST .and. files%reg%var(k)%streams == FREQ_NONE        &
                     .and. files%reg%var(k)%snap_staged, 'cas_temp_py: a snapshot, off, read from the staging')
       end if
-      k = find_var_index(files%reg, 'dbh_co')
-      call check(k > 0_ik, 'mean_dbh_co has its snapshot dbh_co')
-      if (k > 0_ik) call check(.not. files%reg%var(k)%snap_staged, 'dbh_co, a state: read from the state')
+      k = find_var_index(files%reg, 'diameter_co')
+      call check(k > 0_ik, 'mean_diameter_co has its snapshot diameter_co')
+      if (k > 0_ik) call check(.not. files%reg%var(k)%snap_staged, 'diameter_co, a state: read from the state')
       k = find_var_index(files%reg, 'height_co')
       if (k > 0_ik) call check(.not. files%reg%var(k)%snap_staged,                                    &
                                'height_co: the state at the step''s end, though its F tier is staged')
@@ -381,7 +381,7 @@ contains
       poly%cohort%agb(1:3)         = [10.0_wp, 20.0_wp, 30.0_wp]
       poly%cohort%leaf_area(1:3)   = [ 1.0_wp,  3.0_wp,  5.0_wp]
       poly%cohort%basal_area(1:3)  = [ 5.0_wp,  1.0_wp,  2.0_wp]
-      poly%cohort%dbh(1:3)         = [ 5.0_wp, 15.0_wp, 45.0_wp]   ! -> classes 1, 2, 4
+      poly%cohort%diameter(1:3)         = [ 5.0_wp, 15.0_wp, 45.0_wp]   ! -> classes 1, 2, 4
       call rebuild_patch_map(poly)                                 ! both patches in the one site
    end subroutine build_fixture
 
@@ -416,23 +416,23 @@ contains
       call check(abs(v - v2) > 1.0_wp, 'sum and mean are genuinely different (a wrong flag cannot pass)')
 
       !---~---
-      !   INTENSIVE with a WEIGHT that matters: basal-area-weighted mean dbh
+      !   INTENSIVE with a WEIGHT that matters: basal-area-weighted mean diameter
       ! w = nplant*basal_area = [10, 1, 8]; area-weighted:
       ! num = 0.75*(10*5 + 1*15) + 0.25*(8*45) = 0.75*65 + 0.25*360 = 48.75 + 90 = 138.75
       ! den = 0.75*(10 + 1)      + 0.25*8      = 8.25 + 2 = 10.25
       !---~---
-      call reduce_cohort_to_polygon(poly, poly%cohort%dbh, W_BASAL_AREA, .true., v, ok)
-      call check_close(v, 138.75_wp/10.25_wp, 1.0e-12_wp, 'BA-weighted mean dbh')
+      call reduce_cohort_to_polygon(poly, poly%cohort%diameter, W_BASAL_AREA, .true., v, ok)
+      call check_close(v, 138.75_wp/10.25_wp, 1.0e-12_wp, 'BA-weighted mean diameter')
       !---~---
       !   The STEM-weighted mean of the same field is a different number, so the weight kind
       ! is doing real work rather than being decorative.
       !---~---
-      call reduce_cohort_to_polygon(poly, poly%cohort%dbh, W_NPLANT, .true., v2, ok)
-      call check(abs(v - v2) > 1.0_wp, 'BA-weighted /= stem-weighted mean dbh')
+      call reduce_cohort_to_polygon(poly, poly%cohort%diameter, W_NPLANT, .true., v2, ok)
+      call check(abs(v - v2) > 1.0_wp, 'BA-weighted /= stem-weighted mean diameter')
 
       !--- LEAF-AREA weighting, the contract canopy temperatures and conductances use.
-      call reduce_cohort_to_polygon(poly, poly%cohort%dbh, W_LEAF_AREA, .true., v, ok)
-      call check(abs(v - v2) > 0.1_wp, 'leaf-area-weighted /= stem-weighted mean dbh')
+      call reduce_cohort_to_polygon(poly, poly%cohort%diameter, W_LEAF_AREA, .true., v, ok)
+      call check(abs(v - v2) > 0.1_wp, 'leaf-area-weighted /= stem-weighted mean diameter')
 
       !--- W_NONE + SUM is the stem-density contract: 0.75*(2+1) + 0.25*4 = 2.25 + 1 = 3.25.
       call reduce_cohort_to_polygon(poly, poly%cohort%nplant, W_NONE, .false., v, ok)
@@ -473,14 +473,14 @@ contains
       call reduce_cohort_to_size(poly, poly%cohort%agb, W_NPLANT, .false., edges, 4_ik,          &
                                  size_out, vld, n)
       call check(n == 4_ik, 'size axis length = n_class')
-      call check_close(sum(size_out(1:4)), site_val, 1.0e-12_wp, 'sum over DBH classes == mean_agb_py')
+      call check_close(sum(size_out(1:4)), site_val, 1.0e-12_wp, 'sum over diameter classes == mean_agb_py')
 
       !--- The stem count must be conserved by the binning too: no cohort split, none dropped.
       call reduce_cohort_to_polygon(poly, poly%cohort%nplant, W_NONE, .false., site_val, ok)
       call reduce_cohort_to_size(poly, poly%cohort%nplant, W_NONE, .false., edges, 4_ik,         &
                                  size_out, vld, n)
       call check_close(sum(size_out(1:4)), site_val, 1.0e-12_wp, 'sum over classes == mean_nplant_py')
-      !--- Each cohort landed in exactly ONE bin (dbh 5, 15, 45 -> classes 1, 2, 4).
+      !--- Each cohort landed in exactly ONE bin (diameter 5, 15, 45 -> classes 1, 2, 4).
       call check(size_out(3) == 0.0_wp, 'the empty class-3 bin holds nothing')
 
       !--- LAI closes on both axes as well (a second field, so the test is not agb-specific).
@@ -518,7 +518,7 @@ contains
 
       !--- A MEAN over a PFT with no members is invalid; a SUM over it is a true 0.
       poly%n_pft = 4_ik                                   ! PFT 4 exists but has no cohorts
-      call reduce_cohort_to_pft(poly, poly%cohort%dbh, W_NPLANT, .true., 4_ik, out, vld, n)
+      call reduce_cohort_to_pft(poly, poly%cohort%diameter, W_NPLANT, .true., 4_ik, out, vld, n)
       call check(.not. vld(4), 'MEAN over an empty PFT is invalid')
       call reduce_cohort_to_pft(poly, poly%cohort%agb, W_NPLANT, .false., 4_ik, out, vld, n)
       call check(vld(4),            'SUM over an empty PFT is VALID (closure would break otherwise)')
@@ -529,7 +529,7 @@ contains
       poly%patch%cohort_count(1:2) = 0_ik
       call reduce_cohort_to_polygon(poly, poly%cohort%agb, W_NPLANT, .false., v, ok)
       call check(v == 0.0_wp, 'bare ground: extensive site total is 0')
-      call reduce_cohort_to_polygon(poly, poly%cohort%dbh, W_BASAL_AREA, .true., v, ok)
+      call reduce_cohort_to_polygon(poly, poly%cohort%diameter, W_BASAL_AREA, .true., v, ok)
       call check(.not. ok,    'bare ground: weighted MEAN is invalid, not 0/0')
 
       call free_polygon(poly)
@@ -565,7 +565,7 @@ contains
    end subroutine test_unsampled_cohorts
 
    !---~---
-   !   SIZE-CLASS EDGES (dbh_class_index). Half-open [lo, hi) except the last class, which is
+   !   SIZE-CLASS EDGES (diameter_class_index). Half-open [lo, hi) except the last class, which is
    ! CLOSED at the top so the largest tree in the stand is never dropped; below the first edge
    ! clamps into bin 1 for the same reason. Both are closure-preserving choices, so both are
    ! pinned.
@@ -573,13 +573,13 @@ contains
    subroutine test_class_edges()
       real(wp) :: edges(5)
       edges = [0.0_wp, 10.0_wp, 20.0_wp, 30.0_wp, 100.0_wp]
-      call check(dbh_class_index( 0.0_wp, edges, 4_ik) == 1_ik, 'exactly the first edge -> bin 1')
-      call check(dbh_class_index( 9.9_wp, edges, 4_ik) == 1_ik, 'just below an edge -> lower bin')
-      call check(dbh_class_index(10.0_wp, edges, 4_ik) == 2_ik, 'exactly on an edge -> UPPER bin')
-      call check(dbh_class_index(29.9_wp, edges, 4_ik) == 3_ik, 'interior bin')
-      call check(dbh_class_index(30.0_wp, edges, 4_ik) == 4_ik, 'exactly the last lower edge -> last bin')
-      call check(dbh_class_index(1.0e4_wp, edges, 4_ik) == 4_ik, 'above the top edge -> last bin (never dropped)')
-      call check(dbh_class_index(-1.0_wp, edges, 4_ik) == 1_ik, 'below the bottom edge -> bin 1 (never dropped)')
+      call check(diameter_class_index( 0.0_wp, edges, 4_ik) == 1_ik, 'exactly the first edge -> bin 1')
+      call check(diameter_class_index( 9.9_wp, edges, 4_ik) == 1_ik, 'just below an edge -> lower bin')
+      call check(diameter_class_index(10.0_wp, edges, 4_ik) == 2_ik, 'exactly on an edge -> UPPER bin')
+      call check(diameter_class_index(29.9_wp, edges, 4_ik) == 3_ik, 'interior bin')
+      call check(diameter_class_index(30.0_wp, edges, 4_ik) == 4_ik, 'exactly the last lower edge -> last bin')
+      call check(diameter_class_index(1.0e4_wp, edges, 4_ik) == 4_ik, 'above the top edge -> last bin (never dropped)')
+      call check(diameter_class_index(-1.0_wp, edges, 4_ik) == 1_ik, 'below the bottom edge -> bin 1 (never dropped)')
    end subroutine test_class_edges
 
    !---~---

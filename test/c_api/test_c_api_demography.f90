@@ -18,7 +18,7 @@
 !   The assertions cover what neither of those can: that the opaque-handle registry hands out
 ! distinct handles, releases them, and that a site actually advances behind one; and that the
 ! caller-supplied rates of example 03's path (ed_apply_rates) act on the stand as rates: growth
-! moves each cohort's dbh by g dt, mortality thins each cohort and the stand's biomass by
+! moves each cohort's diameter by g dt, mortality thins each cohort and the stand's biomass by
 ! exp(-m dt), and recruitment waits in its pool until the month's boundary founds it, r dt a step.
 !---~---
 program test_c_api_demography
@@ -114,7 +114,7 @@ contains
    !---~---
    !   The census stand driven by rates the caller supplies, one step of dt at a time, off the
    ! calendar's boundaries unless a step says otherwise. Each rate acts over its step: growth
-   ! g [cm/yr] moves every cohort's dbh by g dt (through the on-allometry carbon the shim
+   ! g [cm/yr] moves every cohort's diameter by g dt (through the on-allometry carbon the shim
    ! derives for the new size and the size read back from the wood); mortality m [1/yr] thins
    ! every cohort by exp(-m dt), and the stand's biomass with it; recruitment r [plant/m2/yr]
    ! fills each patch's pool by r dt and founds cohorts from it only at the month's boundary,
@@ -127,7 +127,7 @@ contains
       integer, parameter :: MONTH = 30
       integer(c_int) :: sa, sb, n, np, npft
       integer(c_int), allocatable :: id0(:), id1(:)
-      real(c_double), allocatable :: grow(:), mort(:), recr(:), none(:), dbh0(:), dbh1(:), npl0(:), npl1(:)
+      real(c_double), allocatable :: grow(:), mort(:), recr(:), none(:), diameter0(:), diameter1(:), npl0(:), npl1(:)
       real(c_double) :: dt, nplant0, agb0
       integer(c_long) :: gen0
       integer :: i, j, k
@@ -137,22 +137,23 @@ contains
       call check(ed_site_init_census(sa, ch) == 1_c_int, 'apply_rates: the census stand starts')
       n  = ed_site_n_cohort(sa)
       np = ed_site_n_patch(sa)
-      allocate(grow(n), mort(n), id0(n), id1(n), dbh0(n), dbh1(n), npl0(n), npl1(n), recr(npft * np), none(npft * np))
+      allocate(grow(n), mort(n), id0(n), id1(n), diameter0(n), diameter1(n), npl0(n), npl1(n), recr(npft * np), none(npft * np))
       none = 0.0_c_double
 
-      !--- (a) Growth alone: each cohort's dbh moves by g dt, its density stays.
-      call cohort_state(sa, id0, dbh0, npl0)
+      !--- (a) Growth alone: each cohort's diameter moves by g dt, its density stays.
+      call cohort_state(sa, id0, diameter0, npl0)
       grow = G_RATE
       mort = 0.0_c_double
       gen0 = ed_site_generation(sa)
       call ed_apply_rates(sa, ch, grow, mort, none, 0_c_int, 0_c_int)
       call check(ed_site_generation(sa) == gen0 + 1_c_long, 'apply_rates bumps the site generation once')
       call check(ed_site_n_cohort(sa) == n, 'apply_rates: off the boundaries the cohorts stay as they are')
-      call cohort_state(sa, id1, dbh1, npl1)
+      call cohort_state(sa, id1, diameter1, npl1)
       do i = 1, n
          j = findloc(id1, id0(i), dim=1)
          call check(j > 0, 'apply_rates: every cohort keeps its id')
-         call check_close(dbh1(j) - dbh0(i), G_RATE * dt, 1.0e-8_wp, 'apply_rates: growth moves a cohort''s dbh by g dt')
+         call check_close(diameter1(j) - diameter0(i), G_RATE * dt, 1.0e-8_wp,                                                     &
+                          'apply_rates: growth moves a cohort''s diameter by g dt')
          call check_close(npl1(j), npl0(i), 1.0e-14_wp, 'apply_rates: growth alone keeps a cohort''s density')
       end do
 
@@ -161,14 +162,14 @@ contains
       mort = M_RATE
       nplant0 = ed_site_total_nplant(sa)
       agb0    = ed_site_total_agb(sa)
-      call cohort_state(sa, id0, dbh0, npl0)
+      call cohort_state(sa, id0, diameter0, npl0)
       call ed_apply_rates(sa, ch, grow, mort, none, 0_c_int, 0_c_int)
-      call cohort_state(sa, id1, dbh1, npl1)
+      call cohort_state(sa, id1, diameter1, npl1)
       do i = 1, n
          j = findloc(id1, id0(i), dim=1)
          call check_close(npl1(j), npl0(i) * exp(-M_RATE * dt), 1.0e-12_wp,                                       &
                           'apply_rates: mortality thins a cohort by exp(-m dt)')
-         call check_close(dbh1(j), dbh0(i), 1.0e-12_wp, 'apply_rates: mortality alone keeps a cohort''s size')
+         call check_close(diameter1(j), diameter0(i), 1.0e-12_wp, 'apply_rates: mortality alone keeps a cohort''s size')
       end do
       call check_close(ed_site_total_nplant(sa), nplant0 * exp(-M_RATE * dt), 1.0e-12_wp,                       &
                        'apply_rates: mortality thins the stand''s stems by exp(-m dt)')
@@ -203,13 +204,13 @@ contains
       call ed_site_free(sb)
    end subroutine test_apply_rates
 
-   !--- A site's cohorts: their persistent ids, dbh [cm] and density [plant/m2].
-   subroutine cohort_state(sh, id, dbh, nplant)
+   !--- A site's cohorts: their persistent ids, diameter [cm] and density [plant/m2].
+   subroutine cohort_state(sh, id, diameter, nplant)
       integer(c_int), intent(in)  :: sh
       integer(c_int), intent(out) :: id(:)
-      real(c_double), intent(out) :: dbh(:), nplant(:)
+      real(c_double), intent(out) :: diameter(:), nplant(:)
       call ed_site_get_int(sh, 2_c_int, id)
-      call ed_site_get_real(sh, 0_c_int, dbh)
+      call ed_site_get_real(sh, 0_c_int, diameter)
       call ed_site_get_real(sh, 2_c_int, nplant)
    end subroutine cohort_state
 

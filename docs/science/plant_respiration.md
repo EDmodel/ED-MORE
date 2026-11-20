@@ -44,12 +44,12 @@ that does not name it respires by surface alone:
 R_{\mathrm{stem}} \;=\; s(T_w)\,\Big[\,r^{\mathrm{stem}}_{25}\,A_{\mathrm{stem}}
 \;+\; r^{\mathrm{sap}}_{25}\,V_{\mathrm{sap}}\Big],
 \qquad
-A_{\mathrm{stem}} \;=\; \frac{\pi\,(10^{-2}\,\mathrm{dbh})\,h \;+\; \pi\,\mathrm{WAI}/n}{f_{\mathrm{ag}}},
+A_{\mathrm{stem}} \;=\; \frac{\pi\,(10^{-2}\,D)\,h \;+\; \pi\,\mathrm{WAI}/n}{f_{\mathrm{ag}}},
 \qquad
 V_{\mathrm{sap}} \;=\; \frac{2\,C_{\mathrm{sap}}}{1000\,\rho} \qquad(3)
 ```
 
-with $`r^{\mathrm{stem}}_{25}`$ = `stem_resp_factor25` the per-PFT surface rate
+with $`D`$ the stem diameter [cm], $`r^{\mathrm{stem}}_{25}`$ = `stem_resp_factor25` the per-PFT surface rate
 $`[\mathrm{\mu mol\,CO_2\,m^{-2}\,stem\,s^{-1}}]`$ and $`r^{\mathrm{sap}}_{25}`$ = `stem_resp_sapwood25`
 the per-PFT sapwood rate $`[\mathrm{\mu mol\,CO_2\,m^{-3}\,sapwood\,s^{-1}}]`$, both at 25 °C;
 $`C_{\mathrm{sap}}`$ the cohort's sapwood carbon [kgC/plant] (the sapwood fraction of its wood carbon,

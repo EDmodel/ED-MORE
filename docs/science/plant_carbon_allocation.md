@@ -118,7 +118,7 @@ leaf display. With $D$ the diameter [cm], $H$ the height [m] and $\rho$ the wood
   carbon is $`\mathrm{AGB}/f_{ag}`$ (`size_to_wood_carbon`, $`f_{ag}`$ = `aboveground_frac`): the total
   woody carbon, coarse roots included, whose aboveground share is exactly the Chave biomass.
 - **Carbon to diameter.** Wood carbon is the prognostic size, and the diameter follows from it
-  (`wood_to_dbh`); `carbon_to_structure` derives a cohort's diameter, height, basal area, AGB and leaf
+  (`wood_to_diameter`); `carbon_to_structure` derives a cohort's diameter, height, basal area, AGB and leaf
   area from its wood and leaf carbon. Under the power law the inverse is closed form,
   $`\mathrm{AGB} \propto D^{P}`$ with $`P = c_2(2 + b_2)`$ below the height cap and $`P = 2c_2`$ above it,
   the two meeting at the cap; under the log-quadratic it is the smaller root of a quadratic in $`\ln D`$.
@@ -268,7 +268,7 @@ Structure-of-Arrays. This is the only plant-flux call on the slow carbon path.
 
 | output | destination |
 |---|---|
-| per-pool growth `growth_{leaf,fineroot,wood,repro}`, `npp_store` | the driver forms the net per-pool change `growth − shed` in the step record `slow_step_data_t` (`ed_slow_state`; the net pool change, not the gross NPP the `CO_NPP_*` diagnostics report), which `commit_vegetation_step` (`ed_slow_update`) hands to `update_cohort_derivatives`, the `wood_carbon → dbh` flip (`carbon_to_structure`) and `update_cohort_states` |
+| per-pool growth `growth_{leaf,fineroot,wood,repro}`, `npp_store` | the driver forms the net per-pool change `growth − shed` in the step record `slow_step_data_t` (`ed_slow_state`; the net pool change, not the gross NPP the `CO_NPP_*` diagnostics report), which `commit_vegetation_step` (`ed_slow_update`) hands to `update_cohort_derivatives`, the `wood_carbon → diameter` flip (`carbon_to_structure`) and `update_cohort_states` |
 | `growth_resp` | autotrophic-respiration accounting (with maintenance respiration) |
 | `deficit` | netted, with the opposite sign, into the patch's `slow_co2_rate` ([`plant_respiration.md`](plant_respiration.md) §6); no tissue is destroyed. A deficit larger than the cohort's leaf carbon means it has no leaves and no storage, and it dies (§2) |
 | leaf + fine-root **litter** (`shed`) | the resorbed share to storage, the rest to the patch's litter (`add_necromass`); the exudate to `labile_soil` |
@@ -308,9 +308,9 @@ The flush and senescence rates, `min_leaf_cover` and `bare_leaf_cover` are pheno
 | leaf loss (turnover + senescence) + flush cap | `ed_plant_phenology`: `leaf_turnover_step` |
 | turnover-first carbon demand per cohort | `ed_plant_carbon_allocation`: `cohort_carbon_demand` |
 | the step's GPP and maintenance respiration | `ed_cohort_state_vars`: `cohort_carbon_supply` |
-| size allometry, pool targets | `ed_allometry_lib`: `size_to_leaf_carbon`, `size_to_wood_carbon`, `storage_carbon_target`, `wood_to_dbh` |
+| size allometry, pool targets | `ed_allometry_lib`: `size_to_leaf_carbon`, `size_to_wood_carbon`, `storage_carbon_target`, `wood_to_diameter` |
 | per-cohort orchestration (slow step) | `ed_slow_state`: `compute_carbon_allocation` (shed first, then the flush-capped demands, one elemental call, then the net change and litter) |
-| geometry flip (wood_carbon → dbh) | `ed_slow_update`: `update_cohort_derivatives`; `ed_allometry_lib`: `carbon_to_structure` |
+| geometry flip (wood_carbon → diameter) | `ed_slow_update`: `update_cohort_derivatives`; `ed_allometry_lib`: `carbon_to_structure` |
 
 ## References
 

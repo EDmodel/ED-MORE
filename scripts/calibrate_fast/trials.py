@@ -45,7 +45,7 @@ PYTHON_RUNNER = "python"
 #: the line edmore and edmore.model print when a run ends well (edmore.model.COMPLETED)
 COMPLETED = "OK: simulation completed"
 #: the variables that describe the stand in a state file (the stand must not change in a trial)
-STAND_VARIABLES = ("pft", "nplant", "dbh", "height", "leaf_area", "leaf_carbon", "fineroot_carbon",
+STAND_VARIABLES = ("pft", "nplant", "diameter", "height", "leaf_area", "leaf_carbon", "fineroot_carbon",
                    "wood_carbon", "overtopping_lai", "patch_area")
 
 

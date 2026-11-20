@@ -82,7 +82,7 @@ def run_trial(cfg, out):
     with Run(main, verbose=False) as run:
         prev = {}
         for step in run:
-            c = run.cohorts("global_id", "pft", "nplant", "dbh", "leaf_area", "owner_patch")
+            c = run.cohorts("global_id", "pft", "nplant", "diameter", "leaf_area", "owner_patch")
             area = run.patches("share")["share"]
             ip = c["owner_patch"] - 1
             lai = np.zeros(len(area))
@@ -92,9 +92,9 @@ def run_trial(cfg, out):
                 exposure[year] += np.bincount(np.digitize(lai, LAI_EDGES) - 1, weights=area,
                                               minlength=len(LAI_EDGES) - 1)[:len(LAI_EDGES) - 1] / 365.25
             for i, g in enumerate(c["global_id"]):
-                if c["dbh"][i] >= DBH_INGROWTH and prev.get(int(g), DBH_INGROWTH) < DBH_INGROWTH:
+                if c["diameter"][i] >= DBH_INGROWTH and prev.get(int(g), DBH_INGROWTH) < DBH_INGROWTH:
                     events.append((year, c["pft"][i], area[ip[i]] * c["nplant"][i], lai[ip[i]]))
-            prev = dict(zip(c["global_id"].tolist(), c["dbh"].tolist()))
+            prev = dict(zip(c["global_id"].tolist(), c["diameter"].tolist()))
         run.finalize()
     np.savez(out, events=np.array(events).reshape(-1, 4), exposure=exposure,
              efficiency=np.array(cfg.get("pft.recruit_carbon_efficiency", file="pft")),

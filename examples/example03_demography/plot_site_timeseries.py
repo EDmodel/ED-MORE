@@ -3,7 +3,7 @@
 """Plot timeseries of key site-level variables from an ED-MORE netCDF output file.
 
 The file is in the ragged cohort/patch stand layout of example 03's _write_nc.py: one record per
-output interval with site totals (total_nplant, total_lai, total_agb, total_basal_area, mean_dbh)
+output interval with site totals (total_nplant, total_lai, total_agb, total_basal_area, mean_diameter)
 plus the cohort/patch state. This script writes two figures: (1) the site totals over time, and
 (2) the per-PFT aboveground biomass over time as a line plot (each cohort weighted by its patch's
 area), in the classic ED / Moorcroft et al. (2001) colours -- PFT 1 green, PFT 2 blue, PFT 3 magenta.
@@ -68,7 +68,7 @@ def main():
         ("Leaf area index", "total_lai",        "m$^2$ m$^{-2}$"),
         ("Aboveground biomass", "total_agb",    "kgC m$^{-2}$"),
         ("Basal area",      "total_basal_area", "m$^2$ m$^{-2}$"),
-        ("Mean DBH",        "mean_dbh",         "cm"),
+        ("Mean diameter",   "mean_diameter",    "cm"),
     ]
 
     fig, axes = plt.subplots(3, 2, figsize=(11, 9), sharex=True)

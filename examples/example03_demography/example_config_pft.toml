@@ -15,7 +15,7 @@ reproduction_investment_fraction = [0.3, 0.3, 0.3]      # [--] growth fraction d
 recruit_carbon_efficiency          = [1.0e-3, 1.0e-3, 1.0e-3] # [--] reproduction carbon -> establishable recruits
 seed_rain_recruits = [0.01, 0.01, 0.01]    # [plant/m2/yr] baseline external seed rain
 include_pft        = [1, 1, 1]             # 1 = PFT may recruit, 0 = excluded
-min_cohort_height       = 2.435            # [m] = dbh 1 cm on the BCI height curve; recruits born here
+min_cohort_height       = 2.435            # [m] = diameter 1 cm on the BCI height curve; recruits born here
 min_repro_height   = [20.0, 20.0, 20.0]   # [m] a cohort reproduces from this height
 # Leaf photosynthesis / stomatal traits (FvCB C3 + Collatz C4). pathway: 1 = C3, 2 = C4.
 # (Used by the leaf gas-exchange model, which this example does not run: growth is a census law.)
@@ -81,12 +81,12 @@ f_labile_stem          = [0.05, 0.05, 0.05]         # [--] labile fraction of wo
 struct_lignin_frac     = [0.20, 0.25, 0.30]         # [--] lignin fraction of the structural-litter stream
 
 [allometry]
-# Pan-tropical (ED2 iallom==3) size allometry. height = exp(b1Ht + b2Ht*ln dbh) capped at the
-# PFT's hgt_max; agb = agb_c1 * rho^agb_c2 * (dbh^2*h)^agb_c2; leaf_area = lai_b1 * (dbh^2*h)^lai_b2;
+# Pan-tropical (ED2 iallom==3) size allometry. height = exp(b1Ht + b2Ht*ln diameter) capped at the
+# PFT's hgt_max; agb = agb_c1 * rho^agb_c2 * (diameter^2*h)^agb_c2; leaf_area = lai_b1 * (diameter^2*h)^lai_b2;
 b1Ht       = 1.139963
 b2Ht       = 0.564899
 agb_c1     = 0.03365        # [kgC] AGB scale: Chave et al. (2014) eq. 4, 0.0673 / C2B (dry mass to carbon)
-agb_c2     = 0.976          # AGB exponent on rho and on dbh^2*h: Chave et al. (2014) eq. 4
+agb_c2     = 0.976          # AGB exponent on rho and on diameter^2*h: Chave et al. (2014) eq. 4
 lai_b1     = 0.23384770     # per-stem leaf-area scale: ED2 c14f15_bl_xx / C2B (= ED2 SLA*bleaf)
 lai_b2     = 0.6410495      # per-stem leaf-area exponent
 hgt_max            = [46.0, 46.0, 46.0]     # [m] the shipped cap; the BCI height curve stays below it (44.6 m at 300 cm)
@@ -95,7 +95,7 @@ wai_b2                 = [2.0947, 2.0947, 2.0947]   # [--] ED2 b2WAI, broadleaf
 sapwood_area_b1        = [1.582, 1.582, 1.582]      # [cm2/cm^b2] ED2 b1SA, tropical broadleaf
 sapwood_area_b2        = [1.764, 1.764, 1.764]      # [--]        ED2 b2SA, tropical broadleaf
 aboveground_frac       = [0.7, 0.7, 0.7]            # [--] aboveground fraction of woody carbon (ED2 agf_bs)
-# Barro Colorado's height curve: the log-quadratic fitted, uniformly in ln dbh over 1-300 cm, to Cano et
+# Barro Colorado's height curve: the log-quadratic fitted, uniformly in ln diameter over 1-300 cm, to Cano et
 # al. (2019, Biogeosciences 16:847)'s curve for 9884 trees of the Barro Colorado Nature Monument; within
 # 4.3 % of it everywhere. E is 0, and chave_rse 0 because the fit is to that curve, not to scattered heights.
 height_allometry = "chave2014"

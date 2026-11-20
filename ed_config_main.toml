@@ -210,8 +210,8 @@ fast_interval_steps = 4         # dt_fast sub-steps a sub-daily record spans (4 
 diel_interval = "1 hour"        # the bins of a diel_ variable's mean diel cycle: "1 hour" .. "4 hours"
 sync_every    = "flush"         # "flush": records reach the disk each month | "never"
 
-  # --- The dbh_class axis: ascending edges [cm]; a cohort counts whole in the class of its dbh. ---
-  dbh_class_edges = [0.0, 10.0, 20.0, 30.0, 50.0, 70.0, 100.0]
+  # --- The diameter_class axis: ascending edges [cm]; a cohort counts whole in the class of its diameter. ---
+  diameter_class_edges = [0.0, 10.0, 20.0, 30.0, 50.0, 70.0, 100.0]
 
   # --- Each tier: on or off (off writes nothing, whatever io_config says), and the span of one file. ---
   [output.fast]

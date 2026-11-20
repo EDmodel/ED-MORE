@@ -16,7 +16,7 @@ module ed_constants
    !--- Mathematical constants.
    real(wp), parameter :: pi   = 3.14159265358979323846_wp
    real(wp), parameter :: pio2 = 0.5_wp * pi                  ! [rad] pi/2
-   real(wp), parameter :: pio4 = 0.25_wp * pi                 ! basal area = pio4 * dbh^2
+   real(wp), parameter :: pio4 = 0.25_wp * pi                 ! basal area = pio4 * diameter^2
 
    !--- Physical constants: universal.
    real(wp), parameter :: r_gas            = 8.314462618_wp      ! [J/mol/K] universal gas constant

@@ -27,7 +27,7 @@ plt.rcParams.update({"font.size": 9, "axes.edgecolor": MUTED, "axes.labelcolor":
                      "grid.linewidth": 0.6, "legend.frameon": False})
 
 laws = CensusLaws(os.path.join(HERE, "example_config_main.toml"))
-SIZE_CLASSES = [1, 2, 5, 10, 20, 50, 100, 1000]   # dbh class edges [cm], as in census_stand.csv
+SIZE_CLASSES = [1, 2, 5, 10, 20, 50, 100, 1000]   # diameter class edges [cm], as in census_stand.csv
 
 
 def stand(path):
@@ -37,7 +37,7 @@ def stand(path):
         d.set_auto_mask(False)                     # plain arrays: an empty selection sums to 0
         for k, year in enumerate(d["year"][:]):
             n = int(d["n_cohort"][k])
-            dbh, pft = d["dbh"][k, :n], d["pft"][k, :n]
+            dbh, pft = d["diameter"][k, :n], d["pft"][k, :n]
             stems = d["nplant"][k, :n] * d["patch_area"][k, d["owner_patch"][k, :n] - 1] * 1e4
             size = np.digitize(dbh, SIZE_CLASSES[1:-1])
             for p in (1, 2, 3):
@@ -45,7 +45,7 @@ def stand(path):
                     m = (pft == p) & (size == c)
                     rows.append((int(year), p, SIZE_CLASSES[c], stems[m].sum(),
                                  (stems[m] * np.pi / 4 * (dbh[m] / 100) ** 2).sum()))
-    return pd.DataFrame(rows, columns=["year", "pft", "dbh_class", "stems", "basal_area"])
+    return pd.DataFrame(rows, columns=["year", "pft", "diameter_class", "stems", "basal_area"])
 
 
 cen = pd.read_csv(os.path.join(HERE, "census_stand.csv"))
@@ -61,7 +61,7 @@ for p in (1, 2, 3):
     for lai, ls in ((0.0, "-"), (4.0, "--")):
         a.plot(dbh, laws.growth(p - 1, dbh, lai), ls, color=PFT_COLOR[p], lw=1.6,
                label=PFT_NAME[p] if lai == 0 else None)
-a.set(xscale="log", xlabel="dbh [cm]", ylabel="diameter growth [cm/yr]",
+a.set(xscale="log", xlabel="diameter [cm]", ylabel="diameter growth [cm/yr]",
       title="a  Growth (solid: open, dashed: LAI 4 above)")
 a.legend(loc="upper left")
 
@@ -104,7 +104,7 @@ a.set(xlabel="year", ylabel="basal area [m²/ha]", ylim=(0, 1.15 * max(m.max().m
 
 # (e) size distribution in 2010, model against census
 a = ax[1, 1]
-edges = sorted(cen.dbh_class.unique())
+edges = sorted(cen.diameter_class.unique())
 x = np.arange(len(edges))
 labels = [f"{lo}–{hi}" for lo, hi in zip(edges[:-1], edges[1:])] + [f"≥{edges[-1]}"]
 for t, style, name in ((cen[cen.year == 2010], dict(marker="o", ls="none", ms=7, mfc="white", mec=INK, mew=1.4),
@@ -112,8 +112,8 @@ for t, style, name in ((cen[cen.year == 2010], dict(marker="o", ls="none", ms=7,
                        (mc[mc.year == 2010], dict(marker="", ls="-", lw=1.8, color=INK), "model 2010"),
                        (mc[mc.year == mc.year.max()], dict(marker="", ls="--", lw=1.8, color=MUTED),
                         f"model {mc.year.max()}")):
-    a.plot(x, t.groupby("dbh_class").stems.sum().reindex(edges).values, label=name, **style)
-a.set(yscale="log", xticks=x, xticklabels=labels, xlabel="dbh class [cm]", ylabel="stems [1/ha]",
+    a.plot(x, t.groupby("diameter_class").stems.sum().reindex(edges).values, label=name, **style)
+a.set(yscale="log", xticks=x, xticklabels=labels, xlabel="diameter class [cm]", ylabel="stems [1/ha]",
       title="e  Size distribution")
 a.legend(loc="upper right")
 

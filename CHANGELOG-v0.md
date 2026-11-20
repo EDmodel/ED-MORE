@@ -65,6 +65,13 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   (1 tree, 2 grass). (#95)
 - `[demography].min_cohort_agb` is now `min_cohort_carbon` [kgC m⁻²], the cull's threshold on a cohort's
   carbon in its four pools; the old name stops the run. (#95)
+- `dbh` is now `diameter` wherever it names the model's stem diameter [cm], with the results unchanged:
+  the census column (a `dbh` column stops the run), the outputs `diameter_co`, `mean_diameter_co`,
+  `mean_diameter_growth_co`, `mean_diameter_py` and `mean_diameter_pft_py`, the size axis
+  `diameter_class` with its `diameter_lower` and `diameter_upper` edges, `[output].diameter_class_edges`
+  (`dbh_class_edges` stops the run), and the Python field `diameter` (`run.cohorts("diameter")`).
+  `make_census.py` writes a `diameter` column; the ForestGEO table it reads keeps its `dbh`. Rename the
+  column in your census files and the names in your io_configs and scripts. (#TBD)
 
 ### Answer changes
 

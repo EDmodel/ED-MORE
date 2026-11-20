@@ -49,7 +49,7 @@ def read(path):
             x, dims = np.array(ds[k][:], dtype=float), ds[k].dimensions
             return x.take(0, axis=dims.index("polygon")) if "polygon" in dims else x
         t = v("year") + (v("month") - 1.0) / 12.0 if "month" in ds.variables else v("year")
-        lower = v("dbh_lower")
+        lower = v("diameter_lower")
         yr = year_seconds(v("year"))                                    # a mean rate times this: per year
         return {"age": t - t[0], "agb": v("mean_agb_pft_py") * 10.0, "ba": v("mean_basal_area_pft_py") * 1e4,   # MgC/ha, m2/ha
                 "lai": v("mean_lai_pft_py"), "gpp": v("mean_gpp_py") * UMOL_TO_KGC * yr * 10.0,            # MgC/ha/yr
@@ -64,13 +64,13 @@ def inventory():
     a, rho = pft["allometry"], np.array(pft["pft"]["wood_density"])
     c = pd.read_csv(os.path.join(HERE, "data", "pv_2009_census.csv"), comment="#")
     w = c.patch_area / c.groupby("patch_id").patch_area.first().sum()            # each patch's share of the site
-    ln = np.log(c.dbh)
+    ln = np.log(c.diameter)
     h = np.minimum(np.exp(0.893 - a["chave_e"] + 0.5 * 0.243 ** 2 + 0.760 * ln - 0.0340 * ln ** 2), 46.0)
-    agb = a["agb_c1"] * rho[c.pft - 1] ** a["agb_c2"] * (c.dbh ** 2 * h) ** a["agb_c2"]   # [kgC/plant]
+    agb = a["agb_c1"] * rho[c.pft - 1] ** a["agb_c2"] * (c.diameter ** 2 * h) ** a["agb_c2"]   # [kgC/plant]
     n = c.nplant * w                                                                      # [plants/m2 of site]
     by = lambda x: np.array([(x * n)[c.pft == p].sum() for p in (1, 2, 3, 4)])
-    return {"agb": by(agb) * 10.0, "ba": by(np.pi / 4 * (c.dbh / 100) ** 2) * 1e4,
-            "stems10": float(n[c.dbh >= 10].sum() * 1e4)}
+    return {"agb": by(agb) * 10.0, "ba": by(np.pi / 4 * (c.diameter / 100) ** 2) * 1e4,
+            "stems10": float(n[c.diameter >= 10].sum() * 1e4)}
 
 
 def stand_panel(ax, run, inv, key, ylabel, title, label_below=False):

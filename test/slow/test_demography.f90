@@ -18,7 +18,7 @@
 program test_demography
    use ed_test_assert,     only : check_close, check_true, test_report
    use ed_kinds,           only : wp
-   use ed_allometry_lib,   only : allometry_t, size_to_wood_carbon, dbh_to_height
+   use ed_allometry_lib,   only : allometry_t, size_to_wood_carbon, diameter_to_height
    use ed_demography,      only : npp_to_growth, camac_mortality, decline_to_floor_mortality,          &
                                   recruit_efficiency, npp_to_recruitment, founds_cohort,               &
                                   disturbed_fraction, survives_treefall
@@ -43,8 +43,8 @@ contains
    !---~---
    subroutine test_growth()
       real(wp) :: w20, w21, w0
-      w20 = size_to_wood_carbon(ALLOM, 20.0_wp, dbh_to_height(ALLOM, 20.0_wp), RHO)
-      w21 = size_to_wood_carbon(ALLOM, 21.0_wp, dbh_to_height(ALLOM, 21.0_wp), RHO)
+      w20 = size_to_wood_carbon(ALLOM, 20.0_wp, diameter_to_height(ALLOM, 20.0_wp), RHO)
+      w21 = size_to_wood_carbon(ALLOM, 21.0_wp, diameter_to_height(ALLOM, 21.0_wp), RHO)
       call check_close('growth: the wood of 1 cm grows 1 cm/yr', npp_to_growth(ALLOM, w20, w21 - w20, 20.0_wp,   &
                        1.0_wp, RHO), 1.0_wp, 1.0e-6_wp)
       call check_close('growth: half the step, twice the rate', npp_to_growth(ALLOM, w20, w21 - w20, 20.0_wp,   &

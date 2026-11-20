@@ -280,7 +280,7 @@ The output is the largest usability difference ([diagnostics](science/diagnostic
 | Statistics | A `mean_<x>` variable is the time mean over its record's period; `<x>` is a state's value at the period's end; `diel_<x>` is the mean diel cycle of `mean_<x>` (`[output].diel_interval`) | Means; `IQOUTPUT` adds a mean diurnal cycle |
 | Variable selection | Every variable is selectable per timescale, by name or pattern (`"*_co" = false`, `"mean_*_py" = "M Y"`): registry defaults, then the `[output].io_config` lines, the most specific winning | A fixed schema per file type, gated by `IFOUTPUT`, `IDOUTPUT`, `IMOUTPUT`, `IQOUTPUT`, `IYOUTPUT`, `ITOUTPUT`, `IOOUTPUT` and `IADD_{SITE,PATCH,COHORT}_MEANS` |
 | Timescales | Four tiers, each enabled and chunked on its own: sub-daily (F), daily (D), monthly (M), annual (Y) | Per-file-type frequencies plus `FRQFAST`, `FRQSTATE` |
-| Axes | polygon, site, patch, cohort, soil layer, PFT, DBH size class, and patch × soil layer | polygon, site, patch, cohort |
+| Axes | polygon, site, patch, cohort, soil layer, PFT, diameter size class, and patch × soil layer | polygon, site, patch, cohort |
 | Aggregation | Declared as data on each variable (a weight and mean versus sum), so one registry line emits a field's patch, site, PFT and size-class rollups | Hard-coded per variable |
 | Discovering variables | `edmore --dump-io-config` lists every variable by group with its default and possible tiers | Read the source or the wiki |
 | Empty sets | A mean over an empty set is `_FillValue`; a sum is a true 0 | |
@@ -304,7 +304,7 @@ What the output code in `src/io/output` takes from ED2:
 - **The temporal reduction** follows ED2's `integrate_` / `normalize_` / `zero_` family: a variable is
   folded into its window each step, normalized when the window closes, and re-seeded (`integrate_scalar`,
   `integrate_slab`, `normalize_scalar`, `normalize_slab`, `reset_buffer`).
-- **The DBH size classes** are ED2's: a cohort lands whole in the class of its mean diameter, never split,
+- **The diameter size classes** are ED2's (DBH classes): a cohort lands whole in the class of its mean diameter, never split,
   which makes `mean_nplant_size_py` a stem-density distribution comparable to a forest inventory.
 - **The relative saturation** `soil_wetness`, (θ − θr)/(θs − θr), carries ED2's name.
 
@@ -333,7 +333,7 @@ and the routines that allocate, copy and reorder them. Three differences:
   which is where its "forgot to reallocate one array" bugs come from. ED-MORE lists every cohort field once
   in each of a few lockstep routines (allocate, free, grow, move, reorder, copy), all in one section order,
   and every sort, fusion and compaction goes through them.
-- **Rates are not state.** ED2 keeps `ddbh_dt`, `dagb_dt` and `mort_rate` in the cohort type, so every copy
+- **Rates are not state.** ED2 keeps `ddiameter_dt`, `dagb_dt` and `mort_rate` in the cohort type, so every copy
   carries them. ED-MORE computes the tendencies into a separate bundle each step and applies them at once; the
   output reads them from the slow diagnostic block.
 

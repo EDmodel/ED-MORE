@@ -234,7 +234,7 @@ contains
    ! step, so each record describes one stand and the boundary's events belong to the
    ! period it opens (docs/science/order_of_processes.md §5). The operators change the
    ! tissues' thermal mass (fusion and fission re-derive the sapwood ring, nonlinear in
-   ! dbh; the cull and the treefall remove cohorts): one exchange per phase, declared
+   ! diameter; the cull and the treefall remove cohorts): one exchange per phase, declared
    ! (conservation.md §4).
    !---~---
    subroutine restructure_stand(poly, cfg, is_new_month, is_new_year, ledger)

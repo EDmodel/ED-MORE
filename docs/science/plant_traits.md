@@ -96,7 +96,7 @@ Two of the four traits feed back into the carbon budget, so plasticity is not a 
   `[trait_dynamics].fineroot_turnover_plastic` the fine roots turn over more slowly in the same
   proportion, `fineroot_turnover_rate` $`\times\,\gamma/\gamma_{\mathrm{toc}}`$.
 
-- **SLA is leaf-area-conserving.** The leaf carbon target is $`L^{*} = A_{\mathrm{leaf}}(\mathrm{dbh},h)/\mathrm{SLA}`$
+- **SLA is leaf-area-conserving.** The leaf carbon target is $`L^{*} = A_{\mathrm{leaf}}(D,h)/\mathrm{SLA}`$
   (`size_to_leaf_carbon`): allometry fixes the leaf **area** (crown light-capture), and SLA sets how much
   **carbon** that area costs. When acclimation raises SLA, a cohort reaches the same allometric area with
   *less* carbon — the leaf pool **overshoots** the lower target, so `advance_plant_traits` resorbs the

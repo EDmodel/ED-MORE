@@ -15,7 +15,7 @@ python make_census.py --declaration ../../../examples/example04_column_biophysic
     --out ../../../examples/example04_column_biophysics/sites/bci/data/bci_census2010_ed.csv
 ```
 
-It writes the census CSV (`site_id`, `patch_id`, `patch_area`, `dbh`, `pft`, `nplant`) and a summary
+It writes the census CSV (`site_id`, `patch_id`, `patch_area`, `diameter`, `pft`, `nplant`) and a summary
 JSON, by default the CSV's path with `_summary.json`.
 
 (Example 04's declaration names its tables' folder as `/path/to/bci_census`: point the two paths at

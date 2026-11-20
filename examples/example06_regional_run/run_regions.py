@@ -41,7 +41,7 @@ PV = os.path.join(ROOT, "examples", "example05_forest_regeneration", "palo_verde
 OUT = os.path.join(HERE, "output")
 MASK = os.path.join(OUT, "cell_mask.nc")
 START_YEAR = 1871
-DBH_EDGES = "[0.0, 1.0, 5.0, 10.0, 20.0, 50.0, 100.0, 1000.0]"     # [cm] the mean_nplant_size_py classes
+DIAMETER_EDGES = "[0.0, 1.0, 5.0, 10.0, 20.0, 50.0, 100.0, 1000.0]"     # [cm] the mean_nplant_size_py classes
 #----- Keys the region's cells provide (the archive: location and forcing; the maps: soil, deep temperature and,
 #      through each polygon's config, Chave's E), which a region config refuses. -----------------------------------
 FROM_CELLS = [("site", "latitude"), ("site", "longitude"), ("site", "elevation"),
@@ -152,7 +152,7 @@ def make_regions(n_regions, years, threads, pft, archive, maps, chave_e, cost_fi
                 ("output", "state_write", "true"), ("output", "state_interval", f'"{min(25, years)} years"'),
                 ("output", "dir", f'"{rdir}"'), ("output", "prefix", f'"{name}"'),
                 ("output", "io_config", f'"{os.path.join(HERE, "io_config_region.toml")}"'),
-                ("output", "dbh_class_edges", DBH_EDGES),
+                ("output", "diameter_class_edges", DIAMETER_EDGES),
                 ("output.annual", "enabled", "false"),
                 ("forcing", "format", '"ERA5land"'), ("forcing", "data_path", f'"{archive}"'),
                 ("forcing", "co2_file", f'"{os.path.join(ROOT, "data", "co2", "co2_cmip7_global_annual_1000-2022.txt")}"'),

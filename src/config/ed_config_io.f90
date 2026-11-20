@@ -29,7 +29,7 @@ module ed_config_io
                                    forcing_params_t, MET_BACKEND_DEFAULT, MET_BACKEND_ERA5LAND, METAVG_END,       &
                                    METAVG_BEGIN, LW_FILE, LW_SYNTHESIZE, CLAMP_ERROR, CLAMP_HOLD,                 &
                                    GRIDMATCH_EXPLICIT, GRIDMATCH_NEAREST
-   use ed_output_params, only : output_params_t, MAX_DBH_EDGE, SYNC_FLUSH, SYNC_NEVER, FC_DAY, FC_MONTH,      &
+   use ed_output_params, only : output_params_t, MAX_DIAMETER_EDGE, SYNC_FLUSH, SYNC_NEVER, FC_DAY, FC_MONTH,      &
                                  FC_YEAR, FC_ALL, STATE_DAYS, STATE_MONTHS, STATE_YEARS
    use ed_time,       only : ed_time_t, string_to_time
    use ed_biophysics_params,   only : snow_params_t, aero_params_t
@@ -982,10 +982,10 @@ contains
       call opt_choice(t, 'output.diel_interval', [character(len=NAME_LEN) :: '1 hour', '2 hours', '3 hours',    &
                       '4 hours'], [1_ik, 2_ik, 3_ik, 4_ik], cfg%output%diel_interval_hours, m)
       !---~---
-      !   DBH size-class edges (DIM_SIZE), ascending, n_class+1 of them. Absent -> setup_output_files
+      !   diameter size-class edges (DIM_SIZE), ascending, n_class+1 of them. Absent -> setup_output_files
       ! installs the built-in inventory default.
       !---~---
-      call load_dbh_edges(t, cfg%output)
+      call load_diameter_edges(t, cfg%output)
       !--- Per-tier switch and file chunk, in tier order: fast, daily, monthly, annual.
       cfg%output%freq_on(1) = toml_logical(t, 'output.fast.enabled',    .false.)
       cfg%output%freq_on(2) = toml_logical(t, 'output.daily.enabled',   .true.)
@@ -1530,21 +1530,21 @@ contains
    end subroutine write_pft_params_csv
 
    !---~---
-   !   [output].dbh_class_edges: a list given needs at least two edges (one class), since a
+   !   [output].diameter_class_edges: a list given needs at least two edges (one class), since a
    ! user who set the key meant to control the binning.
    !---~---
-   subroutine load_dbh_edges(t, out_cfg)
+   subroutine load_diameter_edges(t, out_cfg)
       type(toml_table_t),    intent(in)    :: t
       type(output_params_t), intent(inout) :: out_cfg
-      real(wp)    :: tmp(MAX_DBH_EDGE)
+      real(wp)    :: tmp(MAX_DIAMETER_EDGE)
       integer(ik) :: nout
-      out_cfg%n_dbh_class = 0_ik
-      if (.not. toml_has(t, 'output.dbh_class_edges')) return
-      call toml_real_array(t, 'output.dbh_class_edges', tmp, nout)
+      out_cfg%n_diameter_class = 0_ik
+      if (.not. toml_has(t, 'output.diameter_class_edges')) return
+      call toml_real_array(t, 'output.diameter_class_edges', tmp, nout)
       if (nout < 2_ik)                                                                           &
-         error stop 'ed_config_io: [output].dbh_class_edges needs at least 2 edges (1 class)'
-      out_cfg%n_dbh_class        = nout - 1_ik
-      out_cfg%dbh_class_edges(1:nout)  = tmp(1:nout)
-   end subroutine load_dbh_edges
+         error stop 'ed_config_io: [output].diameter_class_edges needs at least 2 edges (1 class)'
+      out_cfg%n_diameter_class        = nout - 1_ik
+      out_cfg%diameter_class_edges(1:nout)  = tmp(1:nout)
+   end subroutine load_diameter_edges
 
 end module ed_config_io

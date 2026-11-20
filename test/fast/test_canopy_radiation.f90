@@ -197,7 +197,7 @@ contains
    !---~---
    !   EXACTLY-TIED cohorts are CO-DOMINANT, not stacked: cohorts of equal height share one RT
    ! layer (docs/science/canopy_radiation_transfer.md §4, eq. (14)), as `update_overtopping_lai`
-   ! treats them. Recruits tie BIT-EXACTLY -- one scalar `recruit_dbh` for every PFT -- and the
+   ! treats them. Recruits tie BIT-EXACTLY -- one scalar `recruit_diameter` for every PFT -- and the
    ! sort is stable, so stacking them would put the lower PFT INDEX on top: the lower slot then
    ! absorbs 12.6 % less shortwave at zero overstory, rising to 15.1 % under LAI 6.
    !

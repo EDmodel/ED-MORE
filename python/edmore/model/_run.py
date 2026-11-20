@@ -27,7 +27,7 @@ import numpy as np
 from ._ffi import lib
 
 #----- Field ids match ed_c_api_demography's, so the two sub-packages read the same way. ----  #
-_REAL = {"dbh": 0, "height": 1, "nplant": 2, "agb": 3, "leaf_area": 4,
+_REAL = {"diameter": 0, "height": 1, "nplant": 2, "agb": 3, "leaf_area": 4,
          "overtopping_lai": 5, "growth_avg": 6, "wood_carbon": 7,
          "gpp": 8,   # [kgC/plant] gross GPP over the last slow step (a run's own; not a demography site's)
          "npp": 9, "npp_wood": 10,   # [kgC/plant/yr] the last slow step's NPP and its wood part; NaN
@@ -219,7 +219,7 @@ class Run:
 
     #----- Per-cohort state, copied out ---------------------------------------------------#
     def cohorts(self, *fields):
-        """Copy per-cohort fields into numpy arrays: ``run.cohorts("dbh", "pft")``.
+        """Copy per-cohort fields into numpy arrays: ``run.cohorts("diameter", "pft")``.
 
         With no arguments, returns every field. Valid names are the keys of
         ``Run.real_fields`` and ``Run.int_fields``.

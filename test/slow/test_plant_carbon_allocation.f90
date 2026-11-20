@@ -12,7 +12,7 @@
 !   5. STORAGE GROWTH  : storage funds leaf growth EVEN when net < 0 (spring leaf-out).
 !   6. STARVING        : maintenance debt beyond storage => a deficit, no growth.
 !   7. SINK LIMIT      : relative = rate x wood x dt; absolute = the wood that grows the diameter
-!                        by rate x dbh^exponent x dt, under and over the height cap; the tighter
+!                        by rate x diameter^exponent x dt, under and over the height cap; the tighter
 !                        applies; 0 = off.
 !   8. SINK CAP        : wood stops at the limit, the rest is exudate at cost (1+g), carbon closes,
 !                        growth respiration is unchanged; a limit that does not bind changes
@@ -25,7 +25,7 @@ program test_plant_carbon_allocation
    use ed_kinds,           only : wp, ik
    use ed_plant_carbon_allocation,   only : plant_carbon_allocation, growth_respiration,                 &
                                             growth_sink_limitation
-   use ed_allometry_lib,             only : allometry_t, size_to_wood_carbon, wood_to_dbh, dbh_to_height,  &
+   use ed_allometry_lib,             only : allometry_t, size_to_wood_carbon, wood_to_diameter, diameter_to_height,  &
                                             GROWTH_GRASS
    implicit none
 
@@ -136,18 +136,18 @@ contains
       !--- A sapling below the height cap and a big tree above it (35 m is reached near 60 cm).
       do k = 1, 2
          d   = merge(3.0_wp, 90.0_wp, k == 1)
-         w   = size_to_wood_carbon(ALLOM, d, dbh_to_height(ALLOM, d), RHO)
+         w   = size_to_wood_carbon(ALLOM, d, diameter_to_height(ALLOM, d), RHO)
          cap = limit(w, d, 0.0_wp, 0.4_wp, 0.5_wp)
-         call check_close('sink limit: absolute => dbh grows by rate x dt',                          &
-                          wood_to_dbh(ALLOM, w + cap, RHO) - d, 0.2_wp, 1.0e-9_wp)
-         !--- With exponent 0.5 the cap is rate x sqrt(dbh): 0.4 x sqrt(d) x 0.5 yr.
+         call check_close('sink limit: absolute => diameter grows by rate x dt',                          &
+                          wood_to_diameter(ALLOM, w + cap, RHO) - d, 0.2_wp, 1.0e-9_wp)
+         !--- With exponent 0.5 the cap is rate x sqrt(diameter): 0.4 x sqrt(d) x 0.5 yr.
          cap = limit(w, d, 0.0_wp, 0.4_wp, 0.5_wp, 0.5_wp)
-         call check_close('sink limit: absolute x dbh^0.5 => dbh grows by rate x sqrt(dbh) x dt',     &
-                          wood_to_dbh(ALLOM, w + cap, RHO) - d, 0.2_wp * sqrt(d), 1.0e-9_wp)
+         call check_close('sink limit: absolute x diameter^0.5 => diameter grows by rate x sqrt(diameter) x dt',     &
+                          wood_to_diameter(ALLOM, w + cap, RHO) - d, 0.2_wp * sqrt(d), 1.0e-9_wp)
       end do
       !--- Both set: the tighter one. At 3 cm a 0.4 cm/yr cap is ~30 % of wood a year.
       d = 3.0_wp
-      w = size_to_wood_carbon(ALLOM, d, dbh_to_height(ALLOM, d), RHO)
+      w = size_to_wood_carbon(ALLOM, d, diameter_to_height(ALLOM, d), RHO)
       call check_close('sink limit: both => the tighter (relative)', limit(w, d, 0.05_wp, 0.4_wp, 1.0_wp), 0.05_wp * w)
       call check_close('sink limit: both => the tighter (absolute)', limit(w, d, 5.0_wp, 0.4_wp, 1.0_wp),  &
                        limit(w, d, 0.0_wp, 0.4_wp, 1.0_wp))
@@ -158,20 +158,20 @@ contains
       !---~---
       cap = limit(w, d, 0.0_wp, 0.4_wp, 1.0_wp / 365.0_wp, window=1.0_wp, grown=0.0_wp)
       call check_close('sink limit: window, nothing grown => the window''s growth in one step',       &
-                       wood_to_dbh(ALLOM, w + cap, RHO) - d, 0.4_wp, 1.0e-9_wp)
+                       wood_to_diameter(ALLOM, w + cap, RHO) - d, 0.4_wp, 1.0e-9_wp)
       cap = limit(w, d, 0.0_wp, 0.4_wp, 1.0_wp / 365.0_wp, window=1.0_wp, grown=0.1_wp)
       call check_close('sink limit: window, 0.1 cm grown => 0.3 cm left',                             &
-                       wood_to_dbh(ALLOM, w + cap, RHO) - d, 0.3_wp, 1.0e-9_wp)
+                       wood_to_diameter(ALLOM, w + cap, RHO) - d, 0.3_wp, 1.0e-9_wp)
       call check_close('sink limit: window used up => no wood',                                       &
                        limit(w, d, 0.0_wp, 0.4_wp, 1.0_wp / 365.0_wp, window=1.0_wp, grown=0.5_wp), 0.0_wp)
    end subroutine test_sink_limitation
 
    !---~---
-   !   growth_sink_limitation on the test stem; the absolute cap's dbh exponent defaults to 0, and
+   !   growth_sink_limitation on the test stem; the absolute cap's diameter exponent defaults to 0, and
    ! its window to this one step with nothing grown in it (a per-step cap).
    !---~---
-   real(wp) function limit(wood, dbh, rgr, agr, dt, expo, window, grown)
-      real(wp), intent(in) :: wood, dbh, rgr, agr, dt
+   real(wp) function limit(wood, diameter, rgr, agr, dt, expo, window, grown)
+      real(wp), intent(in) :: wood, diameter, rgr, agr, dt
       real(wp), intent(in), optional :: expo, window, grown
       real(wp) :: e, win, gro
       e = 0.0_wp
@@ -180,7 +180,7 @@ contains
       if (present(expo))   e   = expo
       if (present(window)) win = window
       if (present(grown))  gro = grown
-      limit = growth_sink_limitation(ALLOM, wood_carbon=wood, dbh=dbh, wood_density=RHO,                       &
+      limit = growth_sink_limitation(ALLOM, wood_carbon=wood, diameter=diameter, wood_density=RHO,                       &
                                      max_relative_growth_rate=rgr,                                        &
                                      max_absolute_growth_rate=agr, max_absolute_growth_exponent=e,        &
                                      dt_yr=dt, window_yr=win, grown_in_window=gro)

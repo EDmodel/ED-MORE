@@ -488,7 +488,7 @@ contains
       tscale_root = root_zone_temp_scale(soil_temp, root_frac, soil%n_active, ea_rd, hd_rd, ds_rd)
       ra_stem = 0.0_wp
       ra_root = 0.0_wp
-      call stem_maintenance_respiration(wood_temp(1:n), static%dbh(1:n), static%height(1:n),   &
+      call stem_maintenance_respiration(wood_temp(1:n), static%diameter(1:n), static%height(1:n),   &
                                    static%wai(1:n), static%nplant(1:n),                          &
                                    static%aboveground_frac(1:n), static%is_woody(1:n),          &
                                    static%stem_resp_factor25(1:n), static%sap_volume(1:n),      &

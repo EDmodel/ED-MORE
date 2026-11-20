@@ -352,7 +352,7 @@ endif()
 #      though pytest drives it.                                                                     #
 ed_add_pytest(restart_exact PATH ${CMAKE_CURRENT_SOURCE_DIR}/python/test_restart_exact.py
               IMPORTS numpy netCDF4 pytest ENVIRONMENT EDMORE_MAIN=$<TARGET_FILE:ed_main> LABEL integration)
-#----- The PFT and DBH-class axes partition the stand: in a two-month run from the shipped          #
+#----- The PFT and diameter-class axes partition the stand: in a two-month run from the shipped          #
 #      census, the sums over PFTs and over classes equal the polygon totals                         #
 #      (python/test_output_closure.py; docs/science/diagnostics.md eq. (3)).                        #
 ed_add_pytest(output_closure PATH ${CMAKE_CURRENT_SOURCE_DIR}/python/test_output_closure.py

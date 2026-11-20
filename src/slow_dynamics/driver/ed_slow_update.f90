@@ -28,11 +28,11 @@ module ed_slow_update
                                        expand_patch_block, reorder_patch_block, cas_set_depth
    use ed_polygon_state_vars,   only : polygon_t, rebuild_cohort_map, assign_cohort_id,                  &
                                        patch_polygon_area, rebuild_patch_map, assign_patch_id
-   use ed_allometry_lib,        only : height_to_dbh, carbon_to_structure, GROWTH_GRASS
+   use ed_allometry_lib,        only : height_to_diameter, carbon_to_structure, GROWTH_GRASS
    use ed_config,               only : ed_config_t, growth_window_steps
    use ed_diag_vars,            only : fuse_cohort_diag, PA_MORT_C_CULL, blend_patch_diag,               &
                                        inherit_patch_diag, PA_DISTURB_AREA, PA_MORT_C_DISTURB,           &
-                                       CO_DDBH_DT, CO_DAGB_DT, CO_MORT_RATE
+                                       CO_DDIAMETER_DT, CO_DAGB_DT, CO_MORT_RATE
    use ed_slow_ledger,          only : slow_ledger_t, slow_ledger_declare
    use ed_slow_state,           only : slow_step_data_t, kill_report_t, open_kill_report, report_kill
    implicit none
@@ -90,7 +90,7 @@ contains
       integer(ik),              intent(in)    :: n_window, hist_pos
       integer(ik) :: i
       real(wp)    :: lc_new, fc_new, wc_new, nc_new
-      real(wp)    :: dbh_new, height_new, ba_new, agb_new, la_new, dbh_rate, ring_rate, ring_dbh
+      real(wp)    :: diameter_new, height_new, ba_new, agb_new, la_new, diameter_rate, ring_rate, ring_diameter
       real(wp)    :: ring_scratch(4)   ! the would-be height, basal area, AGB, leaf area: unused
 
       associate (cohort => poly%cohort, mortality => step%mortality)
@@ -109,22 +109,22 @@ contains
             !---~---
             call carbon_to_structure(cohort%pft_table%allom(cohort%pft(i)), wc_new, lc_new,          &
                                      cohort%pft_table%wood_density(cohort%pft(i)), cohort%sla(i),   &
-                                     dbh_new, height_new, ba_new, agb_new, la_new)
+                                     diameter_new, height_new, ba_new, agb_new, la_new)
             !---~---
             !   The pools' tendencies, and the diameter rate into the growth history: the realized
             ! one, or with the stand frozen the one the unbuilt wood would have made
             ! (hold_frozen_growth), so the growth memory is a growing stand's.
             !---~---
-            dbh_rate = (dbh_new - cohort%dbh(i)) / dt_yr
-            ring_rate = dbh_rate
+            diameter_rate = (diameter_new - cohort%diameter(i)) / dt_yr
+            ring_rate = diameter_rate
             if (allocated(step%wood_unbuilt)) then        ! a step built by hand may carry none
                if (step%wood_unbuilt(i) > 0.0_wp) then
                   call carbon_to_structure(cohort%pft_table%allom(cohort%pft(i)),                      &
                                            advance_pool(wc_new, step%wood_unbuilt(i)), lc_new,        &
                                            cohort%pft_table%wood_density(cohort%pft(i)), cohort%sla(i), &
-                                           ring_dbh, ring_scratch(1), ring_scratch(2), ring_scratch(3), &
+                                           ring_diameter, ring_scratch(1), ring_scratch(2), ring_scratch(3), &
                                            ring_scratch(4))
-                  ring_rate = (ring_dbh - cohort%dbh(i)) / dt_yr
+                  ring_rate = (ring_diameter - cohort%diameter(i)) / dt_yr
                end if
             end if
             call fill_cohort_deriv(cohort, i, poly%deriv, dt_yr, mortality(i), ring_rate,           &
@@ -134,7 +134,7 @@ contains
             ! reordering; poly%deriv does not (docs/science/diagnostics.md §8, "The one trap").
             !---~---
             if (cohort%sdiag%active) then
-               cohort%sdiag%v(CO_DDBH_DT,   i) = dbh_rate
+               cohort%sdiag%v(CO_DDIAMETER_DT,   i) = diameter_rate
                cohort%sdiag%v(CO_DAGB_DT,   i) = (agb_new - cohort%agb(i)) / dt_yr
                cohort%sdiag%v(CO_MORT_RATE, i) = mortality(i)
                cohort%sdiag%w(i)               = 1.0_wp
@@ -396,7 +396,7 @@ contains
       real(wp),            intent(out)   :: heat_drawn    ! [J/m2 site]
       real(wp),            intent(out)   :: water_drawn   ! [kg/m2 site]
       integer(ik) :: ip, pf, np, m, nspawn, n_before, k
-      real(wp)    :: recruit_dbh, endow, t_birth, psi_birth, c_tot, e_tot, w_tot
+      real(wp)    :: recruit_diameter, endow, t_birth, psi_birth, c_tot, e_tot, w_tot
 
       c_tot = 0.0_wp
       e_tot = 0.0_wp
@@ -429,14 +429,14 @@ contains
                if (.not. found(pf, ip)) cycle
                m = m + 1_ik
                !--- Every PFT recruits at the smallest tracked height, on its own curve.
-               recruit_dbh = height_to_dbh(cohort%pft_table%allom(pf), pft%min_cohort_height)
+               recruit_diameter = height_to_diameter(cohort%pft_table%allom(pf), pft%min_cohort_height)
                !---~---
                !   Born in its patch's state: at the canopy-air temperature, holding the water
                ! its tissues hold at the top soil layer's potential (patch_physical_state).
                !---~---
                call patch_physical_state(patch%cas(ip), patch%soil_water(ip),                          &
                                          poly%site%surface(patch%owner_site(ip)), t_birth, psi_birth)
-               call init_cohort(cohort, m, pft, pf, ip, patch%recruit_pool(pf, ip), recruit_dbh,   &
+               call init_cohort(cohort, m, pft, pf, ip, patch%recruit_pool(pf, ip), recruit_diameter,   &
                                 t_birth, psi_birth)
                !---~---
                !   The draw: everything the new cohort holds, less the reproduction carbon the
@@ -668,7 +668,7 @@ contains
                key = perm(i)
                j   = i - 1_ik
                do while (j >= i0)
-                  if (higher(cohort%height(perm(j)), cohort%dbh(perm(j)), cohort%height(key), cohort%dbh(key))) exit
+                  if (higher(cohort%height(perm(j)), cohort%diameter(perm(j)), cohort%height(key), cohort%diameter(key))) exit
                   perm(j + 1_ik) = perm(j)
                   j = j - 1_ik
                end do
@@ -841,7 +841,7 @@ contains
          cohort%fineroot_carbon(recc)      = fc_tot / ntot
          cohort%wood_carbon(recc)          = wc_tot / ntot
          cohort%nonstructural_carbon(recc) = nc_tot / ntot
-         call set_cohort_size_from_carbon(poly%cohort, recc)   ! dbh=wood_to_dbh(wood_carbon); pools kept
+         call set_cohort_size_from_carbon(poly%cohort, recc)   ! diameter=wood_to_diameter(wood_carbon); pools kept
          !--- The merged tissues' temperatures, from the energies fused above and the merged masses.
          call set_cohort_tissue_temps(poly%cohort, recc)
          !---~---

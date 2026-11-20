@@ -20,7 +20,7 @@ module ed_output_types
    public :: AGG_MEAN, AGG_RATE, AGG_LAST, AGG_TMEAN
    public :: DIM_SCALAR, DIM_COHORT, DIM_PATCH, DIM_SOIL, DIM_PFT, DIM_SIZE, DIM_SOIL_PATCH, DIM_SITE
    public :: XTYPE_DOUBLE, XTYPE_INT
-   public :: MISSING_VALUE, MISSING_INT, MAX_OUTPUT_VARS, MAX_DBH_CLASS
+   public :: MISSING_VALUE, MISSING_INT, MAX_OUTPUT_VARS, MAX_DIAMETER_CLASS
    public :: W_NONE, W_NPLANT, W_LEAF_AREA, W_BASAL_AREA, W_AGB, N_WEIGHT
    public :: ragged_dim, slab_col, slab_var
 
@@ -46,7 +46,7 @@ module ed_output_types
    !---~---
    integer(ik), parameter :: DIM_SOIL   = 3_ik
    integer(ik), parameter :: DIM_PFT    = 4_ik
-   integer(ik), parameter :: DIM_SIZE   = 5_ik   ! DBH size class (edges from [output].dbh_class_edges)
+   integer(ik), parameter :: DIM_SIZE   = 5_ik   ! diameter size class (edges from [output].diameter_class_edges)
    !---~---
    !   2-D (soil layer x patch), flattened into a 1-D slab at (ip-1)*n_soil_layer_max + k, so the
    ! slab routines serve it unchanged. The stride is the layer ceiling, never a live count
@@ -67,7 +67,7 @@ module ed_output_types
    integer(ik), parameter :: W_NONE       = 0_ik  ! w = 1        (count-like; x already per ground area)
    integer(ik), parameter :: W_NPLANT     = 1_ik  ! w = nplant   (the standard extensive per-plant weight)
    integer(ik), parameter :: W_LEAF_AREA  = 2_ik  ! w = nplant*leaf_area (canopy-flux / leaf-state weighting)
-   integer(ik), parameter :: W_BASAL_AREA = 3_ik  ! w = nplant*basal_area (structural weighting; dbh)
+   integer(ik), parameter :: W_BASAL_AREA = 3_ik  ! w = nplant*basal_area (structural weighting; diameter)
    integer(ik), parameter :: W_AGB        = 4_ik  ! w = nplant*agb (biomass weighting)
    integer(ik), parameter :: N_WEIGHT     = 4_ik  ! the weighted kinds, W_NPLANT .. W_AGB
 
@@ -90,11 +90,11 @@ module ed_output_types
    ! list is short enough for a linear find_var_index.
    !---~---
    integer(ik), parameter :: MAX_OUTPUT_VARS = 1024_ik
-   !--- DBH size-class ceiling (DIM_SIZE). Edges come from [output].dbh_class_edges.
-   integer(ik), parameter :: MAX_DBH_CLASS   = 32_ik
+   !--- diameter size-class ceiling (DIM_SIZE). Edges come from [output].diameter_class_edges.
+   integer(ik), parameter :: MAX_DIAMETER_CLASS   = 32_ik
 
    !---~---
-   !   The run-dependent parameters the derived diagnostics need (the PFT count, the DBH class
+   !   The run-dependent parameters the derived diagnostics need (the PFT count, the diameter class
    ! edges, whether the soil has a curve to read), resolved in setup_output_files and handed
    ! to extract_variable as plain data, so the per-step tick does not need the configuration.
    !---~---
@@ -102,9 +102,9 @@ module ed_output_types
       integer(ik) :: n_pft       = 0_ik      ! run-time PFT count (the DIM_PFT axis length)
       !--- The fast loop runs, so the soil water has a curve to read (attach_output).
       logical     :: soil_ready  = .false.   ! .false. => psi/wetness diagnostics emit _FillValue
-      !--- DBH size classes (DIM_SIZE): n_class+1 ascending edges [cm].
-      integer(ik) :: n_dbh_class = 0_ik
-      real(wp)    :: dbh_edges(MAX_DBH_CLASS + 1_ik) = 0.0_wp
+      !--- diameter size classes (DIM_SIZE): n_class+1 ascending edges [cm].
+      integer(ik) :: n_diameter_class = 0_ik
+      real(wp)    :: diameter_edges(MAX_DIAMETER_CLASS + 1_ik) = 0.0_wp
    end type diag_setup_t
 
    !--- One diagnostic variable: plain data, no pointers into the state.
@@ -216,12 +216,12 @@ module ed_output_types
       logical     :: has_patch    = .false. ! this tier defines the patch dim
       logical     :: has_soil     = .false. ! this tier defines the soil dim
       logical     :: has_pft      = .false. ! this tier defines the pft dim
-      logical     :: has_size     = .false. ! this tier defines the dbh-class dim
+      logical     :: has_size     = .false. ! this tier defines the diameter-class dim
       integer(ik) :: d_time = -1_ik, d_cohort = -1_ik, d_patch = -1_ik, d_soil = -1_ik
       integer(ik) :: d_pft = -1_ik, d_size = -1_ik
       integer(ik) :: d_polygon = -1_ik       ! a region file's polygon dimension
       integer(ik) :: d_site = -1_ik          ! the site dimension, behind the polygon's
-      integer(ik) :: v_pft = -1_ik, v_dbh_lower = -1_ik, v_dbh_upper = -1_ik  ! self-describing axis coords
+      integer(ik) :: v_pft = -1_ik, v_diameter_lower = -1_ik, v_diameter_upper = -1_ik  ! self-describing axis coords
       integer(ik) :: v_soil_z = -1_ik                                        ! soil layer node depths [m]
       integer(ik) :: cohort_dim = 0_ik, patch_dim = 0_ik   ! the cohort/patch axis lengths written so far
       integer(ik) :: v_time = -1_ik, v_year = -1_ik, v_month = -1_ik, v_day = -1_ik

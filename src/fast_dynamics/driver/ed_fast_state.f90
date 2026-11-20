@@ -297,7 +297,7 @@ contains
          !--- Demographic inputs.
          static%pft(j)           = cohort%pft(i)
          static%nplant(j)        = cohort%nplant(i)
-         static%dbh(j)           = cohort%dbh(i)
+         static%diameter(j)           = cohort%diameter(i)
          static%height(j)        = cohort%height(i)
          static%leaf_area(j)     = cohort%leaf_area(i)
          !--- Per-ground indices: nplant * per-plant area, formed here, never stored.
@@ -399,11 +399,11 @@ contains
    ! the canopy geometry and the daily inputs keep their defaults. A test that edits a
    ! cohort's structure afterwards calls derive_cohort_terms again.
    !---~---
-   subroutine static_state_fixture(static, pft, ipft, dbh, nplant, profile)
+   subroutine static_state_fixture(static, pft, ipft, diameter, nplant, profile)
       type(fast_static_state_t), intent(inout) :: static
       type(pft_table_t),         intent(in)    :: pft
       integer(ik),               intent(in)    :: ipft(:)    ! (n) PFT index per cohort
-      real(wp),                  intent(in)    :: dbh(:)     ! (n) [cm]       diameter
+      real(wp),                  intent(in)    :: diameter(:)     ! (n) [cm]       diameter
       real(wp),                  intent(in)    :: nplant(:)  ! (n) [plant/m2] density
       type(soil_profile_t),      intent(in)    :: profile
       type(cohort_block) :: block
@@ -417,7 +417,7 @@ contains
          !   The static state carries no tissue water or temperature, so the birth state reaches
          ! nothing: saturated (0 MPa) at the triple point.
          !---~---
-         call init_cohort(block, j, pft, ipft(j), 1_ik, nplant(j), dbh(j), t_3ple, 0.0_wp)
+         call init_cohort(block, j, pft, ipft(j), 1_ik, nplant(j), diameter(j), t_3ple, 0.0_wp)
       end do
       call gather_cohorts(static, block, 1_ik, n)
       call derive_cohort_terms(static, pft%hydraulics, profile)
