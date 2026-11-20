@@ -71,14 +71,18 @@ module ed_fast_integ_backward_euler
    !   The water network's Newton. The balance counts as solved when every store's imbalance
    ! over the sub-step is below NEWTON_TOL of the step's absolute water tolerance -- far inside
    ! the error the sub-step itself is allowed. A Newton step may take a soil layer or a tissue
-   ! at most STEP_MAX_SHARE of the way to empty (fraction to the boundary) and move its
-   ! saturation or relative water content by at most STEP_MAX_DRY.
+   ! at most STEP_MAX_SHARE of the way to empty (fraction to the boundary), a soil layer's
+   ! unknown no closer than SOIL_TAU_FLOOR, and move its saturation or relative water content by
+   ! at most STEP_MAX_DRY. The floor lies far below any frozen layer's melt plateau
+   ! (SE_MIN x MELT_DRY_SHARE) and far above the denormals whose powers the conductivity's slope
+   ! cannot take.
    !---~---
    real(wp),    parameter :: NEWTON_TOL     = 1.0e-2_wp
    integer(ik), parameter :: NEWTON_MAX     = 25_ik
    integer(ik), parameter :: BACKTRACK_MAX  = 12_ik
    real(wp),    parameter :: STEP_MAX_SHARE = 0.9_wp
    real(wp),    parameter :: STEP_MAX_DRY   = 0.2_wp
+   real(wp),    parameter :: SOIL_TAU_FLOOR = 1.0e-12_wp
    !---~---
    !   Its sub-steps: the error controller of an order-one method (exponent -1/2), its growth and
    ! shrink limits, the factor a sub-step whose Newton failed is cut by, and the shortest
@@ -744,7 +748,7 @@ contains
       integer(ik) :: k, i, j
       lam = 1.0_wp
       do k = 1_ik, profile%n_active
-         lam = min(lam, fraction_to_boundary(tau_soil(1_ik + k), step_soil(1_ik + k), STEP_MAX_SHARE))
+         lam = min(lam, fraction_to_boundary(tau_soil(1_ik + k) - SOIL_TAU_FLOOR, step_soil(1_ik + k), STEP_MAX_SHARE))
          if (tau_soil(1_ik + k) <= profile%layer_curve(k)%se_switch)                                           &
             call cap_dry_change(tau_soil(1_ik + k), step_soil(1_ik + k), lam)
       end do

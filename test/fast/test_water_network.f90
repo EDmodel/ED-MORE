@@ -48,6 +48,9 @@
 !  21. FROZEN SUBLIMATION: a frozen top layer under dry air loses more water than its liquid holds
 !                        above residual: the ice melts to supply it, the liquid stays at the
 !                        freezing curve's potential, no sub-step is forced, and the water closes.
+!  22. DRY PEAT        : a steep peat's top layer a hair above residual under dry, warm air
+!                        evaporates what it can, stays at or above residual, forces no sub-step,
+!                        and closes its water.
 !---~---
 program test_water_network
    use ed_test_assert, only : check_true, check_close, check_int, test_report
@@ -785,6 +788,7 @@ contains
       call test_frozen_top()
       call test_frozen_surface_evaporation()
       call test_frozen_sublimation()
+      call test_dry_peat()
       soil = clay
    end subroutine test_column_scenarios
 
@@ -1170,6 +1174,46 @@ contains
       call check_close('frozen sublimation: change in store = the water crossing the boundary (evaporation, drainage)', &
                        total_water(col) - w0, crossed, 1.0e-10_wp * w0)
    end subroutine test_frozen_sublimation
+
+   !---~---
+   !   22. A 2 m column of steep peat (van Genuchten n 3.34, theta_res 0.141: the Imnavait fit to
+   ! Toolik's organic horizon) whose top layer starts 0.001 above residual, under dry air at 20 C
+   ! (docs/science/soil_biophysics.md, "The soil water column"). Its pore air stays near saturation
+   ! almost to residual, so its evaporation runs at the demand until the layer's own water above
+   ! residual runs out and then tapers off (evaporation_supply): no sub-step is forced through,
+   ! the layer stays at or above residual, and the column's water closes against its boundary.
+   !---~---
+   subroutine test_dry_peat()
+      type(soil_params_t) :: opts
+      type(stand_t)       :: col
+      real(wp) :: bottoms(n_soil_layer_max), theta(10), w0, crossed, theta_min
+      integer(ik) :: step, nfail
+      call geometric_layer_bottoms(2.0_wp, 10_ik, 3.0_wp, bottoms)
+      call build_profile_hydraulics(10_ik, SOIL_RETENTION_VG, bottoms, 0.895_wp, 0.141_wp, 2.0e-6_wp, 1.03_wp,   &
+                                    3.34_wp, -3.37_wp, soil)
+      theta = 0.30_wp
+      theta(1) = 0.141_wp + 1.0e-3_wp
+      call make_column(col, theta)
+      col%drive%ground%t_ground = 293.15_wp
+      col%drive%ground%q_air    = 0.0_wp
+      col%drive%ground%r_aero   = 10.0_wp
+      call ground_evaporation_setup(soil, opts, col%drive%ground)
+      w0 = total_water(col)
+      crossed = 0.0_wp
+      nfail = 0_ik
+      theta_min = huge(1.0_wp)
+      do step = 1_ik, 96_ik
+         call advance(col, opts, 900.0_wp)
+         crossed = crossed + boundary_water(col, 900.0_wp)
+         nfail = nfail + col%work(WORK_WATER_NFAIL)
+         theta_min = min(theta_min, col%water%state%water_soil(2) / (rho_h2o * soil%dz(1)))
+      end do
+      call check_int('dry peat: no sub-step forced through', nfail, 0_ik)
+      call check_true('dry peat: the top layer stays at or above residual', theta_min >= 0.141_wp - 1.0e-9_wp,       &
+                      theta_min)
+      call check_close('dry peat: change in store = the water crossing the boundary', total_water(col) - w0,       &
+                       crossed, 1.0e-10_wp * w0)
+   end subroutine test_dry_peat
 
    !--- Small helpers.
    !--- A linear congruential generator, in 64-bit arithmetic so the product cannot overflow.

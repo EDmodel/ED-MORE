@@ -22,7 +22,7 @@ module ed_soil_water
    implicit none
    private
 
-   public :: soil_water_flux, ground_evaporation_rate, bottom_flux
+   public :: soil_water_flux, ground_evaporation_rate, bottom_flux, evaporation_supply
    public :: ground_evap_env_t, ground_evaporation_setup, pond_inflow, organic_cover_path
 
    !---~---
@@ -32,6 +32,12 @@ module ed_soil_water
    !---~---
    real(wp), parameter :: EVAP_HUMIDITY_WIDTH = 1.0e-6_wp
    real(wp), parameter :: DSL_THETA_WIDTH     = 1.0e-3_wp
+   !---~---
+   !   [-] The share of the top layer's span from residual to saturation over which its
+   ! evaporation tapers to nothing as its water above residual, ice included, runs out
+   ! (evaporation_supply).
+   !---~---
+   real(wp), parameter :: EVAP_SUPPLY_SPAN    = 1.0e-4_wp
    !--- CLM5 eq 5.78: the 'air dry' matric head [m], where the soil counts as dry (CLM5's 1e7 mm).
    real(wp), parameter :: PSI_AIR_DRY = -1.0e4_wp
    !---~---
@@ -201,6 +207,25 @@ contains
       de_dpsi   = forcing%snow_free_frac * forcing%rho_air * ddrive * forcing%q_sat * dalpha / resist
       de_dtheta = -e_soil * dr_dtheta / resist
    end subroutine ground_evaporation_rate
+
+   !---~---
+   !   The share of its demand a top layer's water can supply [-], and its slope in the layer's
+   ! water above residual: one until that water, ice included, is EVAP_SUPPLY_SPAN of the span
+   ! from residual to saturation, then a smooth step to nothing at residual. A steep retention
+   ! curve keeps its pore air near saturation almost to residual, so Philip's humidity alone
+   ! would stop the evaporation only a trillionth of the span above it; CLM5 too limits the
+   ! soil's evaporation to the water its top layer holds (docs/science/soil_biophysics.md, "The
+   ! soil water column").
+   !---~---
+   elemental subroutine evaporation_supply(avail, f, df)
+      real(wp), intent(in)  :: avail   ! [-] the layer's water above residual over its span to saturation
+      real(wp), intent(out) :: f       ! [-]
+      real(wp), intent(out) :: df      ! [-] df / d avail
+      real(wp) :: x
+      x  = min(1.0_wp, max(0.0_wp, avail / EVAP_SUPPLY_SPAN))
+      f  = x * x * (3.0_wp - 2.0_wp * x)
+      df = 6.0_wp * x * (1.0_wp - x) / EVAP_SUPPLY_SPAN
+   end subroutine evaporation_supply
 
    !---~---
    !   pond_inflow -- the water reaching the pond and the temperature that values it: the

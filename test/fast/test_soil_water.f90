@@ -25,6 +25,9 @@
 !   8. ICE ON THE AQUIFER FACE (bottom_flux; soil_biophysics.md "Frozen soil"): a frozen
 !      bottom layer's ice impedes the face to the table in full, both ways; a draining
 !      base counts it once, in K(theta_N).
+!   9. SUPPLY (evaporation_supply): the top layer supplies its whole demand until its water
+!      above residual is a ten-thousandth of its span, nothing at residual, and a smooth,
+!      rising step between whose slope matches finite differences.
 !---~---
 program test_soil_water
    use ed_test_assert,     only : check_true, check_close, test_report
@@ -33,7 +36,7 @@ program test_soil_water
    use ed_soil_hydr_lib,   only : SOIL_RETENTION_VG, soil_theta_to_head, soil_liquid_capacity, soil_ice_state,  &
                                   soil_ice_t
    use ed_soil_water,      only : ground_evaporation_rate, ground_evaporation_setup, soil_water_flux, ground_evap_env_t, &
-                                  bottom_flux
+                                  bottom_flux, evaporation_supply
    use ed_therm_lib,       only : sat_specific_humidity, sat_vapor_pressure, specific_humidity_to_vapor_pressure
    use ed_soil_params,     only : soil_profile_t, soil_params_t, SOIL_BC_DRAIN, SOIL_BC_AQUIFER
    use ed_soil_derive,     only : build_profile_hydraulics
@@ -48,6 +51,7 @@ program test_soil_water
    call test_frozen_ground_evap()
    call test_evap_at_pressure()
    call test_aquifer_face_ice()
+   call test_evaporation_supply()
 
    call test_report('test_soil_water')
 
@@ -407,5 +411,32 @@ contains
       call check_close('a draining frozen base drains the impeded K(theta_N), the ice counted once', q_froz(1),     &
                        ice%impedance * K_LIQ, 0.0_wp)
    end subroutine test_aquifer_face_ice
+
+   !--- 9. The top layer's supply: the share of its evaporation demand its water above residual can meet.
+   subroutine test_evaporation_supply()
+      real(wp) :: f, df, fp, fm, dum, x, h
+      integer  :: i
+      logical  :: ok_fd, rising
+      print '(a)', 'test_evaporation_supply:'
+      call evaporation_supply(1.0e-4_wp, f, df)
+      call check_true('SUPPLY: the whole demand at a ten-thousandth of the span', f == 1.0_wp .and. df == 0.0_wp, f)
+      call evaporation_supply(0.5_wp, f, df)
+      call check_true('SUPPLY: and above it', f == 1.0_wp .and. df == 0.0_wp, f)
+      call evaporation_supply(0.0_wp, f, df)
+      call check_true('SUPPLY: nothing at residual', f == 0.0_wp .and. df == 0.0_wp, f)
+      ok_fd = .true.
+      rising = .true.
+      do i = 1, 19
+         x = 1.0e-4_wp * real(i, wp) / 20.0_wp
+         h = 1.0e-9_wp
+         call evaporation_supply(x, f, df)
+         call evaporation_supply(x + h, fp, dum)
+         call evaporation_supply(x - h, fm, dum)
+         if (abs(df - (fp - fm) / (2.0_wp * h)) > 1.0e-5_wp * abs(df)) ok_fd = .false.
+         if (.not. df > 0.0_wp) rising = .false.
+      end do
+      call check_true('SUPPLY: the step rises with the water', rising)
+      call check_true('SUPPLY: its slope matches finite differences', ok_fd)
+   end subroutine test_evaporation_supply
 
 end program test_soil_water
