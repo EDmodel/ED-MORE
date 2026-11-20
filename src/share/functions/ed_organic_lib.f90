@@ -16,7 +16,7 @@ module ed_organic_lib
 
    public :: organic_material_t, organic_params_t, organic_state_t, SLOT_LITTER, SLOT_MOSS
    public :: organic_present, organic_slot_material, organic_layer_sums, organic_diagnose, organic_split_energy
-   public :: organic_take_water, organic_take_exchange
+   public :: organic_take_water, organic_take_exchange, organic_spill
 
    !---~---
    !   One organic material (docs/science/surface_organic_layer.md): its dry mass per volume,
@@ -180,7 +180,7 @@ contains
 
    !---~---
    !   The layer takes an exchange's amounts: the energy in and the vapour out, the vapour from
-   ! the slots top down, as far as each holds water.
+   ! the slots top down, as far as each holds water; dew (vapour in) joins the top slot.
    !---~---
    pure subroutine organic_take_exchange(org, energy_amount, vapour_amount)
       type(organic_state_t), intent(inout) :: org
@@ -191,11 +191,46 @@ contains
       if (.not. organic_present(org)) return
       left = vapour_amount
       do k = 1_ik, n_organic_slot
+         if (org%mass(k) <= 0.0_wp) cycle
+         if (left < 0.0_wp) then                               ! dew: the top slot takes it
+            org%water(k) = org%water(k) - left
+            left = 0.0_wp
+         end if
          out = min(max(left, 0.0_wp), org%water(k))
          org%water(k) = org%water(k) - out
          left = left - out
       end do
       call organic_split_energy(org, sum(org%energy) + energy_amount)
    end subroutine organic_take_exchange
+
+   !---~---
+   !   The water a slot holds beyond its capacity (dew on a full layer) spills: its water and energy,
+   ! at the layer's temperature and liquid fraction, returned for the pond.
+   !---~---
+   pure subroutine organic_spill(org, params, w_out, e_out)
+      type(organic_state_t),  intent(inout) :: org
+      type(organic_params_t), intent(in)    :: params
+      real(wp),               intent(out)   :: w_out     ! [kg/m2]
+      real(wp),               intent(out)   :: e_out     ! [J/m2]
+      type(organic_material_t) :: m
+      real(wp)    :: cap, excess, total
+      integer(ik) :: k
+      w_out = 0.0_wp
+      e_out = 0.0_wp
+      if (.not. organic_present(org)) return
+      total = sum(org%energy)
+      call organic_diagnose(org)
+      do k = 1_ik, n_organic_slot
+         if (org%mass(k) <= 0.0_wp) cycle
+         m      = organic_slot_material(params, k)
+         cap    = m%water_capacity * rho_h2o * org%mass(k) / org%density(k)
+         excess = max(0.0_wp, org%water(k) - cap)
+         if (excess <= 0.0_wp) cycle
+         org%water(k) = cap
+         w_out = w_out + excess
+         e_out = e_out + temp_to_internal_energy(0.0_wp, excess, org%temp, org%fliq)
+      end do
+      if (w_out > 0.0_wp) call organic_split_energy(org, total - e_out)
+   end subroutine organic_spill
 
 end module ed_organic_lib

@@ -22,7 +22,6 @@ module ed_surface
    use ed_therm_lib,            only : internal_energy_to_temp, sat_specific_humidity,                        &
                                        sat_specific_humidity_temp_deriv, enthalpy_vapor,           &
                                        internal_energy_liquid, precip_enthalpy, liquid_energy_to_temp
-   use ed_numerics,             only : smooth_max0
    use ed_patch_state_vars,     only : snow_state_t
    use ed_biophysics_params,    only : snow_params_t
    implicit none
@@ -30,11 +29,6 @@ module ed_surface
 
    !--- [kg/m3] The snow density Niu & Yang (2007)'s cover-fraction scale is referenced to.
    real(wp), parameter :: NY07_RHO_REF = 100.0_wp
-   !---~---
-   !   [kg/kg] The humidity deficit over which the organic layer's evaporation is rounded off at
-   ! zero, as the soil's is (ed_soil_water): it evaporates, and takes no dew.
-   !---~---
-   real(wp), parameter :: ORGANIC_EVAP_WIDTH = 1.0e-6_wp
 
    public :: ground_surface_exchange, ground_surface_fluxes, prepare_snow_stage
    public :: snow_cover_fraction, snow_accumulate, snow_take_pond, pond_freezes, snow_drain_meltwater
@@ -689,7 +683,7 @@ contains
       type(surface_env_t), intent(in)  :: env
       real(wp),            intent(in)  :: g_snow     ! [W/m2] the pack's base flux into the layer
       type(organic_out_t), intent(out) :: flux
-      real(wp) :: af, dt, w, cd, e_old, t_n, fliq_n, g_os, h_n, dh_dt, f, df, w_n, dw_dt, demit_dt
+      real(wp) :: af, dt, w, cd, e_old, t_n, fliq_n, g_os, h_n, dh_dt, w_n, dw_dt, demit_dt
       real(wp) :: rad_n, u_w, l_vap, g_n, r0, drdt, u_freeze, u_melt, e_bal, t_new, dtemp, h_s, w_s, g_s, emit
       real(wp) :: u_w_new, le_s, fl_new, w_cap
       integer  :: pass
@@ -706,9 +700,9 @@ contains
       !--- The fluxes at T^n and their slopes; a kilogram of vapour takes its enthalpy less the water's energy.
       h_n   = env%ggnet * env%rho_air * env%cp_cas * (t_n - env%can_temp)
       dh_dt = env%ggnet * env%rho_air * env%cp_cas
-      call smooth_max0(sat_specific_humidity(t_n, env%press, fliq_n) - env%can_shv, ORGANIC_EVAP_WIDTH, f, df)
-      w_n   = env%org_fill * env%ggnet * env%rho_air * f
-      dw_dt = env%org_fill * env%ggnet * env%rho_air * df * sat_specific_humidity_temp_deriv(t_n, env%press, fliq_n)
+      !--- Evaporation and dew alike, at its fill: a wet layer exchanges as open water, a dry one not at all.
+      w_n   = env%org_fill * env%ggnet * env%rho_air * (sat_specific_humidity(t_n, env%press, fliq_n) - env%can_shv)
+      dw_dt = env%org_fill * env%ggnet * env%rho_air * sat_specific_humidity_temp_deriv(t_n, env%press, fliq_n)
       demit_dt = 4.0_wp * env%ground_emiss * stefan_boltzmann * t_n ** 3
       rad_n = env%rnet_soil                                      ! at T^n: its own emission included
       u_w   = water_specific_energy(t_n, fliq_n)                ! from the datum: a trace of water stays exact
@@ -719,9 +713,9 @@ contains
 
       !---~---
       !   Solve e(T) = E^n + dt (r0 + drdt (T - T^n)): on the plateau first, else on the ice or the
-      ! liquid line. An evaporation the linearization takes below zero or past the water the layer
-      ! holds is held there and the balance solved again, so the energy the layer takes is the
-      ! root's: with a few joules per kelvin, any mismatch would be a large temperature error.
+      ! liquid line. An evaporation the linearization takes past the water the layer holds is held
+      ! there and the balance solved again, so the energy the layer takes is the root's: with a few
+      ! joules per kelvin, any mismatch would be a large temperature error.
       !---~---
       do pass = 1, 2
          r0    = af * (rad_n - h_n - l_vap * w_n) + g_snow - g_n
@@ -742,11 +736,11 @@ contains
          end if
          dtemp = t_new - t_n
          w_s   = w_n + dw_dt * dtemp
-         if (w_s >= 0.0_wp .and. w_s <= w_cap) exit
-         w_n   = min(max(w_s, 0.0_wp), w_cap)                   ! held, and solved again
+         if (w_s <= w_cap) exit
+         w_n   = w_cap                                          ! held, and solved again
          dw_dt = 0.0_wp
       end do
-      w_s = min(max(w_s, 0.0_wp), w_cap)
+      w_s = min(w_s, w_cap)
 
       !--- The fluxes at T, on the linearization.
       h_s   = h_n + dh_dt * dtemp

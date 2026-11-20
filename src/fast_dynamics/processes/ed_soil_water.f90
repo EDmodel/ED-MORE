@@ -195,7 +195,8 @@ contains
       call smooth_max0(forcing%theta_init - theta1, DSL_THETA_WIDTH, dry, ddry)
       r_soil    = soil%dsl_dmax * dry / forcing%theta_span / forcing%dsl_diffusivity
       dr_dtheta = -soil%dsl_dmax * ddry / forcing%theta_span / forcing%dsl_diffusivity
-      resist    = forcing%r_aero + r_soil + forcing%r_cover
+      resist    = forcing%r_aero + r_soil
+      if (forcing%r_cover > 0.0_wp) resist = resist + forcing%r_cover      ! the organic layer above
       e_soil    = forcing%snow_free_frac * forcing%rho_air * drive / resist
       de_dpsi   = forcing%snow_free_frac * forcing%rho_air * ddrive * forcing%q_sat * dalpha / resist
       de_dtheta = -e_soil * dr_dtheta / resist
