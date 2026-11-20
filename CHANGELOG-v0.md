@@ -84,7 +84,7 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ### Answer changes
 
-- The ground has an organic layer: leaf litter, the above-ground litter pools' dry matter, over moss
+- The ground has an organic layer: leaf litter, the above-ground metabolic litter pool's dry matter, over moss
   (`[soil].moss_depth`, none by default). It is the ground's surface where it exists: it absorbs the
   ground's radiation, holds water up to its capacity (rain fills it before it ponds), evaporates, and
   insulates the soil, the snow conducting into it. The above-ground litter decays at its temperature

@@ -18,7 +18,7 @@ module ed_slow_dynamics
    use ed_config,               only : ed_config_t
    use ed_time,                 only : ed_time_t, day_of_year
    use ed_constants,            only : c2b_organic
-   use ed_biogeochem_params,    only : IP_FAST_GRND, IP_STRUCT_GRND
+   use ed_biogeochem_params,    only : IP_FAST_GRND
    use ed_polygon_state_vars,   only : polygon_t, patch_polygon_area
    use ed_patch_state_vars,     only : soil_carbon_state_t
    use ed_slow_ledger,          only : slow_ledger_t, slow_ledger_open, slow_ledger_heat_open,           &
@@ -92,7 +92,8 @@ contains
    end subroutine advance_slow_dynamics
 
    !---~---
-   !   The organic layer's litter follows the above-ground litter pools, which the soil-carbon
+   !   The organic layer's litter follows the above-ground metabolic litter pool (the structural pool,
+   ! which holds the coarse woody debris, waits for a fine-litter split), which the soil-carbon
    ! step has just advanced (docs/science/surface_organic_layer.md); the energy its dry matter
    ! brings or takes, at the layer's temperature, is declared.
    !---~---
@@ -103,8 +104,7 @@ contains
       real(wp)    :: mass(poly%patch%n), t_new(poly%patch%n), heat(poly%patch%n)
       integer(ik) :: ip
       do ip = 1_ik, poly%patch%n
-         mass(ip)  = c2b_organic * (poly%patch%soil_carbon(ip)%carbon(IP_FAST_GRND)                        &
-                                    + poly%patch%soil_carbon(ip)%carbon(IP_STRUCT_GRND))
+         mass(ip)  = c2b_organic * poly%patch%soil_carbon(ip)%carbon(IP_FAST_GRND)
          t_new(ip) = poly%patch%soil_energy(ip)%soil_temp(1)
       end do
       call follow_litter_pools(poly%patch, cfg%organic, mass, t_new, heat)

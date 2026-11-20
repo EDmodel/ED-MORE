@@ -12,7 +12,7 @@ The layer has two slots, top down: **litter** over **moss**. Each slot carries f
 
 | | Unit | Litter | Moss |
 |---|---|---|---|
-| dry matter $`M`$ | kg m⁻² | the above-ground litter pools' | a site's `[soil].moss_depth` × its bulk density |
+| dry matter $`M`$ | kg m⁻² | the above-ground metabolic litter pool's | a site's `[soil].moss_depth` × its bulk density |
 | water $`W`$ (liquid and ice) | kg m⁻² | prognostic | prognostic |
 | internal energy $`E`$ | J m⁻² | prognostic | prognostic |
 | bulk density $`\rho_b`$ | kg m⁻³ | its material's | its material's |
@@ -29,7 +29,7 @@ with $`c_{org}`$ = 1926 J kg⁻¹ K⁻¹ for dry organic matter (Farouki 1986). 
 
 ## Where the matter comes from
 
-- **Litter** follows the above-ground litter pools each slow step, after the soil-carbon step: $`M = 2\,(C_{fast,grnd} + C_{struct,grnd})`$, half of dry organic matter being carbon (`c2b_organic`). The structural pool includes the coarse woody debris. Matter that arrives or leaves does so at the layer's temperature, and the energy it brings or takes is a declared term of the slow ledger. Water above the slot's new capacity, or all its water when the litter is gone, passes to the pond with its energy. `[surface_layer].litter_on = false` keeps the litter slot empty.
+- **Litter** follows the above-ground metabolic litter pool each slow step, after the soil-carbon step: $`M = 2\,C_{fast,grnd}`$, half of dry organic matter being carbon (`c2b_organic`). The structural pool is left out: it holds the coarse woody debris too, and a big tree's dead wood spread over its gap patch would make a layer tens of centimetres deep. It joins once the soil carbon splits fine litter from woody debris. Matter that arrives or leaves does so at the layer's temperature, and the energy it brings or takes is a declared term of the slow ledger. Water above the slot's new capacity, or all its water when the litter is gone, passes to the pond with its energy. `[surface_layer].litter_on = false` keeps the litter slot empty.
 - **Moss** is prescribed: its depth is a site key, `[soil].moss_depth` (0 by default, so no moss), at its material's bulk density.
 - **At a start** the slots are filled with this matter, each holding the top soil layer's share of saturation of its capacity, at the top soil layer's temperature.
 
@@ -62,7 +62,7 @@ The balance is implicit in the layer's own temperature, so a thin layer of littl
 ## What reads the layer
 
 - **The two-stream and the aerodynamics:** the ground emits at the layer's temperature, and the under-canopy stability reads it.
-- **Decomposition:** the above-ground litter pools (metabolic and structural) take the layer's temperature and its fill as their moisture, instead of the top soil layer's ([soil_carbon](soil_carbon.md)).
+- **Decomposition:** the above-ground litter pools (metabolic and structural; both lie on the ground, though only the metabolic one makes the layer) take the layer's temperature and its fill as their moisture, instead of the top soil layer's ([soil_carbon](soil_carbon.md)).
 - **Outputs:** `mean_organic_temp_py` (the soil top's where there is no layer) and `mean_organic_water_py`, and their per-patch forms.
 
 ## Ledgers
@@ -90,7 +90,7 @@ and `[soil].moss_depth` [m], which a `[[sites]]` table may set. The checks refus
 - The two slots are one thermal node: moss under litter does not hold a temperature of its own.
 - Its optics are the ground's.
 - The moss is prescribed: it neither grows nor photosynthesises.
-- The litter is all the above-ground litter, coarse woody debris included.
+- The litter is the metabolic pool alone: the structural leaf litter is not in the layer until the soil carbon splits it from the woody debris.
 
 ## Code map
 
