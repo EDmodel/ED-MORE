@@ -244,7 +244,7 @@ contains
    subroutine test_census_refusals()
       integer, parameter  :: N_CASE = 14
       character(len=64)   :: header(N_CASE), row1(N_CASE), row2(N_CASE)
-      character(len=80)   :: expect(N_CASE)
+      character(len=96)   :: expect(N_CASE)
       character(len=256)  :: wide
       type(ed_config_t)   :: cfg
       type(polygon_t)     :: poly
