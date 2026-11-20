@@ -808,10 +808,14 @@ contains
          !--- Bare-soil aerodynamic resistance; snow_free_frac above weights the flux, not this.
          drive%ground%r_aero = 1.0_wp / max(ggnet, tiny_num)
          drive%t_soil(1:nsl) = dynamic%soil_energy%soil_temp(1:nsl)
-         !--- Each layer's ice, held over the step (docs/science/soil_biophysics.md, "Frozen soil").
+         !---~---
+         !   Each layer's ice beside the liquid it starts with: the ice is held over the step, and
+         ! melts for the water drawn below that liquid (docs/science/soil_biophysics.md, "Frozen soil").
+         !---~---
          drive%ice(1:nsl) = soil_ice_state(profile%layer_curve(1:nsl),                                            &
                                            (1.0_wp - dynamic%soil_energy%soil_fliq(1:nsl))                        &
-                                           * dynamic%soil_water%theta(1:nsl))
+                                           * dynamic%soil_water%theta(1:nsl),                                     &
+                                           dynamic%soil_energy%soil_fliq(1:nsl) * dynamic%soil_water%theta(1:nsl))
          !--- The rain the surface water captures and drips back is the throughfall's, at its temperature.
          frozen%veg_surface%rain_liquid_enthalpy = internal_energy_liquid(t_water_base)
       end associate

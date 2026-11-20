@@ -388,7 +388,7 @@ contains
       print '(a)', 'test_aquifer_face_ice:'
       call loam_params(params)
       n = 10_ik
-      ice = soil_ice_state(params%layer_curve(n), THETA_ICE)
+      ice = soil_ice_state(params%layer_curve(n), THETA_ICE, params%layer_curve(n)%theta_res)
       opts%water_bottom_bc = SOIL_BC_AQUIFER
       do k = 1_ik, 2_ik
          call bottom_flux(params, opts, n, HEAD(k) * grav_head, K_LIQ, 1.0_wp, q_thaw, dqp_thaw, dqk)

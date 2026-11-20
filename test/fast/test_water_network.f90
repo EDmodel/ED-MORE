@@ -43,6 +43,9 @@
 !                        (water_derivs), so it forms below dsl_theta_init of the pores the ice
 !                        leaves (CLM5's effective porosity); above that the layer evaporates as
 !                        one with no dry surface layer, at its liquid's potential.
+!  21. FROZEN SUBLIMATION: a frozen top layer under dry air loses more water than its liquid holds
+!                        above residual: the ice melts to supply it, the liquid stays at the
+!                        freezing curve's potential, no sub-step is forced, and the water closes.
 !---~---
 program test_water_network
    use ed_test_assert, only : check_true, check_close, check_int, test_report
@@ -59,7 +62,7 @@ program test_water_network
    use ed_plant_hydr_lib,   only : water_curve_t, tissue_psi_to_rwc, tissue_psi_tlp
    use ed_pft_derive,       only : build_kirchhoff_table
    use ed_soil_hydr_lib,     only : SOIL_RETENTION_VG, SOIL_RETENTION_CAMPBELL, soil_theta_to_head, soil_ice_state,  &
-                                    soil_liquid_capacity
+                                    soil_liquid_capacity, soil_water_relations
    use ed_therm_lib,         only : internal_energy_liquid, liquid_energy_to_temp, sat_specific_humidity
    use ed_pft_params,    only : hydraulics_table_t
    use ed_soil_params, only : soil_profile_t, soil_params_t, SOIL_BC_DRAIN, SOIL_BC_AQUIFER
@@ -753,6 +756,7 @@ contains
       call test_aquifer()
       call test_frozen_top()
       call test_frozen_surface_evaporation()
+      call test_frozen_sublimation()
       soil = clay
    end subroutine test_column_scenarios
 
@@ -792,7 +796,8 @@ contains
       integer(ik) :: k
       do k = 1_ik, nfrozen
          call soil_liquid_capacity(soil%layer_curve(k), temp, theta_liq, dtheta)
-         st%drive%ice(k) = soil_ice_state(soil%layer_curve(k), max(theta(k) - theta_liq, 0.0_wp))
+         st%drive%ice(k) = soil_ice_state(soil%layer_curve(k), max(theta(k) - theta_liq, 0.0_wp),                 &
+                                          min(theta(k), theta_liq))
       end do
       call set_water_state(st%static, soil, hyd, theta, st%drive%ice, 0.0_wp, 0.0_wp, dum, dum, st%water)
    end subroutine freeze_top
@@ -1070,7 +1075,7 @@ contains
          call make_column(col, theta)
          col%drive%ground%t_ground = T_GROUND
          col%drive%ground%q_air    = Q_AIR
-         col%drive%ice(1) = soil_ice_state(soil%layer_curve(1), THETA_ICE)
+         col%drive%ice(1) = soil_ice_state(soil%layer_curve(1), THETA_ICE, theta_liq)
          call set_water_state(col%static, soil, hyd, theta, col%drive%ice, 0.0_wp, 0.0_wp, dum, dum, col%water)
          call ground_evaporation_setup(soil, opts, col%drive%ground)
          call water_derivs(col%static, soil, opts, hyd, col%drive, col%water%state%tau_soil, col%water%state%tau_coh, &
@@ -1086,6 +1091,57 @@ contains
       call check_true('frozen surface: liquid below it is held back by a dry surface layer', e(2) < 0.9_wp * e_free(2), &
                       e(2) / e_free(2))
    end subroutine test_frozen_surface_evaporation
+
+   !---~---
+   !   A loam column whose top layer is frozen at -2 C, under dry air for two days: its
+   ! sublimation outruns the liquid it holds above residual (docs/science/soil_biophysics.md,
+   ! "Frozen soil"). The ice melts to supply the water: the layer's liquid stays at the
+   ! freezing curve's potential, the evaporation goes on, no sub-step is forced through, and
+   ! the column's water closes against what crosses its boundary (the base drains freely).
+   ! Drawing on the liquid alone, the layer would empty of liquid within a day and its water
+   ! step would fail.
+   !---~---
+   subroutine test_frozen_sublimation()
+      type(soil_params_t)  :: opts
+      type(stand_t)        :: col
+      real(wp), parameter  :: T_FROZEN = 271.15_wp
+      real(wp) :: theta(10), theta_liq, dtheta, w0, evap, evap_first, psi0, buffer, crossed, dum
+      integer(ik) :: step, nfail
+      theta = 0.30_wp
+      call make_column(col, theta)
+      col%drive%t_soil = T_FROZEN
+      col%drive%ground%t_ground = T_FROZEN
+      col%drive%ground%q_air    = 0.0_wp
+      col%drive%ground%r_aero   = 10.0_wp
+      call freeze_top(col, theta, T_FROZEN, 1_ik)
+      call ground_evaporation_setup(soil, opts, col%drive%ground)
+      call soil_liquid_capacity(soil%layer_curve(1), T_FROZEN, theta_liq, dtheta)
+      buffer = rho_h2o * soil%dz(1) * (theta_liq - soil%theta_res(1))     ! [kg/m2] liquid above residual
+      w0 = total_water(col)
+      call soil_water_relations(soil%layer_curve(1), col%drive%ice(1), col%water%state%tau_soil(2), psi0, dum,    &
+                                dum, dum, dum, dum)
+      evap = 0.0_wp
+      crossed = 0.0_wp
+      nfail = 0_ik
+      do step = 1_ik, 192_ik
+         call advance(col, opts, 900.0_wp)
+         evap = evap + col%water%flows%evap
+         crossed = crossed + boundary_water(col, 900.0_wp)
+         if (step == 1_ik) evap_first = col%water%flows%evap
+         nfail = nfail + col%work(WORK_WATER_NFAIL)
+      end do
+      call check_true('frozen sublimation: the layer loses more than its liquid above residual', evap > buffer,      &
+                      evap / buffer)
+      call check_true('frozen sublimation: and less than its ice', evap < rho_h2o * soil%dz(1) * (theta(1) - theta_liq), &
+                      evap)
+      call check_int('frozen sublimation: no sub-step forced through', nfail, 0_ik)
+      call check_close('frozen sublimation: the liquid stays at the freezing curve''s potential',                    &
+                       col%water%state%psi_soil(2), psi0, 1.0e-9_wp * abs(psi0))
+      call check_true('frozen sublimation: the evaporation goes on', col%water%flows%evap > 0.5_wp * evap_first,      &
+                      col%water%flows%evap / evap_first)
+      call check_close('frozen sublimation: change in store = the water crossing the boundary (evaporation, drainage)', &
+                       total_water(col) - w0, crossed, 1.0e-10_wp * w0)
+   end subroutine test_frozen_sublimation
 
    !--- Small helpers.
    !--- A linear congruential generator, in 64-bit arithmetic so the product cannot overflow.

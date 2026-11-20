@@ -84,6 +84,13 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ### Answer changes
 
+- A frozen soil layer's ice supplies the water drawn out of it. Water a frozen layer loses below the liquid it
+  starts a step with (sublimation, drainage, root uptake) melts its ice, its liquid staying at the freezing curve's
+  potential, where it used to come from the liquid alone. A steep retention curve, a peat's, holds too little liquid
+  above residual when frozen to supply a step's sublimation: its water step failed, a wrong state was committed and
+  the run ended in NaN within days (docs/science/soil_biophysics.md, "Frozen soil"). In example 04's first year BCI,
+  which never freezes, is bit for bit; Harvard's mean LE moves 0.001 % and its SWE 0.02 % (an hour's LE at most
+  0.2 W/m²), Tonzi's less. (#TBD)
 - The ground has an organic layer: leaf litter, the above-ground metabolic litter pool's dry matter, over moss
   (`[soil].moss_depth`, none by default). It is the ground's surface where it exists: it absorbs the
   ground's radiation, holds water up to its capacity (rain fills it before it ponds), evaporates, and

@@ -253,14 +253,16 @@ with $`C_{dry}`$ the solids' heat capacity per m³, $`\rho_w`$ the density of wa
 
 The thermal step (§ The soil thermal column) and every diagnosis use this one inversion.
 
-**Water.** Over a water step each layer's ice is held at its start, $`\theta_{ice}=(1-f_{liq})\,\theta`$
-(`soil_ice_t`, built by `soil_ice_state`). The water network then reads the layer as follows:
+**Water.** Over a water step each layer's ice is held at its start, $`\theta_{ice}=(1-f_{liq})\,\theta`$,
+beside the liquid it starts with, $`\theta_{liq,0}=f_{liq}\,\theta`$ (`soil_ice_t`, built by `soil_ice_state`),
+unless water is drawn out below that liquid. The water network then reads the layer as follows:
 - **The liquid's potential is the curve's at the liquid's content**, $`\psi(\theta-\theta_{ice})`$, on the full pore space. A frozen layer's liquid therefore sits at $`h_{frz}(T)`$, and it draws water from the wet soil beside it (cryosuction).
 - **The ice impedes the flow:** each node's conductivity is the liquid's times $`10^{-6\,\theta_{ice}/\theta_{sat}}`$ (CLM5; Swenson et al. 2012). The face conductivity is the weighted geometric mean of its two nodes' (eq. (3)), so a face takes 10 to the mean of its nodes' ice fractions, which is CLM5's face impedance. The pond face and the aquifer face lie inside the top and bottom layers, so each takes its layer's impedance in full: the pond conducts at $`K_{sat,1}`$ times the top layer's impedance, and the table at $`K_{sat,n}`$ times the bottom layer's.
 - **Pores the ice leaves.** Once the liquid fills the pores the ice leaves, $`\theta_{liq}=\theta_{sat}-\theta_{ice}`$, the layer holds no more water. The liquid's head rises from the head the pores filled at (pressure in a gas-free frozen soil), and above zero the layer stores through the specific storage, as a thawed layer does. Cryosuction therefore fills a frozen layer to saturation and no further.
 - **Evaporation** reads the liquid. Philip's humidity is taken on the liquid's potential, with saturation over liquid: on the freezing curve the liquid's vapour pressure is the ice's, so blending in the ice's saturation as well would count the ice twice. The dry surface layer reads the liquid plus `[soil].dsl_theta_init` of the ice, so it forms below `dsl_theta_init` of the pores the ice leaves, which is CLM5's effective porosity.
+- **The ice supplies the water drawn out.** Water drawn below $`\theta_{liq,0}`$ (sublimation, drainage, root uptake) comes from the ice: the ice melts and the liquid stays at $`\theta_{liq,0}`$, at the freezing curve's potential and conductivity, until the ice is gone (the melt plateau); only then does the liquid fall below its start. A frozen layer in equilibrium keeps its liquid on the freezing curve, so this is what it does. Drawn from the liquid alone, a steep curve could not supply a step: a peat of $`n`$ 3.3 holds a millionth of its pores as liquid above $`\theta_{res}`$ at −2 °C, about $`6\times10^{-5}`$ kg m⁻² in a 5 cm layer, against $`10^{-4}`$–$`10^{-3}`$ kg m⁻² of sublimation a step under dry winter air.
 
-The energy step that follows sees the new water through $`\theta`$, so water drawn into a frozen layer freezes there at the next diagnosis, and its latent heat enters the layer's energy balance.
+The energy step that follows sees the new water through $`\theta`$, so water drawn into a frozen layer freezes there at the next diagnosis, and water drawn out of one leaves at the liquid's enthalpy, the next diagnosis taking the latent heat of the ice that melted for it from the layer, which cools. Either way the latent heat enters the layer's energy balance.
 
 ## Water–thermal coupling
 

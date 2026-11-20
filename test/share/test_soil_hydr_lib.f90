@@ -11,7 +11,10 @@
 !      through the specific storage.
 !   2. FROZEN SOIL (soil_liquid_capacity, soil_ice_state): the freezing curve against the
 !      retention curve at the freezing head; a layer's ice adds its water, impedes K and
-!      fills the pores smoothly; a zero-ice record is a layer with no ice.
+!      fills the pores smoothly; a zero-ice record is a layer with no ice. Water drawn below
+!      the liquid a frozen layer starts with melts its ice at the start's potential (the
+!      melt plateau), then the liquid's curve resumes once the ice is gone; every join is
+!      continuous and the unknown round-trips through all three.
 !   3. POND (pond_water_relations, pond_water_to_head): smooth at empty and at the
 !      depression depth; water -> head round-trips.
 !   4. PEDOTRANSFER (soil_texture_to_hydraulics): Hodnett & Tomasella (2002)'s worked
@@ -34,6 +37,7 @@ program test_soil_hydr_lib
 
    call test_soil_water_relations()
    call test_frozen_soil()
+   call test_melt_plateau()
    call test_pond_water_relations()
    call test_pedotransfer()
    call test_relative_saturation()
@@ -203,7 +207,7 @@ contains
                          fd_agrees(dtheta, (theta_p - theta_m) / 2.0e-4_wp, 1.0e-5_wp, 1.0e-12_wp))
 
          !--- A zero-ice record is a layer with no ice, to the bit.
-         zero_ice = soil_ice_state(c(ic), 0.0_wp)
+         zero_ice = soil_ice_state(c(ic), 0.0_wp, 0.2_wp)
          ok_same = .true.
          do i = 1, 50
             tau = c(ic)%se_switch * real(i, wp) / 40.0_wp
@@ -217,9 +221,10 @@ contains
          !---~---
          !   With ice: the impedance; below the pore-full point the liquid's relations plus the
          ! ice's water and the impedance on K; every slope against finite differences across
-         ! that point and into the pore-full branch.
+         ! that point and into the pore-full branch. The layer starts at its residual liquid, so
+         ! its melt plateau (test_melt_plateau) lies below every unknown tried here.
          !---~---
-         ice = soil_ice_state(c(ic), theta_ice)
+         ice = soil_ice_state(c(ic), theta_ice, c(ic)%theta_res)
          call check_close(trim(label(ic))//': ice impedance 10^(-6 theta_ice/theta_sat)', ice%impedance,          &
                           10.0_wp ** (-6.0_wp * theta_ice / c(ic)%theta_sat), 1.0e-14_wp)
          ok_fd = .true.
@@ -270,6 +275,109 @@ contains
          call check_true(trim(label(ic))//': frozen theta -> unknown -> theta round-trips', ok_round)
       end do
    end subroutine test_frozen_soil
+
+   !---~---
+   !   2b. The melt plateau. A layer frozen at -2 C starts with the freezing curve's liquid and
+   ! some ice. Water drawn below that liquid melts the ice: the potential and conductivity
+   ! stay the start's while the water falls linearly to the liquid alone, then the liquid's
+   ! curve resumes. Every join is continuous, the slopes match finite differences, and theta
+   ! round-trips through the three. The fourth curve is a steep peat, whose frozen liquid sits
+   ! a millionth of its pores above residual.
+   !---~---
+   subroutine test_melt_plateau()
+      type(soil_layer_curve_t) :: c(4)
+      type(soil_ice_t)         :: ice, no_ice
+      character(len=24)        :: label(4)
+      real(wp) :: theta_liq, dtheta, theta_ice, rdz, tau_m, tau_d, tau, h, theta, tau_back, dum
+      real(wp) :: psi, dpsi, w, dw, k, dk, psi0, dpsi0, w0, dw0, k0, dk0, psip, psim, wp_, wm, kp, km
+      real(wp) :: psi_lo, w_lo, k_lo, psi_hi, w_hi, k_hi
+      real(wp) :: taus(6), thetas(4)
+      integer  :: ic, i
+      logical  :: ok_fd, ok_round, ok_dw
+      call build_soil_layer_curve(SOIL_RETENTION_VG, 0.4314_wp, 0.0981_wp, 0.7607_wp, 1.3554_wp, 4.54e-6_wp, 0.05_wp, c(1))
+      call build_soil_layer_curve(SOIL_RETENTION_VG, 0.38_wp, 0.05_wp, 3.5_wp, 2.7_wp, 8.0e-5_wp, 0.10_wp, c(2))
+      call build_soil_layer_curve(SOIL_RETENTION_CAMPBELL, 0.45_wp, 0.0_wp, -0.25_wp, 6.0_wp, 5.0e-6_wp, 0.20_wp, c(3))
+      call build_soil_layer_curve(SOIL_RETENTION_VG, 0.895_wp, 0.141_wp, 1.03_wp, 3.34_wp, 2.0e-6_wp, 0.05_wp, c(4))
+      label = [character(len=24) :: 'vG clay (BCI)', 'vG sand', 'Campbell loam', 'vG peat (steep)']
+      do ic = 1, 4
+         call soil_liquid_capacity(c(ic), t_3ple - 2.0_wp, theta_liq, dtheta)
+         theta_ice = 0.25_wp * (c(ic)%theta_sat - theta_liq)
+         rdz = rho_h2o * c(ic)%dz
+         ice = soil_ice_state(c(ic), theta_ice, theta_liq)
+         tau_m = ice%tau_melt
+         tau_d = ice%tau_dry
+         call check_true(trim(label(ic))//': the plateau lies below the start, above zero',                   &
+                         tau_d > 0.0_wp .and. tau_d < tau_m .and. tau_m < ice%tau_full)
+         !--- The start: the liquid and the ice, at the liquid's potential.
+         call soil_water_relations(c(ic), ice, tau_m, psi, dpsi, w, dw, k, dk)
+         call soil_water_relations(c(ic), no_ice, tau_m, psi0, dpsi0, w0, dw0, k0, dk0)
+         call check_close(trim(label(ic))//': start water = liquid + ice', w / rdz, theta_liq + theta_ice, 1.0e-10_wp)
+         call check_true(trim(label(ic))//': start potential = the liquid''s', abs(psi - psi0) <= 1.0e-14_wp * abs(psi0))
+         !--- The joins: at the start (plateau below, liquid above) and where the ice is gone.
+         call soil_water_relations(c(ic), ice, tau_m * (1.0_wp - 1.0e-10_wp), psi_lo, dum, w_lo, dum, k_lo, dum)
+         call soil_water_relations(c(ic), ice, tau_m * (1.0_wp + 1.0e-10_wp), psi_hi, dum, w_hi, dum, k_hi, dum)
+         call check_true(trim(label(ic))//': the start joins (potential, water, conductivity)',               &
+                         abs(psi_hi - psi_lo) <= 1.0e-6_wp * abs(psi_lo) + 1.0e-12_wp .and.                   &
+                         abs(w_hi - w_lo) <= 1.0e-8_wp * w_lo .and. abs(k_hi - k_lo) <= 1.0e-6_wp * k_lo)
+         call soil_water_relations(c(ic), ice, tau_d * (1.0_wp - 1.0e-10_wp), psi_lo, dum, w_lo, dum, k_lo, dum)
+         call soil_water_relations(c(ic), ice, tau_d * (1.0_wp + 1.0e-10_wp), psi_hi, dum, w_hi, dum, k_hi, dum)
+         call check_true(trim(label(ic))//': the ice runs out smoothly (potential, water, conductivity)',     &
+                         abs(psi_hi - psi_lo) <= 1.0e-6_wp * abs(psi_lo) + 1.0e-12_wp .and.                   &
+                         abs(w_hi - w_lo) <= 1.0e-8_wp * w_lo .and. abs(k_hi - k_lo) <= 1.0e-6_wp * k_lo)
+         call check_close(trim(label(ic))//': the ice gone leaves the start''s liquid', w_lo / rdz, theta_liq,  &
+                          1.0e-8_wp)
+         !--- On the plateau: the start's potential, the water halfway at the plateau's middle.
+         call soil_water_relations(c(ic), ice, 0.5_wp * (tau_m + tau_d), psi, dpsi, w, dw, k, dk)
+         call check_true(trim(label(ic))//': the plateau keeps the start''s potential and conductivity',     &
+                         abs(psi - psi0) <= 1.0e-14_wp * abs(psi0) .and. dpsi == 0.0_wp .and.                 &
+                         abs(k - k0 * ice%impedance) <= 1.0e-14_wp * k)
+         call check_close(trim(label(ic))//': half the plateau melts half the ice', w / rdz,                  &
+                          theta_liq + 0.5_wp * theta_ice, 1.0e-10_wp)
+         !---~---
+         !   The plateau's slopes against finite differences. Below it, with the ice gone, the
+         ! relations are the liquid's at the stretched unknown, their slopes stretched: checked as
+         ! that identity, since there the liquid sits near residual, where a finite difference
+         ! of K or W measures their rounding (section 1 checks the liquid's own slopes).
+         !---~---
+         taus = [0.9_wp, 0.7_wp, 0.55_wp, 0.4_wp, 0.2_wp, 0.05_wp] * tau_m
+         ok_fd = .true.
+         ok_dw = .true.
+         do i = 1, size(taus)
+            tau = taus(i)
+            call soil_water_relations(c(ic), ice, tau, psi, dpsi, w, dw, k, dk)
+            if (tau >= tau_d) then
+               h = 1.0e-7_wp * tau
+               call soil_water_relations(c(ic), ice, tau + h, psip, dum, wp_, dum, kp, dum)
+               call soil_water_relations(c(ic), ice, tau - h, psim, dum, wm, dum, km, dum)
+               if (.not. fd_agrees(dpsi, (psip - psim) / (2*h), 1.0e-4_wp, 1.0e-12_wp)) ok_fd = .false.
+               if (.not. fd_agrees(dw,   (wp_ - wm) / (2*h),    1.0e-4_wp, 1.0e-9_wp))  ok_fd = .false.
+               if (.not. fd_agrees(dk,   (kp - km) / (2*h),     1.0e-4_wp, 1.0e-20_wp)) ok_fd = .false.
+            else
+               call soil_water_relations(c(ic), no_ice, tau * tau_m / tau_d, psi0, dpsi0, w0, dw0, k0, dk0)
+               if (abs(psi - psi0) > 1.0e-14_wp * abs(psi0) .or. abs(w - w0) > 1.0e-14_wp * w0 .or.            &
+                   abs(dpsi - dpsi0 * tau_m / tau_d) > 1.0e-12_wp * abs(dpsi) .or.                             &
+                   abs(dw - dw0 * tau_m / tau_d) > 1.0e-12_wp * dw .or.                                        &
+                   abs(k - k0 * ice%impedance) > 1.0e-14_wp * k .or.                                           &
+                   abs(dk - dk0 * ice%impedance * tau_m / tau_d) > 1.0e-12_wp * abs(dk)) ok_fd = .false.
+            end if
+            if (.not. dw > 0.0_wp) ok_dw = .false.
+         end do
+         call check_true(trim(label(ic))//': plateau slopes = finite differences; melted = the stretched curve',  &
+                         ok_fd)
+         call check_true(trim(label(ic))//': the water rises with the unknown', ok_dw)
+         !--- theta -> unknown -> theta: below the start's liquid, on the plateau, and above it.
+         thetas = [theta_liq - 0.5_wp * (theta_liq - c(ic)%theta_res), theta_liq + 0.25_wp * theta_ice,          &
+                   theta_liq + 0.75_wp * theta_ice, 0.5_wp * (theta_liq + theta_ice + c(ic)%theta_sat)]
+         ok_round = .true.
+         do i = 1, size(thetas)
+            theta = thetas(i)
+            tau_back = soil_theta_to_unknown(c(ic), ice, theta)
+            call soil_water_relations(c(ic), ice, tau_back, psi, dpsi, w, dw, k, dk)
+            if (abs(w / rdz - theta) > 1.0e-10_wp) ok_round = .false.
+         end do
+         call check_true(trim(label(ic))//': theta -> unknown -> theta through the plateau', ok_round)
+      end do
+   end subroutine test_melt_plateau
 
    !---~---
    !   3. The pond's relations: smooth at empty and at the depression depth, water -> head round
