@@ -89,7 +89,10 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   rest stays the pond. A pond below its freezing point (sub-threshold snow, freezing rain) starts a layer of ice. It
   used to stay liquid and could hold the energy of ice far below 0 °C. The layer gains a bulk density:
   snowfall adds depth at `[snow].rho_snow`, and water the layer keeps from a pond adds it as ice, at
-  917 kg/m³. A pack with no pond and a warm pond with no pack are unchanged. (#TBD)
+  917 kg/m³. A pack with no pond and a warm pond with no pack are unchanged: BCI and Tonzi (example
+  04) are bit for bit. At Harvard in 2019, meltwater that pooled on the frozen ground under the pack
+  now refreezes into it: the mean SWE rises 28 % (14.4 to 18.4 kg/m²) and the pack melts out a week
+  later; LE moves −0.03 % and H +0.2 %. (#TBD)
 - A plant is one individual: a tree with several stems is one plant at the diameter of their
   summed basal area, $`\sqrt{\sum_i D_i^2}`$. `make_census.py` lumps a stem table's stems per tree, and
   an earlier census's stems follow the trees the later census gives them. Harvard's stand (examples 04
