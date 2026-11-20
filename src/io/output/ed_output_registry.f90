@@ -1622,7 +1622,7 @@ contains
 
    pure function dim_name(d) result(s)
       integer(ik), intent(in) :: d
-      character(len=10) :: s
+      character(len=16) :: s
       select case (d)
       case (DIM_SCALAR)
          s = 'polygon'
