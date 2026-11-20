@@ -89,7 +89,11 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   ground's radiation, holds water up to its capacity (rain fills it before it ponds), evaporates, and
   insulates the soil, the snow conducting into it. The above-ground litter decays at its temperature
   and moisture. Litter is on by default (`[surface_layer].litter_on`), so every run with litter pools
-  moves (docs/science/surface_organic_layer.md). (#TBD)
+  moves (docs/science/surface_organic_layer.md). In example 04's first year the litter's own rain and
+  its evaporation raise LE 0.5 % at BCI, 6.2 % at Harvard (53.9 to 57.2 W/m², H 35.9 to 33.1) and
+  4.7 % at Tonzi (41.4 to 43.3 W/m², the upwelling longwave 1.8 W/m² lower); GPP moves −0.05 to
+  −1.1 % and Harvard's mean SWE −3 %. The above-ground pools decay at the litter's moisture, so
+  Harvard's heterotrophic respiration rises fourfold (0.017 to 0.068 µmol m⁻² s⁻¹). (#TBD)
 - The pond is the free water of the ground's water layer, which can now freeze. At each fast step's
   start a pond joins a snow pack, sharing its energy: the pack freezes what its cold can, and the
   rest stays the pond. A pond below its freezing point (sub-threshold snow, freezing rain) starts a layer of ice. It
