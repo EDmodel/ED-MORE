@@ -371,8 +371,9 @@ contains
    ! liquid it holds beyond its capacity drains, a paired (mass, enthalpy) transfer, with its
    ! cover fraction. A pond below its freezing point starts the layer, as ice, before the
    ! precipitation, which then joins it; otherwise the pond joins a pack the precipitation leaves.
-   ! The drained water refills the pond first, up to what it held, and the rest reaches it over
-   ! the step as meltwater; what the pack keeps of the pond adds its depth as ice. env's pack
+   ! The pond joins by freezing: the layer keeps no more liquid than it held before, so what it
+   ! keeps of the pond is what its cold freezes, and that adds its depth as ice. The drained water
+   ! refills the pond first, up to what it held, and the rest reaches it over the step as meltwater. env's pack
    ! enters as the pack at the step's start and leaves advanced, with env's cover set; the pond
    ! enters as the step's start and leaves as the pond the step starts from; st returns the
    ! drainage and the stage's hand-off. The exchange is then with this pack
@@ -388,7 +389,7 @@ contains
       real(wp),            intent(inout) :: w_pond         ! [kg/m2]   the pond's water
       real(wp),            intent(inout) :: e_pond         ! [J/m2]    the pond's energy
       real(wp) :: swe0, enth0, e_before, acc_enth, melt_enth, w_pond0, e_pond0, drained, drained_enth
-      real(wp) :: back, back_enth
+      real(wp) :: back, back_enth, liq_before, t_now, fl_now, extra
       logical  :: exists, took_pond, joined
 
       swe0      = env%pack%swe(1)
@@ -405,7 +406,10 @@ contains
       call snow_accumulate(env%pack, snowfall, rainfall, t_air, env%dt, env%params)
       acc_enth = env%pack%snow_energy(1) - e_before      ! precipitation (rain and snow) enthalpy into the pack
       exists   = env%pack%nlayer >= 1_ik                 ! a pack took the snow and the rain
+      liq_before = 0.0_wp                                ! the liquid the layer held before a pond joined it
       if (exists .and. .not. took_pond .and. w_pond > 0.0_wp) then
+         call internal_energy_to_temp(env%pack%snow_energy(1), env%pack%swe(1), 0.0_wp, t_now, fl_now)
+         liq_before = fl_now * env%pack%swe(1)
          call snow_take_pond(env%pack, w_pond, e_pond)           ! the pond joins the pack
          took_pond = .true.
          joined    = .true.
@@ -418,6 +422,29 @@ contains
          ! and pond are both tracked stores, so the transfer cancels in the column's ledger.
          !---~---
          call snow_drain_meltwater(env%pack, env%params, st)
+         if (took_pond .and. env%pack%nlayer >= 1_ik) then
+            !---~---
+            !   The pond joins the layer by freezing: its liquid does not rise into the pores, so the
+            ! layer keeps no more liquid than it held before; the rest, at the plateau, drains.
+            !---~---
+            call internal_energy_to_temp(env%pack%snow_energy(1), env%pack%swe(1), 0.0_wp, t_now, fl_now)
+            extra = fl_now * env%pack%swe(1) - liq_before
+            if (extra > 0.0_wp) then
+               st%melt_mass = st%melt_mass + extra
+               st%melt_enth = st%melt_enth + extra * internal_energy_liquid(t_3ple)
+               env%pack%swe(1)         = env%pack%swe(1) - extra
+               env%pack%snow_energy(1) = env%pack%snow_energy(1) - extra * internal_energy_liquid(t_3ple)
+               env%pack%snow_depth(1)  = env%pack%swe(1) / env%pack%density(1)
+               if (env%pack%swe(1) <= env%params%tiny_snow_mass) then
+                  st%dump_mass = st%dump_mass + max(0.0_wp, env%pack%swe(1))
+                  st%dump_enth = st%dump_enth + env%pack%snow_energy(1)
+                  call clear_layer(env%pack)
+               else
+                  call internal_energy_to_temp(env%pack%snow_energy(1), env%pack%swe(1), 0.0_wp,                  &
+                                               env%pack%snow_temp(1), env%pack%snow_fliq(1))
+               end if
+            end if
+         end if
          if (took_pond) then
             !--- The drained water, at one temperature, refills the pond up to what it held.
             drained      = st%melt_mass + st%dump_mass

@@ -26,9 +26,9 @@
 !      difference and no latent flux without evaporation; warm ground heats the canopy
 !      air, in proportion to the difference and at the canopy air's specific heat; the
 !      ground surface's exchange takes that specific heat from its surroundings.
-!   9. THE POND (prepare_snow_stage): a pond below its freezing point starts a layer of ice
-!      and keeps the liquid beyond what the ice holds; a cold pack takes a pond and freezes
-!      it, deeper by its water as ice; a warm pond with no pack is left as it is; an empty
+!   9. THE POND (prepare_snow_stage): a pond below its freezing point starts a layer of its
+!      ice and keeps its liquid; a cold pack takes a pond and freezes it, deeper by its water
+!      as ice; a pack at the plateau takes none of a pond's liquid; a warm pond with no pack is left as it is; an empty
 !      pond leaves a pack as it was; snow on ice mixes the densities by volume. The stores
 !      the stage reports for the ledger, with the pond it leaves, are the stores it began from.
 ! The energy datum the pack is held in is test_therm_lib's.
@@ -419,10 +419,11 @@ contains
       w  = w0
       e  = e0
       call prepare_snow_stage(0.0_wp, 0.0_wp, 265.0_wp, 0.01_wp, env, st, w, e)
-      hold = w0 * (0.5_wp - p%liquid_holding_frac) / (1.0_wp - p%liquid_holding_frac)
+      hold = 0.5_wp * w0                                         ! the pond's liquid
       call check_true('a freezing pond starts a layer', st%exists .and. env%pack%nlayer == 1_ik)
       call check('the layer is ice', env%pack%density(1), rho_ice, 0.0_wp)
-      call check('the liquid beyond what the ice holds stays the pond', w, hold, 1.0e-12_wp)
+      call check('the pond keeps its liquid', w, hold, 1.0e-12_wp)
+      call check('the layer is the pond''s ice', env%pack%swe(1), w0 - hold, 1.0e-12_wp)
       call check('MASS: layer + pond + drained = the pond', env%pack%swe(1) + w + st%melt_mass + st%dump_mass, w0, &
                  1.0e-12_wp)
       call check('ENERGY: layer + pond + drained = the pond', env%pack%snow_energy(1) + e + st%melt_enth          &
@@ -453,6 +454,21 @@ contains
                  1.0e-9_wp * abs(e0))
       call check_true('the frozen pond warmed the pack', env%pack%snow_temp(1) > 255.0_wp                         &
                       .and. env%pack%snow_fliq(1) == 0.0_wp, env%pack%snow_temp(1))
+
+      !--- (b2) A pack at the plateau, holding little liquid, and a pond: it takes none of the pond.
+      call cold_env(env)
+      env%params = p
+      env%dt     = DT
+      env%pack   = cold_pack(40.0_wp, t_3ple, p)
+      env%pack%snow_energy(1) = temp_to_internal_energy(0.0_wp, 40.0_wp, t_3ple, 0.02_wp)   ! 2 % liquid
+      w0 = 2.0_wp
+      e0 = w0 * internal_energy_liquid(t_3ple)
+      w  = w0
+      e  = e0
+      call prepare_snow_stage(0.0_wp, 0.0_wp, t_3ple, 0.01_wp, env, st, w, e)
+      call check('a pack at the plateau leaves the pond its water', w, w0, 1.0e-12_wp)
+      call check('and keeps its own', env%pack%swe(1), 40.0_wp, 1.0e-12_wp)
+      call check_true('and its density', env%pack%density(1) == p%rho_snow)
 
       !--- (c) A warm pond and no pack: left as it is.
       call cold_env(env)

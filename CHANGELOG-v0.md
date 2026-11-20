@@ -85,8 +85,8 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 ### Answer changes
 
 - The pond is the free water of the ground's water layer, which can now freeze. At each fast step's
-  start a pond joins a snow pack, sharing its energy, and the pack gives back the liquid it does not
-  hold. A pond below its freezing point (sub-threshold snow, freezing rain) starts a layer of ice. It
+  start a pond joins a snow pack, sharing its energy: the pack freezes what its cold can, and the
+  rest stays the pond. A pond below its freezing point (sub-threshold snow, freezing rain) starts a layer of ice. It
   used to stay liquid and could hold the energy of ice far below 0 °C. The layer gains a bulk density:
   snowfall adds depth at `[snow].rho_snow`, and water the layer keeps from a pond adds it as ice, at
   917 kg/m³. A pack with no pond and a warm pond with no pack are unchanged. (#TBD)
