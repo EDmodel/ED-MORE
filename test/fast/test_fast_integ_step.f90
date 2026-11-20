@@ -828,8 +828,9 @@ contains
    end subroutine test_shed_under_pack
 
    !---~---
-   !   A pond under a cold pack is the pack's free water: the pack takes it at the first step,
-   ! its cold freezing it, and every ledger closes across the hand-off.
+   !   A pond under a cold pack joins it by freezing: the pack's cold freezes about 1.2 kg/m2 of a
+   ! 2 kg/m2 pond at once (60 kg/m2 at 270 K over the latent heat of fusion), and more as the cold
+   ! air cools it; the rest stays the pond, and every ledger closes across the hand-off.
    !---~---
    subroutine test_pond_under_pack()
       type(day_t) :: d
@@ -842,8 +843,8 @@ contains
          d = day_t(snow_seed = 60.0_wp, pond_seed = 2.0_wp, cold_air = .true., hours = 1_ik)
          call march_day(d)
          call check_true(trim(nm)//' pond under a pack: all seven ledgers close', all_ledgers_closed(col%out%report))
-         call check_true(trim(nm)//' pond under a pack: the pack took the pond',                                   &
-                         col%dynamic%soil_water%w_surface == 0.0_wp .and. col%dynamic%snow%swe(1) > 61.9_wp,       &
+         call check_true(trim(nm)//' pond under a pack: the pack froze what its cold could',                      &
+                         col%dynamic%snow%swe(1) > 61.0_wp .and. col%dynamic%snow%swe(1) < 62.1_wp,                &
                          col%dynamic%snow%swe(1))
          call check_true(trim(nm)//' pond under a pack: its water is ice, deeper than the snow alone',             &
                          col%dynamic%snow%density(1) > 250.0_wp, col%dynamic%snow%density(1))
