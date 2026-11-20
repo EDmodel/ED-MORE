@@ -75,9 +75,21 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - `[pft].min_cohort_height` is now `[pft].min_recruit_height` [m], the height a PFT's recruits are born at,
   one value for every PFT or one per PFT; `min_cohort_height` stops the run. A tree's must be below its
   `hgt_max`. (#TBD)
+- `make_census.py` counts plants, not stems: a stem table's stems with one `treeID` are one plant.
+  Map `treeID` to the table's tree id (`tree.id` in a ForestGEO stem table), and `stemID` to its stem
+  id. The summary's `stems_in_file` and `stems_per_ha` are now `plants_in_file` and `plants_per_ha`.
+  (#TBD)
 
 ### Answer changes
 
+- A plant is one individual: a tree with several stems is one plant at the diameter of their
+  summed basal area, $`\sqrt{\sum_i D_i^2}`$. `make_census.py` lumps a stem table's stems per tree, and
+  an earlier census's stems follow the trees the later census gives them. Harvard's stand (examples 04
+  and 07) is 10,014 trees from 12,075 stems at the same 41.6 m² ha⁻¹. Its allometric LAI falls 2.7 %
+  (4.58 to 4.46), its AGB rises 2.4 % (14.7 to 15.0 kgC m⁻²), and its biomass mortality falls from 0.82
+  to 0.72 % yr⁻¹. Harvard's fitted `lai_b1`, phenology and soil-carbon spin-up predate the change.
+  BCI's tree tables give each tree by its main stem alone (the tool warns), until its stem tables
+  replace them. (#TBD)
 - The latent heat flux (`mean_le_pa`, `mean_le_py`) rises by 13 % on average (January 2021: 16.6 to
   18.8 W/m2), and by at most 3.2 W/m2 on a day, in the region test's synthetic January-February
   2021 run, where the canopy air is mostly below freezing and the vapour takes the latent heat of

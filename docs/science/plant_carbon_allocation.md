@@ -128,7 +128,7 @@ height, for a tree; 0, the root collar, for a shrub), $H$ the height [m] and $\r
   or sapwood. It stands at its PFT's `hgt_max` [m], and one plant's leaf area follows that height
   alone, $`A_{leaf} = l_1\,H^{l_2}`$, so its leaf target is its PFT's and its LAI moves only with its
   leaves (the phenology) and its density. A plant is one tiller or culm, and `nplant` counts them per
-  m², as it counts a multi-stemmed tree's stems. Its pools are leaves, fine roots and storage; the
+  m² (a tree's several stems, by contrast, are one plant). Its pools are leaves, fine roots and storage; the
   stem's `[allometry]` keys take a value for it that it does not use.
 
 ### Sink limitation of wood growth

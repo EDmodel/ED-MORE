@@ -128,8 +128,8 @@ def main():
              "lai_b2": [LAI_B2] * 2, "wai_b1": [0.0096] * 2, "wai_b2": [2.0947] * 2}
     for k in ("chave_a", "chave_b", "chave_c", "chave_rse"):
         allom[k] = [fit[1][k], fit[2][k]]
-    stems = hd.live_stems(a.data)
-    dec = [hd.stand_around(stems, *xy, RADIUS, allom, cell=0)[0] for xy in
+    plants = hd.live_plants(a.data)
+    dec = [hd.stand_around(plants, *xy, RADIUS, allom, cell=0)[0] for xy in
            (hd.plot_xy(hd.TOWER_LAT, hd.TOWER_LON), hd.plot_xy(42.537755, -72.171478))]   # NEON, EMS towers
     lai_now = np.mean([p["lai"][p["pft"] == 1].sum() for p in dec])
     print(f"the census within {RADIUS:.0f} m of the NEON and EMS towers at the default lai_b1: deciduous LAI {lai_now:.2f}")

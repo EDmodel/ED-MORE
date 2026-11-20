@@ -402,12 +402,14 @@ store ([`science/plant_carbon_allocation.md`](science/plant_carbon_allocation.md
 grass needs `[demography].demography_on = false`, a positive `hgt_max` and `lai_b1`, and a positive
 `[pft].root_to_leaf_ratio`; the stem's keys take a value for it that it does not use.
 
-**The diameter.** Every curve takes a stem's diameter $`D`$ [cm], measured at the PFT's
+**The diameter.** Every curve takes a plant's diameter $`D`$ [cm], measured at the PFT's
 `[allometry].diameter_height` [m]: 1.3 m (breast height, the default) for a tree, the root collar (0)
 for a shrub, or wherever the PFT's own curves were fitted. The census gives each plant's diameter at its
-PFT's height, and the outputs report it there. A tree's `diameter_height` lies in [0, `hgt_max`), and `"chave2014"`, fitted
-on breast-height diameters, needs 1.3 m or more. A tree's recruits are born at `[pft].min_recruit_height`,
-below its `hgt_max`.
+PFT's height, and the outputs report it there. A plant is one individual: a tree or shrub with several
+stems is one plant at the diameter of their summed basal area, $`D = \sqrt{\sum_i D_i^2}`$ (the census
+tool lumps a stem table's stems so). A tree's `diameter_height` lies in [0, `hgt_max`), and
+`"chave2014"`, fitted on breast-height diameters, needs 1.3 m or more. A tree's recruits are born at
+`[pft].min_recruit_height`, below its `hgt_max`.
 
 **Height allometry.** Each PFT's height follows the curve `[allometry].height_allometry` names for it
 (one name for every PFT, or one per PFT, `["chave2014", "power", "power"]`).

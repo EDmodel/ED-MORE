@@ -121,14 +121,20 @@ def ems_diffuse_fraction(data: Path, index: pd.DatetimeIndex) -> pd.Series:
 
 
 #----------------------------------------------------------------------------------------------------#
-#   The stand around a point: the ForestGEO census's live stems, one patch per cell
+#   The stand around a point: the ForestGEO census's live trees, one patch per cell
 #----------------------------------------------------------------------------------------------------#
-def live_stems(data: Path) -> pd.DataFrame:
-    """The 2019 census's live stems with diameter, position and a leaf habit (1 deciduous, 2 evergreen)."""
+def live_plants(data: Path) -> pd.DataFrame:
+    """The 2019 census's live trees with diameter, position and a leaf habit (1 deciduous, 2 evergreen):
+    each tree one plant, its live stems lumped at equal basal area, sqrt(sum d^2), at its first live
+    stem's position (as scripts/prepare_input/census lumps them)."""
     hf = data / "hf_archive" / "hf253"
     s = pd.read_csv(hf / "hf253-06-stems-2019.csv", low_memory=False)
     sp = pd.read_csv(hf / "hf253-02-species-codes.csv")
     s = s[(s["status"] == "A") & s["dbh"].notna() & s["gx"].notna()].copy()
+    s["d2"] = s["dbh"] ** 2
+    trees = s.groupby("tree.id", sort=False)
+    s = trees.first()
+    s["dbh"] = np.sqrt(trees["d2"].sum())
     genus = s["sp"].map(dict(zip(sp["sp"], sp["genus"])))
     s["pft"] = np.where(genus.isin(EVERGREEN_GENERA), 2, 1)
     return s[["gx", "gy", "dbh", "sp", "pft"]]
@@ -158,24 +164,24 @@ def _patch(sub: pd.DataFrame, area: float, allom: dict, cx: float, cy: float) ->
                 lai=leaf_area / area, wai=wood_area / area)
 
 
-def stand_around(stems: pd.DataFrame, x0: float, y0: float, radius: float, allom: dict, cell: float = 10.0):
+def stand_around(plants: pd.DataFrame, x0: float, y0: float, radius: float, allom: dict, cell: float = 10.0):
     """The stand within `radius` of (x0, y0). With `cell` > 0, one patch per cell of the plot's cell
     grid whose centre lies within the radius; with `cell` = 0, one horizontally uniform patch of every
-    stem within the radius, over the circle's area inside the plot."""
+    plant within the radius, over the circle's area inside the plot."""
     if cell <= 0:
         xs, ys = np.meshgrid(np.arange(x0 - radius, x0 + radius, 0.5) + 0.25,
                              np.arange(y0 - radius, y0 + radius, 0.5) + 0.25)
         inside = (np.hypot(xs - x0, ys - y0) <= radius) & (xs >= 0) & (xs <= PLOT_X) & (ys >= 0) & (ys <= PLOT_Y)
-        sub = stems[np.hypot(stems["gx"] - x0, stems["gy"] - y0) <= radius]
+        sub = plants[np.hypot(plants["gx"] - x0, plants["gy"] - y0) <= radius]
         return [_patch(sub, inside.sum() * 0.25, allom, x0, y0)]
     patches = []
     nx, ny = int(PLOT_X // cell), int(PLOT_Y // cell)
-    ix = np.floor(stems["gx"].to_numpy() / cell).astype(int)
-    iy = np.floor(stems["gy"].to_numpy() / cell).astype(int)
+    ix = np.floor(plants["gx"].to_numpy() / cell).astype(int)
+    iy = np.floor(plants["gy"].to_numpy() / cell).astype(int)
     for i in range(nx):
         for j in range(ny):
             cx, cy = (i + 0.5) * cell, (j + 0.5) * cell
             if math.hypot(cx - x0, cy - y0) > radius:
                 continue
-            patches.append(_patch(stems[(ix == i) & (iy == j)], cell * cell, allom, cx, cy))
+            patches.append(_patch(plants[(ix == i) & (iy == j)], cell * cell, allom, cx, cy))
     return patches

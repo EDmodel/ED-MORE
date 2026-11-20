@@ -6,8 +6,8 @@ leaf-off (1-25 April: the snow gone, the buds not yet broken; only the conifers 
 (July). It is
 driven by the PAR measured above the canopy (NEON's top level, 39 m), split into beam and diffuse by
 the EMS tower's direct and diffuse PAR sensors. The stand around each sensor comes from the 2019 census
-of the ForestGEO 35-ha plot: one patch per 20 m quadrat, one cohort per stem, with Harvard's height and
-leaf-area allometry (HARVARD_PFT below). A sensor at height z reads the downwelling PAR at the top of
+of the ForestGEO 35-ha plot: one patch per 20 m quadrat, one cohort per tree (its stems lumped), with
+Harvard's height and leaf-area allometry (HARVARD_PFT below). A sensor at height z reads the downwelling PAR at the top of
 the tallest cohort layer at or below z (the ground's when none is), averaged over the patches by area:
 the horizontal mean a 1-D layered canopy predicts.
 
@@ -106,8 +106,8 @@ def prepare(data: Path, year: int = YEAR, cell: float = 20.0, radius: float = 40
     sites = {"tower": ((x_tower, y_tower), {lv: heights[lv] for lv in ("L1", "L2", "L3", "L4", "L5")})}
     for sp, xy in floor_xy.items():
         sites[sp] = (xy, {sp: 0.0})
-    stems = hd.live_stems(data)
-    stands = {site: hd.stand_around(stems, x0, y0, radius, allom, cell=cell) for site, ((x0, y0), _) in sites.items()}
+    plants = hd.live_plants(data)
+    stands = {site: hd.stand_around(plants, x0, y0, radius, allom, cell=cell) for site, ((x0, y0), _) in sites.items()}
     for s in list(heights) + list(floor_xy):
         drv[f"obs_{s}"] = obs[s]
     return dict(drv=drv, run=run, vis=vis, vis_beam=vis_beam, vis_diff=vis - vis_beam,
@@ -202,7 +202,7 @@ def main():
         lai_ev = sum(x * p["lai"][p["pft"] == 2].sum() for x, p in zip(w, patches))
         wai = sum(x * p["wai"].sum() for x, p in zip(w, patches))
         top = np.mean([p["height"].max() for p in patches if p["height"].size])
-        print(f"{site}: {len(patches)} patches, {sum(p['height'].size for p in patches)} stems; LAI deciduous "
+        print(f"{site}: {len(patches)} patches, {sum(p['height'].size for p in patches)} plants; LAI deciduous "
               f"{lai_dec:.2f}, evergreen {lai_ev:.2f}; WAI {wai:.2f}; tallest tree per patch {top:.1f} m")
 
     a.out.mkdir(parents=True, exist_ok=True)

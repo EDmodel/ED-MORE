@@ -81,7 +81,7 @@ def test_writes_the_file_ed_reads(tmp_path):
     parsed = pd.read_csv(out, comment="#")
     assert sorted(parsed.diameter.round(4)) == [1.2, 25.3]
     assert summary["kept_trees"] == 2 and summary["rows"] == 2
-    assert json.loads((tmp_path / "census_ed_summary.json").read_text())["stems_in_file"] == pytest.approx(2.0)
+    assert json.loads((tmp_path / "census_ed_summary.json").read_text())["plants_in_file"] == pytest.approx(2.0)
 
 
 def test_the_default_allometry():
@@ -158,6 +158,84 @@ def test_mortality_matches_trees_by_id_and_takes_the_declared_dead_status():
     rate, years = mc.biomass_mortality(earlier, later, dead_status=("G",))
     assert years == pytest.approx(5.0) and rate == pytest.approx(0.25 / 5.0)
     assert mc.biomass_mortality(earlier, later)[0] == 0.0     # under the default "D", nobody died
+
+
+def stems(rows):
+    """A ForestGEO-like stem table from (treeID, status, dbh_mm, gx, gy) tuples."""
+    t = pd.DataFrame(rows, columns=["treeID", "status", "dbh", "gx", "gy"])
+    t["agb"] = np.where(t["status"] == "A", 0.1, np.nan)
+    t["date"] = 18000.0
+    return t
+
+
+def test_a_stem_table_gives_each_tree_as_one_plant():
+    t = stems([(1, "A", 30.0, 5, 5), (1, "A", 40.0, 5, 5),          # two live stems: one 50 mm plant
+               (2, "G", np.nan, np.nan, np.nan), (2, "A", 20.0, 35, 5),   # a gone stem has no position
+               (3, "D", 10.0, 45, 5), (3, "D", 20.0, 45, 5),        # no live stem: a dead plant
+               (4, "A", 12.0, 55, 5)])
+    plants, n_rows = mc.lump_stems(t, ("A",))
+    assert n_rows == 7 and list(plants["treeID"]) == [1, 2, 3, 4]
+    assert plants["dbh"].iloc[0] == pytest.approx(50.0) and plants["agb"].iloc[0] == pytest.approx(0.2)
+    assert (plants["dbh"].iloc[1], plants["gx"].iloc[1], plants["status"].iloc[1]) == (20.0, 35, "A")
+    assert plants["status"].iloc[2] == "D" and np.isnan(plants["dbh"].iloc[2])
+    kept, _ = mc.live_trees(plants, PLOT)
+    assert list(kept["treeID"]) == [1, 2, 4]
+    one_per_tree = table([("A", 25.0, 5, 5)])
+    assert mc.lump_stems(one_per_tree, ("A",))[0] is one_per_tree      # a tree table comes back as it is
+
+
+def test_mortality_between_stem_tables_counts_whole_trees():
+    earlier = stems([(1, "A", 20, 1, 1), (1, "A", 20, 1, 1), (2, "A", 20, 1, 1), (2, "A", 20, 1, 1)])
+    later = stems([(1, "G", np.nan, 1, 1), (1, "A", 25, 1, 1),        # tree 1 lost a stem and lives
+                   (2, "G", np.nan, 1, 1), (2, "G", np.nan, 1, 1)])   # tree 2 died
+    later["date"] = later["date"] + 5 * mc.YR_DAY
+    earlier, _ = mc.lump_stems(earlier, ("A",))
+    later, _ = mc.lump_stems(later, ("A",))
+    rate, years = mc.biomass_mortality(earlier, later, dead_status=("G",))
+    assert years == pytest.approx(5.0) and rate == pytest.approx(0.5 / 5.0)
+
+
+def test_a_stem_the_later_census_moves_follows_its_new_tree():
+    earlier = stems([(1, "A", 20, 1, 1), (2, "A", 20, 1, 1), (3, "A", 20, 1, 1)])
+    earlier["stemID"] = [10, 20, 30]
+    later = stems([(1, "A", 22, 1, 1), (1, "A", 21, 1, 1)])       # tree 2's stem is tree 1's now
+    later["stemID"] = [10, 20]
+    later = pd.concat([later, stems([(4, "D", np.nan, 1, 1)] * 2)])   # stems a table gives no id
+    followed = mc.follow_later_trees(earlier, later)
+    assert list(followed["treeID"]) == [1, 1, 3]                   # stem 30 is not in the later census
+    assert followed["treeID"].dtype == earlier["treeID"].dtype
+    no_stem_ids = earlier.drop(columns="stemID")
+    assert list(mc.follow_later_trees(no_stem_ids, later)["treeID"]) == [1, 2, 3]   # without stemID, as it was
+    tree_table = table([("A", 20, 1, 1)] * 3).assign(stemID=1)    # a stem's number in its tree, not an id
+    assert mc.follow_later_trees(earlier, tree_table) is earlier
+    later["stemID"] = [10, 10, np.nan, np.nan]
+    with pytest.raises(SystemExit, match="stemID twice"):
+        mc.follow_later_trees(earlier, later)
+
+
+def test_main_lumps_a_stem_table(tmp_path):
+    csv = tmp_path / "stems.csv"
+    stems([(1, "A", 30.0, 5, 5), (1, "A", 40.0, 5, 5), (2, "A", 12.0, 45, 25)]).to_csv(csv, index=False)
+    decl = tmp_path / "census.toml"
+    decl.write_text('[source]\npath = "stems.csv"\ncensus = "synthetic"\n'
+                    '[plot]\nx_extent = 100.0\ny_extent = 60.0\ncell_size = 20.0\n')
+    out = tmp_path / "census_ed.csv"
+    summary = mc.main(["--declaration", str(decl), "--out", str(out)])
+    assert sorted(pd.read_csv(out, comment="#").diameter.round(4)) == [1.2, 5.0]
+    assert (summary["table_rows"], summary["table_plants"], summary["kept_trees"]) == (3, 2, 2)
+    assert "3 stems lumped into 2 plants" in out.read_text()
+
+
+def test_a_tree_table_that_holds_only_the_main_stem_warns(tmp_path, capsys):
+    csv = tmp_path / "trees.csv"
+    t = table([("A", 25.0, 5, 5), ("A", 12.0, 45, 25)])
+    t["nostems"] = [3, 1]
+    t.to_csv(csv, index=False)
+    decl = tmp_path / "census.toml"
+    decl.write_text('[source]\npath = "trees.csv"\n[plot]\nx_extent = 100.0\ny_extent = 60.0\n')
+    summary = mc.main(["--declaration", str(decl), "--out", str(tmp_path / "census_ed.csv")])
+    assert summary["kept_trees_with_unlisted_stems"] == 1
+    assert "1 kept trees have more stems than the table lists" in capsys.readouterr().out
 
 
 def test_a_deciduous_pft_litters_its_canopy_each_year_less_what_it_resorbs(tmp_path):

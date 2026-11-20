@@ -40,7 +40,7 @@ given by `--token-file`. It downloads:
 | Input | Value |
 |---|---|
 | Light above the canopy | NEON's 39 m PAR, split into beam and diffuse by the EMS tower's direct/diffuse sensor 134 m away; the model's own sun |
-| Stand | every live stem of the 2019 census within 40 m of a sensor, one cohort per stem, one patch per 20 m quadrat; deciduous and evergreen (conifer) PFTs |
+| Stand | every live tree of the 2019 census within 40 m of a sensor, one cohort per tree (its stems lumped at equal basal area), one patch per 20 m quadrat; deciduous and evergreen (conifer) PFTs |
 | Height | ED-MORE's log-quadratic curve per PFT, fitted to 3,400 trees NEON measured at the site, capped at 28 m (the lidar canopy top) |
 | Leaf area | deciduous `lai_b1` scaled to a July LAI of 3.95, the median of litterfall × leaf mass per area (4.5), MODIS (3.8) and LAI-2000 (3.95) |
 | Wood angle | the default 75° ± 20°: the woody surface's inclination in unpublished TLS data |
