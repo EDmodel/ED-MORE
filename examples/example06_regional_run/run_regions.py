@@ -6,7 +6,7 @@ of make_cell_mask.py's mask, as region runs.
 Steps:
   1. output/pft_parameters.toml: example 05's Palo Verde PFTs (palo_verde/pft_parameters.toml) without their chave_e,
      which each polygon takes from the E map, and with a bare-ground start of 3 recruits per m2 of each PFT at
-     min_cohort_height (nbg_init_density), the start example 05's census file gives Palo Verde
+     min_recruit_height (nbg_init_density), the start example 05's census file gives Palo Verde
   2. the regions: the mask's cells split into --regions boxes of about equal cost (halving the longer side, again
      and again): equal counts, or, with --cost, equal sums of each cell's cost in a CSV of lat, lon and cost (a
      previous run's hours: a wet cell grows many more cohorts and costs up to fifty times a dry one). Each box gets

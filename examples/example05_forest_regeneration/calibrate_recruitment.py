@@ -3,7 +3,7 @@
 """Calibrate each PFT's recruit carbon efficiency so the model's ingrowth past 1 cm is BCI's.
 
 pft.recruit_carbon_efficiency is the share of a tree's reproduction carbon that becomes recruits at
-min_cohort_height: seed set, germination and seedling survival together. Its target is the census:
+min_recruit_height: seed set, germination and seedling survival together. Its target is the census:
 the new stems of at least 1 cm per hectare and year, by PFT, over the five intervals of 1985-2010
 (example 03's recruits.csv.gz).
 

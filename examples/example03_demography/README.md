@@ -49,7 +49,7 @@ passes them to the engine's law-free apply-primitives through
   [m], 32.7 m at 1 m diameter and 44.6 m at 3 m, within 4.3 % of Cano's curve (`[allometry]
   height_allometry = "chave2014"`). Leaf area and biomass take this height.
 - **A tree is one stem**, as in ED-MORE: a tree that loses its main stem has died, and returns as a
-  recruit when a stem is measured again. Recruits enter at the census's 1 cm (`min_cohort_height`
+  recruit when a stem is measured again. Recruits enter at the census's 1 cm (`min_recruit_height`
   2.435 m on the BCI curve).
 - **Treefall** (`patch_disturbance_rate` 0.014 yr⁻¹) kills canopy trees above 10 m on the disturbed
   area. The census counts those deaths too, so the driver takes the rate off the mortality of
