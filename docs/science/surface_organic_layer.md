@@ -36,13 +36,13 @@ with $`c_{org}`$ = 1926 J kg⁻¹ K⁻¹ for dry organic matter (Farouki 1986). 
 ## Water
 
 - **Filling.** At each fast step's start the pond, and then the water reaching the ground (throughfall, or the snow's meltwater under a pack, with the tissues' shed water), fill the slots top down, each to its capacity. The water brings its energy. What the slots cannot hold reaches the pond, which infiltrates or runs off as before. A pond therefore forms only on a full layer.
-- **Evaporation** from the layer is the wet-surface rate times its fill, on the snow-free ground:
+- **Evaporation and dew** from and onto the layer are the wet-surface rate times its fill, on the snow-free ground:
 
 ```math
-E_{org} = (1 - f_{snow})\,\frac{W}{W_{max}}\,\rho\,g_{ground}\,\max\!\left[0,\; q_{sat}(T) - q_{cas}\right]
+E_{org} = (1 - f_{snow})\,\frac{W}{W_{max}}\,\rho\,g_{ground}\,\left[q_{sat}(T) - q_{cas}\right]
 ```
 
-It is rounded off at zero, as the soil's is, so the layer evaporates and takes no dew. It takes no more water than the layer holds.
+A wet layer exchanges as open water does, both ways, so the exchange has no corner where humid canopy air sits near the layer's saturation; a dry one does not exchange. The evaporation takes no more water than the layer holds, and dew beyond its capacity spills to the pond at the next step's start.
 - **The soil beneath** evaporates through the layer: its vapour diffuses up through the slots' air-filled pores, a resistance $`r_{cover} = \sum_i d_i\,\phi^2 / (D_v\,\varepsilon_i^{10/3})`$ (Millington–Quirk) in series with the dry surface layer's and the aerodynamic one. Here $`\phi`$ = 0.9 is organic matter's porosity (Letts et al. 2000) and $`\varepsilon_i = \phi - W_i/(\rho_w d_i)`$.
 
 ## Heat
@@ -88,7 +88,7 @@ and `[soil].moss_depth` [m], which a `[[sites]]` table may set. The checks refus
 ## Limits
 
 - The two slots are one thermal node: moss under litter does not hold a temperature of its own.
-- The layer takes no dew, and its optics are the ground's.
+- Its optics are the ground's.
 - The moss is prescribed: it neither grows nor photosynthesises.
 - The litter is all the above-ground litter, coarse woody debris included.
 
@@ -96,7 +96,7 @@ and `[soil].moss_depth` [m], which a `[[sites]]` table may set. The checks refus
 
 | Concept | Routine |
 |---|---|
-| the layer's state, its sums, its water and its commit | `ed_patch_state_vars`: `organic_state_t`, `organic_layer_sums`, `organic_diagnose`, `organic_split_energy`, `organic_take_water`, `organic_take_exchange` |
+| the layer's state, its sums, its water, its spill and its commit | `ed_organic_lib`: `organic_state_t`, `organic_layer_sums`, `organic_diagnose`, `organic_split_energy`, `organic_take_water`, `organic_spill`, `organic_take_exchange` |
 | the balance and the ground surface's blend | `ed_surface`: `organic_surface_balance`, `ground_surface_exchange` |
 | the stage: the pond and the inflow fill it | `ed_fast_integ_frozen`: `build_frozen`, `ground_inflow` |
 | the soil's vapour through it | `ed_soil_water`: `organic_cover_path`, `ground_evaporation_rate` |

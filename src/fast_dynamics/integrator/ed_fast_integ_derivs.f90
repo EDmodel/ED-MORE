@@ -137,7 +137,8 @@ contains
                                    f%snow_vap_out, f%org_enth_in, f%org_vap_out)
 
       f%src_enth   = coh_h + coh_qw + f%h_ground + f%le_ground
-      f%src_vap    = coh_transp + coh_surface_evap + ground%soil_evap + f%snow_vap_out + f%org_vap_out
+      f%src_vap    = coh_transp + coh_surface_evap + ground%soil_evap + f%snow_vap_out
+      if (ground%has_org) f%src_vap = f%src_vap + f%org_vap_out
       f%coh_rnet   = coh_rnet
       f%h_canopy   = coh_h
 

@@ -42,7 +42,8 @@ module ed_fast_integ_frozen
    use ed_state_defaults,   only : is_unset_negative
    use ed_biophysics_params, only : aero_params_t
    use ed_patch_state_vars, only : cas_state_t, soil_carbon_state_t, cas_capacities, cas_capacity_change
-   use ed_organic_lib,      only : organic_params_t, organic_present, organic_layer_sums, organic_take_water
+   use ed_organic_lib,      only : organic_params_t, organic_present, organic_layer_sums, organic_take_water,       &
+                                   organic_spill
    use ed_biogeochem_params, only : N_SOIL_POOL
    use ed_canopy_aerodynamics, only : canopy_aerodynamics, cas_atm_conductances
    use ed_plant_energy,   only : plant_energy_env_t, sensible_heat_coeff, leaf_transp_coeff, leaf_surface_evap_coeff, &
@@ -94,6 +95,7 @@ contains
       real(wp)    :: throughfall   ! [kg/m2/s] the rain and snow through the canopy
       real(wp)    :: w_pond, e_pond   ! [kg/m2], [J/m2] the pond the step starts from, after the snow stage
       real(wp)    :: taken, w_max     ! [kg/m2] the pond water the organic layer took; what it holds at capacity
+      real(wp)    :: e_spill          ! [J/m2] the energy of the water the layer spilled
       real(wp)    :: t_surface        ! [K] the ground's surface: the organic layer's, else the top soil node's
       real(wp)    :: t_soil_top       ! [K] the top soil node's
       real(wp)    :: dry_cap, org_w, org_e, resist   ! the organic layer's sums at the step's start
@@ -175,6 +177,9 @@ contains
       ! the water then on the ground being its and the pond's together.
       !---~---
       frozen%org = dynamic%organic
+      call organic_spill(frozen%org, cfg%organic, taken, e_spill)              ! dew above its capacity
+      w_pond = w_pond + taken
+      e_pond = e_pond + e_spill
       call organic_take_water(frozen%org, cfg%organic, w_pond, e_pond, taken)
       if (taken > 0.0_wp) then
          e_pond = e_pond * (1.0_wp - taken / w_pond)
