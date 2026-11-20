@@ -32,7 +32,7 @@ module ed_organic_lib
 
    !---~---
    !   The [surface_layer] block: the ground's organic layer, leaf litter over moss. The litter
-   ! is the above-ground litter pools' dry matter (Napoly et al. 2017's forest-floor values);
+   ! is the above-ground metabolic litter pool's dry matter (Napoly et al. 2017's forest-floor values);
    ! the moss is a site's [soil].moss_depth, at the MAT tundra's top organic 5 cm (ARC LTER
    ! knb-lter-arc.20129.1) and Chadburn et al. (2015)'s porosity and conductivities.
    !---~---

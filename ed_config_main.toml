@@ -107,7 +107,7 @@ ny07_m             = 1.0      # [-]     snow-cover fraction exponent
 
 [surface_layer]
 # The ground's organic layer above the soil (docs/science/surface_organic_layer.md): leaf litter over
-# moss, one thermal node with each slot's water. The litter is the above-ground litter pools' dry
+# moss, one thermal node with each slot's water. The litter is the above-ground metabolic litter pool's dry
 # matter; the moss a site's [soil].moss_depth. Every key optional, at the value shown.
 litter_on              = true     # the litter slot
 litter_bulk_density    = 45.0     # [kg/m3] dry mass per volume (Napoly et al. 2017)

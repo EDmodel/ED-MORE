@@ -25,7 +25,7 @@ module ed_init
    use ed_patch_state_vars,      only : soil_carbon_state_t
    use ed_organic_lib,           only : organic_state_t, organic_material_t, SLOT_LITTER, SLOT_MOSS,      &
                                         organic_split_energy, organic_slot_material
-   use ed_biogeochem_params,     only : IP_FAST_GRND, IP_STRUCT_GRND
+   use ed_biogeochem_params,     only : IP_FAST_GRND
    use ed_constants,             only : c2b_organic, cp_organic, rho_h2o, t_3ple, n_organic_slot
    use ed_slow_state,            only : advance_plant_traits, reacclimate_plant_traits
    use ed_init_bare_ground,      only : init_bare_ground, init_bare_sites, seed_bare_ground, seed_patch_stores, &
@@ -165,7 +165,7 @@ contains
 
    !---~---
    !   Each patch's organic layer at the start (docs/science/surface_organic_layer.md): the
-   ! litter, the above-ground litter pools' dry matter, with [surface_layer].litter_on; the moss,
+   ! litter, the above-ground metabolic litter pool's dry matter, with [surface_layer].litter_on; the moss,
    ! its site's [soil].moss_depth; each slot holding the top soil layer's share of saturation
    ! of its capacity, at the top soil layer's temperature (its water frozen below t_3ple).
    !---~---
@@ -180,7 +180,7 @@ contains
                     sc => poly%patch%soil_carbon(ip))
             org = organic_state_t()
             if (cfg%organic%litter_on) then
-               org%mass(SLOT_LITTER)    = c2b_organic * (sc%carbon(IP_FAST_GRND) + sc%carbon(IP_STRUCT_GRND))
+               org%mass(SLOT_LITTER)    = c2b_organic * sc%carbon(IP_FAST_GRND)
                org%density(SLOT_LITTER) = cfg%organic%litter%bulk_density
             end if
             if (surf%soil%moss_depth > 0.0_wp) then

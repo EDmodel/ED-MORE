@@ -284,7 +284,7 @@ contains
    end subroutine commit_soil_carbon
 
    !---~---
-   !   The litter slot of each patch's organic layer follows its above-ground litter pools
+   !   The litter slot of each patch's organic layer follows its above-ground metabolic litter pool
    ! (docs/science/surface_organic_layer.md): its dry matter set to litter_mass, entering or
    ! leaving at the layer's temperature (t_new for a layer the litter starts), and the water
    ! beyond its new capacity, or all of it when the litter is gone, passed to the pond with its
