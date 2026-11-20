@@ -74,6 +74,7 @@ module ed_canopy_aerodynamics
    public :: canopy_air_conductances         ! the same, the surface layer re-solved at a canopy-air state
    public :: open_canopy_fraction            ! a patch's open fraction W from its leaf and wood area
    public :: canopy_burial_fraction          ! the share of a patch's canopy height a snow pack buries
+   public :: crown_exposed_fraction          ! the share of a cohort's crown above a snow pack
    public :: aero_env_t, aero_args_t, aero_out_t, ensure_aero_out_capacity
    public :: set_aero_env_atm, set_aero_env_canopy
    public :: alloc_aero_out                  ! used only by the tests
@@ -147,6 +148,31 @@ contains
       real(wp), intent(in) :: veg_height   ! [m] the canopy height, positive
       f = min(BURIAL_MAX, snow_depth / veg_height)
    end function canopy_burial_fraction
+
+   !---~---
+   !   The share of a cohort's crown above a snow pack [-] (docs/science/canopy_aerodynamics.md,
+   ! "Snow on the canopy"): its leaves and wood spread evenly from the crown's base to its top,
+   ! the pack bending the top down by snow_bending of the height while it lies on the plant.
+   ! The leaves and wood under the pack drop out of the canopy; 1 with no pack, or a pack below
+   ! the crown.
+   !---~---
+   elemental real(wp) function crown_exposed_fraction(height, snow_depth, crown_base_fraction, snow_bending)    &
+      result(f)
+      real(wp), intent(in) :: height               ! [m] the cohort's height
+      real(wp), intent(in) :: snow_depth           ! [m] the pack's depth
+      real(wp), intent(in) :: crown_base_fraction  ! [-] the crown's base over the height
+      real(wp), intent(in) :: snow_bending         ! [-] the pack's bend of the top, as a share of the height
+      real(wp) :: top, base
+      f = 1.0_wp
+      if (snow_depth <= 0.0_wp) return
+      top  = height * (1.0_wp - snow_bending)
+      base = crown_base_fraction * top
+      if (snow_depth >= top) then
+         f = 0.0_wp
+      else if (snow_depth > base) then
+         f = (top - snow_depth) / (top - base)
+      end if
+   end function crown_exposed_fraction
 
    !---~---
    !   Roughness length and displacement height of a patch from its canopy height

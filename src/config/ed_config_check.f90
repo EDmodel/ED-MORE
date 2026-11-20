@@ -799,6 +799,11 @@ contains
          if (any(p%allom(1:p%n)%height_allometry == HEIGHT_CHAVE .and.                                   &
                  p%allom(1:p%n)%diameter_height < breast_height))                                        &
             error stop TAG//'allometry.height_allometry = "chave2014" needs diameter_height >= 1.3 m (breast height)'
+         !--- The crown under a pack: its base below its top, and a bend that leaves it standing.
+         if (.not. all(p%allom(1:p%n)%crown_base_fraction >= 0.0_wp .and. p%allom(1:p%n)%crown_base_fraction < 1.0_wp)) &
+            error stop TAG//'allometry.crown_base_fraction must be in [0, 1)'
+         if (.not. all(p%allom(1:p%n)%snow_bending >= 0.0_wp .and. p%allom(1:p%n)%snow_bending < 1.0_wp))               &
+            error stop TAG//'allometry.snow_bending must be in [0, 1)'
       end associate
    end subroutine check_pft
 

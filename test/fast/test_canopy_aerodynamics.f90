@@ -51,7 +51,8 @@ program test_canopy_aerodynamics
    use ed_canopy_aerodynamics,   only : aero_env_t, aero_args_t, aero_out_t, ensure_aero_out_capacity,          &
                                         canopy_aerodynamics, mo_surface_layer, open_canopy_fraction,             &
                                         set_aero_env_atm, set_aero_env_canopy, canopy_burial_fraction,          &
-                                        canopy_roughness, canopy_air_conductances, cas_atm_conductances
+                                        canopy_roughness, canopy_air_conductances, cas_atm_conductances,         &
+                                        crown_exposed_fraction
    use ed_numerics,              only : ascending_order, cbrt
    implicit none
 
@@ -517,6 +518,20 @@ contains
       geom%snowfac    = 0.0_wp
       call canopy_roughness(cfg, geom, z0(1), d(1))
       call check('a canopy below the snow''s roughness takes the snow''s', z0(1), cfg%snow_rough, 0.0_wp)
+      !---~---
+      !   A crown's share above the pack: whole with no pack or a pack below its base, none under a
+      ! pack above its top, and linear in between; a bend lowers the top only under snow.
+      !---~---
+      call check('no pack: the crown is whole', crown_exposed_fraction(0.3_wp, 0.0_wp, 0.0_wp, 0.5_wp), 1.0_wp, 0.0_wp)
+      call check('a pack below the crown''s base leaves it whole', crown_exposed_fraction(2.0_wp, 0.9_wp, 0.5_wp, 0.0_wp), &
+                 1.0_wp, 0.0_wp)
+      call check('a pack above the top buries it', crown_exposed_fraction(0.3_wp, 0.4_wp, 0.0_wp, 0.0_wp), 0.0_wp, 0.0_wp)
+      call check('a crown from the ground, half under the pack', crown_exposed_fraction(0.4_wp, 0.2_wp, 0.0_wp, 0.0_wp), &
+                 0.5_wp, 1.0e-15_wp)
+      call check('a crown from 1 m to 2 m, a 1.5 m pack: half', crown_exposed_fraction(2.0_wp, 1.5_wp, 0.5_wp, 0.0_wp),  &
+                 0.5_wp, 1.0e-15_wp)
+      call check('a pack bends a 0.4 m shrub to 0.2 m, under 0.2 m of snow', crown_exposed_fraction(0.4_wp, 0.2_wp,     &
+                 0.0_wp, 0.5_wp), 0.0_wp, 0.0_wp)
    end subroutine test_snow_burial
 
    !---~---

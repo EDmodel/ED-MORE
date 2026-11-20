@@ -144,6 +144,7 @@ module ed_fast_integ_types
       !---~---
       integer(ik), allocatable :: order(:)
       real(wp),    allocatable :: lai(:), wai(:), height(:)
+      real(wp),    allocatable :: exposed(:)   ! [-] the share of the crown above the snow pack (lai, wai carry it)
       real(wp),    allocatable :: leaf_width(:), branch_diam(:)
       real(wp),    allocatable :: aboveground_frac(:)          ! [--] gathered per-PFT (stem respiration)
       logical,     allocatable :: is_woody(:)                   ! gathered per-PFT (stem respiration off for grass)
@@ -812,7 +813,7 @@ contains
       integer(ik),               intent(in)  :: n
       integer(ik) :: i
       static%n = n
-      allocate(static%pft(n), static%order(n), static%lai(n), static%wai(n), static%height(n),                    &
+      allocate(static%pft(n), static%order(n), static%lai(n), static%wai(n), static%height(n), static%exposed(n), &
                static%leaf_width(n), static%branch_diam(n), static%aboveground_frac(n),                   &
                static%is_woody(n), static%stem_resp_factor25(n), static%root_resp_factor25(n),            &
                static%stem_resp_sapwood25(n), static%sap_volume(n),                                         &
@@ -827,6 +828,7 @@ contains
       static%lai = 0.0_wp
       static%wai = 0.0_wp
       static%height = 0.0_wp
+      static%exposed = 1.0_wp
       static%leaf_width = 0.04_wp
       static%branch_diam = 0.02_wp
       static%aboveground_frac = 0.7_wp

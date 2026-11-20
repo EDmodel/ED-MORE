@@ -493,9 +493,9 @@ contains
          !   GPP is gross A, and Rd is charged below either way, so the canopy air receives the
          ! leaf's net exchange A_g - Rd whatever the water-stress controls did to A_g.
          !---~---
-         gpp     = gpp     + a_gross_arr(i) * static%leaf_area(i) * static%nplant(i)
-         gpp_coh(i) = a_gross_arr(i) * static%leaf_area(i)
-         if (capture) cdiag(CO_GPP_RATE, i) = a_gross_arr(i) * static%leaf_area(i)
+         gpp     = gpp     + a_gross_arr(i) * static%leaf_area(i) * static%exposed(i) * static%nplant(i)
+         gpp_coh(i) = a_gross_arr(i) * static%leaf_area(i) * static%exposed(i)   ! the leaves above the snow
+         if (capture) cdiag(CO_GPP_RATE, i) = gpp_coh(i)
          ra_leaf = ra_leaf + rd_arr(i)      * static%leaf_area(i) * static%nplant(i)
          leaf_resp_coh(i) = rd_arr(i) * static%leaf_area(i)
          h_coeff_leaf(i) = sensible_heat_coeff(EFFAREA_HEAT * static%lai(i), aero%leaf_gbh(i), rho, cp_cas)

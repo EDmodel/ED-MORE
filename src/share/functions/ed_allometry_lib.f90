@@ -49,6 +49,14 @@ module ed_allometry_lib
       !--- The diameter every curve takes: a stem's, measured at this height.
       real(wp)    :: diameter_height = breast_height ! [m] 1.3 m (breast height) for a tree, 0 (the root collar)
                                                   !     for a shrub; a grass has no diameter
+      !---~---
+      !   The crown under a snow pack: its base as a share of the height (CLM5's canopy bottom over
+      ! top, 8.5/17 m and 11.5/20 m for its temperate needleleaf and broadleaf deciduous trees; 0.2
+      ! for its shrubs, 0.02 for its grasses), and how far the pack bends it down, as a share of
+      ! the height (ELM's and CTSM's snow bending; 0, none, by default).
+      !---~---
+      real(wp)    :: crown_base_fraction = 0.5_wp ! [-]
+      real(wp)    :: snow_bending        = 0.0_wp ! [-]
       !--- Height: the curve, and the cap on every curve.
       integer(ik) :: height_allometry = HEIGHT_POWER   ! the height curve: power law or log-quadratic
       real(wp)    :: hgt_max     = 46.0_wp        ! [m]   the largest height

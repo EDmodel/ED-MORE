@@ -18,6 +18,7 @@ module ed_fast_dynamics
    use ed_met,                  only : met_co2
    use ed_forcing_params,       only : CO2_SOURCE_FILE
    use ed_polygon_state_vars,   only : polygon_t, patch_polygon_area
+   use ed_organic_lib,          only : organic_present
    use ed_fast_integ_types,         only : fast_static_state_t, fast_dynamic_state_t, fast_forcing_t, fast_output_t,   &
                                        fast_workspace_t, step_report_t, surface_source_slopes_t,                 &
                                        ensure_static_capacity,                                                   &
@@ -125,6 +126,7 @@ contains
       !---~---
       type(fast_step_data_t), allocatable :: step_data(:)
       real(wp)    :: area
+      real(wp)    :: t_buried   ! [K] the ground's surface, where a buried crown sits
       integer(ik) :: ip, isub, npatch, ncoh_max, nsub, n_thread, ith, is_p, k, iv
       integer(ik), allocatable :: visit(:)          ! the patch loop's order, costliest first
       real(wp),    allocatable :: neg_cost(:)
@@ -211,7 +213,7 @@ contains
       ! step data.
       !---~---
       !$omp parallel do default(shared) schedule(monotonic: dynamic, 1) num_threads(n_thread)       &
-      !$omp    private(iv, ip, ith, isub, is_p, area, k, tick0, tick1, tick_rate)
+      !$omp    private(iv, ip, ith, isub, is_p, area, k, tick0, tick1, tick_rate, t_buried)
       do iv = 1_ik, npatch
          ip = visit(iv)
          call system_clock(tick0, tick_rate)
@@ -245,7 +247,10 @@ contains
             end do
             call record_substep(poly, ip, isub, cfg%dt_fast, sd%static, sd%dynamic, sd%forcing, sd%out,  &
                                 do_fast, out_bufs)
-            call accumulate_fast_to_slow(poly, cfg, ip, sd%forcing, sd%out, sd%dynamic%cas%can_temp)
+            t_buried = sd%dynamic%soil_energy%soil_temp(1)
+            if (organic_present(sd%dynamic%organic)) t_buried = sd%dynamic%organic%temp
+            call accumulate_fast_to_slow(poly, cfg, ip, sd%forcing, sd%out, sd%dynamic%cas%can_temp,           &
+                                         sd%static%exposed(1:sd%static%n), t_buried)
          end do
          call scatter_patch(sd%dynamic, poly, ip)
 

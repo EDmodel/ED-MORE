@@ -1440,6 +1440,8 @@ contains
       associate (allom => cfg%pft%allom)
          call req_pa_bcast(tp, 'allometry.hgt_max',          allom%hgt_max,          npft, miss)
          call opt_pa_bcast(tp, 'allometry.diameter_height',  allom%diameter_height,  npft, miss)
+         call opt_pa_bcast(tp, 'allometry.crown_base_fraction', allom%crown_base_fraction, npft, miss)
+         call opt_pa_bcast(tp, 'allometry.snow_bending',     allom%snow_bending,     npft, miss)
          call req_pa_bcast(tp, 'allometry.b1Ht',             allom%b1Ht,             npft, miss)
          call req_pa_bcast(tp, 'allometry.b2Ht',             allom%b2Ht,             npft, miss)
          call req_pa_bcast(tp, 'allometry.agb_c1',           allom%agb_c1,           npft, miss)

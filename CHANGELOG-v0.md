@@ -196,6 +196,12 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ### Added
 
+- A snow pack buries the crowns it reaches: each cohort's leaves and wood under the pack leave the
+  canopy (radiation, gas exchange, transpiration, the open fraction, interception, the tissues'
+  exchange), and its phenology cues read no light while it is wholly buried and, for its buried
+  share, the ground's temperature. Per PFT, `[allometry].crown_base_fraction` (the crown's base over
+  the height, default 0.5) and `snow_bending` (default 0). A crown above the pack is unchanged, so
+  the examples are bit for bit. (#TBD)
 - `[surface_layer]`: the organic layer's materials, litter and moss (bulk density, water capacity,
   conductivity dry and wet), and `[soil].moss_depth`, per site. Outputs `mean_organic_temp_py` and
   `mean_organic_water_py` (and `_pa`). A state file carries the layer (`organic_*_pa`); one from

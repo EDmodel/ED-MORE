@@ -43,6 +43,28 @@ $`\max(\text{min\_canopy\_depth},\,h+\text{canopy\_freeboard})`$, the tallest co
 ([canopy_air_space_biophysics](canopy_air_space_biophysics.md)); it sets the CAS air mass per ground
 area and hence the storage capacity of each of its three variables.
 
+### Snow on the canopy
+
+A pack deep enough to reach a cohort's crown buries part of it. Each cohort's leaves and wood are
+spread evenly over its crown, from its base, `crown_base_fraction` of the height, to its top; while a
+pack lies on the plant it bends the top down by `snow_bending` of the height (`[allometry]`, per PFT).
+The share of the crown above the pack is
+
+```math
+f_{exp} = \min\!\left(1,\ \max\!\left(0,\ \frac{h' - z_{snow}}{h' - c\,h'}\right)\right), \qquad h' = h\,(1 - b) \qquad(1b)
+```
+
+with $`c`$ the crown base fraction and $`b`$ the bending (`crown_exposed_fraction`), 1 with no pack or a
+pack below the crown. The leaves and wood under the pack leave the canopy for the window: the
+cohort's LAI and WAI become their exposed shares, so the two-stream, the gas exchange, the
+transpiration, the open fraction $W$, the interception and the tissues' exchange all see only what
+stands above the snow, and the buried part's ground is the pack's. Its gross photosynthesis is that
+of its exposed leaves. Its phenology cues read its own environment: no light while it is wholly
+buried, and a temperature blended from the canopy air and, for its buried share, the ground's
+surface under the pack ([plant_phenology](plant_phenology.md) §2). The defaults (CLM5's canopy
+bottom over top, 0.5, for its temperate trees; no bending) leave a tree taller than twice the pack
+whole: CLM5's shrubs (0.2) and grasses (0.02) set their own.
+
 ## 2. The CLM5 Monin-Obukhov surface layer
 
 `mo_surface_layer` returns $`u_*`$ and the scalar profile factor from the gradients between the
@@ -186,8 +208,9 @@ bounded to $[0,10]$, $`c_s=`$ `cs_dense`, $`\gamma_g=`$ `gamma_g`, and LAI and W
 wood area indices (`open_canopy_fraction`; the kernel takes $W$ as `opencan_frac`). A patch with no
 cohorts ($W=1$) couples its ground as bare soil; under a closed canopy the dense form sets the
 conductance ($W=0.0025$ at LAI + WAI = 6). CLM blends the transfer coefficients that multiply one
-velocity scale; with both terms on $`u_*`$, that is this linear blend of the conductances. Snow does not
-bury the canopy in $W$ (CLM's burial would raise $W$ through the exposed leaf and wood area). The **soil-evaporation aerodynamic resistance** is $`r_{aero}=1/g_{g,net}`$, and
+velocity scale; with both terms on $`u_*`$, that is this linear blend of the conductances. A pack that
+buries part of a crown raises $W$ through the exposed leaf and wood area, as CLM's burial does (§1,
+"Snow on the canopy"). The **soil-evaporation aerodynamic resistance** is $`r_{aero}=1/g_{g,net}`$, and
 $`g_{g,net}`$ is the ground sensible and latent conductance in the surface energy balance.
 
 ## 4. In-canopy wind and the leaf/wood boundary layers
@@ -298,6 +321,7 @@ The leaf width and branch diameter that set $\ell$ are PFT traits (`[pft]`).
 |---|---|
 | the per-patch entry point | `canopy_aerodynamics` (cohorts reordered, then `aerodynamics_bottom_to_top`) |
 | roughness and displacement, eq. (1) | `canopy_roughness`; burial fraction `canopy_burial_fraction` |
+| a crown's share above the snow, eq. (1b) | `crown_exposed_fraction` (applied in `ed_fast_state`: `gather_patch`) |
 | Monin–Obukhov solve ($`u_*`$, temp1, $\zeta$), eqs. (2)–(4) | `mo_surface_layer` |
 | profile denominators $D_m, D_h$ | `d_mom`, `d_heat` |
 | stability functions $`\Psi_m,\Psi_h`$, eq. (5) | `stabfunc1`, `stabfunc2` |

@@ -30,7 +30,8 @@ module ed_fast_state
    use ed_organic_lib,           only : organic_diagnose
    use ed_polygon_state_vars,    only : polygon_t
    use ed_state_defaults,        only : DMAX_PSI_LEAF_ACCUM_RESET
-   use ed_canopy_aerodynamics,   only : canopy_roughness, open_canopy_fraction, canopy_burial_fraction
+   use ed_canopy_aerodynamics,   only : canopy_roughness, open_canopy_fraction, canopy_burial_fraction,         &
+                                        crown_exposed_fraction
    use ed_soil_heat,             only : soil_layer_temp
    use ed_fast_integ_types,          only : fast_static_state_t, fast_dynamic_state_t, fast_forcing_t, fast_output_t,  &
                                         ensure_static_capacity
@@ -112,6 +113,18 @@ contains
       ncoh = poly%patch%cohort_count(ip)
       i0   = poly%patch%cohort_offset(ip)
       call gather_cohorts(static, poly%cohort, i0, ncoh)
+      !---~---
+      !   The pack at the window's start buries each cohort's crown below its depth: the leaves and
+      ! wood under it leave the canopy (docs/science/canopy_aerodynamics.md, "Snow on the canopy").
+      !---~---
+      do j = 1_ik, ncoh
+         associate (allom => poly%cohort%pft_table%allom(static%pft(j)))
+            static%exposed(j) = crown_exposed_fraction(static%height(j), poly%patch%snow(ip)%snow_depth(1),     &
+                                                       allom%crown_base_fraction, allom%snow_bending)
+         end associate
+         static%lai(j) = static%lai(j) * static%exposed(j)
+         static%wai(j) = static%wai(j) * static%exposed(j)
+      end do
       call derive_cohort_terms(static, cfg%pft%hydraulics, poly%site%surface(poly%patch%owner_site(ip))%soil_profile)
 
       !---~---
@@ -229,13 +242,15 @@ contains
    !   Add one fast step of patch ip to the sums the slow step reads. The cohorts' slots are
    ! disjoint across patches, so the threads need no reduction.
    !---~---
-   subroutine accumulate_fast_to_slow(poly, cfg, ip, forcing, out, can_temp)
+   subroutine accumulate_fast_to_slow(poly, cfg, ip, forcing, out, can_temp, exposed, t_buried)
       type(polygon_t),      intent(inout) :: poly
       type(ed_config_t),    intent(in)    :: cfg
       integer(ik),          intent(in)    :: ip
       type(fast_forcing_t), intent(in)    :: forcing
       type(fast_output_t),  intent(in)    :: out
       real(wp),             intent(in)    :: can_temp   ! [K] the patch's canopy air at the step's end
+      real(wp),             intent(in)    :: exposed(:) ! [-] each cohort's crown above the snow pack
+      real(wp),             intent(in)    :: t_buried   ! [K] what a buried crown sits at: the ground's surface
       real(wp)    :: dt_fast_days
       integer(ik) :: i0, i, j
       !---~---
@@ -262,15 +277,19 @@ contains
          poly%cohort%root_resp_accum(i) = poly%cohort%root_resp_accum(i) + out%root_resp_coh(j) * cfg%dt_fast * umol_2_kgc
          !---~---
          !   Hours of light at the cohort's top, the phenology light cue: a step counts when the
-         ! PAR there exceeds the PFT's par_min.
+         ! PAR there exceeds the PFT's par_min, and a crown the snow pack buries sees none.
          !---~---
-         if (forcing%par_top(j) * par_w_2_umol > cfg%pft%pheno(poly%cohort%pft(i))%par_min)               &
+         if (exposed(j) > 0.0_wp .and.                                                                    &
+             forcing%par_top(j) * par_w_2_umol > cfg%pft%pheno(poly%cohort%pft(i))%par_min)               &
             poly%cohort%light_hours_accum(i) = poly%cohort%light_hours_accum(i) + cfg%dt_fast / 3600.0_wp
          !---~---
          !   The phenology's temperature: the canopy air the cohort's buds and leaves sit in, its
-         ! patch's, time-integrated over the step (docs/science/plant_phenology.md §2).
+         ! patch's, time-integrated over the step (docs/science/plant_phenology.md §2); a crown the
+         ! pack buries sits, for its buried share, at the ground's surface under it.
          !---~---
-         poly%cohort%pheno_temp_accum(i) = poly%cohort%pheno_temp_accum(i) + can_temp * cfg%dt_fast / 3600.0_wp
+         poly%cohort%pheno_temp_accum(i) = poly%cohort%pheno_temp_accum(i)                                  &
+                                           + (exposed(j) * can_temp + (1.0_wp - exposed(j)) * t_buried)     &
+                                           * cfg%dt_fast / 3600.0_wp
          !---~---
          !   Running daily maximum of psi_leaf, the predawn value that drives tomorrow's stomatal
          ! control (docs/science/leaf_gas_exchange.md §4.2).
