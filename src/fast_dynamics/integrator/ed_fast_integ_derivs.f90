@@ -446,14 +446,16 @@ contains
 
       !---~---
       !   Each cohort: uptake from its layers, sapflow to its leaves, and transpiration. The
-      ! cohort's uptake comes from its whole root profile at once; its own sums are kept in
+      ! cohort's uptake comes from its whole root profile at once, each layer's conductance
+      ! times its roots' contact with it (none once it freezes); its own sums are kept in
       ! scalars over its layers and written once.
       !---~---
       do i = 1_ik, static%n
          psi_w = ev%psi_coh(WOOD, i)
          dpsi_w = ev%dpsi_coh(WOOD, i)
-         call root_water_uptake_profile(nsl, static%g_rhizo(1:nsl, i), ev%k_soil(2:nsoil), ev%psi_soil(2:nsoil), &
-                                        profile%z_node(1:nsl), psi_w, ev%uptake(1:nsl, i), du_dpsi, du_dk)
+         call root_water_uptake_profile(nsl, static%g_rhizo(1:nsl, i) * drive%root_contact(1:nsl),                  &
+                                        ev%k_soil(2:nsoil), ev%psi_soil(2:nsoil), profile%z_node(1:nsl), psi_w,       &
+                                        ev%uptake(1:nsl, i), du_dpsi, du_dk)
          u_sum = 0.0_wp
          dqb_sum = 0.0_wp
          do k = 1_ik, nsl

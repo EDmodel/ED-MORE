@@ -13,7 +13,7 @@
 !---~---
 module ed_plant_hydr_lib
    use ed_kinds,       only : wp
-   use ed_constants,   only : grav_head, rho_h2o, pi, tiny_num, mmh2o
+   use ed_constants,   only : grav_head, rho_h2o, pi, tiny_num, mmh2o, t_3ple
    implicit none
    private
 
@@ -25,7 +25,7 @@ module ed_plant_hydr_lib
    !--- Vulnerability curve; the sapwood's, the leaves' and the roots' conductances.
    public :: conductance_retained_fraction, KEXP_TOL
    public :: xylem_max_conductance, leaf_max_conductance, plant_max_conductance
-   public :: root_fraction_profile, rhizosphere_conductance
+   public :: root_fraction_profile, rhizosphere_conductance, root_soil_contact
 
    !---~---
    !   One tissue's pressure-volume curve: the four traits every tissue-water routine
@@ -64,6 +64,13 @@ module ed_plant_hydr_lib
    ! conductance: closer, the roots all but touch and the form fails.
    !---~---
    real(wp), parameter :: MIN_SPACING_RATIO = 2.0_wp
+
+   !---~---
+   !   [K] The span below the triple point over which a layer's roots lose their contact with
+   ! its water as it freezes (root_soil_contact): a layer in its zero curtain, just below the
+   ! triple point, still conducts; one a kelvin colder conducts nothing.
+   !---~---
+   real(wp), parameter :: ROOT_FREEZE_WIDTH = 1.0_wp
 
 contains
 
@@ -358,5 +365,20 @@ contains
       g_rhizo = nplant * 2.0_wp * pi * root_length * rho_h2o                                      &
                / (grav_head * log(max(half_spacing / root_radius, MIN_SPACING_RATIO)))
    end function rhizosphere_conductance
+
+   !---~---
+   !   The share of a layer's rhizosphere conductance its roots keep at its temperature [-]: one
+   ! at and above the triple point, none ROOT_FREEZE_WIDTH below it, a smooth step between. A
+   ! root in frozen soil touches ice, not liquid, and its tips harden: it neither takes up
+   ! water nor loses it, as CLM5 drops frozen layers from root water uptake
+   ! (docs/science/plant_hydraulics.md eq. (14)).
+   !---~---
+   elemental function root_soil_contact(t_soil) result(contact)
+      real(wp), intent(in) :: t_soil   ! [K] the layer's temperature
+      real(wp) :: contact              ! [-]
+      real(wp) :: x
+      x = min(1.0_wp, max(0.0_wp, (t_soil - (t_3ple - ROOT_FREEZE_WIDTH)) / ROOT_FREEZE_WIDTH))
+      contact = x * x * (3.0_wp - 2.0_wp * x)
+   end function root_soil_contact
 
 end module ed_plant_hydr_lib

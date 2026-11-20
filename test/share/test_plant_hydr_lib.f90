@@ -19,6 +19,8 @@
 !      the column to the rooting depth holds 1 - beta of them, and none lie below it.
 !   5. GARDNER (rhizosphere_conductance, eq. (14)): a layer split in two keeps its
 !      conductance, and twice the plants at one spacing double it.
+!   5b. FROZEN ROOTS (root_soil_contact): full contact at and above the triple point, none a
+!      kelvin below it, a smooth, rising step between.
 !   6. GROWTH SEAM (tissue_water_to_psi): growth at conserved water lowers the potential.
 !   7. CAPACITY CLAMP (tissue_capped_water): a no-op on growth, the new ceiling on a
 !      shrink, zero for a bare tissue.
@@ -26,12 +28,12 @@
 program test_plant_hydr_lib
    use ed_test_assert,      only : check, check_true, test_report
    use ed_kinds,            only : wp, ik
-   use ed_constants,        only : pi, mmh2o
+   use ed_constants,        only : pi, mmh2o, t_3ple
    use ed_plant_hydr_lib,   only : water_curve_t, tissue_psi_to_rwc, tissue_rwc_to_psi, tissue_psi_to_water,      &
                                    tissue_capacitance, tissue_water_to_psi, tissue_capped_water,                  &
                                    tissue_water_relations, tissue_water_to_rwc, xylem_max_conductance,            &
                                    leaf_max_conductance, plant_max_conductance,                                   &
-                                   root_fraction_profile, rhizosphere_conductance
+                                   root_fraction_profile, rhizosphere_conductance, root_soil_contact
    implicit none
 
    call test_pv_curve()
@@ -39,6 +41,7 @@ program test_plant_hydr_lib
    call test_wood_leaf_conductance()
    call test_root_profile()
    call test_gardner()
+   call test_root_contact()
    call test_growth_seam()
    call test_seam_capacity_clamp()
 
@@ -184,6 +187,32 @@ contains
       call check('twice the plants at the same spacing, twice the conductance',                    &
                  rhizosphere_conductance(2.0_wp, 1000.0_wp, half, 1.5e-4_wp), 2.0_wp * g, 1.0e-14_wp * g)
    end subroutine test_gardner
+
+   !--- 5b. Frozen roots: the contact a layer's roots keep as it freezes.
+   subroutine test_root_contact()
+      real(wp) :: t, f, f_prev, h
+      integer  :: i
+      logical  :: rising
+      print '(a)', '-- frozen roots --'
+      call check('full contact at the triple point', root_soil_contact(t_3ple), 1.0_wp, 0.0_wp)
+      call check('full contact above it', root_soil_contact(t_3ple + 10.0_wp), 1.0_wp, 0.0_wp)
+      call check('no contact a kelvin below it', root_soil_contact(t_3ple - 1.0_wp), 0.0_wp, 0.0_wp)
+      call check('none colder', root_soil_contact(t_3ple - 20.0_wp), 0.0_wp, 0.0_wp)
+      call check('half in the middle of the step', root_soil_contact(t_3ple - 0.5_wp), 0.5_wp, 1.0e-14_wp)
+      h = 1.0e-6_wp
+      call check_true('the step meets both ends with a flat slope',                                        &
+                      abs(root_soil_contact(t_3ple) - root_soil_contact(t_3ple - h)) < 1.0e-10_wp .and.  &
+                      abs(root_soil_contact(t_3ple - 1.0_wp + h) - root_soil_contact(t_3ple - 1.0_wp)) < 1.0e-10_wp)
+      rising = .true.
+      f_prev = -1.0_wp
+      do i = 0, 100
+         t = t_3ple - 1.0_wp + real(i, wp) / 100.0_wp
+         f = root_soil_contact(t)
+         if (f < f_prev) rising = .false.
+         f_prev = f
+      end do
+      call check_true('the contact rises with the temperature', rising)
+   end subroutine test_root_contact
 
    !---~---
    !   Biomass fast/slow SEAM: mass, not psi, is conserved across a slow-loop biomass update, so a

@@ -23,7 +23,7 @@ module ed_fast_integ_frozen
                                      CO_ABS_PAR, CO_ABS_SW, CO_ABS_LW, CO_WIND, CO_LEAF_WATER, CO_WOOD_WATER,    &
                                      CO_GPP_RATE, CO_LEAF_PAR, CO_GB_MOL, CO_PSI_PREDAWN,    &
                                      CO_PSI_WOOD, CO_PLC, CO_SAPFLOW, CO_ROOT_UPTAKE, CO_WET_FRACTION
-   use ed_plant_hydr_lib,     only : conductance_retained_fraction
+   use ed_plant_hydr_lib,     only : conductance_retained_fraction, root_soil_contact
    use ed_plant_hydraulics,   only : leaf_node_psi
    use ed_surface, only : snow_out_t
    use ed_soil_derive,        only : top_soil_psi
@@ -816,6 +816,8 @@ contains
                                            (1.0_wp - dynamic%soil_energy%soil_fliq(1:nsl))                        &
                                            * dynamic%soil_water%theta(1:nsl),                                     &
                                            dynamic%soil_energy%soil_fliq(1:nsl) * dynamic%soil_water%theta(1:nsl))
+         !--- Each layer's roots lose their contact with it as it freezes (docs/science/plant_hydraulics.md eq. (14)).
+         drive%root_contact(1:nsl) = root_soil_contact(dynamic%soil_energy%soil_temp(1:nsl))
          !--- The rain the surface water captures and drips back is the throughfall's, at its temperature.
          frozen%veg_surface%rain_liquid_enthalpy = internal_energy_liquid(t_water_base)
       end associate

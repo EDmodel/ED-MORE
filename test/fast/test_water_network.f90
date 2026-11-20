@@ -24,6 +24,8 @@
 !  12. VANISHING STORES: a near-leafless leaf and a trace pond stay in range, and water closes.
 !  13. CAMPBELL        : on a Campbell clay the soil potentials are the Campbell curve's, finite
 !                        and below zero; the stand takes up water, and every step closes.
+!  13a. FROZEN ROOTS   : a stand with dry wood over a wet soil takes up water; with every layer
+!                        frozen (no root contact) it takes up none.
 !  13b. GRASS          : a tree over a grass sward, whose leaves join its fine roots with no
 !                        stem between: its path is its leaves' conductance alone; two days of
 !                        transpiration and a shower, and an autumn storm on dry soil that
@@ -110,6 +112,7 @@ program test_water_network
    call test_accuracy()
    call test_vanishing_stores()
    call test_campbell()
+   call test_frozen_roots()
    call test_grass_sward()
    call test_column_scenarios()
    call test_report('test_water_network')
@@ -735,6 +738,31 @@ contains
       call check_true('Campbell: every step closes to round-off', worst < 1.0e-13_wp, worst)
       call check_int('Campbell: no sub-step forced through', nfail, 0_ik)
    end subroutine test_campbell
+
+   !---~---
+   !   13a. A stand with dry wood over a wet clay, and no transpiration: its roots take up water.
+   ! With every layer frozen its roots have no contact with the soil (root_soil_contact): no water
+   ! passes, and the plants keep theirs to round-off.
+   !---~---
+   subroutine test_frozen_roots()
+      type(stand_t) :: thawed, frozen
+      real(wp) :: theta(soil%n_active), coh0, coh_t, coh_f
+      integer(ik) :: step
+      theta = 0.40_wp
+      call make_stand(thawed, 2_ik, theta, 0.0_wp, 0.5_wp, 0.45_wp, 0.0_wp)
+      call make_stand(frozen, 2_ik, theta, 0.0_wp, 0.5_wp, 0.45_wp, 0.0_wp)
+      frozen%drive%root_contact = 0.0_wp
+      coh0  = sum(frozen%water%state%water_coh)
+      do step = 1_ik, 4_ik
+         call advance(thawed, sopts, 900.0_wp)
+         call advance(frozen, sopts, 900.0_wp)
+      end do
+      coh_t  = sum(thawed%water%state%water_coh)
+      coh_f  = sum(frozen%water%state%water_coh)
+      call check_true('frozen roots: in contact, the dry wood takes up water', coh_t > coh0 * (1.0_wp + 1.0e-6_wp),      &
+                      coh_t / coh0)
+      call check_close('frozen roots: frozen, the plants keep their water', coh_f, coh0, 1.0e-12_wp * coh0)
+   end subroutine test_frozen_roots
 
    !--- The soil column alone.
 

@@ -591,6 +591,7 @@ module ed_fast_integ_types
       real(wp) :: t_rain = 298.15_wp                       ! [K] the temperature that values it
       real(wp) :: t_soil(n_soil_layer_max) = 298.15_wp     ! [K] temperature of the water a layer gives up
       type(soil_ice_t) :: ice(n_soil_layer_max)              ! each layer's ice, held over the step
+      real(wp) :: root_contact(n_soil_layer_max) = 1.0_wp ! [-] each layer's root-soil contact, held over the step
       real(wp), allocatable :: e_demand(:)                 ! (ncoh) [kg/m2/s] the stomata's transpiration demand
       type(ground_evap_env_t) :: ground                    ! the ground evaporation's boundary
    end type water_drive_t
