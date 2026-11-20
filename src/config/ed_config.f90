@@ -249,7 +249,8 @@ contains
       integer(ik),       intent(in)    :: n
       pft%n = n
       allocate(pft%allom(n), pft%hydro(n), pft%wood_density(n))
-      allocate(pft%reproduction_investment_fraction(n), pft%min_repro_height(n), pft%recruit_carbon_efficiency(n))
+      allocate(pft%reproduction_investment_fraction(n), pft%min_repro_height(n), pft%recruit_carbon_efficiency(n),     &
+               pft%min_recruit_height(n))
       allocate(pft%recruit_shade_decay(n))
       pft%recruit_shade_decay = 0.0_wp      ! optional key; 0 = the same share under any canopy
       allocate(pft%nbg_init_density(n))

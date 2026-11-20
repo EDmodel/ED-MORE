@@ -92,7 +92,9 @@ The targets and every cohort's geometry come from its PFT's size allometry (`ed_
 record per PFT), whose coefficients are the PFT file's `[allometry]` block
 ([`configuration.md`](../configuration.md), "The PFT file"). Each key takes one value for every PFT or
 one per PFT, so an understorey specialist and a canopy emergent can each have their own curve, cap and
-leaf display. With $D$ the diameter [cm], $H$ the height [m] and $\rho$ the wood density [g cm⁻³]:
+leaf display. With $D$ the stem diameter [cm], measured at the PFT's `diameter_height` (1.3 m, breast
+height, for a tree; 0, the root collar, for a shrub), $H$ the height [m] and $\rho$ the wood density
+[g cm⁻³]:
 
 - **Height** follows one of two curves, each capped at the PFT's `hgt_max`: the pan-tropical power
   law $`\ln H = b_1 + b_2 \ln D`$ (`b1Ht`, `b2Ht`), or a log-quadratic,

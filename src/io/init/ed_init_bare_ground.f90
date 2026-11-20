@@ -116,7 +116,7 @@ contains
 
    !---~---
    !   A near-bare-ground start's seedlings: every patch gets one cohort of each PFT with
-   ! nbg_init_density > 0, that many plants per m2, at min_cohort_height on the PFT's own
+   ! nbg_init_density > 0, that many plants per m2, at the PFT's min_recruit_height on its own
    ! height curve, where recruits are born. All densities 0 leave the patches empty.
    !---~---
    subroutine seed_bare_ground(poly, cfg)
@@ -128,7 +128,7 @@ contains
       do ip = 1_ik, poly%patch%n
          do ipft = 1_ik, cfg%pft%n
             if (cfg%pft%nbg_init_density(ipft) <= 0.0_wp) cycle
-            diameter = height_to_diameter(poly%cohort%pft_table%allom(ipft), cfg%pft%min_cohort_height)
+            diameter = height_to_diameter(poly%cohort%pft_table%allom(ipft), cfg%pft%min_recruit_height(ipft))
             call add_cohort(poly, cfg, ip, ipft, cfg%pft%nbg_init_density(ipft), diameter)
          end do
       end do

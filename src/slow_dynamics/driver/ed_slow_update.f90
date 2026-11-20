@@ -389,7 +389,7 @@ contains
       !   What the recruits drew from outside the model, for the caller to declare to the
       ! slow ledger: their carbon beyond the carbon_min per plant the pool paid for, and
       ! their tissues' heat and water. Recruitment stands in for the sizes below
-      ! min_cohort_height, which the model does not represent, so the draw comes from the
+      ! each PFT's min_recruit_height, which the model does not represent, so the draw comes from the
       ! free atmosphere, not the canopy air (demography.md §3; conservation.md §3).
       !---~---
       real(wp),            intent(out)   :: carbon_drawn  ! [kgC/m2 site]
@@ -428,8 +428,8 @@ contains
             do pf = 1_ik, poly%n_pft
                if (.not. found(pf, ip)) cycle
                m = m + 1_ik
-               !--- Every PFT recruits at the smallest tracked height, on its own curve.
-               recruit_diameter = height_to_diameter(cohort%pft_table%allom(pf), pft%min_cohort_height)
+               !--- Every PFT recruits at its own min_recruit_height, on its own curve.
+               recruit_diameter = height_to_diameter(cohort%pft_table%allom(pf), pft%min_recruit_height(pf))
                !---~---
                !   Born in its patch's state: at the canopy-air temperature, holding the water
                ! its tissues hold at the top soil layer's potential (patch_physical_state).

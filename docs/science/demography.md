@@ -97,7 +97,7 @@ A cohort's reproduction carbon $r$ [kgC plant⁻¹ per step] is its allocation's
   R = s_{\mathrm{pft}} + \sum_{\mathrm{cohorts}} n\,\frac{r}{\Delta t}\,\frac{e}{c_{\min}} \qquad(6)
   ```
 
-- $`c_{\min}`$ is the carbon of one plant at the smallest tracked height (`[pft].min_cohort_height`), on
+- $`c_{\min}`$ is the carbon of one plant at its PFT's recruit height (`[pft].min_recruit_height`), on
   the PFT's allometry: a tree's aboveground biomass there. A grass has no wood, so its $`c_{\min}`$
   is the whole plant at its PFT's height: its leaves on the allometry, their fine roots and its
   storage target.
@@ -176,7 +176,7 @@ The monthly operators, in order, are recruitment, fusion, the cull, fission and 
 
 **Recruitment.** When a pool reaches `[demography].min_recruit_size` plants m⁻², one cohort is
 founded.
-- Its density is the pool, at `[pft].min_cohort_height` on its PFT's allometry, and the pool is reset.
+- Its density is the pool, at its PFT's `[pft].min_recruit_height` on its allometry, and the pool is reset.
 - A smaller pool carries over, so rare recruiters still establish eventually.
 - The recruit is born in its patch's state: at the canopy-air temperature, its tissues holding the
   water of the top soil layer's potential.
@@ -361,7 +361,7 @@ of the phenology, soil water and soil temperature before a run starts.
 | `[pft].mort_gamma`, `mort_alpha`, `mort_beta` | eq. (3) [yr⁻¹, yr⁻¹, yr cm⁻¹] |
 | `[pft].recruit_carbon_efficiency`, `recruit_shade_decay` | eq. (5) |
 | `[pft].seed_rain_recruits`, `include_pft` | eq. (6) |
-| `[pft].min_cohort_height` | the smallest tracked height, at which recruits are born |
+| `[pft].min_recruit_height` | per PFT: the height its recruits are born at, the smallest it tracks |
 | `[demography].growth_memory_days` | the growth history's window, eq. (2) |
 | `[demography].negligible_nplant`, `min_cohort_carbon` | the density floor (eq. (4)) and the cull (§3) |
 | `[demography].max_cohort`, `n_cohort_fusion_iter`, `cohort_size_tol_min`, `cohort_size_tol_max`, `cohort_lai_cap`, `split_eps`, `conservation_tol` | cohort fusion and fission (§3) |

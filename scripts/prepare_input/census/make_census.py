@@ -43,6 +43,9 @@ DEAD = ("D",)                           # a later census's status of a tree that
 # otherwise maps them in [source].columns, e.g. { treeID = "stem.id", date = "jd" }.
 COLUMNS = ("treeID", "status", "dbh", "gx", "gy", "date", "ExactDate", "agb", "sp")
 DBH_TO_MM = {"mm": 1.0, "cm": 10.0}
+BREAST_HEIGHT = 1.3          # [m] where a ForestGEO table measures a stem: [source].diameter_height's default
+HEIGHT_SLACK = 0.1           # [m] a table and a PFT measured within this of each other agree (1.3 m and the
+                             #     1.37 m of US inventories do)
 
 
 # --------------------------------------------------------------------------------------------- #
@@ -230,6 +233,7 @@ def pft_params(pft_file, pft):
             "lai_b1": allom("lai_b1"), "lai_b2": allom("lai_b2"), "hgt_max": allom("hgt_max"),
             "rho": pick("wood_density"), "sla": pick("sla"), "root_to_leaf": pick("root_to_leaf_ratio"),
             "aboveground_frac": allom("aboveground_frac"),
+            "diameter_height": allom("diameter_height", BREAST_HEIGHT),
             "leaf_turnover": pick("leaf_turnover_rate_toc") + seasonal_fall,
             "retained": float(retained[k]) if retained is not None else 0.3,
             "fineroot_turnover": pick("fineroot_turnover_rate"), "f_labile_leaf": pick("f_labile_leaf"),
@@ -321,6 +325,16 @@ def main(argv=None):
     if empty:
         print(f"WARNING: {empty} cells hold no kept tree and are left out; their area is lost to the site")
 
+    #----- A PFT's curves take its diameter at its diameter_height: the table's must be measured there. --#
+    measured_at = float(src.get("diameter_height", BREAST_HEIGHT))
+    pft_file = decl.get("pft", {}).get("pft_file")
+    params = {p: pft_params(os.path.join(base, pft_file), p) for p in np.unique(pft)} if pft_file else {}
+    for p, pp in params.items():
+        if abs(pp["diameter_height"] - measured_at) > HEIGHT_SLACK:
+            raise SystemExit(f"ERROR: the table's diameters are measured at {measured_at:g} m "
+                             f"([source].diameter_height), PFT {p}'s at {pp['diameter_height']:g} m "
+                             "([allometry].diameter_height)")
+
     dbh_cm = trees["dbh"].to_numpy(float) / 10.0
     dates = pd.to_datetime(trees.get("ExactDate"), errors="coerce") if "ExactDate" in trees else None
     date_note = (f"{dates.min().date()} to {dates.max().date()}"
@@ -329,7 +343,7 @@ def main(argv=None):
               f"source {os.path.basename(path)}, SHA-256 {sha256(path)[:16]}...; {src.get('citation', '')}".rstrip("; "),
               f"{len(trees)} live trees >= {plot.get('min_dbh_mm', 10.0):g} mm; one patch per "
               f"{float(plot.get('cell_size', 20.0)):g} m cell; one row per distinct (cell, diameter, pft)",
-              "patch_area [m2]; diameter [cm]; nplant [plants per m2 of the patch]; "
+              f"patch_area [m2]; diameter [cm] at {measured_at:g} m; nplant [plants per m2 of the patch]; "
               f"made by scripts/prepare_input/census/make_census.py at {git_commit(base)} on "
               f"{datetime.date.today().isoformat()}"]
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
@@ -349,9 +363,7 @@ def main(argv=None):
     if "agb" in trees:
         summary["table_agb_Mg_per_ha"] = float(pd.to_numeric(trees["agb"], errors="coerce").sum() / plot_area * 1e4)
 
-    pft_file = decl.get("pft", {}).get("pft_file")
     if pft_file:
-        params = {p: pft_params(os.path.join(base, pft_file), p) for p in np.unique(pft)}
         by_pft = {}
         for p, pp in params.items():
             _, la, agb = allometry(dbh_cm[pft == p], pp)

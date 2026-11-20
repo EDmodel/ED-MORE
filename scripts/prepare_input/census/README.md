@@ -39,6 +39,7 @@ Tables other than BCI's, and stands of several PFTs:
 |---|---|
 | `[source].columns` | maps the tool's column names (`treeID`, `status`, `dbh`, `gx`, `gy`, `date`, `ExactDate`, `agb`, `sp`) to the table's, e.g. `{ treeID = "stem.id", date = "jd" }`; `[mortality]` takes its own |
 | `[source].dbh_units` | `"mm"` (default) or `"cm"` |
+| `[source].diameter_height` | the height [m] the table measures its stems at (default 1.3, breast height). With a PFT file, each PFT's `[allometry].diameter_height` must be within 0.1 m of it: a PFT's curves take the diameter at that height |
 | `[output].pft_by_species` | a PFT per species code (`{ tsugca = 2 }`); every other tree takes `[output].pft`. The rows are then one per (cell, diameter, PFT), and the summary's allometry and litter are each tree's own PFT's |
 | `[plot].circle` | `{ x, y, radius }` [m, plot coordinates]: only the cells whose centre lies within, such as a tower's surroundings. The summary's per-hectare values, and the earlier census's mortality, are over those cells |
 | `[mortality].dead_status` | the later census's statuses of a tree that died (default `["D"]`); the two censuses are matched by `treeID` |

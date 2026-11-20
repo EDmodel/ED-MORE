@@ -17,7 +17,7 @@
 !---~---
 module ed_allometry_lib
    use ed_kinds,       only : wp, ik
-   use ed_constants,   only : tiny_num, pio4
+   use ed_constants,   only : tiny_num, pio4, breast_height
    implicit none
    private
 
@@ -46,6 +46,9 @@ module ed_allometry_lib
    !---~---
    type :: allometry_t
       integer(ik) :: growth_form = GROWTH_TREE    ! GROWTH_TREE | GROWTH_GRASS ([pft].growth_form)
+      !--- The diameter every curve takes: a stem's, measured at this height.
+      real(wp)    :: diameter_height = breast_height ! [m] 1.3 m (breast height) for a tree, 0 (the root collar)
+                                                  !     for a shrub; a grass has no diameter
       !--- Height: the curve, and the cap on every curve.
       integer(ik) :: height_allometry = HEIGHT_POWER   ! the height curve: power law or log-quadratic
       real(wp)    :: hgt_max     = 46.0_wp        ! [m]   the largest height
@@ -187,14 +190,14 @@ contains
    end function agb_to_diameter_chave
 
    !---~---
-   !   The AGB [kgC/plant] of a tree recruit at min_cohort_height: the carbon per recruit
+   !   The AGB [kgC/plant] of a tree recruit at its PFT's min_recruit_height: the carbon per recruit
    ! that turns reproduction carbon into recruit numbers.
    !---~---
-   elemental pure function recruit_agb(allom, min_cohort_height, rho) result(carbon_min)
+   elemental pure function recruit_agb(allom, recruit_height, rho) result(carbon_min)
       type(allometry_t), intent(in) :: allom
-      real(wp),          intent(in) :: min_cohort_height, rho
+      real(wp),          intent(in) :: recruit_height, rho
       real(wp)                      :: carbon_min
-      carbon_min = diameter_to_agb(allom, height_to_diameter(allom, min_cohort_height), min_cohort_height, rho)
+      carbon_min = diameter_to_agb(allom, height_to_diameter(allom, recruit_height), recruit_height, rho)
    end function recruit_agb
 
    !--- Leaf area, wood area and sapwood.

@@ -251,7 +251,7 @@ once to the leaf area above it; a bare-ground start begins at the top-of-canopy 
 
 **Near-bare ground is empty unless seeded.** Each patch starts without cohorts and the stand grows from
 recruitment. `[pft].nbg_init_density` [plants m⁻²], optional and 0 by default, gives each patch one cohort
-of every PFT with a positive value, that many plants per m² at `min_cohort_height` on the PFT's own
+of every PFT with a positive value, that many plants per m² at its `min_recruit_height` on the PFT's own
 height curve, where recruits are born. A regional spin-up uses it to start every polygon with the same
 seedlings.
 
@@ -390,8 +390,8 @@ reproduction parameters are per PFT but ship uniform.
 [plants m⁻² yr⁻¹], plus those its reproduction buys. From `min_repro_height` up, a cohort diverts
 `reproduction_investment_fraction` of its growth carbon to reproduction
 ([plant_carbon_allocation](science/plant_carbon_allocation.md) §2). `recruit_carbon_efficiency` of that
-carbon (seed set, germination and seedling survival together) becomes recruits at `min_cohort_height`
-(one value for every PFT), a share that falls as exp(−`recruit_shade_decay` × patch LAI).
+carbon (seed set, germination and seedling survival together) becomes recruits at the PFT's
+`min_recruit_height` [m] (one value for every PFT, or one per PFT), a share that falls as exp(−`recruit_shade_decay` × patch LAI).
 `include_pft = 0` keeps a PFT from recruiting.
 
 **Growth form.** `[pft].growth_form` is `"tree"` or `"grass"`, one name for every PFT or one per PFT
@@ -401,6 +401,13 @@ one plant (a tiller) has the leaf area `lai_b1 · hgt_max^lai_b2`, and its fine 
 store ([`science/plant_carbon_allocation.md`](science/plant_carbon_allocation.md) §2). A PFT file with a
 grass needs `[demography].demography_on = false`, a positive `hgt_max` and `lai_b1`, and a positive
 `[pft].root_to_leaf_ratio`; the stem's keys take a value for it that it does not use.
+
+**The diameter.** Every curve takes a stem's diameter $`D`$ [cm], measured at the PFT's
+`[allometry].diameter_height` [m]: 1.3 m (breast height, the default) for a tree, the root collar (0)
+for a shrub, or wherever the PFT's own curves were fitted. The census gives each plant's diameter at its
+PFT's height, and the outputs report it there. A tree's `diameter_height` lies in [0, `hgt_max`), and `"chave2014"`, fitted
+on breast-height diameters, needs 1.3 m or more. A tree's recruits are born at `[pft].min_recruit_height`,
+below its `hgt_max`.
 
 **Height allometry.** Each PFT's height follows the curve `[allometry].height_allometry` names for it
 (one name for every PFT, or one per PFT, `["chave2014", "power", "power"]`).

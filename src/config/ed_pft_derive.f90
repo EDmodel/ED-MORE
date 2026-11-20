@@ -72,7 +72,7 @@ contains
    !---~---
    !   Each PFT's recruit carbon, from the table's own allometry: called on a polygon's copy,
    ! once the cell's allometry is in it (docs/science/demography.md §3). A tree recruit's is
-   ! its AGB at min_cohort_height. A grass has no wood, so its recruit's is the whole plant
+   ! its AGB at its PFT's min_recruit_height. A grass has no wood, so its recruit's is the whole plant
    ! at its PFT's height: leaves on allometry, their fine roots and the storage target.
    !---~---
    subroutine derive_recruit_carbon(pft)
@@ -88,7 +88,7 @@ contains
             pft%recruit_carbon(ipft) = leaf_c + root_c                                                &
                                      + storage_carbon_target(pft%storage_cushion(ipft), leaf_c, root_c)
          else
-            pft%recruit_carbon(ipft) = recruit_agb(pft%allom(ipft), pft%min_cohort_height,             &
+            pft%recruit_carbon(ipft) = recruit_agb(pft%allom(ipft), pft%min_recruit_height(ipft),      &
                                                    pft%wood_density(ipft))
          end if
       end do

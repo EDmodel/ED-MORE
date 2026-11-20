@@ -253,18 +253,20 @@ ed_add_test(io_config_example
                       -P ${CMAKE_CURRENT_SOURCE_DIR}/checks/check_io_config_example.cmake
               LABELS lint)
 #----- edmore refuses a run it cannot start and names the cause: unknown, moved or misplaced        #
-#      keys, a choice none of its key's, keys a setting makes inapplicable; RK45 at a loose          #
+#      keys, a choice none of its key's, keys a setting makes inapplicable; RK45 at a loose         #
 #      tolerance; a value that is not a number, a string with no closing quote or a key set twice;  #
 #      a sub-daily record across two slow steps; a monthly file shorter than a month; io_config     #
 #      lines the selection refuses; a Chave E map no PFT uses; plastic fine roots without plastic   #
-#      traits; impossible hydraulic traits; a NaN soil layer; a census or state file that is        #
-#      missing or empty. Each case is a one-day run in its own build-tree directory; the script     #
-#      explains the cases. A Debug build traps the NaN at the comparison that refuses it, so that    #
-#      case runs in the other builds.                                                                #
+#      traits; impossible hydraulic traits; a tree's diameter height or recruit height above its    #
+#      height cap, or a Chave height curve on a diameter below breast height; a NaN soil layer;     #
+#      a census or state file that is missing or empty. Each case is a one-day run in its own       #
+#      build-tree directory; the script explains the cases. A Debug build traps the NaN at the      #
+#      comparison that refuses it, so that case runs in the other builds.                           #
 set(refused_cases config_unknown_keys config_bad_choice config_inapplicable_keys config_rk45_loose_rtol
                   config_malformed_value output_fast_window output_chunk_short io_config_coarse_on_f
                   io_config_true_off io_config_no_match io_config_tie io_config_tier_none io_config_axis
-                  maps_chave_e hydraulics_pv_traits hydraulics_vulnerability init_census_missing
+                  maps_chave_e hydraulics_pv_traits hydraulics_vulnerability allometry_diameter_height
+                  allometry_chave_breast allometry_min_recruit init_census_missing
                   init_census_empty init_restart_missing)
 if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
    list(APPEND refused_cases soil_nan_layer)

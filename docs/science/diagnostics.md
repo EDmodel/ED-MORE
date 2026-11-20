@@ -70,7 +70,9 @@ goes silently wrong.
 
 **Which weight is itself a physical statement.** `diameter` is reported basal-area-weighted — the
 forestry convention, dominated by the trees that hold the stand — not stem-weighted, which a
-regenerating understory would swamp. Canopy temperatures and conductances are leaf-area-weighted,
+regenerating understory would swamp. Each PFT's diameter is measured at its own
+`[allometry].diameter_height` (breast height for a tree, the root collar for a shrub), and the basal
+area and the mean diameter over several PFTs add them as they are. Canopy temperatures and conductances are leaf-area-weighted,
 so a bare sapling does not pull the canopy mean as hard as a closed overstory. Demographic rates
 are `nplant`-weighted.
 

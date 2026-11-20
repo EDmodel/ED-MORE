@@ -277,8 +277,8 @@ $`E^{wood}_{b,i} = 2\,(1-\omega_{wood})\,\mathrm{EWAI}_i\,\sigma T_{wood}^4`$, z
 band. Every member sees the light reaching the layer's top. A one-member layer is exactly the per-cohort
 solve. Stacking tied cohorts instead would put whichever sorts first on top, so the light split between
 PFTs would follow the PFT index rather than the ecology; the canopy total hardly changes, so only the
-split between the tied cohorts would show it. Ties arise at recruitment, when every PFT recruits at
-the one smallest tracked height, `min_cohort_height`.
+split between the tied cohorts would show it. Ties arise at recruitment, when PFTs recruit at the same
+`min_recruit_height`.
 
 `canopy_radiation` then splits each cohort's absorbed radiation into leaves and wood the same way:
 they share its first hit of the beam $`B_{b,i}`$ by `beam_leaf_frac` and the rest it takes in by

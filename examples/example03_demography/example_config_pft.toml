@@ -15,7 +15,7 @@ reproduction_investment_fraction = [0.3, 0.3, 0.3]      # [--] growth fraction d
 recruit_carbon_efficiency          = [1.0e-3, 1.0e-3, 1.0e-3] # [--] reproduction carbon -> establishable recruits
 seed_rain_recruits = [0.01, 0.01, 0.01]    # [plant/m2/yr] baseline external seed rain
 include_pft        = [1, 1, 1]             # 1 = PFT may recruit, 0 = excluded
-min_cohort_height       = 2.435            # [m] = diameter 1 cm on the BCI height curve; recruits born here
+min_recruit_height      = 2.435            # [m] = diameter 1 cm on the BCI height curve; recruits born here
 min_repro_height   = [20.0, 20.0, 20.0]   # [m] a cohort reproduces from this height
 # Leaf photosynthesis / stomatal traits (FvCB C3 + Collatz C4). pathway: 1 = C3, 2 = C4.
 # (Used by the leaf gas-exchange model, which this example does not run: growth is a census law.)

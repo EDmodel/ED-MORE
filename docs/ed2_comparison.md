@@ -232,7 +232,7 @@ trait.
 | Site properties | `[site]` and `[soil]`; for a region, per cell from the `[maps]` maps on the forcing grid: soil depth, texture, chemistry, bottom boundary, deep temperature and Chave's E | Map databases: `VEG_DATABASE`, `SOIL_DATABASE`, `SLCOL_DATABASE`, `SOILDEPTH_DB`, `LU_DATABASE`, `THSUMS_DATABASE` |
 
 ED-MORE reads no vegetation database. A near-bare start's `[pft].nbg_init_density` is ED2's `init_density`:
-each patch gets one cohort of every PFT whose density is above zero, at `min_cohort_height`.
+each patch gets one cohort of every PFT whose density is above zero, at its `min_recruit_height` (ED2's `hgt_min`).
 
 ### 4.3 Meteorological forcing
 

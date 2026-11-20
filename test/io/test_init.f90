@@ -15,7 +15,7 @@
 !      soil_theta reach every layer of every patch through build_soil_profile, with the
 !      defaults pinned (288 K, theta = 0.30); a start below freezing holds the liquid its
 !      freezing curve allows; a texture per layer starts each layer at its own field capacity;
-!      and bare ground is empty unless a PFT's nbg_init_density seeds it at min_cohort_height.
+!      and bare ground is empty unless a PFT's nbg_init_density seeds it at its min_recruit_height.
 !   4. THE INITIAL SNOWPACK (ed_init: init_fast_state; docs/science/snow_biophysics.md): no
 !      [fast].snow_init_swe seeds no pack; one seeds every patch with one frozen layer of that
 !      water equivalent at [fast].snow_init_temp, as deep as its water over the snow density,
@@ -404,11 +404,12 @@ contains
       call seed_bare_ground(poly, cfg)
       call check(poly%cohort%n == 0_ik, 'bare ground is not empty with nbg_init_density = 0')
       cfg%pft%nbg_init_density = [0.5_wp, 0.0_wp, 0.2_wp]
+      cfg%pft%min_recruit_height = [2.0_wp, 2.0_wp, 3.5_wp]          ! each PFT's own recruit height
       call init_bare_ground(poly, cfg, 3_ik)
       call seed_bare_ground(poly, cfg)
       call check(poly%cohort%n == 6_ik, 'not one cohort per seeded PFT per patch')
-      call check(all(abs(poly%cohort%height(1:6) - cfg%pft%min_cohort_height) < 1.0e-9_wp),                    &
-                 'a seeded cohort is not at min_cohort_height')
+      call check(all(abs(poly%cohort%height(1:6) - cfg%pft%min_recruit_height(poly%cohort%pft(1:6))) < 1.0e-9_wp), &
+                 'a seeded cohort is not at its PFT''s min_recruit_height')
       call check(all(poly%cohort%nplant(1:6) == 0.5_wp .or. poly%cohort%nplant(1:6) == 0.2_wp) .and.             &
                  count(poly%cohort%pft(1:6) == 1_ik) == 3 .and. count(poly%cohort%pft(1:6) == 3_ik) == 3,       &
                  'a seeded cohort has the wrong PFT or density')

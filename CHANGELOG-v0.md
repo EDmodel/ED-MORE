@@ -72,6 +72,9 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   (`dbh_class_edges` stops the run), and the Python field `diameter` (`run.cohorts("diameter")`).
   `make_census.py` writes a `diameter` column; the ForestGEO table it reads keeps its `dbh`. Rename the
   column in your census files and the names in your io_configs and scripts. (#TBD)
+- `[pft].min_cohort_height` is now `[pft].min_recruit_height` [m], the height a PFT's recruits are born at,
+  one value for every PFT or one per PFT; `min_cohort_height` stops the run. A tree's must be below its
+  `hgt_max`. (#TBD)
 
 ### Answer changes
 
@@ -164,6 +167,12 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ### Added
 
+- `[allometry].diameter_height` [m]: the height a PFT's stem diameter is measured at, the diameter every
+  curve takes, one value or one per PFT. 1.3 m, breast height, by default (the results are unchanged);
+  0, the root collar, for a shrub. A tree's lies in [0, `hgt_max`), and `"chave2014"` needs 1.3 m or more.
+  `make_census.py` takes the table's measuring height as `[source].diameter_height` (default 1.3) and
+  refuses a PFT measured elsewhere. The PFT parameter CSV a run writes has `diameter_height` and
+  `min_recruit_height` columns. (#TBD)
 - Four output variables split evapotranspiration by where the vapour comes from:
   `mean_transp_py` (transpiration), `mean_veg_surface_evap_py` (evaporation of the water on the
   leaves' and wood's surfaces), `mean_ground_evap_py` (bare soil and snow) and `mean_dew_py`

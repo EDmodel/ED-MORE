@@ -77,6 +77,8 @@ module ed_constants
    real(wp), parameter :: tissue_c_wood_dry = 1217.0_wp       ! [J/kg/K] dry wood specific heat, 103.1 + 3.867 T at 15 degC
 
    !--- Reference conditions.
+   real(wp), parameter :: breast_height = 1.3_wp          ! [m] where a forest inventory measures a tree's
+                                                          ! diameter, its DBH (Chave et al. 2014)
    real(wp), parameter :: p_std       = 101325.0_wp           ! [Pa] standard atmospheric pressure
    real(wp), parameter :: t_ref_photo = 298.15_wp             ! [K] 25 degC, the reference of the photosynthesis rates
    real(wp), parameter :: rho_air_ref = 1.2_wp                ! [kg/m3] air density the slow step values the canopy air at

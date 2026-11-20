@@ -12,7 +12,7 @@
 module ed_config_check
    use ed_kinds,              only : wp, ik
    use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
-   use ed_constants,            only : n_soil_layer_max, day_sec
+   use ed_constants,            only : n_soil_layer_max, day_sec, breast_height
    use ed_output_params,        only : STATE_DAYS, FC_DAY, FC_MONTH, TIER_MONTHLY, TIER_ANNUAL
    use ed_time,                 only : time_lt, time_valid, time_to_string, whole_years_between
    use ed_toml,                 only : toml_table_t, toml_has, toml_has_section
@@ -757,6 +757,25 @@ contains
             error stop TAG//'a grass PFT needs pft.root_to_leaf_ratio > 0: its fine roots hold its water'
          if (any(p%allom(1:p%n)%growth_form == GROWTH_GRASS) .and. cfg%demography%demography_on)          &
             error stop TAG//'a PFT with growth_form = "grass" needs [demography].demography_on = false'
+         !---~---
+         !   A tree's diameter is measured at diameter_height, below its height cap, and its recruits are
+         ! born below the cap too. A grass has no diameter and is born at its height, so neither applies.
+         !---~---
+         if (any(p%allom(1:p%n)%growth_form /= GROWTH_GRASS .and.                                        &
+                 (p%allom(1:p%n)%diameter_height < 0.0_wp .or.                                           &
+                  p%allom(1:p%n)%diameter_height >= p%allom(1:p%n)%hgt_max)))                            &
+            error stop TAG//'allometry.diameter_height must be in [0, hgt_max) for a tree'
+         if (any(p%allom(1:p%n)%growth_form /= GROWTH_GRASS .and.                                        &
+                 (p%min_recruit_height(1:p%n) <= 0.0_wp .or.                                             &
+                  p%min_recruit_height(1:p%n) >= p%allom(1:p%n)%hgt_max)))                               &
+            error stop TAG//'pft.min_recruit_height must be in (0, hgt_max) for a tree'
+         !---~---
+         !   Chave et al. (2014) fitted the log-quadratic height curve and its stress index E on
+         ! diameters measured at breast height or above the buttresses.
+         !---~---
+         if (any(p%allom(1:p%n)%height_allometry == HEIGHT_CHAVE .and.                                   &
+                 p%allom(1:p%n)%diameter_height < breast_height))                                        &
+            error stop TAG//'allometry.height_allometry = "chave2014" needs diameter_height >= 1.3 m (breast height)'
       end associate
    end subroutine check_pft
 

@@ -191,3 +191,37 @@ min_leaf_cover = [0.0, 0.0]
     _, per_year = mc.litter_input(np.array([30.0]), 400.0, deciduous, 0.0)
     _, la, _ = mc.allometry(np.array([30.0]), deciduous)
     assert per_year["leaf"] == pytest.approx(la[0] / 20.0 / 400.0 * 1.01 * 0.7)   # 30 % resorbed
+
+
+def test_a_pft_measured_at_another_height_is_refused(tmp_path):
+    """A breast-height table cannot start a PFT whose curves take the root-collar diameter."""
+    csv = tmp_path / "trees.csv"
+    table([("A", 253.0, 5, 5)]).to_csv(csv, index=False)
+    pft = tmp_path / "pft.toml"
+    pft.write_text("""
+[pft]
+wood_density = [0.6]
+sla = [20.0]
+root_to_leaf_ratio = [1.0]
+leaf_turnover_rate_toc = [0.33]
+fineroot_turnover_rate = [1.0]
+f_labile_leaf = [0.7]
+f_labile_stem = [0.05]
+[allometry]
+b1Ht = 1.139963
+b2Ht = 0.564899
+agb_c1 = 0.03365
+agb_c2 = 0.976
+lai_b1 = 0.23384770
+lai_b2 = 0.6410495
+hgt_max = [46.0]
+aboveground_frac = [0.7]
+diameter_height = 0.0
+""")
+    decl = tmp_path / "census.toml"
+    decl.write_text('[source]\npath = "trees.csv"\n[plot]\nx_extent = 100.0\ny_extent = 60.0\n'
+                    '[pft]\npft_file = "pft.toml"\n')
+    with pytest.raises(SystemExit, match="measured at 1.3 m"):
+        mc.main(["--declaration", str(decl), "--out", str(tmp_path / "census_ed.csv")])
+    decl.write_text(decl.read_text().replace('path = "trees.csv"', 'path = "trees.csv"\ndiameter_height = 0.0'))
+    assert mc.main(["--declaration", str(decl), "--out", str(tmp_path / "census_ed.csv")])["kept_trees"] == 1

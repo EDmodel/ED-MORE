@@ -21,10 +21,11 @@ recruit_carbon_efficiency          = [1.0e-3, 1.0e-3, 1.0e-3] # [--] share of re
                                     #      recruits: seed set, germination and seedling survival together
 # recruit_shade_decay = [0.0, 0.0, 0.0]   # [1/(m2/m2)] that share x exp(-k * patch LAI); optional, default 0
 # nbg_init_density = [0.0, 0.0, 0.0]      # [plant/m2] a bare-ground start's seedlings, per patch, at
-                                          #      min_cohort_height (ED2 init_density); optional, default 0
+                                          #      the PFT's min_recruit_height (ED2 init_density); optional, default 0
 seed_rain_recruits = [0.01, 0.01, 0.01]    # [plant/m2/yr] baseline external seed rain
 include_pft        = [1, 1, 1]             # 1 = PFT may recruit, 0 = excluded
-min_cohort_height       = 2.0              # [m] smallest tracked cohort; recruits born here (all PFTs)
+min_recruit_height      = 2.0              # [m] a tree recruit is born at this height on its PFT's curve, the
+                                          #      smallest tracked (ED2 hgt_min); one value, or one per PFT
 min_repro_height   = [13.912064431085485, 13.912064431085485, 13.912064431085485]   # [m] a cohort reproduces from this height:
                                     #      0.33 of a 100 cm tree's height on the power curve (Thomas 1996: 0.2-0.75)
 # Leaf photosynthesis / stomatal traits (FvCB C3 + Collatz C4; docs/science/leaf_gas_exchange.md).
@@ -142,6 +143,9 @@ struct_lignin_frac     = [0.20, 0.25, 0.30]         # [--] lignin fraction of th
 # one value, for every PFT, or an array with one value per PFT.
 height_allometry = "power"  # "power" or "chave2014", or one per PFT (["chave2014", "power", "power"])
 hgt_max    = [46.0, 46.0, 46.0]   # [m] the largest height: the cap on every curve
+# diameter_height = 1.3   # [m] the height a stem's diameter is measured at, the diameter every curve takes: 1.3 m
+#                         #     (breast height) for a tree, the default; 0 (the root collar) for a shrub. A curve
+#                         #     fitted at another height needs this one: "chave2014" needs 1.3 m or more
 # The power law, height = exp(b1Ht + b2Ht ln diameter): pan-tropical (ED2 iallom 3).
 b1Ht       = 1.139963
 b2Ht       = 0.564899
