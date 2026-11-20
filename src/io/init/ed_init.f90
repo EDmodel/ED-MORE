@@ -215,6 +215,7 @@ contains
          poly%patch%snow(ipp)%snow_energy(1) =                                                   &
             temp_to_internal_energy(0.0_wp, cfg%snow_init_swe, cfg%snow_init_temp, 0.0_wp)
          poly%patch%snow(ipp)%snow_depth(1)  = cfg%snow_init_swe / cfg%snow%rho_snow
+         poly%patch%snow(ipp)%density(1)     = cfg%snow%rho_snow
          poly%patch%snow(ipp)%nlayer         = 1_ik
          call internal_energy_to_temp(poly%patch%snow(ipp)%snow_energy(1),                       &
                                       cfg%snow_init_swe, 0.0_wp,                                 &

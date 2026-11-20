@@ -91,7 +91,7 @@ thermal_bottom_bc = "geothermal" # geothermal: no heat flux at the base, which r
 [snow]
 # The snow pack's physical parameters (docs/science/snow_biophysics.md). The pack has no switch: a
 # column without snow never enters it. Every key optional, at the value shown.
-rho_snow           = 250.0    # [kg/m3] bulk density, fixed (depth = swe / rho)
+rho_snow           = 250.0    # [kg/m3] fresh snow's bulk density (snowfall's depth = its mass / rho)
 k_snow             = 0.15     # [W/m/K] thermal conductivity
 albedo_vis_fresh   = 0.85     # [-]     fresh-snow albedo, visible
 albedo_nir_fresh   = 0.65     # [-]     fresh-snow albedo, near infrared

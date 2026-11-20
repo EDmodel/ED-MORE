@@ -57,14 +57,17 @@ module ed_patch_state_vars
    end type cas_state_t
 
    !---~---
-   !   Snow, or temporary surface water: mass and energy per ground area, with
-   ! temperature and liquid fraction read off them; nlayer = 0 is no snow
+   !   The ground's water layer: snow, ice and the liquid they hold, as mass and energy per
+   ! ground area, with temperature and liquid fraction read off them, and a bulk density that
+   ! makes the mass a depth (fresh snow, ice from frozen pond water, mixed by volume); nlayer =
+   ! 0 is none. The free water beyond what it holds is the pond (soil_water_state_t)
    ! (docs/science/snow_biophysics.md).
    !---~---
    type :: snow_state_t
       real(wp) :: swe(n_snow_layer_max)         = 0.0_wp   ! [kg/m2] water-equivalent mass (prognostic)
       real(wp) :: snow_energy(n_snow_layer_max) = 0.0_wp   ! [J/m2]  internal energy (prognostic)
-      real(wp) :: snow_depth(n_snow_layer_max)  = 0.0_wp   ! [m]     swe over the snow density
+      real(wp) :: snow_depth(n_snow_layer_max)  = 0.0_wp   ! [m]     its depth
+      real(wp) :: density(n_snow_layer_max)     = 0.0_wp   ! [kg/m3] its bulk density, mass over depth (prognostic)
       real(wp) :: snow_temp(n_snow_layer_max)   = t_3ple   ! [K]     diagnosed
       real(wp) :: snow_fliq(n_snow_layer_max)   = 0.0_wp   ! [-]     liquid fraction, diagnosed
       integer(ik) :: nlayer                     = 0_ik     ! layers in use (0 = no snow)
@@ -331,14 +334,27 @@ contains
       end do
    end function soil_energy_store
 
-   !--- nlayer is the larger; the caller sets it to 0 when no snow is left.
+   !---~---
+   !   nlayer is the larger; the caller sets it to 0 when no snow is left. The volumes add, so
+   ! the density is the blended mass over the blended depth, or the one density both share.
+   !---~---
    pure function blend_snow(w1, a, w2, b) result(c)
       real(wp),            intent(in) :: w1, w2
       type(snow_state_t),  intent(in) :: a, b
       type(snow_state_t)              :: c
+      integer :: k
       c%swe         = w1 * a%swe         + w2 * b%swe
       c%snow_energy = w1 * a%snow_energy + w2 * b%snow_energy
       c%snow_depth  = w1 * a%snow_depth  + w2 * b%snow_depth
+      do k = 1, n_snow_layer_max
+         if (b%swe(k) <= 0.0_wp .or. a%density(k) == b%density(k)) then
+            c%density(k) = a%density(k)
+         else if (a%swe(k) <= 0.0_wp) then
+            c%density(k) = b%density(k)
+         else
+            c%density(k) = c%swe(k) / c%snow_depth(k)
+         end if
+      end do
       c%snow_temp   = w1 * a%snow_temp   + w2 * b%snow_temp   ! provisional
       c%snow_fliq   = w1 * a%snow_fliq   + w2 * b%snow_fliq   ! provisional
       c%nlayer      = max(a%nlayer, b%nlayer)

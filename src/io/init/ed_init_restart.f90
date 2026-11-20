@@ -762,6 +762,8 @@ contains
       call def_var(d, 'snow_energy_layer_pa', NC_DOUBLE, [d%patch, d%snow_layer],                                   &
                    'snow extensive internal energy [J/m2] (prognostic)')
       call def_var(d, 'snow_depth_layer_pa',  NC_DOUBLE, [d%patch, d%snow_layer], 'snow geometric depth [m] (prognostic)')
+      call def_var(d, 'snow_density_layer_pa', NC_DOUBLE, [d%patch, d%snow_layer],                                 &
+                   'snow layer bulk density [kg/m3] (prognostic)')
       call def_var(d, 'snow_temp_layer_pa',   NC_DOUBLE, [d%patch, d%snow_layer], 'snow temperature [K] (diagnosed twin)')
       call def_var(d, 'snow_fliq_layer_pa',   NC_DOUBLE, [d%patch, d%snow_layer], 'snow liquid fraction [-] (diagnosed twin)')
       call def_var(d, 'soil_theta_layer_pa',  NC_DOUBLE, [d%patch, d%soil_layer], 'soil volumetric moisture [m3/m3] (prognostic)')
@@ -831,6 +833,7 @@ contains
             call put_dbl(r, 'snow_swe_layer_pa',    p%snow(ip)%swe(1:n_snow_layer_max),         item=ip)
             call put_dbl(r, 'snow_energy_layer_pa', p%snow(ip)%snow_energy(1:n_snow_layer_max), item=ip)
             call put_dbl(r, 'snow_depth_layer_pa',  p%snow(ip)%snow_depth(1:n_snow_layer_max),  item=ip)
+            call put_dbl(r, 'snow_density_layer_pa', p%snow(ip)%density(1:n_snow_layer_max),    item=ip)
             call put_dbl(r, 'snow_temp_layer_pa',   p%snow(ip)%snow_temp(1:n_snow_layer_max),   item=ip)
             call put_dbl(r, 'snow_fliq_layer_pa',   p%snow(ip)%snow_fliq(1:n_snow_layer_max),   item=ip)
          end do
@@ -910,6 +913,16 @@ contains
             call get_dbl(r, 'snow_depth_layer_pa',  p%snow(ip)%snow_depth(1:n_snow_layer_max),  item=ip)
             call get_dbl(r, 'snow_temp_layer_pa',   p%snow(ip)%snow_temp(1:n_snow_layer_max),   item=ip)
             call get_dbl(r, 'snow_fliq_layer_pa',   p%snow(ip)%snow_fliq(1:n_snow_layer_max),   item=ip)
+            !--- A state file from before the density was written: a layer's density is its mass over its depth.
+            if (has_var(r%ncid, 'snow_density_layer_pa')) then
+               call get_dbl(r, 'snow_density_layer_pa', p%snow(ip)%density(1:n_snow_layer_max), item=ip)
+            else
+               where (p%snow(ip)%snow_depth > 0.0_wp)
+                  p%snow(ip)%density = p%snow(ip)%swe / p%snow(ip)%snow_depth
+               elsewhere
+                  p%snow(ip)%density = 0.0_wp
+               end where
+            end if
          end do
          !--- 6. Soil water and heat, and the pond.
          do ip = 1_ik, npat

@@ -43,7 +43,7 @@
 program test_fast_integ_step
    use ed_kinds,                only : wp, ik
    use ed_constants,            only : latent_heat_fusion, rho_h2o, grav, pio4, cp_liq, grav_head, mmh2o,          &
-                                       tissue_c_wood_dry, tissue_c_leaf, pi, r_gas, mmdry, virtual_temp_factor
+                                       tissue_c_wood_dry, tissue_c_leaf, pi, r_gas, mmdry, virtual_temp_factor, t_3ple
    use ed_fast_params,          only : INTEG_ESDIRK2, INTEG_RK45, RK45_RTOL
    use ed_time,                 only : solar_cosz
    use ed_therm_lib,            only : temp_to_internal_energy, internal_energy_liquid, sat_specific_humidity,     &
@@ -81,6 +81,7 @@ program test_fast_integ_step
       real(wp)    :: snowfall     = 0.0_wp   ! [kg/m2/s] snowfall all day, under sub-freezing air
       logical     :: cold_air     = .false.  ! the snowfall's sub-freezing air, without the snowfall
       real(wp)    :: snow_seed    = 0.0_wp   ! [kg/m2] a pack at the start
+      real(wp)    :: pond_seed    = 0.0_wp   ! [kg/m2] a pond at the start, liquid at the triple point
       real(wp)    :: shed         = 0.0_wp   ! [kg/m2/s] the day's turnover shed water
       real(wp)    :: shv_air      = SHV_AIR  ! [kg/kg] the air's humidity
       logical     :: sealed       = .false.  ! a bedrock bottom: no drainage
@@ -115,6 +116,7 @@ program test_fast_integ_step
    call test_aquifer()
    call test_snow_melt()
    call test_shed_under_pack()
+   call test_pond_under_pack()
    call test_snowfall_conserved()
    call test_light_snowfall()
    call test_psi_dt_convergence()
@@ -170,7 +172,12 @@ contains
          col%dynamic%snow%swe(1)         = d%snow_seed
          col%dynamic%snow%snow_energy(1) = temp_to_internal_energy(0.0_wp, d%snow_seed, 270.0_wp, 0.0_wp)
          col%dynamic%snow%snow_depth(1)  = d%snow_seed / 250.0_wp
+         col%dynamic%snow%density(1)     = 250.0_wp
          col%dynamic%snow%nlayer         = 1_ik
+      end if
+      if (d%pond_seed > 0.0_wp) then
+         col%dynamic%soil_water%w_surface        = d%pond_seed
+         col%dynamic%soil_water%w_surface_energy = d%pond_seed * internal_energy_liquid(t_3ple)
       end if
       do istep = 1_ik, d%hours * STEPS_PER_HOUR
          t_sec = (real(istep, wp) - 0.5_wp) * DT_FAST
@@ -819,6 +826,30 @@ contains
       end do
       call use_scheme(INTEG_ESDIRK2)
    end subroutine test_shed_under_pack
+
+   !---~---
+   !   A pond under a cold pack is the pack's free water: the pack takes it at the first step,
+   ! its cold freezing it, and every ledger closes across the hand-off.
+   !---~---
+   subroutine test_pond_under_pack()
+      type(day_t) :: d
+      integer(ik) :: is
+      character(len=7) :: nm
+      print '(a)', 'test_pond_under_pack:'
+      do is = 1_ik, size(SCHEMES, kind=ik)
+         call use_scheme(SCHEMES(is))
+         nm = scheme_name(SCHEMES(is))
+         d = day_t(snow_seed = 60.0_wp, pond_seed = 2.0_wp, cold_air = .true., hours = 1_ik)
+         call march_day(d)
+         call check_true(trim(nm)//' pond under a pack: all seven ledgers close', all_ledgers_closed(col%out%report))
+         call check_true(trim(nm)//' pond under a pack: the pack took the pond',                                   &
+                         col%dynamic%soil_water%w_surface == 0.0_wp .and. col%dynamic%snow%swe(1) > 61.9_wp,       &
+                         col%dynamic%snow%swe(1))
+         call check_true(trim(nm)//' pond under a pack: its water is ice, deeper than the snow alone',             &
+                         col%dynamic%snow%density(1) > 250.0_wp, col%dynamic%snow%density(1))
+      end do
+      call use_scheme(INTEG_ESDIRK2)
+   end subroutine test_pond_under_pack
 
    !---~---
    !   Snowfall is a boundary water input like rain, and every kilogram of it must end in the

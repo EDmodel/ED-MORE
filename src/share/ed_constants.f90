@@ -41,6 +41,7 @@ module ed_constants
 
    !--- Physical constants: liquid water and ice.
    real(wp), parameter :: rho_h2o            = 1000.0_wp      ! [kg/m3] liquid-water density
+   real(wp), parameter :: rho_ice            = 917.0_wp       ! [kg/m3] ice density at 0 degC (Cuffey & Paterson 2010)
    real(wp), parameter :: t_3ple             = 273.16_wp      ! [K] triple point of water (0.01 degC)
    real(wp), parameter :: cp_liq             = 4186.0_wp      ! [J/kg/K] liquid-water specific heat
    real(wp), parameter :: cp_ice             = 2093.0_wp      ! [J/kg/K] ice specific heat

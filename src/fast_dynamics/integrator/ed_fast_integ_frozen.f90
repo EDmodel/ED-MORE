@@ -91,6 +91,7 @@ contains
       !--- The processes' patch totals [umol/m2 ground/s] and the root zone's drivers.
       real(wp)    :: gpp, ra_leaf, ra_stem, ra_root, rh, soil_temp_root, theta_mean
       real(wp)    :: throughfall   ! [kg/m2/s] the rain and snow through the canopy
+      real(wp)    :: w_pond, e_pond   ! [kg/m2], [J/m2] the pond the step starts from, after the snow stage
       integer(ik) :: n, nsl
 
       n   = static%n
@@ -139,16 +140,18 @@ contains
                                out%report%exports%cas_capacity_co2)
 
       !---~---
-      !   The snow stage (docs/science/snow_biophysics.md §The snow store): the step's snow and rain
-      ! into the pack and the liquid it holds out to the pond, before the water network, which takes
-      ! that water this step. The pack's exchange with the canopy air and the soil is the march's.
-      ! A no-op without a pack.
+      !   The snow stage (docs/science/snow_biophysics.md §The snow store): the pond and the step's
+      ! snow and rain into the water layer and the liquid it holds beyond its capacity out to the
+      ! pond, before the water network, which takes that water this step. The pack's exchange with
+      ! the canopy air and the soil is the march's. A no-op without a pack or a freezing pond.
       !---~---
       frozen%ground%pack   = dynamic%snow
       frozen%ground%params = cfg%snow
       frozen%ground%dt     = dt_fast
+      w_pond = dynamic%soil_water%w_surface
+      e_pond = dynamic%soil_water%w_surface_energy
       call prepare_snow_stage(forcing%snowfall, forcing%rainfall, forcing%air_temp, cfg%aero%soil_rough,          &
-                              frozen%ground, frozen%snow)
+                              frozen%ground, frozen%snow, w_pond, e_pond)
       !--- The top soil node the ground surface conducts to, under the snow's base.
       associate (prof => site%soil_profile)
          frozen%ground%dz_soil_top = max(-prof%z_node(1), tiny_num)
@@ -168,9 +171,9 @@ contains
       !--- The start states: the water network's, from the stores' state^n water, and the march's.
       call set_water_state(static, site%soil_profile, cfg%pft%hydraulics, dynamic%soil_water%theta(1:nsl),       &
                            frozen%water_drive%ice(1:nsl),                                                        &
-                           dynamic%soil_water%w_surface, dynamic%soil_water%w_surface_energy,                    &
+                           w_pond, e_pond,                                                                       &
                            dynamic%leaf_water_mass(1:n), dynamic%wood_water_mass(1:n), water)
-      call pack_march_start(dynamic, n, nsl, y)
+      call pack_march_start(dynamic, w_pond, e_pond, n, nsl, y)
    end subroutine build_frozen
 
    !---~---
@@ -754,10 +757,12 @@ contains
 
    !---~---
    !   The march's start state, the state^n canopy air, soil energy and water, plant water and
-   ! surface water; the pond rides it (the stages pass it through; each scheme commits the network's).
+   ! surface water, and the pond the snow stage left; the pond rides it (the stages pass it
+   ! through; each scheme commits the network's).
    !---~---
-   subroutine pack_march_start(dynamic, n, nsl, y)
+   subroutine pack_march_start(dynamic, w_pond, e_pond, n, nsl, y)
       type(fast_dynamic_state_t), intent(in)  :: dynamic
+      real(wp),                   intent(in)  :: w_pond, e_pond   ! [kg/m2], [J/m2]
       integer(ik),                intent(in)  :: n, nsl
       type(march_state_t),       intent(out) :: y
       allocate(y%leaf_water_mass(n), y%wood_water_mass(n), y%leaf_surf_water(n), y%wood_surf_water(n))
@@ -766,8 +771,8 @@ contains
       y%cas_co2 = dynamic%cas%can_co2
       y%soil_energy(1:nsl) = dynamic%soil_energy%soil_energy(1:nsl)
       y%theta(1:nsl)       = dynamic%soil_water%theta(1:nsl)
-      y%w_surface          = dynamic%soil_water%w_surface
-      y%w_surface_energy   = dynamic%soil_water%w_surface_energy
+      y%w_surface          = w_pond
+      y%w_surface_energy   = e_pond
       y%leaf_water_mass(1:n) = dynamic%leaf_water_mass(1:n)
       y%wood_water_mass(1:n) = dynamic%wood_water_mass(1:n)
       y%leaf_surf_water(1:n) = dynamic%leaf_surf_water(1:n)

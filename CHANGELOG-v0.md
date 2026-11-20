@@ -14,6 +14,8 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ### Upgrading
 
+- A state file carries `snow_density_layer_pa`, the snow layer's bulk density. A state file from
+  before it starts each layer at its mass over its depth. (#TBD)
 - `[output.<tier>].file_chunk = "run"` is now `"all"`, one file for all of the run's records; `"run"`
   stops the run. A monthly file can no longer be a day long, nor an annual one shorter than a year.
 - A run stops before its first step if a diagnostic file it would write exists: remove the old files,
@@ -82,6 +84,12 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ### Answer changes
 
+- The pond is the free water of the ground's water layer, which can now freeze. At each fast step's
+  start a pond joins a snow pack, sharing its energy, and the pack gives back the liquid it does not
+  hold. A pond below its freezing point (sub-threshold snow, freezing rain) starts a layer of ice. It
+  used to stay liquid and could hold the energy of ice far below 0 °C. The layer gains a bulk density:
+  snowfall adds depth at `[snow].rho_snow`, and water the layer keeps from a pond adds it as ice, at
+  917 kg/m³. A pack with no pond and a warm pond with no pack are unchanged. (#TBD)
 - A plant is one individual: a tree with several stems is one plant at the diameter of their
   summed basal area, $`\sqrt{\sum_i D_i^2}`$. `make_census.py` lumps a stem table's stems per tree, and
   an earlier census's stems follow the trees the later census gives them. Harvard's stand (examples 04
