@@ -638,9 +638,10 @@ contains
       real(wp) :: step_soil(water%nsoil), step_coh(COHORT_STORES, water%ncoh)
       real(wp) :: try_soil(water%nsoil), try_coh(COHORT_STORES, water%ncoh)
       real(wp) :: res2_soil(water%nsoil), res2_coh(COHORT_STORES, water%ncoh)
+      real(wp) :: rhs_soil(water%nsoil), pond_step
       real(wp) :: merit, merit_try, worst, worst_try, lam, lam_max
       integer(ik) :: it, ib, i_try
-      logical  :: ok
+      logical  :: ok, isolated(water%nsoil)
 
       converged = .false.
       iters = 0_ik
@@ -660,9 +661,17 @@ contains
       do it = 1_ik, NEWTON_MAX
          if (worst <= 1.0_wp) exit
          iters = it
+         !---~---
+         !   A store the solve cannot see is solved on its own: the rest solve without it, and its
+         ! own step is zero, or for a pond that must hold water, to the head that holds it.
+         !---~---
+         call isolate_unlinked_stores(water%sys, h, water%ev(i_sol), water%state%water_soil(POND), tau_soil(POND),  &
+                                      res_soil, atol, scale_soil, scale_coh, isolated, pond_step)
          call water_newton_factor(water%sys, h, water%ev(i_sol), ok)
          if (.not. ok) return
-         call arrowhead_solve(water%sys, -res_soil, -res_coh, step_soil, step_coh)
+         rhs_soil = merge(0.0_wp, -res_soil, isolated)
+         call arrowhead_solve(water%sys, rhs_soil, -res_coh, step_soil, step_coh)
+         if (isolated(POND)) step_soil(POND) = pond_step
          lam_max = step_limit(profile, tau_soil, tau_coh, step_soil, step_coh)
          lam = lam_max
          !--- A trial's evaluation replaces the Jacobian sys held, so the start's is gone.
@@ -792,6 +801,67 @@ contains
       call water_storage_diagonal(h, ev, add_soil, add_coh)
       call arrowhead_factor(sys, add_soil, add_coh, ok)
    end subroutine water_newton_factor
+
+   !---~---
+   !   The soil stores the solve cannot see (docs/science/soil_plant_water.md §3, "Isolated
+   ! stores"): an empty pond on sealed frozen ground, a frozen layer whose pores are full. Such
+   ! a store holds no more water as its unknown moves and its exchanges have all but stopped, so
+   ! its column of the Newton matrix -- how far its unknown moves every store's balance --
+   ! vanishes, and the matrix is singular or close to it. A store's reach along its column, and
+   ! along its row (how far the others' unknowns move its balance), weighs each entry as
+   ! water_residual weighs a balance: below one, a whole unit of unknown moves no balance by as
+   ! much as the convergence tolerance. A store whose column reach is below one is taken out of
+   ! the solve when it can be solved on its own:
+   !   - its row reach is below one too and its balance is already met: it keeps its unknown;
+   !   - it is an empty pond receiving more than the ground takes at zero head (its flow into
+   !     the top layer is linear in its head): it must hold water, and steps to the head that
+   !     holds what it keeps, from where its own storage links it back.
+   ! Its row and column are cleared and its diagonal set, so the rest of the network solves
+   ! without it. The flows' Jacobian sys is written afresh at every evaluation, so the test is
+   ! made at every iteration and a store rejoins once its links return.
+   !---~---
+   pure subroutine isolate_unlinked_stores(sys, h, ev, w_pond_start, head, res_soil, atol, scale_soil, scale_coh,  &
+                                           isolated, pond_step)
+      type(arrowhead_system_t), intent(inout) :: sys
+      real(wp),                 intent(in)    :: h, w_pond_start, head   ! [s], [kg/m2], the pond's [m]
+      type(water_tend_t),       intent(in)    :: ev
+      real(wp),                 intent(in)    :: res_soil(:), atol, scale_soil(:), scale_coh(:,:)
+      logical,                  intent(out)   :: isolated(:)
+      real(wp),                 intent(out)   :: pond_step   ! [m] the pond's own step, if isolated
+      real(wp)    :: tol, col, row, w_end
+      integer(ik) :: c, i, ib
+      tol = NEWTON_TOL * atol / h
+      pond_step = 0.0_wp
+      do c = 1_ik, sys%nc
+         col = abs(ev%dwater_soil(c) / h) / (tol * scale_soil(c))
+         row = col
+         do i = 1_ik, sys%nc
+            col = col + abs(sys%a(i, c)) / (tol * scale_soil(i))
+            row = row + abs(sys%a(c, i)) / (tol * scale_soil(c))
+         end do
+         do ib = 1_ik, sys%nb
+            col = col + abs(sys%c(c, ib)) / (tol * scale_coh(WOOD, ib))
+            row = row + abs(sys%b(c, ib)) / (tol * scale_soil(c))
+         end do
+         isolated(c) = .false.
+         if (col >= 1.0_wp) cycle
+         if (row < 1.0_wp .and. abs(res_soil(c)) <= tol * scale_soil(c)) then
+            isolated(c) = .true.
+         else if (c == POND .and. head <= 0.0_wp) then
+            w_end = w_pond_start + h * (ev%inflow_soil(POND) + sys%a(POND, POND) * head)
+            if (w_end > 0.0_wp) then
+               isolated(c) = .true.
+               pond_step = pond_water_to_head(w_end) - head
+            end if
+         end if
+         if (.not. isolated(c)) cycle
+         sys%a(c, :) = 0.0_wp
+         sys%a(:, c) = 0.0_wp
+         sys%b(c, :) = 0.0_wp
+         sys%c(c, :) = 0.0_wp
+         sys%a(c, c) = scale_soil(c) / h
+      end do
+   end subroutine isolate_unlinked_stores
 
    !---~---
    !   The sub-step's local error relative to its tolerance (<= 1 to accept): implicit Euler's

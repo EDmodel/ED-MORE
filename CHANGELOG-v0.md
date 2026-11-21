@@ -84,6 +84,15 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ### Answer changes
 
+- The soil-water solve takes out a store it cannot see. An empty pond on sealed frozen ground and a frozen layer
+  whose pores are full hold no more water as their unknown moves, and the ice has all but stopped their exchanges,
+  so the Newton matrix was singular or nearly so. A tundra column's spring then forced sub-steps through
+  unconverged, or one Newton step sent the pond off by kilometres and broke the run. A store whose unknown moves no
+  balance by as much as the convergence tolerance is now solved on its own (docs/science/soil_plant_water.md §3,
+  "Isolated stores"). It keeps its unknown when no other store moves its balance and its balance is met. An empty
+  pond that receives more than the ground takes at zero head steps to the head that holds the water. BCI and Tonzi
+  are bit-for-bit, and Harvard's frozen winter moves within the solver's tolerance: annual LE, H and GPP are
+  unchanged to six figures and soil water moves by at most 2×10⁻⁵, with both compilers. (#TBD)
 - The organic layer's own water evaporates through its dried top. Each slot holds its water in its lower part and
   dries from its top, so the vapour crosses each slot's depth times the share of its capacity it does not hold,
   through its open pores (Millington–Quirk, as the soil's vapour crosses the layer), in series with the ground's

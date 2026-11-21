@@ -51,6 +51,9 @@
 !  22. DRY PEAT        : a steep peat's top layer a hair above residual under dry, warm air
 !                        evaporates what it can, stays at or above residual, forces no sub-step,
 !                        and closes its water.
+!  23. ICE-SEALED      : rain on a wet column frozen hard at the top: the empty pond, cut off
+!                        from the network, holds the rain and spills past its capacity; next to
+!                        nothing infiltrates, no sub-step is forced, and the water closes.
 !---~---
 program test_water_network
    use ed_test_assert, only : check_true, check_close, check_int, test_report
@@ -786,6 +789,7 @@ contains
       call test_pond_subfreezing_inflow()
       call test_aquifer()
       call test_frozen_top()
+      call test_ice_sealed()
       call test_frozen_surface_evaporation()
       call test_frozen_sublimation()
       call test_dry_peat()
@@ -1081,6 +1085,46 @@ contains
       call check_close('frozen top: cryosuction, change in store = - drainage', total_water(frozen) - w0, -drained, &
                        1.0e-10_wp * w0)
    end subroutine test_frozen_top
+
+   !---~---
+   !   Rain of 5 mm/h for two hours on a loam column at saturation whose top two layers are
+   ! frozen hard, at -20 C (docs/science/soil_plant_water.md §3, "Isolated stores"): the
+   ! freezing curve leaves the top layer a trace of liquid and the ice's impedance seals it, so
+   ! the empty pond over it is cut off from the network. Solved on its own, the pond holds the
+   ! rain and spills what passes its capacity; next to nothing infiltrates, no sub-step is
+   ! forced through, and the water closes.
+   !---~---
+   subroutine test_ice_sealed()
+      type(soil_params_t) :: opts
+      type(stand_t)       :: col
+      real(wp) :: theta(10), w0, rain, runoff, drained, infil
+      integer(ik) :: step, nfail
+      theta = soil%theta_sat(1:10)
+      call make_column(col, theta)
+      call freeze_top(col, theta, 253.15_wp, 2_ik)
+      w0 = total_water(col)
+      rain = 0.0_wp
+      runoff = 0.0_wp
+      drained = 0.0_wp
+      infil = 0.0_wp
+      nfail = 0_ik
+      do step = 1_ik, 8_ik
+         col%drive%rain = 5.0_wp / 3600.0_wp
+         call advance(col, opts, 900.0_wp)
+         rain = rain + col%drive%rain * 900.0_wp
+         runoff = runoff + col%water%flows%spill
+         drained = drained + col%water%flows%drain
+         infil = infil + col%water%flows%infil - col%water%flows%exfil
+         nfail = nfail + col%work(WORK_WATER_NFAIL)
+      end do
+      call check_int('ice-sealed: no sub-step forced through', nfail, 0_ik)
+      call check_true('ice-sealed: next to nothing infiltrates', abs(infil) < 1.0e-3_wp * rain, infil / rain)
+      call check_true('ice-sealed: the pond spilled', runoff > 0.0_wp, runoff)
+      call check_close('ice-sealed: what did not run off ponds', col%water%state%water_soil(POND), rain - runoff,     &
+                       1.0e-3_wp * rain)
+      call check_close('ice-sealed: rain = change in store + runoff + drainage', total_water(col) - w0,           &
+                       rain - runoff - drained, 1.0e-10_wp * rain)
+   end subroutine test_ice_sealed
 
    !---~---
    !   The loam's top layer frozen, holding 0.20 of ice, under dry air at 268 K (docs/science/
