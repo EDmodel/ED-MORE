@@ -590,8 +590,8 @@ contains
          else if (iters == 0_ik) then
             err = 0.0_wp
          else
-            err = water_substep_error(water%sys, h, water%ev(water%i_start), water%ev(i_sol), scale_soil,       &
-                                      scale_coh, rtol, atol)
+            err = water_substep_error(water%sys_start, water%sys, h, water%ev(water%i_start), water%ev(i_sol),  &
+                                      scale_soil, scale_coh, rtol, atol)
          end if
          if (err > 1.0_wp .and. .not. last) then
             nreject = nreject + 1_ik
@@ -669,6 +669,7 @@ contains
                                       res_soil, atol, scale_soil, scale_coh, isolated, pond_step)
          call water_newton_factor(water%sys, h, water%ev(i_sol), ok)
          if (.not. ok) return
+         if (it == 1_ik) water%sys_start = water%sys   ! the start's factorisation, for the error filter
          rhs_soil = merge(0.0_wp, -res_soil, isolated)
          call arrowhead_solve(water%sys, rhs_soil, -res_coh, step_soil, step_coh)
          if (isolated(POND)) step_soil(POND) = pond_step
@@ -696,9 +697,10 @@ contains
          i_sol = i_try
       end do
       !---~---
-      !   The error estimate solves with the last iteration's factorisation, one Newton step
-      ! behind the solution, not a fresh one at it: its filter needs the stiff exchanges' scale,
-      ! not the exact matrix, and a factorisation per sub-step is saved.
+      !   The error estimate solves with the first iteration's factorisation, at the start, and
+      ! the last one's, one Newton step behind the solution, not a fresh one at it: its filter
+      ! needs the stiff exchanges' scale, not the exact matrix, and a factorisation per sub-step
+      ! is saved.
       !---~---
       converged = worst <= 1.0_wp
    end subroutine water_newton_substep
@@ -867,25 +869,29 @@ contains
    !   The sub-step's local error relative to its tolerance (<= 1 to accept): implicit Euler's
    ! h (F_end - F_start)/2, filtered twice through (I - h dF/dW)^-1 so a stiff exchange that
    ! has already settled does not read as error (docs/science/soil_plant_water.md §3). Each
-   ! store is weighed against atol of its scale plus rtol of its water. The Newton matrix is
-   ! the last iteration's factorisation, with the coupling rows of the solution the last
-   ! evaluation wrote: close to the matrix at the end, which is all a filter needs.
+   ! store is weighed against atol of its scale plus rtol of its water. One pass filters through
+   ! the sub-step's first factorisation, at its start, the other through its last, near its end,
+   ! each with its own state's storage slopes: an exchange stiff at either end is filtered, as
+   ! one that shuts as it settles (a refilling tissue's one-way uptake at the foot of its ramp)
+   ! is stiff only at the start. The last factorisation keeps the coupling rows of the solution
+   ! the last evaluation wrote: close to the matrix at the end, which is all a filter needs.
    !---~---
-   pure real(wp) function water_substep_error(sys, h, ev0, ev1, scale_soil, scale_coh, rtol, atol) result(err)
-      type(arrowhead_system_t), intent(in) :: sys        ! the Newton matrix, factored at the last iteration
+   pure real(wp) function water_substep_error(sys0, sys1, h, ev0, ev1, scale_soil, scale_coh, rtol, atol)        &
+                          result(err)
+      type(arrowhead_system_t), intent(in) :: sys0, sys1 ! the Newton matrix, factored at the first and last iteration
       real(wp),                 intent(in) :: h
       type(water_tend_t),       intent(in) :: ev0, ev1   ! the network at the sub-step's start and end
       real(wp),                 intent(in) :: scale_soil(:), scale_coh(:,:), rtol, atol
       real(wp) :: v_soil(size(ev1%water_soil)), v_coh(COHORT_STORES, size(ev1%water_coh, 2))
       real(wp) :: y_soil(size(ev1%water_soil)), y_coh(COHORT_STORES, size(ev1%water_coh, 2))
-      integer(ik) :: pass
       v_soil = h * (ev1%inflow_soil - ev0%inflow_soil)
       v_coh  = h * (ev1%inflow_coh - ev0%inflow_coh)
-      do pass = 1, 2
-         call arrowhead_solve(sys, v_soil / h, v_coh / h, y_soil, y_coh)
-         v_soil = ev1%dwater_soil * y_soil
-         v_coh  = ev1%dwater_coh * y_coh
-      end do
+      call arrowhead_solve(sys0, v_soil / h, v_coh / h, y_soil, y_coh)
+      v_soil = ev0%dwater_soil * y_soil
+      v_coh  = ev0%dwater_coh * y_coh
+      call arrowhead_solve(sys1, v_soil / h, v_coh / h, y_soil, y_coh)
+      v_soil = ev1%dwater_soil * y_soil
+      v_coh  = ev1%dwater_coh * y_coh
       err = maxval(0.5_wp * abs(v_soil) / (atol * scale_soil + rtol * abs(ev1%water_soil)))
       if (size(v_coh, 2) > 0)                                                                                 &
          err = max(err, maxval(0.5_wp * abs(v_coh) / (atol * scale_coh + rtol * abs(ev1%water_coh))))

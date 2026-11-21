@@ -84,6 +84,17 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ### Answer changes
 
+- Two numerical corners in the soil-water solve are gone (docs/science/soil_plant_water.md §3). A frozen layer's
+  melt plateau now spans the unknown its ice's water would span on the liquid's curve at the layer's start, so the
+  layer's water keeps its slope where the ice takes over. With a trace of ice at freeze-up, the fixed half of the
+  unknown made the plateau store almost nothing, and Newton swung across its top for whole sub-steps. The error
+  estimate now filters through the sub-step's first Newton factorisation as well as its last, each with its own
+  storage slopes. A tissue refilling through its roots shuts its one-way uptake as it catches up with the soil, so
+  at the end the matrix no longer saw the exchange that had settled, and the refill read as error down to the
+  smallest sub-step. In a tundra column's 30-year spin-up, the steps with a sub-step forced through fall from 59
+  to 1.
+  Example 04's first year moves within the solver's tolerance, with both compilers: annual LE 70.7221 to 70.7223
+  W/m² at BCI, 56.9858 to 56.9853 at Harvard, 43.0917 unchanged at Tonzi; GPP and H to five figures. (#TBD)
 - The soil-water solve takes out a store it cannot see. An empty pond on sealed frozen ground and a frozen layer
   whose pores are full hold no more water as their unknown moves, and the ice has all but stopped their exchanges,
   so the Newton matrix was singular or nearly so. A tundra column's spring then forced sub-steps through

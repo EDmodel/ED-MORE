@@ -640,7 +640,8 @@ module ed_fast_integ_types
    !   One thread's water network, kept from step to step so its arrays are allocated again only
    ! when the shape changes: its size, its state and flows, and the Newton scratch. ev(i_start)
    ! is the network at a sub-step's start; Newton evaluates its iterates into the other. sys
-   ! holds the flows' Jacobian of the latest evaluation (its factorisation is kept apart). A
+   ! holds the flows' Jacobian of the latest evaluation (its factorisation is kept apart);
+   ! sys_start keeps the sub-step's first factorisation, at its start, for the error filter. A
    ! sub-step starts where the last accepted one ended, so while start_ready holds, its start's
    ! evaluation and Jacobian are already there.
    !---~---
@@ -651,6 +652,7 @@ module ed_fast_integ_types
       type(water_state_t)      :: state
       type(water_flows_t)      :: flows
       type(arrowhead_system_t) :: sys
+      type(arrowhead_system_t) :: sys_start
       type(water_tend_t)       :: ev(2)
       integer(ik)              :: i_start = 1_ik
       logical                  :: start_ready = .false.

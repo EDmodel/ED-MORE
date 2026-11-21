@@ -17,6 +17,8 @@
 !   7. INFEASIBLE DEMAND: a leaf asked for many times the water it and its xylem can supply stays
 !                        above empty and transpires less than asked.
 !   8. LEAFLESS        : a cohort with no leaves: its leaf sits at the wood less the crown head.
+!   8a. REFILL BURST   : dwarf shrubs whose wood is 7 % short over saturated soil refill within
+!                        the step, through roots far quicker than any sub-step, forcing none.
 !   9. DRY-LAYER STORM : a thin top layer near residual, a stand refilling its wood, then a
 !                        storm: converges, no store leaves its range.
 !  10. SATURATED       : rain on a saturated column ponds, spills, and conserves.
@@ -113,6 +115,7 @@ program test_water_network
    call test_stiff_exchange()
    call test_infeasible_demand()
    call test_leafless()
+   call test_refill_burst()
    call test_dry_layer_storm()
    call test_saturated()
    call test_accuracy()
@@ -490,6 +493,37 @@ contains
       call check_close('leafless: its empty leaf store stays empty', st%water%state%water_coh(LEAF, 3), 0.0_wp,   &
                        1.0e-12_wp)
    end subroutine test_leafless
+
+   !---~---
+   !   A tundra stand of 10 cm dwarf shrubs, 4,500 stems per m2 with a trace of wood each, its
+   ! wood 7 % short of full over a saturated soil and no transpiration. Its roots refill the wood
+   ! in a fraction of a millisecond, and the one-way uptake shuts as the wood catches up, so at
+   ! the step's end the Newton matrix no longer sees the exchange; the error filter's pass at the
+   ! start still does. The step takes no sub-step forced through and ends with the wood full.
+   !---~---
+   subroutine test_refill_burst()
+      type(stand_t) :: st
+      real(wp) :: theta(soil%n_active), wood_w(1), leaf_w(1)
+      theta = soil%theta_sat(1:soil%n_active)
+      call make_stand(st, 1_ik, theta, 0.0_wp, 1.0_wp, 0.93_wp, 0.0_wp)
+      st%static%height(1)   = 0.1_wp
+      st%static%nplant(1)   = 4500.0_wp
+      st%static%bleaf(1)    = 2.0e-6_wp
+      st%static%bsap(1)     = 3.0e-6_wp
+      st%static%broot(1)    = 2.0e-5_wp
+      st%static%sap_area(1) = 1.0e-6_wp
+      st%static%leaf_area(1) = 16.0_wp * st%static%bleaf(1)
+      call derive_cohort_terms(st%static, hyd, soil)
+      associate (s => st%static, lc => hyd%pft(1)%leaf_curve, wc => hyd%pft(1)%wood_curve)
+         leaf_w = s%bleaf(1:1) * lc%water_sat
+         wood_w = s%bwood_water(1:1) * wc%water_sat * ((1.0_wp - wc%apoplast_frac) * 0.93_wp + wc%apoplast_frac)
+      end associate
+      call set_water_state(st%static, soil, hyd, theta, st%drive%ice, 0.0_wp, 0.0_wp, leaf_w, wood_w, st%water)
+      call advance(st, sopts, 900.0_wp)
+      call check_int('refill burst: no sub-step forced through', st%work(WORK_WATER_NFAIL), 0_ik)
+      call check_true('refill burst: the wood refilled', st%water%state%tau_coh(WOOD, 1) > 0.99_wp,             &
+                      st%water%state%tau_coh(WOOD, 1))
+   end subroutine test_refill_burst
 
    !---~---
    !   A dry-layer storm, from a BCI regrowth stand: the top 2.6 cm a hair above residual, a

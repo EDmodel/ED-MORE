@@ -134,10 +134,12 @@ module ed_soil_hydr_lib
    !--- [-] CLM5's ice impedance exponent (Swenson et al. 2012, e_ice).
    real(wp), parameter :: ICE_IMPEDANCE_EXP = 6.0_wp
    !---~---
-   !   [-] Where the melt plateau ends, as a share of its top's unknown. Below it the ice is gone
-   ! and the liquid's curve resumes, stretched over (0, tau_dry] so the layer's water, potential
-   ! and conductivity join the plateau's continuously and the unknown stays positive. A choice of
-   ! scale only: it moves no answer.
+   !   [-] The lowest the melt plateau reaches, as a share of its top's unknown. The plateau spans
+   ! the unknown its ice's water would span on the liquid's curve at the layer's start, so the
+   ! layer's water keeps its slope where the ice takes over; a layer with more ice than that fits
+   ! ends the plateau here. Below it the ice is gone and the liquid's curve resumes, stretched
+   ! over (0, tau_dry] so the layer's water, potential and conductivity join the plateau's
+   ! continuously and the unknown stays positive. A choice of scale only: it moves no answer.
    !---~---
    real(wp), parameter :: MELT_DRY_SHARE = 0.5_wp
 
@@ -446,7 +448,8 @@ contains
    !   A layer's ice record (soil_ice_t) for theta_ice [m3/m3] of ice beside theta_liq
    ! [m3/m3] of liquid, the layer's start: its impedance; where on the curve the liquid
    ! fills the pores the ice leaves; and the melt plateau, from the liquid it starts with
-   ! (at most the pores the ice leaves) down to MELT_DRY_SHARE of that unknown. A layer
+   ! (at most the pores the ice leaves) down as far as its ice lasts at the liquid's slope
+   ! there, and no further than MELT_DRY_SHARE of that unknown. A layer
    ! that is nearly all ice fills at the curve's driest start, SE_MIN.
    !---~---
    elemental function soil_ice_state(c, theta_ice, theta_liq) result(ice)
@@ -463,9 +466,11 @@ contains
       ice%head_full  = psi / grav_head
       ice%dhead_full = dpsi / grav_head
       ice%tau_melt   = min(liquid_theta_to_unknown(c, min(theta_liq, c%theta_sat - theta_ice)), ice%tau_full)
-      ice%tau_dry    = MELT_DRY_SHARE * ice%tau_melt
       call liquid_water_relations(c, ice%tau_melt, psi, dpsi, ice%w_melt, dw, ice%k_melt, dk)
       ice%head_melt  = psi / grav_head
+      !--- The plateau stores the ice at the liquid's slope there, down to MELT_DRY_SHARE of the start at most.
+      ice%tau_dry    = ice%tau_melt - min(rho_h2o * c%dz * theta_ice / max(dw, tiny_num),                      &
+                                          (1.0_wp - MELT_DRY_SHARE) * ice%tau_melt)
    end function soil_ice_state
 
    !---~---

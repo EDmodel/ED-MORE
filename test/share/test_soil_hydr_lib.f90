@@ -376,6 +376,15 @@ contains
             if (abs(w / rdz - theta) > 1.0e-10_wp) ok_round = .false.
          end do
          call check_true(trim(label(ic))//': theta -> unknown -> theta through the plateau', ok_round)
+         call check_true(trim(label(ic))//': the plateau reaches no lower than half the start', tau_d >= 0.5_wp * tau_m)
+         !---~---
+         !   A trace of ice, as at freeze-up: the plateau stores at the liquid's slope at the start,
+         ! so the layer's water has no break of slope where the ice takes over.
+         !---~---
+         ice = soil_ice_state(c(ic), 1.0e-7_wp, theta_liq)
+         call soil_water_relations(c(ic), ice, ice%tau_melt * (1.0_wp - 1.0e-10_wp), psi, dpsi, w, dw, k, dk)
+         call soil_water_relations(c(ic), no_ice, ice%tau_melt, psi0, dpsi0, w0, dw0, k0, dk0)
+         call check_close(trim(label(ic))//': a trace of ice stores at the liquid''s slope', dw, dw0, 1.0e-8_wp * dw0)
       end do
    end subroutine test_melt_plateau
 
