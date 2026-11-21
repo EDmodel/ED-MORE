@@ -59,14 +59,15 @@ module ed_surface
       real(wp) :: soil_evap  = 0.0_wp                   ! [kg/m2/s] the bare ground's evaporation, already area-weighted
       !---~---
       !   The organic layer above the soil (docs/science/surface_organic_layer.md), one node:
-      ! its dry heat capacity, water, energy, fill and thermal resistance at the step's start,
-      ! and its emissivity, the ground's. With it, rnet_soil is its net radiation.
+      ! its dry heat capacity, water, energy, thermal resistance and its vapour's resistance
+      ! through its dried top at the step's start, and its emissivity, the ground's. With it,
+      ! rnet_soil is its net radiation.
       !---~---
       logical  :: has_org        = .false.
       real(wp) :: org_dry_cap    = 0.0_wp               ! [J/m2/K]
       real(wp) :: org_water      = 0.0_wp               ! [kg/m2]
       real(wp) :: org_energy     = 0.0_wp               ! [J/m2]
-      real(wp) :: org_fill       = 0.0_wp               ! [-] its water over what it holds at capacity
+      real(wp) :: org_dry_resist = 0.0_wp               ! [s/m] its vapour through its dried top (organic_layer_sums)
       real(wp) :: org_resistance = 0.0_wp               ! [m2 K/W] top to bottom
       real(wp) :: ground_emiss   = 0.95_wp              ! [-]
       type(snow_state_t)  :: pack                       ! the pack after the step's precipitation and drainage
@@ -674,10 +675,10 @@ contains
    !   The organic layer's exchange over dt, from a linearized backward-Euler balance of its
    ! energy, as the pack's (snow_surface_balance), with its dry heat capacity on each line
    ! (docs/science/surface_organic_layer.md): on the snow-free ground its net radiation, sensible
-   ! heat and evaporation, the evaporation the wet-surface rate times its fill; under the pack
-   ! the pack's base flux g_snow, held; and over the whole patch conduction into the soil top,
-   ! its half-depth and the top soil node in series. Implicit in its own temperature, so a thin
-   ! layer of little heat capacity relaxes without overshooting.
+   ! heat and evaporation, its water's vapour crossing its dried top in series with the ground's
+   ! conductance; under the pack the pack's base flux g_snow, held; and over the whole patch
+   ! conduction into the soil top, its half-depth and the top soil node in series. Implicit in its
+   ! own temperature, so a thin layer of little heat capacity relaxes without overshooting.
    !---~---
    pure subroutine organic_surface_balance(env, g_snow, flux)
       type(surface_env_t), intent(in)  :: env
@@ -685,7 +686,7 @@ contains
       type(organic_out_t), intent(out) :: flux
       real(wp) :: af, dt, w, cd, e_old, t_n, fliq_n, g_os, h_n, dh_dt, w_n, dw_dt, demit_dt
       real(wp) :: rad_n, u_w, l_vap, g_n, r0, drdt, u_freeze, u_melt, e_bal, t_new, dtemp, h_s, w_s, g_s, emit
-      real(wp) :: u_w_new, le_s, fl_new, w_cap
+      real(wp) :: u_w_new, le_s, fl_new, w_cap, g_vap
       integer  :: pass
       flux = organic_out_t()
       af    = 1.0_wp - max(0.0_wp, min(1.0_wp, env%snowfac))     ! the snow-free ground
@@ -700,9 +701,13 @@ contains
       !--- The fluxes at T^n and their slopes; a kilogram of vapour takes its enthalpy less the water's energy.
       h_n   = env%ggnet * env%rho_air * env%cp_cas * (t_n - env%can_temp)
       dh_dt = env%ggnet * env%rho_air * env%cp_cas
-      !--- Evaporation and dew alike, at its fill: a wet layer exchanges as open water, a dry one not at all.
-      w_n   = env%org_fill * env%ggnet * env%rho_air * (sat_specific_humidity(t_n, env%press, fliq_n) - env%can_shv)
-      dw_dt = env%org_fill * env%ggnet * env%rho_air * sat_specific_humidity_temp_deriv(t_n, env%press, fliq_n)
+      !---~---
+      !   Evaporation and dew alike, from the water below its dried top: a full layer exchanges as
+      ! open water, a drying one through the dry top's resistance, an empty one not at all (w_cap).
+      !---~---
+      g_vap = 1.0_wp / (1.0_wp / max(env%ggnet, tiny_num) + env%org_dry_resist)
+      w_n   = g_vap * env%rho_air * (sat_specific_humidity(t_n, env%press, fliq_n) - env%can_shv)
+      dw_dt = g_vap * env%rho_air * sat_specific_humidity_temp_deriv(t_n, env%press, fliq_n)
       demit_dt = 4.0_wp * env%ground_emiss * stefan_boltzmann * t_n ** 3
       rad_n = env%rnet_soil                                      ! at T^n: its own emission included
       u_w   = water_specific_energy(t_n, fliq_n)                ! from the datum: a trace of water stays exact

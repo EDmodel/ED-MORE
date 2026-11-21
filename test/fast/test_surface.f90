@@ -51,6 +51,7 @@ program test_surface
    use ed_organic_lib,        only : organic_state_t, organic_params_t, SLOT_LITTER, SLOT_MOSS, organic_layer_sums, &
                                      organic_take_water, organic_split_energy, organic_take_exchange
    use ed_biophysics_params, only : snow_params_t
+   use ed_soil_water,         only : organic_cover_path, vapour_diffusivity
    use ed_surface,            only : surface_env_t, snow_out_t, organic_out_t, organic_surface_balance,          &
                                      snow_cover_fraction, snow_accumulate,                                      &
                                      snow_drain_meltwater, ground_surface_exchange, snow_take_exchange,         &
@@ -537,7 +538,7 @@ contains
    subroutine test_organic_slots()
       type(organic_params_t) :: o
       type(organic_state_t)  :: org
-      real(wp) :: taken, cap_litter, cap_moss, dry_cap, w, e, w_max, resist, e_in
+      real(wp) :: taken, cap_litter, cap_moss, dry_cap, w, e, w_max, resist, e_in, dry_depth
       print '(a)', 'test_organic_slots:'
       org = two_slots(o)
       cap_litter = o%litter%water_capacity * 1000.0_wp * 0.03_wp            ! 3.6 kg/m2
@@ -552,8 +553,9 @@ contains
                  temp_to_internal_energy(cp_organic * sum(org%mass), 10.0_wp, org%temp, org%fliq), 1.0e-6_wp)
       call organic_take_water(org, o, 100.0_wp, 0.0_wp, taken)
       call check('a full layer passes the rest on', taken, cap_moss - (10.0_wp - cap_litter), 1.0e-9_wp)
-      call organic_layer_sums(org, o, dry_cap, w, e, w_max, resist)
+      call organic_layer_sums(org, o, dry_cap, w, e, w_max, resist, dry_depth)
       call check('its water capacity is the slots''', w_max, cap_litter + cap_moss, 1.0e-9_wp)
+      call check('a full layer has no dried top', dry_depth, 0.0_wp, 1.0e-12_wp)
       call check('its resistance: each slot''s depth over its wet conductivity', resist,                          &
                  0.03_wp / o%litter%k_wet + 0.05_wp / o%moss%k_wet, 1.0e-12_wp)
       e_in = sum(org%energy)
@@ -561,6 +563,9 @@ contains
       call check_true('vapour leaves the litter first', org%water(SLOT_LITTER) == 0.0_wp                           &
                       .and. abs(org%water(SLOT_MOSS) - (cap_moss - (4.0_wp - cap_litter))) < 1.0e-9_wp)
       call check('the exchange''s energy reaches the layer', sum(org%energy), e_in - 1.0e5_wp, 1.0e-6_wp)
+      call organic_layer_sums(org, o, dry_cap, w, e, w_max, resist, dry_depth)
+      call check('its dried top: the empty litter, and the share of the moss its water does not fill', dry_depth, &
+                 0.03_wp + 0.05_wp * (4.0_wp - cap_litter) / cap_moss, 1.0e-12_wp)
    end subroutine test_organic_slots
 
    !--- 10b. The organic layer's balance, and the ground surface with it.
@@ -572,6 +577,7 @@ contains
       type(organic_out_t)    :: ofx, ofx0
       type(snow_params_t)    :: p
       real(wp) :: w_max, h_ground, le_ground, g_top, ground_rad, s_in, s_out, o_in, o_out, taken, w_save, e_save
+      real(wp) :: dry_depth, r_save
       print '(a)', 'test_organic_balance:'
       org = organic_state_t()                                    ! litter alone: 1.35 kg/m2, 2.6 kJ/m2/K dry
       org%density(SLOT_LITTER) = o%litter%bulk_density
@@ -587,8 +593,9 @@ contains
       env%rnet_soil    = 0.0_wp
       env%has_org      = .true.
       env%ground_emiss = 0.95_wp
-      call organic_layer_sums(org, o, env%org_dry_cap, env%org_water, env%org_energy, w_max, env%org_resistance)
-      env%org_fill = env%org_water / w_max
+      call organic_layer_sums(org, o, env%org_dry_cap, env%org_water, env%org_energy, w_max, env%org_resistance, &
+                              dry_depth)
+      env%org_dry_resist = organic_cover_path(dry_depth, 0.0_wp) / vapour_diffusivity(280.0_wp)   ! about 1,200 s/m
       call organic_surface_balance(env, 0.0_wp, ofx0)
       call check_true('a thin layer relaxes over an hour without passing its surroundings',                         &
                       ofx0%t_surf > 268.0_wp .and. ofx0%t_surf < 286.0_wp, ofx0%t_surf)
@@ -606,18 +613,24 @@ contains
       e_save = env%org_energy
       env%org_water  = 1.0e-6_wp
       env%org_energy = temp_to_internal_energy(env%org_dry_cap, env%org_water, 280.0_wp, 1.0_wp)
-      env%org_fill   = env%org_water / w_max
       call organic_surface_balance(env, 0.0_wp, ofx)
       call check('a trace of water: the layer still takes its root', committed_temp(env, ofx), ofx%t_surf, 1.0e-6_wp)
       call check_true('and evaporates no more than it holds', ofx%w_flux * DT <= env%org_water * (1.0_wp + 1.0e-12_wp), &
                       ofx%w_flux)
+      env%org_water  = 0.0_wp
+      env%org_energy = temp_to_internal_energy(env%org_dry_cap, 0.0_wp, 280.0_wp, 1.0_wp)
+      call organic_surface_balance(env, 0.0_wp, ofx)
+      call check('an empty layer does not evaporate', ofx%w_flux, 0.0_wp, 0.0_wp)
+      !--- Its water's vapour crosses its dried top: the same layer full to its top exchanges as open water.
       env%org_water  = w_save
       env%org_energy = e_save
-      env%org_fill = 0.0_wp
+      r_save = env%org_dry_resist
+      env%org_dry_resist = 0.0_wp
       call organic_surface_balance(env, 0.0_wp, ofx)
-      call check('a dry layer does not evaporate', ofx%w_flux, 0.0_wp, 0.0_wp)
+      call check_true('a dried top slows its evaporation', ofx0%w_flux > 0.0_wp .and. ofx0%w_flux < 0.5_wp * ofx%w_flux, &
+                      ofx0%w_flux / ofx%w_flux)
+      env%org_dry_resist = r_save
       !--- The ground with the layer: the soil takes its conduction less the soil's own evaporation's heat.
-      env%org_fill  = env%org_water / w_max
       env%soil_evap = 1.0e-6_wp
       env%snowfac   = 0.0_wp
       call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, s_in, s_out, o_in, o_out)

@@ -53,7 +53,7 @@ module ed_fast_integ_frozen
    use ed_respiration,   only : stem_maintenance_respiration, fine_root_maintenance_respiration, root_zone_temp_scale, &
                                 decomposition_env_scalar, decomposition_transfer_matrix, heterotrophic_respiration
    use ed_surface, only : surface_env_t, prepare_snow_stage
-   use ed_soil_water, only : pond_inflow, organic_cover_path
+   use ed_soil_water, only : pond_inflow, organic_cover_path, vapour_diffusivity
    use ed_therm_lib,          only : internal_energy_liquid, liquid_energy_to_temp,                              &
                                      cas_enthalpy_to_temp, cas_heat_capacity, air_vpd, air_density,             &
                                      soil_thermal_conductivity, specific_humidity_to_vapor_pressure
@@ -95,6 +95,7 @@ contains
       real(wp)    :: throughfall   ! [kg/m2/s] the rain and snow through the canopy
       real(wp)    :: w_pond, e_pond   ! [kg/m2], [J/m2] the pond the step starts from, after the snow stage
       real(wp)    :: taken, w_max     ! [kg/m2] the pond water the organic layer took; what it holds at capacity
+      real(wp)    :: dry_depth        ! [m] the organic layer's dried top
       real(wp)    :: e_spill          ! [J/m2] the energy of the water the layer spilled
       real(wp)    :: t_surface        ! [K] the ground's surface: the organic layer's, else the top soil node's
       real(wp)    :: t_soil_top       ! [K] the top soil node's
@@ -128,7 +129,7 @@ contains
                                           dynamic%soil_energy%soil_temp, ra_stem, ra_root, out%stem_resp_coh,     &
                                           out%root_resp_coh)
       if (organic_present(dynamic%organic)) then
-         call organic_layer_sums(dynamic%organic, cfg%organic, dry_cap, org_w, org_e, w_max, resist)
+         call organic_layer_sums(dynamic%organic, cfg%organic, dry_cap, org_w, org_e, w_max, resist, dry_depth)
          call patch_heterotrophic_respiration(cfg, site%soil_profile, static%soil_carbon, t_ground, soil_temp_root, &
                                               theta_mean, rh, out%report%exports, surf_rel=org_w / max(w_max, tiny_num))
       else
@@ -201,13 +202,17 @@ contains
       call canopy_air_boundary(cfg%aero, static%geom, out%aero, forcing, rho, cp_cas, press, frozen%cas, frozen%ground)
       call ground_inflow(static, site%soil_profile, forcing, dynamic, out%aero%ggnet, throughfall, tcas, qcas, rho, &
                          t_soil_top, nsl, cfg%organic, dt_fast, frozen)
-      !--- The organic layer the ground surface's balance reads, after the water it took.
+      !---~---
+      !   The organic layer the ground surface's balance reads, after the water it took: its own
+      ! vapour crosses its dried top, free air through the open pores (organic_cover_path of a dry
+      ! slot), at its temperature's diffusivity.
+      !---~---
       frozen%ground%ground_emiss = cfg%soil%ground_emissivity
       frozen%ground%has_org      = organic_present(frozen%org)
       if (frozen%ground%has_org) then
          call organic_layer_sums(frozen%org, cfg%organic, frozen%ground%org_dry_cap, frozen%ground%org_water,          &
-                                 frozen%ground%org_energy, w_max, frozen%ground%org_resistance)
-         frozen%ground%org_fill = min(1.0_wp, frozen%ground%org_water / max(w_max, tiny_num))
+                                 frozen%ground%org_energy, w_max, frozen%ground%org_resistance, dry_depth)
+         frozen%ground%org_dry_resist = organic_cover_path(dry_depth, 0.0_wp) / vapour_diffusivity(frozen%org%temp)
       end if
       call transpiration_demand(dt_fast, cfg%canopy_water_on, n, dynamic, t_soil_top, frozen)
 

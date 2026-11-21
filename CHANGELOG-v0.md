@@ -84,6 +84,14 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ### Answer changes
 
+- The organic layer's own water evaporates through its dried top. Each slot holds its water in its lower part and
+  dries from its top, so the vapour crosses each slot's depth times the share of its capacity it does not hold,
+  through its open pores (Millington–Quirk, as the soil's vapour crosses the layer), in series with the ground's
+  conductance. It used to evaporate at the wet-surface rate times the layer's fill: a 6 cm moss that holds up to
+  54 mm stays half full through a wet summer, so it evaporated at half the open-water rate, where 3 cm of dried
+  moss add about 1,500 s/m (docs/science/surface_organic_layer.md, "Water"). In example 04's first year LE falls
+  0.1 % at BCI (78.14 to 78.09 W/m²), 0.4 % at Harvard (57.23 to 56.99) and 0.5 % at Tonzi (43.32 to 43.09), H
+  rises by as much, and GPP and the net radiation do not move, with both compilers: their litter is thin. (#TBD)
 - The top soil layer's evaporation is limited by its supply: the whole demand until its water above residual, ice
   included, falls to 10⁻⁴ of its span to saturation, then a smooth step to nothing at residual. A steep retention
   curve keeps its pore air near saturation almost to residual (a peat of n 3.3 above half saturation down to

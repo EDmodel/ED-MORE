@@ -23,7 +23,7 @@ module ed_soil_water
    private
 
    public :: soil_water_flux, ground_evaporation_rate, bottom_flux, evaporation_supply
-   public :: ground_evap_env_t, ground_evaporation_setup, pond_inflow, organic_cover_path
+   public :: ground_evap_env_t, ground_evaporation_setup, pond_inflow, organic_cover_path, vapour_diffusivity
 
    !---~---
    !   Widths of the two rounded corners in ground_evaporation_rate: [kg/kg] where the surface's
@@ -156,7 +156,7 @@ contains
       theta_air = soil_head_to_theta(profile%retention, PSI_AIR_DRY, profile%theta_sat(1), profile%theta_res(1),  &
                                      profile%curve_par_a(1), profile%curve_par_n(1))
       forcing%theta_init = soil%dsl_theta_init * profile%theta_sat(1)
-      dvap    = DVAP_AIR_0 * (forcing%t_ground / t_kelvin) ** DVAP_AIR_TEXP   ! [m2/s] vapour diffusivity in air
+      dvap    = vapour_diffusivity(forcing%t_ground)
       phi     = profile%theta_sat(1)
       phi_air = max(phi - theta_air, tiny_num)
       tau     = phi_air ** MQ_TORTUOSITY_EXP / max(phi * phi, tiny_num)   ! [-] Millington-Quirk tortuosity
@@ -164,6 +164,13 @@ contains
       forcing%dsl_diffusivity = max(dvap * tau, tiny_num)
       forcing%r_cover         = forcing%cover_path / dvap
    end subroutine ground_evaporation_setup
+
+   !--- [m2/s] Water vapour's diffusivity in air at `temp` [K].
+   elemental function vapour_diffusivity(temp) result(dvap)
+      real(wp), intent(in) :: temp
+      real(wp) :: dvap
+      dvap = DVAP_AIR_0 * (temp / t_kelvin) ** DVAP_AIR_TEXP
+   end function vapour_diffusivity
 
    !---~---
    !   One organic slot's path for the soil's vapour [m], as a depth of free air: its depth over the

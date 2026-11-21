@@ -83,9 +83,11 @@ contains
    !   The organic layer as one thermal node (docs/science/surface_organic_layer.md): its dry heat
    ! capacity, water, energy and water capacity summed over the slots, and its thermal
    ! resistance, each slot's depth over its conductivity in series, the conductivity linear in
-   ! the slot's fill between its dry and its wet value.
+   ! the slot's fill between its dry and its wet value. Its dried top: each slot holds its water
+   ! in its lower part and dries from its top, so the depth the layer's own vapour crosses is each
+   ! slot's depth times the share of its capacity it does not hold.
    !---~---
-   pure subroutine organic_layer_sums(org, params, dry_cap, water, energy, w_max, resistance)
+   pure subroutine organic_layer_sums(org, params, dry_cap, water, energy, w_max, resistance, dry_depth)
       type(organic_state_t),  intent(in)  :: org
       type(organic_params_t), intent(in)  :: params
       real(wp),               intent(out) :: dry_cap      ! [J/m2/K]
@@ -93,6 +95,7 @@ contains
       real(wp),               intent(out) :: energy       ! [J/m2]
       real(wp),               intent(out) :: w_max        ! [kg/m2] the water the slots hold at capacity
       real(wp),               intent(out) :: resistance   ! [m2 K/W]
+      real(wp),               intent(out) :: dry_depth    ! [m] the dried top of the slots, summed
       type(organic_material_t) :: m
       real(wp)    :: depth, cap, fill
       integer(ik) :: k
@@ -101,6 +104,7 @@ contains
       energy     = 0.0_wp
       w_max      = 0.0_wp
       resistance = 0.0_wp
+      dry_depth  = 0.0_wp
       do k = 1_ik, n_organic_slot
          if (org%mass(k) <= 0.0_wp) cycle
          m      = organic_slot_material(params, k)
@@ -112,6 +116,7 @@ contains
          energy     = energy + org%energy(k)
          w_max      = w_max + cap
          resistance = resistance + depth / (m%k_dry + (m%k_wet - m%k_dry) * fill)
+         dry_depth  = dry_depth + depth * (1.0_wp - fill)
       end do
    end subroutine organic_layer_sums
 

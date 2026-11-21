@@ -36,13 +36,14 @@ with $`c_{org}`$ = 1926 J kg⁻¹ K⁻¹ for dry organic matter (Farouki 1986). 
 ## Water
 
 - **Filling.** At each fast step's start the pond, and then the water reaching the ground (throughfall, or the snow's meltwater under a pack, with the tissues' shed water), fill the slots top down, each to its capacity. The water brings its energy. What the slots cannot hold reaches the pond, which infiltrates or runs off as before. A pond therefore forms only on a full layer.
-- **Evaporation and dew** from and onto the layer are the wet-surface rate times its fill, on the snow-free ground:
+- **Evaporation and dew** from and onto the layer leave its water through its dried top, on the snow-free ground. Each slot holds its water in its lower part and dries from its top, as the soil's top layer does under its dry surface layer (Swenson & Lawrence 2014). The vapour crosses the dried depth $`d_{dry} = \sum_i d_i\,(1 - W_i/W_{max,i})`$ through the open pores, a Millington–Quirk resistance in series with the ground's conductance:
 
 ```math
-E_{org} = (1 - f_{snow})\,\frac{W}{W_{max}}\,\rho\,g_{ground}\,\left[q_{sat}(T) - q_{cas}\right]
+E_{org} = (1 - f_{snow})\,\frac{\rho\,\left[q_{sat}(T) - q_{cas}\right]}{1/g_{ground} + r_{dry}}, \qquad
+r_{dry} = \frac{d_{dry}\,\phi^2}{D_v\,\phi^{10/3}}
 ```
 
-A wet layer exchanges as open water does, both ways, so the exchange has no corner where humid canopy air sits near the layer's saturation; a dry one does not exchange. The evaporation takes no more water than the layer holds, and dew beyond its capacity spills to the pond at the next step's start.
+A layer full to its top exchanges as open water does, both ways, so the exchange has no corner where humid canopy air sits near the layer's saturation. A drying one exchanges through its dried top: 3 cm of dry moss add about 1,500 s/m, many times the ground's own aerodynamic resistance. An empty one does not exchange: the evaporation takes no more water than the layer holds, and dew beyond its capacity spills to the pond at the next step's start. The diffusivity is the layer's temperature's, as the soil's.
 - **The soil beneath** evaporates through the layer: its vapour diffuses up through the slots' air-filled pores, a resistance $`r_{cover} = \sum_i d_i\,\phi^2 / (D_v\,\varepsilon_i^{10/3})`$ (Millington–Quirk) in series with the dry surface layer's and the aerodynamic one. Here $`\phi`$ = 0.9 is organic matter's porosity (Letts et al. 2000) and $`\varepsilon_i = \phi - W_i/(\rho_w d_i)`$.
 
 ## Heat
@@ -91,6 +92,7 @@ and `[soil].moss_depth` [m], which a `[[sites]]` table may set. The checks refus
 - Its optics are the ground's.
 - The moss is prescribed: it neither grows nor photosynthesises.
 - The litter is the metabolic pool alone: the structural leaf litter is not in the layer until the soil carbon splits it from the woody debris.
+- Each slot dries from its top. A Sphagnum moss draws water up to its tips and keeps its top wetter, so its dried depth would be thinner.
 
 ## Code map
 
@@ -99,7 +101,7 @@ and `[soil].moss_depth` [m], which a `[[sites]]` table may set. The checks refus
 | the layer's state, its sums, its water, its spill and its commit | `ed_organic_lib`: `organic_state_t`, `organic_layer_sums`, `organic_diagnose`, `organic_split_energy`, `organic_take_water`, `organic_spill`, `organic_take_exchange` |
 | the balance and the ground surface's blend | `ed_surface`: `organic_surface_balance`, `ground_surface_exchange` |
 | the stage: the pond and the inflow fill it | `ed_fast_integ_frozen`: `build_frozen`, `ground_inflow` |
-| the soil's vapour through it | `ed_soil_water`: `organic_cover_path`, `ground_evaporation_rate` |
+| the soil's vapour through it, and its own through its dried top | `ed_soil_water`: `organic_cover_path`, `vapour_diffusivity`, `ground_evaporation_rate`; `ed_fast_integ_frozen`: `build_frozen` |
 | the litter follows the pools | `ed_slow_update`: `follow_litter_pools`; `ed_slow_dynamics`: `litter_follows_pools` |
 | the start | `ed_init`: `seed_organic_layer` |
 
@@ -110,6 +112,7 @@ and `[soil].moss_depth` [m], which a `[[sites]]` table may set. The checks refus
 - Letts, M. G. et al. (2000), *Atmosphere-Ocean* 38:141 — the porosity of organic soils.
 - Napoly, A. et al. (2017), *Geosci. Model Dev.* 10:1621 — the ISBA-MEB forest-floor litter layer.
 - Putuhena, W. M. & Cordery, I. (1996), *J. Hydrol.* 180:283 — the forest floor's interception capacity.
+- Swenson, S. C. & Lawrence, D. M. (2014), *J. Geophys. Res. Atmos.* 119:10299 — the dry surface layer's resistance to evaporation.
 - McLaren, J. (2021), *Soil biogeochemical variables collected on the Arctic LTER experimental plots in
   moist acidic, moist non-acidic, wet shrub and shrub tundra, Toolik Field Station, Alaska 2015*, Arctic LTER,
   knb-lter-arc.20129.1 — the bulk density of the top 5 cm of the organic layer.
