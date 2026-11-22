@@ -703,7 +703,7 @@ contains
          call evaluate(tau_soil, tau_coh, i_sol)
       end if
       call water_residual(water%state, h, water%ev(i_sol), atol, scale_soil, scale_coh, res_soil, res_coh,      &
-                          merit, worst)
+                          merit, worst, cut)
       if (merit /= merit) return
       do it = 1_ik, NEWTON_MAX
          if (worst <= 1.0_wp) exit
@@ -715,7 +715,7 @@ contains
             fast = fast .and. .not. cut
             call evaluate(tau_soil, tau_coh, i_sol)
             call water_residual(water%state, h, water%ev(i_sol), atol, scale_soil, scale_coh, res_soil, res_coh,  &
-                                merit, worst)
+                                merit, worst, cut)
             if (merit /= merit) return
             if (worst <= 1.0_wp) exit
          end if
@@ -736,7 +736,7 @@ contains
             try_coh = tau_coh + lam * step_coh
             call evaluate(try_soil, try_coh, i_try)
             call water_residual(water%state, h, water%ev(i_try), atol, scale_soil, scale_coh, res2_soil,          &
-                                res2_coh, merit_try, worst_try)
+                                res2_coh, merit_try, worst_try, cut)
             if (merit_try == merit_try .and. sufficient_decrease(merit_try, merit, lam)) exit
             lam = 0.5_wp * lam
          end do
@@ -1009,7 +1009,8 @@ contains
       pure subroutine land(kink, tau, d)
          real(wp), intent(in)    :: kink, tau
          real(wp), intent(inout) :: d
-         if (abs(tau - kink) <= 1.0e-12_wp * max(abs(kink), 1.0e-12_wp)) return   ! clamp-ok: the scale of a unit-free unknown near zero
+         !--- On the kink already (to round-off, its scale floored near zero): the step may cross it.
+         if (abs(tau - kink) <= 1.0e-12_wp * max(abs(kink), 1.0e-12_wp)) return   ! clamp-ok: scale near zero
          if ((tau - kink) * (tau + d - kink) < 0.0_wp) d = kink - tau
       end subroutine land
    end subroutine chop_at_kinks
@@ -1027,11 +1028,12 @@ contains
    ! fall -- a Newton step always points down it, which is not true of the worst store alone.
    ! The soil's squares and the cohorts' are summed apart, then added.
    !---~---
-   pure subroutine water_residual(state, h, ev, atol, scale_soil, scale_coh, res_soil, res_coh, merit, worst)
+   pure subroutine water_residual(state, h, ev, atol, scale_soil, scale_coh, res_soil, res_coh, merit, worst, skip)
       type(water_state_t), intent(in)  :: state
       real(wp),            intent(in)  :: h, atol, scale_soil(:), scale_coh(:,:)
       type(water_tend_t),  intent(in)  :: ev
       real(wp),            intent(out) :: res_soil(:), res_coh(:,:), merit, worst
+      logical, optional,   intent(in)  :: skip(:)   ! detached nodes: their water is their sources', whatever their curve
       real(wp)    :: tol, x, merit_coh
       integer(ik) :: c, i, j
       tol = NEWTON_TOL * atol
@@ -1039,6 +1041,9 @@ contains
       worst = 0.0_wp
       do c = 1_ik, size(res_soil, kind=ik)
          res_soil(c) = store_residual(ev%water_soil(c), state%water_soil(c), h, ev%inflow_soil(c))
+         if (present(skip)) then
+            if (skip(c)) res_soil(c) = 0.0_wp
+         end if
          x = res_soil(c) * h / (tol * scale_soil(c))
          merit = merit + x * x
          worst = max(worst, abs(x))

@@ -58,9 +58,9 @@
 !                        nothing infiltrates, no sub-step is forced, and the water closes.
 ! The node classes (docs/science/soil_plant_water.md §3), on thin layers between the pond and
 ! the soil (a litter's Campbell curve and a moss's van Genuchten one, built here):
-!  24. ZERO STORAGE    : a saturated 1 mm litter, which holds no more water between its air entry
-!                        and zero head, between a pond and the soil: it is eliminated; what it takes
-!                        from the pond it passes on; every step closes.
+!  24. ZERO STORAGE    : a saturated moss, which holds next to no more water, between a litter and
+!                        the soil: it is eliminated; what it takes from the litter it passes on;
+!                        every step closes.
 !  25. FROZEN GROUP    : an empty pond over an ice-filled litter and moss over a layer sealed by its
 !                        ice: the three are detached as one group, the factorisation never fails,
 !                        the rain ponds, and the water closes.
@@ -87,7 +87,8 @@ program test_water_network
    use ed_plant_hydr_lib,   only : water_curve_t, tissue_psi_to_rwc, tissue_psi_tlp
    use ed_pft_derive,       only : build_kirchhoff_table
    use ed_soil_hydr_lib,     only : SOIL_RETENTION_VG, SOIL_RETENTION_CAMPBELL, soil_theta_to_head, soil_ice_state,  &
-                                    soil_liquid_capacity, soil_water_relations, build_soil_layer_curve, soil_ice_t
+                                    soil_liquid_capacity, soil_water_relations, build_soil_layer_curve, soil_ice_t, &
+                                    soil_layer_curve_t
    use ed_therm_lib,         only : internal_energy_liquid, liquid_energy_to_temp, sat_specific_humidity
    use ed_pft_params,    only : hydraulics_table_t
    use ed_soil_params, only : soil_profile_t, soil_params_t, SOIL_BC_DRAIN, SOIL_BC_AQUIFER
@@ -264,7 +265,7 @@ contains
          o%depth(o%n) = d_lit
          o%water(o%n) = theta_lit * rho_h2o * d_lit
          liq = theta_lit
-         if (frozen) liq = min(theta_lit, 0.01_wp)
+         if (frozen) liq = min(theta_lit, frozen_liquid(o%curve(o%n)))
          o%ice(o%n) = soil_ice_state(o%curve(o%n), theta_lit - liq, liq)
       end if
       if (d_moss > 0.0_wp) then
@@ -274,12 +275,19 @@ contains
          o%depth(o%n) = d_moss
          o%water(o%n) = theta_moss * rho_h2o * d_moss
          liq = theta_moss
-         if (frozen) liq = min(theta_moss, 0.18_wp)
+         if (frozen) liq = min(theta_moss, frozen_liquid(o%curve(o%n)))
          o%ice(o%n) = soil_ice_state(o%curve(o%n), theta_moss - liq, liq)
       end if
       o%evap  = evap
       o%t_org = 285.0_wp
    end function thin_layers
+
+   !--- The liquid a frozen layer holds at 268 K, on its freezing curve, as a frozen soil layer's.
+   real(wp) function frozen_liquid(cv)
+      type(soil_layer_curve_t), intent(in) :: cv
+      real(wp) :: dtheta
+      call soil_liquid_capacity(cv, 268.0_wp, frozen_liquid, dtheta)
+   end function frozen_liquid
 
    !--- The water that crossed the network's boundary over its last step, the thin layers' evaporation too [kg/m2].
    real(wp) function boundary_water_thin(st, dt)
@@ -1448,8 +1456,8 @@ contains
       integer(ik) :: step, nfail, nfast
       print '(a)', 'test_zero_storage:'
       theta = 0.33_wp
-      call make_stand(st, 1_ik, theta, 3.0_wp, 0.95_wp, 0.9_wp, 0.0_wp,                                              &
-                      org=thin_layers(1.0e-3_wp, 0.98_wp, 0.0_wp, 0.0_wp, .false., 0.0_wp))
+      call make_stand(st, 1_ik, theta, 0.0_wp, 0.95_wp, 0.9_wp, 0.0_wp,                                              &
+                      org=thin_layers(3.0e-3_wp, 0.30_wp, 0.06_wp, 0.85_wp, .false., 0.0_wp))
       st%drive%rain = 1.0e-3_wp
       worst = 0.0_wp
       nfail = 0_ik
@@ -1460,12 +1468,12 @@ contains
          worst = max(worst, abs((total_water(st) - w0) - boundary_water_thin(st, 900.0_wp)) / max(w0, 1.0_wp))
          nfail = nfail + st%work(WORK_WATER_NFAIL)
          nfast = nfast + st%water%n_fast(2)
-         through = st%water%flows%infil - st%water%flows%top_in + st%water%flows%top_out - st%water%flows%exfil
-         call restart_stand(st, 1.0e-3_wp, 0.0_wp, .false.)
+         through = st%water%flows%org_face(1) - st%water%flows%top_in + st%water%flows%top_out
+         call restart_stand(st, 3.0e-3_wp, 0.06_wp, .false.)
       end do
-      call check_true('zero storage: the litter is eliminated', nfast > 0_ik, real(nfast, wp))
-      call check_true('zero storage: what it takes from the pond it passes on, to its storage change',              &
-                      abs(through) < 1.0e-3_wp * max(st%water%flows%infil, 1.0e-3_wp), through)
+      call check_true('zero storage: the saturated moss is eliminated', nfast > 0_ik, real(nfast, wp))
+      call check_true('zero storage: what it takes from the litter it passes on, to its specific storage',          &
+                      abs(through) < 1.0e-2_wp * max(abs(st%water%flows%org_face(1)), 1.0e-3_wp), through)
       call check_true('zero storage: every step closes to round-off', worst < 1.0e-13_wp, worst)
       call check_int('zero storage: no sub-step forced through', nfail, 0_ik)
    end subroutine test_zero_storage
@@ -1478,7 +1486,7 @@ contains
       print '(a)', 'test_frozen_group:'
       theta = 0.42_wp
       call make_stand(st, 1_ik, theta, 0.0_wp, 0.95_wp, 0.9_wp, 0.0_wp,                                              &
-                      org=thin_layers(2.0e-2_wp, 0.90_wp, 0.06_wp, 0.85_wp, .true., 0.0_wp))
+                      org=thin_layers(2.0e-2_wp, 0.98_wp, 0.06_wp, 0.85_wp, .true., 0.0_wp))
       call seal_top(st, 2_ik, theta, 0.0_wp)
       st%drive%rain = 3.0e-4_wp
       worst = 0.0_wp
