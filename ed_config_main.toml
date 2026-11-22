@@ -136,7 +136,7 @@ demography_on             = true     # false: the stand is frozen: no growth in 
                                      #   storage and soil carbon run, and the wood and recruits the stand
                                      #   cannot build leave it as frozen growth carbon (demography.md §7)
 # ---- One switch per operator, each under demography_on; the fusion and fission switches also
-# restructure a census start, whatever demography_on is. The cull (min_cohort_agb, negligible_nplant)
+# restructure a census start, whatever demography_on is. The cull (min_cohort_carbon, negligible_nplant)
 # and patch termination (min_patch_area) have no switch of their own: they run whenever
 # demography_on does, to keep the blocks bounded. ----
 recruitment_on            = true     # monthly: a recruit pool of min_recruit_size founds a cohort
@@ -153,7 +153,7 @@ cohort_size_tol_min       = 0.02     # [-] height tolerance, a share of the patc
 cohort_size_tol_max       = 0.10     # [-] its ceiling
 cohort_lai_cap            = 1.0      # [m2/m2] one cohort's LAI at most: split above it, no fusion above it
 split_eps                 = 1.0e-4   # [-] a split's relative perturbation of the two halves' wood carbon
-min_cohort_agb            = 1.0e-6   # [kgC/m2] a cohort below this nplant * agb is culled
+min_cohort_carbon         = 1.0e-6   # [kgC/m2] a cohort holding less carbon (all four pools) is culled
 negligible_nplant         = 1.0e-8   # [plant/m2] the density mortality stops at and the cull removes
 # ---- Treefall gaps. ----
 patch_disturbance_rate    = 0.014    # [1/yr] the share of the area a year's treefall gaps open (above 0)

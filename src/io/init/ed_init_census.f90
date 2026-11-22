@@ -9,6 +9,7 @@
 module ed_init_census
    use ed_kinds,        only : wp, ik
    use ed_config,       only : ed_config_t
+   use ed_allometry_lib, only : GROWTH_GRASS
    use ed_polygon_state_vars,   only : polygon_t
    use ed_init_bare_ground,     only : init_bare_ground, init_bare_sites, add_cohort, finalize_init
    use ed_slow_state,    only : kill_report_t, kill_litter
@@ -50,8 +51,9 @@ contains
    ! site_id, cohort_id and height [m] optional. A first data line of seven numbers is
    ! read positionally as site_id, patch_id, cohort_id, dbh, height, pft, nplant. Blank
    ! and '#' lines are skipped. why says what is wrong with the file, '' when it reads: it
-   ! cannot be opened, or has an unknown, repeated or missing column, a malformed row or a
-   ! non-positive value.
+   ! cannot be opened, or has an unknown, repeated or missing column, a malformed row, a
+   ! negative dbh or a non-positive height, nplant or patch_area. A grass row has dbh 0
+   ! (init_from_census checks it against the row's PFT).
    !---~---
    subroutine read_census_file(path, table, why)
       character(len=*),              intent(in)  :: path
@@ -103,7 +105,8 @@ contains
    ! site is built from use_site_id (else the first site_id seen); with site_ids, site k
    ! from the rows of site_ids(k), with site_cfg(k) and site_area(k). found = .false. and
    ! `why` say what is wrong with the file (read_census_file), that it has no row for the
-   ! site, a patch whose rows disagree on patch_area, or a pft out of range.
+   ! site, a patch whose rows disagree on patch_area, a pft out of range, or a dbh that does
+   ! not fit the row's PFT: a tree's is positive, a grass's 0, its size being its PFT's height.
    !---~---
    subroutine init_from_census(poly, cfg, path, found, use_site_id, why, site_ids, site_cfg, site_area)
       type(polygon_t),     intent(out) :: poly
@@ -201,6 +204,10 @@ contains
          ip = census_patch(k, table%patch_id(r))
          if (table%pft(r) < 1_ik .or. table%pft(r) > cfg%pft%n) then
             if (present(why)) why = 'has a pft index out of range'
+            return
+         end if
+         if ((cfg%pft%allom(table%pft(r))%growth_form == GROWTH_GRASS) .neqv. (table%dbh(r) == 0.0_wp)) then
+            if (present(why)) why = 'has a tree row with dbh 0, or a grass row with a dbh other than 0'
             return
          end if
          call add_cohort(poly, cfg, slot_of(ip), table%pft(r), table%nplant(r), table%dbh(r))
@@ -372,8 +379,8 @@ contains
             return
          end if
       end if
-      if (dbh <= 0.0_wp .or. height <= 0.0_wp .or. nplant <= 0.0_wp .or. area <= 0.0_wp)         &
-         why = 'has a row with a non-positive dbh, height, nplant or patch_area'
+      if (dbh < 0.0_wp .or. height <= 0.0_wp .or. nplant <= 0.0_wp .or. area <= 0.0_wp)          &
+         why = 'has a row with a negative dbh, or a non-positive height, nplant or patch_area'
    end subroutine parse_census_line
 
    !--- Parse one comma-separated census row (commas -> blanks, then list-directed read).

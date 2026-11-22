@@ -274,7 +274,7 @@ contains
       allocate(pft%sla(n), pft%root_to_leaf_ratio(n),                                        &
                pft%storage_cushion(n), pft%growth_resp_factor(n),                            &
                pft%retained_carbon_fraction(n),                                             &
-               pft%is_woody(n), pft%stem_resp_factor25(n), pft%root_resp_factor25(n),        &
+               pft%stem_resp_factor25(n), pft%root_resp_factor25(n),                         &
                pft%leaf_reflect_vis(n), pft%leaf_transmit_vis(n), pft%leaf_reflect_nir(n),   &
                pft%leaf_transmit_nir(n), pft%leaf_emissivity(n),                             &
                pft%wood_reflect_vis(n), pft%wood_transmit_vis(n), pft%wood_reflect_nir(n),   &
