@@ -617,7 +617,7 @@ contains
          call count_classes(fast, water%n_fast)
          call count_classes(cut, water%n_cut)
          call water_commit_substep(soil, drive, h, tau_soil, tau_coh, water%ev(i_sol), water%state, water%flows,  &
-                                   fast, spilled)
+                                   fast, cut, spilled)
          !---~---
          !   The next sub-step starts where this one ended: its start is this one's solution, whose
          ! Jacobian sys still holds -- unless the spill moved the pond, or a node was detached, whose
@@ -695,7 +695,7 @@ contains
          call water_derivs(static, profile, soil, hyd, drive, tau_soil, tau_coh, water%ev(i_sol), water%sys, .true.)
          water%start_ready = .true.
       end if
-      call classify_fast(water%sys, water%ev(i_sol), h, tol, scale_soil, scale_coh, fast)
+      call classify_fast(water%sys, water%ev(i_sol), h, tol, scale_soil, fast)
       call inert_groups(water%ev(i_sol), h, tol, scale_soil, cut)
       fast = fast .and. .not. cut
       if (any(fast) .or. any(cut)) then
@@ -786,30 +786,31 @@ contains
    !   The fast core nodes at a sub-step's start (docs/science/soil_plant_water.md §3, "Node
    ! classes"): a node's storage S = |dW/dtau| over the flow part of its Jacobian column, L, the sum
    ! of how far its unknown moves every balance, is the time it takes to relax to its neighbours,
-   ! whatever the unknown's scale. Below FAST_SHARE of the sub-step, with links the solve can
-   ! see, its storage is under the Newton tolerance's share of its flows, and it is eliminated.
-   ! Of two adjacent fast nodes only the faster is eliminated.
+   ! whatever the unknown's scale. Below FAST_SHARE of the sub-step, with a link the solve can see
+   ! (seen_links, as inert_groups reads them), its storage is under the Newton tolerance's share of
+   ! its flows, and it is eliminated. Of two adjacent fast nodes only the faster is eliminated.
    !---~---
-   pure subroutine classify_fast(sys, ev, h, tol, scale_soil, scale_coh, fast)
+   pure subroutine classify_fast(sys, ev, h, tol, scale_soil, fast)
       type(arrowhead_system_t), intent(in)  :: sys
       type(water_tend_t),       intent(in)  :: ev
-      real(wp),                 intent(in)  :: h, tol, scale_soil(:), scale_coh(:,:)
+      real(wp),                 intent(in)  :: h, tol, scale_soil(:)
       logical,                  intent(out) :: fast(:)
-      real(wp)    :: big_l(sys%nc), reach, t_relax(sys%nc)
+      real(wp)    :: big_l, t_relax(sys%nc)
       integer(ik) :: c, i, ib
+      logical     :: seen(sys%nc), linked
+      call seen_links(ev, tol, scale_soil, seen)
       do c = 1_ik, sys%nc
-         big_l(c) = 0.0_wp
-         reach = 0.0_wp
+         big_l = 0.0_wp
          do i = 1_ik, sys%nc
-            big_l(c) = big_l(c) + abs(sys%a(i, c))
-            reach    = reach + abs(sys%a(i, c)) / (tol * scale_soil(i))
+            big_l = big_l + abs(sys%a(i, c))
          end do
          do ib = 1_ik, sys%nb
-            big_l(c) = big_l(c) + abs(sys%c(c, ib))
-            reach    = reach + abs(sys%c(c, ib)) / (tol * scale_coh(WOOD, ib))
+            big_l = big_l + abs(sys%c(c, ib))
          end do
-         t_relax(c) = abs(ev%dwater_soil(c)) / max(big_l(c), tiny_num)
-         fast(c) = reach >= 1.0_wp .and. t_relax(c) < FAST_SHARE * h
+         linked = seen(c) .or. ev%root_link(c) >= tol * scale_soil(c)
+         if (c > 1_ik) linked = linked .or. seen(c - 1_ik)
+         t_relax(c) = abs(ev%dwater_soil(c)) / max(big_l, tiny_num)
+         fast(c) = linked .and. t_relax(c) < FAST_SHARE * h
       end do
       do c = 1_ik, sys%nc - 1_ik
          if (fast(c) .and. fast(c + 1_ik)) then
@@ -821,6 +822,23 @@ contains
          end if
       end do
    end subroutine classify_fast
+
+   !---~---
+   !   The chain's faces the solve can see: face c, joining nodes c and c + 1, is seen when a whole
+   ! unit of either end's unknown moves either end's balance by the convergence tolerance (each
+   ! weighed as water_residual weighs that balance), from its slopes whether or not it is cut.
+   !---~---
+   pure subroutine seen_links(ev, tol, scale_soil, seen)
+      type(water_tend_t), intent(in)  :: ev
+      real(wp),           intent(in)  :: tol, scale_soil(:)
+      logical,            intent(out) :: seen(:)
+      integer(ik) :: c, nc
+      nc = size(seen, kind=ik)
+      do c = 1_ik, nc - 1_ik
+         seen(c) = max(abs(ev%face_dqa(c)), abs(ev%face_dqb(c))) >= tol * min(scale_soil(c), scale_soil(c + 1_ik))
+      end do
+      seen(nc) = .false.
+   end subroutine seen_links
 
    !---~---
    !   The inert core nodes (docs/science/soil_plant_water.md §3, "Node classes"): the graph of the
@@ -839,14 +857,7 @@ contains
       integer(ik) :: nc, c, first
       logical     :: seen_link(size(cut)), active
       nc = size(cut, kind=ik)
-      !--- Face c joins nodes c and c + 1: seen when either end's unknown moves the other's balance.
-      do c = 1_ik, nc - 1_ik
-         seen_link(c) = abs(ev%face_dqa(c)) >= tol * scale_soil(c + 1_ik)                                  &
-                        .or. abs(ev%face_dqb(c)) >= tol * scale_soil(c)                                    &
-                        .or. abs(ev%face_dqa(c)) >= tol * scale_soil(c)                                    &
-                        .or. abs(ev%face_dqb(c)) >= tol * scale_soil(c + 1_ik)
-      end do
-      seen_link(nc) = .false.
+      call seen_links(ev, tol, scale_soil, seen_link)
       cut = .false.
       !--- The chain's groups: runs of nodes joined by seen faces.
       first = 1_ik
@@ -1168,14 +1179,14 @@ contains
    ! its strongest neighbour (the wood, for the leaves) carries the flow that closes its balance;
    ! the neighbour absorbs the slack (docs/science/soil_plant_water.md §3, "Conservation").
    !---~---
-   subroutine water_commit_substep(soil, drive, h, tau_soil, tau_coh, ev, state, flows, fast, spilled)
+   subroutine water_commit_substep(soil, drive, h, tau_soil, tau_coh, ev, state, flows, fast, cut, spilled)
       type(soil_params_t), intent(in)    :: soil
       type(water_drive_t), intent(in)    :: drive
       real(wp),            intent(in)    :: h, tau_soil(:), tau_coh(:,:)
       type(water_tend_t),  intent(in)    :: ev
       type(water_state_t), intent(inout) :: state
       type(water_flows_t), intent(inout) :: flows
-      logical,             intent(in)    :: fast(:)   ! the eliminated core nodes
+      logical,             intent(in)    :: fast(:), cut(:)   ! the eliminated and the detached core nodes
       logical,             intent(out)   :: spilled   ! the pond spilled, so its unknown moved
       real(wp) :: w_mix, e_mix, t_mix, u_mix, amount, spill, t_pond, pond_flux, sap(size(tau_coh, 2)), u_up, q
       real(wp) :: qf(size(tau_soil)), dinfl(size(tau_soil)), slack
@@ -1192,7 +1203,8 @@ contains
       qf(soff+1:soff+nsl-1) = ev%face_flux(1:nsl-1)
       !---~---
       !   Each eliminated node at its curve's water: the face to its strongest neighbour carries the
-      ! flow that closes its balance there.
+      ! flow that closes its balance there -- a neighbour that is not detached, and not a pond
+      ! that holds less than the slack would take from it.
       !---~---
       dinfl = 0.0_wp
       do c = 1_ik, nsoil
@@ -1206,6 +1218,10 @@ contains
             g = c - 1_ik
          else
             g = c + 1_ik
+         end if
+         if (c > 1_ik .and. c < nsoil) then
+            if (cut(g) .or. (g == POND .and. state%water_soil(POND) + h * (ev%inflow_soil(POND) - slack) < 0.0_wp))  &
+               g = 2_ik * c - g
          end if
          dinfl(c) = dinfl(c) + slack
          dinfl(g) = dinfl(g) - slack

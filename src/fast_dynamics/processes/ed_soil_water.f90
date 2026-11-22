@@ -24,6 +24,7 @@ module ed_soil_water
 
    public :: soil_water_flux, ground_evaporation_rate, bottom_flux, evaporation_supply
    public :: ground_evap_env_t, ground_evaporation_setup, pond_inflow, organic_cover_path, vapour_diffusivity
+   public :: slot_evaporation_setup
 
    !---~---
    !   Widths of the two rounded corners in ground_evaporation_rate: [kg/kg] where the surface's
@@ -164,6 +165,28 @@ contains
       forcing%dsl_diffusivity = max(dvap * tau, tiny_num)
       forcing%r_cover         = forcing%cover_path / dvap
    end subroutine ground_evaporation_setup
+
+   !---~---
+   !   The boundary an organic slot's evaporation reads, for ground_evaporation_rate: the canopy
+   ! air over the ground (the ground's boundary's), the organic layer's temperature, and its dried
+   ! top's path for the vapour (organic_cover_path of the dried depth, in free air) as the cover
+   ! in series. A slot has no dry surface layer of its own: its dried top is that path.
+   !---~---
+   pure function slot_evaporation_setup(ground, t_org, dry_path) result(env)
+      type(ground_evap_env_t), intent(in) :: ground     ! the ground's boundary (the canopy air, its conductance)
+      real(wp),                intent(in) :: t_org      ! [K] the organic layer's temperature
+      real(wp),                intent(in) :: dry_path   ! [m] its dried top, as a depth of free air
+      type(ground_evap_env_t) :: env
+      env = ground
+      env%t_ground        = t_org
+      env%rv_t            = r_wv * t_org
+      env%q_sat           = sat_specific_humidity(t_org, ground%press)
+      env%theta_init      = -1.0_wp          ! no dry surface layer: its resistance is nought at any water
+      env%theta_span      = 1.0_wp
+      env%dsl_diffusivity = 1.0_wp
+      env%cover_path      = dry_path
+      env%r_cover         = dry_path / vapour_diffusivity(t_org)
+   end function slot_evaporation_setup
 
    !--- [m2/s] Water vapour's diffusivity in air at `temp` [K].
    elemental function vapour_diffusivity(temp) result(dvap)

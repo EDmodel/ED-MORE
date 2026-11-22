@@ -589,9 +589,9 @@ module ed_fast_integ_types
    !---~---
    !   The organic layer's slots in the network, top down (docs/science/surface_organic_layer.md,
    ! Water): each node's slot, its retention curve and ice, held over the step, its depth and its
-   ! water at the step's start; the slots' own evaporation, held at the start-of-step surface
-   ! solve's rate (dew when negative); and the layer's temperature, which values the water it
-   ! gives up. n = 0 without a layer: the network is the pond and the soil.
+   ! water at the step's start; the boundary the top slot evaporates to, by the soil's law; and
+   ! the layer's temperature, which values the water it gives up. n = 0 without a layer: the
+   ! network is the pond and the soil.
    !---~---
    type :: water_organic_t
       integer(ik) :: n = 0_ik                                  ! slots in the network
@@ -600,8 +600,9 @@ module ed_fast_integ_types
       type(soil_ice_t)         :: ice(n_organic_slot)          ! its ice, held over the step
       real(wp) :: depth(n_organic_slot) = 0.0_wp               ! [m]
       real(wp) :: water(n_organic_slot) = 0.0_wp               ! [kg/m2] at the step's start, liquid and ice
-      real(wp) :: evap  = 0.0_wp                               ! [kg/m2/s] their own evaporation (< 0: dew)
+      real(wp) :: evap  = 0.0_wp                               ! (unused by the network; the energy stage's rate)
       real(wp) :: t_org = t_3ple                               ! [K]
+      type(ground_evap_env_t) :: air                           ! the top slot's evaporation boundary (slot_evaporation_setup)
    end type water_organic_t
 
    type :: water_drive_t
