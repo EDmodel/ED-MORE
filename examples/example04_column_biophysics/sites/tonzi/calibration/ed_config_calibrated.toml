@@ -1,0 +1,202 @@
+# SPDX-License-Identifier: Apache-2.0
+# CALIBRATED by scripts/calibrate_fast from ed_config_eval.toml.
+# Every line is the base file's, comments included, except these keys the fit set
+# (calibrated value, the base file's value; EFFECTIVE: its value belongs to this model structure;
+# KATTGE & KNORR: fixed at the growth temperature's value, not fitted):
+#   aerodynamics.z0m_ratio         0.152543  (0.13)  EFFECTIVE
+#   leaf_physiology.ds_vcmax       650.575  (650)  KATTGE & KNORR
+#   leaf_physiology.ds_jmax        647.213  (640)  KATTGE & KNORR
+# and these settings of the calibration (calibration.toml [overrides], the variant, [calibrated]):
+#   init.pft_config                "calibration/pft_parameters_calibrated.toml"
+#   output.prefix                  "cal"
+# ED-MORE example 04, the Tonzi Ranch site: the blue-oak savanna tower AmeriFlux US-Ton over ten years,
+# 2010-01-02 to 2020-01-01 UTC, started from an oak census at the field survey's size distributions and its
+# grass (make_tonzi_census.py), with hourly output to compare with the tower's fluxes. The first year spins
+# up the leaves and the
+# soil water; the scores start in 2011. Every output stamp is UTC.
+
+[run]
+dt_slow    = "1d"
+start_time = "2010-01-02"      # the forcing's first record is 2010-01-01 08:00 UTC (midnight PST)
+end_time   = "2020-01-01"
+n_threads  = 8
+
+[fast]
+fast_biophysics_on  = true
+dt_fast             = "900s"
+time_integrator     = "esdirk2"
+rtol                = 2.0e-3
+canopy_water_on     = true
+
+[demography]
+# The stand is frozen at the census: no growth, mortality or restructuring, while the leaves follow
+# the season (docs/science/demography.md §7). A PFT table with a grass needs it. The keys below build
+# the starting stand from the census.
+demography_on             = false
+recruitment_on            = true
+cohort_fusion_on          = true
+patch_disturbance_on      = true
+patch_fusion_on           = true
+max_cohort                = 60
+n_cohort_fusion_iter      = 6
+cohort_size_tol_min       = 0.02
+cohort_size_tol_max       = 0.10
+cohort_lai_cap            = 1.0
+min_cohort_carbon         = 1.0e-6
+negligible_nplant         = 1.0e-8
+split_eps                 = 1.0e-4
+cohort_fission_on         = true
+n_height_layers           = 16
+max_patch                 = 60
+n_patch_fusion_iter       = 6
+patch_light_tol           = 0.04    # as BCI's and Harvard's: the open cells stay apart from the treed ones
+patch_light_tol_max       = 0.08
+patch_light_maxdev_factor = 1.5
+min_patch_area            = 1.0e-4
+conservation_tol          = 0.001
+growth_memory_days        = 365.0
+patch_disturbance_rate    = 0.014
+disturbance_survive_height = 10.0
+min_recruit_size          = 1.0e-2
+
+[init]
+init_mode    = 1                  # a census: one patch per 10 m cell, fused by ED-MORE before the first step
+census_file  = "data/tonzi_census_ed.csv"   # run_site.py builds it (make_tonzi_census.py)
+pft_config   = "calibration/pft_parameters_calibrated.toml"
+soil_temp    = 284.3              # [K] the tower's soil, 2-50 cm, 1-2 January 2010 (11.1-11.4 degC)
+                                  # each layer starts at its field capacity ([soil], a texture per layer)
+
+[output]
+state_write       = false
+state_interval    = "10 years"
+state_file_dir    = "output"
+state_file_prefix = "eval"
+enabled       = true
+dir           = "output"
+prefix        = "cal"
+overwrite     = true
+io_config     = "output_variables.toml"
+cohort_max    = 4096
+patch_max     = 256
+sync_every    = "flush"
+fast_interval_steps = 4                # 4 * dt_fast (900 s) = hourly records
+
+[output.fast]
+enabled    = true
+file_chunk = "year"
+
+[output.daily]
+enabled    = true
+file_chunk = "all"
+
+[output.monthly]
+enabled    = false
+file_chunk = "year"
+
+[output.annual]
+enabled    = false
+file_chunk = "all"
+
+[trait_dynamics]
+trait_plasticity_on = true
+
+[leaf_physiology]
+stomatal_model     = "medlyn"
+temp_response_form = "peaked"
+colimitation       = "quadratic"
+use_boundary_layer = false
+kc25    = 40.49
+ko25    = 27840.0
+gstar25 = 4.275
+ea_kc     = 79430.0
+ea_ko     = 36380.0
+ea_gstar  = 37830.0
+ea_vcmax  = 65330.0
+ea_jmax   = 43540.0
+ea_rd     = 46390.0
+hd_vcmax  = 200000.0
+hd_jmax   = 200000.0
+hd_rd     = 200000.0
+ds_vcmax  = 650.575
+ds_jmax   = 647.213
+ds_rd     = 490.0
+o2_mol_frac      = 0.209
+leaf_absorptance = 0.85
+phi_psii         = 0.74
+
+[site]
+latitude              = 38.4309      # the US-Ton tower (tonzi_site.toml)
+longitude             = -120.9660
+elevation             = 177.0
+apply_elevation_lapse = false         # the tower measures at the site
+
+[forcing]
+forcing_on     = true
+format         = "default"
+path           = "data/tonzi_forcing.nc"           # run_site.py builds it (make_tower_forcing.py)
+grid_index     = 1
+grid_match     = "explicit"
+tq_height      = 23.5              # the tower's own heights, above the ground at its base (tonzi_site.toml)
+wind_height    = 23.5
+height_above   = "ground"
+wind_exposure  = "local"
+timestep       = "1800s"
+avg_convention = "begin"
+sw_partition   = "clearidx"
+lwdown_source  = "file"
+co2_source     = "file"
+co2_file       = "../../../../data/co2/co2_cmip7_global_annual_1000-2022.txt"
+recycle        = false             # the ten tower years cover the run
+start_clamp    = "error"
+
+[soil_carbon]
+soil_carbon_on = true
+# Steady state with the stand's litter (make_tonzi_census.py's summary): the oaks' and the grass's leaf
+# fall and fine-root turnover from the PFTs, the oaks' wood from their background mortality.
+spinup_steady      = true
+spinup_labile_grnd = 9.535965e-05     # [kgC/m2/day]
+spinup_labile_soil = 1.742153e-04
+spinup_struct_grnd = 7.813881e-05
+spinup_struct_soil = 9.063672e-05
+
+[aerodynamics]
+# The grass sward's momentum roughness is the landscape's, not the grass's: at Vaira's 2 m sonic, in
+# near-neutral air, the log law gives an aerodynamic canopy height of 0.56-0.74 m in every month while the
+# grass stands 0.04-0.55 m (AmeriFlux US-Var BASE, 2001-2019). The canopy height a patch's roughness
+# takes is floored at soil_rough / z0m_ratio: 0.085 / 0.13 = 0.65 m.
+soil_rough = 0.085                   # [m]
+
+# Tonzi's soil is an Auburn very rocky silt loam, about 1 m over fractured greenstone (Baldocchi, Xu & Kiang
+# 2004, Agric. For. Meteorol. 123:13-39, p. 18); below it lie 4-8 m of saprolite and the water table, 7-12 m
+# down (Miller 2009, PhD dissertation, UC Berkeley, pp. 79-80), which the oaks draw on in summer. The column
+# runs to a water table at 9 m, on the default layers, with a texture per layer:
+#   - the top 1 m, the loam class's curve (Carsel & Parrish 1988, Water Resour. Res. 24:755, Table 3; the
+#     repository's default soil), for the texture under and between the oaks, 37.5-48 % sand, 42-45 % silt
+#     and 10-17.5 % clay, with the porosity of its bulk density, 1.58-1.64 g/cm3 (Baldocchi et al. 2004,
+#     Table 1: 1 - 1.61 / 2.65);
+#   - 1-9 m, the weathered rock: the loam's curve with a fifth of its water (porosity 0.15), between the
+#     loam and fractured rock, whose specific yield is about 0.04 (Miller 2009, p. 99), fitted by hand to
+#     the tower's summer LE; and the conductivity of the slug tests in the tower's well, 2.2-2.6e-6 m/s
+#     (Miller 2009, Table 3.5).
+# One loam to 9 m held five times the water at depth, and the oaks transpired 30-50 W/m2 too much in the
+# wet summers.
+z0m_ratio = 0.152543   # set by calibrate_fast
+[soil]
+depth           = 9.0              # [m]
+water_bottom_bc = "aquifer"        # the water table under the oaks' roots
+layer_bottoms   = [0.05, 0.15, 0.30, 0.60, 1.00, 1.50, 2.00, 3.00, 4.50, 6.50, 9.00]   # [m]
+theta_sat       = [0.39, 0.39, 0.39, 0.39, 0.39, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15]   # [m3/m3]
+theta_res       = [0.078, 0.078, 0.078, 0.078, 0.078, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03]
+curve_par_a     = 3.6              # [1/m]
+curve_par_n     = 1.56
+ksat            = [2.89e-6, 2.89e-6, 2.89e-6, 2.89e-6, 2.89e-6, 2.5e-6, 2.5e-6, 2.5e-6, 2.5e-6, 2.5e-6, 2.5e-6]   # [m/s]
+# The ground's albedo, under the dead grass and between the oaks: 0.08 in the visible, the landscape's in the
+# dry season (MODIS MCD43A blue-sky albedo, ORNL DAAC's subset, the 3 x 3 pixels around the tower, July-October
+# 2016-2019: 0.067-0.078; the tower's PAR albedo 0.063-0.078), and 0.25 in the near infrared, so that the stand's
+# midday albedo follows MODIS's shortwave and the tower's (0.14-0.16 against 0.13-0.165). The repository's 0.15
+# and 0.30 made it 0.15-0.19, and the summer's H 15 W/m2 short.
+ground_albedo_vis = 0.08
+ground_albedo_nir = 0.25
+thermal_bottom_bc = "dirichlet"
+deep_temp  = 290.65                # [K] the tower's deepest soil sensor, mean of 2010-2019 (17.5 degC; air 16.7)
+deep_depth = 9.145                 # [m] the bottom node (7.75 m) + 1.973 / sqrt(2), the default's rule
