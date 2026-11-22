@@ -31,7 +31,7 @@ module ed_fast_integ_backward_euler
    use ed_site_state_vars, only : site_surface_t
    use ed_therm_lib, only : cas_enthalpy_to_temp, internal_energy_liquid, liquid_energy_to_temp
    use ed_numerics,     only : sufficient_decrease, fraction_to_boundary
-   use ed_soil_hydr_lib,   only : pond_water_to_head, soil_layer_curve_t, soil_ice_t, SOIL_RETENTION_CAMPBELL
+   use ed_soil_hydr_lib,   only : pond_water_to_head, soil_layer_curve_t, SOIL_RETENTION_CAMPBELL
    use ed_soil_water,      only : ground_evaporation_setup
    use ed_linear_algebra, only : arrowhead_system_t, arrowhead_allocate, arrowhead_factor, arrowhead_solve
    use ed_soil_params, only : soil_profile_t, soil_params_t
@@ -983,11 +983,12 @@ contains
    end subroutine solve_node
 
    !---~---
-   !   A Newton step that would carry a node across a kink of its curve lands on the kink instead,
-   ! that node's step alone (Appleyard's chopping; Wang & Tchelepi 2013): Campbell's air entry,
-   ! the join at zero head, where storage turns to the specific storage, and a frozen node's melt
-   ! plateau's ends and the point where its liquid fills the pores the ice leaves. From the kink,
-   ! the next step may cross.
+   !   A Newton step that would carry a node across Campbell's air entry, the kink in its curve's
+   ! storage, lands on the kink instead, that node's step alone (Appleyard's chopping; Wang &
+   ! Tchelepi 2013); from the kink, the next step may cross. The other kinks are not chopped,
+   ! since nodes sit on them: a saturated layer at the join at zero head, a frozen layer at its
+   ! melt plateau's top, where it starts every step, and at the point where its liquid fills the
+   ! pores the ice leaves. Chopped there, Newton stalls.
    !---~---
    pure subroutine chop_at_kinks(profile, drive, tau_soil, step_soil)
       type(soil_profile_t), intent(in)    :: profile
@@ -999,23 +1000,17 @@ contains
       do c = 2_ik, size(tau_soil, kind=ik)
          if (step_soil(c) == 0.0_wp) cycle
          if (c <= 1_ik + n_org) then
-            call chop(drive%org%curve(c - 1_ik), drive%org%ice(c - 1_ik), tau_soil(c), step_soil(c))
+            call chop(drive%org%curve(c - 1_ik), tau_soil(c), step_soil(c))
          else
-            call chop(profile%layer_curve(c - 1_ik - n_org), drive%ice(c - 1_ik - n_org), tau_soil(c), step_soil(c))
+            call chop(profile%layer_curve(c - 1_ik - n_org), tau_soil(c), step_soil(c))
          end if
       end do
    contains
-      pure subroutine chop(cv, ice, tau, d)
+      pure subroutine chop(cv, tau, d)
          type(soil_layer_curve_t), intent(in)    :: cv
-         type(soil_ice_t),         intent(in)    :: ice
          real(wp),                 intent(in)    :: tau
          real(wp),                 intent(inout) :: d
          if (cv%retention == SOIL_RETENTION_CAMPBELL) call land(cv%se_switch, tau, d)
-         if (ice%theta_ice > 0.0_wp) then
-            call land(ice%tau_dry, tau, d)
-            call land(ice%tau_melt, tau, d)
-            call land(ice%tau_full, tau, d)
-         end if
       end subroutine chop
       pure subroutine land(kink, tau, d)
          real(wp), intent(in)    :: kink, tau

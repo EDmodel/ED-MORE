@@ -382,7 +382,7 @@ contains
       type(arrowhead_system_t),  intent(inout) :: sys   ! the flows' Jacobian, written when with_jacobian
       logical,                   intent(in)    :: with_jacobian
       logical,         optional, intent(in)    :: cut(:) ! (nsoil) nodes detached from the solve
-      integer(ik) :: k, i, j, ca, cb, c, nsl, nsoil, n_org, soff
+      integer(ik) :: k, i, ca, cb, c, nsl, nsoil, n_org, soff
       real(wp) :: q, dq_pa, dq_pb, dq_ka, dq_kb, dqa, dqb, u, s, ds_w, ds_l
       real(wp) :: e, de_dtheta, de_dpsi, de, qbot, dqbot_dpsi, dqbot_dk, theta1, span, supply, dsupply
       real(wp) :: psi_w, dpsi_w, u_sum, dqb_sum, du_dpsi(profile%n_active), du_dk(profile%n_active)
