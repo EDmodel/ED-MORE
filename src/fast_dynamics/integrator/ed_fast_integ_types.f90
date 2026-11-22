@@ -16,7 +16,7 @@
 !---~---
 module ed_fast_integ_types
    use ed_kinds, only : wp, ik
-   use ed_constants, only : n_soil_layer_max
+   use ed_constants, only : n_soil_layer_max, n_organic_slot, t_3ple
    use ed_pft_params, only : leaf_photo_table_t
    use ed_patch_state_vars,   only : cas_state_t, soil_water_state_t, soil_energy_state_t, snow_state_t, soil_carbon_state_t
    use ed_organic_lib,        only : organic_state_t
@@ -26,7 +26,7 @@ module ed_fast_integ_types
    use ed_budget_check, only : budget_t
    use ed_linear_algebra, only : arrowhead_system_t
    use ed_soil_water, only : ground_evap_env_t
-   use ed_soil_hydr_lib, only : soil_ice_t
+   use ed_soil_hydr_lib, only : soil_ice_t, soil_layer_curve_t
    use ed_canopy_aerodynamics, only : aero_env_t, aero_args_t, aero_out_t, ensure_aero_out_capacity
    use ed_canopy_air_space, only : cas_env_t
    use ed_plant_energy,   only : plant_energy_env_t
@@ -51,7 +51,7 @@ module ed_fast_integ_types
    public :: soil_hydrology_t, root_zone_t, plant_water_t, esdirk2_stages_t, surface_source_slopes_t
    public :: march_state_t, frozen_t, march_tend_t
    public :: stage_bflux_t, boundary_flux_t
-   public :: POND, WOOD, LEAF, COHORT_STORES
+   public :: POND, WOOD, LEAF, COHORT_STORES, water_organic_t
    public :: water_drive_t, water_tend_t, water_state_t, water_flows_t, water_work_t, ensure_water_capacity
    public :: alloc_static_state, alloc_dynamic_state   ! used only by the tests
    !--- The march state's arithmetic.
@@ -93,8 +93,8 @@ module ed_fast_integ_types
 
    !---~---
    !   The soil-plant water network's nodes (docs/science/soil_plant_water.md §1): the pond is
-   ! soil node POND and soil layer k is node 1 + k; each cohort has two stores, its wood and its
-   ! leaves.
+   ! soil node POND, the organic layer's slots in the network are nodes 2 .. 1 + n_org top down,
+   ! and soil layer k is node 1 + n_org + k; each cohort has two stores, its wood and its leaves.
    !---~---
    integer(ik), parameter :: POND = 1_ik
    integer(ik), parameter :: WOOD = 1_ik
@@ -586,6 +586,24 @@ module ed_fast_integ_types
    ! layer gives up, each cohort's transpiration demand and the ground evaporation's boundary
    ! (docs/science/soil_plant_water.md §4-§5).
    !---~---
+   !---~---
+   !   The organic layer's slots in the network, top down (docs/science/surface_organic_layer.md,
+   ! Water): each node's slot, its retention curve and ice, held over the step, its depth and its
+   ! water at the step's start; the slots' own evaporation, held at the start-of-step surface
+   ! solve's rate (dew when negative); and the layer's temperature, which values the water it
+   ! gives up. n = 0 without a layer: the network is the pond and the soil.
+   !---~---
+   type :: water_organic_t
+      integer(ik) :: n = 0_ik                                  ! slots in the network
+      integer(ik) :: slot(n_organic_slot) = 0_ik               ! node j's slot (SLOT_LITTER, SLOT_MOSS)
+      type(soil_layer_curve_t) :: curve(n_organic_slot)        ! node j's retention and conductivity
+      type(soil_ice_t)         :: ice(n_organic_slot)          ! its ice, held over the step
+      real(wp) :: depth(n_organic_slot) = 0.0_wp               ! [m]
+      real(wp) :: water(n_organic_slot) = 0.0_wp               ! [kg/m2] at the step's start, liquid and ice
+      real(wp) :: evap  = 0.0_wp                               ! [kg/m2/s] their own evaporation (< 0: dew)
+      real(wp) :: t_org = t_3ple                               ! [K]
+   end type water_organic_t
+
    type :: water_drive_t
       real(wp) :: rain   = 0.0_wp                          ! [kg/m2/s] water reaching the pond
       real(wp) :: t_rain = 298.15_wp                       ! [K] the temperature that values it
@@ -594,6 +612,7 @@ module ed_fast_integ_types
       real(wp) :: root_contact(n_soil_layer_max) = 1.0_wp ! [-] each layer's root-soil contact, held over the step
       real(wp), allocatable :: e_demand(:)                 ! (ncoh) [kg/m2/s] the stomata's transpiration demand
       type(ground_evap_env_t) :: ground                    ! the ground evaporation's boundary
+      type(water_organic_t)   :: org                       ! the organic slots in the network
    end type water_drive_t
 
    !---~---
@@ -611,6 +630,8 @@ module ed_fast_integ_types
       real(wp), allocatable :: sapflow(:), transp(:)   ! (ncoh)
       real(wp) :: pond_flux = 0.0_wp               ! pond -> top layer
       real(wp) :: drain = 0.0_wp, evap = 0.0_wp    ! out of the bottom; out of the top layer to the air
+      real(wp) :: org_face(n_organic_slot) = 0.0_wp   ! down from organic node j to the node below it
+      real(wp) :: org_evap(n_organic_slot) = 0.0_wp   ! out of organic node j to the air (< 0: dew)
    end type water_tend_t
 
    !---~---
@@ -634,6 +655,16 @@ module ed_fast_integ_types
       real(wp) :: drain = 0.0_wp, evap = 0.0_wp        ! out of the bottom; out of the top layer to the air
       real(wp) :: spill = 0.0_wp, spill_enth = 0.0_wp  ! pond runoff over its capacity
       real(wp) :: rain_enth = 0.0_wp                   ! enthalpy the rain brought
+      !---~---
+      !   With organic slots in the network: the flow down from each node and its evaporation, the
+      ! enthalpy the slots gained with their water (their evaporation's is the march's), and the top
+      ! soil layer's top face, in and out with their enthalpy.
+      !---~---
+      real(wp) :: org_face(n_organic_slot) = 0.0_wp
+      real(wp) :: org_evap(n_organic_slot) = 0.0_wp
+      real(wp) :: org_enth = 0.0_wp
+      real(wp) :: top_in  = 0.0_wp, top_in_enth  = 0.0_wp   ! bottom slot -> top layer
+      real(wp) :: top_out = 0.0_wp, top_out_enth = 0.0_wp   ! top layer -> bottom slot
    end type water_flows_t
 
    !---~---
@@ -647,8 +678,9 @@ module ed_fast_integ_types
    !---~---
    type :: water_work_t
       integer(ik)              :: nsl   = 0_ik      ! soil layers
+      integer(ik)              :: n_org = 0_ik      ! organic slots in the network
       integer(ik)              :: ncoh  = 0_ik      ! cohorts
-      integer(ik)              :: nsoil = 0_ik      ! soil nodes: the pond and the nsl layers
+      integer(ik)              :: nsoil = 0_ik      ! core nodes: the pond, the n_org slots and the nsl layers
       type(water_state_t)      :: state
       type(water_flows_t)      :: flows
       type(arrowhead_system_t) :: sys
@@ -912,17 +944,19 @@ contains
    ! right after.
    !---~---
    !---~---
-   !   Size the water network for nsl soil layers and ncoh cohorts, keeping the storage when the
-   ! shape is unchanged.
+   !   Size the water network for nsl soil layers, n_org organic slots and ncoh cohorts, keeping
+   ! the storage when the shape is unchanged.
    !---~---
-   subroutine ensure_water_capacity(water, nsl, ncoh)
+   subroutine ensure_water_capacity(water, nsl, n_org, ncoh)
       type(water_work_t), intent(inout) :: water
-      integer(ik),        intent(in)    :: nsl, ncoh
+      integer(ik),        intent(in)    :: nsl, n_org, ncoh
       integer(ik) :: ns
-      if (allocated(water%state%tau_soil) .and. water%nsl == nsl .and. water%ncoh == ncoh) return
+      if (allocated(water%state%tau_soil) .and. water%nsl == nsl .and. water%n_org == n_org                     &
+          .and. water%ncoh == ncoh) return
       water%nsl   = nsl
+      water%n_org = n_org
       water%ncoh  = ncoh
-      water%nsoil = 1_ik + nsl
+      water%nsoil = 1_ik + n_org + nsl
       ns = water%nsoil
       associate (st => water%state, fl => water%flows)
          if (allocated(st%tau_soil)) deallocate(st%tau_soil, st%tau_coh, st%water_soil, st%water_coh,          &

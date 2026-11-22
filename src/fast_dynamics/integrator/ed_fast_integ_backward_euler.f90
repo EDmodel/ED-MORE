@@ -26,7 +26,8 @@ module ed_fast_integ_backward_euler
                                surface_tend_t, stage_bflux_t, error_control_t, tol_set_t, fast_static_state_t,    &
                                water_drive_t, water_tend_t, water_state_t, water_flows_t, water_work_t,           &
                                GRP_THETA, POND, WOOD, LEAF, COHORT_STORES, WORK_WATER_NSUB, WORK_WATER_NEWTON,    &
-                               WORK_WATER_REJECT, WORK_WATER_NFAIL, state_init, surface_source_slopes_t
+                               WORK_WATER_REJECT, WORK_WATER_NFAIL, state_init, surface_source_slopes_t,          &
+                               water_organic_t
    use ed_site_state_vars, only : site_surface_t
    use ed_therm_lib, only : cas_enthalpy_to_temp, internal_energy_liquid, liquid_energy_to_temp
    use ed_numerics,     only : sufficient_decrease, fraction_to_boundary
@@ -558,7 +559,7 @@ contains
       nreject = 0_ik
       nfail   = 0_ik
       call arrowhead_allocate(water%sys, water%nsoil, water%ncoh, COHORT_STORES)
-      call water_scales(static, profile, hyd, scale_soil, scale_coh)
+      call water_scales(static, profile, hyd, drive%org, scale_soil, scale_coh)
       call ground_evaporation_setup(profile, soil, drive%ground)
       water%start_ready = .false.
 
@@ -673,7 +674,7 @@ contains
          rhs_soil = merge(0.0_wp, -res_soil, isolated)
          call arrowhead_solve(water%sys, rhs_soil, -res_coh, step_soil, step_coh)
          if (isolated(POND)) step_soil(POND) = pond_step
-         lam_max = step_limit(profile, tau_soil, tau_coh, step_soil, step_coh)
+         lam_max = step_limit(profile, drive%org, tau_soil, tau_coh, step_soil, step_coh)
          lam = lam_max
          !--- A trial's evaluation replaces the Jacobian sys held, so the start's is gone.
          water%start_ready = .false.
@@ -747,21 +748,28 @@ contains
    end subroutine water_residual
 
    !---~---
-   !   The largest share of a Newton step every store can take: no soil layer or tissue is
-   ! driven more than STEP_MAX_SHARE of the way to empty, and none on the dry side moves its
-   ! saturation or relative water content by more than STEP_MAX_DRY. A wet soil layer's unknown
-   ! is its potential, so only the first applies to it: it keeps a step that would carry it past
-   ! the branch point and below empty inside the curve. The pond's head is not bounded.
+   !   The largest share of a Newton step every store can take: no organic slot, soil layer or
+   ! tissue is driven more than STEP_MAX_SHARE of the way to empty, and none on the dry side
+   ! moves its saturation or relative water content by more than STEP_MAX_DRY. A wet slot's or
+   ! layer's unknown is its potential, so only the first applies to it: it keeps a step that
+   ! would carry it past the branch point and below empty inside the curve. The pond's head is
+   ! not bounded.
    !---~---
-   pure real(wp) function step_limit(profile, tau_soil, tau_coh, step_soil, step_coh) result(lam)
-      type(soil_profile_t), intent(in) :: profile
-      real(wp),             intent(in) :: tau_soil(:), tau_coh(:,:), step_soil(:), step_coh(:,:)
-      integer(ik) :: k, i, j
+   pure real(wp) function step_limit(profile, org, tau_soil, tau_coh, step_soil, step_coh) result(lam)
+      type(soil_profile_t),  intent(in) :: profile
+      type(water_organic_t), intent(in) :: org
+      real(wp),              intent(in) :: tau_soil(:), tau_coh(:,:), step_soil(:), step_coh(:,:)
+      integer(ik) :: k, i, j, c
       lam = 1.0_wp
+      do j = 1_ik, org%n
+         c = 1_ik + j
+         lam = min(lam, fraction_to_boundary(tau_soil(c) - SOIL_TAU_FLOOR, step_soil(c), STEP_MAX_SHARE))
+         if (tau_soil(c) <= org%curve(j)%se_switch) call cap_dry_change(tau_soil(c), step_soil(c), lam)
+      end do
       do k = 1_ik, profile%n_active
-         lam = min(lam, fraction_to_boundary(tau_soil(1_ik + k) - SOIL_TAU_FLOOR, step_soil(1_ik + k), STEP_MAX_SHARE))
-         if (tau_soil(1_ik + k) <= profile%layer_curve(k)%se_switch)                                           &
-            call cap_dry_change(tau_soil(1_ik + k), step_soil(1_ik + k), lam)
+         c = 1_ik + org%n + k
+         lam = min(lam, fraction_to_boundary(tau_soil(c) - SOIL_TAU_FLOOR, step_soil(c), STEP_MAX_SHARE))
+         if (tau_soil(c) <= profile%layer_curve(k)%se_switch) call cap_dry_change(tau_soil(c), step_soil(c), lam)
       end do
       do i = 1_ik, size(tau_coh, 2, kind=ik)
          do j = 1_ik, COHORT_STORES
@@ -900,10 +908,10 @@ contains
 
    !---~---
    !   Accept a sub-step: advance each store's water by the flows themselves, spill the pond above
-   ! its capacity, carry the pond's enthalpy, and add what each path moved to the step's amounts.
-   ! A store on one path (the pond, a cohort's leaves) takes its water from its own curve, and its
-   ! path carries the flow that closes its balance; the store across the path absorbs Newton's
-   ! slack (docs/science/soil_plant_water.md §3, "Conservation").
+   ! its capacity, carry the pond's enthalpy and the organic slots', and add what each path moved
+   ! to the step's amounts. A store on one path (the pond, a cohort's leaves) takes its water from
+   ! its own curve, and its path carries the flow that closes its balance; the store across the
+   ! path absorbs Newton's slack (docs/science/soil_plant_water.md §3, "Conservation").
    !---~---
    subroutine water_commit_substep(soil, drive, h, tau_soil, tau_coh, ev, state, flows, spilled)
       type(soil_params_t), intent(in)    :: soil
@@ -913,10 +921,11 @@ contains
       type(water_state_t), intent(inout) :: state
       type(water_flows_t), intent(inout) :: flows
       logical,             intent(out)   :: spilled   ! the pond spilled, so its unknown moved
-      real(wp) :: w_mix, e_mix, t_mix, u_mix, amount, spill, t_pond, pond_flux, sap(size(tau_coh, 2))
-      integer(ik) :: i, nsl
+      real(wp) :: w_mix, e_mix, t_mix, u_mix, amount, spill, t_pond, pond_flux, sap(size(tau_coh, 2)), u_up, q
+      integer(ik) :: i, nsl, n_org
 
       nsl = size(flows%face, kind=ik)
+      n_org = drive%org%n
       !--- The flows that close the pond's and each leaf's balance at their curves' water.
       pond_flux = (state%water_soil(POND) + h * drive%rain - ev%water_soil(POND)) / h
       do i = 1_ik, size(tau_coh, 2, kind=ik)
@@ -925,8 +934,10 @@ contains
 
       !---~---
       !   The pond's enthalpy, in the order its water moves: the rain joins it first, so what
-      ! infiltrates leaves at the mixture's temperature; water the top layer pushes up arrives
-      ! at that layer's temperature; then the spill leaves at the pond's own.
+      ! infiltrates leaves at the mixture's temperature; water the node below pushes up arrives
+      ! at that node's temperature, the organic layer's or the top layer's; then the spill leaves
+      ! at the pond's own. The organic slots gain what the pond gives them and lose what they push
+      ! up, and the flow across the top layer's top face carries the giver's temperature.
       !---~---
       w_mix = state%water_soil(POND) + h * drive%rain
       e_mix = state%e_pond + h * drive%rain * internal_energy_liquid(drive%t_rain)
@@ -934,16 +945,35 @@ contains
       t_mix = drive%t_rain
       if (w_mix > POND_TINY) t_mix = liquid_energy_to_temp(e_mix / w_mix)
       u_mix = internal_energy_liquid(t_mix)
+      if (n_org > 0_ik) then
+         u_up = internal_energy_liquid(drive%org%t_org)
+      else
+         u_up = internal_energy_liquid(drive%t_soil(1))
+      end if
       if (pond_flux >= 0.0_wp) then
          amount = h * pond_flux
          flows%infil = flows%infil + amount
          flows%infil_enth = flows%infil_enth + amount * u_mix
          state%e_pond = e_mix - amount * u_mix
+         if (n_org > 0_ik) flows%org_enth = flows%org_enth + amount * u_mix
       else
          amount = -h * pond_flux
          flows%exfil = flows%exfil + amount
-         flows%exfil_enth = flows%exfil_enth + amount * internal_energy_liquid(drive%t_soil(1))
-         state%e_pond = e_mix + amount * internal_energy_liquid(drive%t_soil(1))
+         flows%exfil_enth = flows%exfil_enth + amount * u_up
+         state%e_pond = e_mix + amount * u_up
+         if (n_org > 0_ik) flows%org_enth = flows%org_enth - amount * u_up
+      end if
+      if (n_org > 0_ik) then
+         q = h * ev%org_face(n_org)
+         if (q >= 0.0_wp) then
+            flows%top_in = flows%top_in + q
+            flows%top_in_enth = flows%top_in_enth + q * internal_energy_liquid(drive%org%t_org)
+            flows%org_enth = flows%org_enth - q * internal_energy_liquid(drive%org%t_org)
+         else
+            flows%top_out = flows%top_out - q
+            flows%top_out_enth = flows%top_out_enth - q * internal_energy_liquid(drive%t_soil(1))
+            flows%org_enth = flows%org_enth - q * internal_energy_liquid(drive%t_soil(1))
+         end if
       end if
 
       !---~---
@@ -978,6 +1008,8 @@ contains
 
       !--- What each path moved.
       flows%face(1:nsl-1) = flows%face(1:nsl-1) + h * ev%face_flux(1:nsl-1)
+      flows%org_face(1:n_org) = flows%org_face(1:n_org) + h * ev%org_face(1:n_org)
+      flows%org_evap(1:n_org) = flows%org_evap(1:n_org) + h * ev%org_evap(1:n_org)
       flows%drain   = flows%drain   + h * ev%drain
       flows%evap    = flows%evap    + h * ev%evap
       flows%uptake  = flows%uptake  + h * ev%uptake
@@ -1000,6 +1032,13 @@ contains
       flows%spill = 0.0_wp
       flows%spill_enth = 0.0_wp
       flows%rain_enth = 0.0_wp
+      flows%org_face = 0.0_wp
+      flows%org_evap = 0.0_wp
+      flows%org_enth = 0.0_wp
+      flows%top_in = 0.0_wp
+      flows%top_in_enth = 0.0_wp
+      flows%top_out = 0.0_wp
+      flows%top_out_enth = 0.0_wp
    end subroutine clear_flows
 
    !---~---

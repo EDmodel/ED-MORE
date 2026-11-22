@@ -870,34 +870,51 @@ contains
       type(frozen_t),      intent(inout) :: frozen
       real(wp)    :: share_tot, face_resid, f_in, f_out, u_liq_soil_k(site%soil_profile%n_active)
       real(wp)    :: t_up_wl, u_liq_up, u_liq_leaf, u_liq_wood, sapflow_gnd, uptake_gnd, transp_gnd
-      integer(ik) :: i, k, n, nsl
-      n   = static%n
-      nsl = site%soil_profile%n_active
+      real(wp)    :: top_in, top_in_enth, top_out, top_out_enth   ! [kg/m2], [J/m2] the top layer's top face
+      integer(ik) :: i, k, n, nsl, soff
+      n    = static%n
+      nsl  = site%soil_profile%n_active
+      soff = 1_ik + water%n_org
       associate (fl => water%flows, st => water%state)
+         !---~---
+         !   The top layer's top face: the flow from the bottom organic slot, or the pond's without
+         ! a layer.
+         !---~---
+         if (water%n_org > 0_ik) then
+            top_in       = fl%top_in
+            top_in_enth  = fl%top_in_enth
+            top_out      = fl%top_out
+            top_out_enth = fl%top_out_enth
+         else
+            top_in       = fl%infil
+            top_in_enth  = fl%infil_enth
+            top_out      = fl%exfil
+            top_out_enth = fl%exfil_enth
+         end if
          !--- Ground evaporation, the soil's boundary flows and the pond, as the network moved them.
          frozen%ground%soil_evap         = fl%evap / dt_fast
-         frozen%hydrology%infiltration   = fl%infil / dt_fast
-         frozen%hydrology%exfiltration   = fl%exfil / dt_fast
-         frozen%hydrology%exfil_enth     = fl%exfil_enth / dt_fast
-         frozen%hydrology%q_top          = (fl%infil - fl%exfil - fl%evap) / (rho_h2o * dt_fast)
+         frozen%hydrology%infiltration   = top_in / dt_fast
+         frozen%hydrology%exfiltration   = top_out / dt_fast
+         frozen%hydrology%exfil_enth     = top_out_enth / dt_fast
+         frozen%hydrology%q_top          = (top_in - top_out - fl%evap) / (rho_h2o * dt_fast)
          frozen%hydrology%drainage       = fl%drain / dt_fast
          frozen%hydrology%runoff_surf    = fl%spill / dt_fast
          out%report%exports%runoff_surf_export = fl%spill
          out%report%exports%drainage_export    = fl%drain
          frozen%hydrology%runoff_enth    = fl%spill_enth / dt_fast
          !---~---
-         !   Infiltration leaves the pond, so the top face is valued at the temperature that carries the
-         ! enthalpy the pond gave up (docs/science/numerical_scheme.md §5b, "The pond holds heat").
+         !   The top face is valued at the temperature that carries the enthalpy its giver gave up, the
+         ! pond's (docs/science/numerical_scheme.md §5b, "The pond holds heat") or the organic layer's.
          !---~---
          frozen%hydrology%t_infil = frozen%water_drive%t_rain
-         if (fl%infil > tiny_num) frozen%hydrology%t_infil = liquid_energy_to_temp(fl%infil_enth / fl%infil)
+         if (top_in > tiny_num) frozen%hydrology%t_infil = liquid_energy_to_temp(top_in_enth / top_in)
          frozen%hydrology%t_bot           = dynamic%soil_energy%soil_temp(nsl)
          frozen%hydrology%w_surface1      = st%water_soil(POND)
          frozen%hydrology%w_surface_energy1 = st%e_pond
          frozen%hydrology%w_flux_frozen(1:nsl)   = 0.0_wp
          frozen%hydrology%w_flux_frozen(1:nsl-1) = fl%face(1:nsl-1) / (rho_h2o * dt_fast)
          do k = 1_ik, nsl
-            frozen%hydrology%theta1(k) = st%water_soil(1_ik + k) / (rho_h2o * site%soil_profile%dz(k))
+            frozen%hydrology%theta1(k) = st%water_soil(soff + k) / (rho_h2o * site%soil_profile%dz(k))
          end do
          frozen%hydrology%theta_rate(1:nsl) = (frozen%hydrology%theta1(1:nsl) - dynamic%soil_water%theta(1:nsl))  &
                                               / dt_fast
@@ -914,7 +931,7 @@ contains
             if (k > 1_ik)   f_in  = fl%face(k-1)
             if (k < nsl)    f_out = fl%face(k)
             if (k == nsl)   f_out = fl%drain
-            if (k == 1_ik)  f_in  = fl%infil - fl%exfil - fl%evap
+            if (k == 1_ik)  f_in  = top_in - top_out - fl%evap
             face_resid = face_resid + abs((frozen%hydrology%theta1(k) - dynamic%soil_water%theta(k))           &
                                           * site%soil_profile%dz(k) * rho_h2o - (f_in - f_out - sum(fl%uptake(k, 1:n))))
          end do
