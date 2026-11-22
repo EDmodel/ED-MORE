@@ -28,7 +28,7 @@ module ed_fast_integ_frozen
    use ed_surface, only : snow_out_t
    use ed_soil_derive,        only : top_soil_psi
    use ed_soil_params,        only : soil_profile_t
-   use ed_soil_hydr_lib,      only : soil_ice_state
+   use ed_soil_hydr_lib,      only : soil_ice_state, soil_liquid_capacity
    use ed_config,             only : ed_config_t
    use ed_site_state_vars,    only : site_surface_t
    use ed_canopy_aerodynamics, only : aero_env_t, aero_args_t, aero_out_t, set_aero_env_atm, set_aero_env_canopy
@@ -44,7 +44,7 @@ module ed_fast_integ_frozen
    use ed_patch_state_vars, only : cas_state_t, soil_carbon_state_t, cas_capacities, cas_capacity_change
    use ed_organic_lib,      only : organic_params_t, organic_present, organic_layer_sums, organic_slot_curve,      &
                                    organic_slot_material, organic_material_t, organic_split_energy,             &
-                                   organic_evap_floor, organic_slot_capacity, organic_spill
+                                   organic_slot_capacity, organic_spill
    use ed_biogeochem_params, only : N_SOIL_POOL
    use ed_canopy_aerodynamics, only : canopy_aerodynamics, cas_atm_conductances
    use ed_plant_energy,   only : plant_energy_env_t, sensible_heat_coeff, leaf_transp_coeff, leaf_surface_evap_coeff, &
@@ -54,7 +54,7 @@ module ed_fast_integ_frozen
    use ed_respiration,   only : stem_maintenance_respiration, fine_root_maintenance_respiration, root_zone_temp_scale, &
                                 decomposition_env_scalar, decomposition_transfer_matrix, heterotrophic_respiration
    use ed_surface, only : surface_env_t, prepare_snow_stage
-   use ed_soil_water, only : pond_inflow, organic_cover_path, vapour_diffusivity
+   use ed_soil_water, only : pond_inflow, organic_cover_path, vapour_diffusivity, slot_evaporation_setup
    use ed_therm_lib,          only : internal_energy_liquid, liquid_energy_to_temp,                              &
                                      cas_enthalpy_to_temp, cas_heat_capacity, air_vpd, air_density,             &
                                      soil_thermal_conductivity, specific_humidity_to_vapor_pressure
@@ -63,14 +63,6 @@ module ed_fast_integ_frozen
    private
 
    public :: build_frozen, record_water_flows
-
-   !---~---
-   !   [m] The thinnest organic slot the water network takes as a node: 1 mm holds at most a
-   ! millimetre of water, too little to matter to the ground's water or the soil's heat, while
-   ! its flows to the pond and the node below it are thousands of times its storage per second.
-   ! A numerical choice.
-   !---~---
-   real(wp), parameter :: ORGANIC_NODE_MIN_DEPTH = 1.0e-3_wp
 
 contains
 
@@ -765,7 +757,6 @@ contains
       end do
       call surface_derivs(y_stage, cas_start, frozen%tissue, frozen%veg_surface, frozen%ground, t_ground, n, sf0)
       frozen%water_drive%e_demand(1:n) = sf0%transp_c(1:n)
-      frozen%water_drive%org%evap      = sf0%org_vap_out    ! the organic slots' own, which the network takes
    end subroutine transpiration_demand
 
    !---~---
@@ -796,38 +787,43 @@ contains
 
    !---~---
    !   The organic slots as nodes of the water network (docs/science/surface_organic_layer.md,
-   ! Water), top down: each slot at least ORGANIC_NODE_MIN_DEPTH deep, with its retention curve
-   ! at its depth, its water, and its ice beside its liquid at the layer's liquid fraction, held
-   ! over the step as a soil layer's is; and the layer's temperature, which values the water it
-   ! gives up. A thinner slot holds too little water to matter to the flows and keeps its water
-   ! over the step; the water passes it by.
+   ! Water), top down, every slot that holds matter: its retention curve at its depth and its
+   ! water; its liquid on its freezing curve at the layer's temperature, as a frozen soil layer's,
+   ! the rest ice, held over the step (a start for the solver only: the layer's energy still
+   ! freezes all its water at the melting point, and so little liquid conducts next to nothing);
+   ! the water it lacks of its residual, if it holds less (litter just arrived, dry), carried as an
+   ! offset, so its potential is its curve's dry end and its mass exact; the layer's temperature,
+   ! which values the water it gives up; and the boundary its top slot evaporates to by the soil's
+   ! law, the canopy air through its dried top (slot_evaporation_setup).
    !---~---
    subroutine organic_network_drive(organic, frozen)
       type(organic_params_t), intent(in)    :: organic
       type(frozen_t),         intent(inout) :: frozen
-      real(wp)    :: depth, theta
+      type(organic_material_t) :: m
+      real(wp)    :: depth, theta, liq, dliq
       integer(ik) :: k
       associate (o => frozen%water_drive%org, org => frozen%org)
          o%n = 0_ik
          o%t_org = org%temp
-         if (.not. organic_present(org)) then
-            o%evap = 0.0_wp
-            return
-         end if
+         if (.not. organic_present(org)) return
          do k = 1_ik, n_organic_slot
             if (org%mass(k) <= 0.0_wp) cycle
+            m     = organic_slot_material(organic, k)
             depth = org%mass(k) / org%density(k)
-            if (depth < ORGANIC_NODE_MIN_DEPTH) cycle
             o%n = o%n + 1_ik
-            o%slot(o%n)  = k
-            o%depth(o%n) = depth
-            o%water(o%n) = org%water(k)
-            o%curve(o%n) = organic_slot_curve(organic, org, k)
-            o%evap_floor(o%n) = organic_evap_floor(organic, org, k)
+            o%slot(o%n)    = k
+            o%depth(o%n)   = depth
+            o%water(o%n)   = org%water(k)
+            o%curve(o%n)   = organic_slot_curve(organic, org, k)
             theta = org%water(k) / (rho_h2o * depth)
-            o%ice(o%n)   = soil_ice_state(o%curve(o%n), (1.0_wp - org%fliq) * theta, org%fliq * theta)
+            o%deficit(o%n) = max(0.0_wp, m%theta_res - theta) * rho_h2o * depth
+            theta = max(theta, m%theta_res)
+            call soil_liquid_capacity(o%curve(o%n), org%temp, liq, dliq)
+            liq = min(theta, liq)
+            o%ice(o%n) = soil_ice_state(o%curve(o%n), theta - liq, liq)
          end do
-         if (o%n == 0_ik) o%evap = 0.0_wp
+         o%air = slot_evaporation_setup(frozen%water_drive%ground, org%temp,                                      &
+                                        frozen%ground%org_dry_resist * vapour_diffusivity(org%temp))
       end associate
    end subroutine organic_network_drive
 

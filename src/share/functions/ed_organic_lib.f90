@@ -17,8 +17,7 @@ module ed_organic_lib
 
    public :: organic_material_t, organic_params_t, organic_state_t, SLOT_LITTER, SLOT_MOSS
    public :: organic_present, organic_slot_material, organic_layer_sums, organic_diagnose, organic_split_energy
-   public :: organic_take_exchange, organic_slot_curve, organic_slot_capacity, organic_evap_floor, organic_spill
-   public :: ORGANIC_SE_START
+   public :: organic_take_exchange, organic_slot_curve, organic_slot_capacity, organic_spill
 
    !---~---
    !   One organic material (docs/science/surface_organic_layer.md): its dry mass per volume, its
@@ -68,15 +67,6 @@ module ed_organic_lib
    !---~---
    integer(ik), parameter :: SLOT_LITTER = 1_ik, SLOT_MOSS = 2_ik
 
-   !---~---
-   !   [-] The saturation at which a slot holding less liquid than that starts on its curve: one
-   ! at its residual (matter just arrived, or its water all ice) would take no water from the
-   ! pond, since the face's conductivity, the geometric mean of the pond's and the slot's, falls
-   ! faster than its suction grows. The slots' evaporation tapers to nothing over the same share
-   ! of their span above their floor, so a drying slot comes to rest near it, at a finite suction
-   ! (a few MPa), not in its curve's far dry tail. A numerical choice.
-   !---~---
-   real(wp), parameter :: ORGANIC_SE_START = 1.0e-2_wp
    type :: organic_state_t
       real(wp) :: mass(n_organic_slot)    = 0.0_wp   ! [kg/m2] dry matter
       real(wp) :: water(n_organic_slot)   = 0.0_wp   ! [kg/m2] water, liquid and ice (prognostic)
@@ -158,12 +148,8 @@ contains
    end function organic_slot_capacity
 
    !---~---
-   !   Slot k's water retention and conductivity, as a soil layer's (build_soil_layer_curve), its
-   ! depth its matter over its bulk density. Its residual lies low enough that the liquid it holds
-   ! is at least ORGANIC_SE_START of the way to saturation: a slot whose matter has just arrived
-   ! or grown, or whose water is ice (the layer has no freezing curve, so below the melting point
-   ! all of it is), starts on its curve where it can take water, rather than at a residual it does
-   ! not hold. A slot with more liquid keeps its material's residual.
+   !   Slot k's water retention and conductivity, its material's as a soil layer's
+   ! (build_soil_layer_curve), its depth its matter over its bulk density.
    !---~---
    pure function organic_slot_curve(params, org, k) result(c)
       type(organic_params_t), intent(in) :: params
@@ -171,28 +157,10 @@ contains
       integer(ik),            intent(in) :: k
       type(soil_layer_curve_t)           :: c
       type(organic_material_t) :: m
-      real(wp) :: depth, theta_liq
-      m         = organic_slot_material(params, k)
-      depth     = org%mass(k) / org%density(k)
-      theta_liq = org%fliq * org%water(k) / (rho_h2o * depth)
-      call build_soil_layer_curve(m%retention, m%theta_sat,                                                       &
-                                  min(m%theta_res, (theta_liq - ORGANIC_SE_START * m%theta_sat)                  &
-                                                   / (1.0_wp - ORGANIC_SE_START)),                                &
-                                  m%par_a, m%par_n, m%ksat, depth, c)
+      m = organic_slot_material(params, k)
+      call build_soil_layer_curve(m%retention, m%theta_sat, m%theta_res, m%par_a, m%par_n, m%ksat,                &
+                                  org%mass(k) / org%density(k), c)
    end function organic_slot_curve
-
-   !---~---
-   !   [m3/m3] The water below which slot k gives no evaporation: its material's residual, as a soil
-   ! layer's, or the water it holds when it holds less, so a slot below its residual dries no further.
-   !---~---
-   pure real(wp) function organic_evap_floor(params, org, k) result(floor)
-      type(organic_params_t), intent(in) :: params
-      type(organic_state_t),  intent(in) :: org
-      integer(ik),            intent(in) :: k
-      type(organic_material_t) :: m
-      m     = organic_slot_material(params, k)
-      floor = min(m%theta_res, org%water(k) * org%density(k) / (rho_h2o * org%mass(k)))
-   end function organic_evap_floor
 
    !--- The layer's temperature and liquid fraction, from its summed energy, water and dry heat capacity.
    pure subroutine organic_diagnose(org)

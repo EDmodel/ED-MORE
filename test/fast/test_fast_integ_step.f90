@@ -885,7 +885,7 @@ contains
    !     takes the rain on its way to the soil;
    !   - the litter over 5 cm of dry moss (2.15 kg/m2): the moss takes water too;
    !   - both frozen at 268 K: the rain still reaches them and the soil, and the layer warms;
-   !   - a litter slot too thin to be a node (0.7 mm): it keeps its water, and the rain passes it;
+   !   - a litter slot of 0.7 mm: a node like any other, it takes the rain and passes it on;
    !   - litter that has just arrived, dry: it takes the rain from nothing.
    !---~---
    subroutine test_litter_day()
@@ -926,7 +926,8 @@ contains
          w0 = 0.3_wp * rho_h2o * 0.03_wp / 45.0_wp
          call march_day(d)
          call check_true(trim(nm)//' thin litter: all seven ledgers close', all_ledgers_closed(col%out%report))
-         call check(trim(nm)//' thin litter: it keeps its water', col%dynamic%organic%water(SLOT_LITTER), w0, 1.0e-9_wp)
+         call check_true(trim(nm)//' thin litter: a node too, it takes the rain', col%dynamic%organic%water(SLOT_LITTER) &
+                         > w0, col%dynamic%organic%water(SLOT_LITTER))
          d = day_t(litter_seed = 0.2_wp, litter_theta = 0.0_wp, rain_pulse = 2.0e-4_wp, hours = 8_ik)
          call march_day(d)
          call check_true(trim(nm)//' new dry litter: all seven ledgers close', all_ledgers_closed(col%out%report))

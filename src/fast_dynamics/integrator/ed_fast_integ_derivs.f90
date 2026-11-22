@@ -316,7 +316,7 @@ contains
       associate (st => water%state)
          do j = 1_ik, n_org
             st%tau_soil(1_ik + j)   = soil_theta_to_unknown(org%curve(j), org%ice(j),                            &
-                                                            org%water(j) / (rho_h2o * org%depth(j)))
+                                                            (org%water(j) + org%deficit(j)) / (rho_h2o * org%depth(j)))
             st%water_soil(1_ik + j) = org%water(j)
          end do
          do k = 1_ik, profile%n_active
@@ -605,6 +605,7 @@ contains
          dkc = 0.0_wp
       else if (c <= soff) then
          call soil_water_relations(drive%org%curve(c - 1_ik), drive%org%ice(c - 1_ik), tau, psi, dpsi, w, dw, kc, dkc)
+         w = w - drive%org%deficit(c - 1_ik)      ! a slot below its residual: its curve's water less the lack
       else
          call soil_water_relations(profile%layer_curve(c - soff), drive%ice(c - soff), tau, psi, dpsi, w, dw, kc, dkc)
       end if

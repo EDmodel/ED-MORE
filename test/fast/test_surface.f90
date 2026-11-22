@@ -36,9 +36,8 @@
 !      slot gives the vapour the water network took from it; heat crosses each slot's dried top
 !      at its dry conductivity, in series with its wet part. Each slot's curve is its material's
 !      at its depth (the moss's at -10 kPa as Zhang et al. 2010 measured, the litter's near what
-!      drained litter holds), its residual low enough that frozen or new matter starts 1 % of
-!      the way to saturation; water above saturation (frost on a frozen slot) spills with its
-!      energy, the layer keeping its temperature. Its balance closes on its energy, a thin layer of little heat
+!      drained litter holds), whether frozen or empty; water above saturation (frost on a frozen
+!      slot) spills with its energy, the layer keeping its temperature. Its balance closes on its energy, a thin layer of little heat
 !      capacity relaxes over an hour without passing its surroundings, a dry layer does not
 !      evaporate, and a wet one gives no more than it holds; held at the network's rate it gives
 !      that rate, evaporation or dew, and takes its root; the soil takes what it conducts down,
@@ -623,8 +622,7 @@ contains
                  1.0e-3_wp)
       call check('a moss above its residual keeps it', c%theta_res, o%moss%theta_res, 0.0_wp)
       c = organic_slot_curve(o, org, SLOT_LITTER)
-      call check('an empty litter starts 1 % of the way to saturation, where it can take water',                  &
-                 (0.0_wp - c%theta_res) / (c%theta_sat - c%theta_res), 1.0e-2_wp, 1.0e-12_wp)
+      call check('an empty litter keeps its material''s residual', c%theta_res, o%litter%theta_res, 0.0_wp)
       org%water(SLOT_LITTER) = cap_litter
       c = organic_slot_curve(o, org, SLOT_LITTER)
       call check('the litter at -10 kPa holds 0.14, near drained litter''s 0.12 (Putuhena & Cordery 1996)',        &
@@ -632,8 +630,7 @@ contains
                  1.0e-3_wp)
       org%fliq = 0.0_wp
       c = organic_slot_curve(o, org, SLOT_MOSS)
-      call check('a frozen slot''s liquid, none, starts 1 % of the way to saturation',                            &
-                 (0.0_wp - c%theta_res) / (c%theta_sat - c%theta_res), 1.0e-2_wp, 1.0e-12_wp)
+      call check('a frozen slot keeps its material''s curve', c%theta_res, o%moss%theta_res, 0.0_wp)
       !--- Frost on a frozen, saturated litter: what it holds above saturation spills, with its energy.
       org%water = [cap_litter + 0.5_wp, cap_moss]
       call organic_split_energy(org, temp_to_internal_energy(cp_organic * sum(org%mass), sum(org%water), 265.0_wp, &

@@ -14,7 +14,7 @@ Potentials are in **MPa** and water in **kg m⁻² of ground**. A soil layer's p
 | a cohort's wood | sapwood + fine-root water of all its plants | its rooted layers; its leaves |
 | a cohort's leaves | leaf water of all its plants | its wood; transpiration |
 
-The pond, the organic slots and the soil layers are the **core**. Each cohort is a **group** of two stores that touch only each other and the core, and the core only through the wood. The linear solve exploits that structure (§3). The organic slots are the ground's litter and moss ([surface_organic_layer](surface_organic_layer.md)), each slot at least 1 mm deep (`ORGANIC_NODE_MIN_DEPTH`) a node, top down; $`n_{org}`$ is 0, 1 or 2, set each step, and without a layer the network is the pond and the soil.
+The pond, the organic slots and the soil layers are the **core**. Each cohort is a **group** of two stores that touch only each other and the core, and the core only through the wood. The linear solve exploits that structure (§3). The organic slots are the ground's litter and moss ([surface_organic_layer](surface_organic_layer.md)), every slot that holds matter a node, top down; $`n_{org}`$ is 0, 1 or 2, set each step, and without a layer the network is the pond and the soil.
 
 The paths:
 
@@ -39,11 +39,9 @@ The paths:
   ([plant_hydraulics](plant_hydraulics.md) §3).
 - **Boundaries** — rain into the pond; ground evaporation from layer 1 (Philip's pore humidity with
   the Swenson–Lawrence dry-surface-layer resistance, and the organic slots' cover); the organic slots'
-  own evaporation, held at the start-of-step surface solve's rate and taken from the litter first, each
-  slot supplying what is left of it while it holds water above its residual (a smooth step over the last
-  1 % of its span, where layer 1's spans 10⁻⁴ of its own: a thin litter can hold less than the held rate
-  takes over a step, and the wider step brings it to rest at a finite suction instead of deep in its
-  curve's dry tail; what the slots cannot supply is not taken), dew joining the litter; drainage out of the bottom layer
+  own evaporation from the top slot by the soil's law (Philip's pore humidity, implicit in the slot's
+  potential, with the same smooth stop and supply limit as layer 1's; the dried top's path in series), the
+  slots below feeding it through their faces; drainage out of the bottom layer
   (`[soil].water_bottom_bc`: drainage at a factor of free drainage, 1 to 0 for bedrock, or a head-driven
   two-way aquifer); and each cohort's transpiration out of its leaves.
 
@@ -71,7 +69,7 @@ Each store is solved in the unknown in which its curve is best behaved:
   - **Loss.** Tissue lost to turnover takes its water with it, in proportion to the carbon lost (`shed_turnover_water`): shed leaves take that share of the leaf store, and shed fine roots that share of their own part of the wood store, the fraction $`B_{root}/(B_{sap}+B_{root})`$ of it, so the store keeps its water per unit of carbon. A plant that dies takes all of its own (`shed_mortality_water`). An operator that shrinks a store without touching its water (a rising specific leaf area resorbing leaf carbon, a fusion or split re-deriving the sapwood ring) can leave more than the store can hold; before the fast loop, the water above its saturated content is shed as well (`shed_excess_tissue_water`).
 
   All shed water reaches the ground as `shed_water_rate`, with the enthalpy it left its tissues with (`shed_water_enth`, at the temperature of each tissue it was in or on), and the slow ledger books every amount.
-- An **organic slot** is a soil layer to the solver: its unknown and water relations are a soil layer's, on its material's retention curve at its depth $`d = M/\rho_b`$, rebuilt each step (`organic_slot_curve`). Its ice is held over the step as a layer's is, at the organic layer's liquid fraction: the layer has no freezing curve, so below the melting point all its water is ice. A slot holding less liquid than 1 % of the way from residual to saturation (`ORGANIC_SE_START`: matter just arrived, or its water all ice) starts there, its residual lowered for the step: at its residual it would take no water, since the face's geometric-mean conductivity falls faster than its suction grows. Its evaporation stops at its material's residual, or at the water it starts with when that is less.
+- An **organic slot** is a soil layer to the solver: its unknown and water relations are a soil layer's, on its material's retention curve at its depth $`d = M/\rho_b`$, rebuilt each step (`organic_slot_curve`). Its ice is held over the step as a layer's is: its liquid lies on its freezing curve at the organic layer's temperature, as a frozen soil layer's does (`soil_liquid_capacity`), the rest ice. That liquid is a start for the solver only: the layer's energy still freezes all its water at the melting point, and so little liquid conducts next to nothing. A slot holding less than its residual (litter just arrived, dry) carries the water it lacks as an offset over the step: its potential is its curve's dry end and its mass exact.
 - The **pond** uses its head $h$, with a depression store of depth $\delta$ = 1 mm (`POND_DEPRESSION_DEPTH`): $S(h) = 0$ for $h\le0$, $h^2/2\delta$ for $0<h<\delta$, $h-\delta/2$ above. An empty pond holds nothing and its head follows the node below. It starts each step at its water's head, but no higher than the head at which it neither gives nor takes water from the node below: over dry ground a trace pond empties within the step. Over a saturated organic slot, which takes no more water, it starts at its own head.
 
 The read-offs that report a store's potential from its water, for output and at setup, floor a soil layer's $S_e$ at 10⁻⁹ and a tissue's $R$ at 10⁻⁴, so a reported potential stays finite. The solver's curves have no floor; it keeps every $S_e$ and $R$ above zero itself.
@@ -204,7 +202,7 @@ Fixed in the code: the uptake ramp's width (10⁻² MPa), the transpiration corn
 | plant flows | `ed_plant_hydraulics`: `root_water_uptake`, `root_water_uptake_profile`, `xylem_sapflow` (through the Kirchhoff mean, the PFT's table from `ed_pft_derive`) and the leaves' supply limit `supply_limited_transpiration`; their conductances `rhizosphere_conductance` and `xylem_max_conductance` (`ed_plant_hydr_lib`); the flows' rounded corner `smooth_max0` (`ed_numerics`) |
 | soil flows | `ed_soil_water`: `soil_water_flux`, `ground_evaporation_rate` (its per-step terms from `ground_evaporation_setup`), `bottom_flux` |
 | one patch's step | `ed_fast_integ_frozen`: `ground_inflow` (the drive; the pond's inflow is `ed_soil_water`'s `pond_inflow`) and `organic_network_drive` (the slots), then `fast_step` calls `water_step` and `record_water_flows`, which ends with `commit_organic_water` |
-| an organic slot's curve and its evaporation's floor | `ed_organic_lib`: `organic_slot_curve`, `organic_evap_floor` |
+| an organic slot's curve, and its evaporation's boundary | `ed_organic_lib`: `organic_slot_curve`; `ed_soil_water`: `slot_evaporation_setup` |
 | plant water over the step | `ed_fast_integ_backward_euler`: `advance_plant_water` (ESDIRK2; constant rates, RK45 integrates the same rates in its stages) |
 
 ## References

@@ -530,7 +530,8 @@ module ed_fast_integ_types
    !---~---
    type :: soil_hydrology_t
       real(wp) :: q_top         = 0.0_wp          ! [m/s]     net top-face water flux (infiltration - exfiltration - evaporation)
-      real(wp) :: infiltration  = 0.0_wp          ! [kg/m2/s] pond -> top layer
+      real(wp) :: infiltration  = 0.0_wp          ! [kg/m2/s] into the top layer: from the bottom organic slot, or the pond
+      real(wp) :: pond_infil    = 0.0_wp          ! [kg/m2/s] the pond's into the ground: the top organic slot or layer
       real(wp) :: drainage      = 0.0_wp          ! [kg/m2/s] bottom-face drainage
       real(wp) :: runoff_surf   = 0.0_wp          ! [kg/m2/s] surface runoff
       real(wp) :: ground_inflow_enth = 0.0_wp     ! [W/m2]    the enthalpy it brings across the column's boundary
@@ -600,6 +601,7 @@ module ed_fast_integ_types
       type(soil_ice_t)         :: ice(n_organic_slot)          ! its ice, held over the step
       real(wp) :: depth(n_organic_slot) = 0.0_wp               ! [m]
       real(wp) :: water(n_organic_slot) = 0.0_wp               ! [kg/m2] at the step's start, liquid and ice
+      real(wp) :: deficit(n_organic_slot) = 0.0_wp             ! [kg/m2] the water it lacks of its residual
       real(wp) :: evap  = 0.0_wp                               ! (unused by the network; the energy stage's rate)
       real(wp) :: t_org = t_3ple                               ! [K]
       type(ground_evap_env_t) :: air                           ! the top slot's evaporation boundary (slot_evaporation_setup)
@@ -722,6 +724,7 @@ module ed_fast_integ_types
       type(organic_state_t)        :: org
       real(wp)                     :: org_water0  = 0.0_wp    ! [kg/m2]
       real(wp)                     :: org_energy0 = 0.0_wp    ! [J/m2]
+      real(wp) :: org_evap(n_organic_slot) = 0.0_wp           ! [kg/m2] each slot's evaporation, the network's
    end type frozen_t
 
    !---~---
