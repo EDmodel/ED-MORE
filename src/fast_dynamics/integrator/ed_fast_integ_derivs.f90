@@ -33,7 +33,8 @@ module ed_fast_integ_derivs
                                   pond_water_to_head, soil_ice_t
    use ed_plant_hydr_lib,   only : tissue_water_relations, tissue_water_to_rwc, tissue_rwc_to_unknown,            &
                                    tissue_psi_to_rwc
-   use ed_plant_hydraulics,   only : supply_limited_transpiration, root_water_uptake_profile, xylem_sapflow
+   use ed_plant_hydraulics,   only : supply_limited_transpiration, root_water_uptake_profile, xylem_sapflow,        &
+                                     root_water_uptake
    use ed_soil_water, only : soil_water_flux, ground_evaporation_rate, bottom_flux, evaporation_supply
    use ed_linear_algebra, only : arrowhead_system_t
    use ed_soil_params, only : soil_profile_t, soil_params_t
@@ -42,7 +43,15 @@ module ed_fast_integ_derivs
    private
 
    public :: surface_derivs, march_derivs, cas_conductances
-   public :: set_water_state, water_derivs
+   public :: set_water_state, water_derivs, node_balance, core_node_relations, wood_potentials
+
+   !---~---
+   !   [-] The drive (head gradient) over which a wetting face's conductivity blends from the
+   ! downstream node's to the upstream one's, through their arithmetic mean at no flow: a
+   ! centimetre of head per metre, far below the gradients of a wetting or drying front and well
+   ! above round-off. A numerical choice.
+   !---~---
+   real(wp), parameter :: WET_BLEND_WIDTH = 1.0e-2_wp
 
 contains
 
@@ -354,12 +363,15 @@ contains
 
    !---~---
    !   water_derivs -- the network at one state: each store's potential and water from its
-   ! curve; the flow along every path (pond to the top node, down through the organic slots
-   ! into the top layer, between layers, the slots' and the top layer's evaporation, drainage,
-   ! each cohort's uptake, sapflow and transpiration); the net inflow into each store; and,
-   ! when asked, the flows' Jacobian in the stores' unknowns (sys).
+   ! curve; the flow along every path (pond to the top node, down the chain of organic slots and
+   ! soil layers, the slots' and the top layer's evaporation, drainage, each cohort's uptake,
+   ! sapflow and transpiration); the net inflow into each store; and, when asked, the flows'
+   ! Jacobian in the stores' unknowns (sys). The core is a chain, face c joining node c to node
+   ! c + 1. A node detached from the solve (cut) exchanges nothing with its neighbours: every
+   ! face it touches and its roots carry nothing, though each face's slopes are still kept (in
+   ! ev's face_dqa and face_dqb, and root_link), so the solve can see when its links return.
    !---~---
-   subroutine water_derivs(static, profile, soil, hyd, drive, tau_soil, tau_coh, ev, sys, with_jacobian)
+   subroutine water_derivs(static, profile, soil, hyd, drive, tau_soil, tau_coh, ev, sys, with_jacobian, cut)
       type(fast_static_state_t), intent(in)    :: static
       type(soil_profile_t),      intent(in)    :: profile
       type(soil_params_t),       intent(in)    :: soil
@@ -369,23 +381,27 @@ contains
       type(water_tend_t),        intent(inout) :: ev
       type(arrowhead_system_t),  intent(inout) :: sys   ! the flows' Jacobian, written when with_jacobian
       logical,                   intent(in)    :: with_jacobian
+      logical,         optional, intent(in)    :: cut(:) ! (nsoil) nodes detached from the solve
       integer(ik) :: k, i, j, ca, cb, c, nsl, nsoil, n_org, soff
       real(wp) :: q, dq_pa, dq_pb, dq_ka, dq_kb, dqa, dqb, u, s, ds_w, ds_l
       real(wp) :: e, de_dtheta, de_dpsi, de, qbot, dqbot_dpsi, dqbot_dk, theta1, span, supply, dsupply
       real(wp) :: psi_w, dpsi_w, u_sum, dqb_sum, du_dpsi(profile%n_active), du_dk(profile%n_active)
-      real(wp) :: dist, w_b, rest, drest, de_own
+      real(wp) :: rest, drest, de_own, w_b, dist
+      logical  :: wet, is_cut(size(tau_soil))
 
       nsl   = profile%n_active
       n_org = drive%org%n
       soff  = 1_ik + n_org
       nsoil = soff + nsl
+      is_cut = .false.
+      if (present(cut)) is_cut = cut(1:nsoil)
 
       ev%inflow_soil = 0.0_wp
       ev%inflow_coh = 0.0_wp
       !---~---
-      !   The Jacobian's entries are written afresh: the soil block's band, which the flows add
-      ! into, is cleared; every other entry an evaluation touches is set outright below, and the
-      ! rest stay zero from arrowhead_allocate.
+      !   The Jacobian's entries are written afresh: the core's band, which the flows add into, is
+      ! cleared; every other entry an evaluation touches is set outright below, and the rest stay
+      ! zero from arrowhead_allocate.
       !---~---
       if (with_jacobian) then
          do c = 1_ik, nsoil
@@ -398,29 +414,9 @@ contains
       end if
 
       !--- Storage.
-      call pond_water_relations(tau_soil(POND), ev%psi_soil(1), ev%dpsi_soil(1), ev%water_soil(1),             &
-                                ev%dwater_soil(1))
-      !---~---
-      !   The pond conducts as the saturated node below it; its path lies in that node, the top
-      ! slot or the top layer, so it takes that node's ice impedance in full.
-      !---~---
-      if (n_org > 0_ik) then
-         ev%k_soil(1) = drive%org%curve(1)%ksat * drive%org%ice(1)%impedance
-      else
-         ev%k_soil(1) = profile%ksat(1) * drive%ice(1)%impedance
-      end if
-      ev%dk_soil(1) = 0.0_wp
-      do j = 1_ik, n_org
-         c = 1_ik + j
-         call soil_water_relations(drive%org%curve(j), drive%org%ice(j), tau_soil(c), ev%psi_soil(c),             &
-                                   ev%dpsi_soil(c), ev%water_soil(c), ev%dwater_soil(c), ev%k_soil(c),            &
-                                   ev%dk_soil(c))
-      end do
-      do k = 1_ik, nsl
-         c = soff + k
-         call soil_water_relations(profile%layer_curve(k), drive%ice(k), tau_soil(c), ev%psi_soil(c),             &
-                                   ev%dpsi_soil(c), ev%water_soil(c), ev%dwater_soil(c), ev%k_soil(c),            &
-                                   ev%dk_soil(c))
+      do c = 1_ik, nsoil
+         call core_node_relations(profile, drive, c, tau_soil(c), ev%psi_soil(c), ev%dpsi_soil(c), ev%water_soil(c), &
+                                  ev%dwater_soil(c), ev%k_soil(c), ev%dk_soil(c))
       end do
       do i = 1_ik, static%n
          associate (hp => hyd%pft(static%pft(i)))
@@ -433,89 +429,57 @@ contains
          end associate
       end do
 
-      !---~---
-      !   The pond and the node below it, the top slot or the top layer: Darcy, the pond a saturated
-      ! layer as thick as that node.
-      !---~---
-      ca = POND
-      cb = 2_ik
-      if (n_org > 0_ik) then
-         dist = 0.5_wp * drive%org%depth(1)
-      else
-         dist = -profile%z_node(1)
-      end if
-      call soil_water_flux(ev%k_soil(ca), ev%k_soil(cb), 0.5_wp, ev%psi_soil(ca), ev%psi_soil(cb),                &
-                           dist, dist, q, dq_pa, dq_pb, dq_ka, dq_kb)
-      ev%pond_flux = q
-      call add_soil_flow(ca, cb, q, dq_pa * ev%dpsi_soil(ca), dq_pb * ev%dpsi_soil(cb) + dq_kb * ev%dk_soil(cb))
-
-      !---~---
-      !   Down through the organic slots into the top layer: between node centres, each face's
-      ! conductivity weighted by the two thicknesses as a soil face's is.
-      !---~---
+      !--- Down the chain: the pond to the top node, through the organic slots, between soil layers.
       ev%org_face = 0.0_wp
-      do j = 1_ik, n_org
-         ca = 1_ik + j
-         cb = ca + 1_ik
-         if (j < n_org) then
-            w_b  = drive%org%depth(j) / (drive%org%depth(j) + drive%org%depth(j + 1_ik))
-            dist = 0.5_wp * (drive%org%depth(j) + drive%org%depth(j + 1_ik))
-         else
-            w_b  = drive%org%depth(j) / (drive%org%depth(j) + profile%dz(1))
-            dist = 0.5_wp * drive%org%depth(j) - profile%z_node(1)
+      do c = 1_ik, nsoil - 1_ik
+         ca = c
+         cb = c + 1_ik
+         call core_face_geometry(profile, drive, c, w_b, dist, wet)
+         call core_face_flux(wet, ev%k_soil(ca), ev%k_soil(cb), w_b, ev%psi_soil(ca), ev%psi_soil(cb), dist,          &
+                             q, dq_pa, dq_pb, dq_ka, dq_kb)
+         dqa = dq_pa * ev%dpsi_soil(ca) + dq_ka * ev%dk_soil(ca)
+         dqb = dq_pb * ev%dpsi_soil(cb) + dq_kb * ev%dk_soil(cb)
+         ev%face_dqa(c) = dqa
+         ev%face_dqb(c) = dqb
+         if (is_cut(ca) .or. is_cut(cb)) then
+            q   = 0.0_wp
+            dqa = 0.0_wp
+            dqb = 0.0_wp
          end if
-         call soil_water_flux(ev%k_soil(ca), ev%k_soil(cb), w_b, ev%psi_soil(ca), ev%psi_soil(cb), dist, dist,      &
-                              q, dq_pa, dq_pb, dq_ka, dq_kb)
-         ev%org_face(j) = q
-         dqa = dq_pa * ev%dpsi_soil(ca) + dq_ka * ev%dk_soil(ca)
-         dqb = dq_pb * ev%dpsi_soil(cb) + dq_kb * ev%dk_soil(cb)
-         call add_soil_flow(ca, cb, q, dqa, dqb)
-      end do
-
-      !--- Between soil layers.
-      do k = 1_ik, nsl - 1_ik
-         ca = soff + k
-         cb = soff + 1_ik + k
-         call soil_water_flux(ev%k_soil(ca), ev%k_soil(cb), profile%face_weight(k), ev%psi_soil(ca),              &
-                              ev%psi_soil(cb), profile%dz_node(k), profile%dz_node(k), q, dq_pa, dq_pb, dq_ka, dq_kb)
-         ev%face_flux(k) = q
-         dqa = dq_pa * ev%dpsi_soil(ca) + dq_ka * ev%dk_soil(ca)
-         dqb = dq_pb * ev%dpsi_soil(cb) + dq_kb * ev%dk_soil(cb)
+         if (c == 1_ik) then
+            ev%pond_flux = q
+         else if (c <= n_org + 1_ik) then
+            ev%org_face(c - 1_ik) = q
+         else
+            ev%face_flux(c - soff) = q
+         end if
          call add_soil_flow(ca, cb, q, dqa, dqb)
       end do
 
       !---~---
-      !   Rain into the pond; evaporation from the top layer; drainage from the bottom one. The
-      ! dry surface layer reads the liquid and dsl_theta_init of the ice, so its onset is
+      !   Rain into the pond; the slots' and the top layer's evaporation; drainage from the bottom
+      ! one. The dry surface layer reads the liquid and dsl_theta_init of the ice, so its onset is
       ! dsl_theta_init of the pores the ice leaves (CLM5's effective porosity).
       !---~---
       ev%inflow_soil(POND) = ev%inflow_soil(POND) + drive%rain
       !---~---
       !   The organic slots' own evaporation, held at its rate, from the top slot first: each
-      ! supplies what is left of it while it holds water above residual, ice included, as the
-      ! top layer supplies its own; what they cannot supply is not taken. Dew joins the top slot.
+      ! supplies what is left of it while it holds water above residual, ice included, as the top
+      ! layer supplies its own; what they cannot supply is not taken. Dew joins the top slot.
       !---~---
       ev%org_evap = 0.0_wp
       rest  = drive%org%evap
       drest = 0.0_wp                    ! d rest / d tau of the slot above
       do j = 1_ik, n_org
          c = 1_ik + j
-         if (rest < 0.0_wp) then
-            ev%org_evap(j) = rest
-            ev%inflow_soil(c) = ev%inflow_soil(c) - rest
-            exit
-         end if
-         span = drive%org%curve(j)%theta_sat - drive%org%curve(j)%theta_res
-         call evaporation_supply((ev%water_soil(c) / (rho_h2o * drive%org%depth(j)) - drive%org%curve(j)%theta_res)  &
-                                 / span, supply, dsupply)
-         e = rest * supply
+         call slot_evaporation(drive, j, rest, ev%water_soil(c), ev%dwater_soil(c), e, de_own)
          ev%org_evap(j) = e
          ev%inflow_soil(c) = ev%inflow_soil(c) - e
-         de_own = rest * dsupply / span * ev%dwater_soil(c) / (rho_h2o * drive%org%depth(j))
          if (with_jacobian) then
             sys%a(c, c) = sys%a(c, c) + de_own
-            if (j > 1_ik) sys%a(c, c - 1_ik) = sys%a(c, c - 1_ik) + supply * drest
+            if (j > 1_ik .and. rest > 0.0_wp) sys%a(c, c - 1_ik) = sys%a(c, c - 1_ik) + e / rest * drest
          end if
+         if (rest < 0.0_wp) exit
          drest = -de_own                ! the moss's share moves with the litter's water
          rest  = rest - e
       end do
@@ -546,8 +510,10 @@ contains
       !   Each cohort: uptake from its layers, sapflow to its leaves, and transpiration. The
       ! cohort's uptake comes from its whole root profile at once, each layer's conductance
       ! times its roots' contact with it (none once it freezes); its own sums are kept in
-      ! scalars over its layers and written once. The roots take nothing from the organic slots.
+      ! scalars over its layers and written once. The roots take nothing from the organic slots,
+      ! nor from a layer detached from the solve.
       !---~---
+      ev%root_link = 0.0_wp
       do i = 1_ik, static%n
          psi_w = ev%psi_coh(WOOD, i)
          dpsi_w = ev%dpsi_coh(WOOD, i)
@@ -559,7 +525,10 @@ contains
          dqb_sum = 0.0_wp
          do k = 1_ik, nsl
             c = soff + k
-            if (static%g_rhizo(k, i) <= 0.0_wp) then
+            ev%root_link(c) = max(ev%root_link(c), abs(du_dpsi(k) * ev%dpsi_soil(c) + du_dk(k) * ev%dk_soil(c)),   &
+                                  abs(du_dpsi(k) * dpsi_w))
+            if (is_cut(c)) ev%uptake(k, i) = 0.0_wp
+            if (static%g_rhizo(k, i) <= 0.0_wp .or. is_cut(c)) then
                if (with_jacobian) then
                   sys%b(c, i) = 0.0_wp
                   sys%c(c, i) = 0.0_wp
@@ -619,5 +588,241 @@ contains
       end subroutine add_soil_flow
 
    end subroutine water_derivs
+
+   !---~---
+   !   Core node c's potential, water and conductivity at its unknown, with their slopes: the
+   ! pond (its conductivity the node below's, saturated, at that node's ice impedance, since its
+   ! path lies in it), an organic slot, or a soil layer.
+   !---~---
+   pure subroutine core_node_relations(profile, drive, c, tau, psi, dpsi, w, dw, kc, dkc)
+      type(soil_profile_t), intent(in)  :: profile
+      type(water_drive_t),  intent(in)  :: drive
+      integer(ik),          intent(in)  :: c
+      real(wp),             intent(in)  :: tau
+      real(wp),             intent(out) :: psi, dpsi, w, dw, kc, dkc
+      integer(ik) :: soff
+      soff = 1_ik + drive%org%n
+      if (c == POND) then
+         call pond_water_relations(tau, psi, dpsi, w, dw)
+         if (drive%org%n > 0_ik) then
+            kc = drive%org%curve(1)%ksat * drive%org%ice(1)%impedance
+         else
+            kc = profile%ksat(1) * drive%ice(1)%impedance
+         end if
+         dkc = 0.0_wp
+      else if (c <= soff) then
+         call soil_water_relations(drive%org%curve(c - 1_ik), drive%org%ice(c - 1_ik), tau, psi, dpsi, w, dw, kc, dkc)
+      else
+         call soil_water_relations(profile%layer_curve(c - soff), drive%ice(c - soff), tau, psi, dpsi, w, dw, kc, dkc)
+      end if
+   end subroutine core_node_relations
+
+   !---~---
+   !   Face c of the chain, joining node c to node c + 1: the weight of node c + 1's conductivity
+   ! in the face's, the distance between the two nodes, which is also the drop in elevation, and
+   ! whether the face touches an organic slot (then it wets: core_face_flux). The pond counts as
+   ! a saturated layer as thick as the node below it.
+   !---~---
+   pure subroutine core_face_geometry(profile, drive, c, w_b, dist, wet)
+      type(soil_profile_t), intent(in)  :: profile
+      type(water_drive_t),  intent(in)  :: drive
+      integer(ik),          intent(in)  :: c
+      real(wp),             intent(out) :: w_b, dist
+      logical,              intent(out) :: wet
+      integer(ik) :: n_org, j
+      n_org = drive%org%n
+      if (c == 1_ik) then
+         w_b = 0.5_wp
+         if (n_org > 0_ik) then
+            dist = 0.5_wp * drive%org%depth(1)
+         else
+            dist = -profile%z_node(1)
+         end if
+         wet = n_org > 0_ik
+      else if (c <= n_org + 1_ik) then
+         j = c - 1_ik
+         if (j < n_org) then
+            w_b  = drive%org%depth(j) / (drive%org%depth(j) + drive%org%depth(j + 1_ik))
+            dist = 0.5_wp * (drive%org%depth(j) + drive%org%depth(j + 1_ik))
+         else
+            w_b  = drive%org%depth(j) / (drive%org%depth(j) + profile%dz(1))
+            dist = 0.5_wp * drive%org%depth(j) - profile%z_node(1)
+         end if
+         wet = .true.
+      else
+         j = c - 1_ik - n_org
+         w_b  = profile%face_weight(j)
+         dist = profile%dz_node(j)
+         wet  = .false.
+      end if
+   end subroutine core_face_geometry
+
+   !---~---
+   !   The flow down a face of the chain [kg/m2/s] and its slopes. A soil face takes the
+   ! thickness-weighted geometric mean of its nodes' conductivities (soil_water_flux). A face
+   ! touching an organic slot wets: it takes the upstream node's conductivity (Forsyth, Wu &
+   ! Pruess 1995), so water reaches a dry slot, or leaves a wet one into dry ground, at the wet
+   ! side's conductivity rather than at the vanishing one of the dry side; near no flow, over a
+   ! drive of WET_BLEND_WIDTH either way, the two blend smoothly through their arithmetic mean,
+   ! so Newton meets no switch.
+   !---~---
+   pure subroutine core_face_flux(wet, k_a, k_b, w_b, psi_a, psi_b, dist, q, dq_pa, dq_pb, dq_ka, dq_kb)
+      logical,  intent(in)  :: wet
+      real(wp), intent(in)  :: k_a, k_b, w_b, psi_a, psi_b, dist
+      real(wp), intent(out) :: q, dq_pa, dq_pb, dq_ka, dq_kb
+      real(wp) :: drive, x, sb, dsb, k_face
+      if (.not. wet) then
+         call soil_water_flux(k_a, k_b, w_b, psi_a, psi_b, dist, dist, q, dq_pa, dq_pb, dq_ka, dq_kb)
+         return
+      end if
+      drive = ((psi_a - psi_b) / grav_head + dist) / dist
+      x     = max(-1.0_wp, min(1.0_wp, drive / WET_BLEND_WIDTH))
+      sb    = 0.25_wp * (x + 1.0_wp) ** 2 * (2.0_wp - x)              ! 0 upstream b, 1 upstream a
+      dsb   = 0.75_wp * (1.0_wp - x * x) / WET_BLEND_WIDTH
+      k_face = k_b + (k_a - k_b) * sb
+      q      = rho_h2o * k_face * drive
+      dq_pa  = rho_h2o * (k_face + (k_a - k_b) * dsb * drive) / (grav_head * dist)
+      dq_pb  = -dq_pa
+      dq_ka  = rho_h2o * drive * sb
+      dq_kb  = rho_h2o * drive * (1.0_wp - sb)
+   end subroutine core_face_flux
+
+   !---~---
+   !   Organic slot j's evaporation [kg/m2/s] out of what is left of the held demand (rest), and
+   ! its slope in the slot's own unknown: it supplies the rest while it holds water above its
+   ! residual, ice included, as the top soil layer supplies its own; dew (rest < 0) joins it.
+   !---~---
+   pure subroutine slot_evaporation(drive, j, rest, w, dw, e, de)
+      type(water_drive_t), intent(in)  :: drive
+      integer(ik),         intent(in)  :: j
+      real(wp),            intent(in)  :: rest, w, dw     ! [kg/m2/s], the slot's water [kg/m2] and its slope
+      real(wp),            intent(out) :: e, de
+      real(wp) :: span, supply, dsupply, depth
+      if (rest < 0.0_wp) then
+         e  = rest
+         de = 0.0_wp
+         return
+      end if
+      depth = drive%org%depth(j)
+      span  = drive%org%curve(j)%theta_sat - drive%org%curve(j)%theta_res
+      call evaporation_supply((w / (rho_h2o * depth) - drive%org%curve(j)%theta_res) / span, supply, dsupply)
+      e  = rest * supply
+      de = rest * dsupply / span * dw / (rho_h2o * depth)
+   end subroutine slot_evaporation
+
+   !--- Each cohort's wood potential [MPa] at its unknown, which a soil node's uptake reads.
+   subroutine wood_potentials(static, hyd, tau_coh, psi_wood)
+      type(fast_static_state_t), intent(in)  :: static
+      type(hydraulics_table_t),  intent(in)  :: hyd
+      real(wp),                  intent(in)  :: tau_coh(:,:)
+      real(wp),                  intent(out) :: psi_wood(:)
+      real(wp)    :: dpsi, w, dw
+      integer(ik) :: i
+      do i = 1_ik, static%n
+         call tissue_water_relations(hyd%pft(static%pft(i))%wood_curve, static%bwood_water(i), static%nplant(i),   &
+                                     tau_coh(WOOD, i), psi_wood(i), dpsi, w, dw)
+      end do
+   end subroutine wood_potentials
+
+   !---~---
+   !   node_balance -- core node c's own backward-Euler balance over a sub-step of h, R = (W -
+   ! W0)/h - inflow [kg/m2/s], and dR/dtau_c, at its unknown tau with every other store held at
+   ! its state in tau_soil and its neighbours' relations given: the faces to the nodes above and
+   ! below (none to a detached node, cut), and its own sources -- rain into the pond, a slot's
+   ! evaporation out of the demand its upper slots leave (rest), the top layer's evaporation,
+   ! the bottom's drainage and each cohort's uptake at its wood's potential. The nonlinear
+   ! elimination of a fast node and the closed form of a detached one solve R = 0 on it.
+   !---~---
+   subroutine node_balance(static, profile, soil, drive, c, tau_soil, w0, h, cut, psi_wood, r, dr)
+      type(fast_static_state_t), intent(in)  :: static
+      type(soil_profile_t),      intent(in)  :: profile
+      type(soil_params_t),       intent(in)  :: soil
+      type(water_drive_t),       intent(in)  :: drive
+      integer(ik),               intent(in)  :: c
+      real(wp),                  intent(in)  :: tau_soil(:)  ! (nsoil) the node's trial unknown among the others'
+      real(wp),                  intent(in)  :: w0, h        ! [kg/m2] its water at the sub-step's start; [s]
+      logical,                   intent(in)  :: cut          ! detached: no faces, no roots
+      real(wp),                  intent(in)  :: psi_wood(:)  ! (ncoh) [MPa]
+      real(wp),                  intent(out) :: r, dr
+      real(wp) :: psi, dpsi, w, dw, kc, dkc, q, dq_pa, dq_pb, dq_ka, dq_kb, w_b, dist, inflow, dinflow
+      real(wp) :: e, de, de_dtheta, de_dpsi, theta1, span, supply, dsupply, qbot, dqbot_dpsi, dqbot_dk
+      real(wp) :: u, du_ds, du_dw, du_dk, nbr(4), rest, x(6)
+      integer(ik) :: nsl, soff, nsoil, k, i, j
+      logical :: wet
+      nsl   = profile%n_active
+      soff  = 1_ik + drive%org%n
+      nsoil = soff + nsl
+      call core_node_relations(profile, drive, c, tau_soil(c), psi, dpsi, w, dw, kc, dkc)
+      !--- The neighbours' potentials and conductivities, held.
+      nbr = 0.0_wp
+      if (c > 1_ik) then
+         call core_node_relations(profile, drive, c - 1_ik, tau_soil(c - 1_ik), x(1), x(2), x(3), x(4), x(5), x(6))
+         nbr(1) = x(1)
+         nbr(2) = x(5)
+      end if
+      if (c < nsoil) then
+         call core_node_relations(profile, drive, c + 1_ik, tau_soil(c + 1_ik), x(1), x(2), x(3), x(4), x(5), x(6))
+         nbr(3) = x(1)
+         nbr(4) = x(5)
+      end if
+      !--- The slots' held demand this slot is left with, after the slots above it took theirs.
+      rest = drive%org%evap
+      do j = 1_ik, min(c - 2_ik, drive%org%n)
+         if (rest < 0.0_wp) exit
+         call core_node_relations(profile, drive, 1_ik + j, tau_soil(1_ik + j), x(1), x(2), x(3), x(4), x(5), x(6))
+         call slot_evaporation(drive, j, rest, x(3), x(4), e, de)
+         rest = rest - e
+      end do
+      if (rest < 0.0_wp .and. c > 2_ik) rest = 0.0_wp      ! dew joins the top slot only
+      inflow  = 0.0_wp
+      dinflow = 0.0_wp
+      if (.not. cut) then
+         if (c > 1_ik) then
+            call core_face_geometry(profile, drive, c - 1_ik, w_b, dist, wet)
+            call core_face_flux(wet, nbr(2), kc, w_b, nbr(1), psi, dist, q, dq_pa, dq_pb, dq_ka, dq_kb)
+            inflow  = inflow + q
+            dinflow = dinflow + dq_pb * dpsi + dq_kb * dkc
+         end if
+         if (c < nsoil) then
+            call core_face_geometry(profile, drive, c, w_b, dist, wet)
+            call core_face_flux(wet, kc, nbr(4), w_b, psi, nbr(3), dist, q, dq_pa, dq_pb, dq_ka, dq_kb)
+            inflow  = inflow - q
+            dinflow = dinflow - (dq_pa * dpsi + dq_ka * dkc)
+         end if
+      end if
+      if (c == POND) inflow = inflow + drive%rain
+      if (c > POND .and. c <= soff) then
+         call slot_evaporation(drive, c - 1_ik, rest, w, dw, e, de)
+         inflow  = inflow - e
+         dinflow = dinflow - de
+      end if
+      if (c == soff + 1_ik) then
+         theta1 = w / (rho_h2o * profile%dz(1)) - (1.0_wp - soil%dsl_theta_init) * drive%ice(1)%theta_ice
+         call ground_evaporation_rate(theta1, psi, drive%ground, soil, e, de_dtheta, de_dpsi)
+         span = profile%theta_sat(1) - profile%theta_res(1)
+         call evaporation_supply((w / (rho_h2o * profile%dz(1)) - profile%theta_res(1)) / span, supply, dsupply)
+         de_dtheta = supply * de_dtheta + e * dsupply / span
+         de_dpsi   = supply * de_dpsi
+         inflow  = inflow - supply * e
+         dinflow = dinflow - (de_dtheta * dw / (rho_h2o * profile%dz(1)) + de_dpsi * dpsi)
+      end if
+      if (c == nsoil) then
+         call bottom_flux(profile, soil, nsl, psi, kc, drive%ice(nsl)%impedance, qbot, dqbot_dpsi, dqbot_dk)
+         inflow  = inflow - rho_h2o * qbot
+         dinflow = dinflow - rho_h2o * (dqbot_dpsi * dpsi + dqbot_dk * dkc)
+      end if
+      if (c > soff .and. .not. cut) then
+         k = c - soff
+         do i = 1_ik, static%n
+            if (static%g_rhizo(k, i) <= 0.0_wp) cycle
+            call root_water_uptake(static%g_rhizo(k, i) * drive%root_contact(k), kc, psi, profile%z_node(k),        &
+                                   psi_wood(i), u, du_ds, du_dw, du_dk)
+            inflow  = inflow - u
+            dinflow = dinflow - (du_ds * dpsi + du_dk * dkc)
+         end do
+      end if
+      r  = (w - w0) / h - inflow
+      dr = dw / h - dinflow
+   end subroutine node_balance
 
 end module ed_fast_integ_derivs

@@ -632,6 +632,13 @@ module ed_fast_integ_types
       real(wp) :: drain = 0.0_wp, evap = 0.0_wp    ! out of the bottom; out of the top layer to the air
       real(wp) :: org_face(n_organic_slot) = 0.0_wp   ! down from organic node j to the node below it
       real(wp) :: org_evap(n_organic_slot) = 0.0_wp   ! out of organic node j to the air (< 0: dew)
+      !---~---
+      !   What the solve can see of each link, whether or not the node is detached: face c's flow's
+      ! slopes in its upper node's unknown and its lower one's, and the largest slope of a soil
+      ! node's root uptake in its own or a wood's unknown.
+      !---~---
+      real(wp), allocatable :: face_dqa(:), face_dqb(:)   ! (nsoil) face c joins node c to c + 1
+      real(wp), allocatable :: root_link(:)               ! (nsoil)
    end type water_tend_t
 
    !---~---
@@ -688,6 +695,12 @@ module ed_fast_integ_types
       type(water_tend_t)       :: ev(2)
       integer(ik)              :: i_start = 1_ik
       logical                  :: start_ready = .false.
+      !---~---
+      !   The last step's core nodes by class, over its accepted sub-steps: eliminated (fast) and
+      ! detached (inert), for the pond, the organic slots and the soil layers.
+      !---~---
+      integer(ik)              :: n_fast(3) = 0_ik
+      integer(ik)              :: n_cut(3)  = 0_ik
    end type water_work_t
 
    !--- The container: everything held constant over one dt_fast, by physical content.
@@ -974,9 +987,13 @@ contains
          if (allocated(ev%psi_soil)) deallocate(ev%psi_soil, ev%dpsi_soil, ev%water_soil, ev%dwater_soil,       &
                                                 ev%k_soil, ev%dk_soil, ev%inflow_soil, ev%psi_coh, ev%dpsi_coh, &
                                                 ev%water_coh, ev%dwater_coh, ev%inflow_coh, ev%face_flux,       &
-                                                ev%uptake, ev%sapflow, ev%transp)
+                                                ev%uptake, ev%sapflow, ev%transp, ev%face_dqa, ev%face_dqb,     &
+                                                ev%root_link)
          allocate(ev%psi_soil(ns), ev%dpsi_soil(ns), ev%water_soil(ns), ev%dwater_soil(ns), ev%k_soil(ns),     &
-                  ev%dk_soil(ns), ev%inflow_soil(ns))
+                  ev%dk_soil(ns), ev%inflow_soil(ns), ev%face_dqa(ns), ev%face_dqb(ns), ev%root_link(ns))
+         ev%face_dqa  = 0.0_wp
+         ev%face_dqb  = 0.0_wp
+         ev%root_link = 0.0_wp
          allocate(ev%psi_coh(COHORT_STORES, ncoh), ev%dpsi_coh(COHORT_STORES, ncoh),                           &
                   ev%water_coh(COHORT_STORES, ncoh), ev%dwater_coh(COHORT_STORES, ncoh),                       &
                   ev%inflow_coh(COHORT_STORES, ncoh))

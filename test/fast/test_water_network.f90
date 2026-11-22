@@ -56,6 +56,21 @@
 !  23. ICE-SEALED      : rain on a wet column frozen hard at the top: the empty pond, cut off
 !                        from the network, holds the rain and spills past its capacity; next to
 !                        nothing infiltrates, no sub-step is forced, and the water closes.
+! The node classes (docs/science/soil_plant_water.md §3), on thin layers between the pond and
+! the soil (a litter's Campbell curve and a moss's van Genuchten one, built here):
+!  24. ZERO STORAGE    : a saturated 1 mm litter, which holds no more water between its air entry
+!                        and zero head, between a pond and the soil: it is eliminated; what it takes
+!                        from the pond it passes on; every step closes.
+!  25. FROZEN GROUP    : an empty pond over an ice-filled litter and moss over a layer sealed by its
+!                        ice: the three are detached as one group, the factorisation never fails,
+!                        the rain ponds, and the water closes.
+!  26. LITTER STORM    : 1 mm of dry litter under 50 mm/h: no sub-step forced; the litter passes the
+!                        rain to the soil; its class changes as it wets and drains, and the water
+!                        closes across every change.
+!  27. DRYING LITTER   : a litter evaporating at a held rate it cannot sustain dries to its
+!                        residual and no further, with no sub-step forced.
+!  28. FULL POND       : a 5 kg/m2 pond over 1 mm of saturated litter under rain: no sub-step
+!                        forced, and the water closes.
 !---~---
 program test_water_network
    use ed_test_assert, only : check_true, check_close, check_int, test_report
@@ -65,14 +80,14 @@ program test_water_network
    use ed_linear_algebra,  only : arrowhead_system_t, arrowhead_allocate, arrowhead_factor, arrowhead_solve
    use ed_fast_integ_types,  only : fast_static_state_t, water_drive_t, water_work_t, tol_set_t,                    &
                                 ensure_static_capacity, POND, WOOD, LEAF, GRP_THETA, N_WORK, WORK_WATER_NSUB,   &
-                                WORK_WATER_REJECT, WORK_WATER_NFAIL
+                                WORK_WATER_REJECT, WORK_WATER_NFAIL, water_organic_t
    use ed_fast_state,    only : derive_cohort_terms
    use ed_fast_integ_derivs, only : set_water_state, water_derivs
    use ed_fast_integ_backward_euler, only : water_step, water_jacobian_error
    use ed_plant_hydr_lib,   only : water_curve_t, tissue_psi_to_rwc, tissue_psi_tlp
    use ed_pft_derive,       only : build_kirchhoff_table
    use ed_soil_hydr_lib,     only : SOIL_RETENTION_VG, SOIL_RETENTION_CAMPBELL, soil_theta_to_head, soil_ice_state,  &
-                                    soil_liquid_capacity, soil_water_relations
+                                    soil_liquid_capacity, soil_water_relations, build_soil_layer_curve, soil_ice_t
    use ed_therm_lib,         only : internal_energy_liquid, liquid_energy_to_temp, sat_specific_humidity
    use ed_pft_params,    only : hydraulics_table_t
    use ed_soil_params, only : soil_profile_t, soil_params_t, SOIL_BC_DRAIN, SOIL_BC_AQUIFER
@@ -124,6 +139,11 @@ program test_water_network
    call test_frozen_roots()
    call test_grass_sward()
    call test_column_scenarios()
+   call test_zero_storage()
+   call test_frozen_group()
+   call test_litter_storm()
+   call test_drying_litter()
+   call test_full_pond()
    call test_report('test_water_network')
 
 contains
@@ -173,11 +193,12 @@ contains
    ! last cohort is a 0.3 m grass sward of 2000 tillers per m2 at LAI 3.2: no stem, its fine
    ! roots its only store.
    !---~---
-   subroutine make_stand(st, n, theta, w_pond, leaf_rwc, wood_rwc, e_total, leafless, grass)
+   subroutine make_stand(st, n, theta, w_pond, leaf_rwc, wood_rwc, e_total, leafless, grass, org)
       type(stand_t),     intent(out) :: st
       integer(ik),       intent(in)  :: n
       real(wp),          intent(in)  :: theta(:), w_pond, leaf_rwc, wood_rwc, e_total
       logical, optional, intent(in)  :: leafless, grass
+      type(water_organic_t), optional, intent(in) :: org   ! thin layers between the pond and the soil
       real(wp)    :: leaf_w(n), wood_w(n), lai_share(n)
       integer(ik) :: i
       call ensure_static_capacity(st%static, n)
@@ -220,8 +241,99 @@ contains
       st%drive%ground = forc
       st%tols%rtol(GRP_THETA) = WATER_RTOL
       st%tols%atol(GRP_THETA) = WATER_ATOL
-      call set_water_state(st%static, soil, hyd, theta, st%drive%ice, w_pond, 0.0_wp, leaf_w, wood_w, st%water)
+      if (present(org)) st%drive%org = org
+      call set_water_state(st%static, soil, hyd, theta, st%drive%ice, w_pond, 0.0_wp, leaf_w, wood_w, st%water,      &
+                           st%drive%org)
    end subroutine make_stand
+
+   !---~---
+   !   Thin layers over the soil, as the organic layer's slots are built: a litter d_lit deep at
+   ! theta_lit on Letts et al. (2000)'s Campbell curve over a moss d_moss deep at theta_moss on
+   ! Zhang et al. (2010)'s van Genuchten one (a layer of no depth left out), frozen (all but the
+   ! residual, which stays liquid) or not, with a held evaporation evap.
+   !---~---
+   function thin_layers(d_lit, theta_lit, d_moss, theta_moss, frozen, evap) result(o)
+      real(wp), intent(in) :: d_lit, theta_lit, d_moss, theta_moss, evap
+      logical,  intent(in) :: frozen
+      type(water_organic_t) :: o
+      real(wp) :: liq
+      if (d_lit > 0.0_wp) then
+         o%n = o%n + 1_ik
+         call build_soil_layer_curve(SOIL_RETENTION_CAMPBELL, 0.98_wp, 0.01_wp, -0.0103_wp, 2.3_wp, 1.83e-3_wp,        &
+                                     d_lit, o%curve(o%n))
+         o%depth(o%n) = d_lit
+         o%water(o%n) = theta_lit * rho_h2o * d_lit
+         liq = theta_lit
+         if (frozen) liq = min(theta_lit, 0.01_wp)
+         o%ice(o%n) = soil_ice_state(o%curve(o%n), theta_lit - liq, liq)
+      end if
+      if (d_moss > 0.0_wp) then
+         o%n = o%n + 1_ik
+         call build_soil_layer_curve(SOIL_RETENTION_VG, 0.85_wp, 0.18_wp, 50.0_wp, 1.45_wp, 1.3e-3_wp, d_moss,        &
+                                     o%curve(o%n))
+         o%depth(o%n) = d_moss
+         o%water(o%n) = theta_moss * rho_h2o * d_moss
+         liq = theta_moss
+         if (frozen) liq = min(theta_moss, 0.18_wp)
+         o%ice(o%n) = soil_ice_state(o%curve(o%n), theta_moss - liq, liq)
+      end if
+      o%evap  = evap
+      o%t_org = 285.0_wp
+   end function thin_layers
+
+   !--- The water that crossed the network's boundary over its last step, the thin layers' evaporation too [kg/m2].
+   real(wp) function boundary_water_thin(st, dt)
+      type(stand_t), intent(in) :: st
+      real(wp),      intent(in) :: dt
+      boundary_water_thin = boundary_water(st, dt) - sum(st%water%flows%org_evap)
+   end function boundary_water_thin
+
+   !---~---
+   !   The stand's top nk soil layers frozen hard, their pores all but full of ice, their roots cut
+   ! off, under a pond of w_pond, the network restarted.
+   !---~---
+   subroutine seal_top(st, nk, theta, w_pond)
+      type(stand_t), intent(inout) :: st
+      integer(ik),   intent(in)    :: nk
+      real(wp),      intent(in)    :: theta(:), w_pond
+      real(wp)    :: liq, th(size(theta))
+      integer(ik) :: k
+      th = theta
+      do k = 1_ik, nk
+         liq = soil%theta_res(k) + 1.0e-6_wp
+         st%drive%ice(k) = soil_ice_state(soil%layer_curve(k), soil%theta_sat(k) - liq, liq)
+         th(k) = soil%theta_sat(k)
+      end do
+      st%drive%root_contact(1:nk) = 0.0_wp
+      call set_water_state(st%static, soil, hyd, th, st%drive%ice, w_pond, 0.0_wp,                                &
+                           st%water%state%water_coh(LEAF, :) / st%static%nplant(1:st%static%n),                    &
+                           st%water%state%water_coh(WOOD, :) / st%static%nplant(1:st%static%n), st%water, st%drive%org)
+   end subroutine seal_top
+
+   !--- The stand restarted from its network's end state, as the next step's start (the thin layers rebuilt).
+   subroutine restart_stand(st, d_lit, d_moss, frozen)
+      type(stand_t), intent(inout) :: st
+      real(wp),      intent(in)    :: d_lit, d_moss
+      logical,       intent(in)    :: frozen
+      real(wp)    :: th_lit, th_moss
+      integer(ik) :: n_org, nsl, i
+      n_org = st%drive%org%n
+      nsl   = soil%n_active
+      th_lit  = 0.0_wp
+      th_moss = 0.0_wp
+      i = 1_ik
+      if (d_lit > 0.0_wp) then
+         th_lit = st%water%state%water_soil(1_ik + i) / (rho_h2o * d_lit)
+         i = i + 1_ik
+      end if
+      if (d_moss > 0.0_wp) th_moss = st%water%state%water_soil(1_ik + i) / (rho_h2o * d_moss)
+      st%drive%org = thin_layers(d_lit, th_lit, d_moss, th_moss, frozen, st%drive%org%evap)
+      call set_water_state(st%static, soil, hyd,                                                                  &
+                           st%water%state%water_soil(2+n_org:1+n_org+nsl) / (rho_h2o * soil%dz(1:nsl)), st%drive%ice,  &
+                           st%water%state%water_soil(POND), st%water%state%e_pond,                                &
+                           st%water%state%water_coh(LEAF, :) / st%static%nplant(1:st%static%n),                    &
+                           st%water%state%water_coh(WOOD, :) / st%static%nplant(1:st%static%n), st%water, st%drive%org)
+   end subroutine restart_stand
 
    !--- One fast step of the stand's network on the fixture soil, with the column's options.
    subroutine advance(st, opts, dt)
@@ -1328,5 +1440,149 @@ contains
          x(i) = (a(i, n+1) - sum(a(i, i+1:n) * x(i+1:n))) / a(i, i)
       end do
    end subroutine dense_solve
+
+   !--- 24. A saturated 1 mm litter between a pond and the soil holds no more water: it is eliminated.
+   subroutine test_zero_storage()
+      type(stand_t) :: st
+      real(wp) :: theta(soil%n_active), w0, worst, through
+      integer(ik) :: step, nfail, nfast
+      print '(a)', 'test_zero_storage:'
+      theta = 0.33_wp
+      call make_stand(st, 1_ik, theta, 3.0_wp, 0.95_wp, 0.9_wp, 0.0_wp,                                              &
+                      org=thin_layers(1.0e-3_wp, 0.98_wp, 0.0_wp, 0.0_wp, .false., 0.0_wp))
+      st%drive%rain = 1.0e-3_wp
+      worst = 0.0_wp
+      nfail = 0_ik
+      nfast = 0_ik
+      do step = 1_ik, 8_ik
+         w0 = total_water(st)
+         call advance(st, sopts, 900.0_wp)
+         worst = max(worst, abs((total_water(st) - w0) - boundary_water_thin(st, 900.0_wp)) / max(w0, 1.0_wp))
+         nfail = nfail + st%work(WORK_WATER_NFAIL)
+         nfast = nfast + st%water%n_fast(2)
+         through = st%water%flows%infil - st%water%flows%top_in + st%water%flows%top_out - st%water%flows%exfil
+         call restart_stand(st, 1.0e-3_wp, 0.0_wp, .false.)
+      end do
+      call check_true('zero storage: the litter is eliminated', nfast > 0_ik, real(nfast, wp))
+      call check_true('zero storage: what it takes from the pond it passes on, to its storage change',              &
+                      abs(through) < 1.0e-3_wp * max(st%water%flows%infil, 1.0e-3_wp), through)
+      call check_true('zero storage: every step closes to round-off', worst < 1.0e-13_wp, worst)
+      call check_int('zero storage: no sub-step forced through', nfail, 0_ik)
+   end subroutine test_zero_storage
+
+   !--- 25. An empty pond over an ice-filled litter and moss over a layer sealed by its ice.
+   subroutine test_frozen_group()
+      type(stand_t)       :: st
+      real(wp) :: theta(soil%n_active), w0, worst
+      integer(ik) :: step, nfail, ncut
+      print '(a)', 'test_frozen_group:'
+      theta = 0.42_wp
+      call make_stand(st, 1_ik, theta, 0.0_wp, 0.95_wp, 0.9_wp, 0.0_wp,                                              &
+                      org=thin_layers(2.0e-2_wp, 0.90_wp, 0.06_wp, 0.85_wp, .true., 0.0_wp))
+      call seal_top(st, 2_ik, theta, 0.0_wp)
+      st%drive%rain = 3.0e-4_wp
+      worst = 0.0_wp
+      nfail = 0_ik
+      ncut  = 0_ik
+      do step = 1_ik, 4_ik
+         w0 = total_water(st)
+         call advance(st, sopts, 900.0_wp)
+         worst = max(worst, abs((total_water(st) - w0) - boundary_water_thin(st, 900.0_wp)) / max(w0, 1.0_wp))
+         nfail = nfail + st%work(WORK_WATER_NFAIL)
+         ncut  = ncut + st%water%n_cut(1) + st%water%n_cut(2)
+      end do
+      call check_true('frozen group: the pond and the frozen layers are detached', ncut > 0_ik, real(ncut, wp))
+      call check_int('frozen group: no sub-step forced through', nfail, 0_ik)
+      call check_true('frozen group: the rain ponds', st%water%state%water_soil(POND) + st%water%flows%spill         &
+                      > 0.9_wp * 3.0e-4_wp * 900.0_wp, st%water%state%water_soil(POND))
+      call check_true('frozen group: the water closes', worst < 1.0e-13_wp, worst)
+   end subroutine test_frozen_group
+
+   !--- 26. 1 mm of dry litter under 50 mm/h for an hour, then two dry hours.
+   subroutine test_litter_storm()
+      type(stand_t) :: st
+      real(wp) :: theta(soil%n_active), w0, worst, passed
+      integer(ik) :: step, nfail, nfast, nnormal
+      print '(a)', 'test_litter_storm:'
+      theta = 0.25_wp
+      call make_stand(st, 1_ik, theta, 0.0_wp, 0.95_wp, 0.9_wp, 0.0_wp,                                              &
+                      org=thin_layers(1.0e-3_wp, 0.02_wp, 0.0_wp, 0.0_wp, .false., 0.0_wp))
+      worst = 0.0_wp
+      nfail = 0_ik
+      nfast = 0_ik
+      nnormal = 0_ik
+      passed = 0.0_wp
+      do step = 1_ik, 12_ik
+         st%drive%rain = merge(50.0_wp / 3600.0_wp, 0.0_wp, step <= 4_ik)
+         w0 = total_water(st)
+         call advance(st, sopts, 900.0_wp)
+         worst = max(worst, abs((total_water(st) - w0) - boundary_water_thin(st, 900.0_wp)) / max(w0, 1.0_wp))
+         nfail = nfail + st%work(WORK_WATER_NFAIL)
+         nfast = nfast + st%water%n_fast(2)
+         nnormal = nnormal + st%work(WORK_WATER_NSUB) - st%water%n_fast(2) - st%water%n_cut(2)
+         passed = passed + st%water%flows%top_in - st%water%flows%top_out
+         call restart_stand(st, 1.0e-3_wp, 0.0_wp, .false.)
+      end do
+      call check_int('litter storm: no sub-step forced through', nfail, 0_ik)
+      call check_true('litter storm: the litter passes the rain to the soil', passed > 0.5_wp * 50.0_wp, passed)
+      call check_true('litter storm: the litter is eliminated and not, as it wets and drains',                      &
+                      nfast > 0_ik .and. nnormal > 0_ik, real(nfast, wp))
+      call check_true('litter storm: the water closes across every class change', worst < 1.0e-13_wp, worst)
+   end subroutine test_litter_storm
+
+   !---~---
+   !   27. A litter evaporating at a held rate it cannot sustain, over a soil frozen hard at the top,
+   ! dries to its residual and no further. (Over unfrozen soil it would draw the soil's water up
+   ! through its upstream face, and dry only to the soil's potential.)
+   !---~---
+   subroutine test_drying_litter()
+      type(stand_t) :: st
+      real(wp) :: theta(soil%n_active), th, th_min
+      integer(ik) :: step, nfail
+      print '(a)', 'test_drying_litter:'
+      theta = 0.30_wp
+      call make_stand(st, 1_ik, theta, 0.0_wp, 0.95_wp, 0.9_wp, 0.0_wp,                                              &
+                      org=thin_layers(3.0e-3_wp, 0.03_wp, 0.0_wp, 0.0_wp, .false., 3.0e-5_wp))
+      call seal_top(st, 2_ik, theta, 0.0_wp)
+      nfail = 0_ik
+      th_min = 1.0_wp
+      do step = 1_ik, 8_ik
+         call advance(st, sopts, 900.0_wp)
+         nfail = nfail + st%work(WORK_WATER_NFAIL)
+         th = st%water%state%water_soil(2) / (rho_h2o * 3.0e-3_wp)
+         th_min = min(th_min, th)
+         st%drive%org = thin_layers(3.0e-3_wp, th, 0.0_wp, 0.0_wp, .false., 3.0e-5_wp)
+         call set_water_state(st%static, soil, hyd, st%water%state%water_soil(3:) / (rho_h2o * soil%dz),           &
+                              st%drive%ice, st%water%state%water_soil(POND), st%water%state%e_pond,                &
+                              st%water%state%water_coh(LEAF, :) / st%static%nplant(1:1),                          &
+                              st%water%state%water_coh(WOOD, :) / st%static%nplant(1:1), st%water, st%drive%org)
+      end do
+      call check_true('drying litter: it dries to its residual', th_min < 0.0101_wp, th_min)
+      call check_true('drying litter: and no further', th_min >= 0.01_wp * (1.0_wp - 1.0e-9_wp), th_min)
+      call check_int('drying litter: no sub-step forced through', nfail, 0_ik)
+   end subroutine test_drying_litter
+
+   !--- 28. A 5 kg/m2 pond over 1 mm of saturated litter under rain.
+   subroutine test_full_pond()
+      type(stand_t) :: st
+      real(wp) :: theta(soil%n_active), w0, worst
+      integer(ik) :: step, nfail
+      print '(a)', 'test_full_pond:'
+      theta = 0.4314_wp - 1.0e-3_wp
+      call make_stand(st, 1_ik, theta, 5.0_wp, 0.95_wp, 0.9_wp, 0.0_wp,                                              &
+                      org=thin_layers(1.0e-3_wp, 0.98_wp, 0.0_wp, 0.0_wp, .false., -8.0e-7_wp))
+      st%drive%rain = 6.0e-4_wp
+      worst = 0.0_wp
+      nfail = 0_ik
+      do step = 1_ik, 4_ik
+         w0 = total_water(st)
+         call advance(st, sopts, 900.0_wp)
+         worst = max(worst, abs((total_water(st) - w0) - boundary_water_thin(st, 900.0_wp)) / max(w0, 1.0_wp))
+         nfail = nfail + st%work(WORK_WATER_NFAIL)
+         call restart_stand(st, 1.0e-3_wp, 0.0_wp, .false.)
+      end do
+      call check_int('full pond: no sub-step forced through', nfail, 0_ik)
+      call check_true('full pond: the water closes', worst < 1.0e-13_wp, worst)
+   end subroutine test_full_pond
 
 end program test_water_network
