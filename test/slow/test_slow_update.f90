@@ -1215,10 +1215,76 @@ contains
 end module test_slow_update_ledger
 
 !---~---
+!   The litter slot follows its pool (follow_litter_pools): litter that shrinks passes the water
+! its new depth cannot hold saturated to the pond, with its energy; litter that vanishes passes all
+! of it; litter that appears from nothing starts dry. The water and the energy, the matter's
+! declared heat included, close in every case.
+!---~---
+module test_slow_update_litter
+   use ed_kinds,                only : wp, ik
+   use ed_constants,            only : rho_h2o, cp_organic
+   use ed_therm_lib,            only : temp_to_internal_energy
+   use ed_patch_state_vars,     only : patch_block, alloc_patch_block
+   use ed_organic_lib,          only : organic_params_t, organic_state_t, organic_split_energy, SLOT_LITTER, &
+                                       SLOT_MOSS
+   use ed_slow_update,          only : follow_litter_pools
+   use ed_test_support,         only : banner, check, check_close
+   implicit none
+   private
+   public :: run_litter_follows
+contains
+   subroutine run_litter_follows()
+      type(patch_block)      :: patch
+      type(organic_params_t) :: o
+      real(wp) :: heat(1), w0, e0, cap
+      call banner('litter follows its pool')
+      call alloc_patch_block(patch, 1_ik, 1_ik)
+      patch%n = 1_ik
+      associate (org => patch%organic(1), sw => patch%soil_water(1))
+         org = organic_state_t()
+         org%density = [o%litter%bulk_density, o%moss%bulk_density]
+         org%mass    = [0.02_wp * o%litter%bulk_density, 0.05_wp * o%moss%bulk_density]
+         org%water   = [0.5_wp * 0.02_wp * rho_h2o, 0.4_wp * 0.05_wp * rho_h2o]
+         call organic_split_energy(org, temp_to_internal_energy(cp_organic * sum(org%mass), sum(org%water),      &
+                                                                285.0_wp, 1.0_wp))
+         sw%w_surface        = 0.0_wp
+         sw%w_surface_energy = 0.0_wp
+         !--- Shrinks to a fifth: 4 mm hold 3.92 kg/m2 saturated, of the 10 it held.
+         w0 = sum(org%water) + sw%w_surface
+         e0 = sum(org%energy) + sw%w_surface_energy
+         call follow_litter_pools(patch, o, [0.004_wp * o%litter%bulk_density], [280.0_wp], heat)
+         cap = o%litter%theta_sat * rho_h2o * 0.004_wp
+         call check_close(org%water(SLOT_LITTER), cap, 1.0e-9_wp,                                                 &
+                          'shrinking litter keeps what its depth holds saturated')
+         call check_close(sw%w_surface, 10.0_wp - cap, 1.0e-9_wp, 'and passes the rest to the pond')
+         call check_close(sum(org%water) + sw%w_surface, w0, 1.0e-9_wp, 'the water closes')
+         call check_close(sum(org%energy) + sw%w_surface_energy, e0 + heat(1), 1.0e-9_wp * abs(e0),             &
+                          'the energy closes on the matter''s declared heat')
+         !--- Vanishes: all its water to the pond; the moss keeps its own.
+         w0 = sum(org%water) + sw%w_surface
+         e0 = sum(org%energy) + sw%w_surface_energy
+         call follow_litter_pools(patch, o, [0.0_wp], [280.0_wp], heat)
+         call check(org%water(SLOT_LITTER) == 0.0_wp .and. org%mass(SLOT_LITTER) == 0.0_wp,                     &
+                    'vanished litter holds nothing')
+         call check_close(org%water(SLOT_MOSS), 0.4_wp * 0.05_wp * rho_h2o, 1.0e-9_wp, 'the moss keeps its water')
+         call check_close(sum(org%water) + sw%w_surface, w0, 1.0e-9_wp, 'vanishing: the water closes')
+         call check_close(sum(org%energy) + sw%w_surface_energy, e0 + heat(1), 1.0e-9_wp * abs(e0),             &
+                          'vanishing: the energy closes')
+         !--- Appears from nothing: dry, at the layer's temperature.
+         w0 = sum(org%water)
+         call follow_litter_pools(patch, o, [0.1_wp], [280.0_wp], heat)
+         call check(org%water(SLOT_LITTER) == 0.0_wp .and. org%mass(SLOT_LITTER) > 0.0_wp, 'new litter appears dry')
+         call check_close(sum(org%water), w0, 1.0e-12_wp, 'the layer''s water is the moss''s')
+      end associate
+   end subroutine run_litter_follows
+end module test_slow_update_litter
+
+!---~---
 !   test_slow_update -- the operators of ed_slow_update, the one writer of the stand's
 ! carbon and structure (docs/science/demography.md §2-§4): the commit, cohort fusion and
-! fission, the treefall gaps, patch fusion and termination, a recruit's birth state, and
-! the restructuring through the slow ledger with soil carbon on. One module per section.
+! fission, the treefall gaps, patch fusion and termination, a recruit's birth state, the
+! restructuring through the slow ledger with soil carbon on, and the litter slot following its
+! pool. One module per section.
 !---~---
 program test_slow_update
    use test_slow_update_commit, only : run_commit
@@ -1227,6 +1293,7 @@ program test_slow_update
    use test_slow_update_patches, only : run_patch_operators
    use test_slow_update_birth, only : run_birth_state
    use test_slow_update_ledger, only : run_restructure_ledger
+   use test_slow_update_litter, only : run_litter_follows
    use ed_test_support, only : test_report
    implicit none
 
@@ -1236,6 +1303,7 @@ program test_slow_update
    call run_patch_operators()
    call run_birth_state()
    call run_restructure_ledger()
+   call run_litter_follows()
 
    call test_report('test_slow_update')
 end program test_slow_update

@@ -101,7 +101,11 @@ No retention curve of leaf litter has been measured; Letts et al.'s surface moss
 
 and `[soil].moss_depth` [m], which a `[[sites]]` table may set. The checks refuse a non-positive bulk density, conductivity or saturated conductivity, a residual outside $`[0, \theta_s)`$, a saturation outside (0, 1), and curve parameters of the wrong sign (van Genuchten's α > 0 and n > 1; Campbell's air-entry head < 0 and b > 0).
 
-Fixed in the code: the thinnest slot that is a node of the water network (1 mm, `ORGANIC_NODE_MIN_DEPTH`) and the saturation at which a slot with less liquid starts on its curve (1 %, `ORGANIC_SE_START`), both numerical choices.
+Fixed in the code, three numerical floors:
+
+- `ORGANIC_NODE_MIN_DEPTH` = 1 mm, the thinnest slot that is a node of the water network. A thinner slot holds at most a millimetre of water, too little to matter to the ground's water or the soil's heat, while its flows to the pond and the node below would be thousands of times its storage per second; it keeps its water and the water passes it by.
+- `ORGANIC_SE_START` = 1 %, the saturation at which a slot holding less liquid starts on its curve, its residual lowered for the step; its evaporation tapers to nothing over the same share of its span. At its residual a dry or frozen slot would take no water (the face's geometric-mean conductivity falls as $`S_e^{3.8}`$ on Campbell's litter while its suction grows only as $`S_e^{-2.3}`$), and held evaporation would drive a thin litter into its curve's dry tail, where the suction reaches 10¹⁸ m of head. At 1 % the litter's suction is about 4 MPa and the moss's about 5 MPa: dry, but within what the solver meets in plants.
+- The evaporation floor, the material's residual or the water a slot starts the step with when that is less. The lowered residual of a dry slot must not let its evaporation take it lower step after step; at its floor a slot dries no further, as a soil layer stops at its residual.
 
 ## Limits
 
