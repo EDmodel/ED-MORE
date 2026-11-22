@@ -51,7 +51,7 @@ A layer full to its top exchanges as open water does, both ways, so the exchange
 The layer's balance over the step is solved like the pack's (`organic_surface_balance`): a linearized backward-Euler balance of its energy, with its dry heat capacity on each of the ice line, the melt plateau and the liquid line, and one root in closed form. Its terms are:
 
 - on the snow-free ground $`(1 - f_{snow})`$: its net radiation at the ground's albedo and emissivity (`[soil].ground_albedo_*`, `ground_emissivity`) and its own temperature, less the sensible heat and the evaporation to the canopy air;
-- under the pack: the pack's base flux, which conducts into the layer through the half snow depth and the layer's upper half;
+- under the pack: the pack's base flux, which conducts into the layer through the whole snow depth and the layer's upper half;
 - over the whole patch: conduction into the top soil node through the layer's lower half and the top soil node's half layer, in series:
 
 ```math

@@ -561,15 +561,17 @@ contains
    end subroutine snow_surface_fluxes
 
    !---~---
-   !   Snow-base to soil-top conductance [W/m2/K]: the half snow layer and the top soil node in
-   ! series, so a deepening pack decouples the soil (docs/science/snow_biophysics.md).
+   !   The pack's conductance to the soil top [W/m2/K]: the whole snow depth and the top soil node
+   ! in series. The pack's one temperature is its surface's, the temperature it emits and
+   ! exchanges heat and vapour at, so the heat between it and the soil crosses the whole pack. A
+   ! deepening pack decouples the soil (docs/science/snow_biophysics.md).
    !---~---
    pure function snow_base_conductance(snow_depth, env, params) result(gcond)
       real(wp),            intent(in) :: snow_depth   ! [m]
       type(surface_env_t),    intent(in) :: env
       type(snow_params_t), intent(in) :: params
       real(wp) :: gcond, r_series
-      r_series = 0.5_wp * max(snow_depth, tiny_num) / max(params%k_snow, tiny_num)                  &
+      r_series = max(snow_depth, tiny_num) / max(params%k_snow, tiny_num)                           &
                + max(env%dz_soil_top, tiny_num) / max(env%k_soil_top, tiny_num)
       gcond    = 1.0_wp / max(r_series, tiny_num)
    end function snow_base_conductance

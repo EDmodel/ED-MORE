@@ -84,6 +84,14 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ### Answer changes
 
+- The snow pack conducts to the soil through its whole depth. Its one temperature is its surface's: it emits, and
+  exchanges heat and vapour with the canopy air, at that temperature. But the heat between it and the soil crossed
+  only half the depth, so the soil lost heat to the snow's surface as if the pack were half as deep
+  (docs/science/snow_biophysics.md, "The snow store"). In a tundra column the pack's temperature follows the snow
+  surface's radiometric temperature, about 8 K below the measured pack's mean in winter, and the soil under it lost
+  2.4 times what heat-flux plates measured. BCI and Tonzi are bit-for-bit. In Harvard's first year the top soil
+  layer's December–March mean warms from −1.68 to −1.34 °C and its winter heat loss falls from 18.1 to 17.0 W/m²;
+  annual LE moves from 56.985 to 56.970 W/m² and H from 33.31 to 33.20, with both compilers. (#TBD)
 - Two numerical corners in the soil-water solve are gone (docs/science/soil_plant_water.md §3). A frozen layer's
   melt plateau now spans the unknown its ice's water would span on the liquid's curve at the layer's start, so the
   layer's water keeps its slope where the ice takes over. With a trace of ice at freeze-up, the fixed half of the

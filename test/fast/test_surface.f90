@@ -38,6 +38,9 @@
 !      surroundings, a dry layer does not evaporate, and a wet one gives no more than it holds;
 !      the soil takes what it conducts down, less the soil's own evaporation's latent heat, and
 !      with a pack on it the ground's energy closes on what the pack and the layer keep.
+!  11. INSULATION: a deep pack colder than the soil, in balance with the air, passes the soil
+!      the heat its whole depth and the top soil node conduct in series, since its one
+!      temperature is its surface's; twice as deep, it passes less.
 ! The energy datum the pack is held in is test_therm_lib's.
 !---~---
 program test_surface
@@ -70,6 +73,7 @@ program test_surface
    call test_pond_stage()
    call test_organic_slots()
    call test_organic_balance()
+   call test_insulation()
 
    call test_report('test_surface')
 
@@ -270,6 +274,39 @@ contains
       call snow_step(probe, env, 1.0_wp, 900.0_wp, gain, vapour, g_top)
       call check_true('frozen pack under a liquid-saturated CAS gains mass (deposition)', vapour < 0.0_wp, vapour)
    end subroutine test_isothermal
+
+   !---~---
+   !   A deep pack at 255 K on soil at 270 K, the sky and the canopy air in balance with it, so
+   ! only the soil exchanges with it. Over one short step its temperature hardly moves, and the
+   ! soil loses (T_pack - T_soil) / (depth / k_snow + dz / k_soil): the whole pack and the top
+   ! soil node in series. A pack twice as deep passes the soil less.
+   !---~---
+   subroutine test_insulation()
+      type(snow_state_t)  :: snow
+      type(surface_env_t) :: env
+      type(snow_params_t) :: p
+      real(wp) :: gain, vapour, g_top, g_deep, g_expect
+      real(wp), parameter :: T_PACK = 255.0_wp, T_SOIL = 270.0_wp, SWE = 100.0_wp   ! [K], [K], [kg/m2]
+      print '(a)', 'test_insulation:'
+      env%sw_snow     = 0.0_wp
+      env%lw_down     = stefan_boltzmann * T_PACK ** 4
+      env%can_temp    = T_PACK
+      env%ggnet       = 0.01_wp
+      env%rho_air     = 1.3_wp
+      env%press       = 101325.0_wp
+      env%can_shv     = sat_specific_humidity(T_PACK, env%press, 0.0_wp)
+      env%t_soil_top  = T_SOIL
+      env%k_soil_top  = 1.5_wp
+      env%dz_soil_top = 0.05_wp
+      snow = cold_pack(SWE, T_PACK, p)
+      g_expect = (T_PACK - T_SOIL) / (snow%snow_depth(1) / p%k_snow + env%dz_soil_top / env%k_soil_top)
+      call snow_step(snow, env, 1.0_wp, 60.0_wp, gain, vapour, g_top)
+      call check('the soil loses what the whole pack and its top node conduct', g_top, g_expect,           &
+                 1.0e-3_wp * abs(g_expect))
+      snow = cold_pack(2.0_wp * SWE, T_PACK, p)
+      call snow_step(snow, env, 1.0_wp, 60.0_wp, gain, vapour, g_deep)
+      call check_true('a pack twice as deep passes the soil less', abs(g_deep) < abs(g_top), g_deep)
+   end subroutine test_insulation
 
    !--- Rain on a sub-freezing pack: adds mass + liquid enthalpy, refreezes (energy rises).
    subroutine test_rain_on_snow()
