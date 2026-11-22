@@ -84,6 +84,12 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ### Answer changes
 
+- A soil's solids conduct heat by their quartz content, the geometric mean of quartz (7.7 W m⁻¹ K⁻¹) and the other
+  minerals (2.0), with the quartz taken as the sand and silt and clay counting with the other minerals (Johansen
+  1975; Peters-Lidard et al. 1998; docs/science/soil_biophysics.md eq. (9)). CLM5's arithmetic mean of sand and
+  clay left silt out and gave a loam of 45 % sand 7.0 W m⁻¹ K⁻¹, where this gives 3.7. It applies where the soil
+  comes from the maps: over example 06's 983 cells the solids' conductivity falls from a median of 5.6 to 3.1
+  W m⁻¹ K⁻¹. Sites with their own `[soil]` keys, BCI, Harvard and Tonzi among them, are bit-for-bit. (#TBD)
 - The snow pack conducts to the soil through its whole depth. Its one temperature is its surface's: it emits, and
   exchanges heat and vapour with the canopy air, at that temperature. But the heat between it and the soil crossed
   only half the depth, so the soil lost heat to the snow's surface as if the pack were half as deep

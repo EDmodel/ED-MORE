@@ -303,17 +303,22 @@ contains
    end subroutine test_soil_conductivity
 
    !---~---
-   !   6. CLM5's mineral soil at Palo Verde's column (sand 33 %, clay 40 %, porosity 0.4456),
-   ! computed apart from ED-MORE: solids (8.80 x 33 + 2.92 x 40) / 73 = 5.57808 W/m/K; dry bulk
-   ! density 1496.88 kg/m3, so dry soil (0.135 x 1496.88 + 64.7) / (2700 - 0.947 x 1496.88)
-   ! = 0.208022 W/m/K; and the solids' heat capacity (2.128 x 33 + 2.385 x 40) / 73 x 1e6 x
-   ! 0.5544 = 1.257835e6 J/m3/K.
+   !   6. The mineral soil at Palo Verde's column (sand 33 %, clay 40 %, porosity 0.4456),
+   ! computed apart from ED-MORE: solids by their quartz, the sand, 7.7^0.33 x 2.0^0.67 =
+   ! 3.120556 W/m/K; dry bulk density 1496.88 kg/m3, so dry soil (0.135 x 1496.88 + 64.7) /
+   ! (2700 - 0.947 x 1496.88) = 0.208022 W/m/K; and the solids' heat capacity (2.128 x 33 +
+   ! 2.385 x 40) / 73 x 1e6 x 0.5544 = 1.257835e6 J/m3/K. Silt counts with the other minerals: a
+   ! silty soil and a clayey one of the same sand conduct alike.
    !---~---
    subroutine test_soil_texture()
-      real(wp) :: k_solid, k_dry, dry_cvol
+      real(wp) :: k_solid, k_dry, dry_cvol, k_silty, k_clayey
       print '(a)', 'test_soil_texture:'
       call soil_texture_to_thermal(33.0_wp, 40.0_wp, 0.4456_wp, k_solid, k_dry, dry_cvol)
-      call check('CLM5 solids conductivity', k_solid, 5.5780822_wp, 1.0e-6_wp)
+      call check('solids conductivity by quartz', k_solid, 3.1205564_wp, 1.0e-6_wp)
+      call soil_texture_to_thermal(20.0_wp, 10.0_wp, 0.45_wp, k_silty, k_dry, dry_cvol)
+      call soil_texture_to_thermal(20.0_wp, 60.0_wp, 0.45_wp, k_clayey, k_dry, dry_cvol)
+      call check('silt and clay conduct as the other minerals', k_silty, k_clayey, 1.0e-12_wp)
+      call soil_texture_to_thermal(33.0_wp, 40.0_wp, 0.4456_wp, k_solid, k_dry, dry_cvol)
       call check('CLM5 dry conductivity', k_dry, 0.20802202_wp, 1.0e-7_wp)
       call check('CLM5 solids heat capacity', dry_cvol, 1.2578349e6_wp, 1.0_wp)
    end subroutine test_soil_texture

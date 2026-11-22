@@ -123,10 +123,10 @@ With the `[maps]` soil maps (ED-SoilMaps v2; [configuration](../configuration.md
 
 - **The layers.** The profile ends at the map's `soil_depth`, on the layers of § The soil layers.
 - **Each layer's soil.** A layer takes the texture and chemistry of the map layers it overlaps (SoilGrids' six, to 2 m), each weighted by the overlap. Below 2 m it takes the deepest map layer's.
-- **Hydraulics and heat, per layer.** Each layer gets its own curve and $K_{sat}$ by eqs. (6)–(8). Its thermal properties come from the same texture by CLM5's mineral-soil formulas (Lawrence & Slater 2008), with $\theta_{sat}$ the layer's porosity and silt left out as in CLM5:
+- **Hydraulics and heat, per layer.** Each layer gets its own curve and $K_{sat}$ by eqs. (6)–(8). Its thermal properties come from the same texture, with $\theta_{sat}$ the layer's porosity. The solids conduct by their quartz content $q$, the geometric mean of quartz and the other minerals (Johansen 1975; Peters-Lidard et al. 1998), with the quartz taken as the sand's share of the fine earth, $q = Sa/100$: silt and clay count with the other minerals. Peters-Lidard et al. give the other minerals 3.0 W m⁻¹ K⁻¹ where quartz is at most a fifth of the solids; one value keeps the conductivity from jumping at 20 % sand. CLM5's arithmetic mean of sand at 8.80 and clay at 2.92, silt left out, gave a loam of 45 % sand 7.0 W m⁻¹ K⁻¹, where this gives 3.7. The dry soil's conductivity and the solids' heat capacity are CLM5's (Lawrence & Slater 2008):
 
   ```math
-  k_{solid} = \frac{8.80\,Sa + 2.92\,Cl}{Sa + Cl}, \qquad
+  k_{solid} = 7.7^{\,q}\;2.0^{\,1-q}, \qquad
   k_{dry} = \frac{0.135\,\rho_d + 64.7}{2700 - 0.947\,\rho_d}, \qquad
   c_{dry} = \frac{2.128\,Sa + 2.385\,Cl}{Sa + Cl}\,10^6\,(1-\theta_{sat}) \qquad(9)
   ```
@@ -349,7 +349,8 @@ Fixed in the code: the Mualem pore connectivity $L=-1$, the specific storage 10�
 - Saxton & Rawls (2006), *Soil Sci. Soc. Am. J.* 70:1569 — coarse fragments.
 - Gupta et al. (2021), *Earth Syst. Sci. Data* 13:1593 (SoilKsatDB) and (2022), *Sci. Data* 9:444 (GSHP) — the measurements the function was chosen on.
 - Swenson & Lawrence (2014), *JGR-Atmos.* 119:10299 — dry-surface-layer soil evaporation.
-- Lawrence & Slater (2008), *Clim. Dyn.* 30:145 — the mineral and dry-soil thermal properties CLM uses, eq. (9).
+- Lawrence & Slater (2008), *Clim. Dyn.* 30:145 — the dry-soil conductivity and the solids' heat capacity CLM uses, eq. (9).
+- Johansen (1975), *Thermal conductivity of soils*, PhD thesis, Trondheim; Peters-Lidard, Blackburn, Liang & Wood (1998), *J. Atmos. Sci.* 55:1209 — the solids' conductivity by their quartz content, eq. (9).
 - Niu & Yang (2006), *J. Hydrometeorol.* 7:937 — the supercooled liquid of a frozen soil, eq. (14).
 - Swenson, Lawrence & Lee (2012), *J. Adv. Model. Earth Syst.* 4:M08002 — the ice impedance on the conductivity.
 - Lawrence et al. (2018), *Technical Description of version 5.0 of the Community Land Model (CLM)*, NCAR — the supercooled soil water and frozen-soil hydrology.
