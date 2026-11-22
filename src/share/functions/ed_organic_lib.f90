@@ -20,8 +20,7 @@ module ed_organic_lib
 
    !---~---
    !   One organic material (docs/science/surface_organic_layer.md): its dry mass per volume,
-   ! the water it holds per volume, and its conductivity dry and at that capacity, linear in
-   ! between.
+   ! the water it holds per volume, and its conductivity dry and at that capacity.
    !---~---
    type :: organic_material_t
       real(wp) :: bulk_density   = 45.0_wp      ! [kg/m3] dry mass per volume
@@ -82,10 +81,10 @@ contains
    !---~---
    !   The organic layer as one thermal node (docs/science/surface_organic_layer.md): its dry heat
    ! capacity, water, energy and water capacity summed over the slots, and its thermal
-   ! resistance, each slot's depth over its conductivity in series, the conductivity linear in
-   ! the slot's fill between its dry and its wet value. Its dried top: each slot holds its water
-   ! in its lower part and dries from its top, so the depth the layer's own vapour crosses is each
-   ! slot's depth times the share of its capacity it does not hold.
+   ! resistance. Each slot holds its water in its lower part and dries from its top: its dried
+   ! top, its depth times the share of its capacity it does not hold, is what the layer's own
+   ! vapour crosses, and the heat crosses it too, at the slot's dry conductivity, in series with
+   ! its wet part at its wet conductivity. The slots are in series.
    !---~---
    pure subroutine organic_layer_sums(org, params, dry_cap, water, energy, w_max, resistance, dry_depth)
       type(organic_state_t),  intent(in)  :: org
@@ -115,7 +114,7 @@ contains
          water      = water + org%water(k)
          energy     = energy + org%energy(k)
          w_max      = w_max + cap
-         resistance = resistance + depth / (m%k_dry + (m%k_wet - m%k_dry) * fill)
+         resistance = resistance + depth * ((1.0_wp - fill) / m%k_dry + fill / m%k_wet)
          dry_depth  = dry_depth + depth * (1.0_wp - fill)
       end do
    end subroutine organic_layer_sums

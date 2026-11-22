@@ -33,7 +33,8 @@
 !      the stage reports for the ledger, with the pond it leaves, are the stores it began from.
 !  10. THE ORGANIC LAYER (ed_patch_state_vars' organic_* and organic_surface_balance): water
 !      fills the litter, then the moss, each to its capacity; one temperature, the slots'
-!      energies summing to the total; vapour leaves the litter first. Its balance closes on its
+!      energies summing to the total; vapour leaves the litter first; heat crosses each slot's
+!      dried top at its dry conductivity, in series with its wet part. Its balance closes on its
 !      energy, a thin layer of little heat capacity relaxes over an hour without passing its
 !      surroundings, a dry layer does not evaporate, and a wet one gives no more than it holds;
 !      the soil takes what it conducts down, less the soil's own evaporation's latent heat, and
@@ -575,7 +576,7 @@ contains
    subroutine test_organic_slots()
       type(organic_params_t) :: o
       type(organic_state_t)  :: org
-      real(wp) :: taken, cap_litter, cap_moss, dry_cap, w, e, w_max, resist, e_in, dry_depth
+      real(wp) :: taken, cap_litter, cap_moss, dry_cap, w, e, w_max, resist, e_in, dry_depth, fill
       print '(a)', 'test_organic_slots:'
       org = two_slots(o)
       cap_litter = o%litter%water_capacity * 1000.0_wp * 0.03_wp            ! 3.6 kg/m2
@@ -603,6 +604,10 @@ contains
       call organic_layer_sums(org, o, dry_cap, w, e, w_max, resist, dry_depth)
       call check('its dried top: the empty litter, and the share of the moss its water does not fill', dry_depth, &
                  0.03_wp + 0.05_wp * (4.0_wp - cap_litter) / cap_moss, 1.0e-12_wp)
+      fill = 1.0_wp - (4.0_wp - cap_litter) / cap_moss
+      call check('its resistance: each dried top at the dry conductivity, the wet rest at the wet one', resist,    &
+                 0.03_wp / o%litter%k_dry + 0.05_wp * ((1.0_wp - fill) / o%moss%k_dry + fill / o%moss%k_wet),        &
+                 1.0e-12_wp)
    end subroutine test_organic_slots
 
    !--- 10b. The organic layer's balance, and the ground surface with it.

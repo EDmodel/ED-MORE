@@ -55,8 +55,10 @@ The layer's balance over the step is solved like the pack's (`organic_surface_ba
 - over the whole patch: conduction into the top soil node through the layer's lower half and the top soil node's half layer, in series:
 
 ```math
-G = \frac{T - T_{soil,1}}{R/2 + |z_1|/k_{soil,1}}, \qquad R = \sum_i \frac{d_i}{k_i}, \qquad k_i = k_{dry} + (k_{wet} - k_{dry})\,\frac{W_i}{W_{max,i}}
+G = \frac{T - T_{soil,1}}{R/2 + |z_1|/k_{soil,1}}, \qquad R = \sum_i d_i\left[\frac{1 - W_i/W_{max,i}}{k_{dry,i}} + \frac{W_i/W_{max,i}}{k_{wet,i}}\right]
 ```
+
+Each slot holds its water in its lower part and dries from its top (§ Water), so its heat crosses the dried top at the slot's dry conductivity, in series with the wet part at its wet one: the dried depth that resists the layer's vapour resists its heat too. 3 cm of dried moss over 3 cm of wet moss conduct 0.11 W m⁻¹ K⁻¹, where a conductivity linear in the fill would give 0.28.
 
 The balance is implicit in the layer's own temperature, so a thin layer of little heat capacity relaxes towards its balance without overshooting it. The soil receives $`G`$ as its top flux, less its own evaporation's latent heat, as it receives the pack's. The layer takes the exchange's time integral after the march, as the pack does.
 

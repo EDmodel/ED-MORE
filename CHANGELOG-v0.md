@@ -84,6 +84,12 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ### Answer changes
 
+- The organic layer's dried top insulates. Each slot holds its water in its lower part and dries from its top,
+  and its vapour already crossed that dried depth; its heat now crosses it too, at the slot's dry conductivity,
+  in series with the wet part at its wet one (docs/science/surface_organic_layer.md, "Heat"). The conductivity
+  was linear in the slot's fill: 3 cm of dried moss over 3 cm of wet moss conducted 0.28 W m⁻¹ K⁻¹, and now
+  0.11. Example 04's BCI, Harvard and Tonzi, whose litter conducts almost alike dry and wet, move at round-off
+  (annual H at BCI 69.1271 to 69.1272 W/m²), with both compilers. (#TBD)
 - A soil's solids conduct heat by their quartz content, the geometric mean of quartz (7.7 W m⁻¹ K⁻¹) and the other
   minerals (2.0), with the quartz taken as the sand and silt and clay counting with the other minerals (Johansen
   1975; Peters-Lidard et al. 1998; docs/science/soil_biophysics.md eq. (9)). CLM5's arithmetic mean of sand and
