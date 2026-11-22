@@ -47,6 +47,10 @@ flush_light_sharpness = [0.2, 8.0]        # [1/h]
 shed_light_hours      = [4.0, 18.0]       # [h/day]
 shed_light_sharpness  = [-8.0, -0.2]      # [1/h] negative: short or dim days trigger senescence
 light_window          = [1.0, 30.0]       # [day]
+flush_water_sum       = [0.1, 100.0]      # [MPa day] the wet sum, predawn potential above the turgor-loss point
+flush_water_sharpness = [0.02, 20.0]      # [1/(MPa day)]
+shed_water_sum        = [0.1, 300.0]      # [MPa day] the dry sum below it
+shed_water_sharpness  = [0.02, 20.0]      # [1/(MPa day)]
 min_leaf_cover        = [0.0, 0.98]       # [-] an evergreen keeps this share of its leaves
 leaf_turnover_rate    = [0.0001, 1.5]     # [1/yr] the top of the canopy's; a cohort's follows its light
 

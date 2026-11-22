@@ -147,6 +147,12 @@ generic loam, not a measured soil.
 - **Retention.** `retention` is `"van_genuchten"` (default) or `"campbell"`. `curve_par_a` and
   `curve_par_n` are van Genuchten's α [m⁻¹] and n (> 1), or Campbell's air-entry head ψ_sat [m, negative]
   and exponent b. `psi_fc` is the field-capacity matric head [m, negative].
+- **A texture per layer.** Each texture key (`theta_sat`, `theta_res`, `ksat`, `curve_par_a`,
+  `curve_par_n`, `solid_conductivity`, `dry_conductivity`, `dry_heat_capacity`) is one value for the
+  column, or a list with one value per layer, top down, for a soil that changes with depth: a loam over
+  weathered rock, say. The keys given as one value repeat it in every layer. Every list has one value per
+  layer of the column (`layer_bottoms`, or the default layers, cut at `depth`), or the run stops. Each layer
+  then starts at its own field capacity, as with the soil maps, and `[init].soil_theta` is refused.
 - **The science:** [`science/soil_biophysics.md`](science/soil_biophysics.md), "The soil layers".
 
 ### The bottom water boundary
@@ -272,8 +278,8 @@ every soil layer of every patch starts there, unless a state file restores the s
 temperature, for instance, keeps a warm site's column from starting cold. Below the freezing point
 (273.16 K) the soil's water starts as ice, at that temperature. The loader refuses a temperature outside
 233–333 K and a water content outside (`[soil].theta_res`, `[soil].theta_sat`]. A column from the soil
-maps has a texture per layer, so each layer starts at its own field capacity instead, and `soil_theta`
-is refused.
+maps, or one whose `[soil]` texture is given per layer, has a texture per layer, so each layer starts at
+its own field capacity instead, and `soil_theta` is refused.
 
 **A start's canopy air is the air above it.** On a bare-ground or census start the fast loop's first
 window sets each patch's canopy-air temperature, humidity and CO₂ from its site's first forcing sample,

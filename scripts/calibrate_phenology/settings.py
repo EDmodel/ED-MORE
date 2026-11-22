@@ -13,13 +13,14 @@ HERE = Path(__file__).resolve().parent
 REFERENCE = HERE / "phenology_reference.toml"
 
 #----- The keys a fit may set: the kernel's (edmore.plant.pheno.Params) less the cue masks, par_min,
-#      the water keys (the turgor-loss point is derived from the hydraulic traits) and
-#      bare_leaf_cover (a numerical threshold). leaf_turnover_rate is the PFT file's
-#      leaf_turnover_rate_toc: a cohort's own rate is that times its light gradient.
+#      the turgor-loss point (derived from the leaf's pressure-volume curve) and bare_leaf_cover (a
+#      numerical threshold). leaf_turnover_rate is the PFT file's leaf_turnover_rate_toc: a cohort's
+#      own rate is that times its light gradient.
 FITTABLE = ("flush_cue_timescale", "shed_cue_timescale", "flush_rate_max", "shed_rate_max",
             "flush_base_temp", "flush_degree_days", "flush_temp_sharpness", "shed_base_temp",
             "shed_degree_days", "shed_temp_sharpness", "flush_light_hours", "flush_light_sharpness",
-            "shed_light_hours", "shed_light_sharpness", "light_window", "min_leaf_cover",
+            "shed_light_hours", "shed_light_sharpness", "light_window", "flush_water_sum",
+            "flush_water_sharpness", "shed_water_sum", "shed_water_sharpness", "min_leaf_cover",
             "leaf_turnover_rate")
 NOT_FITTABLE = {"par_min": "par_min sets what an hour of light is; the coupled run counts the hours at "
                            "the PFT file's value, so the fit cannot move it (the hour thresholds absorb it)",

@@ -9,6 +9,7 @@
 !---~---
 module ed_config_io
    use ed_kinds,      only : wp, ik
+   use ed_constants,  only : n_soil_layer_max
    use ed_allometry_lib, only : HEIGHT_POWER, HEIGHT_CHAVE, GROWTH_TREE, GROWTH_GRASS
    use ed_config,       only : ed_config_t, derive_parameters, alloc_pft_table, INIT_CENSUS,        &
                                INIT_RESTART
@@ -344,19 +345,102 @@ contains
       s%depth       = toml_real(tm, 'soil.depth',       s%depth)
       call opt_choice(tm, 'soil.retention', [character(len=NAME_LEN) :: 'van_genuchten', 'campbell'],   &
                       [SOIL_RETENTION_VG, SOIL_RETENTION_CAMPBELL], s%retention)
-      s%theta_sat   = toml_real(tm, 'soil.theta_sat',   s%theta_sat)
-      s%theta_res   = toml_real(tm, 'soil.theta_res',   s%theta_res)
-      s%ksat        = toml_real(tm, 'soil.ksat',        s%ksat)
-      s%curve_par_a = toml_real(tm, 'soil.curve_par_a', s%curve_par_a)
-      s%curve_par_n = toml_real(tm, 'soil.curve_par_n', s%curve_par_n)
+      call load_soil_texture(tm, s)
       s%psi_fc      = toml_real(tm, 'soil.psi_fc',      s%psi_fc)
-      s%solid_conductivity = toml_real(tm, 'soil.solid_conductivity', s%solid_conductivity)
-      s%dry_conductivity   = toml_real(tm, 'soil.dry_conductivity',   s%dry_conductivity)
-      s%dry_heat_capacity  = toml_real(tm, 'soil.dry_heat_capacity',  s%dry_heat_capacity)
       call load_water_bottom_bc(tm, s%water_bottom_bc, s%drain_factor)
       s%deep_temp   = toml_real(tm, 'soil.deep_temp',   s%deep_temp)
       s%deep_depth  = toml_real(tm, 'soil.deep_depth',  s%deep_depth)
    end subroutine load_soil_ground
+
+   !---~---
+   !   [soil]'s texture: the hydraulic keys (theta_sat, theta_res, ksat, curve_par_a,
+   ! curve_par_n) and the thermal ones (solid_conductivity, dry_conductivity,
+   ! dry_heat_capacity). Each is one value for the column, or a list with one value per layer,
+   ! top down, for a soil whose texture changes with depth. A list in any key gives the column
+   ! a texture per layer (n_layer_values, layer_*): the listed keys take their lists and the
+   ! others their one value in every layer. A [[sites]] table inherits the run's lists and
+   ! replaces a key's with its own value or list. Lists of different lengths leave
+   ! n_layer_values at -1, and validate_config stops a column whose lists do not match its
+   ! layers.
+   !---~---
+   subroutine load_soil_texture(tm, s)
+      type(toml_table_t),  intent(in)    :: tm
+      type(soil_params_t), intent(inout) :: s
+      integer, parameter :: NKEY = 8
+      real(wp)    :: one(NKEY), layer(n_soil_layer_max, NKEY)
+      integer(ik) :: n_list(NKEY), n_old, n_new
+      logical     :: set_one(NKEY)
+      integer     :: k
+      call opt_texture(tm, 'soil.theta_sat',   s%theta_sat,   s%layer_theta_sat,   n_list(1), set_one(1))
+      call opt_texture(tm, 'soil.theta_res',   s%theta_res,   s%layer_theta_res,   n_list(2), set_one(2))
+      call opt_texture(tm, 'soil.ksat',        s%ksat,        s%layer_ksat,        n_list(3), set_one(3))
+      call opt_texture(tm, 'soil.curve_par_a', s%curve_par_a, s%layer_curve_par_a, n_list(4), set_one(4))
+      call opt_texture(tm, 'soil.curve_par_n', s%curve_par_n, s%layer_curve_par_n, n_list(5), set_one(5))
+      call opt_texture(tm, 'soil.solid_conductivity', s%solid_conductivity, s%layer_solid_conductivity, &
+                       n_list(6), set_one(6))
+      call opt_texture(tm, 'soil.dry_conductivity', s%dry_conductivity, s%layer_dry_conductivity,       &
+                       n_list(7), set_one(7))
+      call opt_texture(tm, 'soil.dry_heat_capacity', s%dry_heat_capacity, s%layer_dry_heat_capacity,    &
+                       n_list(8), set_one(8))
+      one = [s%theta_sat, s%theta_res, s%ksat, s%curve_par_a, s%curve_par_n, s%solid_conductivity,    &
+             s%dry_conductivity, s%dry_heat_capacity]
+      layer(:, 1) = s%layer_theta_sat
+      layer(:, 2) = s%layer_theta_res
+      layer(:, 3) = s%layer_ksat
+      layer(:, 4) = s%layer_curve_par_a
+      layer(:, 5) = s%layer_curve_par_n
+      layer(:, 6) = s%layer_solid_conductivity
+      layer(:, 7) = s%layer_dry_conductivity
+      layer(:, 8) = s%layer_dry_heat_capacity
+      n_old = s%n_layer_values
+      if (all(n_list == 0_ik) .and. n_old == 0_ik) return       ! one texture for the column
+      !--- The layer count: this table's lists', or the inherited one.
+      n_new = n_old
+      if (any(n_list > 0_ik)) then
+         n_new = maxval(n_list)
+         if (any(n_list > 0_ik .and. n_list /= n_new)) n_new = -1_ik
+      end if
+      do k = 1, NKEY
+         if (n_list(k) > 0_ik) cycle
+         if (set_one(k) .or. n_old == 0_ik) then
+            if (n_new > 0_ik) layer(1:n_new, k) = one(k)          ! its one value in every layer
+         else if (n_new /= n_old) then
+            n_new = -1_ik                                         ! an inherited list of another length
+         end if
+      end do
+      s%n_layer_values = n_new
+      s%layer_theta_sat = layer(:, 1)
+      s%layer_theta_res = layer(:, 2)
+      s%layer_ksat = layer(:, 3)
+      s%layer_curve_par_a = layer(:, 4)
+      s%layer_curve_par_n = layer(:, 5)
+      s%layer_solid_conductivity = layer(:, 6)
+      s%layer_dry_conductivity = layer(:, 7)
+      s%layer_dry_heat_capacity = layer(:, 8)
+   end subroutine load_soil_texture
+
+   !---~---
+   !   One [soil] texture key: a list fills `layer` from the top and counts its values in
+   ! n_list; one value (set, or the default kept) goes to `one`, with set_one telling which.
+   !---~---
+   subroutine opt_texture(tm, key, one, layer, n_list, set_one)
+      type(toml_table_t), intent(in)    :: tm
+      character(len=*),   intent(in)    :: key
+      real(wp),           intent(inout) :: one
+      real(wp),           intent(inout) :: layer(n_soil_layer_max)
+      integer(ik),        intent(out)   :: n_list
+      logical,            intent(out)   :: set_one
+      real(wp) :: values(n_soil_layer_max)
+      n_list  = 0_ik
+      set_one = .false.
+      if (toml_is_array(tm, key)) then
+         call toml_real_array(tm, key, values, n_list)
+         layer(1:n_list) = values(1:n_list)
+      else
+         set_one = toml_has(tm, key)
+         one = toml_real(tm, key, one)                 ! recorded, set or default
+      end if
+   end subroutine opt_texture
 
    !---~---
    !   [soil].water_bottom_bc: the column's water boundary and its drainage factor, kept when
