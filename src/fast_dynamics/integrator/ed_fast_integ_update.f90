@@ -130,9 +130,12 @@ contains
       call snow_take_exchange(dynamic%snow, acc%snow_enth_in, acc%snow_vap_out, frozen%ground%params)
       moved%snow_swe1       = dynamic%snow%swe(1)
       moved%snow_enth1      = dynamic%snow%snow_energy(1)
-      !--- The organic layer takes its exchange too (docs/science/surface_organic_layer.md).
+      !---~---
+      !   The organic layer takes its exchange too (docs/science/surface_organic_layer.md): the march's
+      ! energy, and the vapour the water network took from each slot, which the canopy air received.
+      !---~---
       dynamic%organic = frozen%org
-      call organic_take_exchange(dynamic%organic, acc%org_enth_in, acc%org_vap_out)
+      call organic_take_exchange(dynamic%organic, acc%org_enth_in, frozen%org_evap)
       moved%org_water1      = sum(dynamic%organic%water)
       moved%org_energy1     = sum(dynamic%organic%energy)
       dynamic%adapt_dt_last = dt_warm
@@ -226,7 +229,7 @@ contains
       ! drainage, the runoff, the surface water's overflow, and the exported vapour's beyond LE).
       !---~---
       report%exports%intercept_export    = intercept_total * dt_fast
-      report%exports%infiltration_export = frozen%hydrology%infiltration * dt_fast
+      report%exports%infiltration_export = frozen%hydrology%pond_infil * dt_fast
       report%exports%melt_export         = frozen%snow%melt_rate * dt_fast
       report%exports%sublimation_export  = acc%snow_vap_out
       report%exports%shed_water_export   = static%shed_water_rate * dt_fast

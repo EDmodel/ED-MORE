@@ -12,8 +12,7 @@
 !---~---
 module ed_soil_water
    use ed_kinds,              only : wp, ik
-   use ed_constants,          only : rho_h2o, grav, grav_head, r_wv, tiny_num, p_std, safe_exp, t_kelvin, &
-                                     organic_porosity
+   use ed_constants,          only : rho_h2o, grav, grav_head, r_wv, tiny_num, p_std, safe_exp, t_kelvin
    use ed_soil_params,        only : soil_profile_t, soil_params_t, SOIL_BC_AQUIFER
    use ed_soil_hydr_lib,      only : soil_head_to_theta
    use ed_numerics,           only : smooth_max0
@@ -196,15 +195,18 @@ contains
    end function vapour_diffusivity
 
    !---~---
-   !   One organic slot's path for the soil's vapour [m], as a depth of free air: its depth over the
-   ! Millington-Quirk tortuosity of its air-filled pores, the organic porosity less its water.
+   !   One organic slot's path for vapour [m], as a depth of free air: its depth over the
+   ! Millington-Quirk tortuosity of its air-filled pores, its porosity less its water. The porosity
+   ! is the slot's own, its retention curve's water at saturation, so a saturated slot has no open
+   ! pores and passes no vapour.
    !---~---
-   elemental function organic_cover_path(depth, theta) result(path)
-      real(wp), intent(in) :: depth   ! [m]
-      real(wp), intent(in) :: theta   ! [m3/m3] its water, per volume
+   elemental function organic_cover_path(depth, theta, porosity) result(path)
+      real(wp), intent(in) :: depth      ! [m]
+      real(wp), intent(in) :: theta      ! [m3/m3] its water, per volume
+      real(wp), intent(in) :: porosity   ! [m3/m3] its water at saturation
       real(wp) :: path, phi_air
-      phi_air = max(organic_porosity - theta, tiny_num)
-      path    = depth * organic_porosity ** 2 / phi_air ** MQ_TORTUOSITY_EXP
+      phi_air = max(porosity - theta, tiny_num)
+      path    = depth * porosity ** 2 / phi_air ** MQ_TORTUOSITY_EXP
    end function organic_cover_path
 
    !---~---
@@ -247,14 +249,17 @@ contains
    ! soil's evaporation to the water its top layer holds (docs/science/soil_biophysics.md, "The
    ! soil water column").
    !---~---
-   elemental subroutine evaporation_supply(avail, f, df)
-      real(wp), intent(in)  :: avail   ! [-] the layer's water above residual over its span to saturation
-      real(wp), intent(out) :: f       ! [-]
-      real(wp), intent(out) :: df      ! [-] df / d avail
-      real(wp) :: x
-      x  = min(1.0_wp, max(0.0_wp, avail / EVAP_SUPPLY_SPAN))
+   elemental subroutine evaporation_supply(avail, f, df, width)
+      real(wp), intent(in)           :: avail   ! [-] the layer's water above residual over its span to saturation
+      real(wp), intent(out)          :: f       ! [-]
+      real(wp), intent(out)          :: df      ! [-] df / d avail
+      real(wp), intent(in), optional :: width   ! [-] the step's width, EVAP_SUPPLY_SPAN unless given
+      real(wp) :: x, w
+      w = EVAP_SUPPLY_SPAN
+      if (present(width)) w = width
+      x  = min(1.0_wp, max(0.0_wp, avail / w))
       f  = x * x * (3.0_wp - 2.0_wp * x)
-      df = 6.0_wp * x * (1.0_wp - x) / EVAP_SUPPLY_SPAN
+      df = 6.0_wp * x * (1.0_wp - x) / w
    end subroutine evaporation_supply
 
    !---~---

@@ -3,9 +3,9 @@
 !   ed_organic_lib -- the organic layer on the soil, leaf litter over moss
 ! (docs/science/surface_organic_layer.md): the [surface_layer] block's materials, the layer's
 ! per-patch record, and its laws -- its sums as one thermal node, its temperature, its energy
-! shared among the slots at that temperature, the water it takes and the exchange it takes. A
-! law library, as ed_allometry_lib is, because the configuration, the state, the fast loop
-! and the slow operators all read it.
+! shared among the slots at that temperature, each slot's water retention as a node of the
+! soil-plant water network, and the exchange it takes. A law library, as ed_allometry_lib is,
+! because the configuration, the state, the fast loop and the slow operators all read it.
 !---~---
 module ed_organic_lib
    use ed_kinds,     only : wp, ik
@@ -17,19 +17,19 @@ module ed_organic_lib
 
    public :: organic_material_t, organic_params_t, organic_state_t, SLOT_LITTER, SLOT_MOSS
    public :: organic_present, organic_slot_material, organic_layer_sums, organic_diagnose, organic_split_energy
-   public :: organic_take_water, organic_take_exchange, organic_spill, organic_slot_curve
+   public :: organic_take_exchange, organic_slot_curve, organic_slot_capacity, organic_evap_floor, organic_spill
+   public :: ORGANIC_SE_START
 
    !---~---
-   !   One organic material (docs/science/surface_organic_layer.md): its dry mass per volume,
-   ! the water it holds per volume, its conductivity dry and at that capacity, and its water
-   ! retention and conductivity as a soil layer's (ed_soil_hydr_lib): the curve's form, the
-   ! water at saturation and at residual, its two parameters and the saturated conductivity.
+   !   One organic material (docs/science/surface_organic_layer.md): its dry mass per volume, its
+   ! thermal conductivity dry and saturated, and its water retention and conductivity as a soil
+   ! layer's (ed_soil_hydr_lib): the curve's form, the water at saturation and at residual, its
+   ! two parameters and the saturated conductivity.
    !---~---
    type :: organic_material_t
       real(wp)    :: bulk_density   = 45.0_wp      ! [kg/m3] dry mass per volume
-      real(wp)    :: water_capacity = 0.12_wp      ! [m3/m3] water held per volume
       real(wp)    :: k_dry          = 0.10_wp      ! [W/m/K] thermal conductivity, dry
-      real(wp)    :: k_wet          = 0.1036_wp    ! [W/m/K] thermal conductivity at its water capacity
+      real(wp)    :: k_wet          = 0.1294_wp    ! [W/m/K] thermal conductivity, saturated
       integer(ik) :: retention      = SOIL_RETENTION_CAMPBELL   ! SOIL_RETENTION_VG or SOIL_RETENTION_CAMPBELL
       real(wp)    :: theta_sat      = 0.98_wp      ! [m3/m3] water at saturation
       real(wp)    :: theta_res      = 0.01_wp      ! [m3/m3] residual water
@@ -49,12 +49,12 @@ module ed_organic_lib
    !---~---
    type :: organic_params_t
       logical :: litter_on = .true.                                                ! the litter slot
-      type(organic_material_t) :: litter = organic_material_t(bulk_density=45.0_wp, water_capacity=0.12_wp,      &
-                                              k_dry=0.10_wp, k_wet=0.1036_wp, retention=SOIL_RETENTION_CAMPBELL,  &
+      type(organic_material_t) :: litter = organic_material_t(bulk_density=45.0_wp, k_dry=0.10_wp,               &
+                                              k_wet=0.1294_wp, retention=SOIL_RETENTION_CAMPBELL,                 &
                                               theta_sat=0.98_wp, theta_res=0.01_wp, par_a=-0.0103_wp,             &
                                               par_n=2.3_wp, ksat=1.83e-3_wp)
-      type(organic_material_t) :: moss   = organic_material_t(bulk_density=43.0_wp, water_capacity=0.90_wp,      &
-                                              k_dry=0.06_wp, k_wet=0.50_wp, retention=SOIL_RETENTION_VG,          &
+      type(organic_material_t) :: moss   = organic_material_t(bulk_density=43.0_wp, k_dry=0.06_wp,               &
+                                              k_wet=0.50_wp, retention=SOIL_RETENTION_VG,                         &
                                               theta_sat=0.85_wp, theta_res=0.18_wp, par_a=50.0_wp,                &
                                               par_n=1.45_wp, ksat=1.3e-3_wp)
    end type organic_params_t
@@ -67,6 +67,16 @@ module ed_organic_lib
    ! (docs/science/surface_organic_layer.md).
    !---~---
    integer(ik), parameter :: SLOT_LITTER = 1_ik, SLOT_MOSS = 2_ik
+
+   !---~---
+   !   [-] The saturation at which a slot holding less liquid than that starts on its curve: one
+   ! at its residual (matter just arrived, or its water all ice) would take no water from the
+   ! pond, since the face's conductivity, the geometric mean of the pond's and the slot's, falls
+   ! faster than its suction grows. The slots' evaporation tapers to nothing over the same share
+   ! of their span above their floor, so a drying slot comes to rest near it, at a finite suction
+   ! (a few MPa), not in its curve's far dry tail. A numerical choice.
+   !---~---
+   real(wp), parameter :: ORGANIC_SE_START = 1.0e-2_wp
    type :: organic_state_t
       real(wp) :: mass(n_organic_slot)    = 0.0_wp   ! [kg/m2] dry matter
       real(wp) :: water(n_organic_slot)   = 0.0_wp   ! [kg/m2] water, liquid and ice (prognostic)
@@ -98,11 +108,11 @@ contains
 
    !---~---
    !   The organic layer as one thermal node (docs/science/surface_organic_layer.md): its dry heat
-   ! capacity, water, energy and water capacity summed over the slots, and its thermal
-   ! resistance. Each slot holds its water in its lower part and dries from its top: its dried
-   ! top, its depth times the share of its capacity it does not hold, is what the layer's own
+   ! capacity, water, energy and the water it holds saturated summed over the slots, and its
+   ! thermal resistance. Each slot holds its water in its lower part and dries from its top: its
+   ! dried top, its depth times the share of saturation it does not hold, is what the layer's own
    ! vapour crosses, and the heat crosses it too, at the slot's dry conductivity, in series with
-   ! its wet part at its wet conductivity. The slots are in series.
+   ! its wet part at its saturated conductivity. The slots are in series.
    !---~---
    pure subroutine organic_layer_sums(org, params, dry_cap, water, energy, w_max, resistance, dry_depth)
       type(organic_state_t),  intent(in)  :: org
@@ -110,7 +120,7 @@ contains
       real(wp),               intent(out) :: dry_cap      ! [J/m2/K]
       real(wp),               intent(out) :: water        ! [kg/m2]
       real(wp),               intent(out) :: energy       ! [J/m2]
-      real(wp),               intent(out) :: w_max        ! [kg/m2] the water the slots hold at capacity
+      real(wp),               intent(out) :: w_max        ! [kg/m2] the water the slots hold saturated
       real(wp),               intent(out) :: resistance   ! [m2 K/W]
       real(wp),               intent(out) :: dry_depth    ! [m] the dried top of the slots, summed
       type(organic_material_t) :: m
@@ -126,7 +136,7 @@ contains
          if (org%mass(k) <= 0.0_wp) cycle
          m      = organic_slot_material(params, k)
          depth  = org%mass(k) / org%density(k)
-         cap    = m%water_capacity * rho_h2o * depth
+         cap    = organic_slot_capacity(params, org, k)
          fill   = min(1.0_wp, org%water(k) / cap)
          dry_cap    = dry_cap + cp_organic * org%mass(k)
          water      = water + org%water(k)
@@ -137,12 +147,23 @@ contains
       end do
    end subroutine organic_layer_sums
 
+   !--- [kg/m2] The water slot k holds saturated: its material's theta_sat over its depth.
+   pure real(wp) function organic_slot_capacity(params, org, k) result(cap)
+      type(organic_params_t), intent(in) :: params
+      type(organic_state_t),  intent(in) :: org
+      integer(ik),            intent(in) :: k
+      type(organic_material_t) :: m
+      m   = organic_slot_material(params, k)
+      cap = m%theta_sat * rho_h2o * org%mass(k) / org%density(k)
+   end function organic_slot_capacity
+
    !---~---
    !   Slot k's water retention and conductivity, as a soil layer's (build_soil_layer_curve), its
-   ! depth its matter over its bulk density. Its residual is no more than the liquid it holds: a
-   ! slot whose matter has just arrived or grown, or whose water is ice (the layer has no
-   ! freezing curve, so below the melting point all of it is), starts on its curve where it is
-   ! rather than at a residual it does not hold.
+   ! depth its matter over its bulk density. Its residual lies low enough that the liquid it holds
+   ! is at least ORGANIC_SE_START of the way to saturation: a slot whose matter has just arrived
+   ! or grown, or whose water is ice (the layer has no freezing curve, so below the melting point
+   ! all of it is), starts on its curve where it can take water, rather than at a residual it does
+   ! not hold. A slot with more liquid keeps its material's residual.
    !---~---
    pure function organic_slot_curve(params, org, k) result(c)
       type(organic_params_t), intent(in) :: params
@@ -154,9 +175,24 @@ contains
       m         = organic_slot_material(params, k)
       depth     = org%mass(k) / org%density(k)
       theta_liq = org%fliq * org%water(k) / (rho_h2o * depth)
-      call build_soil_layer_curve(m%retention, m%theta_sat, max(0.0_wp, min(m%theta_res, theta_liq)), m%par_a,   &
-                                  m%par_n, m%ksat, depth, c)
+      call build_soil_layer_curve(m%retention, m%theta_sat,                                                       &
+                                  min(m%theta_res, (theta_liq - ORGANIC_SE_START * m%theta_sat)                  &
+                                                   / (1.0_wp - ORGANIC_SE_START)),                                &
+                                  m%par_a, m%par_n, m%ksat, depth, c)
    end function organic_slot_curve
+
+   !---~---
+   !   [m3/m3] The water below which slot k gives no evaporation: its material's residual, as a soil
+   ! layer's, or the water it holds when it holds less, so a slot below its residual dries no further.
+   !---~---
+   pure real(wp) function organic_evap_floor(params, org, k) result(floor)
+      type(organic_params_t), intent(in) :: params
+      type(organic_state_t),  intent(in) :: org
+      integer(ik),            intent(in) :: k
+      type(organic_material_t) :: m
+      m     = organic_slot_material(params, k)
+      floor = min(m%theta_res, org%water(k) * org%density(k) / (rho_h2o * org%mass(k)))
+   end function organic_evap_floor
 
    !--- The layer's temperature and liquid fraction, from its summed energy, water and dry heat capacity.
    pure subroutine organic_diagnose(org)
@@ -196,67 +232,31 @@ contains
    end subroutine organic_split_energy
 
    !---~---
-   !   Liquid water reaching the layer fills its slots top down, each to its capacity, and brings
-   ! its energy; taken returns what the slots took, the rest passing on to the pond.
-   !---~---
-   pure subroutine organic_take_water(org, params, mass, energy, taken)
-      type(organic_state_t),  intent(inout) :: org
-      type(organic_params_t), intent(in)    :: params
-      real(wp),               intent(in)    :: mass      ! [kg/m2] the water reaching the layer
-      real(wp),               intent(in)    :: energy    ! [J/m2]  its energy
-      real(wp),               intent(out)   :: taken     ! [kg/m2]
-      type(organic_material_t) :: m
-      real(wp)    :: room, add
-      integer(ik) :: k
-      taken = 0.0_wp
-      if (mass <= 0.0_wp .or. .not. organic_present(org)) return
-      do k = 1_ik, n_organic_slot
-         if (org%mass(k) <= 0.0_wp) cycle
-         m    = organic_slot_material(params, k)
-         room = max(0.0_wp, m%water_capacity * rho_h2o * org%mass(k) / org%density(k) - org%water(k))
-         add  = min(room, mass - taken)
-         org%water(k) = org%water(k) + add
-         taken        = taken + add
-      end do
-      if (taken > 0.0_wp) call organic_split_energy(org, sum(org%energy) + energy * (taken / mass))
-   end subroutine organic_take_water
-
-   !---~---
-   !   The layer takes an exchange's amounts: the energy in and the vapour out, the vapour from
-   ! the slots top down, as far as each holds water; dew (vapour in) joins the top slot.
+   !   The layer takes an exchange's amounts after the step's march: the energy in, and the vapour
+   ! each slot gave the canopy air as the water network took it (dew, negative, joined the top
+   ! slot), so the water that left carried its share of that energy.
    !---~---
    pure subroutine organic_take_exchange(org, energy_amount, vapour_amount)
       type(organic_state_t), intent(inout) :: org
-      real(wp),              intent(in)    :: energy_amount   ! [J/m2] in
-      real(wp),              intent(in)    :: vapour_amount   ! [kg/m2] out
-      real(wp)    :: left, out
-      integer(ik) :: k
+      real(wp),              intent(in)    :: energy_amount                    ! [J/m2] in
+      real(wp),              intent(in)    :: vapour_amount(n_organic_slot)    ! [kg/m2] out of each slot
       if (.not. organic_present(org)) return
-      left = vapour_amount
-      do k = 1_ik, n_organic_slot
-         if (org%mass(k) <= 0.0_wp) cycle
-         if (left < 0.0_wp) then                               ! dew: the top slot takes it
-            org%water(k) = org%water(k) - left
-            left = 0.0_wp
-         end if
-         out = min(max(left, 0.0_wp), org%water(k))
-         org%water(k) = org%water(k) - out
-         left = left - out
-      end do
+      org%water = max(0.0_wp, org%water - vapour_amount)   ! clamp-ok: the network's own amounts, to round-off
       call organic_split_energy(org, sum(org%energy) + energy_amount)
    end subroutine organic_take_exchange
 
    !---~---
-   !   The water a slot holds beyond its capacity (dew on a full layer) spills: its water and energy,
-   ! at the layer's temperature and liquid fraction, returned for the pond.
+   !   The water a slot holds above saturation spills: dew or frost on a saturated or frozen slot,
+   ! which its pores cannot take and its ice keeps from passing on. Its water and energy, at the
+   ! layer's temperature and liquid fraction, are returned for the pond, which takes them at a
+   ! step's start.
    !---~---
    pure subroutine organic_spill(org, params, w_out, e_out)
       type(organic_state_t),  intent(inout) :: org
       type(organic_params_t), intent(in)    :: params
       real(wp),               intent(out)   :: w_out     ! [kg/m2]
       real(wp),               intent(out)   :: e_out     ! [J/m2]
-      type(organic_material_t) :: m
-      real(wp)    :: cap, excess, total
+      real(wp)    :: excess, total
       integer(ik) :: k
       w_out = 0.0_wp
       e_out = 0.0_wp
@@ -265,11 +265,9 @@ contains
       call organic_diagnose(org)
       do k = 1_ik, n_organic_slot
          if (org%mass(k) <= 0.0_wp) cycle
-         m      = organic_slot_material(params, k)
-         cap    = m%water_capacity * rho_h2o * org%mass(k) / org%density(k)
-         excess = max(0.0_wp, org%water(k) - cap)
+         excess = max(0.0_wp, org%water(k) - organic_slot_capacity(params, org, k))
          if (excess <= 0.0_wp) cycle
-         org%water(k) = cap
+         org%water(k) = org%water(k) - excess
          w_out = w_out + excess
          e_out = e_out + temp_to_internal_energy(0.0_wp, excess, org%temp, org%fliq)
       end do

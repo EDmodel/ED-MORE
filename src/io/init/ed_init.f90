@@ -15,6 +15,7 @@ module ed_init
    use ed_time,                  only : ed_time_t, time_to_string
    use ed_config,                only : ed_config_t, INIT_CENSUS, INIT_RESTART
    use ed_soil_derive,           only : top_soil_psi
+   use ed_soil_hydr_lib,         only : soil_theta_to_head, soil_head_to_theta
    use ed_therm_lib,             only : temp_to_internal_energy, internal_energy_to_temp
    use ed_cohort_state_vars,     only : set_cohort_tissue_water, hold_cohort_tissue_temps
    use ed_polygon_state_vars,    only : polygon_t
@@ -166,14 +167,15 @@ contains
    !---~---
    !   Each patch's organic layer at the start (docs/science/surface_organic_layer.md): the
    ! litter, the above-ground metabolic litter pool's dry matter, with [surface_layer].litter_on; the moss,
-   ! its site's [soil].moss_depth; each slot holding the top soil layer's share of saturation
-   ! of its capacity, at the top soil layer's temperature (its water frozen below t_3ple).
+   ! its site's [soil].moss_depth; each slot holding the water its curve holds at the top soil
+   ! layer's matric head, as the water network would bring it to, at the top soil layer's
+   ! temperature (its water frozen below t_3ple).
    !---~---
    subroutine seed_organic_layer(poly, cfg)
       type(polygon_t),   intent(inout) :: poly
       type(ed_config_t), intent(in)    :: cfg
       type(organic_material_t) :: m
-      real(wp)    :: rel, temp, fliq
+      real(wp)    :: head, temp, fliq
       integer(ik) :: ip, k
       do ip = 1_ik, poly%patch%n
          associate (org => poly%patch%organic(ip), surf => poly%site%surface(poly%patch%owner_site(ip)),     &
@@ -187,7 +189,9 @@ contains
                org%density(SLOT_MOSS) = cfg%organic%moss%bulk_density
                org%mass(SLOT_MOSS)    = surf%soil%moss_depth * org%density(SLOT_MOSS)
             end if
-            rel  = min(1.0_wp, surf%theta_start(1) / surf%soil_profile%theta_sat(1))
+            associate (c => surf%soil_profile%layer_curve(1))
+               head = soil_theta_to_head(c%retention, surf%theta_start(1), c%theta_sat, c%theta_res, c%par_a, c%par_n)
+            end associate
             temp = poly%patch%soil_energy(ip)%soil_temp(1)
             fliq = merge(1.0_wp, 0.0_wp, temp >= t_3ple)
             do k = 1_ik, n_organic_slot
@@ -196,7 +200,8 @@ contains
                   cycle
                end if
                m = organic_slot_material(cfg%organic, k)
-               org%water(k) = rel * m%water_capacity * rho_h2o * org%mass(k) / org%density(k)
+               org%water(k) = soil_head_to_theta(m%retention, head, m%theta_sat, m%theta_res, m%par_a, m%par_n)       &
+                              * rho_h2o * org%mass(k) / org%density(k)
             end do
             call organic_split_energy(org, temp_to_internal_energy(cp_organic * sum(org%mass), sum(org%water),   &
                                                                    temp, fliq))

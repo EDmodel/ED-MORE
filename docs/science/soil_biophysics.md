@@ -44,7 +44,7 @@ The **top boundary** is the pond, a store of its own. Rain enters it, and it exc
 q_{pond} = \sqrt{K(\theta_1)\,K_{sat}}\;\Big(1 + \frac{h-\psi_1}{-z_1}\Big) \qquad(4)
 ```
 
-from the pond, treated as a saturated layer as thick as the top one, to the top node at elevation $`z_1<0`$. This is eq. (3) with $w = 1/2$; $h$ is the pond's head and $`\psi_1`$ is in metres here. The flux is solved implicitly and is two-way: a top layer pushed past saturation exfiltrates to the pond. The pond holds up to `[soil].w_pond_max`; its first millimetre is a depression store, where its head grows as the square root of what it holds ([soil_plant_water](soil_plant_water.md) §2). Above `w_pond_max`, water runs off at the pond's temperature.
+from the pond, treated as a saturated layer as thick as the top one, to the top node at elevation $`z_1<0`$. This is eq. (3) with $w = 1/2$; $h$ is the pond's head and $`\psi_1`$ is in metres here. The flux is solved implicitly and is two-way: a top layer pushed past saturation exfiltrates to the pond. Where the ground has an organic layer, its litter and moss lie between the pond and the top layer as nodes of their own, and the top layer's top face takes the water the bottom slot passes down, by eq. (3) between that slot's centre and the top node ([surface_organic_layer](surface_organic_layer.md), Water). The pond holds up to `[soil].w_pond_max`; its first millimetre is a depression store, where its head grows as the square root of what it holds ([soil_plant_water](soil_plant_water.md) §2). Above `w_pond_max`, water runs off at the pond's temperature.
 
 The geometric mean with $`K_{sat}`$ is what lets the pond re-wet a dried surface. Near residual water content the top layer's own $`K(\theta_1)`$ is about $10^{-15}$ of $`K_{sat}`$ for a van Genuchten loam, so a face conductivity of $`K(\theta_1)`$ alone would seal the surface: after a dry season the pond would overflow and the soil would never re-wet.
 
@@ -268,8 +268,8 @@ The energy step that follows sees the new water through $`\theta`$, so water dra
 
 The water and thermal stores are coupled by construction: the thermal step reads the just-updated soil moisture (for $`\kappa`$ and the freezing curve), and the water the network moves carries liquid enthalpy.
 - Across each face, water carries the enthalpy of the node it leaves.
-- Root uptake takes enthalpy out of each layer at that layer's own temperature (`root_heat`, per layer). Exfiltration to the pond leaves the top layer in the same way (`water_heat_out`).
-- Infiltration crosses the top face at the pond's temperature.
+- Root uptake takes enthalpy out of each layer at that layer's own temperature (`root_heat`, per layer). Exfiltration to the pond, or to the organic layer's bottom slot, leaves the top layer in the same way (`water_heat_out`).
+- Infiltration crosses the top face at the pond's temperature, or at the organic layer's where it passes through one.
 - Drainage has no face term: its enthalpy leaves with the bottom layer's sink, `water_heat_out`, beside the root uptake.
 - Soil evaporation is not a face either: its water leaves as vapour, and its enthalpy (liquid plus latent) has already left in the ground's latent flux inside $`G_{top}`$.
 

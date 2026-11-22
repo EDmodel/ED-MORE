@@ -14,6 +14,13 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ### Upgrading
 
+- `[surface_layer].litter_water_capacity` and `moss_water_capacity` are gone, and a configuration that
+  sets them is refused: each material's water at saturation, `<slot>_theta_sat`, takes their place, with
+  its retention curve. `litter_k_wet` is the litter's saturated conductivity, 0.1294 W m⁻¹ K⁻¹ by
+  default (it was 0.1036, at the old capacity). A state file from before may hold a moss's water above
+  its new saturation (0.85 m³ m⁻³); the water network pushes the excess out in its first step.
+  `mean_infiltration_py` is the pond's infiltration into the ground: into the organic layer's top slot
+  where there is one. (#TBD)
 - A state file carries `snow_density_layer_pa`, the snow layer's bulk density. A state file from
   before it starts each layer at its mass over its depth. (#TBD)
 - `[output.<tier>].file_chunk = "run"` is now `"all"`, one file for all of the run's records; `"run"`
@@ -283,8 +290,9 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   share, the ground's temperature. Per PFT, `[allometry].crown_base_fraction` (the crown's base over
   the height, default 0.5) and `snow_bending` (default 0). A crown above the pack is unchanged, so
   the examples are bit for bit. (#TBD)
-- `[surface_layer]`: the organic layer's materials, litter and moss (bulk density, water capacity,
-  conductivity dry and wet), and `[soil].moss_depth`, per site. Outputs `mean_organic_temp_py` and
+- `[surface_layer]`: the organic layer's materials, litter and moss (bulk density, conductivity dry and
+  saturated, and a soil layer's water retention: `<slot>_retention`, `theta_sat`, `theta_res`,
+  `curve_par_a`, `curve_par_n`, `ksat`), and `[soil].moss_depth`, per site. Outputs `mean_organic_temp_py` and
   `mean_organic_water_py` (and `_pa`). A state file carries the layer (`organic_*_pa`); one from
   before starts without it, the litter returning from its pools at the first slow step. (#TBD)
 - `[init].soil_temp` may list one temperature per soil layer, top down, for a column whose start

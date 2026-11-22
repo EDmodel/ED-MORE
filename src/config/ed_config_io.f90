@@ -495,7 +495,6 @@ contains
       integer(ik),             parameter :: RETENTION_CODE(2) = [SOIL_RETENTION_VG, SOIL_RETENTION_CAMPBELL]
       o%litter_on = toml_logical(tm, 'surface_layer.litter_on', o%litter_on)
       o%litter%bulk_density   = toml_real(tm, 'surface_layer.litter_bulk_density',   o%litter%bulk_density)
-      o%litter%water_capacity = toml_real(tm, 'surface_layer.litter_water_capacity', o%litter%water_capacity)
       o%litter%k_dry          = toml_real(tm, 'surface_layer.litter_k_dry',          o%litter%k_dry)
       o%litter%k_wet          = toml_real(tm, 'surface_layer.litter_k_wet',          o%litter%k_wet)
       call opt_choice(tm, 'surface_layer.litter_retention', RETENTION, RETENTION_CODE, o%litter%retention)
@@ -505,7 +504,6 @@ contains
       o%litter%par_n          = toml_real(tm, 'surface_layer.litter_curve_par_n',    o%litter%par_n)
       o%litter%ksat           = toml_real(tm, 'surface_layer.litter_ksat',           o%litter%ksat)
       o%moss%bulk_density     = toml_real(tm, 'surface_layer.moss_bulk_density',     o%moss%bulk_density)
-      o%moss%water_capacity   = toml_real(tm, 'surface_layer.moss_water_capacity',   o%moss%water_capacity)
       o%moss%k_dry            = toml_real(tm, 'surface_layer.moss_k_dry',            o%moss%k_dry)
       o%moss%k_wet            = toml_real(tm, 'surface_layer.moss_k_wet',            o%moss%k_wet)
       call opt_choice(tm, 'surface_layer.moss_retention', RETENTION, RETENTION_CODE, o%moss%retention)

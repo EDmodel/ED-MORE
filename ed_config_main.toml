@@ -107,13 +107,13 @@ ny07_m             = 1.0      # [-]     snow-cover fraction exponent
 
 [surface_layer]
 # The ground's organic layer above the soil (docs/science/surface_organic_layer.md): leaf litter over
-# moss, one thermal node with each slot's water. The litter is the above-ground metabolic litter pool's dry
-# matter; the moss a site's [soil].moss_depth. Every key optional, at the value shown.
+# moss, one thermal node, each slot a node of the soil-plant water network between the pond and the
+# soil. The litter is the above-ground metabolic litter pool's dry matter; the moss a site's
+# [soil].moss_depth. Every key optional, at the value shown.
 litter_on              = true     # the litter slot
 litter_bulk_density    = 45.0     # [kg/m3] dry mass per volume (Napoly et al. 2017)
-litter_water_capacity  = 0.12     # [m3/m3] water it holds (Putuhena & Cordery 1996)
 litter_k_dry           = 0.10     # [W/m/K] conductivity, dry (de Vries 1963, after Napoly et al. 2017)
-litter_k_wet           = 0.1036   # [W/m/K] at its water capacity, 0.1 + 0.03 x 0.12 (the same)
+litter_k_wet           = 0.1294   # [W/m/K] saturated, 0.1 + 0.03 x theta_sat (the same)
 litter_retention       = "campbell" # van_genuchten | campbell: its water retention, as a soil layer's
 litter_theta_sat       = 0.98     # [m3/m3] (Letts et al. 2000, surface moss, as CLASS takes it, Wu et al. 2016)
 litter_theta_res       = 0.01     # [m3/m3] (the same)
@@ -121,7 +121,6 @@ litter_curve_par_a     = -0.0103  # [m]     Campbell air-entry head (the same)
 litter_curve_par_n     = 2.3      # [-]     Campbell b (the same)
 litter_ksat            = 1.83e-3  # [m/s]   saturated conductivity (the same)
 moss_bulk_density      = 43.0     # [kg/m3] MAT tundra's top organic 5 cm (ARC LTER knb-lter-arc.20129.1)
-moss_water_capacity    = 0.90     # [m3/m3] (Chadburn et al. 2015)
 moss_k_dry             = 0.06     # [W/m/K] (Chadburn et al. 2015)
 moss_k_wet             = 0.50     # [W/m/K] saturated (Chadburn et al. 2015)
 moss_retention         = "van_genuchten" # van_genuchten | campbell

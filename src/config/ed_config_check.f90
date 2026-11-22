@@ -12,7 +12,7 @@
 module ed_config_check
    use ed_kinds,              only : wp, ik
    use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
-   use ed_constants,            only : n_soil_layer_max, day_sec, breast_height, organic_porosity
+   use ed_constants,            only : n_soil_layer_max, day_sec, breast_height
    use ed_organic_lib,          only : organic_material_t
    use ed_output_params,        only : STATE_DAYS, FC_DAY, FC_MONTH, TIER_MONTHLY, TIER_ANNUAL
    use ed_time,                 only : time_lt, time_valid, time_to_string, whole_years_between
@@ -417,9 +417,8 @@ contains
    end subroutine check_soil
 
    !---~---
-   !   An organic material: a positive bulk density and conductivities, a water capacity in
-   ! (0, organic_porosity], the pores' share of the volume, and a retention curve as a soil
-   ! layer's: 0 <= theta_res < theta_sat < 1, a positive saturated conductivity, and van
+   !   An organic material: a positive bulk density and conductivities, and a retention curve as
+   ! a soil layer's: 0 <= theta_res < theta_sat < 1, a positive saturated conductivity, and van
    ! Genuchten's alpha > 0 and n > 1, or Campbell's air-entry head < 0 and b > 0.
    !---~---
    subroutine check_material(name, m)
@@ -428,8 +427,6 @@ contains
       character(len=:), allocatable :: pre
       pre = TAG//'surface_layer.'//name//'_'
       if (.not. (m%bulk_density > 0.0_wp)) error stop pre//'bulk_density must be > 0 [kg/m3]'
-      if (.not. (m%water_capacity > 0.0_wp .and. m%water_capacity <= organic_porosity))              &
-         error stop pre//'water_capacity must lie in (0, 0.9] m3/m3, the pores'
       if (.not. (m%k_dry > 0.0_wp .and. m%k_wet > 0.0_wp)) error stop pre//'k_dry and _k_wet must be > 0 [W/m/K]'
       if (.not. (m%theta_sat > 0.0_wp .and. m%theta_sat < 1.0_wp))                                    &
          error stop pre//'theta_sat must lie in (0, 1) m3/m3'

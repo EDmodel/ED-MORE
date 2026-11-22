@@ -1,6 +1,6 @@
 # The surface organic layer
 
-The organic layer is the dead and living matter on the soil: leaf litter, and moss under it. It sits between the snow pack (or the canopy air) and the top soil layer. Where it exists it is the ground's surface: it absorbs the radiation the ground receives, exchanges heat and vapour with the canopy air, holds water in its pores, and insulates the soil below it. Without it the ground is the bare soil, exactly as before.
+The organic layer is the dead and living matter on the soil: leaf litter, and moss under it. It sits between the snow pack (or the canopy air) and the top soil layer. Where it exists it is the ground's surface: it absorbs the radiation the ground receives, exchanges heat and vapour with the canopy air, holds and passes water as part of the soil-plant water network, and insulates the soil below it. Without it the ground is the bare soil, exactly as before.
 
 This is one of the per-store pages under [coupled_biophysics](coupled_biophysics.md). The organic layer is built on the snow pack's template ([snow_biophysics](snow_biophysics.md)): one node with its own energy and water, its balance relaxed over the step with its own heat store, coupled to the soil top.
 
@@ -17,7 +17,7 @@ The layer has two slots, top down: **litter** over **moss**. Each slot carries f
 | internal energy $`E`$ | J m⁻² | prognostic | prognostic |
 | bulk density $`\rho_b`$ | kg m⁻³ | its material's | its material's |
 
-The depth is $`d = M/\rho_b`$, and the water a slot holds at capacity is $`W_{max} = \theta_{cap}\,\rho_w\,d`$, with $`\theta_{cap}`$ its material's water capacity per volume. Its fill is $`W/W_{max}`$.
+The depth is $`d = M/\rho_b`$, and the water a slot holds saturated is $`W_{max} = \theta_{s}\,\rho_w\,d`$, with $`\theta_{s}`$ its material's water at saturation, its retention curve's porosity (§ Water). Its fill is $`W/W_{max}`$.
 
 **One thermal node.** The two slots share one temperature, read off their summed energy, water and dry heat capacity on the freezing plateau, as the snow's is (`internal_energy_to_temp`):
 
@@ -29,22 +29,25 @@ with $`c_{org}`$ = 1926 J kg⁻¹ K⁻¹ for dry organic matter (Farouki 1986). 
 
 ## Where the matter comes from
 
-- **Litter** follows the above-ground metabolic litter pool each slow step, after the soil-carbon step: $`M = 2\,C_{fast,grnd}`$, half of dry organic matter being carbon (`c2b_organic`). The structural pool is left out: it holds the coarse woody debris too, and a big tree's dead wood spread over its gap patch would make a layer tens of centimetres deep. It joins once the soil carbon splits fine litter from woody debris. Matter that arrives or leaves does so at the layer's temperature, and the energy it brings or takes is a declared term of the slow ledger. Water above the slot's new capacity, or all its water when the litter is gone, passes to the pond with its energy. `[surface_layer].litter_on = false` keeps the litter slot empty.
+- **Litter** follows the above-ground metabolic litter pool each slow step, after the soil-carbon step: $`M = 2\,C_{fast,grnd}`$, half of dry organic matter being carbon (`c2b_organic`). The structural pool is left out: it holds the coarse woody debris too, and a big tree's dead wood spread over its gap patch would make a layer tens of centimetres deep. It joins once the soil carbon splits fine litter from woody debris. Matter that arrives or leaves does so at the layer's temperature, and the energy it brings or takes is a declared term of the slow ledger. Water above what the slot's new depth holds saturated, or all its water when the litter is gone, passes to the pond with its energy. `[surface_layer].litter_on = false` keeps the litter slot empty.
 - **Moss** is prescribed: its depth is a site key, `[soil].moss_depth` (0 by default, so no moss), at its material's bulk density.
-- **At a start** the slots are filled with this matter, each holding the top soil layer's share of saturation of its capacity, at the top soil layer's temperature.
+- **At a start** the slots are filled with this matter, each holding the water its curve holds at the top soil layer's matric head, as the water network would bring it to, at the top soil layer's temperature.
 
 ## Water
 
-- **Filling.** At each fast step's start the pond, and then the water reaching the ground (throughfall, or the snow's meltwater under a pack, with the tissues' shed water), fill the slots top down, each to its capacity. The water brings its energy. What the slots cannot hold reaches the pond, which infiltrates or runs off as before. A pond therefore forms only on a full layer.
-- **Evaporation and dew** from and onto the layer leave its water through its dried top, on the snow-free ground. Each slot holds its water in its lower part and dries from its top, as the soil's top layer does under its dry surface layer (Swenson & Lawrence 2014). The vapour crosses the dried depth $`d_{dry} = \sum_i d_i\,(1 - W_i/W_{max,i})`$ through the open pores, a Millington–Quirk resistance in series with the ground's conductance:
+- **Nodes of the water network.** Each slot is a store of the soil-plant water network ([soil_plant_water](soil_plant_water.md) §1), between the pond and the top soil layer: the pond over the litter, the litter over the moss, the moss over the soil. Water moves between them down its potential, gravity and capillarity, by the soil's own face law, so the litter and the moss fill, drain to the soil, and are drawn on by a drying soil as a soil layer is. The pond's water reaches the ground through the top slot; a slot pushed past saturation pushes water back up to the pond. A slot is a soil layer to the solver, on its material's retention curve and saturated conductivity at its depth, rebuilt each step: the litter on Campbell's curve, the moss on van Genuchten's (§ Parameters). At −10 kPa the moss holds 0.29 m³ m⁻³, within the 0.26–0.49 measured at 2–6 cm in Arctic tussock tundra in summer, and the litter 0.14, near the 0.12 drained litter holds (Putuhena & Cordery 1996). The roots take nothing from the slots. A slot thinner than 1 mm holds too little water to matter and is no node: it keeps its water while the water passes it by.
+- **Frozen slots.** The layer's water freezes at $`T_{3ple}`$ with no freezing curve, so below it all of a slot's water is ice. The ice is held over the network's step as a soil layer's is: it adds its water, slows the flow by its impedance $`10^{-6\,\theta_{ice}/\theta_s}`$ (CLM5), and leaves its pores to the liquid. A frozen saturated moss passes almost nothing, so rain on it ponds; dry frozen litter takes it. A slot with less liquid than 1 % of the way from residual to saturation (matter just arrived, or its water all ice) starts there on its curve, its residual lowered for the step: at its residual it would take no water at all, since the face's conductivity, the geometric mean of the pond's and the slot's, falls faster than its suction grows.
+- **The snow's meltwater** reaches the pond, as on bare ground, and the slots through it.
+- **Above saturation.** Dew and frost join the litter whatever it holds. What a slot then holds above saturation, which a saturated or frozen slot can neither take nor pass on, joins the pond at the next step's start, with its energy at the layer's temperature (`organic_spill`).
+- **Evaporation and dew** from and onto the layer leave its water through its dried top, on the snow-free ground. Each slot holds its water in its lower part and dries from its top, as the soil's top layer does under its dry surface layer (Swenson & Lawrence 2014). The vapour crosses each slot's dried depth $`d_i\,(1 - W_i/W_{max,i})`$ through its open pores, a Millington–Quirk resistance in series with the ground's conductance:
 
 ```math
 E_{org} = (1 - f_{snow})\,\frac{\rho\,\left[q_{sat}(T) - q_{cas}\right]}{1/g_{ground} + r_{dry}}, \qquad
-r_{dry} = \frac{d_{dry}\,\phi^2}{D_v\,\phi^{10/3}}
+r_{dry} = \sum_i \frac{d_i\,(1 - W_i/W_{max,i})\,\theta_{s,i}^2}{D_v\,\theta_{s,i}^{10/3}}
 ```
 
-A layer full to its top exchanges as open water does, both ways, so the exchange has no corner where humid canopy air sits near the layer's saturation. A drying one exchanges through its dried top: 3 cm of dry moss add about 1,500 s/m, many times the ground's own aerodynamic resistance. An empty one does not exchange: the evaporation takes no more water than the layer holds, and dew beyond its capacity spills to the pond at the next step's start. The diffusivity is the layer's temperature's, as the soil's.
-- **The soil beneath** evaporates through the layer: its vapour diffuses up through the slots' air-filled pores, a resistance $`r_{cover} = \sum_i d_i\,\phi^2 / (D_v\,\varepsilon_i^{10/3})`$ (Millington–Quirk) in series with the dry surface layer's and the aerodynamic one. Here $`\phi`$ = 0.9 is organic matter's porosity (Letts et al. 2000) and $`\varepsilon_i = \phi - W_i/(\rho_w d_i)`$.
+with each slot's porosity its own $`\theta_{s,i}`$. A layer full to its top exchanges as open water does, both ways, so the exchange has no corner where humid canopy air sits near the layer's saturation. A drying one exchanges through its dried top: 3 cm of dry moss add about 1,700 s/m at 280 K, many times the ground's own aerodynamic resistance. The rate is the start-of-step surface solve's, which the water network takes from the slots, the litter first: each slot supplies what is left of it while it holds water above its residual, a smooth step to nothing over the last 1 % of its span, and what they cannot supply is not taken. A thin litter can hold less than that rate takes over a step; the step brings it to rest a few MPa dry, not in its curve's far dry tail, where the network could not follow it. Dew joins the litter. The energy stage then holds that rate (`org_held`), as it holds the soil's evaporation. The diffusivity is the layer's temperature's, as the soil's.
+- **The soil beneath** evaporates through the layer: its vapour diffuses up through the slots' air-filled pores, a resistance $`r_{cover} = \sum_i d_i\,\theta_{s,i}^2 / (D_v\,\varepsilon_i^{10/3})`$ (Millington–Quirk) in series with the dry surface layer's and the aerodynamic one, where $`\varepsilon_i = \theta_{s,i} - W_i/(\rho_w d_i)`$: a saturated slot has no open pores and passes no vapour.
 
 ## Heat
 
@@ -60,7 +63,9 @@ G = \frac{T - T_{soil,1}}{R/2 + |z_1|/k_{soil,1}}, \qquad R = \sum_i d_i\left[\f
 
 Each slot holds its water in its lower part and dries from its top (§ Water), so its heat crosses the dried top at the slot's dry conductivity, in series with the wet part at its wet one: the dried depth that resists the layer's vapour resists its heat too. 3 cm of dried moss over 3 cm of wet moss conduct 0.11 W m⁻¹ K⁻¹, where a conductivity linear in the fill would give 0.28.
 
-The balance is implicit in the layer's own temperature, so a thin layer of little heat capacity relaxes towards its balance without overshooting it. The soil receives $`G`$ as its top flux, less its own evaporation's latent heat, as it receives the pack's. The layer takes the exchange's time integral after the march, as the pack does.
+The balance is implicit in the layer's own temperature, so a thin layer of little heat capacity relaxes towards its balance without overshooting it. The soil receives $`G`$ as its top flux, less its own evaporation's latent heat, as it receives the pack's. The layer takes the exchange's time integral after the march, as the pack does, with the vapour the water network took from each slot.
+
+**The water's heat.** The water the network moves carries its enthalpy, operator-split from the march: after the network's step each slot takes its new water, and the layer the enthalpy its flows carried, in from the pond at the pond's mixture, out to the pond and down to the soil at the layer's temperature, up from the soil at the top soil layer's, shared among the slots at the layer's new temperature. The march then balances the layer as it now is; the soil's top face takes the water the bottom slot passes down at the layer's temperature ([soil_plant_water](soil_plant_water.md) §5). Rain on frozen litter melts some of its ice and warms it, as it should.
 
 ## What reads the layer
 
@@ -70,7 +75,7 @@ The balance is implicit in the layer's own temperature, so a thin layer of littl
 
 ## Ledgers
 
-The layer's water and energy are stores of the whole-column water and energy budgets, and of the slow ledger. The water it takes from the pond is a transfer between two stores. The water it takes from the ground's inflow arrives with the inflow, which the budgets already count. Its evaporation leaves through the canopy air's vapour. The slow step's change of dry matter carries a declared energy.
+The layer's water and energy are stores of the whole-column water and energy budgets, and of the slow ledger. The water it exchanges with the pond and the soil is a transfer between stores, with its enthalpy. Its evaporation leaves through the canopy air's vapour. The slow step's change of dry matter carries a declared energy. `mean_infiltration_py` is the pond's infiltration into the top slot where there is a layer.
 
 ## Parameters
 
@@ -80,13 +85,23 @@ The `[surface_layer]` block, every key optional ([configuration](../configuratio
 |---|---|---|---|
 | `litter_on` | true | the litter slot | |
 | `litter_bulk_density` | 45 kg m⁻³ | dry mass per volume | Napoly et al. (2017) |
-| `litter_water_capacity` | 0.12 m³ m⁻³ | water it holds | Putuhena & Cordery (1996), via Napoly et al. (2017) |
-| `litter_k_dry`, `litter_k_wet` | 0.10, 0.1036 W m⁻¹ K⁻¹ | conductivity dry and at capacity | de Vries (1963): 0.1 + 0.03 θ, via Napoly et al. (2017) |
+| `litter_k_dry`, `litter_k_wet` | 0.10, 0.1294 W m⁻¹ K⁻¹ | conductivity dry and saturated | de Vries (1963): 0.1 + 0.03 θ, via Napoly et al. (2017), at θ = 0 and `litter_theta_sat` |
+| `litter_retention` | campbell | its retention curve's form | Letts et al. (2000), as CLASS takes its surface moss for litter and moss (Wu et al. 2016) |
+| `litter_theta_sat`, `litter_theta_res` | 0.98, 0.01 m³ m⁻³ | water at saturation and residual | the same: the surface moss (0–10 cm) row, Wu et al. (2016) Table 1 |
+| `litter_curve_par_a`, `litter_curve_par_n` | −0.0103 m, 2.3 | Campbell's air-entry head and $`b`$ | the same |
+| `litter_ksat` | 1.83×10⁻³ m s⁻¹ | saturated conductivity | the same |
 | `moss_bulk_density` | 43 kg m⁻³ | dry mass per volume | moist acidic tussock tundra, top 5 cm of the organic layer (ARC LTER, knb-lter-arc.20129.1) |
-| `moss_water_capacity` | 0.90 m³ m⁻³ | water it holds | Chadburn et al. (2015) |
 | `moss_k_dry`, `moss_k_wet` | 0.06, 0.50 W m⁻¹ K⁻¹ | conductivity dry and saturated | Chadburn et al. (2015) |
+| `moss_retention` | van_genuchten | its retention curve's form | Zhang et al. (2010) |
+| `moss_theta_sat`, `moss_theta_res` | 0.85, 0.18 m³ m⁻³ | water at saturation and residual | Zhang et al. (2010) Table 4, surface moss and lichen (0–0.1 m) at Scotty Creek |
+| `moss_curve_par_a`, `moss_curve_par_n` | 50 m⁻¹, 1.45 | van Genuchten's α and n | the same |
+| `moss_ksat` | 1.3×10⁻³ m s⁻¹ | saturated conductivity | O'Connor et al. (2020), the Arctic Foothills' acrotelm |
 
-and `[soil].moss_depth` [m], which a `[[sites]]` table may set. The checks refuse a non-positive bulk density or conductivity, and a water capacity outside (0, 0.9], the pores' share.
+No retention curve of leaf litter has been measured; Letts et al.'s surface moss is the curve CLASS gives both its litter and its moss, and at −10 kPa it holds 0.14 m³ m⁻³, near the water drained litter holds, 0.12 (Putuhena & Cordery 1996, via Napoly et al. 2017).
+
+and `[soil].moss_depth` [m], which a `[[sites]]` table may set. The checks refuse a non-positive bulk density, conductivity or saturated conductivity, a residual outside $`[0, \theta_s)`$, a saturation outside (0, 1), and curve parameters of the wrong sign (van Genuchten's α > 0 and n > 1; Campbell's air-entry head < 0 and b > 0).
+
+Fixed in the code: the thinnest slot that is a node of the water network (1 mm, `ORGANIC_NODE_MIN_DEPTH`) and the saturation at which a slot with less liquid starts on its curve (1 %, `ORGANIC_SE_START`), both numerical choices.
 
 ## Limits
 
@@ -95,26 +110,31 @@ and `[soil].moss_depth` [m], which a `[[sites]]` table may set. The checks refus
 - The moss is prescribed: it neither grows nor photosynthesises.
 - The litter is the metabolic pool alone: the structural leaf litter is not in the layer until the soil carbon splits it from the woody debris.
 - Each slot dries from its top. A Sphagnum moss draws water up to its tips and keeps its top wetter, so its dried depth would be thinner.
+- The slots have no freezing curve: their water freezes at the melting point, all of it.
+- Within a step the slots' evaporation does not follow the canopy air's changing humidity; the next step's surface solve restores the response, as for the soil's.
 
 ## Code map
 
 | Concept | Routine |
 |---|---|
-| the layer's state, its sums, its water, its spill and its commit | `ed_organic_lib`: `organic_state_t`, `organic_layer_sums`, `organic_diagnose`, `organic_split_energy`, `organic_take_water`, `organic_spill`, `organic_take_exchange` |
-| the balance and the ground surface's blend | `ed_surface`: `organic_surface_balance`, `ground_surface_exchange` |
-| the stage: the pond and the inflow fill it | `ed_fast_integ_frozen`: `build_frozen`, `ground_inflow` |
-| the soil's vapour through it, and its own through its dried top | `ed_soil_water`: `organic_cover_path`, `vapour_diffusivity`, `ground_evaporation_rate`; `ed_fast_integ_frozen`: `build_frozen` |
+| the layer's state, its sums, each slot's curve, capacity and evaporation floor, its spill and its commit | `ed_organic_lib`: `organic_state_t`, `organic_layer_sums`, `organic_diagnose`, `organic_split_energy`, `organic_slot_curve`, `organic_slot_capacity`, `organic_evap_floor`, `organic_spill`, `organic_take_exchange` |
+| the balance and the ground surface's blend | `ed_surface`: `organic_surface_balance` (its held branch), `ground_surface_exchange` |
+| the slots in the water network, and their water and enthalpy after it | `ed_fast_integ_frozen`: `organic_network_drive`, `commit_organic_water`; the network: [soil_plant_water](soil_plant_water.md) |
+| the soil's vapour through it, and its own through its dried top | `ed_soil_water`: `organic_cover_path`, `vapour_diffusivity`, `ground_evaporation_rate`; `ed_fast_integ_frozen`: `organic_ground_sums`, `ground_inflow` |
 | the litter follows the pools | `ed_slow_update`: `follow_litter_pools`; `ed_slow_dynamics`: `litter_follows_pools` |
 | the start | `ed_init`: `seed_organic_layer` |
 
 ## References
-- Chadburn, S. et al. (2015), *Geosci. Model Dev.* 8:1493 — the moss layer's porosity and conductivity in JULES.
+- Chadburn, S. et al. (2015), *Geosci. Model Dev.* 8:1493 — the moss layer's thermal conductivity in JULES.
 - de Vries, D. A. (1963), in *Physics of Plant Environment*, North-Holland — thermal properties of soils.
 - Farouki, O. T. (1986), *Thermal Properties of Soils*, Trans Tech — the heat capacity of organic matter.
-- Letts, M. G. et al. (2000), *Atmosphere-Ocean* 38:141 — the porosity of organic soils.
+- Letts, M. G. et al. (2000), *Atmosphere-Ocean* 38:141 — the hydraulic parameters of organic soils, the surface moss row the litter's.
 - Napoly, A. et al. (2017), *Geosci. Model Dev.* 10:1621 — the ISBA-MEB forest-floor litter layer.
+- O'Connor, M. T. et al. (2020), *Geophys. Res. Lett.* 47:e2020GL087646 — the saturated conductivity of the Arctic Foothills' acrotelm.
 - Putuhena, W. M. & Cordery, I. (1996), *J. Hydrol.* 180:283 — the forest floor's interception capacity.
 - Swenson, S. C. & Lawrence, D. M. (2014), *J. Geophys. Res. Atmos.* 119:10299 — the dry surface layer's resistance to evaporation.
+- Wu, Y., Verseghy, D. L. & Melton, J. R. (2016), *Geosci. Model Dev.* 9:2639 — CLASS's organic soil parameters, Table 1.
+- Zhang, Y., Carey, S. K., Quinton, W. L. et al. (2010), *Hydrol. Earth Syst. Sci.* 14:729 — the retention of surface moss at Scotty Creek, Table 4.
 - McLaren, J. (2021), *Soil biogeochemical variables collected on the Arctic LTER experimental plots in
   moist acidic, moist non-acidic, wet shrub and shrub tundra, Toolik Field Station, Alaska 2015*, Arctic LTER,
   knb-lter-arc.20129.1 — the bulk density of the top 5 cm of the organic layer.

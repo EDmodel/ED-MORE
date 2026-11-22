@@ -836,8 +836,8 @@ contains
                         AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_INTERCEPT, flux=.true.)
       call add_variable(reg, 'mean_throughfall_py', 'precipitation reaching the ground', 'kg/m2/s', DIM_SCALAR, AGG_TMEAN,   &
                         GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_THROUGHFALL, flux=.true.)
-      call add_variable(reg, 'mean_infiltration_py', 'infiltration: pond to soil layer 1', 'kg/m2/s', DIM_SCALAR, AGG_TMEAN, &
-                        GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_INFILTRATION, flux=.true.)
+      call add_variable(reg, 'mean_infiltration_py', 'infiltration: pond to the organic layer or soil', 'kg/m2/s',        &
+                        DIM_SCALAR, AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_INFILTRATION, flux=.true.)
       call add_variable(reg, 'mean_snowmelt_py', 'meltwater the snow pack drains to the pond', 'kg/m2/s', DIM_SCALAR,        &
                         AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_SNOWMELT, flux=.true.)
       call add_variable(reg, 'mean_sublimation_py', 'sublimation from the snow pack (deposition < 0)', 'kg/m2/s',            &

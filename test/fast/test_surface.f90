@@ -31,14 +31,19 @@
 !      as ice; a pack at the plateau takes none of a pond's liquid; a warm pond with no pack is left as it is; an empty
 !      pond leaves a pack as it was; snow on ice mixes the densities by volume. The stores
 !      the stage reports for the ledger, with the pond it leaves, are the stores it began from.
-!  10. THE ORGANIC LAYER (ed_patch_state_vars' organic_* and organic_surface_balance): water
-!      fills the litter, then the moss, each to its capacity; one temperature, the slots'
-!      energies summing to the total; vapour leaves the litter first; heat crosses each slot's
-!      dried top at its dry conductivity, in series with its wet part. Its balance closes on its
-!      energy, a thin layer of little heat capacity relaxes over an hour without passing its
-!      surroundings, a dry layer does not evaporate, and a wet one gives no more than it holds;
-!      the soil takes what it conducts down, less the soil's own evaporation's latent heat, and
-!      with a pack on it the ground's energy closes on what the pack and the layer keep.
+!  10. THE ORGANIC LAYER (ed_organic_lib and organic_surface_balance): a slot holds its
+!      theta_sat over its depth; one temperature, the slots' energies summing to the total; each
+!      slot gives the vapour the water network took from it; heat crosses each slot's dried top
+!      at its dry conductivity, in series with its wet part. Each slot's curve is its material's
+!      at its depth (the moss's at -10 kPa as Zhang et al. 2010 measured, the litter's near what
+!      drained litter holds), its residual low enough that frozen or new matter starts 1 % of
+!      the way to saturation; water above saturation (frost on a frozen slot) spills with its
+!      energy, the layer keeping its temperature. Its balance closes on its energy, a thin layer of little heat
+!      capacity relaxes over an hour without passing its surroundings, a dry layer does not
+!      evaporate, and a wet one gives no more than it holds; held at the network's rate it gives
+!      that rate, evaporation or dew, and takes its root; the soil takes what it conducts down,
+!      less the soil's own evaporation's latent heat, and with a pack on it the ground's energy
+!      closes on what the pack and the layer keep.
 !  11. INSULATION: a deep pack colder than the soil, in balance with the air, passes the soil
 !      the heat its whole depth and the top soil node conduct in series, since its one
 !      temperature is its surface's; twice as deep, it passes less.
@@ -53,7 +58,9 @@ program test_surface
                                      enthalpy_vapor
    use ed_patch_state_vars,   only : snow_state_t
    use ed_organic_lib,        only : organic_state_t, organic_params_t, SLOT_LITTER, SLOT_MOSS, organic_layer_sums, &
-                                     organic_take_water, organic_split_energy, organic_take_exchange
+                                     organic_split_energy, organic_take_exchange, organic_slot_capacity,         &
+                                     organic_slot_curve, organic_spill
+   use ed_soil_hydr_lib,      only : soil_layer_curve_t, soil_head_to_theta
    use ed_biophysics_params, only : snow_params_t
    use ed_soil_water,         only : organic_cover_path, vapour_diffusivity
    use ed_surface,            only : surface_env_t, snow_out_t, organic_out_t, organic_surface_balance,          &
@@ -574,40 +581,73 @@ contains
    end function two_slots
 
    subroutine test_organic_slots()
-      type(organic_params_t) :: o
-      type(organic_state_t)  :: org
-      real(wp) :: taken, cap_litter, cap_moss, dry_cap, w, e, w_max, resist, e_in, dry_depth, fill
+      real(wp), parameter :: HEAD_10KPA = -1.0e4_wp / (1000.0_wp * 9.80665_wp)   ! [m]
+      type(organic_params_t)   :: o
+      type(organic_state_t)    :: org
+      type(soil_layer_curve_t) :: c
+      real(wp) :: cap_litter, cap_moss, dry_cap, w, e, w_max, resist, e_in, dry_depth, fill, w_out, e_out, t_in
       print '(a)', 'test_organic_slots:'
       org = two_slots(o)
-      cap_litter = o%litter%water_capacity * 1000.0_wp * 0.03_wp            ! 3.6 kg/m2
-      cap_moss   = o%moss%water_capacity   * 1000.0_wp * 0.05_wp            ! 45 kg/m2
-      call organic_take_water(org, o, 10.0_wp, 10.0_wp * internal_energy_liquid(285.0_wp), taken)
-      call check('the litter fills to its capacity first', org%water(SLOT_LITTER), cap_litter, 1.0e-12_wp)
-      call check('the moss takes the rest', org%water(SLOT_MOSS), 10.0_wp - cap_litter, 1.0e-12_wp)
-      call check('all of it taken: the layer has room', taken, 10.0_wp, 1.0e-12_wp)
-      call check_true('one temperature, between the layer''s and the water''s',                                    &
-                      org%temp > 280.0_wp .and. org%temp < 285.0_wp, org%temp)
+      cap_litter = o%litter%theta_sat * 1000.0_wp * 0.03_wp            ! 29.4 kg/m2
+      cap_moss   = o%moss%theta_sat   * 1000.0_wp * 0.05_wp            ! 42.5 kg/m2
+      call check('a slot holds its theta_sat over its depth', organic_slot_capacity(o, org, SLOT_MOSS), cap_moss,      &
+                 1.0e-12_wp)
+      org%water = [cap_litter, cap_moss]
+      call organic_split_energy(org, temp_to_internal_energy(cp_organic * sum(org%mass), sum(org%water), 283.0_wp, &
+                                                             1.0_wp))
+      call check('one temperature, the total''s', org%temp, 283.0_wp, 1.0e-9_wp)
       call check('the slots'' energies sum to the total', sum(org%energy),                                          &
-                 temp_to_internal_energy(cp_organic * sum(org%mass), 10.0_wp, org%temp, org%fliq), 1.0e-6_wp)
-      call organic_take_water(org, o, 100.0_wp, 0.0_wp, taken)
-      call check('a full layer passes the rest on', taken, cap_moss - (10.0_wp - cap_litter), 1.0e-9_wp)
+                 temp_to_internal_energy(cp_organic * sum(org%mass), sum(org%water), 283.0_wp, 1.0_wp), 1.0e-6_wp)
       call organic_layer_sums(org, o, dry_cap, w, e, w_max, resist, dry_depth)
-      call check('its water capacity is the slots''', w_max, cap_litter + cap_moss, 1.0e-9_wp)
-      call check('a full layer has no dried top', dry_depth, 0.0_wp, 1.0e-12_wp)
-      call check('its resistance: each slot''s depth over its wet conductivity', resist,                          &
+      call check('it holds the slots'' saturation', w_max, cap_litter + cap_moss, 1.0e-9_wp)
+      call check('a saturated layer has no dried top', dry_depth, 0.0_wp, 1.0e-12_wp)
+      call check('its resistance: each slot''s depth over its saturated conductivity', resist,                     &
                  0.03_wp / o%litter%k_wet + 0.05_wp / o%moss%k_wet, 1.0e-12_wp)
       e_in = sum(org%energy)
-      call organic_take_exchange(org, -1.0e5_wp, 4.0_wp)
-      call check_true('vapour leaves the litter first', org%water(SLOT_LITTER) == 0.0_wp                           &
-                      .and. abs(org%water(SLOT_MOSS) - (cap_moss - (4.0_wp - cap_litter))) < 1.0e-9_wp)
+      call organic_take_exchange(org, -1.0e5_wp, [cap_litter, 2.0_wp])
+      call check_true('each slot gives the vapour taken from it', org%water(SLOT_LITTER) == 0.0_wp                  &
+                      .and. abs(org%water(SLOT_MOSS) - (cap_moss - 2.0_wp)) < 1.0e-9_wp)
       call check('the exchange''s energy reaches the layer', sum(org%energy), e_in - 1.0e5_wp, 1.0e-6_wp)
       call organic_layer_sums(org, o, dry_cap, w, e, w_max, resist, dry_depth)
       call check('its dried top: the empty litter, and the share of the moss its water does not fill', dry_depth, &
-                 0.03_wp + 0.05_wp * (4.0_wp - cap_litter) / cap_moss, 1.0e-12_wp)
-      fill = 1.0_wp - (4.0_wp - cap_litter) / cap_moss
+                 0.03_wp + 0.05_wp * 2.0_wp / cap_moss, 1.0e-12_wp)
+      fill = 1.0_wp - 2.0_wp / cap_moss
       call check('its resistance: each dried top at the dry conductivity, the wet rest at the wet one', resist,    &
                  0.03_wp / o%litter%k_dry + 0.05_wp * ((1.0_wp - fill) / o%moss%k_dry + fill / o%moss%k_wet),        &
                  1.0e-12_wp)
+      !--- Each slot's curve: its material's at its depth, the residual no more than the liquid it holds.
+      c = organic_slot_curve(o, org, SLOT_MOSS)
+      call check('the moss''s curve: its depth', c%dz, 0.05_wp, 1.0e-12_wp)
+      call check('the moss at -10 kPa holds 0.29 (Zhang et al. 2010)',                                             &
+                 soil_head_to_theta(c%retention, HEAD_10KPA, c%theta_sat, c%theta_res, c%par_a, c%par_n), 0.294_wp,  &
+                 1.0e-3_wp)
+      call check('a moss above its residual keeps it', c%theta_res, o%moss%theta_res, 0.0_wp)
+      c = organic_slot_curve(o, org, SLOT_LITTER)
+      call check('an empty litter starts 1 % of the way to saturation, where it can take water',                  &
+                 (0.0_wp - c%theta_res) / (c%theta_sat - c%theta_res), 1.0e-2_wp, 1.0e-12_wp)
+      org%water(SLOT_LITTER) = cap_litter
+      c = organic_slot_curve(o, org, SLOT_LITTER)
+      call check('the litter at -10 kPa holds 0.14, near drained litter''s 0.12 (Putuhena & Cordery 1996)',        &
+                 soil_head_to_theta(c%retention, HEAD_10KPA, c%theta_sat, c%theta_res, c%par_a, c%par_n), 0.1415_wp, &
+                 1.0e-3_wp)
+      org%fliq = 0.0_wp
+      c = organic_slot_curve(o, org, SLOT_MOSS)
+      call check('a frozen slot''s liquid, none, starts 1 % of the way to saturation',                            &
+                 (0.0_wp - c%theta_res) / (c%theta_sat - c%theta_res), 1.0e-2_wp, 1.0e-12_wp)
+      !--- Frost on a frozen, saturated litter: what it holds above saturation spills, with its energy.
+      org%water = [cap_litter + 0.5_wp, cap_moss]
+      call organic_split_energy(org, temp_to_internal_energy(cp_organic * sum(org%mass), sum(org%water), 265.0_wp, &
+                                                             0.0_wp))
+      e_in = sum(org%energy)
+      t_in = org%temp
+      call organic_spill(org, o, w_out, e_out)
+      call check('above saturation: the excess spills', w_out, 0.5_wp, 1.0e-12_wp)
+      call check('above saturation: the slot keeps its saturation', org%water(SLOT_LITTER), cap_litter, 1.0e-9_wp)
+      call check('above saturation: the spill takes its ice''s energy, the rest stays', sum(org%energy) + e_out,    &
+                 e_in, 1.0e-6_wp)
+      call check('above saturation: the layer keeps its temperature', org%temp, t_in, 1.0e-9_wp)
+      call organic_spill(org, o, w_out, e_out)
+      call check('a saturated layer spills nothing', w_out, 0.0_wp, 0.0_wp)
    end subroutine test_organic_slots
 
    !--- 10b. The organic layer's balance, and the ground surface with it.
@@ -618,15 +658,15 @@ contains
       type(surface_env_t)    :: env
       type(organic_out_t)    :: ofx, ofx0
       type(snow_params_t)    :: p
-      real(wp) :: w_max, h_ground, le_ground, g_top, ground_rad, s_in, s_out, o_in, o_out, taken, w_save, e_save
+      real(wp) :: w_max, h_ground, le_ground, g_top, ground_rad, s_in, s_out, o_in, o_out, w_save, e_save
       real(wp) :: dry_depth, r_save
       print '(a)', 'test_organic_balance:'
       org = organic_state_t()                                    ! litter alone: 1.35 kg/m2, 2.6 kJ/m2/K dry
       org%density(SLOT_LITTER) = o%litter%bulk_density
       org%mass(SLOT_LITTER)    = 0.03_wp * o%litter%bulk_density
-      call organic_split_energy(org, temp_to_internal_energy(cp_organic * org%mass(SLOT_LITTER), 0.0_wp, 280.0_wp, &
+      org%water(SLOT_LITTER)   = 1.0_wp
+      call organic_split_energy(org, temp_to_internal_energy(cp_organic * org%mass(SLOT_LITTER), 1.0_wp, 280.0_wp, &
                                                              1.0_wp))
-      call organic_take_water(org, o, 1.0_wp, internal_energy_liquid(280.0_wp), taken)
       call cold_env(env)
       env%dt           = DT
       env%can_temp     = 270.0_wp
@@ -637,7 +677,7 @@ contains
       env%ground_emiss = 0.95_wp
       call organic_layer_sums(org, o, env%org_dry_cap, env%org_water, env%org_energy, w_max, env%org_resistance, &
                               dry_depth)
-      env%org_dry_resist = organic_cover_path(dry_depth, 0.0_wp) / vapour_diffusivity(280.0_wp)   ! about 1,200 s/m
+      env%org_dry_resist = organic_cover_path(dry_depth, 0.0_wp, o%litter%theta_sat) / vapour_diffusivity(280.0_wp)
       call organic_surface_balance(env, 0.0_wp, ofx0)
       call check_true('a thin layer relaxes over an hour without passing its surroundings',                         &
                       ofx0%t_surf > 268.0_wp .and. ofx0%t_surf < 286.0_wp, ofx0%t_surf)
@@ -672,6 +712,25 @@ contains
       call check_true('a dried top slows its evaporation', ofx0%w_flux > 0.0_wp .and. ofx0%w_flux < 0.5_wp * ofx%w_flux, &
                       ofx0%w_flux / ofx%w_flux)
       env%org_dry_resist = r_save
+      !---~---
+      !   Held at the water network's rate, evaporation or dew: the layer gives that rate, its energy
+      ! closes, and it takes its root.
+      !---~---
+      env%org_held      = .true.
+      env%org_evap_held = 1.0e-5_wp
+      call organic_surface_balance(env, 0.0_wp, ofx)
+      call check('held: it gives the network''s evaporation', ofx%w_flux, 1.0e-5_wp, 1.0e-18_wp)
+      call check('held: its energy, what its surroundings give it', ofx%energy_in,                                 &
+                 ofx%rad - ofx%h - ofx%le - ofx%g_soil, 1.0e-9_wp)
+      call check('held: the exchange it takes gives back its root', committed_temp(env, ofx), ofx%t_surf, 1.0e-6_wp)
+      env%org_evap_held = -2.0e-6_wp
+      call organic_surface_balance(env, 0.0_wp, ofx)
+      call check('held: dew at the network''s rate', ofx%w_flux, -2.0e-6_wp, 1.0e-18_wp)
+      call check_true('held: dew gives the layer its latent heat', ofx%le < 0.0_wp, ofx%le)
+      call check('held: dew, the exchange it takes gives back its root', committed_temp(env, ofx), ofx%t_surf,     &
+                 1.0e-6_wp)
+      env%org_held      = .false.
+      env%org_evap_held = 0.0_wp
       !--- The ground with the layer: the soil takes its conduction less the soil's own evaporation's heat.
       env%soil_evap = 1.0e-6_wp
       env%snowfac   = 0.0_wp

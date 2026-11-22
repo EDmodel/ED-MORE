@@ -59,7 +59,7 @@ program test_fast_integ_step
    use ed_plant_hydr_lib,       only : tissue_water_to_psi
    use ed_fast_state,           only : derive_cohort_terms
    use ed_patch_state_vars,     only : cas_set_depth
-   use ed_organic_lib,          only : organic_state_t, SLOT_LITTER, organic_split_energy
+   use ed_organic_lib,          only : organic_state_t, SLOT_LITTER, SLOT_MOSS, organic_split_energy
    use ed_fast_integ_types,     only : frozen_t, march_state_t, ensure_output_capacity, WORK_RK45_RESCUE,          &
                                        WORK_INTEG_STEPS, surface_state_t, surface_tend_t
    use ed_test_fast_fixture,    only : fast_column_t, make_fast_column, gather_column, reset_column, step_column,  &
@@ -84,7 +84,11 @@ program test_fast_integ_step
       logical     :: cold_air     = .false.  ! the snowfall's sub-freezing air, without the snowfall
       real(wp)    :: snow_seed    = 0.0_wp   ! [kg/m2] a pack at the start
       real(wp)    :: pond_seed    = 0.0_wp   ! [kg/m2] a pond at the start, liquid at the triple point
-      real(wp)    :: litter_seed  = 0.0_wp   ! [kg/m2] a litter layer's dry matter at the start, half full, at T0
+      real(wp)    :: litter_seed  = 0.0_wp   ! [kg/m2] a litter layer's dry matter at the start, at T0
+      real(wp)    :: litter_theta = 0.06_wp  ! [m3/m3] its water, half what litter holds after drainage
+      real(wp)    :: moss_seed    = 0.0_wp   ! [kg/m2] a moss layer's dry matter at the start, under the litter
+      real(wp)    :: moss_theta   = 0.40_wp  ! [m3/m3] its water
+      real(wp)    :: org_temp     = T0       ! [K] the organic layer's temperature at the start (frozen below t_3ple)
       real(wp)    :: shed         = 0.0_wp   ! [kg/m2/s] the day's turnover shed water
       real(wp)    :: shv_air      = SHV_AIR  ! [kg/kg] the air's humidity
       logical     :: sealed       = .false.  ! a bedrock bottom: no drainage
@@ -179,17 +183,23 @@ contains
          col%dynamic%snow%density(1)     = 250.0_wp
          col%dynamic%snow%nlayer         = 1_ik
       end if
-      if (d%litter_seed > 0.0_wp) then
-         col%dynamic%organic = organic_state_t()
-         col%dynamic%organic%density(SLOT_LITTER) = col%cfg%organic%litter%bulk_density
-         col%dynamic%organic%mass(SLOT_LITTER)    = d%litter_seed
-         col%dynamic%organic%water(SLOT_LITTER)   = 0.5_wp * col%cfg%organic%litter%water_capacity * rho_h2o      &
-                                                    * d%litter_seed / col%cfg%organic%litter%bulk_density
-         call organic_split_energy(col%dynamic%organic,                                                            &
-                                   temp_to_internal_energy(cp_organic * d%litter_seed,                             &
-                                                           col%dynamic%organic%water(SLOT_LITTER), T0, 1.0_wp))
-      else
-         col%dynamic%organic = organic_state_t()
+      col%dynamic%organic = organic_state_t()
+      if (d%litter_seed > 0.0_wp .or. d%moss_seed > 0.0_wp) then
+         associate (org => col%dynamic%organic, o => col%cfg%organic)
+            if (d%litter_seed > 0.0_wp) then
+               org%density(SLOT_LITTER) = o%litter%bulk_density
+               org%mass(SLOT_LITTER)    = d%litter_seed
+               org%water(SLOT_LITTER)   = d%litter_theta * rho_h2o * d%litter_seed / o%litter%bulk_density
+            end if
+            if (d%moss_seed > 0.0_wp) then
+               org%density(SLOT_MOSS) = o%moss%bulk_density
+               org%mass(SLOT_MOSS)    = d%moss_seed
+               org%water(SLOT_MOSS)   = d%moss_theta * rho_h2o * d%moss_seed / o%moss%bulk_density
+            end if
+            call organic_split_energy(org, temp_to_internal_energy(cp_organic * sum(org%mass), sum(org%water),     &
+                                                                   d%org_temp, merge(1.0_wp, 0.0_wp,               &
+                                                                   d%org_temp >= t_3ple)))
+         end associate
       end if
       if (d%pond_seed > 0.0_wp) then
          col%dynamic%soil_water%w_surface        = d%pond_seed
@@ -869,25 +879,59 @@ contains
    end subroutine test_pond_under_pack
 
    !---~---
-   !   A day with a 3 cm litter layer (1.35 kg/m2 dry, half full) and the morning's rain: the
-   ! layer takes the rain before the pond does, and every ledger closes on both schemes with the
-   ! layer's water and energy among the stores.
+   !   Days with an organic layer, its slots nodes of the water network, and the morning's rain;
+   ! every ledger closes on both schemes with the layer's water and energy among the stores:
+   !   - a 3 cm litter layer (1.35 kg/m2 dry) at half the water litter holds after drainage: it
+   !     takes the rain on its way to the soil;
+   !   - the litter over 5 cm of dry moss (2.15 kg/m2): the moss takes water too;
+   !   - both frozen at 268 K: the rain still reaches them and the soil, and the layer warms;
+   !   - a litter slot too thin to be a node (0.7 mm): it keeps its water, and the rain passes it;
+   !   - litter that has just arrived, dry: it takes the rain from nothing.
    !---~---
    subroutine test_litter_day()
       type(day_t) :: d
       integer(ik) :: is
       character(len=7) :: nm
-      real(wp)    :: w0
+      real(wp)    :: w0, t0_org
       print '(a)', 'test_litter_day:'
       do is = 1_ik, size(SCHEMES, kind=ik)
          call use_scheme(SCHEMES(is))
          nm = scheme_name(SCHEMES(is))
          d = day_t(litter_seed = 1.35_wp, rain_pulse = 2.0e-4_wp, hours = 8_ik)
-         w0 = 0.5_wp * 0.12_wp * rho_h2o * 0.03_wp
+         w0 = 0.06_wp * rho_h2o * 0.03_wp
          call march_day(d)
          call check_true(trim(nm)//' litter day: all seven ledgers close', all_ledgers_closed(col%out%report))
          call check_true(trim(nm)//' litter day: the layer took the rain', sum(col%dynamic%organic%water) > w0,   &
                          sum(col%dynamic%organic%water))
+         call check_true(trim(nm)//' litter day: the layer holds no more than it does saturated',                 &
+                         col%dynamic%organic%water(SLOT_LITTER) <= 0.98_wp * rho_h2o * 0.03_wp * (1.0_wp + 1.0e-6_wp))
+         d = day_t(litter_seed = 1.35_wp, moss_seed = 2.15_wp, moss_theta = 0.22_wp, rain_pulse = 2.0e-4_wp,       &
+                   hours = 8_ik)
+         w0 = 0.22_wp * rho_h2o * 0.05_wp
+         call march_day(d)
+         call check_true(trim(nm)//' litter over moss: all seven ledgers close', all_ledgers_closed(col%out%report))
+         call check_true(trim(nm)//' litter over moss: physical', d%physical)
+         call check_true(trim(nm)//' litter over moss: the dry moss took water',                                  &
+                         col%dynamic%organic%water(SLOT_MOSS) > w0, col%dynamic%organic%water(SLOT_MOSS))
+         d = day_t(litter_seed = 1.35_wp, moss_seed = 2.15_wp, rain_pulse = 2.0e-4_wp, hours = 8_ik,               &
+                   org_temp = 268.0_wp)
+         t0_org = d%org_temp
+         call march_day(d)
+         call check_true(trim(nm)//' frozen layer under rain: all seven ledgers close',                          &
+                         all_ledgers_closed(col%out%report))
+         call check_true(trim(nm)//' frozen layer under rain: physical', d%physical)
+         call check_true(trim(nm)//' frozen layer under rain: the layer warms', col%dynamic%organic%temp > t0_org, &
+                         col%dynamic%organic%temp)
+         d = day_t(litter_seed = 0.03_wp, litter_theta = 0.3_wp, rain_pulse = 2.0e-4_wp, hours = 8_ik)
+         w0 = 0.3_wp * rho_h2o * 0.03_wp / 45.0_wp
+         call march_day(d)
+         call check_true(trim(nm)//' thin litter: all seven ledgers close', all_ledgers_closed(col%out%report))
+         call check(trim(nm)//' thin litter: it keeps its water', col%dynamic%organic%water(SLOT_LITTER), w0, 1.0e-9_wp)
+         d = day_t(litter_seed = 0.2_wp, litter_theta = 0.0_wp, rain_pulse = 2.0e-4_wp, hours = 8_ik)
+         call march_day(d)
+         call check_true(trim(nm)//' new dry litter: all seven ledgers close', all_ledgers_closed(col%out%report))
+         call check_true(trim(nm)//' new dry litter: it took the rain', col%dynamic%organic%water(SLOT_LITTER) > 0.0_wp, &
+                         col%dynamic%organic%water(SLOT_LITTER))
       end do
       call use_scheme(INTEG_ESDIRK2)
    end subroutine test_litter_day

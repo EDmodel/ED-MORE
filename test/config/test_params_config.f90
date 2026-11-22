@@ -436,7 +436,8 @@ contains
       print '(a)', 'test_surface_layer:'
       call check_true('litter is on by default', d%litter_on)
       call check('the litter''s default bulk density', d%litter%bulk_density, 45.0_wp, 0.0_wp)
-      call check('the moss''s default water capacity', d%moss%water_capacity, 0.90_wp, 0.0_wp)
+      call check('the moss''s default water at saturation', d%moss%theta_sat, 0.85_wp, 0.0_wp)
+      call check('the litter''s default saturated conductivity', d%litter%ksat, 1.83e-3_wp, 0.0_wp)
       open(newunit=u, file=TOMLFILE, status='replace', action='write')
       write(u,'(a)') '[surface_layer]'
       write(u,'(a)') 'litter_on = false'

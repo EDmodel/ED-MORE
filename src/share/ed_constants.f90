@@ -44,7 +44,6 @@ module ed_constants
    real(wp), parameter :: rho_ice            = 917.0_wp       ! [kg/m3] ice density at 0 degC (Cuffey & Paterson 2010)
    !--- Organic matter: litter and moss.
    real(wp), parameter :: cp_organic         = 1926.0_wp      ! [J/kg/K] dry organic matter's specific heat (Farouki 1986)
-   real(wp), parameter :: organic_porosity   = 0.9_wp         ! [m3/m3] organic matter's porosity (Letts et al. 2000)
    real(wp), parameter :: c2b_organic        = 2.0_wp         ! [kg/kgC] dry litter per carbon, half carbon as c2b_wood
    real(wp), parameter :: t_3ple             = 273.16_wp      ! [K] triple point of water (0.01 degC)
    real(wp), parameter :: cp_liq             = 4186.0_wp      ! [J/kg/K] liquid-water specific heat

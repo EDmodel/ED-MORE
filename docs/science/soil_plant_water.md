@@ -1,6 +1,6 @@
 # Soil and plant water: one network
 
-Each `dt_fast`, one patch's water is solved as a single network: the ponded surface water, every soil layer, and each cohort's wood and leaves are **stores**, joined by **paths** along which water flows down its potential gradient. This page says how the stores and paths are joined and solved, and what the solve conserves. The stores' curves (how much water a store holds at a given potential) and the paths' flow laws are in [soil_biophysics](soil_biophysics.md) (retention curves and the soil's boundary processes) and [plant_hydraulics](plant_hydraulics.md) (tissue pressure–volume curves, xylem vulnerability and root geometry).
+Each `dt_fast`, one patch's water is solved as a single network: the ponded surface water, the organic layer's litter and moss, every soil layer, and each cohort's wood and leaves are **stores**, joined by **paths** along which water flows down its potential gradient. This page says how the stores and paths are joined and solved, and what the solve conserves. The stores' curves (how much water a store holds at a given potential) and the paths' flow laws are in [soil_biophysics](soil_biophysics.md) (retention curves and the soil's boundary processes) and [plant_hydraulics](plant_hydraulics.md) (tissue pressure–volume curves, xylem vulnerability and root geometry).
 
 Potentials are in **MPa** and water in **kg m⁻² of ground**. A soil layer's potential is its matric potential; its total head adds $`\rho g z`$ ($`\rho g`$ = `grav_head`, $z<0$ below the surface).
 
@@ -8,20 +8,25 @@ Potentials are in **MPa** and water in **kg m⁻² of ground**. A soil layer's p
 
 | Store | Holds | Joined to |
 |---|---|---|
-| pond (core node 1) | ponded water, $`W = \rho\,S(h)`$ | rain; soil layer 1 |
-| soil layer $k$ (core node $k+1$) | $`\rho\,\Delta z_k\,\theta_k`$ | layers $k\pm1$; every cohort rooting in it; evaporation (layer 1); drainage (bottom layer) |
+| pond (core node 1) | ponded water, $`W = \rho\,S(h)`$ | rain; the top organic slot, or soil layer 1 |
+| organic slot $j$, litter over moss (core node $1+j$) | $`\rho\,d_j\,\theta_j`$ | the node above (the pond or the litter) and below (the moss or soil layer 1); its own evaporation |
+| soil layer $k$ (core node $1+n_{org}+k$) | $`\rho\,\Delta z_k\,\theta_k`$ | layers $k\pm1$; every cohort rooting in it; evaporation (layer 1); drainage (bottom layer) |
 | a cohort's wood | sapwood + fine-root water of all its plants | its rooted layers; its leaves |
 | a cohort's leaves | leaf water of all its plants | its wood; transpiration |
 
-The soil layers and the pond are the **core**. Each cohort is a **group** of two stores that touch only each other and the core, and the core only through the wood. The linear solve exploits that structure (§3).
+The pond, the organic slots and the soil layers are the **core**. Each cohort is a **group** of two stores that touch only each other and the core, and the core only through the wood. The linear solve exploits that structure (§3). The organic slots are the ground's litter and moss ([surface_organic_layer](surface_organic_layer.md)), each slot at least 1 mm deep (`ORGANIC_NODE_MIN_DEPTH`) a node, top down; $`n_{org}`$ is 0, 1 or 2, set each step, and without a layer the network is the pond and the soil.
 
 The paths:
 
 - **Soil faces** — Darcy flow between adjacent layers, $`q = \rho\,K_{face}\,[(\psi_k-\psi_{k+1})/(\rho g)
   + \Delta z_{node}]/\Delta z_{node}`$, with ED2's thickness-weighted geometric-mean face conductivity
   $`K_k^{1-w}K_{k+1}^{w}`$.
-- **Pond to top layer** — the same law, the pond counting as a saturated layer as thick as the top
-  one ($w=1/2$; [soil_biophysics](soil_biophysics.md) eq. (4)). It is two-way: a top layer pushed past saturation exfiltrates to the pond.
+- **Pond to the node below it** — the same law, the pond counting as a saturated layer as thick as the
+  node below, the top organic slot or the top layer ($w=1/2$; [soil_biophysics](soil_biophysics.md) eq.
+  (4)), at that node's ice impedance. It is two-way: a node pushed past saturation exfiltrates to the pond.
+- **Through the organic slots** — the same law between the litter's and the moss's centres, and between
+  the bottom slot's centre and the top layer's node, each face weighted by the two thicknesses
+  ($`w = d_a/(d_a+d_b)`$). The roots take nothing from the slots.
 - **Root uptake** — from layer $k$ into a cohort's wood, $`u_k = g_k\,K_k\,r\!\left(\psi_k + \rho g z_k -
   \psi_W\right)`$, with $`g_k`$ the cohort's Gardner single-root geometry in the layer
   ([plant_hydraulics](plant_hydraulics.md) §4) and $r$ the ramp below. **No hydraulic
@@ -33,7 +38,12 @@ The paths:
   it, it overstates that flux where the xylem is embolised and the head is a large share of the drop, by a few percent at most on realistic ranges
   ([plant_hydraulics](plant_hydraulics.md) §3).
 - **Boundaries** — rain into the pond; ground evaporation from layer 1 (Philip's pore humidity with
-  the Swenson–Lawrence dry-surface-layer resistance); drainage out of the bottom layer
+  the Swenson–Lawrence dry-surface-layer resistance, and the organic slots' cover); the organic slots'
+  own evaporation, held at the start-of-step surface solve's rate and taken from the litter first, each
+  slot supplying what is left of it while it holds water above its residual (a smooth step over the last
+  1 % of its span, where layer 1's spans 10⁻⁴ of its own: a thin litter can hold less than the held rate
+  takes over a step, and the wider step brings it to rest at a finite suction instead of deep in its
+  curve's dry tail; what the slots cannot supply is not taken), dew joining the litter; drainage out of the bottom layer
   (`[soil].water_bottom_bc`: drainage at a factor of free drainage, 1 to 0 for bedrock, or a head-driven
   two-way aquifer); and each cohort's transpiration out of its leaves.
 
@@ -61,7 +71,8 @@ Each store is solved in the unknown in which its curve is best behaved:
   - **Loss.** Tissue lost to turnover takes its water with it, in proportion to the carbon lost (`shed_turnover_water`): shed leaves take that share of the leaf store, and shed fine roots that share of their own part of the wood store, the fraction $`B_{root}/(B_{sap}+B_{root})`$ of it, so the store keeps its water per unit of carbon. A plant that dies takes all of its own (`shed_mortality_water`). An operator that shrinks a store without touching its water (a rising specific leaf area resorbing leaf carbon, a fusion or split re-deriving the sapwood ring) can leave more than the store can hold; before the fast loop, the water above its saturated content is shed as well (`shed_excess_tissue_water`).
 
   All shed water reaches the ground as `shed_water_rate`, with the enthalpy it left its tissues with (`shed_water_enth`, at the temperature of each tissue it was in or on), and the slow ledger books every amount.
-- The **pond** uses its head $h$, with a depression store of depth $\delta$ = 1 mm (`POND_DEPRESSION_DEPTH`): $S(h) = 0$ for $h\le0$, $h^2/2\delta$ for $0<h<\delta$, $h-\delta/2$ above. An empty pond holds nothing and its head follows the soil below.
+- An **organic slot** is a soil layer to the solver: its unknown and water relations are a soil layer's, on its material's retention curve at its depth $`d = M/\rho_b`$, rebuilt each step (`organic_slot_curve`). Its ice is held over the step as a layer's is, at the organic layer's liquid fraction: the layer has no freezing curve, so below the melting point all its water is ice. A slot holding less liquid than 1 % of the way from residual to saturation (`ORGANIC_SE_START`: matter just arrived, or its water all ice) starts there, its residual lowered for the step: at its residual it would take no water, since the face's geometric-mean conductivity falls faster than its suction grows. Its evaporation stops at its material's residual, or at the water it starts with when that is less.
+- The **pond** uses its head $h$, with a depression store of depth $\delta$ = 1 mm (`POND_DEPRESSION_DEPTH`): $S(h) = 0$ for $h\le0$, $h^2/2\delta$ for $0<h<\delta$, $h-\delta/2$ above. An empty pond holds nothing and its head follows the node below. It starts each step at its water's head, but no higher than the head at which it neither gives nor takes water from the node below: over dry ground a trace pond empties within the step. Over a saturated organic slot, which takes no more water, it starts at its own head.
 
 The read-offs that report a store's potential from its water, for output and at setup, floor a soil layer's $S_e$ at 10⁻⁹ and a tissue's $R$ at 10⁻⁴, so a reported potential stays finite. The solver's curves have no floor; it keeps every $S_e$ and $R$ above zero itself.
 
@@ -75,13 +86,13 @@ Over one `dt_fast`, the network is advanced by **implicit Euler on sub-steps**. 
 
 with $F_i$ the net inflow, by **Newton** in the unknowns $\tau$:
 
-- The Newton matrix $`J = \partial W/\partial\tau\,/h - \partial F/\partial\tau`$ is solved by eliminating each cohort onto the core (`ed_linear_algebra`, a block arrowhead system): each cohort's 2×2 block is inverted in closed form, its rank-one Schur update is folded into the core, and the core (pond and layers) is LU-factored. The cost grows as cohorts × layers, not as (cohorts + layers)³.
+- The Newton matrix $`J = \partial W/\partial\tau\,/h - \partial F/\partial\tau`$ is solved by eliminating each cohort onto the core (`ed_linear_algebra`, a block arrowhead system): each cohort's 2×2 block is inverted in closed form, its rank-one Schur update is folded into the core, and the core (pond, slots and layers) is LU-factored. The cost grows as cohorts × layers, not as (cohorts + layers)³.
 - A Newton step takes no soil layer or tissue more than 90 % of the way to empty, keeps every soil layer's unknown above $`10^{-12}`$ (far below any frozen layer's melt plateau, far above the denormals whose powers the conductivity's slope cannot take), and moves no dry layer's $S_e$ or tissue's $R$ by more than 0.2; an Armijo line search on the sum of squared, scaled imbalances then backtracks it if needed.
 - Newton has converged when every store's imbalance over the sub-step is below 1 % of the step's absolute water tolerance.
 
 What drives the network is held over the step: the rain, each cohort's transpiration demand, each layer's ice and its roots' contact with it (none once it freezes, [plant_hydraulics](plant_hydraulics.md) eq. (14)), and the ground evaporation's boundary (the ground skin's temperature and the canopy air over it). The evaporation terms that depend only on that boundary and the top layer's curve are set once per step (`ground_evaporation_setup`): $`R_vT`$, the saturation humidity over liquid at the ground skin (at the air's pressure), and the dry surface layer's water-content span and vapour diffusivity. An evaluation computes only what moves with the top layer's water.
 
-**Error and sub-steps.** A sub-step's error is implicit Euler's local error, half the change in the inflows across it, filtered twice through $J^{-1}$. The first back-substitution uses the sub-step's first Newton factorisation, at its start, and the second the last one, one step behind the solution, each with its own state's storage slopes: the filter needs the stiff exchanges' scale, not the exact matrix, and no factorisation is added. Filtering at both ends catches an exchange that is stiff at only one of them. A tissue refilling through its roots is the case met: its one-way uptake shuts as the tissue catches up with the soil, so at the end the matrix no longer sees the exchange that just settled, and filtered through that matrix alone the refill read as error at every sub-step length. The filter leaves slow modes alone and divides a stiff, already-settled exchange's error by its stiffness squared, which is what step doubling would measure, at a third of the cost. A sub-step whose start already balances takes no Newton iteration and has no error. Each store's error is weighed against $`\text{atol}\cdot\text{scale} + \text{rtol}\cdot|W|`$, with `[fast].water_atol` and `[fast].rtol` read as water content for soil layers and the pond and as relative water content for tissues. A sub-step that fails Newton is cut to a quarter; one over tolerance is cut by the usual order-one controller, which also grows the next one. Every step starts with one sub-step of `dt_fast`; most need no more.
+**Error and sub-steps.** A sub-step's error is implicit Euler's local error, half the change in the inflows across it, filtered twice through $J^{-1}$. The first back-substitution uses the sub-step's first Newton factorisation, at its start, and the second the last one, one step behind the solution, each with its own state's storage slopes: the filter needs the stiff exchanges' scale, not the exact matrix, and no factorisation is added. Filtering at both ends catches an exchange that is stiff at only one of them. A tissue refilling through its roots is the case met: its one-way uptake shuts as the tissue catches up with the soil, so at the end the matrix no longer sees the exchange that just settled, and filtered through that matrix alone the refill read as error at every sub-step length. The filter leaves slow modes alone and divides a stiff, already-settled exchange's error by its stiffness squared, which is what step doubling would measure, at a third of the cost. A sub-step whose start already balances takes no Newton iteration and has no error. Each store's error is weighed against $`\text{atol}\cdot\text{scale} + \text{rtol}\cdot|W|`$, with `[fast].water_atol` and `[fast].rtol` read as water content for soil layers and the pond and as relative water content for tissues; an organic slot's scale is its own depth's water, but no less than the top layer's. A sub-step that fails Newton is cut to a quarter; one over tolerance is cut by the usual order-one controller, which also grows the next one. Every step starts with one sub-step of `dt_fast`; most need no more.
 
 **Node classes.** A core node (the pond, an organic slot, a soil layer) can be far quicker than the sub-step, or out of the solve's sight. At each sub-step's start, from its evaluation, each core node's storage $`S = |\partial W/\partial\tau|`$ is set against the flow part of its Jacobian column, $`L = \sum_j |\partial F_j/\partial\tau|`$: $`S/L`$ is the time it takes to relax to its neighbours, whatever the unknown's scale. A link is *seen* when a whole unit of either end's unknown moves either end's balance by the convergence tolerance, each balance weighed as the residual is weighed.
 
@@ -115,12 +126,21 @@ The energy stages then **hold each cohort's transpiration at the network's** for
 The network moves water; the soil-energy solve and the tissue stores carry its enthalpy:
 
 - Water crossing a soil face, the pond face or the base carries the liquid enthalpy of the node it
-  leaves; water rising from an aquifer enters at the bottom layer's temperature.
+  leaves; water rising from an aquifer enters at the bottom layer's temperature. An organic slot's
+  water leaves at the organic layer's temperature, and the top layer's top face carries the bottom
+  slot's water at that temperature, or the top layer's when it flows up.
 - Root uptake leaves each layer at that layer's own temperature (`root_heat`, per layer).
 - A tissue's energy is its state ([vegetation_energy_dynamics](vegetation_energy_dynamics.md) eq. (9)): the water it gains or loses carries its liquid enthalpy at the tissue's start-of-step temperature (eq. (5) below), and arriving water heats it only by its temperature difference. The wood's capacity counts the whole wood store's water, fine roots included ([vegetation_energy_dynamics](vegetation_energy_dynamics.md) eq. (8)), at the wood's temperature, which is the temperature eq. (4) moves all of the store's water at.
 - The pond carries its own enthalpy through each sub-step: rain joins it first, what infiltrates
-  leaves at the mixture's temperature, water the top layer pushes up arrives at that layer's
-  temperature, and the spill leaves at the pond's.
+  leaves at the mixture's temperature, water the node below pushes up arrives at that node's
+  temperature (the organic layer's, or the top layer's), and the spill leaves at the pond's.
+- The organic slots are one thermal node ([surface_organic_layer](surface_organic_layer.md), Heat).
+  After the network's step they take what it moved, operator-split from the energy march: each
+  slot's water, and the enthalpy its flows carried (in from the pond at the pond's mixture, out to
+  the pond and the top layer at the layer's temperature, up from the top layer at that layer's),
+  shared among the slots at the layer's new temperature. Each slot keeps the water it evaporated
+  until the step's update, which takes it with the march's energy, so the march balances the layer
+  with the water it held; the march holds the network's evaporation rate.
 
 **The plant water's heat.** With sapflow $s$, total root uptake $U=\sum_k U_k$ and transpiration $E$
 (all per ground area per second), $u(T)$ the liquid internal energy (`internal_energy_liquid`),
@@ -171,7 +191,7 @@ Fixed in the code: the uptake ramp's width (10⁻² MPa), the transpiration corn
 
 | Concept | Routine |
 |---|---|
-| the records: drive, evaluation, state, flows, workspace | `ed_fast_integ_types`: `water_drive_t`, `water_tend_t`, `water_state_t`, `water_flows_t`, `water_work_t`, `ensure_water_capacity` |
+| the records: drive, evaluation, state, flows, workspace | `ed_fast_integ_types`: `water_drive_t` (the organic slots: `water_organic_t`), `water_tend_t`, `water_state_t`, `water_flows_t`, `water_work_t`, `ensure_water_capacity` |
 | the state from the model's, and the flows, inflows and Jacobian at one state | `ed_fast_integ_derivs`: `set_water_state`, `water_derivs` |
 | the step: sub-steps, Newton, the Newton matrix, commit | `ed_fast_integ_backward_euler`: `water_step` (and its sub-step routines) |
 | the node classes: fast nodes, inert groups, a node's own solve, kinks | `ed_fast_integ_backward_euler`: `classify_fast`, `inert_groups`, `seen_links`, `solve_node`, `chop_at_kinks`; `ed_fast_integ_derivs`: `node_balance` |
@@ -183,7 +203,8 @@ Fixed in the code: the uptake ramp's width (10⁻² MPa), the transpiration corn
 | the leaf energy balance at held transpiration | `ed_plant_energy`: `transp_held` and `transp_net` of `plant_energy_env_t` |
 | plant flows | `ed_plant_hydraulics`: `root_water_uptake`, `root_water_uptake_profile`, `xylem_sapflow` (through the Kirchhoff mean, the PFT's table from `ed_pft_derive`) and the leaves' supply limit `supply_limited_transpiration`; their conductances `rhizosphere_conductance` and `xylem_max_conductance` (`ed_plant_hydr_lib`); the flows' rounded corner `smooth_max0` (`ed_numerics`) |
 | soil flows | `ed_soil_water`: `soil_water_flux`, `ground_evaporation_rate` (its per-step terms from `ground_evaporation_setup`), `bottom_flux` |
-| one patch's step | `ed_fast_integ_frozen`: `ground_inflow` (the drive; the pond's inflow is `ed_soil_water`'s `pond_inflow`), then `fast_step` calls `water_step` and `record_water_flows` |
+| one patch's step | `ed_fast_integ_frozen`: `ground_inflow` (the drive; the pond's inflow is `ed_soil_water`'s `pond_inflow`) and `organic_network_drive` (the slots), then `fast_step` calls `water_step` and `record_water_flows`, which ends with `commit_organic_water` |
+| an organic slot's curve and its evaporation's floor | `ed_organic_lib`: `organic_slot_curve`, `organic_evap_floor` |
 | plant water over the step | `ed_fast_integ_backward_euler`: `advance_plant_water` (ESDIRK2; constant rates, RK45 integrates the same rates in its stages) |
 
 ## References

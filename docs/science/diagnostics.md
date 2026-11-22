@@ -457,14 +457,15 @@ P + S - \mathrm{ET} - R - O_v - \Delta W = -\epsilon_W
   `mean_runoff_surf_py` and `mean_drainage_py`);
 - $`O_v`$, the water on the leaves' and wood's surfaces above their capacity, which the update removes
   (`mean_veg_surface_overflow_py`);
-- $`\Delta W`$, the gain of every store: soil, pond, plants, the leaves' and wood's surface water, snow
-  pack and canopy-air vapour
+- $`\Delta W`$, the gain of every store: soil, pond, the organic layer, plants, the leaves' and wood's
+  surface water, snow pack and canopy-air vapour
   (`mean_water_store_gain_py`);
 - $`\epsilon_W`$, the residual (`mean_resid_water_py`).
 
 The water's paths inside the column are written too, though they cancel in the budget: interception
 and throughfall (`mean_intercept_py`, `mean_throughfall_py`, which add up to the precipitation),
-infiltration, snowmelt and sublimation (`mean_infiltration_py`, `mean_snowmelt_py`,
+infiltration (the pond's into the ground: into the organic layer's top slot where there is one, else
+into the top soil layer), snowmelt and sublimation (`mean_infiltration_py`, `mean_snowmelt_py`,
 `mean_sublimation_py`), and the stores themselves (`mean_veg_surface_water_py`, `mean_soil_water_total_py`,
 `mean_plant_water_py`) with the leaves' wet fraction (`mean_wet_fraction_py`, per cohort
 `mean_wet_fraction_co`).

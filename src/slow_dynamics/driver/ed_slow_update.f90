@@ -15,10 +15,10 @@
 module ed_slow_update
    use ed_kinds,                only : wp, ik
    use ed_constants,            only : tiny_num, lnexp_min, lnexp_max, almost_one, yr_sec, rho_air_ref, umol_2_kgc, &
-                                       rho_h2o, cp_organic
+                                       cp_organic
    use ed_therm_lib,            only : temp_to_internal_energy
    use ed_organic_lib,          only : organic_params_t, SLOT_LITTER, organic_present, organic_diagnose,     &
-                                       organic_split_energy
+                                       organic_split_energy, organic_slot_capacity
    use ed_numerics,             only : equal_height_layers, conserved, pair_mean
    use ed_cohort_state_vars,    only : cohort_block, cohort_deriv_block, set_cohort_size_from_carbon,    &
                                        hold_cohort_tissue_temps, reorder_cohort_block,                   &
@@ -287,8 +287,8 @@ contains
    !   The litter slot of each patch's organic layer follows its above-ground metabolic litter pool
    ! (docs/science/surface_organic_layer.md): its dry matter set to litter_mass, entering or
    ! leaving at the layer's temperature (t_new for a layer the litter starts), and the water
-   ! beyond its new capacity, or all of it when the litter is gone, passed to the pond with its
-   ! energy. heat returns each patch's matter energy, which the caller declares.
+   ! beyond what its new depth holds saturated, or all of it when the litter is gone, passed to
+   ! the pond with its energy. heat returns each patch's matter energy, which the caller declares.
    !---~---
    subroutine follow_litter_pools(patch, organic, litter_mass, t_new, heat)
       type(patch_block),      intent(inout) :: patch
@@ -310,8 +310,7 @@ contains
             org%mass(SLOT_LITTER)    = max(0.0_wp, litter_mass(ip))
             org%density(SLOT_LITTER) = merge(organic%litter%bulk_density, 0.0_wp, org%mass(SLOT_LITTER) > 0.0_wp)
             cap    = 0.0_wp
-            if (org%mass(SLOT_LITTER) > 0.0_wp)                                                          &
-               cap = organic%litter%water_capacity * rho_h2o * org%mass(SLOT_LITTER) / org%density(SLOT_LITTER)
+            if (org%mass(SLOT_LITTER) > 0.0_wp) cap = organic_slot_capacity(organic, org, SLOT_LITTER)
             excess = max(0.0_wp, org%water(SLOT_LITTER) - cap)
             e_excess = 0.0_wp
             if (excess > 0.0_wp) then

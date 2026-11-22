@@ -61,7 +61,8 @@ module ed_surface
       !   The organic layer above the soil (docs/science/surface_organic_layer.md), one node:
       ! its dry heat capacity, water, energy, thermal resistance and its vapour's resistance
       ! through its dried top at the step's start, and its emissivity, the ground's. With it,
-      ! rnet_soil is its net radiation.
+      ! rnet_soil is its net radiation. Once the water network has taken the layer's own
+      ! evaporation (org_held), the balance holds that rate, as the soil's is held.
       !---~---
       logical  :: has_org        = .false.
       real(wp) :: org_dry_cap    = 0.0_wp               ! [J/m2/K]
@@ -69,6 +70,8 @@ module ed_surface
       real(wp) :: org_energy     = 0.0_wp               ! [J/m2]
       real(wp) :: org_dry_resist = 0.0_wp               ! [s/m] its vapour through its dried top (organic_layer_sums)
       real(wp) :: org_resistance = 0.0_wp               ! [m2 K/W] top to bottom
+      logical  :: org_held       = .false.              ! its evaporation is the water network's
+      real(wp) :: org_evap_held  = 0.0_wp               ! [kg/m2/s] that rate, per unit ground area (< 0: dew)
       real(wp) :: ground_emiss   = 0.95_wp              ! [-]
       type(snow_state_t)  :: pack                       ! the pack after the step's precipitation and drainage
       real(wp) :: snowfac    = 0.0_wp                   ! [-] its Niu-Yang cover fraction (0 without a pack)
@@ -706,17 +709,24 @@ contains
       !---~---
       !   Evaporation and dew alike, from the water below its dried top: a full layer exchanges as
       ! open water, a drying one through the dry top's resistance, an empty one not at all (w_cap).
+      ! Held at the water network's rate once it has taken it from the slots.
       !---~---
-      g_vap = 1.0_wp / (1.0_wp / max(env%ggnet, tiny_num) + env%org_dry_resist)
-      w_n   = g_vap * env%rho_air * (sat_specific_humidity(t_n, env%press, fliq_n) - env%can_shv)
-      dw_dt = g_vap * env%rho_air * sat_specific_humidity_temp_deriv(t_n, env%press, fliq_n)
+      if (env%org_held) then
+         w_n = 0.0_wp
+         if (af > 0.0_wp) w_n = env%org_evap_held / af
+         dw_dt = 0.0_wp
+      else
+         g_vap = 1.0_wp / (1.0_wp / max(env%ggnet, tiny_num) + env%org_dry_resist)
+         w_n   = g_vap * env%rho_air * (sat_specific_humidity(t_n, env%press, fliq_n) - env%can_shv)
+         dw_dt = g_vap * env%rho_air * sat_specific_humidity_temp_deriv(t_n, env%press, fliq_n)
+      end if
       demit_dt = 4.0_wp * env%ground_emiss * stefan_boltzmann * t_n ** 3
       rad_n = env%rnet_soil                                      ! at T^n: its own emission included
       u_w   = water_specific_energy(t_n, fliq_n)                ! from the datum: a trace of water stays exact
       l_vap = enthalpy_vapor(t_n) - u_w
       g_n   = g_os * (t_n - env%t_soil_top)
       w_cap = huge(1.0_wp)
-      if (af > 0.0_wp) w_cap = w / (dt * af)                    ! the evaporation that empties the layer over dt
+      if (af > 0.0_wp .and. .not. env%org_held) w_cap = w / (dt * af)   ! the evaporation that empties it over dt
 
       !---~---
       !   Solve e(T) = E^n + dt (r0 + drdt (T - T^n)): on the plateau first, else on the ice or the
