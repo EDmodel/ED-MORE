@@ -11,34 +11,52 @@ module ed_organic_lib
    use ed_kinds,     only : wp, ik
    use ed_constants, only : n_organic_slot, cp_organic, rho_h2o, t_3ple
    use ed_therm_lib, only : internal_energy_to_temp, temp_to_internal_energy
+   use ed_soil_hydr_lib, only : soil_layer_curve_t, build_soil_layer_curve, SOIL_RETENTION_VG, SOIL_RETENTION_CAMPBELL
    implicit none
    private
 
    public :: organic_material_t, organic_params_t, organic_state_t, SLOT_LITTER, SLOT_MOSS
    public :: organic_present, organic_slot_material, organic_layer_sums, organic_diagnose, organic_split_energy
-   public :: organic_take_water, organic_take_exchange, organic_spill
+   public :: organic_take_water, organic_take_exchange, organic_spill, organic_slot_curve
 
    !---~---
    !   One organic material (docs/science/surface_organic_layer.md): its dry mass per volume,
-   ! the water it holds per volume, and its conductivity dry and at that capacity.
+   ! the water it holds per volume, its conductivity dry and at that capacity, and its water
+   ! retention and conductivity as a soil layer's (ed_soil_hydr_lib): the curve's form, the
+   ! water at saturation and at residual, its two parameters and the saturated conductivity.
    !---~---
    type :: organic_material_t
-      real(wp) :: bulk_density   = 45.0_wp      ! [kg/m3] dry mass per volume
-      real(wp) :: water_capacity = 0.12_wp      ! [m3/m3] water held per volume
-      real(wp) :: k_dry          = 0.10_wp      ! [W/m/K] thermal conductivity, dry
-      real(wp) :: k_wet          = 0.1036_wp    ! [W/m/K] thermal conductivity at its water capacity
+      real(wp)    :: bulk_density   = 45.0_wp      ! [kg/m3] dry mass per volume
+      real(wp)    :: water_capacity = 0.12_wp      ! [m3/m3] water held per volume
+      real(wp)    :: k_dry          = 0.10_wp      ! [W/m/K] thermal conductivity, dry
+      real(wp)    :: k_wet          = 0.1036_wp    ! [W/m/K] thermal conductivity at its water capacity
+      integer(ik) :: retention      = SOIL_RETENTION_CAMPBELL   ! SOIL_RETENTION_VG or SOIL_RETENTION_CAMPBELL
+      real(wp)    :: theta_sat      = 0.98_wp      ! [m3/m3] water at saturation
+      real(wp)    :: theta_res      = 0.01_wp      ! [m3/m3] residual water
+      real(wp)    :: par_a          = -0.0103_wp   ! vG alpha [1/m], or Campbell's air-entry head [m, < 0]
+      real(wp)    :: par_n          = 2.3_wp       ! vG n [-], or Campbell's b [-]
+      real(wp)    :: ksat           = 1.83e-3_wp   ! [m/s] saturated conductivity
    end type organic_material_t
 
    !---~---
    !   The [surface_layer] block: the ground's organic layer, leaf litter over moss. The litter
-   ! is the above-ground metabolic litter pool's dry matter (Napoly et al. 2017's forest-floor values);
-   ! the moss is a site's [soil].moss_depth, at the MAT tundra's top organic 5 cm (ARC LTER
-   ! knb-lter-arc.20129.1) and Chadburn et al. (2015)'s porosity and conductivities.
+   ! is the above-ground metabolic litter pool's dry matter (Napoly et al. 2017's forest-floor values),
+   ! retaining and conducting water as Letts et al. (2000)'s surface moss, the curve CLASS gives its
+   ! litter and moss (Wu et al. 2016); the moss is a site's [soil].moss_depth, at the MAT tundra's
+   ! top organic 5 cm (ARC LTER knb-lter-arc.20129.1), Chadburn et al. (2015)'s porosity and
+   ! conductivities, Zhang et al. (2010)'s retention of surface moss and O'Connor et al. (2020)'s
+   ! saturated conductivity of the Arctic acrotelm.
    !---~---
    type :: organic_params_t
       logical :: litter_on = .true.                                                ! the litter slot
-      type(organic_material_t) :: litter = organic_material_t(45.0_wp, 0.12_wp, 0.10_wp, 0.1036_wp)
-      type(organic_material_t) :: moss   = organic_material_t(43.0_wp, 0.90_wp, 0.06_wp, 0.50_wp)
+      type(organic_material_t) :: litter = organic_material_t(bulk_density=45.0_wp, water_capacity=0.12_wp,      &
+                                              k_dry=0.10_wp, k_wet=0.1036_wp, retention=SOIL_RETENTION_CAMPBELL,  &
+                                              theta_sat=0.98_wp, theta_res=0.01_wp, par_a=-0.0103_wp,             &
+                                              par_n=2.3_wp, ksat=1.83e-3_wp)
+      type(organic_material_t) :: moss   = organic_material_t(bulk_density=43.0_wp, water_capacity=0.90_wp,      &
+                                              k_dry=0.06_wp, k_wet=0.50_wp, retention=SOIL_RETENTION_VG,          &
+                                              theta_sat=0.85_wp, theta_res=0.18_wp, par_a=50.0_wp,                &
+                                              par_n=1.45_wp, ksat=1.3e-3_wp)
    end type organic_params_t
 
    !---~---
@@ -118,6 +136,27 @@ contains
          dry_depth  = dry_depth + depth * (1.0_wp - fill)
       end do
    end subroutine organic_layer_sums
+
+   !---~---
+   !   Slot k's water retention and conductivity, as a soil layer's (build_soil_layer_curve), its
+   ! depth its matter over its bulk density. Its residual is no more than the liquid it holds: a
+   ! slot whose matter has just arrived or grown, or whose water is ice (the layer has no
+   ! freezing curve, so below the melting point all of it is), starts on its curve where it is
+   ! rather than at a residual it does not hold.
+   !---~---
+   pure function organic_slot_curve(params, org, k) result(c)
+      type(organic_params_t), intent(in) :: params
+      type(organic_state_t),  intent(in) :: org
+      integer(ik),            intent(in) :: k
+      type(soil_layer_curve_t)           :: c
+      type(organic_material_t) :: m
+      real(wp) :: depth, theta_liq
+      m         = organic_slot_material(params, k)
+      depth     = org%mass(k) / org%density(k)
+      theta_liq = org%fliq * org%water(k) / (rho_h2o * depth)
+      call build_soil_layer_curve(m%retention, m%theta_sat, max(0.0_wp, min(m%theta_res, theta_liq)), m%par_a,   &
+                                  m%par_n, m%ksat, depth, c)
+   end function organic_slot_curve
 
    !--- The layer's temperature and liquid fraction, from its summed energy, water and dry heat capacity.
    pure subroutine organic_diagnose(org)

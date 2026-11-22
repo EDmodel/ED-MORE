@@ -417,18 +417,32 @@ contains
    end subroutine check_soil
 
    !---~---
-   !   An organic material: a positive bulk density and conductivities, and a water capacity in
-   ! (0, organic_porosity], the pores' share of the volume.
+   !   An organic material: a positive bulk density and conductivities, a water capacity in
+   ! (0, organic_porosity], the pores' share of the volume, and a retention curve as a soil
+   ! layer's: 0 <= theta_res < theta_sat < 1, a positive saturated conductivity, and van
+   ! Genuchten's alpha > 0 and n > 1, or Campbell's air-entry head < 0 and b > 0.
    !---~---
    subroutine check_material(name, m)
       character(len=*),         intent(in) :: name
       type(organic_material_t), intent(in) :: m
-      if (.not. (m%bulk_density > 0.0_wp))                                                           &
-         error stop TAG//'surface_layer.'//name//'_bulk_density must be > 0 [kg/m3]'
+      character(len=:), allocatable :: pre
+      pre = TAG//'surface_layer.'//name//'_'
+      if (.not. (m%bulk_density > 0.0_wp)) error stop pre//'bulk_density must be > 0 [kg/m3]'
       if (.not. (m%water_capacity > 0.0_wp .and. m%water_capacity <= organic_porosity))              &
-         error stop TAG//'surface_layer.'//name//'_water_capacity must lie in (0, 0.9] m3/m3, the pores'
-      if (.not. (m%k_dry > 0.0_wp .and. m%k_wet > 0.0_wp))                                            &
-         error stop TAG//'surface_layer.'//name//'_k_dry and _k_wet must be > 0 [W/m/K]'
+         error stop pre//'water_capacity must lie in (0, 0.9] m3/m3, the pores'
+      if (.not. (m%k_dry > 0.0_wp .and. m%k_wet > 0.0_wp)) error stop pre//'k_dry and _k_wet must be > 0 [W/m/K]'
+      if (.not. (m%theta_sat > 0.0_wp .and. m%theta_sat < 1.0_wp))                                    &
+         error stop pre//'theta_sat must lie in (0, 1) m3/m3'
+      if (.not. (m%theta_res >= 0.0_wp .and. m%theta_res < m%theta_sat))                              &
+         error stop pre//'theta_res must lie in [0, theta_sat) m3/m3'
+      if (.not. (m%ksat > 0.0_wp)) error stop pre//'ksat must be > 0 [m/s]'
+      if (m%retention == SOIL_RETENTION_VG) then
+         if (.not. (m%par_a > 0.0_wp)) error stop pre//'curve_par_a (van Genuchten alpha, 1/m) must be > 0'
+         if (.not. (m%par_n > 1.0_wp)) error stop pre//'curve_par_n must exceed 1 for van Genuchten'
+      else
+         if (.not. (m%par_a < 0.0_wp)) error stop pre//'curve_par_a (Campbell psi_sat, m) must be < 0'
+         if (.not. (m%par_n > 0.0_wp)) error stop pre//'curve_par_n (Campbell b) must be > 0'
+      end if
    end subroutine check_material
 
    !---~---

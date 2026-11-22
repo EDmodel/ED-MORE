@@ -491,15 +491,29 @@ contains
    subroutine load_organic_params(tm, o)
       type(toml_table_t),     intent(in)    :: tm
       type(organic_params_t), intent(inout) :: o
+      character(len=NAME_LEN), parameter :: RETENTION(2) = [character(len=NAME_LEN) :: 'van_genuchten', 'campbell']
+      integer(ik),             parameter :: RETENTION_CODE(2) = [SOIL_RETENTION_VG, SOIL_RETENTION_CAMPBELL]
       o%litter_on = toml_logical(tm, 'surface_layer.litter_on', o%litter_on)
       o%litter%bulk_density   = toml_real(tm, 'surface_layer.litter_bulk_density',   o%litter%bulk_density)
       o%litter%water_capacity = toml_real(tm, 'surface_layer.litter_water_capacity', o%litter%water_capacity)
       o%litter%k_dry          = toml_real(tm, 'surface_layer.litter_k_dry',          o%litter%k_dry)
       o%litter%k_wet          = toml_real(tm, 'surface_layer.litter_k_wet',          o%litter%k_wet)
+      call opt_choice(tm, 'surface_layer.litter_retention', RETENTION, RETENTION_CODE, o%litter%retention)
+      o%litter%theta_sat      = toml_real(tm, 'surface_layer.litter_theta_sat',      o%litter%theta_sat)
+      o%litter%theta_res      = toml_real(tm, 'surface_layer.litter_theta_res',      o%litter%theta_res)
+      o%litter%par_a          = toml_real(tm, 'surface_layer.litter_curve_par_a',    o%litter%par_a)
+      o%litter%par_n          = toml_real(tm, 'surface_layer.litter_curve_par_n',    o%litter%par_n)
+      o%litter%ksat           = toml_real(tm, 'surface_layer.litter_ksat',           o%litter%ksat)
       o%moss%bulk_density     = toml_real(tm, 'surface_layer.moss_bulk_density',     o%moss%bulk_density)
       o%moss%water_capacity   = toml_real(tm, 'surface_layer.moss_water_capacity',   o%moss%water_capacity)
       o%moss%k_dry            = toml_real(tm, 'surface_layer.moss_k_dry',            o%moss%k_dry)
       o%moss%k_wet            = toml_real(tm, 'surface_layer.moss_k_wet',            o%moss%k_wet)
+      call opt_choice(tm, 'surface_layer.moss_retention', RETENTION, RETENTION_CODE, o%moss%retention)
+      o%moss%theta_sat        = toml_real(tm, 'surface_layer.moss_theta_sat',        o%moss%theta_sat)
+      o%moss%theta_res        = toml_real(tm, 'surface_layer.moss_theta_res',        o%moss%theta_res)
+      o%moss%par_a            = toml_real(tm, 'surface_layer.moss_curve_par_a',      o%moss%par_a)
+      o%moss%par_n            = toml_real(tm, 'surface_layer.moss_curve_par_n',      o%moss%par_n)
+      o%moss%ksat             = toml_real(tm, 'surface_layer.moss_ksat',             o%moss%ksat)
    end subroutine load_organic_params
 
    subroutine load_snow_params(tm, s)                   ! [snow] -> snow physical params
