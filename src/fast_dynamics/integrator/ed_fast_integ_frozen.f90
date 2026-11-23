@@ -43,7 +43,8 @@ module ed_fast_integ_frozen
    use ed_biophysics_params, only : aero_params_t
    use ed_patch_state_vars, only : cas_state_t, soil_carbon_state_t, cas_capacities, cas_capacity_change,          &
                                    porous_layers_present, porous_layers_sums, porous_layer_curve, porous_layers_spill, &
-                                   porous_layers_split_energy, porous_water, porous_energy, ground_top_temp
+                                   porous_layers_split_energy, porous_water, porous_energy, ground_top_temp,      &
+                                   ground_store_t
    use ed_ground_surface_params, only : ground_surface_layer_params_t, porous_material_t, N_POROUS
    use ed_biogeochem_params, only : N_SOIL_POOL
    use ed_canopy_aerodynamics, only : canopy_aerodynamics, cas_atm_conductances
@@ -97,7 +98,7 @@ contains
       real(wp)    :: throughfall   ! [kg/m2/s] the rain and snow through the canopy
       real(wp)    :: w_pond, e_pond   ! [kg/m2], [J/m2] the pond the step starts from, after the snow stage
       real(wp)    :: w_max            ! [kg/m2] the water the organic layer holds saturated
-      real(wp)    :: w_spill, e_spill ! [kg/m2], [J/m2] the water a slot held above saturation, to the pond
+      type(ground_store_t) :: pond    ! [kg/m2], [J/m2] the pond: the stage's moves and the porous layers' spill
       real(wp)    :: dry_depth        ! [m] the organic layer's dried top
       real(wp)    :: t_surface        ! [K] the ground's surface: the organic layer's, else the top soil node's
       real(wp)    :: t_soil_top       ! [K] the top soil node's
@@ -171,10 +172,10 @@ contains
       frozen%ground%pack   = dynamic%ground_surface%water
       frozen%ground%params = cfg%ground_surface%water
       frozen%ground%dt     = dt_fast
-      w_pond = dynamic%soil_water%w_surface
-      e_pond = dynamic%soil_water%w_surface_energy
+      pond%water  = dynamic%soil_water%w_surface
+      pond%energy = dynamic%soil_water%w_surface_energy
       call prepare_snow_stage(forcing%snowfall, forcing%rainfall, forcing%air_temp, cfg%aero%soil_rough,          &
-                              frozen%ground, frozen%snow, w_pond, e_pond)
+                              frozen%ground, frozen%snow, pond)
       out%report%exports%water_layer_cover = frozen%ground%snowfac
       !---~---
       !   The organic layer (docs/science/surface_organic_layer.md): its slots are nodes of the water
@@ -183,9 +184,9 @@ contains
       ! pond first, the water then on the ground being theirs and the pond's together.
       !---~---
       frozen%porous = dynamic%ground_surface%porous
-      call porous_layers_spill(frozen%porous, cfg%ground_surface, w_spill, e_spill)
-      w_pond = w_pond + w_spill
-      e_pond = e_pond + e_spill
+      call porous_layers_spill(frozen%porous, cfg%ground_surface, pond)
+      w_pond = pond%water
+      e_pond = pond%energy
       frozen%org_water0  = porous_water(frozen%porous)
       frozen%org_energy0 = porous_energy(frozen%porous)
       !---~---

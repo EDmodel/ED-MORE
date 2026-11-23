@@ -34,7 +34,7 @@ module ed_patch_state_vars
 
    public :: cas_state_t, soil_water_state_t, soil_energy_state_t, soil_carbon_state_t
    public :: ground_store_t, water_layer_state_t, porous_layer_state_t, ground_surface_state_t
-   public :: ground_store_present, ground_surface_store, ground_top_temp
+   public :: ground_store_present, ground_surface_store, ground_top_temp, store_move, store_take_exchange
    public :: porous_layers_present, porous_layers_sums, porous_layers_diagnose, porous_layers_split_energy
    public :: porous_layers_take_exchange, porous_layer_curve, porous_layers_spill, porous_water, porous_energy
    public :: decomp_xi_t, litter_input_t
@@ -442,6 +442,43 @@ contains
    end function ground_store_present
 
    !---~---
+   !   Move water [kg/m2] and the energy it carries [J/m2] from one store to another, a matched
+   ! pair: what the one gives the other takes, so every ledger that holds both sees no change. A
+   ! store asked for more water than it holds beyond round-off stops the run; within round-off it
+   ! gives what it holds.
+   !---~---
+   pure subroutine store_move(from, to, water, energy)
+      class(ground_store_t), intent(inout) :: from, to
+      real(wp),              intent(in)    :: water, energy
+      real(wp) :: moved
+      moved = water
+      if (water > from%water) then
+         if (.not. within_roundoff(from%water - water, from%water + water))                                   &
+            error stop 'store_move: a store gave more water than it held'
+         moved = from%water
+      end if
+      from%water  = from%water  - moved
+      from%energy = from%energy - energy
+      to%water    = to%water    + moved
+      to%energy   = to%energy   + energy
+   end subroutine store_move
+
+   !---~---
+   !   A store takes its exchange with the canopy air over a step: the energy it gained [J/m2], and
+   ! the vapour it gave [kg/m2] (deposition, negative, adds to it). A store that gave more vapour
+   ! than it held beyond round-off stops the run; within round-off it is left with none.
+   !---~---
+   pure subroutine store_take_exchange(store, energy_in, vapour_out)
+      class(ground_store_t), intent(inout) :: store
+      real(wp),              intent(in)    :: energy_in, vapour_out
+      if (.not. (store%water - vapour_out >= 0.0_wp                                                            &
+                 .or. within_roundoff(store%water - vapour_out, store%water + abs(vapour_out))))                &
+         error stop 'store_take_exchange: a store gave the canopy air more vapour than it held'
+      store%energy = store%energy + energy_in
+      store%water  = max(0.0_wp, store%water - vapour_out)   ! clamp-ok: round-off (asserted)
+   end subroutine store_take_exchange
+
+   !---~---
    !   The ground's surface layers' water [kg/m2] and energy [J/m2] together, the stores the fast,
    ! slow and restart ledgers read: the water layer's and the porous layers', top down.
    !---~---
@@ -584,29 +621,26 @@ contains
       type(porous_layer_state_t), intent(inout) :: porous(:)
       real(wp),                   intent(in)    :: energy_amount             ! [J/m2] in
       real(wp),                   intent(in)    :: vapour_amount(N_POROUS)   ! [kg/m2] out of each layer
+      real(wp)    :: total
       integer(ik) :: k
       if (.not. porous_layers_present(porous)) return
+      total = porous_energy(porous) + energy_amount
       do k = 1_ik, N_POROUS
-         if (.not. (porous(k)%water - vapour_amount(k) >= 0.0_wp                                                  &
-                    .or. within_roundoff(porous(k)%water - vapour_amount(k), porous(k)%water + abs(vapour_amount(k))))) &
-            error stop 'porous_layers_take_exchange: a layer gave the canopy air more vapour than it held'
-         porous(k)%water = max(0.0_wp, porous(k)%water - vapour_amount(k))   ! clamp-ok: round-off (asserted)
+         call store_take_exchange(porous(k), 0.0_wp, vapour_amount(k))
       end do
-      call porous_layers_split_energy(porous, porous_energy(porous) + energy_amount)
+      call porous_layers_split_energy(porous, total)
    end subroutine porous_layers_take_exchange
 
    !---~---
    !   The water a porous layer holds above saturation spills: dew or frost on a saturated or
    ! frozen layer, which its pores cannot take and its ice keeps from passing on. Its water and
-   ! energy, at the layers' temperature and liquid fraction, are returned for the pond, which
-   ! takes them at a step's start.
+   ! energy, at the layers' temperature and liquid fraction, move to the pond at a step's start.
    !---~---
-   pure subroutine porous_layers_spill(porous, params, w_out, e_out)
+   pure subroutine porous_layers_spill(porous, params, pond)
       type(porous_layer_state_t),          intent(inout) :: porous(:)
       type(ground_surface_layer_params_t), intent(in)    :: params
-      real(wp),                            intent(out)   :: w_out     ! [kg/m2]
-      real(wp),                            intent(out)   :: e_out     ! [J/m2]
-      real(wp)    :: excess, total
+      type(ground_store_t),                intent(inout) :: pond     ! the store the spill joins
+      real(wp)    :: excess, total, w_out, e_out, e_slot
       integer(ik) :: k
       w_out = 0.0_wp
       e_out = 0.0_wp
@@ -620,9 +654,10 @@ contains
                                                                          m%theta_sat))
          end associate
          if (excess <= 0.0_wp) cycle
-         porous(k)%water = porous(k)%water - excess
+         e_slot = temp_to_internal_energy(0.0_wp, excess, porous(k)%temp, porous(k)%fliq)
+         call store_move(porous(k), pond, excess, e_slot)
          w_out = w_out + excess
-         e_out = e_out + temp_to_internal_energy(0.0_wp, excess, porous(k)%temp, porous(k)%fliq)
+         e_out = e_out + e_slot
       end do
       if (w_out > 0.0_wp) call porous_layers_split_energy(porous, total - e_out)
    end subroutine porous_layers_spill

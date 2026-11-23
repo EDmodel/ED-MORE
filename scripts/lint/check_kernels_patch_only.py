@@ -37,7 +37,7 @@ PATCH_STORE_TYPES = {"cas_state_t", "soil_water_state_t", "soil_energy_state_t",
                      "blend_ground_surface", "ground_store_present", "ground_surface_store", "ground_top_temp",
                      "porous_layers_present", "porous_layers_sums", "porous_layers_diagnose",
                      "porous_layers_split_energy", "porous_layers_take_exchange", "porous_layer_curve",
-                     "porous_layers_spill", "porous_water", "porous_energy"}
+                     "porous_layers_spill", "porous_water", "porous_energy", "store_move", "store_take_exchange"}
 MODULE = re.compile(r"^module\s+(\w+)$", re.I)
 USE = re.compile(r"^use\s*(?:,\s*\w+\s*::\s*|::\s*|\s)\s*(\w+)\s*(,\s*only\s*:(.*))?$", re.I)
 

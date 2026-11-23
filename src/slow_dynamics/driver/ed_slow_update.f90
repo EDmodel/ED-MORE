@@ -31,7 +31,7 @@ module ed_slow_update
                                        add_shed_water, patch_physical_state, DIST_TREEFALL,              &
                                        expand_patch_block, reorder_patch_block, cas_set_depth,           &
                                        porous_layers_present, porous_layers_diagnose, porous_layers_split_energy, &
-                                       porous_water, porous_energy
+                                       porous_energy, ground_store_t, store_move
    use ed_ground_surface_lib,   only : porous_layer_capacity
    use ed_polygon_state_vars,   only : polygon_t, rebuild_cohort_map, assign_cohort_id,                  &
                                        patch_polygon_area, rebuild_patch_map, assign_patch_id
@@ -309,6 +309,7 @@ contains
       real(wp),               intent(out)   :: heat(:)            ! [J/m2] (patch) in with the matter, out if < 0
       real(wp),               intent(out)   :: water(:)           ! [kg/m2] (patch) in with the matter
       type(porous_material_t) :: m
+      type(ground_store_t)    :: pond   ! the patch's pond, which a layer's excess joins
       real(wp)    :: temp, fliq, e_total, dm, cap, excess, e_excess, e_slot, add(N_POROUS)
       integer(ik) :: ip, k
       logical     :: changed(N_POROUS)
@@ -362,9 +363,10 @@ contains
                if (excess <= 0.0_wp) cycle
                e_slot   = temp_to_internal_energy(0.0_wp, excess, temp, fliq)
                e_excess = e_excess + e_slot
-               org(k)%water        = org(k)%water - excess
-               sw%w_surface        = sw%w_surface + excess
-               sw%w_surface_energy = sw%w_surface_energy + e_slot
+               pond = ground_store_t(water=sw%w_surface, energy=sw%w_surface_energy)
+               call store_move(org(k), pond, excess, e_slot)
+               sw%w_surface        = pond%water
+               sw%w_surface_energy = pond%energy
             end do
             if (.not. porous_layers_present(org)) then
                if (.not. within_roundoff(e_total + heat(ip) - e_excess, abs(e_total) + abs(heat(ip)) + abs(e_excess))) &

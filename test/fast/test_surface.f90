@@ -55,7 +55,7 @@ program test_surface
    use ed_therm_lib,          only : temp_to_internal_energy, internal_energy_to_temp, internal_energy_ice,      &
                                      internal_energy_liquid, sat_specific_humidity, cas_heat_capacity,     &
                                      enthalpy_vapor
-   use ed_patch_state_vars,   only : water_layer_state_t, porous_layer_state_t, ground_store_present,              &
+   use ed_patch_state_vars,   only : ground_store_t, water_layer_state_t, porous_layer_state_t, ground_store_present, &
                                      porous_layers_sums, porous_layers_split_energy, porous_layers_take_exchange,  &
                                      porous_layer_curve, porous_layers_spill, porous_water, porous_energy
    use ed_ground_surface_lib, only : water_layer_bulk_density, porous_layer_capacity
@@ -186,8 +186,8 @@ contains
          mass_out = mass_out + vapour
          e_in     = e_in     + gain
          call snow_drain_meltwater(snow, rho, p, melt)
-         mass_out = mass_out + melt%melt_mass + melt%dump_mass
-         e_out    = e_out    + melt%melt_enth + melt%dump_enth
+         mass_out = mass_out + melt%drained%water
+         e_out    = e_out    + melt%drained%energy
       end do
       call check_true('pack grew (swe > 30 kg/m2)', snow%water > 30.0_wp, snow%water)
       call check_true('snow sub-freezing (temp < t_3ple)', snow%temp < t_3ple, snow%temp)
@@ -233,9 +233,9 @@ contains
             plateau_temp = snow%temp
          end if
          call snow_drain_meltwater(snow, rho, p, melt)
-         mass_out = mass_out + melt%melt_mass + melt%dump_mass
-         tot_melt = tot_melt + melt%melt_mass
-         e_out    = e_out    + melt%melt_enth + melt%dump_enth
+         mass_out = mass_out + melt%drained%water
+         tot_melt = tot_melt + melt%drained%water
+         e_out    = e_out    + melt%drained%energy
          if (.not. ground_store_present(snow)) exit
       end do
       call check_true('melted out (the store is empty)', .not. ground_store_present(snow),                     &
@@ -405,8 +405,8 @@ contains
                                         snow%fliq == 0.0_wp .and. snow%temp > env%can_temp - 5.0_wp, &
                                         snow%temp)
          call snow_drain_meltwater(snow, rho, p, melt)
-         m_out = m_out + melt%melt_mass + melt%dump_mass
-         e_out = e_out + melt%melt_enth + melt%dump_enth
+         m_out = m_out + melt%drained%water
+         e_out = e_out + melt%drained%energy
          if (.not. ground_store_present(snow)) exit
          t_min = min(t_min, snow%temp)
       end do
@@ -482,6 +482,7 @@ contains
       type(snow_out_t)    :: st
       type(water_layer_state_t)  :: pack0
       real(wp) :: w, e, w0, e0, hold, mix
+      type(ground_store_t) :: pond
       print '(a)', 'test_pond_stage:'
 
       !--- (a) A pond half frozen at the triple point, alone: it starts a layer of ice.
@@ -492,16 +493,19 @@ contains
       e0 = temp_to_internal_energy(0.0_wp, w0, t_3ple, 0.5_wp)
       w  = w0
       e  = e0
-      call prepare_snow_stage(0.0_wp, 0.0_wp, 265.0_wp, 0.01_wp, env, st, w, e)
+      pond = ground_store_t(water=w, energy=e)
+      call prepare_snow_stage(0.0_wp, 0.0_wp, 265.0_wp, 0.01_wp, env, st, pond)
+      w = pond%water
+      e = pond%energy
       hold = 0.5_wp * w0                                         ! the pond's liquid
       call check_true('a freezing pond starts a layer', st%exists .and. ground_store_present(env%pack))
       call check('the layer is ice', env%pack_density, rho_ice, 0.0_wp)
       call check('the pond keeps its liquid', w, hold, 1.0e-12_wp)
       call check('the layer is the pond''s ice', env%pack%water, w0 - hold, 1.0e-12_wp)
-      call check('MASS: layer + pond + drained = the pond', env%pack%water + w + st%melt_mass + st%dump_mass, w0, &
+      call check('MASS: layer + pond + drained = the pond', env%pack%water + w + st%drained%water, w0, &
                  1.0e-12_wp)
-      call check('ENERGY: layer + pond + drained = the pond', env%pack%energy + e + st%melt_enth          &
-                 + st%dump_enth, e0, 1.0e-9_wp * abs(e0))
+      call check('ENERGY: layer + pond + drained = the pond', env%pack%energy + e + st%drained%energy,       &
+                  e0, 1.0e-9_wp * abs(e0))
       call check('the ledger starts from the stores the stage began with', st%swe0 + w, w0, 1.0e-12_wp)
       call check('the layer is as deep as its water as ice', env%pack%matrix_depth, env%pack%water / rho_ice,  &
                  1.0e-15_wp)
@@ -516,8 +520,11 @@ contains
       e0 = w0 * internal_energy_liquid(t_3ple)
       w  = w0
       e  = e0
-      call prepare_snow_stage(0.0_wp, 0.0_wp, 255.0_wp, 0.01_wp, env, st, w, e)
-      call check_true('the pond froze into the pack', w == 0.0_wp .and. e == 0.0_wp .and. st%melt_mass == 0.0_wp)
+      pond = ground_store_t(water=w, energy=e)
+      call prepare_snow_stage(0.0_wp, 0.0_wp, 255.0_wp, 0.01_wp, env, st, pond)
+      w = pond%water
+      e = pond%energy
+      call check_true('the pond froze into the pack', w == 0.0_wp .and. e == 0.0_wp .and. st%drained%water == 0.0_wp)
       call check('the pack holds both', env%pack%water, 42.0_wp, 1.0e-12_wp)
       call check('the pack holds both energies', env%pack%energy, pack0%energy + e0,              &
                  1.0e-9_wp * abs(e0))
@@ -539,7 +546,10 @@ contains
       e0 = w0 * internal_energy_liquid(t_3ple)
       w  = w0
       e  = e0
-      call prepare_snow_stage(0.0_wp, 0.0_wp, t_3ple, 0.01_wp, env, st, w, e)
+      pond = ground_store_t(water=w, energy=e)
+      call prepare_snow_stage(0.0_wp, 0.0_wp, t_3ple, 0.01_wp, env, st, pond)
+      w = pond%water
+      e = pond%energy
       call check('a pack at the plateau leaves the pond its water', w, w0, 1.0e-12_wp)
       call check('and keeps its own', env%pack%water, 40.0_wp, 1.0e-12_wp)
       call check('and its density', env%pack_density, p%fresh_density, 1.0e-9_wp)
@@ -552,7 +562,10 @@ contains
       e0 = w0 * internal_energy_liquid(285.0_wp)
       w  = w0
       e  = e0
-      call prepare_snow_stage(0.0_wp, 0.0_wp, 285.0_wp, 0.01_wp, env, st, w, e)
+      pond = ground_store_t(water=w, energy=e)
+      call prepare_snow_stage(0.0_wp, 0.0_wp, 285.0_wp, 0.01_wp, env, st, pond)
+      w = pond%water
+      e = pond%energy
       call check_true('a warm pond with no pack is left as it is', .not. st%exists .and. w == w0 .and. e == e0     &
                       .and. .not. ground_store_present(env%pack))
 
@@ -563,7 +576,10 @@ contains
       env%pack   = cold_pack(10.0_wp, 265.0_wp, p)
       w = 0.0_wp
       e = 0.0_wp
-      call prepare_snow_stage(1.0e-3_wp, 0.0_wp, 265.0_wp, 0.01_wp, env, st, w, e)
+      pond = ground_store_t(water=w, energy=e)
+      call prepare_snow_stage(1.0e-3_wp, 0.0_wp, 265.0_wp, 0.01_wp, env, st, pond)
+      w = pond%water
+      e = pond%energy
       call check('fresh snow on fresh snow keeps its density', env%pack_density, p%fresh_density, 1.0e-9_wp)
       call check_true('an empty pond stays empty, and the ledger''s pack is the pack', w == 0.0_wp .and.          &
                       st%swe0 == 10.0_wp .and. st%pond_mass == 0.0_wp)
@@ -576,7 +592,10 @@ contains
       env%pack%matrix_depth = 3.0_wp / rho_ice
       w = 0.0_wp
       e = 0.0_wp
-      call prepare_snow_stage(1.0e-3_wp, 0.0_wp, 265.0_wp, 0.01_wp, env, st, w, e)
+      pond = ground_store_t(water=w, energy=e)
+      call prepare_snow_stage(1.0e-3_wp, 0.0_wp, 265.0_wp, 0.01_wp, env, st, pond)
+      w = pond%water
+      e = pond%energy
       mix = 3.9_wp / (3.0_wp / rho_ice + 0.9_wp / p%fresh_density)
       call check('snow on ice mixes the densities by volume', env%pack_density, mix, 1.0e-9_wp)
    end subroutine test_pond_stage
@@ -596,6 +615,7 @@ contains
       type(porous_layer_state_t)    :: org(N_POROUS)
       type(soil_layer_curve_t) :: c
       real(wp) :: cap_litter, cap_moss, dry_cap, w, e, w_max, resist, e_in, dry_depth, fill, w_out, e_out, t_in
+      type(ground_store_t) :: pond
       print '(a)', 'test_organic_slots:'
       org = two_slots(o)
       cap_litter = o%porous(POROUS_LITTER)%theta_sat * 1000.0_wp * 0.03_wp            ! 29.4 kg/m2
@@ -651,14 +671,17 @@ contains
                                                                    265.0_wp, 0.0_wp))
       e_in = sum(org%energy)
       t_in = org(1)%temp
-      call porous_layers_spill(org, o, w_out, e_out)
-      call check('above saturation: the excess spills', w_out, 0.5_wp, 1.0e-12_wp)
+      pond = ground_store_t()
+      call porous_layers_spill(org, o, pond)
+      w_out = pond%water
+      e_out = pond%energy
+      call check('above saturation: the excess spills to the pond', w_out, 0.5_wp, 1.0e-12_wp)
       call check('above saturation: the slot keeps its saturation', org(POROUS_LITTER)%water, cap_litter, 1.0e-9_wp)
       call check('above saturation: the spill takes its ice''s energy, the rest stays', sum(org%energy) + e_out,         &
                  e_in, 1.0e-6_wp)
       call check('above saturation: the layer keeps its temperature', org(1)%temp, t_in, 1.0e-9_wp)
-      call porous_layers_spill(org, o, w_out, e_out)
-      call check('a saturated layer spills nothing', w_out, 0.0_wp, 0.0_wp)
+      call porous_layers_spill(org, o, pond)
+      call check('a saturated layer spills nothing', pond%water, w_out, 0.0_wp)
    end subroutine test_organic_slots
 
    !--- 10b. The organic layer's balance, and the ground surface with it.
