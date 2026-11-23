@@ -38,7 +38,7 @@ module ed_fast_integ_frozen
                                      surface_tend_t, cas_boundary_t,                                              &
                                      plant_water_t, step_exports_t,                                              &
                                      water_work_t, water_organic_t, POND, WOOD, WORK_WATER_NFAIL
-   use ed_fast_integ_derivs, only : surface_derivs, set_water_state
+   use ed_fast_integ_derivs, only : canopy_demand, set_water_state
    use ed_state_defaults,   only : is_unset_negative
    use ed_biophysics_params, only : aero_params_t
    use ed_patch_state_vars, only : cas_state_t, soil_carbon_state_t, cas_capacities, cas_capacity_change,          &
@@ -218,7 +218,7 @@ contains
       frozen%ground%ground_emiss = cfg%soil%ground_emissivity
       frozen%ground%has_org      = porous_layers_present(frozen%porous)
       if (frozen%ground%has_org) call organic_ground_sums(cfg%ground_surface, frozen)
-      call transpiration_demand(dt_fast, cfg%canopy_water_on, n, dynamic, t_soil_top, frozen)
+      call transpiration_demand(dt_fast, cfg%canopy_water_on, n, dynamic, frozen)
       call organic_network_drive(cfg%ground_surface, frozen)
 
       !--- The start states: the water network's, from the stores' state^n water, and the march's.
@@ -733,19 +733,19 @@ contains
    !   transpiration_demand -- the start-of-step surface solve, at the state^n canopy air: each
    ! cohort's transpiration demand on the water network (docs/science/soil_plant_water.md §4).
    ! It takes the canopy air's exchange the pre-pass solved at that same state, so the
-   ! surface layer is not solved again.
+   ! surface layer is not solved again, and the ground is not solved at all: the tissues'
+   ! exchange does not depend on it (canopy_demand).
    ! The evaporation conductance of each tissue's surface water is first scaled so its
    ! potential evaporation over dt_fast cannot exceed what that water holds plus this step's
    ! interception; then the leaf is credited the liquid enthalpy of the sapflow that replaces
    ! its transpiration, as the stages will, estimated as if the sapflow matched it, and the
    ! surface is solved again.
    !---~---
-   subroutine transpiration_demand(dt_fast, canopy_water_on, n, dynamic, t_ground, frozen)
+   subroutine transpiration_demand(dt_fast, canopy_water_on, n, dynamic, frozen)
       real(wp),                   intent(in)    :: dt_fast
       logical,                    intent(in)    :: canopy_water_on
       integer(ik),                intent(in)    :: n
       type(fast_dynamic_state_t), intent(in)    :: dynamic
-      real(wp),                   intent(in)    :: t_ground
       type(frozen_t),      intent(inout) :: frozen
       type(surface_state_t) :: y_stage
       type(surface_tend_t)  :: sf0
@@ -757,7 +757,7 @@ contains
       y_stage%cas_co2 = dynamic%cas%can_co2
       cas_start = frozen%cas
       cas_start%mo_live = .false.
-      call surface_derivs(y_stage, cas_start, frozen%tissue, frozen%veg_surface, frozen%ground, t_ground, n, sf0)
+      call canopy_demand(y_stage, cas_start, frozen%tissue, frozen%veg_surface, n, sf0)
       if (canopy_water_on)                                                                                    &
          call limit_surface_evaporation(n, dt_fast, dynamic%leaf_surf_water, dynamic%wood_surf_water,              &
                                      sf0%leaf_surface_evap, sf0%wood_surface_evap, frozen%veg_surface)
@@ -765,7 +765,7 @@ contains
          t_up_wl = merge(dynamic%wood_temp(i), dynamic%leaf_temp(i), sf0%transp_c(i) >= 0.0_wp)
          frozen%tissue%qwflux_wl(i) = sf0%transp_c(i) * internal_energy_liquid(t_up_wl)
       end do
-      call surface_derivs(y_stage, cas_start, frozen%tissue, frozen%veg_surface, frozen%ground, t_ground, n, sf0)
+      call canopy_demand(y_stage, cas_start, frozen%tissue, frozen%veg_surface, n, sf0)
       frozen%water_drive%e_demand(1:n) = sf0%transp_c(1:n)
    end subroutine transpiration_demand
 
@@ -1091,8 +1091,8 @@ contains
    ! and the enthalpy its flows carried, shared among the slots at the layer's new temperature
    ! (docs/science/surface_organic_layer.md, Heat). Each slot keeps the water it evaporated until
    ! the update takes it with the march's energy, as the pack keeps its vapour, so the march
-   ! balances the layer with the water it held; the march holds the network's evaporation
-   ! (org_held), and the ground surface's balance reads the layer as it now is.
+   ! balances the layer with the water it held; the march holds the network's evaporation, and
+   ! the ground surface's balance reads the layer as it now is.
    !---~---
    subroutine commit_organic_water(organic, dt_fast, water, frozen)
       type(ground_surface_layer_params_t), intent(in)    :: organic
@@ -1109,7 +1109,6 @@ contains
             frozen%org_evap(k)  = fl%org_evap(j)
          end do
          if (water%n_org > 0_ik) call porous_layers_split_energy(frozen%porous, porous_energy(frozen%porous) + fl%org_enth)
-         frozen%ground%org_held      = .true.
          frozen%ground%org_evap_held = sum(frozen%org_evap) / dt_fast
       end associate
       call organic_ground_sums(organic, frozen)

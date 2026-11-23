@@ -185,7 +185,7 @@ fractions $`w_i = a_i/(a_1+a_2)`$:
 | leaf/wood energy | `ed_plant_energy`: `tissue_energy_balance` — one kernel for leaf and wood, diagnostic (`store_hcap_per_dt = 0`) or prognostic (`> 0`); every cohort, `canopy_tissue_energy` |
 | ground surface (the snow/bare blend) and skin fluxes | `ed_surface`: `ground_surface_exchange`, `ground_surface_fluxes` |
 | soil heterotrophic Rh | `ed_respiration`: `heterotrophic_respiration`; per patch and sub-step, `ed_fast_integ_frozen`: `patch_heterotrophic_respiration` |
-| snow energy / base conductance | `ed_surface`: `snow_surface_balance`, `snow_take_exchange`, `snow_base_conductance` |
+| snow energy / base conductance | `ed_surface`: `surface_node_balance`, `snow_node_balance`, `snow_take_exchange`, `snow_base_conductance` |
 | snow mass / cover / melt | `ed_surface`: `snow_accumulate`, `snow_cover_fraction`, `snow_drain_meltwater` |
 | the step, the march + RK45→ESDIRK2 rescue | `ed_fast_integ_stepper`: `fast_step`, `adaptive_march` |
 | the frozen record | `ed_fast_integ_frozen`: `build_frozen`, `record_water_flows` |

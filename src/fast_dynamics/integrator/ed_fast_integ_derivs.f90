@@ -44,7 +44,7 @@ module ed_fast_integ_derivs
    implicit none
    private
 
-   public :: surface_derivs, march_derivs, cas_conductances
+   public :: surface_derivs, canopy_demand, march_derivs, cas_conductances
    public :: set_water_state, water_derivs, node_balance, core_node_relations, wood_potentials
 
    !---~---
@@ -113,27 +113,15 @@ contains
       !---~---
       type(surface_tend_t),   intent(inout) :: f
 
-      real(wp)    :: tcas, qcas, qsat_c, dqdt
+      real(wp)    :: tcas, qcas, qsat_c
       real(wp)    :: coh_h, coh_qw, coh_transp, coh_rnet, coh_surface_evap   ! the canopy's, into the canopy air
       type(surface_env_t) :: senv      ! the ground surface's surroundings at this evaluation
       real(wp)    :: gah_l, gaw_l, gac_l      ! the conductances this evaluation uses
       type(cas_env_t) :: cas_env
       integer(ik) :: k
 
-      call ensure_surface_tend(f, n)
-
-      tcas   = cas_enthalpy_to_temp(y%cas_enthalpy, y%cas_shv)
-      qcas   = y%cas_shv
-      qsat_c = sat_specific_humidity(tcas, cas%press)
-      dqdt   = sat_specific_humidity_temp_deriv(tcas, cas%press)
-
-      !---~---
-      !   Every cohort's wood and leaf at this canopy air (docs/science/vegetation_energy_dynamics.md);
-      ! with canopy_water_on off, f_wet_c = 0 and the surface water's pathway vanishes.
-      !---~---
-      call canopy_tissue_energy(tissue, veg_surface, tcas, qcas, qsat_c, dqdt, cas%rho, n, f%leaf_temp, f%wood_temp,     &
-                                f%transp_c, f%leaf_surface_evap, f%wood_surface_evap, coh_h, coh_qw, coh_transp,        &
-                                coh_surface_evap, coh_rnet)
+      call canopy_tissue_part(y, cas, tissue, veg_surface, n, f, tcas, qcas, qsat_c, coh_h, coh_qw, coh_transp,       &
+                              coh_surface_evap, coh_rnet)
 
       !---~---
       !   The ground surface at this evaluation's canopy air and soil top, as the tissues' is at
@@ -186,6 +174,49 @@ contains
    end subroutine surface_derivs
 
    !--- Allocate a surface-tendency record's per-cohort arrays for n cohorts, unless they are.
+   !---~---
+   !   The canopy's demand at one canopy-air state: each cohort's wood and leaf energy balance, its
+   ! transpiration and its surface water's evaporation, without the ground, whose exchange the
+   ! tissues' does not depend on (surface_derivs is this and the ground and the canopy air).
+   !---~---
+   pure subroutine canopy_demand(y, cas, tissue, veg_surface, n, f)
+      type(surface_state_t),    intent(in)    :: y
+      type(cas_boundary_t),     intent(in)    :: cas
+      type(plant_energy_env_t), intent(in)    :: tissue
+      type(canopy_water_out_t), intent(in)    :: veg_surface
+      integer(ik),              intent(in)    :: n
+      type(surface_tend_t),     intent(inout) :: f
+      real(wp) :: tcas, qcas, qsat_c, coh_h, coh_qw, coh_transp, coh_surface_evap, coh_rnet
+      call canopy_tissue_part(y, cas, tissue, veg_surface, n, f, tcas, qcas, qsat_c, coh_h, coh_qw, coh_transp,       &
+                              coh_surface_evap, coh_rnet)
+   end subroutine canopy_demand
+
+   !---~---
+   !   Every cohort's wood and leaf at this canopy air (docs/science/vegetation_energy_dynamics.md);
+   ! with canopy_water_on off, f_wet_c = 0 and the surface water's pathway vanishes. Returns the
+   ! canopy air's temperature, humidity and saturation the tissues saw, and the canopy's sums.
+   !---~---
+   pure subroutine canopy_tissue_part(y, cas, tissue, veg_surface, n, f, tcas, qcas, qsat_c, coh_h, coh_qw,       &
+                                      coh_transp, coh_surface_evap, coh_rnet)
+      type(surface_state_t),    intent(in)    :: y
+      type(cas_boundary_t),     intent(in)    :: cas
+      type(plant_energy_env_t), intent(in)    :: tissue
+      type(canopy_water_out_t), intent(in)    :: veg_surface
+      integer(ik),              intent(in)    :: n
+      type(surface_tend_t),     intent(inout) :: f
+      real(wp),                 intent(out)   :: tcas, qcas, qsat_c                    ! [K], [kg/kg], [kg/kg]
+      real(wp),                 intent(out)   :: coh_h, coh_qw, coh_transp, coh_surface_evap, coh_rnet
+      real(wp) :: dqdt
+      call ensure_surface_tend(f, n)
+      tcas   = cas_enthalpy_to_temp(y%cas_enthalpy, y%cas_shv)
+      qcas   = y%cas_shv
+      qsat_c = sat_specific_humidity(tcas, cas%press)
+      dqdt   = sat_specific_humidity_temp_deriv(tcas, cas%press)
+      call canopy_tissue_energy(tissue, veg_surface, tcas, qcas, qsat_c, dqdt, cas%rho, n, f%leaf_temp, f%wood_temp,     &
+                                f%transp_c, f%leaf_surface_evap, f%wood_surface_evap, coh_h, coh_qw, coh_transp,        &
+                                coh_surface_evap, coh_rnet)
+   end subroutine canopy_tissue_part
+
    pure subroutine ensure_surface_tend(f, n)
       type(surface_tend_t), intent(inout) :: f
       integer(ik),          intent(in)    :: n

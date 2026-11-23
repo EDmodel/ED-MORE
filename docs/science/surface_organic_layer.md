@@ -54,9 +54,10 @@ with each slot's porosity its own $`\theta_{s,i}`$. A layer full to its top exch
 
 ## Heat
 
-The layer's balance over the step is solved like the pack's (`organic_surface_balance`): a linearized backward-Euler balance of its energy, with its dry heat capacity on each of the ice line, the melt plateau and the liquid line, and one root in closed form. Its terms are:
+The layer's balance over the step is the pack's own (`surface_node_balance`): a linearized backward-Euler balance of its energy, with its dry heat capacity on each of the ice line, the melt plateau and the liquid line, and one root in closed form. Its terms are:
 
-- on the snow-free ground $`(1 - f_{snow})`$: its net radiation at the ground's albedo and emissivity (`[soil].ground_albedo_*`, `ground_emissivity`) and its own temperature, less the sensible heat and the evaporation to the canopy air;
+- on the snow-free ground $`(1 - f_{snow})`$: its net radiation at the ground's albedo and emissivity (`[soil].ground_albedo_*`, `ground_emissivity`) and its own temperature, less the sensible heat to the canopy air;
+- its evaporation, the water network's rate per unit ground area held over the step, wherever the pack leaves it, with that vapour's latent heat;
 - under the pack: the pack's base flux, which conducts into the layer through the whole snow depth and the layer's upper half;
 - over the whole patch: conduction into the top soil node through the layer's lower half and the top soil node's half layer, in series:
 
@@ -124,7 +125,7 @@ Every slot that is a layer, from 0.1 mm, is a node of the water network; the sol
 | the `[ground_surface_layer]` block | `ed_ground_surface_params`: `ground_surface_layer_params_t`, `porous_material_t`, `POROUS_LITTER`, `POROUS_MOSS`, `MASS_FROM_*`; `ed_config_io`: `load_ground_surface_params`; `ed_config_check`: `check_ground_surface_layer` |
 | the porous layers' state, their sums, each one's curve, their energy shared among them, their spill and their commit, the ground top's temperature, the blend and the total the ledgers read | `ed_patch_state_vars`: `porous_layer_state_t` (in `ground_surface_state_t`), `porous_layers_sums`, `porous_layers_diagnose`, `porous_layers_split_energy`, `porous_layer_curve`, `porous_layers_spill`, `porous_layers_take_exchange`, `ground_top_temp`, `blend_ground_surface`, `ground_surface_store` |
 | a porous layer's laws: its depth, capacity, fill, resistance and the matter that makes a layer | `ed_ground_surface_lib`: `porous_layer_depth`, `porous_layer_capacity`, `porous_layer_fill`, `porous_layer_resistance`, `porous_layer_matter` |
-| the balance and the ground surface's blend | `ed_surface`: `organic_surface_balance` (its held branch), `ground_surface_exchange` |
+| the balance and the ground surface's blend | `ed_surface`: `surface_node_balance`, `ground_surface_exchange` |
 | the slots in the water network, and their water and enthalpy after it | `ed_fast_integ_frozen`: `organic_network_drive`, `commit_organic_water`; the network: [soil_plant_water](soil_plant_water.md) |
 | the soil's vapour through it, and its own through its dried top | `ed_soil_water`: `organic_cover_path`, `vapour_diffusivity`, `ground_evaporation_rate`; `ed_fast_integ_frozen`: `organic_ground_sums`, `ground_inflow` |
 | the slots follow their matter: the litter its pools, at the start the moss too | `ed_slow_update`: `follow_porous_layers`; `ed_slow_dynamics`: `litter_follows_pools`; `ed_init`: `seed_porous_layers` |

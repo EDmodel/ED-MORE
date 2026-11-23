@@ -31,7 +31,7 @@
 !      as ice; a pack at the plateau takes none of a pond's liquid; a warm pond with no pack is left as it is; an empty
 !      pond leaves a pack as it was; snow on ice mixes the densities by volume. The stores
 !      the stage reports for the ledger, with the pond it leaves, are the stores it began from.
-!  10. THE ORGANIC LAYER (its helpers in ed_patch_state_vars, and organic_surface_balance): a slot holds its
+!  10. THE POROUS LAYERS (their helpers in ed_patch_state_vars, and surface_node_balance): a slot holds its
 !      theta_sat over its depth; one temperature, the slots' energies summing to the total; each
 !      slot gives the vapour the water network took from it; heat crosses each slot's dried top
 !      at its dry conductivity, in series with its wet part. Each slot's curve is its material's
@@ -51,10 +51,10 @@
 program test_surface
    use ed_test_assert,        only : check, check_true, test_report
    use ed_kinds,              only : wp, ik
-   use ed_constants,          only : t_3ple, stefan_boltzmann, rho_ice, cp_organic
+   use ed_constants,          only : t_3ple, stefan_boltzmann, rho_ice, cp_organic, cp_ice
    use ed_therm_lib,          only : temp_to_internal_energy, internal_energy_to_temp, internal_energy_ice,      &
                                      internal_energy_liquid, sat_specific_humidity, cas_heat_capacity,     &
-                                     enthalpy_vapor
+                                     enthalpy_vapor, sat_specific_humidity_temp_deriv
    use ed_patch_state_vars,   only : ground_store_t, water_layer_state_t, porous_layer_state_t, ground_store_present, &
                                      porous_layers_sums, porous_layers_split_energy, porous_layers_take_exchange,  &
                                      porous_layer_curve, porous_layers_spill, porous_water, porous_energy
@@ -62,13 +62,12 @@ program test_surface
    use ed_ground_surface_params, only : ground_surface_layer_params_t, water_material_t, POROUS_LITTER, POROUS_MOSS, &
                                         N_POROUS
    use ed_soil_hydr_lib,      only : soil_layer_curve_t, soil_head_to_theta
-   use ed_soil_water,         only : organic_cover_path, vapour_diffusivity
-   use ed_surface,            only : surface_env_t, snow_out_t, organic_out_t, organic_surface_balance,          &
+   use ed_surface,            only : surface_env_t, snow_out_t, surface_node_t, node_flux_t, surface_node_balance, &
                                      snow_cover_fraction, snow_accumulate,                                      &
                                      snow_drain_meltwater, ground_surface_exchange, snow_take_exchange,         &
                                      store_exchange_t, STORE_SNOW, STORE_ORGANIC,                               &
                                      snow_blend_ground_optics, ground_tile_radiation, ground_surface_fluxes,    &
-                                     prepare_snow_stage
+                                     prepare_snow_stage, conductance_in_series
    implicit none
 
    call test_snow_cover()
@@ -684,17 +683,23 @@ contains
       call check('a saturated layer spills nothing', pond%water, w_out, 0.0_wp)
    end subroutine test_organic_slots
 
-   !--- 10b. The organic layer's balance, and the ground surface with it.
+   !---~---
+   !   10b. One node's balance (surface_node_balance), and the ground surface with the porous
+   ! layers: a node held at the network's evaporation or dew gives that rate per unit ground area,
+   ! even where the pack covers it all; its energy closes and the exchange it takes gives back the
+   ! temperature it solved for; a node whose vapour is the canopy air's evaporates no more than it
+   ! holds; and a pack on the ice line is the closed form of its own balance.
+   !---~---
    subroutine test_organic_balance()
       real(wp), parameter :: DT = 3600.0_wp
       type(ground_surface_layer_params_t) :: o
       type(porous_layer_state_t)  :: org(N_POROUS)
       type(surface_env_t)    :: env
-      type(organic_out_t)    :: ofx, ofx0
+      type(surface_node_t)   :: node
+      type(node_flux_t)      :: ofx
       type(water_material_t)    :: p
-      real(wp) :: w_max, h_ground, le_ground, g_top, ground_rad, s_in, o_in, w_save, e_save
+      real(wp) :: w_max, h_ground, le_ground, g_top, ground_rad, s_in, o_in, dry_depth
       type(store_exchange_t) :: stores
-      real(wp) :: dry_depth, r_save
       print '(a)', 'test_organic_balance:'
       org = porous_layer_state_t()                                    ! litter alone: 1.35 kg/m2, 2.6 kJ/m2/K dry
       org(POROUS_LITTER)%matter    = 0.03_wp * o%porous(POROUS_LITTER)%bulk_density
@@ -711,70 +716,57 @@ contains
       env%ground_emiss = 0.95_wp
       call porous_layers_sums(org, o, env%org_dry_cap, env%org_water, env%org_energy, w_max, env%org_resistance, &
                               dry_depth)
-      env%org_dry_resist = organic_cover_path(dry_depth, 0.0_wp, o%porous(POROUS_LITTER)%theta_sat)              &
-                           / vapour_diffusivity(280.0_wp)
-      call organic_surface_balance(env, 0.0_wp, ofx0)
-      call check_true('a thin layer relaxes over an hour without passing its surroundings',                         &
-                      ofx0%t_surf > 268.0_wp .and. ofx0%t_surf < 286.0_wp, ofx0%t_surf)
-      call check('its energy: what its surroundings give it', ofx0%energy_in,                                       &
-                 ofx0%rad - ofx0%h - ofx0%le - ofx0%g_soil, 1.0e-9_wp)
-      call check_true('a wet layer evaporates, no more than it holds',                                              &
-                      ofx0%w_flux > 0.0_wp .and. ofx0%w_flux * DT <= env%org_water, ofx0%w_flux)
-      !---~---
-      !   What the layer takes is its balance's root: its energy and water after the exchange give
-      ! back the temperature the balance solved for, on a wet layer and on a trace of water whose
-      ! evaporation the layer's water caps (a few joules per kelvin turn a mismatch into kelvins).
-      !---~---
-      call check('the exchange it takes gives back its root', committed_temp(env, ofx0), ofx0%t_surf, 1.0e-6_wp)
-      w_save = env%org_water
-      e_save = env%org_energy
-      env%org_water  = 1.0e-6_wp
-      env%org_energy = temp_to_internal_energy(env%org_dry_cap, env%org_water, 280.0_wp, 1.0_wp)
-      call organic_surface_balance(env, 0.0_wp, ofx)
-      call check('a trace of water: the layer still takes its root', committed_temp(env, ofx), ofx%t_surf, 1.0e-6_wp)
-      call check_true('and evaporates no more than it holds', ofx%w_flux * DT <= env%org_water * (1.0_wp + 1.0e-12_wp), &
-                      ofx%w_flux)
-      env%org_water  = 0.0_wp
-      env%org_energy = temp_to_internal_energy(env%org_dry_cap, 0.0_wp, 280.0_wp, 1.0_wp)
-      call organic_surface_balance(env, 0.0_wp, ofx)
-      call check('an empty layer does not evaporate', ofx%w_flux, 0.0_wp, 0.0_wp)
-      !--- Its water's vapour crosses its dried top: the same layer full to its top exchanges as open water.
-      env%org_water  = w_save
-      env%org_energy = e_save
-      r_save = env%org_dry_resist
-      env%org_dry_resist = 0.0_wp
-      call organic_surface_balance(env, 0.0_wp, ofx)
-      call check_true('a dried top slows its evaporation', ofx0%w_flux > 0.0_wp .and. ofx0%w_flux < 0.5_wp * ofx%w_flux, &
-                      ofx0%w_flux / ofx%w_flux)
-      env%org_dry_resist = r_save
-      !---~---
-      !   Held at the water network's rate, evaporation or dew: the layer gives that rate, its energy
-      ! closes, and it takes its root.
-      !---~---
-      env%org_held      = .true.
+      !--- Held at the water network's rate, evaporation or dew: the layer gives that rate, its energy closes, it takes its root.
       env%org_evap_held = 1.0e-5_wp
-      call organic_surface_balance(env, 0.0_wp, ofx)
+      node = porous_node(env, 1.0_wp)
+      call surface_node_balance(node, env, ofx)
+      call check_true('a thin layer relaxes over an hour without passing its surroundings',                         &
+                      ofx%t_surf > 268.0_wp .and. ofx%t_surf < 286.0_wp, ofx%t_surf)
       call check('held: it gives the network''s evaporation', ofx%w_flux, 1.0e-5_wp, 1.0e-18_wp)
       call check('held: its energy, what its surroundings give it', ofx%energy_in,                                 &
-                 ofx%rad - ofx%h - ofx%le - ofx%g_soil, 1.0e-9_wp)
-      call check('held: the exchange it takes gives back its root', committed_temp(env, ofx), ofx%t_surf, 1.0e-6_wp)
+                 ofx%rad - ofx%h - ofx%le - ofx%g_below, 1.0e-9_wp)
+      call check('held: the exchange it takes gives back its root', committed_temp(node, env%dt, ofx), ofx%t_surf,   &
+                 1.0e-6_wp)
       env%org_evap_held = -2.0e-6_wp
-      call organic_surface_balance(env, 0.0_wp, ofx)
+      node = porous_node(env, 1.0_wp)
+      call surface_node_balance(node, env, ofx)
       call check('held: dew at the network''s rate', ofx%w_flux, -2.0e-6_wp, 1.0e-18_wp)
       call check_true('held: dew gives the layer its latent heat', ofx%le < 0.0_wp, ofx%le)
-      call check('held: dew, the exchange it takes gives back its root', committed_temp(env, ofx), ofx%t_surf,     &
+      call check('held: dew, the exchange it takes gives back its root', committed_temp(node, env%dt, ofx),         &
+                 ofx%t_surf, 1.0e-6_wp)
+      !--- Under a pack that covers all of it, the network's evaporation is still the layer's, per unit ground area.
+      env%org_evap_held = 1.0e-5_wp
+      node = porous_node(env, 0.0_wp)
+      call surface_node_balance(node, env, ofx)
+      call check('held under a full cover: the network''s rate all the same', ofx%w_flux, 1.0e-5_wp, 1.0e-18_wp)
+      call check_true('and its latent heat with it', ofx%le > 0.0_wp, ofx%le)
+      call check('held under a full cover: its root', committed_temp(node, env%dt, ofx), ofx%t_surf, 1.0e-6_wp)
+      node = porous_node(env, 0.5_wp)
+      call surface_node_balance(node, env, ofx)
+      call check('held under half a cover: the network''s rate', ofx%w_flux, 1.0e-5_wp, 1.0e-18_wp)
+      !--- Its vapour the canopy air's: a trace of water evaporates no more than it holds, and the node takes its root.
+      node = porous_node(env, 1.0_wp)
+      node%vapour_held = .false.
+      node%water  = 1.0e-6_wp
+      node%energy = temp_to_internal_energy(node%dry_cap, node%water, 280.0_wp, 1.0_wp)
+      call internal_energy_to_temp(node%energy, node%water, node%dry_cap, node%temp, node%fliq)
+      call surface_node_balance(node, env, ofx)
+      call check_true('a trace of water evaporates no more than it holds',                                         &
+                      ofx%w_flux * DT <= node%water * (1.0_wp + 1.0e-12_wp), ofx%w_flux)
+      call check('a trace of water: the node still takes its root', committed_temp(node, env%dt, ofx), ofx%t_surf,  &
                  1.0e-6_wp)
-      env%org_held      = .false.
-      env%org_evap_held = 0.0_wp
+      call test_pack_closed_form(env, p)
       !--- The ground with the layer: the soil takes its conduction less the soil's own evaporation's heat.
+      env%org_evap_held = 0.0_wp
       env%soil_evap = 1.0e-6_wp
       env%snowfac   = 0.0_wp
       call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, stores)
       s_in = stores%energy_in(STORE_SNOW)
       o_in = stores%energy_in(STORE_ORGANIC)
-      call organic_surface_balance(env, 0.0_wp, ofx)
+      node = porous_node(env, 1.0_wp)
+      call surface_node_balance(node, env, ofx)
       call check('the soil takes what the layer conducts, less its evaporation''s heat', g_top,                    &
-                 ofx%g_soil - env%soil_evap * enthalpy_vapor(env%t_soil_top), 1.0e-9_wp)
+                 ofx%g_below - env%soil_evap * enthalpy_vapor(env%t_soil_top), 1.0e-9_wp)
       call check('the layer is the ground''s surface: its sensible heat, the ground''s', h_ground, ofx%h, 1.0e-12_wp)
       call check('no pack, no pack exchange', s_in, 0.0_wp, 0.0_wp)
       call check('the layer''s own energy', o_in, ofx%energy_in, 1.0e-12_wp)
@@ -789,13 +781,68 @@ contains
                  s_in + o_in, 1.0e-9_wp)
    end subroutine test_organic_balance
 
-   !--- The layer's temperature after it takes an exchange over the balance's step.
-   real(wp) function committed_temp(env, ofx) result(t)
+   !---~---
+   !   A cold pack on the ice line is its balance's closed form: its energy over the step is
+   ! E^n + dt af (r0 + dr/dT (T - T^n)), each term per unit of the pack's own area, at its root
+   ! T = (E^n + dt af (r0 - dr/dT T^n)) / (W c_ice - dt af dr/dT).
+   !---~---
+   subroutine test_pack_closed_form(env0, p)
+      type(surface_env_t),    intent(in) :: env0
+      type(water_material_t), intent(in) :: p
+      type(surface_env_t)  :: env
+      type(surface_node_t) :: node
+      type(node_flux_t)    :: flux
+      real(wp), parameter :: AF = 0.7_wp, G_BASE = 0.4_wp
+      real(wp) :: dh_dt, w_n, dw_dt, l_vap, r0, drdt, t_root
+      env = env0
+      env%can_temp = 262.0_wp
+      env%can_shv  = 1.0e-3_wp
+      node%water   = 30.0_wp
+      node%energy  = temp_to_internal_energy(0.0_wp, node%water, 258.0_wp, 0.0_wp)
+      call internal_energy_to_temp(node%energy, node%water, 0.0_wp, node%temp, node%fliq)
+      node%area    = AF
+      node%emiss   = p%emissivity
+      node%rad     = 40.0_wp + p%emissivity * (230.0_wp - stefan_boltzmann * node%temp ** 4)
+      node%g_below = AF * G_BASE
+      node%t_below = 271.0_wp
+      call surface_node_balance(node, env, flux)
+      dh_dt = env%ggnet * env%rho_air * env%cp_cas
+      w_n   = env%ggnet * env%rho_air * (sat_specific_humidity(node%temp, env%press, 0.0_wp) - env%can_shv)
+      dw_dt = env%ggnet * env%rho_air * sat_specific_humidity_temp_deriv(node%temp, env%press, 0.0_wp)
+      l_vap = enthalpy_vapor(node%temp) - cp_ice * node%temp
+      r0    = node%rad - dh_dt * (node%temp - env%can_temp) - l_vap * w_n - G_BASE * (node%temp - node%t_below)
+      drdt  = -(4.0_wp * p%emissivity * stefan_boltzmann * node%temp ** 3 + dh_dt + l_vap * dw_dt + G_BASE)
+      t_root = (node%energy + env%dt * AF * (r0 - drdt * node%temp)) / (node%water * cp_ice - env%dt * AF * drdt)
+      call check_true('a cold pack stays on the ice line', flux%t_surf < t_3ple, flux%t_surf)
+      call check('a pack on the ice line: its root is the closed form''s', flux%t_surf, t_root, 1.0e-9_wp)
+   end subroutine test_pack_closed_form
+
+   !--- The porous layers as the ground surface's balance builds their node, at the pack's cover.
+   function porous_node(env, open_share) result(node)
       type(surface_env_t), intent(in) :: env
-      type(organic_out_t), intent(in) :: ofx
+      real(wp),            intent(in) :: open_share   ! [-] the share of the ground the pack leaves open
+      type(surface_node_t) :: node
+      node%dry_cap = env%org_dry_cap
+      node%water   = env%org_water
+      node%energy  = env%org_energy
+      call internal_energy_to_temp(node%energy, node%water, node%dry_cap, node%temp, node%fliq)
+      node%area        = open_share
+      node%rad         = env%rnet_soil
+      node%emiss       = env%ground_emiss
+      node%vapour_held = .true.
+      node%vapour_rate = env%org_evap_held
+      node%g_below     = conductance_in_series(0.5_wp * env%org_resistance, env%r_soil_top)
+      node%t_below     = env%t_soil_top
+   end function porous_node
+
+   !--- A node's temperature after it takes an exchange over the balance's step.
+   real(wp) function committed_temp(node, dt, flux) result(t)
+      type(surface_node_t), intent(in) :: node
+      real(wp),             intent(in) :: dt
+      type(node_flux_t),    intent(in) :: flux
       real(wp) :: fl
-      call internal_energy_to_temp(env%org_energy + env%dt * ofx%energy_in, env%org_water - env%dt * ofx%w_flux,       &
-                                   env%org_dry_cap, t, fl)
+      call internal_energy_to_temp(node%energy + dt * flux%energy_in, node%water - dt * flux%w_flux, node%dry_cap,  &
+                                   t, fl)
    end function committed_temp
 
 end program test_surface
