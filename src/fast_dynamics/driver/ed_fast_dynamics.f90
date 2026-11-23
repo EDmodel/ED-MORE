@@ -237,7 +237,7 @@ contains
          patch_work(:, ip) = 0_ik
          do isub = 1_ik, nsub
             !--- The patch's forcing, the site's air temperature (thermal acclimation) and the precipitation split.
-            call patch_forcing(cfg, sd%static, sd%dynamic, met_site(isub, is_p), do_forcing, sd%forcing)
+            call patch_forcing(cfg, sd%static, met_site(isub, is_p), do_forcing, sd%forcing)
             red_site(RED_TAIR_DAY, isub, ip) = met_site(isub, is_p)%air_temp
             red_site(RED_RAINF,      isub, ip) = area * sd%forcing%rainfall
             red_site(RED_SNOWFALL,   isub, ip) = area * sd%forcing%snowfall

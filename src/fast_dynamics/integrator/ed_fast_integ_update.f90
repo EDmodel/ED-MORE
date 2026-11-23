@@ -35,7 +35,7 @@ module ed_fast_integ_update
    ! overflow at its capacity and deficit below zero, and their net enthalpy at the tissues'
    ! start-of-step temperatures, the condensate deposited in the top soil layer with its
    ! enthalpy, the tissue store (surface water included) before and after, and the ground's
-   ! surface layers after their exchange.
+   ! surface stores, the pond with them, at the step's end.
    !---~---
    type :: commit_amounts_t
       real(wp) :: surf_overflow = 0.0_wp, surf_deficit = 0.0_wp   ! [kg/m2]
@@ -43,7 +43,7 @@ module ed_fast_integ_update
       real(wp) :: cond_mass     = 0.0_wp                          ! [kg/m2]
       real(wp) :: cond_enth     = 0.0_wp                          ! [J/m2]
       real(wp) :: tissue_store0 = 0.0_wp, tissue_store1 = 0.0_wp  ! [J/m2]
-      type(ground_store_t) :: surface1                            ! [kg/m2], [J/m2] the surface layers at the step's end
+      type(ground_store_t) :: surface1                            ! [kg/m2], [J/m2] the ground's surface stores at the end
    end type commit_amounts_t
 
 contains
@@ -135,6 +135,8 @@ contains
       call porous_layers_take_exchange(dynamic%ground_surface%porous, acc%stores%energy_in(STORE_ORGANIC),         &
                                        frozen%org_evap)
       moved%surface1 = ground_surface_store(dynamic%ground_surface)
+      moved%surface1%water  = moved%surface1%water  + dynamic%soil_water%w_surface
+      moved%surface1%energy = moved%surface1%energy + dynamic%soil_water%w_surface_energy
       dynamic%adapt_dt_last = dt_warm
    end subroutine update_dynamic_state
 
@@ -159,7 +161,7 @@ contains
       type(step_report_t),       intent(inout) :: report
       real(wp)    :: cas_mass_capacity, cas_molar_capacity, enth0, shv0, co20, enth1, shv1, co21
       real(wp)    :: fliq   ! [-] liquid share of the exported vapour
-      real(wp)    :: e_soil0, e_soil1, w_soil0, w_soil1, w_plant0, w_plant1, w_surface0, e_pond0, e_pond1
+      real(wp)    :: e_soil0, e_soil1, w_soil0, w_soil1, w_plant0, w_plant1
       real(wp)    :: surf_water0, surf_water1, intercept_total
       real(wp)    :: ground_w0, ground_w1, ground_e0, ground_e1   ! [kg/m2], [J/m2] the ground surface's stores
       integer(ik) :: n, nsl
@@ -174,10 +176,6 @@ contains
       enth1 = y_out%cas_enthalpy
       shv1  = y_out%cas_shv
       co21  = y_out%cas_co2
-      !--- The pond at the start, as the march started from it, and at the end, the network's.
-      w_surface0 = y%w_surface
-      e_pond0    = y%w_surface_energy
-      e_pond1    = frozen%hydrology%w_surface_energy1
       e_soil0 = soil_energy_store(y%soil_energy,     site%soil_profile%dz, nsl)
       e_soil1 = soil_energy_store(y_out%soil_energy, site%soil_profile%dz, nsl)
       w_soil0 = soil_water_store(y%theta,     site%soil_profile%dz, nsl)
@@ -195,13 +193,13 @@ contains
       surf_water0 = surface_water_store(y%leaf_surf_water,     y%wood_surf_water,     n)
       surf_water1 = surface_water_store(y_out%leaf_surf_water, y_out%wood_surf_water, n)
       !---~---
-      !   The ground surface's stores, the pond, the pack and the organic layer, at the start (the
-      ! pack before its stage, with the pond it took; the organic layer after its spill) and the end.
+      !   The ground surface's stores, the pond, the pack and the porous layers: at the start, before
+      ! the ground's stage moved anything, and at the end.
       !---~---
-      ground_w0 = w_surface0 + frozen%snow%swe0 + frozen%org_water0
-      ground_w1 = frozen%hydrology%w_surface1 + moved%surface1%water
-      ground_e0 = e_pond0 + frozen%snow%enth0 + frozen%org_energy0
-      ground_e1 = e_pond1 + moved%surface1%energy
+      ground_w0 = frozen%surface0%water
+      ground_w1 = moved%surface1%water
+      ground_e0 = frozen%surface0%energy
+      ground_e1 = moved%surface1%energy
       intercept_total = sum(frozen%veg_surface%intercept_leaf(1:n) + frozen%veg_surface%intercept_wood(1:n))
 
       report%exports%atm_heat_export = acc%atm_heat_out

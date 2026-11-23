@@ -101,8 +101,8 @@ module ed_surface
 
    !---~---
    !   What the pack's stage returns, per unit ground area: the water it drained, the drainage as
-   ! the pond's inflow over the step, and the precipitation's enthalpy and the pack before the
-   ! stage, for the ledgers. All zero without a pack.
+   ! the pond's inflow over the step, and the precipitation's enthalpy, for the ledgers. All zero
+   ! without a pack.
    !---~---
    type :: snow_out_t
       !---~---
@@ -119,15 +119,6 @@ module ed_surface
       !---~---
       real(wp) :: t_melt    = t_3ple                    ! [K]
       real(wp) :: acc_enth  = 0.0_wp                    ! [J/m2]  precipitation (rain and snow) enthalpy that entered the pack
-      !---~---
-      !   The pack before the stage and the pond water it took, for the ledgers: the pond the
-      ! step starts from is what the pack left it, so the two together are the stores at the
-      ! step's start.
-      !---~---
-      real(wp) :: swe0      = 0.0_wp                    ! [kg/m2]
-      real(wp) :: enth0     = 0.0_wp                    ! [J/m2]  internal energy
-      real(wp) :: pond_mass = 0.0_wp                    ! [kg/m2] pond water the pack took and kept
-      real(wp) :: pond_enth = 0.0_wp                    ! [J/m2]  its energy
    end type snow_out_t
 
    !---~---
@@ -321,23 +312,21 @@ contains
 
    !---~---
    !   The ground's optics under a pack, for the two-stream: its albedo and emissivity blended
-   ! toward the pack's by the snow-cover fraction, so a partial pack is continuous, and the
-   ! temperature at which the blended emissivity emits what the soil and the pack emit at
-   ! their own (docs/science/snow_biophysics.md, "The ground's radiation"). Unchanged without
-   ! a pack.
+   ! toward the pack's by its cover, the one the pack's balance exchanges over, so a partial pack
+   ! is continuous, and the temperature at which the blended emissivity emits what the soil and
+   ! the pack emit at their own (docs/science/snow_biophysics.md, "The ground's radiation").
+   ! Unchanged without cover.
    !---~---
-   pure subroutine snow_blend_ground_optics(snow, params, ground_rough, albedo_vis, albedo_nir, emiss, temp)
+   pure subroutine snow_blend_ground_optics(snow, fc, params, albedo_vis, albedo_nir, emiss, temp)
       type(water_layer_state_t), intent(in) :: snow
+      real(wp),            intent(in)    :: fc           ! [-] the pack's cover (prepare_snow_stage)
       type(water_material_t), intent(in)    :: params
-      real(wp),            intent(in)    :: ground_rough   ! [m] the ground's roughness ([aerodynamics].soil_rough)
       real(wp),            intent(inout) :: albedo_vis   ! [-] VIS albedo: the bare soil's on entry
       real(wp),            intent(inout) :: albedo_nir   ! [-] NIR albedo: the bare soil's on entry
       real(wp),            intent(inout) :: emiss        ! [-] thermal emissivity: the bare soil's on entry
       real(wp),            intent(inout) :: temp         ! [K] emission temperature: the top soil node's on entry
-      real(wp) :: fc, snow_vis, snow_nir, emit_soil, emit_snow
-      if (.not. (snow%water > params%tiny_snow_mass)) return
-      fc = snow_cover_fraction(snow%water, snow%matrix_depth, water_layer_bulk_density(snow%water, snow%matrix_depth), &
-                               params, ground_rough)
+      real(wp) :: snow_vis, snow_nir, emit_soil, emit_snow
+      if (.not. (fc > 0.0_wp)) return
       call snow_albedos(snow, params, snow_vis, snow_nir)
       emit_soil  = emiss * temp ** 4                                ! [K4] emission over sigma
       emit_snow  = params%emissivity * snow%temp ** 4
@@ -508,12 +497,10 @@ contains
       type(snow_out_t),    intent(out)   :: st             !           the drainage and the stage's hand-off
       type(ground_store_t), intent(inout) :: pond          !           the pond: its water and energy
       type(ground_store_t) :: pond0                        !           the pond at the stage's start
-      real(wp) :: swe0, enth0, e_before, acc_enth
+      real(wp) :: e_before, acc_enth, pond_kept
       real(wp) :: back, back_enth, liq_before, t_now, fl_now, extra
       logical  :: exists, took_pond, joined
 
-      swe0      = env%pack%water
-      enth0     = env%pack%energy
       env%pack_density = water_layer_bulk_density(env%pack%water, env%pack%matrix_depth)
       pond0     = pond
       took_pond = .false.
@@ -566,12 +553,11 @@ contains
             back_enth = 0.0_wp
             if (back > 0.0_wp) back_enth = st%drained%energy * (back / st%drained%water)
             call store_move(st%drained, pond, back, back_enth)
-            st%pond_mass = pond0%water - back
-            st%pond_enth = pond0%energy - back_enth
+            pond_kept = pond0%water - back
             !--- What a pack keeps of the pond that joined it adds its depth as ice.
-            if (joined .and. ground_store_present(env%pack) .and. st%pond_mass > 0.0_wp) then
-               env%pack_density      = combined_density(env%pack%water - st%pond_mass, env%pack_density,      &
-                                                        st%pond_mass, rho_ice)
+            if (joined .and. ground_store_present(env%pack) .and. pond_kept > 0.0_wp) then
+               env%pack_density      = combined_density(env%pack%water - pond_kept, env%pack_density,      &
+                                                        pond_kept, rho_ice)
                env%pack%matrix_depth = env%pack%water / env%pack_density
             end if
          end if
@@ -588,8 +574,6 @@ contains
       end if
       st%exists   = exists
       st%acc_enth = acc_enth
-      st%swe0     = swe0 + st%pond_mass
-      st%enth0    = enth0 + st%pond_enth
    end subroutine prepare_snow_stage
 
    !--- Snow -- energy side: surface fluxes, base conduction, backward-Euler energy advance.

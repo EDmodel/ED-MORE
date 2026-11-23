@@ -324,7 +324,7 @@ contains
    ! boundary: all of it on bare ground, the shed water's under a pack.
    !---~---
    pure subroutine pond_inflow(pack_exists, melt_rate, t_melt, throughfall, rainfall, snowfall, t_air, t_cas,     &
-                               shed_rate, shed_enth, inflow, t_inflow, t_water_base, boundary_enth)
+                               shed_rate, shed_enth, inflow, t_inflow, boundary_enth)
       logical,  intent(in)  :: pack_exists     !           a snow pack covers the ground
       real(wp), intent(in)  :: melt_rate       ! [kg/m2/s] the pack's meltwater
       real(wp), intent(in)  :: t_melt          ! [K]       its temperature
@@ -336,9 +336,8 @@ contains
       real(wp), intent(in)  :: shed_enth       ! [W/m2]    its enthalpy
       real(wp), intent(out) :: inflow          ! [kg/m2/s] all the water reaching the pond
       real(wp), intent(out) :: t_inflow        ! [K]       the temperature that values it
-      real(wp), intent(out) :: t_water_base    ! [K]       the meltwater's or the rain's, before the shed water
       real(wp), intent(out) :: boundary_enth   ! [W/m2]    what it brings across the column's boundary
-      real(wp) :: water_base, inflow_enth
+      real(wp) :: water_base, inflow_enth, t_water_base
       if (pack_exists) then
          water_base = melt_rate
       else

@@ -20,7 +20,7 @@ module ed_fast_integ_types
    use ed_ground_surface_params, only : N_POROUS
    use ed_pft_params, only : leaf_photo_table_t
    use ed_patch_state_vars,   only : cas_state_t, soil_water_state_t, soil_energy_state_t, soil_carbon_state_t,      &
-                                     ground_surface_state_t, porous_layer_state_t
+                                     ground_surface_state_t, porous_layer_state_t, ground_store_t
    use ed_therm_lib, only : cas_temp_to_enthalpy, cas_enthalpy_to_temp
    use ed_biophysics_params,   only : aero_params_t
    use ed_biogeochem_params,   only : N_SOIL_POOL
@@ -244,8 +244,9 @@ module ed_fast_integ_types
    end type fast_dynamic_state_t
 
    !---~---
-   !   The drivers of one fast step: the air at the patch's canopy-air top and the radiation the
-   ! two-stream gives each cohort and the ground (patch_forcing).
+   !   The drivers of one fast step: the air at the patch's canopy-air top and the sky above it
+   ! (patch_forcing), and the radiation the two-stream gives each cohort and the ground, which the
+   ! step computes after the ground's stage (canopy_ground_radiation).
    !---~---
    type :: fast_forcing_t
       real(wp)              :: enthalpy_atm  = 0.0_wp   ! [J/kg]     reference-level specific enthalpy
@@ -254,6 +255,18 @@ module ed_fast_integ_types
       real(wp)              :: air_temp      = 288.0_wp ! [K]        reference-level air temperature
       real(wp)              :: wind          = 2.0_wp   ! [m/s]      wind at the reference level
       real(wp)              :: press         = 101325.0_wp  ! [Pa]   air pressure
+      !---~---
+      !   The sky: the sun's height and the radiation reaching the canopy's top in each band.
+      ! sky_live says the driver set them, so the step runs them through the canopy; a record built
+      ! by hand (a test fixture) leaves it false and gives the absorbed radiation below as it is.
+      !---~---
+      logical               :: sky_live      = .false.
+      real(wp)              :: cosz          = 0.0_wp   ! [-]    cosine of the solar zenith angle
+      real(wp)              :: par_beam      = 0.0_wp   ! [W/m2] visible beam
+      real(wp)              :: par_diffuse   = 0.0_wp   ! [W/m2] visible diffuse
+      real(wp)              :: nir_beam      = 0.0_wp   ! [W/m2] near-infrared beam
+      real(wp)              :: nir_diffuse   = 0.0_wp   ! [W/m2] near-infrared diffuse
+      real(wp)              :: lw_down       = 0.0_wp   ! [W/m2] longwave from the sky
       real(wp)              :: abs_sw_ground = 0.0_wp   ! [W/m2] shortwave the ground absorbs, snow and soil
       real(wp)              :: abs_lw_ground = 0.0_wp   ! [W/m2] net longwave at the ground, snow and soil
       !--- Each ground tile's radiation per unit of its own area (ground_tile_radiation).
@@ -738,12 +751,15 @@ module ed_fast_integ_types
       type(water_drive_t)          :: water_drive  ! what drives the water network over the step
       !---~---
       !   The organic layer over the step, after the pond and the ground's inflow fill it, which
-      ! the update commits; and its water and energy after the pond's, the ledgers' start.
+      ! the update commits.
       !---~---
       type(porous_layer_state_t)   :: porous(N_POROUS)
-      real(wp)                     :: org_water0  = 0.0_wp    ! [kg/m2]
-      real(wp)                     :: org_energy0 = 0.0_wp    ! [J/m2]
       real(wp) :: org_evap(N_POROUS) = 0.0_wp           ! [kg/m2] each slot's evaporation, the network's
+      !---~---
+      !   The ground's surface stores at the step's start, before its stage moves anything: the
+      ! water [kg/m2] and energy [J/m2] the whole-column ledgers start from.
+      !---~---
+      type(ground_store_t)         :: surface0
    end type frozen_t
 
    !---~---

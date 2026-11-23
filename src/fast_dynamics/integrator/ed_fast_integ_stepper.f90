@@ -52,7 +52,7 @@ contains
       type(ed_config_t),          intent(in)    :: cfg
       type(site_surface_t),       intent(in)    :: site      ! the patch's site: its soil and its ground
       type(fast_static_state_t),  intent(in)    :: static
-      type(fast_forcing_t),       intent(in)    :: forcing
+      type(fast_forcing_t),       intent(inout) :: forcing   ! the air and sky in; the absorbed radiation out
       type(fast_dynamic_state_t), intent(inout) :: dynamic
       type(fast_output_t),        intent(inout) :: out       ! sized by the caller (ensure_output_capacity)
       type(fast_workspace_t),     intent(inout) :: work      ! this thread's step storage, reused step to step

@@ -435,7 +435,7 @@ contains
       a_nir = SOIL_NIR
       emiss = SOIL_EMISS
       temp  = T_SOIL
-      call snow_blend_ground_optics(snow, p, 0.01_wp, a_vis, a_nir, emiss, temp)
+      call snow_blend_ground_optics(snow, fc, p, a_vis, a_nir, emiss, temp)
       blended = DN_VIS * (1.0_wp - a_vis) + DN_NIR * (1.0_wp - a_nir) + emiss * DN_LW                        &
                 - emiss * stefan_boltzmann * temp ** 4
       call check('the tiles sum to the blended ground', fc * rnet_snow + (1.0_wp - fc) * rnet_soil, blended,   &
@@ -505,7 +505,6 @@ contains
                  1.0e-12_wp)
       call check('ENERGY: layer + pond + drained = the pond', env%pack%energy + e + st%drained%energy,       &
                   e0, 1.0e-9_wp * abs(e0))
-      call check('the ledger starts from the stores the stage began with', st%swe0 + w, w0, 1.0e-12_wp)
       call check('the layer is as deep as its water as ice', env%pack%matrix_depth, env%pack%water / rho_ice,  &
                  1.0e-15_wp)
 
@@ -529,9 +528,6 @@ contains
                  1.0e-9_wp * abs(e0))
       mix = 42.0_wp / (40.0_wp / p%fresh_density + 2.0_wp / rho_ice)
       call check('the pond adds its depth as ice', env%pack_density, mix, 1.0e-9_wp)
-      call check('the ledger''s pack takes the pond', st%swe0, 42.0_wp, 1.0e-12_wp)
-      call check('the ledger''s pack energy takes the pond''s', st%enth0, pack0%energy + e0,              &
-                 1.0e-9_wp * abs(e0))
       call check_true('the frozen pond warmed the pack', env%pack%temp > 255.0_wp                         &
                       .and. env%pack%fliq == 0.0_wp, env%pack%temp)
 
@@ -580,8 +576,7 @@ contains
       w = pond%water
       e = pond%energy
       call check('fresh snow on fresh snow keeps its density', env%pack_density, p%fresh_density, 1.0e-9_wp)
-      call check_true('an empty pond stays empty, and the ledger''s pack is the pack', w == 0.0_wp .and.          &
-                      st%swe0 == 10.0_wp .and. st%pond_mass == 0.0_wp)
+      call check_true('an empty pond stays empty', w == 0.0_wp)
 
       !--- (e) Snow on a layer of ice: the densities mix by volume.
       call cold_env(env)
