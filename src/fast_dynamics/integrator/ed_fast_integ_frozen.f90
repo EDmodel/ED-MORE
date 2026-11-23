@@ -4,9 +4,9 @@
 ! computed once at the start of the dt_fast, from that moment's state and forcing, and
 ! held fixed across the march (docs/science/numerical_scheme.md §2, Category 0).
 ! build_frozen runs it as named steps:
-!   * the ground's stage: the stores the step starts from, canopy interception, the snow
-!     stage and the porous layers' spill; then the radiation through the canopy onto that
-!     ground (ed_fast_integ_radiation);
+!   * the ground's stage: the stores the step starts from, the canopy's interception of the
+!     rain, the porous layers' spill and the water layer's stage; then the radiation through
+!     the canopy onto that ground (ed_fast_integ_radiation);
 !   * the processes' rates at the start state: canopy aerodynamics, the root zone, leaf
 !     gas exchange, stem and fine-root maintenance respiration, heterotrophic respiration,
 !     the biotic CO2 source, and the canopy-air capacities and atmosphere conductances;
@@ -58,7 +58,7 @@ module ed_fast_integ_frozen
                                 decomposition_env_scalar, decomposition_transfer_matrix, heterotrophic_respiration
    use ed_surface, only : surface_env_t, water_layer_stage, water_layer_cover_of
    use ed_soil_water, only : organic_cover_path, vapour_diffusivity, slot_evaporation_setup
-   use ed_therm_lib,          only : internal_energy_liquid, liquid_energy_to_temp, precip_enthalpy,             &
+   use ed_therm_lib,          only : internal_energy_liquid, liquid_energy_to_temp,                              &
                                      cas_enthalpy_to_temp, cas_heat_capacity, air_vpd, air_density,             &
                                      soil_thermal_conductivity, specific_humidity_to_vapor_pressure
    use ed_numerics,           only : weighted_mean
@@ -214,10 +214,10 @@ contains
    !---~---
    !   ground_stage -- the ground's stores before the step's radiation and its march: their water
    ! and energy as the step finds them, which the whole-column ledgers start from; the canopy's
-   ! interception of the rain and snow, which the ground does not change; the porous layers'
+   ! interception of the rain, which the ground does not change; the porous layers'
    ! spill (docs/science/surface_organic_layer.md), what a slot holds above saturation joining
-   ! the water layer; and the water layer's stage (water_layer_stage): the throughfall, its rain
-   ! and its snow in the precipitation's proportions, and the water the tissues shed join it, its
+   ! the water layer; and the water layer's stage (water_layer_stage): the rain through the
+   ! canopy, all the snowfall, and the water the tissues shed join it, its
    ! free water leaves it for the water network's pond, a film takes the temperature of the node it lies
    ! on, the top porous layer or the top soil layer, and its cover is set. The water layer's
    ! exchange with the canopy air and the soil is the march's.
@@ -231,16 +231,12 @@ contains
       type(fast_dynamic_state_t), intent(in)    :: dynamic
       type(fast_output_t),        intent(inout) :: out
       type(frozen_t),             intent(inout) :: frozen
-      real(wp) :: throughfall   ! [kg/m2/s] the rain and snow through the canopy
-      real(wp) :: snow_share    ! [-] the snow's share of the precipitation
+      real(wp) :: rain_through   ! [kg/m2/s] the rain through the canopy
       real(wp) :: t_below, fliq_below, dry_cap
       integer(ik) :: k
       logical  :: has_porous
       frozen%surface0 = ground_surface_store(dynamic%ground_surface)
-      call intercept_rain(dt_fast, cfg, static, forcing, dynamic, frozen%veg_surface, throughfall)
-      snow_share = 0.0_wp
-      if (forcing%rainfall + forcing%snowfall > 0.0_wp)                                                         &
-         snow_share = forcing%snowfall / (forcing%rainfall + forcing%snowfall)
+      call intercept_rain(dt_fast, cfg, static, forcing, dynamic, frozen%veg_surface, rain_through)
       frozen%ground%pack   = dynamic%ground_surface%water
       frozen%ground%params = cfg%ground_surface%water
       frozen%ground%dt     = dt_fast
@@ -259,14 +255,14 @@ contains
          do k = 1_ik, N_POROUS
             dry_cap = dry_cap + cp_organic * frozen%porous(k)%matter
          end do
-         call water_layer_stage((1.0_wp - snow_share) * throughfall, snow_share * throughfall, forcing%air_temp,   &
+         call water_layer_stage(rain_through, forcing%snowfall, forcing%air_temp,                                 &
                                 static%shed_water_rate, static%shed_water_enth, dt_fast, cfg%ground_surface%water,   &
                                 cfg%ground_surface%min_depth, t_below, fliq_below, frozen%ground%pack, frozen%stage,  &
                                 below=ground_store_t(water=porous_water(frozen%porous),                               &
                                                      energy=porous_energy(frozen%porous)),                            &
                                 below_dry_cap=dry_cap)
       else
-         call water_layer_stage((1.0_wp - snow_share) * throughfall, snow_share * throughfall, forcing%air_temp,   &
+         call water_layer_stage(rain_through, forcing%snowfall, forcing%air_temp,                                 &
                                 static%shed_water_rate, static%shed_water_enth, dt_fast, cfg%ground_surface%water,   &
                                 cfg%ground_surface%min_depth, t_below, fliq_below, frozen%ground%pack, frozen%stage)
       end if
@@ -662,17 +658,19 @@ contains
 
    !---~---
    !   intercept_rain -- the step's canopy interception (canopy_interception) with the canopy
-   ! water store on, of the rain and the snow alike, whatever lies on the ground: a crown the
-   ! snow buries has its exposed share's leaf and wood area (crown_exposed_fraction).
+   ! water store on, of the rain only, whatever lies on the ground: the canopy's surface water
+   ! is liquid, so the snowfall passes through the canopy to the ground (snow held on the
+   ! branches is not represented). A crown the snow buries has its exposed share's leaf and
+   ! wood area (crown_exposed_fraction).
    !---~---
-   subroutine intercept_rain(dt_fast, cfg, static, forcing, dynamic, veg_surface, throughfall)
+   subroutine intercept_rain(dt_fast, cfg, static, forcing, dynamic, veg_surface, rain_through)
       real(wp),                     intent(in)    :: dt_fast
       type(ed_config_t),            intent(in)    :: cfg
       type(fast_static_state_t),    intent(in)    :: static
       type(fast_forcing_t),         intent(in)    :: forcing
       type(fast_dynamic_state_t),   intent(in)    :: dynamic
       type(canopy_water_out_t),     intent(inout) :: veg_surface
-      real(wp),                     intent(out)   :: throughfall   ! [kg/m2/s] what reaches the ground
+      real(wp),                     intent(out)   :: rain_through   ! [kg/m2/s] the rain that reaches the ground
       integer(ik) :: n
       n = static%n
       veg_surface%intercept_leaf = 0.0_wp
@@ -681,14 +679,14 @@ contains
       veg_surface%f_wet_c = 0.0_wp
       veg_surface%g_surf_leaf = 0.0_wp
       veg_surface%g_surf_wood = 0.0_wp
-      throughfall = forcing%rainfall + forcing%snowfall
+      rain_through = forcing%rainfall
       if (cfg%canopy_water_on)                                                                                 &
-         call canopy_interception(n, forcing%rainfall + forcing%snowfall, dynamic%leaf_surf_water,              &
+         call canopy_interception(n, forcing%rainfall, dynamic%leaf_surf_water,                                 &
                                   dynamic%wood_surf_water, static%lai, static%wai,                              &
                                   cfg%pft%leaf_surf_water_max(static%pft(1:n)),                                 &
                                   cfg%pft%wood_surf_water_max(static%pft(1:n)), cfg%intercept_k,                &
                                   cfg%intercept_alpha, dt_fast, veg_surface%intercept_leaf, veg_surface%intercept_wood,       &
-                                  veg_surface%transfer_lw, veg_surface%f_wet_c, throughfall)
+                                  veg_surface%transfer_lw, veg_surface%f_wet_c, rain_through)
    end subroutine intercept_rain
 
    !---~---
@@ -921,7 +919,7 @@ contains
       integer(ik),                intent(in)    :: nsl
       type(ground_surface_layer_params_t),     intent(in)    :: organic   ! the organic layer's materials
       type(frozen_t),      intent(inout) :: frozen
-      real(wp) :: t_precip       ! [K] the temperature of the precipitation's water as liquid
+      real(wp) :: t_rain         ! [K] the temperature of the rain the canopy's surface water exchanges with
       real(wp) :: depth          ! [m] an organic slot's depth
       type(porous_material_t) :: m
       integer(ik) :: k
@@ -954,14 +952,12 @@ contains
          !--- Each layer's roots lose their contact with it as it freezes (docs/science/plant_hydraulics.md eq. (14)).
          drive%root_contact(1:nsl) = root_soil_contact(dynamic%soil_energy%soil_temp(1:nsl))
          !---~---
-         !   The rain the surface water captures and drips back is the precipitation's, at the
-         ! temperature its enthalpy gives it as liquid; the canopy air's when nothing falls.
+         !   The rain the surface water captures and drips back is liquid at the air's temperature
+         ! (precip_enthalpy's rain); the canopy air's when no rain falls.
          !---~---
-         t_precip = tcas
-         if (forcing%rainfall + forcing%snowfall > tiny_num)                                                    &
-            t_precip = liquid_energy_to_temp(precip_enthalpy(forcing%rainfall, forcing%snowfall, forcing%air_temp)  &
-                                             / (forcing%rainfall + forcing%snowfall))
-         frozen%veg_surface%rain_liquid_enthalpy = internal_energy_liquid(t_precip)
+         t_rain = tcas
+         if (forcing%rainfall > tiny_num) t_rain = forcing%air_temp
+         frozen%veg_surface%rain_liquid_enthalpy = internal_energy_liquid(t_rain)
       end associate
    end subroutine ground_inflow
 

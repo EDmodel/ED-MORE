@@ -277,7 +277,7 @@ module ed_diag_vars
    !   The whole-column water budget's other terms and stores (docs/science/diagnostics.md §4, The
    ! budgets): P + shed water - ET - runoff - surface-water excess - store gain = the water residual.
    !---~---
-   integer(ik), parameter, public :: PA_INTERCEPT            = 46_ik  ! [kg/m2/s] rain and snow caught as surface water, net
+   integer(ik), parameter, public :: PA_INTERCEPT            = 46_ik  ! [kg/m2/s] rain caught as surface water, net
    integer(ik), parameter, public :: PA_THROUGHFALL          = 47_ik  ! [kg/m2/s] precipitation reaching the ground
    integer(ik), parameter, public :: PA_INFILTRATION         = 48_ik  ! [kg/m2/s] free water (the pond) into the ground
    integer(ik), parameter, public :: PA_ICE_MELT             = 49_ik  ! [kg/m2/s] the water layer's ice that melts, net

@@ -103,6 +103,7 @@ program test_fast_integ_step
       real(wp) :: ss_min = 1.0e9_wp, ss_max = -1.0e9_wp, sd_min = 1.0e9_wp, sd_max = -1.0e9_wp
       real(wp) :: th_min = 1.0e9_wp, th_max = -1.0e9_wp, theta_min = 1.0e9_wp
       real(wp) :: surf_water_peak = 0.0_wp, pond_peak = 0.0_wp, theta_peak = 0.0_wp, ood_peak = 0.0_wp
+      real(wp) :: intercepted = 0.0_wp   ! [kg/m2] the day's net capture by the canopy's surface water
       real(wp) :: wood_lag = 0.0_wp, worst_super = -1.0_wp
       real(wp) :: h_first = 0.0_wp, gah_first = 0.0_wp
       logical  :: physical = .true., snow_physical = .true.
@@ -241,6 +242,7 @@ contains
             d%theta_min  = min(d%theta_min, minval(dy%soil_water%theta(1:NSL)))
             d%theta_peak = max(d%theta_peak, maxval(dy%soil_water%theta(1:NSL)))
             d%surf_water_peak  = max(d%surf_water_peak, dy%leaf_surf_water(1) + dy%wood_surf_water(1))
+            d%intercepted      = d%intercepted + col%out%report%exports%intercept_export
             d%pond_peak  = max(d%pond_peak, col%out%report%exports%free_water)
             d%ood_peak   = max(d%ood_peak, col%out%report%theta_ood_max)
             d%wood_lag   = max(d%wood_lag, abs(dy%wood_temp(1) - dy%cas%can_temp))
@@ -626,7 +628,8 @@ contains
    ! each tissue's surface water being part of its tissue's energy at the tissue's temperature,
    ! its capture brought in at the rain's liquid enthalpy and its evaporation paying the
    ! vapour's. The wiring, from the interception through the surface water to the canopy air
-   ! and the ledgers; its own laws are test_canopy_water's and test_plant_energy's.
+   ! and the ledgers; its own laws are test_canopy_water's and test_plant_energy's. The surface
+   ! water is liquid, so a day of snow passes the canopy: none of it is intercepted.
    !---~---
    subroutine test_veg_surface_water()
       type(day_t) :: d
@@ -647,8 +650,13 @@ contains
          call check_true(trim(nm)//' surface water: whole-column energy closes to round-off',                     &
                          col%out%report%ledgers%whole_energy%worst < 1.0e-3_wp, col%out%report%ledgers%whole_energy%worst)
       end do
-      col%cfg%canopy_water_on = .false.
       call use_scheme(INTEG_ESDIRK2)
+      d = day_t(snowfall = 2.0e-5_wp)
+      call march_day(d)
+      call check_true('surface water: the snowfall passes the canopy', d%intercepted == 0.0_wp, d%intercepted)
+      call check_true('surface water: a snow day''s whole-column energy closes to round-off',                     &
+                      col%out%report%ledgers%whole_energy%worst < 1.0e-3_wp, col%out%report%ledgers%whole_energy%worst)
+      col%cfg%canopy_water_on = .false.
    end subroutine test_veg_surface_water
 
    !---~---

@@ -113,7 +113,7 @@ radiation.
 
 ## The canopy's surface water
 
-With `[fast].canopy_water_on`, rain and snow are intercepted and held as surface water on each
+With `[fast].canopy_water_on`, rain is intercepted and held as surface water on each
 cohort's leaves and wood. **Canopy interception** is a top-to-bottom cascade
 (`intercept_canopy_layer`, in `ed_canopy_water`): a
 capacity-limited bucket with a Beer interception fraction
@@ -130,9 +130,11 @@ In the fast loop the cascade runs once per fast step, at the step's start, as ca
 surface water's evaporation is the energy stages' own flux. Each cohort holds one combined
 leaf-and-wood bucket, filled tallest first and shared between leaf and wood by capacity, and the
 update reaches both integrators as a constant rate whose Euler step over the fast step reproduces it.
-Under a snowpack nothing is intercepted: the pack takes the rain and the snow. Snowfall below the
-new-snow threshold forms no pack and joins the rain as liquid: the canopy intercepts it as surface
-water, and the rest reaches the pond.
+The canopy intercepts the rain whatever lies on the ground, and only the rain: the surface water is
+liquid, so snow it caught would evaporate as liquid, at a latent heat and from a store that snow on
+branches does not have. The snowfall passes through the canopy to the ground's water layer. Snow held
+on the branches, its sublimation, its unloading and its shading of the crowns are not represented; a
+canopy snow store of its own, with the ice phase, would add them.
 
 **A known bias under reanalysis rain.** Hourly reanalysis rain (ERA5-Land) falls as frequent light
 drizzle: at BCI it wets about four times as many hours as the tower's rain does, for the same total. The

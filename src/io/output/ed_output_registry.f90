@@ -841,7 +841,7 @@ contains
    subroutine register_budgets(reg)
       type(output_registry_t), intent(inout) :: reg
       !--- water: the fluxes
-      call add_variable(reg, 'mean_intercept_py', 'precipitation the leaves and wood caught, net', 'kg/m2/s', DIM_SCALAR,    &
+      call add_variable(reg, 'mean_intercept_py', 'rain the leaves and wood caught, net', 'kg/m2/s', DIM_SCALAR,    &
                         AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_INTERCEPT, flux=.true.)
       call add_variable(reg, 'mean_throughfall_py', 'precipitation reaching the ground', 'kg/m2/s', DIM_SCALAR, AGG_TMEAN,   &
                         GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_THROUGHFALL, flux=.true.)
