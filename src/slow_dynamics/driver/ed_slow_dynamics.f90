@@ -43,6 +43,7 @@ module ed_slow_dynamics
                                        commit_soil_carbon, follow_litter_pools
    use ed_slow_diag,            only : open_slow_cohort_rows, write_slow_patch_rows
    use ed_soil_hydr_lib,          only : soil_theta_to_head
+   use ed_organic_lib,            only : organic_registered_mass
    implicit none
    private
 
@@ -95,8 +96,9 @@ contains
    !---~---
    !   The organic layer's litter follows the above-ground metabolic litter pool (the structural pool,
    ! which holds the coarse woody debris, waits for a fine-litter split), which the soil-carbon
-   ! step has just advanced (docs/science/surface_organic_layer.md); the energy its dry matter
-   ! brings or takes, at the layer's temperature, is declared.
+   ! step has just advanced (docs/science/surface_organic_layer.md), as a layer only from
+   ! ORGANIC_MIN_DEPTH; the energy its dry matter brings or takes, at the layer's temperature, is
+   ! declared.
    !---~---
    subroutine litter_follows_pools(poly, cfg, ledger)
       type(polygon_t),     intent(inout) :: poly
@@ -106,7 +108,8 @@ contains
       real(wp)    :: water(poly%patch%n)
       integer(ik) :: ip
       do ip = 1_ik, poly%patch%n
-         mass(ip)  = c2b_organic * poly%patch%soil_carbon(ip)%carbon(IP_FAST_GRND)
+         mass(ip)  = organic_registered_mass(c2b_organic * poly%patch%soil_carbon(ip)%carbon(IP_FAST_GRND),        &
+                                             cfg%organic%litter%bulk_density)
          t_new(ip) = poly%patch%soil_energy(ip)%soil_temp(1)
          associate (c => poly%site%surface(poly%patch%owner_site(ip))%soil_profile%layer_curve(1))
             head(ip) = soil_theta_to_head(c%retention, poly%patch%soil_water(ip)%theta(1), c%theta_sat, c%theta_res,   &

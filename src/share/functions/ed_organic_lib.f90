@@ -18,6 +18,7 @@ module ed_organic_lib
    public :: organic_material_t, organic_params_t, organic_state_t, SLOT_LITTER, SLOT_MOSS
    public :: organic_present, organic_slot_material, organic_layer_sums, organic_diagnose, organic_split_energy
    public :: organic_take_exchange, organic_slot_curve, organic_slot_capacity, organic_spill
+   public :: ORGANIC_MIN_DEPTH, organic_registered_mass
 
    !---~---
    !   One organic material (docs/science/surface_organic_layer.md): its dry mass per volume, its
@@ -66,6 +67,12 @@ module ed_organic_lib
    ! (docs/science/surface_organic_layer.md).
    !---~---
    integer(ik), parameter :: SLOT_LITTER = 1_ik, SLOT_MOSS = 2_ik
+   !---~---
+   !   [m] The depth from which a slot's matter is a layer of the ground. Thinner, a film of a few
+   ! micrometres, it holds a fraction of a joule per kelvin and a trace of water, which no balance
+   ! can carry; its matter stays in its pool, and the ground's surface is what lies below it.
+   !---~---
+   real(wp), parameter :: ORGANIC_MIN_DEPTH = 1.0e-4_wp
 
    type :: organic_state_t
       real(wp) :: mass(n_organic_slot)    = 0.0_wp   ! [kg/m2] dry matter
@@ -77,6 +84,13 @@ module ed_organic_lib
    end type organic_state_t
 
 contains
+
+   !--- The dry matter [kg/m2] a slot of mass [kg/m2] at density [kg/m3] holds as a layer: none below ORGANIC_MIN_DEPTH.
+   elemental real(wp) function organic_registered_mass(mass, density) result(registered)
+      real(wp), intent(in) :: mass, density
+      registered = 0.0_wp
+      if (density > 0.0_wp .and. mass >= ORGANIC_MIN_DEPTH * density) registered = mass
+   end function organic_registered_mass
 
    !--- Whether a patch has an organic layer: dry matter in any slot.
    pure logical function organic_present(org)

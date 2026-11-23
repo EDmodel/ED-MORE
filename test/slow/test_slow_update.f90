@@ -1227,7 +1227,7 @@ module test_slow_update_litter
    use ed_therm_lib,            only : temp_to_internal_energy
    use ed_patch_state_vars,     only : patch_block, alloc_patch_block
    use ed_organic_lib,          only : organic_params_t, organic_state_t, organic_split_energy, SLOT_LITTER, &
-                                       SLOT_MOSS
+                                       SLOT_MOSS, ORGANIC_MIN_DEPTH, organic_registered_mass
    use ed_slow_update,          only : follow_litter_pools
    use ed_test_support,         only : banner, check, check_close
    implicit none
@@ -1239,6 +1239,11 @@ contains
       type(organic_params_t) :: o
       real(wp) :: heat(1), water(1), w0, e0, cap
       call banner('litter follows its pool')
+      !--- A film thinner than ORGANIC_MIN_DEPTH is no layer; from it, all its matter is.
+      call check(organic_registered_mass(0.5_wp * ORGANIC_MIN_DEPTH * o%litter%bulk_density, o%litter%bulk_density)  &
+                 == 0.0_wp, 'litter thinner than the minimum depth is no layer')
+      call check(organic_registered_mass(ORGANIC_MIN_DEPTH * o%litter%bulk_density, o%litter%bulk_density)            &
+                 == ORGANIC_MIN_DEPTH * o%litter%bulk_density, 'litter at the minimum depth is a layer, all of it')
       call alloc_patch_block(patch, 1_ik, 1_ik)
       patch%n = 1_ik
       associate (org => patch%organic(1), sw => patch%soil_water(1))

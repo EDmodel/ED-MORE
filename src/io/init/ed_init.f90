@@ -25,7 +25,7 @@ module ed_init
    use ed_soil_carbon,           only : soil_carbon_steady_pools
    use ed_patch_state_vars,      only : soil_carbon_state_t
    use ed_organic_lib,           only : organic_state_t, organic_material_t, SLOT_LITTER, SLOT_MOSS,      &
-                                        organic_split_energy, organic_slot_material
+                                        organic_split_energy, organic_slot_material, organic_registered_mass
    use ed_biogeochem_params,     only : IP_FAST_GRND
    use ed_constants,             only : c2b_organic, cp_organic, rho_h2o, t_3ple, n_organic_slot
    use ed_slow_state,            only : advance_plant_traits, reacclimate_plant_traits
@@ -167,9 +167,9 @@ contains
    !---~---
    !   Each patch's organic layer at the start (docs/science/surface_organic_layer.md): the
    ! litter, the above-ground metabolic litter pool's dry matter, with [surface_layer].litter_on; the moss,
-   ! its site's [soil].moss_depth; each slot holding the water its curve holds at the top soil
-   ! layer's matric head, as the water network would bring it to, at the top soil layer's
-   ! temperature (its water frozen below t_3ple).
+   ! its site's [soil].moss_depth; either a layer only from ORGANIC_MIN_DEPTH; each slot holding the
+   ! water its curve holds at the top soil layer's matric head, as the water network would bring it
+   ! to, at the top soil layer's temperature (its water frozen below t_3ple).
    !---~---
    subroutine seed_organic_layer(poly, cfg)
       type(polygon_t),   intent(inout) :: poly
@@ -182,12 +182,14 @@ contains
                     sc => poly%patch%soil_carbon(ip))
             org = organic_state_t()
             if (cfg%organic%litter_on) then
-               org%mass(SLOT_LITTER)    = c2b_organic * sc%carbon(IP_FAST_GRND)
+               org%mass(SLOT_LITTER)    = organic_registered_mass(c2b_organic * sc%carbon(IP_FAST_GRND),        &
+                                                                  cfg%organic%litter%bulk_density)
                org%density(SLOT_LITTER) = cfg%organic%litter%bulk_density
             end if
             if (surf%soil%moss_depth > 0.0_wp) then
                org%density(SLOT_MOSS) = cfg%organic%moss%bulk_density
-               org%mass(SLOT_MOSS)    = surf%soil%moss_depth * org%density(SLOT_MOSS)
+               org%mass(SLOT_MOSS)    = organic_registered_mass(surf%soil%moss_depth * org%density(SLOT_MOSS),   &
+                                                                org%density(SLOT_MOSS))
             end if
             associate (c => surf%soil_profile%layer_curve(1))
                head = soil_theta_to_head(c%retention, surf%theta_start(1), c%theta_sat, c%theta_res, c%par_a, c%par_n)
