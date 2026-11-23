@@ -27,7 +27,7 @@ module ed_init
    use ed_ground_surface_lib,    only : porous_layer_matter
    use ed_ground_surface_params, only : N_POROUS, MASS_FROM_METABOLIC_LITTER, MASS_FROM_SITE_DEPTH
    use ed_biogeochem_params,     only : IP_FAST_GRND
-   use ed_constants,             only : c2b, t_3ple
+   use ed_constants,             only : c2b
    use ed_slow_state,            only : advance_plant_traits, reacclimate_plant_traits
    use ed_init_bare_ground,      only : init_bare_ground, init_bare_sites, seed_bare_ground, seed_patch_stores, &
                                          N_PATCH_INIT
@@ -171,12 +171,12 @@ contains
    ! comes from its mass_source: the above-ground metabolic litter pool's dry matter, or the site's
    ! [soil].moss_depth at its bulk density; either a layer only from min_depth. Each slot holds the water
    ! its curve holds at the top soil layer's matric head, as the water network would bring it to,
-   ! at the top soil layer's temperature, its water frozen below t_3ple.
+   ! at the top soil layer's temperature, its water's phase its freezing curve's there.
    !---~---
    subroutine seed_porous_layers(poly, cfg)
       type(polygon_t),   intent(inout) :: poly
       type(ed_config_t), intent(in)    :: cfg
-      real(wp)    :: mass(N_POROUS, poly%patch%n), temp(poly%patch%n), fliq(poly%patch%n)
+      real(wp)    :: mass(N_POROUS, poly%patch%n), temp(poly%patch%n)
       real(wp)    :: head(poly%patch%n), heat(poly%patch%n), water(poly%patch%n)
       integer(ik) :: ip, k
       do ip = 1_ik, poly%patch%n
@@ -198,10 +198,9 @@ contains
                                              c%par_n)
             end associate
             temp(ip) = poly%patch%soil_energy(ip)%soil_temp(1)
-            fliq(ip) = merge(1.0_wp, 0.0_wp, temp(ip) >= t_3ple)
          end associate
       end do
-      call follow_porous_layers(poly%patch, cfg%ground_surface, mass, temp, fliq, head, heat, water)
+      call follow_porous_layers(poly%patch, cfg%ground_surface, mass, temp, head, heat, water)
    end subroutine seed_porous_layers
 
    !--- Each site's terrain: the polygon's elevation, flat, unless its [[sites]] table gives its own.

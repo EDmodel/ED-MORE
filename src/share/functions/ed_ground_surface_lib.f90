@@ -15,7 +15,8 @@
 !---~---
 module ed_ground_surface_lib
    use ed_kinds,         only : wp, ik
-   use ed_constants,     only : rho_h2o, rho_ice, cp_liq, cp_ice, tsupercool_liq, t_3ple, tiny_num, k_water
+   use ed_constants,     only : rho_h2o, rho_ice, cp_liq, cp_ice, tsupercool_liq, t_3ple, tiny_num, k_water,     &
+                               latent_heat_fusion
    use ed_therm_lib,     only : internal_energy_liquid
    use ed_soil_hydr_lib, only : soil_layer_curve_t, soil_liquid_capacity
    implicit none
@@ -23,6 +24,7 @@ module ed_ground_surface_lib
 
    !--- A porous medium's phase.
    public :: porous_layer_temp, porous_energy_state, porous_layer_energy, porous_energy_at_temp
+   public :: film_on_porous_layer
    !--- A porous layer of the ground's surface.
    public :: porous_layer_depth, porous_layer_capacity, porous_layer_fill, porous_layer_resistance
    public :: porous_layer_matter
@@ -146,6 +148,42 @@ contains
       de = dry_heat_capacity + wmass * (fliq * cp_liq + (1.0_wp - fliq) * cp_ice                          &
                                        + dfliq * (internal_energy_liquid(temp) - cp_ice * temp))
    end subroutine porous_energy_at_temp
+
+   !---~---
+   !   A film of water w_film [kg/m2] on a porous layer, the two at one temperature (the water layer's
+   ! film rule on a porous layer): their total energy e_total [J/m2] gives the temperature, the film's
+   ! liquid fraction and its energy, the film's water on the pure-water law and the layer's on its
+   ! freezing curve (porous_layer_temp, with the layer's dry heat capacity dry_cap [J/m2/K], its water
+   ! w_layer [kg/m2], its depth [m] and its curve). Below t_3ple the film is ice, a heat capacity
+   ! beside the layer's matter; above it both are liquid; between, the two sit at t_3ple and the film
+   ! melts first, the layer's water stored beyond saturation after it.
+   !---~---
+   pure subroutine film_on_porous_layer(e_total, w_film, w_layer, dry_cap, depth, curve, temp, fliq_film, e_film)
+      real(wp),                 intent(in)  :: e_total, w_film, w_layer, dry_cap, depth   ! [J/m2], [kg/m2], [kg/m2], [J/m2/K], [m]
+      type(soil_layer_curve_t), intent(in)  :: curve
+      real(wp),                 intent(out) :: temp, fliq_film, e_film   ! [K], [-], [J/m2]
+      real(wp) :: theta, e_ice3, e_liq3, e_bottom3, fl, de
+      theta = w_layer / (rho_h2o * depth)
+      !--- At t_3ple: the film all ice with the layer at the bottom of its plateau, and both all liquid.
+      call porous_energy_at_temp(t_3ple, theta, dry_cap / depth, curve, e_bottom3, de, fl)
+      e_bottom3 = e_bottom3 * depth
+      e_ice3 = e_bottom3 + w_film * cp_ice * t_3ple
+      e_liq3 = dry_cap * t_3ple + (w_layer + w_film) * internal_energy_liquid(t_3ple)
+      if (e_total < e_ice3) then
+         call porous_layer_temp(e_total / depth, theta, (dry_cap + w_film * cp_ice) / depth, curve, temp, fl)
+         fliq_film = 0.0_wp
+         e_film    = w_film * cp_ice * temp
+      else if (e_total > e_liq3) then
+         temp      = (e_total + (w_layer + w_film) * cp_liq * tsupercool_liq) / (dry_cap + (w_layer + w_film) * cp_liq)
+         fliq_film = 1.0_wp
+         e_film    = w_film * internal_energy_liquid(temp)
+      else
+         temp   = t_3ple
+         e_film = min(w_film * internal_energy_liquid(t_3ple), max(w_film * cp_ice * t_3ple, e_total - e_bottom3))
+         fliq_film = 0.0_wp
+         if (w_film > 0.0_wp) fliq_film = (e_film - w_film * cp_ice * t_3ple) / (w_film * latent_heat_fusion)
+      end if
+   end subroutine film_on_porous_layer
 
    !--- A porous layer of the ground's surface (docs/science/surface_organic_layer.md).
 

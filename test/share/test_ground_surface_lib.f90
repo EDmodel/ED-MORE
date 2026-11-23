@@ -16,11 +16,14 @@
 !   4. WATER LAYER, SURFACE (water_layer_cover, water_layer_albedo, water_layer_resistance): the
 !      cover of 1 and 10 cm at 250 kg/m3, and of 1 and 5 cm of ponded water; the albedo's fresh
 !      and aged ends; the resistance of the matrix and of the water standing above it.
+!   5. A FILM ON A POROUS LAYER (film_on_porous_layer): the two at one temperature, their energy
+!      shared exactly: below t_3ple the film is ice and the layer on its freezing curve, above it
+!      both liquid, between them both at t_3ple, the film melting first.
 !---~---
 program test_ground_surface_lib
    use ed_test_assert,        only : check_true, check_close, test_report
    use ed_kinds,              only : wp
-   use ed_constants,          only : rho_h2o, rho_ice, t_3ple, cp_liq, tsupercool_liq, k_water
+   use ed_constants,          only : rho_h2o, rho_ice, t_3ple, cp_liq, cp_ice, tsupercool_liq, k_water
    use ed_soil_hydr_lib,      only : soil_layer_curve_t, build_soil_layer_curve, SOIL_RETENTION_VG,            &
                                      soil_liquid_capacity
    use ed_ground_surface_lib, only : porous_layer_temp, porous_energy_state, porous_layer_energy,               &
@@ -28,13 +31,15 @@ program test_ground_surface_lib
                                      porous_layer_fill, porous_layer_resistance, porous_layer_matter,            &
                                      water_layer_free_water, water_layer_depth, matrix_depth_update,             &
                                      water_layer_cover, water_layer_albedo,                                      &
-                                     water_layer_resistance
+                                     water_layer_resistance, film_on_porous_layer
+   use ed_therm_lib,          only : internal_energy_liquid
    implicit none
 
    call test_porous_phase()
    call test_porous_layer()
    call test_water_layer_mass()
    call test_water_layer_surface()
+   call test_film_on_porous_layer()
 
    call test_report('test_ground_surface_lib')
 
@@ -151,5 +156,40 @@ contains
       call check_close('and the water standing above it', water_layer_resistance(0.15_wp, 0.1_wp, 0.15_wp),       &
                        0.1_wp / 0.15_wp + 0.05_wp / k_water, 1.0e-12_wp)
    end subroutine test_water_layer_surface
+
+   !---~---
+   !   5. A film of 0.05 kg/m2 on a 1 cm moss holding 3 kg/m2, its dry matter 400 J/m2/K: below,
+   ! at and above the triple point, the film and the layer share the total energy exactly at one
+   ! temperature, the layer on its freezing curve.
+   !---~---
+   subroutine test_film_on_porous_layer()
+      real(wp), parameter :: W_FILM = 0.05_wp, W_LAYER = 3.0_wp, C_DRY = 400.0_wp, DEPTH = 0.01_wp
+      type(soil_layer_curve_t) :: c
+      real(wp) :: theta, temps(2), e_total, t, fl, e_film, e_layer
+      integer  :: i
+      call build_soil_layer_curve(SOIL_RETENTION_VG, 0.85_wp, 0.18_wp, 50.0_wp, 1.45_wp, 1.3e-3_wp, DEPTH, c)
+      theta = W_LAYER / (rho_h2o * DEPTH)
+      temps = [265.0_wp, 280.0_wp]
+      do i = 1, size(temps)
+         e_layer = porous_layer_energy(temps(i), theta, C_DRY / DEPTH, c) * DEPTH
+         if (temps(i) < t_3ple) then
+            e_total = e_layer + W_FILM * cp_ice * temps(i)
+         else
+            e_total = e_layer + W_FILM * internal_energy_liquid(temps(i))
+         end if
+         call film_on_porous_layer(e_total, W_FILM, W_LAYER, C_DRY, DEPTH, c, t, fl, e_film)
+         call check_close('film on a porous layer: one temperature', t, temps(i), 1.0e-7_wp)
+         call check_close('film on a porous layer: the film ice below, liquid above', fl,                    &
+                          merge(1.0_wp, 0.0_wp, temps(i) > t_3ple), 0.0_wp)
+         call check_close('film on a porous layer: the layer keeps the rest, on its curve', e_total - e_film,  &
+                          porous_layer_energy(t, theta, C_DRY / DEPTH, c) * DEPTH, 1.0e-3_wp)
+      end do
+      !--- At the triple point, half the film's fusion heat beyond its all-ice state: half of it melted.
+      e_layer = porous_layer_energy(t_3ple, theta, C_DRY / DEPTH, c) * DEPTH
+      e_total = e_layer + W_FILM * (cp_ice * t_3ple + 0.5_wp * (internal_energy_liquid(t_3ple) - cp_ice * t_3ple))
+      call film_on_porous_layer(e_total, W_FILM, W_LAYER, C_DRY, DEPTH, c, t, fl, e_film)
+      call check_close('film on a porous layer: at the triple point', t, t_3ple, 0.0_wp)
+      call check_close('film on a porous layer: half of it melted', fl, 0.5_wp, 1.0e-9_wp)
+   end subroutine test_film_on_porous_layer
 
 end program test_ground_surface_lib

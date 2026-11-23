@@ -18,7 +18,7 @@
 module ed_surface
    use ed_kinds,                only : wp, ik
    use ed_constants,            only : t_3ple, tiny_num, cp_air, cp_ice, cp_liq, stefan_boltzmann, &
-                                       latent_heat_fusion, tsupercool_liq
+                                       latent_heat_fusion, tsupercool_liq, rho_h2o
    use ed_therm_lib,            only : internal_energy_to_temp, sat_specific_humidity,                        &
                                        sat_specific_humidity_temp_deriv, enthalpy_vapor,           &
                                        internal_energy_liquid, precip_enthalpy
@@ -26,9 +26,11 @@ module ed_surface
                                        store_take_exchange
    use ed_ground_surface_params, only : water_material_t, N_POROUS
    use ed_linear_algebra,       only : thomas_solve
+   use ed_numerics,             only : root_bracket_t, regula_falsi_point, illinois_narrow
+   use ed_soil_hydr_lib,        only : soil_layer_curve_t, soil_liquid_capacity
    use ed_ground_surface_lib,   only : water_layer_cover, water_layer_albedo, water_layer_depth,              &
                                        water_layer_free_water, water_layer_resistance, water_layer_bulk_density, &
-                                       matrix_depth_update
+                                       matrix_depth_update, porous_energy_state, film_on_porous_layer
    implicit none
    private
 
@@ -50,6 +52,8 @@ module ed_surface
    integer(ik), parameter :: STACK_NEWTON_MAX = 12_ik
    integer(ik), parameter :: STACK_SWEEP_MAX  = 500_ik
    real(wp),    parameter :: STACK_TEMP_TOL   = 1.0e-8_wp
+   !--- The most steps of a porous node's own root on its freezing curve (curve_node_root).
+   integer(ik), parameter :: STACK_ROOT_MAX   = 60_ik
 
    !---~---
    !   The ground surface's stores that exchange with the canopy air apart from the soil: the
@@ -66,14 +70,17 @@ module ed_surface
 
    !---~---
    !   One porous layer as the stack's balance reads it over a step: its dry heat capacity (none
-   ! where there is no layer); the water it holds over the step, the water network's end water
-   ! with its own evaporation not yet gone; its energy, temperature and liquid fraction at the
-   ! step's start; its thermal resistance top to bottom; its evaporation, the water network's,
-   ! held over the step per unit ground area; and the water network's net flow over the step out
-   ! of its bottom, into the next layer below or the soil (< 0: up into it).
+   ! where there is no layer), its depth and its freezing curve (its retention curve at its
+   ! depth), on which its energy holds its water's phase; the water it holds over the step, the
+   ! water network's end water with its own evaporation not yet gone; its energy, temperature and
+   ! liquid fraction at the step's start; its thermal resistance top to bottom; its evaporation,
+   ! the water network's, held over the step per unit ground area; and the water network's net
+   ! flow over the step out of its bottom, into the next layer below or the soil (< 0: up into it).
    !---~---
    type :: porous_node_env_t
       real(wp) :: dry_cap    = 0.0_wp                   ! [J/m2/K]
+      real(wp) :: depth      = 0.0_wp                   ! [m]
+      type(soil_layer_curve_t) :: curve
       real(wp) :: water      = 0.0_wp                   ! [kg/m2]
       real(wp) :: energy     = 0.0_wp                   ! [J/m2]
       real(wp) :: temp       = t_3ple                   ! [K]
@@ -151,7 +158,9 @@ module ed_surface
    !---~---
    !   One node of the ground's surface, the water layer, the litter or the moss, as its balance
    ! over a step reads it: its water over the step and its energy at the step's start, with its
-   ! temperature and liquid fraction there, the point its exchange is linearized about; the share
+   ! temperature and liquid fraction there, the point its exchange is linearized about, and the law
+   ! its energy holds its water's phase by: pure water's for the water layer, the soil's freezing
+   ! curve for a porous layer (docs/science/soil_biophysics.md eq. (15)); the share
    ! of the ground it exchanges with the canopy air over, the net radiation it absorbs per unit of
    ! that share at its temperature, its vapour, either the canopy air's (live, from its own
    ! saturation) or the water network's rate held over the step, per unit ground area; its
@@ -163,6 +172,9 @@ module ed_surface
    !---~---
    type :: surface_node_t
       real(wp) :: dry_cap     = 0.0_wp      ! [J/m2/K] heat capacity of its dry matter (none for water)
+      logical  :: on_curve    = .false.     ! its phase on a freezing curve (a porous layer), else pure water's
+      real(wp) :: depth       = 0.0_wp      ! [m]      a porous layer's, with its curve
+      type(soil_layer_curve_t) :: curve
       real(wp) :: water       = 0.0_wp      ! [kg/m2]  liquid and ice
       real(wp) :: energy      = 0.0_wp      ! [J/m2]   internal energy
       real(wp) :: temp        = t_3ple      ! [K]
@@ -267,6 +279,9 @@ contains
          n = n + 1_ik
          store(n)            = STORE_WATER + k
          node(n)%dry_cap     = env%porous(k)%dry_cap
+         node(n)%on_curve    = .true.
+         node(n)%depth       = env%porous(k)%depth
+         node(n)%curve       = env%porous(k)%curve
          node(n)%water       = env%porous(k)%water
          node(n)%energy      = env%porous(k)%energy
          node(n)%temp        = env%porous(k)%temp
@@ -514,22 +529,30 @@ contains
       call node_linearization(node, env, lin)
       w_cap = huge(1.0_wp)
       if (a > 0.0_wp .and. .not. node%vapour_held) w_cap = w / (dt * a)   ! the vapour that empties it over dt
-      !--- Solve e(T) = E^n + dt (r0 + drdt (T - T^n)): on the plateau first, else on the ice or the liquid line.
+      !---~---
+      !   Solve e(T) = E^n + dt (r0 + drdt (T - T^n)): a porous node on its freezing curve by its own
+      ! root (curve_node_root); the water layer on the plateau first, else on the ice or the liquid
+      ! line, in closed form.
+      !---~---
       do pass = 1, 2
          r0   = node_exchange(node, lin, node%temp) + link_heat(node, node%temp, node%t_above, node%t_below)
          drdt = -(a * (lin%demit_dt + lin%dh_dt + lin%l_vap * lin%dw_dt) + node%g_above + node%g_below)   ! < 0
-         u_freeze = (cd + w * cp_ice) * t_3ple
-         u_melt   = u_freeze + w * latent_heat_fusion
-         t_new    = t_3ple
-         e_bal    = e0 + dt * (r0 + drdt * (t_3ple - node%temp))
-         fl_new   = min(1.0_wp, max(0.0_wp, (e_bal - u_freeze) / max(w * latent_heat_fusion, tiny_num)))
-         if (e_bal < u_freeze) then
-            t_new  = (e0 + dt * (r0 - drdt * node%temp)) / (cd + w * cp_ice - dt * drdt)
-            fl_new = 0.0_wp
-         else if (e_bal > u_melt) then
-            t_new  = (e0 + w * cp_liq * tsupercool_liq + dt * (r0 - drdt * node%temp))                         &
-                     / (cd + w * cp_liq - dt * drdt)
-            fl_new = 1.0_wp
+         if (node%on_curve) then
+            call curve_node_root(node, cd, e0, r0, drdt, dt, t_new, fl_new)
+         else
+            u_freeze = (cd + w * cp_ice) * t_3ple
+            u_melt   = u_freeze + w * latent_heat_fusion
+            t_new    = t_3ple
+            e_bal    = e0 + dt * (r0 + drdt * (t_3ple - node%temp))
+            fl_new   = min(1.0_wp, max(0.0_wp, (e_bal - u_freeze) / max(w * latent_heat_fusion, tiny_num)))
+            if (e_bal < u_freeze) then
+               t_new  = (e0 + dt * (r0 - drdt * node%temp)) / (cd + w * cp_ice - dt * drdt)
+               fl_new = 0.0_wp
+            else if (e_bal > u_melt) then
+               t_new  = (e0 + w * cp_liq * tsupercool_liq + dt * (r0 - drdt * node%temp))                      &
+                        / (cd + w * cp_liq - dt * drdt)
+               fl_new = 1.0_wp
+            end if
          end if
          if (lin%w_n + lin%dw_dt * (t_new - node%temp) <= w_cap) exit
          lin%w_n   = w_cap                                      ! held, and solved again
@@ -656,8 +679,8 @@ contains
 
    !---~---
    !   The stack's residuals at the nodes' energies e: each node's temperature, liquid fraction and
-   ! dT/dE on its phase law, its line's heat capacity (water_phase, with the water it gives as
-   ! part of its heat capacity, node_storage), and R = e - E^n - dt Phi, Phi its exchange
+   ! dT/dE on its phase law, its heat capacity there (node_phase, with the water it gives as part
+   ! of its heat capacity, node_storage), and R = e - E^n - dt Phi, Phi its exchange
    ! (node_exchange) plus its links at those temperatures (link_heat), the top node's above and
    ! the bottom node's below at the held ones.
    !---~---
@@ -670,7 +693,7 @@ contains
       real(wp)    :: t_up, t_down
       integer(ik) :: i
       do i = 1_ik, n
-         call water_phase(e(i), node(i)%water, cd(i), t(i), fl(i), dtde(i), cap(i))
+         call node_phase(node(i), e(i), cd(i), t(i), fl(i), dtde(i), cap(i))
       end do
       do i = 1_ik, n
          t_up   = node(i)%t_above
@@ -745,8 +768,26 @@ contains
          lin%dw_dt = env%ggnet * env%rho_air * sat_specific_humidity_temp_deriv(node%temp, env%press, node%fliq)
       end if
       lin%demit_dt = emission_slope(node%emiss, node%temp)
-      lin%l_vap    = enthalpy_vapor(node%temp) - water_specific_energy(node%temp, node%fliq)
+      lin%l_vap    = enthalpy_vapor(node%temp) - node_water_energy(node, node%temp, node%fliq)
    end subroutine node_linearization
+
+   !---~---
+   !   [J/kg] The energy a kilogram of water leaving a node by its vapour takes from it at
+   ! temperature t: the water layer's at its liquid fraction fl; a porous layer's what its law
+   ! gives up at t, its ice while its curve holds less liquid than it has (the liquid stays at the
+   ! curve's), its liquid otherwise.
+   !---~---
+   pure real(wp) function node_water_energy(node, t, fl) result(u)
+      type(surface_node_t), intent(in) :: node
+      real(wp),             intent(in) :: t, fl
+      real(wp) :: liq, dliq
+      u = water_specific_energy(t, fl)
+      if (.not. node%on_curve .or. fl >= 1.0_wp) return
+      u = internal_energy_liquid(t)
+      if (t >= t_3ple) return
+      call soil_liquid_capacity(node%curve, t, liq, dliq)
+      if (liq * rho_h2o * node%depth < node%water) u = cp_ice * t
+   end function node_water_energy
 
    !---~---
    !   A node's fluxes at its temperature t and liquid fraction fl, the node above at t_above and
@@ -765,11 +806,73 @@ contains
       flux%rad       = node%area * (node%rad - lin%demit_dt * dtemp)
       flux%h         = node%area * (lin%h_n + lin%dh_dt * dtemp)
       flux%w_flux    = node%area * (lin%w_n + lin%dw_dt * dtemp) + lin%vh
-      flux%le        = flux%w_flux * (lin%l_vap + water_specific_energy(t, fl))
+      flux%le        = flux%w_flux * (lin%l_vap + node_water_energy(node, t, fl))
       flux%g_below   = node%g_below * (t - node%t_below)
       flux%energy_in = flux%rad - flux%h - flux%le + link_heat(node, t, node%t_above, node%t_below)               &
                        - node%m_out * internal_energy_liquid(t)
    end subroutine node_fluxes
+
+   !---~---
+   !   A node's temperature, liquid fraction, dT/dE and heat capacity [J/m2/K] at an energy e
+   ! [J/m2] with dry heat capacity cd [J/m2/K]: the water layer's on pure water's law
+   ! (water_phase), a porous layer's on its freezing curve (porous_energy_state, per volume of its
+   ! depth), its temperature fixed at t_3ple while water it stores beyond saturation melts.
+   !---~---
+   pure subroutine node_phase(node, e, cd, t, fl, dtde, cap)
+      type(surface_node_t), intent(in)  :: node
+      real(wp),             intent(in)  :: e, cd
+      real(wp),             intent(out) :: t, fl, dtde, cap
+      real(wp) :: de
+      if (.not. node%on_curve) then
+         call water_phase(e, node%water, cd, t, fl, dtde, cap)
+         return
+      end if
+      call porous_energy_state(e / node%depth, node%water / (rho_h2o * node%depth), cd / node%depth, node%curve,  &
+                               t, fl, de)
+      cap  = de * node%depth
+      dtde = 1.0_wp / max(cap, tiny_num)
+      if (t == t_3ple .and. fl < 1.0_wp) dtde = 0.0_wp
+   end subroutine node_phase
+
+   !---~---
+   !   A porous node's balance over the step, its neighbours held, on its freezing curve: the root e
+   ! of g(e) = e - e0 - dt (r0 + drdt (T(e) - T^n)), and its temperature and liquid fraction there.
+   ! g rises with e at slope 1 or more (drdt < 0, and T rises with e), so a bracket lies one
+   ! residual from e0; Newton's step is taken where it falls inside the bracket, the Illinois
+   ! method's point where it does not.
+   !---~---
+   pure subroutine curve_node_root(node, cd, e0, r0, drdt, dt, t, fl)
+      type(surface_node_t), intent(in)  :: node
+      real(wp),             intent(in)  :: cd, e0, r0, drdt, dt   ! [J/m2/K], [J/m2], [W/m2], [W/m2/K], [s]
+      real(wp),             intent(out) :: t, fl                  ! [K], [-]
+      type(root_bracket_t) :: br
+      real(wp)    :: e, g, dtde, cap, e_new, t_end, fl_end, d_end, c_end
+      integer(ik) :: it
+      e = e0
+      call node_balance_on_curve(node, cd, e0, r0, drdt, dt, e, g, t, fl, dtde, cap)
+      if (abs(g) <= STACK_TEMP_TOL * (cap + dt * abs(drdt))) return
+      br%a = min(e0, e0 - g)
+      br%b = max(e0, e0 - g)
+      call node_balance_on_curve(node, cd, e0, r0, drdt, dt, br%a, br%fa, t_end, fl_end, d_end, c_end)
+      call node_balance_on_curve(node, cd, e0, r0, drdt, dt, br%b, br%fb, t_end, fl_end, d_end, c_end)
+      do it = 1_ik, STACK_ROOT_MAX
+         e_new = e - g / (1.0_wp - dt * drdt * dtde)
+         if (.not. (e_new > br%a .and. e_new < br%b)) e_new = regula_falsi_point(br)
+         e = e_new
+         call node_balance_on_curve(node, cd, e0, r0, drdt, dt, e, g, t, fl, dtde, cap)
+         if (abs(g) <= STACK_TEMP_TOL * (cap + dt * abs(drdt))) exit
+         call illinois_narrow(br, e, g)
+      end do
+   end subroutine curve_node_root
+
+   !--- curve_node_root's residual g at energy e, with the node's temperature, liquid fraction, dT/dE and heat capacity there.
+   pure subroutine node_balance_on_curve(node, cd, e0, r0, drdt, dt, e, g, t, fl, dtde, cap)
+      type(surface_node_t), intent(in)  :: node
+      real(wp),             intent(in)  :: cd, e0, r0, drdt, dt, e
+      real(wp),             intent(out) :: g, t, fl, dtde, cap
+      call node_phase(node, e, cd, t, fl, dtde, cap)
+      g = e - e0 - dt * (r0 + drdt * (t - node%temp))
+   end subroutine node_balance_on_curve
 
    !---~---
    !   Water with dry heat (internal_energy_to_temp) at an energy: its temperature, liquid
@@ -807,7 +910,8 @@ contains
    ! pores). From min_depth deep the store is a layer, its free water the liquid beyond what its
    ! ice holds; thinner it is a film, whose liquid is all free and which comes to the temperature
    ! of the node it lies on by a matched heat move (film_heat, from that node): the top porous
-   ! layer (below, with its dry heat capacity) and the film reach one temperature together,
+   ! layer (below, with its dry heat capacity, depth and freezing curve) and the film reach one
+   ! temperature together (film_on_porous_layer),
    ! since a thin litter holds too little heat to melt a dusting alone; the top soil layer, whose
    ! heat capacity a film is far below, gives it its temperature and phase (t_below, fliq_below).
    ! The free water is set apart with its energy at the layer's temperature (free, free_temp): it
@@ -818,7 +922,7 @@ contains
    ! short of empty.
    !---~---
    pure subroutine water_layer_stage(rainfall, snowfall, t_air, shed, shed_enth, dt, params, min_depth, t_below,   &
-                                     fliq_below, layer, st, below, below_dry_cap)
+                                     fliq_below, layer, st, below, below_dry_cap, below_depth, below_curve)
       real(wp),                  intent(in)    :: rainfall, snowfall   ! [kg/m2/s] the throughfall's rain and snow
       real(wp),                  intent(in)    :: t_air                ! [K] the air temperature precipitation is valued at
       real(wp),                  intent(in)    :: shed, shed_enth      ! [kg/m2/s], [W/m2] water the tissues shed
@@ -830,6 +934,8 @@ contains
       type(water_stage_out_t),   intent(out)   :: st
       type(ground_store_t), optional, intent(in) :: below              ! a porous layer it lies on: its water and energy
       real(wp),             optional, intent(in) :: below_dry_cap      ! [J/m2/K] that layer's dry heat capacity
+      real(wp),             optional, intent(in) :: below_depth        ! [m] its depth
+      type(soil_layer_curve_t), optional, intent(in) :: below_curve    ! its freezing curve
       real(wp) :: ice, fl, t_film, e_film, holding, free
       st = water_stage_out_t()
       call diagnose_water_layer(layer)
@@ -845,16 +951,16 @@ contains
       holding = params%liquid_holding_frac
       if (.not. st%is_layer) then
          if (present(below)) then
-            !--- A film on a porous layer: the two at one temperature, one phase.
-            call internal_energy_to_temp(below%energy + layer%energy, below%water + layer%water, below_dry_cap,    &
-                                         t_film, fl)
+            !--- A film on a porous layer: the two at one temperature, the layer on its freezing curve.
+            call film_on_porous_layer(below%energy + layer%energy, layer%water, below%water, below_dry_cap,         &
+                                      below_depth, below_curve, t_film, fl, e_film)
          else
             !--- A film on the soil: its temperature, and its phase there; at the triple point, its share of liquid.
             t_film = t_below
             fl = merge(1.0_wp, 0.0_wp, t_below > t_3ple)
             if (t_below == t_3ple) fl = fliq_below
          end if
-         e_film        = layer%water * water_specific_energy(t_film, fl)
+         if (.not. present(below)) e_film = layer%water * water_specific_energy(t_film, fl)
          st%film_heat  = e_film - layer%energy
          layer%energy  = e_film
          call diagnose_water_layer(layer)

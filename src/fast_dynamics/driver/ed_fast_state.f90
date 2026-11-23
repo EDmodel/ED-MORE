@@ -179,7 +179,7 @@ contains
                               dynamic%soil_energy%soil_fliq(1:prof%n_active))
       end associate
       dynamic%ground_surface = poly%patch%ground_surface(ip)
-      call porous_layers_diagnose(dynamic%ground_surface%porous)   ! after a blend, as the soil's
+      call porous_layers_diagnose(dynamic%ground_surface%porous, cfg%ground_surface)   ! after a blend, as the soil's
       dynamic%adapt_dt_last = poly%patch%adapt_dt_last(ip)   ! per-patch, not loop-carried
       do j = 1_ik, ncoh
          i = i0 + j - 1_ik

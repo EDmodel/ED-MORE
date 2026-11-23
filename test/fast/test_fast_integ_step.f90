@@ -59,7 +59,7 @@ program test_fast_integ_step
    use ed_plant_hydr_lib,       only : tissue_water_to_psi
    use ed_fast_state,           only : derive_cohort_terms
    use ed_patch_state_vars,     only : cas_set_depth, porous_layer_state_t, porous_layers_diagnose,          &
-                                       ground_store_present
+                                       ground_store_present, porous_layer_energy_at
    use ed_ground_surface_lib,   only : water_layer_bulk_density
    use ed_ground_surface_params, only : POROUS_LITTER, POROUS_MOSS
    use ed_fast_integ_types,     only : frozen_t, march_state_t, ensure_output_capacity, WORK_RK45_RESCUE,          &
@@ -195,9 +195,9 @@ contains
                org(POROUS_MOSS)%matter    = d%moss_seed
                org(POROUS_MOSS)%water   = d%moss_theta * rho_h2o * d%moss_seed / o%porous(POROUS_MOSS)%bulk_density
             end if
-            org%energy = temp_to_internal_energy(cp_organic * org%matter, org%water, d%org_temp,                   &
-                                                 merge(1.0_wp, 0.0_wp, d%org_temp >= t_3ple))
-            call porous_layers_diagnose(org)
+            org(POROUS_LITTER)%energy = porous_layer_energy_at(org(POROUS_LITTER), o%porous(POROUS_LITTER), d%org_temp)
+            org(POROUS_MOSS)%energy   = porous_layer_energy_at(org(POROUS_MOSS), o%porous(POROUS_MOSS), d%org_temp)
+            call porous_layers_diagnose(org, o)
          end associate
       end if
       if (d%pond_seed > 0.0_wp) then

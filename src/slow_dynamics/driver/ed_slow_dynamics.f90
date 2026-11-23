@@ -100,16 +100,15 @@ contains
    !   The porous layer whose matter comes from the above-ground metabolic litter pool follows it
    ! (the structural pool, which holds the coarse woody debris, waits for a fine-litter split),
    ! which the soil-carbon step has just advanced (docs/science/surface_organic_layer.md), as a
-   ! layer only from min_depth; the other layers keep their matter. The water a layer the litter
-   ! starts takes arrives liquid. The energy and the water the dry matter brings or takes are
-   ! declared.
+   ! layer only from min_depth; the other layers keep their matter. The energy and the water the
+   ! dry matter brings or takes are declared.
    !---~---
    subroutine litter_follows_pools(poly, cfg, ledger)
       type(polygon_t),     intent(inout) :: poly
       type(ed_config_t),   intent(in)    :: cfg
       type(slow_ledger_t), intent(inout) :: ledger
       real(wp)    :: mass(N_POROUS, poly%patch%n), t_new(poly%patch%n), head(poly%patch%n), heat(poly%patch%n)
-      real(wp)    :: water(poly%patch%n), fliq_new(poly%patch%n)
+      real(wp)    :: water(poly%patch%n)
       integer(ik) :: ip, k
       do ip = 1_ik, poly%patch%n
          do k = 1_ik, N_POROUS
@@ -120,14 +119,13 @@ contains
                                                     m%bulk_density, cfg%ground_surface%min_depth)
             end associate
          end do
-         fliq_new(ip) = 1.0_wp
          t_new(ip) = poly%patch%soil_energy(ip)%soil_temp(1)
          associate (c => poly%site%surface(poly%patch%owner_site(ip))%soil_profile%layer_curve(1))
             head(ip) = soil_theta_to_head(c%retention, poly%patch%soil_water(ip)%theta(1), c%theta_sat, c%theta_res,   &
                                           c%par_a, c%par_n)
          end associate
       end do
-      call follow_porous_layers(poly%patch, cfg%ground_surface, mass, t_new, fliq_new, head, heat, water)
+      call follow_porous_layers(poly%patch, cfg%ground_surface, mass, t_new, head, heat, water)
       call slow_ledger_declare(ledger, energy_in = sum([(patch_polygon_area(poly, ip) * heat(ip),            &
                                                          ip = 1_ik, poly%patch%n)]),                         &
                                water_in = sum([(patch_polygon_area(poly, ip) * water(ip), ip = 1_ik, poly%patch%n)]))

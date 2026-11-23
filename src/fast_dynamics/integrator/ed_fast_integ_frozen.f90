@@ -20,7 +20,7 @@
 module ed_fast_integ_frozen
    use ed_kinds,              only : wp, ik
    use ed_constants,          only : tiny_num, rho_h2o, pi, r_gas, cp_organic,                            &
-                                     kgcday_2_umols, t_3ple
+                                     kgcday_2_umols
    use ed_diag_vars,          only : CO_ANET, CO_AGROSS, CO_GSW, CO_GBW, CO_CI, CO_CS, CO_RD, CO_BETA_STOM,     &
                                      CO_BETA_NONSTOM, CO_LEAF_TEMP, CO_WOOD_TEMP, CO_LEAF_VPD, CO_PSI_LEAF,      &
                                      CO_ABS_PAR, CO_ABS_SW, CO_ABS_LW, CO_WIND, CO_LEAF_WATER, CO_WOOD_WATER,    &
@@ -30,7 +30,7 @@ module ed_fast_integ_frozen
    use ed_plant_hydraulics,   only : leaf_node_psi
    use ed_soil_derive,        only : top_soil_psi
    use ed_soil_params,        only : soil_profile_t
-   use ed_soil_hydr_lib,      only : soil_ice_state, soil_liquid_capacity, ice_impedance
+   use ed_soil_hydr_lib,      only : soil_ice_state
    use ed_config,             only : ed_config_t
    use ed_site_state_vars,    only : site_surface_t
    use ed_canopy_aerodynamics, only : aero_env_t, aero_args_t, aero_out_t, set_aero_env_atm, set_aero_env_canopy
@@ -233,11 +233,13 @@ contains
             call water_layer_stage(rain_through, forcing%snowfall, forcing%air_temp, static%shed_water_rate,        &
                                    static%shed_water_enth, dt_fast, cfg%ground_surface%water,                      &
                                    cfg%ground_surface%min_depth, top%temp, top%fliq, frozen%ground%pack,            &
-                                   frozen%stage, below=top%ground_store_t, below_dry_cap=cp_organic * top%matter)
+                                   frozen%stage, below=top%ground_store_t, below_dry_cap=cp_organic * top%matter, &
+                                   below_depth=porous_layer_depth(top%matter, cfg%ground_surface%porous(k)%bulk_density), &
+                                   below_curve=porous_layer_curve(cfg%ground_surface%porous(k), top))
             !--- A film's heat comes from the top porous layer.
             top%energy = top%energy - frozen%stage%film_heat
          end associate
-         call porous_layers_diagnose(frozen%porous)
+         call porous_layers_diagnose(frozen%porous, cfg%ground_surface)
          frozen%stage_soil_heat = 0.0_wp
       else
          call water_layer_stage(rain_through, forcing%snowfall, forcing%air_temp, static%shed_water_rate,           &
@@ -803,12 +805,10 @@ contains
    !---~---
    !   The porous layers as nodes of the water network (docs/science/surface_organic_layer.md,
    ! Water), top down, every layer that holds matter: its retention curve at its depth and its
-   ! water; its liquid on its freezing curve at its own temperature, as a frozen soil layer's, the
-   ! rest ice, held over the step (a start for the solver only: the layer's energy still freezes
-   ! all its water at the melting point). On the melt plateau the curve holds the layer all
-   ! liquid, but its energy holds part of it as ice, which slows its flow as any ice does, by that
-   ! ice's impedance. The water it lacks of its residual, if it holds less (litter just arrived,
-   ! dry), is carried as an offset, so its potential is its curve's dry end and its mass exact.
+   ! water; its ice what its energy holds on its freezing curve, the soil's law, held over the step
+   ! as a frozen soil layer's, so the network's liquid is the energy's. The water it lacks of its
+   ! residual, if it holds less (litter just arrived, dry), is carried as an offset, so its
+   ! potential is its curve's dry end and its mass exact.
    ! The top layer evaporates by the soil's law (slot_evaporation_setup) to the canopy air through
    ! the layers' dried tops, free air through their open pores (porous_cover_path of a dried
    ! depth), at the top layer's temperature.
@@ -817,7 +817,7 @@ contains
       type(ground_surface_layer_params_t), intent(in)    :: params
       type(frozen_t),                      intent(inout) :: frozen
       type(porous_material_t) :: m
-      real(wp)    :: depth, theta, liq, dliq, fill, path
+      real(wp)    :: depth, theta, ice, fill, path
       integer(ik) :: k, k_top
       associate (o => frozen%water_drive%porous, layer => frozen%porous)
          o%n = 0_ik
@@ -835,12 +835,9 @@ contains
             o%curve(o%n)   = porous_layer_curve(m, layer(k))
             theta = layer(k)%water / (rho_h2o * depth)
             o%deficit(o%n) = max(0.0_wp, m%theta_res - theta) * rho_h2o * depth
+            ice   = (1.0_wp - layer(k)%fliq) * theta
             theta = max(theta, m%theta_res)
-            call soil_liquid_capacity(o%curve(o%n), layer(k)%temp, liq, dliq)
-            liq = min(theta, liq)
-            o%ice(o%n) = soil_ice_state(o%curve(o%n), theta - liq, liq)
-            if (layer(k)%temp >= t_3ple) o%ice(o%n)%impedance = min(o%ice(o%n)%impedance,                        &
-                                                                  ice_impedance(o%curve(o%n), (1.0_wp - layer(k)%fliq) * theta))
+            o%ice(o%n) = soil_ice_state(o%curve(o%n), ice, theta - ice)
             fill = porous_layer_fill(layer(k)%water, porous_layer_capacity(layer(k)%matter, m%bulk_density, m%theta_sat))
             path = path + porous_cover_path(depth * (1.0_wp - fill), 0.0_wp, m%theta_sat)
          end do
@@ -1090,6 +1087,8 @@ contains
             associate (layer => frozen%porous(k), node => env%porous(k))
                layer%water     = water%state%water_soil(1_ik + j) + fl%porous_evap(j)
                node%dry_cap    = cp_organic * layer%matter
+               node%depth      = frozen%water_drive%porous%depth(j)
+               node%curve      = frozen%water_drive%porous%curve(j)
                node%water      = layer%water
                node%energy     = layer%energy
                node%temp       = layer%temp

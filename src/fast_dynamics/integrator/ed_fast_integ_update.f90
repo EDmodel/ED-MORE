@@ -123,7 +123,7 @@ contains
          call store_take_exchange(dynamic%ground_surface%porous(k), acc%stores%energy_in(STORE_WATER + k),         &
                                   acc%stores%vapour_out(STORE_WATER + k))
       end do
-      call porous_layers_diagnose(dynamic%ground_surface%porous)
+      call porous_layers_diagnose(dynamic%ground_surface%porous, cfg%ground_surface)
       moved%surface1 = ground_surface_store(dynamic%ground_surface)
       !---~---
       !   The water layer's net melt over the step, its ice at the stage's start and the snow it

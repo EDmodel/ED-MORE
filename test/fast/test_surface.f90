@@ -60,8 +60,10 @@ program test_surface
                                      internal_energy_liquid, sat_specific_humidity, cas_heat_capacity,     &
                                      enthalpy_vapor, sat_specific_humidity_temp_deriv
    use ed_patch_state_vars,   only : ground_store_t, water_layer_state_t, porous_layer_state_t, ground_store_present, &
-                                     porous_layer_curve, porous_layers_diagnose, porous_layers_spill
-   use ed_ground_surface_lib, only : water_layer_bulk_density, porous_layer_capacity, porous_layer_resistance
+                                     porous_layer_curve, porous_layers_diagnose, porous_layers_spill,             &
+                                     porous_layer_energy_at
+   use ed_ground_surface_lib, only : water_layer_bulk_density, porous_layer_capacity, porous_layer_resistance,  &
+                                     porous_layer_temp
    use ed_ground_surface_params, only : ground_surface_layer_params_t, water_material_t, POROUS_LITTER, POROUS_MOSS, &
                                         N_POROUS
    use ed_soil_hydr_lib,      only : soil_layer_curve_t, soil_head_to_theta
@@ -500,6 +502,8 @@ contains
       type(water_material_t)    :: p
       type(water_layer_state_t) :: layer
       type(water_stage_out_t)   :: st
+      type(ground_surface_layer_params_t) :: o
+      type(porous_layer_state_t) :: thin
       real(wp) :: fallen, heat, e_in
       integer(ik) :: k
       logical  :: film_all_along
@@ -567,13 +571,17 @@ contains
 
       !--- (f) A dusting on a thin litter (40 J/K dry): the two at one temperature, the litter too small to melt it.
       layer = water_layer_state_t()
+      thin%matter = 40.0_wp / cp_organic
+      thin%water  = 0.005_wp
       call water_layer_stage(0.0_wp, 0.02_wp / DT, 270.0_wp, 0.0_wp, 0.0_wp, DT, p, MIN_DEPTH, 275.0_wp, 1.0_wp,      &
                              layer, st, below=ground_store_t(water=0.005_wp,                                          &
                                                              energy=temp_to_internal_energy(40.0_wp, 0.005_wp,        &
                                                                                             275.0_wp, 1.0_wp)),       &
-                             below_dry_cap=40.0_wp)
-      call check_true('a dusting on thin litter: a film at the triple point with it', .not. st%is_layer .and.       &
-                      abs(layer%temp - t_3ple) < 1.0e-9_wp, layer%temp)
+                             below_dry_cap=40.0_wp,                                                                   &
+                             below_depth=thin%matter / o%porous(POROUS_LITTER)%bulk_density,                          &
+                             below_curve=porous_layer_curve(o%porous(POROUS_LITTER), thin))
+      call check_true('a dusting on thin litter: a film near the triple point with it, the litter''s water on its curve', &
+                      .not. st%is_layer .and. abs(layer%temp - t_3ple) < 0.5_wp, layer%temp)
       call check_true('the litter gave it no more than it held above its all-ice state at the triple point',     &
                       st%film_heat > 0.0_wp .and. st%film_heat < temp_to_internal_energy(40.0_wp, 0.005_wp, 275.0_wp,  &
                       1.0_wp) - temp_to_internal_energy(40.0_wp, 0.005_wp, t_3ple, 0.0_wp), st%film_heat)
@@ -586,9 +594,20 @@ contains
       type(porous_layer_state_t) :: layer(N_POROUS)
       layer = porous_layer_state_t()
       layer%matter = [0.03_wp * o%porous(POROUS_LITTER)%bulk_density, 0.05_wp * o%porous(POROUS_MOSS)%bulk_density]
-      layer%energy = temp_to_internal_energy(cp_organic * layer%matter, 0.0_wp, [t_litter, t_moss], 1.0_wp)
-      call porous_layers_diagnose(layer)
+      call set_layer_temps(layer, o, [t_litter, t_moss])
    end function two_layers
+
+   !--- Each layer's energy at a temperature on its freezing curve, and its temperature read back.
+   subroutine set_layer_temps(layer, o, temps)
+      type(porous_layer_state_t),          intent(inout) :: layer(N_POROUS)
+      type(ground_surface_layer_params_t), intent(in)    :: o
+      real(wp),                            intent(in)    :: temps(N_POROUS)
+      integer(ik) :: k
+      do k = 1_ik, N_POROUS
+         layer(k)%energy = porous_layer_energy_at(layer(k), o%porous(k), temps(k))
+      end do
+      call porous_layers_diagnose(layer, o)
+   end subroutine set_layer_temps
 
    subroutine test_porous_layers()
       real(wp), parameter :: HEAD_10KPA = -1.0e4_wp / (1000.0_wp * 9.80665_wp)   ! [m]
@@ -608,11 +627,12 @@ contains
       call check('each layer its own temperature: the litter''s', layer(POROUS_LITTER)%temp, 280.0_wp, 1.0e-9_wp)
       call check('each layer its own temperature: the moss''s', layer(POROUS_MOSS)%temp, 283.0_wp, 1.0e-9_wp)
       layer%water  = [cap_litter, 2.0_wp]
-      layer%energy = temp_to_internal_energy(cp_organic * layer%matter, layer%water, [270.0_wp, 283.0_wp],        &
-                                             [0.0_wp, 1.0_wp])
-      call porous_layers_diagnose(layer)
-      call check_true('a frozen litter over a thawed moss', layer(POROUS_LITTER)%fliq == 0.0_wp                     &
-                      .and. layer(POROUS_MOSS)%fliq == 1.0_wp, layer(POROUS_LITTER)%temp)
+      call set_layer_temps(layer, o, [270.0_wp, 283.0_wp])
+      call check('a frozen litter: its temperature from its energy on its curve', layer(POROUS_LITTER)%temp,      &
+                 270.0_wp, 1.0e-7_wp)
+      call check_true('a frozen litter over a thawed moss, the litter''s water partly liquid on its curve',         &
+                      layer(POROUS_LITTER)%fliq > 0.0_wp .and. layer(POROUS_LITTER)%fliq < 1.0_wp                   &
+                      .and. layer(POROUS_MOSS)%fliq == 1.0_wp, layer(POROUS_LITTER)%fliq)
       call check('a saturated layer conducts at its wet conductivity',                                           &
                  porous_layer_resistance(0.03_wp, 1.0_wp, o%porous(POROUS_LITTER)%k_dry, o%porous(POROUS_LITTER)%k_wet), &
                  0.03_wp / o%porous(POROUS_LITTER)%k_wet, 1.0e-12_wp)
@@ -642,8 +662,7 @@ contains
       !--- A frozen litter 2 kg beyond its saturation: the excess passes to the water layer, the litter keeps its temperature.
       layer = two_layers(o, 265.0_wp, 283.0_wp)
       layer%water  = [cap_litter + 2.0_wp, 2.0_wp]
-      layer%energy = temp_to_internal_energy(cp_organic * layer%matter, layer%water, [265.0_wp, 283.0_wp],        &
-                                             [0.0_wp, 1.0_wp])
+      call set_layer_temps(layer, o, [265.0_wp, 283.0_wp])
       e0 = sum(layer%energy)
       e_moss = layer(POROUS_MOSS)%energy
       pond = ground_store_t()
@@ -652,7 +671,7 @@ contains
       call check('beyond saturation: the litter keeps its saturation', layer(POROUS_LITTER)%water, cap_litter,     &
                  1.0e-12_wp)
       call check('beyond saturation: the litter keeps its temperature', layer(POROUS_LITTER)%temp, 265.0_wp,      &
-                 1.0e-9_wp)
+                 1.0e-7_wp)
       call check('beyond saturation: the energy goes with the water', sum(layer%energy) + pond%energy, e0,        &
                  1.0e-9_wp * abs(e0))
       call check('beyond saturation: a layer within its pores keeps all it holds', layer(POROUS_MOSS)%energy,     &
@@ -665,12 +684,18 @@ contains
       integer(ik),                         intent(in) :: k
       real(wp),                            intent(in) :: matter, water, temp   ! [kg/m2], [kg/m2], [K]
       type(porous_node_env_t) :: pe
+      type(porous_layer_state_t) :: layer
       real(wp) :: depth
+      layer%matter = matter
+      layer%water  = water
       pe%dry_cap = cp_organic * matter
       pe%water   = water
-      pe%energy  = temp_to_internal_energy(pe%dry_cap, water, temp, merge(1.0_wp, 0.0_wp, temp >= t_3ple))
-      call internal_energy_to_temp(pe%energy, water, pe%dry_cap, pe%temp, pe%fliq)
+      pe%energy  = porous_layer_energy_at(layer, o%porous(k), temp)
       depth = matter / o%porous(k)%bulk_density
+      pe%depth = depth
+      pe%curve = porous_layer_curve(o%porous(k), layer)
+      call porous_layer_temp(pe%energy / depth, water / (1000.0_wp * depth), pe%dry_cap / depth, pe%curve,         &
+                             pe%temp, pe%fliq)
       pe%resistance = porous_layer_resistance(depth, min(1.0_wp, water / porous_layer_capacity(matter,               &
                                               o%porous(k)%bulk_density, o%porous(k)%theta_sat)),                   &
                                               o%porous(k)%k_dry, o%porous(k)%k_wet)
@@ -808,6 +833,9 @@ contains
       real(wp),            intent(in) :: open_share   ! [-] the share of the ground the pack leaves open
       type(surface_node_t) :: node
       node%dry_cap = env%porous(POROUS_LITTER)%dry_cap
+      node%on_curve = .true.
+      node%depth    = env%porous(POROUS_LITTER)%depth
+      node%curve    = env%porous(POROUS_LITTER)%curve
       node%water   = env%porous(POROUS_LITTER)%water
       node%energy  = env%porous(POROUS_LITTER)%energy
       node%temp    = env%porous(POROUS_LITTER)%temp
@@ -827,6 +855,12 @@ contains
       real(wp),             intent(in) :: dt
       type(node_flux_t),    intent(in) :: flux
       real(wp) :: fl
+      if (node%on_curve) then
+         call porous_layer_temp((node%energy + dt * flux%energy_in) / node%depth,                                   &
+                                (node%water - dt * flux%w_flux) / (1000.0_wp * node%depth), node%dry_cap / node%depth, &
+                                node%curve, t, fl)
+         return
+      end if
       call internal_energy_to_temp(node%energy + dt * flux%energy_in, node%water - dt * flux%w_flux, node%dry_cap,  &
                                    t, fl)
    end function committed_temp
@@ -965,6 +999,9 @@ contains
       do i = 1_ik, 2_ik
          k = merge(POROUS_LITTER, POROUS_MOSS, i == 1_ik)
          node(i)%dry_cap     = env%porous(k)%dry_cap
+         node(i)%on_curve    = .true.
+         node(i)%depth       = env%porous(k)%depth
+         node(i)%curve       = env%porous(k)%curve
          node(i)%water       = env%porous(k)%water
          node(i)%energy      = env%porous(k)%energy
          node(i)%temp        = env%porous(k)%temp
