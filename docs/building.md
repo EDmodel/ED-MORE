@@ -296,13 +296,13 @@ the shared fixtures in `test/support/`, the CMake checks in `test/checks/` and t
 
 | Label | What it holds | Tests (dev) | Time (dev, one core) |
 |---|---|---|---|
-| `unit` | each module's test, and `edmore`'s refusals (`*_refused`, `main_failure_finalizes`) | 67 | 15 s |
+| `unit` | each module's test, and `edmore`'s refusals (`*_refused`, `main_failure_finalizes`) | 68 | 15 s |
 | `integration` | whole runs: `sites`, `region`, `fast_driver`, `c_api_run`, `restart_exact`, `output_closure` | 9 | 48 s |
 | `lint` | the repository's checks, one test each and named after the check (`kernels_patch_only`, `clamps_named`, `no_issue_refs`, ...), and the CMake checks of the source tree and the shipped files (`no_procedure_arguments`, `config_keys_listed`, `io_config_example`), and the Python package's copies of the licence files (`license_copy`, `notice_copy`) | 17 | 4 s |
 | `python` | the pytest suites of the Python package (`python_api`, when `libedmore.so` is built) and of the tools (`prepare_flux_tower`, `prepare_era5`, `prepare_census`, `pft_traits`, `calibrate_fast`, `calibrate_phenology`) | 7 | 50 s |
 | `long` | opt-in: example 05's Palo Verde inventory and its 150-year regrowth | 2 | 34 min on 12 threads |
 
-A debug build has 98 tests: no `python_api` (it builds no `libedmore.so`), and no
+A debug build has 99 tests: no `python_api` (it builds no `libedmore.so`), and no
 `soil_nan_layer_refused` (it traps the NaN that case feeds the loader). Each pytest suite needs a
 Python that imports what it uses: numpy, netCDF4 and pytest, with pandas for the tower and census
 tools and scipy for `calibrate_fast` and `calibrate_phenology`; configure names any suite it leaves out.

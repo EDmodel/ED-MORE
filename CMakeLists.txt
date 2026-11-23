@@ -184,7 +184,7 @@ endfunction()
 #      position, and the budget checks at the top, and the stateless constitutive laws in         #
 #      functions/, one library per domain: allometry, plant hydraulics, soil hydraulics,           #
 #      thermodynamics (moist air and its lapse, with the temperature response of enzyme rates),    #
-#      canopy optics and the radiation above the canopy.                                           #
+#      the ground's surface layers, canopy optics and the radiation above the canopy.              #
 #                                                                                                  #
 #      One folder, one library, and it links NOTHING. A module belongs in src/share/ only if it    #
 #      `use`s nothing outside src/share/ -- no model state, no configuration, no external          #

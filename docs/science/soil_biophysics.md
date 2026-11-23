@@ -246,7 +246,7 @@ f_{liq}=\min\!\big(1,\theta_{liq,max}(T)/\theta\big) \qquad(15)
 
 with $`C_{dry}`$ the solids' heat capacity per mÂ³, $`\rho_w`$ the density of water, $`u_{liq}(T)`$ the liquid's internal energy (`internal_energy_liquid`) and $`c_{ice}`$ the specific heat of ice. $`E`$ rises with $`T`$. Its slope, the apparent heat capacity, adds to the sensible heat the latent heat of the liquid freed per kelvin, $`\rho_w\,(u_{liq}-c_{ice}T)\,d\theta_{liq,max}/dT`$.
 
-`soil_layer_temp` inverts it:
+`porous_layer_temp` inverts it:
 - the all-liquid temperature when the curve holds all the water;
 - otherwise Newton, kept inside the bracket between the all-liquid temperature and the lower of the
   all-ice temperature and $`T_f`$, with bisection when a step leaves it.
@@ -329,7 +329,7 @@ Fixed in the code: the Mualem pore connectivity $L=-1$, the specific storage 10â
 | thermal properties from texture, eqs. (9) and (11) | `ed_therm_lib`: `soil_texture_to_thermal`, `soil_thermal_conductivity` |
 | soil thermal step (backward Euler, Newton on the energies), eq. (10) | `ed_soil_heat`: `soil_energy_step_implicit` |
 | the soil's thermal forcing from the water network's flows | `ed_soil_heat`: `set_soil_heat_env` |
-| a layer's temperature from its energy, and back, eq. (15) | `ed_soil_heat`: `soil_layer_temp`, `soil_layer_energy`, `soil_layer_energy_slope` |
+| a layer's temperature from its energy, and back, eq. (15) | `ed_ground_surface_lib`: `porous_layer_temp`, `porous_energy_state`, `porous_layer_energy`, `porous_energy_at_temp` |
 | the soil freezing curve, eq. (14) | `ed_soil_hydr_lib`: `soil_liquid_capacity` |
 | a layer's ice in the water network | `ed_soil_hydr_lib`: `soil_ice_t`, `soil_ice_state` |
 | explicit thermal tendency (RK45) | `ed_soil_heat`: `soil_energy_time_deriv` |

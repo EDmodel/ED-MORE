@@ -34,7 +34,7 @@ program test_init
    use ed_soil_params,          only : soil_profile_t
    use ed_init_bare_ground,     only : init_bare_ground, seed_bare_ground, finalize_init
    use ed_constants,            only : n_soil_layer_max, rho_h2o
-   use ed_soil_heat,            only : soil_layer_temp
+   use ed_ground_surface_lib,   only : porous_layer_temp
    use ed_soil_hydr_lib,        only : soil_liquid_capacity
    use ed_init,                 only : init_fast_state, init_polygon
    use ed_met_types,            only : met_forcing_t
@@ -355,7 +355,7 @@ contains
       call init_bare_ground(poly, cfg, 3_ik)
       associate (se => poly%patch%soil_energy(2), surf => poly%site%surface(1))
          do k = 1_ik, nsl
-            call soil_layer_temp(se%soil_energy(k), surf%theta_start(k), surf%soil_profile%dry_heat_capacity(k),   &
+            call porous_layer_temp(se%soil_energy(k), surf%theta_start(k), surf%soil_profile%dry_heat_capacity(k),   &
                                  surf%soil_profile%layer_curve(k), tdiag, fdiag)
             call check_close(tdiag, 260.0_wp, 1.0e-10_wp, 'a frozen start does not give back its temperature')
             call soil_liquid_capacity(surf%soil_profile%layer_curve(k), 260.0_wp, theta_liq, dtheta)

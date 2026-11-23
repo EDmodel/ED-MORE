@@ -22,8 +22,9 @@ src/
 │   └── functions/ stateless constitutive laws, one module per domain:
 │                  allometry, plant hydraulics, soil hydraulics,
 │                  thermodynamics (moist air and its lapse, with the
-│                  temperature response of enzyme rates), canopy optics,
-│                  the radiation above the canopy
+│                  temperature response of enzyme rates), the ground's
+│                  surface layers, canopy optics, the radiation above
+│                  the canopy
 │
 │  ── CONFIGURATION ──────────────────── the run's inputs: ed_config
 ├── config/        ed_config_t (one field per key) and the routines that

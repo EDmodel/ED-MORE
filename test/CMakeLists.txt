@@ -84,7 +84,7 @@ ed_fortran_flags(ed_testfastfixture)
 #  ed_share alone; test_optics_lib also the config layer, whose ed_pft_derive turns a         #
 #  PFT's leaf-angle moments into the LIDF's Beta parameters.                                  #
 #==========================================================================================#
-foreach(t numerics therm_lib plant_hydr_lib soil_hydr_lib optics_lib radiation_lib)
+foreach(t numerics therm_lib plant_hydr_lib soil_hydr_lib ground_surface_lib optics_lib radiation_lib)
    ed_add_test(${t} SOURCES share/test_${t}.f90 LINK ed_share ed_testassert LABELS unit)
 endforeach()
 target_link_libraries(test_optics_lib PRIVATE ed_config)

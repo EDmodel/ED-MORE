@@ -86,6 +86,7 @@ The `[snow]` block; every key is optional ([configuration](../configuration.md))
 | the stage before the march, the exchange in it, the commit | `ed_surface`: `prepare_snow_stage` (called by `ed_fast_integ_frozen`: `build_frozen`), `ground_surface_exchange` (called by `ed_fast_integ_derivs`: `surface_derivs`); `ed_fast_integ_update`: `update_dynamic_state` |
 | snow mass, cover, melt, the pond | `ed_surface`: `snow_take_pond`, `pond_freezes`, `snow_accumulate`, `snow_cover_fraction`, `snow_drain_meltwater` |
 | the ground's optics and radiation | `ed_surface`: `snow_blend_ground_optics`, `snow_albedos`, `ground_tile_radiation` |
+| the water layer's laws: its free water, depth and matrix, the density of two masses together, its cover, albedo and resistance | `ed_ground_surface_lib`: `water_layer_free_water`, `water_layer_depth`, `matrix_depth_update`, `combined_density`, `water_layer_cover`, `water_layer_albedo`, `water_layer_resistance` |
 | saturation vapour pressure, eq. (1) | `ed_therm_lib`: `sat_vapor_pressure`, `sat_specific_humidity` |
 | prognostic snow type | `ed_patch_state_vars`: `snow_state_t` |
 

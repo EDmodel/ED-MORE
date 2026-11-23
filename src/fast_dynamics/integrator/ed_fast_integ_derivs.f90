@@ -17,7 +17,8 @@ module ed_fast_integ_derivs
    use ed_kinds, only : wp, ik
    use ed_constants,   only : tiny_num, rho_h2o, grav_head
    use ed_therm_lib,   only : cas_enthalpy_to_temp, sat_specific_humidity, sat_specific_humidity_temp_deriv
-   use ed_soil_heat,   only : soil_heat_env_t, soil_energy_time_deriv, set_soil_heat_env, soil_layer_temp
+   use ed_soil_heat,   only : soil_heat_env_t, soil_energy_time_deriv, set_soil_heat_env
+   use ed_ground_surface_lib, only : porous_layer_temp
    use ed_surface, only : surface_env_t, ground_surface_exchange, N_SURFACE_STORE
    use ed_patch_state_vars,   only : soil_energy_state_t
    use ed_canopy_air_space, only : cas_env_t, cas_box_time_deriv, cas_condensation
@@ -232,7 +233,7 @@ contains
       allocate(f%d_leaf_surf_water(n), f%d_wood_surf_water(n))
 
       !--- The soil-top temperature from the current state, for the ground skin.
-      call soil_layer_temp(y%soil_energy(1), y%theta(1), site%soil_profile%dry_heat_capacity(1),                &
+      call porous_layer_temp(y%soil_energy(1), y%theta(1), site%soil_profile%dry_heat_capacity(1),                &
                            site%soil_profile%layer_curve(1), t_ground, fliq1)
 
       !--- 1. Surface block (leaf + ground + CAS twins).

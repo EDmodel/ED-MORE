@@ -25,11 +25,10 @@ module ed_surface
    use ed_patch_state_vars,     only : snow_state_t
    use ed_biophysics_params,    only : snow_params_t
    use ed_numerics,             only : within_roundoff
+   use ed_ground_surface_lib,   only : water_layer_cover, water_layer_albedo, combined_density,             &
+                                       water_layer_free_water, water_layer_resistance
    implicit none
    private
-
-   !--- [kg/m3] The snow density Niu & Yang (2007)'s cover-fraction scale is referenced to.
-   real(wp), parameter :: NY07_RHO_REF = 100.0_wp
 
    public :: ground_surface_exchange, ground_surface_fluxes, prepare_snow_stage
    public :: snow_cover_fraction, snow_accumulate, snow_take_pond, pond_freezes, snow_drain_meltwater
@@ -260,12 +259,11 @@ contains
       real(wp),            intent(in) :: density           ! [kg/m3] the layer's bulk density
       type(snow_params_t), intent(in) :: params
       real(wp),            intent(in) :: ground_rough   ! [m] the ground's roughness ([aerodynamics].soil_rough)
-      real(wp) :: snowfac, scale
+      real(wp) :: snowfac
       if (swe <= params%tiny_snow_mass) then
          snowfac = 0.0_wp
       else
-         scale   = max(params%ny07_a * ground_rough * (density / NY07_RHO_REF) ** params%ny07_m, tiny_num)
-         snowfac = tanh(snow_depth / scale)
+         snowfac = water_layer_cover(snow_depth, density, params%ny07_a, params%ny07_m, ground_rough)
       end if
    end function snow_cover_fraction
 
@@ -307,8 +305,8 @@ contains
       real(wp) :: fl
       fl = 0.0_wp
       if (snow%nlayer >= 1_ik) fl = snow%snow_fliq(1)
-      albedo_vis = (1.0_wp - fl) * params%albedo_vis_fresh + fl * params%albedo_vis_aged
-      albedo_nir = (1.0_wp - fl) * params%albedo_nir_fresh + fl * params%albedo_nir_aged
+      albedo_vis = water_layer_albedo(fl, params%albedo_vis_fresh, params%albedo_vis_aged)
+      albedo_nir = water_layer_albedo(fl, params%albedo_nir_fresh, params%albedo_nir_aged)
    end subroutine snow_albedos
 
    !---~---
@@ -353,7 +351,7 @@ contains
       if (.not. has_layer) return                          ! bare ground and sub-threshold snow: no pack
       if (snow%nlayer == 0_ik) snow%density(1) = params%rho_snow
       if (snow%density(1) /= params%rho_snow)                                                        &
-         snow%density(1) = mixed_density(snow%swe(1), snow%density(1), dm_snow, params%rho_snow)
+         snow%density(1) = combined_density(snow%swe(1), snow%density(1), dm_snow, params%rho_snow)
       snow%swe(1)         = snow%swe(1) + dm_snow + dm_rain
       snow%snow_energy(1) = snow%snow_energy(1) + precip_enthalpy(dm_rain, dm_snow, air_temp)
       snow%snow_depth(1)  = snow%snow_depth(1) + dm_snow / params%rho_snow   ! rain fills pores / refreezes -> no bulk depth
@@ -368,7 +366,7 @@ contains
       type(snow_state_t), intent(inout) :: snow     ! the pack
       type(snow_params_t), intent(in)    :: params
       type(snow_out_t),   intent(out)   :: melt     ! the drained and dumped water, mass and enthalpy
-      real(wp) :: wmass_free, hold
+      real(wp) :: wmass_free
       melt = snow_out_t()
       if (snow%nlayer == 0_ik) return
 
@@ -383,9 +381,7 @@ contains
       call internal_energy_to_temp(snow%snow_energy(1), snow%swe(1), 0.0_wp, snow%snow_temp(1), snow%snow_fliq(1))
 
       !--- Drain the free liquid above the holding capacity (LEAF-3's 1:9).
-      hold       = max(1.0_wp - params%liquid_holding_frac, tiny_num)
-      wmass_free = max(0.0_wp, snow%swe(1) * (snow%snow_fliq(1) - params%liquid_holding_frac) / hold)
-      wmass_free = min(wmass_free, snow%swe(1))
+      wmass_free = water_layer_free_water(snow%swe(1), snow%snow_fliq(1), params%liquid_holding_frac)
       if (wmass_free > 0.0_wp) then
          melt%melt_mass      = wmass_free
          melt%melt_enth      = wmass_free * internal_energy_liquid(t_3ple)   ! drains at the plateau
@@ -415,19 +411,6 @@ contains
       snow%snow_temp(1)   = t_3ple
       snow%nlayer         = 0_ik
    end subroutine clear_layer
-
-   !--- [kg/m3] The density of two masses at their own densities, together: their volumes add.
-   pure function mixed_density(m1, rho1, m2, rho2) result(rho)
-      real(wp), intent(in) :: m1, rho1, m2, rho2   ! [kg/m2], [kg/m3], [kg/m2], [kg/m3]
-      real(wp) :: rho
-      if (m1 <= 0.0_wp) then
-         rho = rho2
-      else if (m2 <= 0.0_wp) then
-         rho = rho1
-      else
-         rho = (m1 + m2) / (m1 / rho1 + m2 / rho2)
-      end if
-   end function mixed_density
 
    !---~---
    !   Whether the pond is below its freezing point: its energy is less than its water's as
@@ -555,8 +538,8 @@ contains
             st%pond_enth = e_pond0 - back_enth
             !--- What a pack keeps of the pond that joined it adds its depth as ice.
             if (joined .and. env%pack%nlayer >= 1_ik .and. st%pond_mass > 0.0_wp) then
-               env%pack%density(1)    = mixed_density(env%pack%swe(1) - st%pond_mass, env%pack%density(1), &
-                                                      st%pond_mass, rho_ice)
+               env%pack%density(1)    = combined_density(env%pack%swe(1) - st%pond_mass, env%pack%density(1), &
+                                                         st%pond_mass, rho_ice)
                env%pack%snow_depth(1) = env%pack%swe(1) / env%pack%density(1)
             end if
          end if
@@ -607,7 +590,7 @@ contains
       type(surface_env_t), intent(in) :: env
       type(snow_params_t), intent(in) :: params
       real(wp) :: gcond
-      gcond = conductance_in_series(max(snow_depth, tiny_num) / max(params%k_snow, tiny_num), env%r_below)
+      gcond = conductance_in_series(water_layer_resistance(snow_depth, snow_depth, params%k_snow), env%r_below)
    end function snow_base_conductance
 
    !---~---

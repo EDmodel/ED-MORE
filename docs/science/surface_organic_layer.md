@@ -121,6 +121,7 @@ Every slot that is a layer, from 0.1 mm, is a node of the water network; the sol
 | Concept | Routine |
 |---|---|
 | the `[surface_layer]` block, the layer's state, its sums, each slot's depth, curve and capacity, its energy shared among the slots, its spill and its commit, the ground top's temperature | `ed_organic_lib`: `organic_params_t`, `organic_material_t`, `organic_state_t`, `ORGANIC_MIN_DEPTH`, `organic_registered_mass`, `organic_layer_sums`, `organic_diagnose`, `organic_split_energy`, `organic_slot_depth`, `organic_slot_curve`, `organic_slot_capacity`, `organic_spill`, `organic_take_exchange`, `ground_top_temp`; its blend, `ed_patch_state_vars`: `blend_organic` |
+| a porous layer's laws: its depth, capacity, fill, resistance and the matter that makes a layer | `ed_ground_surface_lib`: `porous_layer_depth`, `porous_layer_capacity`, `porous_layer_fill`, `porous_layer_resistance`, `porous_layer_matter` |
 | the balance and the ground surface's blend | `ed_surface`: `organic_surface_balance` (its held branch), `ground_surface_exchange` |
 | the slots in the water network, and their water and enthalpy after it | `ed_fast_integ_frozen`: `organic_network_drive`, `commit_organic_water`; the network: [soil_plant_water](soil_plant_water.md) |
 | the soil's vapour through it, and its own through its dried top | `ed_soil_water`: `organic_cover_path`, `vapour_diffusivity`, `ground_evaporation_rate`; `ed_fast_integ_frozen`: `organic_ground_sums`, `ground_inflow` |

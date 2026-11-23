@@ -59,6 +59,7 @@ module ed_fast_integ_frozen
                                      cas_enthalpy_to_temp, cas_heat_capacity, air_vpd, air_density,             &
                                      soil_thermal_conductivity, specific_humidity_to_vapor_pressure
    use ed_numerics,           only : weighted_mean
+   use ed_ground_surface_lib, only : porous_layer_fill
    implicit none
    private
 
@@ -785,7 +786,7 @@ contains
          if (frozen%org%mass(k) <= 0.0_wp) cycle
          m     = organic_slot_material(organic, k)
          depth = organic_slot_depth(organic, frozen%org, k)
-         fill  = min(1.0_wp, frozen%org%water(k) / organic_slot_capacity(organic, frozen%org, k))
+         fill  = porous_layer_fill(frozen%org%water(k), organic_slot_capacity(organic, frozen%org, k))
          path  = path + organic_cover_path(depth * (1.0_wp - fill), 0.0_wp, m%theta_sat)
       end do
       frozen%ground%org_dry_resist = path / vapour_diffusivity(frozen%org%temp)

@@ -32,7 +32,7 @@ module ed_fast_integ_types
    use ed_plant_energy,   only : plant_energy_env_t
    use ed_canopy_water,   only : canopy_water_out_t
    use ed_surface, only : surface_env_t, snow_out_t, store_exchange_t
-   use ed_soil_heat, only : soil_layer_temp
+   use ed_ground_surface_lib, only : porous_layer_temp
    use ed_soil_params, only : soil_profile_t
    use ed_diag_vars, only : N_CO_FAST_ROWS
    use ed_state_defaults,    only : UNSET_NEGATIVE
@@ -1439,7 +1439,7 @@ contains
       real(wp),             intent(inout) :: soil_temp(:), soil_fliq(:)
       integer(ik) :: k
       do k = 1_ik, nsl
-         call soil_layer_temp(y_out%soil_energy(k), y_out%theta(k), profile%dry_heat_capacity(k),             &
+         call porous_layer_temp(y_out%soil_energy(k), y_out%theta(k), profile%dry_heat_capacity(k),             &
                               profile%layer_curve(k), soil_temp(k), soil_fliq(k))
       end do
    end subroutine diagnose_soil_temps

@@ -32,8 +32,8 @@ program test_soil_heat
    use ed_test_assert,      only : check, check_true, test_report
    use ed_kinds,            only : wp, ik
    use ed_constants,        only : rho_h2o, t_3ple, pi, n_soil_layer_max
-   use ed_soil_heat,        only : soil_heat_env_t, soil_heat_out_t, soil_energy_step_implicit, soil_layer_energy,   &
-                                   soil_layer_energy_slope, soil_layer_temp, soil_energy_time_deriv
+   use ed_soil_heat,        only : soil_heat_env_t, soil_heat_out_t, soil_energy_step_implicit, soil_energy_time_deriv
+   use ed_ground_surface_lib, only : porous_layer_energy, porous_energy_at_temp, porous_layer_temp
    use ed_patch_state_vars,   only : soil_energy_state_t
    use ed_test_soil_grid,   only : geometric_layer_bottoms
    use ed_soil_params,      only : soil_profile_t, soil_params_t, ENERGY_BC_DIRICHLET
@@ -186,7 +186,7 @@ contains
       logical :: monotone
       print '(a)', 'test_freeze_curve:'
       call setup_1layer(soil, forcing, THETA, DEPTH)
-      col%soil_energy(1) = soil_layer_energy(t_3ple + 0.2_wp, THETA, soil%dry_heat_capacity(1), soil%layer_curve(1))
+      col%soil_energy(1) = porous_layer_energy(t_3ple + 0.2_wp, THETA, soil%dry_heat_capacity(1), soil%layer_curve(1))
       e0 = col%soil_energy(1)
       forcing%g_top = G
       t_prev = t_3ple + 0.2_wp
@@ -205,7 +205,7 @@ contains
             call soil_liquid_capacity(soil%layer_curve(1), col%soil_temp(1), theta_liq, dtheta)
             worst_curve = max(worst_curve, abs(col%soil_fliq(1) * THETA - theta_liq))
          end if
-         call soil_layer_energy_slope(col%soil_temp(1), THETA, soil%dry_heat_capacity(1), soil%layer_curve(1),   &
+         call porous_energy_at_temp(col%soil_temp(1), THETA, soil%dry_heat_capacity(1), soil%layer_curve(1),   &
                                       e_back, de, fl_back)
          worst_e = max(worst_e, abs(e_back - col%soil_energy(1)) / de)
          if (col%soil_temp(1) < t_3ple - 5.0_wp) exit
@@ -238,7 +238,7 @@ contains
       logical :: monotone
       print '(a)', 'test_thaw_curve:'
       call setup_1layer(soil, forcing, THETA, DEPTH)
-      col%soil_energy(1) = soil_layer_energy(t_3ple - 5.0_wp, THETA, soil%dry_heat_capacity(1), soil%layer_curve(1))
+      col%soil_energy(1) = porous_layer_energy(t_3ple - 5.0_wp, THETA, soil%dry_heat_capacity(1), soil%layer_curve(1))
       e0 = col%soil_energy(1)
       forcing%g_top = G
       t_prev = t_3ple - 5.0_wp
@@ -291,7 +291,7 @@ contains
          forcing%geothermal = 0.0_wp
          forcing%w_flux_top = 0.0_wp
          do k = 1_ik, 5_ik
-            col%soil_energy(k) = soil_layer_energy(t_3ple + 1.0_wp, 0.38_wp, soil%dry_heat_capacity(k),   &
+            col%soil_energy(k) = porous_layer_energy(t_3ple + 1.0_wp, 0.38_wp, soil%dry_heat_capacity(k),   &
                                                    soil%layer_curve(k))
          end do
          nstep = nint(2.0_wp * 86400.0_wp / dt(idt), ik)
@@ -320,16 +320,16 @@ contains
       print '(a)', 'test_oversaturated_layer:'
       call setup_1layer(soil, forcing, 0.40_wp, 0.05_wp)
       theta = soil%theta_sat(1) + 5.0e-4_wp
-      e = soil_layer_energy(300.0_wp, theta, soil%dry_heat_capacity(1), soil%layer_curve(1))
-      call soil_layer_temp(e, theta, soil%dry_heat_capacity(1), soil%layer_curve(1), t, fl)
+      e = porous_layer_energy(300.0_wp, theta, soil%dry_heat_capacity(1), soil%layer_curve(1))
+      call porous_layer_temp(e, theta, soil%dry_heat_capacity(1), soil%layer_curve(1), t, fl)
       call check('above saturation, warm: its temperature', t, 300.0_wp, 1.0e-9_wp)
       call check('above saturation, warm: all liquid', fl, 1.0_wp, 0.0_wp)
-      e = soil_layer_energy(272.0_wp, theta, soil%dry_heat_capacity(1), soil%layer_curve(1))
-      call soil_layer_temp(e, theta, soil%dry_heat_capacity(1), soil%layer_curve(1), t, fl)
+      e = porous_layer_energy(272.0_wp, theta, soil%dry_heat_capacity(1), soil%layer_curve(1))
+      call porous_layer_temp(e, theta, soil%dry_heat_capacity(1), soil%layer_curve(1), t, fl)
       call check('above saturation, frozen: its temperature', t, 272.0_wp, 1.0e-9_wp)
-      e_lo = soil_layer_energy(t_3ple, theta, soil%dry_heat_capacity(1), soil%layer_curve(1))
+      e_lo = porous_layer_energy(t_3ple, theta, soil%dry_heat_capacity(1), soil%layer_curve(1))
       e_hi = temp_to_internal_energy(soil%dry_heat_capacity(1), theta * rho_h2o, t_3ple, 1.0_wp)
-      call soil_layer_temp(0.5_wp * (e_lo + e_hi), theta, soil%dry_heat_capacity(1), soil%layer_curve(1), t, fl)
+      call porous_layer_temp(0.5_wp * (e_lo + e_hi), theta, soil%dry_heat_capacity(1), soil%layer_curve(1), t, fl)
       call check_true('the excess freezes at t_3ple', t == t_3ple .and. fl > soil%theta_sat(1) / theta .and.      &
                       fl < 1.0_wp, fl)
    end subroutine test_oversaturated_layer
@@ -357,10 +357,10 @@ contains
       real(wp) :: e0, u_liq, temp_raw, temp_fix, fliq
       print '(a)', 'test_mass_change_neutrality:'
       call setup_1layer(soil, forcing, THETA0, 0.10_wp)
-      e0 = soil_layer_energy(TEMP0, THETA0, soil%dry_heat_capacity(1), soil%layer_curve(1))
+      e0 = porous_layer_energy(TEMP0, THETA0, soil%dry_heat_capacity(1), soil%layer_curve(1))
 
       !--- (a) mass removed, energy untouched: the layer's temperature jumps.
-      call soil_layer_temp(e0, THETA0 - DTHETA, soil%dry_heat_capacity(1), soil%layer_curve(1), temp_raw, fliq)
+      call porous_layer_temp(e0, THETA0 - DTHETA, soil%dry_heat_capacity(1), soil%layer_curve(1), temp_raw, fliq)
       call check_true('water removed without its enthalpy visibly moves soil temperature',       &
                       abs(temp_raw - TEMP0) > 1.0_wp, temp_raw - TEMP0)
 
@@ -369,14 +369,14 @@ contains
       ! internal_energy_liquid is what the model values every liquid-water flow with.
       !---~---
       u_liq = internal_energy_liquid(TEMP0)                      ! [J/kg] ~1.0e6, NOT ~0 -- that is the point
-      call soil_layer_temp(e0 - DTHETA * rho_h2o * u_liq, THETA0 - DTHETA, soil%dry_heat_capacity(1),            &
+      call porous_layer_temp(e0 - DTHETA * rho_h2o * u_liq, THETA0 - DTHETA, soil%dry_heat_capacity(1),            &
                            soil%layer_curve(1), temp_fix, fliq)
       call check('water removed with its enthalpy leaves soil temperature unchanged', temp_fix, TEMP0, 1.0e-9_wp)
       call check_true('water removed with its enthalpy leaves the layer all-liquid',                &
                       abs(fliq - 1.0_wp) < 1.0e-12_wp, fliq)
 
       !--- Same for the OPPOSITE sign (water added to the layer).
-      call soil_layer_temp(e0 + DTHETA * rho_h2o * u_liq, THETA0 + DTHETA, soil%dry_heat_capacity(1),            &
+      call porous_layer_temp(e0 + DTHETA * rho_h2o * u_liq, THETA0 + DTHETA, soil%dry_heat_capacity(1),            &
                            soil%layer_curve(1), temp_fix, fliq)
       call check('water added with its enthalpy leaves soil temperature unchanged', temp_fix, TEMP0, 1.0e-9_wp)
    end subroutine test_mass_change_neutrality

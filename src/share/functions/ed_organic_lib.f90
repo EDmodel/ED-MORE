@@ -10,10 +10,12 @@
 !---~---
 module ed_organic_lib
    use ed_kinds,     only : wp, ik
-   use ed_constants, only : n_organic_slot, cp_organic, rho_h2o, t_3ple
+   use ed_constants, only : n_organic_slot, cp_organic, t_3ple
    use ed_therm_lib, only : internal_energy_to_temp, temp_to_internal_energy
    use ed_soil_hydr_lib, only : soil_layer_curve_t, build_soil_layer_curve, SOIL_RETENTION_VG, SOIL_RETENTION_CAMPBELL
    use ed_numerics,      only : within_roundoff
+   use ed_ground_surface_lib, only : porous_layer_depth, porous_layer_capacity, porous_layer_fill,         &
+                                     porous_layer_resistance, porous_layer_matter
    implicit none
    private
 
@@ -89,8 +91,7 @@ contains
    !--- The dry matter [kg/m2] a slot of mass [kg/m2] at bulk density [kg/m3] holds as a layer: none below ORGANIC_MIN_DEPTH.
    elemental real(wp) function organic_registered_mass(mass, density) result(registered)
       real(wp), intent(in) :: mass, density
-      registered = 0.0_wp
-      if (density > 0.0_wp .and. mass >= ORGANIC_MIN_DEPTH * density) registered = mass
+      registered = porous_layer_matter(mass, density, ORGANIC_MIN_DEPTH)
    end function organic_registered_mass
 
    !--- Whether a patch has an organic layer: dry matter in any slot.
@@ -106,7 +107,7 @@ contains
       integer(ik),            intent(in) :: k
       type(organic_material_t) :: m
       m     = organic_slot_material(params, k)
-      depth = org%mass(k) / m%bulk_density
+      depth = porous_layer_depth(org%mass(k), m%bulk_density)
    end function organic_slot_depth
 
    !---~---
@@ -161,14 +162,14 @@ contains
       do k = 1_ik, n_organic_slot
          if (org%mass(k) <= 0.0_wp) cycle
          m      = organic_slot_material(params, k)
-         depth  = org%mass(k) / m%bulk_density
+         depth  = porous_layer_depth(org%mass(k), m%bulk_density)
          cap    = organic_slot_capacity(params, org, k)
-         fill   = min(1.0_wp, org%water(k) / cap)
+         fill   = porous_layer_fill(org%water(k), cap)
          dry_cap    = dry_cap + cp_organic * org%mass(k)
          water      = water + org%water(k)
          energy     = energy + org%energy(k)
          w_max      = w_max + cap
-         resistance = resistance + depth * ((1.0_wp - fill) / m%k_dry + fill / m%k_wet)
+         resistance = resistance + porous_layer_resistance(depth, fill, m%k_dry, m%k_wet)
          dry_depth  = dry_depth + depth * (1.0_wp - fill)
       end do
    end subroutine organic_layer_sums
@@ -180,7 +181,7 @@ contains
       integer(ik),            intent(in) :: k
       type(organic_material_t) :: m
       m   = organic_slot_material(params, k)
-      cap = m%theta_sat * rho_h2o * org%mass(k) / m%bulk_density
+      cap = porous_layer_capacity(org%mass(k), m%bulk_density, m%theta_sat)
    end function organic_slot_capacity
 
    !---~---
@@ -195,7 +196,7 @@ contains
       type(organic_material_t) :: m
       m = organic_slot_material(params, k)
       call build_soil_layer_curve(m%retention, m%theta_sat, m%theta_res, m%par_a, m%par_n, m%ksat,                &
-                                  org%mass(k) / m%bulk_density, c)
+                                  porous_layer_depth(org%mass(k), m%bulk_density), c)
    end function organic_slot_curve
 
    !--- The layer's temperature and liquid fraction, from its summed energy, water and dry heat capacity.

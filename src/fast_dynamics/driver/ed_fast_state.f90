@@ -31,7 +31,7 @@ module ed_fast_state
    use ed_polygon_state_vars,    only : polygon_t
    use ed_state_defaults,        only : DMAX_PSI_LEAF_ACCUM_RESET
    use ed_canopy_aerodynamics,   only : canopy_roughness, open_canopy_fraction, canopy_burial_fraction
-   use ed_soil_heat,             only : soil_layer_temp
+   use ed_ground_surface_lib,    only : porous_layer_temp
    use ed_fast_integ_types,          only : fast_static_state_t, fast_dynamic_state_t, fast_forcing_t, fast_output_t,  &
                                         ensure_static_capacity
    implicit none
@@ -173,7 +173,7 @@ contains
       ! with, so a consistent state reads back unchanged.
       !---~---
       associate (prof => poly%site%surface(poly%patch%owner_site(ip))%soil_profile)
-         call soil_layer_temp(dynamic%soil_energy%soil_energy(1:prof%n_active),                           &
+         call porous_layer_temp(dynamic%soil_energy%soil_energy(1:prof%n_active),                           &
                               dynamic%soil_water%theta(1:prof%n_active), prof%dry_heat_capacity(1:prof%n_active), &
                               prof%layer_curve(1:prof%n_active), dynamic%soil_energy%soil_temp(1:prof%n_active), &
                               dynamic%soil_energy%soil_fliq(1:prof%n_active))

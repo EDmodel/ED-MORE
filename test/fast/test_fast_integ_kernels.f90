@@ -45,7 +45,8 @@ program test_fast_integ_kernels
    use ed_therm_lib,           only : cas_temp_to_enthalpy, cas_enthalpy_to_temp, sat_specific_humidity,           &
                                       sat_vapor_pressure, sat_vapor_pressure_temp_deriv, enthalpy_vapor,          &
                                       temp_to_internal_energy, internal_energy_liquid, cas_heat_capacity
-   use ed_soil_heat,           only : soil_heat_env_t, soil_energy_time_deriv, soil_layer_temp
+   use ed_soil_heat,           only : soil_heat_env_t, soil_energy_time_deriv
+   use ed_ground_surface_lib,  only : porous_layer_temp
    use ed_patch_state_vars,    only : soil_energy_state_t, snow_state_t
    use ed_site_state_vars,     only : site_surface_t
    use ed_fast_integ_types,    only : surface_state_t, surface_tend_t, march_state_t, march_tend_t, frozen_t,      &
@@ -258,7 +259,7 @@ contains
       call check_true('march_derivs: every tendency finite', finite)
 
       !--- The canopy-air part is surface_derivs at the state's diagnosed soil-top temperature.
-      call soil_layer_temp(y%soil_energy(1), y%theta(1), col%site%soil_profile%dry_heat_capacity(1),             &
+      call porous_layer_temp(y%soil_energy(1), y%theta(1), col%site%soil_profile%dry_heat_capacity(1),             &
                            col%site%soil_profile%layer_curve(1), t_ground, fliq)
       y_stage%cas_enthalpy = y%cas_enthalpy
       y_stage%cas_shv      = y%cas_shv

@@ -17,8 +17,8 @@ module ed_fast_integ_backward_euler
    use, intrinsic :: ieee_arithmetic, only : ieee_is_finite, ieee_value, ieee_quiet_nan
    use ed_kinds, only : wp, ik
    use ed_constants,   only : tiny_num
-   use ed_soil_heat,   only : soil_heat_env_t, soil_heat_out_t, soil_energy_step_implicit, set_soil_heat_env,     &
-                              soil_layer_temp
+   use ed_soil_heat,   only : soil_heat_env_t, soil_heat_out_t, soil_energy_step_implicit, set_soil_heat_env
+   use ed_ground_surface_lib, only : porous_layer_temp
    use ed_patch_state_vars,   only : soil_energy_state_t
    use ed_fast_integ_derivs, only : surface_derivs, cas_conductances, water_derivs, node_balance, wood_potentials
    use ed_fast_integ_control, only : water_scales
@@ -154,7 +154,7 @@ contains
       call state_init(y, n, nsl, y_out)
 
       !--- diagnose the soil-top temperature so the ground skin sees the current state.
-      call soil_layer_temp(y%soil_energy(1), y%theta(1), site%soil_profile%dry_heat_capacity(1),                &
+      call porous_layer_temp(y%soil_energy(1), y%theta(1), site%soil_profile%dry_heat_capacity(1),                &
                            site%soil_profile%layer_curve(1), t_ground, fliq1)
 
       cas_mass_capacity = frozen%cas%box%air_mass_capacity
