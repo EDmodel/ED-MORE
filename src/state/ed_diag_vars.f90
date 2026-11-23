@@ -267,7 +267,7 @@ module ed_diag_vars
    integer(ik), parameter, public :: PA_TRANSP               = 38_ik  ! [kg/m2/s] canopy transpiration
    integer(ik), parameter, public :: PA_VEG_SURFACE_EVAP     = 39_ik  ! [kg/m2/s] leaf and wood surface water evaporated (dew < 0)
    integer(ik), parameter, public :: PA_GROUND_EVAP          = 40_ik  ! [kg/m2/s] the ground's evaporation: its layers and the soil
-   integer(ik), parameter, public :: PA_DEW                  = 41_ik  ! [kg/m2/s] condensate (dew, fog) to soil layer 1
+   integer(ik), parameter, public :: PA_DEW                  = 41_ik  ! [kg/m2/s] condensate (dew, fog) to the water layer
    integer(ik), parameter, public :: PA_ET                   = 42_ik  ! [kg/m2/s] evapotranspiration: the canopy air's vapour export
    !--- The water leaving the soil column: the pond's spill, the bottom flux, and their sum.
    integer(ik), parameter, public :: PA_RUNOFF_SURF          = 43_ik  ! [kg/m2/s] surface runoff

@@ -779,7 +779,8 @@ contains
                         flux=.true.)
       call add_variable(reg, 'mean_ground_evap_py', 'ground evaporation: its surface layers and the soil', 'kg/m2/s',    &
                         DIM_SCALAR, AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_GROUND_EVAP, flux=.true.)
-      call add_variable(reg, 'mean_dew_py', 'condensation from the canopy air (dew, fog), to the soil', 'kg/m2/s', DIM_SCALAR,  &
+      call add_variable(reg, 'mean_dew_py', 'condensation from the canopy air (dew, fog), to the water layer', 'kg/m2/s', &
+                        DIM_SCALAR,                                                                                    &
                         AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_DEW, flux=.true.)
       !--- budget health (GRP_NUMERICS): the numbers that say whether anything above is real.
       call add_variable(reg, 'mean_resid_energy_py', 'signed whole-column energy-budget residual (+ = appearing)', 'W/m2',       &

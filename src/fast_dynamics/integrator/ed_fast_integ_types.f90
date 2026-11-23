@@ -382,7 +382,7 @@ module ed_fast_integ_types
       !   The canopy air's vapour sources over the step, as its ledger booked them: the cohorts'
       ! transpiration, the evaporation of the leaves' and wood's surface water (net of dew onto
       ! it), the ground's (bare soil and snow pack), and the condensate (dew, fog) it lost to
-      ! soil layer 1. ET (atm_vap_export) is the first three less the condensate, less the
+      ! the water layer. ET (atm_vap_export) is the first three less the condensate, less the
       ! canopy air's own vapour gain.
       !---~---
       real(wp)       :: transp_export      = 0.0_wp   ! [kg/m2] over this dt_fast
@@ -860,8 +860,8 @@ module ed_fast_integ_types
       real(wp) :: whole_enth_in = 0.0_wp, whole_enth_out = 0.0_wp
       real(wp) :: whole_wat_in  = 0.0_wp, whole_wat_out  = 0.0_wp
       !---~---
-      !   Condensate, apart from whole_wat_out: dew and fog land inside the column, and the caller
-      ! deposits them into soil layer 1 (docs/science/numerical_scheme.md §7, item 3).
+      !   Condensate, apart from whole_wat_out: dew and fog land inside the column, and the update
+      ! puts them in the water layer.
       !---~---
       real(wp) :: whole_cond    = 0.0_wp   ! [kg/m2] condensed vapour over the step (>= 0)
       !---~---

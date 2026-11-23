@@ -256,13 +256,13 @@ contains
             !---~---
             bf%whole_enth_in= surf_tend%coh_rnet + surf_tend%ground_rad - eflux%bottom_heat
             !---~---
-            !   The condensate is not a boundary loss: the caller deposits it in soil layer 1 with the
+            !   The condensate is not a boundary loss: the update puts it in the water layer with the
             ! enthalpy surface_derivs debited from the CAS (whole_cond, whole_cond_enth).
             !---~---
             bf%whole_enth_out= g_atm_heat*(enth1 - frozen%cas%box%atm_enthalpy) + e_drain
             bf%whole_wat_in = 0.0_wp
             bf%whole_wat_out = g_atm_vapour*(shv1 - frozen%cas%box%atm_specific_humidity)
-            bf%whole_cond   = surf_tend%cond                     ! deposited into soil layer 1, not lost
+            bf%whole_cond   = surf_tend%cond                     ! put in the water layer, not lost
             bf%whole_cond_enth = surf_tend%cond_enth   ! exactly what surface_derivs debited from the CAS
             bf%stores       = surf_tend%stores
             bf%stack_newton   = surf_tend%stack_newton
