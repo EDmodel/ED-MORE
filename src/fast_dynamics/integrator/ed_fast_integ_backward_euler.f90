@@ -1222,9 +1222,10 @@ contains
       !---~---
       dinfl = 0.0_wp
       snap  = fast
+      if (.not. fast(POND)) call drain_only_what_is_held()
       do c = 1_ik, nsoil
          if (.not. fast(c)) cycle
-         slack = (ev%water_soil(c) - state%water_soil(c)) / h - ev%inflow_soil(c)
+         slack = (ev%water_soil(c) - state%water_soil(c)) / h - (ev%inflow_soil(c) + dinfl(c))
          if (c == 1_ik) then
             g = 2_ik
          else if (c == nsoil) then
@@ -1253,6 +1254,7 @@ contains
             qf(c) = qf(c) - slack
          end if
       end do
+      if (fast(POND) .and. .not. snap(POND)) call drain_only_what_is_held()
       pond_flux = qf(1)
       !--- The flow that closes each leaf's balance at its curve's water.
       do i = 1_ik, size(tau_coh, 2, kind=ik)
@@ -1371,6 +1373,24 @@ contains
       flows%sapflow = flows%sapflow + h * sap
       flows%transp  = flows%transp  + h * ev%transp
    contains
+      !---~---
+      !   The pond gives no more than it holds. Its water is its flows', and Newton, converged to
+      ! its tolerance, may leave it drained a hair past empty; the face it drained through then
+      ! carries that much less, the node below taking that much less as its own flows give it,
+      ! through its slack if it is eliminated, so the water and its enthalpy leave the pond as they
+      ! arrive below. Left past empty, the pond's energy would be cut to nothing with the water it
+      ! owed: at Toolik 2.9e-5 kg/m2 infiltrated beyond a pond of 0.022, 26 J/m2 out of nowhere.
+      !---~---
+      subroutine drain_only_what_is_held()
+         real(wp) :: past, cut_flux
+         past = -(state%water_soil(POND) + h * (ev%inflow_soil(POND) + dinfl(POND)))
+         if (past <= 0.0_wp .or. qf(1) <= 0.0_wp) return
+         cut_flux    = min(past / h, qf(1))
+         qf(1)       = qf(1) - cut_flux
+         dinfl(POND) = dinfl(POND) + cut_flux
+         dinfl(2)    = dinfl(2) - cut_flux
+      end subroutine drain_only_what_is_held
+
       !--- Whether neighbour gg, not detached, holds the water the slack would take from it.
       logical function can_give(gg)
          integer(ik), intent(in) :: gg

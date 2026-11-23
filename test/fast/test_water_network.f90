@@ -77,7 +77,7 @@ program test_water_network
    use ed_test_assert, only : check_true, check_close, check_int, test_report
    use, intrinsic :: iso_fortran_env, only : int64
    use ed_kinds,         only : wp, ik
-   use ed_constants,     only : grav_head, rho_h2o, pi, tiny_num, n_soil_layer_max, grav, r_wv, p_std, mmh2o
+   use ed_constants,     only : grav_head, rho_h2o, pi, tiny_num, n_soil_layer_max, grav, r_wv, p_std, mmh2o, t_3ple
    use ed_linear_algebra,  only : arrowhead_system_t, arrowhead_allocate, arrowhead_factor, arrowhead_solve
    use ed_fast_integ_types,  only : fast_static_state_t, water_drive_t, water_work_t, tol_set_t,                    &
                                 ensure_static_capacity, POND, WOOD, LEAF, GRP_THETA, N_WORK, WORK_WATER_NSUB,   &
@@ -90,7 +90,8 @@ program test_water_network
    use ed_soil_hydr_lib,     only : SOIL_RETENTION_VG, SOIL_RETENTION_CAMPBELL, soil_theta_to_head, soil_ice_state,  &
                                     soil_liquid_capacity, soil_water_relations, build_soil_layer_curve, soil_ice_t, &
                                     soil_layer_curve_t
-   use ed_therm_lib,         only : internal_energy_liquid, liquid_energy_to_temp, sat_specific_humidity
+   use ed_therm_lib,         only : internal_energy_liquid, liquid_energy_to_temp, sat_specific_humidity,          &
+                                    temp_to_internal_energy
    use ed_pft_params,    only : hydraulics_table_t
    use ed_soil_params, only : soil_profile_t, soil_params_t, SOIL_BC_DRAIN, SOIL_BC_AQUIFER
    use ed_soil_derive,        only : build_profile_hydraulics
@@ -146,6 +147,8 @@ program test_water_network
    call test_litter_storm()
    call test_drying_litter()
    call test_full_pond()
+   call test_frozen_slot_to_pond()
+   call test_pond_drains_what_it_holds()
    call test_report('test_water_network')
 
 contains
@@ -1596,5 +1599,81 @@ contains
       call check_int('full pond: no sub-step forced through', nfail, 0_ik)
       call check_true('full pond: the water closes', worst < 1.0e-13_wp, worst)
    end subroutine test_full_pond
+
+   !--- The enthalpy the network's step leaves unbalanced among the pond, the slots and the top layer's top face [J/m2].
+   real(wp) function network_enthalpy_gap(st, e_pond0)
+      type(stand_t), intent(in) :: st
+      real(wp),      intent(in) :: e_pond0
+      associate (f => st%water%flows)
+         network_enthalpy_gap = (st%water%state%e_pond - e_pond0) + f%org_enth + (f%top_in_enth - f%top_out_enth)  &
+                                - f%rain_enth + f%spill_enth
+      end associate
+   end function network_enthalpy_gap
+
+   !---~---
+   !   29. A frozen litter on the melt plateau (liquid share 0.3 by its energy), filled past its pores
+   ! over ground frozen hard, pushes water up into a pond of liquid at the melting point: the water
+   ! leaves as the litter's energy holds it, its liquid share at 273.16 K and the rest ice, and
+   ! arrives so; the pond, now below liquid at the melting point, is one the snow stage freezes;
+   ! and the enthalpy closes.
+   !---~---
+   subroutine test_frozen_slot_to_pond()
+      type(stand_t) :: st
+      real(wp) :: theta(soil%n_active), e_pond0, u_held
+      print '(a)', 'test_frozen_slot_to_pond:'
+      theta = 0.42_wp
+      call make_stand(st, 1_ik, theta, 0.0_wp, 0.95_wp, 0.9_wp, 0.0_wp,                                              &
+                      org=thin_layers(3.0e-3_wp, 1.0_wp, 0.0_wp, 0.0_wp, .false., 0.0_wp))
+      call seal_top(st, 2_ik, theta, 0.5_wp)
+      st%water%state%e_pond = 0.5_wp * internal_energy_liquid(t_3ple)
+      st%drive%org%t_org = t_3ple
+      st%drive%org%fliq  = 0.3_wp
+      st%drive%rain      = 0.0_wp
+      e_pond0 = st%water%state%e_pond
+      call advance(st, sopts, 900.0_wp)
+      u_held = temp_to_internal_energy(0.0_wp, 1.0_wp, t_3ple, 0.3_wp)
+      associate (f => st%water%flows)
+         call check_true('frozen slot to pond: the litter pushes water up to the pond', f%exfil > 1.0e-6_wp, f%exfil)
+         call check_close('frozen slot to pond: it leaves as the litter holds it, liquid share and ice',          &
+                          f%exfil_enth, f%exfil * u_held, 1.0e-12_wp * abs(f%exfil * u_held))
+      end associate
+      call check_true('frozen slot to pond: the pond is below liquid at the melting point, so it freezes',        &
+                      st%water%state%e_pond < st%water%state%water_soil(POND) * internal_energy_liquid(t_3ple),  &
+                      st%water%state%e_pond)
+      call check_close('frozen slot to pond: the enthalpy closes among pond, litter and soil',                     &
+                       network_enthalpy_gap(st, e_pond0), 0.0_wp, 1.0e-9_wp * max(1.0_wp, abs(st%water%flows%exfil_enth)))
+   end subroutine test_frozen_slot_to_pond
+
+   !---~---
+   !   30. A small pond (0.022 kg/m2), as at Toolik's spring, over 11 mm of litter at theta 0.9 and 6
+   ! cm of saturated moss on the melt plateau: it empties into the litter within a step, and loses
+   ! no more than it held, never past empty, the enthalpy closing at every step.
+   !---~---
+   subroutine test_pond_drains_what_it_holds()
+      type(stand_t) :: st
+      real(wp) :: theta(soil%n_active), e_pond0, gap, w_min
+      integer(ik) :: step
+      print '(a)', 'test_pond_drains_what_it_holds:'
+      theta = 0.42_wp
+      call make_stand(st, 1_ik, theta, 0.022_wp, 0.95_wp, 0.9_wp, 0.0_wp,                                            &
+                      org=thin_layers(1.14e-2_wp, 0.90_wp, 0.06_wp, 0.85_wp, .false., 0.0_wp))
+      st%water%state%e_pond = 0.022_wp * internal_energy_liquid(t_3ple)
+      st%drive%org%t_org = t_3ple
+      st%drive%org%fliq  = 0.88_wp
+      st%drive%rain      = 0.0_wp
+      gap   = 0.0_wp
+      w_min = huge(1.0_wp)
+      do step = 1_ik, 4_ik
+         e_pond0 = st%water%state%e_pond
+         call advance(st, sopts, 900.0_wp)
+         gap   = max(gap, abs(network_enthalpy_gap(st, e_pond0)))
+         w_min = min(w_min, st%water%state%water_soil(POND))
+         call restart_stand(st, 1.14e-2_wp, 0.06_wp, .false.)
+         st%drive%org%t_org = t_3ple
+         st%drive%org%fliq  = 0.88_wp
+      end do
+      call check_true('pond drains what it holds: never past empty', w_min >= 0.0_wp, w_min)
+      call check_true('pond drains what it holds: the enthalpy closes at every step', gap < 1.0e-6_wp, gap)
+   end subroutine test_pond_drains_what_it_holds
 
 end program test_water_network
