@@ -23,6 +23,9 @@ module ed_polygon
    use ed_patch_state_vars,           only : canopy_air_bad_field, canopy_air_field_name
    use ed_polygon_state_vars,         only : polygon_t, reset_step_diagnostics
    use ed_stepper,                    only : run_ledgers_t, advance_one_step
+   use ed_fast_integ_types,           only : WORK_WATER_NFAIL, WORK_WATER_FORCED_NEWTON, WORK_WATER_FORCED_FAST,   &
+                                             WORK_WATER_FORCED_CUT, WORK_WATER_FORCED_COHORT,                      &
+                                             WORK_WATER_NODE_UNSOLVED
    use ed_slow_update,                only : max_cohort_count
    use ed_slow_ledger,                only : slow_ledger_report
    use ed_soil_carbon,                only : soil_carbon_bad_pool
@@ -273,6 +276,19 @@ contains
          if (run%ledgers%face%n_fail > 0_ik)                                                        &
             write(*,'(a,i0,a)') ' WARNING: ', run%ledgers%face%n_fail,                                &
                ' soil-water solves did not converge (see [fast].debug_error to make this fatal)'
+         !---~---
+         !   Why: the water network's sub-steps taken although unconverged, those whose Newton had
+         ! not converged (the rest failed the error filter), and the class of the worst store; and
+         ! the eliminated or detached nodes whose own balance was left unsolved.
+         !---~---
+         associate (w => run%ledgers%work)
+            if (w(WORK_WATER_NFAIL) + w(WORK_WATER_NODE_UNSOLVED) > 0_ik)                            &
+               write(*,'(a,i0,a,i0,a,i0,a,i0,a,i0,a,i0,a,i0)') ' forced[water] sub-steps = ',             &
+                  w(WORK_WATER_NFAIL), '  newton = ', w(WORK_WATER_FORCED_NEWTON), '  error filter = ',  &
+                  w(WORK_WATER_NFAIL) - w(WORK_WATER_FORCED_NEWTON), '  worst eliminated = ',          &
+                  w(WORK_WATER_FORCED_FAST), '  detached = ', w(WORK_WATER_FORCED_CUT), '  cohort = ', &
+                  w(WORK_WATER_FORCED_COHORT), '  unsolved nodes = ', w(WORK_WATER_NODE_UNSOLVED)
+         end associate
          if (run%ledgers%energy%n_fail + run%ledgers%water%n_fail > 0_ik)                          &
             write(*,'(a,i0,a)') ' WARNING: ', run%ledgers%energy%n_fail + run%ledgers%water%n_fail,   &
                ' whole-column budget checks breached tolerance (see [fast].debug_error to make this fatal)'

@@ -18,7 +18,7 @@ module ed_therm_lib
    use ed_constants,   only : mmdry, tiny_num, cp_air, cp_vap, cp_liq, cp_ice, latent_heat_fusion,  &
                               latent_heat_vap_3ple,                                               &
                               t_3ple, tsupercool_liq, tsupercool_vap, r_dry, r_wv, es_3ple,        &
-                              rho_h2o, k_water, k_ice, c2b_wood, r_gas, t_ref_photo, safe_exp,      &
+                              rho_h2o, k_water, k_ice, c2b, r_gas, t_ref_photo, safe_exp,      &
                               t_kelvin, grav,                                                       &
                               h2o_dry_ratio, virtual_temp_factor
    implicit none
@@ -499,7 +499,7 @@ contains
       real(wp), intent(in) :: nplant   ! [plant/m2]
       real(wp), intent(in) :: carbon   ! [kgC/plant] the tissue's carbon
       real(wp), intent(in) :: c_dry    ! [J/kg/K]    specific heat of its dry matter
-      cap = carbon * nplant * c2b_wood * c_dry
+      cap = carbon * nplant * c2b * c_dry
    end function tissue_dry_heat_capacity
 
    !---~---

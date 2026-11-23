@@ -13,12 +13,12 @@
 !---~---
 module ed_fast_state
    use ed_kinds,                 only : wp, ik
-   use ed_constants,             only : cm2_to_m2, c2b_wood, t_3ple, umol_2_kgc, day_sec, par_w_2_umol, pi,      &
+   use ed_constants,             only : cm2_to_m2, c2b, t_3ple, umol_2_kgc, day_sec, par_w_2_umol, pi,      &
                                         tiny_num, tissue_c_leaf, tissue_c_wood_dry
    use ed_numerics,              only : ascending_order
    use ed_config,                only : ed_config_t
    use ed_pft_params,            only : pft_table_t, hydraulics_table_t
-   use ed_allometry_lib,         only : GROWTH_TREE
+   use ed_allometry_lib,         only : GROWTH_TREE, crown_exposed_fraction
    use ed_soil_params,           only : soil_profile_t
    use ed_plant_hydraulics,      only : cohort_root_profile, crown_gravity_head
    use ed_plant_hydr_lib,        only : plant_max_conductance, rhizosphere_conductance
@@ -27,11 +27,10 @@ module ed_fast_state
                                         set_cohort_tissue_temps, hold_cohort_tissue_temps
    use ed_met_types,             only : met_forcing_t
    use ed_patch_state_vars,      only : decomp_xi_t
-   use ed_organic_lib,           only : organic_diagnose
+   use ed_organic_lib,         only : organic_diagnose
    use ed_polygon_state_vars,    only : polygon_t
    use ed_state_defaults,        only : DMAX_PSI_LEAF_ACCUM_RESET
-   use ed_canopy_aerodynamics,   only : canopy_roughness, open_canopy_fraction, canopy_burial_fraction,         &
-                                        crown_exposed_fraction
+   use ed_canopy_aerodynamics,   only : canopy_roughness, open_canopy_fraction, canopy_burial_fraction
    use ed_soil_heat,             only : soil_layer_temp
    use ed_fast_integ_types,          only : fast_static_state_t, fast_dynamic_state_t, fast_forcing_t, fast_output_t,  &
                                         ensure_static_capacity
@@ -350,7 +349,7 @@ contains
          !   Sapwood volume [m3/plant]: its carbon as dry mass over the PFT's wood density
          ! [g/cm3 = 1000 kg/m3]; biomass grows as density^0.976, so it barely depends on it.
          !---~---
-         static%sap_volume(j)          = cohort%sapwood_carbon(i) * c2b_wood / (1.0e3_wp * pft%wood_density(pf))
+         static%sap_volume(j)          = cohort%sapwood_carbon(i) * c2b / (1.0e3_wp * pft%wood_density(pf))
          static%root_resp_factor25(j)  = pft%root_resp_factor25(pf)
          static%leaf_emissivity(j)     = pft%leaf_emissivity(pf)
          static%wood_emissivity(j)     = pft%wood_emissivity(pf)

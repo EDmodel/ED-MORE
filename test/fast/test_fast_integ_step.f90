@@ -59,7 +59,8 @@ program test_fast_integ_step
    use ed_plant_hydr_lib,       only : tissue_water_to_psi
    use ed_fast_state,           only : derive_cohort_terms
    use ed_patch_state_vars,     only : cas_set_depth
-   use ed_organic_lib,          only : organic_state_t, SLOT_LITTER, SLOT_MOSS, organic_split_energy
+   use ed_organic_lib,        only : organic_state_t, organic_split_energy
+   use ed_organic_lib,       only : SLOT_LITTER, SLOT_MOSS
    use ed_fast_integ_types,     only : frozen_t, march_state_t, ensure_output_capacity, WORK_RK45_RESCUE,          &
                                        WORK_INTEG_STEPS, surface_state_t, surface_tend_t
    use ed_test_fast_fixture,    only : fast_column_t, make_fast_column, gather_column, reset_column, step_column,  &
@@ -187,12 +188,10 @@ contains
       if (d%litter_seed > 0.0_wp .or. d%moss_seed > 0.0_wp) then
          associate (org => col%dynamic%organic, o => col%cfg%organic)
             if (d%litter_seed > 0.0_wp) then
-               org%density(SLOT_LITTER) = o%litter%bulk_density
                org%mass(SLOT_LITTER)    = d%litter_seed
                org%water(SLOT_LITTER)   = d%litter_theta * rho_h2o * d%litter_seed / o%litter%bulk_density
             end if
             if (d%moss_seed > 0.0_wp) then
-               org%density(SLOT_MOSS) = o%moss%bulk_density
                org%mass(SLOT_MOSS)    = d%moss_seed
                org%water(SLOT_MOSS)   = d%moss_theta * rho_h2o * d%moss_seed / o%moss%bulk_density
             end if

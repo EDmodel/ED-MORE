@@ -17,7 +17,7 @@
 module ed_patch_state_vars
    use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
    use ed_kinds,              only : wp, ik
-   use ed_constants,          only : n_soil_layer_max, n_snow_layer_max, n_organic_slot, tiny_num, t_3ple, rho_h2o
+   use ed_constants,          only : n_soil_layer_max, n_snow_layer_max, tiny_num, t_3ple, rho_h2o
    use ed_therm_lib,          only : cas_molar_density
    use ed_organic_lib,        only : organic_state_t
    use ed_diag_vars,          only : patch_diag_block, expand_patch_diag, reorder_patch_diag
@@ -364,31 +364,19 @@ contains
    end function blend_snow
 
    !---~---
-   !   Each organic slot's matter, water and energy area-weighted; the volumes add, so its
-   ! density is the blended matter over the blended depth, or the one density both share.
-   ! The temperature is read off the blend in the fast loop.
+   !   Each organic slot's matter, water and energy area-weighted. A slot's material is the run's,
+   ! so its depth, its matter over its bulk density, blends with its matter. The temperature is
+   ! read off the blend in the fast loop.
    !---~---
    pure function blend_organic(w1, a, w2, b) result(c)
       real(wp),              intent(in) :: w1, w2
       type(organic_state_t), intent(in) :: a, b
       type(organic_state_t)             :: c
-      real(wp) :: depth
-      integer  :: k
       c%mass   = w1 * a%mass   + w2 * b%mass
       c%water  = w1 * a%water  + w2 * b%water
       c%energy = w1 * a%energy + w2 * b%energy
-      do k = 1, n_organic_slot
-         if (b%mass(k) <= 0.0_wp .or. a%density(k) == b%density(k)) then
-            c%density(k) = a%density(k)
-         else if (a%mass(k) <= 0.0_wp) then
-            c%density(k) = b%density(k)
-         else
-            depth = w1 * a%mass(k) / a%density(k) + w2 * b%mass(k) / b%density(k)
-            c%density(k) = c%mass(k) / depth
-         end if
-      end do
-      c%temp = w1 * a%temp + w2 * b%temp                   ! provisional
-      c%fliq = w1 * a%fliq + w2 * b%fliq                   ! provisional
+      c%temp   = w1 * a%temp   + w2 * b%temp                 ! provisional
+      c%fliq   = w1 * a%fliq   + w2 * b%fliq                 ! provisional
    end function blend_organic
 
    pure function blend_soil_water(w1, a, w2, b) result(c)

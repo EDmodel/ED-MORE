@@ -81,7 +81,8 @@ program test_water_network
    use ed_linear_algebra,  only : arrowhead_system_t, arrowhead_allocate, arrowhead_factor, arrowhead_solve
    use ed_fast_integ_types,  only : fast_static_state_t, water_drive_t, water_work_t, tol_set_t,                    &
                                 ensure_static_capacity, POND, WOOD, LEAF, GRP_THETA, N_WORK, WORK_WATER_NSUB,   &
-                                WORK_WATER_REJECT, WORK_WATER_NFAIL, water_organic_t
+                                WORK_WATER_REJECT, WORK_WATER_NFAIL, water_organic_t,                           &
+                                WORK_WATER_FAST_SLOT, WORK_WATER_CUT_POND, WORK_WATER_CUT_SLOT
    use ed_fast_state,    only : derive_cohort_terms
    use ed_fast_integ_derivs, only : set_water_state, water_derivs
    use ed_fast_integ_backward_euler, only : water_step, water_jacobian_error
@@ -257,8 +258,8 @@ contains
    ! Zhang et al. (2010)'s van Genuchten one (a layer of no depth left out), frozen (all but the
    ! residual, which stays liquid) or not, with a held evaporation evap.
    !---~---
-   function thin_layers(d_lit, theta_lit, d_moss, theta_moss, frozen, evap) result(o)
-      real(wp), intent(in) :: d_lit, theta_lit, d_moss, theta_moss, evap
+   function thin_layers(d_lit, theta_lit, d_moss, theta_moss, frozen) result(o)
+      real(wp), intent(in) :: d_lit, theta_lit, d_moss, theta_moss
       logical,  intent(in) :: frozen
       type(water_organic_t) :: o
       real(wp) :: liq
@@ -282,7 +283,6 @@ contains
          if (frozen) liq = min(theta_moss, frozen_liquid(o%curve(o%n)))
          o%ice(o%n) = soil_ice_state(o%curve(o%n), theta_moss - liq, liq)
       end if
-      o%evap  = evap
       o%t_org = 285.0_wp
       o%air   = slot_evaporation_setup(forc, o%t_org, 0.0_wp)
    end function thin_layers
@@ -340,7 +340,7 @@ contains
          i = i + 1_ik
       end if
       if (d_moss > 0.0_wp) th_moss = st%water%state%water_soil(1_ik + i) / (rho_h2o * d_moss)
-      st%drive%org = thin_layers(d_lit, th_lit, d_moss, th_moss, frozen, st%drive%org%evap)
+      st%drive%org = thin_layers(d_lit, th_lit, d_moss, th_moss, frozen)
       call set_water_state(st%static, soil, hyd,                                                                  &
                            st%water%state%water_soil(2+n_org:1+n_org+nsl) / (rho_h2o * soil%dz(1:nsl)), st%drive%ice,  &
                            st%water%state%water_soil(POND), st%water%state%e_pond,                                &
@@ -1462,7 +1462,7 @@ contains
       print '(a)', 'test_zero_storage:'
       theta = 0.33_wp
       call make_stand(st, 1_ik, theta, 0.0_wp, 0.95_wp, 0.9_wp, 0.0_wp,                                              &
-                      org=thin_layers(3.0e-3_wp, 0.90_wp, 0.06_wp, 0.85_wp, .false., 0.0_wp))
+                      org=thin_layers(3.0e-3_wp, 0.90_wp, 0.06_wp, 0.85_wp, .false.))
       st%drive%rain = 1.0e-3_wp
       worst = 0.0_wp
       nfail = 0_ik
@@ -1472,7 +1472,7 @@ contains
          call advance(st, sopts, 900.0_wp)
          worst = max(worst, abs((total_water(st) - w0) - boundary_water_thin(st, 900.0_wp)) / max(w0, 1.0_wp))
          nfail = nfail + st%work(WORK_WATER_NFAIL)
-         nfast = nfast + st%water%n_fast(2)
+         nfast = nfast + st%work(WORK_WATER_FAST_SLOT)
          call restart_stand(st, 3.0e-3_wp, 0.06_wp, .false.)
       end do
       call check_true('zero storage: the saturated moss is eliminated', nfast > 0_ik, real(nfast, wp))
@@ -1488,7 +1488,7 @@ contains
       print '(a)', 'test_frozen_group:'
       theta = 0.42_wp
       call make_stand(st, 1_ik, theta, 0.0_wp, 0.95_wp, 0.9_wp, 0.0_wp,                                              &
-                      org=thin_layers(2.0e-2_wp, 0.98_wp, 0.06_wp, 0.85_wp, .true., 0.0_wp))
+                      org=thin_layers(2.0e-2_wp, 0.98_wp, 0.06_wp, 0.85_wp, .true.))
       call seal_top(st, 2_ik, theta, 0.0_wp)
       st%drive%rain = 3.0e-4_wp
       worst = 0.0_wp
@@ -1499,7 +1499,7 @@ contains
          call advance(st, sopts, 900.0_wp)
          worst = max(worst, abs((total_water(st) - w0) - boundary_water_thin(st, 900.0_wp)) / max(w0, 1.0_wp))
          nfail = nfail + st%work(WORK_WATER_NFAIL)
-         ncut  = ncut + st%water%n_cut(1) + st%water%n_cut(2)
+         ncut  = ncut + st%work(WORK_WATER_CUT_POND) + st%work(WORK_WATER_CUT_SLOT)
       end do
       if (ncut > 0_ik) print '(a,i8)', '  info : frozen group: detached node-sub-steps ', ncut
       call check_int('frozen group: no sub-step forced through', nfail, 0_ik)
@@ -1516,7 +1516,7 @@ contains
       print '(a)', 'test_litter_storm:'
       theta = 0.25_wp
       call make_stand(st, 1_ik, theta, 0.0_wp, 0.95_wp, 0.9_wp, 0.0_wp,                                              &
-                      org=thin_layers(1.0e-3_wp, 0.02_wp, 0.0_wp, 0.0_wp, .false., 0.0_wp))
+                      org=thin_layers(1.0e-3_wp, 0.02_wp, 0.0_wp, 0.0_wp, .false.))
       worst = 0.0_wp
       nfail = 0_ik
       nfast = 0_ik
@@ -1528,8 +1528,8 @@ contains
          call advance(st, sopts, 900.0_wp)
          worst = max(worst, abs((total_water(st) - w0) - boundary_water_thin(st, 900.0_wp)) / max(w0, 1.0_wp))
          nfail = nfail + st%work(WORK_WATER_NFAIL)
-         nfast = nfast + st%water%n_fast(2)
-         nnormal = nnormal + st%work(WORK_WATER_NSUB) - st%water%n_fast(2) - st%water%n_cut(2)
+         nfast = nfast + st%work(WORK_WATER_FAST_SLOT)
+         nnormal = nnormal + st%work(WORK_WATER_NSUB) - st%work(WORK_WATER_FAST_SLOT) - st%work(WORK_WATER_CUT_SLOT)
          passed = passed + st%water%flows%top_in - st%water%flows%top_out
          call restart_stand(st, 1.0e-3_wp, 0.0_wp, .false.)
       end do
@@ -1553,7 +1553,7 @@ contains
       print '(a)', 'test_drying_litter:'
       theta = 0.30_wp
       call make_stand(st, 1_ik, theta, 0.0_wp, 0.95_wp, 0.9_wp, 0.0_wp,                                              &
-                      org=thin_layers(3.0e-3_wp, 0.03_wp, 0.0_wp, 0.0_wp, .false., 3.0e-5_wp))
+                      org=thin_layers(3.0e-3_wp, 0.03_wp, 0.0_wp, 0.0_wp, .false.))
       call seal_top(st, 2_ik, theta, 0.0_wp)
       st%drive%ground%q_air = 0.005_wp
       st%drive%org%air = slot_evaporation_setup(st%drive%ground, st%drive%org%t_org, 0.0_wp)
@@ -1564,7 +1564,7 @@ contains
          nfail = nfail + st%work(WORK_WATER_NFAIL)
          th = st%water%state%water_soil(2) / (rho_h2o * 3.0e-3_wp)
          th_min = min(th_min, th)
-         st%drive%org = thin_layers(3.0e-3_wp, th, 0.0_wp, 0.0_wp, .false., 3.0e-5_wp)
+         st%drive%org = thin_layers(3.0e-3_wp, th, 0.0_wp, 0.0_wp, .false.)
          st%drive%org%air = slot_evaporation_setup(st%drive%ground, st%drive%org%t_org, 0.0_wp)
          call set_water_state(st%static, soil, hyd,                                                                &
                               st%water%state%water_soil(3:2+soil%n_active) / (rho_h2o * soil%dz(1:soil%n_active)), &
@@ -1585,7 +1585,7 @@ contains
       print '(a)', 'test_full_pond:'
       theta = 0.4314_wp - 1.0e-3_wp
       call make_stand(st, 1_ik, theta, 5.0_wp, 0.95_wp, 0.9_wp, 0.0_wp,                                              &
-                      org=thin_layers(1.0e-3_wp, 0.98_wp, 0.0_wp, 0.0_wp, .false., -8.0e-7_wp))
+                      org=thin_layers(1.0e-3_wp, 0.98_wp, 0.0_wp, 0.0_wp, .false.))
       st%drive%rain = 6.0e-4_wp
       worst = 0.0_wp
       nfail = 0_ik
@@ -1623,7 +1623,7 @@ contains
       print '(a)', 'test_frozen_slot_to_pond:'
       theta = 0.42_wp
       call make_stand(st, 1_ik, theta, 0.0_wp, 0.95_wp, 0.9_wp, 0.0_wp,                                              &
-                      org=thin_layers(3.0e-3_wp, 1.0_wp, 0.0_wp, 0.0_wp, .false., 0.0_wp))
+                      org=thin_layers(3.0e-3_wp, 1.0_wp, 0.0_wp, 0.0_wp, .false.))
       call seal_top(st, 2_ik, theta, 0.5_wp)
       st%water%state%e_pond = 0.5_wp * internal_energy_liquid(t_3ple)
       st%drive%org%t_org = t_3ple
@@ -1656,7 +1656,7 @@ contains
       print '(a)', 'test_pond_drains_what_it_holds:'
       theta = 0.42_wp
       call make_stand(st, 1_ik, theta, 0.022_wp, 0.95_wp, 0.9_wp, 0.0_wp,                                            &
-                      org=thin_layers(1.14e-2_wp, 0.90_wp, 0.06_wp, 0.85_wp, .false., 0.0_wp))
+                      org=thin_layers(1.14e-2_wp, 0.90_wp, 0.06_wp, 0.85_wp, .false.))
       st%water%state%e_pond = 0.022_wp * internal_energy_liquid(t_3ple)
       st%drive%org%t_org = t_3ple
       st%drive%org%fliq  = 0.88_wp

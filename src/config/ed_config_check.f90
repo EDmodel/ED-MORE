@@ -13,7 +13,8 @@ module ed_config_check
    use ed_kinds,              only : wp, ik
    use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
    use ed_constants,            only : n_soil_layer_max, day_sec, breast_height
-   use ed_organic_lib,          only : organic_material_t
+   use ed_organic_lib,       only : organic_material_t
+   use ed_organic_lib,          only : ORGANIC_MIN_DEPTH
    use ed_output_params,        only : STATE_DAYS, FC_DAY, FC_MONTH, TIER_MONTHLY, TIER_ANNUAL
    use ed_time,                 only : time_lt, time_valid, time_to_string, whole_years_between
    use ed_toml,                 only : toml_table_t, toml_has, toml_has_section
@@ -269,6 +270,7 @@ contains
       call check_run(cfg)
       call check_fast(cfg)
       call check_soil(cfg)
+      call check_surface_layer(cfg)
       call check_demography(cfg)
       call check_init(cfg)
       call check_output(cfg)
@@ -335,8 +337,9 @@ contains
           cfg%soil%ground_albedo_nir < 0.0_wp .or. cfg%soil%ground_albedo_nir >= 1.0_wp)              &
          error stop TAG//'soil.ground_albedo_vis and ground_albedo_nir must lie in [0, 1)'
       if (.not. (cfg%soil%moss_depth >= 0.0_wp)) error stop TAG//'soil.moss_depth must be >= 0 [m]'
-      call check_material('litter', cfg%organic%litter)
-      call check_material('moss', cfg%organic%moss)
+      !--- A moss thinner than a layer of the ground would be dropped without a word.
+      if (cfg%soil%moss_depth > 0.0_wp .and. cfg%soil%moss_depth < ORGANIC_MIN_DEPTH)                   &
+         error stop TAG//'soil.moss_depth must be 0 or at least 1e-4 m (ORGANIC_MIN_DEPTH), the thinnest moss layer'
       if (cfg%soil%ground_emissivity <= 0.0_wp .or. cfg%soil%ground_emissivity > 1.0_wp)              &
          error stop TAG//'soil.ground_emissivity must lie in (0, 1]'
       associate (sc => cfg%soil)
@@ -415,6 +418,13 @@ contains
                        '(it is measured down from the surface, and the anchor conducts to it)'
       end if
    end subroutine check_soil
+
+   !--- [surface_layer]: the organic layer's two materials.
+   subroutine check_surface_layer(cfg)
+      type(ed_config_t), intent(in) :: cfg
+      call check_material('litter', cfg%organic%litter)
+      call check_material('moss', cfg%organic%moss)
+   end subroutine check_surface_layer
 
    !---~---
    !   An organic material: a positive bulk density and conductivities, and a retention curve as

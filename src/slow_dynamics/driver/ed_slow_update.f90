@@ -15,12 +15,11 @@
 module ed_slow_update
    use ed_kinds,                only : wp, ik
    use ed_constants,            only : tiny_num, lnexp_min, lnexp_max, almost_one, yr_sec, rho_air_ref, umol_2_kgc, &
-                                       cp_organic, rho_h2o
+                                       cp_organic, rho_h2o, n_organic_slot
    use ed_therm_lib,            only : temp_to_internal_energy
-   use ed_organic_lib,          only : organic_params_t, organic_material_t, SLOT_LITTER, organic_present,   &
-                                       organic_diagnose, organic_split_energy, organic_slot_capacity
+   use ed_organic_lib,       only : organic_params_t, organic_material_t, organic_slot_material
    use ed_soil_hydr_lib,        only : soil_head_to_theta
-   use ed_numerics,             only : equal_height_layers, conserved, pair_mean
+   use ed_numerics,             only : equal_height_layers, conserved, pair_mean, within_roundoff
    use ed_cohort_state_vars,    only : cohort_block, cohort_deriv_block, set_cohort_size_from_carbon,    &
                                        hold_cohort_tissue_temps, reorder_cohort_block,                   &
                                        compact_cohort_block, expand_cohort_block, copy_cohort,           &
@@ -31,6 +30,7 @@ module ed_slow_update
    use ed_patch_state_vars,     only : patch_block, soil_carbon_state_t, blend_patch_stores,             &
                                        add_shed_water, patch_physical_state, DIST_TREEFALL,              &
                                        expand_patch_block, reorder_patch_block, cas_set_depth
+   use ed_organic_lib,          only : organic_present, organic_diagnose, organic_slot_capacity, organic_split_energy
    use ed_polygon_state_vars,   only : polygon_t, rebuild_cohort_map, assign_cohort_id,                  &
                                        patch_polygon_area, rebuild_patch_map, assign_patch_id
    use ed_allometry_lib,        only : height_to_diameter, carbon_to_structure, GROWTH_GRASS
@@ -45,7 +45,7 @@ module ed_slow_update
 
    public :: commit_vegetation_step, update_cohort_derivatives, fill_cohort_deriv, update_cohort_states
    public :: advance_pool, accumulate_recruit_pool, age_patches, update_overtopping_lai
-   public :: commit_trait_carbon, commit_soil_carbon, follow_litter_pools
+   public :: commit_trait_carbon, commit_soil_carbon, follow_organic_slots
    public :: refresh_canopy_depth, apply_recruitment, apply_patch_disturbance
    public :: sort_cohorts, max_cohort_count, fuse_cohorts, fuse_2_cohorts, split_cohorts, terminate_cohorts
    public :: sort_patches, patch_light_profile, fuse_patches, fuse_2_patches, terminate_patches
@@ -285,69 +285,88 @@ contains
    end subroutine commit_soil_carbon
 
    !---~---
-   !   The litter slot of each patch's organic layer follows its above-ground metabolic litter pool
-   ! (docs/science/surface_organic_layer.md): its dry matter set to litter_mass, entering or
-   ! leaving at the layer's temperature (t_new for a layer the litter starts). Matter that arrives
-   ! brings its water: as much per kilogram as the litter holds, or, where there was none, what its
-   ! curve holds at the top soil layer's head (head_new), as at a start; the water arrives from
-   ! outside, as a recruit's does, and is declared (water). The water beyond what the slot's new
-   ! depth holds saturated, or all of it when the litter is gone, passes to the pond with its
-   ! energy. heat returns each patch's energy in with the matter and its water, which the caller
-   ! declares.
+   !   Each patch's organic layer follows its slots' dry matter, target_mass
+   ! (docs/science/surface_organic_layer.md): at a run's start the litter's pool and the site's
+   ! moss, at each slow step the litter's pool. A slot's matter enters or leaves at the layer's
+   ! temperature, or at t_new for a layer the matter starts. Matter that arrives brings its water:
+   ! as much per kilogram as its slot holds, or, in an empty slot, what its curve holds at the top
+   ! soil layer's head (head_new), liquid by fliq_new in a layer the matter starts, else as the
+   ! layer's water; that water arrives from outside, as a recruit's does, and is declared (water).
+   ! What a changed slot then holds beyond its saturation, or all its water when its matter is
+   ! gone, passes to the pond with its energy. heat returns each patch's energy in with the matter
+   ! and its water, which the caller declares. A layer whose matter is all gone keeps no energy:
+   ! what it had left is round-off, which is asserted.
    !---~---
-   subroutine follow_litter_pools(patch, organic, litter_mass, t_new, head_new, heat, water)
+   subroutine follow_organic_slots(patch, organic, target_mass, t_new, fliq_new, head_new, heat, water)
       type(patch_block),      intent(inout) :: patch
       type(organic_params_t), intent(in)    :: organic
-      real(wp),               intent(in)    :: litter_mass(:)   ! [kg/m2] (patch)
-      real(wp),               intent(in)    :: t_new(:)         ! [K] (patch) the top soil layer's
-      real(wp),               intent(in)    :: head_new(:)      ! [m] (patch) the top soil layer's matric head
-      real(wp),               intent(out)   :: heat(:)          ! [J/m2] (patch) in with the matter, out if < 0
-      real(wp),               intent(out)   :: water(:)         ! [kg/m2] (patch) in with the matter
+      real(wp),               intent(in)    :: target_mass(:,:)   ! [kg/m2] (slot, patch)
+      real(wp),               intent(in)    :: t_new(:)           ! [K] (patch) the top soil layer's
+      real(wp),               intent(in)    :: fliq_new(:)        ! [-] (patch) liquid share of a new layer's water
+      real(wp),               intent(in)    :: head_new(:)        ! [m] (patch) the top soil layer's matric head
+      real(wp),               intent(out)   :: heat(:)            ! [J/m2] (patch) in with the matter, out if < 0
+      real(wp),               intent(out)   :: water(:)           ! [kg/m2] (patch) in with the matter
       type(organic_material_t) :: m
-      real(wp)    :: temp, e_total, cap, excess, e_excess, add
-      integer(ik) :: ip
+      real(wp)    :: temp, fliq, e_total, dm, cap, excess, e_excess, e_slot, add(n_organic_slot)
+      integer(ik) :: ip, k
+      logical     :: changed(n_organic_slot)
       heat(1:patch%n)  = 0.0_wp
       water(1:patch%n) = 0.0_wp
-      m = organic%litter
       do ip = 1_ik, patch%n
          associate (org => patch%organic(ip), sw => patch%soil_water(ip))
-            if (litter_mass(ip) == org%mass(SLOT_LITTER)) cycle
+            changed = target_mass(:, ip) /= org%mass
+            if (.not. any(changed)) cycle
             call organic_diagnose(org)
             temp = org%temp
-            if (.not. organic_present(org)) temp = t_new(ip)
-            e_total  = sum(org%energy)
-            heat(ip) = cp_organic * (litter_mass(ip) - org%mass(SLOT_LITTER)) * temp
+            fliq = org%fliq
+            if (.not. organic_present(org)) then
+               temp = t_new(ip)
+               fliq = fliq_new(ip)
+            end if
+            e_total = sum(org%energy)
             !--- The matter that arrives brings its water.
+            dm  = 0.0_wp
             add = 0.0_wp
-            if (litter_mass(ip) > org%mass(SLOT_LITTER)) then
-               if (org%mass(SLOT_LITTER) > 0.0_wp) then
-                  add = org%water(SLOT_LITTER) * (litter_mass(ip) / org%mass(SLOT_LITTER) - 1.0_wp)
+            do k = 1_ik, n_organic_slot
+               dm = dm + (target_mass(k, ip) - org%mass(k))
+               if (target_mass(k, ip) <= org%mass(k)) cycle
+               if (org%mass(k) > 0.0_wp) then
+                  add(k) = org%water(k) * (target_mass(k, ip) / org%mass(k) - 1.0_wp)
                else
-                  add = soil_head_to_theta(m%retention, head_new(ip), m%theta_sat, m%theta_res, m%par_a, m%par_n)  &
-                        * rho_h2o * litter_mass(ip) / m%bulk_density
+                  m = organic_slot_material(organic, k)
+                  add(k) = soil_head_to_theta(m%retention, head_new(ip), m%theta_sat, m%theta_res, m%par_a, m%par_n) &
+                           * rho_h2o * target_mass(k, ip) / m%bulk_density
                end if
+            end do
+            heat(ip) = cp_organic * dm * temp
+            if (sum(add) > 0.0_wp) then
+               water(ip) = sum(add)
+               heat(ip)  = heat(ip) + temp_to_internal_energy(0.0_wp, sum(add), temp, fliq)
+               org%water = org%water + add
             end if
-            if (add > 0.0_wp) then
-               water(ip) = add
-               heat(ip)  = heat(ip) + temp_to_internal_energy(0.0_wp, add, temp, org%fliq)
-               org%water(SLOT_LITTER) = org%water(SLOT_LITTER) + add
-            end if
-            org%mass(SLOT_LITTER)    = max(0.0_wp, litter_mass(ip))
-            org%density(SLOT_LITTER) = merge(organic%litter%bulk_density, 0.0_wp, org%mass(SLOT_LITTER) > 0.0_wp)
-            cap    = 0.0_wp
-            if (org%mass(SLOT_LITTER) > 0.0_wp) cap = organic_slot_capacity(organic, org, SLOT_LITTER)
-            excess = max(0.0_wp, org%water(SLOT_LITTER) - cap)
+            !--- What a changed slot holds beyond its saturation passes to the pond.
             e_excess = 0.0_wp
-            if (excess > 0.0_wp) then
-               e_excess = temp_to_internal_energy(0.0_wp, excess, temp, org%fliq)
-               org%water(SLOT_LITTER) = org%water(SLOT_LITTER) - excess
+            do k = 1_ik, n_organic_slot
+               if (.not. changed(k)) cycle
+               org%mass(k) = max(0.0_wp, target_mass(k, ip))
+               cap = 0.0_wp
+               if (org%mass(k) > 0.0_wp) cap = organic_slot_capacity(organic, org, k)
+               excess = max(0.0_wp, org%water(k) - cap)
+               if (excess <= 0.0_wp) cycle
+               e_slot   = temp_to_internal_energy(0.0_wp, excess, temp, fliq)
+               e_excess = e_excess + e_slot
+               org%water(k)        = org%water(k) - excess
                sw%w_surface        = sw%w_surface + excess
-               sw%w_surface_energy = sw%w_surface_energy + e_excess
+               sw%w_surface_energy = sw%w_surface_energy + e_slot
+            end do
+            if (.not. organic_present(org)) then
+               if (.not. within_roundoff(e_total + heat(ip) - e_excess, abs(e_total) + abs(heat(ip)) + abs(e_excess))) &
+                  error stop 'follow_organic_slots: a layer whose matter is gone keeps energy beyond round-off'
             end if
             call organic_split_energy(org, e_total + heat(ip) - e_excess)
          end associate
       end do
-   end subroutine follow_litter_pools
+   end subroutine follow_organic_slots
 
    !---~---
    !   The leaf and storage carbon a trait change leaves, at constant total carbon: the

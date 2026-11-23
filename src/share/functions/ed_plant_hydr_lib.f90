@@ -14,6 +14,7 @@
 module ed_plant_hydr_lib
    use ed_kinds,       only : wp
    use ed_constants,   only : grav_head, rho_h2o, pi, tiny_num, mmh2o, t_3ple
+   use ed_numerics,    only : smooth_step
    implicit none
    private
 
@@ -376,9 +377,8 @@ contains
    elemental function root_soil_contact(t_soil) result(contact)
       real(wp), intent(in) :: t_soil   ! [K] the layer's temperature
       real(wp) :: contact              ! [-]
-      real(wp) :: x
-      x = min(1.0_wp, max(0.0_wp, (t_soil - (t_3ple - ROOT_FREEZE_WIDTH)) / ROOT_FREEZE_WIDTH))
-      contact = x * x * (3.0_wp - 2.0_wp * x)
+      real(wp) :: slope
+      call smooth_step((t_soil - (t_3ple - ROOT_FREEZE_WIDTH)) / ROOT_FREEZE_WIDTH, contact, slope)
    end function root_soil_contact
 
 end module ed_plant_hydr_lib

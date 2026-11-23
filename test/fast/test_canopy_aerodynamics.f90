@@ -51,8 +51,8 @@ program test_canopy_aerodynamics
    use ed_canopy_aerodynamics,   only : aero_env_t, aero_args_t, aero_out_t, ensure_aero_out_capacity,          &
                                         canopy_aerodynamics, mo_surface_layer, open_canopy_fraction,             &
                                         set_aero_env_atm, set_aero_env_canopy, canopy_burial_fraction,          &
-                                        canopy_roughness, canopy_air_conductances, cas_atm_conductances,         &
-                                        crown_exposed_fraction
+                                        canopy_roughness, canopy_air_conductances, cas_atm_conductances
+   use ed_allometry_lib,         only : crown_exposed_fraction
    use ed_numerics,              only : ascending_order, cbrt
    implicit none
 

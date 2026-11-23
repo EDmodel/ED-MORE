@@ -15,19 +15,20 @@ module ed_init
    use ed_time,                  only : ed_time_t, time_to_string
    use ed_config,                only : ed_config_t, INIT_CENSUS, INIT_RESTART
    use ed_soil_derive,           only : top_soil_psi
-   use ed_soil_hydr_lib,         only : soil_theta_to_head, soil_head_to_theta
+   use ed_soil_hydr_lib,         only : soil_theta_to_head
    use ed_therm_lib,             only : temp_to_internal_energy, internal_energy_to_temp
    use ed_cohort_state_vars,     only : set_cohort_tissue_water, hold_cohort_tissue_temps
    use ed_polygon_state_vars,    only : polygon_t
    use ed_slow_update,           only : update_overtopping_lai, max_cohort_count, commit_trait_carbon,  &
-                                        refresh_canopy_depth
+                                        refresh_canopy_depth, follow_organic_slots
    use ed_slow_ledger,           only : slow_ledger_t
    use ed_soil_carbon,           only : soil_carbon_steady_pools
    use ed_patch_state_vars,      only : soil_carbon_state_t
-   use ed_organic_lib,           only : organic_state_t, organic_material_t, SLOT_LITTER, SLOT_MOSS,      &
-                                        organic_split_energy, organic_slot_material, organic_registered_mass
+   use ed_organic_lib,         only : organic_state_t
+   use ed_organic_lib,           only : organic_registered_mass
+   use ed_organic_lib,        only : SLOT_LITTER, SLOT_MOSS
    use ed_biogeochem_params,     only : IP_FAST_GRND
-   use ed_constants,             only : c2b_organic, cp_organic, rho_h2o, t_3ple, n_organic_slot
+   use ed_constants,             only : c2b, t_3ple, n_organic_slot
    use ed_slow_state,            only : advance_plant_traits, reacclimate_plant_traits
    use ed_init_bare_ground,      only : init_bare_ground, init_bare_sites, seed_bare_ground, seed_patch_stores, &
                                          N_PATCH_INIT
@@ -165,50 +166,36 @@ contains
    end subroutine init_polygon
 
    !---~---
-   !   Each patch's organic layer at the start (docs/science/surface_organic_layer.md): the
-   ! litter, the above-ground metabolic litter pool's dry matter, with [surface_layer].litter_on; the moss,
-   ! its site's [soil].moss_depth; either a layer only from ORGANIC_MIN_DEPTH; each slot holding the
-   ! water its curve holds at the top soil layer's matric head, as the water network would bring it
-   ! to, at the top soil layer's temperature (its water frozen below t_3ple).
+   !   Each patch's organic layer at the start (docs/science/surface_organic_layer.md), through the
+   ! path the slow step's litter follows (follow_organic_slots), from no layer: the litter, the
+   ! above-ground metabolic litter pool's dry matter, with [surface_layer].litter_on; the moss, its
+   ! site's [soil].moss_depth; either a layer only from ORGANIC_MIN_DEPTH. Each slot holds the water
+   ! its curve holds at the top soil layer's matric head, as the water network would bring it to,
+   ! at the top soil layer's temperature, its water frozen below t_3ple.
    !---~---
    subroutine seed_organic_layer(poly, cfg)
       type(polygon_t),   intent(inout) :: poly
       type(ed_config_t), intent(in)    :: cfg
-      type(organic_material_t) :: m
-      real(wp)    :: head, temp, fliq
-      integer(ik) :: ip, k
+      real(wp)    :: mass(n_organic_slot, poly%patch%n), temp(poly%patch%n), fliq(poly%patch%n)
+      real(wp)    :: head(poly%patch%n), heat(poly%patch%n), water(poly%patch%n)
+      integer(ik) :: ip
       do ip = 1_ik, poly%patch%n
-         associate (org => poly%patch%organic(ip), surf => poly%site%surface(poly%patch%owner_site(ip)),     &
-                    sc => poly%patch%soil_carbon(ip))
-            org = organic_state_t()
-            if (cfg%organic%litter_on) then
-               org%mass(SLOT_LITTER)    = organic_registered_mass(c2b_organic * sc%carbon(IP_FAST_GRND),        &
-                                                                  cfg%organic%litter%bulk_density)
-               org%density(SLOT_LITTER) = cfg%organic%litter%bulk_density
-            end if
-            if (surf%soil%moss_depth > 0.0_wp) then
-               org%density(SLOT_MOSS) = cfg%organic%moss%bulk_density
-               org%mass(SLOT_MOSS)    = organic_registered_mass(surf%soil%moss_depth * org%density(SLOT_MOSS),   &
-                                                                org%density(SLOT_MOSS))
-            end if
+         associate (surf => poly%site%surface(poly%patch%owner_site(ip)), sc => poly%patch%soil_carbon(ip))
+            poly%patch%organic(ip) = organic_state_t()
+            mass(SLOT_LITTER, ip) = 0.0_wp
+            if (cfg%organic%litter_on) mass(SLOT_LITTER, ip) = organic_registered_mass(c2b * sc%carbon(IP_FAST_GRND), &
+                                                                                       cfg%organic%litter%bulk_density)
+            mass(SLOT_MOSS, ip) = organic_registered_mass(surf%soil%moss_depth * cfg%organic%moss%bulk_density,    &
+                                                          cfg%organic%moss%bulk_density)
             associate (c => surf%soil_profile%layer_curve(1))
-               head = soil_theta_to_head(c%retention, surf%theta_start(1), c%theta_sat, c%theta_res, c%par_a, c%par_n)
+               head(ip) = soil_theta_to_head(c%retention, surf%theta_start(1), c%theta_sat, c%theta_res, c%par_a,   &
+                                             c%par_n)
             end associate
-            temp = poly%patch%soil_energy(ip)%soil_temp(1)
-            fliq = merge(1.0_wp, 0.0_wp, temp >= t_3ple)
-            do k = 1_ik, n_organic_slot
-               if (org%mass(k) <= 0.0_wp) then
-                  org%density(k) = 0.0_wp
-                  cycle
-               end if
-               m = organic_slot_material(cfg%organic, k)
-               org%water(k) = soil_head_to_theta(m%retention, head, m%theta_sat, m%theta_res, m%par_a, m%par_n)       &
-                              * rho_h2o * org%mass(k) / org%density(k)
-            end do
-            call organic_split_energy(org, temp_to_internal_energy(cp_organic * sum(org%mass), sum(org%water),   &
-                                                                   temp, fliq))
+            temp(ip) = poly%patch%soil_energy(ip)%soil_temp(1)
+            fliq(ip) = merge(1.0_wp, 0.0_wp, temp(ip) >= t_3ple)
          end associate
       end do
+      call follow_organic_slots(poly%patch, cfg%organic, mass, temp, fliq, head, heat, water)
    end subroutine seed_organic_layer
 
    !--- Each site's terrain: the polygon's elevation, flat, unless its [[sites]] table gives its own.

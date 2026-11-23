@@ -772,7 +772,6 @@ contains
       call def_var(d, 'organic_mass_pa',    NC_DOUBLE, [d%patch, d%organic_slot], 'organic layer dry matter [kg/m2], litter, moss')
       call def_var(d, 'organic_water_pa',   NC_DOUBLE, [d%patch, d%organic_slot], 'organic layer water [kg/m2] (prognostic)')
       call def_var(d, 'organic_energy_pa',  NC_DOUBLE, [d%patch, d%organic_slot], 'organic layer energy [J/m2] (prognostic)')
-      call def_var(d, 'organic_density_pa', NC_DOUBLE, [d%patch, d%organic_slot], 'organic layer bulk density [kg/m3]')
       call def_var(d, 'soil_theta_layer_pa',  NC_DOUBLE, [d%patch, d%soil_layer], 'soil volumetric moisture [m3/m3] (prognostic)')
       call def_var(d, 'soil_energy_layer_pa', NC_DOUBLE, [d%patch, d%soil_layer],                                   &
                    'soil volumetric internal energy [J/m3] (prognostic)')
@@ -846,7 +845,6 @@ contains
             call put_dbl(r, 'organic_mass_pa',      p%organic(ip)%mass,                          item=ip)
             call put_dbl(r, 'organic_water_pa',     p%organic(ip)%water,                         item=ip)
             call put_dbl(r, 'organic_energy_pa',    p%organic(ip)%energy,                        item=ip)
-            call put_dbl(r, 'organic_density_pa',   p%organic(ip)%density,                       item=ip)
          end do
          !--- 6. Soil water and heat, and the pond.
          do ip = 1_ik, npat
@@ -936,13 +934,13 @@ contains
             end if
             !---~---
             !   A state file from before the organic layer has none: its litter returns from the pools
-            ! at the first slow step.
+            ! at the first slow step. A slot's depth is its matter over its material's bulk density,
+            ! so the density an older file holds (always the material's) is not read.
             !---~---
             if (has_var(r%ncid, 'organic_mass_pa')) then
                call get_dbl(r, 'organic_mass_pa',    p%organic(ip)%mass,    item=ip)
                call get_dbl(r, 'organic_water_pa',   p%organic(ip)%water,   item=ip)
                call get_dbl(r, 'organic_energy_pa',  p%organic(ip)%energy,  item=ip)
-               call get_dbl(r, 'organic_density_pa', p%organic(ip)%density, item=ip)
             end if
          end do
          !--- 6. Soil water and heat, and the pond.

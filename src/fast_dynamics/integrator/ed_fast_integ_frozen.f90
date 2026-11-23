@@ -42,9 +42,9 @@ module ed_fast_integ_frozen
    use ed_state_defaults,   only : is_unset_negative
    use ed_biophysics_params, only : aero_params_t
    use ed_patch_state_vars, only : cas_state_t, soil_carbon_state_t, cas_capacities, cas_capacity_change
-   use ed_organic_lib,      only : organic_params_t, organic_present, organic_layer_sums, organic_slot_curve,      &
-                                   organic_slot_material, organic_material_t, organic_split_energy,             &
-                                   organic_slot_capacity, organic_spill
+   use ed_organic_lib,    only : organic_present, organic_layer_sums, organic_slot_curve, organic_slot_depth,     &
+                                   organic_slot_capacity, organic_spill, organic_split_energy, ground_top_temp
+   use ed_organic_lib,   only : organic_params_t, organic_slot_material, organic_material_t
    use ed_biogeochem_params, only : N_SOIL_POOL
    use ed_canopy_aerodynamics, only : canopy_aerodynamics, cas_atm_conductances
    use ed_plant_energy,   only : plant_energy_env_t, sensible_heat_coeff, leaf_transp_coeff, leaf_surface_evap_coeff, &
@@ -113,8 +113,7 @@ contains
       ! decomposition read its temperature, the soil's own evaporation the top soil node's.
       !---~---
       t_soil_top = dynamic%soil_energy%soil_temp(1)
-      t_surface  = t_soil_top
-      if (organic_present(dynamic%organic)) t_surface = dynamic%organic%temp
+      t_surface  = ground_top_temp(dynamic%organic, t_soil_top)
       call refresh_canopy_aerodynamics(cfg%aero, frozen%cas%env, static, forcing, dynamic%cas,               &
                                        t_surface, dynamic%leaf_temp, dynamic%wood_temp,                       &
                                        out%aero, tcas, qcas, press, rho, cp_cas, t_ground)
@@ -186,12 +185,18 @@ contains
       e_pond = e_pond + e_spill
       frozen%org_water0  = sum(frozen%org%water)
       frozen%org_energy0 = sum(frozen%org%energy)
-      !--- The top soil node the ground surface conducts to, under the snow's base.
+      !---~---
+      !   The thermal resistance from the ground's surface down to the top soil node, its depth over
+      ! the top layer's conductivity; the pack's base conducts through it unless an organic layer
+      ! lies between (organic_ground_sums).
+      !---~---
       associate (prof => site%soil_profile)
-         frozen%ground%dz_soil_top = max(-prof%z_node(1), tiny_num)
-         frozen%ground%k_soil_top  = soil_thermal_conductivity(dynamic%soil_water%theta(1),                       &
-                                                               dynamic%soil_energy%soil_fliq(1), prof%theta_sat(1), &
-                                                               prof%solid_conductivity(1), prof%dry_conductivity(1))
+         frozen%ground%r_soil_top = max(-prof%z_node(1), tiny_num)                                                &
+                                    / max(soil_thermal_conductivity(dynamic%soil_water%theta(1),                  &
+                                                                    dynamic%soil_energy%soil_fliq(1),             &
+                                                                    prof%theta_sat(1), prof%solid_conductivity(1), &
+                                                                    prof%dry_conductivity(1)), tiny_num)
+         frozen%ground%r_below    = frozen%ground%r_soil_top
       end associate
 
       call intercept_rain(dt_fast, cfg, static, forcing, dynamic, frozen%snow%exists, frozen%veg_surface, throughfall)
@@ -764,7 +769,8 @@ contains
    ! heat capacity, water, energy and thermal resistance, and its own vapour's resistance through
    ! its dried top: each slot's dried depth, the share of saturation its water does not fill, its
    ! pores all open (organic_cover_path of a dry slot at its own porosity), at the layer's
-   ! temperature's diffusivity.
+   ! temperature's diffusivity. The pack's base then conducts into the layer's middle, through its
+   ! upper half's resistance.
    !---~---
    subroutine organic_ground_sums(organic, frozen)
       type(organic_params_t), intent(in)    :: organic
@@ -778,11 +784,12 @@ contains
       do k = 1_ik, n_organic_slot
          if (frozen%org%mass(k) <= 0.0_wp) cycle
          m     = organic_slot_material(organic, k)
-         depth = frozen%org%mass(k) / frozen%org%density(k)
+         depth = organic_slot_depth(organic, frozen%org, k)
          fill  = min(1.0_wp, frozen%org%water(k) / organic_slot_capacity(organic, frozen%org, k))
          path  = path + organic_cover_path(depth * (1.0_wp - fill), 0.0_wp, m%theta_sat)
       end do
       frozen%ground%org_dry_resist = path / vapour_diffusivity(frozen%org%temp)
+      frozen%ground%r_below        = max(0.5_wp * frozen%ground%org_resistance, tiny_num)
    end subroutine organic_ground_sums
 
    !---~---
@@ -812,7 +819,7 @@ contains
          do k = 1_ik, n_organic_slot
             if (org%mass(k) <= 0.0_wp) cycle
             m     = organic_slot_material(organic, k)
-            depth = org%mass(k) / org%density(k)
+            depth = organic_slot_depth(organic, org, k)
             o%n = o%n + 1_ik
             o%slot(o%n)    = k
             o%depth(o%n)   = depth
@@ -865,7 +872,7 @@ contains
          do k = 1_ik, n_organic_slot
             if (frozen%org%mass(k) <= 0.0_wp) cycle
             m     = organic_slot_material(organic, k)
-            depth = frozen%org%mass(k) / frozen%org%density(k)
+            depth = organic_slot_depth(organic, frozen%org, k)
             drive%ground%cover_path = drive%ground%cover_path                                                    &
                                       + organic_cover_path(depth, frozen%org%water(k) / (rho_h2o * depth), m%theta_sat)
          end do

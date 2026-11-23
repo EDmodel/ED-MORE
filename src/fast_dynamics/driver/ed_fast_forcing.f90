@@ -20,7 +20,7 @@ module ed_fast_forcing
    use ed_canopy_radiation, only : rad_env_t, rad_out_t, alloc_rad_env, ground_optics_env_t
    use ed_canopy_radiation,     only : canopy_radiation, ground_optics
    use ed_surface,              only : snow_blend_ground_optics, ground_tile_radiation
-   use ed_organic_lib,          only : organic_present
+   use ed_organic_lib,        only : ground_top_temp
    use ed_fast_integ_types,         only : fast_static_state_t, fast_dynamic_state_t, fast_forcing_t
    implicit none
    private
@@ -156,8 +156,7 @@ contains
       ! temperature: the organic layer's where there is one, else the top soil node's.
       !---~---
       soil_albedo   = [cfg%soil%ground_albedo_vis, cfg%soil%ground_albedo_nir, 0.0_wp]
-      soil_temp_top = dynamic%soil_energy%soil_temp(1)
-      if (organic_present(dynamic%organic)) soil_temp_top = dynamic%organic%temp
+      soil_temp_top = ground_top_temp(dynamic%organic, dynamic%soil_energy%soil_temp(1))
       !--- A bare patch needs no special case: canopy_radiation's empty canopy gives the ground's.
 
       !--- The cohorts bottom -> top.

@@ -37,7 +37,7 @@ module ed_fast_diag
                                        SI_RHO_AIR, N_SI_ROWS
    use ed_met_types,            only : met_forcing_t
    use ed_polygon_state_vars,   only : polygon_t, patch_polygon_area
-   use ed_organic_lib,          only : organic_present
+   use ed_organic_lib,        only : ground_top_temp
    use ed_fast_integ_types,         only : fast_static_state_t, fast_dynamic_state_t, fast_forcing_t, fast_output_t,  &
                                            step_exports_t
    implicit none
@@ -175,8 +175,7 @@ contains
                              forcing%press, out%report%exports, leaf_resp, stem_resp, root_resp,        &
                              forcing%rainfall + forcing%snowfall, forcing%apar)
          !--- The organic layer: its temperature, the soil top's without one, and its water.
-         prow(PA_ORGANIC_TEMP)  = dynamic%soil_energy%soil_temp(1)
-         if (organic_present(dynamic%organic)) prow(PA_ORGANIC_TEMP) = dynamic%organic%temp
+         prow(PA_ORGANIC_TEMP)  = ground_top_temp(dynamic%organic, dynamic%soil_energy%soil_temp(1))
          prow(PA_ORGANIC_WATER) = sum(dynamic%organic%water)
       end if
       !--- FAST-tier staging in the patch's and its cohorts' own slots.

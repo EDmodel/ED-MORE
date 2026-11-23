@@ -321,7 +321,7 @@ The leaf width and branch diameter that set $\ell$ are PFT traits (`[pft]`).
 |---|---|
 | the per-patch entry point | `canopy_aerodynamics` (cohorts reordered, then `aerodynamics_bottom_to_top`) |
 | roughness and displacement, eq. (1) | `canopy_roughness`; burial fraction `canopy_burial_fraction` |
-| a crown's share above the snow, eq. (1b) | `crown_exposed_fraction` (applied in `ed_fast_state`: `gather_patch`) |
+| a crown's share above the snow, eq. (1b) | `ed_allometry_lib`: `crown_exposed_fraction` (applied in `ed_fast_state`: `gather_patch`) |
 | Monin–Obukhov solve ($`u_*`$, temp1, $\zeta$), eqs. (2)–(4) | `mo_surface_layer` |
 | profile denominators $D_m, D_h$ | `d_mom`, `d_heat` |
 | stability functions $`\Psi_m,\Psi_h`$, eq. (5) | `stabfunc1`, `stabfunc2` |

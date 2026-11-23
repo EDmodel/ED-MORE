@@ -18,9 +18,9 @@ module ed_fast_integ_update
    use ed_plant_energy,       only : commit_tissue_energy
    use ed_canopy_water,       only : clamp_surface_water
    use ed_patch_state_vars,   only : soil_water_store, soil_energy_store
-   use ed_organic_lib,        only : organic_take_exchange
+   use ed_organic_lib,      only : organic_take_exchange
    use ed_diag_vars,          only : CO_TRANSP
-   use ed_surface, only : snow_take_exchange
+   use ed_surface, only : snow_take_exchange, STORE_SNOW, STORE_ORGANIC
    use ed_therm_lib,          only : cas_enthalpy_to_temp, latent_heat_vap
    use ed_budget_check,       only : budget_check, BUDGET_ENERGY_RATE_FLOOR, BUDGET_WATER_RATE_FLOOR,           &
                                      BUDGET_CO2_RATE_FLOOR
@@ -127,7 +127,8 @@ contains
       ! of the next march.
       !---~---
       dynamic%snow = frozen%ground%pack
-      call snow_take_exchange(dynamic%snow, acc%snow_enth_in, acc%snow_vap_out, frozen%ground%params)
+      call snow_take_exchange(dynamic%snow, acc%stores%energy_in(STORE_SNOW), acc%stores%vapour_out(STORE_SNOW),   &
+                              frozen%ground%params)
       moved%snow_swe1       = dynamic%snow%swe(1)
       moved%snow_enth1      = dynamic%snow%snow_energy(1)
       !---~---
@@ -135,7 +136,7 @@ contains
       ! energy, and the vapour the water network took from each slot, which the canopy air received.
       !---~---
       dynamic%organic = frozen%org
-      call organic_take_exchange(dynamic%organic, acc%org_enth_in, frozen%org_evap)
+      call organic_take_exchange(dynamic%organic, acc%stores%energy_in(STORE_ORGANIC), frozen%org_evap)
       moved%org_water1      = sum(dynamic%organic%water)
       moved%org_energy1     = sum(dynamic%organic%energy)
       dynamic%adapt_dt_last = dt_warm
@@ -164,6 +165,7 @@ contains
       real(wp)    :: fliq   ! [-] liquid share of the exported vapour
       real(wp)    :: e_soil0, e_soil1, w_soil0, w_soil1, w_plant0, w_plant1, w_surface0, e_pond0, e_pond1
       real(wp)    :: surf_water0, surf_water1, intercept_total
+      real(wp)    :: ground_w0, ground_w1, ground_e0, ground_e1   ! [kg/m2], [J/m2] the ground surface's stores
       integer(ik) :: n, nsl
 
       n   = static%n
@@ -196,6 +198,14 @@ contains
       !---~---
       surf_water0 = surface_water_store(y%leaf_surf_water,     y%wood_surf_water,     n)
       surf_water1 = surface_water_store(y_out%leaf_surf_water, y_out%wood_surf_water, n)
+      !---~---
+      !   The ground surface's stores, the pond, the pack and the organic layer, at the start (the
+      ! pack before its stage, with the pond it took; the organic layer after its spill) and the end.
+      !---~---
+      ground_w0 = ground_surface_store(w_surface0, frozen%snow%swe0, frozen%org_water0)
+      ground_w1 = ground_surface_store(frozen%hydrology%w_surface1, moved%snow_swe1, moved%org_water1)
+      ground_e0 = ground_surface_store(e_pond0, frozen%snow%enth0, frozen%org_energy0)
+      ground_e1 = ground_surface_store(e_pond1, moved%snow_enth1, moved%org_energy1)
       intercept_total = sum(frozen%veg_surface%intercept_leaf(1:n) + frozen%veg_surface%intercept_wood(1:n))
 
       report%exports%atm_heat_export = acc%atm_heat_out
@@ -206,7 +216,7 @@ contains
       ! liquid for the rest. Both LE and the energy budget's outflows read this number.
       !---~---
       if (acc%atm_vap_out > tiny_num) then
-         fliq = 1.0_wp - min(1.0_wp, max(0.0_wp, acc%snow_vap_out / acc%atm_vap_out))
+         fliq = 1.0_wp - min(1.0_wp, max(0.0_wp, acc%stores%vapour_out(STORE_SNOW) / acc%atm_vap_out))
       else
          fliq = 1.0_wp
       end if
@@ -219,7 +229,8 @@ contains
       report%exports%transp_export      = 0.0_wp
       if (allocated(acc%transp_coh)) report%exports%transp_export = sum(acc%transp_coh(1:n))
       report%exports%veg_surface_evap_export   = acc%veg_surface_evap
-      report%exports%ground_evap_export = frozen%ground%soil_evap * dt_fast + acc%snow_vap_out + acc%org_vap_out
+      report%exports%ground_evap_export = frozen%ground%soil_evap * dt_fast + acc%stores%vapour_out(STORE_SNOW)      &
+                                          + acc%stores%vapour_out(STORE_ORGANIC)
       report%exports%cond_export        = acc%whole_cond
       !---~---
       !   The budgets' other terms, so both close from the output (docs/science/diagnostics.md §4,
@@ -231,13 +242,11 @@ contains
       report%exports%intercept_export    = intercept_total * dt_fast
       report%exports%infiltration_export = frozen%hydrology%pond_infil * dt_fast
       report%exports%melt_export         = frozen%snow%melt_rate * dt_fast
-      report%exports%sublimation_export  = acc%snow_vap_out
+      report%exports%sublimation_export  = acc%stores%vapour_out(STORE_SNOW)
       report%exports%shed_water_export   = static%shed_water_rate * dt_fast
       report%exports%veg_surface_overflow_export  = moved%surf_overflow - moved%surf_deficit
-      report%exports%water_store_gain    = (w_soil1 + cas_mass_capacity*shv1 + frozen%hydrology%w_surface1 + w_plant1 &
-                                           + surf_water1 + moved%snow_swe1 + moved%org_water1)                    &
-                                           - (w_soil0 + cas_mass_capacity*shv0 + w_surface0 + w_plant0 + surf_water0 &
-                                           + frozen%snow%swe0 + frozen%org_water0)
+      report%exports%water_store_gain    = (w_soil1 + cas_mass_capacity*shv1 + w_plant1 + surf_water1 + ground_w1)  &
+                                           - (w_soil0 + cas_mass_capacity*shv0 + w_plant0 + surf_water0 + ground_w0)
       report%exports%veg_surface_water_store          = surf_water1
       report%exports%soil_water_store    = w_soil1
       report%exports%plant_water_store   = w_plant1
@@ -248,8 +257,7 @@ contains
                                            + frozen%hydrology%runoff_enth*dt_fast + moved%surf_net_enth
       report%exports%heat_gain_soil      = e_soil1 - e_soil0
       report%exports%heat_gain_canopy    = cas_mass_capacity*(enth1 - enth0) + moved%tissue_store1 - moved%tissue_store0
-      report%exports%heat_gain_surface   = moved%snow_enth1 - frozen%snow%enth0 + e_pond1 - e_pond0                &
-                                           + moved%org_energy1 - frozen%org_energy0
+      report%exports%heat_gain_surface   = ground_e1 - ground_e0
       report%exports%h_canopy_export     = acc%h_canopy
       report%exports%h_ground_export     = acc%h_ground
       call budget_check(report%ledgers%cas_energy,                                                           &
@@ -282,10 +290,8 @@ contains
       ! neither needs a term.
       !---~---
       call budget_check(report%ledgers%whole_water,                                                                &
-                        w_soil0 + cas_mass_capacity*shv0 + w_surface0 + w_plant0 + surf_water0 + frozen%snow%swe0  &
-                        + frozen%org_water0,                                                               &
-                        w_soil1 + cas_mass_capacity*shv1 + frozen%hydrology%w_surface1 + w_plant1 + surf_water1 &
-                        + moved%snow_swe1 + moved%org_water1,                                              &
+                        w_soil0 + cas_mass_capacity*shv0 + w_plant0 + surf_water0 + ground_w0,             &
+                        w_soil1 + cas_mass_capacity*shv1 + w_plant1 + surf_water1 + ground_w1,             &
                         acc%whole_wat_in + (forcing%rainfall + forcing%snowfall + static%shed_water_rate)*dt_fast, &
                         acc%whole_wat_out + (frozen%hydrology%runoff_surf + frozen%hydrology%drainage)*dt_fast  &
                         + moved%surf_overflow - moved%surf_deficit,                                        &
@@ -296,10 +302,8 @@ contains
       ! the tissues' (moved%surf_net_enth).
       !---~---
       call budget_check(report%ledgers%whole_energy,                                                               &
-                        e_soil0 + cas_mass_capacity*enth0 + frozen%snow%enth0 + e_pond0 + moved%tissue_store0       &
-                        + frozen%org_energy0,                                                              &
-                        e_soil1 + cas_mass_capacity*enth1 + moved%snow_enth1 + e_pond1 + moved%tissue_store1        &
-                        + moved%org_energy1,                                                               &
+                        e_soil0 + cas_mass_capacity*enth0 + moved%tissue_store0 + ground_e0,              &
+                        e_soil1 + cas_mass_capacity*enth1 + moved%tissue_store1 + ground_e1,              &
                         acc%whole_enth_in + intercept_total*dt_fast*frozen%veg_surface%rain_liquid_enthalpy               &
                                           + frozen%snow%acc_enth + frozen%hydrology%ground_inflow_enth*dt_fast, &
                         acc%whole_enth_out + moved%surf_net_enth + frozen%hydrology%runoff_enth*dt_fast,         &
@@ -334,6 +338,12 @@ contains
       real(wp) :: w
       w = sum(nplant(1:n) * (leaf_mass(1:n) + wood_mass(1:n)))
    end function plant_water_store
+
+   !--- The ground surface's stores together: the pond's, the pack's and the organic layer's water [kg/m2] or energy [J/m2].
+   elemental real(wp) function ground_surface_store(pond, pack, organic) result(store)
+      real(wp), intent(in) :: pond, pack, organic
+      store = pond + pack + organic
+   end function ground_surface_store
 
    pure function surface_water_store(leaf_surf, wood_surf, n) result(w)   ! [kg/m2 ground], already ground-referenced
       real(wp),    intent(in) :: leaf_surf(:), wood_surf(:)

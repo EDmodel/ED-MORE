@@ -56,15 +56,16 @@ program test_surface
                                      internal_energy_liquid, sat_specific_humidity, cas_heat_capacity,     &
                                      enthalpy_vapor
    use ed_patch_state_vars,   only : snow_state_t
-   use ed_organic_lib,        only : organic_state_t, organic_params_t, SLOT_LITTER, SLOT_MOSS, organic_layer_sums, &
-                                     organic_split_energy, organic_take_exchange, organic_slot_capacity,         &
-                                     organic_slot_curve, organic_spill
+   use ed_organic_lib,      only : organic_state_t, organic_layer_sums, organic_split_energy, organic_take_exchange, &
+                                     organic_slot_capacity, organic_slot_curve, organic_spill
+   use ed_organic_lib,     only : organic_params_t, SLOT_LITTER, SLOT_MOSS
    use ed_soil_hydr_lib,      only : soil_layer_curve_t, soil_head_to_theta
    use ed_biophysics_params, only : snow_params_t
    use ed_soil_water,         only : organic_cover_path, vapour_diffusivity
    use ed_surface,            only : surface_env_t, snow_out_t, organic_out_t, organic_surface_balance,          &
                                      snow_cover_fraction, snow_accumulate,                                      &
                                      snow_drain_meltwater, ground_surface_exchange, snow_take_exchange,         &
+                                     store_exchange_t, STORE_SNOW, STORE_ORGANIC,                               &
                                      snow_blend_ground_optics, ground_tile_radiation, ground_surface_fluxes,    &
                                      prepare_snow_stage
    implicit none
@@ -97,8 +98,8 @@ contains
       env%rho_air     = 1.3_wp
       env%press       = 101325.0_wp
       env%t_soil_top  = 273.0_wp
-      env%k_soil_top  = 1.5_wp
-      env%dz_soil_top = 0.05_wp
+      env%r_soil_top  = 0.05_wp / 1.5_wp
+      env%r_below     = 0.05_wp / 1.5_wp
    end subroutine cold_env
 
    !--- A pack of swe [kg/m2], all ice at temp, at the default snow density.
@@ -128,13 +129,15 @@ contains
       real(wp),            intent(in)    :: cover, dt     ! [-], [s]
       real(wp),            intent(out)   :: energy_gain, vapour_loss, g_top   ! [J/m2], [kg/m2], [W/m2]
       type(surface_env_t) :: e
-      real(wp) :: h_ground, le_ground, ground_rad, snow_energy_in, snow_vapour_out, org_in, org_out
+      real(wp) :: h_ground, le_ground, ground_rad, snow_energy_in, snow_vapour_out
+      type(store_exchange_t) :: stores
       e = env
       e%pack    = snow
       e%snowfac = cover
       e%dt      = dt
-      call ground_surface_exchange(e, h_ground, le_ground, g_top, ground_rad, snow_energy_in, snow_vapour_out,     &
-                                   org_in, org_out)
+      call ground_surface_exchange(e, h_ground, le_ground, g_top, ground_rad, stores)
+      snow_energy_in  = stores%energy_in(STORE_SNOW)
+      snow_vapour_out = stores%vapour_out(STORE_SNOW)
       call snow_take_exchange(snow, dt * snow_energy_in, dt * snow_vapour_out, e%params)
       energy_gain = dt * (ground_rad - h_ground - le_ground - g_top)
       vapour_loss = dt * snow_vapour_out
@@ -262,8 +265,8 @@ contains
       env%rho_air     = 1.3_wp
       env%press       = 101325.0_wp
       env%t_soil_top  = 268.0_wp
-      env%k_soil_top  = 1.5_wp
-      env%dz_soil_top = 0.05_wp
+      env%r_soil_top  = 0.05_wp / 1.5_wp
+      env%r_below     = 0.05_wp / 1.5_wp
       env%can_shv     = sat_specific_humidity(268.0_wp, env%press, 0.0_wp)
       swe0   = snow%swe(1)
       tsnow0 = 268.0_wp
@@ -303,10 +306,10 @@ contains
       env%press       = 101325.0_wp
       env%can_shv     = sat_specific_humidity(T_PACK, env%press, 0.0_wp)
       env%t_soil_top  = T_SOIL
-      env%k_soil_top  = 1.5_wp
-      env%dz_soil_top = 0.05_wp
+      env%r_soil_top  = 0.05_wp / 1.5_wp
+      env%r_below     = 0.05_wp / 1.5_wp
       snow = cold_pack(SWE, T_PACK, p)
-      g_expect = (T_PACK - T_SOIL) / (snow%snow_depth(1) / p%k_snow + env%dz_soil_top / env%k_soil_top)
+      g_expect = (T_PACK - T_SOIL) / (snow%snow_depth(1) / p%k_snow + env%r_below)
       call snow_step(snow, env, 1.0_wp, 60.0_wp, gain, vapour, g_top)
       call check('the soil loses what the whole pack and its top node conduct', g_top, g_expect,           &
                  1.0e-3_wp * abs(g_expect))
@@ -349,8 +352,8 @@ contains
       env%rho_air     = 1.19_wp
       env%press       = 101325.0_wp
       env%t_soil_top  = t_3ple
-      env%k_soil_top  = 1.5_wp
-      env%dz_soil_top = 0.025_wp
+      env%r_soil_top  = 0.025_wp / 1.5_wp
+      env%r_below     = 0.025_wp / 1.5_wp
 
       !--- (a) A cold pack (243 K) under warm, moist canopy air: it warms toward the air, not past it.
       snow = cold_pack(SWE, 243.0_wp, p)
@@ -436,8 +439,8 @@ contains
    subroutine test_ground_balance()
       real(wp), parameter :: GGNET = 0.02_wp, RHO = 1.2_wp, T_GROUND = 300.0_wp, Q_CAS = 0.015_wp
       type(surface_env_t) :: env
-      real(wp) :: cp_cas, h_bare, le_soil, h_2k, h_ground, le_ground, g_top, ground_rad, energy_in, vapour_out
-      real(wp) :: org_in, org_out
+      real(wp) :: cp_cas, h_bare, le_soil, h_2k, h_ground, le_ground, g_top, ground_rad
+      type(store_exchange_t) :: stores
       print '(a)', 'test_ground_balance:'
       cp_cas = cas_heat_capacity(Q_CAS)
       call ground_surface_fluxes(T_GROUND, T_GROUND, GGNET, RHO, cp_cas, 0.0_wp, h_bare, le_soil)
@@ -455,8 +458,7 @@ contains
       env%rho_air    = RHO
       env%cp_cas     = cp_cas
       env%t_soil_top = T_GROUND
-      call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, energy_in, vapour_out,           &
-                                   org_in, org_out)
+      call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, stores)
       call check('the ground surface''s exchange takes the canopy air''s specific heat', h_ground, h_bare,        &
                  1.0e-12_wp * h_bare)
    end subroutine test_ground_balance
@@ -574,7 +576,6 @@ contains
       type(organic_params_t), intent(in) :: o
       type(organic_state_t) :: org
       org = organic_state_t()
-      org%density = [o%litter%bulk_density, o%moss%bulk_density]
       org%mass    = [0.03_wp * o%litter%bulk_density, 0.05_wp * o%moss%bulk_density]
       call organic_split_energy(org, temp_to_internal_energy(cp_organic * sum(org%mass), 0.0_wp, 280.0_wp, 1.0_wp))
    end function two_slots
@@ -592,8 +593,7 @@ contains
       call check('a slot holds its theta_sat over its depth', organic_slot_capacity(o, org, SLOT_MOSS), cap_moss,      &
                  1.0e-12_wp)
       org%water = [cap_litter, cap_moss]
-      call organic_split_energy(org, temp_to_internal_energy(cp_organic * sum(org%mass), sum(org%water), 283.0_wp, &
-                                                             1.0_wp))
+      call organic_split_energy(org, temp_to_internal_energy(cp_organic * sum(org%mass), sum(org%water), 283.0_wp, 1.0_wp))
       call check('one temperature, the total''s', org%temp, 283.0_wp, 1.0e-9_wp)
       call check('the slots'' energies sum to the total', sum(org%energy),                                          &
                  temp_to_internal_energy(cp_organic * sum(org%mass), sum(org%water), 283.0_wp, 1.0_wp), 1.0e-6_wp)
@@ -633,14 +633,13 @@ contains
       call check('a frozen slot keeps its material''s curve', c%theta_res, o%moss%theta_res, 0.0_wp)
       !--- Frost on a frozen, saturated litter: what it holds above saturation spills, with its energy.
       org%water = [cap_litter + 0.5_wp, cap_moss]
-      call organic_split_energy(org, temp_to_internal_energy(cp_organic * sum(org%mass), sum(org%water), 265.0_wp, &
-                                                             0.0_wp))
+      call organic_split_energy(org, temp_to_internal_energy(cp_organic * sum(org%mass), sum(org%water), 265.0_wp, 0.0_wp))
       e_in = sum(org%energy)
       t_in = org%temp
       call organic_spill(org, o, w_out, e_out)
       call check('above saturation: the excess spills', w_out, 0.5_wp, 1.0e-12_wp)
       call check('above saturation: the slot keeps its saturation', org%water(SLOT_LITTER), cap_litter, 1.0e-9_wp)
-      call check('above saturation: the spill takes its ice''s energy, the rest stays', sum(org%energy) + e_out,    &
+      call check('above saturation: the spill takes its ice''s energy, the rest stays', sum(org%energy) + e_out,         &
                  e_in, 1.0e-6_wp)
       call check('above saturation: the layer keeps its temperature', org%temp, t_in, 1.0e-9_wp)
       call organic_spill(org, o, w_out, e_out)
@@ -655,15 +654,14 @@ contains
       type(surface_env_t)    :: env
       type(organic_out_t)    :: ofx, ofx0
       type(snow_params_t)    :: p
-      real(wp) :: w_max, h_ground, le_ground, g_top, ground_rad, s_in, s_out, o_in, o_out, w_save, e_save
+      real(wp) :: w_max, h_ground, le_ground, g_top, ground_rad, s_in, o_in, w_save, e_save
+      type(store_exchange_t) :: stores
       real(wp) :: dry_depth, r_save
       print '(a)', 'test_organic_balance:'
       org = organic_state_t()                                    ! litter alone: 1.35 kg/m2, 2.6 kJ/m2/K dry
-      org%density(SLOT_LITTER) = o%litter%bulk_density
       org%mass(SLOT_LITTER)    = 0.03_wp * o%litter%bulk_density
       org%water(SLOT_LITTER)   = 1.0_wp
-      call organic_split_energy(org, temp_to_internal_energy(cp_organic * org%mass(SLOT_LITTER), 1.0_wp, 280.0_wp, &
-                                                             1.0_wp))
+      call organic_split_energy(org, temp_to_internal_energy(cp_organic * org%mass(SLOT_LITTER), 1.0_wp, 280.0_wp, 1.0_wp))
       call cold_env(env)
       env%dt           = DT
       env%can_temp     = 270.0_wp
@@ -731,7 +729,9 @@ contains
       !--- The ground with the layer: the soil takes its conduction less the soil's own evaporation's heat.
       env%soil_evap = 1.0e-6_wp
       env%snowfac   = 0.0_wp
-      call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, s_in, s_out, o_in, o_out)
+      call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, stores)
+      s_in = stores%energy_in(STORE_SNOW)
+      o_in = stores%energy_in(STORE_ORGANIC)
       call organic_surface_balance(env, 0.0_wp, ofx)
       call check('the soil takes what the layer conducts, less its evaporation''s heat', g_top,                    &
                  ofx%g_soil - env%soil_evap * enthalpy_vapor(env%t_soil_top), 1.0e-9_wp)
@@ -742,7 +742,9 @@ contains
       env%params  = p
       env%pack    = cold_pack(30.0_wp, 265.0_wp, p)
       env%snowfac = 0.9_wp
-      call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, s_in, s_out, o_in, o_out)
+      call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, stores)
+      s_in = stores%energy_in(STORE_SNOW)
+      o_in = stores%energy_in(STORE_ORGANIC)
       call check('pack and layer: the ground''s energy closes', ground_rad - h_ground - le_ground - g_top,          &
                  s_in + o_in, 1.0e-9_wp)
    end subroutine test_organic_balance

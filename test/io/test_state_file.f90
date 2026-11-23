@@ -263,7 +263,6 @@ contains
             pa%organic(ip)%mass    = [1.3_wp + x, 2.1_wp + x]
             pa%organic(ip)%water   = [0.8_wp + x, 9.5_wp + x]
             pa%organic(ip)%energy  = [3.1e6_wp + x, 9.2e6_wp + x]
-            pa%organic(ip)%density = [45.0_wp + x, 43.0_wp + x]
             pa%snow(ip)%snow_temp(1:n_snow_layer_max)   = 270.0_wp + x
             pa%snow(ip)%snow_fliq(1:n_snow_layer_max)   = 0.05_wp + x
             pa%soil_water(ip)%theta(1:n_soil_layer_max) = [(0.20_wp + 0.005_wp * real(k, wp) + x, k = 1_ik, n_soil_layer_max)]

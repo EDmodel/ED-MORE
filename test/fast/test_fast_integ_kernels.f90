@@ -58,7 +58,8 @@ program test_fast_integ_kernels
    use ed_fast_integ_backward_euler, only : backward_euler_stage, advance_plant_water, newton_surface_solve,        &
                                             surface_source_slopes, surface_jacobian, surface_residual_scaled,     &
                                             SURFACE_NEWTON_MAX
-   use ed_surface,             only : surface_env_t, ground_surface_exchange, snow_take_exchange
+   use ed_surface,             only : surface_env_t, ground_surface_exchange, snow_take_exchange,          &
+                                      store_exchange_t, STORE_SNOW
    use ed_fast_integ_rk45,   only : rk45_step, RK45_P_ORDER
    use ed_fast_integ_control, only : build_tol_set, build_error_control, state_wrms_grouped, step_control_factor
    use ed_fast_integ_update,   only : unpack_column_state
@@ -1177,8 +1178,8 @@ contains
          g%soil_evap   = 0.0_wp
          g%sw_snow     = 30.0_wp
          g%lw_down     = stefan_boltzmann * (T_AIR(b) - 8.0_wp) ** 4
-         g%k_soil_top  = 1.5_wp
-         g%dz_soil_top = 0.05_wp
+         g%r_soil_top  = 0.05_wp / 1.5_wp
+         g%r_below     = 0.05_wp / 1.5_wp
          g%snowfac     = 0.6_wp
          g%dt          = 900.0_wp
          if (b == 3_ik) g%ggnet = 0.05_wp
@@ -1203,7 +1204,8 @@ contains
       real(wp),       intent(in) :: h, q, t_ground   ! [J/kg], [kg/kg], [K]
       type(surface_env_t) :: env
       type(snow_state_t)  :: pack
-      real(wp) :: h_ground, le_ground, g_top, ground_rad, energy_in, vapour_out, org_in, org_out
+      real(wp) :: h_ground, le_ground, g_top, ground_rad
+      type(store_exchange_t) :: stores
       env            = frozen%ground
       env%can_temp   = cas_enthalpy_to_temp(h, q)
       env%can_shv    = q
@@ -1211,10 +1213,10 @@ contains
       env%cp_cas     = frozen%cas%cp
       env%press      = frozen%cas%press
       env%t_soil_top = t_ground
-      call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, energy_in, vapour_out,           &
-                                   org_in, org_out)
+      call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, stores)
       pack = env%pack
-      call snow_take_exchange(pack, env%dt * energy_in, env%dt * vapour_out, env%params)
+      call snow_take_exchange(pack, env%dt * stores%energy_in(STORE_SNOW), env%dt * stores%vapour_out(STORE_SNOW), &
+                              env%params)
       select case (k - SNOW_FIRST)
       case (0_ik)
          on = pack%snow_temp(1) < t_3ple                                     ! the ice line

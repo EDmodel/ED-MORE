@@ -29,7 +29,7 @@ program test_params_config
    use ed_toml,                only : toml_table_t, toml_parse_file, toml_write_record
    use ed_config_io,           only : load_fast_params, load_soil, load_snow_params, load_aero_params, load_soil_temp, &
                                       load_organic_params
-   use ed_organic_lib,         only : organic_params_t
+   use ed_organic_lib,      only : organic_params_t
    implicit none
 
    call test_block_loaders()

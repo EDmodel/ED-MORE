@@ -33,7 +33,7 @@ module ed_config_io
                                  FC_YEAR, FC_ALL, STATE_DAYS, STATE_MONTHS, STATE_YEARS
    use ed_time,       only : ed_time_t, string_to_time
    use ed_biophysics_params,   only : snow_params_t, aero_params_t
-   use ed_organic_lib,         only : organic_params_t
+   use ed_organic_lib,      only : organic_params_t
    use ed_biogeochem_params,   only : soil_carbon_params_t, DECOMP_STEP_EULER, DECOMP_STEP_EXPM,   &
                                     DECOMP_SCHEME_ED2, DECOMP_SCHEME_CENTURY5
    use ed_demography_params,     only : demography_params_t

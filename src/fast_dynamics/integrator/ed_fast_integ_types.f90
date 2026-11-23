@@ -19,7 +19,7 @@ module ed_fast_integ_types
    use ed_constants, only : n_soil_layer_max, n_organic_slot, t_3ple
    use ed_pft_params, only : leaf_photo_table_t
    use ed_patch_state_vars,   only : cas_state_t, soil_water_state_t, soil_energy_state_t, snow_state_t, soil_carbon_state_t
-   use ed_organic_lib,        only : organic_state_t
+   use ed_organic_lib,      only : organic_state_t
    use ed_therm_lib, only : cas_temp_to_enthalpy, cas_enthalpy_to_temp
    use ed_biophysics_params,   only : aero_params_t
    use ed_biogeochem_params,   only : N_SOIL_POOL
@@ -31,7 +31,7 @@ module ed_fast_integ_types
    use ed_canopy_air_space, only : cas_env_t
    use ed_plant_energy,   only : plant_energy_env_t
    use ed_canopy_water,   only : canopy_water_out_t
-   use ed_surface, only : surface_env_t, snow_out_t
+   use ed_surface, only : surface_env_t, snow_out_t, store_exchange_t
    use ed_soil_heat, only : soil_layer_temp
    use ed_soil_params, only : soil_profile_t
    use ed_diag_vars, only : N_CO_FAST_ROWS
@@ -42,7 +42,10 @@ module ed_fast_integ_types
    public :: fast_static_state_t, fast_dynamic_state_t, fast_forcing_t, fast_output_t, fast_workspace_t
    public :: step_report_t, step_ledgers_t, step_exports_t
    public :: WORK_INTEG_STEPS, WORK_INTEG_REJECT, WORK_WATER_NSUB, WORK_WATER_NEWTON, WORK_WATER_REJECT,         &
-             WORK_WATER_NFAIL, WORK_RK45_RESCUE, WORK_CLAMP_STAGE, N_WORK
+             WORK_WATER_NFAIL, WORK_RK45_RESCUE, WORK_CLAMP_STAGE, WORK_WATER_FORCED_NEWTON,                      &
+             WORK_WATER_FORCED_FAST, WORK_WATER_FORCED_CUT, WORK_WATER_FORCED_COHORT, WORK_WATER_NODE_UNSOLVED,  &
+             WORK_WATER_FAST_POND, WORK_WATER_FAST_SLOT, WORK_WATER_FAST_LAYER, WORK_WATER_CUT_POND,             &
+             WORK_WATER_CUT_SLOT, WORK_WATER_CUT_LAYER, N_WORK
    public :: GRP_ENTH, GRP_SHV, GRP_CO2, GRP_SE, GRP_LEAF_W, GRP_WOOD_W, GRP_THETA, N_TOL_GROUP
    public :: tol_set_t, error_control_t
    public :: ensure_static_capacity, ensure_dynamic_capacity, ensure_forcing_capacity, ensure_output_capacity
@@ -299,7 +302,30 @@ module ed_fast_integ_types
    ! neither scheme clamps the committed state.
    !---~---
    integer(ik), parameter :: WORK_CLAMP_STAGE  = 8_ik
-   integer(ik), parameter :: N_WORK            = 8_ik
+   !---~---
+   !   Why the water network's sub-steps were taken although unconverged (WORK_WATER_NFAIL):
+   ! those whose Newton had not converged, the rest having failed the error filter; and the class
+   ! of the store whose imbalance (or error) was worst, an eliminated or a detached core node or a
+   ! cohort's store, the rest a core node in the solve. Then the evaluations of an eliminated or
+   ! detached node whose own balance solve_node left unsolved (solved to its tolerance it was not).
+   !---~---
+   integer(ik), parameter :: WORK_WATER_FORCED_NEWTON = 9_ik
+   integer(ik), parameter :: WORK_WATER_FORCED_FAST   = 10_ik
+   integer(ik), parameter :: WORK_WATER_FORCED_CUT    = 11_ik
+   integer(ik), parameter :: WORK_WATER_FORCED_COHORT = 12_ik
+   integer(ik), parameter :: WORK_WATER_NODE_UNSOLVED = 13_ik
+   !---~---
+   !   The water network's core nodes by class over its accepted sub-steps
+   ! (docs/science/soil_plant_water.md §3, "Node classes"): eliminated (fast) and detached (cut),
+   ! for the pond, the organic slots and the soil layers.
+   !---~---
+   integer(ik), parameter :: WORK_WATER_FAST_POND  = 14_ik
+   integer(ik), parameter :: WORK_WATER_FAST_SLOT  = 15_ik
+   integer(ik), parameter :: WORK_WATER_FAST_LAYER = 16_ik
+   integer(ik), parameter :: WORK_WATER_CUT_POND   = 17_ik
+   integer(ik), parameter :: WORK_WATER_CUT_SLOT   = 18_ik
+   integer(ik), parameter :: WORK_WATER_CUT_LAYER  = 19_ik
+   integer(ik), parameter :: N_WORK                = 19_ik
 
    !---~---
    !   The per-patch conservation ledgers. The per-kernel ledgers close by construction;
@@ -481,10 +507,7 @@ module ed_fast_integ_types
       real(wp) :: cond           = 0.0_wp     ! [kg/m2/s]  smooth condensation sink (dew) draining CAS supersat
       real(wp) :: cond_enth      = 0.0_wp     ! [W/m2]     liquid enthalpy the sink debited from the CAS
       real(wp) :: ground_rad     = 0.0_wp     ! [W/m2]     the ground's net radiation, snow's and bare soil's
-      real(wp) :: snow_enth_in   = 0.0_wp     ! [W/m2]     energy into the snow pack (0 without one)
-      real(wp) :: snow_vap_out   = 0.0_wp     ! [kg/m2/s]  vapour from the snow pack to the CAS
-      real(wp) :: org_enth_in    = 0.0_wp     ! [W/m2]     energy into the organic layer (0 without one)
-      real(wp) :: org_vap_out    = 0.0_wp     ! [kg/m2/s]  vapour from it to the CAS
+      type(store_exchange_t) :: stores        ! [W/m2], [kg/m2/s] each surface store's exchange (0 without it)
       real(wp), allocatable :: leaf_temp(:)   ! [K]        diagnosed per-cohort leaf temperature
       real(wp), allocatable :: wood_temp(:)   ! [K]        diagnosed per-cohort wood temperature
       real(wp), allocatable :: transp_c(:)    ! [kg/m2/s]  per-cohort transpiration demand
@@ -602,7 +625,6 @@ module ed_fast_integ_types
       real(wp) :: depth(n_organic_slot) = 0.0_wp               ! [m]
       real(wp) :: water(n_organic_slot) = 0.0_wp               ! [kg/m2] at the step's start, liquid and ice
       real(wp) :: deficit(n_organic_slot) = 0.0_wp             ! [kg/m2] the water it lacks of its residual
-      real(wp) :: evap  = 0.0_wp                               ! (unused by the network; the energy stage's rate)
       real(wp) :: t_org = t_3ple                               ! [K]
       real(wp) :: fliq  = 1.0_wp                               ! [-] its water's liquid share, by its energy
       type(ground_evap_env_t) :: air                          ! the top slot's evaporation boundary (slot_evaporation_setup)
@@ -699,12 +721,6 @@ module ed_fast_integ_types
       type(water_tend_t)       :: ev(2)
       integer(ik)              :: i_start = 1_ik
       logical                  :: start_ready = .false.
-      !---~---
-      !   The last step's core nodes by class, over its accepted sub-steps: eliminated (fast) and
-      ! detached (inert), for the pond, the organic slots and the soil layers.
-      !---~---
-      integer(ik)              :: n_fast(3) = 0_ik
-      integer(ik)              :: n_cut(3)  = 0_ik
    end type water_work_t
 
    !--- The container: everything held constant over one dt_fast, by physical content.
@@ -795,10 +811,7 @@ module ed_fast_integ_types
       real(wp) :: whole_wat_in  = 0.0_wp, whole_wat_out  = 0.0_wp! [kg/m2/s]
       real(wp) :: whole_cond    = 0.0_wp                         ! [kg/m2/s] condensate
       real(wp) :: whole_cond_enth = 0.0_wp                       ! [W/m2] its liquid enthalpy at the stage CAS temperature
-      real(wp) :: snow_enth_in = 0.0_wp                          ! [W/m2]    energy into the snow pack
-      real(wp) :: snow_vap_out = 0.0_wp                          ! [kg/m2/s] vapour from it to the CAS
-      real(wp) :: org_enth_in  = 0.0_wp                          ! [W/m2]    energy into the organic layer
-      real(wp) :: org_vap_out  = 0.0_wp                          ! [kg/m2/s] vapour from it to the CAS
+      type(store_exchange_t) :: stores                           ! [W/m2], [kg/m2/s] each surface store's exchange
       real(wp) :: veg_surface_evap = 0.0_wp                      ! [kg/m2/s] leaf and wood surface water evaporated (dew < 0)
       real(wp) :: h_canopy     = 0.0_wp                          ! [W/m2]    the leaves' and wood's sensible heat to the CAS
       real(wp) :: h_ground     = 0.0_wp                          ! [W/m2]    the ground's (soil, snow) sensible heat to the CAS
@@ -833,12 +846,8 @@ module ed_fast_integ_types
       ! temperature, as surface_derivs debited it; the deposit carries this, not u_liq(T_end).
       !---~---
       real(wp) :: whole_cond_enth = 0.0_wp ! [J/m2]
-      !--- The snow pack's exchange over the step, which the update commits to the pack.
-      real(wp) :: snow_enth_in = 0.0_wp    ! [J/m2]  energy into the pack
-      real(wp) :: snow_vap_out = 0.0_wp    ! [kg/m2] vapour from it to the CAS
-      !--- The organic layer's, which the update commits to it.
-      real(wp) :: org_enth_in  = 0.0_wp    ! [J/m2]  energy into the layer
-      real(wp) :: org_vap_out  = 0.0_wp    ! [kg/m2] vapour from it to the CAS
+      !--- Each surface store's exchange over the step [J/m2, kg/m2], which the update commits to it.
+      type(store_exchange_t) :: stores
       real(wp) :: veg_surface_evap    = 0.0_wp    ! [kg/m2] leaf and wood surface water evaporated (dew < 0)
       real(wp) :: h_canopy     = 0.0_wp    ! [J/m2]  the leaves' and wood's sensible heat to the CAS
       real(wp) :: h_ground     = 0.0_wp    ! [J/m2]  the ground's (soil, snow) sensible heat to the CAS
@@ -1262,10 +1271,8 @@ contains
       acc%whole_wat_out = b2*s2%whole_wat_out + b3*s3%whole_wat_out
       acc%whole_cond    = b2*s2%whole_cond    + b3*s3%whole_cond
       acc%whole_cond_enth = b2*s2%whole_cond_enth + b3*s3%whole_cond_enth
-      acc%snow_enth_in  = b2*s2%snow_enth_in  + b3*s3%snow_enth_in
-      acc%snow_vap_out  = b2*s2%snow_vap_out  + b3*s3%snow_vap_out
-      acc%org_enth_in   = b2*s2%org_enth_in   + b3*s3%org_enth_in
-      acc%org_vap_out   = b2*s2%org_vap_out   + b3*s3%org_vap_out
+      acc%stores%energy_in  = b2*s2%stores%energy_in  + b3*s3%stores%energy_in
+      acc%stores%vapour_out = b2*s2%stores%vapour_out + b3*s3%stores%vapour_out
       acc%veg_surface_evap = b2*s2%veg_surface_evap + b3*s3%veg_surface_evap
       acc%h_canopy      = b2*s2%h_canopy      + b3*s3%h_canopy
       acc%h_ground      = b2*s2%h_ground      + b3*s3%h_ground
@@ -1305,10 +1312,8 @@ contains
       acc%whole_wat_out = acc%whole_wat_out + s%whole_wat_out
       acc%whole_cond    = acc%whole_cond    + s%whole_cond
       acc%whole_cond_enth = acc%whole_cond_enth + s%whole_cond_enth
-      acc%snow_enth_in  = acc%snow_enth_in  + s%snow_enth_in
-      acc%snow_vap_out  = acc%snow_vap_out  + s%snow_vap_out
-      acc%org_enth_in   = acc%org_enth_in   + s%org_enth_in
-      acc%org_vap_out   = acc%org_vap_out   + s%org_vap_out
+      acc%stores%energy_in  = acc%stores%energy_in  + s%stores%energy_in
+      acc%stores%vapour_out = acc%stores%vapour_out + s%stores%vapour_out
       acc%veg_surface_evap = acc%veg_surface_evap + s%veg_surface_evap
       acc%h_canopy      = acc%h_canopy      + s%h_canopy
       acc%h_ground      = acc%h_ground      + s%h_ground

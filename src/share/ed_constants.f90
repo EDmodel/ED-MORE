@@ -42,9 +42,6 @@ module ed_constants
    !--- Physical constants: liquid water and ice.
    real(wp), parameter :: rho_h2o            = 1000.0_wp      ! [kg/m3] liquid-water density
    real(wp), parameter :: rho_ice            = 917.0_wp       ! [kg/m3] ice density at 0 degC (Cuffey & Paterson 2010)
-   !--- Organic matter: litter and moss.
-   real(wp), parameter :: cp_organic         = 1926.0_wp      ! [J/kg/K] dry organic matter's specific heat (Farouki 1986)
-   real(wp), parameter :: c2b_organic        = 2.0_wp         ! [kg/kgC] dry litter per carbon, half carbon as c2b_wood
    real(wp), parameter :: t_3ple             = 273.16_wp      ! [K] triple point of water (0.01 degC)
    real(wp), parameter :: cp_liq             = 4186.0_wp      ! [J/kg/K] liquid-water specific heat
    real(wp), parameter :: cp_ice             = 2093.0_wp      ! [J/kg/K] ice specific heat
@@ -72,13 +69,21 @@ module ed_constants
    real(wp), parameter :: gbw_2_gbc = 1.4_wp                  ! [-] boundary layer: gb(CO2) = gb(H2O) / gbw_2_gbc
 
    !---~---
+   !   [kg/kgC] Dry matter per carbon: plant tissue and its litter are half carbon by mass, so a
+   ! kilogram of carbon is two of dry wood, leaf or litter.
+   !---~---
+   real(wp), parameter :: c2b = 2.0_wp
+
+   !---~---
    !   Physical constants: plant tissue heat (docs/science/vegetation_energy_dynamics.md
    ! eq. (8)). The fast loop and the slow side share them, so both weigh a tissue's
    ! heat alike.
    !---~---
-   real(wp), parameter :: c2b_wood          = 2.0_wp          ! [-] carbon -> dry biomass (carbon fraction 0.5)
    real(wp), parameter :: tissue_c_leaf     = 3200.0_wp       ! [J/kg/K] dry leaf specific heat
    real(wp), parameter :: tissue_c_wood_dry = 1217.0_wp       ! [J/kg/K] dry wood specific heat, 103.1 + 3.867 T at 15 degC
+
+   !--- Physical constants: the organic layer's dry matter, litter and moss (docs/science/surface_organic_layer.md).
+   real(wp), parameter :: cp_organic = 1926.0_wp   ! [J/kg/K] dry organic matter's specific heat (Farouki 1986)
 
    !--- Reference conditions.
    real(wp), parameter :: breast_height = 1.3_wp          ! [m] where a forest inventory measures a tree's

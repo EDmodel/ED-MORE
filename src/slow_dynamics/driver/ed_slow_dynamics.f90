@@ -17,7 +17,7 @@ module ed_slow_dynamics
    use ed_kinds,                only : wp, ik
    use ed_config,               only : ed_config_t
    use ed_time,                 only : ed_time_t, day_of_year
-   use ed_constants,            only : c2b_organic
+   use ed_constants,            only : c2b, n_organic_slot
    use ed_biogeochem_params,    only : IP_FAST_GRND
    use ed_polygon_state_vars,   only : polygon_t, patch_polygon_area
    use ed_patch_state_vars,     only : soil_carbon_state_t
@@ -40,10 +40,11 @@ module ed_slow_dynamics
                                        apply_recruitment, fuse_cohorts, terminate_cohorts,               &
                                        split_cohorts, apply_patch_disturbance, sort_patches,             &
                                        fuse_patches, terminate_patches, commit_trait_carbon,             &
-                                       commit_soil_carbon, follow_litter_pools
+                                       commit_soil_carbon, follow_organic_slots
    use ed_slow_diag,            only : open_slow_cohort_rows, write_slow_patch_rows
    use ed_soil_hydr_lib,          only : soil_theta_to_head
    use ed_organic_lib,            only : organic_registered_mass
+   use ed_organic_lib,         only : SLOT_LITTER, SLOT_MOSS
    implicit none
    private
 
@@ -97,26 +98,28 @@ contains
    !   The organic layer's litter follows the above-ground metabolic litter pool (the structural pool,
    ! which holds the coarse woody debris, waits for a fine-litter split), which the soil-carbon
    ! step has just advanced (docs/science/surface_organic_layer.md), as a layer only from
-   ! ORGANIC_MIN_DEPTH; the energy its dry matter brings or takes, at the layer's temperature, is
-   ! declared.
+   ! ORGANIC_MIN_DEPTH; the moss keeps its matter. The water a layer the litter starts takes arrives
+   ! liquid. The energy and the water the dry matter brings or takes are declared.
    !---~---
    subroutine litter_follows_pools(poly, cfg, ledger)
       type(polygon_t),     intent(inout) :: poly
       type(ed_config_t),   intent(in)    :: cfg
       type(slow_ledger_t), intent(inout) :: ledger
-      real(wp)    :: mass(poly%patch%n), t_new(poly%patch%n), head(poly%patch%n), heat(poly%patch%n)
-      real(wp)    :: water(poly%patch%n)
+      real(wp)    :: mass(n_organic_slot, poly%patch%n), t_new(poly%patch%n), head(poly%patch%n), heat(poly%patch%n)
+      real(wp)    :: water(poly%patch%n), fliq_new(poly%patch%n)
       integer(ik) :: ip
       do ip = 1_ik, poly%patch%n
-         mass(ip)  = organic_registered_mass(c2b_organic * poly%patch%soil_carbon(ip)%carbon(IP_FAST_GRND),        &
-                                             cfg%organic%litter%bulk_density)
+         mass(SLOT_LITTER, ip) = organic_registered_mass(c2b * poly%patch%soil_carbon(ip)%carbon(IP_FAST_GRND),   &
+                                                         cfg%organic%litter%bulk_density)
+         mass(SLOT_MOSS, ip)   = poly%patch%organic(ip)%mass(SLOT_MOSS)
+         fliq_new(ip) = 1.0_wp
          t_new(ip) = poly%patch%soil_energy(ip)%soil_temp(1)
          associate (c => poly%site%surface(poly%patch%owner_site(ip))%soil_profile%layer_curve(1))
             head(ip) = soil_theta_to_head(c%retention, poly%patch%soil_water(ip)%theta(1), c%theta_sat, c%theta_res,   &
                                           c%par_a, c%par_n)
          end associate
       end do
-      call follow_litter_pools(poly%patch, cfg%organic, mass, t_new, head, heat, water)
+      call follow_organic_slots(poly%patch, cfg%organic, mass, t_new, fliq_new, head, heat, water)
       call slow_ledger_declare(ledger, energy_in = sum([(patch_polygon_area(poly, ip) * heat(ip),            &
                                                          ip = 1_ik, poly%patch%n)]),                         &
                                water_in = sum([(patch_polygon_area(poly, ip) * water(ip), ip = 1_ik, poly%patch%n)]))

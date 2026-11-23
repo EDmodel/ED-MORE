@@ -16,6 +16,7 @@ module ed_stepper
    use ed_slow_state,           only : acclimate_site_leaf_tables
    use ed_slow_ledger,          only : slow_ledger_t
    use ed_fast_dynamics,        only : fast_dynamics
+   use ed_fast_integ_types,     only : N_WORK
    use ed_met_types,            only : met_source_t, met_cursor_t
    use ed_output_types,         only : output_buffers_t
    implicit none
@@ -32,6 +33,7 @@ module ed_stepper
    type :: run_ledgers_t
       type(budget_t)      :: energy, water, face
       type(slow_ledger_t) :: slow
+      integer(ik)         :: work(N_WORK) = 0_ik   ! the fast steps' work counts (WORK_*), summed over the run
    end type run_ledgers_t
 
 contains
@@ -82,7 +84,7 @@ contains
          call fast_dynamics(poly, cfg, met_src=met_src, met_cur=met_cur, step_start=step_start,          &
                             out_bufs=out_bufs, run_energy_budget=ledgers%energy,                       &
                             run_water_budget=ledgers%water, run_face_budget=ledgers%face,               &
-                            patch_threads=patch_threads)
+                            patch_threads=patch_threads, run_work=ledgers%work)
       end if
 
       !---~---

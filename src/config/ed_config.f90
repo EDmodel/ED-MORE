@@ -29,7 +29,7 @@ module ed_config
                                        ANNUAL_DAMPING_DEPTH
    use ed_soil_derive,          only : soil_layers, build_soil_profile, map_layer_texture
    use ed_biophysics_params,    only : snow_params_t, aero_params_t
-   use ed_organic_lib,          only : organic_params_t
+   use ed_organic_lib,       only : organic_params_t
    use ed_biogeochem_params,    only : soil_carbon_params_t
    use ed_demography_params,    only : demography_params_t
    use ed_trait_dynamics_params, only : trait_dynamics_params_t

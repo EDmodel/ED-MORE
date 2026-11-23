@@ -25,7 +25,7 @@ module ed_soil_hydr_lib
    !--- Retention curve: theta(head), head(theta) and potential(theta) read-offs.
    public :: SOIL_RETENTION_VG, SOIL_RETENTION_CAMPBELL, VG_PORE_CONNECTIVITY
    public :: soil_head_to_theta, soil_theta_to_head, soil_matric_potential, soil_theta_to_saturation
-   public :: soil_liquid_capacity
+   public :: soil_liquid_capacity, curve_kinks
    !---~---
    !   The water relations the soil-plant water solver uses, in the variable it solves
    ! for: a soil layer's saturation (dry) or potential (wet), the pond's head.
@@ -688,5 +688,21 @@ contains
          h = depth + 0.5_wp * POND_DEPRESSION_DEPTH
       end if
    end function pond_water_to_head
+
+   !---~---
+   !   The kinks of a layer curve's storage in its unknown that a Newton step should land on
+   ! rather than cross: Campbell's air entry, where its storage's slope jumps; van Genuchten's
+   ! curve has none. The joins a node sits on (zero head, a frozen layer's plateau) are not listed:
+   ! a step chopped there would stall.
+   !---~---
+   pure subroutine curve_kinks(c, kinks, n)
+      type(soil_layer_curve_t), intent(in)  :: c
+      real(wp),                 intent(out) :: kinks(:)   ! [-] in the curve's unknown
+      integer(ik),              intent(out) :: n
+      n = 0_ik
+      if (c%retention /= SOIL_RETENTION_CAMPBELL) return
+      n = 1_ik
+      kinks(1) = c%se_switch
+   end subroutine curve_kinks
 
 end module ed_soil_hydr_lib
