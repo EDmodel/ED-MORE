@@ -69,14 +69,14 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   (a `dbh` column stops the run), the outputs `diameter_co`, `mean_diameter_co`, `mean_diameter_growth_co`,
   `mean_diameter_py` and `mean_diameter_pft_py`, the size axis `diameter_class` (edges `diameter_lower`,
   `diameter_upper`), `[output].diameter_class_edges` (`dbh_class_edges` stops the run) and the Python field
-  `diameter`. Rename them in your census files, io_configs and scripts. (#TBD)
+  `diameter`. Rename them in your census files, io_configs and scripts. (#99)
 - `[pft].min_cohort_height` is now `[pft].min_recruit_height` [m], the height a PFT's recruits are born at,
   one value for every PFT or one per PFT; `min_cohort_height` stops the run. A tree's must be below its
-  `hgt_max`. (#TBD)
+  `hgt_max`. (#99)
 - `make_census.py` counts plants, not stems: a stem table's stems with one `treeID` are one plant.
   Map `treeID` to the table's tree id (`tree.id` in a ForestGEO stem table), and `stemID` to its stem
   id. The summary's `stems_in_file` and `stems_per_ha` are now `plants_in_file` and `plants_per_ha`.
-  (#TBD)
+  (#99)
 
 ### Answer changes
 
@@ -170,7 +170,7 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   area, $`\sqrt{\sum_i D_i^2}`$, as `make_census.py` now lumps a stem table. Harvard's stand (examples 04 and
   07) is 10,014 trees from 12,075 stems at the same 41.6 m² ha⁻¹: its allometric LAI falls 2.7 %, its AGB
   rises 2.4 % and its biomass mortality falls from 0.82 to 0.72 % yr⁻¹; its fitted `lai_b1`, phenology and
-  soil-carbon spin-up predate the change. BCI's tree tables keep each tree's main stem (the tool warns). (#TBD)
+  soil-carbon spin-up predate the change. BCI's tree tables keep each tree's main stem (the tool warns). (#99)
 
 ### Added
 
@@ -262,9 +262,9 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   PFT; 1.3 m (breast height) by default, results unchanged; 0 (the root collar) for a shrub. A tree's lies in
   [0, `hgt_max`) and `"chave2014"` needs 1.3 m or more. `make_census.py` takes the table's measuring height
   as `[source].diameter_height` and refuses a PFT measured elsewhere. The PFT parameter CSV a run writes
-  gains `diameter_height` and `min_recruit_height` columns. (#TBD)
+  gains `diameter_height` and `min_recruit_height` columns. (#99)
 - `[init].soil_temp` may list one temperature per soil layer, top down, for a column whose start differs
-  with depth, such as a thawed top over permafrost; a list needs one value per layer. (#TBD)
+  with depth, such as a thawed top over permafrost; a list needs one value per layer. (#99)
 
 ### Changed
 
