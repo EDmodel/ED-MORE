@@ -7,7 +7,8 @@ window restarts from it, so the soil water and temperature a window starts with 
 not the census's initialization. When the base config freezes the stand ([demography].demography_on
 = false), the chain runs the slow tier too, so the leaves follow the season to the window (a census
 starts in full leaf); otherwise the chain is frozen like a trial ([run].slow_on = false). A chain runs with one set of key values (the start's,
-and again the fit's at the refresh); a chain already run with the same values is reused.
+and again the fit's at the refresh); a chain already run with the same values and the same build of
+the model is reused.
 """
 from __future__ import annotations
 
@@ -15,7 +16,8 @@ import datetime as dt
 import threading
 from pathlib import Path
 
-from trials import TrialError, command, digest, log_tail, stamp, threads_for, timeout_for, with_keys
+from trials import (TrialError, command, digest, log_tail, model_identity, stamp, threads_for, timeout_for,
+                    with_keys)
 from workers import Task
 
 PREFIX = "c"
@@ -31,7 +33,7 @@ def run_chain(window, lead_days: int, base, keys, values, root: Path, workers, r
               timeout_per_day: float, max_threads: int = 1) -> Path:
     """Run one window's chain; return the state file at the window's start."""
     start = window.start - dt.timedelta(days=lead_days)
-    tag = digest(window.name, str(start), str(window.start),
+    tag = digest(model_identity(runner), window.name, str(start), str(window.start),
                  [(p.name, float(v)) for p, v in zip(keys, values) if p.file != "obs"], overrides or {},
                  base.main, base.pft)
     cdir = root / f"chain-{window.name}-{tag[:12]}"

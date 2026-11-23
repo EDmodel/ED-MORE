@@ -41,7 +41,8 @@ calibrate_fast.py variants runs/off/fit.json runs/on/fit.json --out runs/variant
   default, or through an executable with `--runner ../../build-dev/edmore`. The two give the same
   output, bit for bit. The EEO vcmax25 prior needs `libedmore.so` in any case.
 - **Re-running.** A re-run of `fit` replays every trial it has run from the cache in `--work`, so it
-  costs only what is new, such as the post-fit steps after a change in the tool.
+  costs only what is new, such as the post-fit steps after a change in the tool. The cache is per
+  build of the model: a rebuilt executable (or `libedmore.so`) runs every trial again.
 - **Threads.** A run takes one thread for every 15 simulated days, up to `[fit].max_threads` (8). The
   120-day seasonal runs and the 180-day chains set an iteration's pace; the ten-day windows run on one
   thread. `--workers` (one machine) and a queue worker's `--slots` count cores, and a run takes as many
@@ -123,7 +124,8 @@ python calibrate_fast.py fit ... --queue
 - **A trial** is a frozen run (`[run].slow_on = false`) restarted from its window's state, with
   `[init].reacclimate_traits = true` so a changed trait reaches the cohorts. Its main and PFT files are
   the base configuration with keys set through `edmore.config`, and its directory is named by a hash of
-  them, so a repeated set of values reuses the finished run. A trial passes when it ends with `OK`, no
+  them and of the model's compiled code, so a repeated set of values on the same build reuses the
+  finished run. A trial passes when it ends with `OK`, no
   whole-site budget breaches its tolerance, the model's parameter record lists every key the trial set
   with the value written, and the output has no missing or non-finite value. A trial that fails, or
   times out (`[fit].timeout_per_day`), stops the fit with its log: a model that cannot run a set of

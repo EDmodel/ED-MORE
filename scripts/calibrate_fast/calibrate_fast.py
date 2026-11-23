@@ -98,8 +98,8 @@ def open_work(args, log_name):
 
 def base_record(cal, work, workers, runner, log):
     """Run one day at the base configs to read the model's parameter record: the defaults of keys the
-    base files leave to the model (cal.record)."""
-    rdir = work / "record"
+    base files leave to the model (cal.record). One record per build of the model."""
+    rdir = work / f"record-{trials.model_identity(runner)[:12]}"
     csv = rdir / "out" / f"{trials.PREFIX}_parameters.csv"
     if not csv.exists():
         cfg = trials.with_keys(cal.base, [], [], cal.overrides)
