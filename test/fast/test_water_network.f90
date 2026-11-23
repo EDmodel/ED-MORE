@@ -1563,7 +1563,8 @@ contains
          th_min = min(th_min, th)
          st%drive%org = thin_layers(3.0e-3_wp, th, 0.0_wp, 0.0_wp, .false., 3.0e-5_wp)
          st%drive%org%air = slot_evaporation_setup(st%drive%ground, st%drive%org%t_org, 0.0_wp)
-         call set_water_state(st%static, soil, hyd, st%water%state%water_soil(3:) / (rho_h2o * soil%dz),           &
+         call set_water_state(st%static, soil, hyd,                                                                &
+                              st%water%state%water_soil(3:2+soil%n_active) / (rho_h2o * soil%dz(1:soil%n_active)), &
                               st%drive%ice, st%water%state%water_soil(POND), st%water%state%e_pond,                &
                               st%water%state%water_coh(LEAF, :) / st%static%nplant(1:1),                          &
                               st%water%state%water_coh(WOOD, :) / st%static%nplant(1:1), st%water, st%drive%org)
