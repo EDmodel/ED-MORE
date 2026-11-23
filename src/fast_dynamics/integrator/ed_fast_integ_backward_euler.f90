@@ -29,7 +29,8 @@ module ed_fast_integ_backward_euler
                                WORK_WATER_REJECT, WORK_WATER_NFAIL, state_init, surface_source_slopes_t,          &
                                water_organic_t
    use ed_site_state_vars, only : site_surface_t
-   use ed_therm_lib, only : cas_enthalpy_to_temp, internal_energy_liquid, liquid_energy_to_temp
+   use ed_therm_lib, only : cas_enthalpy_to_temp, internal_energy_liquid, liquid_energy_to_temp,                   &
+                           temp_to_internal_energy
    use ed_numerics,     only : sufficient_decrease, fraction_to_boundary
    use ed_soil_hydr_lib,   only : pond_water_to_head, soil_layer_curve_t, SOIL_RETENTION_CAMPBELL
    use ed_soil_water,      only : ground_evaporation_setup
@@ -95,6 +96,8 @@ module ed_fast_integ_backward_euler
    real(wp),    parameter :: FAST_SHARE       = NEWTON_TOL
    real(wp),    parameter :: NODE_SOLVE_SHARE = 1.0e-3_wp
    integer(ik), parameter :: NODE_SOLVE_MAX   = 100_ik
+   !--- [-] The largest scaled imbalance the merit squares: far beyond any step the line search keeps.
+   real(wp),    parameter :: MERIT_X_MAX      = 1.0e100_wp
    !---~---
    !   Its sub-steps: the error controller of an order-one method (exponent -1/2), its growth and
    ! shrink limits, the factor a sub-step whose Newton failed is cut by, and the shortest
@@ -678,7 +681,9 @@ contains
       real(wp) :: res2_soil(water%nsoil), res2_coh(COHORT_STORES, water%ncoh)
       real(wp) :: merit, merit_try, worst, worst_try, lam, lam_max, tol
       integer(ik) :: it, ib, i_try
+      real(wp) :: step_free(water%nsoil)   ! the step before chop_at_kinks
       logical  :: ok, cut_new(water%nsoil)
+      logical  :: chopped                  ! chop_at_kinks shortened the step
 
       converged = .false.
       iters = 0_ik
@@ -726,7 +731,9 @@ contains
          call arrowhead_solve(water%sys, merge(0.0_wp, -res_soil, fast .or. cut), -res_coh, step_soil, step_coh)
          !--- An eliminated or detached node's own solve, not the linear step, gives its unknown.
          step_soil = merge(0.0_wp, step_soil, fast .or. cut)
+         step_free = step_soil
          call chop_at_kinks(profile, drive, tau_soil, step_soil)
+         chopped = any(step_soil /= step_free)
          lam_max = step_limit(profile, drive%org, tau_soil, tau_coh, step_soil, step_coh)
          lam = lam_max
          !--- A trial's evaluation replaces the Jacobian sys held, so the start's is gone.
@@ -738,6 +745,12 @@ contains
             call water_residual(water%state, h, water%ev(i_try), atol, scale_soil, scale_coh, res2_soil,          &
                                 res2_coh, merit_try, worst_try, cut)
             if (merit_try == merit_try .and. sufficient_decrease(merit_try, merit, lam)) exit
+            !---~---
+            !   A step chopped at a kink is not Newton's, and the decrease Armijo's test expects
+            ! of Newton's it cannot give: landing a node on a kink a hair away moves the merit by
+            ! a hair. It is taken if the merit does not grow, so the next step may cross.
+            !---~---
+            if (chopped .and. merit_try <= merit) exit
             lam = 0.5_wp * lam
          end do
          if (merit_try /= merit_try) return
@@ -985,7 +998,8 @@ contains
    !---~---
    !   A Newton step that would carry a node across Campbell's air entry, the kink in its curve's
    ! storage, lands on the kink instead, that node's step alone (Appleyard's chopping; Wang &
-   ! Tchelepi 2013); from the kink, the next step may cross. The other kinks are not chopped,
+   ! Tchelepi 2013), which the line search takes if the merit does not grow; from the kink, the
+   ! next step may cross. The other kinks are not chopped,
    ! since nodes sit on them: a saturated layer at the join at zero head, a frozen layer at its
    ! melt plateau's top, where it starts every step, and at the point where its liquid fills the
    ! pores the ice leaves. Chopped there, Newton stalls.
@@ -1051,6 +1065,7 @@ contains
             if (skip(c)) res_soil(c) = 0.0_wp
          end if
          x = res_soil(c) * h / (tol * scale_soil(c))
+         x = sign(min(abs(x), MERIT_X_MAX), x)   ! clamp-ok: a wild trial's square stays finite, and is refused
          merit = merit + x * x
          worst = max(worst, abs(x))
       end do
@@ -1059,6 +1074,7 @@ contains
          do j = 1_ik, COHORT_STORES
             res_coh(j, i) = store_residual(ev%water_coh(j, i), state%water_coh(j, i), h, ev%inflow_coh(j, i))
             x = res_coh(j, i) * h / (tol * scale_coh(j, i))
+            x = sign(min(abs(x), MERIT_X_MAX), x)   ! clamp-ok: a wild trial's square stays finite, and is refused
             merit_coh = merit_coh + x * x
             worst = max(worst, abs(x))
          end do
@@ -1184,8 +1200,10 @@ contains
       logical,             intent(in)    :: fast(:), cut(:)   ! the eliminated and the detached core nodes
       logical,             intent(out)   :: spilled   ! the pond spilled, so its unknown moved
       real(wp) :: w_mix, e_mix, t_mix, u_mix, amount, spill, t_pond, pond_flux, sap(size(tau_coh, 2)), u_up, q
+      real(wp) :: in_m, in_h, out_m, u_out, share   ! the organic layer's water in and out over the sub-step
       real(wp) :: qf(size(tau_soil)), dinfl(size(tau_soil)), slack
       integer(ik) :: i, nsl, n_org, nsoil, soff, c, g
+      logical     :: snap(size(tau_soil))   ! the eliminated nodes taken to their curve's water
 
       nsl   = size(flows%face, kind=ik)
       n_org = drive%org%n
@@ -1198,10 +1216,12 @@ contains
       qf(soff+1:soff+nsl-1) = ev%face_flux(1:nsl-1)
       !---~---
       !   Each eliminated node at its curve's water: the face to its strongest neighbour carries the
-      ! flow that closes its balance there -- a neighbour that is not detached, and not a pond
-      ! that holds less than the slack would take from it.
+      ! flow that closes its balance there -- a neighbour that is not detached and holds the water
+      ! the slack would take from it. If neither neighbour can, the node keeps the water its flows
+      ! gave it, its slack Newton's, as any store's.
       !---~---
       dinfl = 0.0_wp
+      snap  = fast
       do c = 1_ik, nsoil
          if (.not. fast(c)) cycle
          slack = (ev%water_soil(c) - state%water_soil(c)) / h - ev%inflow_soil(c)
@@ -1214,9 +1234,16 @@ contains
          else
             g = c + 1_ik
          end if
-         if (c > 1_ik .and. c < nsoil) then
-            if (cut(g) .or. (g == POND .and. state%water_soil(POND) + h * (ev%inflow_soil(POND) - slack) < 0.0_wp))  &
-               g = 2_ik * c - g
+         if (.not. can_give(g)) then
+            g = 2_ik * c - g
+            if (g < 1_ik .or. g > nsoil) then
+               snap(c) = .false.
+               cycle
+            end if
+            if (.not. can_give(g)) then
+               snap(c) = .false.
+               cycle
+            end if
          end if
          dinfl(c) = dinfl(c) + slack
          dinfl(g) = dinfl(g) - slack
@@ -1245,30 +1272,57 @@ contains
       t_mix = drive%t_rain
       if (w_mix > POND_TINY) t_mix = liquid_energy_to_temp(e_mix / w_mix)
       u_mix = internal_energy_liquid(t_mix)
-      if (n_org > 0_ik) then
-         u_up = internal_energy_liquid(drive%org%t_org)
-      else
+      if (n_org == 0_ik) then
          u_up = internal_energy_liquid(drive%t_soil(1))
-      end if
-      if (pond_flux >= 0.0_wp) then
-         amount = h * pond_flux
-         flows%infil = flows%infil + amount
-         flows%infil_enth = flows%infil_enth + amount * u_mix
-         state%e_pond = e_mix - amount * u_mix
-         if (n_org > 0_ik) flows%org_enth = flows%org_enth + amount * u_mix
+         if (pond_flux >= 0.0_wp) then
+            amount = h * pond_flux
+            flows%infil = flows%infil + amount
+            flows%infil_enth = flows%infil_enth + amount * u_mix
+            state%e_pond = e_mix - amount * u_mix
+         else
+            amount = -h * pond_flux
+            flows%exfil = flows%exfil + amount
+            flows%exfil_enth = flows%exfil_enth + amount * u_up
+            state%e_pond = e_mix + amount * u_up
+         end if
       else
-         amount = -h * pond_flux
-         flows%exfil = flows%exfil + amount
-         flows%exfil_enth = flows%exfil_enth + amount * u_up
-         state%e_pond = e_mix + amount * u_up
-         if (n_org > 0_ik) flows%org_enth = flows%org_enth - amount * u_up
-      end if
-      if (n_org > 0_ik) then
+         !---~---
+         !   The organic layer, one thermal node: water passing through it in a sub-step leaves at
+         ! the temperature it came in at, as far as what came in covers what leaves, and at the
+         ! layer's own for the rest -- so the water a thin litter passes on does not heat or cool
+         ! it by its difference from the layer's start, a store of a few hundred joules a kelvin.
+         ! The layer's own water leaves as its energy holds it, its liquid share at its temperature
+         ! and the rest ice, as its spill does: on the melt plateau the freezing curve lets nearly
+         ! frozen litter drain, and water valued as liquid would take latent heat the litter does
+         ! not have. What receives the ice share refreezes it, the soil by its freezing curve, the
+         ! pond in the snow stage.
+         !---~---
          q = h * qf(soff)
+         in_m  = h * max(pond_flux, 0.0_wp) + max(-q, 0.0_wp)
+         in_h  = h * max(pond_flux, 0.0_wp) * u_mix + max(-q, 0.0_wp) * internal_energy_liquid(drive%t_soil(1))
+         out_m = h * max(-pond_flux, 0.0_wp) + max(q, 0.0_wp)
+         u_out = temp_to_internal_energy(0.0_wp, 1.0_wp, drive%org%t_org, drive%org%fliq)
+         if (out_m > 0.0_wp .and. in_m > 0.0_wp) then
+            share = min(1.0_wp, in_m / out_m)
+            u_out = share * in_h / in_m + (1.0_wp - share) * u_out
+         end if
+         if (pond_flux >= 0.0_wp) then
+            amount = h * pond_flux
+            flows%infil = flows%infil + amount
+            flows%infil_enth = flows%infil_enth + amount * u_mix
+            state%e_pond = e_mix - amount * u_mix
+            flows%org_enth = flows%org_enth + amount * u_mix
+         else
+            amount = -h * pond_flux
+            flows%exfil = flows%exfil + amount
+            flows%exfil_enth = flows%exfil_enth + amount * u_out
+            state%e_pond = e_mix + amount * u_out
+            flows%org_enth = flows%org_enth - amount * u_out
+         end if
          if (q >= 0.0_wp) then
             flows%top_in = flows%top_in + q
-            flows%top_in_enth = flows%top_in_enth + q * internal_energy_liquid(drive%org%t_org)
-            flows%org_enth = flows%org_enth - q * internal_energy_liquid(drive%org%t_org)
+            flows%top_in_enth = flows%top_in_enth + q * u_out
+            flows%org_enth = flows%org_enth - q * u_out
          else
             flows%top_out = flows%top_out - q
             flows%top_out_enth = flows%top_out_enth - q * internal_energy_liquid(drive%t_soil(1))
@@ -1283,7 +1337,7 @@ contains
       state%water_soil = state%water_soil + h * (ev%inflow_soil + dinfl)
       state%water_coh  = state%water_coh + h * ev%inflow_coh
       do c = 1_ik, nsoil
-         if (fast(c)) state%water_soil(c) = ev%water_soil(c)
+         if (snap(c)) state%water_soil(c) = ev%water_soil(c)
       end do
       do i = 1_ik, size(tau_coh, 2, kind=ik)
          state%water_coh(LEAF, i) = ev%water_coh(LEAF, i)
@@ -1316,6 +1370,13 @@ contains
       flows%uptake  = flows%uptake  + h * ev%uptake
       flows%sapflow = flows%sapflow + h * sap
       flows%transp  = flows%transp  + h * ev%transp
+   contains
+      !--- Whether neighbour gg, not detached, holds the water the slack would take from it.
+      logical function can_give(gg)
+         integer(ik), intent(in) :: gg
+         can_give = .not. cut(gg)
+         if (can_give) can_give = state%water_soil(gg) + h * (ev%inflow_soil(gg) + dinfl(gg) - slack) >= 0.0_wp
+      end function can_give
    end subroutine water_commit_substep
 
    pure subroutine clear_flows(flows)

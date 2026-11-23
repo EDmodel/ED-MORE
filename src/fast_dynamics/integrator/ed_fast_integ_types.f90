@@ -604,7 +604,8 @@ module ed_fast_integ_types
       real(wp) :: deficit(n_organic_slot) = 0.0_wp             ! [kg/m2] the water it lacks of its residual
       real(wp) :: evap  = 0.0_wp                               ! (unused by the network; the energy stage's rate)
       real(wp) :: t_org = t_3ple                               ! [K]
-      type(ground_evap_env_t) :: air                           ! the top slot's evaporation boundary (slot_evaporation_setup)
+      real(wp) :: fliq  = 1.0_wp                               ! [-] its water's liquid share, by its energy
+      type(ground_evap_env_t) :: air                          ! the top slot's evaporation boundary (slot_evaporation_setup)
    end type water_organic_t
 
    type :: water_drive_t

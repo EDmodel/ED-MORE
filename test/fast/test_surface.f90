@@ -37,8 +37,8 @@
 !      at its dry conductivity, in series with its wet part. Each slot's curve is its material's
 !      at its depth (the moss's at -10 kPa as Zhang et al. 2010 measured, the litter's near what
 !      drained litter holds), whether frozen or empty; water above saturation (frost on a frozen
-!      slot) spills with its energy, the layer keeping its temperature. Its balance closes on its energy, a thin layer of little heat
-!      capacity relaxes over an hour without passing its surroundings, a dry layer does not
+!      slot) spills with its energy, the layer keeping its temperature. Its balance closes on its energy, a
+!      thin layer of little heat capacity relaxes over an hour without passing its surroundings, a dry layer does not
 !      evaporate, and a wet one gives no more than it holds; held at the network's rate it gives
 !      that rate, evaporation or dew, and takes its root; the soil takes what it conducts down,
 !      less the soil's own evaporation's latent heat, and with a pack on it the ground's energy

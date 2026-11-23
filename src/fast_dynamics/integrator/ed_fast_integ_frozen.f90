@@ -17,7 +17,7 @@
 module ed_fast_integ_frozen
    use ed_kinds,              only : wp, ik
    use ed_constants,          only : tiny_num, rho_h2o, pi, r_gas,                              &
-                                     kgcday_2_umols, n_organic_slot
+                                     kgcday_2_umols, n_organic_slot, t_3ple
    use ed_diag_vars,          only : CO_ANET, CO_AGROSS, CO_GSW, CO_GBW, CO_CI, CO_CS, CO_RD, CO_BETA_STOM,     &
                                      CO_BETA_NONSTOM, CO_LEAF_TEMP, CO_WOOD_TEMP, CO_LEAF_VPD, CO_PSI_LEAF,      &
                                      CO_ABS_PAR, CO_ABS_SW, CO_ABS_LW, CO_WIND, CO_LEAF_WATER, CO_WOOD_WATER,    &
@@ -28,7 +28,7 @@ module ed_fast_integ_frozen
    use ed_surface, only : snow_out_t
    use ed_soil_derive,        only : top_soil_psi
    use ed_soil_params,        only : soil_profile_t
-   use ed_soil_hydr_lib,      only : soil_ice_state, soil_liquid_capacity
+   use ed_soil_hydr_lib,      only : soil_ice_state, soil_liquid_capacity, ice_impedance
    use ed_config,             only : ed_config_t
    use ed_site_state_vars,    only : site_surface_t
    use ed_canopy_aerodynamics, only : aero_env_t, aero_args_t, aero_out_t, set_aero_env_atm, set_aero_env_canopy
@@ -790,7 +790,9 @@ contains
    ! Water), top down, every slot that holds matter: its retention curve at its depth and its
    ! water; its liquid on its freezing curve at the layer's temperature, as a frozen soil layer's,
    ! the rest ice, held over the step (a start for the solver only: the layer's energy still
-   ! freezes all its water at the melting point, and so little liquid conducts next to nothing);
+   ! freezes all its water at the melting point). On the melt plateau the curve holds the slot all
+   ! liquid, but its energy holds part of it as ice, which slows its flow as any ice does, by that
+   ! ice's impedance; the water it gives up leaves as its energy holds it (water_commit_substep);
    ! the water it lacks of its residual, if it holds less (litter just arrived, dry), carried as an
    ! offset, so its potential is its curve's dry end and its mass exact; the layer's temperature,
    ! which values the water it gives up; and the boundary its top slot evaporates to by the soil's
@@ -805,6 +807,7 @@ contains
       associate (o => frozen%water_drive%org, org => frozen%org)
          o%n = 0_ik
          o%t_org = org%temp
+         o%fliq  = org%fliq
          if (.not. organic_present(org)) return
          do k = 1_ik, n_organic_slot
             if (org%mass(k) <= 0.0_wp) cycle
@@ -821,6 +824,8 @@ contains
             call soil_liquid_capacity(o%curve(o%n), org%temp, liq, dliq)
             liq = min(theta, liq)
             o%ice(o%n) = soil_ice_state(o%curve(o%n), theta - liq, liq)
+            if (org%temp >= t_3ple) o%ice(o%n)%impedance = min(o%ice(o%n)%impedance,                          &
+                                                               ice_impedance(o%curve(o%n), (1.0_wp - org%fliq) * theta))
          end do
          o%air = slot_evaporation_setup(frozen%water_drive%ground, org%temp,                                      &
                                         frozen%ground%org_dry_resist * vapour_diffusivity(org%temp))

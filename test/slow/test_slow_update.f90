@@ -1217,8 +1217,9 @@ end module test_slow_update_ledger
 !---~---
 !   The litter slot follows its pool (follow_litter_pools): litter that shrinks passes the water
 ! its new depth cannot hold saturated to the pond, with its energy; litter that vanishes passes all
-! of it; litter that appears from nothing starts dry. The water and the energy, the matter's
-! declared heat included, close in every case.
+! of it; litter that appears from nothing holds what its curve holds at the top soil's head, and
+! growing litter keeps its water content, the water they bring declared. The water and the energy,
+! the declared terms included, close in every case.
 !---~---
 module test_slow_update_litter
    use ed_kinds,                only : wp, ik
@@ -1236,7 +1237,7 @@ contains
    subroutine run_litter_follows()
       type(patch_block)      :: patch
       type(organic_params_t) :: o
-      real(wp) :: heat(1), w0, e0, cap
+      real(wp) :: heat(1), water(1), w0, e0, cap
       call banner('litter follows its pool')
       call alloc_patch_block(patch, 1_ik, 1_ik)
       patch%n = 1_ik
@@ -1252,7 +1253,7 @@ contains
          !--- Shrinks to a fifth: 4 mm hold 3.92 kg/m2 saturated, of the 10 it held.
          w0 = sum(org%water) + sw%w_surface
          e0 = sum(org%energy) + sw%w_surface_energy
-         call follow_litter_pools(patch, o, [0.004_wp * o%litter%bulk_density], [280.0_wp], heat)
+         call follow_litter_pools(patch, o, [0.004_wp * o%litter%bulk_density], [280.0_wp], [-1.0_wp], heat, water)
          cap = o%litter%theta_sat * rho_h2o * 0.004_wp
          call check_close(org%water(SLOT_LITTER), cap, 1.0e-9_wp,                                                 &
                           'shrinking litter keeps what its depth holds saturated')
@@ -1263,18 +1264,27 @@ contains
          !--- Vanishes: all its water to the pond; the moss keeps its own.
          w0 = sum(org%water) + sw%w_surface
          e0 = sum(org%energy) + sw%w_surface_energy
-         call follow_litter_pools(patch, o, [0.0_wp], [280.0_wp], heat)
+         call follow_litter_pools(patch, o, [0.0_wp], [280.0_wp], [-1.0_wp], heat, water)
          call check(org%water(SLOT_LITTER) == 0.0_wp .and. org%mass(SLOT_LITTER) == 0.0_wp,                     &
                     'vanished litter holds nothing')
          call check_close(org%water(SLOT_MOSS), 0.4_wp * 0.05_wp * rho_h2o, 1.0e-9_wp, 'the moss keeps its water')
          call check_close(sum(org%water) + sw%w_surface, w0, 1.0e-9_wp, 'vanishing: the water closes')
          call check_close(sum(org%energy) + sw%w_surface_energy, e0 + heat(1), 1.0e-9_wp * abs(e0),             &
                           'vanishing: the energy closes')
-         !--- Appears from nothing: dry, at the layer's temperature.
+         !--- Appears from nothing: holding what its curve holds at the top soil's head (-1 m), declared.
          w0 = sum(org%water)
-         call follow_litter_pools(patch, o, [0.1_wp], [280.0_wp], heat)
-         call check(org%water(SLOT_LITTER) == 0.0_wp .and. org%mass(SLOT_LITTER) > 0.0_wp, 'new litter appears dry')
-         call check_close(sum(org%water), w0, 1.0e-12_wp, 'the layer''s water is the moss''s')
+         e0 = sum(org%energy)
+         call follow_litter_pools(patch, o, [0.1_wp], [280.0_wp], [-1.0_wp], heat, water)
+         call check(org%mass(SLOT_LITTER) > 0.0_wp .and. org%water(SLOT_LITTER) > 0.0_wp,                         &
+                    'new litter appears holding water')
+         call check_close(org%water(SLOT_LITTER) / (rho_h2o * 0.1_wp / o%litter%bulk_density), 0.1427_wp, 1.0e-3_wp, &
+                          'what its curve holds at the top soil''s head of -1 m')
+         call check_close(sum(org%water), w0 + water(1), 1.0e-12_wp, 'its water is declared')
+         call check_close(sum(org%energy), e0 + heat(1), 1.0e-9_wp * abs(e0), 'and its energy')
+         !--- Grows by half: the new matter brings water at the litter's own water content.
+         w0 = org%water(SLOT_LITTER)
+         call follow_litter_pools(patch, o, [0.15_wp], [280.0_wp], [-1.0_wp], heat, water)
+         call check_close(org%water(SLOT_LITTER), 1.5_wp * w0, 1.0e-12_wp, 'growing litter keeps its water content')
       end associate
    end subroutine run_litter_follows
 end module test_slow_update_litter

@@ -42,6 +42,7 @@ module ed_slow_dynamics
                                        fuse_patches, terminate_patches, commit_trait_carbon,             &
                                        commit_soil_carbon, follow_litter_pools
    use ed_slow_diag,            only : open_slow_cohort_rows, write_slow_patch_rows
+   use ed_soil_hydr_lib,          only : soil_theta_to_head
    implicit none
    private
 
@@ -101,15 +102,21 @@ contains
       type(polygon_t),     intent(inout) :: poly
       type(ed_config_t),   intent(in)    :: cfg
       type(slow_ledger_t), intent(inout) :: ledger
-      real(wp)    :: mass(poly%patch%n), t_new(poly%patch%n), heat(poly%patch%n)
+      real(wp)    :: mass(poly%patch%n), t_new(poly%patch%n), head(poly%patch%n), heat(poly%patch%n)
+      real(wp)    :: water(poly%patch%n)
       integer(ik) :: ip
       do ip = 1_ik, poly%patch%n
          mass(ip)  = c2b_organic * poly%patch%soil_carbon(ip)%carbon(IP_FAST_GRND)
          t_new(ip) = poly%patch%soil_energy(ip)%soil_temp(1)
+         associate (c => poly%site%surface(poly%patch%owner_site(ip))%soil_profile%layer_curve(1))
+            head(ip) = soil_theta_to_head(c%retention, poly%patch%soil_water(ip)%theta(1), c%theta_sat, c%theta_res,   &
+                                          c%par_a, c%par_n)
+         end associate
       end do
-      call follow_litter_pools(poly%patch, cfg%organic, mass, t_new, heat)
+      call follow_litter_pools(poly%patch, cfg%organic, mass, t_new, head, heat, water)
       call slow_ledger_declare(ledger, energy_in = sum([(patch_polygon_area(poly, ip) * heat(ip),            &
-                                                         ip = 1_ik, poly%patch%n)]))
+                                                         ip = 1_ik, poly%patch%n)]),                         &
+                               water_in = sum([(patch_polygon_area(poly, ip) * water(ip), ip = 1_ik, poly%patch%n)]))
    end subroutine litter_follows_pools
 
    !---~---

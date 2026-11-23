@@ -15,10 +15,11 @@
 module ed_slow_update
    use ed_kinds,                only : wp, ik
    use ed_constants,            only : tiny_num, lnexp_min, lnexp_max, almost_one, yr_sec, rho_air_ref, umol_2_kgc, &
-                                       cp_organic
+                                       cp_organic, rho_h2o
    use ed_therm_lib,            only : temp_to_internal_energy
-   use ed_organic_lib,          only : organic_params_t, SLOT_LITTER, organic_present, organic_diagnose,     &
-                                       organic_split_energy, organic_slot_capacity
+   use ed_organic_lib,          only : organic_params_t, organic_material_t, SLOT_LITTER, organic_present,   &
+                                       organic_diagnose, organic_split_energy, organic_slot_capacity
+   use ed_soil_hydr_lib,        only : soil_head_to_theta
    use ed_numerics,             only : equal_height_layers, conserved, pair_mean
    use ed_cohort_state_vars,    only : cohort_block, cohort_deriv_block, set_cohort_size_from_carbon,    &
                                        hold_cohort_tissue_temps, reorder_cohort_block,                   &
@@ -286,19 +287,28 @@ contains
    !---~---
    !   The litter slot of each patch's organic layer follows its above-ground metabolic litter pool
    ! (docs/science/surface_organic_layer.md): its dry matter set to litter_mass, entering or
-   ! leaving at the layer's temperature (t_new for a layer the litter starts), and the water
-   ! beyond what its new depth holds saturated, or all of it when the litter is gone, passed to
-   ! the pond with its energy. heat returns each patch's matter energy, which the caller declares.
+   ! leaving at the layer's temperature (t_new for a layer the litter starts). Matter that arrives
+   ! brings its water: as much per kilogram as the litter holds, or, where there was none, what its
+   ! curve holds at the top soil layer's head (head_new), as at a start; the water arrives from
+   ! outside, as a recruit's does, and is declared (water). The water beyond what the slot's new
+   ! depth holds saturated, or all of it when the litter is gone, passes to the pond with its
+   ! energy. heat returns each patch's energy in with the matter and its water, which the caller
+   ! declares.
    !---~---
-   subroutine follow_litter_pools(patch, organic, litter_mass, t_new, heat)
+   subroutine follow_litter_pools(patch, organic, litter_mass, t_new, head_new, heat, water)
       type(patch_block),      intent(inout) :: patch
       type(organic_params_t), intent(in)    :: organic
       real(wp),               intent(in)    :: litter_mass(:)   ! [kg/m2] (patch)
       real(wp),               intent(in)    :: t_new(:)         ! [K] (patch) the top soil layer's
+      real(wp),               intent(in)    :: head_new(:)      ! [m] (patch) the top soil layer's matric head
       real(wp),               intent(out)   :: heat(:)          ! [J/m2] (patch) in with the matter, out if < 0
-      real(wp)    :: temp, e_total, cap, excess, e_excess
+      real(wp),               intent(out)   :: water(:)         ! [kg/m2] (patch) in with the matter
+      type(organic_material_t) :: m
+      real(wp)    :: temp, e_total, cap, excess, e_excess, add
       integer(ik) :: ip
-      heat(1:patch%n) = 0.0_wp
+      heat(1:patch%n)  = 0.0_wp
+      water(1:patch%n) = 0.0_wp
+      m = organic%litter
       do ip = 1_ik, patch%n
          associate (org => patch%organic(ip), sw => patch%soil_water(ip))
             if (litter_mass(ip) == org%mass(SLOT_LITTER)) cycle
@@ -307,6 +317,21 @@ contains
             if (.not. organic_present(org)) temp = t_new(ip)
             e_total  = sum(org%energy)
             heat(ip) = cp_organic * (litter_mass(ip) - org%mass(SLOT_LITTER)) * temp
+            !--- The matter that arrives brings its water.
+            add = 0.0_wp
+            if (litter_mass(ip) > org%mass(SLOT_LITTER)) then
+               if (org%mass(SLOT_LITTER) > 0.0_wp) then
+                  add = org%water(SLOT_LITTER) * (litter_mass(ip) / org%mass(SLOT_LITTER) - 1.0_wp)
+               else
+                  add = soil_head_to_theta(m%retention, head_new(ip), m%theta_sat, m%theta_res, m%par_a, m%par_n)  &
+                        * rho_h2o * litter_mass(ip) / m%bulk_density
+               end if
+            end if
+            if (add > 0.0_wp) then
+               water(ip) = add
+               heat(ip)  = heat(ip) + temp_to_internal_energy(0.0_wp, add, temp, org%fliq)
+               org%water(SLOT_LITTER) = org%water(SLOT_LITTER) + add
+            end if
             org%mass(SLOT_LITTER)    = max(0.0_wp, litter_mass(ip))
             org%density(SLOT_LITTER) = merge(organic%litter%bulk_density, 0.0_wp, org%mass(SLOT_LITTER) > 0.0_wp)
             cap    = 0.0_wp

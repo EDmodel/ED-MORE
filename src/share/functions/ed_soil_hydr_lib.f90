@@ -32,7 +32,7 @@ module ed_soil_hydr_lib
    !---~---
    public :: SOIL_SPECIFIC_STORAGE, POND_DEPRESSION_DEPTH
    public :: soil_layer_curve_t, build_soil_layer_curve, soil_water_relations, soil_theta_to_unknown
-   public :: soil_ice_t, soil_ice_state
+   public :: soil_ice_t, soil_ice_state, ice_impedance
    public :: pond_water_relations, pond_water_to_head
 
    !--- One soil layer as the soil maps describe it (SoilGrids 2.0's quantities).
@@ -444,6 +444,13 @@ contains
       end if
    end subroutine liquid_water_relations
 
+   !--- The factor theta_ice [m3/m3] of ice puts on a layer's conductivity (soil_ice_t).
+   elemental real(wp) function ice_impedance(c, theta_ice) result(impedance)
+      type(soil_layer_curve_t), intent(in) :: c
+      real(wp),                 intent(in) :: theta_ice
+      impedance = 10.0_wp ** (-ICE_IMPEDANCE_EXP * max(theta_ice, 0.0_wp) / c%theta_sat)
+   end function ice_impedance
+
    !---~---
    !   A layer's ice record (soil_ice_t) for theta_ice [m3/m3] of ice beside theta_liq
    ! [m3/m3] of liquid, the layer's start: its impedance; where on the curve the liquid
@@ -460,7 +467,7 @@ contains
       real(wp) :: psi, dpsi, w, dw, dk
       if (theta_ice <= 0.0_wp) return
       ice%theta_ice = theta_ice
-      ice%impedance = 10.0_wp ** (-ICE_IMPEDANCE_EXP * theta_ice / c%theta_sat)
+      ice%impedance = ice_impedance(c, theta_ice)
       ice%tau_full  = liquid_theta_to_unknown(c, c%theta_sat - theta_ice)
       call liquid_water_relations(c, ice%tau_full, psi, dpsi, w, dw, ice%k_full, dk)
       ice%head_full  = psi / grav_head
