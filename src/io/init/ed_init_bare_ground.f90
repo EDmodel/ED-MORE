@@ -99,8 +99,6 @@ contains
             if (cfg%init%n_soil_temp /= 0_ik .and. cfg%init%n_soil_temp /= nsl)                                 &
                error stop 'seed_patch_stores: [init].soil_temp lists another number of layers than the column has'
             sw%theta(1:nsl)     = surf%theta_start(1:nsl)
-            sw%w_surface        = 0.0_wp
-            sw%w_surface_energy = 0.0_wp        ! dry pond -> zero enthalpy
             do k = 1_ik, nsl
                se%soil_energy(k) = porous_layer_energy(cfg%init%soil_temp(k), surf%theta_start(k),               &
                                                      surf%soil_profile%dry_heat_capacity(k),                    &

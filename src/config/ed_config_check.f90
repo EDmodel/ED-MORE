@@ -66,12 +66,13 @@ module ed_config_check
    ! where it went. [snow] and [surface_layer] became [ground_surface_layer]'s tables.
    !---~---
    character(len=*), parameter :: GS = 'ground_surface_layer.'
-   character(len=*), parameter :: MOVED_KEYS(2, 34) = reshape([character(len=64) ::                     &
+   character(len=*), parameter :: MOVED_KEYS(2, 36) = reshape([character(len=64) ::                     &
       'snow.rho_snow', GS//'water.fresh_density', 'snow.k_snow', GS//'water.conductivity_at_fresh',            &
       'snow.albedo_vis_fresh', GS//'water.albedo_vis_fresh', 'snow.albedo_nir_fresh', GS//'water.albedo_nir_fresh', &
       'snow.albedo_vis_aged', GS//'water.albedo_vis_aged', 'snow.albedo_nir_aged', GS//'water.albedo_nir_aged',     &
       'snow.snow_emiss', GS//'water.emissivity', 'snow.liquid_holding_frac', GS//'water.liquid_holding_frac',       &
-      'snow.min_new_snow_mass', GS//'water.min_new_snow_mass', 'snow.tiny_snow_mass', GS//'water.tiny_snow_mass',   &
+      'snow.min_new_snow_mass', GS//'min_depth', 'snow.tiny_snow_mass', GS//'min_depth',                           &
+      GS//'water.min_new_snow_mass', GS//'min_depth', GS//'water.tiny_snow_mass', GS//'min_depth',                 &
       'snow.ny07_a', GS//'water.cover_scale_factor', 'snow.ny07_m', GS//'water.cover_density_exponent',            &
       'soil.w_pond_max', GS//'water.pond_capacity', 'fast.snow_init_swe', GS//'water.initial_mass',                &
       'fast.snow_init_temp', GS//'water.initial_temp',                                                           &
@@ -85,7 +86,7 @@ module ed_config_check
       'surface_layer.moss_k_wet', GS//'moss.k_wet', 'surface_layer.moss_retention', GS//'moss.retention',            &
       'surface_layer.moss_theta_sat', GS//'moss.theta_sat', 'surface_layer.moss_theta_res', GS//'moss.theta_res',    &
       'surface_layer.moss_curve_par_a', GS//'moss.curve_par_a', 'surface_layer.moss_curve_par_n', GS//'moss.curve_par_n', &
-      'surface_layer.moss_ksat', GS//'moss.ksat'], [2, 34])
+      'surface_layer.moss_ksat', GS//'moss.ksat'], [2, 36])
 
    !--- What the key checks found, one line per key, reported with the missing required keys.
    integer, parameter :: MAX_REPORT = 256
@@ -499,8 +500,6 @@ contains
       if (.not. (w%liquid_holding_frac >= 0.0_wp .and. w%liquid_holding_frac < 1.0_wp))                     &
          error stop PRE//'liquid_holding_frac must lie in [0, 1)'
       if (.not. (w%cover_scale_factor > 0.0_wp)) error stop PRE//'cover_scale_factor must be > 0'
-      if (.not. (w%tiny_snow_mass >= 0.0_wp .and. w%min_new_snow_mass >= w%tiny_snow_mass))                &
-         error stop PRE//'min_new_snow_mass must be at least tiny_snow_mass, and both >= 0 [kg/m2]'
       if (.not. (w%pond_capacity >= 0.0_wp)) error stop PRE//'pond_capacity must be >= 0 [kg/m2]'
       if (.not. (w%initial_mass >= 0.0_wp)) error stop PRE//'initial_mass must be >= 0 [kg/m2]'
       if (.not. (w%initial_temp > 0.0_wp)) error stop PRE//'initial_temp must be > 0 [K]'

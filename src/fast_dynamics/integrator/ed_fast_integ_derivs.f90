@@ -491,7 +491,7 @@ contains
          call add_soil_flow(ca, cb, q, dqa, dqb)
       end do
 
-      !--- Each node's own sources: rain into the pond, the top slot's and the top layer's evaporation, drainage.
+      !--- Each node's own sources: the water reaching the pond, the top slot's and the top layer's evaporation, drainage.
       ev%org_evap = 0.0_wp
       do c = 1_ik, nsoil
          dsrc = 0.0_wp
@@ -689,8 +689,8 @@ contains
 
    !---~---
    !   Core node c's own sources, besides its faces and its roots, added to its net inflow
-   ! [kg/m2/s], and their slope in its unknown added to dout, the slope of its outflow: the rain
-   ! into the pond; the evaporation of the top organic slot, through its dried top, and of the top
+   ! [kg/m2/s], and their slope in its unknown added to dout, the slope of its outflow: the water
+   ! reaching the pond; the evaporation of the top organic slot, through its dried top, and of the top
    ! soil layer, through its dry surface layer and the organic layer above it, each by the one law
    ! (store_evaporation; for the slot Philip's humidity at its potential smoothly stops where it
    ! meets the canopy air's, so a drying slot comes to rest at its equilibrium with the air); and
@@ -753,9 +753,9 @@ contains
    !   node_balance -- core node c's own backward-Euler balance over a sub-step of h, R = (W -
    ! W0)/h - inflow [kg/m2/s], and dR/dtau_c, at its unknown tau with every other store held at
    ! its state in tau_soil and its neighbours' relations given: the faces to the nodes above and
-   ! below (none to a detached node), and its own sources -- rain into the pond, the top
-   ! slot's evaporation, the top layer's evaporation,
-   ! the bottom's drainage and each cohort's uptake at its wood's potential. The nonlinear
+   ! below (none to a detached node), and its own sources -- the water reaching the pond, the top
+   ! slot's evaporation, the top layer's evaporation, the bottom's drainage and each cohort's
+   ! uptake at its wood's potential. The nonlinear
    ! elimination of a fast node and the closed form of a detached one solve R = 0 on it.
    !---~---
    subroutine node_balance(static, profile, soil, drive, c, tau_soil, w0, h, cut, psi_wood, r, dr)

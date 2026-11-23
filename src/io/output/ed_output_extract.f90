@@ -20,6 +20,7 @@ module ed_output_extract
    use ed_state_defaults,       only : is_unset_positive
    use ed_constants,     only : n_soil_layer_max
    use ed_soil_hydr_lib,      only : soil_matric_potential, soil_theta_to_saturation
+   use ed_ground_surface_lib, only : water_layer_depth
    use ed_output_reduce,  only : reduce_cohort_to_polygon, reduce_cohort_to_patch,             &
                                        reduce_cohort_to_pft, reduce_cohort_to_size,               &
                                        reduce_patch_to_polygon, reduce_patch_columns_to_sites,       &
@@ -397,7 +398,9 @@ contains
          end do
       case (FLD_P_WATER_LAYER_DEPTH)
          do ip = 1_ik, n
-            x(ip) = poly%patch%ground_surface(ip)%water%matrix_depth
+            associate (layer => poly%patch%ground_surface(ip)%water)
+               x(ip) = water_layer_depth(layer%matrix_depth, (1.0_wp - layer%fliq) * layer%water, layer%fliq * layer%water)
+            end associate
          end do
       case (FLD_P_WATER_LAYER_ICE)
          do ip = 1_ik, n

@@ -14,6 +14,7 @@ module ed_init_restart
    use ed_kinds,            only : wp, ik
    use ed_biogeochem_params, only : N_SOIL_POOL, SOIL_POOL_NAME
    use ed_constants,        only : n_soil_layer_max
+   use ed_therm_lib,        only : internal_energy_to_temp
    use ed_ground_surface_params, only : N_POROUS
    use ed_state_defaults,   only : is_unset_positive
    use ed_config,           only : ed_config_t, growth_window_steps
@@ -762,11 +763,11 @@ contains
       call def_var(d, 'cas_air_mass_capacity_pa',  NC_DOUBLE, [d%patch], 'CAS air mass the last fast step held [kg/m2]')
       call def_var(d, 'cas_air_molar_capacity_pa', NC_DOUBLE, [d%patch], 'CAS dry-air moles the last fast step held [mol/m2]')
       call def_var(d, 'ground_water_layer_water_pa',  NC_DOUBLE, [d%patch],                                         &
-                   'the water layer''s water, ice and liquid [kg/m2] (prognostic)')
+                   'the water layer''s water, ice and liquid, its free water among it [kg/m2] (prognostic)')
       call def_var(d, 'ground_water_layer_energy_pa', NC_DOUBLE, [d%patch],                                         &
                    'the water layer''s internal energy [J/m2] (prognostic)')
       call def_var(d, 'ground_water_layer_matrix_depth_pa', NC_DOUBLE, [d%patch],                                   &
-                   'the water layer''s depth [m] (prognostic)')
+                   'the water layer''s ice matrix''s depth [m] (prognostic)')
       call def_var(d, 'ground_water_layer_temp_pa', NC_DOUBLE, [d%patch], 'the water layer''s temperature [K] (diagnosed twin)')
       call def_var(d, 'ground_water_layer_fliq_pa', NC_DOUBLE, [d%patch],                                           &
                    'the water layer''s liquid fraction [-] (diagnosed twin)')
@@ -781,8 +782,6 @@ contains
                    'soil volumetric internal energy [J/m3] (prognostic)')
       call def_var(d, 'soil_temp_layer_pa',   NC_DOUBLE, [d%patch, d%soil_layer], 'soil temperature [K] (diagnosed twin)')
       call def_var(d, 'soil_fliq_layer_pa',   NC_DOUBLE, [d%patch, d%soil_layer], 'soil liquid-water fraction [-] (diagnosed twin)')
-      call def_var(d, 'soil_w_surface_pa',      NC_DOUBLE, [d%patch], 'ponded surface water [kg/m2]')
-      call def_var(d, 'soil_w_surface_enth_pa', NC_DOUBLE, [d%patch], 'ponded-water internal energy [J/m2]')
       !--- 7. Soil carbon (docs/science/soil_carbon.md §2).
       call def_var(d, 'soilc_fast_grnd_pa',   NC_DOUBLE, [d%patch], 'fast/metabolic litter carbon, above-ground [kgC/m2]')
       call def_var(d, 'soilc_fast_soil_pa',   NC_DOUBLE, [d%patch], 'fast/metabolic litter carbon, below-ground [kgC/m2]')
@@ -869,17 +868,13 @@ contains
             pbuf = p%ground_surface(ip)%porous%energy
             call put_dbl(r, 'ground_porous_layer_energy_pa', pbuf, item=ip)
          end do
-         !--- 6. Soil water and heat, and the pond.
+         !--- 6. Soil water and heat.
          do ip = 1_ik, npat
             call put_dbl(r, 'soil_theta_layer_pa',  p%soil_water(ip)%theta(1:n_soil_layer_max),        item=ip)
             call put_dbl(r, 'soil_energy_layer_pa', p%soil_energy(ip)%soil_energy(1:n_soil_layer_max), item=ip)
             call put_dbl(r, 'soil_temp_layer_pa',   p%soil_energy(ip)%soil_temp(1:n_soil_layer_max),   item=ip)
             call put_dbl(r, 'soil_fliq_layer_pa',   p%soil_energy(ip)%soil_fliq(1:n_soil_layer_max),   item=ip)
          end do
-         buf = p%soil_water(1:npat)%w_surface
-         call put_dbl(r, 'soil_w_surface_pa', buf)
-         buf = p%soil_water(1:npat)%w_surface_energy
-         call put_dbl(r, 'soil_w_surface_enth_pa', buf)
          !--- 7. Soil carbon: each pool by its name, then the structural pools' lignin.
          do kp = 1_ik, N_SOIL_POOL
             buf = p%soil_carbon(1:npat)%carbon(kp)
@@ -969,17 +964,31 @@ contains
          else
             call read_older_surface_layers(r, p, npat)
          end if
-         !--- 6. Soil water and heat, and the pond.
+         !--- 6. Soil water and heat.
          do ip = 1_ik, npat
             call get_dbl(r, 'soil_theta_layer_pa',  p%soil_water(ip)%theta(1:n_soil_layer_max),        item=ip)
             call get_dbl(r, 'soil_energy_layer_pa', p%soil_energy(ip)%soil_energy(1:n_soil_layer_max), item=ip)
             call get_dbl(r, 'soil_temp_layer_pa',   p%soil_energy(ip)%soil_temp(1:n_soil_layer_max),   item=ip)
             call get_dbl(r, 'soil_fliq_layer_pa',   p%soil_energy(ip)%soil_fliq(1:n_soil_layer_max),   item=ip)
          end do
-         call get_dbl(r, 'soil_w_surface_pa', buf)
-         p%soil_water(1:npat)%w_surface = buf
-         call get_dbl(r, 'soil_w_surface_enth_pa', buf)
-         p%soil_water(1:npat)%w_surface_energy = buf
+         !---~---
+         !   A file that holds the pond apart: it is the water layer's free water, so it joins the
+         ! layer, its water and energy, and the layer's temperature is read off the sum.
+         !---~---
+         if (has_var(r%ncid, 'soil_w_surface_pa')) then
+            call get_dbl(r, 'soil_w_surface_pa', buf)
+            do ip = 1_ik, npat
+               p%ground_surface(ip)%water%water = p%ground_surface(ip)%water%water + buf(ip)
+            end do
+            call get_dbl(r, 'soil_w_surface_enth_pa', buf)
+            do ip = 1_ik, npat
+               associate (layer => p%ground_surface(ip)%water)
+                  layer%energy = layer%energy + buf(ip)
+                  if (layer%water > 0.0_wp)                                                                     &
+                     call internal_energy_to_temp(layer%energy, layer%water, 0.0_wp, layer%temp, layer%fliq)
+               end associate
+            end do
+         end if
          !--- 7. Soil carbon: each pool by its name, then the structural pools' lignin.
          do kp = 1_ik, N_SOIL_POOL
             call get_dbl(r, 'soilc_'//trim(SOIL_POOL_NAME(kp))//'_pa', buf)

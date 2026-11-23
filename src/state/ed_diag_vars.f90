@@ -280,7 +280,7 @@ module ed_diag_vars
    integer(ik), parameter, public :: PA_INTERCEPT            = 46_ik  ! [kg/m2/s] rain and snow caught as surface water, net
    integer(ik), parameter, public :: PA_THROUGHFALL          = 47_ik  ! [kg/m2/s] precipitation reaching the ground
    integer(ik), parameter, public :: PA_INFILTRATION         = 48_ik  ! [kg/m2/s] free water (the pond) into the ground
-   integer(ik), parameter, public :: PA_ICE_MELT             = 49_ik  ! [kg/m2/s] meltwater the water layer drains to the pond
+   integer(ik), parameter, public :: PA_ICE_MELT             = 49_ik  ! [kg/m2/s] the water layer's ice that melts, net
    integer(ik), parameter, public :: PA_WATER_LAYER_EVAP     = 50_ik  ! [kg/m2/s] water layer -> canopy air (deposition < 0)
    integer(ik), parameter, public :: PA_SHED_WATER           = 51_ik  ! [kg/m2/s] tissue water the slow step shed to the pond
    integer(ik), parameter, public :: PA_VEG_SURFACE_OVERFLOW = 52_ik  ! [kg/m2/s] their surface water above capacity, removed

@@ -1,21 +1,22 @@
 ! SPDX-License-Identifier: Apache-2.0
 !---~---
-!   test_surface -- the ground's surface and its snow store (ed_surface;
-! docs/science/snow_biophysics.md). The pack steps as the integrator steps it: the ground
-! surface's exchange at the pack's state (ground_surface_exchange), then the pack takes the
-! step's amounts (snow_take_exchange), with snow_accumulate and snow_drain_meltwater around
-! them; its energy ledger is what the surroundings give up by the ground surface's balance.
-!   1. COVER (snow_cover_fraction): 0 without snow, monotone in [0, 1], and Niu & Yang
-!      (2007)'s fraction for 1 cm of snow.
+!   test_surface -- the ground's surface and its water layer (ed_surface;
+! docs/science/snow_biophysics.md). The layer steps as the integrator steps it: its stage
+! (water_layer_stage: what falls joins it and its free water leaves it), the ground surface's
+! exchange at its state (ground_surface_exchange), then it takes the step's amounts
+! (water_layer_commit); its energy ledger is what the surroundings give up by the ground
+! surface's balance.
+!   1. COVER (water_layer_cover_of): 0 without snow or for a film, monotone in [0, 1], and
+!      Niu & Yang (2007)'s fraction for 1 cm of snow.
 !   2. ACCUMULATION: a cold snap's pack grows below t_3ple, all ice; its mass and energy
 !      close against what fell, what it exchanged and what drained.
-!   3. MELT: the pack pins at t_3ple, its liquid rises and drains to the pond, and it
+!   3. MELT: the pack pins at t_3ple, its liquid rises and drains as free water, and it
 !      melts out; both ledgers close through the plateau.
 !   4. ISOTHERMAL: a pack at the temperature of its surroundings, under canopy air
 !      saturated over ice, stays as it is with no heat into the soil; under canopy air
 !      saturated over liquid it gains mass.
-!   5. RAIN ON SNOW (snow_accumulate): warm rain on a cold pack adds its mass and exactly
-!      its enthalpy.
+!   5. RAIN ON SNOW (water_layer_stage): warm rain on a cold pack adds its mass and exactly
+!      its enthalpy, and no depth.
 !   6. STIFF COUPLING: a thin pack under an open patch's bare-ground conductance relaxes
 !      toward its balance without overshooting it, over a step and a day of steps; both
 !      ledgers close.
@@ -26,11 +27,10 @@
 !      difference and no latent flux without evaporation; warm ground heats the canopy
 !      air, in proportion to the difference and at the canopy air's specific heat; the
 !      ground surface's exchange takes that specific heat from its surroundings.
-!   9. THE POND (prepare_snow_stage): a pond below its freezing point starts a layer of its
-!      ice and keeps its liquid; a cold pack takes a pond and freezes it, deeper by its water
-!      as ice; a pack at the plateau takes none of a pond's liquid; a warm pond with no pack is left as it is; an empty
-!      pond leaves a pack as it was; snow on ice mixes the densities by volume. The stores
-!      the stage reports for the ledger, with the pond it leaves, are the stores it began from.
+!   9. THE STAGE (water_layer_stage): light snowfall on frozen ground gathers as a film at the
+!      ground's temperature until it is a layer; a dusting on warm ground melts, the ground
+!      paying, and drains; a pond with a round-off share of ice is free water and covers nothing;
+!      a cold pack freezes a pond within its pores; a warm pond is all free water.
 !  10. THE POROUS LAYERS (their helpers in ed_patch_state_vars, and surface_node_balance): a slot holds its
 !      theta_sat over its depth; one temperature, the slots' energies summing to the total; each
 !      slot gives the vapour the water network took from it; heat crosses each slot's dried top
@@ -51,7 +51,7 @@
 program test_surface
    use ed_test_assert,        only : check, check_true, test_report
    use ed_kinds,              only : wp, ik
-   use ed_constants,          only : t_3ple, stefan_boltzmann, rho_ice, cp_organic, cp_ice
+   use ed_constants,          only : t_3ple, stefan_boltzmann, rho_ice, cp_organic, cp_ice, latent_heat_fusion
    use ed_therm_lib,          only : temp_to_internal_energy, internal_energy_to_temp, internal_energy_ice,      &
                                      internal_energy_liquid, sat_specific_humidity, cas_heat_capacity,     &
                                      enthalpy_vapor, sat_specific_humidity_temp_deriv
@@ -62,13 +62,15 @@ program test_surface
    use ed_ground_surface_params, only : ground_surface_layer_params_t, water_material_t, POROUS_LITTER, POROUS_MOSS, &
                                         N_POROUS
    use ed_soil_hydr_lib,      only : soil_layer_curve_t, soil_head_to_theta
-   use ed_surface,            only : surface_env_t, snow_out_t, surface_node_t, node_flux_t, surface_node_balance, &
-                                     snow_cover_fraction, snow_accumulate,                                      &
-                                     snow_drain_meltwater, ground_surface_exchange, snow_take_exchange,         &
+   use ed_surface,            only : surface_env_t, water_stage_out_t, surface_node_t, node_flux_t,           &
+                                     surface_node_balance, water_layer_stage, water_layer_commit,              &
+                                     water_layer_cover_of, water_layer_ice, ground_surface_exchange,           &
                                      store_exchange_t, STORE_SNOW, STORE_ORGANIC,                               &
                                      snow_blend_ground_optics, ground_tile_radiation, ground_surface_fluxes,    &
-                                     prepare_snow_stage, conductance_in_series
+                                     conductance_in_series
    implicit none
+
+   real(wp), parameter :: MIN_DEPTH = 1.0e-4_wp   ! [m] the shipped [ground_surface_layer].min_depth
 
    call test_snow_cover()
    call test_accumulate()
@@ -78,7 +80,7 @@ program test_surface
    call test_stiff_coupling()
    call test_tile_radiation()
    call test_ground_balance()
-   call test_pond_stage()
+   call test_water_layer_stage()
    call test_organic_slots()
    call test_organic_balance()
    call test_insulation()
@@ -114,9 +116,27 @@ contains
    end function cold_pack
 
    !---~---
+   !   The pack's stage with nothing falling (water_layer_stage at the default min_depth, on soil
+   ! at t_soil): its free water out, counted into the mass and energy the pack gave up, and the
+   ! heat a film took from the soil into what it gained.
+   !---~---
+   subroutine drain(snow, p, t_soil, mass_out, e_out, e_in)
+      type(water_layer_state_t), intent(inout) :: snow
+      type(water_material_t),    intent(in)    :: p
+      real(wp),                  intent(in)    :: t_soil
+      real(wp),                  intent(inout) :: mass_out, e_out, e_in
+      type(water_stage_out_t) :: st
+      call water_layer_stage(0.0_wp, 0.0_wp, 273.0_wp, 0.0_wp, 0.0_wp, 900.0_wp, p, MIN_DEPTH, t_soil, 1.0_wp,       &
+                             snow, st)
+      mass_out = mass_out + st%free%water
+      e_out    = e_out    + st%free%energy
+      e_in     = e_in     + st%film_heat
+   end subroutine drain
+
+   !---~---
    !   One step of the pack as the integrator takes it: the ground surface's exchange at the
    ! pack's state and the given cover (ground_surface_exchange, the call the derivatives make),
-   ! then the pack takes the step's amounts (snow_take_exchange, the update's). Returns the
+   ! then the pack takes the step's amounts (water_layer_commit, the update's). Returns the
    ! energy the surroundings gave the pack [J/m2], by the ground surface's own balance -- its
    ! net radiation less the sensible and latent heat to the canopy air and the heat into the
    ! soil -- the vapour the pack lost [kg/m2], and the heat flux into the soil top [W/m2].
@@ -130,14 +150,15 @@ contains
       real(wp) :: h_ground, le_ground, ground_rad, snow_energy_in, snow_vapour_out
       type(store_exchange_t) :: stores
       e = env
+      call internal_energy_to_temp(snow%energy, snow%water, 0.0_wp, snow%temp, snow%fliq)
       e%pack    = snow
       e%snowfac = cover
       e%dt      = dt
       call ground_surface_exchange(e, h_ground, le_ground, g_top, ground_rad, stores)
       snow_energy_in  = stores%energy_in(STORE_SNOW)
       snow_vapour_out = stores%vapour_out(STORE_SNOW)
-      call snow_take_exchange(snow, water_layer_bulk_density(snow%water, snow%matrix_depth), dt * snow_energy_in, &
-                              dt * snow_vapour_out, e%params)
+      call water_layer_commit(snow, dt * snow_energy_in, dt * snow_vapour_out, ground_store_t(), ground_store_t(), &
+                              water_layer_ice(snow), e%params)
       energy_gain = dt * (ground_rad - h_ground - le_ground - g_top)
       vapour_loss = dt * snow_vapour_out
    end subroutine snow_step
@@ -147,30 +168,30 @@ contains
       type(water_material_t) :: p
       real(wp) :: f0, f1, f2
       print '(a)', 'test_snow_cover:'
-      f0 = snow_cover_fraction(0.0_wp,  0.0_wp,  p%fresh_density, p, GROUND_ROUGH)
-      f1 = snow_cover_fraction(1.0_wp,  1.0_wp/p%fresh_density,  p%fresh_density, p, GROUND_ROUGH)
-      f2 = snow_cover_fraction(50.0_wp, 50.0_wp/p%fresh_density, p%fresh_density, p, GROUND_ROUGH)
+      f0 = water_layer_cover_of(cold_pack(0.0_wp, 265.0_wp, p), .true., p, GROUND_ROUGH)
+      f1 = water_layer_cover_of(cold_pack(1.0_wp, 265.0_wp, p), .true., p, GROUND_ROUGH)
+      f2 = water_layer_cover_of(cold_pack(50.0_wp, 265.0_wp, p), .true., p, GROUND_ROUGH)
       call check('snowfac(0)=0', f0, 0.0_wp, 1.0e-12_wp)
       call check_true('snowfac monotone 0<f1<f2<=1', f1 > 0.0_wp .and. f1 < f2 .and. f2 <= 1.0_wp, f2)
       call check_true('deep pack fully covered (~1)', f2 > 0.99_wp, f2)
+      call check('a film covers nothing', water_layer_cover_of(cold_pack(1.0_wp, 265.0_wp, p), .false., p,          &
+                 GROUND_ROUGH), 0.0_wp, 0.0_wp)
       !--- 1 cm of snow on ground of 1 cm roughness covers about a sixth of it (Niu & Yang 2007).
-      f1 = snow_cover_fraction(2.5_wp, 2.5_wp/p%fresh_density, p%fresh_density, p, GROUND_ROUGH)
+      f1 = water_layer_cover_of(cold_pack(2.5_wp, 265.0_wp, p), .true., p, GROUND_ROUGH)
       call check('1 cm of snow covers tanh(0.16) of the ground', f1, tanh(0.16_wp), 1.0e-12_wp)
    end subroutine test_snow_cover
 
    !--- Build a cold pack by accumulation; assert growth, sub-freezing, and closed ledgers.
    subroutine test_accumulate()
       type(water_layer_state_t)  :: snow
-      real(wp) :: rho                      ! [kg/m3] the pack's density over the stage
       type(surface_env_t) :: env
       type(water_material_t) :: p
-      type(snow_out_t)    :: melt
+      type(water_stage_out_t) :: st
       real(wp) :: dt, snowfall, mass_in, mass_out, e_in, e_out, gain, vapour, g_top
       integer(ik) :: k
       print '(a)', 'test_accumulate:'
       call cold_env(env)
       snow = water_layer_state_t()
-      rho  = water_layer_bulk_density(snow%water, snow%matrix_depth)
       dt = 900.0_wp
       snowfall = 1.0e-3_wp                                   ! [kg/m2/s] ~ 3.6 mm SWE/hr
       mass_in  = 0.0_wp
@@ -178,15 +199,15 @@ contains
       e_in     = 0.0_wp
       e_out    = 0.0_wp
       do k = 1_ik, 40_ik
-         call snow_accumulate(snow, rho, snowfall, 0.0_wp, 264.0_wp, dt, p)
-         mass_in = mass_in + snowfall * dt
-         e_in    = e_in    + snowfall * dt * internal_energy_ice(min(t_3ple, 264.0_wp))
+         call water_layer_stage(0.0_wp, snowfall, 264.0_wp, 0.0_wp, 0.0_wp, dt, p, MIN_DEPTH, env%t_soil_top,       &
+                                1.0_wp, snow, st)
+         mass_in  = mass_in + snowfall * dt
+         e_in     = e_in + st%inflow_enth + st%film_heat
+         mass_out = mass_out + st%free%water
+         e_out    = e_out    + st%free%energy
          call snow_step(snow, env, 1.0_wp, dt, gain, vapour, g_top)
          mass_out = mass_out + vapour
          e_in     = e_in     + gain
-         call snow_drain_meltwater(snow, rho, p, melt)
-         mass_out = mass_out + melt%drained%water
-         e_out    = e_out    + melt%drained%energy
       end do
       call check_true('pack grew (swe > 30 kg/m2)', snow%water > 30.0_wp, snow%water)
       call check_true('snow sub-freezing (temp < t_3ple)', snow%temp < t_3ple, snow%temp)
@@ -198,17 +219,14 @@ contains
    !--- Warm a cold pack: temp pins at t_3ple, fliq rises, melt drains, swe -> melt-out.
    subroutine test_melt_event()
       type(water_layer_state_t)  :: snow
-      real(wp) :: rho                      ! [kg/m3] the pack's density over the stage
       type(surface_env_t) :: env
       type(water_material_t) :: p
-      type(snow_out_t)    :: melt
-      real(wp) :: dt, swe0, mass_out, e_in, e_out, plateau_temp, tot_melt, gain, vapour, g_top
+      real(wp) :: dt, swe0, mass_out, e_in, e_out, plateau_temp, tot_melt, gain, vapour, g_top, w_before
       integer(ik) :: k
       logical :: saw_plateau
       print '(a)', 'test_melt_event:'
       call cold_env(env)
       snow = cold_pack(20.0_wp, 270.0_wp, p)                 ! a 20 kg/m2 cold pack, all ice at 270 K
-      rho  = water_layer_bulk_density(snow%water, snow%matrix_depth)
       swe0 = snow%water
       !--- Strong warm radiative and canopy-air forcing to drive melt.
       env%sw_snow    = 400.0_wp
@@ -231,10 +249,9 @@ contains
             saw_plateau  = .true.
             plateau_temp = snow%temp
          end if
-         call snow_drain_meltwater(snow, rho, p, melt)
-         mass_out = mass_out + melt%drained%water
-         tot_melt = tot_melt + melt%drained%water
-         e_out    = e_out    + melt%drained%energy
+         w_before = mass_out
+         call drain(snow, p, env%t_soil_top, mass_out, e_out, e_in)
+         tot_melt = tot_melt + (mass_out - w_before)
          if (.not. ground_store_present(snow)) exit
       end do
       call check_true('melted out (the store is empty)', .not. ground_store_present(snow),                     &
@@ -255,15 +272,12 @@ contains
    !---~---
    subroutine test_isothermal()
       type(water_layer_state_t)  :: snow, probe
-      real(wp) :: rho                      ! [kg/m3] the pack's density over the stage
       type(surface_env_t) :: env
       type(water_material_t) :: p
-      type(snow_out_t)    :: melt
-      real(wp) :: swe0, tsnow0, gain, vapour, g_top
+      real(wp) :: swe0, tsnow0, gain, vapour, g_top, m_out, e_out, e_in
       integer(ik) :: k
       print '(a)', 'test_isothermal:'
       snow = cold_pack(15.0_wp, 268.0_wp, p)
-      rho  = water_layer_bulk_density(snow%water, snow%matrix_depth)
       env%sw_snow     = 0.0_wp
       env%lw_down     = stefan_boltzmann * 268.0_wp ** 4      ! the sky emits what the pack does
       env%can_temp    = 268.0_wp
@@ -276,9 +290,12 @@ contains
       env%can_shv     = sat_specific_humidity(268.0_wp, env%press, 0.0_wp)
       swe0   = snow%water
       tsnow0 = 268.0_wp
+      m_out  = 0.0_wp
+      e_out  = 0.0_wp
+      e_in   = 0.0_wp
       do k = 1_ik, 50_ik
          call snow_step(snow, env, 1.0_wp, 900.0_wp, gain, vapour, g_top)
-         call snow_drain_meltwater(snow, rho, p, melt)
+         call drain(snow, p, env%t_soil_top, m_out, e_out, e_in)
       end do
       call check_true('no heat into the soil (no soil gradient)', abs(g_top) < 1.0e-6_wp, g_top)
       call check_true('swe steady (drift < 0.5 kg/m2)', abs(snow%water - swe0) < 0.5_wp, snow%water - swe0)
@@ -324,22 +341,29 @@ contains
       call check_true('a pack twice as deep passes the soil less', abs(g_deep) < abs(g_top), g_deep)
    end subroutine test_insulation
 
-   !--- Rain on a sub-freezing pack: adds mass + liquid enthalpy, refreezes (energy rises).
+   !---~---
+   !   Rain on a sub-freezing pack: it adds its mass and exactly its enthalpy, the pack and the
+   ! free water it gives together, and no depth: what freezes fills the pores.
+   !---~---
    subroutine test_rain_on_snow()
       type(water_layer_state_t)  :: snow
-      real(wp) :: rho                      ! [kg/m3] the pack's density over the stage
       type(water_material_t) :: p
-      real(wp) :: e0, swe0
+      type(water_stage_out_t) :: st
+      real(wp) :: e0, swe0, d0
       print '(a)', 'test_rain_on_snow:'
       snow = cold_pack(10.0_wp, 265.0_wp, p)
-      rho  = water_layer_bulk_density(snow%water, snow%matrix_depth)
       e0   = snow%energy
       swe0 = snow%water
-      call snow_accumulate(snow, rho, 0.0_wp, 2.0e-3_wp, 278.0_wp, 900.0_wp, p)    ! warm rain (2 mm/900s)
-      call check('rain adds mass', snow%water, swe0 + 2.0e-3_wp * 900.0_wp, 1.0e-9_wp)
+      d0   = snow%matrix_depth
+      call water_layer_stage(2.0e-3_wp, 0.0_wp, 278.0_wp, 0.0_wp, 0.0_wp, 900.0_wp, p, MIN_DEPTH, 268.0_wp, 0.0_wp, &
+                             snow, st)                                       ! warm rain (2 mm/900s)
+      call check('rain adds mass', snow%water + st%free%water, swe0 + 2.0e-3_wp * 900.0_wp, 1.0e-9_wp)
       call check_true('rain adds energy (warms/refreezes pack)', snow%energy > e0, snow%energy - e0)
-      call check('rain enthalpy exact', snow%energy - e0,                                   &
+      call check('rain enthalpy exact', snow%energy + st%free%energy - e0,                                       &
                  2.0e-3_wp * 900.0_wp * internal_energy_liquid(278.0_wp), 1.0e-6_wp)
+      call check('rain adds no depth', snow%matrix_depth, d0, 0.0_wp)
+      call check('and the pack is denser by it', water_layer_bulk_density(snow%water, snow%matrix_depth),        &
+                 snow%water / d0, 1.0e-12_wp)
    end subroutine test_rain_on_snow
 
    !---~---
@@ -349,10 +373,8 @@ contains
    !---~---
    subroutine test_stiff_coupling()
       type(water_layer_state_t)  :: snow
-      real(wp) :: rho                      ! [kg/m3] the pack's density over the stage
       type(surface_env_t) :: env
       type(water_material_t) :: p
-      type(snow_out_t)    :: melt
       real(wp), parameter :: SWE = 0.3_wp, DT = 900.0_wp, AF = 0.2_wp
       real(wp) :: e0, m_in, m_out, e_in, e_out, t_min, gain, vapour, g_top
       integer(ik) :: k
@@ -366,7 +388,6 @@ contains
 
       !--- (a) A cold pack (243 K) under warm, moist canopy air: it warms toward the air, not past it.
       snow = cold_pack(SWE, 243.0_wp, p)
-      rho  = water_layer_bulk_density(snow%water, snow%matrix_depth)
       env%sw_snow  = 0.0_wp
       env%lw_down  = stefan_boltzmann * 243.0_wp ** 4 + 20.0_wp
       env%can_temp = 268.8_wp
@@ -387,7 +408,6 @@ contains
       snow%water = SWE
       snow%energy = temp_to_internal_energy(0.0_wp, SWE, t_3ple, 0.1_wp)
       snow%matrix_depth  = SWE / p%fresh_density
-      rho  = water_layer_bulk_density(snow%water, snow%matrix_depth)
       env%lw_down  = stefan_boltzmann * t_3ple ** 4 - 60.0_wp
       env%can_temp = 255.0_wp
       env%can_shv  = 3.0e-4_wp
@@ -403,9 +423,7 @@ contains
          if (k == 1_ik) call check_true('one step freezes the liquid without passing the air temperature', &
                                         snow%fliq == 0.0_wp .and. snow%temp > env%can_temp - 5.0_wp, &
                                         snow%temp)
-         call snow_drain_meltwater(snow, rho, p, melt)
-         m_out = m_out + melt%drained%water
-         e_out = e_out + melt%drained%energy
+         call drain(snow, p, env%t_soil_top, m_out, e_out, e_in)
          if (.not. ground_store_present(snow)) exit
          t_min = min(t_min, snow%temp)
       end do
@@ -425,8 +443,7 @@ contains
       print '(a)', 'test_tile_radiation:'
       snow = cold_pack(8.0_wp, 263.0_wp, p)                  ! 3.2 cm deep: cover ~0.47
       call internal_energy_to_temp(snow%energy, snow%water, 0.0_wp, snow%temp, snow%fliq)
-      fc = snow_cover_fraction(snow%water, snow%matrix_depth, water_layer_bulk_density(snow%water, snow%matrix_depth), &
-                               p, 0.01_wp)
+      fc = water_layer_cover_of(snow, .true., p, 0.01_wp)
       call check_true('a patchy pack', fc > 0.05_wp .and. fc < 0.95_wp, fc)
       call ground_tile_radiation(DN_VIS, DN_NIR, DN_LW, SOIL_VIS, SOIL_NIR, SOIL_EMISS, T_SOIL, snow, p,          &
                                  rnet_soil, sw_snow)
@@ -473,126 +490,90 @@ contains
                  1.0e-12_wp * h_bare)
    end subroutine test_ground_balance
 
-   !--- 9. The pond and the water layer, before a step.
-   subroutine test_pond_stage()
-      real(wp), parameter :: DT = 900.0_wp
-      type(surface_env_t) :: env
-      type(water_material_t) :: p
-      type(snow_out_t)    :: st
-      type(water_layer_state_t)  :: pack0
-      real(wp) :: w, e, w0, e0, hold, mix
-      type(ground_store_t) :: pond
-      print '(a)', 'test_pond_stage:'
+   !--- 9. The water layer's stage, before a step.
+   subroutine test_water_layer_stage()
+      real(wp), parameter :: DT = 150.0_wp, LIGHT = 5.0e-6_wp   ! [s], [kg/m2/s] 7.5e-4 kg/m2 a step
+      type(water_material_t)    :: p
+      type(water_layer_state_t) :: layer
+      type(water_stage_out_t)   :: st
+      real(wp) :: fallen, heat, e_in
+      integer(ik) :: k
+      logical  :: film_all_along
+      print '(a)', 'test_water_layer_stage:'
 
-      !--- (a) A pond half frozen at the triple point, alone: it starts a layer of ice.
-      call cold_env(env)
-      env%params = p
-      env%dt     = DT
-      w0 = 3.0_wp
-      e0 = temp_to_internal_energy(0.0_wp, w0, t_3ple, 0.5_wp)
-      w  = w0
-      e  = e0
-      pond = ground_store_t(water=w, energy=e)
-      call prepare_snow_stage(0.0_wp, 0.0_wp, 265.0_wp, 0.01_wp, env, st, pond)
-      w = pond%water
-      e = pond%energy
-      hold = 0.5_wp * w0                                         ! the pond's liquid
-      call check_true('a freezing pond starts a layer', st%exists .and. ground_store_present(env%pack))
-      call check('the layer is ice', env%pack_density, rho_ice, 0.0_wp)
-      call check('the pond keeps its liquid', w, hold, 1.0e-12_wp)
-      call check('the layer is the pond''s ice', env%pack%water, w0 - hold, 1.0e-12_wp)
-      call check('MASS: layer + pond + drained = the pond', env%pack%water + w + st%drained%water, w0, &
-                 1.0e-12_wp)
-      call check('ENERGY: layer + pond + drained = the pond', env%pack%energy + e + st%drained%energy,       &
-                  e0, 1.0e-9_wp * abs(e0))
-      call check('the layer is as deep as its water as ice', env%pack%matrix_depth, env%pack%water / rho_ice,  &
-                 1.0e-15_wp)
+      !--- (a) Light snowfall on frozen ground: a film at the ground's temperature until it is a layer.
+      layer = water_layer_state_t()
+      fallen = 0.0_wp
+      heat   = 0.0_wp
+      e_in   = 0.0_wp
+      film_all_along = .true.
+      do k = 1_ik, 60_ik
+         call water_layer_stage(0.0_wp, LIGHT, 268.0_wp, 0.0_wp, 0.0_wp, DT, p, MIN_DEPTH, 265.0_wp, 0.0_wp, layer, st)
+         fallen = fallen + LIGHT * DT
+         heat   = heat + st%film_heat
+         e_in   = e_in + st%inflow_enth
+         if (k < 30_ik) film_all_along = film_all_along .and. .not. st%is_layer .and. abs(layer%temp - 265.0_wp) < 1.0e-9_wp
+         call check_true('light snow on frozen ground: nothing drains', st%free%water == 0.0_wp, st%free%water)
+      end do
+      call check_true('light snow on frozen ground: a film at the ground''s temperature', film_all_along)
+      call check_true('light snow on frozen ground: then a layer', st%is_layer, layer%matrix_depth)
+      call check('light snow on frozen ground: it keeps all that fell', layer%water, fallen, 1.0e-12_wp)
+      call check('light snow on frozen ground: its energy is what fell and what the ground gave', layer%energy,     &
+                 e_in + heat, 1.0e-9_wp * abs(e_in))
 
-      !--- (b) A cold deep pack and a pond at the triple point: the pack freezes it.
-      call cold_env(env)
-      env%params = p
-      env%dt     = DT
-      env%pack   = cold_pack(40.0_wp, 255.0_wp, p)
-      pack0      = env%pack
-      w0 = 2.0_wp
-      e0 = w0 * internal_energy_liquid(t_3ple)
-      w  = w0
-      e  = e0
-      pond = ground_store_t(water=w, energy=e)
-      call prepare_snow_stage(0.0_wp, 0.0_wp, 255.0_wp, 0.01_wp, env, st, pond)
-      w = pond%water
-      e = pond%energy
-      call check_true('the pond froze into the pack', w == 0.0_wp .and. e == 0.0_wp .and. st%drained%water == 0.0_wp)
-      call check('the pack holds both', env%pack%water, 42.0_wp, 1.0e-12_wp)
-      call check('the pack holds both energies', env%pack%energy, pack0%energy + e0,              &
-                 1.0e-9_wp * abs(e0))
-      mix = 42.0_wp / (40.0_wp / p%fresh_density + 2.0_wp / rho_ice)
-      call check('the pond adds its depth as ice', env%pack_density, mix, 1.0e-9_wp)
-      call check_true('the frozen pond warmed the pack', env%pack%temp > 255.0_wp                         &
-                      .and. env%pack%fliq == 0.0_wp, env%pack%temp)
+      !--- (b) A dusting on warm ground: the film melts, the ground paying for it, and drains.
+      layer = water_layer_state_t()
+      call water_layer_stage(0.0_wp, 0.02_wp / DT, 270.0_wp, 0.0_wp, 0.0_wp, DT, p, MIN_DEPTH, 280.0_wp, 1.0_wp,      &
+                             layer, st)
+      call check_true('a dusting on warm ground is a film', .not. st%is_layer)
+      call check('it drains whole', st%free%water, 0.02_wp, 1.0e-15_wp)
+      call check_true('the ground pays for its melt', st%film_heat > 0.02_wp * latent_heat_fusion, st%film_heat)
+      call check('and it leaves at the ground''s temperature', st%free%energy, 0.02_wp * internal_energy_liquid(280.0_wp), &
+                 1.0e-9_wp)
+      call check_true('nothing is left', .not. ground_store_present(layer))
 
-      !--- (b2) A pack at the plateau, holding little liquid, and a pond: it takes none of the pond.
-      call cold_env(env)
-      env%params = p
-      env%dt     = DT
-      env%pack   = cold_pack(40.0_wp, t_3ple, p)
-      env%pack%energy = temp_to_internal_energy(0.0_wp, 40.0_wp, t_3ple, 0.02_wp)   ! 2 % liquid
-      w0 = 2.0_wp
-      e0 = w0 * internal_energy_liquid(t_3ple)
-      w  = w0
-      e  = e0
-      pond = ground_store_t(water=w, energy=e)
-      call prepare_snow_stage(0.0_wp, 0.0_wp, t_3ple, 0.01_wp, env, st, pond)
-      w = pond%water
-      e = pond%energy
-      call check('a pack at the plateau leaves the pond its water', w, w0, 1.0e-12_wp)
-      call check('and keeps its own', env%pack%water, 40.0_wp, 1.0e-12_wp)
-      call check('and its density', env%pack_density, p%fresh_density, 1.0e-9_wp)
+      !--- (c) A pond holding a round-off share of ice: free water, covering nothing.
+      layer = water_layer_state_t()
+      layer%water  = 3.0_wp
+      layer%energy = 3.0_wp * internal_energy_liquid(t_3ple) - 1.0e-6_wp
+      call water_layer_stage(0.0_wp, 0.0_wp, 280.0_wp, 0.0_wp, 0.0_wp, DT, p, MIN_DEPTH, 275.0_wp, 1.0_wp, layer, st)
+      call check_true('a pond with a trace of ice holds no layer over the step', .not. st%is_layer)
+      call check_true('its water is free, but for the trace and what it holds', st%free%water > 3.0_wp - 1.0e-9_wp, &
+                      st%free%water)
+      call check_true('and it covers nothing', water_layer_cover_of(layer, st%is_layer, p, 0.01_wp) < 1.0e-6_wp,    &
+                      water_layer_cover_of(layer, st%is_layer, p, 0.01_wp))
 
-      !--- (c) A warm pond and no pack: left as it is.
-      call cold_env(env)
-      env%params = p
-      env%dt     = DT
-      w0 = 2.0_wp
-      e0 = w0 * internal_energy_liquid(285.0_wp)
-      w  = w0
-      e  = e0
-      pond = ground_store_t(water=w, energy=e)
-      call prepare_snow_stage(0.0_wp, 0.0_wp, 285.0_wp, 0.01_wp, env, st, pond)
-      w = pond%water
-      e = pond%energy
-      call check_true('a warm pond with no pack is left as it is', .not. st%exists .and. w == w0 .and. e == e0     &
-                      .and. .not. ground_store_present(env%pack))
+      !--- (d) A cold deep pack and a pond at the triple point, one store: the pack's cold freezes it in its pores.
+      layer = cold_pack(40.0_wp, 255.0_wp, p)
+      layer%water  = layer%water + 2.0_wp
+      layer%energy = layer%energy + 2.0_wp * internal_energy_liquid(t_3ple)
+      call water_layer_stage(0.0_wp, 0.0_wp, 255.0_wp, 0.0_wp, 0.0_wp, DT, p, MIN_DEPTH, 268.0_wp, 0.0_wp, layer, st)
+      call check('the pack freezes the pond', st%free%water, 0.0_wp, 0.0_wp)
+      call check_true('all ice', layer%fliq == 0.0_wp .and. layer%temp < t_3ple, layer%temp)
+      call check('within its pores: no deeper', layer%matrix_depth, 40.0_wp / p%fresh_density, 1.0e-15_wp)
 
-      !--- (d) A pack and an empty pond, snowing: the pack as before, fresh snow on fresh snow.
-      call cold_env(env)
-      env%params = p
-      env%dt     = DT
-      env%pack   = cold_pack(10.0_wp, 265.0_wp, p)
-      w = 0.0_wp
-      e = 0.0_wp
-      pond = ground_store_t(water=w, energy=e)
-      call prepare_snow_stage(1.0e-3_wp, 0.0_wp, 265.0_wp, 0.01_wp, env, st, pond)
-      w = pond%water
-      e = pond%energy
-      call check('fresh snow on fresh snow keeps its density', env%pack_density, p%fresh_density, 1.0e-9_wp)
-      call check_true('an empty pond stays empty', w == 0.0_wp)
+      !--- (e) A warm pond: all free water, the layer empty.
+      layer = water_layer_state_t()
+      layer%water  = 2.0_wp
+      layer%energy = 2.0_wp * internal_energy_liquid(285.0_wp)
+      call water_layer_stage(0.0_wp, 0.0_wp, 285.0_wp, 0.0_wp, 0.0_wp, DT, p, MIN_DEPTH, 285.0_wp, 1.0_wp, layer, st)
+      call check_true('a warm pond is all free water', st%free%water == 2.0_wp .and.                              &
+                      st%free%energy == 2.0_wp * internal_energy_liquid(285.0_wp) .and.                           &
+                      .not. ground_store_present(layer))
 
-      !--- (e) Snow on a layer of ice: the densities mix by volume.
-      call cold_env(env)
-      env%params = p
-      env%dt     = DT
-      env%pack   = cold_pack(3.0_wp, 265.0_wp, p)
-      env%pack%matrix_depth = 3.0_wp / rho_ice
-      w = 0.0_wp
-      e = 0.0_wp
-      pond = ground_store_t(water=w, energy=e)
-      call prepare_snow_stage(1.0e-3_wp, 0.0_wp, 265.0_wp, 0.01_wp, env, st, pond)
-      w = pond%water
-      e = pond%energy
-      mix = 3.9_wp / (3.0_wp / rho_ice + 0.9_wp / p%fresh_density)
-      call check('snow on ice mixes the densities by volume', env%pack_density, mix, 1.0e-9_wp)
-   end subroutine test_pond_stage
+      !--- (f) A dusting on a thin litter (40 J/K dry): the two at one temperature, the litter too small to melt it.
+      layer = water_layer_state_t()
+      call water_layer_stage(0.0_wp, 0.02_wp / DT, 270.0_wp, 0.0_wp, 0.0_wp, DT, p, MIN_DEPTH, 275.0_wp, 1.0_wp,      &
+                             layer, st, below=ground_store_t(water=0.005_wp,                                          &
+                                                             energy=temp_to_internal_energy(40.0_wp, 0.005_wp,        &
+                                                                                            275.0_wp, 1.0_wp)),       &
+                             below_dry_cap=40.0_wp)
+      call check_true('a dusting on thin litter: a film at the triple point with it', .not. st%is_layer .and.       &
+                      abs(layer%temp - t_3ple) < 1.0e-9_wp, layer%temp)
+      call check_true('the litter gave it no more than it held above its all-ice state at the triple point',     &
+                      st%film_heat > 0.0_wp .and. st%film_heat < temp_to_internal_energy(40.0_wp, 0.005_wp, 275.0_wp,  &
+                      1.0_wp) - temp_to_internal_energy(40.0_wp, 0.005_wp, t_3ple, 0.0_wp), st%film_heat)
+   end subroutine test_water_layer_stage
 
    !--- 10a. The organic layer's slots: 1.35 kg of litter (3 cm) over 2.15 kg of moss (5 cm), dry, at 280 K.
    function two_slots(o) result(org)

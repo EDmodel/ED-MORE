@@ -200,8 +200,10 @@ contains
          end associate
       end if
       if (d%pond_seed > 0.0_wp) then
-         col%dynamic%soil_water%w_surface        = d%pond_seed
-         col%dynamic%soil_water%w_surface_energy = d%pond_seed * internal_energy_liquid(t_3ple)
+         associate (layer => col%dynamic%ground_surface%water)
+            layer%water  = layer%water  + d%pond_seed
+            layer%energy = layer%energy + d%pond_seed * internal_energy_liquid(t_3ple)
+         end associate
       end if
       do istep = 1_ik, d%hours * STEPS_PER_HOUR
          t_sec = (real(istep, wp) - 0.5_wp) * DT_FAST
@@ -239,7 +241,7 @@ contains
             d%theta_min  = min(d%theta_min, minval(dy%soil_water%theta(1:NSL)))
             d%theta_peak = max(d%theta_peak, maxval(dy%soil_water%theta(1:NSL)))
             d%surf_water_peak  = max(d%surf_water_peak, dy%leaf_surf_water(1) + dy%wood_surf_water(1))
-            d%pond_peak  = max(d%pond_peak, dy%soil_water%w_surface)
+            d%pond_peak  = max(d%pond_peak, col%out%report%exports%free_water)
             d%ood_peak   = max(d%ood_peak, col%out%report%theta_ood_max)
             d%wood_lag   = max(d%wood_lag, abs(dy%wood_temp(1) - dy%cas%can_temp))
             qsat = sat_specific_humidity(dy%cas%can_temp, col%forcing%press)
@@ -280,16 +282,16 @@ contains
       end do
    end subroutine march_day
 
-   !--- The column's water at the day's end: the soil layers, the pond and the pack [kg/m2].
+   !--- The column's water at the day's end: the soil layers and the water layer [kg/m2].
    real(wp) function column_water() result(w)
-      w = col%dynamic%soil_water%w_surface + col%dynamic%ground_surface%water%water                                            &
+      w = col%dynamic%ground_surface%water%water                                                                &
           + sum(col%dynamic%soil_water%theta(1:NSL) * col%site%soil_profile%dz(1:NSL)) * rho_h2o
    end function column_water
 
-   !--- The soil's and the pond's energy [J/m2].
+   !--- The soil's and the water layer's energy [J/m2].
    real(wp) function ground_energy() result(e)
       e = sum(col%dynamic%soil_energy%soil_energy(1:NSL) * col%site%soil_profile%dz(1:NSL))                    &
-          + col%dynamic%soil_water%w_surface_energy
+          + col%dynamic%ground_surface%water%energy
    end function ground_energy
 
    !---~---
@@ -778,7 +780,7 @@ contains
 
    !---~---
    !   6. SNOW. The pack's coupling, integrated: the stage both schemes share
-   ! (prepare_snow_stage: accumulate, then drain the meltwater), the surface balance against
+   ! (water_layer_stage: what falls joins it, its free water leaves), the surface balance against
    ! the live canopy air in the march, the snowfac-blended ground, sublimation into the
    ! canopy air, the commit, and the pack's terms in the whole-column ledgers. The snow
    ! kernels alone are test_surface's.
@@ -855,9 +857,10 @@ contains
    end subroutine test_shed_under_pack
 
    !---~---
-   !   A pond under a cold pack joins it by freezing: the pack's cold freezes about 1.2 kg/m2 of a
-   ! 2 kg/m2 pond at once (60 kg/m2 at 270 K over the latent heat of fusion), and more as the cold
-   ! air cools it; the rest stays the pond, and every ledger closes across the hand-off.
+   !   A pond under a cold pack is one water layer with it: the pack's cold freezes about 1.2 kg/m2
+   ! of a 2 kg/m2 pond at once (60 kg/m2 at 270 K over the latent heat of fusion), the pack holds
+   ! the rest as its liquid, and the ice fills its pores; every ledger closes. The air is dry
+   ! enough to put no frost on it.
    !---~---
    subroutine test_pond_under_pack()
       type(day_t) :: d
@@ -867,7 +870,7 @@ contains
       do is = 1_ik, size(SCHEMES, kind=ik)
          call use_scheme(SCHEMES(is))
          nm = scheme_name(SCHEMES(is))
-         d = day_t(snow_seed = 60.0_wp, pond_seed = 2.0_wp, cold_air = .true., hours = 1_ik)
+         d = day_t(snow_seed = 60.0_wp, pond_seed = 2.0_wp, cold_air = .true., hours = 1_ik, shv_air = 2.0e-3_wp)
          call march_day(d)
          call check_true(trim(nm)//' pond under a pack: all seven ledgers close', all_ledgers_closed(col%out%report))
          call check_true(trim(nm)//' pond under a pack: the pack froze what its cold could',                      &
@@ -986,17 +989,18 @@ contains
    end subroutine test_snowfall_conserved
 
    !---~---
-   !   Snowfall too light to start a pack (snowfall*dt below min_new_snow_mass) reaches the ground
-   ! with the rain, as ice at the air's temperature. Valued as liquid at the canopy air's, the
-   ! column would get the snow's fusion enthalpy from nowhere: consistent with its ledger (the
-   ! boundary term uses the same number), and wrong. The same cold day twice, the mass as light
-   ! snow and as rain: the soil and pond end the snow day poorer by about L_f per kilogram, the
-   ! ground paying for the melt; liquid valuation gives about 0. On this column the ratio is
-   ! ~0.5: the colder, wetter surface loses less to the air and recovers part of the melt's
-   ! cost.
+   !   Snowfall too light to make a layer on warm ground (each step's a film thinner than
+   ! min_depth) reaches the ground as ice at the air's temperature, and the film takes the
+   ! ground's temperature: it melts, the ground paying for the melt, and drains. Valued as liquid
+   ! at the canopy air's, the column would get the snow's fusion enthalpy from nowhere:
+   ! consistent with its ledger (the boundary term uses the same number), and wrong. The same
+   ! cold day twice, the mass as light snow and as rain: the soil and the water layer end the
+   ! snow day poorer by about L_f per kilogram; liquid valuation gives about 0. On this column
+   ! the ratio is ~0.5: the colder, wetter surface loses less to the air and recovers part of
+   ! the melt's cost.
    !---~---
    subroutine test_light_snowfall()
-      real(wp), parameter :: SNOWFALL = 5.0e-6_wp   ! 7.5e-4 kg/m2 per 150 s step, below min_new_snow_mass (1e-3)
+      real(wp), parameter :: SNOWFALL = 5.0e-6_wp   ! 7.5e-4 kg/m2 per 150 s step: 3 um of snow, a film
       type(day_t) :: d
       real(wp)    :: e_snow, e_rain, fusion
       print '(a)', 'test_light_snowfall:'
@@ -1004,7 +1008,8 @@ contains
       d = day_t(snowfall = SNOWFALL)
       call march_day(d)
       e_snow = ground_energy()
-      call check_true('light snowfall: it never started a pack', .not. ground_store_present(col%dynamic%ground_surface%water), &
+      call check_true('light snowfall: on warm ground it melts and drains, the last step''s frost all it keeps',  &
+                      col%dynamic%ground_surface%water%water < col%out%report%exports%cond_export + 1.0e-3_wp,       &
                       col%dynamic%ground_surface%water%water)
       call check_true('light snowfall: whole-column energy closes to round-off',                                   &
                       col%out%report%ledgers%whole_energy%worst < 1.0e-3_wp, col%out%report%ledgers%whole_energy%worst)

@@ -141,7 +141,7 @@ kernel's own argument records are not parameters in this sense: they live with t
 named by role. `<process>_env_t` is what a kernel reads that changes during the run (`leaf_env_t`,
 `cas_env_t`); `<process>_args_t` is what it reads that is fixed for the run or the slow step, which a
 driver fills from the parameters (`aero_args_t`); `<process>_out_t` is what it returns
-(`rad_out_t`, `snow_out_t`). `_state_t` is prognostic state: the stores in `state/`, and the
+(`rad_out_t`, `water_stage_out_t`). `_state_t` is prognostic state: the stores in `state/`, and the
 per-cohort state a kernel reads and writes back (`pheno_state_t`).
 
 **4. Laws and operators do not touch.** The demographic laws decide: they are a process module,

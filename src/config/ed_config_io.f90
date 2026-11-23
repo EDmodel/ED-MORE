@@ -511,8 +511,6 @@ contains
          w%liquid_holding_frac = toml_real(tm, 'ground_surface_layer.water.liquid_holding_frac', w%liquid_holding_frac)
          w%cover_scale_factor = toml_real(tm, 'ground_surface_layer.water.cover_scale_factor', w%cover_scale_factor)
          w%cover_density_exponent = toml_real(tm, 'ground_surface_layer.water.cover_density_exponent', w%cover_density_exponent)
-         w%min_new_snow_mass = toml_real(tm, 'ground_surface_layer.water.min_new_snow_mass', w%min_new_snow_mass)
-         w%tiny_snow_mass = toml_real(tm, 'ground_surface_layer.water.tiny_snow_mass', w%tiny_snow_mass)
          w%pond_capacity = toml_real(tm, 'ground_surface_layer.water.pond_capacity', w%pond_capacity)
          w%initial_mass = toml_real(tm, 'ground_surface_layer.water.initial_mass', w%initial_mass)
          w%initial_temp = toml_real(tm, 'ground_surface_layer.water.initial_temp', w%initial_temp)

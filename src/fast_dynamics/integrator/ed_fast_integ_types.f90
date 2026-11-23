@@ -32,7 +32,7 @@ module ed_fast_integ_types
    use ed_canopy_air_space, only : cas_env_t
    use ed_plant_energy,   only : plant_energy_env_t
    use ed_canopy_water,   only : canopy_water_out_t
-   use ed_surface, only : surface_env_t, snow_out_t, store_exchange_t
+   use ed_surface, only : surface_env_t, water_stage_out_t, store_exchange_t
    use ed_ground_surface_lib, only : porous_layer_temp
    use ed_soil_params, only : soil_profile_t
    use ed_diag_vars, only : N_CO_FAST_ROWS
@@ -385,13 +385,13 @@ module ed_fast_integ_types
       !---~---
       !   The whole-column water budget's other terms over the step (docs/science/diagnostics.md
       ! §4, The budgets): the surface water's net capture of the rain and snow, the pond's
-      ! infiltration into the soil, the pack's meltwater and sublimation, the tissue water the
+      ! infiltration into the ground, the water layer's melt and sublimation, the tissue water the
       ! slow step shed, the surface water above capacity that the update removed, and the change
-      ! of every store; and three stores at the step's end.
+      ! of every store; and four stores at the step's end.
       !---~---
       real(wp)       :: intercept_export    = 0.0_wp   ! [kg/m2] over this dt_fast
       real(wp)       :: infiltration_export = 0.0_wp   ! [kg/m2] over this dt_fast
-      real(wp)       :: melt_export         = 0.0_wp   ! [kg/m2] over this dt_fast
+      real(wp)       :: melt_export         = 0.0_wp   ! [kg/m2] over this dt_fast: the water layer's ice to liquid, net
       real(wp)       :: sublimation_export  = 0.0_wp   ! [kg/m2] over this dt_fast (deposition < 0)
       real(wp)       :: shed_water_export   = 0.0_wp   ! [kg/m2] over this dt_fast
       real(wp)       :: veg_surface_overflow_export  = 0.0_wp   ! [kg/m2] over this dt_fast
@@ -399,13 +399,14 @@ module ed_fast_integ_types
       real(wp)       :: veg_surface_water_store          = 0.0_wp   ! [kg/m2] at the step's end
       real(wp)       :: soil_water_store    = 0.0_wp   ! [kg/m2] at the step's end
       real(wp)       :: plant_water_store   = 0.0_wp   ! [kg/m2] at the step's end
+      real(wp)       :: free_water          = 0.0_wp   ! [kg/m2] at the step's end: the water layer's, the pond
       !---~---
       !   The whole-column energy budget's other terms over the step: the heat through the soil
       ! column's bottom (+ up, into it), the enthalpy the rain and snow carried in and the
       ! enthalpy the outflows carried out (runoff, drainage, the surface water's overflow and the
-      ! exported vapour's beyond LE), and the change of the soil's, the canopy's (its air and tissues) and the surface's
-      ! (snow pack and pond) stores; and the sensible heat from the canopy and the ground to
-      ! the canopy air.
+      ! exported vapour's beyond LE), and the change of the soil's, the canopy's (its air and
+      ! tissues) and the ground's surface layers' stores; and the sensible heat from the canopy
+      ! and the ground to the canopy air.
       !---~---
       real(wp)       :: heat_bottom_export  = 0.0_wp   ! [J/m2] over this dt_fast
       real(wp)       :: precip_enth_export  = 0.0_wp   ! [J/m2] over this dt_fast
@@ -546,12 +547,6 @@ module ed_fast_integ_types
       real(wp), allocatable :: leaf_water_mass(:) ! [kg/plant] internal leaf water (ncoh)
       real(wp), allocatable :: wood_water_mass(:) ! [kg/plant] internal wood water (ncoh)
       !---~---
-      !   The pond: carried through the stages unchanged and committed from the water network.
-      ! Like the surface water it carries no error group, so the controller scores no frozen quantity.
-      !---~---
-      real(wp) :: w_surface      = 0.0_wp         ! [kg/m2] ponded surface water
-      real(wp) :: w_surface_energy = 0.0_wp         ! [J/m2]  enthalpy of the ponded water
-      !---~---
       !   The leaves' and wood's surface water, distinct from the internal water above: it
       ! evaporates with no stomatal resistance. Per m2 of ground, unlike the per-plant fields above.
       !---~---
@@ -571,7 +566,6 @@ module ed_fast_integ_types
       real(wp) :: pond_infil    = 0.0_wp          ! [kg/m2/s] the pond's into the ground: the top organic slot or layer
       real(wp) :: drainage      = 0.0_wp          ! [kg/m2/s] bottom-face drainage
       real(wp) :: runoff_surf   = 0.0_wp          ! [kg/m2/s] surface runoff
-      real(wp) :: ground_inflow_enth = 0.0_wp     ! [W/m2]    the enthalpy it brings across the column's boundary
       real(wp) :: t_infil       = 0.0_wp          ! [K]       temperature of the infiltrating (pond) water
       real(wp) :: w_surface_energy1 = 0.0_wp        ! [J/m2]    end-of-step pond ENTHALPY
       real(wp) :: runoff_enth   = 0.0_wp          ! [W/m2]    enthalpy leaving with surface runoff
@@ -645,7 +639,7 @@ module ed_fast_integ_types
    end type water_organic_t
 
    type :: water_drive_t
-      real(wp) :: rain   = 0.0_wp                          ! [kg/m2/s] water reaching the pond
+      real(wp) :: rain   = 0.0_wp                          ! [kg/m2/s] water reaching the pond: the free water, over the step
       real(wp) :: t_rain = 298.15_wp                       ! [K] the temperature that values it
       real(wp) :: pond_capacity = 0.0_wp                   ! [kg/m2] the pond above which it runs off
       real(wp) :: t_soil(n_soil_layer_max) = 298.15_wp     ! [K] temperature of the water a layer gives up
@@ -702,7 +696,7 @@ module ed_fast_integ_types
       real(wp) :: exfil = 0.0_wp, exfil_enth = 0.0_wp  ! top layer -> pond
       real(wp) :: drain = 0.0_wp, evap = 0.0_wp        ! out of the bottom; out of the top layer to the air
       real(wp) :: spill = 0.0_wp, spill_enth = 0.0_wp  ! pond runoff over its capacity
-      real(wp) :: rain_enth = 0.0_wp                   ! enthalpy the rain brought
+      real(wp) :: rain_enth = 0.0_wp                   ! enthalpy the water reaching the pond brought
       !---~---
       !   With organic slots in the network: the flow down from each node and its evaporation, the
       ! enthalpy the slots gained with their water (their evaporation's is the march's), and the top
@@ -743,8 +737,9 @@ module ed_fast_integ_types
       type(cas_boundary_t)         :: cas          ! CAS <-> atmosphere boundary
       type(plant_energy_env_t)     :: tissue       ! per-cohort leaf/wood energy coefficients + heat store
       type(canopy_water_out_t)     :: veg_surface         ! the canopy's surface water
-      type(surface_env_t)          :: ground       ! what the ground surface reads, the snow pack among it
-      type(snow_out_t)             :: snow         ! the snow stage's hand-off (all zero without a pack)
+      type(surface_env_t)          :: ground       ! what the ground surface reads, the water layer among it
+      type(water_stage_out_t)      :: stage        ! the water layer's stage: its free water, and what it moved
+      real(wp) :: stage_soil_heat = 0.0_wp         ! [J/m2] the heat a film took from the top soil layer at the stage
       type(soil_hydrology_t)       :: hydrology    ! the water network's soil flows over the step
       type(root_zone_t)            :: roots        ! the network's root uptake and its placement by layer
       type(plant_water_t)          :: plant        ! the network's sapflow and uptake per plant
@@ -1093,7 +1088,7 @@ contains
    ! state_entry_rules the only one that says how each is treated. Fortran cannot check that a
    ! field is listed, so test_fast_integ_kernels runs every field through every combinator.
    ! Layout: CAS enthalpy, humidity, CO2 | soil energy (1:nsl) | soil water (1:nsl) |
-   !   per cohort: leaf, wood water | per cohort: leaf, wood surface water | pond: water, enthalpy
+   !   per cohort: leaf, wood water | per cohort: leaf, wood surface water
    !---~---
    pure subroutine state_to_array(y, n, nsl, v)
       type(march_state_t), intent(in)  :: y
@@ -1115,9 +1110,6 @@ contains
          v(o+2*i-1) = y%leaf_surf_water(i)
          v(o+2*i) = y%wood_surf_water(i)
       end do
-      o = o + 2_ik*n
-      v(o+1) = y%w_surface
-      v(o+2) = y%w_surface_energy
    end subroutine state_to_array
 
    !---~---
@@ -1147,15 +1139,9 @@ contains
          y%leaf_surf_water(i) = v(o+2*i-1)
          y%wood_surf_water(i) = v(o+2*i)
       end do
-      o = o + 2_ik*n
-      y%w_surface = v(o+1)
-      y%w_surface_energy = v(o+2)
    end subroutine array_to_state
 
-   !---~---
-   !   A tendency in the same layout. The pond has none (it is committed from the water network),
-   ! so its entries are 0 and y + a*k leaves it as it was.
-   !---~---
+   !--- A tendency in the same layout.
    pure subroutine tend_to_array(k, n, nsl, v)
       type(march_tend_t), intent(in)  :: k
       integer(ik),         intent(in)  :: n, nsl
@@ -1176,16 +1162,13 @@ contains
          v(o+2*i-1) = k%d_leaf_surf_water(i)
          v(o+2*i) = k%d_wood_surf_water(i)
       end do
-      o = o + 2_ik*n
-      v(o+1) = 0.0_wp
-      v(o+2) = 0.0_wp
    end subroutine tend_to_array
 
    !---~---
    !   How entry j of the flat array is treated: norm_group, its group's tolerances (0: none), and
    ! in_embedded_error, whether the march integrates it and so has an error to measure: the
    ! canopy air and the soil heat. The soil and plant water move at the water network's fixed
-   ! rate on both schemes, and the surface water and the pond by operator-split maps, so their
+   ! rate on both schemes, and the surface water by operator-split maps, so their
    ! embedded difference is structurally zero: it is set to 0, not left as rounding noise, and
    ! the norm leaves them out.
    !---~---
@@ -1215,7 +1198,7 @@ contains
          in_embedded_error = .false.
       else
          norm_group = 0_ik
-         in_embedded_error = .false.         ! surface water and pond
+         in_embedded_error = .false.         ! surface water
       end if
    end subroutine state_entry_rules
 
@@ -1241,7 +1224,7 @@ contains
       type(march_state_t), intent(in)    :: y
       integer(ik),          intent(in)    :: n, nsl
       type(march_state_t), intent(inout) :: y_stage
-      real(wp) :: v(5_ik + 2_ik*nsl + 4_ik*n)
+      real(wp) :: v(3_ik + 2_ik*nsl + 4_ik*n)
       call state_to_array(y, n, nsl, v)
       call array_to_state(v, n, nsl, y_stage)
    end subroutine state_init
@@ -1255,7 +1238,7 @@ contains
       real(wp),             intent(in)    :: a
       type(march_tend_t),  intent(in)    :: k
       integer(ik),          intent(in)    :: n, nsl
-      real(wp) :: vy(5_ik + 2_ik*nsl + 4_ik*n), vk(5_ik + 2_ik*nsl + 4_ik*n)
+      real(wp) :: vy(3_ik + 2_ik*nsl + 4_ik*n), vk(3_ik + 2_ik*nsl + 4_ik*n)
       call state_to_array(y_stage, n, nsl, vy)
       call tend_to_array(k, n, nsl, vk)
       vy = vy + a * vk
@@ -1359,7 +1342,7 @@ contains
       real(wp),             intent(in)    :: b
       integer(ik),          intent(in)    :: n, nsl
       type(march_state_t), intent(inout) :: out
-      real(wp) :: vy(5_ik + 2_ik*nsl + 4_ik*n), v2(5_ik + 2_ik*nsl + 4_ik*n)
+      real(wp) :: vy(3_ik + 2_ik*nsl + 4_ik*n), v2(3_ik + 2_ik*nsl + 4_ik*n)
       call state_to_array(y, n, nsl, vy)
       call state_to_array(Y2, n, nsl, v2)
       vy = (1.0_wp - b)*vy + b*v2
@@ -1405,8 +1388,8 @@ contains
       type(march_state_t), intent(in)    :: Y3, base3, Y2, y
       integer(ik),          intent(in)    :: n, nsl
       type(march_state_t), intent(inout) :: err
-      real(wp)    :: v3(5_ik + 2_ik*nsl + 4_ik*n), vb(5_ik + 2_ik*nsl + 4_ik*n)
-      real(wp)    :: v2(5_ik + 2_ik*nsl + 4_ik*n), vy(5_ik + 2_ik*nsl + 4_ik*n)
+      real(wp)    :: v3(3_ik + 2_ik*nsl + 4_ik*n), vb(3_ik + 2_ik*nsl + 4_ik*n)
+      real(wp)    :: v2(3_ik + 2_ik*nsl + 4_ik*n), vy(3_ik + 2_ik*nsl + 4_ik*n)
       integer(ik) :: j, grp
       logical     :: counted
       call state_to_array(Y3, n, nsl, v3)
@@ -1429,7 +1412,7 @@ contains
       type(march_state_t), intent(in)    :: a, b
       integer(ik),          intent(in)    :: n, nsl
       type(march_state_t), intent(inout) :: out
-      real(wp) :: va(5_ik + 2_ik*nsl + 4_ik*n), vb(5_ik + 2_ik*nsl + 4_ik*n)
+      real(wp) :: va(3_ik + 2_ik*nsl + 4_ik*n), vb(3_ik + 2_ik*nsl + 4_ik*n)
       call state_to_array(a, n, nsl, va)
       call state_to_array(b, n, nsl, vb)
       va = va - vb
@@ -1444,7 +1427,7 @@ contains
       type(march_state_t), intent(in) :: ref
       integer(ik),          intent(in) :: n, nsl
       type(march_state_t) :: z
-      real(wp) :: v(5_ik + 2_ik*nsl + 4_ik*n)
+      real(wp) :: v(3_ik + 2_ik*nsl + 4_ik*n)
       v = 0.0_wp
       call array_to_state(v, n, nsl, z)
    end function zero_like

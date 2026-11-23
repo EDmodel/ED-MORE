@@ -425,7 +425,7 @@ contains
       !--- The ground's surface layers: the water layer and its free water, the litter and the moss.
       call add_variable(reg, 'mean_free_water_py', 'the water layer''s free water, the pond that infiltrates', 'kg/m2',  &
                         DIM_SCALAR, AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_FREE_WATER)
-      call add_variable(reg, 'mean_water_layer_mass_py', 'the water layer''s water: snow, ice and the liquid they hold',   &
+      call add_variable(reg, 'mean_water_layer_mass_py', 'the water layer''s water: snow, ice and ponded water',   &
                         'kg/m2', DIM_SCALAR, AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_WATER_LAYER_MASS)
       call add_variable(reg, 'mean_water_layer_ice_py', 'the water layer''s ice (the frozen water equivalent)', 'kg/m2',   &
                         DIM_SCALAR, AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_WATER_LAYER_ICE)
@@ -846,7 +846,8 @@ contains
                         GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_THROUGHFALL, flux=.true.)
       call add_variable(reg, 'mean_infiltration_py', 'infiltration: the free water into the ground', 'kg/m2/s',           &
                         DIM_SCALAR, AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_INFILTRATION, flux=.true.)
-      call add_variable(reg, 'mean_ice_melt_py', 'meltwater the water layer drains to its free water', 'kg/m2/s',          &
+      call add_variable(reg, 'mean_ice_melt_py', 'the water layer''s ice that melts, net of water that freezes',   &
+                        'kg/m2/s',                                                                                &
                         DIM_SCALAR, AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_ICE_MELT, flux=.true.)
       call add_variable(reg, 'mean_water_layer_evap_py', 'vapour from the water layer (deposition < 0)', 'kg/m2/s',       &
                         DIM_SCALAR, AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_WATER_LAYER_EVAP, flux=.true.)

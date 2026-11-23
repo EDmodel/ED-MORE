@@ -9,8 +9,7 @@
 !                                resistances, the law the top layer and an organic slot share;
 !   * ground_evaporation_rate -- the top layer's, through its dry surface layer, on the
 !                                boundary's terms that ground_evaporation_setup computes;
-!   * store_evaporation       -- a store's, supplied while it holds water above its residual;
-!   * pond_inflow             -- the water reaching the pond and its temperature.
+!   * store_evaporation       -- a store's, supplied while it holds water above its residual.
 ! Layer water relations are in ed_soil_hydr_lib, root uptake in ed_plant_hydraulics.
 !---~---
 module ed_soil_water
@@ -19,14 +18,13 @@ module ed_soil_water
    use ed_soil_params,        only : soil_profile_t, soil_params_t, SOIL_BC_AQUIFER
    use ed_soil_hydr_lib,      only : soil_head_to_theta
    use ed_numerics,           only : smooth_max0, smooth_step
-   use ed_therm_lib,          only : sat_specific_humidity, internal_energy_liquid, liquid_energy_to_temp,    &
-                                     precip_enthalpy
+   use ed_therm_lib,          only : sat_specific_humidity
    implicit none
    private
 
    public :: soil_water_flux, ground_evaporation_rate, bottom_flux, evaporation_supply
    public :: philip_evaporation, dry_layer_resistance, store_evaporation
-   public :: ground_evap_env_t, ground_evaporation_setup, pond_inflow, organic_cover_path, vapour_diffusivity
+   public :: ground_evap_env_t, ground_evaporation_setup, organic_cover_path, vapour_diffusivity
    public :: slot_evaporation_setup
 
    !---~---
@@ -314,47 +312,5 @@ contains
       call smooth_step(avail / w, f, df)
       df = df / w
    end subroutine evaporation_supply
-
-   !---~---
-   !   pond_inflow -- the water reaching the pond and the temperature that values it: the
-   ! meltwater under a pack, the throughfall on bare ground, either joined by the water
-   ! the tissues shed (docs/science/soil_plant_water.md §5, "The ground inflow"). When
-   ! nothing falls, the throughfall is valued at the canopy-air temperature t_cas.
-   ! boundary_enth is the part of the inflow's enthalpy that crosses the column's
-   ! boundary: all of it on bare ground, the shed water's under a pack.
-   !---~---
-   pure subroutine pond_inflow(pack_exists, melt_rate, t_melt, throughfall, rainfall, snowfall, t_air, t_cas,     &
-                               shed_rate, shed_enth, inflow, t_inflow, boundary_enth)
-      logical,  intent(in)  :: pack_exists     !           a snow pack covers the ground
-      real(wp), intent(in)  :: melt_rate       ! [kg/m2/s] the pack's meltwater
-      real(wp), intent(in)  :: t_melt          ! [K]       its temperature
-      real(wp), intent(in)  :: throughfall     ! [kg/m2/s] rain and snow through the canopy
-      real(wp), intent(in)  :: rainfall, snowfall   ! [kg/m2/s] above the canopy
-      real(wp), intent(in)  :: t_air           ! [K]       the air temperature precipitation is valued at
-      real(wp), intent(in)  :: t_cas           ! [K]       canopy-air temperature (nothing falling)
-      real(wp), intent(in)  :: shed_rate       ! [kg/m2/s] water the tissues shed to the ground
-      real(wp), intent(in)  :: shed_enth       ! [W/m2]    its enthalpy
-      real(wp), intent(out) :: inflow          ! [kg/m2/s] all the water reaching the pond
-      real(wp), intent(out) :: t_inflow        ! [K]       the temperature that values it
-      real(wp), intent(out) :: boundary_enth   ! [W/m2]    what it brings across the column's boundary
-      real(wp) :: water_base, inflow_enth, t_water_base
-      if (pack_exists) then
-         water_base = melt_rate
-      else
-         water_base = throughfall
-      end if
-      inflow = water_base + shed_rate
-      t_water_base = t_cas
-      if (pack_exists) then
-         t_water_base = t_melt
-      else if (rainfall + snowfall > tiny_num) then
-         t_water_base = liquid_energy_to_temp(precip_enthalpy(rainfall, snowfall, t_air) / (rainfall + snowfall))
-      end if
-      inflow_enth = water_base * internal_energy_liquid(t_water_base) + shed_enth
-      t_inflow = t_water_base
-      if (shed_rate > 0.0_wp) t_inflow = liquid_energy_to_temp(inflow_enth / inflow)
-      boundary_enth = inflow_enth
-      if (pack_exists) boundary_enth = shed_enth
-   end subroutine pond_inflow
 
 end module ed_soil_water

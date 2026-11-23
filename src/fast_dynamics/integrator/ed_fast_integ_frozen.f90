@@ -19,7 +19,7 @@
 !---~---
 module ed_fast_integ_frozen
    use ed_kinds,              only : wp, ik
-   use ed_constants,          only : tiny_num, rho_h2o, pi, r_gas,                              &
+   use ed_constants,          only : tiny_num, rho_h2o, pi, r_gas, cp_organic,                            &
                                      kgcday_2_umols, t_3ple
    use ed_diag_vars,          only : CO_ANET, CO_AGROSS, CO_GSW, CO_GBW, CO_CI, CO_CS, CO_RD, CO_BETA_STOM,     &
                                      CO_BETA_NONSTOM, CO_LEAF_TEMP, CO_WOOD_TEMP, CO_LEAF_VPD, CO_PSI_LEAF,      &
@@ -28,7 +28,6 @@ module ed_fast_integ_frozen
                                      CO_PSI_WOOD, CO_PLC, CO_SAPFLOW, CO_ROOT_UPTAKE, CO_WET_FRACTION
    use ed_plant_hydr_lib,     only : conductance_retained_fraction, root_soil_contact
    use ed_plant_hydraulics,   only : leaf_node_psi
-   use ed_surface, only : snow_out_t
    use ed_soil_derive,        only : top_soil_psi
    use ed_soil_params,        only : soil_profile_t
    use ed_soil_hydr_lib,      only : soil_ice_state, soil_liquid_capacity, ice_impedance
@@ -46,7 +45,7 @@ module ed_fast_integ_frozen
    use ed_biophysics_params, only : aero_params_t
    use ed_patch_state_vars, only : cas_state_t, soil_carbon_state_t, cas_capacities, cas_capacity_change,          &
                                    porous_layers_present, porous_layers_sums, porous_layer_curve, porous_layers_spill, &
-                                   porous_layers_split_energy, porous_energy, ground_top_temp,                    &
+                                   porous_layers_split_energy, porous_energy, porous_water, ground_top_temp,      &
                                    ground_store_t, ground_surface_store
    use ed_ground_surface_params, only : ground_surface_layer_params_t, porous_material_t, N_POROUS
    use ed_biogeochem_params, only : N_SOIL_POOL
@@ -57,8 +56,8 @@ module ed_fast_integ_frozen
    use ed_leaf_gas_exchange, only : leaf_gas_exchange_batch, cohort_leaf_par
    use ed_respiration,   only : stem_maintenance_respiration, fine_root_maintenance_respiration, root_zone_temp_scale, &
                                 decomposition_env_scalar, decomposition_transfer_matrix, heterotrophic_respiration
-   use ed_surface, only : surface_env_t, prepare_snow_stage
-   use ed_soil_water, only : pond_inflow, organic_cover_path, vapour_diffusivity, slot_evaporation_setup
+   use ed_surface, only : surface_env_t, water_layer_stage, water_layer_cover_of
+   use ed_soil_water, only : organic_cover_path, vapour_diffusivity, slot_evaporation_setup
    use ed_therm_lib,          only : internal_energy_liquid, liquid_energy_to_temp, precip_enthalpy,             &
                                      cas_enthalpy_to_temp, cas_heat_capacity, air_vpd, air_density,             &
                                      soil_thermal_conductivity, specific_humidity_to_vapor_pressure
@@ -100,10 +99,7 @@ contains
       real(wp)    :: can_dmol      ! [mol/m3] the canopy air's dry-air molar density
       !--- The processes' patch totals [umol/m2 ground/s] and the root zone's drivers.
       real(wp)    :: gpp, ra_leaf, ra_stem, ra_root, rh, soil_temp_root, theta_mean
-      real(wp)    :: throughfall   ! [kg/m2/s] the rain and snow through the canopy
-      real(wp)    :: w_pond, e_pond   ! [kg/m2], [J/m2] the pond the step starts from, after the snow stage
       real(wp)    :: w_max            ! [kg/m2] the water the organic layer holds saturated
-      type(ground_store_t) :: pond    ! [kg/m2], [J/m2] the pond: the stage's moves and the porous layers' spill
       real(wp)    :: dry_depth        ! [m] the organic layer's dried top
       real(wp)    :: t_surface        ! [K] the ground's surface: the organic layer's, else the top soil node's
       real(wp)    :: t_soil_top       ! [K] the top soil node's
@@ -118,7 +114,7 @@ contains
       !   The ground's stage, then the radiation through the canopy onto the ground it leaves, so
       ! the two-stream's ground and the surface's balance have one cover.
       !---~---
-      call ground_stage(dt_fast, cfg, static, forcing, dynamic, out, frozen, pond, throughfall)
+      call ground_stage(dt_fast, cfg, site, static, forcing, dynamic, out, frozen)
       if (forcing%sky_live) call canopy_ground_radiation(cfg, static, dynamic, frozen%ground%pack,              &
                                                          frozen%ground%snowfac, forcing)
 
@@ -176,8 +172,6 @@ contains
                                out%report%exports%cas_capacity_energy, out%report%exports%cas_capacity_water,    &
                                out%report%exports%cas_capacity_co2)
 
-      w_pond = pond%water
-      e_pond = pond%energy
       !---~---
       !   The thermal resistance from the ground's surface down to the top soil node, its depth over
       ! the top layer's conductivity; the pack's base conducts through it unless an organic layer
@@ -195,7 +189,7 @@ contains
       call tissue_coefficients(dt_fast, cfg, static, forcing, dynamic, out%aero, rho, cp_cas, frozen%tissue,          &
                                frozen%veg_surface, frozen%plant)
       call canopy_air_boundary(cfg%aero, static%geom, out%aero, forcing, rho, cp_cas, press, frozen%cas, frozen%ground)
-      call ground_inflow(static, site%soil_profile, forcing, dynamic, out%aero%ggnet, throughfall, tcas, qcas, rho, &
+      call ground_inflow(site%soil_profile, forcing, dynamic, out%aero%ggnet, tcas, qcas, rho, &
                          t_soil_top, nsl, cfg%ground_surface, frozen)
       frozen%water_drive%pond_capacity = cfg%ground_surface%water%pond_capacity
       !---~---
@@ -212,39 +206,38 @@ contains
       !--- The start states: the water network's, from the stores' state^n water, and the march's.
       call set_water_state(static, site%soil_profile, cfg%pft%hydraulics, dynamic%soil_water%theta(1:nsl),       &
                            frozen%water_drive%ice(1:nsl),                                                        &
-                           w_pond, e_pond,                                                                       &
+                           0.0_wp, 0.0_wp,                                                                       &
                            dynamic%leaf_water_mass(1:n), dynamic%wood_water_mass(1:n), water,                    &
                            frozen%water_drive%org)
-      call pack_march_start(dynamic, w_pond, e_pond, n, nsl, y)
+      call pack_march_start(dynamic, site%soil_profile%dz(1), frozen%stage_soil_heat, n, nsl, y)
    end subroutine build_frozen
 
    !---~---
-   !   ground_stage -- the ground's stores before the step's radiation and its march
-   ! (docs/science/snow_biophysics.md §The snow store): their water and energy as the step finds
-   ! them, which the whole-column ledgers start from; the canopy's interception of the rain and
-   ! snow, which the ground does not change; the pack's stage with the throughfall, its rain and
-   ! its snow in the precipitation's proportions, the pond and the liquid the pack holds beyond
-   ! its capacity, out to the pond, before the water network takes that water this step; and the
-   ! porous layers' spill (docs/science/surface_organic_layer.md): what a slot holds above
-   ! saturation, dew or frost it could not take, joins the pond, the water then on the ground
-   ! being theirs and the pond's together. The pack's and the porous layers' exchange with the
-   ! canopy air and the soil is the march's. Returns the pond the step starts from and the
-   ! throughfall.
+   !   ground_stage -- the ground's stores before the step's radiation and its march: their water
+   ! and energy as the step finds them, which the whole-column ledgers start from; the canopy's
+   ! interception of the rain and snow, which the ground does not change; the porous layers'
+   ! spill (docs/science/surface_organic_layer.md), what a slot holds above saturation joining
+   ! the water layer; and the water layer's stage (water_layer_stage): the throughfall, its rain
+   ! and its snow in the precipitation's proportions, and the water the tissues shed join it, its
+   ! free water leaves it for the water network's pond, a film takes the temperature of the node it lies
+   ! on, the top porous layer or the top soil layer, and its cover is set. The water layer's
+   ! exchange with the canopy air and the soil is the march's.
    !---~---
-   subroutine ground_stage(dt_fast, cfg, static, forcing, dynamic, out, frozen, pond, throughfall)
+   subroutine ground_stage(dt_fast, cfg, site, static, forcing, dynamic, out, frozen)
       real(wp),                   intent(in)    :: dt_fast
       type(ed_config_t),          intent(in)    :: cfg
+      type(site_surface_t),       intent(in)    :: site
       type(fast_static_state_t),  intent(in)    :: static
       type(fast_forcing_t),       intent(in)    :: forcing
       type(fast_dynamic_state_t), intent(in)    :: dynamic
       type(fast_output_t),        intent(inout) :: out
       type(frozen_t),             intent(inout) :: frozen
-      type(ground_store_t),       intent(out)   :: pond          ! [kg/m2], [J/m2]
-      real(wp),                   intent(out)   :: throughfall   ! [kg/m2/s] the rain and snow through the canopy
-      real(wp) :: snow_share   ! [-] the snow's share of the precipitation
+      real(wp) :: throughfall   ! [kg/m2/s] the rain and snow through the canopy
+      real(wp) :: snow_share    ! [-] the snow's share of the precipitation
+      real(wp) :: t_below, fliq_below, dry_cap
+      integer(ik) :: k
+      logical  :: has_porous
       frozen%surface0 = ground_surface_store(dynamic%ground_surface)
-      frozen%surface0%water  = frozen%surface0%water  + dynamic%soil_water%w_surface
-      frozen%surface0%energy = frozen%surface0%energy + dynamic%soil_water%w_surface_energy
       call intercept_rain(dt_fast, cfg, static, forcing, dynamic, frozen%veg_surface, throughfall)
       snow_share = 0.0_wp
       if (forcing%rainfall + forcing%snowfall > 0.0_wp)                                                         &
@@ -252,13 +245,51 @@ contains
       frozen%ground%pack   = dynamic%ground_surface%water
       frozen%ground%params = cfg%ground_surface%water
       frozen%ground%dt     = dt_fast
-      pond%water  = dynamic%soil_water%w_surface
-      pond%energy = dynamic%soil_water%w_surface_energy
-      call prepare_snow_stage(snow_share * throughfall, (1.0_wp - snow_share) * throughfall, forcing%air_temp,    &
-                              cfg%aero%soil_rough, frozen%ground, frozen%snow, pond)
-      out%report%exports%water_layer_cover = frozen%ground%snowfac
       frozen%porous = dynamic%ground_surface%porous
-      call porous_layers_spill(frozen%porous, cfg%ground_surface, pond)
+      call porous_layers_spill(frozen%porous, cfg%ground_surface, frozen%ground%pack%ground_store_t)
+      has_porous = porous_layers_present(frozen%porous)
+      if (has_porous) then
+         t_below    = frozen%porous(1)%temp
+         fliq_below = frozen%porous(1)%fliq
+      else
+         t_below    = dynamic%soil_energy%soil_temp(1)
+         fliq_below = dynamic%soil_energy%soil_fliq(1)
+      end if
+      if (has_porous) then
+         dry_cap = 0.0_wp
+         do k = 1_ik, N_POROUS
+            dry_cap = dry_cap + cp_organic * frozen%porous(k)%matter
+         end do
+         call water_layer_stage((1.0_wp - snow_share) * throughfall, snow_share * throughfall, forcing%air_temp,   &
+                                static%shed_water_rate, static%shed_water_enth, dt_fast, cfg%ground_surface%water,   &
+                                cfg%ground_surface%min_depth, t_below, fliq_below, frozen%ground%pack, frozen%stage,  &
+                                below=ground_store_t(water=porous_water(frozen%porous),                               &
+                                                     energy=porous_energy(frozen%porous)),                            &
+                                below_dry_cap=dry_cap)
+      else
+         call water_layer_stage((1.0_wp - snow_share) * throughfall, snow_share * throughfall, forcing%air_temp,   &
+                                static%shed_water_rate, static%shed_water_enth, dt_fast, cfg%ground_surface%water,   &
+                                cfg%ground_surface%min_depth, t_below, fliq_below, frozen%ground%pack, frozen%stage)
+      end if
+      !--- A film's heat comes from the node it lies on: the porous layers here, the top soil layer at the march's start.
+      frozen%stage_soil_heat = 0.0_wp
+      if (has_porous) then
+         if (frozen%stage%film_heat /= 0.0_wp)                                                                  &
+            call porous_layers_split_energy(frozen%porous, porous_energy(frozen%porous) - frozen%stage%film_heat)
+      else
+         frozen%stage_soil_heat = frozen%stage%film_heat
+      end if
+      frozen%ground%snowfac = water_layer_cover_of(frozen%ground%pack, frozen%stage%is_layer,                     &
+                                                   cfg%ground_surface%water, cfg%aero%soil_rough)
+      !---~---
+      !   The free water reaches the water network's pond over the step, at a steady rate and its
+      ! own temperature, so the pond starts from empty at the head the ground below gives it.
+      !---~---
+      frozen%water_drive%rain   = frozen%stage%free%water / dt_fast
+      frozen%water_drive%t_rain = t_below
+      if (frozen%stage%free%water > 0.0_wp)                                                                      &
+         frozen%water_drive%t_rain = liquid_energy_to_temp(frozen%stage%free%energy / frozen%stage%free%water)
+      out%report%exports%water_layer_cover = frozen%ground%snowfac
    end subroutine ground_stage
 
    !---~---
@@ -876,21 +907,17 @@ contains
    end subroutine organic_network_drive
 
    !---~---
-   !   ground_inflow -- what drives the water network besides the transpiration demand
-   ! (docs/science/soil_plant_water.md §5, "The ground inflow"): the water reaching the
-   ! pond, the temperature that values it and the enthalpy it brings across the column's
-   ! boundary (pond_inflow), each layer's temperature and ice, and the ground evaporation's
-   ! boundary. Also the liquid enthalpy of the rain the canopy's surface water exchanges with,
-   ! which the start-of-step surface solves read, so it runs before them.
+   !   ground_inflow -- what drives the water network besides the transpiration demand and the
+   ! pond, which the water layer's free water already is (docs/science/soil_plant_water.md §5):
+   ! each layer's temperature and ice, its roots' contact, and the ground evaporation's boundary.
+   ! Also the liquid enthalpy of the rain the canopy's surface water exchanges with, which the
+   ! start-of-step surface solves read, so it runs before them.
    !---~---
-   subroutine ground_inflow(static, profile, forcing, dynamic, ggnet, throughfall, tcas, qcas, rho, t_ground, nsl, &
-                            organic, frozen)
-      type(fast_static_state_t),  intent(in)    :: static
+   subroutine ground_inflow(profile, forcing, dynamic, ggnet, tcas, qcas, rho, t_ground, nsl, organic, frozen)
       type(soil_profile_t),       intent(in)    :: profile
       type(fast_forcing_t),       intent(in)    :: forcing
       type(fast_dynamic_state_t), intent(in)    :: dynamic
       real(wp),                   intent(in)    :: ggnet         ! [m/s] ground <-> canopy-air conductance
-      real(wp),                   intent(in)    :: throughfall   ! [kg/m2/s]
       real(wp),                   intent(in)    :: tcas, qcas, rho, t_ground
       integer(ik),                intent(in)    :: nsl
       type(ground_surface_layer_params_t),     intent(in)    :: organic   ! the organic layer's materials
@@ -899,10 +926,7 @@ contains
       real(wp) :: depth          ! [m] an organic slot's depth
       type(porous_material_t) :: m
       integer(ik) :: k
-      associate (snow => frozen%snow, drive => frozen%water_drive)
-         call pond_inflow(snow%exists, snow%melt_rate, snow%t_melt, throughfall, forcing%rainfall, forcing%snowfall,  &
-                          forcing%air_temp, tcas, static%shed_water_rate, static%shed_water_enth, drive%rain,         &
-                          drive%t_rain, frozen%hydrology%ground_inflow_enth)
+      associate (drive => frozen%water_drive)
          !--- The soil's vapour diffuses up through the organic layer's slots, through their open pores.
          drive%ground%cover_path = 0.0_wp
          do k = 1_ik, N_POROUS
@@ -944,12 +968,12 @@ contains
 
    !---~---
    !   The march's start state, the state^n canopy air, soil energy and water, plant water and
-   ! surface water, and the pond the snow stage left; the pond rides it (the stages pass it
-   ! through; each scheme commits the network's).
+   ! surface water; the top soil layer less the heat a film took from it at the stage.
    !---~---
-   subroutine pack_march_start(dynamic, w_pond, e_pond, n, nsl, y)
+   subroutine pack_march_start(dynamic, dz1, film_heat, n, nsl, y)
       type(fast_dynamic_state_t), intent(in)  :: dynamic
-      real(wp),                   intent(in)  :: w_pond, e_pond   ! [kg/m2], [J/m2]
+      real(wp),                   intent(in)  :: dz1         ! [m] the top soil layer's thickness
+      real(wp),                   intent(in)  :: film_heat   ! [J/m2] what a film took from it
       integer(ik),                intent(in)  :: n, nsl
       type(march_state_t),       intent(out) :: y
       allocate(y%leaf_water_mass(n), y%wood_water_mass(n), y%leaf_surf_water(n), y%wood_surf_water(n))
@@ -957,9 +981,8 @@ contains
       y%cas_shv = dynamic%cas%can_shv
       y%cas_co2 = dynamic%cas%can_co2
       y%soil_energy(1:nsl) = dynamic%soil_energy%soil_energy(1:nsl)
+      y%soil_energy(1)     = y%soil_energy(1) - film_heat / dz1
       y%theta(1:nsl)       = dynamic%soil_water%theta(1:nsl)
-      y%w_surface          = w_pond
-      y%w_surface_energy   = e_pond
       y%leaf_water_mass(1:n) = dynamic%leaf_water_mass(1:n)
       y%wood_water_mass(1:n) = dynamic%wood_water_mass(1:n)
       y%leaf_surf_water(1:n) = dynamic%leaf_surf_water(1:n)

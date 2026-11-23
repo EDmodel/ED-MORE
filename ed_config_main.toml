@@ -108,8 +108,6 @@ liquid_holding_frac    = 0.10    # [-]     the layer's mass share its ice holds 
                                  #         rest of the liquid drains to the pond
 cover_scale_factor     = 2.5     # [-]     the cover's scale over [aerodynamics].soil_rough (Niu & Yang 2007)
 cover_density_exponent = 1.0     # [-]     the scale's growth with the layer's density (the same)
-min_new_snow_mass      = 1.0e-3  # [kg/m2] the snowfall that starts a layer
-tiny_snow_mass         = 1.0e-6  # [kg/m2] a layer this light melts out into the pond
 pond_capacity          = 5.0     # [kg/m2] the pond above which the free water runs off
 initial_mass           = 0.0     # [kg/m2] the layer at a fresh start
 initial_temp           = 270.0   # [K]     its temperature

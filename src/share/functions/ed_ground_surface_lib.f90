@@ -9,8 +9,7 @@
 !     its thermal resistance as it dries from its top;
 !   * the water layer (snow, ice and ponded water): the liquid its ice holds and the free water
 !     beyond, its depth over its ice matrix, its matrix's depth as snow falls, water freezes and
-!     ice leaves, the density of two masses together, its cover of the ground, its albedo, and
-!     its thermal resistance.
+!     ice leaves, its cover of the ground, its albedo, and its thermal resistance.
 ! Laws only: every routine takes its parameters as numbers, so the configuration, the state,
 ! the fast loop and the slow operators can all call them.
 !---~---
@@ -28,7 +27,7 @@ module ed_ground_surface_lib
    public :: porous_layer_depth, porous_layer_capacity, porous_layer_fill, porous_layer_resistance
    public :: porous_layer_matter
    !--- The water layer.
-   public :: water_layer_free_water, water_layer_depth, matrix_depth_update, combined_density
+   public :: water_layer_free_water, water_layer_depth, matrix_depth_update
    public :: water_layer_bulk_density
    public :: water_layer_cover, water_layer_albedo, water_layer_resistance
 
@@ -245,18 +244,6 @@ contains
       rho = 0.0_wp
       if (depth > 0.0_wp) rho = water / depth
    end function water_layer_bulk_density
-
-   !--- [kg/m3] The density of two masses [kg/m2] at their own densities [kg/m3], together: their volumes add.
-   elemental real(wp) function combined_density(m1, rho1, m2, rho2) result(rho)
-      real(wp), intent(in) :: m1, rho1, m2, rho2
-      if (m1 <= 0.0_wp) then
-         rho = rho2
-      else if (m2 <= 0.0_wp) then
-         rho = rho1
-      else
-         rho = (m1 + m2) / (m1 / rho1 + m2 / rho2)
-      end if
-   end function combined_density
 
    !---~---
    !   [-] The share of the ground a water layer of a depth [m] and bulk density [kg/m3] covers,

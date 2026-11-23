@@ -95,7 +95,7 @@ contains
       integer(ik),          intent(in) :: n, nsl
       type(tol_set_t),      intent(in) :: tols
       real(wp)    :: err, s
-      real(wp)    :: va(5_ik + 2_ik*nsl + 4_ik*n), vb(5_ik + 2_ik*nsl + 4_ik*n), vr(5_ik + 2_ik*nsl + 4_ik*n)
+      real(wp)    :: va(3_ik + 2_ik*nsl + 4_ik*n), vb(3_ik + 2_ik*nsl + 4_ik*n), vr(3_ik + 2_ik*nsl + 4_ik*n)
       integer(ik) :: j, grp, cnt
       logical     :: counted
       call state_to_array(a, n, nsl, va)

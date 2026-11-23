@@ -220,13 +220,6 @@ contains
       !---~---
       y_out%theta(1:nsl) = y%theta(1:nsl) + dt * frozen%hydrology%theta_rate(1:nsl)
 
-      !---~---
-      !   The pond is passed through: update_dynamic_state commits the network's end-of-step pond,
-      ! and the pond is outside the error norm.
-      !---~---
-      y_out%w_surface      = y%w_surface
-      y_out%w_surface_energy = y%w_surface_energy
-
       !--- Plant water mass is passed through (advance_plant_water advances it).
       y_out%leaf_water_mass(1:n) = y%leaf_water_mass(1:n)
       y_out%wood_water_mass(1:n) = y%wood_water_mass(1:n)
@@ -1326,8 +1319,8 @@ contains
       end do
 
       !---~---
-      !   The pond's enthalpy, in the order its water moves: the rain joins it first, so what
-      ! infiltrates leaves at the mixture's temperature; water the node below pushes up arrives
+      !   The pond's enthalpy, in the order its water moves: the water reaching it joins it first,
+      ! so what infiltrates leaves at the mixture's temperature; water the node below pushes up arrives
       ! at that node's temperature, the organic layer's or the top layer's; then the spill leaves
       ! at the pond's own. The organic slots gain what the pond gives them and lose what they push
       ! up, and the flow across the top layer's top face carries the giver's temperature.

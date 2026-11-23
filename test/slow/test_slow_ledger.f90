@@ -82,8 +82,6 @@ program test_slow_ledger
    !---~---
    poly%patch%soil_water(1)%theta(1:soil%n_active)      = 0.30_wp
    poly%patch%soil_energy(1)%soil_energy(1:soil%n_active) = 5.0e7_wp
-   poly%patch%soil_water(1)%w_surface      = 2.0_wp
-   poly%patch%soil_water(1)%w_surface_energy = 8.0e5_wp
    poly%patch%ground_surface(1)%water%water           = 5.0_wp
    poly%patch%ground_surface(1)%water%energy   = -1.0e6_wp
    poly%patch%cas(1)%can_shv      = 0.008_wp
@@ -104,16 +102,14 @@ program test_slow_ledger
    ! currency -- each tissue, each live and CENTURY pool, each PFT's recruit pool.
    !---~---
    call moves_water ('soil theta',        perturb_theta,        0.01_wp * soil%dz(1) * 1000.0_wp)
-   call moves_water ('pond w_surface',    perturb_pond,         1.0_wp)
-   call moves_water ('snow swe',          perturb_swe,          1.0_wp)
+   call moves_water ('water layer',       perturb_swe,          1.0_wp)
    call moves_water ('canopy vapour',     perturb_shv,          RHO * 20.0_wp * 0.001_wp)
    do which = 1_ik, 2_ik
       call moves_water (trim(TISSUE(which))//' water', perturb_tissue_water, poly%cohort%nplant(1) * 0.01_wp)
       call moves_water (trim(TISSUE(which))//' surface water',  perturb_surf_water,         poly%cohort%nplant(1) * 0.01_wp)
    end do
    call moves_energy('soil energy',       perturb_soil_energy,  1.0e6_wp * soil%dz(1))
-   call moves_energy('pond energy',       perturb_pond_energy,  1.0e5_wp)
-   call moves_energy('snow energy',       perturb_snow_energy,  1.0e5_wp)
+   call moves_energy('water layer energy', perturb_snow_energy,  1.0e5_wp)
    call moves_energy('canopy enthalpy',   perturb_cas_enth,     RHO * 20.0_wp * 1.0e4_wp)
    do which = 1_ik, 4_ik
       call moves_carbon(trim(LIVE_POOL(which))//' carbon', perturb_live_c, poly%cohort%nplant(1) * 0.5_wp)
@@ -576,9 +572,6 @@ contains
    subroutine perturb_theta()
    poly%patch%soil_water(1)%theta(1) = poly%patch%soil_water(1)%theta(1) + 0.01_wp
    end subroutine perturb_theta
-   subroutine perturb_pond()
-   poly%patch%soil_water(1)%w_surface = poly%patch%soil_water(1)%w_surface + 1.0_wp
-   end subroutine perturb_pond
    subroutine perturb_swe()
    poly%patch%ground_surface(1)%water%water = poly%patch%ground_surface(1)%water%water + 1.0_wp
    end subroutine perturb_swe
@@ -605,9 +598,6 @@ contains
    subroutine perturb_soil_energy()
       poly%patch%soil_energy(1)%soil_energy(1) = poly%patch%soil_energy(1)%soil_energy(1) + 1.0e6_wp
    end subroutine perturb_soil_energy
-   subroutine perturb_pond_energy()
-      poly%patch%soil_water(1)%w_surface_energy = poly%patch%soil_water(1)%w_surface_energy + 1.0e5_wp
-   end subroutine perturb_pond_energy
    subroutine perturb_snow_energy()
       poly%patch%ground_surface(1)%water%energy = poly%patch%ground_surface(1)%water%energy + 1.0e5_wp
    end subroutine perturb_snow_energy

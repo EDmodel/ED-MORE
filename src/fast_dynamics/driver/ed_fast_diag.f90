@@ -172,7 +172,7 @@ contains
                              dynamic%soil_energy%soil_temp(1), out%report%ledgers%whole_energy%resid,   &
                              out%report%ledgers%whole_water%resid, forcing%wind, forcing%air_temp,      &
                              static%z_top, forcing%sw_in_vis, forcing%sw_in_nir, forcing%sw_up_vis,     &
-                             forcing%sw_up_nir, lw_up, dynamic%soil_water%w_surface,                    &
+                             forcing%sw_up_nir, lw_up,                                                  &
                              forcing%press, out%report%exports, leaf_resp, stem_resp, root_resp,        &
                              forcing%rainfall + forcing%snowfall, forcing%apar)
          !---~---
@@ -272,7 +272,7 @@ contains
    pure subroutine patch_diag_row(row, dt, le_flux, h_flux, rnet, sw_ground, lw_ground,             &
                                   ustar, ggnet, rough, displace, cas_temp, cas_shv, cas_co2, gpp, nee, &
                                   npp, soil_temp_top, resid_energy, resid_water, wind_top, tair_top,  &
-                                  z_top, sw_in_vis, sw_in_nir, sw_up_vis, sw_up_nir, lw_up, w_surface, &
+                                  z_top, sw_in_vis, sw_in_nir, sw_up_vis, sw_up_nir, lw_up,            &
                                   press, exports, leaf_resp, stem_resp, root_resp, precip, apar)
       real(wp), intent(out) :: row(N_PA_ROWS)
       real(wp), intent(in)  :: dt                        ! [s]        the sub-step
@@ -289,7 +289,6 @@ contains
       real(wp), intent(in)  :: z_top                     ! [m]   that top (the canopy-air depth)
       !--- Top-of-canopy radiative fluxes per band.
       real(wp), intent(in)  :: sw_in_vis, sw_in_nir, sw_up_vis, sw_up_nir, lw_up
-      real(wp), intent(in)  :: w_surface                 ! [kg/m2]   the free water, the pond
       real(wp), intent(in)  :: press                     ! [Pa]      air pressure
       type(step_exports_t), intent(in) :: exports        ! the step's exports: water and Rh amounts over dt
       real(wp), intent(in)  :: leaf_resp, stem_resp, root_resp   ! [umol/m2/s] the cohorts' maintenance respiration
@@ -317,7 +316,7 @@ contains
       row(PA_CAS_CO2)      = cas_co2
       !--- VPD is nonlinear in temperature, so it is formed per sub-step, not from mean states.
       row(PA_CAS_VPD)      = specific_humidity_to_vpd(cas_temp, cas_shv, press)
-      row(PA_FREE_WATER)    = w_surface
+      row(PA_FREE_WATER)    = exports%free_water
       !--- The patch's own forcing, at its canopy-air top (docs/science/forcing.md §8).
       row(PA_WIND_CAS_TOP) = wind_top
       row(PA_TAIR_CAS_TOP) = tair_top

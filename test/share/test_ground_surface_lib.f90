@@ -8,11 +8,11 @@
 !   2. POROUS LAYER (porous_layer_depth, porous_layer_capacity, porous_layer_fill,
 !      porous_layer_resistance, porous_layer_matter): depth and capacity from the matter; the
 !      resistance's dry and saturated limits; a layer only from min_depth.
-!   3. WATER LAYER, MASS (water_layer_free_water, water_layer_depth, matrix_depth_update,
-!      combined_density): a pond is all free water, a layer under its hold has none, one over it
-!      the liquid less h/(1-h) of its ice; rain fills the matrix's pores and adds no depth, a
-!      pond is as deep as its water; snowfall adds its volume, ice that forms fills the pores
-!      first, melt shrinks the matrix at its density; volumes add.
+!   3. WATER LAYER, MASS (water_layer_free_water, water_layer_depth, matrix_depth_update): a
+!      pond is all free water, a layer under its hold has none, one over it the liquid less
+!      h/(1-h) of its ice; rain fills the matrix's pores and adds no depth, a pond is as deep as
+!      its water; snowfall adds its volume, ice that forms fills the pores first, melt shrinks
+!      the matrix at its density.
 !   4. WATER LAYER, SURFACE (water_layer_cover, water_layer_albedo, water_layer_resistance): the
 !      cover of 1 and 10 cm at 250 kg/m3, and of 1 and 5 cm of ponded water; the albedo's fresh
 !      and aged ends; the resistance of the matrix and of the water standing above it.
@@ -27,7 +27,7 @@ program test_ground_surface_lib
                                      porous_energy_at_temp, porous_layer_depth, porous_layer_capacity,           &
                                      porous_layer_fill, porous_layer_resistance, porous_layer_matter,            &
                                      water_layer_free_water, water_layer_depth, matrix_depth_update,             &
-                                     combined_density, water_layer_cover, water_layer_albedo,                    &
+                                     water_layer_cover, water_layer_albedo,                                      &
                                      water_layer_resistance
    implicit none
 
@@ -127,10 +127,6 @@ contains
                        RHO_FRESH), 50.0_wp / rho_ice, 1.0e-15_wp)
       call check_close('melt shrinks the matrix at its density', matrix_depth_update(0.4_wp, 100.0_wp, 50.0_wp,   &
                        0.0_wp, RHO_FRESH), 0.2_wp, 1.0e-15_wp)
-      call check_close('volumes add', combined_density(10.0_wp, RHO_FRESH, 10.0_wp, rho_ice),                     &
-                       20.0_wp / (10.0_wp / RHO_FRESH + 10.0_wp / rho_ice), 1.0e-12_wp)
-      call check_close('no mass takes the other''s density', combined_density(0.0_wp, rho_ice, 5.0_wp, RHO_FRESH),&
-                       RHO_FRESH, 0.0_wp)
    end subroutine test_water_layer_mass
 
    !---~---

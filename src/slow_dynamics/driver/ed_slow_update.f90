@@ -16,7 +16,7 @@ module ed_slow_update
    use ed_kinds,                only : wp, ik
    use ed_constants,            only : tiny_num, lnexp_min, lnexp_max, almost_one, yr_sec, rho_air_ref, umol_2_kgc, &
                                        cp_organic, rho_h2o
-   use ed_therm_lib,            only : temp_to_internal_energy
+   use ed_therm_lib,            only : temp_to_internal_energy, internal_energy_to_temp
    use ed_ground_surface_params, only : ground_surface_layer_params_t, porous_material_t, N_POROUS
    use ed_soil_hydr_lib,        only : soil_head_to_theta
    use ed_numerics,             only : equal_height_layers, conserved, pair_mean, within_roundoff
@@ -31,7 +31,7 @@ module ed_slow_update
                                        add_shed_water, patch_physical_state, DIST_TREEFALL,              &
                                        expand_patch_block, reorder_patch_block, cas_set_depth,           &
                                        porous_layers_present, porous_layers_diagnose, porous_layers_split_energy, &
-                                       porous_energy, ground_store_t, store_move
+                                       porous_energy, store_move
    use ed_ground_surface_lib,   only : porous_layer_capacity
    use ed_polygon_state_vars,   only : polygon_t, rebuild_cohort_map, assign_cohort_id,                  &
                                        patch_polygon_area, rebuild_patch_map, assign_patch_id
@@ -295,7 +295,7 @@ contains
    ! soil layer's head (head_new), liquid by fliq_new in a layer the matter starts, else as the
    ! layer's water; that water arrives from outside, as a recruit's does, and is declared (water).
    ! What a changed slot then holds beyond its saturation, or all its water when its matter is
-   ! gone, passes to the pond with its energy. heat returns each patch's energy in with the matter
+   ! gone, passes to the water layer with its energy. heat returns each patch's energy in with the matter
    ! and its water, which the caller declares. A layer whose matter is all gone keeps no energy:
    ! what it had left is round-off, which is asserted.
    !---~---
@@ -309,14 +309,13 @@ contains
       real(wp),               intent(out)   :: heat(:)            ! [J/m2] (patch) in with the matter, out if < 0
       real(wp),               intent(out)   :: water(:)           ! [kg/m2] (patch) in with the matter
       type(porous_material_t) :: m
-      type(ground_store_t)    :: pond   ! the patch's pond, which a layer's excess joins
       real(wp)    :: temp, fliq, e_total, dm, cap, excess, e_excess, e_slot, add(N_POROUS)
       integer(ik) :: ip, k
       logical     :: changed(N_POROUS)
       heat(1:patch%n)  = 0.0_wp
       water(1:patch%n) = 0.0_wp
       do ip = 1_ik, patch%n
-         associate (org => patch%ground_surface(ip)%porous, sw => patch%soil_water(ip))
+         associate (org => patch%ground_surface(ip)%porous, water_layer => patch%ground_surface(ip)%water)
             do k = 1_ik, N_POROUS
                changed(k) = target_mass(k, ip) /= org(k)%matter
             end do
@@ -351,7 +350,7 @@ contains
                   org(k)%water = org(k)%water + add(k)
                end do
             end if
-            !--- What a changed slot holds beyond its saturation passes to the pond.
+            !--- What a changed slot holds beyond its saturation passes to the water layer, as its free water.
             e_excess = 0.0_wp
             do k = 1_ik, N_POROUS
                if (.not. changed(k)) cycle
@@ -363,11 +362,11 @@ contains
                if (excess <= 0.0_wp) cycle
                e_slot   = temp_to_internal_energy(0.0_wp, excess, temp, fliq)
                e_excess = e_excess + e_slot
-               pond = ground_store_t(water=sw%w_surface, energy=sw%w_surface_energy)
-               call store_move(org(k), pond, excess, e_slot)
-               sw%w_surface        = pond%water
-               sw%w_surface_energy = pond%energy
+               call store_move(org(k), water_layer, excess, e_slot)
             end do
+            if (water_layer%water > 0.0_wp)                                                                     &
+               call internal_energy_to_temp(water_layer%energy, water_layer%water, 0.0_wp, water_layer%temp,      &
+                                            water_layer%fliq)
             if (.not. porous_layers_present(org)) then
                if (.not. within_roundoff(e_total + heat(ip) - e_excess, abs(e_total) + abs(heat(ip)) + abs(e_excess))) &
                   error stop 'follow_porous_layers: a layer whose matter is gone keeps energy beyond round-off'

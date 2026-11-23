@@ -822,8 +822,6 @@ contains
       !---~---
       poly%patch%soil_water(1)%theta(1:soil%n_active)      = 0.30_wp
       poly%patch%soil_energy(1)%soil_energy(1:soil%n_active) = 5.0e7_wp
-      poly%patch%soil_water(1)%w_surface      = 2.0_wp
-      poly%patch%soil_water(1)%w_surface_energy = 8.0e5_wp
       poly%patch%ground_surface(1)%water%water           = 5.0_wp
       poly%patch%ground_surface(1)%water%energy   = -1.0e6_wp
       poly%patch%cas(1)%can_shv      = 0.008_wp

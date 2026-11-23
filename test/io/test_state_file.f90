@@ -269,9 +269,7 @@ contains
             pa%soil_energy(ip)%soil_temp(1:n_soil_layer_max) = [(284.0_wp + 0.1_wp * real(k, wp) + x,             &
                                                                  k = 1_ik, n_soil_layer_max)]
             pa%soil_energy(ip)%soil_fliq(1:n_soil_layer_max) = 0.9_wp + x
-            !--- A ponded store with its enthalpy, and the daily slow-to-fast rates.
-            pa%soil_water(ip)%w_surface        = 1.5_wp + x
-            pa%soil_water(ip)%w_surface_energy = (1.5_wp + x) * 9.0e5_wp
+            !--- The daily slow-to-fast rates.
             pa%shed_water_rate(ip) = 3.0e-8_wp + 1.0e-9_wp * x
             pa%shed_water_enth(ip) = pa%shed_water_rate(ip) * 1.1e5_wp
             pa%slow_co2_rate(ip)   = 0.8_wp + x

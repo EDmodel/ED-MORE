@@ -69,8 +69,8 @@ module ed_patch_state_vars
    !   The ground's surface layers (docs/science/snow_biophysics.md,
    ! docs/science/surface_organic_layer.md): each a store of water (liquid and ice) and its
    ! internal energy per ground area, with its temperature and liquid fraction read off them.
-   ! The water layer holds snow, ice and the liquid they hold, and its ice matrix's depth; the
-   ! pond beyond what it holds is soil_water_state_t's. The porous layers, top down litter over
+   ! The water layer holds snow, ice and ponded water, and its ice matrix's depth; its liquid
+   ! beyond what its ice holds is its free water, the pond. The porous layers, top down litter over
    ! moss (POROUS_LITTER, POROUS_MOSS), each hold their dry matter, their depth that matter over
    ! the material's bulk density. A store holding nothing is absent.
    !---~---
@@ -94,15 +94,9 @@ module ed_patch_state_vars
       type(porous_layer_state_t) :: porous(N_POROUS)
    end type ground_surface_state_t
 
-   !---~---
-   !   Soil water, and the pond on top of it. The pond holds its own energy, so water
-   ! that crosses into or out of it carries heat (docs/science/numerical_scheme.md,
-   ! "The pond holds heat").
-   !---~---
+   !--- Soil water: each layer's water content, liquid and ice.
    type :: soil_water_state_t
       real(wp) :: theta(n_soil_layer_max) = 0.0_wp   ! [m3/m3] volumetric water content (prognostic)
-      real(wp) :: w_surface = 0.0_wp                 ! [kg/m2] ponded water (prognostic)
-      real(wp) :: w_surface_energy = 0.0_wp          ! [J/m2]  ponded water's internal energy (prognostic)
    end type soil_water_state_t
 
    !---~---
@@ -385,8 +379,6 @@ contains
       type(soil_water_state_t),  intent(in) :: a, b
       type(soil_water_state_t)              :: c
       c%theta     = w1 * a%theta     + w2 * b%theta
-      c%w_surface = w1 * a%w_surface + w2 * b%w_surface
-      c%w_surface_energy = w1 * a%w_surface_energy + w2 * b%w_surface_energy
    end function blend_soil_water
 
    pure function blend_soil_energy(w1, a, w2, b) result(c)

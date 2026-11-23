@@ -1216,7 +1216,7 @@ end module test_slow_update_ledger
 
 !---~---
 !   The litter slot follows its pool (follow_porous_layers): litter that shrinks passes the water
-! its new depth cannot hold saturated to the pond, with its energy; litter that vanishes passes all
+! its new depth cannot hold saturated to the water layer, with its energy; litter that vanishes passes all
 ! of it; litter that appears from nothing holds what its curve holds at the top soil's head, and
 ! growing litter keeps its water content, the water they bring declared. The water and the energy,
 ! the declared terms included, close in every case.
@@ -1248,34 +1248,34 @@ contains
       end associate
       call alloc_patch_block(patch, 1_ik, 1_ik)
       patch%n = 1_ik
-      associate (org => patch%ground_surface(1)%porous, sw => patch%soil_water(1))
+      associate (org => patch%ground_surface(1)%porous, layer => patch%ground_surface(1)%water)
          org = porous_layer_state_t()
          org%matter  = [0.02_wp * o%porous(POROUS_LITTER)%bulk_density, 0.05_wp * o%porous(POROUS_MOSS)%bulk_density]
          org%water   = [0.5_wp * 0.02_wp * rho_h2o, 0.4_wp * 0.05_wp * rho_h2o]
          call porous_layers_split_energy(org, temp_to_internal_energy(cp_organic * sum(org%matter), sum(org%water),      &
                                                                 285.0_wp, 1.0_wp))
-         sw%w_surface        = 0.0_wp
-         sw%w_surface_energy = 0.0_wp
+         layer%water  = 0.0_wp
+         layer%energy = 0.0_wp
          !--- Shrinks to a fifth: 4 mm hold 3.92 kg/m2 saturated, of the 10 it held.
-         w0 = sum(org%water) + sw%w_surface
-         e0 = sum(org%energy) + sw%w_surface_energy
+         w0 = sum(org%water) + layer%water
+         e0 = sum(org%energy) + layer%energy
          call follow_litter(patch, o, 0.004_wp * o%porous(POROUS_LITTER)%bulk_density, heat, water)
          cap = o%porous(POROUS_LITTER)%theta_sat * rho_h2o * 0.004_wp
          call check_close(org(POROUS_LITTER)%water, cap, 1.0e-9_wp,                                                 &
                           'shrinking litter keeps what its depth holds saturated')
-         call check_close(sw%w_surface, 10.0_wp - cap, 1.0e-9_wp, 'and passes the rest to the pond')
-         call check_close(sum(org%water) + sw%w_surface, w0, 1.0e-9_wp, 'the water closes')
-         call check_close(sum(org%energy) + sw%w_surface_energy, e0 + heat(1), 1.0e-9_wp * abs(e0),             &
+         call check_close(layer%water, 10.0_wp - cap, 1.0e-9_wp, 'and passes the rest to the water layer')
+         call check_close(sum(org%water) + layer%water, w0, 1.0e-9_wp, 'the water closes')
+         call check_close(sum(org%energy) + layer%energy, e0 + heat(1), 1.0e-9_wp * abs(e0),             &
                           'the energy closes on the matter''s declared heat')
-         !--- Vanishes: all its water to the pond; the moss keeps its own.
-         w0 = sum(org%water) + sw%w_surface
-         e0 = sum(org%energy) + sw%w_surface_energy
+         !--- Vanishes: all its water to the water layer; the moss keeps its own.
+         w0 = sum(org%water) + layer%water
+         e0 = sum(org%energy) + layer%energy
          call follow_litter(patch, o, 0.0_wp, heat, water)
          call check(org(POROUS_LITTER)%water == 0.0_wp .and. org(POROUS_LITTER)%matter == 0.0_wp,                     &
                     'vanished litter holds nothing')
          call check_close(org(POROUS_MOSS)%water, 0.4_wp * 0.05_wp * rho_h2o, 1.0e-9_wp, 'the moss keeps its water')
-         call check_close(sum(org%water) + sw%w_surface, w0, 1.0e-9_wp, 'vanishing: the water closes')
-         call check_close(sum(org%energy) + sw%w_surface_energy, e0 + heat(1), 1.0e-9_wp * abs(e0),             &
+         call check_close(sum(org%water) + layer%water, w0, 1.0e-9_wp, 'vanishing: the water closes')
+         call check_close(sum(org%energy) + layer%energy, e0 + heat(1), 1.0e-9_wp * abs(e0),             &
                           'vanishing: the energy closes')
          !--- Appears from nothing: holding what its curve holds at the top soil's head (-1 m), declared.
          w0 = sum(org%water)

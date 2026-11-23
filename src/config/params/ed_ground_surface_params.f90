@@ -41,8 +41,6 @@ module ed_ground_surface_params
       real(wp) :: liquid_holding_frac    = 0.10_wp     ! [-] the layer's mass share its ice holds as liquid
       real(wp) :: cover_scale_factor     = 2.5_wp      ! [-] Niu & Yang (2007)'s cover scale over the roughness
       real(wp) :: cover_density_exponent = 1.0_wp      ! [-] its growth with the layer's density
-      real(wp) :: min_new_snow_mass      = 1.0e-3_wp   ! [kg/m2] the snowfall that starts a layer
-      real(wp) :: tiny_snow_mass         = 1.0e-6_wp   ! [kg/m2] a layer this light melts out into the pond
       real(wp) :: pond_capacity          = 5.0_wp      ! [kg/m2] the free water above which it runs off
       real(wp) :: initial_mass           = 0.0_wp      ! [kg/m2] the layer at a fresh start
       real(wp) :: initial_temp           = 270.0_wp    ! [K]     its temperature

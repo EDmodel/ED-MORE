@@ -316,8 +316,6 @@ contains
          !   The pond and the ground's surface layers, all already extensive per m2 of patch ground
          ! (the porous layers' dry matter's carbon is the pools').
          !---~---
-         store%water  = store%water  + a * poly%patch%soil_water(ip)%w_surface
-         store%energy = store%energy + a * poly%patch%soil_water(ip)%w_surface_energy
          surface      = ground_surface_store(poly%patch%ground_surface(ip))
          store%water  = store%water  + a * surface%water
          store%energy = store%energy + a * surface%energy
