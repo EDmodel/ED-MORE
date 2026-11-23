@@ -58,8 +58,8 @@ program test_fast_integ_step
    use ed_fast_integ_derivs,    only : surface_derivs
    use ed_plant_hydr_lib,       only : tissue_water_to_psi
    use ed_fast_state,           only : derive_cohort_terms
-   use ed_patch_state_vars,     only : cas_set_depth, porous_layer_state_t, porous_layers_split_energy,      &
-                                       ground_store_present, porous_water
+   use ed_patch_state_vars,     only : cas_set_depth, porous_layer_state_t, porous_layers_diagnose,          &
+                                       ground_store_present
    use ed_ground_surface_lib,   only : water_layer_bulk_density
    use ed_ground_surface_params, only : POROUS_LITTER, POROUS_MOSS
    use ed_fast_integ_types,     only : frozen_t, march_state_t, ensure_output_capacity, WORK_RK45_RESCUE,          &
@@ -195,9 +195,9 @@ contains
                org(POROUS_MOSS)%matter    = d%moss_seed
                org(POROUS_MOSS)%water   = d%moss_theta * rho_h2o * d%moss_seed / o%porous(POROUS_MOSS)%bulk_density
             end if
-            call porous_layers_split_energy(org, temp_to_internal_energy(cp_organic * sum(org%matter), sum(org%water),     &
-                                                                   d%org_temp, merge(1.0_wp, 0.0_wp,               &
-                                                                   d%org_temp >= t_3ple)))
+            org%energy = temp_to_internal_energy(cp_organic * org%matter, org%water, d%org_temp,                   &
+                                                 merge(1.0_wp, 0.0_wp, d%org_temp >= t_3ple))
+            call porous_layers_diagnose(org)
          end associate
       end if
       if (d%pond_seed > 0.0_wp) then
@@ -893,13 +893,13 @@ contains
    end subroutine test_pond_under_pack
 
    !---~---
-   !   Days with an organic layer, its slots nodes of the water network, and the morning's rain;
+   !   Days with porous layers, nodes of the water network, and the morning's rain;
    ! every ledger closes on both schemes with the layer's water and energy among the stores:
    !   - a 3 cm litter layer (1.35 kg/m2 dry) at half the water litter holds after drainage: it
    !     takes the rain on its way to the soil;
    !   - the litter over 5 cm of dry moss (2.15 kg/m2): the moss takes water too;
    !   - both frozen at 268 K: the rain still reaches them and the soil, and the layer warms;
-   !   - a litter slot of 0.7 mm: a node like any other.
+   !   - a litter layer of 0.7 mm: a node like any other.
    !---~---
    subroutine test_litter_day()
       type(day_t) :: d
@@ -914,8 +914,8 @@ contains
          w0 = 0.06_wp * rho_h2o * 0.03_wp
          call march_day(d)
          call check_true(trim(nm)//' litter day: all seven ledgers close', all_ledgers_closed(col%out%report))
-         call check_true(trim(nm)//' litter day: the layer took the rain', porous_water(col%dynamic%ground_surface%porous) > w0,   &
-                         porous_water(col%dynamic%ground_surface%porous))
+         call check_true(trim(nm)//' litter day: the layer took the rain', sum(col%dynamic%ground_surface%porous%water) > w0, &
+                         sum(col%dynamic%ground_surface%porous%water))
          call check_true(trim(nm)//' litter day: the layer holds no more than it does saturated',                 &
                          col%dynamic%ground_surface%porous(POROUS_LITTER)%water                                  &
                          <= 0.98_wp * rho_h2o * 0.03_wp * (1.0_wp + 1.0e-6_wp))

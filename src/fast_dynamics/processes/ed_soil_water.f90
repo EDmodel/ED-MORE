@@ -6,7 +6,7 @@
 !                                layer;
 !   * bottom_flux             -- drainage through the bottom face, or a two-way aquifer;
 !   * philip_evaporation      -- evaporation from a store of the ground's water through given
-!                                resistances, the law the top layer and an organic slot share;
+!                                resistances, the law the top soil layer and a porous layer share;
 !   * ground_evaporation_rate -- the top layer's, through its dry surface layer, on the
 !                                boundary's terms that ground_evaporation_setup computes;
 !   * store_evaporation       -- a store's, supplied while it holds water above its residual.
@@ -24,7 +24,7 @@ module ed_soil_water
 
    public :: soil_water_flux, ground_evaporation_rate, bottom_flux, evaporation_supply
    public :: philip_evaporation, dry_layer_resistance, store_evaporation
-   public :: ground_evap_env_t, ground_evaporation_setup, organic_cover_path, vapour_diffusivity
+   public :: ground_evap_env_t, ground_evaporation_setup, porous_cover_path, vapour_diffusivity
    public :: slot_evaporation_setup
 
    !---~---
@@ -65,8 +65,8 @@ module ed_soil_water
       real(wp) :: snow_free_frac = 1.0_wp                 ! [-] snow-free area fraction (1-snowfac) that evaporates,
                                                           ! an area-weighted tile flux (snow_biophysics.md)
       !---~---
-      !   The organic layer above the soil: its depth as an equivalent path in free air, each
-      ! slot's depth over its Millington-Quirk tortuosity (0 without one).
+      !   The porous layers above the soil: their depth as an equivalent path in free air, each
+      ! layer's depth over its Millington-Quirk tortuosity (0 without one).
       !---~---
       real(wp) :: cover_path = 0.0_wp                     ! [m]
       !--- Set by ground_evaporation_setup from the fields above and the top layer's curve.
@@ -75,7 +75,7 @@ module ed_soil_water
       real(wp) :: theta_init      = 0.0_wp   ! [m3/m3] top-layer water content below which the dry layer forms
       real(wp) :: theta_span      = 0.0_wp   ! [m3/m3] theta_init less the air-dry water content
       real(wp) :: dsl_diffusivity = 0.0_wp   ! [m2/s] vapour diffusivity through the dry surface layer
-      real(wp) :: r_cover         = 0.0_wp   ! [s/m]  the vapour's resistance through the organic layer
+      real(wp) :: r_cover         = 0.0_wp   ! [s/m]  the vapour's resistance through the porous layers
    end type ground_evap_env_t
 
 contains
@@ -168,22 +168,22 @@ contains
    end subroutine ground_evaporation_setup
 
    !---~---
-   !   The boundary an organic slot's evaporation reads, for philip_evaporation: the canopy air
-   ! over the ground (the ground's boundary's), the organic layer's temperature, and its dried
-   ! top's path for the vapour (organic_cover_path of the dried depth, in free air) as the cover
-   ! in series. A slot has no dry surface layer of its own: its dried top is that path.
+   !   The boundary a porous layer's evaporation reads, for philip_evaporation: the canopy air
+   ! over the ground (the ground's boundary's), the layer's temperature, and its dried top's path
+   ! for the vapour (porous_cover_path of the dried depth, in free air) as the cover in series. A
+   ! porous layer has no dry surface layer of its own: its dried top is that path.
    !---~---
-   pure function slot_evaporation_setup(ground, t_org, dry_path) result(env)
+   pure function slot_evaporation_setup(ground, t_layer, dry_path) result(env)
       type(ground_evap_env_t), intent(in) :: ground     ! the ground's boundary (the canopy air, its conductance)
-      real(wp),                intent(in) :: t_org      ! [K] the organic layer's temperature
+      real(wp),                intent(in) :: t_layer    ! [K] the porous layer's temperature
       real(wp),                intent(in) :: dry_path   ! [m] its dried top, as a depth of free air
       type(ground_evap_env_t) :: env
       env = ground
-      env%t_ground        = t_org
-      env%rv_t            = r_wv * t_org
-      env%q_sat           = sat_specific_humidity(t_org, ground%press)
+      env%t_ground        = t_layer
+      env%rv_t            = r_wv * t_layer
+      env%q_sat           = sat_specific_humidity(t_layer, ground%press)
       env%cover_path      = dry_path
-      env%r_cover         = dry_path / vapour_diffusivity(t_org)
+      env%r_cover         = dry_path / vapour_diffusivity(t_layer)
    end function slot_evaporation_setup
 
    !--- [m2/s] Water vapour's diffusivity in air at `temp` [K].
@@ -194,19 +194,19 @@ contains
    end function vapour_diffusivity
 
    !---~---
-   !   One organic slot's path for vapour [m], as a depth of free air: its depth over the
+   !   One porous layer's path for vapour [m], as a depth of free air: its depth over the
    ! Millington-Quirk tortuosity of its air-filled pores, its porosity less its water. The porosity
-   ! is the slot's own, its retention curve's water at saturation, so a saturated slot has no open
-   ! pores and passes no vapour.
+   ! is the layer's own, its retention curve's water at saturation, so a saturated layer has no
+   ! open pores and passes no vapour.
    !---~---
-   elemental function organic_cover_path(depth, theta, porosity) result(path)
+   elemental function porous_cover_path(depth, theta, porosity) result(path)
       real(wp), intent(in) :: depth      ! [m]
       real(wp), intent(in) :: theta      ! [m3/m3] its water, per volume
       real(wp), intent(in) :: porosity   ! [m3/m3] its water at saturation
       real(wp) :: path, phi_air
       phi_air = max(porosity - theta, tiny_num)
       path    = depth * porosity ** 2 / phi_air ** MQ_TORTUOSITY_EXP
-   end function organic_cover_path
+   end function porous_cover_path
 
    !---~---
    !   philip_evaporation -- evaporation [kg/m2/s] from a store of the ground's water, with its
@@ -230,7 +230,7 @@ contains
       dalpha = alpha * grav / forcing%rv_t / grav_head           ! per MPa
       call smooth_max0(alpha * forcing%q_sat - forcing%q_air, EVAP_HUMIDITY_WIDTH, drive, ddrive)
       resist = forcing%r_aero + r_dry
-      if (forcing%r_cover > 0.0_wp) resist = resist + forcing%r_cover      ! the organic layer above
+      if (forcing%r_cover > 0.0_wp) resist = resist + forcing%r_cover      ! the porous layers above
       e         = forcing%snow_free_frac * forcing%rho_air * drive / resist
       de_dpsi   = forcing%snow_free_frac * forcing%rho_air * ddrive * forcing%q_sat * dalpha / resist
       de_dtheta = -e * dr_dry / resist
@@ -269,7 +269,7 @@ contains
 
    !---~---
    !   store_evaporation -- the evaporation [kg/m2/s] of a store at the ground's top, the top soil
-   ! layer or the top organic slot, depth deep and holding water w [kg/m2], and its slope in the
+   ! layer or the top porous layer, depth deep and holding water w [kg/m2], and its slope in the
    ! store's unknown, given its water's and its potential's slopes: philip_evaporation through r_dry,
    ! supplied while the store holds water above its residual, ice included (evaporation_supply).
    !---~---

@@ -21,8 +21,7 @@ module ed_patch_state_vars
    use ed_therm_lib,          only : cas_molar_density, internal_energy_to_temp, temp_to_internal_energy
    use ed_numerics,           only : within_roundoff
    use ed_soil_hydr_lib,      only : soil_layer_curve_t, build_soil_layer_curve
-   use ed_ground_surface_lib, only : porous_layer_depth, porous_layer_capacity, porous_layer_fill,             &
-                                     porous_layer_resistance
+   use ed_ground_surface_lib, only : porous_layer_depth, porous_layer_capacity
    use ed_ground_surface_params, only : ground_surface_layer_params_t, porous_material_t, N_POROUS
    use ed_diag_vars,          only : patch_diag_block, expand_patch_diag, reorder_patch_diag
    use ed_state_defaults,     only : UNSET_POSITIVE, CAN_CO2_UNSEEDED, CAN_DEPTH_UNSET
@@ -35,8 +34,7 @@ module ed_patch_state_vars
    public :: cas_state_t, soil_water_state_t, soil_energy_state_t, soil_carbon_state_t
    public :: ground_store_t, water_layer_state_t, porous_layer_state_t, ground_surface_state_t
    public :: ground_store_present, ground_surface_store, ground_top_temp, store_move, store_take_exchange
-   public :: porous_layers_present, porous_layers_sums, porous_layers_diagnose, porous_layers_split_energy
-   public :: porous_layers_take_exchange, porous_layer_curve, porous_layers_spill, porous_water, porous_energy
+   public :: porous_layers_present, porous_layer_curve, porous_layers_diagnose, porous_layers_spill
    public :: decomp_xi_t, litter_input_t
    public :: blend_cas, cas_set_depth, cas_capacities, cas_capacity_change
    public :: blend_ground_surface, blend_soil_water, blend_soil_energy, blend_soil_carbon
@@ -486,67 +484,37 @@ contains
       end do
    end function ground_surface_store
 
-   !--- Whether the ground has a porous layer: dry matter in either.
+   !--- Whether the ground has a porous layer: dry matter in any.
    pure logical function porous_layers_present(porous)
       type(porous_layer_state_t), intent(in) :: porous(:)
-      integer(ik) :: k
-      porous_layers_present = .false.
-      do k = 1_ik, size(porous, kind=ik)
-         if (porous(k)%matter > 0.0_wp) porous_layers_present = .true.
-      end do
+      porous_layers_present = top_porous_layer(porous) > 0_ik
    end function porous_layers_present
+
+   !--- The top porous layer, the first top down that holds dry matter; 0 with none.
+   pure integer(ik) function top_porous_layer(porous) result(k_top)
+      type(porous_layer_state_t), intent(in) :: porous(:)
+      integer(ik) :: k
+      k_top = 0_ik
+      do k = 1_ik, size(porous, kind=ik)
+         if (porous(k)%matter > 0.0_wp) then
+            k_top = k
+            return
+         end if
+      end do
+   end function top_porous_layer
 
    !---~---
    !   [K] The temperature of the ground's top, which the canopy air and the radiation see: the
-   ! porous layers' where there are any, else the top soil node's.
+   ! top porous layer's where there is one, else the top soil node's.
    !---~---
    pure real(wp) function ground_top_temp(gs, soil_temp_top) result(t)
       type(ground_surface_state_t), intent(in) :: gs
       real(wp),                     intent(in) :: soil_temp_top   ! [K]
-      t = soil_temp_top
-      if (porous_layers_present(gs%porous)) t = gs%porous(1)%temp
-   end function ground_top_temp
-
-   !---~---
-   !   The porous layers as one thermal node (docs/science/surface_organic_layer.md): their dry
-   ! heat capacity, water, energy and the water they hold saturated, summed, and their thermal
-   ! resistance. Each layer holds its water in its lower part and dries from its top: its dried
-   ! top, its depth times the share of saturation it does not hold, is what its own vapour
-   ! crosses, and the heat crosses it too, at the material's dry conductivity, in series with
-   ! its wet part at its saturated conductivity. The layers are in series.
-   !---~---
-   pure subroutine porous_layers_sums(porous, params, dry_cap, water, energy, w_max, resistance, dry_depth)
-      type(porous_layer_state_t),          intent(in)  :: porous(:)
-      type(ground_surface_layer_params_t), intent(in)  :: params
-      real(wp),                            intent(out) :: dry_cap      ! [J/m2/K]
-      real(wp),                            intent(out) :: water        ! [kg/m2]
-      real(wp),                            intent(out) :: energy       ! [J/m2]
-      real(wp),                            intent(out) :: w_max        ! [kg/m2] the water they hold saturated
-      real(wp),                            intent(out) :: resistance   ! [m2 K/W]
-      real(wp),                            intent(out) :: dry_depth    ! [m] their dried tops, summed
-      real(wp)    :: depth, cap, fill
       integer(ik) :: k
-      dry_cap    = 0.0_wp
-      water      = 0.0_wp
-      energy     = 0.0_wp
-      w_max      = 0.0_wp
-      resistance = 0.0_wp
-      dry_depth  = 0.0_wp
-      do k = 1_ik, N_POROUS
-         if (porous(k)%matter <= 0.0_wp) cycle
-         associate (m => params%porous(k))
-            depth  = porous_layer_depth(porous(k)%matter, m%bulk_density)
-            cap    = porous_layer_capacity(porous(k)%matter, m%bulk_density, m%theta_sat)
-            fill   = porous_layer_fill(porous(k)%water, cap)
-            dry_cap    = dry_cap + cp_organic * porous(k)%matter
-            water      = water + porous(k)%water
-            energy     = energy + porous(k)%energy
-            w_max      = w_max + cap
-            resistance = resistance + porous_layer_resistance(depth, fill, m%k_dry, m%k_wet)
-            dry_depth  = dry_depth + depth * (1.0_wp - fill)
-         end associate
-      end do
-   end subroutine porous_layers_sums
+      t = soil_temp_top
+      k = top_porous_layer(gs%porous)
+      if (k > 0_ik) t = gs%porous(k)%temp
+   end function ground_top_temp
 
    !---~---
    !   A porous layer's water retention and conductivity, its material's as a soil layer's
@@ -561,126 +529,47 @@ contains
    end function porous_layer_curve
 
    !---~---
-   !   The porous layers' one temperature and liquid fraction, from their summed energy, water and
-   ! dry heat capacity, given to each; the triple point, all liquid, with no layer.
+   !   Each porous layer's temperature and liquid fraction from its own energy, water and dry
+   ! matter's heat capacity; water left where the matter has gone is that water's; the triple
+   ! point, all liquid, where there is nothing.
    !---~---
    pure subroutine porous_layers_diagnose(porous)
       type(porous_layer_state_t), intent(inout) :: porous(:)
-      real(wp)    :: temp, fliq
-      temp = t_3ple
-      fliq = 1.0_wp
-      if (porous_layers_present(porous))                                                                     &
-         call internal_energy_to_temp(porous_energy(porous), porous_water(porous), cp_organic * porous_matter(porous), &
-                                      temp, fliq)
-      porous%temp = temp
-      porous%fliq = fliq
+      integer(ik) :: k
+      do k = 1_ik, size(porous, kind=ik)
+         porous(k)%temp = t_3ple
+         porous(k)%fliq = 1.0_wp
+         if (porous(k)%matter > 0.0_wp .or. porous(k)%water > 0.0_wp)                                        &
+            call internal_energy_to_temp(porous(k)%energy, porous(k)%water, cp_organic * porous(k)%matter,      &
+                                         porous(k)%temp, porous(k)%fliq)
+      end do
    end subroutine porous_layers_diagnose
 
    !---~---
-   !   The porous layers share one temperature: a total energy split among them, each its matter's
-   ! and its water's at that temperature and liquid fraction, the last present layer taking the
-   ! remainder so the sum is the total exactly.
+   !   The water each porous layer holds beyond its saturation passes to the water layer, its free
+   ! water (store_move): its pores cannot hold it. It leaves at the layer's temperature and in its
+   ! phase, so the layer keeps its temperature; a layer whose matter is gone passes all its water.
+   ! The water network keeps a layer within its pores but for a sub-step it took although
+   ! unconverged, and the slow step changes a layer's matter.
    !---~---
-   pure subroutine porous_layers_split_energy(porous, total)
-      type(porous_layer_state_t), intent(inout) :: porous(:)
-      real(wp),                   intent(in)    :: total     ! [J/m2]
-      real(wp)    :: rest, temp, fliq
-      integer(ik) :: k, last
-      porous%energy = 0.0_wp
-      if (.not. porous_layers_present(porous)) return
-      call internal_energy_to_temp(total, porous_water(porous), cp_organic * porous_matter(porous), temp, fliq)
-      porous%temp = temp
-      porous%fliq = fliq
-      last = 0_ik
-      do k = 1_ik, N_POROUS
-         if (porous(k)%matter > 0.0_wp) last = k
-      end do
-      rest = total
-      do k = 1_ik, N_POROUS
-         if (porous(k)%matter <= 0.0_wp .or. k == last) cycle
-         porous(k)%energy = temp_to_internal_energy(cp_organic * porous(k)%matter, porous(k)%water, temp, fliq)
-         rest = rest - porous(k)%energy
-      end do
-      porous(last)%energy = rest
-   end subroutine porous_layers_split_energy
-
-   !---~---
-   !   The porous layers take an exchange's amounts after the step's march: the energy in, and the
-   ! vapour each gave the canopy air as the water network took it (dew, negative, joined the top
-   ! layer), so the water that left carried its share of that energy.
-   !---~---
-   pure subroutine porous_layers_take_exchange(porous, energy_amount, vapour_amount)
-      type(porous_layer_state_t), intent(inout) :: porous(:)
-      real(wp),                   intent(in)    :: energy_amount             ! [J/m2] in
-      real(wp),                   intent(in)    :: vapour_amount(N_POROUS)   ! [kg/m2] out of each layer
-      real(wp)    :: total
-      integer(ik) :: k
-      if (.not. porous_layers_present(porous)) return
-      total = porous_energy(porous) + energy_amount
-      do k = 1_ik, N_POROUS
-         call store_take_exchange(porous(k), 0.0_wp, vapour_amount(k))
-      end do
-      call porous_layers_split_energy(porous, total)
-   end subroutine porous_layers_take_exchange
-
-   !---~---
-   !   The water a porous layer holds above saturation spills: dew or frost on a saturated or
-   ! frozen layer, which its pores cannot take and its ice keeps from passing on. Its water and
-   ! energy, at the layers' temperature and liquid fraction, move to the pond at a step's start.
-   !---~---
-   pure subroutine porous_layers_spill(porous, params, pond)
+   pure subroutine porous_layers_spill(porous, params, water_layer)
       type(porous_layer_state_t),          intent(inout) :: porous(:)
       type(ground_surface_layer_params_t), intent(in)    :: params
-      type(ground_store_t),                intent(inout) :: pond     ! the store the spill joins
-      real(wp)    :: excess, total, w_out, e_out, e_slot
+      class(ground_store_t),               intent(inout) :: water_layer
+      real(wp)    :: cap, excess
       integer(ik) :: k
-      w_out = 0.0_wp
-      e_out = 0.0_wp
-      if (.not. porous_layers_present(porous)) return
-      total = porous_energy(porous)
       call porous_layers_diagnose(porous)
-      do k = 1_ik, N_POROUS
-         if (porous(k)%matter <= 0.0_wp) cycle
-         associate (m => params%porous(k))
-            excess = max(0.0_wp, porous(k)%water - porous_layer_capacity(porous(k)%matter, m%bulk_density,     &
-                                                                         m%theta_sat))
-         end associate
-         if (excess <= 0.0_wp) cycle
-         e_slot = temp_to_internal_energy(0.0_wp, excess, porous(k)%temp, porous(k)%fliq)
-         call store_move(porous(k), pond, excess, e_slot)
-         w_out = w_out + excess
-         e_out = e_out + e_slot
+      do k = 1_ik, size(porous, kind=ik)
+         cap = 0.0_wp
+         if (porous(k)%matter > 0.0_wp)                                                                       &
+            cap = porous_layer_capacity(porous(k)%matter, params%porous(k)%bulk_density, params%porous(k)%theta_sat)
+         excess = porous(k)%water - cap
+         if (.not. (excess > 0.0_wp)) cycle
+         call store_move(porous(k), water_layer, excess, temp_to_internal_energy(0.0_wp, excess, porous(k)%temp,   &
+                                                                                 porous(k)%fliq))
       end do
-      if (w_out > 0.0_wp) call porous_layers_split_energy(porous, total - e_out)
+      call porous_layers_diagnose(porous)
    end subroutine porous_layers_spill
-
-   !--- [kg/m2], [J/m2], [kg/m2] The porous layers' water, energy and dry matter, summed top down.
-   pure real(wp) function porous_water(porous) result(w)
-      type(porous_layer_state_t), intent(in) :: porous(:)
-      integer(ik) :: k
-      w = 0.0_wp
-      do k = 1_ik, size(porous, kind=ik)
-         w = w + porous(k)%water
-      end do
-   end function porous_water
-
-   pure real(wp) function porous_energy(porous) result(e)
-      type(porous_layer_state_t), intent(in) :: porous(:)
-      integer(ik) :: k
-      e = 0.0_wp
-      do k = 1_ik, size(porous, kind=ik)
-         e = e + porous(k)%energy
-      end do
-   end function porous_energy
-
-   pure real(wp) function porous_matter(porous) result(m)
-      type(porous_layer_state_t), intent(in) :: porous(:)
-      integer(ik) :: k
-      m = 0.0_wp
-      do k = 1_ik, size(porous, kind=ik)
-         m = m + porous(k)%matter
-      end do
-   end function porous_matter
 
    !--- THE PATCH LOCKSTEP: the routines that list every patch field, in section order
 

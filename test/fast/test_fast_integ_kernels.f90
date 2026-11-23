@@ -60,7 +60,7 @@ program test_fast_integ_kernels
                                             surface_source_slopes, surface_jacobian, surface_residual_scaled,     &
                                             SURFACE_NEWTON_MAX
    use ed_surface,             only : surface_env_t, ground_surface_exchange, water_layer_commit,          &
-                                      water_layer_ice, store_exchange_t, STORE_SNOW
+                                      water_layer_ice, store_exchange_t, STORE_WATER
    use ed_fast_integ_rk45,   only : rk45_step, RK45_P_ORDER
    use ed_fast_integ_control, only : build_tol_set, build_error_control, state_wrms_grouped, step_control_factor
    use ed_fast_integ_update,   only : unpack_column_state
@@ -244,8 +244,6 @@ contains
       frozen%hydrology%w_flux_frozen(1:nsl) = 2.0e-8_wp
       frozen%hydrology%w_flux_frozen(nsl)   = 0.0_wp
       frozen%hydrology%drainage     = 2.0e-8_wp * rho_h2o
-      frozen%hydrology%infiltration = frozen%hydrology%q_top * rho_h2o
-      frozen%hydrology%exfil_enth   = 1.0e-7_wp * internal_energy_liquid(296.0_wp)
       do k = 1_ik, nsl
          frozen%roots%root_heat(k) = frozen%roots%uptake * frozen%roots%root_share(k) * internal_energy_liquid(295.0_wp)
       end do
@@ -285,9 +283,9 @@ contains
                  surf_tend%coh_rnet, 1.0e-9_wp * max(abs(surf_tend%coh_rnet), 1.0_wp))
 
       !---~---
-      !   The soil-heat part is soil_energy_time_deriv on the same surface coupling (g_top) and the
-      ! water network's flows: the enthalpy leaving each layer with the uptake, the time-mean
-      ! faces, the infiltration at the pond's temperature and the drainage at the bottom's.
+      !   The soil-heat part is soil_energy_time_deriv on the same surface coupling (g_top, the
+      ! water crossing the top included) and the water network's flows: the enthalpy leaving each
+      ! layer with the uptake, the time-mean faces and the drainage at the bottom's.
       !---~---
       se%soil_energy(1:nsl) = y%soil_energy(1:nsl)
       eforc%g_top = surf_tend%g_top
@@ -296,11 +294,8 @@ contains
          eforc%water_heat_out(k) = frozen%roots%root_heat(k)
          eforc%w_flux(k)         = -frozen%hydrology%w_flux_frozen(k)
       end do
-      eforc%water_heat_out(1)   = eforc%water_heat_out(1) + frozen%hydrology%exfil_enth
       eforc%water_heat_out(nsl) = eforc%water_heat_out(nsl)                                                      &
                                   + frozen%hydrology%drainage * internal_energy_liquid(frozen%hydrology%t_bot)
-      eforc%w_flux_top  = -frozen%hydrology%infiltration / rho_h2o
-      eforc%t_water_top = frozen%hydrology%t_infil
       call soil_energy_time_deriv(se, eforc, col%site%soil_profile, col%site%soil, dedt)
       call check('march_derivs: its soil-heat tendency is soil_energy_time_deriv on the network''s flows',        &
                  maxval(abs(f%dedt(1:nsl) - dedt(1:nsl))), 0.0_wp, 1.0e-9_wp)
@@ -980,7 +975,7 @@ contains
             leaf_w(i) = tissue_psi_to_water(PSI_LEAF, hyd%pft(PFTS(i))%leaf_curve, s%bleaf(i))
          end do
          call set_water_state(s, two%site%soil_profile, hyd, two%dynamic%soil_water%theta(1:nsl),                    &
-                              fz%water_drive%ice(1:nsl), 0.0_wp, 0.0_wp, leaf_w, wood_w, water)
+                              fz%water_drive%ice(1:nsl), 0.0_wp, leaf_w, wood_w, water)
          call water_derivs(s, two%site%soil_profile, two%site%soil, hyd, fz%water_drive, water%state%tau_soil,       &
                            water%state%tau_coh, water%ev(1), water%sys, .false.)
          do i = 1_ik, N
@@ -1197,8 +1192,8 @@ contains
       env%t_soil_top = t_ground
       call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, stores, it_stack, fb_stack)
       pack = env%pack
-      call water_layer_commit(pack, env%dt * stores%energy_in(STORE_SNOW), env%dt * stores%vapour_out(STORE_SNOW),  &
-                              ground_store_t(), ground_store_t(), water_layer_ice(pack), env%params)
+      call water_layer_commit(pack, env%dt * stores%energy_in(STORE_WATER), env%dt * stores%vapour_out(STORE_WATER), &
+                              ground_store_t(), 0.0_wp, ground_store_t(), water_layer_ice(pack), env%params)
       select case (k - SNOW_FIRST)
       case (0_ik)
          on = pack%temp < t_3ple                                     ! the ice line

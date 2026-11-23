@@ -250,14 +250,21 @@ contains
    !---~---
    !   Each ground tile's radiation from the ground's: the bare soil nets what the ground absorbs,
    ! and a pack absorbs its shortwave under a sky that emits what the pack does, so the pack has
-   ! no longwave loss at the step's start.
+   ! no longwave loss at the step's start. Where no pack lies (less than a gram of water, whose
+   ! temperature means nothing: a film's comes from the ground at the next stage), the sky emits
+   ! what the top soil layer does.
    !---~---
    subroutine set_ground_tiles(col)
       type(fast_column_t), intent(inout) :: col
+      real(wp), parameter :: PACK_MIN = 1.0e-3_wp   ! [kg/m2]
       col%forcing%rnet_soil      = col%forcing%abs_sw_ground + col%forcing%abs_lw_ground
       col%forcing%sw_snow        = col%forcing%abs_sw_ground
       col%forcing%sw_ground      = col%forcing%abs_sw_ground
-      col%forcing%lw_down_ground = stefan_boltzmann * col%dynamic%ground_surface%water%temp ** 4
+      if (col%dynamic%ground_surface%water%water >= PACK_MIN) then
+         col%forcing%lw_down_ground = stefan_boltzmann * col%dynamic%ground_surface%water%temp ** 4
+      else
+         col%forcing%lw_down_ground = stefan_boltzmann * col%dynamic%soil_energy%soil_temp(1) ** 4
+      end if
    end subroutine set_ground_tiles
 
    !---~---
@@ -338,7 +345,6 @@ contains
       frozen%roots%qloss_frozen = 0.0_wp
       frozen%roots%root_heat = 0.0_wp
       frozen%hydrology%q_top  = 1.0e-6_wp
-      frozen%hydrology%t_infil = 296.0_wp
       frozen%hydrology%t_bot   = 292.0_wp
       !---~---
       !   The tissues: leaf area 2.0, 1.5, ... from the top, 250, 200, ... W/m2 of shortwave, -30 of

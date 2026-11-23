@@ -31,18 +31,18 @@
 !      ground's temperature until it is a layer; a dusting on warm ground melts, the ground
 !      paying, and drains; a pond with a round-off share of ice is free water and covers nothing;
 !      a cold pack freezes a pond within its pores; a warm pond is all free water.
-!  10. THE POROUS LAYERS (their helpers in ed_patch_state_vars, and surface_node_balance): a slot holds its
-!      theta_sat over its depth; one temperature, the slots' energies summing to the total; each
-!      slot gives the vapour the water network took from it; heat crosses each slot's dried top
-!      at its dry conductivity, in series with its wet part. Each slot's curve is its material's
-!      at its depth (the moss's at -10 kPa as Zhang et al. 2010 measured, the litter's near what
-!      drained litter holds), whether frozen or empty; water above saturation (frost on a frozen
-!      slot) spills with its energy, the layer keeping its temperature. Its balance closes on its energy, a
-!      thin layer of little heat capacity relaxes over an hour without passing its surroundings, a dry layer does not
-!      evaporate, and a wet one gives no more than it holds; held at the network's rate it gives
-!      that rate, evaporation or dew, and takes its root; the soil takes what it conducts down,
-!      less the soil's own evaporation's latent heat, and with a pack on it the ground's energy
-!      closes on what the pack and the layer keep.
+!  10. THE POROUS LAYERS (their helpers in ed_patch_state_vars, and surface_node_balance): a layer
+!      holds its theta_sat over its depth, and passes what it holds beyond to the water layer at its
+!      temperature; each its own temperature, from its own energy; heat
+!      crosses a layer's dried top at its dry conductivity, in series with its wet part. Each
+!      layer's curve is its material's at its depth (the moss's at -10 kPa as Zhang et al. 2010
+!      measured, the litter's near what drained litter holds), whether frozen or empty. Its
+!      balance closes on its energy, a thin layer of little heat capacity relaxes over an hour
+!      without passing its surroundings, a dry layer does not evaporate, and a wet one gives no
+!      more than it holds; held at the network's rate it gives that rate, evaporation or dew, and
+!      takes its root; the soil takes what it conducts down, less the soil's own evaporation's
+!      latent heat, and with a pack on it the ground's energy closes on what the pack and the
+!      layer keep.
 !  11. INSULATION: a deep pack colder than the soil, in balance with the air, passes the soil
 !      the heat its whole depth and the top soil node conduct in series, since its one
 !      temperature is its surface's; twice as deep, it passes less.
@@ -60,17 +60,16 @@ program test_surface
                                      internal_energy_liquid, sat_specific_humidity, cas_heat_capacity,     &
                                      enthalpy_vapor, sat_specific_humidity_temp_deriv
    use ed_patch_state_vars,   only : ground_store_t, water_layer_state_t, porous_layer_state_t, ground_store_present, &
-                                     porous_layers_sums, porous_layers_split_energy, porous_layers_take_exchange,  &
-                                     porous_layer_curve, porous_layers_spill, porous_water, porous_energy
-   use ed_ground_surface_lib, only : water_layer_bulk_density, porous_layer_capacity
+                                     porous_layer_curve, porous_layers_diagnose, porous_layers_spill
+   use ed_ground_surface_lib, only : water_layer_bulk_density, porous_layer_capacity, porous_layer_resistance
    use ed_ground_surface_params, only : ground_surface_layer_params_t, water_material_t, POROUS_LITTER, POROUS_MOSS, &
                                         N_POROUS
    use ed_soil_hydr_lib,      only : soil_layer_curve_t, soil_head_to_theta
-   use ed_surface,            only : surface_env_t, water_stage_out_t, surface_node_t, node_flux_t,           &
-                                     surface_node_balance, surface_stack_balance, water_layer_stage,           &
+   use ed_surface,            only : surface_env_t, porous_node_env_t, water_stage_out_t, surface_node_t,      &
+                                     node_flux_t, surface_node_balance, surface_stack_balance, water_layer_stage,  &
                                      water_layer_commit,                                                        &
                                      water_layer_cover_of, water_layer_ice, ground_surface_exchange,           &
-                                     store_exchange_t, STORE_SNOW, STORE_ORGANIC,                               &
+                                     store_exchange_t, STORE_WATER, N_SURFACE_STORE,                            &
                                      snow_blend_ground_optics, ground_tile_radiation, ground_surface_fluxes,    &
                                      conductance_in_series
    implicit none
@@ -86,10 +85,11 @@ program test_surface
    call test_tile_radiation()
    call test_ground_balance()
    call test_water_layer_stage()
-   call test_organic_slots()
-   call test_organic_balance()
+   call test_porous_layers()
+   call test_porous_balance()
    call test_insulation()
    call test_stack()
+   call test_stack_water()
 
    call test_report('test_surface')
 
@@ -161,10 +161,10 @@ contains
       e%snowfac = cover
       e%dt      = dt
       call ground_surface_exchange(e, h_ground, le_ground, g_top, ground_rad, stores, it_stack, fb_stack)
-      snow_energy_in  = stores%energy_in(STORE_SNOW)
-      snow_vapour_out = stores%vapour_out(STORE_SNOW)
-      call water_layer_commit(snow, dt * snow_energy_in, dt * snow_vapour_out, ground_store_t(), ground_store_t(), &
-                              water_layer_ice(snow), e%params)
+      snow_energy_in  = stores%energy_in(STORE_WATER)
+      snow_vapour_out = stores%vapour_out(STORE_WATER)
+      call water_layer_commit(snow, dt * snow_energy_in, dt * snow_vapour_out, ground_store_t(), 0.0_wp,           &
+                              ground_store_t(), water_layer_ice(snow), e%params)
       energy_gain = dt * (ground_rad - h_ground - le_ground - g_top)
       vapour_loss = dt * snow_vapour_out
    end subroutine snow_step
@@ -579,89 +579,102 @@ contains
                       1.0_wp) - temp_to_internal_energy(40.0_wp, 0.005_wp, t_3ple, 0.0_wp), st%film_heat)
    end subroutine test_water_layer_stage
 
-   !--- 10a. The organic layer's slots: 1.35 kg of litter (3 cm) over 2.15 kg of moss (5 cm), dry, at 280 K.
-   function two_slots(o) result(org)
+   !--- 10a. The porous layers: 1.35 kg of litter (3 cm) over 2.15 kg of moss (5 cm), dry, each at its temperature.
+   function two_layers(o, t_litter, t_moss) result(layer)
       type(ground_surface_layer_params_t), intent(in) :: o
-      type(porous_layer_state_t) :: org(N_POROUS)
-      org = porous_layer_state_t()
-      org%matter    = [0.03_wp * o%porous(POROUS_LITTER)%bulk_density, 0.05_wp * o%porous(POROUS_MOSS)%bulk_density]
-      call porous_layers_split_energy(org, temp_to_internal_energy(cp_organic * sum(org%matter), 0.0_wp, 280.0_wp, 1.0_wp))
-   end function two_slots
+      real(wp),                            intent(in) :: t_litter, t_moss   ! [K]
+      type(porous_layer_state_t) :: layer(N_POROUS)
+      layer = porous_layer_state_t()
+      layer%matter = [0.03_wp * o%porous(POROUS_LITTER)%bulk_density, 0.05_wp * o%porous(POROUS_MOSS)%bulk_density]
+      layer%energy = temp_to_internal_energy(cp_organic * layer%matter, 0.0_wp, [t_litter, t_moss], 1.0_wp)
+      call porous_layers_diagnose(layer)
+   end function two_layers
 
-   subroutine test_organic_slots()
+   subroutine test_porous_layers()
       real(wp), parameter :: HEAD_10KPA = -1.0e4_wp / (1000.0_wp * 9.80665_wp)   ! [m]
       type(ground_surface_layer_params_t)   :: o
-      type(porous_layer_state_t)    :: org(N_POROUS)
+      type(porous_layer_state_t)    :: layer(N_POROUS)
       type(soil_layer_curve_t) :: c
-      real(wp) :: cap_litter, cap_moss, dry_cap, w, e, w_max, resist, e_in, dry_depth, fill, w_out, e_out, t_in
-      type(ground_store_t) :: pond
-      print '(a)', 'test_organic_slots:'
-      org = two_slots(o)
+      type(ground_store_t)     :: pond
+      real(wp) :: cap_litter, cap_moss, fill, e0, e_moss
+      print '(a)', 'test_porous_layers:'
+      layer = two_layers(o, 280.0_wp, 283.0_wp)
       cap_litter = o%porous(POROUS_LITTER)%theta_sat * 1000.0_wp * 0.03_wp            ! 29.4 kg/m2
       cap_moss   = o%porous(POROUS_MOSS)%theta_sat   * 1000.0_wp * 0.05_wp            ! 42.5 kg/m2
-      call check('a slot holds its theta_sat over its depth',                                                    &
-                 porous_layer_capacity(org(POROUS_MOSS)%matter, o%porous(POROUS_MOSS)%bulk_density,             &
+      call check('a layer holds its theta_sat over its depth',                                                   &
+                 porous_layer_capacity(layer(POROUS_MOSS)%matter, o%porous(POROUS_MOSS)%bulk_density,           &
                                        o%porous(POROUS_MOSS)%theta_sat), cap_moss,                              &
                  1.0e-12_wp)
-      org%water = [cap_litter, cap_moss]
-      call porous_layers_split_energy(org, temp_to_internal_energy(cp_organic * sum(org%matter), sum(org%water),     &
-                                                                   283.0_wp, 1.0_wp))
-      call check('one temperature, the total''s', org(1)%temp, 283.0_wp, 1.0e-9_wp)
-      call check('the slots'' energies sum to the total', sum(org%energy),                                          &
-                 temp_to_internal_energy(cp_organic * sum(org%matter), sum(org%water), 283.0_wp, 1.0_wp), 1.0e-6_wp)
-      call porous_layers_sums(org, o, dry_cap, w, e, w_max, resist, dry_depth)
-      call check('it holds the slots'' saturation', w_max, cap_litter + cap_moss, 1.0e-9_wp)
-      call check('a saturated layer has no dried top', dry_depth, 0.0_wp, 1.0e-12_wp)
-      call check('its resistance: each slot''s depth over its saturated conductivity', resist,                     &
-                 0.03_wp / o%porous(POROUS_LITTER)%k_wet + 0.05_wp / o%porous(POROUS_MOSS)%k_wet, 1.0e-12_wp)
-      e_in = sum(org%energy)
-      call porous_layers_take_exchange(org, -1.0e5_wp, [cap_litter, 2.0_wp])
-      call check_true('each slot gives the vapour taken from it', org(POROUS_LITTER)%water == 0.0_wp                  &
-                      .and. abs(org(POROUS_MOSS)%water - (cap_moss - 2.0_wp)) < 1.0e-9_wp)
-      call check('the exchange''s energy reaches the layer', sum(org%energy), e_in - 1.0e5_wp, 1.0e-6_wp)
-      call porous_layers_sums(org, o, dry_cap, w, e, w_max, resist, dry_depth)
-      call check('its dried top: the empty litter, and the share of the moss its water does not fill', dry_depth, &
-                 0.03_wp + 0.05_wp * 2.0_wp / cap_moss, 1.0e-12_wp)
-      fill = 1.0_wp - 2.0_wp / cap_moss
-      call check('its resistance: each dried top at the dry conductivity, the wet rest at the wet one', resist,    &
-                 0.03_wp / o%porous(POROUS_LITTER)%k_dry                                                       &
-                 + 0.05_wp * ((1.0_wp - fill) / o%porous(POROUS_MOSS)%k_dry + fill / o%porous(POROUS_MOSS)%k_wet), &
+      call check('each layer its own temperature: the litter''s', layer(POROUS_LITTER)%temp, 280.0_wp, 1.0e-9_wp)
+      call check('each layer its own temperature: the moss''s', layer(POROUS_MOSS)%temp, 283.0_wp, 1.0e-9_wp)
+      layer%water  = [cap_litter, 2.0_wp]
+      layer%energy = temp_to_internal_energy(cp_organic * layer%matter, layer%water, [270.0_wp, 283.0_wp],        &
+                                             [0.0_wp, 1.0_wp])
+      call porous_layers_diagnose(layer)
+      call check_true('a frozen litter over a thawed moss', layer(POROUS_LITTER)%fliq == 0.0_wp                     &
+                      .and. layer(POROUS_MOSS)%fliq == 1.0_wp, layer(POROUS_LITTER)%temp)
+      call check('a saturated layer conducts at its wet conductivity',                                           &
+                 porous_layer_resistance(0.03_wp, 1.0_wp, o%porous(POROUS_LITTER)%k_dry, o%porous(POROUS_LITTER)%k_wet), &
+                 0.03_wp / o%porous(POROUS_LITTER)%k_wet, 1.0e-12_wp)
+      fill = 2.0_wp / cap_moss
+      call check('a layer''s dried top at its dry conductivity, the wet rest at its wet one',                    &
+                 porous_layer_resistance(0.05_wp, fill, o%porous(POROUS_MOSS)%k_dry, o%porous(POROUS_MOSS)%k_wet),  &
+                 0.05_wp * ((1.0_wp - fill) / o%porous(POROUS_MOSS)%k_dry + fill / o%porous(POROUS_MOSS)%k_wet),   &
                  1.0e-12_wp)
-      !--- Each slot's curve: its material's at its depth, the residual no more than the liquid it holds.
-      c = porous_layer_curve(o%porous(POROUS_MOSS), org(POROUS_MOSS))
+      !--- Each layer's curve: its material's at its depth, the residual no more than the liquid it holds.
+      c = porous_layer_curve(o%porous(POROUS_MOSS), layer(POROUS_MOSS))
       call check('the moss''s curve: its depth', c%dz, 0.05_wp, 1.0e-12_wp)
       call check('the moss at -10 kPa holds 0.29 (Zhang et al. 2010)',                                             &
                  soil_head_to_theta(c%retention, HEAD_10KPA, c%theta_sat, c%theta_res, c%par_a, c%par_n), 0.294_wp,  &
                  1.0e-3_wp)
       call check('a moss above its residual keeps it', c%theta_res, o%porous(POROUS_MOSS)%theta_res, 0.0_wp)
-      c = porous_layer_curve(o%porous(POROUS_LITTER), org(POROUS_LITTER))
+      layer(POROUS_LITTER)%water = 0.0_wp
+      c = porous_layer_curve(o%porous(POROUS_LITTER), layer(POROUS_LITTER))
       call check('an empty litter keeps its material''s residual', c%theta_res, o%porous(POROUS_LITTER)%theta_res, 0.0_wp)
-      org(POROUS_LITTER)%water = cap_litter
-      c = porous_layer_curve(o%porous(POROUS_LITTER), org(POROUS_LITTER))
+      layer(POROUS_LITTER)%water = cap_litter
+      c = porous_layer_curve(o%porous(POROUS_LITTER), layer(POROUS_LITTER))
       call check('the litter at -10 kPa holds 0.14, near drained litter''s 0.12 (Putuhena & Cordery 1996)',        &
                  soil_head_to_theta(c%retention, HEAD_10KPA, c%theta_sat, c%theta_res, c%par_a, c%par_n), 0.1415_wp, &
                  1.0e-3_wp)
-      org%fliq = 0.0_wp
-      c = porous_layer_curve(o%porous(POROUS_MOSS), org(POROUS_MOSS))
-      call check('a frozen slot keeps its material''s curve', c%theta_res, o%porous(POROUS_MOSS)%theta_res, 0.0_wp)
-      !--- Frost on a frozen, saturated litter: what it holds above saturation spills, with its energy.
-      org%water = [cap_litter + 0.5_wp, cap_moss]
-      call porous_layers_split_energy(org, temp_to_internal_energy(cp_organic * sum(org%matter), sum(org%water),     &
-                                                                   265.0_wp, 0.0_wp))
-      e_in = sum(org%energy)
-      t_in = org(1)%temp
+      layer%fliq = 0.0_wp
+      c = porous_layer_curve(o%porous(POROUS_MOSS), layer(POROUS_MOSS))
+      call check('a frozen layer keeps its material''s curve', c%theta_res, o%porous(POROUS_MOSS)%theta_res, 0.0_wp)
+      !--- A frozen litter 2 kg beyond its saturation: the excess passes to the water layer, the litter keeps its temperature.
+      layer = two_layers(o, 265.0_wp, 283.0_wp)
+      layer%water  = [cap_litter + 2.0_wp, 2.0_wp]
+      layer%energy = temp_to_internal_energy(cp_organic * layer%matter, layer%water, [265.0_wp, 283.0_wp],        &
+                                             [0.0_wp, 1.0_wp])
+      e0 = sum(layer%energy)
+      e_moss = layer(POROUS_MOSS)%energy
       pond = ground_store_t()
-      call porous_layers_spill(org, o, pond)
-      w_out = pond%water
-      e_out = pond%energy
-      call check('above saturation: the excess spills to the pond', w_out, 0.5_wp, 1.0e-12_wp)
-      call check('above saturation: the slot keeps its saturation', org(POROUS_LITTER)%water, cap_litter, 1.0e-9_wp)
-      call check('above saturation: the spill takes its ice''s energy, the rest stays', sum(org%energy) + e_out,         &
-                 e_in, 1.0e-6_wp)
-      call check('above saturation: the layer keeps its temperature', org(1)%temp, t_in, 1.0e-9_wp)
-      call porous_layers_spill(org, o, pond)
-      call check('a saturated layer spills nothing', pond%water, w_out, 0.0_wp)
-   end subroutine test_organic_slots
+      call porous_layers_spill(layer, o, pond)
+      call check('beyond saturation: the excess passes to the water layer', pond%water, 2.0_wp, 1.0e-12_wp)
+      call check('beyond saturation: the litter keeps its saturation', layer(POROUS_LITTER)%water, cap_litter,     &
+                 1.0e-12_wp)
+      call check('beyond saturation: the litter keeps its temperature', layer(POROUS_LITTER)%temp, 265.0_wp,      &
+                 1.0e-9_wp)
+      call check('beyond saturation: the energy goes with the water', sum(layer%energy) + pond%energy, e0,        &
+                 1.0e-9_wp * abs(e0))
+      call check('beyond saturation: a layer within its pores keeps all it holds', layer(POROUS_MOSS)%energy,     &
+                 e_moss, 0.0_wp)
+   end subroutine test_porous_layers
+
+   !--- A porous layer as the stack reads it: water [kg/m2] at temp, its matter's heat, its resistance.
+   function porous_env(o, k, matter, water, temp) result(pe)
+      type(ground_surface_layer_params_t), intent(in) :: o
+      integer(ik),                         intent(in) :: k
+      real(wp),                            intent(in) :: matter, water, temp   ! [kg/m2], [kg/m2], [K]
+      type(porous_node_env_t) :: pe
+      real(wp) :: depth
+      pe%dry_cap = cp_organic * matter
+      pe%water   = water
+      pe%energy  = temp_to_internal_energy(pe%dry_cap, water, temp, merge(1.0_wp, 0.0_wp, temp >= t_3ple))
+      call internal_energy_to_temp(pe%energy, water, pe%dry_cap, pe%temp, pe%fliq)
+      depth = matter / o%porous(k)%bulk_density
+      pe%resistance = porous_layer_resistance(depth, min(1.0_wp, water / porous_layer_capacity(matter,               &
+                                              o%porous(k)%bulk_density, o%porous(k)%theta_sat)),                   &
+                                              o%porous(k)%k_dry, o%porous(k)%k_wet)
+   end function porous_env
 
    !---~---
    !   10b. One node's balance (surface_node_balance), and the ground surface with the porous
@@ -670,35 +683,28 @@ contains
    ! temperature it solved for; a node whose vapour is the canopy air's evaporates no more than it
    ! holds; and a pack on the ice line is the closed form of its own balance.
    !---~---
-   subroutine test_organic_balance()
+   subroutine test_porous_balance()
       real(wp), parameter :: DT = 3600.0_wp
       type(ground_surface_layer_params_t) :: o
-      type(porous_layer_state_t)  :: org(N_POROUS)
       type(surface_env_t)    :: env
       type(surface_node_t)   :: node
       type(node_flux_t)      :: ofx
       type(water_material_t)    :: p
-      real(wp) :: w_max, h_ground, le_ground, g_top, ground_rad, s_in, o_in, dry_depth
+      real(wp) :: h_ground, le_ground, g_top, ground_rad, s_in, o_in
       type(store_exchange_t) :: stores
       integer(ik) :: it_stack, fb_stack
-      print '(a)', 'test_organic_balance:'
-      org = porous_layer_state_t()                                    ! litter alone: 1.35 kg/m2, 2.6 kJ/m2/K dry
-      org(POROUS_LITTER)%matter    = 0.03_wp * o%porous(POROUS_LITTER)%bulk_density
-      org(POROUS_LITTER)%water   = 1.0_wp
-      call porous_layers_split_energy(org, temp_to_internal_energy(cp_organic * org(POROUS_LITTER)%matter, 1.0_wp,   &
-                                                                   280.0_wp, 1.0_wp))
+      print '(a)', 'test_porous_balance:'
       call cold_env(env)
       env%dt           = DT
       env%can_temp     = 270.0_wp
       env%t_soil_top   = 285.0_wp
       env%ggnet        = 0.05_wp
       env%rnet_soil    = 0.0_wp
-      env%has_org      = .true.
       env%ground_emiss = 0.95_wp
-      call porous_layers_sums(org, o, env%org_dry_cap, env%org_water, env%org_energy, w_max, env%org_resistance, &
-                              dry_depth)
+      env%porous(POROUS_LITTER) = porous_env(o, POROUS_LITTER, 0.03_wp * o%porous(POROUS_LITTER)%bulk_density,      &
+                                             1.0_wp, 280.0_wp)   ! litter alone: 1.35 kg/m2, 2.6 kJ/m2/K dry
       !--- Held at the water network's rate, evaporation or dew: the layer gives that rate, its energy closes, it takes its root.
-      env%org_evap_held = 1.0e-5_wp
+      env%porous(POROUS_LITTER)%vapour = 1.0e-5_wp
       node = porous_node(env, 1.0_wp)
       call surface_node_balance(node, env, ofx)
       call check_true('a thin layer relaxes over an hour without passing its surroundings',                         &
@@ -708,7 +714,7 @@ contains
                  ofx%rad - ofx%h - ofx%le - ofx%g_below, 1.0e-9_wp)
       call check('held: the exchange it takes gives back its root', committed_temp(node, env%dt, ofx), ofx%t_surf,   &
                  1.0e-6_wp)
-      env%org_evap_held = -2.0e-6_wp
+      env%porous(POROUS_LITTER)%vapour = -2.0e-6_wp
       node = porous_node(env, 1.0_wp)
       call surface_node_balance(node, env, ofx)
       call check('held: dew at the network''s rate', ofx%w_flux, -2.0e-6_wp, 1.0e-18_wp)
@@ -716,7 +722,7 @@ contains
       call check('held: dew, the exchange it takes gives back its root', committed_temp(node, env%dt, ofx),         &
                  ofx%t_surf, 1.0e-6_wp)
       !--- Under a pack that covers all of it, the network's evaporation is still the layer's, per unit ground area.
-      env%org_evap_held = 1.0e-5_wp
+      env%porous(POROUS_LITTER)%vapour = 1.0e-5_wp
       node = porous_node(env, 0.0_wp)
       call surface_node_balance(node, env, ofx)
       call check('held under a full cover: the network''s rate all the same', ofx%w_flux, 1.0e-5_wp, 1.0e-18_wp)
@@ -738,12 +744,12 @@ contains
                  1.0e-6_wp)
       call test_pack_closed_form(env, p)
       !--- The ground with the layer: the soil takes its conduction less the soil's own evaporation's heat.
-      env%org_evap_held = 0.0_wp
+      env%porous(POROUS_LITTER)%vapour = 0.0_wp
       env%soil_evap = 1.0e-6_wp
       env%snowfac   = 0.0_wp
       call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, stores, it_stack, fb_stack)
-      s_in = stores%energy_in(STORE_SNOW)
-      o_in = stores%energy_in(STORE_ORGANIC)
+      s_in = stores%energy_in(STORE_WATER)
+      o_in = stores%energy_in(STORE_WATER + POROUS_LITTER)
       node = porous_node(env, 1.0_wp)
       call surface_node_balance(node, env, ofx)
       call check('the soil takes what the layer conducts, less its evaporation''s heat', g_top,                    &
@@ -756,11 +762,9 @@ contains
       env%pack    = cold_pack(30.0_wp, 265.0_wp, p)
       env%snowfac = 0.9_wp
       call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, stores, it_stack, fb_stack)
-      s_in = stores%energy_in(STORE_SNOW)
-      o_in = stores%energy_in(STORE_ORGANIC)
       call check('pack and layer: the ground''s energy closes', ground_rad - h_ground - le_ground - g_top,          &
-                 s_in + o_in, 1.0e-9_wp)
-   end subroutine test_organic_balance
+                 sum(stores%energy_in(1:N_SURFACE_STORE)), 1.0e-9_wp)
+   end subroutine test_porous_balance
 
    !---~---
    !   A cold pack on the ice line is its balance's closed form: its energy over the step is
@@ -798,21 +802,22 @@ contains
       call check('a pack on the ice line: its root is the closed form''s', flux%t_surf, t_root, 1.0e-9_wp)
    end subroutine test_pack_closed_form
 
-   !--- The porous layers as the ground surface's balance builds their node, at the pack's cover.
+   !--- The top porous layer as the ground surface's balance builds its node, at the pack's cover.
    function porous_node(env, open_share) result(node)
       type(surface_env_t), intent(in) :: env
       real(wp),            intent(in) :: open_share   ! [-] the share of the ground the pack leaves open
       type(surface_node_t) :: node
-      node%dry_cap = env%org_dry_cap
-      node%water   = env%org_water
-      node%energy  = env%org_energy
-      call internal_energy_to_temp(node%energy, node%water, node%dry_cap, node%temp, node%fliq)
+      node%dry_cap = env%porous(POROUS_LITTER)%dry_cap
+      node%water   = env%porous(POROUS_LITTER)%water
+      node%energy  = env%porous(POROUS_LITTER)%energy
+      node%temp    = env%porous(POROUS_LITTER)%temp
+      node%fliq    = env%porous(POROUS_LITTER)%fliq
       node%area        = open_share
       node%emiss       = env%ground_emiss
       node%rad         = env%sw_ground + node%emiss * (env%lw_down - stefan_boltzmann * node%temp ** 4)
       node%vapour_held = .true.
-      node%vapour_rate = env%org_evap_held
-      node%g_below     = conductance_in_series(env%org_resistance, env%r_soil_top)
+      node%vapour_rate = env%porous(POROUS_LITTER)%vapour
+      node%g_below     = conductance_in_series(env%porous(POROUS_LITTER)%resistance, env%r_soil_top)
       node%t_below     = env%t_soil_top
    end function porous_node
 
@@ -884,5 +889,99 @@ contains
       call check('the stack of one: its closed form', fl1(1)%t_surf, single%t_surf, 1.0e-9_wp)
       call check('the stack of one: its gain', fl1(1)%energy_in, single%energy_in, 1.0e-7_wp)
    end subroutine test_stack
+
+   !---~---
+   !   12b. The stack with the water the network moves: a 0.3 mm litter over 5 cm of moss over
+   ! cold soil, 2 kg/m2 of warm free water passing through the litter over the step, half of it
+   ! into the moss, a little running off. What the stores and the soil take is what the ground
+   ! absorbs less what it gives the air and the runoff carries off; the litter, of little heat
+   ! capacity, ends between the water reaching it and the moss below; the Gauss-Seidel sweeps
+   ! find Newton's root. A 3 cm litter over the moss, no water passing, ends at its own
+   ! temperature, apart from the moss's.
+   !---~---
+   subroutine test_stack_water()
+      real(wp), parameter :: DT = 900.0_wp, T_FREE = 283.0_wp, RUNOFF = 0.1_wp / 900.0_wp
+      type(ground_surface_layer_params_t) :: o
+      type(surface_env_t)    :: env
+      type(store_exchange_t) :: stores
+      type(surface_node_t)   :: node(2), base(2)
+      type(node_flux_t)      :: flux(2)
+      real(wp) :: h_ground, le_ground, g_top, ground_rad, t_newton(2)
+      integer(ik) :: it, fb
+      print '(a)', 'test_stack_water:'
+      call cold_env(env)
+      env%dt           = DT
+      env%can_temp     = 276.0_wp
+      env%can_shv      = 4.0e-3_wp
+      env%t_soil_top   = 274.0_wp
+      env%ggnet        = 0.02_wp
+      env%sw_ground    = 80.0_wp
+      env%ground_emiss = 0.95_wp
+      env%porous(POROUS_LITTER) = porous_env(o, POROUS_LITTER, 0.0135_wp, 0.13_wp, 278.0_wp)
+      env%porous(POROUS_MOSS)   = porous_env(o, POROUS_MOSS, 2.15_wp, 20.0_wp, 274.5_wp)
+      env%free_temp = T_FREE
+      env%free_down = 2.0_wp / DT                      ! into the litter
+      env%runoff    = RUNOFF
+      env%porous(POROUS_LITTER)%down = 2.0_wp / DT     ! all of it on into the moss
+      env%porous(POROUS_MOSS)%down   = 1.0_wp / DT     ! half of it into the soil
+      env%porous(POROUS_MOSS)%water  = env%porous(POROUS_MOSS)%water + 1.0_wp
+      call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, stores, it, fb)
+      call check('water passing: what the stores and the soil take is what the ground absorbs less what it gives', &
+                 sum(stores%energy_in(1:N_SURFACE_STORE)) + g_top,                                                   &
+                 ground_rad - h_ground - le_ground - RUNOFF * internal_energy_liquid(T_FREE), 1.0e-9_wp)
+      call check('water passing: the free water gives what it sends at its temperature',                          &
+                 stores%energy_in(STORE_WATER), -(2.0_wp / DT + RUNOFF) * internal_energy_liquid(T_FREE), 1.0e-9_wp)
+      !--- The litter's temperature, back from its energy and the water it holds.
+      call stack_nodes(env, node)
+      base = node
+      call surface_stack_balance(node, 2_ik, env, flux, it, fb)
+      t_newton = flux%t_surf
+      call check_true('a thin litter passing 2 kg/m2 ends between the water reaching it and the moss below',          &
+                      flux(1)%t_surf < T_FREE .and. flux(1)%t_surf >= flux(2)%t_surf, flux(1)%t_surf)
+      call check('the stack: the litter''s gain, its energy at its root', committed_temp(base(1), DT, flux(1)),       &
+                 flux(1)%t_surf, 1.0e-6_wp)
+      call check('the stack: the moss''s gain, its energy at its root', committed_temp(base(2), DT, flux(2)),         &
+                 flux(2)%t_surf, 1.0e-6_wp)
+      node = base
+      call surface_stack_balance(node, 2_ik, env, flux, it, fb, newton_max=0_ik)
+      call check_true('water passing: the Gauss-Seidel sweeps take over', fb == 1_ik)
+      call check('water passing: their root is Newton''s, the litter', flux(1)%t_surf, t_newton(1), 1.0e-6_wp)
+      call check('water passing: their root is Newton''s, the moss', flux(2)%t_surf, t_newton(2), 1.0e-6_wp)
+      !--- A 3 cm litter, no water passing: its own temperature.
+      env%porous(POROUS_LITTER) = porous_env(o, POROUS_LITTER, 1.35_wp, 5.0_wp, 278.0_wp)
+      env%porous(POROUS_MOSS)   = porous_env(o, POROUS_MOSS, 2.15_wp, 20.0_wp, 274.5_wp)
+      env%free_down = 0.0_wp
+      call stack_nodes(env, node)
+      call surface_stack_balance(node, 2_ik, env, flux, it, fb)
+      call check_true('the litter and the moss each at its own temperature', flux(1)%t_surf - flux(2)%t_surf         &
+                      > 1.0_wp, flux(1)%t_surf - flux(2)%t_surf)
+   end subroutine test_stack_water
+
+   !--- The litter and the moss as ground_surface_exchange builds them, with the water passing through.
+   subroutine stack_nodes(env, node)
+      type(surface_env_t),  intent(in)  :: env
+      type(surface_node_t), intent(out) :: node(2)
+      integer(ik) :: i, k
+      do i = 1_ik, 2_ik
+         k = merge(POROUS_LITTER, POROUS_MOSS, i == 1_ik)
+         node(i)%dry_cap     = env%porous(k)%dry_cap
+         node(i)%water       = env%porous(k)%water
+         node(i)%energy      = env%porous(k)%energy
+         node(i)%temp        = env%porous(k)%temp
+         node(i)%fliq        = env%porous(k)%fliq
+         node(i)%emiss       = env%ground_emiss
+         node(i)%rad         = env%sw_ground + node(i)%emiss * (env%lw_down - stefan_boltzmann * node(i)%temp ** 4)
+         node(i)%vapour_held = .true.
+      end do
+      node(1)%area    = 1.0_wp
+      node(1)%g_below = 1.0_wp / env%porous(POROUS_LITTER)%resistance
+      node(2)%g_above = node(1)%g_below
+      node(2)%g_below = conductance_in_series(env%porous(POROUS_MOSS)%resistance, env%r_soil_top)
+      node(2)%t_below = env%t_soil_top
+      node(1)%q_in    = env%free_down * internal_energy_liquid(env%free_temp)
+      node(1)%m_out   = env%porous(POROUS_LITTER)%down
+      node(2)%m_above = env%porous(POROUS_LITTER)%down
+      node(2)%m_out   = env%porous(POROUS_MOSS)%down
+   end subroutine stack_nodes
 
 end program test_surface

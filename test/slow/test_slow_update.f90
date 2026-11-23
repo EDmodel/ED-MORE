@@ -1225,7 +1225,7 @@ module test_slow_update_litter
    use ed_kinds,                only : wp, ik
    use ed_constants,            only : rho_h2o, cp_organic
    use ed_therm_lib,            only : temp_to_internal_energy
-   use ed_patch_state_vars,     only : patch_block, alloc_patch_block, porous_layer_state_t, porous_layers_split_energy
+   use ed_patch_state_vars,     only : patch_block, alloc_patch_block, porous_layer_state_t
    use ed_ground_surface_params, only : ground_surface_layer_params_t, POROUS_LITTER, POROUS_MOSS
    use ed_ground_surface_lib,   only : porous_layer_matter
    use ed_slow_update,          only : follow_porous_layers
@@ -1252,8 +1252,7 @@ contains
          org = porous_layer_state_t()
          org%matter  = [0.02_wp * o%porous(POROUS_LITTER)%bulk_density, 0.05_wp * o%porous(POROUS_MOSS)%bulk_density]
          org%water   = [0.5_wp * 0.02_wp * rho_h2o, 0.4_wp * 0.05_wp * rho_h2o]
-         call porous_layers_split_energy(org, temp_to_internal_energy(cp_organic * sum(org%matter), sum(org%water),      &
-                                                                285.0_wp, 1.0_wp))
+         org%energy  = temp_to_internal_energy(cp_organic * org%matter, org%water, 285.0_wp, 1.0_wp)
          layer%water  = 0.0_wp
          layer%energy = 0.0_wp
          !--- Shrinks to a fifth: 4 mm hold 3.92 kg/m2 saturated, of the 10 it held.

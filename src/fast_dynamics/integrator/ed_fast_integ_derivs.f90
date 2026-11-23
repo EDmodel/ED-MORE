@@ -28,7 +28,7 @@ module ed_fast_integ_derivs
    use ed_fast_integ_types, only : surface_state_t, surface_tend_t, cas_boundary_t,                                  &
                                march_state_t, frozen_t, march_tend_t, fast_static_state_t,                    &
                                water_drive_t, water_tend_t, water_work_t, ensure_water_capacity, POND, WOOD, LEAF, &
-                              water_organic_t
+                               water_porous_t
    use ed_site_state_vars, only : site_surface_t
    use ed_soil_hydr_lib,   only : soil_water_relations, soil_theta_to_unknown, pond_water_relations,              &
                                   pond_water_to_head, soil_ice_t
@@ -289,14 +289,14 @@ contains
       f%uptake_rate      = frozen%roots%uptake
 
       !---~---
-      !   3. Soil heat: g_top from the surface, and the enthalpy of the network's flows, the numbers
-      ! the ESDIRK2 stage uses (docs/science/numerical_scheme.md §5b, soil_plant_water.md §5). The
-      ! leaf pays its transpiration's full vapour enthalpy in surface_derivs.
+      !   3. Soil heat: g_top from the surface, the heat of the water crossing the soil's top
+      ! included, and the enthalpy of the network's flows below it, the numbers the ESDIRK2 stage
+      ! uses (docs/science/numerical_scheme.md §5b, soil_plant_water.md §5). The leaf pays its
+      ! transpiration's full vapour enthalpy in surface_derivs.
       !---~---
       soil_energy%soil_energy(1:nsl) = y%soil_energy(1:nsl)
-      call set_soil_heat_env(nsl, surf_tend%g_top, y%theta, frozen%roots%root_heat, frozen%hydrology%exfil_enth,  &
-                             frozen%hydrology%w_flux_frozen, frozen%hydrology%infiltration,                       &
-                             frozen%hydrology%t_infil, f%drainage_rate, frozen%hydrology%t_bot, eforc,            &
+      call set_soil_heat_env(nsl, surf_tend%g_top, y%theta, frozen%roots%root_heat,                              &
+                             frozen%hydrology%w_flux_frozen, f%drainage_rate, frozen%hydrology%t_bot, eforc,      &
                              water_heat, e_drain)
       call soil_energy_time_deriv(soil_energy, eforc, site%soil_profile, site%soil,   &
                                   f%dedt, bottom_face=f%g_bottom)
@@ -327,33 +327,33 @@ contains
    !---~---
 
    !---~---
-   !   set_water_state -- the network's state from the model's: each organic slot's water and
-   ! each soil layer's water content and ice, the pond's water and enthalpy, and each cohort's
-   ! leaf and wood water [kg per plant]; each store's unknown is read from its water. A
-   ! leafless cohort's leaves hold none, so their unknown starts at the wood's potential less
-   ! the head to the crown, where an empty leaf comes to rest.
+   !   set_water_state -- the network's state from the model's: each porous layer's water and
+   ! each soil layer's water content and ice, the pond's water, and each cohort's leaf and wood
+   ! water [kg per plant]; each store's unknown is read from its water. A leafless cohort's
+   ! leaves hold none, so their unknown starts at the wood's potential less the head to the
+   ! crown, where an empty leaf comes to rest.
    !---~---
-   subroutine set_water_state(static, profile, hyd, theta, ice, w_pond, e_pond, leaf_water, wood_water, water, org)
+   subroutine set_water_state(static, profile, hyd, theta, ice, w_pond, leaf_water, wood_water, water, porous)
       type(fast_static_state_t), intent(in)    :: static
       type(soil_profile_t),      intent(in)    :: profile
       type(hydraulics_table_t),  intent(in)    :: hyd
       real(wp),                  intent(in)    :: theta(:)                       ! (nsl) [m3/m3] liquid and ice
       type(soil_ice_t),          intent(in)    :: ice(:)                         ! (nsl) each layer's ice
-      real(wp),                  intent(in)    :: w_pond, e_pond                 ! [kg/m2], [J/m2]
+      real(wp),                  intent(in)    :: w_pond                         ! [kg/m2]
       real(wp),                  intent(in)    :: leaf_water(:), wood_water(:)   ! (ncoh) [kg/plant]
       type(water_work_t),        intent(inout) :: water
-      type(water_organic_t), optional, intent(in) :: org                         ! the organic slots, if any
-      integer(ik) :: k, i, j, n_org, soff
+      type(water_porous_t), optional, intent(in) :: porous                       ! the porous layers, if any
+      integer(ik) :: k, i, j, n_porous, soff
       real(wp)    :: psi, dpsi, w, dw, kk, dk, head1, elev
-      n_org = 0_ik
-      if (present(org)) n_org = org%n
-      soff = 1_ik + n_org
-      call ensure_water_capacity(water, profile%n_active, n_org, static%n)
+      n_porous = 0_ik
+      if (present(porous)) n_porous = porous%n
+      soff = 1_ik + n_porous
+      call ensure_water_capacity(water, profile%n_active, n_porous, static%n)
       associate (st => water%state)
-         do j = 1_ik, n_org
-            st%tau_soil(1_ik + j)   = soil_theta_to_unknown(org%curve(j), org%ice(j),                            &
-                                                            (org%water(j) + org%deficit(j)) / (rho_h2o * org%depth(j)))
-            st%water_soil(1_ik + j) = org%water(j)
+         do j = 1_ik, n_porous
+            st%tau_soil(1_ik + j)   = soil_theta_to_unknown(porous%curve(j), porous%ice(j),                            &
+                                                            (porous%water(j) + porous%deficit(j)) / (rho_h2o * porous%depth(j)))
+            st%water_soil(1_ik + j) = porous%water(j)
          end do
          do k = 1_ik, profile%n_active
             st%tau_soil(soff + k)   = soil_theta_to_unknown(profile%layer_curve(k), ice(k), theta(k))
@@ -361,15 +361,14 @@ contains
          end do
          !---~---
          !   The pond starts at its water's head, but no higher than the head at which it neither
-         ! gives nor takes water from the node below it, the top slot or the top layer: over dry
-         ! ground a trace pond empties within the step, and its own head would start Newton at a
-         ! flow thousands of times what it holds.
+         ! gives nor takes water from the node below it, the top porous layer or the top soil
+         ! layer: over dry ground a trace pond empties within the step, and its own head would
+         ! start Newton at a flow thousands of times what it holds.
          !---~---
          st%water_soil(POND) = w_pond
-         st%e_pond = e_pond
-         if (n_org > 0_ik) then
-            call soil_water_relations(org%curve(1), org%ice(1), st%tau_soil(2), psi, dpsi, w, dw, kk, dk)
-            elev = -0.5_wp * org%depth(1)
+         if (n_porous > 0_ik) then
+            call soil_water_relations(porous%curve(1), porous%ice(1), st%tau_soil(2), psi, dpsi, w, dw, kk, dk)
+            elev = -0.5_wp * porous%depth(1)
          else
             call soil_water_relations(profile%layer_curve(1), ice(1), st%tau_soil(2), psi, dpsi, w, dw, kk, dk)
             elev = profile%z_node(1)
@@ -399,8 +398,8 @@ contains
 
    !---~---
    !   water_derivs -- the network at one state: each store's potential and water from its
-   ! curve; the flow along every path (pond to the top node, down the chain of organic slots and
-   ! soil layers, the slots' and the top layer's evaporation, drainage, each cohort's uptake,
+   ! curve; the flow along every path (pond to the top node, down the chain of porous layers and
+   ! soil layers, the top porous and soil layers' evaporation, drainage, each cohort's uptake,
    ! sapflow and transpiration); the net inflow into each store; and, when asked, the flows'
    ! Jacobian in the stores' unknowns (sys). The core is a chain, face c joining node c to node
    ! c + 1. A node detached from the solve (cut) exchanges nothing with its neighbours: every
@@ -418,7 +417,7 @@ contains
       type(arrowhead_system_t),  intent(inout) :: sys   ! the flows' Jacobian, written when with_jacobian
       logical,                   intent(in)    :: with_jacobian
       logical,         optional, intent(in)    :: cut(:) ! (nsoil) nodes detached from the solve
-      integer(ik) :: k, i, ca, cb, c, nsl, nsoil, n_org, soff
+      integer(ik) :: k, i, ca, cb, c, nsl, nsoil, n_porous, soff
       real(wp) :: q, dq_pa, dq_pb, dq_ka, dq_kb, dqa, dqb, u, s, ds_w, ds_l
       real(wp) :: e, de, qbot, dsrc
       real(wp) :: psi_w, dpsi_w, u_sum, dqb_sum, du_dpsi(profile%n_active), du_dk(profile%n_active)
@@ -426,8 +425,8 @@ contains
       logical  :: wet, is_cut(size(tau_soil))
 
       nsl   = profile%n_active
-      n_org = drive%org%n
-      soff  = 1_ik + n_org
+      n_porous = drive%porous%n
+      soff  = 1_ik + n_porous
       nsoil = soff + nsl
       is_cut = .false.
       if (present(cut)) is_cut = cut(1:nsoil)
@@ -465,8 +464,8 @@ contains
          end associate
       end do
 
-      !--- Down the chain: the pond to the top node, through the organic slots, between soil layers.
-      ev%org_face = 0.0_wp
+      !--- Down the chain: the pond to the top node, through the porous layers, between soil layers.
+      ev%face = 0.0_wp
       do c = 1_ik, nsoil - 1_ik
          ca = c
          cb = c + 1_ik
@@ -482,24 +481,18 @@ contains
             dqa = 0.0_wp
             dqb = 0.0_wp
          end if
-         if (c == 1_ik) then
-            ev%pond_flux = q
-         else if (c <= n_org + 1_ik) then
-            ev%org_face(c - 1_ik) = q
-         else
-            ev%face_flux(c - soff) = q
-         end if
+         ev%face(c) = q
          call add_soil_flow(ca, cb, q, dqa, dqb)
       end do
 
-      !--- Each node's own sources: the water reaching the pond, the top slot's and the top layer's evaporation, drainage.
-      ev%org_evap = 0.0_wp
+      !--- Each node's own sources: the water reaching the pond, the top porous and soil layers' evaporation, drainage.
+      ev%porous_evap = 0.0_wp
       do c = 1_ik, nsoil
          dsrc = 0.0_wp
          call node_sources(profile, soil, drive, c, ev%water_soil(c), ev%dwater_soil(c), ev%psi_soil(c),            &
                            ev%dpsi_soil(c), ev%k_soil(c), ev%dk_soil(c), ev%inflow_soil(c), dsrc, e, qbot)
          if (with_jacobian) sys%a(c, c) = sys%a(c, c) + dsrc
-         if (c == 2_ik .and. n_org > 0_ik) ev%org_evap(1) = e
+         if (c == 2_ik .and. n_porous > 0_ik) ev%porous_evap(1) = e
          if (c == soff + 1_ik) ev%evap = e
          if (c == nsoil) ev%drain = qbot
       end do
@@ -508,7 +501,7 @@ contains
       !   Each cohort: uptake from its layers, sapflow to its leaves, and transpiration. The
       ! cohort's uptake comes from its whole root profile at once, each layer's conductance
       ! times its roots' contact with it (none once it freezes); its own sums are kept in
-      ! scalars over its layers and written once. The roots take nothing from the organic slots,
+      ! scalars over its layers and written once. The roots take nothing from the porous layers,
       ! nor from a layer detached from the solve.
       !---~---
       ev%root_link = 0.0_wp
@@ -590,7 +583,7 @@ contains
    !---~---
    !   Core node c's potential, water and conductivity at its unknown, with their slopes: the
    ! pond (its conductivity the node below's, saturated, at that node's ice impedance, since its
-   ! path lies in it), an organic slot, or a soil layer.
+   ! path lies in it), a porous layer, or a soil layer.
    !---~---
    pure subroutine core_node_relations(profile, drive, c, tau, psi, dpsi, w, dw, kc, dkc)
       type(soil_profile_t), intent(in)  :: profile
@@ -599,18 +592,19 @@ contains
       real(wp),             intent(in)  :: tau
       real(wp),             intent(out) :: psi, dpsi, w, dw, kc, dkc
       integer(ik) :: soff
-      soff = 1_ik + drive%org%n
+      soff = 1_ik + drive%porous%n
       if (c == POND) then
          call pond_water_relations(tau, psi, dpsi, w, dw)
-         if (drive%org%n > 0_ik) then
-            kc = drive%org%curve(1)%ksat * drive%org%ice(1)%impedance
+         if (drive%porous%n > 0_ik) then
+            kc = drive%porous%curve(1)%ksat * drive%porous%ice(1)%impedance
          else
             kc = profile%ksat(1) * drive%ice(1)%impedance
          end if
          dkc = 0.0_wp
       else if (c <= soff) then
-         call soil_water_relations(drive%org%curve(c - 1_ik), drive%org%ice(c - 1_ik), tau, psi, dpsi, w, dw, kc, dkc)
-         w = w - drive%org%deficit(c - 1_ik)      ! a slot below its residual: its curve's water less the lack
+         call soil_water_relations(drive%porous%curve(c - 1_ik), drive%porous%ice(c - 1_ik), tau, psi, dpsi, w, dw,   &
+                                   kc, dkc)
+         w = w - drive%porous%deficit(c - 1_ik)   ! a layer below its residual: its curve's water less the lack
       else
          call soil_water_relations(profile%layer_curve(c - soff), drive%ice(c - soff), tau, psi, dpsi, w, dw, kc, dkc)
       end if
@@ -619,8 +613,8 @@ contains
    !---~---
    !   Face c of the chain, joining node c to node c + 1: the weight of node c + 1's conductivity
    ! in the face's, the distance between the two nodes, which is also the drop in elevation, and
-   ! whether it wets (core_face_flux): the pond's face to the top slot and the faces between
-   ! slots. The bottom slot's face into the top soil layer takes the soil's thickness-weighted
+   ! whether it wets (core_face_flux): the pond's face to the top porous layer and the faces
+   ! between them. The bottom porous layer's face into the top soil layer takes the soil's thickness-weighted
    ! mean, as a soil face, so the soil's conductivity limits what enters it: upstream, a saturated
    ! moss would drain into a clay at the moss's conductivity, tens of kilograms a second. The pond
    ! counts as a saturated layer as thick as the node below it.
@@ -631,28 +625,28 @@ contains
       integer(ik),          intent(in)  :: c
       real(wp),             intent(out) :: w_b, dist
       logical,              intent(out) :: wet
-      integer(ik) :: n_org, j
-      n_org = drive%org%n
+      integer(ik) :: n_porous, j
+      n_porous = drive%porous%n
       if (c == 1_ik) then
          w_b = 0.5_wp
-         if (n_org > 0_ik) then
-            dist = 0.5_wp * drive%org%depth(1)
+         if (n_porous > 0_ik) then
+            dist = 0.5_wp * drive%porous%depth(1)
          else
             dist = -profile%z_node(1)
          end if
-         wet = n_org > 0_ik
-      else if (c <= n_org + 1_ik) then
+         wet = n_porous > 0_ik
+      else if (c <= n_porous + 1_ik) then
          j = c - 1_ik
-         if (j < n_org) then
-            w_b  = drive%org%depth(j) / (drive%org%depth(j) + drive%org%depth(j + 1_ik))
-            dist = 0.5_wp * (drive%org%depth(j) + drive%org%depth(j + 1_ik))
+         if (j < n_porous) then
+            w_b  = drive%porous%depth(j) / (drive%porous%depth(j) + drive%porous%depth(j + 1_ik))
+            dist = 0.5_wp * (drive%porous%depth(j) + drive%porous%depth(j + 1_ik))
          else
-            w_b  = drive%org%depth(j) / (drive%org%depth(j) + profile%dz(1))
-            dist = 0.5_wp * drive%org%depth(j) - profile%z_node(1)
+            w_b  = drive%porous%depth(j) / (drive%porous%depth(j) + profile%dz(1))
+            dist = 0.5_wp * drive%porous%depth(j) - profile%z_node(1)
          end if
-         wet = j < n_org        ! the bottom slot's face into the soil: the soil's conductivity limits it
+         wet = j < n_porous     ! the bottom porous layer's face into the soil: the soil's conductivity limits it
       else
-         j = c - 1_ik - n_org
+         j = c - 1_ik - n_porous
          w_b  = profile%face_weight(j)
          dist = profile%dz_node(j)
          wet  = .false.
@@ -662,8 +656,8 @@ contains
    !---~---
    !   The flow down a face of the chain [kg/m2/s] and its slopes. A soil face takes the
    ! thickness-weighted geometric mean of its nodes' conductivities (soil_water_flux). A face
-   ! touching an organic slot wets: it takes the upstream node's conductivity (Forsyth, Wu &
-   ! Pruess 1995), so water reaches a dry slot, or leaves a wet one into dry ground, at the wet
+   ! touching a porous layer from above wets: it takes the upstream node's conductivity (Forsyth, Wu &
+   ! Pruess 1995), so water reaches a dry layer, or leaves a wet one into dry ground, at the wet
    ! side's conductivity rather than at the vanishing one of the dry side; near no flow, over a
    ! drive of WET_BLEND_WIDTH either way, the two blend through their arithmetic mean by the cubic
    ! smooth step, so Newton meets no switch.
@@ -691,10 +685,10 @@ contains
    !---~---
    !   Core node c's own sources, besides its faces and its roots, added to its net inflow
    ! [kg/m2/s], and their slope in its unknown added to dout, the slope of its outflow: the water
-   ! reaching the pond; the evaporation of the top organic slot, through its dried top, and of the top
-   ! soil layer, through its dry surface layer and the organic layer above it, each by the one law
-   ! (store_evaporation; for the slot Philip's humidity at its potential smoothly stops where it
-   ! meets the canopy air's, so a drying slot comes to rest at its equilibrium with the air); and
+   ! reaching the pond; the evaporation of the top porous layer, through its dried top, and of the
+   ! top soil layer, through its dry surface layer and the porous layers above it, each by the one
+   ! law (store_evaporation; for the porous layer Philip's humidity at its potential smoothly stops
+   ! where it meets the canopy air's, so a drying layer comes to rest at its equilibrium with the air); and
    ! the drainage from the bottom layer. evap and drain return the node's. The dry surface layer
    ! reads the liquid and dsl_theta_init of the ice, so its onset is dsl_theta_init of the pores
    ! the ice leaves (CLM5's effective porosity).
@@ -710,13 +704,14 @@ contains
       real(wp)    :: de, r_dry, dr_dry, qbot, dqbot_dpsi, dqbot_dk
       integer(ik) :: nsl, soff
       nsl  = profile%n_active
-      soff = 1_ik + drive%org%n
+      soff = 1_ik + drive%porous%n
       evap  = 0.0_wp
       drain = 0.0_wp
       if (c == POND) inflow = inflow + drive%rain
       if (c == 2_ik .and. soff > 1_ik) then
-         call store_evaporation(drive%org%air, psi, dpsi, w, dw, drive%org%depth(1), drive%org%curve(1)%theta_res,  &
-                                drive%org%curve(1)%theta_sat, 0.0_wp, 0.0_wp, evap, de)
+         call store_evaporation(drive%porous%air, psi, dpsi, w, dw, drive%porous%depth(1),                         &
+                                drive%porous%curve(1)%theta_res, drive%porous%curve(1)%theta_sat, 0.0_wp, 0.0_wp,   &
+                                evap, de)
          inflow = inflow - evap
          dout   = dout + de
       end if
@@ -755,7 +750,7 @@ contains
    ! W0)/h - inflow [kg/m2/s], and dR/dtau_c, at its unknown tau with every other store held at
    ! its state in tau_soil and its neighbours' relations given: the faces to the nodes above and
    ! below (none to a detached node), and its own sources -- the water reaching the pond, the top
-   ! slot's evaporation, the top layer's evaporation, the bottom's drainage and each cohort's
+   ! porous layer's evaporation, the top soil layer's evaporation, the bottom's drainage and each cohort's
    ! uptake at its wood's potential. The nonlinear
    ! elimination of a fast node and the closed form of a detached one solve R = 0 on it.
    !---~---
@@ -776,7 +771,7 @@ contains
       integer(ik) :: nsl, soff, nsoil, k, i
       logical :: wet
       nsl   = profile%n_active
-      soff  = 1_ik + drive%org%n
+      soff  = 1_ik + drive%porous%n
       nsoil = soff + nsl
       call core_node_relations(profile, drive, c, tau_soil(c), psi, dpsi, w, dw, kc, dkc)
       !--- The neighbours' potentials and conductivities, held.

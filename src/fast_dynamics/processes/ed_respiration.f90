@@ -119,8 +119,9 @@ contains
    ! temperature factor, a moisture-and-oxygen factor and, for the structural pools
    ! (3, 4), the lignin brake exp(-e_lignin*f_lignin) (docs/science/soil_carbon.md
    ! eqs. (3)-(4)). The above-ground pools (1, 3) take the surface temperature and the
-   ! rest the soil's (ED2's A_decomp / B_decomp). With an organic layer on the soil, they take
-   ! its temperature and its fill, surf_rel, as their moisture (docs/science/surface_organic_layer.md).
+   ! rest the soil's (ED2's A_decomp / B_decomp). With porous layers on the soil, they take the
+   ! top one's temperature and their wetness, surf_rel, as their moisture
+   ! (docs/science/surface_organic_layer.md).
    ! xi > 0; under the default scheme it is also <= 1, while scheme 5's Q10 is uncapped.
    !---~---
    pure subroutine decomposition_env_scalar(soil_temp_surf, soil_temp_active, theta_active, theta_dry, &
@@ -130,7 +131,7 @@ contains
       type(soil_carbon_state_t),  intent(in)  :: pools                               ! [kgC/m2] for f_lignin
       type(soil_carbon_params_t), intent(in)  :: params                              ! the [soil_carbon] parameters
       real(wp),                   intent(out) :: xi(N_SOIL_POOL)                     ! [-] diagonal scalar, > 0
-      real(wp), optional,         intent(in)  :: surf_rel    ! [-] the organic layer's fill, for pools 1 and 3
+      real(wp), optional,         intent(in)  :: surf_rel    ! [-] the porous layers' wetness, for pools 1 and 3
       real(wp) :: f_temp_surf, f_temp_active, f_water, f_water_surf, rel, f_lig_g, f_lig_s, brake_g, brake_s
 
       f_temp_surf   = decomp_temperature_factor(soil_temp_surf,   params)

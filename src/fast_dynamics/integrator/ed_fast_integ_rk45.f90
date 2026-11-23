@@ -67,9 +67,8 @@ contains
       type(march_tend_t),   intent(in)  :: k
       type(surface_tend_t),  intent(in)  :: surf_tend
       type(stage_bflux_t),   intent(out) :: bf
-      real(wp) :: gah, gaw, gac, e_infil, e_drain
+      real(wp) :: gah, gaw, gac, e_drain
       call cas_conductances(frozen%cas, y_stage%cas_enthalpy, y_stage%cas_shv, gah, gaw, gac)
-      e_infil = frozen%hydrology%infiltration * internal_energy_liquid(frozen%hydrology%t_infil)
       e_drain = k%drainage_rate * internal_energy_liquid(frozen%hydrology%t_bot)
       bf%cas_enth_in   = surf_tend%src_enth + gah*frozen%cas%box%atm_enthalpy
       bf%cas_enth_out  = gah*y_stage%cas_enthalpy
@@ -77,8 +76,8 @@ contains
       bf%cas_vap_out   = gaw*y_stage%cas_shv
       bf%cas_co2_in    = frozen%cas%nee_biotic + gac*frozen%cas%box%atm_co2
       bf%cas_co2_out   = gac*y_stage%cas_co2
-      bf%soil_enth_in  = k%g_top + k%g_bottom + e_infil
-      bf%soil_enth_out = sum(frozen%roots%root_heat) + frozen%hydrology%exfil_enth + e_drain
+      bf%soil_enth_in  = k%g_top + k%g_bottom
+      bf%soil_enth_out = sum(frozen%roots%root_heat) + e_drain
       !---~---
       !   Soil water's storage change and flows are the network's, booked once per step by
       ! close_ledgers: the per-stage soil-water amounts are zero, and the whole-column water

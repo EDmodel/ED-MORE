@@ -289,7 +289,6 @@ contains
          forcing%water_heat_out = 0.0_wp
          forcing%g_top = -60.0_wp
          forcing%geothermal = 0.0_wp
-         forcing%w_flux_top = 0.0_wp
          do k = 1_ik, 5_ik
             col%soil_energy(k) = porous_layer_energy(t_3ple + 1.0_wp, 0.38_wp, soil%dry_heat_capacity(k),   &
                                                    soil%layer_curve(k))
@@ -473,7 +472,6 @@ contains
       forcing%water_heat_out = 0.0_wp
       forcing%g_top = 0.0_wp
       forcing%geothermal = 0.0_wp
-      forcing%w_flux_top = 0.0_wp
       if (ddeep > 0.0_wp) then
          opts%thermal_bottom_bc = ENERGY_BC_DIRICHLET
          opts%deep_temp = tmean

@@ -18,9 +18,10 @@ module ed_fast_integ_update
    use ed_plant_energy,       only : commit_tissue_energy
    use ed_canopy_water,       only : clamp_surface_water
    use ed_patch_state_vars,   only : soil_water_store, soil_energy_store, ground_store_t, ground_surface_store,      &
-                                     porous_layers_take_exchange
+                                     store_take_exchange, porous_layers_diagnose
+   use ed_ground_surface_params, only : N_POROUS
    use ed_diag_vars,          only : CO_TRANSP
-   use ed_surface, only : water_layer_commit, water_layer_ice, STORE_SNOW, STORE_ORGANIC
+   use ed_surface, only : water_layer_commit, water_layer_ice, STORE_WATER, N_SURFACE_STORE
    use ed_therm_lib,          only : cas_enthalpy_to_temp, latent_heat_vap
    use ed_budget_check,       only : budget_check, BUDGET_ENERGY_RATE_FLOOR, BUDGET_WATER_RATE_FLOOR,           &
                                      BUDGET_CO2_RATE_FLOOR
@@ -69,7 +70,7 @@ contains
       type(fast_output_t),        intent(inout) :: out
       type(commit_amounts_t),     intent(out)   :: moved
       real(wp)    :: t_leaf_avg(static%n), t_wood_avg(static%n), leaf_surf_water0(static%n), wood_surf_water0(static%n)
-      integer(ik) :: n, nsl
+      integer(ik) :: n, nsl, k
 
       n   = static%n
       leaf_surf_water0(1:n) = dynamic%leaf_surf_water(1:n)              ! the surface water at the step's start
@@ -102,24 +103,27 @@ contains
                                                           static%leaf_area(1:n))
       !---~---
       !   The water layer takes its exchange over the march, the energy and vapour the canopy air
-      ! and the soil received from it (docs/science/snow_biophysics.md §The snow store), its free
-      ! water back as the water network leaves it, and the condensate with the enthalpy the canopy
-      ! air gave up for it at each stage (boundary_flux_t).
+      ! and the soil received from it (docs/science/snow_biophysics.md §The snow store) and the heat
+      ! its free water's flows carried, its free water back as the water network leaves it, and
+      ! the condensate with the enthalpy the canopy air gave up for it at each stage
+      ! (boundary_flux_t).
       !---~---
       dynamic%ground_surface%water = frozen%ground%pack
-      call water_layer_commit(dynamic%ground_surface%water, acc%stores%energy_in(STORE_SNOW),                      &
-                              acc%stores%vapour_out(STORE_SNOW),                                                  &
-                              ground_store_t(water=frozen%hydrology%w_surface1,                                   &
-                                             energy=frozen%hydrology%w_surface_energy1),                          &
+      call water_layer_commit(dynamic%ground_surface%water, acc%stores%energy_in(STORE_WATER),                     &
+                              acc%stores%vapour_out(STORE_WATER), frozen%stage%free, frozen%hydrology%free_water1,  &
                               ground_store_t(water=acc%whole_cond, energy=acc%whole_cond_enth),                   &
                               frozen%stage%ice_held, frozen%ground%params)
       !---~---
-      !   The organic layer takes its exchange too (docs/science/surface_organic_layer.md): the march's
-      ! energy, and the vapour the water network took from each slot, which the canopy air received.
+      !   Each porous layer takes its own (docs/science/surface_organic_layer.md): the march's energy,
+      ! the heat of the water that passed through it included, and the vapour the water network
+      ! took from it, which the canopy air received.
       !---~---
       dynamic%ground_surface%porous = frozen%porous
-      call porous_layers_take_exchange(dynamic%ground_surface%porous, acc%stores%energy_in(STORE_ORGANIC),         &
-                                       frozen%org_evap)
+      do k = 1_ik, N_POROUS
+         call store_take_exchange(dynamic%ground_surface%porous(k), acc%stores%energy_in(STORE_WATER + k),         &
+                                  acc%stores%vapour_out(STORE_WATER + k))
+      end do
+      call porous_layers_diagnose(dynamic%ground_surface%porous)
       moved%surface1 = ground_surface_store(dynamic%ground_surface)
       !---~---
       !   The water layer's net melt over the step, its ice at the stage's start and the snow it
@@ -127,8 +131,8 @@ contains
       !---~---
       out%report%exports%melt_export = frozen%stage%ice_start + frozen%stage%snowfall                             &
                                        - water_layer_ice(dynamic%ground_surface%water)                             &
-                                       - acc%stores%vapour_out(STORE_SNOW) * (1.0_wp - dynamic%ground_surface%water%fliq)
-      out%report%exports%free_water  = frozen%hydrology%w_surface1
+                                       - acc%stores%vapour_out(STORE_WATER) * (1.0_wp - dynamic%ground_surface%water%fliq)
+      out%report%exports%free_water  = frozen%hydrology%free_water1
       !--- And the warm start of the next march.
       dynamic%adapt_dt_last = dt_warm
    end subroutine update_dynamic_state
@@ -204,7 +208,7 @@ contains
       ! liquid for the rest. Both LE and the energy budget's outflows read this number.
       !---~---
       if (acc%atm_vap_out > tiny_num) then
-         fliq = 1.0_wp - min(1.0_wp, max(0.0_wp, acc%stores%vapour_out(STORE_SNOW) / acc%atm_vap_out))
+         fliq = 1.0_wp - min(1.0_wp, max(0.0_wp, acc%stores%vapour_out(STORE_WATER) / acc%atm_vap_out))
       else
          fliq = 1.0_wp
       end if
@@ -217,8 +221,7 @@ contains
       report%exports%transp_export      = 0.0_wp
       if (allocated(acc%transp_coh)) report%exports%transp_export = sum(acc%transp_coh(1:n))
       report%exports%veg_surface_evap_export   = acc%veg_surface_evap
-      report%exports%ground_evap_export = frozen%ground%soil_evap * dt_fast + acc%stores%vapour_out(STORE_SNOW)      &
-                                          + acc%stores%vapour_out(STORE_ORGANIC)
+      report%exports%ground_evap_export = frozen%ground%soil_evap * dt_fast + sum(acc%stores%vapour_out(1:N_SURFACE_STORE))
       report%exports%cond_export        = acc%whole_cond
       !---~---
       !   The budgets' other terms, so both close from the output (docs/science/diagnostics.md §4,
@@ -229,7 +232,7 @@ contains
       !---~---
       report%exports%intercept_export    = intercept_total * dt_fast
       report%exports%infiltration_export = frozen%hydrology%pond_infil * dt_fast
-      report%exports%sublimation_export  = acc%stores%vapour_out(STORE_SNOW)
+      report%exports%sublimation_export  = acc%stores%vapour_out(STORE_WATER)
       report%exports%shed_water_export   = static%shed_water_rate * dt_fast
       report%exports%veg_surface_overflow_export  = moved%surf_overflow - moved%surf_deficit
       report%exports%water_store_gain    = (w_soil1 + cas_mass_capacity*shv1 + w_plant1 + surf_water1 + ground_w1)  &
@@ -280,10 +283,10 @@ contains
                         + moved%surf_overflow - moved%surf_deficit,                                        &
                         dt_fast, BUDGET_WATER_RATE_FLOOR, 'whole_water', halt)
       !---~---
-      !   Whole energy: the free water leaves the water layer and comes back, so it telescopes;
-      ! the throughfall and the shed water come in at their enthalpy (the stage's inflow_enth), the
-      ! surface water's capture at the rain's liquid enthalpy, and the update's cut leaves at the
-      ! tissues' (moved%surf_net_enth).
+      !   Whole energy: the free water's heat stays in the water layer's store, its flows moving it
+      ! between the stores; the throughfall and the shed water come in at their enthalpy (the
+      ! stage's inflow_enth), the surface water's capture at the rain's liquid enthalpy, and the
+      ! runoff (at the free water's temperature) and the update's cut (at the tissues', moved%surf_net_enth) leave.
       !---~---
       call budget_check(report%ledgers%whole_energy,                                                               &
                         e_soil0 + frozen%stage_soil_heat + cas_mass_capacity*enth0 + moved%tissue_store0      &

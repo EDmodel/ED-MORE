@@ -319,7 +319,6 @@ contains
          surface      = ground_surface_store(poly%patch%ground_surface(ip))
          store%water  = store%water  + a * surface%water
          store%energy = store%energy + a * surface%energy
-         !--- The organic layer above the soil: its water and energy (its dry matter's carbon is the pools').
 
          !---~---
          !   Canopy air at the fast step's capacities; a depth change is the

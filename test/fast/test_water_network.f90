@@ -38,8 +38,8 @@
 !                        its water closes against the drainage.
 !  15. DOWNPOUR        : rain beyond a wet clay's infiltration ponds, and runs off past the pond.
 !  16. REWETTING       : a dried top layer re-wets within 12 h of rain, with little runoff.
-!  17. SUB-FREEZING    : rain below the triple point: the pond's enthalpy closes, and what
-!                        infiltrates carries its own enthalpy.
+!  17. SUB-FREEZING    : rain below the triple point infiltrates as any rain: the network moves
+!                        water only.
 !  18. AQUIFER         : the head-driven bottom is two-way and settles to hydrostatic equilibrium.
 !  19. FROZEN TOP      : the ice impedes the rain's infiltration; the freezing curve's suction
 !                        fills a frozen layer to saturation, not past it; the water closes.
@@ -72,16 +72,20 @@
 !                        above its residual, with no sub-step forced.
 !  28. FULL POND       : a 5 kg/m2 pond over 1 mm of saturated litter under rain: no sub-step
 !                        forced, and the water closes.
+!  29. FROZEN TO POND  : a frozen litter filled past its pores pushes water up into the pond; the
+!                        water closes.
+!  30. SMALL POND      : a small pond over a wet litter and moss empties within a step, never past
+!                        empty.
 !---~---
 program test_water_network
    use ed_test_assert, only : check_true, check_close, check_int, test_report
    use, intrinsic :: iso_fortran_env, only : int64
    use ed_kinds,         only : wp, ik
-   use ed_constants,     only : grav_head, rho_h2o, pi, tiny_num, n_soil_layer_max, grav, r_wv, p_std, mmh2o, t_3ple
+   use ed_constants,     only : grav_head, rho_h2o, pi, tiny_num, n_soil_layer_max, grav, r_wv, p_std, mmh2o
    use ed_linear_algebra,  only : arrowhead_system_t, arrowhead_allocate, arrowhead_factor, arrowhead_solve
    use ed_fast_integ_types,  only : fast_static_state_t, water_drive_t, water_work_t, tol_set_t,                    &
                                 ensure_static_capacity, POND, WOOD, LEAF, GRP_THETA, N_WORK, WORK_WATER_NSUB,   &
-                                WORK_WATER_REJECT, WORK_WATER_NFAIL, water_organic_t,                           &
+                                WORK_WATER_REJECT, WORK_WATER_NFAIL, water_porous_t,                           &
                                 WORK_WATER_FAST_SLOT, WORK_WATER_CUT_POND, WORK_WATER_CUT_SLOT
    use ed_fast_state,    only : derive_cohort_terms
    use ed_fast_integ_derivs, only : set_water_state, water_derivs
@@ -91,8 +95,7 @@ program test_water_network
    use ed_soil_hydr_lib,     only : SOIL_RETENTION_VG, SOIL_RETENTION_CAMPBELL, soil_theta_to_head, soil_ice_state,  &
                                     soil_liquid_capacity, soil_water_relations, build_soil_layer_curve, soil_ice_t, &
                                     soil_layer_curve_t
-   use ed_therm_lib,         only : internal_energy_liquid, liquid_energy_to_temp, sat_specific_humidity,          &
-                                    temp_to_internal_energy
+   use ed_therm_lib,         only : sat_specific_humidity
    use ed_pft_params,    only : hydraulics_table_t
    use ed_soil_params, only : soil_profile_t, soil_params_t, SOIL_BC_DRAIN, SOIL_BC_AQUIFER
    use ed_soil_derive,        only : build_profile_hydraulics
@@ -204,7 +207,7 @@ contains
       integer(ik),       intent(in)  :: n
       real(wp),          intent(in)  :: theta(:), w_pond, leaf_rwc, wood_rwc, e_total
       logical, optional, intent(in)  :: leafless, grass
-      type(water_organic_t), optional, intent(in) :: org   ! thin layers between the pond and the soil
+      type(water_porous_t), optional, intent(in) :: org   ! thin layers between the pond and the soil
       real(wp)    :: leaf_w(n), wood_w(n), lai_share(n)
       integer(ik) :: i
       call ensure_static_capacity(st%static, n)
@@ -243,18 +246,17 @@ contains
       st%drive%e_demand = e_total * lai_share
       st%drive%rain = 0.0_wp
       st%drive%t_soil = 299.0_wp
-      st%drive%t_rain = 297.0_wp
       st%drive%pond_capacity = 5.0_wp          ! [kg/m2] the shipped [ground_surface_layer.water].pond_capacity
       st%drive%ground = forc
       st%tols%rtol(GRP_THETA) = WATER_RTOL
       st%tols%atol(GRP_THETA) = WATER_ATOL
-      if (present(org)) st%drive%org = org
-      call set_water_state(st%static, soil, hyd, theta, st%drive%ice, w_pond, 0.0_wp, leaf_w, wood_w, st%water,      &
-                           st%drive%org)
+      if (present(org)) st%drive%porous = org
+      call set_water_state(st%static, soil, hyd, theta, st%drive%ice, w_pond, leaf_w, wood_w, st%water,              &
+                           st%drive%porous)
    end subroutine make_stand
 
    !---~---
-   !   Thin layers over the soil, as the organic layer's slots are built: a litter d_lit deep at
+   !   Thin layers over the soil, as the porous layers are built: a litter d_lit deep at
    ! theta_lit on Letts et al. (2000)'s Campbell curve over a moss d_moss deep at theta_moss on
    ! Zhang et al. (2010)'s van Genuchten one (a layer of no depth left out), frozen (all but the
    ! residual, which stays liquid) or not, with a held evaporation evap.
@@ -262,7 +264,7 @@ contains
    function thin_layers(d_lit, theta_lit, d_moss, theta_moss, frozen) result(o)
       real(wp), intent(in) :: d_lit, theta_lit, d_moss, theta_moss
       logical,  intent(in) :: frozen
-      type(water_organic_t) :: o
+      type(water_porous_t) :: o
       real(wp) :: liq
       if (d_lit > 0.0_wp) then
          o%n = o%n + 1_ik
@@ -284,8 +286,7 @@ contains
          if (frozen) liq = min(theta_moss, frozen_liquid(o%curve(o%n)))
          o%ice(o%n) = soil_ice_state(o%curve(o%n), theta_moss - liq, liq)
       end if
-      o%t_org = 285.0_wp
-      o%air   = slot_evaporation_setup(forc, o%t_org, 0.0_wp)
+      o%air   = slot_evaporation_setup(forc, 285.0_wp, 0.0_wp)
    end function thin_layers
 
    !--- The liquid a frozen layer holds at 268 K, on its freezing curve, as a frozen soil layer's.
@@ -299,7 +300,7 @@ contains
    real(wp) function boundary_water_thin(st, dt)
       type(stand_t), intent(in) :: st
       real(wp),      intent(in) :: dt
-      boundary_water_thin = boundary_water(st, dt) - sum(st%water%flows%org_evap)
+      boundary_water_thin = boundary_water(st, dt) - sum(st%water%flows%porous_evap)
    end function boundary_water_thin
 
    !---~---
@@ -319,9 +320,9 @@ contains
          th(k) = soil%theta_sat(k)
       end do
       st%drive%root_contact(1:nk) = 0.0_wp
-      call set_water_state(st%static, soil, hyd, th, st%drive%ice, w_pond, 0.0_wp,                                &
+      call set_water_state(st%static, soil, hyd, th, st%drive%ice, w_pond,                                        &
                            st%water%state%water_coh(LEAF, :) / st%static%nplant(1:st%static%n),                    &
-                           st%water%state%water_coh(WOOD, :) / st%static%nplant(1:st%static%n), st%water, st%drive%org)
+                           st%water%state%water_coh(WOOD, :) / st%static%nplant(1:st%static%n), st%water, st%drive%porous)
    end subroutine seal_top
 
    !--- The stand restarted from its network's end state, as the next step's start (the thin layers rebuilt).
@@ -330,8 +331,8 @@ contains
       real(wp),      intent(in)    :: d_lit, d_moss
       logical,       intent(in)    :: frozen
       real(wp)    :: th_lit, th_moss
-      integer(ik) :: n_org, nsl, i
-      n_org = st%drive%org%n
+      integer(ik) :: n_porous, nsl, i
+      n_porous = st%drive%porous%n
       nsl   = soil%n_active
       th_lit  = 0.0_wp
       th_moss = 0.0_wp
@@ -341,12 +342,12 @@ contains
          i = i + 1_ik
       end if
       if (d_moss > 0.0_wp) th_moss = st%water%state%water_soil(1_ik + i) / (rho_h2o * d_moss)
-      st%drive%org = thin_layers(d_lit, th_lit, d_moss, th_moss, frozen)
+      st%drive%porous = thin_layers(d_lit, th_lit, d_moss, th_moss, frozen)
       call set_water_state(st%static, soil, hyd,                                                                  &
-                           st%water%state%water_soil(2+n_org:1+n_org+nsl) / (rho_h2o * soil%dz(1:nsl)), st%drive%ice,  &
-                           st%water%state%water_soil(POND), st%water%state%e_pond,                                &
+                           st%water%state%water_soil(2+n_porous:1+n_porous+nsl) / (rho_h2o * soil%dz(1:nsl)), st%drive%ice,  &
+                           st%water%state%water_soil(POND),                                                        &
                            st%water%state%water_coh(LEAF, :) / st%static%nplant(1:st%static%n),                    &
-                           st%water%state%water_coh(WOOD, :) / st%static%nplant(1:st%static%n), st%water, st%drive%org)
+                           st%water%state%water_coh(WOOD, :) / st%static%nplant(1:st%static%n), st%water, st%drive%porous)
    end subroutine restart_stand
 
    !--- One fast step of the stand's network on the fixture soil, with the column's options.
@@ -590,7 +591,7 @@ contains
       st%static%bleaf(1) = 1.0e-3_wp                            ! a few grams of leaf
       st%static%k_plant(1) = 1.0e-3_wp * st%static%k_plant(1)   ! and a wood-to-leaf path that can hardly feed it
       call set_water_state(st%static, soil, hyd, theta, st%drive%ice,                                                &
-                           0.0_wp, 0.0_wp, [1.0e-3_wp * 2.0_wp * 0.75_wp],         &
+                           0.0_wp, [1.0e-3_wp * 2.0_wp * 0.75_wp],                 &
                            [st%water%state%water_coh(WOOD, 1) / st%static%nplant(1)], st%water)
       demand = 1.0e-4_wp
       st%drive%e_demand(1) = demand
@@ -644,7 +645,7 @@ contains
          leaf_w = s%bleaf(1:1) * lc%water_sat
          wood_w = s%bwood_water(1:1) * wc%water_sat * ((1.0_wp - wc%apoplast_frac) * 0.93_wp + wc%apoplast_frac)
       end associate
-      call set_water_state(st%static, soil, hyd, theta, st%drive%ice, 0.0_wp, 0.0_wp, leaf_w, wood_w, st%water)
+      call set_water_state(st%static, soil, hyd, theta, st%drive%ice, 0.0_wp, leaf_w, wood_w, st%water)
       call advance(st, sopts, 900.0_wp)
       call check_int('refill burst: no sub-step forced through', st%work(WORK_WATER_NFAIL), 0_ik)
       call check_true('refill burst: the wood refilled', st%water%state%tau_coh(WOOD, 1) > 0.99_wp,             &
@@ -821,7 +822,7 @@ contains
       leaf_w = st%water%state%water_coh(LEAF, :) / st%static%nplant
       wood_w = st%water%state%water_coh(WOOD, :) / st%static%nplant
       leaf_w(3) = 2.0_wp * st%static%bleaf(3) * 0.9_wp
-      call set_water_state(st%static, soil, hyd, theta, st%drive%ice, 3.0e-8_wp, 0.0_wp, leaf_w, wood_w, st%water)
+      call set_water_state(st%static, soil, hyd, theta, st%drive%ice, 3.0e-8_wp, leaf_w, wood_w, st%water)
       w0 = total_water(st)
       flows = 0.0_wp
       nfail = 0_ik
@@ -965,7 +966,6 @@ contains
       real(wp),      intent(in)  :: theta(:)
       call make_stand(st, 0_ik, theta, 0.0_wp, 0.9_wp, 0.9_wp, 0.0_wp)
       st%drive%t_soil = 290.0_wp
-      st%drive%t_rain = 290.0_wp
       st%drive%ground%t_ground = 290.0_wp
       st%drive%ground%q_air    = 0.05_wp
       st%drive%ground%rho_air  = 1.2_wp
@@ -995,7 +995,7 @@ contains
          st%drive%ice(k) = soil_ice_state(soil%layer_curve(k), max(theta(k) - theta_liq, 0.0_wp),                 &
                                           min(theta(k), theta_liq))
       end do
-      call set_water_state(st%static, soil, hyd, theta, st%drive%ice, 0.0_wp, 0.0_wp, dum, dum, st%water)
+      call set_water_state(st%static, soil, hyd, theta, st%drive%ice, 0.0_wp, dum, dum, st%water)
    end subroutine freeze_top
 
    !---~---
@@ -1108,35 +1108,27 @@ contains
    end subroutine test_dried_surface_rewets
 
    !---~---
-   !   Rain (or sub-threshold snow routed to the ground) below the triple point joins the pond:
-   ! what the pond received in enthalpy is what it gave the soil, kept, and lost as runoff,
-   ! and the water that infiltrated carried its own enthalpy -- an effective temperature below
-   ! the melt plateau, not u_liq at the plateau, which would create energy all winter.
+   !   Rain below the triple point reaches the pond and infiltrates as any rain: the network moves
+   ! water only, and the heat the water carries is the energy solves' (the ground surface's stack
+   ! and the soil's heat column, test_surface and test_soil_heat).
    !---~---
    subroutine test_pond_subfreezing_inflow()
       type(soil_params_t)    :: opts
       type(stand_t)          :: col
-      real(wp) :: theta(10), dt, e_in, t_infil
+      real(wp) :: theta(10), dt
       theta = 0.25_wp
       call make_column(col, theta)
-      col%drive%rain = 5.0e-6_wp
-      col%drive%t_rain = 270.0_wp                                             ! 18 mm/day at 3.16 K below the triple point
+      col%drive%rain = 5.0e-6_wp                                              ! 18 mm/day
       col%drive%ground%t_ground = 271.0_wp
       col%drive%ground%q_air = 0.003_wp
       dt = 150.0_wp
       call advance(col, opts, dt)
-      e_in = col%drive%rain * dt * internal_energy_liquid(270.0_wp)
       associate (fl => col%water%flows, st => col%water%state)
          call check_true('sub-freezing inflow: all of it infiltrated (pond empty after the step)',       &
                          st%water_soil(POND) <= 1.0e-9_wp .and. fl%infil > 0.0_wp, st%water_soil(POND))
-         call check_close('sub-freezing inflow: enthalpy to soil + left in pond + runoff == enthalpy received', &
-                          fl%infil_enth - fl%exfil_enth + st%e_pond + fl%spill_enth, e_in, 1.0e-9_wp * abs(e_in))
+         call check_close('sub-freezing inflow: the pond''s face carried what reached it', fl%face(POND),       &
+                          col%drive%rain * dt - st%water_soil(POND), 1.0e-12_wp)
       end associate
-      call check_close('sub-freezing inflow: the rain brought exactly that enthalpy', col%water%flows%rain_enth,     &
-                       e_in, 0.0_wp)
-      t_infil = liquid_energy_to_temp(col%water%flows%infil_enth / col%water%flows%infil)
-      call check_true('sub-freezing inflow: infiltrating water carries its own (sub-plateau) enthalpy',    &
-                      t_infil < 273.0_wp, t_infil)
    end subroutine test_pond_subfreezing_inflow
 
    !---~---
@@ -1312,7 +1304,7 @@ contains
          col%drive%ground%t_ground = T_GROUND
          col%drive%ground%q_air    = Q_AIR
          col%drive%ice(1) = soil_ice_state(soil%layer_curve(1), THETA_ICE, theta_liq)
-         call set_water_state(col%static, soil, hyd, theta, col%drive%ice, 0.0_wp, 0.0_wp, dum, dum, col%water)
+         call set_water_state(col%static, soil, hyd, theta, col%drive%ice, 0.0_wp, dum, dum, col%water)
          call ground_evaporation_setup(soil, opts, col%drive%ground)
          call water_derivs(col%static, soil, opts, hyd, col%drive, col%water%state%tau_soil, col%water%state%tau_coh, &
                            col%water%ev(1), col%water%sys, .false.)
@@ -1531,7 +1523,7 @@ contains
          nfail = nfail + st%work(WORK_WATER_NFAIL)
          nfast = nfast + st%work(WORK_WATER_FAST_SLOT)
          nnormal = nnormal + st%work(WORK_WATER_NSUB) - st%work(WORK_WATER_FAST_SLOT) - st%work(WORK_WATER_CUT_SLOT)
-         passed = passed + st%water%flows%top_in - st%water%flows%top_out
+         passed = passed + st%water%flows%face(1_ik + st%drive%porous%n)
          call restart_stand(st, 1.0e-3_wp, 0.0_wp, .false.)
       end do
       call check_int('litter storm: no sub-step forced through', nfail, 0_ik)
@@ -1557,7 +1549,7 @@ contains
                       org=thin_layers(3.0e-3_wp, 0.03_wp, 0.0_wp, 0.0_wp, .false.))
       call seal_top(st, 2_ik, theta, 0.0_wp)
       st%drive%ground%q_air = 0.005_wp
-      st%drive%org%air = slot_evaporation_setup(st%drive%ground, st%drive%org%t_org, 0.0_wp)
+      st%drive%porous%air = slot_evaporation_setup(st%drive%ground, 285.0_wp, 0.0_wp)
       nfail = 0_ik
       th_min = 1.0_wp
       do step = 1_ik, 48_ik
@@ -1565,13 +1557,13 @@ contains
          nfail = nfail + st%work(WORK_WATER_NFAIL)
          th = st%water%state%water_soil(2) / (rho_h2o * 3.0e-3_wp)
          th_min = min(th_min, th)
-         st%drive%org = thin_layers(3.0e-3_wp, th, 0.0_wp, 0.0_wp, .false.)
-         st%drive%org%air = slot_evaporation_setup(st%drive%ground, st%drive%org%t_org, 0.0_wp)
+         st%drive%porous = thin_layers(3.0e-3_wp, th, 0.0_wp, 0.0_wp, .false.)
+         st%drive%porous%air = slot_evaporation_setup(st%drive%ground, 285.0_wp, 0.0_wp)
          call set_water_state(st%static, soil, hyd,                                                                &
                               st%water%state%water_soil(3:2+soil%n_active) / (rho_h2o * soil%dz(1:soil%n_active)), &
-                              st%drive%ice, st%water%state%water_soil(POND), st%water%state%e_pond,                &
+                              st%drive%ice, st%water%state%water_soil(POND),                                       &
                               st%water%state%water_coh(LEAF, :) / st%static%nplant(1:1),                          &
-                              st%water%state%water_coh(WOOD, :) / st%static%nplant(1:1), st%water, st%drive%org)
+                              st%water%state%water_coh(WOOD, :) / st%static%nplant(1:1), st%water, st%drive%porous)
       end do
       call check_true('drying litter: it dries to its equilibrium with the air, near 0.012',                         &
                       th_min > 0.0105_wp .and. th_min < 0.0140_wp, th_min)
@@ -1601,80 +1593,51 @@ contains
       call check_true('full pond: the water closes', worst < 1.0e-13_wp, worst)
    end subroutine test_full_pond
 
-   !--- The enthalpy the network's step leaves unbalanced among the pond, the slots and the top layer's top face [J/m2].
-   real(wp) function network_enthalpy_gap(st, e_pond0)
-      type(stand_t), intent(in) :: st
-      real(wp),      intent(in) :: e_pond0
-      associate (f => st%water%flows)
-         network_enthalpy_gap = (st%water%state%e_pond - e_pond0) + f%org_enth + (f%top_in_enth - f%top_out_enth)  &
-                                - f%rain_enth + f%spill_enth
-      end associate
-   end function network_enthalpy_gap
-
    !---~---
-   !   29. A frozen litter on the melt plateau (liquid share 0.3 by its energy), filled past its pores
-   ! over ground frozen hard, pushes water up into a pond of liquid at the melting point: the water
-   ! leaves as the litter's energy holds it, its liquid share at 273.16 K and the rest ice, and
-   ! arrives so; the pond, now below liquid at the melting point, is one the snow stage freezes;
-   ! and the enthalpy closes.
+   !   29. A frozen litter filled past its pores over ground frozen hard pushes water up into a pond:
+   ! the water reaches the pond, and the network's water closes.
    !---~---
    subroutine test_frozen_slot_to_pond()
       type(stand_t) :: st
-      real(wp) :: theta(soil%n_active), e_pond0, u_held
+      real(wp) :: theta(soil%n_active), w0
       print '(a)', 'test_frozen_slot_to_pond:'
       theta = 0.42_wp
       call make_stand(st, 1_ik, theta, 0.0_wp, 0.95_wp, 0.9_wp, 0.0_wp,                                              &
                       org=thin_layers(3.0e-3_wp, 1.0_wp, 0.0_wp, 0.0_wp, .false.))
       call seal_top(st, 2_ik, theta, 0.5_wp)
-      st%water%state%e_pond = 0.5_wp * internal_energy_liquid(t_3ple)
-      st%drive%org%t_org = t_3ple
-      st%drive%org%fliq  = 0.3_wp
-      st%drive%rain      = 0.0_wp
-      e_pond0 = st%water%state%e_pond
+      st%drive%rain = 0.0_wp
+      w0 = total_water(st)
       call advance(st, sopts, 900.0_wp)
-      u_held = temp_to_internal_energy(0.0_wp, 1.0_wp, t_3ple, 0.3_wp)
       associate (f => st%water%flows)
          call check_true('frozen slot to pond: the litter pushes water up to the pond', f%exfil > 1.0e-6_wp, f%exfil)
-         call check_close('frozen slot to pond: it leaves as the litter holds it, liquid share and ice',          &
-                          f%exfil_enth, f%exfil * u_held, 1.0e-12_wp * abs(f%exfil * u_held))
+         call check_close('frozen slot to pond: the pond''s face carries it, net', f%face(POND), -f%exfil,             &
+                          1.0e-12_wp * f%exfil)
       end associate
-      call check_true('frozen slot to pond: the pond is below liquid at the melting point, so it freezes',        &
-                      st%water%state%e_pond < st%water%state%water_soil(POND) * internal_energy_liquid(t_3ple),  &
-                      st%water%state%e_pond)
-      call check_close('frozen slot to pond: the enthalpy closes among pond, litter and soil',                     &
-                       network_enthalpy_gap(st, e_pond0), 0.0_wp, 1.0e-9_wp * max(1.0_wp, abs(st%water%flows%exfil_enth)))
+      call check_true('frozen slot to pond: the water closes',                                                     &
+                      abs((total_water(st) - w0) - boundary_water_thin(st, 900.0_wp)) < 1.0e-13_wp * max(w0, 1.0_wp))
    end subroutine test_frozen_slot_to_pond
 
    !---~---
    !   30. A small pond (0.022 kg/m2), as at Toolik's spring, over 11 mm of litter at theta 0.9 and 6
-   ! cm of saturated moss on the melt plateau: it empties into the litter within a step, and loses
-   ! no more than it held, never past empty, the enthalpy closing at every step.
+   ! cm of saturated moss: it empties into the litter within a step, and loses no more than it
+   ! held, never past empty.
    !---~---
    subroutine test_pond_drains_what_it_holds()
       type(stand_t) :: st
-      real(wp) :: theta(soil%n_active), e_pond0, gap, w_min
+      real(wp) :: theta(soil%n_active), w_min
       integer(ik) :: step
       print '(a)', 'test_pond_drains_what_it_holds:'
       theta = 0.42_wp
       call make_stand(st, 1_ik, theta, 0.022_wp, 0.95_wp, 0.9_wp, 0.0_wp,                                            &
                       org=thin_layers(1.14e-2_wp, 0.90_wp, 0.06_wp, 0.85_wp, .false.))
-      st%water%state%e_pond = 0.022_wp * internal_energy_liquid(t_3ple)
-      st%drive%org%t_org = t_3ple
-      st%drive%org%fliq  = 0.88_wp
-      st%drive%rain      = 0.0_wp
-      gap   = 0.0_wp
+      st%drive%rain = 0.0_wp
       w_min = huge(1.0_wp)
       do step = 1_ik, 4_ik
-         e_pond0 = st%water%state%e_pond
          call advance(st, sopts, 900.0_wp)
-         gap   = max(gap, abs(network_enthalpy_gap(st, e_pond0)))
          w_min = min(w_min, st%water%state%water_soil(POND))
          call restart_stand(st, 1.14e-2_wp, 0.06_wp, .false.)
-         st%drive%org%t_org = t_3ple
-         st%drive%org%fliq  = 0.88_wp
       end do
       call check_true('pond drains what it holds: never past empty', w_min >= 0.0_wp, w_min)
-      call check_true('pond drains what it holds: the enthalpy closes at every step', gap < 1.0e-6_wp, gap)
    end subroutine test_pond_drains_what_it_holds
 
 end program test_water_network

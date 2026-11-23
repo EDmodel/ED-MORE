@@ -16,7 +16,7 @@
 !---~---
 module ed_fast_integ_types
    use ed_kinds, only : wp, ik
-   use ed_constants, only : n_soil_layer_max, t_3ple
+   use ed_constants, only : n_soil_layer_max
    use ed_ground_surface_params, only : N_POROUS
    use ed_pft_params, only : leaf_photo_table_t
    use ed_patch_state_vars,   only : cas_state_t, soil_water_state_t, soil_energy_state_t, soil_carbon_state_t,      &
@@ -55,7 +55,7 @@ module ed_fast_integ_types
    public :: soil_hydrology_t, root_zone_t, plant_water_t, esdirk2_stages_t, surface_source_slopes_t
    public :: march_state_t, frozen_t, march_tend_t
    public :: stage_bflux_t, boundary_flux_t
-   public :: POND, WOOD, LEAF, COHORT_STORES, water_organic_t
+   public :: POND, WOOD, LEAF, COHORT_STORES, water_porous_t
    public :: water_drive_t, water_tend_t, water_state_t, water_flows_t, water_work_t, ensure_water_capacity
    public :: alloc_static_state, alloc_dynamic_state   ! used only by the tests
    !--- The march state's arithmetic.
@@ -97,8 +97,8 @@ module ed_fast_integ_types
 
    !---~---
    !   The soil-plant water network's nodes (docs/science/soil_plant_water.md §1): the pond is
-   ! soil node POND, the organic layer's slots in the network are nodes 2 .. 1 + n_org top down,
-   ! and soil layer k is node 1 + n_org + k; each cohort has two stores, its wood and its leaves.
+   ! soil node POND, the porous layers in the network are nodes 2 .. 1 + n_porous top down, and
+   ! soil layer k is node 1 + n_porous + k; each cohort has two stores, its wood and its leaves.
    !---~---
    integer(ik), parameter :: POND = 1_ik
    integer(ik), parameter :: WOOD = 1_ik
@@ -331,7 +331,7 @@ module ed_fast_integ_types
    !---~---
    !   The water network's core nodes by class over its accepted sub-steps
    ! (docs/science/soil_plant_water.md §3, "Node classes"): eliminated (fast) and detached (cut),
-   ! for the pond, the organic slots and the soil layers.
+   ! for the pond, the porous layers and the soil layers.
    !---~---
    integer(ik), parameter :: WORK_WATER_FAST_POND  = 14_ik
    integer(ik), parameter :: WORK_WATER_FAST_SLOT  = 15_ik
@@ -570,22 +570,13 @@ module ed_fast_integ_types
    ! advects soil enthalpy on these same faces (docs/science/numerical_scheme.md §5b).
    !---~---
    type :: soil_hydrology_t
-      real(wp) :: q_top         = 0.0_wp          ! [m/s]     net top-face water flux (infiltration - exfiltration - evaporation)
-      real(wp) :: infiltration  = 0.0_wp          ! [kg/m2/s] into the top layer: from the bottom organic slot, or the pond
-      real(wp) :: pond_infil    = 0.0_wp          ! [kg/m2/s] the pond's into the ground: the top organic slot or layer
+      real(wp) :: q_top         = 0.0_wp          ! [m/s]     net top-face water flux (in from above - evaporation)
+      real(wp) :: pond_infil    = 0.0_wp          ! [kg/m2/s] the free water's into the ground: the top porous layer or soil layer
       real(wp) :: drainage      = 0.0_wp          ! [kg/m2/s] bottom-face drainage
       real(wp) :: runoff_surf   = 0.0_wp          ! [kg/m2/s] surface runoff
-      real(wp) :: t_infil       = 0.0_wp          ! [K]       temperature of the infiltrating (pond) water
-      real(wp) :: w_surface_energy1 = 0.0_wp        ! [J/m2]    end-of-step pond ENTHALPY
-      real(wp) :: runoff_enth   = 0.0_wp          ! [W/m2]    enthalpy leaving with surface runoff
-      !---~---
-      !   Water a supersaturated top layer pushed up into the pond, and the enthalpy it took, valued at
-      ! the layer's start-of-step temperature (the pond received the same number).
-      !---~---
-      real(wp) :: exfiltration  = 0.0_wp          ! [kg/m2/s] top layer -> pond
-      real(wp) :: exfil_enth    = 0.0_wp          ! [W/m2]    enthalpy leaving the top layer with it
+      real(wp) :: runoff_enth   = 0.0_wp          ! [W/m2]    enthalpy leaving with surface runoff, at the free water's temperature
       real(wp) :: t_bot         = 0.0_wp          ! [K]       bottom-layer soil temperature @ state^n
-      real(wp) :: w_surface1    = 0.0_wp          ! [kg/m2]   end-of-step ponded surface water
+      real(wp) :: free_water1   = 0.0_wp          ! [kg/m2]   the water layer's free water at the step's end
       real(wp) :: w_flux_frozen(n_soil_layer_max) = 0.0_wp  ! [m/s]   DOWNWARD interior face flux, k=1..nsl-1
       !--- The network's end-of-step soil moisture, which every scheme commits.
       real(wp), allocatable :: theta1(:)          ! [m3/m3]   committed post-step soil moisture (per layer)
@@ -622,41 +613,39 @@ module ed_fast_integ_types
    end type plant_water_t
 
    !---~---
-   !   What drives the soil-plant water network over the step, held fixed across it: the water
-   ! reaching the pond and the temperature that values it, the temperature of the water each
-   ! layer gives up, each cohort's transpiration demand and the ground evaporation's boundary
-   ! (docs/science/soil_plant_water.md §4-§5).
-   !---~---
-   !---~---
-   !   The organic layer's slots in the network, top down (docs/science/surface_organic_layer.md,
-   ! Water): each node's slot, its retention curve and ice, held over the step, its depth and its
-   ! water at the step's start; the boundary the top slot evaporates to, by the soil's law; and
-   ! the layer's temperature, which values the water it gives up. n = 0 without a layer: the
+   !   The porous layers in the network, top down (docs/science/surface_organic_layer.md, Water):
+   ! each node's layer (POROUS_LITTER, POROUS_MOSS), its retention curve and ice, held over the
+   ! step, its depth and its water at the step's start, the water it lacks of its residual, and the
+   ! boundary the top one evaporates to, by the soil's law. n = 0 without a porous layer: the
    ! network is the pond and the soil.
    !---~---
-   type :: water_organic_t
-      integer(ik) :: n = 0_ik                                  ! slots in the network
-      integer(ik) :: slot(N_POROUS) = 0_ik               ! node j's slot (POROUS_LITTER, POROUS_MOSS)
+   type :: water_porous_t
+      integer(ik) :: n = 0_ik                            ! porous layers in the network
+      integer(ik) :: slot(N_POROUS) = 0_ik               ! node j's layer (POROUS_LITTER, POROUS_MOSS)
       type(soil_layer_curve_t) :: curve(N_POROUS)        ! node j's retention and conductivity
       type(soil_ice_t)         :: ice(N_POROUS)          ! its ice, held over the step
       real(wp) :: depth(N_POROUS) = 0.0_wp               ! [m]
       real(wp) :: water(N_POROUS) = 0.0_wp               ! [kg/m2] at the step's start, liquid and ice
       real(wp) :: deficit(N_POROUS) = 0.0_wp             ! [kg/m2] the water it lacks of its residual
-      real(wp) :: t_org = t_3ple                               ! [K]
-      real(wp) :: fliq  = 1.0_wp                               ! [-] its water's liquid share, by its energy
-      type(ground_evap_env_t) :: air                          ! the top slot's evaporation boundary (slot_evaporation_setup)
-   end type water_organic_t
+      type(ground_evap_env_t) :: air                     ! the top one's evaporation boundary (slot_evaporation_setup)
+   end type water_porous_t
 
+   !---~---
+   !   What drives the soil-plant water network over the step, held fixed across it: the water
+   ! reaching the pond, each layer's temperature and ice, each cohort's transpiration demand, the
+   ! ground evaporation's boundary and the porous layers (docs/science/soil_plant_water.md §4-§5).
+   ! The network moves water only: the heat the water carries is the energy solves' (the ground
+   ! surface's stack and the soil's heat column).
+   !---~---
    type :: water_drive_t
       real(wp) :: rain   = 0.0_wp                          ! [kg/m2/s] water reaching the pond: the free water, over the step
-      real(wp) :: t_rain = 298.15_wp                       ! [K] the temperature that values it
       real(wp) :: pond_capacity = 0.0_wp                   ! [kg/m2] the pond above which it runs off
       real(wp) :: t_soil(n_soil_layer_max) = 298.15_wp     ! [K] temperature of the water a layer gives up
       type(soil_ice_t) :: ice(n_soil_layer_max)              ! each layer's ice, held over the step
       real(wp) :: root_contact(n_soil_layer_max) = 1.0_wp ! [-] each layer's root-soil contact, held over the step
       real(wp), allocatable :: e_demand(:)                 ! (ncoh) [kg/m2/s] the stomata's transpiration demand
       type(ground_evap_env_t) :: ground                    ! the ground evaporation's boundary
-      type(water_organic_t)   :: org                       ! the organic slots in the network
+      type(water_porous_t)    :: porous                    ! the porous layers in the network
    end type water_drive_t
 
    !---~---
@@ -669,13 +658,11 @@ module ed_fast_integ_types
       real(wp), allocatable :: k_soil(:), dk_soil(:), inflow_soil(:)                       ! (nsoil)
       real(wp), allocatable :: psi_coh(:,:), dpsi_coh(:,:), water_coh(:,:), dwater_coh(:,:) ! (2, ncoh)
       real(wp), allocatable :: inflow_coh(:,:)                                             ! (2, ncoh)
-      real(wp), allocatable :: face_flux(:)        ! (nsl) down through the face below layer k
+      real(wp), allocatable :: face(:)             ! (nsoil) down through face c, from node c to node c + 1
       real(wp), allocatable :: uptake(:,:)         ! (nsl, ncoh) from each layer into each cohort
       real(wp), allocatable :: sapflow(:), transp(:)   ! (ncoh)
-      real(wp) :: pond_flux = 0.0_wp               ! pond -> top layer
       real(wp) :: drain = 0.0_wp, evap = 0.0_wp    ! out of the bottom; out of the top layer to the air
-      real(wp) :: org_face(N_POROUS) = 0.0_wp   ! down from organic node j to the node below it
-      real(wp) :: org_evap(N_POROUS) = 0.0_wp   ! out of organic node j to the air (< 0: dew)
+      real(wp) :: porous_evap(N_POROUS) = 0.0_wp   ! out of porous node j to the air
       !---~---
       !   What the solve can see of each link, whether or not the node is detached: face c's flow's
       ! slopes in its upper node's unknown and its lower one's, and the largest slope of a soil
@@ -686,36 +673,29 @@ module ed_fast_integ_types
    end type water_tend_t
 
    !---~---
-   !   The water network's state: each store's unknown and the water it holds [kg/m2], the pond's
-   ! enthalpy, and each store's potential at the end of the step.
+   !   The water network's state: each store's unknown and the water it holds [kg/m2], and each
+   ! store's potential at the end of the step.
    !---~---
    type :: water_state_t
       real(wp), allocatable :: tau_soil(:), tau_coh(:,:)       ! (nsoil), (2, ncoh)
       real(wp), allocatable :: water_soil(:), water_coh(:,:)   ! (nsoil), (2, ncoh)
       real(wp), allocatable :: psi_soil(:), psi_coh(:,:)       ! (nsoil), (2, ncoh) [MPa]
-      real(wp) :: e_pond = 0.0_wp                              ! [J/m2] the pond's enthalpy
    end type water_state_t
 
-   !--- What each of the network's paths moved over the step [kg/m2, J/m2].
+   !---~---
+   !   What each of the network's paths moved over the step [kg/m2]: each face of the chain, net
+   ! (face c from node c to node c + 1: the pond's into the top porous layer or soil layer, the
+   ! porous layers', the soil's); the pond's face both ways, gross; the pond's runoff; and the
+   ! evaporation, drainage, uptake, sapflow and transpiration.
+   !---~---
    type :: water_flows_t
-      real(wp), allocatable :: face(:)          ! (nsl) down through the face below layer k
+      real(wp), allocatable :: face(:)          ! (nsoil) down through face c, net
       real(wp), allocatable :: uptake(:,:)      ! (nsl, ncoh) from each layer into each cohort
       real(wp), allocatable :: sapflow(:), transp(:)   ! (ncoh)
-      real(wp) :: infil = 0.0_wp, infil_enth = 0.0_wp  ! pond -> top layer, and its enthalpy
-      real(wp) :: exfil = 0.0_wp, exfil_enth = 0.0_wp  ! top layer -> pond
+      real(wp) :: infil = 0.0_wp, exfil = 0.0_wp       ! the pond's face, down and up
       real(wp) :: drain = 0.0_wp, evap = 0.0_wp        ! out of the bottom; out of the top layer to the air
-      real(wp) :: spill = 0.0_wp, spill_enth = 0.0_wp  ! pond runoff over its capacity
-      real(wp) :: rain_enth = 0.0_wp                   ! enthalpy the water reaching the pond brought
-      !---~---
-      !   With organic slots in the network: the flow down from each node and its evaporation, the
-      ! enthalpy the slots gained with their water (their evaporation's is the march's), and the top
-      ! soil layer's top face, in and out with their enthalpy.
-      !---~---
-      real(wp) :: org_face(N_POROUS) = 0.0_wp
-      real(wp) :: org_evap(N_POROUS) = 0.0_wp
-      real(wp) :: org_enth = 0.0_wp
-      real(wp) :: top_in  = 0.0_wp, top_in_enth  = 0.0_wp   ! bottom slot -> top layer
-      real(wp) :: top_out = 0.0_wp, top_out_enth = 0.0_wp   ! top layer -> bottom slot
+      real(wp) :: spill = 0.0_wp                       ! pond runoff over its capacity
+      real(wp) :: porous_evap(N_POROUS) = 0.0_wp       ! out of porous node j to the air
    end type water_flows_t
 
    !---~---
@@ -729,9 +709,9 @@ module ed_fast_integ_types
    !---~---
    type :: water_work_t
       integer(ik)              :: nsl   = 0_ik      ! soil layers
-      integer(ik)              :: n_org = 0_ik      ! organic slots in the network
+      integer(ik)              :: n_porous = 0_ik   ! porous layers in the network
       integer(ik)              :: ncoh  = 0_ik      ! cohorts
-      integer(ik)              :: nsoil = 0_ik      ! core nodes: the pond, the n_org slots and the nsl layers
+      integer(ik)              :: nsoil = 0_ik      ! core nodes: the pond, the n_porous layers and the nsl soil layers
       type(water_state_t)      :: state
       type(water_flows_t)      :: flows
       type(arrowhead_system_t) :: sys
@@ -754,11 +734,10 @@ module ed_fast_integ_types
       type(plant_water_t)          :: plant        ! the network's sapflow and uptake per plant
       type(water_drive_t)          :: water_drive  ! what drives the water network over the step
       !---~---
-      !   The organic layer over the step, after the pond and the ground's inflow fill it, which
-      ! the update commits.
+      !   The porous layers over the step: their energy at its start, and the water the network
+      ! leaves them with their own evaporation not yet gone, which the update commits.
       !---~---
       type(porous_layer_state_t)   :: porous(N_POROUS)
-      real(wp) :: org_evap(N_POROUS) = 0.0_wp           ! [kg/m2] each slot's evaporation, the network's
       !---~---
       !   The ground's surface stores at the step's start, before its stage moves anything: the
       ! water [kg/m2] and energy [J/m2] the whole-column ledgers start from.
@@ -995,19 +974,19 @@ contains
    ! right after.
    !---~---
    !---~---
-   !   Size the water network for nsl soil layers, n_org organic slots and ncoh cohorts, keeping
+   !   Size the water network for nsl soil layers, n_porous porous layers and ncoh cohorts, keeping
    ! the storage when the shape is unchanged.
    !---~---
-   subroutine ensure_water_capacity(water, nsl, n_org, ncoh)
+   subroutine ensure_water_capacity(water, nsl, n_porous, ncoh)
       type(water_work_t), intent(inout) :: water
-      integer(ik),        intent(in)    :: nsl, n_org, ncoh
+      integer(ik),        intent(in)    :: nsl, n_porous, ncoh
       integer(ik) :: ns
-      if (allocated(water%state%tau_soil) .and. water%nsl == nsl .and. water%n_org == n_org                     &
+      if (allocated(water%state%tau_soil) .and. water%nsl == nsl .and. water%n_porous == n_porous                &
           .and. water%ncoh == ncoh) return
-      water%nsl   = nsl
-      water%n_org = n_org
-      water%ncoh  = ncoh
-      water%nsoil = 1_ik + n_org + nsl
+      water%nsl      = nsl
+      water%n_porous = n_porous
+      water%ncoh     = ncoh
+      water%nsoil    = 1_ik + n_porous + nsl
       ns = water%nsoil
       associate (st => water%state, fl => water%flows)
          if (allocated(st%tau_soil)) deallocate(st%tau_soil, st%tau_coh, st%water_soil, st%water_coh,          &
@@ -1015,7 +994,7 @@ contains
          allocate(st%tau_soil(ns), st%tau_coh(COHORT_STORES, ncoh), st%water_soil(ns),                      &
                   st%water_coh(COHORT_STORES, ncoh), st%psi_soil(ns), st%psi_coh(COHORT_STORES, ncoh))
          if (allocated(fl%face)) deallocate(fl%face, fl%uptake, fl%sapflow, fl%transp)
-         allocate(fl%face(nsl), fl%uptake(nsl, ncoh), fl%sapflow(ncoh), fl%transp(ncoh))
+         allocate(fl%face(ns), fl%uptake(nsl, ncoh), fl%sapflow(ncoh), fl%transp(ncoh))
       end associate
       call tend_allocate(water%ev(1))
       call tend_allocate(water%ev(2))
@@ -1024,7 +1003,7 @@ contains
          type(water_tend_t), intent(inout) :: ev
          if (allocated(ev%psi_soil)) deallocate(ev%psi_soil, ev%dpsi_soil, ev%water_soil, ev%dwater_soil,       &
                                                 ev%k_soil, ev%dk_soil, ev%inflow_soil, ev%psi_coh, ev%dpsi_coh, &
-                                                ev%water_coh, ev%dwater_coh, ev%inflow_coh, ev%face_flux,       &
+                                                ev%water_coh, ev%dwater_coh, ev%inflow_coh, ev%face,            &
                                                 ev%uptake, ev%sapflow, ev%transp, ev%face_dqa, ev%face_dqb,     &
                                                 ev%root_link)
          allocate(ev%psi_soil(ns), ev%dpsi_soil(ns), ev%water_soil(ns), ev%dwater_soil(ns), ev%k_soil(ns),     &
@@ -1035,8 +1014,8 @@ contains
          allocate(ev%psi_coh(COHORT_STORES, ncoh), ev%dpsi_coh(COHORT_STORES, ncoh),                           &
                   ev%water_coh(COHORT_STORES, ncoh), ev%dwater_coh(COHORT_STORES, ncoh),                       &
                   ev%inflow_coh(COHORT_STORES, ncoh))
-         allocate(ev%face_flux(nsl), ev%uptake(nsl, ncoh), ev%sapflow(ncoh), ev%transp(ncoh))
-         ev%face_flux = 0.0_wp
+         allocate(ev%face(ns), ev%uptake(nsl, ncoh), ev%sapflow(ncoh), ev%transp(ncoh))
+         ev%face = 0.0_wp
       end subroutine tend_allocate
    end subroutine ensure_water_capacity
 

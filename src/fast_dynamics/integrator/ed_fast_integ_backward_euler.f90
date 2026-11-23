@@ -31,10 +31,9 @@ module ed_fast_integ_backward_euler
                                WORK_WATER_FORCED_FAST, WORK_WATER_FORCED_CUT, WORK_WATER_FORCED_COHORT,           &
                                WORK_WATER_NODE_UNSOLVED, WORK_WATER_FAST_POND, WORK_WATER_FAST_SLOT,              &
                                WORK_WATER_FAST_LAYER, WORK_WATER_CUT_POND, WORK_WATER_CUT_SLOT,                   &
-                               WORK_WATER_CUT_LAYER, state_init, surface_source_slopes_t, water_organic_t
+                               WORK_WATER_CUT_LAYER, state_init, surface_source_slopes_t, water_porous_t
    use ed_site_state_vars, only : site_surface_t
-   use ed_therm_lib, only : cas_enthalpy_to_temp, internal_energy_liquid, liquid_energy_to_temp,                   &
-                           temp_to_internal_energy
+   use ed_therm_lib, only : cas_enthalpy_to_temp
    use ed_numerics,     only : sufficient_decrease, fraction_to_boundary
    use ed_soil_hydr_lib,   only : pond_water_to_head, soil_layer_curve_t, curve_kinks
    use ed_soil_water,      only : ground_evaporation_setup
@@ -111,8 +110,6 @@ module ed_fast_integ_backward_euler
    real(wp),    parameter :: NEWTON_FAIL_CUT = 0.25_wp
    real(wp),    parameter :: H_MIN_SHARE = 1.0e-5_wp
    integer(ik), parameter :: TRIALS_MAX = 2000_ik
-   !--- [kg/m2] Below this a pond holds no water to carry a temperature.
-   real(wp),    parameter :: POND_TINY = 1.0e-9_wp
 
 contains
 
@@ -146,7 +143,7 @@ contains
       type(soil_heat_env_t)     :: eforc
       type(soil_heat_out_t)        :: eflux
       real(wp)    :: t_ground, fliq1, cas_mass_capacity, cas_molar_capacity, g_atm_heat, g_atm_vapour, g_atm_co2
-      real(wp)    :: enth1, shv1, e_infil, e_drain, t_cas1, water_heat(nsl)
+      real(wp)    :: enth1, shv1, e_drain, t_cas1, water_heat(nsl)
       real(wp)    :: co21, enth_newton, shv_newton
       integer(ik) :: newton_steps
       logical     :: converged
@@ -192,17 +189,15 @@ contains
       !--- Soil heat: implicit backward Euler, Thomas solve.
       se%soil_energy(1:nsl) = y%soil_energy(1:nsl)
       !---~---
-      !   The enthalpy of the water the network moved: across the faces at its time-mean flows, in
-      ! from the pond at t_infil, out with root uptake and exfiltration at each layer's start-of-step
-      ! temperature (what the wood and the pond were credited), and out with drainage
-      ! (docs/science/soil_plant_water.md §5). The leaf pays its transpiration's full vapour
-      ! enthalpy in surface_derivs.
+      !   The enthalpy of the water the network moved: across the soil's top in g_top, the ground
+      ! surface's stack having valued it at its giver's temperature; across the faces below at its
+      ! time-mean flows; out with root uptake at each layer's start-of-step temperature (what the
+      ! wood was credited), and out with drainage (docs/science/soil_plant_water.md §5). The leaf
+      ! pays its transpiration's full vapour enthalpy in surface_derivs.
       !---~---
-      call set_soil_heat_env(nsl, surf_tend%g_top, y%theta, frozen%roots%root_heat, frozen%hydrology%exfil_enth,  &
-                             frozen%hydrology%w_flux_frozen, frozen%hydrology%infiltration,                       &
-                             frozen%hydrology%t_infil, frozen%hydrology%drainage, frozen%hydrology%t_bot, eforc,  &
-                             water_heat, e_drain)
-      e_infil = frozen%hydrology%infiltration * internal_energy_liquid(frozen%hydrology%t_infil)
+      call set_soil_heat_env(nsl, surf_tend%g_top, y%theta, frozen%roots%root_heat,                              &
+                             frozen%hydrology%w_flux_frozen, frozen%hydrology%drainage, frozen%hydrology%t_bot,    &
+                             eforc, water_heat, e_drain)
       call soil_energy_step_implicit(se, eforc, site%soil_profile, site%soil, dt, eflux)
       !---~---
       !   [fast].debug_error stops the run when the soil heat's own budget misses by more than
@@ -240,7 +235,7 @@ contains
             !   The bottom face the soil solve committed (zero on the adiabatic base, the conduction
             ! to deep_temp under the Dirichlet anchor) crosses both the soil's and the column's book.
             !---~---
-            bf%soil_enth_in = surf_tend%g_top - eflux%bottom_heat + e_infil
+            bf%soil_enth_in = surf_tend%g_top - eflux%bottom_heat
             bf%soil_enth_out= sum(water_heat(1:nsl)) + e_drain
             !---~---
             !   Soil water's storage change and flows are the network's, booked once per step by
@@ -250,9 +245,9 @@ contains
             bf%soil_wat_in  = 0.0_wp
             bf%soil_wat_out = 0.0_wp
             !---~---
-            !   ground_rad is the tiles' radiation, cover-weighted (rnet_soil when bare). Infiltration,
-            ! exfiltration and uptake move enthalpy between tracked stores and cancel; rain and runoff
-            ! are added once at the outer level (docs/science/numerical_scheme.md §5b).
+            !   ground_rad is the tiles' radiation, cover-weighted (rnet_soil when bare). The water the
+            ! network moves and the uptake carry enthalpy between tracked stores and cancel; rain and
+            ! runoff are added once at the outer level (docs/science/numerical_scheme.md §5b).
             !---~---
             bf%whole_enth_in= surf_tend%coh_rnet + surf_tend%ground_rad - eflux%bottom_heat
             !---~---
@@ -569,7 +564,7 @@ contains
       work_count(WORK_WATER_NSUB:WORK_WATER_NFAIL) = 0_ik
       work_count(WORK_WATER_FORCED_NEWTON:WORK_WATER_CUT_LAYER) = 0_ik
       call arrowhead_allocate(water%sys, water%nsoil, water%ncoh, COHORT_STORES)
-      call water_scales(static, profile, hyd, drive%org, scale_soil, scale_coh)
+      call water_scales(static, profile, hyd, drive%porous, scale_soil, scale_coh)
       call ground_evaporation_setup(profile, soil, drive%ground)
       water%start_ready = .false.
 
@@ -633,13 +628,13 @@ contains
       water%state%psi_soil = water%ev(water%i_start)%psi_soil
       water%state%psi_coh  = water%ev(water%i_start)%psi_coh
    contains
-      !--- An accepted sub-step's nodes of a class, by kind: the pond, the organic slots, the soil layers.
+      !--- An accepted sub-step's nodes of a class, by kind: the pond, the porous layers, the soil layers.
       subroutine count_classes(mask, i_pond, i_slot, i_layer)
          logical,     intent(in) :: mask(:)
          integer(ik), intent(in) :: i_pond, i_slot, i_layer   ! their counters in work_count
          if (mask(POND)) work_count(i_pond) = work_count(i_pond) + 1_ik
-         work_count(i_slot)  = work_count(i_slot)  + count(mask(2:1+drive%org%n), kind=ik)
-         work_count(i_layer) = work_count(i_layer) + count(mask(2+drive%org%n:), kind=ik)
+         work_count(i_slot)  = work_count(i_slot)  + count(mask(2:1+drive%porous%n), kind=ik)
+         work_count(i_layer) = work_count(i_layer) + count(mask(2+drive%porous%n:), kind=ik)
       end subroutine count_classes
 
       !---~---
@@ -759,7 +754,7 @@ contains
          step_free = step_soil
          call chop_at_kinks(profile, drive, tau_soil, step_soil)
          chopped = any(step_soil /= step_free)
-         lam_max = step_limit(profile, drive%org, tau_soil, tau_coh, step_soil, step_coh)
+         lam_max = step_limit(profile, drive%porous, tau_soil, tau_coh, step_soil, step_coh)
          lam = lam_max
          !--- A trial's evaluation replaces the Jacobian sys held, so the start's is gone.
          water%start_ready = .false.
@@ -889,7 +884,7 @@ contains
    ! group none of whose members holds storage the solve can see, with no link it can see to a
    ! node outside it or to a cohort, is detached as one unit. Its matrix would be singular, or so
    ! close to it that a step sends its unknowns off by kilometres: an empty pond on sealed frozen
-   ! ground, a frozen layer whose pores are full, and those with frozen organic slots between.
+   ! ground, a frozen layer whose pores are full, and those with frozen porous layers between.
    !---~---
    pure subroutine inert_groups(ev, h, tol, scale_soil, cut)
       type(water_tend_t), intent(in)  :: ev
@@ -1039,14 +1034,14 @@ contains
       type(water_drive_t),  intent(in)    :: drive
       real(wp),             intent(in)    :: tau_soil(:)
       real(wp),             intent(inout) :: step_soil(:)
-      integer(ik) :: c, n_org
-      n_org = drive%org%n
+      integer(ik) :: c, n_porous
+      n_porous = drive%porous%n
       do c = 2_ik, size(tau_soil, kind=ik)
          if (step_soil(c) == 0.0_wp) cycle
-         if (c <= 1_ik + n_org) then
-            call chop(drive%org%curve(c - 1_ik), tau_soil(c), step_soil(c))
+         if (c <= 1_ik + n_porous) then
+            call chop(drive%porous%curve(c - 1_ik), tau_soil(c), step_soil(c))
          else
-            call chop(profile%layer_curve(c - 1_ik - n_org), tau_soil(c), step_soil(c))
+            call chop(profile%layer_curve(c - 1_ik - n_porous), tau_soil(c), step_soil(c))
          end if
       end do
    contains
@@ -1131,26 +1126,26 @@ contains
    end subroutine water_residual
 
    !---~---
-   !   The largest share of a Newton step every store can take: no organic slot, soil layer or
+   !   The largest share of a Newton step every store can take: no porous layer, soil layer or
    ! tissue is driven more than STEP_MAX_SHARE of the way to empty, and none on the dry side
-   ! moves its saturation or relative water content by more than STEP_MAX_DRY. A wet slot's or
-   ! layer's unknown is its potential, so only the first applies to it: it keeps a step that
+   ! moves its saturation or relative water content by more than STEP_MAX_DRY. A wet porous or
+   ! soil layer's unknown is its potential, so only the first applies to it: it keeps a step that
    ! would carry it past the branch point and below empty inside the curve. The pond's head is
    ! not bounded.
    !---~---
-   pure real(wp) function step_limit(profile, org, tau_soil, tau_coh, step_soil, step_coh) result(lam)
+   pure real(wp) function step_limit(profile, porous, tau_soil, tau_coh, step_soil, step_coh) result(lam)
       type(soil_profile_t),  intent(in) :: profile
-      type(water_organic_t), intent(in) :: org
+      type(water_porous_t),  intent(in) :: porous
       real(wp),              intent(in) :: tau_soil(:), tau_coh(:,:), step_soil(:), step_coh(:,:)
       integer(ik) :: k, i, j, c
       lam = 1.0_wp
-      do j = 1_ik, org%n
+      do j = 1_ik, porous%n
          c = 1_ik + j
          lam = min(lam, fraction_to_boundary(tau_soil(c) - SOIL_TAU_FLOOR, step_soil(c), STEP_MAX_SHARE))
-         if (tau_soil(c) <= org%curve(j)%se_switch) call cap_dry_change(tau_soil(c), step_soil(c), lam)
+         if (tau_soil(c) <= porous%curve(j)%se_switch) call cap_dry_change(tau_soil(c), step_soil(c), lam)
       end do
       do k = 1_ik, profile%n_active
-         c = 1_ik + org%n + k
+         c = 1_ik + porous%n + k
          lam = min(lam, fraction_to_boundary(tau_soil(c) - SOIL_TAU_FLOOR, step_soil(c), STEP_MAX_SHARE))
          if (tau_soil(c) <= profile%layer_curve(k)%se_switch) call cap_dry_change(tau_soil(c), step_soil(c), lam)
       end do
@@ -1244,11 +1239,12 @@ contains
 
    !---~---
    !   Accept a sub-step: advance each store's water by the flows themselves, spill the pond above
-   ! its capacity, carry the pond's enthalpy and the organic slots', and add what each path moved
-   ! to the step's amounts. A store whose own balance was solved apart -- an eliminated core node,
-   ! a cohort's leaves on their one path -- takes its water from its own curve, and the face to
-   ! its strongest neighbour (the wood, for the leaves) carries the flow that closes its balance;
-   ! the neighbour absorbs the slack (docs/science/soil_plant_water.md §3, "Conservation").
+   ! its capacity, and add what each path moved to the step's amounts. A store whose own balance
+   ! was solved apart -- an eliminated core node, a cohort's leaves on their one path -- takes its
+   ! water from its own curve, and the face to its strongest neighbour (the wood, for the leaves)
+   ! carries the flow that closes its balance; the neighbour absorbs the slack
+   ! (docs/science/soil_plant_water.md §3, "Conservation"). Water only: the heat it carries is the
+   ! energy solves'.
    !---~---
    subroutine water_commit_substep(drive, h, tau_soil, tau_coh, ev, state, flows, fast, cut, spilled)
       type(water_drive_t), intent(in)    :: drive
@@ -1258,21 +1254,15 @@ contains
       type(water_flows_t), intent(inout) :: flows
       logical,             intent(in)    :: fast(:), cut(:)   ! the eliminated and the detached core nodes
       logical,             intent(out)   :: spilled   ! the pond spilled, so its unknown moved
-      real(wp) :: w_mix, e_mix, t_mix, u_mix, amount, spill, t_pond, pond_flux, sap(size(tau_coh, 2)), u_up, q
-      real(wp) :: in_m, in_h, out_m, u_out, share   ! the organic layer's water in and out over the sub-step
+      real(wp) :: spill, sap(size(tau_coh, 2))
       real(wp) :: qf(size(tau_soil)), dinfl(size(tau_soil)), slack
-      integer(ik) :: i, nsl, n_org, nsoil, soff, c, g
+      integer(ik) :: i, n_porous, nsoil, c, g
       logical     :: snap(size(tau_soil))   ! the eliminated nodes taken to their curve's water
 
-      nsl   = size(flows%face, kind=ik)
-      n_org = drive%org%n
-      nsoil = size(tau_soil, kind=ik)
-      soff  = 1_ik + n_org
+      n_porous = drive%porous%n
+      nsoil    = size(tau_soil, kind=ik)
       !--- Down the chain: face c joins node c to c + 1.
-      qf = 0.0_wp
-      qf(1) = ev%pond_flux
-      qf(2:1+n_org) = ev%org_face(1:n_org)
-      qf(soff+1:soff+nsl-1) = ev%face_flux(1:nsl-1)
+      qf = ev%face
       !---~---
       !   Each eliminated node at its curve's water: the face to its strongest neighbour carries the
       ! flow that closes its balance there -- a neighbour that is not detached and holds the water
@@ -1314,82 +1304,10 @@ contains
          end if
       end do
       if (fast(POND) .and. .not. snap(POND)) call drain_only_what_is_held()
-      pond_flux = qf(1)
       !--- The flow that closes each leaf's balance at its curve's water.
       do i = 1_ik, size(tau_coh, 2, kind=ik)
          sap(i) = (ev%water_coh(LEAF, i) - state%water_coh(LEAF, i)) / h + ev%transp(i)
       end do
-
-      !---~---
-      !   The pond's enthalpy, in the order its water moves: the water reaching it joins it first,
-      ! so what infiltrates leaves at the mixture's temperature; water the node below pushes up arrives
-      ! at that node's temperature, the organic layer's or the top layer's; then the spill leaves
-      ! at the pond's own. The organic slots gain what the pond gives them and lose what they push
-      ! up, and the flow across the top layer's top face carries the giver's temperature.
-      !---~---
-      w_mix = state%water_soil(POND) + h * drive%rain
-      e_mix = state%e_pond + h * drive%rain * internal_energy_liquid(drive%t_rain)
-      flows%rain_enth = flows%rain_enth + h * drive%rain * internal_energy_liquid(drive%t_rain)
-      t_mix = drive%t_rain
-      if (w_mix > POND_TINY) t_mix = liquid_energy_to_temp(e_mix / w_mix)
-      u_mix = internal_energy_liquid(t_mix)
-      if (n_org == 0_ik) then
-         u_up = internal_energy_liquid(drive%t_soil(1))
-         if (pond_flux >= 0.0_wp) then
-            amount = h * pond_flux
-            flows%infil = flows%infil + amount
-            flows%infil_enth = flows%infil_enth + amount * u_mix
-            state%e_pond = e_mix - amount * u_mix
-         else
-            amount = -h * pond_flux
-            flows%exfil = flows%exfil + amount
-            flows%exfil_enth = flows%exfil_enth + amount * u_up
-            state%e_pond = e_mix + amount * u_up
-         end if
-      else
-         !---~---
-         !   The organic layer, one thermal node: water passing through it in a sub-step leaves at
-         ! the temperature it came in at, as far as what came in covers what leaves, and at the
-         ! layer's own for the rest -- so the water a thin litter passes on does not heat or cool
-         ! it by its difference from the layer's start, a store of a few hundred joules a kelvin.
-         ! The layer's own water leaves as its energy holds it, its liquid share at its temperature
-         ! and the rest ice, as its spill does: on the melt plateau the freezing curve lets nearly
-         ! frozen litter drain, and water valued as liquid would take latent heat the litter does
-         ! not have. What receives the ice share refreezes it, the soil by its freezing curve, the
-         ! pond in the snow stage.
-         !---~---
-         q = h * qf(soff)
-         in_m  = h * max(pond_flux, 0.0_wp) + max(-q, 0.0_wp)
-         in_h  = h * max(pond_flux, 0.0_wp) * u_mix + max(-q, 0.0_wp) * internal_energy_liquid(drive%t_soil(1))
-         out_m = h * max(-pond_flux, 0.0_wp) + max(q, 0.0_wp)
-         u_out = temp_to_internal_energy(0.0_wp, 1.0_wp, drive%org%t_org, drive%org%fliq)
-         if (out_m > 0.0_wp .and. in_m > 0.0_wp) then
-            share = min(1.0_wp, in_m / out_m)
-            u_out = share * in_h / in_m + (1.0_wp - share) * u_out
-         end if
-         if (pond_flux >= 0.0_wp) then
-            amount = h * pond_flux
-            flows%infil = flows%infil + amount
-            flows%infil_enth = flows%infil_enth + amount * u_mix
-            state%e_pond = e_mix - amount * u_mix
-            flows%org_enth = flows%org_enth + amount * u_mix
-         else
-            amount = -h * pond_flux
-            flows%exfil = flows%exfil + amount
-            flows%exfil_enth = flows%exfil_enth + amount * u_out
-            state%e_pond = e_mix + amount * u_out
-            flows%org_enth = flows%org_enth - amount * u_out
-         end if
-         if (q >= 0.0_wp) then
-            flows%top_in = flows%top_in + q
-            flows%top_in_enth = flows%top_in_enth + q * u_out
-            flows%org_enth = flows%org_enth - q * u_out
-         else
-            flows%top_out = flows%top_out - q
-            flows%top_out_enth = flows%top_out_enth - q * internal_energy_liquid(drive%t_soil(1))
-            flows%org_enth = flows%org_enth - q * internal_energy_liquid(drive%t_soil(1))
-         end if
-      end if
 
       !---~---
       !   Water, by the flows; the eliminated nodes and the leaves at their curves, their neighbours
@@ -1407,25 +1325,20 @@ contains
       state%tau_soil = tau_soil
       state%tau_coh = tau_coh
 
-      !--- Spill: water above the pond's capacity runs off at the pond's temperature.
+      !--- Spill: water above the pond's capacity runs off.
       spill = max(0.0_wp, state%water_soil(POND) - drive%pond_capacity)
       spilled = spill > 0.0_wp
       if (spilled) then
-         t_pond = liquid_energy_to_temp(state%e_pond / state%water_soil(POND))
          flows%spill = flows%spill + spill
-         flows%spill_enth = flows%spill_enth + spill * internal_energy_liquid(t_pond)
-         state%e_pond = state%e_pond - spill * internal_energy_liquid(t_pond)
          state%water_soil(POND) = drive%pond_capacity
          state%tau_soil(POND) = pond_water_to_head(drive%pond_capacity)
       end if
-      if (state%water_soil(POND) <= POND_TINY) then
-         state%e_pond = 0.0_wp
-      end if
 
       !--- What each path moved.
-      flows%face(1:nsl-1) = flows%face(1:nsl-1) + h * qf(soff+1:soff+nsl-1)
-      flows%org_face(1:n_org) = flows%org_face(1:n_org) + h * qf(2:1+n_org)
-      flows%org_evap(1:n_org) = flows%org_evap(1:n_org) + h * ev%org_evap(1:n_org)
+      flows%face  = flows%face + h * qf
+      flows%infil = flows%infil + h * max(qf(1), 0.0_wp)
+      flows%exfil = flows%exfil + h * max(-qf(1), 0.0_wp)
+      flows%porous_evap(1:n_porous) = flows%porous_evap(1:n_porous) + h * ev%porous_evap(1:n_porous)
       flows%drain   = flows%drain   + h * ev%drain
       flows%evap    = flows%evap    + h * ev%evap
       flows%uptake  = flows%uptake  + h * ev%uptake
@@ -1436,9 +1349,7 @@ contains
       !   The pond gives no more than it holds. Its water is its flows', and Newton, converged to
       ! its tolerance, may leave it drained a hair past empty; the face it drained through then
       ! carries that much less, the node below taking that much less as its own flows give it,
-      ! through its slack if it is eliminated, so the water and its enthalpy leave the pond as they
-      ! arrive below. Left past empty, the pond's energy would be cut to nothing with the water it
-      ! owed: at Toolik 2.9e-5 kg/m2 infiltrated beyond a pond of 0.022, 26 J/m2 out of nowhere.
+      ! through its slack if it is eliminated.
       !---~---
       subroutine drain_only_what_is_held()
          real(wp) :: past, cut_flux
@@ -1465,21 +1376,11 @@ contains
       flows%sapflow = 0.0_wp
       flows%transp = 0.0_wp
       flows%infil = 0.0_wp
-      flows%infil_enth = 0.0_wp
       flows%exfil = 0.0_wp
-      flows%exfil_enth = 0.0_wp
       flows%drain = 0.0_wp
       flows%evap = 0.0_wp
       flows%spill = 0.0_wp
-      flows%spill_enth = 0.0_wp
-      flows%rain_enth = 0.0_wp
-      flows%org_face = 0.0_wp
-      flows%org_evap = 0.0_wp
-      flows%org_enth = 0.0_wp
-      flows%top_in = 0.0_wp
-      flows%top_in_enth = 0.0_wp
-      flows%top_out = 0.0_wp
-      flows%top_out_enth = 0.0_wp
+      flows%porous_evap = 0.0_wp
    end subroutine clear_flows
 
    !---~---

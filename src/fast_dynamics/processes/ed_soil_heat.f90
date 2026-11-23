@@ -35,23 +35,19 @@ module ed_soil_heat
    public :: soil_heat_env_t, soil_heat_out_t
 
    !---~---
-   !   The soil column's thermal forcing: the heat and water crossing its top, bottom and
-   ! faces, and the soil moisture its thermal properties depend on.
+   !   The soil column's thermal forcing: the heat crossing its top, the heat of the water that
+   ! crosses it included (the ground surface's, which values that water at its giver's
+   ! temperature), the heat and water crossing its bottom and faces, and the soil moisture its
+   ! thermal properties depend on.
    !---~---
    type :: soil_heat_env_t
-      real(wp) :: g_top      = 0.0_wp                       ! [W/m2] net ground heat flux (Rn-H-LE), top Neumann
+      real(wp) :: g_top      = 0.0_wp                       ! [W/m2] net energy into the top, top Neumann
       real(wp) :: geothermal = 0.0_wp                       ! [W/m2] prescribed bottom flux, positive up (held at 0)
       real(wp) :: soil_water(n_soil_layer_max) = 0.0_wp     ! [m3/m3] soil moisture, for kappa and C_eff
       real(wp) :: w_flux(n_soil_layer_max)     = 0.0_wp     ! [m/s]  inter-layer water flux, upward-positive like hf
                                                             ! (set_soil_heat_env flips the network's)
       real(wp) :: water_heat_out(n_soil_layer_max) = 0.0_wp ! [W/m2] enthalpy leaving each layer with water other
-                                                            ! than across a face (root uptake, exfiltration, drainage)
-      !---~---
-      !   The top face's water, applied by the same upwind rule and time level as the interior
-      ! faces (docs/science/soil_biophysics.md, "Water-thermal coupling").
-      !---~---
-      real(wp) :: w_flux_top = 0.0_wp                       ! [m/s] water across the top face (<0 = infiltration in)
-      real(wp) :: t_water_top = 0.0_wp                      ! [K] temperature of the infiltrating pond water
+                                                            ! than across a face (root uptake, drainage)
    end type soil_heat_env_t
 
    !--- The soil column's energy outputs and diagnostics.
@@ -79,32 +75,27 @@ module ed_soil_heat
 contains
 
    !---~---
-   !   set_soil_heat_env -- the soil column's thermal forcing from the ground heat flux and
-   ! the water network's flows (docs/science/soil_biophysics.md, "Water-thermal
-   ! coupling"): the enthalpy leaving each layer other than across a face (root uptake,
-   ! the top layer's exfiltration, and the drainage through the bottom layer), the face
-   ! flows turned from down-positive to the column's up-positive, and the infiltration
-   ! across the top face. Runoff leaves the pond, not the column. water_heat and e_drain
-   ! return the two parts of what leaves.
+   !   set_soil_heat_env -- the soil column's thermal forcing from the energy into its top and
+   ! the water network's flows (docs/science/soil_biophysics.md, "Water-thermal coupling"):
+   ! the enthalpy leaving each layer other than across a face (root uptake, and the drainage
+   ! through the bottom layer), and the face flows turned from down-positive to the column's
+   ! up-positive. The water crossing the top is the ground surface's, in g_top. water_heat and
+   ! e_drain return the two parts of what leaves.
    !---~---
-   pure subroutine set_soil_heat_env(nsl, g_top, theta, root_heat, exfil_enth, face_flux, infiltration,       &
-                                     t_infil, drainage, t_drain, env, water_heat, e_drain)
+   pure subroutine set_soil_heat_env(nsl, g_top, theta, root_heat, face_flux, drainage, t_drain, env, water_heat, &
+                                     e_drain)
       integer(ik),           intent(in)  :: nsl            !           number of active layers
-      real(wp),              intent(in)  :: g_top          ! [W/m2]    net ground heat flux into the soil top
+      real(wp),              intent(in)  :: g_top          ! [W/m2]    net energy into the soil top
       real(wp),              intent(in)  :: theta(:)       ! [m3/m3]   soil moisture (thermal properties)
       real(wp),              intent(in)  :: root_heat(:)   ! [W/m2]    enthalpy leaving each layer with root uptake
-      real(wp),              intent(in)  :: exfil_enth     ! [W/m2]    enthalpy leaving the top layer by exfiltration
       real(wp),              intent(in)  :: face_flux(:)   ! [m/s]     down-positive water flux at the layer faces
-      real(wp),              intent(in)  :: infiltration   ! [kg/m2/s] top-face infiltration (pond -> soil)
-      real(wp),              intent(in)  :: t_infil        ! [K]       temperature of the infiltrating water
       real(wp),              intent(in)  :: drainage       ! [kg/m2/s] out of the bottom layer
       real(wp),              intent(in)  :: t_drain        ! [K]       temperature it leaves at
       type(soil_heat_env_t), intent(out) :: env            !           the column's thermal forcing
-      real(wp),              intent(out) :: water_heat(:)  ! [W/m2]    root uptake and exfiltration, by layer
+      real(wp),              intent(out) :: water_heat(:)  ! [W/m2]    root uptake, by layer
       real(wp),              intent(out) :: e_drain        ! [W/m2]    the drainage's
       integer(ik) :: k
       water_heat(1:nsl) = root_heat(1:nsl)
-      water_heat(1)     = water_heat(1) + exfil_enth
       e_drain = drainage * internal_energy_liquid(t_drain)
       env%g_top = g_top
       do k = 1_ik, nsl
@@ -112,8 +103,6 @@ contains
          env%water_heat_out(k) = water_heat(k)
          env%w_flux(k)         = -face_flux(k)
       end do
-      env%w_flux_top  = -infiltration / rho_h2o
-      env%t_water_top = t_infil
       env%water_heat_out(nsl) = env%water_heat_out(nsl) + e_drain
    end subroutine set_soil_heat_env
 
@@ -154,7 +143,8 @@ contains
    !---~---
    !   water_enthalpy_faces -- the liquid enthalpy moving water carries across each soil
    ! face [W/m2, positive up], upwind on the given layer temperatures (the qwf terms of
-   ! docs/science/soil_biophysics.md eq. (10)): one rule for the step and the tendency.
+   ! docs/science/soil_biophysics.md eq. (10)): one rule for the step and the tendency. The top
+   ! face's is in g_top, the ground surface's.
    !---~---
    pure subroutine water_enthalpy_faces(forcing, temp, n, qwf)
       type(soil_heat_env_t), intent(in)  :: forcing
@@ -162,15 +152,7 @@ contains
       integer(ik),            intent(in)  :: n         ! number of active layers
       real(wp),               intent(out) :: qwf(0:)   ! [W/m2] face 0 = top ... face n = bottom
       integer(ik) :: k
-      !---~---
-      !   Top face: infiltration carries the pond's water at t_water_top. Exfiltration leaves
-      ! through water_heat_out, so the face never flows up: the second branch is unused.
-      !---~---
-      if (forcing%w_flux_top <= 0.0_wp) then
-         qwf(0) = forcing%w_flux_top * rho_h2o * internal_energy_liquid(forcing%t_water_top)
-      else
-         qwf(0) = forcing%w_flux_top * rho_h2o * internal_energy_liquid(temp(1))
-      end if
+      qwf(0) = 0.0_wp
       do k = 1_ik, n - 1_ik
          if (forcing%w_flux(k) <= 0.0_wp) then
             qwf(k) = forcing%w_flux(k) * rho_h2o * internal_energy_liquid(temp(k))
@@ -285,7 +267,6 @@ contains
             di_t(k+1) = di_t(k+1) + w_cp
          end if
       end do
-      if (forcing%w_flux_top > 0.0_wp) di_t(1) = di_t(1) + forcing%w_flux_top * rho_h2o * cp_liq
       di_t(n) = di_t(n) + g_deep
 
       !---~---
