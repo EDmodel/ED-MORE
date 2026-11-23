@@ -281,6 +281,13 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   NaN. Harvard's means move in the fifth digit and its LAI by at most 1.4·10⁻⁴; BCI is bit for bit. With the
   cull, Palo Verde's 150-year regrowth ends with 1.6 % more biomass and 2.1 % more LAI (7.57 to 7.69 kgC
   m⁻², 4.85 to 4.95). (#95)
+- The organic layer's litter and moss are nodes of the soil-plant water network, between the pond and the
+  top soil layer, on their materials' retention curves (docs/science/surface_organic_layer.md, "Water"):
+  they fill, drain and are drawn on as soil layers are, the top slot evaporating by the soil's own law. A
+  slot is a layer only from 0.1 mm deep. In example 04's first year LE falls by up to 1.3 % and H rises
+  by up to 1.6 % (BCI LE 83.40 to 82.30, H 69.13 to 70.00 W/m²; Harvard 56.97 to 56.31, 33.20 to 33.73;
+  Tonzi 43.09 to 42.80, 46.64 to 46.87), GPP and Rnet move within 0.07 %, the same with gfortran and ifx.
+  (#TBD)
 
 ### Added
 
