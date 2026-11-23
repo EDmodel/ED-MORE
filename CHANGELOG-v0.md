@@ -84,6 +84,16 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ### Answer changes
 
+- The soil-plant water Newton treats its small and inert stores by one rule, the node classes
+  (docs/science/soil_plant_water.md §3). A core node whose time to relax to its neighbours is under 1 %
+  of the sub-step is eliminated: every evaluation solves its own backward-Euler balance with its
+  neighbours held, and the factorised matrix gives the rest the Schur-eliminated step. A run of the
+  chain with no storage and no link the solve can see is detached for the iteration, its faces cut.
+  Newton steps stop at Campbell's air entry. They replace the isolation of single stores and the
+  pond's own commit; an empty or trace pond is now an eliminated node. Example 04's BCI, Harvard and
+  Tonzi first years force no water solve with gfortran or ifx, as before, and their annual GPP, LE and
+  Rnet are unchanged to four decimals (BCI's H 69.1272 to 69.1271 W/m²); the threshold ten times larger
+  or smaller gives the same. (#TBD)
 - The organic layer's dried top insulates. Each slot holds its water in its lower part and dries from its top,
   and its vapour already crossed that dried depth; its heat now crosses it too, at the slot's dry conductivity,
   in series with the wet part at its wet one (docs/science/surface_organic_layer.md, "Heat"). The conductivity
