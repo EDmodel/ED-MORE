@@ -402,6 +402,13 @@ ed_fortran_flags(ed_run)
 add_executable(ed_main ${CMAKE_CURRENT_SOURCE_DIR}/src/main/ed_main.f90)
 target_link_libraries(ed_main PRIVATE ed_run)
 set_target_properties(ed_main PROPERTIES OUTPUT_NAME edmore)
+#----- Intel's runtime linked in, as libedmore.so links it (below): edmore and a run through   #
+#      Python then call one and the same math library. Intel's math library chooses its code   #
+#      by the CPU it finds, and its shared copy and the static one keep that choice apart, so  #
+#      on some CPUs the two gave different last digits from the same call.                    #
+if(CMAKE_Fortran_COMPILER_ID MATCHES "^Intel")
+   target_link_options(ed_main PRIVATE -static-intel)
+endif()
 
 #----- The C-API shims (src/c_api): the bind(c) procedures Python calls, compiled ONCE, into an #
 #      object library that both of their users link: libedmore.so (below) and the C-API tests.  #
