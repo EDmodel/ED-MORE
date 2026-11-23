@@ -65,13 +65,11 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   (1 tree, 2 grass). (#95)
 - `[demography].min_cohort_agb` is now `min_cohort_carbon` [kgC m⁻²], the cull's threshold on a cohort's
   carbon in its four pools; the old name stops the run. (#95)
-- `dbh` is now `diameter` wherever it names the model's stem diameter [cm], with the results unchanged:
-  the census column (a `dbh` column stops the run), the outputs `diameter_co`, `mean_diameter_co`,
-  `mean_diameter_growth_co`, `mean_diameter_py` and `mean_diameter_pft_py`, the size axis
-  `diameter_class` with its `diameter_lower` and `diameter_upper` edges, `[output].diameter_class_edges`
-  (`dbh_class_edges` stops the run), and the Python field `diameter` (`run.cohorts("diameter")`).
-  `make_census.py` writes a `diameter` column; the ForestGEO table it reads keeps its `dbh`. Rename the
-  column in your census files and the names in your io_configs and scripts. (#TBD)
+- `dbh` is now `diameter`, the model's stem diameter [cm], with the results unchanged: the census column
+  (a `dbh` column stops the run), the outputs `diameter_co`, `mean_diameter_co`, `mean_diameter_growth_co`,
+  `mean_diameter_py` and `mean_diameter_pft_py`, the size axis `diameter_class` (edges `diameter_lower`,
+  `diameter_upper`), `[output].diameter_class_edges` (`dbh_class_edges` stops the run) and the Python field
+  `diameter`. Rename them in your census files, io_configs and scripts. (#TBD)
 - `[pft].min_cohort_height` is now `[pft].min_recruit_height` [m], the height a PFT's recruits are born at,
   one value for every PFT or one per PFT; `min_cohort_height` stops the run. A tree's must be below its
   `hgt_max`. (#TBD)
@@ -82,14 +80,6 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ### Answer changes
 
-- A plant is one individual: a tree with several stems is one plant at the diameter of their
-  summed basal area, $`\sqrt{\sum_i D_i^2}`$. `make_census.py` lumps a stem table's stems per tree, and
-  an earlier census's stems follow the trees the later census gives them. Harvard's stand (examples 04
-  and 07) is 10,014 trees from 12,075 stems at the same 41.6 m² ha⁻¹. Its allometric LAI falls 2.7 %
-  (4.58 to 4.46), its AGB rises 2.4 % (14.7 to 15.0 kgC m⁻²), and its biomass mortality falls from 0.82
-  to 0.72 % yr⁻¹. Harvard's fitted `lai_b1`, phenology and soil-carbon spin-up predate the change.
-  BCI's tree tables give each tree by its main stem alone (the tool warns), until its stem tables
-  replace them. (#TBD)
 - The latent heat flux (`mean_le_pa`, `mean_le_py`) rises by 13 % on average (January 2021: 16.6 to
   18.8 W/m2), and by at most 3.2 W/m2 on a day, in the region test's synthetic January-February
   2021 run, where the canopy air is mostly below freezing and the vapour takes the latent heat of
@@ -176,18 +166,14 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   NaN. Harvard's means move in the fifth digit and its LAI by at most 1.4·10⁻⁴; BCI is bit for bit. With the
   cull, Palo Verde's 150-year regrowth ends with 1.6 % more biomass and 2.1 % more LAI (7.57 to 7.69 kgC
   m⁻², 4.85 to 4.95). (#95)
+- A plant is one individual: a tree with several stems is one plant at the diameter of their summed basal
+  area, $`\sqrt{\sum_i D_i^2}`$, as `make_census.py` now lumps a stem table. Harvard's stand (examples 04 and
+  07) is 10,014 trees from 12,075 stems at the same 41.6 m² ha⁻¹: its allometric LAI falls 2.7 %, its AGB
+  rises 2.4 % and its biomass mortality falls from 0.82 to 0.72 % yr⁻¹; its fitted `lai_b1`, phenology and
+  soil-carbon spin-up predate the change. BCI's tree tables keep each tree's main stem (the tool warns). (#TBD)
 
 ### Added
 
-- `[init].soil_temp` may list one temperature per soil layer, top down, for a column whose start
-  differs with depth, such as a thawed top over permafrost. One value starts every layer there, as
-  before; a list needs as many values as the column has layers. (#TBD)
-- `[allometry].diameter_height` [m]: the height a PFT's stem diameter is measured at, the diameter every
-  curve takes, one value or one per PFT. 1.3 m, breast height, by default (the results are unchanged);
-  0, the root collar, for a shrub. A tree's lies in [0, `hgt_max`), and `"chave2014"` needs 1.3 m or more.
-  `make_census.py` takes the table's measuring height as `[source].diameter_height` (default 1.3) and
-  refuses a PFT measured elsewhere. The PFT parameter CSV a run writes has `diameter_height` and
-  `min_recruit_height` columns. (#TBD)
 - Four output variables split evapotranspiration by where the vapour comes from:
   `mean_transp_py` (transpiration), `mean_veg_surface_evap_py` (evaporation of the water on the
   leaves' and wood's surfaces), `mean_ground_evap_py` (bare soil and snow) and `mean_dew_py`
@@ -272,6 +258,13 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - `calibrate_phenology` fits the WATER cue, the turgor-loss point derived from the leaf's pressure-volume
   curve as in the model, and when its fits do not settle it keeps the values whose own coupled run scored
   best. (#96)
+- `[allometry].diameter_height` [m]: the height a PFT's stem diameter is measured at, one value or one per
+  PFT; 1.3 m (breast height) by default, results unchanged; 0 (the root collar) for a shrub. A tree's lies in
+  [0, `hgt_max`) and `"chave2014"` needs 1.3 m or more. `make_census.py` takes the table's measuring height
+  as `[source].diameter_height` and refuses a PFT measured elsewhere. The PFT parameter CSV a run writes
+  gains `diameter_height` and `min_recruit_height` columns. (#TBD)
+- `[init].soil_temp` may list one temperature per soil layer, top down, for a column whose start differs
+  with depth, such as a thawed top over permafrost; a list needs one value per layer. (#TBD)
 
 ### Changed
 
