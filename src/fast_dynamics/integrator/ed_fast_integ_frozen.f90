@@ -42,8 +42,8 @@ module ed_fast_integ_frozen
    use ed_state_defaults,   only : is_unset_negative
    use ed_biophysics_params, only : aero_params_t
    use ed_patch_state_vars, only : cas_state_t, soil_carbon_state_t, cas_capacities, cas_capacity_change,          &
-                                   organic_present, organic_layer_sums, organic_slot_curve, organic_slot_depth,     &
-                                   organic_slot_capacity, organic_spill, organic_split_energy, ground_top_temp
+                                   porous_layers_present, porous_layers_sums, porous_layer_curve, porous_layers_spill, &
+                                   porous_layers_split_energy, porous_water, porous_energy, ground_top_temp
    use ed_ground_surface_params, only : ground_surface_layer_params_t, porous_material_t, N_POROUS
    use ed_biogeochem_params, only : N_SOIL_POOL
    use ed_canopy_aerodynamics, only : canopy_aerodynamics, cas_atm_conductances
@@ -59,7 +59,7 @@ module ed_fast_integ_frozen
                                      cas_enthalpy_to_temp, cas_heat_capacity, air_vpd, air_density,             &
                                      soil_thermal_conductivity, specific_humidity_to_vapor_pressure
    use ed_numerics,           only : weighted_mean
-   use ed_ground_surface_lib, only : porous_layer_fill
+   use ed_ground_surface_lib, only : porous_layer_fill, porous_layer_depth, porous_layer_capacity
    implicit none
    private
 
@@ -114,7 +114,7 @@ contains
       ! decomposition read its temperature, the soil's own evaporation the top soil node's.
       !---~---
       t_soil_top = dynamic%soil_energy%soil_temp(1)
-      t_surface  = ground_top_temp(dynamic%organic, t_soil_top)
+      t_surface  = ground_top_temp(dynamic%ground_surface, t_soil_top)
       call refresh_canopy_aerodynamics(cfg%aero, frozen%cas%env, static, forcing, dynamic%cas,               &
                                        t_surface, dynamic%leaf_temp, dynamic%wood_temp,                       &
                                        out%aero, tcas, qcas, press, rho, cp_cas, t_ground)
@@ -129,8 +129,9 @@ contains
                                           static%root_frac_patch(1:nsl), static, dynamic%wood_temp,               &
                                           dynamic%soil_energy%soil_temp, ra_stem, ra_root, out%stem_resp_coh,     &
                                           out%root_resp_coh)
-      if (organic_present(dynamic%organic)) then
-         call organic_layer_sums(dynamic%organic, cfg%ground_surface, dry_cap, org_w, org_e, w_max, resist, dry_depth)
+      if (porous_layers_present(dynamic%ground_surface%porous)) then
+         call porous_layers_sums(dynamic%ground_surface%porous, cfg%ground_surface, dry_cap, org_w, org_e, w_max, resist, &
+                                 dry_depth)
          call patch_heterotrophic_respiration(cfg, site%soil_profile, static%soil_carbon, t_ground, soil_temp_root, &
                                               theta_mean, rh, out%report%exports, surf_rel=org_w / max(w_max, tiny_num))
       else
@@ -167,25 +168,26 @@ contains
       ! pond, before the water network, which takes that water this step. The pack's exchange with
       ! the canopy air and the soil is the march's. A no-op without a pack or a freezing pond.
       !---~---
-      frozen%ground%pack   = dynamic%snow
+      frozen%ground%pack   = dynamic%ground_surface%water
       frozen%ground%params = cfg%ground_surface%water
       frozen%ground%dt     = dt_fast
       w_pond = dynamic%soil_water%w_surface
       e_pond = dynamic%soil_water%w_surface_energy
       call prepare_snow_stage(forcing%snowfall, forcing%rainfall, forcing%air_temp, cfg%aero%soil_rough,          &
                               frozen%ground, frozen%snow, w_pond, e_pond)
+      out%report%exports%water_layer_cover = frozen%ground%snowfac
       !---~---
       !   The organic layer (docs/science/surface_organic_layer.md): its slots are nodes of the water
       ! network, between the pond and the top soil layer, so the water on the ground reaches them
       ! through it. What a slot holds above saturation, dew or frost it could not take, joins the
       ! pond first, the water then on the ground being theirs and the pond's together.
       !---~---
-      frozen%org = dynamic%organic
-      call organic_spill(frozen%org, cfg%ground_surface, w_spill, e_spill)
+      frozen%porous = dynamic%ground_surface%porous
+      call porous_layers_spill(frozen%porous, cfg%ground_surface, w_spill, e_spill)
       w_pond = w_pond + w_spill
       e_pond = e_pond + e_spill
-      frozen%org_water0  = sum(frozen%org%water)
-      frozen%org_energy0 = sum(frozen%org%energy)
+      frozen%org_water0  = porous_water(frozen%porous)
+      frozen%org_energy0 = porous_energy(frozen%porous)
       !---~---
       !   The thermal resistance from the ground's surface down to the top soil node, its depth over
       ! the top layer's conductivity; the pack's base conducts through it unless an organic layer
@@ -213,7 +215,7 @@ contains
       ! diffusivity.
       !---~---
       frozen%ground%ground_emiss = cfg%soil%ground_emissivity
-      frozen%ground%has_org      = organic_present(frozen%org)
+      frozen%ground%has_org      = porous_layers_present(frozen%porous)
       if (frozen%ground%has_org) call organic_ground_sums(cfg%ground_surface, frozen)
       call transpiration_demand(dt_fast, cfg%canopy_water_on, n, dynamic, t_soil_top, frozen)
       call organic_network_drive(cfg%ground_surface, frozen)
@@ -780,17 +782,18 @@ contains
       type(porous_material_t) :: m
       real(wp)    :: w_max, dry_depth, depth, fill, path
       integer(ik) :: k
-      call organic_layer_sums(frozen%org, organic, frozen%ground%org_dry_cap, frozen%ground%org_water,             &
+      call porous_layers_sums(frozen%porous, organic, frozen%ground%org_dry_cap, frozen%ground%org_water,          &
                               frozen%ground%org_energy, w_max, frozen%ground%org_resistance, dry_depth)
       path = 0.0_wp
       do k = 1_ik, N_POROUS
-         if (frozen%org%mass(k) <= 0.0_wp) cycle
+         if (frozen%porous(k)%matter <= 0.0_wp) cycle
          m     = organic%porous(k)
-         depth = organic_slot_depth(organic, frozen%org, k)
-         fill  = porous_layer_fill(frozen%org%water(k), organic_slot_capacity(organic, frozen%org, k))
+         depth = porous_layer_depth(frozen%porous(k)%matter, m%bulk_density)
+         fill  = porous_layer_fill(frozen%porous(k)%water, porous_layer_capacity(frozen%porous(k)%matter, m%bulk_density, &
+                                                                                  m%theta_sat))
          path  = path + organic_cover_path(depth * (1.0_wp - fill), 0.0_wp, m%theta_sat)
       end do
-      frozen%ground%org_dry_resist = path / vapour_diffusivity(frozen%org%temp)
+      frozen%ground%org_dry_resist = path / vapour_diffusivity(frozen%porous(1)%temp)
       frozen%ground%r_below        = max(0.5_wp * frozen%ground%org_resistance, tiny_num)
    end subroutine organic_ground_sums
 
@@ -813,31 +816,31 @@ contains
       type(porous_material_t) :: m
       real(wp)    :: depth, theta, liq, dliq
       integer(ik) :: k
-      associate (o => frozen%water_drive%org, org => frozen%org)
+      associate (o => frozen%water_drive%org, org => frozen%porous)
          o%n = 0_ik
-         o%t_org = org%temp
-         o%fliq  = org%fliq
-         if (.not. organic_present(org)) return
+         o%t_org = org(1)%temp
+         o%fliq  = org(1)%fliq
+         if (.not. porous_layers_present(org)) return
          do k = 1_ik, N_POROUS
-            if (org%mass(k) <= 0.0_wp) cycle
+            if (org(k)%matter <= 0.0_wp) cycle
             m     = organic%porous(k)
-            depth = organic_slot_depth(organic, org, k)
+            depth = porous_layer_depth(org(k)%matter, m%bulk_density)
             o%n = o%n + 1_ik
             o%slot(o%n)    = k
             o%depth(o%n)   = depth
-            o%water(o%n)   = org%water(k)
-            o%curve(o%n)   = organic_slot_curve(organic, org, k)
-            theta = org%water(k) / (rho_h2o * depth)
+            o%water(o%n)   = org(k)%water
+            o%curve(o%n)   = porous_layer_curve(m, org(k))
+            theta = org(k)%water / (rho_h2o * depth)
             o%deficit(o%n) = max(0.0_wp, m%theta_res - theta) * rho_h2o * depth
             theta = max(theta, m%theta_res)
-            call soil_liquid_capacity(o%curve(o%n), org%temp, liq, dliq)
+            call soil_liquid_capacity(o%curve(o%n), org(1)%temp, liq, dliq)
             liq = min(theta, liq)
             o%ice(o%n) = soil_ice_state(o%curve(o%n), theta - liq, liq)
-            if (org%temp >= t_3ple) o%ice(o%n)%impedance = min(o%ice(o%n)%impedance,                          &
-                                                               ice_impedance(o%curve(o%n), (1.0_wp - org%fliq) * theta))
+            if (org(1)%temp >= t_3ple) o%ice(o%n)%impedance = min(o%ice(o%n)%impedance,                       &
+                                                                  ice_impedance(o%curve(o%n), (1.0_wp - org(1)%fliq) * theta))
          end do
-         o%air = slot_evaporation_setup(frozen%water_drive%ground, org%temp,                                      &
-                                        frozen%ground%org_dry_resist * vapour_diffusivity(org%temp))
+         o%air = slot_evaporation_setup(frozen%water_drive%ground, org(1)%temp,                                   &
+                                        frozen%ground%org_dry_resist * vapour_diffusivity(org(1)%temp))
       end associate
    end subroutine organic_network_drive
 
@@ -872,11 +875,11 @@ contains
          !--- The soil's vapour diffuses up through the organic layer's slots, through their open pores.
          drive%ground%cover_path = 0.0_wp
          do k = 1_ik, N_POROUS
-            if (frozen%org%mass(k) <= 0.0_wp) cycle
+            if (frozen%porous(k)%matter <= 0.0_wp) cycle
             m     = organic%porous(k)
-            depth = organic_slot_depth(organic, frozen%org, k)
+            depth = porous_layer_depth(frozen%porous(k)%matter, m%bulk_density)
             drive%ground%cover_path = drive%ground%cover_path                                                    &
-                                      + organic_cover_path(depth, frozen%org%water(k) / (rho_h2o * depth), m%theta_sat)
+                                      + organic_cover_path(depth, frozen%porous(k)%water / (rho_h2o * depth), m%theta_sat)
          end do
          drive%ground%snow_free_frac  = 1.0_wp - frozen%ground%snowfac
          drive%ground%t_ground        = t_ground
@@ -1101,10 +1104,10 @@ contains
       associate (o => frozen%water_drive%org, fl => water%flows)
          do j = 1_ik, water%n_org
             k = o%slot(j)
-            frozen%org%water(k) = water%state%water_soil(1_ik + j) + fl%org_evap(j)
+            frozen%porous(k)%water = water%state%water_soil(1_ik + j) + fl%org_evap(j)
             frozen%org_evap(k)  = fl%org_evap(j)
          end do
-         if (water%n_org > 0_ik) call organic_split_energy(frozen%org, sum(frozen%org%energy) + fl%org_enth)
+         if (water%n_org > 0_ik) call porous_layers_split_energy(frozen%porous, porous_energy(frozen%porous) + fl%org_enth)
          frozen%ground%org_held      = .true.
          frozen%ground%org_evap_held = sum(frozen%org_evap) / dt_fast
       end associate

@@ -28,14 +28,16 @@ ALLOWED_MODULES = {"ed_state_defaults"}                      # the unset sentine
 INTRINSIC = {"iso_c_binding", "iso_fortran_env", "ieee_arithmetic", "ieee_exceptions", "omp_lib"}
 PATCH_MODULE = "ed_patch_state_vars"
 OPERATORS = ("src/slow_dynamics/driver/ed_slow_update.f90",)  # they apply what they are given
-PATCH_STORE_TYPES = {"cas_state_t", "snow_state_t", "soil_water_state_t", "soil_energy_state_t",
-                     "soil_carbon_state_t", "decomp_xi_t", "litter_input_t", "blend_cas", "blend_snow",
+PATCH_STORE_TYPES = {"cas_state_t", "soil_water_state_t", "soil_energy_state_t",
+                     "soil_carbon_state_t", "decomp_xi_t", "litter_input_t", "blend_cas",
                      "blend_soil_water", "blend_soil_energy", "blend_soil_carbon", "blend_decomp_xi",
                      "blend_litter_input", "cas_set_depth", "cas_capacities", "cas_capacity_change",
                      "soil_water_store", "soil_energy_store",
-                     "organic_state_t", "organic_present", "organic_layer_sums", "organic_diagnose",
-                     "organic_split_energy", "organic_take_exchange", "organic_slot_curve", "organic_slot_capacity",
-                     "organic_spill", "organic_slot_depth", "ground_top_temp"}
+                     "ground_store_t", "water_layer_state_t", "porous_layer_state_t", "ground_surface_state_t",
+                     "blend_ground_surface", "ground_store_present", "ground_surface_store", "ground_top_temp",
+                     "porous_layers_present", "porous_layers_sums", "porous_layers_diagnose",
+                     "porous_layers_split_energy", "porous_layers_take_exchange", "porous_layer_curve",
+                     "porous_layers_spill", "porous_water", "porous_energy"}
 MODULE = re.compile(r"^module\s+(\w+)$", re.I)
 USE = re.compile(r"^use\s*(?:,\s*\w+\s*::\s*|::\s*|\s)\s*(\w+)\s*(,\s*only\s*:(.*))?$", re.I)
 

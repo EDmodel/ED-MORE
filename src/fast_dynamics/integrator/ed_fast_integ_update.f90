@@ -17,7 +17,8 @@ module ed_fast_integ_update
                                      diagnose_soil_temps
    use ed_plant_energy,       only : commit_tissue_energy
    use ed_canopy_water,       only : clamp_surface_water
-   use ed_patch_state_vars,   only : soil_water_store, soil_energy_store, organic_take_exchange
+   use ed_patch_state_vars,   only : soil_water_store, soil_energy_store, ground_store_t, ground_surface_store,      &
+                                     porous_layers_take_exchange
    use ed_diag_vars,          only : CO_TRANSP
    use ed_surface, only : snow_take_exchange, STORE_SNOW, STORE_ORGANIC
    use ed_therm_lib,          only : cas_enthalpy_to_temp, latent_heat_vap
@@ -33,8 +34,8 @@ module ed_fast_integ_update
    !   What the update moved besides the march, which the ledgers book: the surface water's
    ! overflow at its capacity and deficit below zero, and their net enthalpy at the tissues'
    ! start-of-step temperatures, the condensate deposited in the top soil layer with its
-   ! enthalpy, the tissue store (surface water included) before and after, and the snow pack
-   ! after its exchange.
+   ! enthalpy, the tissue store (surface water included) before and after, and the ground's
+   ! surface layers after their exchange.
    !---~---
    type :: commit_amounts_t
       real(wp) :: surf_overflow = 0.0_wp, surf_deficit = 0.0_wp   ! [kg/m2]
@@ -42,10 +43,7 @@ module ed_fast_integ_update
       real(wp) :: cond_mass     = 0.0_wp                          ! [kg/m2]
       real(wp) :: cond_enth     = 0.0_wp                          ! [J/m2]
       real(wp) :: tissue_store0 = 0.0_wp, tissue_store1 = 0.0_wp  ! [J/m2]
-      real(wp) :: snow_swe1     = 0.0_wp                          ! [kg/m2] the pack's mass at the step's end
-      real(wp) :: snow_enth1    = 0.0_wp                          ! [J/m2]  its internal energy then
-      real(wp) :: org_water1    = 0.0_wp                          ! [kg/m2] the organic layer's water at the step's end
-      real(wp) :: org_energy1   = 0.0_wp                          ! [J/m2]  its internal energy then
+      type(ground_store_t) :: surface1                            ! [kg/m2], [J/m2] the surface layers at the step's end
    end type commit_amounts_t
 
 contains
@@ -125,19 +123,18 @@ contains
       ! soil received from it (docs/science/snow_biophysics.md §The snow store); and the warm start
       ! of the next march.
       !---~---
-      dynamic%snow = frozen%ground%pack
-      call snow_take_exchange(dynamic%snow, acc%stores%energy_in(STORE_SNOW), acc%stores%vapour_out(STORE_SNOW),   &
+      dynamic%ground_surface%water = frozen%ground%pack
+      call snow_take_exchange(dynamic%ground_surface%water, frozen%ground%pack_density,                          &
+                              acc%stores%energy_in(STORE_SNOW), acc%stores%vapour_out(STORE_SNOW),                &
                               frozen%ground%params)
-      moved%snow_swe1       = dynamic%snow%swe(1)
-      moved%snow_enth1      = dynamic%snow%snow_energy(1)
       !---~---
       !   The organic layer takes its exchange too (docs/science/surface_organic_layer.md): the march's
       ! energy, and the vapour the water network took from each slot, which the canopy air received.
       !---~---
-      dynamic%organic = frozen%org
-      call organic_take_exchange(dynamic%organic, acc%stores%energy_in(STORE_ORGANIC), frozen%org_evap)
-      moved%org_water1      = sum(dynamic%organic%water)
-      moved%org_energy1     = sum(dynamic%organic%energy)
+      dynamic%ground_surface%porous = frozen%porous
+      call porous_layers_take_exchange(dynamic%ground_surface%porous, acc%stores%energy_in(STORE_ORGANIC),         &
+                                       frozen%org_evap)
+      moved%surface1 = ground_surface_store(dynamic%ground_surface)
       dynamic%adapt_dt_last = dt_warm
    end subroutine update_dynamic_state
 
@@ -201,10 +198,10 @@ contains
       !   The ground surface's stores, the pond, the pack and the organic layer, at the start (the
       ! pack before its stage, with the pond it took; the organic layer after its spill) and the end.
       !---~---
-      ground_w0 = ground_surface_store(w_surface0, frozen%snow%swe0, frozen%org_water0)
-      ground_w1 = ground_surface_store(frozen%hydrology%w_surface1, moved%snow_swe1, moved%org_water1)
-      ground_e0 = ground_surface_store(e_pond0, frozen%snow%enth0, frozen%org_energy0)
-      ground_e1 = ground_surface_store(e_pond1, moved%snow_enth1, moved%org_energy1)
+      ground_w0 = w_surface0 + frozen%snow%swe0 + frozen%org_water0
+      ground_w1 = frozen%hydrology%w_surface1 + moved%surface1%water
+      ground_e0 = e_pond0 + frozen%snow%enth0 + frozen%org_energy0
+      ground_e1 = e_pond1 + moved%surface1%energy
       intercept_total = sum(frozen%veg_surface%intercept_leaf(1:n) + frozen%veg_surface%intercept_wood(1:n))
 
       report%exports%atm_heat_export = acc%atm_heat_out
@@ -337,12 +334,6 @@ contains
       real(wp) :: w
       w = sum(nplant(1:n) * (leaf_mass(1:n) + wood_mass(1:n)))
    end function plant_water_store
-
-   !--- The ground surface's stores together: the pond's, the pack's and the organic layer's water [kg/m2] or energy [J/m2].
-   elemental real(wp) function ground_surface_store(pond, pack, organic) result(store)
-      real(wp), intent(in) :: pond, pack, organic
-      store = pond + pack + organic
-   end function ground_surface_store
 
    pure function surface_water_store(leaf_surf, wood_surf, n) result(w)   ! [kg/m2 ground], already ground-referenced
       real(wp),    intent(in) :: leaf_surf(:), wood_surf(:)

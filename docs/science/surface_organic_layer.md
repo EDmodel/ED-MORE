@@ -33,7 +33,7 @@ with $`c_{org}`$ = 1926 J kg⁻¹ K⁻¹ for dry organic matter (Farouki 1986). 
 
 - **Litter** follows the above-ground metabolic litter pool each slow step, after the soil-carbon step: $`M = 2\,C_{fast,grnd}`$, half of dry organic matter being carbon (`c2b`). The structural pool is left out: it holds the coarse woody debris too, and a big tree's dead wood spread over its gap patch would make a layer tens of centimetres deep. It joins once the soil carbon splits fine litter from woody debris. Matter that arrives or leaves does so at the layer's temperature, and the energy it brings or takes is a declared term of the slow ledger. Matter that arrives brings its water, as much per kilogram as the litter holds, or, where there was none, what its curve holds at the top soil layer's head, as at a start; that water comes from outside, as a recruit's does, and the slow ledger declares it with its energy. Water above what the slot's new depth holds saturated, or all its water when the litter is gone, passes to the pond with its energy. `[ground_surface_layer.litter].mass_source = "none"` keeps the litter slot empty.
 - **Moss** is prescribed: its depth is a site key, `[soil].moss_depth` (0 by default, so no moss), at its material's bulk density. The checks refuse a moss thinner than the 0.1 mm from which a slot is a layer (`ORGANIC_MIN_DEPTH`), which would otherwise be dropped.
-- **The start.** A run that does not restart from a state file builds the layer from nothing through the path the litter follows each slow step (`follow_organic_slots`): both slots enter at the top soil layer's temperature, each holding what its curve holds at the top soil layer's head, frozen below the melting point.
+- **The start.** A run that does not restart from a state file builds the layer from nothing through the path the litter follows each slow step (`follow_porous_layers`): both slots enter at the top soil layer's temperature, each holding what its curve holds at the top soil layer's head, frozen below the melting point.
 - **At a start** the slots are filled with this matter, each holding the water its curve holds at the top soil layer's matric head, as the water network would bring it to, at the top soil layer's temperature.
 
 ## Water
@@ -74,7 +74,7 @@ The balance is implicit in the layer's own temperature, so a thin layer of littl
 
 - **The two-stream and the aerodynamics:** the ground emits at the layer's temperature, and the under-canopy stability reads it.
 - **Decomposition:** the above-ground litter pools (metabolic and structural; both lie on the ground, though only the metabolic one makes the layer) take the layer's temperature and its fill as their moisture, instead of the top soil layer's ([soil_carbon](soil_carbon.md)).
-- **Outputs:** `mean_organic_temp_py` (the soil top's where there is no layer) and `mean_organic_water_py`, and their per-patch forms.
+- **Outputs:** `mean_ground_top_temp_py` (the layer's temperature, the soil top's where there is no layer), `mean_litter_water_py` and `mean_moss_water_py`, and their per-patch forms.
 
 ## Ledgers
 
@@ -122,12 +122,12 @@ Every slot that is a layer, from 0.1 mm, is a node of the water network; the sol
 | Concept | Routine |
 |---|---|
 | the `[ground_surface_layer]` block | `ed_ground_surface_params`: `ground_surface_layer_params_t`, `porous_material_t`, `POROUS_LITTER`, `POROUS_MOSS`, `MASS_FROM_*`; `ed_config_io`: `load_ground_surface_params`; `ed_config_check`: `check_ground_surface_layer` |
-| the layer's state, its sums, each slot's depth, curve and capacity, its energy shared among the slots, its spill and its commit, the ground top's temperature, its blend | `ed_patch_state_vars`: `organic_state_t`, `organic_layer_sums`, `organic_diagnose`, `organic_split_energy`, `organic_slot_depth`, `organic_slot_curve`, `organic_slot_capacity`, `organic_spill`, `organic_take_exchange`, `ground_top_temp`, `blend_organic` |
+| the porous layers' state, their sums, each one's curve, their energy shared among them, their spill and their commit, the ground top's temperature, the blend and the total the ledgers read | `ed_patch_state_vars`: `porous_layer_state_t` (in `ground_surface_state_t`), `porous_layers_sums`, `porous_layers_diagnose`, `porous_layers_split_energy`, `porous_layer_curve`, `porous_layers_spill`, `porous_layers_take_exchange`, `ground_top_temp`, `blend_ground_surface`, `ground_surface_store` |
 | a porous layer's laws: its depth, capacity, fill, resistance and the matter that makes a layer | `ed_ground_surface_lib`: `porous_layer_depth`, `porous_layer_capacity`, `porous_layer_fill`, `porous_layer_resistance`, `porous_layer_matter` |
 | the balance and the ground surface's blend | `ed_surface`: `organic_surface_balance` (its held branch), `ground_surface_exchange` |
 | the slots in the water network, and their water and enthalpy after it | `ed_fast_integ_frozen`: `organic_network_drive`, `commit_organic_water`; the network: [soil_plant_water](soil_plant_water.md) |
 | the soil's vapour through it, and its own through its dried top | `ed_soil_water`: `organic_cover_path`, `vapour_diffusivity`, `ground_evaporation_rate`; `ed_fast_integ_frozen`: `organic_ground_sums`, `ground_inflow` |
-| the slots follow their matter: the litter its pools, at the start the moss too | `ed_slow_update`: `follow_organic_slots`; `ed_slow_dynamics`: `litter_follows_pools`; `ed_init`: `seed_organic_layer` |
+| the slots follow their matter: the litter its pools, at the start the moss too | `ed_slow_update`: `follow_porous_layers`; `ed_slow_dynamics`: `litter_follows_pools`; `ed_init`: `seed_porous_layers` |
 
 ## References
 - Chadburn, S. et al. (2015), *Geosci. Model Dev.* 8:1493 — the moss layer's thermal conductivity in JULES.

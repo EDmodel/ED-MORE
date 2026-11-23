@@ -40,7 +40,7 @@ module ed_slow_dynamics
                                        apply_recruitment, fuse_cohorts, terminate_cohorts,               &
                                        split_cohorts, apply_patch_disturbance, sort_patches,             &
                                        fuse_patches, terminate_patches, commit_trait_carbon,             &
-                                       commit_soil_carbon, follow_organic_slots
+                                       commit_soil_carbon, follow_porous_layers
    use ed_slow_diag,            only : open_slow_cohort_rows, write_slow_patch_rows
    use ed_soil_hydr_lib,          only : soil_theta_to_head
    use ed_ground_surface_lib,     only : porous_layer_matter
@@ -114,7 +114,7 @@ contains
       do ip = 1_ik, poly%patch%n
          do k = 1_ik, N_POROUS
             associate (m => cfg%ground_surface%porous(k))
-               mass(k, ip) = poly%patch%organic(ip)%mass(k)
+               mass(k, ip) = poly%patch%ground_surface(ip)%porous(k)%matter
                if (m%mass_source == MASS_FROM_METABOLIC_LITTER)                                              &
                   mass(k, ip) = porous_layer_matter(c2b * poly%patch%soil_carbon(ip)%carbon(IP_FAST_GRND),        &
                                                     m%bulk_density, cfg%ground_surface%min_depth)
@@ -127,7 +127,7 @@ contains
                                           c%par_a, c%par_n)
          end associate
       end do
-      call follow_organic_slots(poly%patch, cfg%ground_surface, mass, t_new, fliq_new, head, heat, water)
+      call follow_porous_layers(poly%patch, cfg%ground_surface, mass, t_new, fliq_new, head, heat, water)
       call slow_ledger_declare(ledger, energy_in = sum([(patch_polygon_area(poly, ip) * heat(ip),            &
                                                          ip = 1_ik, poly%patch%n)]),                         &
                                water_in = sum([(patch_polygon_area(poly, ip) * water(ip), ip = 1_ik, poly%patch%n)]))

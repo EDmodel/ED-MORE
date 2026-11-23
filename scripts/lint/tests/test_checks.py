@@ -142,7 +142,7 @@ def test_kernels_patch_only(tmp_path):
 def test_integrator_boundary(tmp_path):
     integ = "src/fast_dynamics/integrator/ed_i.f90"
     tree(tmp_path, {integ: "use ed_site_state_vars, only : site_surface_t\n"           # fine
-                           "use ed_patch_state_vars, only : snow_state_t\n"            # fine
+                           "use ed_patch_state_vars, only : water_layer_state_t\n"     # fine
                            "use ed_met_types, only : met_t\n"                          # 3: a met module
                            "use ed_site_state_vars, only : site_surface_t, &\n"
                            "                               site_block\n"               # 4: a block

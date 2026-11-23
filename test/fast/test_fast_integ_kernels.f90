@@ -47,7 +47,7 @@ program test_fast_integ_kernels
                                       temp_to_internal_energy, internal_energy_liquid, cas_heat_capacity
    use ed_soil_heat,           only : soil_heat_env_t, soil_energy_time_deriv
    use ed_ground_surface_lib,  only : porous_layer_temp
-   use ed_patch_state_vars,    only : soil_energy_state_t, snow_state_t
+   use ed_patch_state_vars,    only : soil_energy_state_t, water_layer_state_t
    use ed_site_state_vars,     only : site_surface_t
    use ed_fast_integ_types,    only : surface_state_t, surface_tend_t, march_state_t, march_tend_t, frozen_t,      &
                                       error_control_t, tol_set_t, fast_dynamic_state_t, GRP_ENTH, GRP_SHV,         &
@@ -1184,13 +1184,12 @@ contains
          g%snowfac     = 0.6_wp
          g%dt          = 900.0_wp
          if (b == 3_ik) g%ggnet = 0.05_wp
-         g%pack%nlayer         = 1_ik
-         g%pack%swe(1)         = SWE(b)
-         g%pack%snow_energy(1) = temp_to_internal_energy(0.0_wp, SWE(b), T_PACK(b), FLIQ(b))
-         g%pack%snow_depth(1)  = SWE(b) / g%params%fresh_density
-         g%pack%density(1)     = g%params%fresh_density
-         g%pack%snow_temp(1)   = T_PACK(b)
-         g%pack%snow_fliq(1)   = FLIQ(b)
+         g%pack%water        = SWE(b)
+         g%pack%energy       = temp_to_internal_energy(0.0_wp, SWE(b), T_PACK(b), FLIQ(b))
+         g%pack%matrix_depth = SWE(b) / g%params%fresh_density
+         g%pack_density      = g%params%fresh_density
+         g%pack%temp         = T_PACK(b)
+         g%pack%fliq         = FLIQ(b)
       end associate
       t_ground = T_SOIL(b)
    end subroutine snow_problem
@@ -1204,7 +1203,7 @@ contains
       type(frozen_t), intent(in) :: frozen
       real(wp),       intent(in) :: h, q, t_ground   ! [J/kg], [kg/kg], [K]
       type(surface_env_t) :: env
-      type(snow_state_t)  :: pack
+      type(water_layer_state_t) :: pack
       real(wp) :: h_ground, le_ground, g_top, ground_rad
       type(store_exchange_t) :: stores
       env            = frozen%ground
@@ -1216,17 +1215,17 @@ contains
       env%t_soil_top = t_ground
       call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, stores)
       pack = env%pack
-      call snow_take_exchange(pack, env%dt * stores%energy_in(STORE_SNOW), env%dt * stores%vapour_out(STORE_SNOW), &
-                              env%params)
+      call snow_take_exchange(pack, env%pack_density, env%dt * stores%energy_in(STORE_SNOW),                   &
+                              env%dt * stores%vapour_out(STORE_SNOW), env%params)
       select case (k - SNOW_FIRST)
       case (0_ik)
-         on = pack%snow_temp(1) < t_3ple                                     ! the ice line
+         on = pack%temp < t_3ple                                     ! the ice line
       case (1_ik)
-         on = pack%snow_fliq(1) > 0.0_wp .and. pack%snow_fliq(1) < 1.0_wp    ! the melt plateau
+         on = pack%fliq > 0.0_wp .and. pack%fliq < 1.0_wp    ! the melt plateau
       case (2_ik)
-         on = pack%snow_temp(1) > t_3ple                                     ! the liquid line
+         on = pack%temp > t_3ple                                     ! the liquid line
       case default
-         on = pack%swe(1) <= env%params%tiny_snow_mass                       ! sublimated away
+         on = pack%water <= env%params%tiny_snow_mass                       ! sublimated away
       end select
    end function pack_on_branch
 

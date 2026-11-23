@@ -108,15 +108,12 @@ module ed_constants
    real(wp), parameter :: par_w_2_umol   = 4.6_wp                ! [umol/J] PAR energy -> photons (solar spectrum: ~4.57)
 
    !---~---
-   !   Array sizes: the most soil and snow layers a column can hold. These are storage
-   ! limits, not model parameters, and no result depends on them: the layers a run uses
-   ! come from its config ([soil].depth and layer_bottoms), and the loader refuses
-   ! a column with more layers than fit. The soil and snow stores are fixed-size arrays,
-   ! so copying a patch's stores never allocates. The snow is one bulk layer
-   ! (multi-layer snow is not modelled).
+   !   Array sizes: the most soil layers a column can hold. A storage limit, not a model
+   ! parameter, and no result depends on it: the layers a run uses come from its config
+   ! ([soil].depth and layer_bottoms), and the loader refuses a column with more layers than
+   ! fit. The soil stores are fixed-size arrays, so copying a patch's stores never allocates.
    !---~---
    integer(ik), parameter :: n_soil_layer_max = 20_ik
-   integer(ik), parameter :: n_snow_layer_max = 1_ik
 
    !--- Floating-point guards: keep a division or an exp() inside its domain.
    real(wp), parameter :: tiny_num   = 1.0e-30_wp             ! keeps a divisor away from zero

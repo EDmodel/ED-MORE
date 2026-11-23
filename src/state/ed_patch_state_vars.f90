@@ -2,8 +2,8 @@
 !---~---
 !   ed_patch_state_vars -- what one patch holds, and the block of all the site's patches.
 !
-!   A patch holds five stores -- canopy air, snow, soil water, soil energy and soil carbon
-! -- and two daily accumulators. Each is a derived type, and `patch_block` keeps an array
+!   A patch holds five stores -- canopy air, the ground's surface layers, soil water, soil
+! energy and soil carbon -- and two daily accumulators. Each is a derived type, and `patch_block` keeps an array
 ! of each, one element per patch, rather than one array per field as the cohort block
 ! does. A store is used whole and one patch at a time: a kernel takes one patch's store as
 ! its argument and sees nothing else of the state, the fast loop copies a patch's stores
@@ -17,7 +17,7 @@
 module ed_patch_state_vars
    use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
    use ed_kinds,              only : wp, ik
-   use ed_constants,          only : n_soil_layer_max, n_snow_layer_max, tiny_num, t_3ple, rho_h2o, cp_organic
+   use ed_constants,          only : n_soil_layer_max, tiny_num, t_3ple, rho_h2o, cp_organic
    use ed_therm_lib,          only : cas_molar_density, internal_energy_to_temp, temp_to_internal_energy
    use ed_numerics,           only : within_roundoff
    use ed_soil_hydr_lib,      only : soil_layer_curve_t, build_soil_layer_curve
@@ -32,13 +32,14 @@ module ed_patch_state_vars
    implicit none
    private
 
-   public :: cas_state_t, snow_state_t, organic_state_t, soil_water_state_t, soil_energy_state_t, soil_carbon_state_t
-   public :: organic_present, organic_layer_sums, organic_diagnose, organic_split_energy
-   public :: organic_take_exchange, organic_slot_curve, organic_slot_capacity, organic_spill
-   public :: organic_slot_depth, ground_top_temp
+   public :: cas_state_t, soil_water_state_t, soil_energy_state_t, soil_carbon_state_t
+   public :: ground_store_t, water_layer_state_t, porous_layer_state_t, ground_surface_state_t
+   public :: ground_store_present, ground_surface_store, ground_top_temp
+   public :: porous_layers_present, porous_layers_sums, porous_layers_diagnose, porous_layers_split_energy
+   public :: porous_layers_take_exchange, porous_layer_curve, porous_layers_spill, porous_water, porous_energy
    public :: decomp_xi_t, litter_input_t
    public :: blend_cas, cas_set_depth, cas_capacities, cas_capacity_change
-   public :: blend_snow, blend_organic, blend_soil_water, blend_soil_energy, blend_soil_carbon
+   public :: blend_ground_surface, blend_soil_water, blend_soil_energy, blend_soil_carbon
    public :: soil_water_store, soil_energy_store
    public :: blend_decomp_xi, blend_litter_input, blend_patch_stores, add_shed_water
    public :: patch_block, alloc_patch_block, expand_patch_block, reorder_patch_block, free_patch_block
@@ -65,36 +66,33 @@ module ed_patch_state_vars
    end type cas_state_t
 
    !---~---
-   !   The ground's water layer: snow, ice and the liquid they hold, as mass and energy per
-   ! ground area, with temperature and liquid fraction read off them, and a bulk density that
-   ! makes the mass a depth (fresh snow, ice from frozen pond water, mixed by volume); nlayer =
-   ! 0 is none. The free water beyond what it holds is the pond (soil_water_state_t)
-   ! (docs/science/snow_biophysics.md).
+   !   The ground's surface layers (docs/science/snow_biophysics.md,
+   ! docs/science/surface_organic_layer.md): each a store of water (liquid and ice) and its
+   ! internal energy per ground area, with its temperature and liquid fraction read off them.
+   ! The water layer holds snow, ice and the liquid they hold, and its ice matrix's depth; the
+   ! pond beyond what it holds is soil_water_state_t's. The porous layers, top down litter over
+   ! moss (POROUS_LITTER, POROUS_MOSS), each hold their dry matter, their depth that matter over
+   ! the material's bulk density. A store holding nothing is absent.
    !---~---
-   type :: snow_state_t
-      real(wp) :: swe(n_snow_layer_max)         = 0.0_wp   ! [kg/m2] water-equivalent mass (prognostic)
-      real(wp) :: snow_energy(n_snow_layer_max) = 0.0_wp   ! [J/m2]  internal energy (prognostic)
-      real(wp) :: snow_depth(n_snow_layer_max)  = 0.0_wp   ! [m]     its depth
-      real(wp) :: density(n_snow_layer_max)     = 0.0_wp   ! [kg/m3] its bulk density, mass over depth (prognostic)
-      real(wp) :: snow_temp(n_snow_layer_max)   = t_3ple   ! [K]     diagnosed
-      real(wp) :: snow_fliq(n_snow_layer_max)   = 0.0_wp   ! [-]     liquid fraction, diagnosed
-      integer(ik) :: nlayer                     = 0_ik     ! layers in use (0 = no snow)
-   end type snow_state_t
+   type :: ground_store_t
+      real(wp) :: water  = 0.0_wp            ! [kg/m2] liquid and ice (prognostic)
+      real(wp) :: energy = 0.0_wp            ! [J/m2]  internal energy (prognostic)
+      real(wp) :: temp   = t_3ple            ! [K]     diagnosed
+      real(wp) :: fliq   = 0.0_wp            ! [-]     liquid fraction, diagnosed
+   end type ground_store_t
 
-   !---~---
-   !   The ground's organic layer above the soil, its slots top down (leaf litter over moss,
-   ! POROUS_LITTER and POROUS_MOSS), each with its dry matter, its water (liquid and ice) and its
-   ! internal energy; its depth is its matter over its material's bulk density. The slots share
-   ! one temperature, read off their summed energy, water and dry heat capacity; a slot with no
-   ! matter is absent (docs/science/surface_organic_layer.md).
-   !---~---
-   type :: organic_state_t
-      real(wp) :: mass(N_POROUS)    = 0.0_wp   ! [kg/m2] dry matter
-      real(wp) :: water(N_POROUS)   = 0.0_wp   ! [kg/m2] water, liquid and ice (prognostic)
-      real(wp) :: energy(N_POROUS)  = 0.0_wp   ! [J/m2]  internal energy (prognostic)
-      real(wp) :: temp = t_3ple                      ! [K]     the layer's, diagnosed
-      real(wp) :: fliq = 1.0_wp                      ! [-]     its water's liquid fraction, diagnosed
-   end type organic_state_t
+   type, extends(ground_store_t) :: water_layer_state_t
+      real(wp) :: matrix_depth = 0.0_wp      ! [m] its depth (prognostic): its mass over its bulk density
+   end type water_layer_state_t
+
+   type, extends(ground_store_t) :: porous_layer_state_t
+      real(wp) :: matter = 0.0_wp            ! [kg/m2] dry matter (the slow step's)
+   end type porous_layer_state_t
+
+   type :: ground_surface_state_t
+      type(water_layer_state_t)  :: water
+      type(porous_layer_state_t) :: porous(N_POROUS)
+   end type ground_surface_state_t
 
    !---~---
    !   Soil water, and the pond on top of it. The pond holds its own energy, so water
@@ -185,9 +183,8 @@ module ed_patch_state_vars
       real(wp),    allocatable :: recruit_pool(:,:)  ! [plant/m2] (pft, patch) recruits waiting to reach min_recruit_size
       !--- 4. CANOPY AIR
       type(cas_state_t),          allocatable :: cas(:)          ! canopy air
-      !--- 5. SNOW
-      type(snow_state_t),         allocatable :: snow(:)         ! snow, or temporary surface water
-      type(organic_state_t),      allocatable :: organic(:)      ! the organic layer: litter and moss
+      !--- 5. GROUND SURFACE LAYERS
+      type(ground_surface_state_t), allocatable :: ground_surface(:)   ! the water layer, the litter and the moss
       !--- 6. SOIL WATER AND HEAT
       type(soil_water_state_t),   allocatable :: soil_water(:)   ! soil water and the pond
       type(soil_energy_state_t),  allocatable :: soil_energy(:)  ! soil heat
@@ -359,46 +356,29 @@ contains
    end function soil_energy_store
 
    !---~---
-   !   nlayer is the larger; the caller sets it to 0 when no snow is left. The volumes add, so
-   ! the density is the blended mass over the blended depth, or the one density both share.
+   !   The ground's surface layers area-weighted, layer by layer: each store's water, energy and
+   ! its geometry (the water layer's depth, a porous layer's matter), all extensive. A porous
+   ! layer's material is the run's, so its depth follows its matter. The temperatures and liquid
+   ! fractions are provisional, read off the blend before they are used.
    !---~---
-   pure function blend_snow(w1, a, w2, b) result(c)
-      real(wp),            intent(in) :: w1, w2
-      type(snow_state_t),  intent(in) :: a, b
-      type(snow_state_t)              :: c
-      integer :: k
-      c%swe         = w1 * a%swe         + w2 * b%swe
-      c%snow_energy = w1 * a%snow_energy + w2 * b%snow_energy
-      c%snow_depth  = w1 * a%snow_depth  + w2 * b%snow_depth
-      do k = 1, n_snow_layer_max
-         if (b%swe(k) <= 0.0_wp .or. a%density(k) == b%density(k)) then
-            c%density(k) = a%density(k)
-         else if (a%swe(k) <= 0.0_wp) then
-            c%density(k) = b%density(k)
-         else
-            c%density(k) = c%swe(k) / c%snow_depth(k)
-         end if
+   pure function blend_ground_surface(w1, a, w2, b) result(c)
+      real(wp),                     intent(in) :: w1, w2
+      type(ground_surface_state_t), intent(in) :: a, b
+      type(ground_surface_state_t)             :: c
+      integer(ik) :: k
+      c%water%water        = w1 * a%water%water        + w2 * b%water%water
+      c%water%energy       = w1 * a%water%energy       + w2 * b%water%energy
+      c%water%matrix_depth = w1 * a%water%matrix_depth + w2 * b%water%matrix_depth
+      c%water%temp         = w1 * a%water%temp         + w2 * b%water%temp           ! provisional
+      c%water%fliq         = w1 * a%water%fliq         + w2 * b%water%fliq           ! provisional
+      do k = 1_ik, N_POROUS
+         c%porous(k)%matter = w1 * a%porous(k)%matter + w2 * b%porous(k)%matter
+         c%porous(k)%water  = w1 * a%porous(k)%water  + w2 * b%porous(k)%water
+         c%porous(k)%energy = w1 * a%porous(k)%energy + w2 * b%porous(k)%energy
+         c%porous(k)%temp   = w1 * a%porous(k)%temp   + w2 * b%porous(k)%temp          ! provisional
+         c%porous(k)%fliq   = w1 * a%porous(k)%fliq   + w2 * b%porous(k)%fliq          ! provisional
       end do
-      c%snow_temp   = w1 * a%snow_temp   + w2 * b%snow_temp   ! provisional
-      c%snow_fliq   = w1 * a%snow_fliq   + w2 * b%snow_fliq   ! provisional
-      c%nlayer      = max(a%nlayer, b%nlayer)
-   end function blend_snow
-
-   !---~---
-   !   Each organic slot's matter, water and energy area-weighted. A slot's material is the run's,
-   ! so its depth, its matter over its bulk density, blends with its matter. The temperature is
-   ! read off the blend in the fast loop.
-   !---~---
-   pure function blend_organic(w1, a, w2, b) result(c)
-      real(wp),              intent(in) :: w1, w2
-      type(organic_state_t), intent(in) :: a, b
-      type(organic_state_t)             :: c
-      c%mass   = w1 * a%mass   + w2 * b%mass
-      c%water  = w1 * a%water  + w2 * b%water
-      c%energy = w1 * a%energy + w2 * b%energy
-      c%temp   = w1 * a%temp   + w2 * b%temp                 ! provisional
-      c%fliq   = w1 * a%fliq   + w2 * b%fliq                 ! provisional
-   end function blend_organic
+   end function blend_ground_surface
 
    pure function blend_soil_water(w1, a, w2, b) result(c)
       real(wp),                  intent(in) :: w1, w2
@@ -453,53 +433,68 @@ contains
    end function blend_litter_input
 
 
-   !--- THE ORGANIC LAYER: its sums, its temperature and its exchanges
+   !--- THE GROUND'S SURFACE LAYERS: what they hold, their temperature and their exchanges
 
-   !--- Whether a patch has an organic layer: dry matter in any slot.
-   pure logical function organic_present(org)
-      type(organic_state_t), intent(in) :: org
-      organic_present = any(org%mass > 0.0_wp)
-   end function organic_present
+   !--- Whether a store holds anything: water, or the energy a store that gave its last water keeps.
+   pure logical function ground_store_present(store)
+      class(ground_store_t), intent(in) :: store
+      ground_store_present = store%water /= 0.0_wp .or. store%energy /= 0.0_wp
+   end function ground_store_present
 
-   !--- [m] Slot k's depth: its matter over its material's bulk density.
-   pure real(wp) function organic_slot_depth(params, org, k) result(depth)
-      type(ground_surface_layer_params_t), intent(in) :: params
-      type(organic_state_t),  intent(in) :: org
-      integer(ik),            intent(in) :: k
-      type(porous_material_t) :: m
-      m     = params%porous(k)
-      depth = porous_layer_depth(org%mass(k), m%bulk_density)
-   end function organic_slot_depth
+   !---~---
+   !   The ground's surface layers' water [kg/m2] and energy [J/m2] together, the stores the fast,
+   ! slow and restart ledgers read: the water layer's and the porous layers', top down.
+   !---~---
+   pure function ground_surface_store(gs) result(store)
+      type(ground_surface_state_t), intent(in) :: gs
+      type(ground_store_t) :: store
+      integer(ik) :: k
+      store%water  = gs%water%water
+      store%energy = gs%water%energy
+      do k = 1_ik, N_POROUS
+         store%water  = store%water  + gs%porous(k)%water
+         store%energy = store%energy + gs%porous(k)%energy
+      end do
+   end function ground_surface_store
+
+   !--- Whether the ground has a porous layer: dry matter in either.
+   pure logical function porous_layers_present(porous)
+      type(porous_layer_state_t), intent(in) :: porous(:)
+      integer(ik) :: k
+      porous_layers_present = .false.
+      do k = 1_ik, size(porous, kind=ik)
+         if (porous(k)%matter > 0.0_wp) porous_layers_present = .true.
+      end do
+   end function porous_layers_present
 
    !---~---
    !   [K] The temperature of the ground's top, which the canopy air and the radiation see: the
-   ! organic layer's where there is one, else the top soil node's.
+   ! porous layers' where there are any, else the top soil node's.
    !---~---
-   pure real(wp) function ground_top_temp(org, soil_temp_top) result(t)
-      type(organic_state_t), intent(in) :: org
-      real(wp),              intent(in) :: soil_temp_top   ! [K]
+   pure real(wp) function ground_top_temp(gs, soil_temp_top) result(t)
+      type(ground_surface_state_t), intent(in) :: gs
+      real(wp),                     intent(in) :: soil_temp_top   ! [K]
       t = soil_temp_top
-      if (organic_present(org)) t = org%temp
+      if (porous_layers_present(gs%porous)) t = gs%porous(1)%temp
    end function ground_top_temp
 
    !---~---
-   !   The organic layer as one thermal node (docs/science/surface_organic_layer.md): its dry heat
-   ! capacity, water, energy and the water it holds saturated summed over the slots, and its
-   ! thermal resistance. Each slot holds its water in its lower part and dries from its top: its
-   ! dried top, its depth times the share of saturation it does not hold, is what the layer's own
-   ! vapour crosses, and the heat crosses it too, at the slot's dry conductivity, in series with
-   ! its wet part at its saturated conductivity. The slots are in series.
+   !   The porous layers as one thermal node (docs/science/surface_organic_layer.md): their dry
+   ! heat capacity, water, energy and the water they hold saturated, summed, and their thermal
+   ! resistance. Each layer holds its water in its lower part and dries from its top: its dried
+   ! top, its depth times the share of saturation it does not hold, is what its own vapour
+   ! crosses, and the heat crosses it too, at the material's dry conductivity, in series with
+   ! its wet part at its saturated conductivity. The layers are in series.
    !---~---
-   pure subroutine organic_layer_sums(org, params, dry_cap, water, energy, w_max, resistance, dry_depth)
-      type(organic_state_t),  intent(in)  :: org
-      type(ground_surface_layer_params_t), intent(in) :: params
-      real(wp),               intent(out) :: dry_cap      ! [J/m2/K]
-      real(wp),               intent(out) :: water        ! [kg/m2]
-      real(wp),               intent(out) :: energy       ! [J/m2]
-      real(wp),               intent(out) :: w_max        ! [kg/m2] the water the slots hold saturated
-      real(wp),               intent(out) :: resistance   ! [m2 K/W]
-      real(wp),               intent(out) :: dry_depth    ! [m] the dried top of the slots, summed
-      type(porous_material_t) :: m
+   pure subroutine porous_layers_sums(porous, params, dry_cap, water, energy, w_max, resistance, dry_depth)
+      type(porous_layer_state_t),          intent(in)  :: porous(:)
+      type(ground_surface_layer_params_t), intent(in)  :: params
+      real(wp),                            intent(out) :: dry_cap      ! [J/m2/K]
+      real(wp),                            intent(out) :: water        ! [kg/m2]
+      real(wp),                            intent(out) :: energy       ! [J/m2]
+      real(wp),                            intent(out) :: w_max        ! [kg/m2] the water they hold saturated
+      real(wp),                            intent(out) :: resistance   ! [m2 K/W]
+      real(wp),                            intent(out) :: dry_depth    ! [m] their dried tops, summed
       real(wp)    :: depth, cap, fill
       integer(ik) :: k
       dry_cap    = 0.0_wp
@@ -509,127 +504,156 @@ contains
       resistance = 0.0_wp
       dry_depth  = 0.0_wp
       do k = 1_ik, N_POROUS
-         if (org%mass(k) <= 0.0_wp) cycle
-         m      = params%porous(k)
-         depth  = porous_layer_depth(org%mass(k), m%bulk_density)
-         cap    = organic_slot_capacity(params, org, k)
-         fill   = porous_layer_fill(org%water(k), cap)
-         dry_cap    = dry_cap + cp_organic * org%mass(k)
-         water      = water + org%water(k)
-         energy     = energy + org%energy(k)
-         w_max      = w_max + cap
-         resistance = resistance + porous_layer_resistance(depth, fill, m%k_dry, m%k_wet)
-         dry_depth  = dry_depth + depth * (1.0_wp - fill)
+         if (porous(k)%matter <= 0.0_wp) cycle
+         associate (m => params%porous(k))
+            depth  = porous_layer_depth(porous(k)%matter, m%bulk_density)
+            cap    = porous_layer_capacity(porous(k)%matter, m%bulk_density, m%theta_sat)
+            fill   = porous_layer_fill(porous(k)%water, cap)
+            dry_cap    = dry_cap + cp_organic * porous(k)%matter
+            water      = water + porous(k)%water
+            energy     = energy + porous(k)%energy
+            w_max      = w_max + cap
+            resistance = resistance + porous_layer_resistance(depth, fill, m%k_dry, m%k_wet)
+            dry_depth  = dry_depth + depth * (1.0_wp - fill)
+         end associate
       end do
-   end subroutine organic_layer_sums
-
-   !--- [kg/m2] The water slot k holds saturated: its material's theta_sat over its depth, its matter over its bulk density.
-   pure real(wp) function organic_slot_capacity(params, org, k) result(cap)
-      type(ground_surface_layer_params_t), intent(in) :: params
-      type(organic_state_t),  intent(in) :: org
-      integer(ik),            intent(in) :: k
-      type(porous_material_t) :: m
-      m   = params%porous(k)
-      cap = porous_layer_capacity(org%mass(k), m%bulk_density, m%theta_sat)
-   end function organic_slot_capacity
+   end subroutine porous_layers_sums
 
    !---~---
-   !   Slot k's water retention and conductivity, its material's as a soil layer's
+   !   A porous layer's water retention and conductivity, its material's as a soil layer's
    ! (build_soil_layer_curve), at its depth.
    !---~---
-   pure function organic_slot_curve(params, org, k) result(c)
-      type(ground_surface_layer_params_t), intent(in) :: params
-      type(organic_state_t),  intent(in) :: org
-      integer(ik),            intent(in) :: k
-      type(soil_layer_curve_t)           :: c
-      type(porous_material_t) :: m
-      m = params%porous(k)
-      call build_soil_layer_curve(m%retention, m%theta_sat, m%theta_res, m%curve_par_a, m%curve_par_n, m%ksat,                &
-                                  porous_layer_depth(org%mass(k), m%bulk_density), c)
-   end function organic_slot_curve
-
-   !--- The layer's temperature and liquid fraction, from its summed energy, water and dry heat capacity.
-   pure subroutine organic_diagnose(org)
-      type(organic_state_t), intent(inout) :: org
-      if (.not. organic_present(org)) then
-         org%temp = t_3ple
-         org%fliq = 1.0_wp
-         return
-      end if
-      call internal_energy_to_temp(sum(org%energy), sum(org%water), cp_organic * sum(org%mass), org%temp, org%fliq)
-   end subroutine organic_diagnose
+   pure function porous_layer_curve(m, layer) result(c)
+      type(porous_material_t),    intent(in) :: m
+      type(porous_layer_state_t), intent(in) :: layer
+      type(soil_layer_curve_t)               :: c
+      call build_soil_layer_curve(m%retention, m%theta_sat, m%theta_res, m%curve_par_a, m%curve_par_n, m%ksat,     &
+                                  porous_layer_depth(layer%matter, m%bulk_density), c)
+   end function porous_layer_curve
 
    !---~---
-   !   The slots share one temperature: a total energy split among them, each its matter's and
-   ! its water's at the layer's temperature and liquid fraction, the last present slot taking
-   ! the remainder so the sum is the total exactly.
+   !   The porous layers' one temperature and liquid fraction, from their summed energy, water and
+   ! dry heat capacity, given to each; the triple point, all liquid, with no layer.
    !---~---
-   pure subroutine organic_split_energy(org, total)
-      type(organic_state_t), intent(inout) :: org
-      real(wp),              intent(in)    :: total     ! [J/m2]
-      real(wp)    :: rest
+   pure subroutine porous_layers_diagnose(porous)
+      type(porous_layer_state_t), intent(inout) :: porous(:)
+      real(wp)    :: temp, fliq
+      temp = t_3ple
+      fliq = 1.0_wp
+      if (porous_layers_present(porous))                                                                     &
+         call internal_energy_to_temp(porous_energy(porous), porous_water(porous), cp_organic * porous_matter(porous), &
+                                      temp, fliq)
+      porous%temp = temp
+      porous%fliq = fliq
+   end subroutine porous_layers_diagnose
+
+   !---~---
+   !   The porous layers share one temperature: a total energy split among them, each its matter's
+   ! and its water's at that temperature and liquid fraction, the last present layer taking the
+   ! remainder so the sum is the total exactly.
+   !---~---
+   pure subroutine porous_layers_split_energy(porous, total)
+      type(porous_layer_state_t), intent(inout) :: porous(:)
+      real(wp),                   intent(in)    :: total     ! [J/m2]
+      real(wp)    :: rest, temp, fliq
       integer(ik) :: k, last
-      org%energy = 0.0_wp
-      if (.not. organic_present(org)) return
-      call internal_energy_to_temp(total, sum(org%water), cp_organic * sum(org%mass), org%temp, org%fliq)
+      porous%energy = 0.0_wp
+      if (.not. porous_layers_present(porous)) return
+      call internal_energy_to_temp(total, porous_water(porous), cp_organic * porous_matter(porous), temp, fliq)
+      porous%temp = temp
+      porous%fliq = fliq
       last = 0_ik
       do k = 1_ik, N_POROUS
-         if (org%mass(k) > 0.0_wp) last = k
+         if (porous(k)%matter > 0.0_wp) last = k
       end do
       rest = total
       do k = 1_ik, N_POROUS
-         if (org%mass(k) <= 0.0_wp .or. k == last) cycle
-         org%energy(k) = temp_to_internal_energy(cp_organic * org%mass(k), org%water(k), org%temp, org%fliq)
-         rest = rest - org%energy(k)
+         if (porous(k)%matter <= 0.0_wp .or. k == last) cycle
+         porous(k)%energy = temp_to_internal_energy(cp_organic * porous(k)%matter, porous(k)%water, temp, fliq)
+         rest = rest - porous(k)%energy
       end do
-      org%energy(last) = rest
-   end subroutine organic_split_energy
+      porous(last)%energy = rest
+   end subroutine porous_layers_split_energy
 
    !---~---
-   !   The layer takes an exchange's amounts after the step's march: the energy in, and the vapour
-   ! each slot gave the canopy air as the water network took it (dew, negative, joined the top
-   ! slot), so the water that left carried its share of that energy.
+   !   The porous layers take an exchange's amounts after the step's march: the energy in, and the
+   ! vapour each gave the canopy air as the water network took it (dew, negative, joined the top
+   ! layer), so the water that left carried its share of that energy.
    !---~---
-   pure subroutine organic_take_exchange(org, energy_amount, vapour_amount)
-      type(organic_state_t), intent(inout) :: org
-      real(wp),              intent(in)    :: energy_amount                    ! [J/m2] in
-      real(wp),              intent(in)    :: vapour_amount(N_POROUS)    ! [kg/m2] out of each slot
-      if (.not. organic_present(org)) return
-      if (.not. all(org%water - vapour_amount >= 0.0_wp                                                     &
-                    .or. within_roundoff(org%water - vapour_amount, org%water + abs(vapour_amount))))         &
-         error stop 'organic_take_exchange: a slot gave the canopy air more vapour than it held'
-      org%water = max(0.0_wp, org%water - vapour_amount)   ! clamp-ok: the network's own amounts, to round-off (asserted)
-      call organic_split_energy(org, sum(org%energy) + energy_amount)
-   end subroutine organic_take_exchange
+   pure subroutine porous_layers_take_exchange(porous, energy_amount, vapour_amount)
+      type(porous_layer_state_t), intent(inout) :: porous(:)
+      real(wp),                   intent(in)    :: energy_amount             ! [J/m2] in
+      real(wp),                   intent(in)    :: vapour_amount(N_POROUS)   ! [kg/m2] out of each layer
+      integer(ik) :: k
+      if (.not. porous_layers_present(porous)) return
+      do k = 1_ik, N_POROUS
+         if (.not. (porous(k)%water - vapour_amount(k) >= 0.0_wp                                                  &
+                    .or. within_roundoff(porous(k)%water - vapour_amount(k), porous(k)%water + abs(vapour_amount(k))))) &
+            error stop 'porous_layers_take_exchange: a layer gave the canopy air more vapour than it held'
+         porous(k)%water = max(0.0_wp, porous(k)%water - vapour_amount(k))   ! clamp-ok: round-off (asserted)
+      end do
+      call porous_layers_split_energy(porous, porous_energy(porous) + energy_amount)
+   end subroutine porous_layers_take_exchange
 
    !---~---
-   !   The water a slot holds above saturation spills: dew or frost on a saturated or frozen slot,
-   ! which its pores cannot take and its ice keeps from passing on. Its water and energy, at the
-   ! layer's temperature and liquid fraction, are returned for the pond, which takes them at a
-   ! step's start.
+   !   The water a porous layer holds above saturation spills: dew or frost on a saturated or
+   ! frozen layer, which its pores cannot take and its ice keeps from passing on. Its water and
+   ! energy, at the layers' temperature and liquid fraction, are returned for the pond, which
+   ! takes them at a step's start.
    !---~---
-   pure subroutine organic_spill(org, params, w_out, e_out)
-      type(organic_state_t),  intent(inout) :: org
-      type(ground_surface_layer_params_t), intent(in) :: params
-      real(wp),               intent(out)   :: w_out     ! [kg/m2]
-      real(wp),               intent(out)   :: e_out     ! [J/m2]
+   pure subroutine porous_layers_spill(porous, params, w_out, e_out)
+      type(porous_layer_state_t),          intent(inout) :: porous(:)
+      type(ground_surface_layer_params_t), intent(in)    :: params
+      real(wp),                            intent(out)   :: w_out     ! [kg/m2]
+      real(wp),                            intent(out)   :: e_out     ! [J/m2]
       real(wp)    :: excess, total
       integer(ik) :: k
       w_out = 0.0_wp
       e_out = 0.0_wp
-      if (.not. organic_present(org)) return
-      total = sum(org%energy)
-      call organic_diagnose(org)
+      if (.not. porous_layers_present(porous)) return
+      total = porous_energy(porous)
+      call porous_layers_diagnose(porous)
       do k = 1_ik, N_POROUS
-         if (org%mass(k) <= 0.0_wp) cycle
-         excess = max(0.0_wp, org%water(k) - organic_slot_capacity(params, org, k))
+         if (porous(k)%matter <= 0.0_wp) cycle
+         associate (m => params%porous(k))
+            excess = max(0.0_wp, porous(k)%water - porous_layer_capacity(porous(k)%matter, m%bulk_density,     &
+                                                                         m%theta_sat))
+         end associate
          if (excess <= 0.0_wp) cycle
-         org%water(k) = org%water(k) - excess
+         porous(k)%water = porous(k)%water - excess
          w_out = w_out + excess
-         e_out = e_out + temp_to_internal_energy(0.0_wp, excess, org%temp, org%fliq)
+         e_out = e_out + temp_to_internal_energy(0.0_wp, excess, porous(k)%temp, porous(k)%fliq)
       end do
-      if (w_out > 0.0_wp) call organic_split_energy(org, total - e_out)
-   end subroutine organic_spill
+      if (w_out > 0.0_wp) call porous_layers_split_energy(porous, total - e_out)
+   end subroutine porous_layers_spill
+
+   !--- [kg/m2], [J/m2], [kg/m2] The porous layers' water, energy and dry matter, summed top down.
+   pure real(wp) function porous_water(porous) result(w)
+      type(porous_layer_state_t), intent(in) :: porous(:)
+      integer(ik) :: k
+      w = 0.0_wp
+      do k = 1_ik, size(porous, kind=ik)
+         w = w + porous(k)%water
+      end do
+   end function porous_water
+
+   pure real(wp) function porous_energy(porous) result(e)
+      type(porous_layer_state_t), intent(in) :: porous(:)
+      integer(ik) :: k
+      e = 0.0_wp
+      do k = 1_ik, size(porous, kind=ik)
+         e = e + porous(k)%energy
+      end do
+   end function porous_energy
+
+   pure real(wp) function porous_matter(porous) result(m)
+      type(porous_layer_state_t), intent(in) :: porous(:)
+      integer(ik) :: k
+      m = 0.0_wp
+      do k = 1_ik, size(porous, kind=ik)
+         m = m + porous(k)%matter
+      end do
+   end function porous_matter
 
    !--- THE PATCH LOCKSTEP: the routines that list every patch field, in section order
 
@@ -655,9 +679,8 @@ contains
       patch%recruit_pool = 0.0_wp
       !--- 4. Canopy air
       allocate(patch%cas(cap))                                   ! default-initialised by its type
-      !--- 5. Snow
-      allocate(patch%snow(cap))                                  ! default-initialised by its type
-      allocate(patch%organic(cap))                               ! default-initialised by its type
+      !--- 5. Ground surface layers
+      allocate(patch%ground_surface(cap))                        ! default-initialised by its type
       !--- 6. Soil water and heat
       allocate(patch%soil_water(cap), patch%soil_energy(cap))    ! default-initialised by its type
       !--- 7. Soil carbon
@@ -705,9 +728,8 @@ contains
       tmp%recruit_pool(:,1:m) = patch%recruit_pool(:,1:m)
       !--- 4. Canopy air
       tmp%cas(1:m) = patch%cas(1:m)
-      !--- 5. Snow
-      tmp%snow(1:m) = patch%snow(1:m)
-      tmp%organic(1:m) = patch%organic(1:m)
+      !--- 5. Ground surface layers
+      tmp%ground_surface(1:m) = patch%ground_surface(1:m)
       !--- 6. Soil water and heat
       tmp%soil_water(1:m)  = patch%soil_water(1:m)
       tmp%soil_energy(1:m) = patch%soil_energy(1:m)
@@ -738,9 +760,8 @@ contains
       call move_alloc(tmp%recruit_pool, patch%recruit_pool)
       !--- 4. Canopy air
       call move_alloc(tmp%cas, patch%cas)
-      !--- 5. Snow
-      call move_alloc(tmp%snow, patch%snow)
-      call move_alloc(tmp%organic, patch%organic)
+      !--- 5. Ground surface layers
+      call move_alloc(tmp%ground_surface, patch%ground_surface)
       !--- 6. Soil water and heat
       call move_alloc(tmp%soil_water, patch%soil_water)
       call move_alloc(tmp%soil_energy, patch%soil_energy)
@@ -781,9 +802,8 @@ contains
       patch%recruit_pool(:,1:m) = patch%recruit_pool(:,perm(1:m))
       !--- 4. Canopy air
       patch%cas(1:m) = patch%cas(perm(1:m))
-      !--- 5. Snow
-      patch%snow(1:m) = patch%snow(perm(1:m))
-      patch%organic(1:m) = patch%organic(perm(1:m))
+      !--- 5. Ground surface layers
+      patch%ground_surface(1:m) = patch%ground_surface(perm(1:m))
       !--- 6. Soil water and heat
       patch%soil_water(1:m)  = patch%soil_water(perm(1:m))
       patch%soil_energy(1:m) = patch%soil_energy(perm(1:m))
@@ -812,7 +832,7 @@ contains
       if (allocated(patch%area)) deallocate(patch%global_id, patch%dist_type, patch%owner_site, patch%area,    &
                                             patch%age,                                                         &
                                             patch%cohort_offset, patch%cohort_count, patch%recruit_pool,       &
-                                            patch%cas, patch%snow, patch%organic, patch%soil_water,            &
+                                            patch%cas, patch%ground_surface, patch%soil_water,                 &
                                             patch%soil_energy,                                                 &
                                             patch%soil_carbon, patch%shed_water_rate, patch%shed_water_enth,   &
                                             patch%slow_co2_rate,                                               &
@@ -871,7 +891,7 @@ contains
 
    !---~---
    !   Patch dst's stores as w1 x src1's plus w2 x src2's, in the file's section order: the
-   ! recruit pool, the canopy air, snow, soil water and heat, soil carbon, the day's
+   ! recruit pool, the canopy air, the ground's surface layers, soil water and heat, soil carbon, the day's
    ! decomposition integral and litter. Patch fusion and a new treefall gap both blend
    ! through it, so a store added to the patch is blended in both.
    !---~---
@@ -881,8 +901,7 @@ contains
       real(wp),          intent(in)    :: w1, w2
       patch%recruit_pool(:, dst) = w1 * patch%recruit_pool(:, src1) + w2 * patch%recruit_pool(:, src2)
       patch%cas(dst)         = blend_cas(w1, patch%cas(src1), w2, patch%cas(src2))
-      patch%snow(dst)        = blend_snow(w1, patch%snow(src1), w2, patch%snow(src2))
-      patch%organic(dst)     = blend_organic(w1, patch%organic(src1), w2, patch%organic(src2))
+      patch%ground_surface(dst) = blend_ground_surface(w1, patch%ground_surface(src1), w2, patch%ground_surface(src2))
       patch%soil_water(dst)  = blend_soil_water(w1, patch%soil_water(src1), w2, patch%soil_water(src2))
       patch%soil_energy(dst) = blend_soil_energy(w1, patch%soil_energy(src1), w2, patch%soil_energy(src2))
       patch%soil_carbon(dst) = blend_soil_carbon(w1, patch%soil_carbon(src1), w2, patch%soil_carbon(src2))

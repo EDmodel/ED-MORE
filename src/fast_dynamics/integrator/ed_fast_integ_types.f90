@@ -19,8 +19,8 @@ module ed_fast_integ_types
    use ed_constants, only : n_soil_layer_max, t_3ple
    use ed_ground_surface_params, only : N_POROUS
    use ed_pft_params, only : leaf_photo_table_t
-   use ed_patch_state_vars,   only : cas_state_t, soil_water_state_t, soil_energy_state_t, snow_state_t, soil_carbon_state_t, &
-                                     organic_state_t
+   use ed_patch_state_vars,   only : cas_state_t, soil_water_state_t, soil_energy_state_t, soil_carbon_state_t,      &
+                                     ground_surface_state_t, porous_layer_state_t
    use ed_therm_lib, only : cas_temp_to_enthalpy, cas_enthalpy_to_temp
    use ed_biophysics_params,   only : aero_params_t
    use ed_biogeochem_params,   only : N_SOIL_POOL
@@ -222,8 +222,7 @@ module ed_fast_integ_types
       type(cas_state_t)          :: cas               ! canopy-air-space twins (enthalpy/shv/co2)
       type(soil_energy_state_t)  :: soil_energy       ! soil thermal column (internal energy; temp diagnosed)
       type(soil_water_state_t)   :: soil_water        ! soil water column (theta; psi_soil diagnosed)
-      type(snow_state_t)         :: snow              ! temporary-surface-water / snow store (swe + energy)
-      type(organic_state_t)      :: organic           ! the organic layer: litter and moss
+      type(ground_surface_state_t) :: ground_surface  ! the water layer, the litter and the moss
       real(wp), allocatable      :: leaf_energy(:)    ! [J/m2 ground] per-cohort leaf internal energy
       real(wp), allocatable      :: wood_energy(:)    ! [J/m2 ground] per-cohort wood internal energy
       real(wp), allocatable      :: leaf_temp(:)      ! [K] derived from leaf_energy
@@ -348,6 +347,7 @@ module ed_fast_integ_types
    !--- What the step exported, and the slow tier's inputs it produced.
    type :: step_exports_t
       real(wp)       :: gpp_last = 0.0_wp, nee_last = 0.0_wp   ! [umol/m2/s] this step's patch GPP and NEE
+      real(wp)       :: water_layer_cover = 0.0_wp             ! [-] the share of the ground the water layer covered
       !--- Net CAS -> atmosphere export over the step, b-weighted like the ledgers: the reported H, LE.
       real(wp)       :: atm_heat_export = 0.0_wp   ! [J/m2]  sensible heat over this dt_fast
       real(wp)       :: atm_vap_export  = 0.0_wp   ! [kg/m2] evapotranspiration over this dt_fast
@@ -740,7 +740,7 @@ module ed_fast_integ_types
       !   The organic layer over the step, after the pond and the ground's inflow fill it, which
       ! the update commits; and its water and energy after the pond's, the ledgers' start.
       !---~---
-      type(organic_state_t)        :: org
+      type(porous_layer_state_t)   :: porous(N_POROUS)
       real(wp)                     :: org_water0  = 0.0_wp    ! [kg/m2]
       real(wp)                     :: org_energy0 = 0.0_wp    ! [J/m2]
       real(wp) :: org_evap(N_POROUS) = 0.0_wp           ! [kg/m2] each slot's evaporation, the network's

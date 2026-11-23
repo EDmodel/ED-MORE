@@ -84,8 +84,8 @@ program test_slow_ledger
    poly%patch%soil_energy(1)%soil_energy(1:soil%n_active) = 5.0e7_wp
    poly%patch%soil_water(1)%w_surface      = 2.0_wp
    poly%patch%soil_water(1)%w_surface_energy = 8.0e5_wp
-   poly%patch%snow(1)%swe(1)           = 5.0_wp
-   poly%patch%snow(1)%snow_energy(1)   = -1.0e6_wp
+   poly%patch%ground_surface(1)%water%water           = 5.0_wp
+   poly%patch%ground_surface(1)%water%energy   = -1.0e6_wp
    poly%patch%cas(1)%can_shv      = 0.008_wp
    poly%patch%cas(1)%can_enthalpy = 2.9e5_wp
    poly%patch%cas(1)%can_co2      = 400.0_wp
@@ -580,7 +580,7 @@ contains
    poly%patch%soil_water(1)%w_surface = poly%patch%soil_water(1)%w_surface + 1.0_wp
    end subroutine perturb_pond
    subroutine perturb_swe()
-   poly%patch%snow(1)%swe(1) = poly%patch%snow(1)%swe(1) + 1.0_wp
+   poly%patch%ground_surface(1)%water%water = poly%patch%ground_surface(1)%water%water + 1.0_wp
    end subroutine perturb_swe
    subroutine perturb_shv()
    poly%patch%cas(1)%can_shv = poly%patch%cas(1)%can_shv + 0.001_wp
@@ -609,7 +609,7 @@ contains
       poly%patch%soil_water(1)%w_surface_energy = poly%patch%soil_water(1)%w_surface_energy + 1.0e5_wp
    end subroutine perturb_pond_energy
    subroutine perturb_snow_energy()
-      poly%patch%snow(1)%snow_energy(1) = poly%patch%snow(1)%snow_energy(1) + 1.0e5_wp
+      poly%patch%ground_surface(1)%water%energy = poly%patch%ground_surface(1)%water%energy + 1.0e5_wp
    end subroutine perturb_snow_energy
    subroutine perturb_cas_enth()
    poly%patch%cas(1)%can_enthalpy = poly%patch%cas(1)%can_enthalpy + 1.0e4_wp

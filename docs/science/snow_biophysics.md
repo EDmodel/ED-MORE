@@ -60,7 +60,7 @@ Ground evaporation is such a tile flux: only the snow-free share evaporates, at 
 
 | Store | Type | Prognostic variable(s) | Diagnosed |
 |---|---|---|---|
-| Snow / surface water | `snow_state_t` | `swe`, `snow_energy` [J m⁻²], `density` [kg m⁻³], `snow_depth` | `snow_temp`, `snow_fliq` |
+| The water layer (snow and the liquid it holds) | `water_layer_state_t` | `water`, `energy` [J m⁻²], `matrix_depth` [m] | `temp`, `fliq` |
 
 ## Parameters
 
@@ -90,7 +90,7 @@ The `[ground_surface_layer.water]` table; every key is optional ([configuration]
 | the ground's optics and radiation | `ed_surface`: `snow_blend_ground_optics`, `snow_albedos`, `ground_tile_radiation` |
 | the water layer's laws: its free water, depth and matrix, the density of two masses together, its cover, albedo and resistance | `ed_ground_surface_lib`: `water_layer_free_water`, `water_layer_depth`, `matrix_depth_update`, `combined_density`, `water_layer_cover`, `water_layer_albedo`, `water_layer_resistance` |
 | saturation vapour pressure, eq. (1) | `ed_therm_lib`: `sat_vapor_pressure`, `sat_specific_humidity` |
-| prognostic snow type | `ed_patch_state_vars`: `snow_state_t` |
+| the water layer's state, a store of the ground's surface layers | `ed_patch_state_vars`: `water_layer_state_t`, `ground_surface_state_t`, `ground_store_present` |
 
 ## References
 - Ambaum (2020), *Q. J. R. Meteorol. Soc.* 146:4252, doi:10.1002/qj.3899 — saturation vapour pressure over water and ice.

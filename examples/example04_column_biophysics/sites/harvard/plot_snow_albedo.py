@@ -47,8 +47,8 @@ def read_model(prefix):
     on local time."""
     with Dataset(prefix + "-D.nc") as ds:
         t = pd.to_datetime(dict(year=ds["year"][:], month=ds["month"][:], day=ds["day"][:]))
-        daily = pd.DataFrame({"swe": np.asarray(ds["mean_swe_py"][:], float).squeeze(),
-                              "depth": np.asarray(ds["mean_snow_depth_py"][:], float).squeeze()}, index=t)
+        daily = pd.DataFrame({"swe": np.asarray(ds["mean_water_layer_mass_py"][:], float).squeeze(),
+                              "depth": np.asarray(ds["mean_water_layer_depth_py"][:], float).squeeze()}, index=t)
     frames = []
     for f in sorted(glob.glob(prefix + "-F-*.nc")):
         with Dataset(f) as ds:

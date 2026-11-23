@@ -22,11 +22,11 @@ module ed_surface
    use ed_therm_lib,            only : internal_energy_to_temp, sat_specific_humidity,                        &
                                        sat_specific_humidity_temp_deriv, enthalpy_vapor,           &
                                        internal_energy_liquid, precip_enthalpy, liquid_energy_to_temp
-   use ed_patch_state_vars,     only : snow_state_t
+   use ed_patch_state_vars,     only : water_layer_state_t, ground_store_present
    use ed_ground_surface_params, only : water_material_t
    use ed_numerics,             only : within_roundoff
    use ed_ground_surface_lib,   only : water_layer_cover, water_layer_albedo, combined_density,             &
-                                       water_layer_free_water, water_layer_resistance
+                                       water_layer_free_water, water_layer_resistance, water_layer_bulk_density
    implicit none
    private
 
@@ -93,7 +93,8 @@ module ed_surface
       logical  :: org_held       = .false.              ! its evaporation is the water network's
       real(wp) :: org_evap_held  = 0.0_wp               ! [kg/m2/s] that rate, per unit ground area (< 0: dew)
       real(wp) :: ground_emiss   = 0.95_wp              ! [-]
-      type(snow_state_t)  :: pack                       ! the pack after the step's precipitation and drainage
+      type(water_layer_state_t) :: pack                 ! the pack after the step's precipitation and drainage
+      real(wp) :: pack_density = 0.0_wp                 ! [kg/m3] its bulk density over the step (prepare_snow_stage)
       real(wp) :: snowfac    = 0.0_wp                   ! [-] its Niu-Yang cover fraction (0 without a pack)
       type(water_material_t) :: params                  ! the water layer's material
       real(wp) :: dt         = 0.0_wp                   ! [s] the step
@@ -275,7 +276,7 @@ contains
    ! a pack.
    !---~---
    pure subroutine snow_blend_ground_optics(snow, params, ground_rough, albedo_vis, albedo_nir, emiss, temp)
-      type(snow_state_t),  intent(in)    :: snow
+      type(water_layer_state_t), intent(in) :: snow
       type(water_material_t), intent(in)    :: params
       real(wp),            intent(in)    :: ground_rough   ! [m] the ground's roughness ([aerodynamics].soil_rough)
       real(wp),            intent(inout) :: albedo_vis   ! [-] VIS albedo: the bare soil's on entry
@@ -283,11 +284,12 @@ contains
       real(wp),            intent(inout) :: emiss        ! [-] thermal emissivity: the bare soil's on entry
       real(wp),            intent(inout) :: temp         ! [K] emission temperature: the top soil node's on entry
       real(wp) :: fc, snow_vis, snow_nir, emit_soil, emit_snow
-      if (.not. (snow%nlayer >= 1_ik .and. snow%swe(1) > params%tiny_snow_mass)) return
-      fc = snow_cover_fraction(snow%swe(1), snow%snow_depth(1), snow%density(1), params, ground_rough)
+      if (.not. (snow%water > params%tiny_snow_mass)) return
+      fc = snow_cover_fraction(snow%water, snow%matrix_depth, water_layer_bulk_density(snow%water, snow%matrix_depth), &
+                               params, ground_rough)
       call snow_albedos(snow, params, snow_vis, snow_nir)
       emit_soil  = emiss * temp ** 4                                ! [K4] emission over sigma
-      emit_snow  = params%emissivity * snow%snow_temp(1) ** 4
+      emit_snow  = params%emissivity * snow%temp ** 4
       albedo_vis = (1.0_wp - fc) * albedo_vis + fc * snow_vis
       albedo_nir = (1.0_wp - fc) * albedo_nir + fc * snow_nir
       emiss      = (1.0_wp - fc) * emiss + fc * params%emissivity
@@ -299,12 +301,12 @@ contains
    ! this step's snowfall has yet to make is fresh.
    !---~---
    pure subroutine snow_albedos(snow, params, albedo_vis, albedo_nir)
-      type(snow_state_t),  intent(in)  :: snow
+      type(water_layer_state_t), intent(in) :: snow
       type(water_material_t), intent(in)  :: params
       real(wp),            intent(out) :: albedo_vis, albedo_nir   ! [-]
       real(wp) :: fl
       fl = 0.0_wp
-      if (snow%nlayer >= 1_ik) fl = snow%snow_fliq(1)
+      if (ground_store_present(snow)) fl = snow%fliq
       albedo_vis = water_layer_albedo(fl, params%albedo_vis_fresh, params%albedo_vis_aged)
       albedo_nir = water_layer_albedo(fl, params%albedo_nir_fresh, params%albedo_nir_aged)
    end subroutine snow_albedos
@@ -323,7 +325,7 @@ contains
       real(wp),            intent(in)  :: dn_vis, dn_nir, dn_lw   ! [W/m2] each band reaching the ground
       real(wp),            intent(in)  :: soil_albedo_vis, soil_albedo_nir, soil_emiss   ! [-] the bare soil's optics
       real(wp),            intent(in)  :: soil_temp               ! [K] the top soil node's temperature
-      type(snow_state_t),  intent(in)  :: snow
+      type(water_layer_state_t), intent(in) :: snow
       type(water_material_t), intent(in)  :: params
       real(wp),            intent(out) :: rnet_soil, sw_snow      ! [W/m2]
       real(wp) :: snow_vis, snow_nir
@@ -337,79 +339,78 @@ contains
    !   Snowfall joins the pack as ice and rain-on-snow as liquid, with their precip_enthalpy. A
    ! layer is created only from min_new_snow_mass of new snow; with no layer and less, the
    ! pack stays empty and the precipitation reaches the ground with the throughfall. The
-   ! snowfall adds its depth at the fresh-snow density; rain fills the pores and adds none.
+   ! snowfall adds its depth at the fresh-snow density; rain fills the pores and adds none. The
+   ! pack's density over the stage mixes by volume with the snowfall's.
    !---~---
-   pure subroutine snow_accumulate(snow, snowfall, rainf, air_temp, dt, params)
-      type(snow_state_t), intent(inout) :: snow                      ! the pack
+   pure subroutine snow_accumulate(snow, density, snowfall, rainf, air_temp, dt, params)
+      type(water_layer_state_t), intent(inout) :: snow               ! the pack
+      real(wp),            intent(inout) :: density                  ! [kg/m3] its bulk density over the stage
       real(wp),            intent(in)    :: snowfall, rainf, air_temp, dt   ! [kg/m2/s], [kg/m2/s], [K], [s]
       type(water_material_t), intent(in)    :: params
       real(wp) :: dm_snow, dm_rain
       logical  :: has_layer
       dm_snow = max(0.0_wp, snowfall) * dt
       dm_rain = max(0.0_wp, rainf) * dt
-      has_layer = (snow%nlayer >= 1_ik) .or. (dm_snow >= params%min_new_snow_mass)
+      has_layer = ground_store_present(snow) .or. (dm_snow >= params%min_new_snow_mass)
       if (.not. has_layer) return                          ! bare ground and sub-threshold snow: no pack
-      if (snow%nlayer == 0_ik) snow%density(1) = params%fresh_density
-      if (snow%density(1) /= params%fresh_density)                                                        &
-         snow%density(1) = combined_density(snow%swe(1), snow%density(1), dm_snow, params%fresh_density)
-      snow%swe(1)         = snow%swe(1) + dm_snow + dm_rain
-      snow%snow_energy(1) = snow%snow_energy(1) + precip_enthalpy(dm_rain, dm_snow, air_temp)
-      snow%snow_depth(1)  = snow%snow_depth(1) + dm_snow / params%fresh_density   ! rain fills pores / refreezes -> no bulk depth
-      snow%nlayer         = 1_ik
+      if (.not. ground_store_present(snow)) density = params%fresh_density
+      if (density /= params%fresh_density)                                                        &
+         density = combined_density(snow%water, density, dm_snow, params%fresh_density)
+      snow%water        = snow%water + dm_snow + dm_rain
+      snow%energy       = snow%energy + precip_enthalpy(dm_rain, dm_snow, air_temp)
+      snow%matrix_depth = snow%matrix_depth + dm_snow / params%fresh_density   ! rain fills pores / refreezes -> no bulk depth
    end subroutine snow_accumulate
 
    !---~---
    !   Percolation: drain the free liquid above the holding capacity as a paired (mass,
    ! enthalpy) hand-off to the pond (melt_*), and dump the residual at melt-out (dump_*).
    !---~---
-   pure subroutine snow_drain_meltwater(snow, params, melt)
-      type(snow_state_t), intent(inout) :: snow     ! the pack
+   pure subroutine snow_drain_meltwater(snow, density, params, melt)
+      type(water_layer_state_t), intent(inout) :: snow     ! the pack
+      real(wp),            intent(inout) :: density  ! [kg/m3] its bulk density over the stage
       type(water_material_t), intent(in)    :: params
       type(snow_out_t),   intent(out)   :: melt     ! the drained and dumped water, mass and enthalpy
       real(wp) :: wmass_free
       melt = snow_out_t()
-      if (snow%nlayer == 0_ik) return
+      if (.not. ground_store_present(snow)) return
 
       !--- Vanished or trace layer: dump the residual to the pond and revert to bare ground.
-      if (snow%swe(1) <= params%tiny_snow_mass) then
-         melt%dump_mass  = max(0.0_wp, snow%swe(1))
-         melt%dump_enth  = snow%snow_energy(1)
-         call clear_layer(snow)
+      if (snow%water <= params%tiny_snow_mass) then
+         melt%dump_mass  = max(0.0_wp, snow%water)
+         melt%dump_enth  = snow%energy
+         call clear_layer(snow, density)
          return
       end if
 
-      call internal_energy_to_temp(snow%snow_energy(1), snow%swe(1), 0.0_wp, snow%snow_temp(1), snow%snow_fliq(1))
+      call internal_energy_to_temp(snow%energy, snow%water, 0.0_wp, snow%temp, snow%fliq)
 
       !--- Drain the free liquid above the holding capacity (LEAF-3's 1:9).
-      wmass_free = water_layer_free_water(snow%swe(1), snow%snow_fliq(1), params%liquid_holding_frac)
+      wmass_free = water_layer_free_water(snow%water, snow%fliq, params%liquid_holding_frac)
       if (wmass_free > 0.0_wp) then
-         melt%melt_mass      = wmass_free
-         melt%melt_enth      = wmass_free * internal_energy_liquid(t_3ple)   ! drains at the plateau
-         snow%swe(1)         = snow%swe(1) - wmass_free
-         snow%snow_energy(1) = snow%snow_energy(1) - melt%melt_enth
-         snow%snow_depth(1)  = snow%swe(1) / snow%density(1)
+         melt%melt_mass    = wmass_free
+         melt%melt_enth    = wmass_free * internal_energy_liquid(t_3ple)   ! drains at the plateau
+         snow%water        = snow%water - wmass_free
+         snow%energy       = snow%energy - melt%melt_enth
+         snow%matrix_depth = snow%water / density
       end if
 
       !--- Below the melt-out threshold after draining: dump the remainder to the pond.
-      if (snow%swe(1) <= params%tiny_snow_mass) then
-         melt%dump_mass  = max(0.0_wp, snow%swe(1))
-         melt%dump_enth  = snow%snow_energy(1)
-         call clear_layer(snow)
+      if (snow%water <= params%tiny_snow_mass) then
+         melt%dump_mass  = max(0.0_wp, snow%water)
+         melt%dump_enth  = snow%energy
+         call clear_layer(snow, density)
       else
-         call internal_energy_to_temp(snow%snow_energy(1), snow%swe(1), 0.0_wp, snow%snow_temp(1), snow%snow_fliq(1))
+         call internal_energy_to_temp(snow%energy, snow%water, 0.0_wp, snow%temp, snow%fliq)
       end if
    end subroutine snow_drain_meltwater
 
-   !--- Revert to the empty "no snow" state (nlayer = 0).
-   pure subroutine clear_layer(snow)
-      type(snow_state_t), intent(inout) :: snow
-      snow%swe(1)         = 0.0_wp
-      snow%snow_energy(1) = 0.0_wp
-      snow%snow_depth(1)  = 0.0_wp
-      snow%density(1)     = 0.0_wp
-      snow%snow_fliq(1)   = 0.0_wp
-      snow%snow_temp(1)   = t_3ple
-      snow%nlayer         = 0_ik
+   !--- Revert to the empty store: no water, no energy, no depth.
+   pure subroutine clear_layer(snow, density)
+      type(water_layer_state_t), intent(inout) :: snow
+      real(wp),                  intent(out)   :: density   ! [kg/m3]
+      type(water_layer_state_t) :: empty                     ! default-initialised and never written
+      snow    = empty
+      density = 0.0_wp
    end subroutine clear_layer
 
    !---~---
@@ -427,16 +428,16 @@ contains
    !   The pond joins the water layer, its water and energy; with no layer, it starts one, as
    ! ice. The pond is left empty; the layer's drainage gives back what it does not hold.
    !---~---
-   pure subroutine snow_take_pond(snow, w_pond, e_pond)
-      type(snow_state_t), intent(inout) :: snow             ! the layer
+   pure subroutine snow_take_pond(snow, density, w_pond, e_pond)
+      type(water_layer_state_t), intent(inout) :: snow      ! the layer
+      real(wp),           intent(inout) :: density          ! [kg/m3] its bulk density over the stage
       real(wp),           intent(inout) :: w_pond, e_pond   ! [kg/m2], [J/m2] the pond
-      if (snow%nlayer == 0_ik) then
-         snow%density(1)    = rho_ice
-         snow%snow_depth(1) = w_pond / rho_ice
-         snow%nlayer        = 1_ik
+      if (.not. ground_store_present(snow)) then
+         density           = rho_ice
+         snow%matrix_depth = w_pond / rho_ice
       end if
-      snow%swe(1)         = snow%swe(1) + w_pond
-      snow%snow_energy(1) = snow%snow_energy(1) + e_pond
+      snow%water  = snow%water + w_pond
+      snow%energy = snow%energy + e_pond
       w_pond = 0.0_wp
       e_pond = 0.0_wp
    end subroutine snow_take_pond
@@ -468,25 +469,26 @@ contains
       real(wp) :: back, back_enth, liq_before, t_now, fl_now, extra
       logical  :: exists, took_pond, joined
 
-      swe0      = env%pack%swe(1)
-      enth0     = env%pack%snow_energy(1)
+      swe0      = env%pack%water
+      enth0     = env%pack%energy
+      env%pack_density = water_layer_bulk_density(env%pack%water, env%pack%matrix_depth)
       w_pond0   = w_pond
       e_pond0   = e_pond
       took_pond = .false.
       joined    = .false.
-      if (env%pack%nlayer == 0_ik .and. pond_freezes(w_pond, e_pond, env%params)) then
-         call snow_take_pond(env%pack, w_pond, e_pond)           ! the frozen pond starts the layer
+      if (.not. ground_store_present(env%pack) .and. pond_freezes(w_pond, e_pond, env%params)) then
+         call snow_take_pond(env%pack, env%pack_density, w_pond, e_pond)   ! the frozen pond starts the layer
          took_pond = .true.
       end if
-      e_before = env%pack%snow_energy(1)
-      call snow_accumulate(env%pack, snowfall, rainfall, t_air, env%dt, env%params)
-      acc_enth = env%pack%snow_energy(1) - e_before      ! precipitation (rain and snow) enthalpy into the pack
-      exists   = env%pack%nlayer >= 1_ik                 ! a pack took the snow and the rain
+      e_before = env%pack%energy
+      call snow_accumulate(env%pack, env%pack_density, snowfall, rainfall, t_air, env%dt, env%params)
+      acc_enth = env%pack%energy - e_before              ! precipitation (rain and snow) enthalpy into the pack
+      exists   = ground_store_present(env%pack)          ! a pack took the snow and the rain
       liq_before = 0.0_wp                                ! the liquid the layer held before a pond joined it
       if (exists .and. .not. took_pond .and. w_pond > 0.0_wp) then
-         call internal_energy_to_temp(env%pack%snow_energy(1), env%pack%swe(1), 0.0_wp, t_now, fl_now)
-         liq_before = fl_now * env%pack%swe(1)
-         call snow_take_pond(env%pack, w_pond, e_pond)           ! the pond joins the pack
+         call internal_energy_to_temp(env%pack%energy, env%pack%water, 0.0_wp, t_now, fl_now)
+         liq_before = fl_now * env%pack%water
+         call snow_take_pond(env%pack, env%pack_density, w_pond, e_pond)   ! the pond joins the pack
          took_pond = .true.
          joined    = .true.
       end if
@@ -497,27 +499,26 @@ contains
          !   Meltwater goes to the pond with its enthalpy, valued at t_melt, and nowhere else; pack
          ! and pond are both tracked stores, so the transfer cancels in the column's ledger.
          !---~---
-         call snow_drain_meltwater(env%pack, env%params, st)
-         if (took_pond .and. env%pack%nlayer >= 1_ik) then
+         call snow_drain_meltwater(env%pack, env%pack_density, env%params, st)
+         if (took_pond .and. ground_store_present(env%pack)) then
             !---~---
             !   The pond joins the layer by freezing: its liquid does not rise into the pores, so the
             ! layer keeps no more liquid than it held before; the rest, at the plateau, drains.
             !---~---
-            call internal_energy_to_temp(env%pack%snow_energy(1), env%pack%swe(1), 0.0_wp, t_now, fl_now)
-            extra = fl_now * env%pack%swe(1) - liq_before
+            call internal_energy_to_temp(env%pack%energy, env%pack%water, 0.0_wp, t_now, fl_now)
+            extra = fl_now * env%pack%water - liq_before
             if (extra > 0.0_wp) then
                st%melt_mass = st%melt_mass + extra
                st%melt_enth = st%melt_enth + extra * internal_energy_liquid(t_3ple)
-               env%pack%swe(1)         = env%pack%swe(1) - extra
-               env%pack%snow_energy(1) = env%pack%snow_energy(1) - extra * internal_energy_liquid(t_3ple)
-               env%pack%snow_depth(1)  = env%pack%swe(1) / env%pack%density(1)
-               if (env%pack%swe(1) <= env%params%tiny_snow_mass) then
-                  st%dump_mass = st%dump_mass + max(0.0_wp, env%pack%swe(1))
-                  st%dump_enth = st%dump_enth + env%pack%snow_energy(1)
-                  call clear_layer(env%pack)
+               env%pack%water        = env%pack%water - extra
+               env%pack%energy       = env%pack%energy - extra * internal_energy_liquid(t_3ple)
+               env%pack%matrix_depth = env%pack%water / env%pack_density
+               if (env%pack%water <= env%params%tiny_snow_mass) then
+                  st%dump_mass = st%dump_mass + max(0.0_wp, env%pack%water)
+                  st%dump_enth = st%dump_enth + env%pack%energy
+                  call clear_layer(env%pack, env%pack_density)
                else
-                  call internal_energy_to_temp(env%pack%snow_energy(1), env%pack%swe(1), 0.0_wp,                  &
-                                               env%pack%snow_temp(1), env%pack%snow_fliq(1))
+                  call internal_energy_to_temp(env%pack%energy, env%pack%water, 0.0_wp, env%pack%temp, env%pack%fliq)
                end if
             end if
          end if
@@ -537,10 +538,10 @@ contains
             st%pond_mass = w_pond0 - back
             st%pond_enth = e_pond0 - back_enth
             !--- What a pack keeps of the pond that joined it adds its depth as ice.
-            if (joined .and. env%pack%nlayer >= 1_ik .and. st%pond_mass > 0.0_wp) then
-               env%pack%density(1)    = combined_density(env%pack%swe(1) - st%pond_mass, env%pack%density(1), &
-                                                         st%pond_mass, rho_ice)
-               env%pack%snow_depth(1) = env%pack%swe(1) / env%pack%density(1)
+            if (joined .and. ground_store_present(env%pack) .and. st%pond_mass > 0.0_wp) then
+               env%pack_density      = combined_density(env%pack%water - st%pond_mass, env%pack_density,      &
+                                                        st%pond_mass, rho_ice)
+               env%pack%matrix_depth = env%pack%water / env%pack_density
             end if
          end if
          st%melt_rate = (st%melt_mass + st%dump_mass) / env%dt
@@ -552,8 +553,8 @@ contains
          !   snowfac is snow, 1 - snowfac bare soil; the pack's exchange scales by it, so a patchy
          ! pack barely exchanges and its fluxes come snowfac-weighted.
          !---~---
-         if (env%pack%nlayer >= 1_ik .and. env%pack%swe(1) > env%params%tiny_snow_mass)                 &
-            env%snowfac = snow_cover_fraction(env%pack%swe(1), env%pack%snow_depth(1), env%pack%density(1), &
+         if (env%pack%water > env%params%tiny_snow_mass)                                               &
+            env%snowfac = snow_cover_fraction(env%pack%water, env%pack%matrix_depth, env%pack_density,      &
                                               env%params, ground_rough)
       end if
       st%exists   = exists
@@ -615,17 +616,17 @@ contains
       associate (snow => env%pack, params => env%params)
          flux = snow_out_t()
          af = max(0.0_wp, min(1.0_wp, area_frac))
-         if (snow%nlayer == 0_ik .or. snow%swe(1) <= params%tiny_snow_mass .or. af <= 0.0_wp) then
+         if (.not. ground_store_present(snow) .or. snow%water <= params%tiny_snow_mass .or. af <= 0.0_wp) then
             flux%t_surf = t_below                                     ! no snow surface (or zero cover) to balance
             return
          end if
 
-         swe0  = snow%swe(1)
-         e_old = snow%snow_energy(1)
+         swe0  = snow%water
+         e_old = snow%energy
          dtaf  = dt * af
          flux%snowfac = af
          call internal_energy_to_temp(e_old, swe0, 0.0_wp, t_n, fliq_n)
-         gcond = snow_base_conductance(snow%snow_depth(1), env, params)
+         gcond = snow_base_conductance(snow%matrix_depth, env, params)
 
          !---~---
          !   The fluxes at T^n and their slopes. A kilogram of vapour carries enthalpy_vapor; less
@@ -801,22 +802,23 @@ contains
    ! kilogram, so its temperature follows from the new energy. A pack whose mass is gone is
    ! left at t_3ple for snow_drain_meltwater to empty.
    !---~---
-   pure subroutine snow_take_exchange(snow, energy_amount, vapour_amount, params)
-      type(snow_state_t),  intent(inout) :: snow                            ! the pack
+   pure subroutine snow_take_exchange(snow, density, energy_amount, vapour_amount, params)
+      type(water_layer_state_t), intent(inout) :: snow                      ! the pack
+      real(wp),            intent(in)    :: density                         ! [kg/m3] its bulk density over the stage
       real(wp),            intent(in)    :: energy_amount, vapour_amount    ! [J/m2] in, [kg/m2] out
-      type(water_material_t), intent(in)    :: params
-      if (snow%nlayer == 0_ik) return
-      if (.not. (snow%swe(1) - vapour_amount >= 0.0_wp                                                      &
-                 .or. within_roundoff(snow%swe(1) - vapour_amount, snow%swe(1) + abs(vapour_amount))))         &
+      type(water_material_t), intent(in) :: params
+      if (.not. ground_store_present(snow)) return
+      if (.not. (snow%water - vapour_amount >= 0.0_wp                                                      &
+                 .or. within_roundoff(snow%water - vapour_amount, snow%water + abs(vapour_amount))))         &
          error stop 'snow_take_exchange: the pack gave the canopy air more vapour than it held'
-      snow%snow_energy(1) = snow%snow_energy(1) + energy_amount
-      snow%swe(1)         = max(0.0_wp, snow%swe(1) - vapour_amount)   ! clamp-ok: round-off (asserted)
-      snow%snow_depth(1)  = snow%swe(1) / snow%density(1)
-      if (snow%swe(1) > params%tiny_snow_mass) then
-         call internal_energy_to_temp(snow%snow_energy(1), snow%swe(1), 0.0_wp, snow%snow_temp(1), snow%snow_fliq(1))
+      snow%energy       = snow%energy + energy_amount
+      snow%water        = max(0.0_wp, snow%water - vapour_amount)   ! clamp-ok: round-off (asserted)
+      snow%matrix_depth = snow%water / density
+      if (snow%water > params%tiny_snow_mass) then
+         call internal_energy_to_temp(snow%energy, snow%water, 0.0_wp, snow%temp, snow%fliq)
       else
-         snow%snow_temp(1) = t_3ple                               ! vanished; snow_drain_meltwater dumps the rest
-         snow%snow_fliq(1) = 0.0_wp
+         snow%temp = t_3ple                               ! vanished; snow_drain_meltwater dumps the rest
+         snow%fliq = 0.0_wp
       end if
    end subroutine snow_take_exchange
 

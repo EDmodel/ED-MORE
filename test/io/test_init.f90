@@ -35,6 +35,7 @@ program test_init
    use ed_init_bare_ground,     only : init_bare_ground, seed_bare_ground, finalize_init
    use ed_constants,            only : n_soil_layer_max, rho_h2o
    use ed_ground_surface_lib,   only : porous_layer_temp
+   use ed_patch_state_vars,     only : ground_store_present
    use ed_soil_hydr_lib,        only : soil_liquid_capacity
    use ed_init,                 only : init_fast_state, init_polygon
    use ed_met_types,            only : met_forcing_t
@@ -445,7 +446,7 @@ contains
       call finalize_init(poly)
       call init_fast_state(poly, cfg)
       do ip = 1_ik, poly%patch%n
-         call check(poly%patch%snow(ip)%nlayer == 0_ik .and. poly%patch%snow(ip)%swe(1) == 0.0_wp,               &
+         call check(.not. ground_store_present(poly%patch%ground_surface(ip)%water),                             &
                     'a patch holds snow with no initial_mass')
       end do
       cfg%ground_surface%water%initial_mass = SWE
@@ -454,12 +455,12 @@ contains
       call finalize_init(poly)
       call init_fast_state(poly, cfg)
       do ip = 1_ik, poly%patch%n
-         associate (snow => poly%patch%snow(ip))
-            call check(snow%nlayer == 1_ik, 'a seeded patch does not hold one snow layer')
-            call check_close(snow%swe(1), SWE, 1.0e-15_wp, 'a seeded pack does not hold its initial_mass')
-            call check_close(snow%snow_temp(1), T_PACK, 1.0e-10_wp, 'a seeded pack''s energy does not give back its temperature')
-            call check(snow%snow_fliq(1) == 0.0_wp, 'a seeded pack below freezing holds liquid')
-            call check_close(snow%snow_depth(1), SWE / cfg%ground_surface%water%fresh_density, 1.0e-12_wp,      &
+         associate (snow => poly%patch%ground_surface(ip)%water)
+            call check(ground_store_present(snow), 'a seeded patch does not hold its water layer')
+            call check_close(snow%water, SWE, 1.0e-15_wp, 'a seeded pack does not hold its initial_mass')
+            call check_close(snow%temp, T_PACK, 1.0e-10_wp, 'a seeded pack''s energy does not give back its temperature')
+            call check(snow%fliq == 0.0_wp, 'a seeded pack below freezing holds liquid')
+            call check_close(snow%matrix_depth, SWE / cfg%ground_surface%water%fresh_density, 1.0e-12_wp,      &
                              'a seeded pack is not as deep as its water over the snow density')
          end associate
       end do
@@ -472,7 +473,8 @@ contains
       call init_bare_ground(poly, cfg, 3_ik)
       call finalize_init(poly)
       call init_fast_state(poly, cfg)
-      call check_close(poly%patch%snow(1)%snow_depth(1), SWE / cfg%ground_surface%water%fresh_density, 1.0e-12_wp,     &
+      call check_close(poly%patch%ground_surface(1)%water%matrix_depth,                                          &
+                       SWE / cfg%ground_surface%water%fresh_density, 1.0e-12_wp,     &
                        'a pack seeded at a fresh_density of 350 is as deep as its water over 350 kg/m3')
    end subroutine test_initial_snowpack
 

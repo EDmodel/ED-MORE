@@ -266,7 +266,7 @@ module ed_diag_vars
    !---~---
    integer(ik), parameter, public :: PA_TRANSP               = 38_ik  ! [kg/m2/s] canopy transpiration
    integer(ik), parameter, public :: PA_VEG_SURFACE_EVAP     = 39_ik  ! [kg/m2/s] leaf and wood surface water evaporated (dew < 0)
-   integer(ik), parameter, public :: PA_GROUND_EVAP          = 40_ik  ! [kg/m2/s] the ground's evaporation: bare soil and snow pack
+   integer(ik), parameter, public :: PA_GROUND_EVAP          = 40_ik  ! [kg/m2/s] the ground's evaporation: its layers and the soil
    integer(ik), parameter, public :: PA_DEW                  = 41_ik  ! [kg/m2/s] condensate (dew, fog) to soil layer 1
    integer(ik), parameter, public :: PA_ET                   = 42_ik  ! [kg/m2/s] evapotranspiration: the canopy air's vapour export
    !--- The water leaving the soil column: the pond's spill, the bottom flux, and their sum.
@@ -279,9 +279,9 @@ module ed_diag_vars
    !---~---
    integer(ik), parameter, public :: PA_INTERCEPT            = 46_ik  ! [kg/m2/s] rain and snow caught as surface water, net
    integer(ik), parameter, public :: PA_THROUGHFALL          = 47_ik  ! [kg/m2/s] precipitation reaching the ground
-   integer(ik), parameter, public :: PA_INFILTRATION         = 48_ik  ! [kg/m2/s] pond -> top organic slot or soil layer
-   integer(ik), parameter, public :: PA_SNOWMELT             = 49_ik  ! [kg/m2/s] meltwater the snow pack drains to the pond
-   integer(ik), parameter, public :: PA_SUBLIMATION          = 50_ik  ! [kg/m2/s] snow pack -> canopy air (deposition < 0)
+   integer(ik), parameter, public :: PA_INFILTRATION         = 48_ik  ! [kg/m2/s] free water (the pond) into the ground
+   integer(ik), parameter, public :: PA_ICE_MELT             = 49_ik  ! [kg/m2/s] meltwater the water layer drains to the pond
+   integer(ik), parameter, public :: PA_WATER_LAYER_EVAP     = 50_ik  ! [kg/m2/s] water layer -> canopy air (deposition < 0)
    integer(ik), parameter, public :: PA_SHED_WATER           = 51_ik  ! [kg/m2/s] tissue water the slow step shed to the pond
    integer(ik), parameter, public :: PA_VEG_SURFACE_OVERFLOW = 52_ik  ! [kg/m2/s] their surface water above capacity, removed
    integer(ik), parameter, public :: PA_WATER_STORE_GAIN     = 53_ik  ! [kg/m2/s] change of every water store
@@ -301,7 +301,7 @@ module ed_diag_vars
    integer(ik), parameter, public :: PA_CAS_CO2              = 59_ik  ! [umol/mol]
    integer(ik), parameter, public :: PA_CAS_VPD              = 60_ik  ! [Pa]
    integer(ik), parameter, public :: PA_SOIL_TEMP_TOP        = 61_ik  ! [K] top soil layer (the ground surface when snow-free)
-   integer(ik), parameter, public :: PA_W_SURFACE            = 62_ik  ! [kg/m2] ponded surface water
+   integer(ik), parameter, public :: PA_FREE_WATER           = 62_ik  ! [kg/m2] the free water, the pond that infiltrates
    !--- 7. Budget residuals
    integer(ik), parameter, public :: PA_RESID_ENERGY         = 63_ik  ! [W/m2] whole-column energy residual
    integer(ik), parameter, public :: PA_RESID_WATER          = 64_ik  ! [kg/m2/s] whole-column water residual
@@ -309,29 +309,31 @@ module ed_diag_vars
    integer(ik), parameter, public :: PA_BUDGET_CAS_CAP_ENERGY = 65_ik ! [W/m2]
    integer(ik), parameter, public :: PA_BUDGET_CAS_CAP_WATER  = 66_ik ! [kg/m2/s]
    integer(ik), parameter, public :: PA_BUDGET_CAS_CAP_CO2    = 67_ik ! [umol/m2/s]
-   !--- The organic layer above the soil (docs/science/surface_organic_layer.md); 0 without one.
-   integer(ik), parameter, public :: PA_ORGANIC_TEMP         = 68_ik  ! [K] its temperature
-   integer(ik), parameter, public :: PA_ORGANIC_WATER        = 69_ik  ! [kg/m2] its water, liquid and ice
-   integer(ik), parameter, public :: N_PA_FAST_ROWS         = 69_ik  ! the fast loop's last row; the slow rows follow
+   !--- The ground's surface layers (docs/science/surface_organic_layer.md, snow_biophysics.md).
+   integer(ik), parameter, public :: PA_GROUND_TOP_TEMP      = 68_ik  ! [K] the porous layers', else the top soil node's
+   integer(ik), parameter, public :: PA_LITTER_WATER         = 69_ik  ! [kg/m2] the litter's water, liquid and ice
+   integer(ik), parameter, public :: PA_MOSS_WATER           = 70_ik  ! [kg/m2] the moss's water, liquid and ice
+   integer(ik), parameter, public :: PA_WATER_LAYER_COVER    = 71_ik  ! [-] the share of the ground the water layer covers
+   integer(ik), parameter, public :: N_PA_FAST_ROWS         = 71_ik  ! the fast loop's last row; the slow rows follow
    !--- 8. SLOW rows: litter
    !---~---
    !   SLOW-loop patch diagnostics. They share this block (and its weight) with the fast rows
    ! above because the reader normalizes by w either way, and the slow driver writes them as
    ! a dt-weighted contribution over the same slow step the fast rows span.
    !---~---
-   integer(ik), parameter, public :: PA_LITTER_LEAF          = 70_ik  ! [kgC/m2/yr] leaf litterfall (after resorption)
-   integer(ik), parameter, public :: PA_LITTER_FINEROOT      = 71_ik  ! [kgC/m2/yr] fine-root litter (after resorption)
+   integer(ik), parameter, public :: PA_LITTER_LEAF          = 72_ik  ! [kgC/m2/yr] leaf litterfall (after resorption)
+   integer(ik), parameter, public :: PA_LITTER_FINEROOT      = 73_ik  ! [kgC/m2/yr] fine-root litter (after resorption)
    !---~---
    !   Litter by the tissue it came from, completing PA_LITTER_LEAF / PA_LITTER_FINEROOT:
    ! with mean_root_exudate_py they sum to the carbon entering the soil pools
    ! (docs/science/soil_carbon.md §5).
    !---~---
-   integer(ik), parameter, public :: PA_LITTER_WOOD          = 72_ik  ! [kgC/m2/yr] wood + storage of dead plants
-   integer(ik), parameter, public :: PA_LITTER_REPRO         = 73_ik  ! [kgC/m2/yr] fruit and seed that made no recruit
-   integer(ik), parameter, public :: PA_LITTER_STRUCT        = 74_ik  ! [kgC/m2/yr] structural litter + CWD
+   integer(ik), parameter, public :: PA_LITTER_WOOD          = 74_ik  ! [kgC/m2/yr] wood + storage of dead plants
+   integer(ik), parameter, public :: PA_LITTER_REPRO         = 75_ik  ! [kgC/m2/yr] fruit and seed that made no recruit
+   integer(ik), parameter, public :: PA_LITTER_STRUCT        = 76_ik  ! [kgC/m2/yr] structural litter + CWD
    !--- 9. SLOW rows: demography
-   integer(ik), parameter, public :: PA_RECRUIT_NPLANT       = 75_ik  ! [plant/m2/yr] recruitment density flux
-   integer(ik), parameter, public :: PA_DISTURB_AREA         = 76_ik  ! [1/yr] area fraction disturbed
+   integer(ik), parameter, public :: PA_RECRUIT_NPLANT       = 77_ik  ! [plant/m2/yr] recruitment density flux
+   integer(ik), parameter, public :: PA_DISTURB_AREA         = 78_ik  ! [1/yr] area fraction disturbed
    !---~---
    !   MORTALITY CARBON BY PATHWAY: the three ways an ED-MORE plant can die, kept apart so a
    ! user can tell a stand thinning continuously from one being knocked over. The three
@@ -346,10 +348,10 @@ module ed_diag_vars
    ! are switched off. Whole-individual death carries every pool (leaf + fine root +
    ! wood + storage), as the litter partitioning does.
    !---~---
-   integer(ik), parameter, public :: PA_MORT_C_BACKGROUND    = 77_ik  ! [kgC/m2/yr] continuous hazard mortality
-   integer(ik), parameter, public :: PA_MORT_C_CULL          = 78_ik  ! [kgC/m2/yr] cohorts culled below the tracking floor
-   integer(ik), parameter, public :: PA_MORT_C_DISTURB       = 79_ik  ! [kgC/m2/yr] canopy killed by patch disturbance
-   integer(ik), parameter, public :: N_PA_ROWS              = 79_ik
+   integer(ik), parameter, public :: PA_MORT_C_BACKGROUND    = 79_ik  ! [kgC/m2/yr] continuous hazard mortality
+   integer(ik), parameter, public :: PA_MORT_C_CULL          = 80_ik  ! [kgC/m2/yr] cohorts culled below the tracking floor
+   integer(ik), parameter, public :: PA_MORT_C_DISTURB       = 81_ik  ! [kgC/m2/yr] canopy killed by patch disturbance
+   integer(ik), parameter, public :: N_PA_ROWS              = 81_ik
 
    !---~---
    !   PER-POLYGON diagnostic fields: quantities that are the same everywhere in the polygon,

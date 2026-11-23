@@ -22,11 +22,11 @@ module ed_fast_diag
                                        PA_RHET, PA_RAUT, PA_APAR, PA_H_CANOPY, PA_H_GROUND, PA_HEAT_BOTTOM,      &
                                        PA_PRECIP_ENTH, PA_OUTFLOW_ENTH, PA_HEAT_GAIN_SOIL,                       &
                                        PA_HEAT_GAIN_CANOPY, PA_HEAT_GAIN_SURFACE, PA_INTERCEPT,                  &
-                                       PA_THROUGHFALL, PA_INFILTRATION, PA_SNOWMELT, PA_SUBLIMATION,             &
+                                       PA_THROUGHFALL, PA_INFILTRATION, PA_ICE_MELT, PA_WATER_LAYER_EVAP,             &
                                        PA_SHED_WATER, PA_VEG_SURFACE_OVERFLOW, PA_WATER_STORE_GAIN,              &
                                        PA_VEG_SURFACE_WATER, PA_SOIL_WATER_TOTAL, PA_PLANT_WATER,                &
-                                       PA_SW_UP, PA_SKIN_TEMP, PA_SOIL_TEMP_TOP, PA_CAS_VPD, PA_W_SURFACE,       &
-                                       PA_ORGANIC_TEMP, PA_ORGANIC_WATER,                                        &
+                                       PA_SW_UP, PA_SKIN_TEMP, PA_SOIL_TEMP_TOP, PA_CAS_VPD, PA_FREE_WATER,       &
+                                       PA_GROUND_TOP_TEMP, PA_LITTER_WATER, PA_MOSS_WATER, PA_WATER_LAYER_COVER,  &
                                        PA_RESID_ENERGY, PA_RESID_WATER, PA_WIND_CAS_TOP, PA_TAIR_CAS_TOP,        &
                                        PA_BUDGET_CAS_CAP_ENERGY, PA_BUDGET_CAS_CAP_WATER, PA_BUDGET_CAS_CAP_CO2, &
                                        PA_Z_CAS_TOP, PY_SW_IN, PY_PRECIP, PY_TAIR, PY_QAIR, PY_PSURF, PY_WIND,   &
@@ -38,6 +38,7 @@ module ed_fast_diag
    use ed_met_types,            only : met_forcing_t
    use ed_polygon_state_vars,   only : polygon_t, patch_polygon_area
    use ed_patch_state_vars,     only : ground_top_temp
+   use ed_ground_surface_params, only : POROUS_LITTER, POROUS_MOSS
    use ed_fast_integ_types,         only : fast_static_state_t, fast_dynamic_state_t, fast_forcing_t, fast_output_t,  &
                                            step_exports_t
    implicit none
@@ -174,9 +175,14 @@ contains
                              forcing%sw_up_nir, lw_up, dynamic%soil_water%w_surface,                    &
                              forcing%press, out%report%exports, leaf_resp, stem_resp, root_resp,        &
                              forcing%rainfall + forcing%snowfall, forcing%apar)
-         !--- The organic layer: its temperature, the soil top's without one, and its water.
-         prow(PA_ORGANIC_TEMP)  = ground_top_temp(dynamic%organic, dynamic%soil_energy%soil_temp(1))
-         prow(PA_ORGANIC_WATER) = sum(dynamic%organic%water)
+         !---~---
+         !   The ground's surface layers: the temperature of its top (the porous layers', the soil
+         ! top's without them), each porous layer's water, and the share the water layer covered.
+         !---~---
+         prow(PA_GROUND_TOP_TEMP)   = ground_top_temp(dynamic%ground_surface, dynamic%soil_energy%soil_temp(1))
+         prow(PA_LITTER_WATER)      = dynamic%ground_surface%porous(POROUS_LITTER)%water
+         prow(PA_MOSS_WATER)        = dynamic%ground_surface%porous(POROUS_MOSS)%water
+         prow(PA_WATER_LAYER_COVER) = out%report%exports%water_layer_cover
       end if
       !--- FAST-tier staging in the patch's and its cohorts' own slots.
       if (do_fast) then
@@ -283,7 +289,7 @@ contains
       real(wp), intent(in)  :: z_top                     ! [m]   that top (the canopy-air depth)
       !--- Top-of-canopy radiative fluxes per band.
       real(wp), intent(in)  :: sw_in_vis, sw_in_nir, sw_up_vis, sw_up_nir, lw_up
-      real(wp), intent(in)  :: w_surface                 ! [kg/m2]   ponded surface water
+      real(wp), intent(in)  :: w_surface                 ! [kg/m2]   the free water, the pond
       real(wp), intent(in)  :: press                     ! [Pa]      air pressure
       type(step_exports_t), intent(in) :: exports        ! the step's exports: water and Rh amounts over dt
       real(wp), intent(in)  :: leaf_resp, stem_resp, root_resp   ! [umol/m2/s] the cohorts' maintenance respiration
@@ -311,7 +317,7 @@ contains
       row(PA_CAS_CO2)      = cas_co2
       !--- VPD is nonlinear in temperature, so it is formed per sub-step, not from mean states.
       row(PA_CAS_VPD)      = specific_humidity_to_vpd(cas_temp, cas_shv, press)
-      row(PA_W_SURFACE)    = w_surface
+      row(PA_FREE_WATER)    = w_surface
       !--- The patch's own forcing, at its canopy-air top (docs/science/forcing.md §8).
       row(PA_WIND_CAS_TOP) = wind_top
       row(PA_TAIR_CAS_TOP) = tair_top
@@ -340,8 +346,8 @@ contains
       row(PA_INTERCEPT)        = exports%intercept_export / dt
       row(PA_THROUGHFALL)      = precip - exports%intercept_export / dt
       row(PA_INFILTRATION)     = exports%infiltration_export / dt
-      row(PA_SNOWMELT)         = exports%melt_export / dt
-      row(PA_SUBLIMATION)      = exports%sublimation_export / dt
+      row(PA_ICE_MELT)         = exports%melt_export / dt
+      row(PA_WATER_LAYER_EVAP) = exports%sublimation_export / dt
       row(PA_SHED_WATER)       = exports%shed_water_export / dt
       row(PA_VEG_SURFACE_OVERFLOW)      = exports%veg_surface_overflow_export / dt
       row(PA_WATER_STORE_GAIN) = exports%water_store_gain / dt

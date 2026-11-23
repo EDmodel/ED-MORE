@@ -22,7 +22,7 @@ program test_state_file
    use iso_c_binding,           only : c_int, c_size_t, c_double, c_char, c_null_char
    use iso_fortran_env,         only : int64
    use ed_kinds,                only : wp, ik
-   use ed_constants,            only : n_soil_layer_max, n_snow_layer_max
+   use ed_constants,            only : n_soil_layer_max
    use ed_biogeochem_params,    only : N_SOIL_POOL
    use ed_config,               only : ed_config_t, growth_window_steps
    use ed_polygon_state_vars,   only : polygon_t, alloc_polygon
@@ -255,16 +255,14 @@ contains
             pa%cas(ip)%can_temp     = 291.0_wp + x
             pa%cas(ip)%air_mass_capacity  = 24.0_wp + x
             pa%cas(ip)%air_molar_capacity = 820.0_wp + 10.0_wp * x
-            pa%snow(ip)%nlayer = 1_ik
-            pa%snow(ip)%swe(1:n_snow_layer_max)         = 4.0_wp + x
-            pa%snow(ip)%snow_energy(1:n_snow_layer_max) = -1.0e5_wp - x
-            pa%snow(ip)%snow_depth(1:n_snow_layer_max)  = 0.02_wp + x
-            pa%snow(ip)%density(1:n_snow_layer_max)     = 280.0_wp + x
-            pa%organic(ip)%mass    = [1.3_wp + x, 2.1_wp + x]
-            pa%organic(ip)%water   = [0.8_wp + x, 9.5_wp + x]
-            pa%organic(ip)%energy  = [3.1e6_wp + x, 9.2e6_wp + x]
-            pa%snow(ip)%snow_temp(1:n_snow_layer_max)   = 270.0_wp + x
-            pa%snow(ip)%snow_fliq(1:n_snow_layer_max)   = 0.05_wp + x
+            pa%ground_surface(ip)%water%water        = 4.0_wp + x
+            pa%ground_surface(ip)%water%energy       = -1.0e5_wp - x
+            pa%ground_surface(ip)%water%matrix_depth = 0.02_wp + x
+            pa%ground_surface(ip)%water%temp         = 270.0_wp + x
+            pa%ground_surface(ip)%water%fliq         = 0.05_wp + x
+            pa%ground_surface(ip)%porous%matter      = [1.3_wp + x, 2.1_wp + x]
+            pa%ground_surface(ip)%porous%water       = [0.8_wp + x, 9.5_wp + x]
+            pa%ground_surface(ip)%porous%energy      = [3.1e6_wp + x, 9.2e6_wp + x]
             pa%soil_water(ip)%theta(1:n_soil_layer_max) = [(0.20_wp + 0.005_wp * real(k, wp) + x, k = 1_ik, n_soil_layer_max)]
             pa%soil_energy(ip)%soil_energy(1:n_soil_layer_max) = [(2.0e8_wp + 1.0e6_wp * real(k, wp) + x,         &
                                                                    k = 1_ik, n_soil_layer_max)]

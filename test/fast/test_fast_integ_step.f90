@@ -58,7 +58,9 @@ program test_fast_integ_step
    use ed_fast_integ_derivs,    only : surface_derivs
    use ed_plant_hydr_lib,       only : tissue_water_to_psi
    use ed_fast_state,           only : derive_cohort_terms
-   use ed_patch_state_vars,     only : cas_set_depth, organic_state_t, organic_split_energy
+   use ed_patch_state_vars,     only : cas_set_depth, porous_layer_state_t, porous_layers_split_energy,      &
+                                       ground_store_present, porous_water
+   use ed_ground_surface_lib,   only : water_layer_bulk_density
    use ed_ground_surface_params, only : POROUS_LITTER, POROUS_MOSS
    use ed_fast_integ_types,     only : frozen_t, march_state_t, ensure_output_capacity, WORK_RK45_RESCUE,          &
                                        WORK_INTEG_STEPS, surface_state_t, surface_tend_t
@@ -177,24 +179,22 @@ contains
       col%static%shed_water_enth = d%shed * internal_energy_liquid(T0)   ! shed by tissues at T0
       !--- A pack, seeded as the model seeds its first one (250 kg/m3), at 270 K.
       if (d%snow_seed > 0.0_wp) then
-         col%dynamic%snow%swe(1)         = d%snow_seed
-         col%dynamic%snow%snow_energy(1) = temp_to_internal_energy(0.0_wp, d%snow_seed, 270.0_wp, 0.0_wp)
-         col%dynamic%snow%snow_depth(1)  = d%snow_seed / 250.0_wp
-         col%dynamic%snow%density(1)     = 250.0_wp
-         col%dynamic%snow%nlayer         = 1_ik
+         col%dynamic%ground_surface%water%water        = d%snow_seed
+         col%dynamic%ground_surface%water%energy       = temp_to_internal_energy(0.0_wp, d%snow_seed, 270.0_wp, 0.0_wp)
+         col%dynamic%ground_surface%water%matrix_depth = d%snow_seed / 250.0_wp
       end if
-      col%dynamic%organic = organic_state_t()
+      col%dynamic%ground_surface%porous = porous_layer_state_t()
       if (d%litter_seed > 0.0_wp .or. d%moss_seed > 0.0_wp) then
-         associate (org => col%dynamic%organic, o => col%cfg%ground_surface)
+         associate (org => col%dynamic%ground_surface%porous, o => col%cfg%ground_surface)
             if (d%litter_seed > 0.0_wp) then
-               org%mass(POROUS_LITTER)    = d%litter_seed
-               org%water(POROUS_LITTER)   = d%litter_theta * rho_h2o * d%litter_seed / o%porous(POROUS_LITTER)%bulk_density
+               org(POROUS_LITTER)%matter    = d%litter_seed
+               org(POROUS_LITTER)%water   = d%litter_theta * rho_h2o * d%litter_seed / o%porous(POROUS_LITTER)%bulk_density
             end if
             if (d%moss_seed > 0.0_wp) then
-               org%mass(POROUS_MOSS)    = d%moss_seed
-               org%water(POROUS_MOSS)   = d%moss_theta * rho_h2o * d%moss_seed / o%porous(POROUS_MOSS)%bulk_density
+               org(POROUS_MOSS)%matter    = d%moss_seed
+               org(POROUS_MOSS)%water   = d%moss_theta * rho_h2o * d%moss_seed / o%porous(POROUS_MOSS)%bulk_density
             end if
-            call organic_split_energy(org, temp_to_internal_energy(cp_organic * sum(org%mass), sum(org%water),     &
+            call porous_layers_split_energy(org, temp_to_internal_energy(cp_organic * sum(org%matter), sum(org%water),     &
                                                                    d%org_temp, merge(1.0_wp, 0.0_wp,               &
                                                                    d%org_temp >= t_3ple)))
          end associate
@@ -253,9 +253,10 @@ contains
                          .and. all(dy%soil_energy%soil_temp(1:NSL) < 340.0_wp)                                   &
                          .and. dy%leaf_water_mass(1) > 0.0_wp .and. dy%wood_water_mass(1) > 0.0_wp               &
                          .and. psi < 0.5_wp .and. psi > -12.0_wp
-            if (dy%snow%nlayer >= 1_ik) then
-               d%snow_physical = d%snow_physical .and. dy%snow%swe(1) >= 0.0_wp .and. dy%snow%snow_temp(1) > 200.0_wp &
-                                 .and. dy%snow%snow_temp(1) < 290.0_wp                                               &
+            if (ground_store_present(dy%ground_surface%water)) then
+               d%snow_physical = d%snow_physical .and. dy%ground_surface%water%water >= 0.0_wp                     &
+                                 .and. dy%ground_surface%water%temp > 200.0_wp                                     &
+                                 .and. dy%ground_surface%water%temp < 290.0_wp                                               &
                                  .and. all(dy%soil_energy%soil_temp(1:NSL) > 230.0_wp)                              &
                                  .and. all(dy%soil_energy%soil_temp(1:NSL) < 340.0_wp)
             end if
@@ -281,7 +282,7 @@ contains
 
    !--- The column's water at the day's end: the soil layers, the pond and the pack [kg/m2].
    real(wp) function column_water() result(w)
-      w = col%dynamic%soil_water%w_surface + col%dynamic%snow%swe(1)                                            &
+      w = col%dynamic%soil_water%w_surface + col%dynamic%ground_surface%water%water                                            &
           + sum(col%dynamic%soil_water%theta(1:NSL) * col%site%soil_profile%dz(1:NSL)) * rho_h2o
    end function column_water
 
@@ -804,22 +805,23 @@ contains
          nm = scheme_name(SCHEMES(is))
          d = day_t(snow_seed = 60.0_wp, snowfall = 2.0e-5_wp)
          call march_day(d)
-         print '(3a,f7.3,a,es10.3)', '   ', trim(nm), ' swe = ', col%dynamic%snow%swe(1),                           &
+         print '(3a,f7.3,a,es10.3)', '   ', trim(nm), ' swe = ', col%dynamic%ground_surface%water%water,                           &
                ' kg/m2; worst water residual ', col%out%report%ledgers%whole_water%worst
          call check_true(trim(nm)//' snow: the pack and the soil stay physical', d%snow_physical,                   &
-                         col%dynamic%snow%snow_temp(1))
+                         col%dynamic%ground_surface%water%temp)
          call check_true(trim(nm)//' snow: melt and sublimation drained the pack without exhausting it',            &
-                         col%dynamic%snow%swe(1) < 60.0_wp .and. col%dynamic%snow%swe(1) > 0.0_wp, col%dynamic%snow%swe(1))
+                         col%dynamic%ground_surface%water%water < 60.0_wp                                        &
+                         .and. col%dynamic%ground_surface%water%water > 0.0_wp, col%dynamic%ground_surface%water%water)
          call check_true(trim(nm)//' snow: whole-column water closes with a pack',                                 &
                          col%out%report%ledgers%whole_water%n_fail == 0_ik, real(col%out%report%ledgers%whole_water%n_fail, wp))
          call check_true(trim(nm)//' snow: whole-column energy closes to round-off with a melting pack',           &
                          col%out%report%ledgers%whole_energy%worst < 1.0e-3_wp, col%out%report%ledgers%whole_energy%worst)
          if (SCHEMES(is) == INTEG_ESDIRK2) then
-            melt_esdirk2 = 60.0_wp - col%dynamic%snow%swe(1)
+            melt_esdirk2 = 60.0_wp - col%dynamic%ground_surface%water%water
          else
             call check_true('RK45 snow: the melt total agrees with ESDIRK2''s (one shared stage, the same inputs)',  &
-                            abs((60.0_wp - col%dynamic%snow%swe(1)) - melt_esdirk2) < 0.10_wp * melt_esdirk2,       &
-                            (60.0_wp - col%dynamic%snow%swe(1)) - melt_esdirk2)
+                            abs((60.0_wp - col%dynamic%ground_surface%water%water) - melt_esdirk2) < 0.10_wp * melt_esdirk2,       &
+                            (60.0_wp - col%dynamic%ground_surface%water%water) - melt_esdirk2)
          end if
       end do
       call use_scheme(INTEG_ESDIRK2)
@@ -843,7 +845,7 @@ contains
          d = day_t(snow_seed = 60.0_wp, shed = 2.0e-8_wp)
          call march_day(d)
          print '(3a,es10.3,a,f7.3,a)', '   ', trim(nm), ' worst energy residual ',                                   &
-               col%out%report%ledgers%whole_energy%worst, ' J/m2; swe ', col%dynamic%snow%swe(1), ' kg/m2'
+               col%out%report%ledgers%whole_energy%worst, ' J/m2; swe ', col%dynamic%ground_surface%water%water, ' kg/m2'
          call check_true(trim(nm)//' shed under a pack: whole-column water closes',                                &
                          col%out%report%ledgers%whole_water%n_fail == 0_ik, real(col%out%report%ledgers%whole_water%n_fail, wp))
          call check_true(trim(nm)//' shed under a pack: whole-column energy closes to round-off',                  &
@@ -869,10 +871,12 @@ contains
          call march_day(d)
          call check_true(trim(nm)//' pond under a pack: all seven ledgers close', all_ledgers_closed(col%out%report))
          call check_true(trim(nm)//' pond under a pack: the pack froze what its cold could',                      &
-                         col%dynamic%snow%swe(1) > 61.0_wp .and. col%dynamic%snow%swe(1) < 62.1_wp,                &
-                         col%dynamic%snow%swe(1))
+                         col%dynamic%ground_surface%water%water > 61.0_wp                                        &
+                         .and. col%dynamic%ground_surface%water%water < 62.1_wp,                                 &
+                         col%dynamic%ground_surface%water%water)
          call check_true(trim(nm)//' pond under a pack: its water is ice, deeper than the snow alone',             &
-                         col%dynamic%snow%density(1) > 250.0_wp, col%dynamic%snow%density(1))
+                         water_layer_bulk_density(col%dynamic%ground_surface%water%water,                         &
+                                                  col%dynamic%ground_surface%water%matrix_depth) > 250.0_wp)
       end do
       call use_scheme(INTEG_ESDIRK2)
    end subroutine test_pond_under_pack
@@ -899,10 +903,11 @@ contains
          w0 = 0.06_wp * rho_h2o * 0.03_wp
          call march_day(d)
          call check_true(trim(nm)//' litter day: all seven ledgers close', all_ledgers_closed(col%out%report))
-         call check_true(trim(nm)//' litter day: the layer took the rain', sum(col%dynamic%organic%water) > w0,   &
-                         sum(col%dynamic%organic%water))
+         call check_true(trim(nm)//' litter day: the layer took the rain', porous_water(col%dynamic%ground_surface%porous) > w0,   &
+                         porous_water(col%dynamic%ground_surface%porous))
          call check_true(trim(nm)//' litter day: the layer holds no more than it does saturated',                 &
-                         col%dynamic%organic%water(POROUS_LITTER) <= 0.98_wp * rho_h2o * 0.03_wp * (1.0_wp + 1.0e-6_wp))
+                         col%dynamic%ground_surface%porous(POROUS_LITTER)%water                                  &
+                         <= 0.98_wp * rho_h2o * 0.03_wp * (1.0_wp + 1.0e-6_wp))
          d = day_t(litter_seed = 1.35_wp, moss_seed = 2.15_wp, moss_theta = 0.22_wp, rain_pulse = 2.0e-4_wp,       &
                    hours = 8_ik)
          w0 = 0.22_wp * rho_h2o * 0.05_wp
@@ -910,7 +915,8 @@ contains
          call check_true(trim(nm)//' litter over moss: all seven ledgers close', all_ledgers_closed(col%out%report))
          call check_true(trim(nm)//' litter over moss: physical', d%physical)
          call check_true(trim(nm)//' litter over moss: the dry moss took water',                                  &
-                         col%dynamic%organic%water(POROUS_MOSS) > w0, col%dynamic%organic%water(POROUS_MOSS))
+                         col%dynamic%ground_surface%porous(POROUS_MOSS)%water > w0,                              &
+                         col%dynamic%ground_surface%porous(POROUS_MOSS)%water)
          d = day_t(litter_seed = 1.35_wp, moss_seed = 2.15_wp, rain_pulse = 2.0e-4_wp, hours = 8_ik,               &
                    org_temp = 268.0_wp)
          t0_org = d%org_temp
@@ -918,14 +924,16 @@ contains
          call check_true(trim(nm)//' frozen layer under rain: all seven ledgers close',                          &
                          all_ledgers_closed(col%out%report))
          call check_true(trim(nm)//' frozen layer under rain: physical', d%physical)
-         call check_true(trim(nm)//' frozen layer under rain: the layer warms', col%dynamic%organic%temp > t0_org, &
-                         col%dynamic%organic%temp)
+         call check_true(trim(nm)//' frozen layer under rain: the layer warms',                                 &
+                         col%dynamic%ground_surface%porous(1)%temp > t0_org,                                     &
+                         col%dynamic%ground_surface%porous(1)%temp)
          d = day_t(litter_seed = 0.03_wp, litter_theta = 0.3_wp, rain_pulse = 2.0e-4_wp, hours = 8_ik)
          w0 = 0.3_wp * rho_h2o * 0.03_wp / 45.0_wp
          call march_day(d)
          call check_true(trim(nm)//' thin litter: all seven ledgers close', all_ledgers_closed(col%out%report))
-         call check_true(trim(nm)//' thin litter: a node too, it holds water', col%dynamic%organic%water(POROUS_LITTER) &
-                         > 0.0_wp, col%dynamic%organic%water(POROUS_LITTER))
+         call check_true(trim(nm)//' thin litter: a node too, it holds water',                                  &
+                         col%dynamic%ground_surface%porous(POROUS_LITTER)%water > 0.0_wp,                        &
+                         col%dynamic%ground_surface%porous(POROUS_LITTER)%water)
       end do
       call use_scheme(INTEG_ESDIRK2)
    end subroutine test_litter_day
@@ -996,8 +1004,8 @@ contains
       d = day_t(snowfall = SNOWFALL)
       call march_day(d)
       e_snow = ground_energy()
-      call check_true('light snowfall: it never started a pack', col%dynamic%snow%nlayer == 0_ik,                    &
-                      real(col%dynamic%snow%nlayer, wp))
+      call check_true('light snowfall: it never started a pack', .not. ground_store_present(col%dynamic%ground_surface%water), &
+                      col%dynamic%ground_surface%water%water)
       call check_true('light snowfall: whole-column energy closes to round-off',                                   &
                       col%out%report%ledgers%whole_energy%worst < 1.0e-3_wp, col%out%report%ledgers%whole_energy%worst)
       d = day_t(cold_air = .true., rain_all_day = SNOWFALL)

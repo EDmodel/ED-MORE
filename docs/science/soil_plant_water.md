@@ -203,7 +203,7 @@ Fixed in the code: the uptake ramp's width (10⁻² MPa), the transpiration corn
 | plant flows | `ed_plant_hydraulics`: `root_water_uptake`, `root_water_uptake_profile`, `xylem_sapflow` (through the Kirchhoff mean, the PFT's table from `ed_pft_derive`) and the leaves' supply limit `supply_limited_transpiration`; their conductances `rhizosphere_conductance` and `xylem_max_conductance` (`ed_plant_hydr_lib`); the flows' rounded corner `smooth_max0` (`ed_numerics`) |
 | soil flows | `ed_soil_water`: `soil_water_flux`, `ground_evaporation_rate` (its per-step terms from `ground_evaporation_setup`), `bottom_flux` |
 | one patch's step | `ed_fast_integ_frozen`: `ground_inflow` (the drive; the pond's inflow is `ed_soil_water`'s `pond_inflow`) and `organic_network_drive` (the slots), then `fast_step` calls `water_step` and `record_water_flows`, which ends with `commit_organic_water` |
-| an organic slot's curve, and its evaporation's boundary | `ed_organic_lib`: `organic_slot_curve`; `ed_soil_water`: `slot_evaporation_setup` |
+| an organic slot's curve, and its evaporation's boundary | `ed_patch_state_vars`: `porous_layer_curve`; `ed_soil_water`: `slot_evaporation_setup` |
 | plant water over the step | `ed_fast_integ_backward_euler`: `advance_plant_water` (ESDIRK2; constant rates, RK45 integrates the same rates in its stages) |
 
 ## References

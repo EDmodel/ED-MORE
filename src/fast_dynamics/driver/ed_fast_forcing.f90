@@ -156,7 +156,7 @@ contains
       ! temperature: the organic layer's where there is one, else the top soil node's.
       !---~---
       soil_albedo   = [cfg%soil%ground_albedo_vis, cfg%soil%ground_albedo_nir, 0.0_wp]
-      soil_temp_top = ground_top_temp(dynamic%organic, dynamic%soil_energy%soil_temp(1))
+      soil_temp_top = ground_top_temp(dynamic%ground_surface, dynamic%soil_energy%soil_temp(1))
       !--- A bare patch needs no special case: canopy_radiation's empty canopy gives the ground's.
 
       !--- The cohorts bottom -> top.
@@ -188,7 +188,8 @@ contains
       surf%soil_emiss  = cfg%soil%ground_emissivity
       surf%soil_temp   = soil_temp_top
       !--- A pack blends them toward its own (ed_surface).
-      call snow_blend_ground_optics(dynamic%snow, cfg%ground_surface%water, cfg%aero%soil_rough, surf%soil_albedo(RAD_VIS),   &
+      call snow_blend_ground_optics(dynamic%ground_surface%water, cfg%ground_surface%water, cfg%aero%soil_rough,           &
+                                    surf%soil_albedo(RAD_VIS),                                                       &
                                     surf%soil_albedo(RAD_NIR), surf%soil_emiss, surf%soil_temp)
       he = [.false., .false., .true.]
       call ground_optics(surf, N_RAD_BAND_DEFAULT, he, rf%grnd_refl, rf%grnd_emiss)
@@ -213,7 +214,8 @@ contains
       !--- What each tile takes of the radiation reaching the ground, at its own optics.
       call ground_tile_radiation(flux%dn_ground(RAD_VIS), flux%dn_ground(RAD_NIR), flux%dn_ground(RAD_LW),     &
                                  soil_albedo(RAD_VIS), soil_albedo(RAD_NIR), cfg%soil%ground_emissivity,       &
-                                 soil_temp_top, dynamic%snow, cfg%ground_surface%water, forcing%rnet_soil, forcing%sw_snow)
+                                 soil_temp_top, dynamic%ground_surface%water, cfg%ground_surface%water,           &
+                                 forcing%rnet_soil, forcing%sw_snow)
       forcing%lw_down_ground = flux%dn_ground(RAD_LW)
       forcing%par_per_w     = par_w_2_umol                     ! true VIS absorbed -> photon flux
       !---~---

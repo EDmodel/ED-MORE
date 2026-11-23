@@ -20,10 +20,10 @@ module ed_init
    use ed_cohort_state_vars,     only : set_cohort_tissue_water, hold_cohort_tissue_temps
    use ed_polygon_state_vars,    only : polygon_t
    use ed_slow_update,           only : update_overtopping_lai, max_cohort_count, commit_trait_carbon,  &
-                                        refresh_canopy_depth, follow_organic_slots
+                                        refresh_canopy_depth, follow_porous_layers
    use ed_slow_ledger,           only : slow_ledger_t
    use ed_soil_carbon,           only : soil_carbon_steady_pools
-   use ed_patch_state_vars,      only : soil_carbon_state_t, organic_state_t
+   use ed_patch_state_vars,      only : soil_carbon_state_t, porous_layer_state_t, water_layer_state_t
    use ed_ground_surface_lib,    only : porous_layer_matter
    use ed_ground_surface_params, only : N_POROUS, MASS_FROM_METABOLIC_LITTER, MASS_FROM_SITE_DEPTH
    use ed_biogeochem_params,     only : IP_FAST_GRND
@@ -161,19 +161,19 @@ contains
          if (verbose) write(*,'(a,f8.3,a)') ' soilc : steady-state spin-up, total = ',            &
             sum(pools%carbon), ' kgC/m2'
       end if
-      if (cfg%init%init_mode /= INIT_RESTART) call seed_organic_layer(poly, cfg)
+      if (cfg%init%init_mode /= INIT_RESTART) call seed_porous_layers(poly, cfg)
       ok = .true.
    end subroutine init_polygon
 
    !---~---
-   !   Each patch's organic layer at the start (docs/science/surface_organic_layer.md), through the
-   ! path the slow step's litter follows (follow_organic_slots), from no layer. Each layer's matter
+   !   Each patch's porous layers at the start (docs/science/surface_organic_layer.md), through the
+   ! path the slow step's litter follows (follow_porous_layers), from no layer. Each layer's matter
    ! comes from its mass_source: the above-ground metabolic litter pool's dry matter, or the site's
    ! [soil].moss_depth at its bulk density; either a layer only from min_depth. Each slot holds the water
    ! its curve holds at the top soil layer's matric head, as the water network would bring it to,
    ! at the top soil layer's temperature, its water frozen below t_3ple.
    !---~---
-   subroutine seed_organic_layer(poly, cfg)
+   subroutine seed_porous_layers(poly, cfg)
       type(polygon_t),   intent(inout) :: poly
       type(ed_config_t), intent(in)    :: cfg
       real(wp)    :: mass(N_POROUS, poly%patch%n), temp(poly%patch%n), fliq(poly%patch%n)
@@ -181,7 +181,7 @@ contains
       integer(ik) :: ip, k
       do ip = 1_ik, poly%patch%n
          associate (surf => poly%site%surface(poly%patch%owner_site(ip)), sc => poly%patch%soil_carbon(ip))
-            poly%patch%organic(ip) = organic_state_t()
+            poly%patch%ground_surface(ip)%porous = porous_layer_state_t()
             do k = 1_ik, N_POROUS
                associate (m => cfg%ground_surface%porous(k))
                   mass(k, ip) = 0.0_wp
@@ -201,8 +201,8 @@ contains
             fliq(ip) = merge(1.0_wp, 0.0_wp, temp(ip) >= t_3ple)
          end associate
       end do
-      call follow_organic_slots(poly%patch, cfg%ground_surface, mass, temp, fliq, head, heat, water)
-   end subroutine seed_organic_layer
+      call follow_porous_layers(poly%patch, cfg%ground_surface, mass, temp, fliq, head, heat, water)
+   end subroutine seed_porous_layers
 
    !--- Each site's terrain: the polygon's elevation, flat, unless its [[sites]] table gives its own.
    subroutine set_site_terrain(poly, cfg)
@@ -258,14 +258,12 @@ contains
       integer(ik) :: ipp
       associate (w => cfg%ground_surface%water)
       do ipp = 1_ik, poly%patch%n
-         poly%patch%snow(ipp)%swe(1)         = w%initial_mass
-         poly%patch%snow(ipp)%snow_energy(1) = temp_to_internal_energy(0.0_wp, w%initial_mass, w%initial_temp, 0.0_wp)
-         poly%patch%snow(ipp)%snow_depth(1)  = w%initial_mass / w%fresh_density
-         poly%patch%snow(ipp)%density(1)     = w%fresh_density
-         poly%patch%snow(ipp)%nlayer         = 1_ik
-         call internal_energy_to_temp(poly%patch%snow(ipp)%snow_energy(1), w%initial_mass, 0.0_wp,          &
-                                      poly%patch%snow(ipp)%snow_temp(1),                         &
-                                      poly%patch%snow(ipp)%snow_fliq(1))
+         associate (layer => poly%patch%ground_surface(ipp)%water)
+            layer%water        = w%initial_mass
+            layer%energy       = temp_to_internal_energy(0.0_wp, w%initial_mass, w%initial_temp, 0.0_wp)
+            layer%matrix_depth = w%initial_mass / w%fresh_density
+            call internal_energy_to_temp(layer%energy, w%initial_mass, 0.0_wp, layer%temp, layer%fliq)
+         end associate
       end do
       end associate
    end subroutine seed_snow

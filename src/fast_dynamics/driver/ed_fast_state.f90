@@ -26,7 +26,7 @@ module ed_fast_state
    use ed_cohort_state_vars,     only : cohort_block, alloc_cohort_block, init_cohort, cohort_tissue_temps,       &
                                         set_cohort_tissue_temps, hold_cohort_tissue_temps
    use ed_met_types,             only : met_forcing_t
-   use ed_patch_state_vars,      only : decomp_xi_t, organic_diagnose
+   use ed_patch_state_vars,      only : decomp_xi_t, porous_layers_diagnose
    use ed_polygon_state_vars,    only : polygon_t
    use ed_state_defaults,        only : DMAX_PSI_LEAF_ACCUM_RESET
    use ed_canopy_aerodynamics,   only : canopy_roughness, open_canopy_fraction, canopy_burial_fraction
@@ -117,7 +117,7 @@ contains
       !---~---
       do j = 1_ik, ncoh
          associate (allom => poly%cohort%pft_table%allom(static%pft(j)))
-            static%exposed(j) = crown_exposed_fraction(static%height(j), poly%patch%snow(ip)%snow_depth(1),     &
+            static%exposed(j) = crown_exposed_fraction(static%height(j), poly%patch%ground_surface(ip)%water%matrix_depth, &
                                                        allom%crown_base_fraction, allom%snow_bending)
          end associate
          static%lai(j) = static%lai(j) * static%exposed(j)
@@ -143,7 +143,8 @@ contains
          static%geom%veg_height = max(static%geom%veg_height, static%height(j))
       end do
       static%geom%opencan_frac = open_canopy_fraction(sum_lai, sum_wai)
-      static%geom%snowfac      = canopy_burial_fraction(poly%patch%snow(ip)%snow_depth(1), static%geom%veg_height)
+      static%geom%snowfac      = canopy_burial_fraction(poly%patch%ground_surface(ip)%water%matrix_depth,           &
+                                                       static%geom%veg_height)
       !---~---
       !   The canopy-air top and roughness, fixed for the day. Each forcing sample is moved to
       ! that top along the patch's log profile (docs/science/forcing.md §8).
@@ -177,9 +178,8 @@ contains
                               prof%layer_curve(1:prof%n_active), dynamic%soil_energy%soil_temp(1:prof%n_active), &
                               dynamic%soil_energy%soil_fliq(1:prof%n_active))
       end associate
-      dynamic%snow          = poly%patch%snow(ip)
-      dynamic%organic       = poly%patch%organic(ip)
-      call organic_diagnose(dynamic%organic)                   ! after a blend, as the soil's
+      dynamic%ground_surface = poly%patch%ground_surface(ip)
+      call porous_layers_diagnose(dynamic%ground_surface%porous)   ! after a blend, as the soil's
       dynamic%adapt_dt_last = poly%patch%adapt_dt_last(ip)   ! per-patch, not loop-carried
       do j = 1_ik, ncoh
          i = i0 + j - 1_ik
@@ -221,8 +221,7 @@ contains
       poly%patch%cas(ip)           = dynamic%cas
       poly%patch%soil_energy(ip)   = dynamic%soil_energy
       poly%patch%soil_water(ip)    = dynamic%soil_water
-      poly%patch%snow(ip)          = dynamic%snow
-      poly%patch%organic(ip)       = dynamic%organic
+      poly%patch%ground_surface(ip) = dynamic%ground_surface
       poly%patch%adapt_dt_last(ip) = dynamic%adapt_dt_last
       do j = 1_ik, poly%patch%cohort_count(ip)
          i = i0 + j - 1_ik

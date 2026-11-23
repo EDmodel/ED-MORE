@@ -256,7 +256,7 @@ contains
       type(fast_column_t), intent(inout) :: col
       col%forcing%rnet_soil      = col%forcing%abs_sw_ground + col%forcing%abs_lw_ground
       col%forcing%sw_snow        = col%forcing%abs_sw_ground
-      col%forcing%lw_down_ground = stefan_boltzmann * col%dynamic%snow%snow_temp(1) ** 4
+      col%forcing%lw_down_ground = stefan_boltzmann * col%dynamic%ground_surface%water%temp ** 4
    end subroutine set_ground_tiles
 
    !---~---

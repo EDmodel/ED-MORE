@@ -29,6 +29,7 @@ module ed_ground_surface_lib
    public :: porous_layer_matter
    !--- The water layer.
    public :: water_layer_free_water, water_layer_depth, matrix_depth_update, combined_density
+   public :: water_layer_bulk_density
    public :: water_layer_cover, water_layer_albedo, water_layer_resistance
 
    !---~---
@@ -237,6 +238,13 @@ contains
          depth = depth * (ice_new / ice_before)
       end if
    end function matrix_depth_update
+
+   !--- [kg/m3] A water layer's bulk density: its water [kg/m2] over its depth [m]; 0 with no depth.
+   elemental real(wp) function water_layer_bulk_density(water, depth) result(rho)
+      real(wp), intent(in) :: water, depth
+      rho = 0.0_wp
+      if (depth > 0.0_wp) rho = water / depth
+   end function water_layer_bulk_density
 
    !--- [kg/m3] The density of two masses [kg/m2] at their own densities [kg/m3], together: their volumes add.
    elemental real(wp) function combined_density(m1, rho1, m2, rho2) result(rho)

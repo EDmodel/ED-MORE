@@ -30,8 +30,9 @@ module ed_slow_update
    use ed_patch_state_vars,     only : patch_block, soil_carbon_state_t, blend_patch_stores,             &
                                        add_shed_water, patch_physical_state, DIST_TREEFALL,              &
                                        expand_patch_block, reorder_patch_block, cas_set_depth,           &
-                                       organic_present, organic_diagnose, organic_slot_capacity,         &
-                                       organic_split_energy
+                                       porous_layers_present, porous_layers_diagnose, porous_layers_split_energy, &
+                                       porous_water, porous_energy
+   use ed_ground_surface_lib,   only : porous_layer_capacity
    use ed_polygon_state_vars,   only : polygon_t, rebuild_cohort_map, assign_cohort_id,                  &
                                        patch_polygon_area, rebuild_patch_map, assign_patch_id
    use ed_allometry_lib,        only : height_to_diameter, carbon_to_structure, GROWTH_GRASS
@@ -46,7 +47,7 @@ module ed_slow_update
 
    public :: commit_vegetation_step, update_cohort_derivatives, fill_cohort_deriv, update_cohort_states
    public :: advance_pool, accumulate_recruit_pool, age_patches, update_overtopping_lai
-   public :: commit_trait_carbon, commit_soil_carbon, follow_organic_slots
+   public :: commit_trait_carbon, commit_soil_carbon, follow_porous_layers
    public :: refresh_canopy_depth, apply_recruitment, apply_patch_disturbance
    public :: sort_cohorts, max_cohort_count, fuse_cohorts, fuse_2_cohorts, split_cohorts, terminate_cohorts
    public :: sort_patches, patch_light_profile, fuse_patches, fuse_2_patches, terminate_patches
@@ -286,7 +287,7 @@ contains
    end subroutine commit_soil_carbon
 
    !---~---
-   !   Each patch's organic layer follows its slots' dry matter, target_mass
+   !   Each patch's porous layers follow their dry matter, target_mass
    ! (docs/science/surface_organic_layer.md): at a run's start the litter's pool and the site's
    ! moss, at each slow step the litter's pool. A slot's matter enters or leaves at the layer's
    ! temperature, or at t_new for a layer the matter starts. Matter that arrives brings its water:
@@ -298,7 +299,7 @@ contains
    ! and its water, which the caller declares. A layer whose matter is all gone keeps no energy:
    ! what it had left is round-off, which is asserted.
    !---~---
-   subroutine follow_organic_slots(patch, organic, target_mass, t_new, fliq_new, head_new, heat, water)
+   subroutine follow_porous_layers(patch, organic, target_mass, t_new, fliq_new, head_new, heat, water)
       type(patch_block),      intent(inout) :: patch
       type(ground_surface_layer_params_t), intent(in)    :: organic
       real(wp),               intent(in)    :: target_mass(:,:)   ! [kg/m2] (slot, patch)
@@ -314,25 +315,27 @@ contains
       heat(1:patch%n)  = 0.0_wp
       water(1:patch%n) = 0.0_wp
       do ip = 1_ik, patch%n
-         associate (org => patch%organic(ip), sw => patch%soil_water(ip))
-            changed = target_mass(:, ip) /= org%mass
+         associate (org => patch%ground_surface(ip)%porous, sw => patch%soil_water(ip))
+            do k = 1_ik, N_POROUS
+               changed(k) = target_mass(k, ip) /= org(k)%matter
+            end do
             if (.not. any(changed)) cycle
-            call organic_diagnose(org)
-            temp = org%temp
-            fliq = org%fliq
-            if (.not. organic_present(org)) then
+            call porous_layers_diagnose(org)
+            temp = org(1)%temp
+            fliq = org(1)%fliq
+            if (.not. porous_layers_present(org)) then
                temp = t_new(ip)
                fliq = fliq_new(ip)
             end if
-            e_total = sum(org%energy)
+            e_total = porous_energy(org)
             !--- The matter that arrives brings its water.
             dm  = 0.0_wp
             add = 0.0_wp
             do k = 1_ik, N_POROUS
-               dm = dm + (target_mass(k, ip) - org%mass(k))
-               if (target_mass(k, ip) <= org%mass(k)) cycle
-               if (org%mass(k) > 0.0_wp) then
-                  add(k) = org%water(k) * (target_mass(k, ip) / org%mass(k) - 1.0_wp)
+               dm = dm + (target_mass(k, ip) - org(k)%matter)
+               if (target_mass(k, ip) <= org(k)%matter) cycle
+               if (org(k)%matter > 0.0_wp) then
+                  add(k) = org(k)%water * (target_mass(k, ip) / org(k)%matter - 1.0_wp)
                else
                   m = organic%porous(k)
                   add(k) = soil_head_to_theta(m%retention, head_new(ip), m%theta_sat, m%theta_res, m%curve_par_a, m%curve_par_n) &
@@ -343,31 +346,34 @@ contains
             if (sum(add) > 0.0_wp) then
                water(ip) = sum(add)
                heat(ip)  = heat(ip) + temp_to_internal_energy(0.0_wp, sum(add), temp, fliq)
-               org%water = org%water + add
+               do k = 1_ik, N_POROUS
+                  org(k)%water = org(k)%water + add(k)
+               end do
             end if
             !--- What a changed slot holds beyond its saturation passes to the pond.
             e_excess = 0.0_wp
             do k = 1_ik, N_POROUS
                if (.not. changed(k)) cycle
-               org%mass(k) = max(0.0_wp, target_mass(k, ip))
+               org(k)%matter = max(0.0_wp, target_mass(k, ip))
                cap = 0.0_wp
-               if (org%mass(k) > 0.0_wp) cap = organic_slot_capacity(organic, org, k)
-               excess = max(0.0_wp, org%water(k) - cap)
+               if (org(k)%matter > 0.0_wp)                                                                    &
+                  cap = porous_layer_capacity(org(k)%matter, organic%porous(k)%bulk_density, organic%porous(k)%theta_sat)
+               excess = max(0.0_wp, org(k)%water - cap)
                if (excess <= 0.0_wp) cycle
                e_slot   = temp_to_internal_energy(0.0_wp, excess, temp, fliq)
                e_excess = e_excess + e_slot
-               org%water(k)        = org%water(k) - excess
+               org(k)%water        = org(k)%water - excess
                sw%w_surface        = sw%w_surface + excess
                sw%w_surface_energy = sw%w_surface_energy + e_slot
             end do
-            if (.not. organic_present(org)) then
+            if (.not. porous_layers_present(org)) then
                if (.not. within_roundoff(e_total + heat(ip) - e_excess, abs(e_total) + abs(heat(ip)) + abs(e_excess))) &
-                  error stop 'follow_organic_slots: a layer whose matter is gone keeps energy beyond round-off'
+                  error stop 'follow_porous_layers: a layer whose matter is gone keeps energy beyond round-off'
             end if
-            call organic_split_energy(org, e_total + heat(ip) - e_excess)
+            call porous_layers_split_energy(org, e_total + heat(ip) - e_excess)
          end associate
       end do
-   end subroutine follow_organic_slots
+   end subroutine follow_porous_layers
 
    !---~---
    !   The leaf and storage carbon a trait change leaves, at constant total carbon: the

@@ -8,6 +8,9 @@
 !   2. THE FAST DIAGNOSTIC BLOCK (ed_diag_vars: reorder_cohort_diag, copy_cohort_diag,
 !      clear_cohort_diag, fuse_cohort_diag, cohort_diag_value): it moves in lockstep with
 !      the cohorts, and a fused cohort's diagnostics blend by each field's own kind.
+!   3. THE GROUND'S SURFACE LAYERS (ed_patch_state_vars: blend_ground_surface, ground_surface_store,
+!      ground_store_present): two patches' layers blend by area, each store's water, energy and
+!      geometry, so the site's total is kept; a layer one patch lacks is present in the blend.
 !---~---
 program test_containers
    use ed_kinds,             only : wp, ik
@@ -20,6 +23,9 @@ program test_containers
                                     CO_SAPFLOW, CO_ABS_SW, CO_WOOD_TEMP, CO_GSW
    use ed_test_support, only : banner, build_test_config, check, check_close
    use ed_slow_state,  only : kill_report_t
+   use ed_patch_state_vars, only : ground_surface_state_t, ground_store_t, blend_ground_surface,                &
+                                   ground_surface_store, ground_store_present
+   use ed_ground_surface_params, only : POROUS_LITTER, POROUS_MOSS
    implicit none
    type(kill_report_t)  :: kills   ! what the cull and the treefall killed
    real(wp)            :: shed_water   ! an operator's shed water, unread here
@@ -111,6 +117,7 @@ program test_containers
    call check(nread <= int(size(xshort), ik), 'extractor reported more than the caller''s array holds')
 
    call test_diag_lockstep()
+   call test_ground_surface_blend()
 
    write(*,'(a)') '   PASS'
 
@@ -204,5 +211,32 @@ contains
          call check(n == 0_ik, 'inactive block reports no data and does not crash')
       end block
    end subroutine test_diag_lockstep
+
+   !--- 3. Two patches' surface layers blend by area: a pack and litter on one, moss alone on the other.
+   subroutine test_ground_surface_blend()
+      type(ground_surface_state_t) :: a, b, c
+      type(ground_store_t)         :: sa, sb, sc
+      real(wp), parameter :: W1 = 0.3_wp, W2 = 0.7_wp
+      call banner('the ground surface layers blend by area')
+      a%water%water        = 40.0_wp
+      a%water%energy       = -3.0e7_wp
+      a%water%matrix_depth = 0.16_wp
+      a%porous(POROUS_LITTER)%matter = 0.9_wp
+      a%porous(POROUS_LITTER)%water  = 2.0_wp
+      a%porous(POROUS_LITTER)%energy = 1.5e6_wp
+      b%porous(POROUS_MOSS)%matter   = 2.6_wp
+      b%porous(POROUS_MOSS)%water    = 30.0_wp
+      b%porous(POROUS_MOSS)%energy   = 3.6e7_wp
+      c  = blend_ground_surface(W1, a, W2, b)
+      sa = ground_surface_store(a)
+      sb = ground_surface_store(b)
+      sc = ground_surface_store(c)
+      call check_close(c%water%water, W1 * 40.0_wp, 1.0e-12_wp, 'the pack''s water blends by area')
+      call check_close(c%water%matrix_depth, W1 * 0.16_wp, 1.0e-12_wp, 'and its depth')
+      call check_close(c%porous(POROUS_MOSS)%matter, W2 * 2.6_wp, 1.0e-12_wp, 'the moss''s matter blends by area')
+      call check(ground_store_present(c%water), 'a pack one patch lacks is present in the blend')
+      call check_close(sc%water, W1 * sa%water + W2 * sb%water, 1.0e-12_wp, 'the layers'' water is kept')
+      call check_close(sc%energy, W1 * sa%energy + W2 * sb%energy, 1.0e-6_wp, 'and their energy')
+   end subroutine test_ground_surface_blend
 
 end program test_containers

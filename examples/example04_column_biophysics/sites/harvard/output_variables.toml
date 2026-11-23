@@ -34,8 +34,8 @@ area_pa                  = "D"
 mean_sw_up_py            = "F"     # shortwave leaving the canopy top  <-> SW_OUT
 mean_growth_resp_py      = "D"     # growth respiration (the stand's; a frozen calibration trial has none)
 # Harvard's winters and its two PFTs.
-mean_swe_py              = "D"     # snow water equivalent
-mean_snow_depth_py       = "D"     # snow depth
+mean_water_layer_mass_py = "D"     # the water layer's water: snow, ice and the liquid they hold
+mean_water_layer_depth_py = "D"    # its depth
 mean_soil_temp_layer_si  = "F"     # soil temperature, all layers  <-> TS (2-46 cm)
 mean_heat_gain_soil_py   = "F"     # heat into the soil column      <-> G
 mean_lai_pft_py          = "D"     # the deciduous and the conifer LAI

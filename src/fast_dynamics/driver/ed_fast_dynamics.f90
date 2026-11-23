@@ -252,7 +252,7 @@ contains
             patch_work(:, ip) = patch_work(:, ip) + sd%out%report%work
             call record_substep(poly, ip, isub, cfg%dt_fast, sd%static, sd%dynamic, sd%forcing, sd%out,  &
                                 do_fast, out_bufs)
-            t_buried = ground_top_temp(sd%dynamic%organic, sd%dynamic%soil_energy%soil_temp(1))
+            t_buried = ground_top_temp(sd%dynamic%ground_surface, sd%dynamic%soil_energy%soil_temp(1))
             call accumulate_fast_to_slow(poly, cfg, ip, sd%forcing, sd%out, sd%dynamic%cas%can_temp,           &
                                          sd%static%exposed(1:sd%static%n), t_buried)
          end do
