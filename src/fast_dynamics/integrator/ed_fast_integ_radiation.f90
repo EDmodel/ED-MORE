@@ -103,7 +103,8 @@ contains
       !--- What each tile takes of the radiation reaching the ground, at its own optics.
       call ground_tile_radiation(flux%dn_ground(RAD_VIS), flux%dn_ground(RAD_NIR), flux%dn_ground(RAD_LW),     &
                                  soil_albedo(RAD_VIS), soil_albedo(RAD_NIR), cfg%soil%ground_emissivity,       &
-                                 soil_temp_top, pack, cfg%ground_surface%water, forcing%rnet_soil, forcing%sw_snow)
+                                 soil_temp_top, pack, cfg%ground_surface%water, forcing%rnet_soil, forcing%sw_snow, &
+                                 forcing%sw_ground)
       forcing%lw_down_ground = flux%dn_ground(RAD_LW)
       forcing%par_per_w      = par_w_2_umol                    ! true VIS absorbed -> photon flux
       !---~---

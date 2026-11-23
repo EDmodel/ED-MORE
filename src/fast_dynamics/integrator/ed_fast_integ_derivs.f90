@@ -134,7 +134,8 @@ contains
       senv%cp_cas     = cas%cp
       senv%press      = cas%press
       senv%t_soil_top = t_ground
-      call ground_surface_exchange(senv, f%h_ground, f%le_ground, f%g_top, f%ground_rad, f%stores)
+      call ground_surface_exchange(senv, f%h_ground, f%le_ground, f%g_top, f%ground_rad, f%stores, f%stack_newton,  &
+                                   f%stack_fallback)
 
       f%src_enth   = coh_h + coh_qw + f%h_ground + f%le_ground
       f%src_vap    = coh_transp + coh_surface_evap + ground%soil_evap

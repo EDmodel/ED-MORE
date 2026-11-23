@@ -1163,7 +1163,6 @@ contains
          g%sw_snow     = 30.0_wp
          g%lw_down     = stefan_boltzmann * (T_AIR(b) - 8.0_wp) ** 4
          g%r_soil_top  = 0.05_wp / 1.5_wp
-         g%r_below     = 0.05_wp / 1.5_wp
          g%snowfac     = 0.6_wp
          g%dt          = 900.0_wp
          if (b == 3_ik) g%ggnet = 0.05_wp
@@ -1188,6 +1187,7 @@ contains
       type(water_layer_state_t) :: pack
       real(wp) :: h_ground, le_ground, g_top, ground_rad
       type(store_exchange_t) :: stores
+      integer(ik) :: it_stack, fb_stack
       env            = frozen%ground
       env%can_temp   = cas_enthalpy_to_temp(h, q)
       env%can_shv    = q
@@ -1195,7 +1195,7 @@ contains
       env%cp_cas     = frozen%cas%cp
       env%press      = frozen%cas%press
       env%t_soil_top = t_ground
-      call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, stores)
+      call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, stores, it_stack, fb_stack)
       pack = env%pack
       call water_layer_commit(pack, env%dt * stores%energy_in(STORE_SNOW), env%dt * stores%vapour_out(STORE_SNOW),  &
                               ground_store_t(), ground_store_t(), water_layer_ice(pack), env%params)

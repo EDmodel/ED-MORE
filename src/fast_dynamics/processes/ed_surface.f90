@@ -11,8 +11,8 @@
 !     and the condensate, and its ice matrix;
 !   * snow_blend_ground_optics / ground_tile_radiation -- the ground's optics under the
 !     layer, and the radiation each tile absorbs at its own;
-!   * surface_node_balance -- one node's balance over the step, the water layer's and the
-!     porous layers' alike; snow_base_conductance -- the water layer's.
+!   * surface_stack_balance -- the stack's nodes, the water layer and the porous layers, relaxed
+!     over the step together; surface_node_balance -- one node's, its neighbours held.
 !---~---
 module ed_surface
    use ed_kinds,                only : wp, ik
@@ -24,6 +24,7 @@ module ed_surface
    use ed_patch_state_vars,     only : ground_store_t, water_layer_state_t, ground_store_present, store_move,  &
                                        store_take_exchange
    use ed_ground_surface_params, only : water_material_t
+   use ed_linear_algebra,       only : thomas_solve
    use ed_ground_surface_lib,   only : water_layer_cover, water_layer_albedo, water_layer_depth,              &
                                        water_layer_free_water, water_layer_resistance, water_layer_bulk_density, &
                                        matrix_depth_update
@@ -36,7 +37,18 @@ module ed_surface
    public :: ground_tile_radiation
    public :: surface_env_t, water_stage_out_t, surface_node_t, node_flux_t, store_exchange_t
    public :: STORE_SNOW, STORE_ORGANIC, N_SURFACE_STORE
-   public :: surface_node_balance, conductance_in_series
+   public :: surface_node_balance, surface_stack_balance, conductance_in_series
+   public :: STACK_NODES_MAX
+
+   !---~---
+   !   The stack's solve (surface_stack_balance): the most nodes it holds, the water layer and the
+   ! porous layers; Newton's most iterations before the Gauss-Seidel sweeps, and their most sweeps;
+   ! and the temperature [K] within which a node's balance is met, the soil heat solve's.
+   !---~---
+   integer(ik), parameter :: STACK_NODES_MAX  = 3_ik
+   integer(ik), parameter :: STACK_NEWTON_MAX = 12_ik
+   integer(ik), parameter :: STACK_SWEEP_MAX  = 500_ik
+   real(wp),    parameter :: STACK_TEMP_TOL   = 1.0e-8_wp
 
    !---~---
    !   The ground surface's stores that exchange with the canopy air apart from the soil: the
@@ -68,13 +80,13 @@ module ed_surface
       real(wp) :: cp_cas   = cp_air                     ! [J/kg/K] its specific heat (cas_heat_capacity); dry until set
       real(wp) :: t_soil_top = 273.16_wp                ! [K] top soil node's temperature
       !---~---
-      !   The thermal resistances below the surface stores, set with the step's record
-      ! (build_frozen): from the ground's surface down to the top soil node, its depth over the top
-      ! layer's conductivity; and from the pack's base down to the node it conducts into, the
-      ! organic layer's middle where there is one, else the top soil node.
+      !   The thermal resistance from the ground's surface down to the top soil node, its depth
+      ! over the top layer's conductivity, set with the step's record (build_frozen); and the
+      ! shortwave the ground the water layer leaves absorbs per unit of its area, the porous
+      ! layers' or the bare soil's, whose node forms its longwave at its own temperature.
       !---~---
       real(wp) :: r_soil_top = 0.0_wp                   ! [m2 K/W]
-      real(wp) :: r_below    = 0.0_wp                   ! [m2 K/W]
+      real(wp) :: sw_ground  = 0.0_wp                   ! [W/m2]
       real(wp) :: soil_evap  = 0.0_wp                   ! [kg/m2/s] the bare ground's evaporation, already area-weighted
       !---~---
       !   The porous layers above the soil (docs/science/surface_organic_layer.md), one node: its
@@ -117,13 +129,13 @@ module ed_surface
    end type water_stage_out_t
 
    !---~---
-   !   One node of the ground's surface, the pack or the porous layers, as its balance over a step
-   ! reads it (surface_node_balance): its state at the step's start (its temperature and liquid
-   ! fraction read off its energy), the share of the ground it exchanges with the canopy air
-   ! over, the net radiation it absorbs per unit of that share at its temperature, its vapour,
-   ! either the canopy air's (live, from its own saturation) or the water network's rate held
-   ! over the step, per unit ground area; the heat the node above gives it, and its conductance
-   ! to the node below, both per unit ground area.
+   !   One node of the ground's surface, the water layer or the porous layers, as its balance over
+   ! a step reads it: its state at the step's start (its temperature and liquid fraction read off
+   ! its energy), the share of the ground it exchanges with the canopy air over, the net
+   ! radiation it absorbs per unit of that share at its temperature, its vapour, either the
+   ! canopy air's (live, from its own saturation) or the water network's rate held over the step,
+   ! per unit ground area; and its conductances to the node above and the node below, per unit
+   ! ground area, with their temperatures.
    !---~---
    type :: surface_node_t
       real(wp) :: dry_cap     = 0.0_wp      ! [J/m2/K] heat capacity of its dry matter (none for water)
@@ -136,7 +148,8 @@ module ed_surface
       real(wp) :: emiss       = 1.0_wp      ! [-]      its emissivity
       logical  :: vapour_held = .false.     ! its vapour is the water network's
       real(wp) :: vapour_rate = 0.0_wp      ! [kg/m2/s] that rate (< 0: dew)
-      real(wp) :: heat_above  = 0.0_wp      ! [W/m2]   from the node above, into it
+      real(wp) :: g_above     = 0.0_wp      ! [W/m2/K] to the node above
+      real(wp) :: t_above     = t_3ple      ! [K]      the node above's temperature
       real(wp) :: g_below     = 0.0_wp      ! [W/m2/K] to the node below
       real(wp) :: t_below     = t_3ple      ! [K]      the node below's temperature
    end type surface_node_t
@@ -156,96 +169,111 @@ module ed_surface
       real(wp) :: energy_in = 0.0_wp                    ! [W/m2]
    end type node_flux_t
 
+   !---~---
+   !   A node's exchange with the canopy air and its emission, linearized about its temperature at
+   ! the step's start: the sensible heat and its slope, its vapour live (and its slope) or held,
+   ! the vapour's latent heat less the water's own energy, and its emission's slope.
+   !---~---
+   type :: node_lin_t
+      real(wp) :: h_n = 0.0_wp, dh_dt = 0.0_wp           ! [W/m2], [W/m2/K]
+      real(wp) :: w_n = 0.0_wp, dw_dt = 0.0_wp           ! [kg/m2/s], [kg/m2/s/K] per unit of the node's share
+      real(wp) :: vh  = 0.0_wp                           ! [kg/m2/s] held, per unit ground area
+      real(wp) :: l_vap = 0.0_wp                         ! [J/kg]
+      real(wp) :: demit_dt = 0.0_wp                      ! [W/m2/K]
+   end type node_lin_t
+
 contains
 
    !--- Ground / surface skin
 
    !---~---
-   !   ground_surface_exchange -- the ground surface at one canopy-air and soil-top state: the
-   ! pack over its cover, its balance relaxed over the step with its own heat store
-   ! (docs/science/snow_biophysics.md, "The snow store"), conducting into the porous layers or
-   ! the soil top; the porous layers, where there are any, over the rest, conducting into the
-   ! soil top; and else the bare soil over the rest. Each node's balance is surface_node_balance,
-   ! taken top down. The fluxes are zero for a node that is absent, so with no snow and no layer
-   ! this is exactly bare ground. soil_evap already carries its snow-free area factor
-   ! (ground_evap_env_t%snow_free_frac), so le_soil is added whole.
+   !   ground_surface_exchange -- the ground surface at one canopy-air and soil-top state
+   ! (docs/science/snow_biophysics.md, "The snow store"; docs/science/surface_organic_layer.md,
+   ! Heat): its layers top down, the water layer over its cover and the porous layers over the
+   ! rest, each a thermal node, relaxed over the step together (surface_stack_balance) over the
+   ! soil top; and the bare soil over what the water layer leaves where no porous layer lies.
+   ! A node's temperature is its top face's, the one it emits and exchanges at, so the heat it
+   ! passes down crosses its whole depth to the next node's top face, and the bottom node's the
+   ! top soil node's upper part (r_soil_top) too; the water layer passes it over its cover only.
+   ! Each node forms its longwave at its own temperature. The fluxes are zero for a layer that is
+   ! absent, so with no layer this is exactly bare ground. soil_evap already carries its share
+   ! of the ground (ground_evap_env_t%snow_free_frac), so le_soil is added whole; the soil top
+   ! pays for it.
    !---~---
-   pure subroutine ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, stores)
+   pure subroutine ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, stores, iterations, fallback)
       type(surface_env_t),    intent(in)  :: env          !        the ground surface's surroundings
       real(wp),               intent(out) :: h_ground     ! [W/m2] sensible heat to the canopy air
       real(wp),               intent(out) :: le_ground    ! [W/m2] latent heat to the canopy air
       real(wp),               intent(out) :: g_top        ! [W/m2] net energy into the soil top
-      real(wp),               intent(out) :: ground_rad   ! [W/m2] net radiation, snow's and bare soil's
+      real(wp),               intent(out) :: ground_rad   ! [W/m2] net radiation, the layers' and the bare soil's
       type(store_exchange_t), intent(out) :: stores       !        each surface store's exchange (0 without it)
-      type(surface_node_t) :: org
-      type(node_flux_t)    :: sfx, ofx
-      real(wp) :: h_bare, le_soil, cover
+      integer(ik),            intent(out) :: iterations   !        the stack's Newton iterations
+      integer(ik),            intent(out) :: fallback     !        1 if the stack fell back to Gauss-Seidel sweeps
+      type(surface_node_t) :: node(STACK_NODES_MAX)
+      type(node_flux_t)    :: flux(STACK_NODES_MAX)
+      real(wp)    :: resistance(STACK_NODES_MAX), contact(STACK_NODES_MAX), cover, h_bare, le_soil
+      integer(ik) :: store(STACK_NODES_MAX), n, i
       stores = store_exchange_t()
       cover  = max(0.0_wp, min(1.0_wp, env%snowfac))
-      if (env%has_org) then
-         !--- The porous layers are the ground's surface: the pack's base conducts into them, and they into the soil top.
-         org%dry_cap = env%org_dry_cap
-         org%water   = env%org_water
-         org%energy  = env%org_energy
-         call internal_energy_to_temp(org%energy, org%water, org%dry_cap, org%temp, org%fliq)
-         call snow_node_balance(env, cover, org%temp, sfx)
-         org%area        = 1.0_wp - cover
-         org%rad         = env%rnet_soil
-         org%emiss       = env%ground_emiss
-         org%vapour_held = .true.
-         org%vapour_rate = env%org_evap_held
-         org%heat_above  = sfx%g_below
-         org%g_below     = conductance_in_series(0.5_wp * env%org_resistance, env%r_soil_top)
-         org%t_below     = env%t_soil_top
-         call surface_node_balance(org, env, ofx)
-         call ground_surface_fluxes(env%t_soil_top, env%can_temp, env%ggnet, env%rho_air, env%cp_cas,               &
-                                    env%soil_evap, h_bare, le_soil)
-         h_ground   = sfx%h  + ofx%h
-         le_ground  = sfx%le + ofx%le + le_soil
-         g_top      = ofx%g_below - le_soil
-         ground_rad = sfx%rad + ofx%rad
-         stores%energy_in(STORE_ORGANIC)  = ofx%energy_in
-         stores%vapour_out(STORE_ORGANIC) = ofx%w_flux
-      else
-         call snow_node_balance(env, cover, env%t_soil_top, sfx)
-         call ground_surface_fluxes(env%t_soil_top, env%can_temp, env%ggnet, env%rho_air, env%cp_cas,               &
-                                    env%soil_evap, h_bare, le_soil)
-         h_ground  = sfx%h  + (1.0_wp - env%snowfac) * h_bare
-         le_ground = sfx%le + le_soil
-         g_top     = sfx%g_below                                                                         &
-                     + (1.0_wp - env%snowfac) * (env%rnet_soil - h_bare)                                 &
-                     - le_soil
-         ground_rad = sfx%rad + (1.0_wp - env%snowfac) * env%rnet_soil
+      n = 0_ik
+      if (env%pack%water > 0.0_wp .and. cover > 0.0_wp) then
+         n = n + 1_ik
+         store(n)          = STORE_SNOW
+         node(n)%water     = env%pack%water
+         node(n)%energy    = env%pack%energy
+         node(n)%area      = cover
+         node(n)%emiss     = env%params%emissivity
+         node(n)%rad       = env%sw_snow
+         resistance(n)     = water_layer_resistance(layer_depth(env%pack), env%pack%matrix_depth,                  &
+                                                    env%params%conductivity_at_fresh)
+         contact(n)        = cover
       end if
-      stores%energy_in(STORE_SNOW)  = sfx%energy_in
-      stores%vapour_out(STORE_SNOW) = sfx%w_flux
+      if (env%has_org) then
+         n = n + 1_ik
+         store(n)            = STORE_ORGANIC
+         node(n)%dry_cap     = env%org_dry_cap
+         node(n)%water       = env%org_water
+         node(n)%energy      = env%org_energy
+         node(n)%area        = 1.0_wp - cover
+         node(n)%emiss       = env%ground_emiss
+         node(n)%rad         = env%sw_ground
+         node(n)%vapour_held = .true.
+         node(n)%vapour_rate = env%org_evap_held
+         resistance(n)       = env%org_resistance
+         contact(n)          = 1.0_wp
+      end if
+      do i = 1_ik, n
+         call internal_energy_to_temp(node(i)%energy, node(i)%water, node(i)%dry_cap, node(i)%temp, node(i)%fliq)
+         node(i)%rad = node(i)%rad + node(i)%emiss * (env%lw_down - stefan_boltzmann * node(i)%temp ** 4)
+         if (i < n) then
+            node(i)%g_below = contact(i) / max(resistance(i), tiny_num)
+         else
+            node(i)%g_below = contact(i) * conductance_in_series(resistance(i), env%r_soil_top)
+            node(i)%t_below = env%t_soil_top
+         end if
+         if (i > 1_ik) node(i)%g_above = node(i - 1_ik)%g_below
+      end do
+      call surface_stack_balance(node, n, env, flux, iterations, fallback)
+      call ground_surface_fluxes(env%t_soil_top, env%can_temp, env%ggnet, env%rho_air, env%cp_cas, env%soil_evap,    &
+                                 h_bare, le_soil)
+      h_ground   = 0.0_wp
+      le_ground  = le_soil
+      ground_rad = 0.0_wp
+      g_top      = -le_soil
+      do i = 1_ik, n
+         h_ground   = h_ground   + flux(i)%h
+         le_ground  = le_ground  + flux(i)%le
+         ground_rad = ground_rad + flux(i)%rad
+         stores%energy_in(store(i))  = flux(i)%energy_in
+         stores%vapour_out(store(i)) = flux(i)%w_flux
+      end do
+      if (n > 0_ik) g_top = g_top + flux(n)%g_below
+      if (.not. env%has_org) then
+         h_ground   = h_ground   + (1.0_wp - cover) * h_bare
+         ground_rad = ground_rad + (1.0_wp - cover) * env%rnet_soil
+         g_top      = g_top      + (1.0_wp - cover) * (env%rnet_soil - h_bare)
+      end if
    end subroutine ground_surface_exchange
-
-   !---~---
-   !   The pack as a node of the ground's surface, its balance over the step (surface_node_balance):
-   ! over its cover, at its own temperature's net radiation, its vapour the canopy air's, its base
-   ! conducting through the whole pack and r_below into the node below at t_below. With no pack
-   ! or no cover it exchanges nothing, and its surface is the node below's.
-   !---~---
-   pure subroutine snow_node_balance(env, cover, t_below, flux)
-      type(surface_env_t), intent(in)  :: env
-      real(wp),            intent(in)  :: cover      ! [-] the pack's cover
-      real(wp),            intent(in)  :: t_below    ! [K] the node its base conducts into
-      type(node_flux_t),   intent(out) :: flux
-      type(surface_node_t) :: pack
-      flux = node_flux_t()
-      flux%t_surf = t_below
-      if (.not. (env%pack%water > 0.0_wp .and. cover > 0.0_wp)) return
-      pack%water  = env%pack%water
-      pack%energy = env%pack%energy
-      call internal_energy_to_temp(pack%energy, pack%water, 0.0_wp, pack%temp, pack%fliq)
-      pack%area    = cover
-      pack%rad     = env%sw_snow + env%params%emissivity * (env%lw_down - stefan_boltzmann * pack%temp ** 4)
-      pack%emiss   = env%params%emissivity
-      pack%g_below = cover * snow_base_conductance(env%pack, env, env%params)
-      pack%t_below = t_below
-      call surface_node_balance(pack, env, flux)
-   end subroutine snow_node_balance
 
    !---~---
    !   Bare-ground fluxes to the canopy air, instantaneous: sensible through ggnet at the
@@ -334,123 +362,304 @@ contains
    ! snow_blend_ground_optics blends.
    !---~---
    pure subroutine ground_tile_radiation(dn_vis, dn_nir, dn_lw, soil_albedo_vis, soil_albedo_nir, soil_emiss,  &
-                                         soil_temp, snow, params, rnet_soil, sw_snow)
+                                         soil_temp, snow, params, rnet_soil, sw_snow, sw_ground)
       real(wp),            intent(in)  :: dn_vis, dn_nir, dn_lw   ! [W/m2] each band reaching the ground
       real(wp),            intent(in)  :: soil_albedo_vis, soil_albedo_nir, soil_emiss   ! [-] the bare soil's optics
       real(wp),            intent(in)  :: soil_temp               ! [K] the top soil node's temperature
       type(water_layer_state_t), intent(in) :: snow
       type(water_material_t), intent(in)  :: params
       real(wp),            intent(out) :: rnet_soil, sw_snow      ! [W/m2]
+      real(wp),            intent(out) :: sw_ground               ! [W/m2] the bare ground's shortwave alone
       real(wp) :: snow_vis, snow_nir
-      rnet_soil = dn_vis * (1.0_wp - soil_albedo_vis) + dn_nir * (1.0_wp - soil_albedo_nir)              &
-                  + soil_emiss * (dn_lw - stefan_boltzmann * soil_temp ** 4)
+      sw_ground = dn_vis * (1.0_wp - soil_albedo_vis) + dn_nir * (1.0_wp - soil_albedo_nir)
+      rnet_soil = sw_ground + soil_emiss * (dn_lw - stefan_boltzmann * soil_temp ** 4)
       call snow_albedos(snow, params, snow_vis, snow_nir)
       sw_snow = dn_vis * (1.0_wp - snow_vis) + dn_nir * (1.0_wp - snow_nir)
    end subroutine ground_tile_radiation
 
    !--- Snow -- energy side: surface fluxes, base conduction, backward-Euler energy advance.
 
-   !---~---
-   !   The pack's conductance to the node below it [W/m2/K]: the whole snow depth and r_below in
-   ! series. The pack's one temperature is its surface's, the temperature it emits and
-   ! exchanges heat and vapour at, so the heat between it and the ground crosses the whole pack. A
-   ! deepening pack decouples the soil (docs/science/snow_biophysics.md).
-   !---~---
-   pure function snow_base_conductance(layer, env, params) result(gcond)
-      type(water_layer_state_t), intent(in) :: layer
-      type(surface_env_t), intent(in) :: env
-      type(water_material_t), intent(in) :: params
-      real(wp) :: gcond
-      gcond = conductance_in_series(water_layer_resistance(layer_depth(layer), layer%matrix_depth,                &
-                                                           params%conductivity_at_fresh), env%r_below)
-   end function snow_base_conductance
 
    !---~---
-   !   One node's exchange over dt, per unit ground area, from a linearized backward-Euler balance
-   ! of its energy that is not committed (docs/science/snow_biophysics.md, "The snow store";
-   ! docs/science/surface_organic_layer.md, Heat): the balance's one root T, in closed form on the
-   ! melt plateau or else on the ice or liquid line, with its dry heat capacity on each, and the
-   ! fluxes at T. Over its share of the ground it takes its net radiation and gives sensible heat
-   ! and vapour, a kilogram of which carries enthalpy_vapor less the water's own energy; it takes
-   ! the heat from the node above and conducts into the node below. Implicit in its own
-   ! temperature, so a node of little heat capacity relaxes without overshooting. Its own vapour,
-   ! once the linearization takes it past the water it holds, is held there and the balance
-   ! solved again, so a node that loses all its water to the air ends with none of its energy;
-   ! a held vapour is the water network's, per unit ground area. The node takes the exchange's
-   ! time integral in its own commit.
+   !   surface_node_balance -- one node's exchange over dt, per unit ground area, its neighbours
+   ! held, from a linearized backward-Euler balance of its energy that is not committed
+   ! (docs/science/snow_biophysics.md, "The snow store"; docs/science/surface_organic_layer.md,
+   ! Heat): the balance's one root T, in closed form on the melt plateau or else on the ice or
+   ! liquid line, with its dry heat capacity on each, and the fluxes at T (node_fluxes). Over its
+   ! share of the ground it takes its net radiation and gives sensible heat and vapour, a
+   ! kilogram of which carries enthalpy_vapor less the water's own energy; it takes heat from the
+   ! node above and gives it to the node below, implicit in its own temperature, so a node of
+   ! little heat capacity relaxes without overshooting. Its own vapour, once the linearization
+   ! takes it past the water it holds, is held there and the balance solved again, so a node that
+   ! loses all its water to the air ends with none of its energy. The stack's Gauss-Seidel sweeps
+   ! solve each node by it.
    !---~---
    pure subroutine surface_node_balance(node, env, flux)
       type(surface_node_t), intent(in)  :: node
       type(surface_env_t),  intent(in)  :: env      ! the canopy air, the conductance to it and the step
       type(node_flux_t),    intent(out) :: flux
-      real(wp) :: a, dt, w, cd, e_old, t_n, fliq_n, h_n, dh_dt, w_n, dw_dt, vh, demit_dt, u_w, l_vap, g_n
-      real(wp) :: r0, drdt, u_freeze, u_melt, e_bal, t_new, fl_new, dtemp, w_s, w_cap, h_s, g_s, emit, u_w_new
+      type(node_lin_t) :: lin
+      real(wp) :: a, dt, w, cd, r0, drdt, u_freeze, u_melt, e_bal, t_new, fl_new, w_cap
       integer  :: pass
-      flux  = node_flux_t()
-      a     = node%area
-      dt    = env%dt
-      w     = node%water
-      cd    = node%dry_cap
-      e_old = node%energy
-      t_n   = node%temp
-      fliq_n = node%fliq
-
-      !--- The fluxes at T^n and their slopes; a kilogram of vapour takes its enthalpy less the water's energy.
-      dh_dt = sensible_heat_slope(env%ggnet, env%rho_air, env%cp_cas)
-      h_n   = dh_dt * (t_n - env%can_temp)
-      w_n   = 0.0_wp
-      dw_dt = 0.0_wp
-      vh    = 0.0_wp
-      if (node%vapour_held) then
-         vh = node%vapour_rate
-      else
-         w_n   = env%ggnet * env%rho_air * (sat_specific_humidity(t_n, env%press, fliq_n) - env%can_shv)
-         dw_dt = env%ggnet * env%rho_air * sat_specific_humidity_temp_deriv(t_n, env%press, fliq_n)
-      end if
-      demit_dt = emission_slope(node%emiss, t_n)
-      u_w   = water_specific_energy(t_n, fliq_n)                ! from the datum: a trace of water stays exact
-      l_vap = enthalpy_vapor(t_n) - u_w
-      g_n   = node%g_below * (t_n - node%t_below)
+      a  = node%area
+      dt = env%dt
+      w  = node%water
+      cd = node%dry_cap
+      call node_linearization(node, env, lin)
       w_cap = huge(1.0_wp)
       if (a > 0.0_wp .and. .not. node%vapour_held) w_cap = w / (dt * a)   ! the vapour that empties it over dt
-
       !--- Solve e(T) = E^n + dt (r0 + drdt (T - T^n)): on the plateau first, else on the ice or the liquid line.
       do pass = 1, 2
-         r0    = a * (node%rad - h_n - l_vap * w_n) - l_vap * vh + node%heat_above - g_n
-         drdt  = -(a * (demit_dt + dh_dt + l_vap * dw_dt) + node%g_below)   ! < 0
+         r0   = node_exchange(node, lin, node%temp) + node%g_above * (node%t_above - node%temp)                  &
+                - node%g_below * (node%temp - node%t_below)
+         drdt = -(a * (lin%demit_dt + lin%dh_dt + lin%l_vap * lin%dw_dt) + node%g_above + node%g_below)   ! < 0
          u_freeze = (cd + w * cp_ice) * t_3ple
          u_melt   = u_freeze + w * latent_heat_fusion
          t_new    = t_3ple
-         e_bal    = e_old + dt * (r0 + drdt * (t_3ple - t_n))
+         e_bal    = node%energy + dt * (r0 + drdt * (t_3ple - node%temp))
          fl_new   = min(1.0_wp, max(0.0_wp, (e_bal - u_freeze) / max(w * latent_heat_fusion, tiny_num)))
          if (e_bal < u_freeze) then
-            t_new  = (e_old + dt * (r0 - drdt * t_n)) / (cd + w * cp_ice - dt * drdt)
+            t_new  = (node%energy + dt * (r0 - drdt * node%temp)) / (cd + w * cp_ice - dt * drdt)
             fl_new = 0.0_wp
          else if (e_bal > u_melt) then
-            t_new  = (e_old + w * cp_liq * tsupercool_liq + dt * (r0 - drdt * t_n)) / (cd + w * cp_liq - dt * drdt)
+            t_new  = (node%energy + w * cp_liq * tsupercool_liq + dt * (r0 - drdt * node%temp))                 &
+                     / (cd + w * cp_liq - dt * drdt)
             fl_new = 1.0_wp
          end if
-         dtemp = t_new - t_n
-         w_s   = w_n + dw_dt * dtemp
-         if (w_s <= w_cap) exit
-         w_n   = w_cap                                          ! held, and solved again
-         dw_dt = 0.0_wp
+         if (lin%w_n + lin%dw_dt * (t_new - node%temp) <= w_cap) exit
+         lin%w_n   = w_cap                                      ! held, and solved again
+         lin%dw_dt = 0.0_wp
       end do
-      w_s = min(w_s, w_cap)
-
-      !--- The fluxes at T, on the linearization.
-      h_s     = h_n + dh_dt * dtemp
-      g_s     = g_n + node%g_below * dtemp
-      emit    = demit_dt * dtemp                                ! the emission added as the node moves from T^n to T
-      u_w_new = water_specific_energy(t_new, fl_new)
-      flux%t_surf    = t_new
-      flux%rad       = a * (node%rad - emit)
-      flux%h         = a * h_s
-      flux%w_flux    = a * w_s + vh
-      flux%le        = flux%w_flux * (l_vap + u_w_new)           ! the latent heat plus the leaving water's own energy
-      flux%g_below   = g_s
-      flux%energy_in = flux%rad - flux%h - flux%le + node%heat_above - g_s
+      call node_fluxes(node, lin, t_new, fl_new, flux)
    end subroutine surface_node_balance
+
+   !---~---
+   !   surface_stack_balance -- the stack's nodes, top down, relaxed over the step together: each
+   ! node's linearized backward-Euler balance (surface_node_balance's) with the heat it takes
+   ! from the node above and gives the node below implicit in both their temperatures, the
+   ! bottom node's to the soil top at its temperature held. Newton on the nodes' energies, each
+   ! node's temperature read off its energy on its own phase law (the ice line, the melt
+   ! plateau, the liquid line), so a node crossing a kink takes the next step from where it
+   ! landed; the tridiagonal system's columns are diagonally dominant, so it is never singular.
+   ! A node whose live vapour would take more than it holds has that vapour held at what empties
+   ! it, and the stack is solved again. Newton not converged within STACK_NEWTON_MAX, the nodes
+   ! are swept top down, each its own balance with its neighbours held (surface_node_balance),
+   ! until none moves by STACK_TEMP_TOL: nonlinear Gauss-Seidel, which converges here because each
+   ! node's energy rises with its own temperature and falls with its neighbours'. The fluxes are
+   ! formed once, at the solution's temperatures, so what one node gives the next takes. Returns
+   ! the Newton iterations and whether it fell back (fallback = 1).
+   !---~---
+   pure subroutine surface_stack_balance(node, n, env, flux, iterations, fallback, newton_max)
+      type(surface_node_t), intent(inout) :: node(:)       ! held vapour may be set
+      integer(ik),          intent(in)    :: n
+      type(surface_env_t),  intent(in)    :: env
+      type(node_flux_t),    intent(out)   :: flux(:)
+      integer(ik),          intent(out)   :: iterations
+      integer(ik),          intent(out)   :: fallback
+      integer(ik), optional, intent(in)   :: newton_max    ! Newton's most iterations (STACK_NEWTON_MAX)
+      type(node_lin_t)  :: lin(n)
+      type(node_flux_t) :: one
+      real(wp)    :: e(n), t(n), fl(n), dtde(n), res(n), cap(n), slope(n), lower(n), diag(n), upper(n), de(n)
+      real(wp)    :: moved
+      integer(ik) :: i, it, sweep, it_max
+      integer     :: pass
+      logical     :: converged, capped
+      iterations = 0_ik
+      fallback   = 0_ik
+      if (n == 0_ik) return
+      it_max = STACK_NEWTON_MAX
+      if (present(newton_max)) it_max = newton_max
+      do pass = 1, 2
+         do i = 1_ik, n
+            call node_linearization(node(i), env, lin(i))
+            slope(i) = -(node(i)%area * (lin(i)%demit_dt + lin(i)%dh_dt + lin(i)%l_vap * lin(i)%dw_dt)         &
+                         + node(i)%g_above + node(i)%g_below)
+         end do
+         e = node(1:n)%energy
+         converged = .false.
+         do it = 1_ik, it_max + 1_ik
+            call stack_residual(node, lin, n, env%dt, e, t, fl, dtde, res, cap)
+            if (all(abs(res) <= STACK_TEMP_TOL * (cap + env%dt * abs(slope)))) then
+               converged = .true.
+               exit
+            end if
+            if (it > it_max) exit
+            iterations = iterations + 1_ik
+            do i = 1_ik, n
+               diag(i)  = 1.0_wp - env%dt * slope(i) * dtde(i)
+               lower(i) = 0.0_wp
+               upper(i) = 0.0_wp
+               if (i > 1_ik) lower(i) = -env%dt * node(i)%g_above * dtde(i - 1_ik)
+               if (i < n)    upper(i) = -env%dt * node(i)%g_below * dtde(i + 1_ik)
+            end do
+            call thomas_solve(lower, diag, upper, -res, de, n)
+            e = e + de
+         end do
+         if (.not. converged) then
+            fallback = 1_ik
+            do sweep = 1_ik, STACK_SWEEP_MAX
+               moved = 0.0_wp
+               do i = 1_ik, n
+                  if (i > 1_ik) node(i)%t_above = t(i - 1_ik)
+                  if (i < n)    node(i)%t_below = t(i + 1_ik)
+                  call surface_node_balance(node(i), env, one)
+                  moved = max(moved, abs(one%t_surf - t(i)))
+                  t(i)  = one%t_surf
+                  call node_energy_at(node(i), lin(i), env%dt, t, i, n, e(i))
+               end do
+               if (moved <= STACK_TEMP_TOL) exit
+            end do
+            call stack_residual(node, lin, n, env%dt, e, t, fl, dtde, res, cap)
+         end if
+         !--- A live vapour past what its node holds is held at what empties it, and the stack solved again.
+         capped = .false.
+         do i = 1_ik, n
+            if (node(i)%vapour_held .or. .not. (node(i)%area > 0.0_wp)) cycle
+            if (lin(i)%w_n + lin(i)%dw_dt * (t(i) - node(i)%temp) > node(i)%water / (env%dt * node(i)%area)) then
+               node(i)%vapour_held = .true.
+               node(i)%vapour_rate = node(i)%water / env%dt
+               capped = .true.
+            end if
+         end do
+         if (.not. capped) exit
+      end do
+      !--- The fluxes at the solution, each link's once.
+      do i = 1_ik, n
+         if (i > 1_ik) node(i)%t_above = t(i - 1_ik)
+         if (i < n)    node(i)%t_below = t(i + 1_ik)
+         call node_fluxes(node(i), lin(i), t(i), fl(i), flux(i))
+      end do
+   end subroutine surface_stack_balance
+
+   !---~---
+   !   The stack's residuals at the nodes' energies e: each node's temperature, liquid fraction and
+   ! dT/dE on its phase law, its line's heat capacity (water_phase), and R = e - E^n - dt Phi,
+   ! Phi its exchange (node_exchange) plus the heat from the node above less the heat to the
+   ! node below at those temperatures, the bottom node's to the soil top at its own.
+   !---~---
+   pure subroutine stack_residual(node, lin, n, dt, e, t, fl, dtde, res, cap)
+      type(surface_node_t), intent(in)  :: node(:)
+      type(node_lin_t),     intent(in)  :: lin(:)
+      integer(ik),          intent(in)  :: n
+      real(wp),             intent(in)  :: dt, e(:)
+      real(wp),             intent(out) :: t(:), fl(:), dtde(:), res(:), cap(:)
+      real(wp)    :: phi
+      integer(ik) :: i
+      do i = 1_ik, n
+         call water_phase(e(i), node(i)%water, node(i)%dry_cap, t(i), fl(i), dtde(i), cap(i))
+      end do
+      do i = 1_ik, n
+         phi = node_exchange(node(i), lin(i), t(i))
+         if (i > 1_ik) phi = phi + node(i)%g_above * (t(i - 1_ik) - t(i))
+         if (i < n) then
+            phi = phi - node(i)%g_below * (t(i) - t(i + 1_ik))
+         else
+            phi = phi - node(i)%g_below * (t(i) - node(i)%t_below)
+         end if
+         res(i) = e(i) - node(i)%energy - dt * phi
+      end do
+   end subroutine stack_residual
+
+   !---~---
+   !   [J/m2] Node i's energy where its balance holds at the stack's temperatures t: its energy
+   ! at the step's start and dt of its exchange and its links at t, which on the melt plateau
+   ! sets its liquid fraction.
+   !---~---
+   pure subroutine node_energy_at(node, lin, dt, t, i, n, e)
+      type(surface_node_t), intent(in)  :: node
+      type(node_lin_t),     intent(in)  :: lin
+      real(wp),             intent(in)  :: dt, t(:)
+      integer(ik),          intent(in)  :: i, n
+      real(wp),             intent(out) :: e
+      real(wp) :: phi
+      phi = node_exchange(node, lin, t(i))
+      if (i > 1_ik) phi = phi + node%g_above * (t(i - 1_ik) - t(i))
+      if (i < n) then
+         phi = phi - node%g_below * (t(i) - t(i + 1_ik))
+      else
+         phi = phi - node%g_below * (t(i) - node%t_below)
+      end if
+      e = node%energy + dt * phi
+   end subroutine node_energy_at
+
+   !---~---
+   !   [W/m2] A node's exchange with the canopy air and its radiation at temperature t, per unit
+   ! ground area, on its linearization: over its share of the ground its net radiation less its
+   ! sensible heat and its vapour's latent heat, and a held vapour's latent heat.
+   !---~---
+   pure real(wp) function node_exchange(node, lin, t) result(phi)
+      type(surface_node_t), intent(in) :: node
+      type(node_lin_t),     intent(in) :: lin
+      real(wp),             intent(in) :: t
+      real(wp) :: dtemp
+      dtemp = t - node%temp
+      phi = node%area * (node%rad - lin%demit_dt * dtemp - lin%h_n - lin%dh_dt * dtemp                          &
+                         - lin%l_vap * (lin%w_n + lin%dw_dt * dtemp))                                           &
+            - lin%l_vap * lin%vh
+   end function node_exchange
+
+   !---~---
+   !   A node's linearization about its temperature at the step's start (node_lin_t): its
+   ! sensible heat through the canopy air's conductance, its vapour live from its own saturation
+   ! or the water network's held rate, the vapour's latent heat less the water's own energy
+   ! (from the datum, so a trace of water stays exact), and its emission's slope.
+   !---~---
+   pure subroutine node_linearization(node, env, lin)
+      type(surface_node_t), intent(in)  :: node
+      type(surface_env_t),  intent(in)  :: env
+      type(node_lin_t),     intent(out) :: lin
+      lin%dh_dt = sensible_heat_slope(env%ggnet, env%rho_air, env%cp_cas)
+      lin%h_n   = lin%dh_dt * (node%temp - env%can_temp)
+      if (node%vapour_held) then
+         lin%vh = node%vapour_rate
+      else
+         lin%w_n   = env%ggnet * env%rho_air * (sat_specific_humidity(node%temp, env%press, node%fliq) - env%can_shv)
+         lin%dw_dt = env%ggnet * env%rho_air * sat_specific_humidity_temp_deriv(node%temp, env%press, node%fliq)
+      end if
+      lin%demit_dt = emission_slope(node%emiss, node%temp)
+      lin%l_vap    = enthalpy_vapor(node%temp) - water_specific_energy(node%temp, node%fliq)
+   end subroutine node_linearization
+
+   !---~---
+   !   A node's fluxes at its temperature t and liquid fraction fl, the node above at t_above and
+   ! the one below at t_below, per unit ground area, positive away from the node: its net
+   ! radiation, sensible heat, vapour and its latent heat with the leaving water's own energy, its
+   ! heat to the node below, and its net gain.
+   !---~---
+   pure subroutine node_fluxes(node, lin, t, fl, flux)
+      type(surface_node_t), intent(in)  :: node
+      type(node_lin_t),     intent(in)  :: lin
+      real(wp),             intent(in)  :: t, fl
+      type(node_flux_t),    intent(out) :: flux
+      real(wp) :: dtemp
+      dtemp = t - node%temp
+      flux%t_surf    = t
+      flux%rad       = node%area * (node%rad - lin%demit_dt * dtemp)
+      flux%h         = node%area * (lin%h_n + lin%dh_dt * dtemp)
+      flux%w_flux    = node%area * (lin%w_n + lin%dw_dt * dtemp) + lin%vh
+      flux%le        = flux%w_flux * (lin%l_vap + water_specific_energy(t, fl))
+      flux%g_below   = node%g_below * (t - node%t_below)
+      flux%energy_in = flux%rad - flux%h - flux%le + node%g_above * (node%t_above - t) - flux%g_below
+   end subroutine node_fluxes
+
+   !---~---
+   !   Water with dry heat (internal_energy_to_temp) at an energy: its temperature, liquid
+   ! fraction, dT/dE (0 on the melt plateau) and the heat capacity of its line, the ice line's on
+   ! the plateau [J/m2/K].
+   !---~---
+   elemental pure subroutine water_phase(e, w, cd, t, fl, dtde, cap)
+      real(wp), intent(in)  :: e, w, cd   ! [J/m2], [kg/m2], [J/m2/K]
+      real(wp), intent(out) :: t, fl, dtde, cap
+      call internal_energy_to_temp(e, w, cd, t, fl)
+      cap  = cd + w * cp_ice
+      dtde = 0.0_wp
+      if (e < (cd + w * cp_ice) * t_3ple) then
+         dtde = 1.0_wp / max(cap, tiny_num)
+      else if (fl >= 1.0_wp) then
+         cap  = cd + w * cp_liq
+         dtde = 1.0_wp / max(cap, tiny_num)
+      end if
+   end subroutine water_phase
 
    !--- [J/kg] Water's specific internal energy at a temperature and liquid fraction (the inverter's datum).
    elemental function water_specific_energy(temp, fliq) result(u)

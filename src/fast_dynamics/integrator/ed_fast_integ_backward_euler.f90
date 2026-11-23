@@ -265,6 +265,8 @@ contains
             bf%whole_cond   = surf_tend%cond                     ! deposited into soil layer 1, not lost
             bf%whole_cond_enth = surf_tend%cond_enth   ! exactly what surface_derivs debited from the CAS
             bf%stores       = surf_tend%stores
+            bf%stack_newton   = surf_tend%stack_newton
+            bf%stack_fallback = surf_tend%stack_fallback
             bf%veg_surface_evap    = sum(surf_tend%leaf_surface_evap(1:n)) + sum(surf_tend%wood_surface_evap(1:n))
             bf%h_canopy     = surf_tend%h_canopy
             bf%h_ground     = surf_tend%h_ground

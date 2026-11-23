@@ -25,7 +25,7 @@ module ed_polygon
    use ed_stepper,                    only : run_ledgers_t, advance_one_step
    use ed_fast_integ_types,           only : WORK_WATER_NFAIL, WORK_WATER_FORCED_NEWTON, WORK_WATER_FORCED_FAST,   &
                                              WORK_WATER_FORCED_CUT, WORK_WATER_FORCED_COHORT,                      &
-                                             WORK_WATER_NODE_UNSOLVED
+                                             WORK_WATER_NODE_UNSOLVED, WORK_STACK_NEWTON, WORK_STACK_FALLBACK
    use ed_slow_update,                only : max_cohort_count
    use ed_slow_ledger,                only : slow_ledger_report
    use ed_soil_carbon,                only : soil_carbon_bad_pool
@@ -288,6 +288,10 @@ contains
                   w(WORK_WATER_NFAIL) - w(WORK_WATER_FORCED_NEWTON), '  worst eliminated = ',          &
                   w(WORK_WATER_FORCED_FAST), '  detached = ', w(WORK_WATER_FORCED_CUT), '  cohort = ', &
                   w(WORK_WATER_FORCED_COHORT), '  unsolved nodes = ', w(WORK_WATER_NODE_UNSOLVED)
+            !--- The ground surface's stack: its Newton iterations and its fallbacks to Gauss-Seidel sweeps.
+            if (w(WORK_STACK_NEWTON) + w(WORK_STACK_FALLBACK) > 0_ik)                                     &
+               write(*,'(a,i0,a,i0)') ' surface stack: newton iterations = ', w(WORK_STACK_NEWTON),         &
+                  '  gauss-seidel fallbacks = ', w(WORK_STACK_FALLBACK)
          end associate
          if (run%ledgers%energy%n_fail + run%ledgers%water%n_fail > 0_ik)                          &
             write(*,'(a,i0,a)') ' WARNING: ', run%ledgers%energy%n_fail + run%ledgers%water%n_fail,   &

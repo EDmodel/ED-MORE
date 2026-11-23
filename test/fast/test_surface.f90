@@ -46,6 +46,10 @@
 !  11. INSULATION: a deep pack colder than the soil, in balance with the air, passes the soil
 !      the heat its whole depth and the top soil node conduct in series, since its one
 !      temperature is its surface's; twice as deep, it passes less.
+!  12. THE STACK (surface_stack_balance): a thin melting pack over a thin litter over warm soil,
+!      solved together: what the nodes take is what they absorb less what they give the air and
+!      the soil; Newton's root is the Gauss-Seidel sweeps' root; a single node's is its own
+!      closed form's.
 ! The energy datum the pack is held in is test_therm_lib's.
 !---~---
 program test_surface
@@ -63,7 +67,8 @@ program test_surface
                                         N_POROUS
    use ed_soil_hydr_lib,      only : soil_layer_curve_t, soil_head_to_theta
    use ed_surface,            only : surface_env_t, water_stage_out_t, surface_node_t, node_flux_t,           &
-                                     surface_node_balance, water_layer_stage, water_layer_commit,              &
+                                     surface_node_balance, surface_stack_balance, water_layer_stage,           &
+                                     water_layer_commit,                                                        &
                                      water_layer_cover_of, water_layer_ice, ground_surface_exchange,           &
                                      store_exchange_t, STORE_SNOW, STORE_ORGANIC,                               &
                                      snow_blend_ground_optics, ground_tile_radiation, ground_surface_fluxes,    &
@@ -84,6 +89,7 @@ program test_surface
    call test_organic_slots()
    call test_organic_balance()
    call test_insulation()
+   call test_stack()
 
    call test_report('test_surface')
 
@@ -101,7 +107,6 @@ contains
       env%press       = 101325.0_wp
       env%t_soil_top  = 273.0_wp
       env%r_soil_top  = 0.05_wp / 1.5_wp
-      env%r_below     = 0.05_wp / 1.5_wp
    end subroutine cold_env
 
    !--- A pack of swe [kg/m2], all ice at temp, at the default snow density.
@@ -149,12 +154,13 @@ contains
       type(surface_env_t) :: e
       real(wp) :: h_ground, le_ground, ground_rad, snow_energy_in, snow_vapour_out
       type(store_exchange_t) :: stores
+      integer(ik) :: it_stack, fb_stack
       e = env
       call internal_energy_to_temp(snow%energy, snow%water, 0.0_wp, snow%temp, snow%fliq)
       e%pack    = snow
       e%snowfac = cover
       e%dt      = dt
-      call ground_surface_exchange(e, h_ground, le_ground, g_top, ground_rad, stores)
+      call ground_surface_exchange(e, h_ground, le_ground, g_top, ground_rad, stores, it_stack, fb_stack)
       snow_energy_in  = stores%energy_in(STORE_SNOW)
       snow_vapour_out = stores%vapour_out(STORE_SNOW)
       call water_layer_commit(snow, dt * snow_energy_in, dt * snow_vapour_out, ground_store_t(), ground_store_t(), &
@@ -286,7 +292,6 @@ contains
       env%press       = 101325.0_wp
       env%t_soil_top  = 268.0_wp
       env%r_soil_top  = 0.05_wp / 1.5_wp
-      env%r_below     = 0.05_wp / 1.5_wp
       env%can_shv     = sat_specific_humidity(268.0_wp, env%press, 0.0_wp)
       swe0   = snow%water
       tsnow0 = 268.0_wp
@@ -330,9 +335,8 @@ contains
       env%can_shv     = sat_specific_humidity(T_PACK, env%press, 0.0_wp)
       env%t_soil_top  = T_SOIL
       env%r_soil_top  = 0.05_wp / 1.5_wp
-      env%r_below     = 0.05_wp / 1.5_wp
       snow = cold_pack(SWE, T_PACK, p)
-      g_expect = (T_PACK - T_SOIL) / (snow%matrix_depth / p%conductivity_at_fresh + env%r_below)
+      g_expect = (T_PACK - T_SOIL) / (snow%matrix_depth / p%conductivity_at_fresh + env%r_soil_top)
       call snow_step(snow, env, 1.0_wp, 60.0_wp, gain, vapour, g_top)
       call check('the soil loses what the whole pack and its top node conduct', g_top, g_expect,           &
                  1.0e-3_wp * abs(g_expect))
@@ -384,7 +388,6 @@ contains
       env%press       = 101325.0_wp
       env%t_soil_top  = t_3ple
       env%r_soil_top  = 0.025_wp / 1.5_wp
-      env%r_below     = 0.025_wp / 1.5_wp
 
       !--- (a) A cold pack (243 K) under warm, moist canopy air: it warms toward the air, not past it.
       snow = cold_pack(SWE, 243.0_wp, p)
@@ -439,14 +442,14 @@ contains
       type(water_material_t) :: p
       real(wp), parameter :: DN_VIS = 150.0_wp, DN_NIR = 150.0_wp, DN_LW = 280.0_wp   ! [W/m2] reaching the ground
       real(wp), parameter :: SOIL_VIS = 0.10_wp, SOIL_NIR = 0.20_wp, SOIL_EMISS = 0.95_wp, T_SOIL = 275.0_wp
-      real(wp) :: fc, a_vis, a_nir, emiss, temp, rnet_soil, sw_snow, rnet_snow, blended
+      real(wp) :: fc, a_vis, a_nir, emiss, temp, rnet_soil, sw_snow, sw_ground, rnet_snow, blended
       print '(a)', 'test_tile_radiation:'
       snow = cold_pack(8.0_wp, 263.0_wp, p)                  ! 3.2 cm deep: cover ~0.47
       call internal_energy_to_temp(snow%energy, snow%water, 0.0_wp, snow%temp, snow%fliq)
       fc = water_layer_cover_of(snow, .true., p, 0.01_wp)
       call check_true('a patchy pack', fc > 0.05_wp .and. fc < 0.95_wp, fc)
       call ground_tile_radiation(DN_VIS, DN_NIR, DN_LW, SOIL_VIS, SOIL_NIR, SOIL_EMISS, T_SOIL, snow, p,          &
-                                 rnet_soil, sw_snow)
+                                 rnet_soil, sw_snow, sw_ground)
       rnet_snow = sw_snow + p%emissivity * (DN_LW - stefan_boltzmann * snow%temp ** 4)
       a_vis = SOIL_VIS
       a_nir = SOIL_NIR
@@ -468,6 +471,7 @@ contains
       type(surface_env_t) :: env
       real(wp) :: cp_cas, h_bare, le_soil, h_2k, h_ground, le_ground, g_top, ground_rad
       type(store_exchange_t) :: stores
+      integer(ik) :: it_stack, fb_stack
       print '(a)', 'test_ground_balance:'
       cp_cas = cas_heat_capacity(Q_CAS)
       call ground_surface_fluxes(T_GROUND, T_GROUND, GGNET, RHO, cp_cas, 0.0_wp, h_bare, le_soil)
@@ -485,7 +489,7 @@ contains
       env%rho_air    = RHO
       env%cp_cas     = cp_cas
       env%t_soil_top = T_GROUND
-      call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, stores)
+      call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, stores, it_stack, fb_stack)
       call check('the ground surface''s exchange takes the canopy air''s specific heat', h_ground, h_bare,        &
                  1.0e-12_wp * h_bare)
    end subroutine test_ground_balance
@@ -676,6 +680,7 @@ contains
       type(water_material_t)    :: p
       real(wp) :: w_max, h_ground, le_ground, g_top, ground_rad, s_in, o_in, dry_depth
       type(store_exchange_t) :: stores
+      integer(ik) :: it_stack, fb_stack
       print '(a)', 'test_organic_balance:'
       org = porous_layer_state_t()                                    ! litter alone: 1.35 kg/m2, 2.6 kJ/m2/K dry
       org(POROUS_LITTER)%matter    = 0.03_wp * o%porous(POROUS_LITTER)%bulk_density
@@ -736,7 +741,7 @@ contains
       env%org_evap_held = 0.0_wp
       env%soil_evap = 1.0e-6_wp
       env%snowfac   = 0.0_wp
-      call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, stores)
+      call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, stores, it_stack, fb_stack)
       s_in = stores%energy_in(STORE_SNOW)
       o_in = stores%energy_in(STORE_ORGANIC)
       node = porous_node(env, 1.0_wp)
@@ -750,7 +755,7 @@ contains
       env%params  = p
       env%pack    = cold_pack(30.0_wp, 265.0_wp, p)
       env%snowfac = 0.9_wp
-      call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, stores)
+      call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, stores, it_stack, fb_stack)
       s_in = stores%energy_in(STORE_SNOW)
       o_in = stores%energy_in(STORE_ORGANIC)
       call check('pack and layer: the ground''s energy closes', ground_rad - h_ground - le_ground - g_top,          &
@@ -803,11 +808,11 @@ contains
       node%energy  = env%org_energy
       call internal_energy_to_temp(node%energy, node%water, node%dry_cap, node%temp, node%fliq)
       node%area        = open_share
-      node%rad         = env%rnet_soil
       node%emiss       = env%ground_emiss
+      node%rad         = env%sw_ground + node%emiss * (env%lw_down - stefan_boltzmann * node%temp ** 4)
       node%vapour_held = .true.
       node%vapour_rate = env%org_evap_held
-      node%g_below     = conductance_in_series(0.5_wp * env%org_resistance, env%r_soil_top)
+      node%g_below     = conductance_in_series(env%org_resistance, env%r_soil_top)
       node%t_below     = env%t_soil_top
    end function porous_node
 
@@ -820,5 +825,64 @@ contains
       call internal_energy_to_temp(node%energy + dt * flux%energy_in, node%water - dt * flux%w_flux, node%dry_cap,  &
                                    t, fl)
    end function committed_temp
+
+   !--- 12. The stack: a thin melting pack over a 0.3 mm litter over warm soil.
+   subroutine test_stack()
+      type(surface_env_t)  :: env
+      type(water_material_t) :: p
+      type(surface_node_t) :: node(2), one(1), base(2)
+      type(node_flux_t)    :: flux(2), fl1(1), single
+      integer(ik) :: it, fb
+      real(wp) :: t_newton(2), gain, given
+      print '(a)', 'test_stack:'
+      call cold_env(env)
+      env%dt      = 900.0_wp
+      env%can_temp = 276.0_wp
+      env%can_shv  = 4.0e-3_wp
+      env%t_soil_top = 280.0_wp
+      !--- The pack: 0.5 kg/m2 at the plateau, a tenth liquid, over half the ground.
+      node(1)%water  = 0.5_wp
+      node(1)%energy = temp_to_internal_energy(0.0_wp, 0.5_wp, t_3ple, 0.1_wp)
+      node(1)%area   = 0.5_wp
+      node(1)%emiss  = p%emissivity
+      !--- The litter: 0.3 mm (13.5 g/m2), half its pores filled, at 278 K, its vapour the network's.
+      node(2)%dry_cap     = cp_organic * 0.0135_wp
+      node(2)%water       = 0.13_wp
+      node(2)%energy      = temp_to_internal_energy(cp_organic * 0.0135_wp, 0.13_wp, 278.0_wp, 1.0_wp)
+      node(2)%area        = 0.5_wp
+      node(2)%emiss       = 0.95_wp
+      node(2)%vapour_held = .true.
+      node(2)%vapour_rate = 1.0e-6_wp
+      call internal_energy_to_temp(node(1)%energy, node(1)%water, 0.0_wp, node(1)%temp, node(1)%fliq)
+      call internal_energy_to_temp(node(2)%energy, node(2)%water, node(2)%dry_cap, node(2)%temp, node(2)%fliq)
+      node(1)%rad     = 150.0_wp + node(1)%emiss * (env%lw_down - stefan_boltzmann * node(1)%temp ** 4)
+      node(2)%rad     = 100.0_wp + node(2)%emiss * (env%lw_down - stefan_boltzmann * node(2)%temp ** 4)
+      node(1)%g_below = 0.5_wp / 0.05_wp
+      node(2)%g_above = node(1)%g_below
+      node(2)%g_below = conductance_in_series(3.0e-3_wp, env%r_soil_top)
+      node(2)%t_below = env%t_soil_top
+      base = node
+      call surface_stack_balance(node, 2_ik, env, flux, it, fb)
+      t_newton = flux%t_surf
+      call check_true('the stack: Newton converges', it > 0_ik .and. fb == 0_ik, real(it, wp))
+      gain  = flux(1)%energy_in + flux(2)%energy_in
+      given = flux(1)%rad + flux(2)%rad - flux(1)%h - flux(2)%h - flux(1)%le - flux(2)%le - flux(2)%g_below
+      call check('the stack: what the nodes take is what they absorb less what they give', gain, given,            &
+                 1.0e-9_wp * abs(given))
+      call check('the stack: the pack gives the litter what the litter takes', flux(1)%g_below,                     &
+                 base(2)%g_above * (flux(1)%t_surf - flux(2)%t_surf), 1.0e-9_wp)
+      node = base
+      call surface_stack_balance(node, 2_ik, env, flux, it, fb, newton_max=0_ik)
+      call check_true('the stack: the Gauss-Seidel sweeps take over', fb == 1_ik)
+      call check('the stack: their root is Newton''s, the pack', flux(1)%t_surf, t_newton(1), 1.0e-6_wp)
+      call check('the stack: their root is Newton''s, the litter', flux(2)%t_surf, t_newton(2), 1.0e-6_wp)
+      !--- One node: the stack's root is the node's own closed form.
+      one(1) = base(2)
+      one(1)%g_above = 0.0_wp
+      call surface_node_balance(one(1), env, single)
+      call surface_stack_balance(one, 1_ik, env, fl1, it, fb)
+      call check('the stack of one: its closed form', fl1(1)%t_surf, single%t_surf, 1.0e-9_wp)
+      call check('the stack of one: its gain', fl1(1)%energy_in, single%energy_in, 1.0e-7_wp)
+   end subroutine test_stack
 
 end program test_surface

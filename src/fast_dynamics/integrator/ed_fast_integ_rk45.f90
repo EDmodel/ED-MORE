@@ -93,6 +93,8 @@ contains
       bf%whole_cond    = surf_tend%cond
       bf%whole_cond_enth = surf_tend%cond_enth   ! exactly what surface_derivs debited from the CAS
       bf%stores        = surf_tend%stores
+      bf%stack_newton   = surf_tend%stack_newton
+      bf%stack_fallback = surf_tend%stack_fallback
       bf%veg_surface_evap     = sum(surf_tend%leaf_surface_evap) + sum(surf_tend%wood_surface_evap)
       bf%h_canopy      = surf_tend%h_canopy
       bf%h_ground      = surf_tend%h_ground
@@ -269,6 +271,8 @@ contains
                                + B4*s(4)%stores%energy_in  + B6*s(6)%stores%energy_in) * dt
       acc%stores%vapour_out = (B1*s(1)%stores%vapour_out + B3*s(3)%stores%vapour_out                        &
                                + B4*s(4)%stores%vapour_out + B6*s(6)%stores%vapour_out) * dt
+      acc%stack_newton   = sum(s%stack_newton)
+      acc%stack_fallback = sum(s%stack_fallback)
       acc%veg_surface_evap = (B1*s(1)%veg_surface_evap + B3*s(3)%veg_surface_evap + B4*s(4)%veg_surface_evap     &
                               + B6*s(6)%veg_surface_evap) * dt
       acc%h_canopy       = (B1*s(1)%h_canopy       + B3*s(3)%h_canopy       + B4*s(4)%h_canopy                 &

@@ -183,7 +183,6 @@ contains
                                                                     dynamic%soil_energy%soil_fliq(1),             &
                                                                     prof%theta_sat(1), prof%solid_conductivity(1), &
                                                                     prof%dry_conductivity(1)), tiny_num)
-         frozen%ground%r_below    = frozen%ground%r_soil_top
       end associate
 
       call tissue_coefficients(dt_fast, cfg, static, forcing, dynamic, out%aero, rho, cp_cas, frozen%tissue,          &
@@ -786,6 +785,7 @@ contains
       cas%press = press
       ground%rnet_soil = forcing%rnet_soil
       ground%sw_snow   = forcing%sw_snow
+      ground%sw_ground = forcing%sw_ground
       ground%lw_down   = forcing%lw_down_ground
       ground%ggnet     = aero%ggnet
    end subroutine canopy_air_boundary
@@ -856,7 +856,6 @@ contains
          path  = path + organic_cover_path(depth * (1.0_wp - fill), 0.0_wp, m%theta_sat)
       end do
       frozen%ground%org_dry_resist = path / vapour_diffusivity(frozen%porous(1)%temp)
-      frozen%ground%r_below        = max(0.5_wp * frozen%ground%org_resistance, tiny_num)
    end subroutine organic_ground_sums
 
    !---~---

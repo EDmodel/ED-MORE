@@ -46,7 +46,7 @@ module ed_fast_integ_types
              WORK_WATER_NFAIL, WORK_RK45_RESCUE, WORK_CLAMP_STAGE, WORK_WATER_FORCED_NEWTON,                      &
              WORK_WATER_FORCED_FAST, WORK_WATER_FORCED_CUT, WORK_WATER_FORCED_COHORT, WORK_WATER_NODE_UNSOLVED,  &
              WORK_WATER_FAST_POND, WORK_WATER_FAST_SLOT, WORK_WATER_FAST_LAYER, WORK_WATER_CUT_POND,             &
-             WORK_WATER_CUT_SLOT, WORK_WATER_CUT_LAYER, N_WORK
+             WORK_WATER_CUT_SLOT, WORK_WATER_CUT_LAYER, WORK_STACK_NEWTON, WORK_STACK_FALLBACK, N_WORK
    public :: GRP_ENTH, GRP_SHV, GRP_CO2, GRP_SE, GRP_LEAF_W, GRP_WOOD_W, GRP_THETA, N_TOL_GROUP
    public :: tol_set_t, error_control_t
    public :: ensure_static_capacity, ensure_dynamic_capacity, ensure_forcing_capacity, ensure_output_capacity
@@ -272,6 +272,7 @@ module ed_fast_integ_types
       !--- Each ground tile's radiation per unit of its own area (ground_tile_radiation).
       real(wp)              :: rnet_soil     = 0.0_wp   ! [W/m2] the bare soil's net all-wave radiation
       real(wp)              :: sw_snow       = 0.0_wp   ! [W/m2] the shortwave the snow absorbs
+      real(wp)              :: sw_ground     = 0.0_wp   ! [W/m2] the shortwave the ground beneath it absorbs
       real(wp)              :: lw_down_ground = 0.0_wp  ! [W/m2] the longwave reaching the ground
       real(wp)              :: rainfall      = 0.0_wp   ! [kg/m2/s] reference-level rainfall (intercepted downstream)
       real(wp)              :: snowfall      = 0.0_wp   ! [kg/m2/s] snowfall (drives snow accumulation)
@@ -338,7 +339,13 @@ module ed_fast_integ_types
    integer(ik), parameter :: WORK_WATER_CUT_POND   = 17_ik
    integer(ik), parameter :: WORK_WATER_CUT_SLOT   = 18_ik
    integer(ik), parameter :: WORK_WATER_CUT_LAYER  = 19_ik
-   integer(ik), parameter :: N_WORK                = 19_ik
+   !---~---
+   !   The ground surface's stack (surface_stack_balance) over the evaluations the march committed:
+   ! its Newton iterations, and the evaluations that fell back to Gauss-Seidel sweeps.
+   !---~---
+   integer(ik), parameter :: WORK_STACK_NEWTON     = 20_ik
+   integer(ik), parameter :: WORK_STACK_FALLBACK   = 21_ik
+   integer(ik), parameter :: N_WORK                = 21_ik
 
    !---~---
    !   The per-patch conservation ledgers. The per-kernel ledgers close by construction;
@@ -523,6 +530,8 @@ module ed_fast_integ_types
       real(wp) :: cond_enth      = 0.0_wp     ! [W/m2]     liquid enthalpy the sink debited from the CAS
       real(wp) :: ground_rad     = 0.0_wp     ! [W/m2]     the ground's net radiation, snow's and bare soil's
       type(store_exchange_t) :: stores        ! [W/m2], [kg/m2/s] each surface store's exchange (0 without it)
+      integer(ik) :: stack_newton   = 0_ik    ! the ground surface stack's Newton iterations (surface_stack_balance)
+      integer(ik) :: stack_fallback = 0_ik    ! 1 if it fell back to Gauss-Seidel sweeps
       real(wp), allocatable :: leaf_temp(:)   ! [K]        diagnosed per-cohort leaf temperature
       real(wp), allocatable :: wood_temp(:)   ! [K]        diagnosed per-cohort wood temperature
       real(wp), allocatable :: transp_c(:)    ! [kg/m2/s]  per-cohort transpiration demand
@@ -825,6 +834,7 @@ module ed_fast_integ_types
       real(wp) :: whole_cond    = 0.0_wp                         ! [kg/m2/s] condensate
       real(wp) :: whole_cond_enth = 0.0_wp                       ! [W/m2] its liquid enthalpy at the stage CAS temperature
       type(store_exchange_t) :: stores                           ! [W/m2], [kg/m2/s] each surface store's exchange
+      integer(ik) :: stack_newton = 0_ik, stack_fallback = 0_ik   ! the stage's surface stack's work (surface_tend_t's)
       real(wp) :: veg_surface_evap = 0.0_wp                      ! [kg/m2/s] leaf and wood surface water evaporated (dew < 0)
       real(wp) :: h_canopy     = 0.0_wp                          ! [W/m2]    the leaves' and wood's sensible heat to the CAS
       real(wp) :: h_ground     = 0.0_wp                          ! [W/m2]    the ground's (soil, snow) sensible heat to the CAS
@@ -861,6 +871,7 @@ module ed_fast_integ_types
       real(wp) :: whole_cond_enth = 0.0_wp ! [J/m2]
       !--- Each surface store's exchange over the step [J/m2, kg/m2], which the update commits to it.
       type(store_exchange_t) :: stores
+      integer(ik) :: stack_newton = 0_ik, stack_fallback = 0_ik   ! the stages' surface stack's work, summed
       real(wp) :: veg_surface_evap    = 0.0_wp    ! [kg/m2] leaf and wood surface water evaporated (dew < 0)
       real(wp) :: h_canopy     = 0.0_wp    ! [J/m2]  the leaves' and wood's sensible heat to the CAS
       real(wp) :: h_ground     = 0.0_wp    ! [J/m2]  the ground's (soil, snow) sensible heat to the CAS
@@ -1274,6 +1285,8 @@ contains
       acc%whole_cond_enth = b2*s2%whole_cond_enth + b3*s3%whole_cond_enth
       acc%stores%energy_in  = b2*s2%stores%energy_in  + b3*s3%stores%energy_in
       acc%stores%vapour_out = b2*s2%stores%vapour_out + b3*s3%stores%vapour_out
+      acc%stack_newton      = s2%stack_newton + s3%stack_newton
+      acc%stack_fallback    = s2%stack_fallback + s3%stack_fallback
       acc%veg_surface_evap = b2*s2%veg_surface_evap + b3*s3%veg_surface_evap
       acc%h_canopy      = b2*s2%h_canopy      + b3*s3%h_canopy
       acc%h_ground      = b2*s2%h_ground      + b3*s3%h_ground
@@ -1315,6 +1328,8 @@ contains
       acc%whole_cond_enth = acc%whole_cond_enth + s%whole_cond_enth
       acc%stores%energy_in  = acc%stores%energy_in  + s%stores%energy_in
       acc%stores%vapour_out = acc%stores%vapour_out + s%stores%vapour_out
+      acc%stack_newton      = acc%stack_newton + s%stack_newton
+      acc%stack_fallback    = acc%stack_fallback + s%stack_fallback
       acc%veg_surface_evap = acc%veg_surface_evap + s%veg_surface_evap
       acc%h_canopy      = acc%h_canopy      + s%h_canopy
       acc%h_ground      = acc%h_ground      + s%h_ground

@@ -19,7 +19,8 @@ module ed_fast_integ_stepper
    use ed_fast_integ_types,       only : fast_static_state_t, fast_dynamic_state_t, fast_forcing_t, fast_output_t,     &
                                      fast_workspace_t, step_exports_t, march_state_t, frozen_t,           &
                                      boundary_flux_t, error_control_t, WORK_INTEG_STEPS, WORK_INTEG_REJECT,        &
-                                     WORK_RK45_RESCUE, WORK_CLAMP_STAGE, state_init, state_sub, zero_like,         &
+                                     WORK_RK45_RESCUE, WORK_CLAMP_STAGE, WORK_STACK_NEWTON, WORK_STACK_FALLBACK,   &
+                                     state_init, state_sub, zero_like,                                             &
                                      bflux_zero, bflux_add
    use ed_fast_integ_control,       only : build_error_control, state_wrms_grouped, step_control_factor
    use ed_fast_integ_frozen,        only : build_frozen, record_water_flows
@@ -139,6 +140,8 @@ contains
       !--- Work counters; the water network's own work is counted in water_step.
       out%report%work(WORK_INTEG_STEPS)  = nsteps
       out%report%work(WORK_INTEG_REJECT) = nrej
+      out%report%work(WORK_STACK_NEWTON)   = acc%stack_newton
+      out%report%work(WORK_STACK_FALLBACK) = acc%stack_fallback
 
       call update_dynamic_state(dt_fast, cfg, site, static, frozen, acc, dt_warm, y_out, dynamic, out, moved)
       call close_ledgers(dt_fast, site, forcing, static, frozen, y, y_out, acc, moved, ec%debug_error, out%report)
