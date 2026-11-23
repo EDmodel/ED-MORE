@@ -58,9 +58,8 @@ program test_fast_integ_step
    use ed_fast_integ_derivs,    only : surface_derivs
    use ed_plant_hydr_lib,       only : tissue_water_to_psi
    use ed_fast_state,           only : derive_cohort_terms
-   use ed_patch_state_vars,     only : cas_set_depth
-   use ed_organic_lib,        only : organic_state_t, organic_split_energy
-   use ed_organic_lib,       only : SLOT_LITTER, SLOT_MOSS
+   use ed_patch_state_vars,     only : cas_set_depth, organic_state_t, organic_split_energy
+   use ed_ground_surface_params, only : POROUS_LITTER, POROUS_MOSS
    use ed_fast_integ_types,     only : frozen_t, march_state_t, ensure_output_capacity, WORK_RK45_RESCUE,          &
                                        WORK_INTEG_STEPS, surface_state_t, surface_tend_t
    use ed_test_fast_fixture,    only : fast_column_t, make_fast_column, gather_column, reset_column, step_column,  &
@@ -186,14 +185,14 @@ contains
       end if
       col%dynamic%organic = organic_state_t()
       if (d%litter_seed > 0.0_wp .or. d%moss_seed > 0.0_wp) then
-         associate (org => col%dynamic%organic, o => col%cfg%organic)
+         associate (org => col%dynamic%organic, o => col%cfg%ground_surface)
             if (d%litter_seed > 0.0_wp) then
-               org%mass(SLOT_LITTER)    = d%litter_seed
-               org%water(SLOT_LITTER)   = d%litter_theta * rho_h2o * d%litter_seed / o%litter%bulk_density
+               org%mass(POROUS_LITTER)    = d%litter_seed
+               org%water(POROUS_LITTER)   = d%litter_theta * rho_h2o * d%litter_seed / o%porous(POROUS_LITTER)%bulk_density
             end if
             if (d%moss_seed > 0.0_wp) then
-               org%mass(SLOT_MOSS)    = d%moss_seed
-               org%water(SLOT_MOSS)   = d%moss_theta * rho_h2o * d%moss_seed / o%moss%bulk_density
+               org%mass(POROUS_MOSS)    = d%moss_seed
+               org%water(POROUS_MOSS)   = d%moss_theta * rho_h2o * d%moss_seed / o%porous(POROUS_MOSS)%bulk_density
             end if
             call organic_split_energy(org, temp_to_internal_energy(cp_organic * sum(org%mass), sum(org%water),     &
                                                                    d%org_temp, merge(1.0_wp, 0.0_wp,               &
@@ -670,7 +669,7 @@ contains
          call check_true(trim(nm)//' sealed: the column reached theta_sat (the saturation path is live)',          &
                          d%theta_peak >= 0.43_wp - 1.0e-12_wp, d%theta_peak)
          call check_true(trim(nm)//' sealed: the pond overflowed (the runoff path is live)',                       &
-                         d%pond_peak >= col%site%soil%w_pond_max - 1.0e-9_wp, d%pond_peak)
+                         d%pond_peak >= col%cfg%ground_surface%water%pond_capacity - 1.0e-9_wp, d%pond_peak)
          !---~---
          !   Energy as a bound: nothing clamps the committed state, but whether a stage clamp bites
          ! depends on the trajectory and the compiler; a clamp that rebuilt the committed soil
@@ -710,7 +709,7 @@ contains
          call check_true(trim(nm)//' sealed: theta above theta_sat only through specific storage (hydrostatic head)', &
                          d%theta_peak <= 0.43_wp + SOIL_SPECIFIC_STORAGE                                             &
                                        * (-col%site%soil_profile%soil_layer_z(NSL + 1_ik)                            &
-                                          + col%site%soil%w_pond_max / rho_h2o), d%theta_peak)
+                                          + col%cfg%ground_surface%water%pond_capacity / rho_h2o), d%theta_peak)
          !---~---
          !   How far an RK45 stage's starting theta lay outside [theta_res, theta_sat] (ESDIRK2 has no
          ! explicit stage): under the water network only above saturation, by the specific storage,
@@ -737,7 +736,8 @@ contains
       d = day_t(theta_seed = 0.428_wp, rain_all_day = 8.0e-3_wp)
       call march_day(d)
       call check_true('free drain: the column reached theta_sat', d%theta_peak >= 0.43_wp - 1.0e-12_wp, d%theta_peak)
-      call check_true('free drain: the pond overflowed', d%pond_peak >= col%site%soil%w_pond_max - 1.0e-9_wp, d%pond_peak)
+      call check_true('free drain: the pond overflowed',                                                        &
+                      d%pond_peak >= col%cfg%ground_surface%water%pond_capacity - 1.0e-9_wp, d%pond_peak)
       call check_true('free drain: whole-column energy closes through saturation and runoff',                      &
                       col%out%report%ledgers%whole_energy%n_fail == 0_ik, col%out%report%ledgers%whole_energy%worst)
       call check_true('free drain: whole-column water closes', col%out%report%ledgers%whole_water%n_fail == 0_ik,     &
@@ -902,7 +902,7 @@ contains
          call check_true(trim(nm)//' litter day: the layer took the rain', sum(col%dynamic%organic%water) > w0,   &
                          sum(col%dynamic%organic%water))
          call check_true(trim(nm)//' litter day: the layer holds no more than it does saturated',                 &
-                         col%dynamic%organic%water(SLOT_LITTER) <= 0.98_wp * rho_h2o * 0.03_wp * (1.0_wp + 1.0e-6_wp))
+                         col%dynamic%organic%water(POROUS_LITTER) <= 0.98_wp * rho_h2o * 0.03_wp * (1.0_wp + 1.0e-6_wp))
          d = day_t(litter_seed = 1.35_wp, moss_seed = 2.15_wp, moss_theta = 0.22_wp, rain_pulse = 2.0e-4_wp,       &
                    hours = 8_ik)
          w0 = 0.22_wp * rho_h2o * 0.05_wp
@@ -910,7 +910,7 @@ contains
          call check_true(trim(nm)//' litter over moss: all seven ledgers close', all_ledgers_closed(col%out%report))
          call check_true(trim(nm)//' litter over moss: physical', d%physical)
          call check_true(trim(nm)//' litter over moss: the dry moss took water',                                  &
-                         col%dynamic%organic%water(SLOT_MOSS) > w0, col%dynamic%organic%water(SLOT_MOSS))
+                         col%dynamic%organic%water(POROUS_MOSS) > w0, col%dynamic%organic%water(POROUS_MOSS))
          d = day_t(litter_seed = 1.35_wp, moss_seed = 2.15_wp, rain_pulse = 2.0e-4_wp, hours = 8_ik,               &
                    org_temp = 268.0_wp)
          t0_org = d%org_temp
@@ -924,8 +924,8 @@ contains
          w0 = 0.3_wp * rho_h2o * 0.03_wp / 45.0_wp
          call march_day(d)
          call check_true(trim(nm)//' thin litter: all seven ledgers close', all_ledgers_closed(col%out%report))
-         call check_true(trim(nm)//' thin litter: a node too, it holds water', col%dynamic%organic%water(SLOT_LITTER) &
-                         > 0.0_wp, col%dynamic%organic%water(SLOT_LITTER))
+         call check_true(trim(nm)//' thin litter: a node too, it holds water', col%dynamic%organic%water(POROUS_LITTER) &
+                         > 0.0_wp, col%dynamic%organic%water(POROUS_LITTER))
       end do
       call use_scheme(INTEG_ESDIRK2)
    end subroutine test_litter_day

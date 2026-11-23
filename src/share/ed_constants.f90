@@ -117,8 +117,6 @@ module ed_constants
    !---~---
    integer(ik), parameter :: n_soil_layer_max = 20_ik
    integer(ik), parameter :: n_snow_layer_max = 1_ik
-   !--- The organic layer's slots, top down: leaf litter over moss.
-   integer(ik), parameter :: n_organic_slot = 2_ik
 
    !--- Floating-point guards: keep a division or an exp() inside its domain.
    real(wp), parameter :: tiny_num   = 1.0e-30_wp             ! keeps a divisor away from zero

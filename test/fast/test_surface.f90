@@ -31,7 +31,7 @@
 !      as ice; a pack at the plateau takes none of a pond's liquid; a warm pond with no pack is left as it is; an empty
 !      pond leaves a pack as it was; snow on ice mixes the densities by volume. The stores
 !      the stage reports for the ledger, with the pond it leaves, are the stores it began from.
-!  10. THE ORGANIC LAYER (ed_organic_lib and organic_surface_balance): a slot holds its
+!  10. THE ORGANIC LAYER (its helpers in ed_patch_state_vars, and organic_surface_balance): a slot holds its
 !      theta_sat over its depth; one temperature, the slots' energies summing to the total; each
 !      slot gives the vapour the water network took from it; heat crosses each slot's dried top
 !      at its dry conductivity, in series with its wet part. Each slot's curve is its material's
@@ -55,12 +55,10 @@ program test_surface
    use ed_therm_lib,          only : temp_to_internal_energy, internal_energy_to_temp, internal_energy_ice,      &
                                      internal_energy_liquid, sat_specific_humidity, cas_heat_capacity,     &
                                      enthalpy_vapor
-   use ed_patch_state_vars,   only : snow_state_t
-   use ed_organic_lib,      only : organic_state_t, organic_layer_sums, organic_split_energy, organic_take_exchange, &
-                                     organic_slot_capacity, organic_slot_curve, organic_spill
-   use ed_organic_lib,     only : organic_params_t, SLOT_LITTER, SLOT_MOSS
+   use ed_patch_state_vars,   only : snow_state_t, organic_state_t, organic_layer_sums, organic_split_energy,      &
+                                     organic_take_exchange, organic_slot_capacity, organic_slot_curve, organic_spill
+   use ed_ground_surface_params, only : ground_surface_layer_params_t, water_material_t, POROUS_LITTER, POROUS_MOSS
    use ed_soil_hydr_lib,      only : soil_layer_curve_t, soil_head_to_theta
-   use ed_biophysics_params, only : snow_params_t
    use ed_soil_water,         only : organic_cover_path, vapour_diffusivity
    use ed_surface,            only : surface_env_t, snow_out_t, organic_out_t, organic_surface_balance,          &
                                      snow_cover_fraction, snow_accumulate,                                      &
@@ -105,14 +103,14 @@ contains
    !--- A pack of swe [kg/m2], all ice at temp, at the default snow density.
    function cold_pack(swe, temp, p) result(snow)
       real(wp),            intent(in) :: swe, temp   ! [kg/m2], [K]
-      type(snow_params_t), intent(in) :: p
+      type(water_material_t), intent(in) :: p
       type(snow_state_t) :: snow
       snow = snow_state_t()
       snow%nlayer = 1_ik
       snow%swe(1) = swe
       snow%snow_energy(1) = temp_to_internal_energy(0.0_wp, swe, temp, 0.0_wp)
-      snow%snow_depth(1)  = swe / p%rho_snow
-      snow%density(1)     = p%rho_snow
+      snow%snow_depth(1)  = swe / p%fresh_density
+      snow%density(1)     = p%fresh_density
    end function cold_pack
 
    !---~---
@@ -145,17 +143,17 @@ contains
 
    subroutine test_snow_cover()
       real(wp), parameter :: GROUND_ROUGH = 0.01_wp   ! [m] the [aerodynamics] soil_rough default
-      type(snow_params_t) :: p
+      type(water_material_t) :: p
       real(wp) :: f0, f1, f2
       print '(a)', 'test_snow_cover:'
-      f0 = snow_cover_fraction(0.0_wp,  0.0_wp,  p%rho_snow, p, GROUND_ROUGH)
-      f1 = snow_cover_fraction(1.0_wp,  1.0_wp/p%rho_snow,  p%rho_snow, p, GROUND_ROUGH)
-      f2 = snow_cover_fraction(50.0_wp, 50.0_wp/p%rho_snow, p%rho_snow, p, GROUND_ROUGH)
+      f0 = snow_cover_fraction(0.0_wp,  0.0_wp,  p%fresh_density, p, GROUND_ROUGH)
+      f1 = snow_cover_fraction(1.0_wp,  1.0_wp/p%fresh_density,  p%fresh_density, p, GROUND_ROUGH)
+      f2 = snow_cover_fraction(50.0_wp, 50.0_wp/p%fresh_density, p%fresh_density, p, GROUND_ROUGH)
       call check('snowfac(0)=0', f0, 0.0_wp, 1.0e-12_wp)
       call check_true('snowfac monotone 0<f1<f2<=1', f1 > 0.0_wp .and. f1 < f2 .and. f2 <= 1.0_wp, f2)
       call check_true('deep pack fully covered (~1)', f2 > 0.99_wp, f2)
       !--- 1 cm of snow on ground of 1 cm roughness covers about a sixth of it (Niu & Yang 2007).
-      f1 = snow_cover_fraction(2.5_wp, 2.5_wp/p%rho_snow, p%rho_snow, p, GROUND_ROUGH)
+      f1 = snow_cover_fraction(2.5_wp, 2.5_wp/p%fresh_density, p%fresh_density, p, GROUND_ROUGH)
       call check('1 cm of snow covers tanh(0.16) of the ground', f1, tanh(0.16_wp), 1.0e-12_wp)
    end subroutine test_snow_cover
 
@@ -163,7 +161,7 @@ contains
    subroutine test_accumulate()
       type(snow_state_t)  :: snow
       type(surface_env_t) :: env
-      type(snow_params_t) :: p
+      type(water_material_t) :: p
       type(snow_out_t)    :: melt
       real(wp) :: dt, snowfall, mass_in, mass_out, e_in, e_out, gain, vapour, g_top
       integer(ik) :: k
@@ -198,7 +196,7 @@ contains
    subroutine test_melt_event()
       type(snow_state_t)  :: snow
       type(surface_env_t) :: env
-      type(snow_params_t) :: p
+      type(water_material_t) :: p
       type(snow_out_t)    :: melt
       real(wp) :: dt, swe0, mass_out, e_in, e_out, plateau_temp, tot_melt, gain, vapour, g_top
       integer(ik) :: k
@@ -252,7 +250,7 @@ contains
    subroutine test_isothermal()
       type(snow_state_t)  :: snow, probe
       type(surface_env_t) :: env
-      type(snow_params_t) :: p
+      type(water_material_t) :: p
       type(snow_out_t)    :: melt
       real(wp) :: swe0, tsnow0, gain, vapour, g_top
       integer(ik) :: k
@@ -294,7 +292,7 @@ contains
    subroutine test_insulation()
       type(snow_state_t)  :: snow
       type(surface_env_t) :: env
-      type(snow_params_t) :: p
+      type(water_material_t) :: p
       real(wp) :: gain, vapour, g_top, g_deep, g_expect
       real(wp), parameter :: T_PACK = 255.0_wp, T_SOIL = 270.0_wp, SWE = 100.0_wp   ! [K], [K], [kg/m2]
       print '(a)', 'test_insulation:'
@@ -309,7 +307,7 @@ contains
       env%r_soil_top  = 0.05_wp / 1.5_wp
       env%r_below     = 0.05_wp / 1.5_wp
       snow = cold_pack(SWE, T_PACK, p)
-      g_expect = (T_PACK - T_SOIL) / (snow%snow_depth(1) / p%k_snow + env%r_below)
+      g_expect = (T_PACK - T_SOIL) / (snow%snow_depth(1) / p%conductivity_at_fresh + env%r_below)
       call snow_step(snow, env, 1.0_wp, 60.0_wp, gain, vapour, g_top)
       call check('the soil loses what the whole pack and its top node conduct', g_top, g_expect,           &
                  1.0e-3_wp * abs(g_expect))
@@ -321,7 +319,7 @@ contains
    !--- Rain on a sub-freezing pack: adds mass + liquid enthalpy, refreezes (energy rises).
    subroutine test_rain_on_snow()
       type(snow_state_t)  :: snow
-      type(snow_params_t) :: p
+      type(water_material_t) :: p
       real(wp) :: e0, swe0
       print '(a)', 'test_rain_on_snow:'
       snow = cold_pack(10.0_wp, 265.0_wp, p)
@@ -342,7 +340,7 @@ contains
    subroutine test_stiff_coupling()
       type(snow_state_t)  :: snow
       type(surface_env_t) :: env
-      type(snow_params_t) :: p
+      type(water_material_t) :: p
       type(snow_out_t)    :: melt
       real(wp), parameter :: SWE = 0.3_wp, DT = 900.0_wp, AF = 0.2_wp
       real(wp) :: e0, m_in, m_out, e_in, e_out, t_min, gain, vapour, g_top
@@ -377,8 +375,8 @@ contains
       snow%nlayer = 1_ik
       snow%swe(1) = SWE
       snow%snow_energy(1) = temp_to_internal_energy(0.0_wp, SWE, t_3ple, 0.1_wp)
-      snow%snow_depth(1)  = SWE / p%rho_snow
-      snow%density(1)     = p%rho_snow
+      snow%snow_depth(1)  = SWE / p%fresh_density
+      snow%density(1)     = p%fresh_density
       env%lw_down  = stefan_boltzmann * t_3ple ** 4 - 60.0_wp
       env%can_temp = 255.0_wp
       env%can_shv  = 3.0e-4_wp
@@ -409,7 +407,7 @@ contains
    !--- 7. Each tile's radiation at its own optics; the cover-weighted sum is the blended ground's.
    subroutine test_tile_radiation()
       type(snow_state_t)  :: snow
-      type(snow_params_t) :: p
+      type(water_material_t) :: p
       real(wp), parameter :: DN_VIS = 150.0_wp, DN_NIR = 150.0_wp, DN_LW = 280.0_wp   ! [W/m2] reaching the ground
       real(wp), parameter :: SOIL_VIS = 0.10_wp, SOIL_NIR = 0.20_wp, SOIL_EMISS = 0.95_wp, T_SOIL = 275.0_wp
       real(wp) :: fc, a_vis, a_nir, emiss, temp, rnet_soil, sw_snow, rnet_snow, blended
@@ -420,7 +418,7 @@ contains
       call check_true('a patchy pack', fc > 0.05_wp .and. fc < 0.95_wp, fc)
       call ground_tile_radiation(DN_VIS, DN_NIR, DN_LW, SOIL_VIS, SOIL_NIR, SOIL_EMISS, T_SOIL, snow, p,          &
                                  rnet_soil, sw_snow)
-      rnet_snow = sw_snow + p%snow_emiss * (DN_LW - stefan_boltzmann * snow%snow_temp(1) ** 4)
+      rnet_snow = sw_snow + p%emissivity * (DN_LW - stefan_boltzmann * snow%snow_temp(1) ** 4)
       a_vis = SOIL_VIS
       a_nir = SOIL_NIR
       emiss = SOIL_EMISS
@@ -467,7 +465,7 @@ contains
    subroutine test_pond_stage()
       real(wp), parameter :: DT = 900.0_wp
       type(surface_env_t) :: env
-      type(snow_params_t) :: p
+      type(water_material_t) :: p
       type(snow_out_t)    :: st
       type(snow_state_t)  :: pack0
       real(wp) :: w, e, w0, e0, hold, mix
@@ -510,7 +508,7 @@ contains
       call check('the pack holds both', env%pack%swe(1), 42.0_wp, 1.0e-12_wp)
       call check('the pack holds both energies', env%pack%snow_energy(1), pack0%snow_energy(1) + e0,              &
                  1.0e-9_wp * abs(e0))
-      mix = 42.0_wp / (40.0_wp / p%rho_snow + 2.0_wp / rho_ice)
+      mix = 42.0_wp / (40.0_wp / p%fresh_density + 2.0_wp / rho_ice)
       call check('the pond adds its depth as ice', env%pack%density(1), mix, 1.0e-9_wp)
       call check('the ledger''s pack takes the pond', st%swe0, 42.0_wp, 1.0e-12_wp)
       call check('the ledger''s pack energy takes the pond''s', st%enth0, pack0%snow_energy(1) + e0,              &
@@ -531,7 +529,7 @@ contains
       call prepare_snow_stage(0.0_wp, 0.0_wp, t_3ple, 0.01_wp, env, st, w, e)
       call check('a pack at the plateau leaves the pond its water', w, w0, 1.0e-12_wp)
       call check('and keeps its own', env%pack%swe(1), 40.0_wp, 1.0e-12_wp)
-      call check_true('and its density', env%pack%density(1) == p%rho_snow)
+      call check_true('and its density', env%pack%density(1) == p%fresh_density)
 
       !--- (c) A warm pond and no pack: left as it is.
       call cold_env(env)
@@ -553,7 +551,7 @@ contains
       w = 0.0_wp
       e = 0.0_wp
       call prepare_snow_stage(1.0e-3_wp, 0.0_wp, 265.0_wp, 0.01_wp, env, st, w, e)
-      call check_true('fresh snow on fresh snow keeps its density', env%pack%density(1) == p%rho_snow)
+      call check_true('fresh snow on fresh snow keeps its density', env%pack%density(1) == p%fresh_density)
       call check_true('an empty pond stays empty, and the ledger''s pack is the pack', w == 0.0_wp .and.          &
                       st%swe0 == 10.0_wp .and. st%pond_mass == 0.0_wp)
 
@@ -567,30 +565,30 @@ contains
       w = 0.0_wp
       e = 0.0_wp
       call prepare_snow_stage(1.0e-3_wp, 0.0_wp, 265.0_wp, 0.01_wp, env, st, w, e)
-      mix = 3.9_wp / (3.0_wp / rho_ice + 0.9_wp / p%rho_snow)
+      mix = 3.9_wp / (3.0_wp / rho_ice + 0.9_wp / p%fresh_density)
       call check('snow on ice mixes the densities by volume', env%pack%density(1), mix, 1.0e-9_wp)
    end subroutine test_pond_stage
 
    !--- 10a. The organic layer's slots: 1.35 kg of litter (3 cm) over 2.15 kg of moss (5 cm), dry, at 280 K.
    function two_slots(o) result(org)
-      type(organic_params_t), intent(in) :: o
+      type(ground_surface_layer_params_t), intent(in) :: o
       type(organic_state_t) :: org
       org = organic_state_t()
-      org%mass    = [0.03_wp * o%litter%bulk_density, 0.05_wp * o%moss%bulk_density]
+      org%mass    = [0.03_wp * o%porous(POROUS_LITTER)%bulk_density, 0.05_wp * o%porous(POROUS_MOSS)%bulk_density]
       call organic_split_energy(org, temp_to_internal_energy(cp_organic * sum(org%mass), 0.0_wp, 280.0_wp, 1.0_wp))
    end function two_slots
 
    subroutine test_organic_slots()
       real(wp), parameter :: HEAD_10KPA = -1.0e4_wp / (1000.0_wp * 9.80665_wp)   ! [m]
-      type(organic_params_t)   :: o
+      type(ground_surface_layer_params_t)   :: o
       type(organic_state_t)    :: org
       type(soil_layer_curve_t) :: c
       real(wp) :: cap_litter, cap_moss, dry_cap, w, e, w_max, resist, e_in, dry_depth, fill, w_out, e_out, t_in
       print '(a)', 'test_organic_slots:'
       org = two_slots(o)
-      cap_litter = o%litter%theta_sat * 1000.0_wp * 0.03_wp            ! 29.4 kg/m2
-      cap_moss   = o%moss%theta_sat   * 1000.0_wp * 0.05_wp            ! 42.5 kg/m2
-      call check('a slot holds its theta_sat over its depth', organic_slot_capacity(o, org, SLOT_MOSS), cap_moss,      &
+      cap_litter = o%porous(POROUS_LITTER)%theta_sat * 1000.0_wp * 0.03_wp            ! 29.4 kg/m2
+      cap_moss   = o%porous(POROUS_MOSS)%theta_sat   * 1000.0_wp * 0.05_wp            ! 42.5 kg/m2
+      call check('a slot holds its theta_sat over its depth', organic_slot_capacity(o, org, POROUS_MOSS), cap_moss,      &
                  1.0e-12_wp)
       org%water = [cap_litter, cap_moss]
       call organic_split_energy(org, temp_to_internal_energy(cp_organic * sum(org%mass), sum(org%water), 283.0_wp, 1.0_wp))
@@ -601,36 +599,37 @@ contains
       call check('it holds the slots'' saturation', w_max, cap_litter + cap_moss, 1.0e-9_wp)
       call check('a saturated layer has no dried top', dry_depth, 0.0_wp, 1.0e-12_wp)
       call check('its resistance: each slot''s depth over its saturated conductivity', resist,                     &
-                 0.03_wp / o%litter%k_wet + 0.05_wp / o%moss%k_wet, 1.0e-12_wp)
+                 0.03_wp / o%porous(POROUS_LITTER)%k_wet + 0.05_wp / o%porous(POROUS_MOSS)%k_wet, 1.0e-12_wp)
       e_in = sum(org%energy)
       call organic_take_exchange(org, -1.0e5_wp, [cap_litter, 2.0_wp])
-      call check_true('each slot gives the vapour taken from it', org%water(SLOT_LITTER) == 0.0_wp                  &
-                      .and. abs(org%water(SLOT_MOSS) - (cap_moss - 2.0_wp)) < 1.0e-9_wp)
+      call check_true('each slot gives the vapour taken from it', org%water(POROUS_LITTER) == 0.0_wp                  &
+                      .and. abs(org%water(POROUS_MOSS) - (cap_moss - 2.0_wp)) < 1.0e-9_wp)
       call check('the exchange''s energy reaches the layer', sum(org%energy), e_in - 1.0e5_wp, 1.0e-6_wp)
       call organic_layer_sums(org, o, dry_cap, w, e, w_max, resist, dry_depth)
       call check('its dried top: the empty litter, and the share of the moss its water does not fill', dry_depth, &
                  0.03_wp + 0.05_wp * 2.0_wp / cap_moss, 1.0e-12_wp)
       fill = 1.0_wp - 2.0_wp / cap_moss
       call check('its resistance: each dried top at the dry conductivity, the wet rest at the wet one', resist,    &
-                 0.03_wp / o%litter%k_dry + 0.05_wp * ((1.0_wp - fill) / o%moss%k_dry + fill / o%moss%k_wet),        &
+                 0.03_wp / o%porous(POROUS_LITTER)%k_dry                                                       &
+                 + 0.05_wp * ((1.0_wp - fill) / o%porous(POROUS_MOSS)%k_dry + fill / o%porous(POROUS_MOSS)%k_wet), &
                  1.0e-12_wp)
       !--- Each slot's curve: its material's at its depth, the residual no more than the liquid it holds.
-      c = organic_slot_curve(o, org, SLOT_MOSS)
+      c = organic_slot_curve(o, org, POROUS_MOSS)
       call check('the moss''s curve: its depth', c%dz, 0.05_wp, 1.0e-12_wp)
       call check('the moss at -10 kPa holds 0.29 (Zhang et al. 2010)',                                             &
                  soil_head_to_theta(c%retention, HEAD_10KPA, c%theta_sat, c%theta_res, c%par_a, c%par_n), 0.294_wp,  &
                  1.0e-3_wp)
-      call check('a moss above its residual keeps it', c%theta_res, o%moss%theta_res, 0.0_wp)
-      c = organic_slot_curve(o, org, SLOT_LITTER)
-      call check('an empty litter keeps its material''s residual', c%theta_res, o%litter%theta_res, 0.0_wp)
-      org%water(SLOT_LITTER) = cap_litter
-      c = organic_slot_curve(o, org, SLOT_LITTER)
+      call check('a moss above its residual keeps it', c%theta_res, o%porous(POROUS_MOSS)%theta_res, 0.0_wp)
+      c = organic_slot_curve(o, org, POROUS_LITTER)
+      call check('an empty litter keeps its material''s residual', c%theta_res, o%porous(POROUS_LITTER)%theta_res, 0.0_wp)
+      org%water(POROUS_LITTER) = cap_litter
+      c = organic_slot_curve(o, org, POROUS_LITTER)
       call check('the litter at -10 kPa holds 0.14, near drained litter''s 0.12 (Putuhena & Cordery 1996)',        &
                  soil_head_to_theta(c%retention, HEAD_10KPA, c%theta_sat, c%theta_res, c%par_a, c%par_n), 0.1415_wp, &
                  1.0e-3_wp)
       org%fliq = 0.0_wp
-      c = organic_slot_curve(o, org, SLOT_MOSS)
-      call check('a frozen slot keeps its material''s curve', c%theta_res, o%moss%theta_res, 0.0_wp)
+      c = organic_slot_curve(o, org, POROUS_MOSS)
+      call check('a frozen slot keeps its material''s curve', c%theta_res, o%porous(POROUS_MOSS)%theta_res, 0.0_wp)
       !--- Frost on a frozen, saturated litter: what it holds above saturation spills, with its energy.
       org%water = [cap_litter + 0.5_wp, cap_moss]
       call organic_split_energy(org, temp_to_internal_energy(cp_organic * sum(org%mass), sum(org%water), 265.0_wp, 0.0_wp))
@@ -638,7 +637,7 @@ contains
       t_in = org%temp
       call organic_spill(org, o, w_out, e_out)
       call check('above saturation: the excess spills', w_out, 0.5_wp, 1.0e-12_wp)
-      call check('above saturation: the slot keeps its saturation', org%water(SLOT_LITTER), cap_litter, 1.0e-9_wp)
+      call check('above saturation: the slot keeps its saturation', org%water(POROUS_LITTER), cap_litter, 1.0e-9_wp)
       call check('above saturation: the spill takes its ice''s energy, the rest stays', sum(org%energy) + e_out,         &
                  e_in, 1.0e-6_wp)
       call check('above saturation: the layer keeps its temperature', org%temp, t_in, 1.0e-9_wp)
@@ -649,19 +648,19 @@ contains
    !--- 10b. The organic layer's balance, and the ground surface with it.
    subroutine test_organic_balance()
       real(wp), parameter :: DT = 3600.0_wp
-      type(organic_params_t) :: o
+      type(ground_surface_layer_params_t) :: o
       type(organic_state_t)  :: org
       type(surface_env_t)    :: env
       type(organic_out_t)    :: ofx, ofx0
-      type(snow_params_t)    :: p
+      type(water_material_t)    :: p
       real(wp) :: w_max, h_ground, le_ground, g_top, ground_rad, s_in, o_in, w_save, e_save
       type(store_exchange_t) :: stores
       real(wp) :: dry_depth, r_save
       print '(a)', 'test_organic_balance:'
       org = organic_state_t()                                    ! litter alone: 1.35 kg/m2, 2.6 kJ/m2/K dry
-      org%mass(SLOT_LITTER)    = 0.03_wp * o%litter%bulk_density
-      org%water(SLOT_LITTER)   = 1.0_wp
-      call organic_split_energy(org, temp_to_internal_energy(cp_organic * org%mass(SLOT_LITTER), 1.0_wp, 280.0_wp, 1.0_wp))
+      org%mass(POROUS_LITTER)    = 0.03_wp * o%porous(POROUS_LITTER)%bulk_density
+      org%water(POROUS_LITTER)   = 1.0_wp
+      call organic_split_energy(org, temp_to_internal_energy(cp_organic * org%mass(POROUS_LITTER), 1.0_wp, 280.0_wp, 1.0_wp))
       call cold_env(env)
       env%dt           = DT
       env%can_temp     = 270.0_wp
@@ -672,7 +671,7 @@ contains
       env%ground_emiss = 0.95_wp
       call organic_layer_sums(org, o, env%org_dry_cap, env%org_water, env%org_energy, w_max, env%org_resistance, &
                               dry_depth)
-      env%org_dry_resist = organic_cover_path(dry_depth, 0.0_wp, o%litter%theta_sat) / vapour_diffusivity(280.0_wp)
+      env%org_dry_resist = organic_cover_path(dry_depth, 0.0_wp, o%porous(POROUS_LITTER)%theta_sat) / vapour_diffusivity(280.0_wp)
       call organic_surface_balance(env, 0.0_wp, ofx0)
       call check_true('a thin layer relaxes over an hour without passing its surroundings',                         &
                       ofx0%t_surf > 268.0_wp .and. ofx0%t_surf < 286.0_wp, ofx0%t_surf)

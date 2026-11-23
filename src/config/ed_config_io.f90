@@ -32,8 +32,10 @@ module ed_config_io
    use ed_output_params, only : output_params_t, MAX_DIAMETER_EDGE, SYNC_FLUSH, SYNC_NEVER, FC_DAY, FC_MONTH,      &
                                  FC_YEAR, FC_ALL, STATE_DAYS, STATE_MONTHS, STATE_YEARS
    use ed_time,       only : ed_time_t, string_to_time
-   use ed_biophysics_params,   only : snow_params_t, aero_params_t
-   use ed_organic_lib,      only : organic_params_t
+   use ed_biophysics_params,   only : aero_params_t
+   use ed_ground_surface_params, only : ground_surface_layer_params_t,                                     &
+                                        POROUS_LITTER, POROUS_MOSS, MASS_FROM_NONE,                             &
+                                        MASS_FROM_METABOLIC_LITTER, MASS_FROM_SITE_DEPTH
    use ed_biogeochem_params,   only : soil_carbon_params_t, DECOMP_STEP_EULER, DECOMP_STEP_EXPM,   &
                                     DECOMP_SCHEME_ED2, DECOMP_SCHEME_CENTURY5
    use ed_demography_params,     only : demography_params_t
@@ -47,8 +49,8 @@ module ed_config_io
    private
 
    public :: load_ed_config, write_pft_params_csv
-   public :: load_fast_params, load_soil, load_snow_params, load_aero_params, load_soil_temp,  &
-             load_organic_params                                                         ! exposed for unit tests
+   public :: load_fast_params, load_soil, load_aero_params, load_soil_temp,  &
+             load_ground_surface_params                                         ! exposed for unit tests
 
    integer(ik), parameter :: MAXPFT  = 64_ik    ! largest PFT count the array buffers handle
    integer,     parameter :: MAXMISS = 256       ! largest missing-key list
@@ -275,21 +277,19 @@ contains
 
 
    !---~---
-   !   Fast-loop biophysics loaders, public for unit tests: [fast], [soil], [snow] and
-   ! [aerodynamics]. Every key is optional, its fallback the value the record holds, so
+   !   Fast-loop biophysics loaders, public for unit tests: [fast], [soil],
+   ! [ground_surface_layer] and [aerodynamics]. Every key is optional, its fallback the value the record holds, so
    ! an absent key or block keeps the record's default; a selector naming no listed value
    ! stops the run.
    !---~---
    !---~---
    !   [fast]'s optional keys: the integrator, its tolerances and budget stops, the
-   ! forcing's sampling, the canopy's surface water and the starting snow.
+   ! forcing's sampling and the canopy's surface water.
    !---~---
    subroutine load_fast_params(tm, cfg, m)
       type(toml_table_t),        intent(in)    :: tm
       type(ed_config_t),         intent(inout) :: cfg
       type(keymiss_t), optional, intent(inout) :: m
-      cfg%snow_init_swe       = toml_real(tm, 'fast.snow_init_swe',  0.0_wp)
-      cfg%snow_init_temp      = toml_real(tm, 'fast.snow_init_temp', 270.0_wp)
       cfg%canopy_water_on     = toml_logical(tm, 'fast.canopy_water_on', .false.)
       cfg%intercept_alpha     = toml_real(tm, 'fast.intercept_alpha', cfg%intercept_alpha)
       cfg%intercept_k         = toml_real(tm, 'fast.intercept_k',     cfg%intercept_k)
@@ -318,13 +318,12 @@ contains
 
    !---~---
    !   [soil]: the ground. Its column and bottom boundaries (load_soil_ground), its surface
-   ! (the pond, the dry surface layer, the bare-soil optics) and its thermal bottom.
+   ! (the dry surface layer, the bare-soil optics) and its thermal bottom.
    !---~---
    subroutine load_soil(tm, s)
       type(toml_table_t),  intent(in)    :: tm
       type(soil_params_t), intent(inout) :: s
       call load_soil_ground(tm, s)
-      s%w_pond_max        = toml_real(tm, 'soil.w_pond_max',        s%w_pond_max)
       s%dsl_dmax          = toml_real(tm, 'soil.dsl_dmax',          s%dsl_dmax)
       s%dsl_theta_init    = toml_real(tm, 'soil.dsl_theta_init',    s%dsl_theta_init)
       s%ground_albedo_vis = toml_real(tm, 'soil.ground_albedo_vis', s%ground_albedo_vis)
@@ -487,49 +486,62 @@ contains
       if (choice == BEDROCK)    drain_factor = 0.0_wp
    end subroutine load_water_bottom_bc
 
-   !--- [surface_layer] -> the organic layer's switch and its two materials.
-   subroutine load_organic_params(tm, o)
-      type(toml_table_t),     intent(in)    :: tm
-      type(organic_params_t), intent(inout) :: o
+   !---~---
+   !   [ground_surface_layer]: the threshold from which matter is a layer, and the water layer's
+   ! and the two porous layers' materials, each in its own table.
+   !---~---
+   subroutine load_ground_surface_params(tm, g)
+      type(toml_table_t),                  intent(in)    :: tm
+      type(ground_surface_layer_params_t), intent(inout) :: g
+      character(len=NAME_LEN), parameter :: SOURCE(3) = [character(len=NAME_LEN) :: 'none', 'metabolic_litter', &
+                                                                                      'site_depth']
+      integer(ik),             parameter :: SOURCE_CODE(3) = [MASS_FROM_NONE, MASS_FROM_METABOLIC_LITTER,             &
+                                                              MASS_FROM_SITE_DEPTH]
       character(len=NAME_LEN), parameter :: RETENTION(2) = [character(len=NAME_LEN) :: 'van_genuchten', 'campbell']
       integer(ik),             parameter :: RETENTION_CODE(2) = [SOIL_RETENTION_VG, SOIL_RETENTION_CAMPBELL]
-      o%litter_on = toml_logical(tm, 'surface_layer.litter_on', o%litter_on)
-      o%litter%bulk_density   = toml_real(tm, 'surface_layer.litter_bulk_density',   o%litter%bulk_density)
-      o%litter%k_dry          = toml_real(tm, 'surface_layer.litter_k_dry',          o%litter%k_dry)
-      o%litter%k_wet          = toml_real(tm, 'surface_layer.litter_k_wet',          o%litter%k_wet)
-      call opt_choice(tm, 'surface_layer.litter_retention', RETENTION, RETENTION_CODE, o%litter%retention)
-      o%litter%theta_sat      = toml_real(tm, 'surface_layer.litter_theta_sat',      o%litter%theta_sat)
-      o%litter%theta_res      = toml_real(tm, 'surface_layer.litter_theta_res',      o%litter%theta_res)
-      o%litter%par_a          = toml_real(tm, 'surface_layer.litter_curve_par_a',    o%litter%par_a)
-      o%litter%par_n          = toml_real(tm, 'surface_layer.litter_curve_par_n',    o%litter%par_n)
-      o%litter%ksat           = toml_real(tm, 'surface_layer.litter_ksat',           o%litter%ksat)
-      o%moss%bulk_density     = toml_real(tm, 'surface_layer.moss_bulk_density',     o%moss%bulk_density)
-      o%moss%k_dry            = toml_real(tm, 'surface_layer.moss_k_dry',            o%moss%k_dry)
-      o%moss%k_wet            = toml_real(tm, 'surface_layer.moss_k_wet',            o%moss%k_wet)
-      call opt_choice(tm, 'surface_layer.moss_retention', RETENTION, RETENTION_CODE, o%moss%retention)
-      o%moss%theta_sat        = toml_real(tm, 'surface_layer.moss_theta_sat',        o%moss%theta_sat)
-      o%moss%theta_res        = toml_real(tm, 'surface_layer.moss_theta_res',        o%moss%theta_res)
-      o%moss%par_a            = toml_real(tm, 'surface_layer.moss_curve_par_a',      o%moss%par_a)
-      o%moss%par_n            = toml_real(tm, 'surface_layer.moss_curve_par_n',      o%moss%par_n)
-      o%moss%ksat             = toml_real(tm, 'surface_layer.moss_ksat',             o%moss%ksat)
-   end subroutine load_organic_params
-
-   subroutine load_snow_params(tm, s)                   ! [snow] -> snow physical params
-      type(toml_table_t), intent(in)    :: tm
-      type(snow_params_t), intent(inout) :: s
-      s%rho_snow            = toml_real(tm, 'snow.rho_snow',            s%rho_snow)
-      s%k_snow              = toml_real(tm, 'snow.k_snow',              s%k_snow)
-      s%albedo_vis_fresh    = toml_real(tm, 'snow.albedo_vis_fresh',    s%albedo_vis_fresh)
-      s%albedo_nir_fresh    = toml_real(tm, 'snow.albedo_nir_fresh',    s%albedo_nir_fresh)
-      s%albedo_vis_aged     = toml_real(tm, 'snow.albedo_vis_aged',     s%albedo_vis_aged)
-      s%albedo_nir_aged     = toml_real(tm, 'snow.albedo_nir_aged',     s%albedo_nir_aged)
-      s%snow_emiss          = toml_real(tm, 'snow.snow_emiss',          s%snow_emiss)
-      s%liquid_holding_frac = toml_real(tm, 'snow.liquid_holding_frac', s%liquid_holding_frac)
-      s%min_new_snow_mass   = toml_real(tm, 'snow.min_new_snow_mass',   s%min_new_snow_mass)
-      s%tiny_snow_mass      = toml_real(tm, 'snow.tiny_snow_mass',      s%tiny_snow_mass)
-      s%ny07_a              = toml_real(tm, 'snow.ny07_a',              s%ny07_a)
-      s%ny07_m              = toml_real(tm, 'snow.ny07_m',              s%ny07_m)
-   end subroutine load_snow_params
+      g%min_depth = toml_real(tm, 'ground_surface_layer.min_depth', g%min_depth)
+      associate (w => g%water)
+         w%fresh_density = toml_real(tm, 'ground_surface_layer.water.fresh_density', w%fresh_density)
+         w%conductivity_at_fresh = toml_real(tm, 'ground_surface_layer.water.conductivity_at_fresh', w%conductivity_at_fresh)
+         w%albedo_vis_fresh = toml_real(tm, 'ground_surface_layer.water.albedo_vis_fresh', w%albedo_vis_fresh)
+         w%albedo_nir_fresh = toml_real(tm, 'ground_surface_layer.water.albedo_nir_fresh', w%albedo_nir_fresh)
+         w%albedo_vis_aged = toml_real(tm, 'ground_surface_layer.water.albedo_vis_aged', w%albedo_vis_aged)
+         w%albedo_nir_aged = toml_real(tm, 'ground_surface_layer.water.albedo_nir_aged', w%albedo_nir_aged)
+         w%emissivity = toml_real(tm, 'ground_surface_layer.water.emissivity', w%emissivity)
+         w%liquid_holding_frac = toml_real(tm, 'ground_surface_layer.water.liquid_holding_frac', w%liquid_holding_frac)
+         w%cover_scale_factor = toml_real(tm, 'ground_surface_layer.water.cover_scale_factor', w%cover_scale_factor)
+         w%cover_density_exponent = toml_real(tm, 'ground_surface_layer.water.cover_density_exponent', w%cover_density_exponent)
+         w%min_new_snow_mass = toml_real(tm, 'ground_surface_layer.water.min_new_snow_mass', w%min_new_snow_mass)
+         w%tiny_snow_mass = toml_real(tm, 'ground_surface_layer.water.tiny_snow_mass', w%tiny_snow_mass)
+         w%pond_capacity = toml_real(tm, 'ground_surface_layer.water.pond_capacity', w%pond_capacity)
+         w%initial_mass = toml_real(tm, 'ground_surface_layer.water.initial_mass', w%initial_mass)
+         w%initial_temp = toml_real(tm, 'ground_surface_layer.water.initial_temp', w%initial_temp)
+      end associate
+      associate (m => g%porous(POROUS_LITTER))
+         call opt_choice(tm, 'ground_surface_layer.litter.mass_source', SOURCE, SOURCE_CODE, m%mass_source)
+         m%bulk_density = toml_real(tm, 'ground_surface_layer.litter.bulk_density', m%bulk_density)
+         m%k_dry = toml_real(tm, 'ground_surface_layer.litter.k_dry', m%k_dry)
+         m%k_wet = toml_real(tm, 'ground_surface_layer.litter.k_wet', m%k_wet)
+         call opt_choice(tm, 'ground_surface_layer.litter.retention', RETENTION, RETENTION_CODE, m%retention)
+         m%theta_sat = toml_real(tm, 'ground_surface_layer.litter.theta_sat', m%theta_sat)
+         m%theta_res = toml_real(tm, 'ground_surface_layer.litter.theta_res', m%theta_res)
+         m%curve_par_a = toml_real(tm, 'ground_surface_layer.litter.curve_par_a', m%curve_par_a)
+         m%curve_par_n = toml_real(tm, 'ground_surface_layer.litter.curve_par_n', m%curve_par_n)
+         m%ksat = toml_real(tm, 'ground_surface_layer.litter.ksat', m%ksat)
+      end associate
+      associate (m => g%porous(POROUS_MOSS))
+         call opt_choice(tm, 'ground_surface_layer.moss.mass_source', SOURCE, SOURCE_CODE, m%mass_source)
+         m%bulk_density = toml_real(tm, 'ground_surface_layer.moss.bulk_density', m%bulk_density)
+         m%k_dry = toml_real(tm, 'ground_surface_layer.moss.k_dry', m%k_dry)
+         m%k_wet = toml_real(tm, 'ground_surface_layer.moss.k_wet', m%k_wet)
+         call opt_choice(tm, 'ground_surface_layer.moss.retention', RETENTION, RETENTION_CODE, m%retention)
+         m%theta_sat = toml_real(tm, 'ground_surface_layer.moss.theta_sat', m%theta_sat)
+         m%theta_res = toml_real(tm, 'ground_surface_layer.moss.theta_res', m%theta_res)
+         m%curve_par_a = toml_real(tm, 'ground_surface_layer.moss.curve_par_a', m%curve_par_a)
+         m%curve_par_n = toml_real(tm, 'ground_surface_layer.moss.curve_par_n', m%curve_par_n)
+         m%ksat = toml_real(tm, 'ground_surface_layer.moss.ksat', m%ksat)
+      end associate
+   end subroutine load_ground_surface_params
 
    subroutine load_aero_params(tm, a)                      ! [aerodynamics] -> canopy-aero constants
       type(toml_table_t),  intent(in)    :: tm            !  (the Nusselt coefficients have no key;
@@ -1259,10 +1271,9 @@ contains
       !--- Optional fast-loop settings, at their defaults when absent.
       call load_fast_params(tm, cfg, miss)
 
-      !--- [soil], [snow], [surface_layer], [aerodynamics], every key optional.
+      !--- [soil], [ground_surface_layer], [aerodynamics], every key optional.
       call load_soil       (tm, cfg%soil)
-      call load_snow_params(tm, cfg%snow)
-      call load_organic_params(tm, cfg%organic)
+      call load_ground_surface_params(tm, cfg%ground_surface)
       call load_aero_params   (tm, cfg%aero)
 
       !--- [soil_carbon] (docs/science/soil_carbon.md): every key optional, at its type default.

@@ -244,6 +244,7 @@ contains
       st%drive%rain = 0.0_wp
       st%drive%t_soil = 299.0_wp
       st%drive%t_rain = 297.0_wp
+      st%drive%pond_capacity = 5.0_wp          ! [kg/m2] the shipped [ground_surface_layer.water].pond_capacity
       st%drive%ground = forc
       st%tols%rtol(GRP_THETA) = WATER_RTOL
       st%tols%atol(GRP_THETA) = WATER_ATOL
@@ -707,7 +708,7 @@ contains
       end do
       call check_true('saturated: the pond spilled', spill > 0.0_wp, spill)
       call check_true('saturated: no layer more than 1e-3 above saturation', over < 1.0e-3_wp, over)
-      call check_true('saturated: pond at or below its capacity', st%water%state%water_soil(POND) <= sopts%w_pond_max, &
+      call check_true('saturated: pond at or below its capacity', st%water%state%water_soil(POND) <= st%drive%pond_capacity, &
                       st%water%state%water_soil(POND))
       call check_close('saturated: water conserved', total_water(st) - w0, flows, 1.0e-10_wp * w0)
    end subroutine test_saturated
@@ -1070,7 +1071,7 @@ contains
       end do
       call check_true('downpour: infiltration < rain (conductivity-limited)', infil < rain, infil / rain)
       call check_true('downpour: the pond filled to its capacity',                                  &
-                      col%water%state%water_soil(POND) >= opts%w_pond_max - 1.0e-9_wp, col%water%state%water_soil(POND))
+                      col%water%state%water_soil(POND) >= col%drive%pond_capacity - 1.0e-9_wp, col%water%state%water_soil(POND))
       call check_true('downpour: and the rest ran off', runoff > 0.0_wp, runoff)
       call check_close('downpour: rain = change in store + runoff + drainage', total_water(col) - w0,             &
                        rain - runoff - drained, 1.0e-10_wp * rain)

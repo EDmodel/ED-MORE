@@ -17,8 +17,7 @@ module ed_fast_integ_update
                                      diagnose_soil_temps
    use ed_plant_energy,       only : commit_tissue_energy
    use ed_canopy_water,       only : clamp_surface_water
-   use ed_patch_state_vars,   only : soil_water_store, soil_energy_store
-   use ed_organic_lib,      only : organic_take_exchange
+   use ed_patch_state_vars,   only : soil_water_store, soil_energy_store, organic_take_exchange
    use ed_diag_vars,          only : CO_TRANSP
    use ed_surface, only : snow_take_exchange, STORE_SNOW, STORE_ORGANIC
    use ed_therm_lib,          only : cas_enthalpy_to_temp, latent_heat_vap

@@ -12,7 +12,7 @@ The snow kernels live in `ed_surface`; the pack is a single bulk layer. The prog
 
 - **Take the pond** (`snow_take_pond`). The pond is the layer's free water, so the two share one energy: the pond joins a pack at the step's start, and drainage gives back what the pack does not hold. A pond below its freezing point, whose energy is less than its water's as liquid at $`T_{3ple}`$ (sub-threshold snow, freezing rain), starts a layer as ice (`pond_freezes`), before the step's precipitation, which then joins it. The pond joins by freezing: its liquid does not rise into the pack's pores, so the layer keeps no more liquid than it held before, and what it keeps of the pond is what its cold freezes, as ice at $`\rho_{ice}`$ = 917 kg m⁻³, adding its depth so. A layer a pond starts is its ice alone. A warm pond with no pack is left as it is: free water has no exchange of its own with the air, so a pond freezes only through what enters it or the pack it joins.
 
-- **Accumulate** (`snow_accumulate`). Snowfall lands as ice at $`\min(T_{3ple},T_{air})`$ and rain-on-snow as liquid at $`T_{air}`$ (it refreezes later through the temperature inversion). Snowfall adds its depth at the fresh-snow density `rho_snow`, so on a layer of another density the two mix by volume; rain fills the pores and adds none. A pack is created only from `min_new_snow_mass` of new snow in one `dt_fast`; sub-threshold snow joins the rain as liquid (the canopy's surface water, then the pond).
+- **Accumulate** (`snow_accumulate`). Snowfall lands as ice at $`\min(T_{3ple},T_{air})`$ and rain-on-snow as liquid at $`T_{air}`$ (it refreezes later through the temperature inversion). Snowfall adds its depth at the fresh-snow density `fresh_density`, so on a layer of another density the two mix by volume; rain fills the pores and adds none. A pack is created only from `min_new_snow_mass` of new snow in one `dt_fast`; sub-threshold snow joins the rain as liquid (the canopy's surface water, then the pond).
 - **Drain** (`snow_drain_meltwater`). The free liquid the pack holds above its holding capacity (`liquid_holding_frac`), from the last step's melt and this step's rain, percolates out as a paired (mass, enthalpy) hand-off to the pond. It reaches the pond at the melt temperature and infiltrates from there in this step's water network. Full melt-out dumps the residual and reverts to bare ground. Meltwater therefore leaves the pack the step after it melts. With a pond taken, the drained water refills the pond first, up to what it held, and the rest reaches it over the step.
 - **Exchange** (`snow_surface_balance`, called through `ground_surface_exchange` at every evaluation of the march). A linearized backward-Euler balance of the pack's enthalpy over the step, against the canopy air and the top soil node as the march holds them at that evaluation, as each tissue's is. Its terms are the shortwave the snow absorbs at its own albedo, plus the longwave it absorbs less its own emission, less sensible heat, less sublimation or evaporation, less conduction at the base. Each is linearized about the pack's temperature $`T^n`$, so the net flux $`R(T)`$ is linear and falls as $`T`$ rises. The pack's enthalpy $`E(T)`$ rises with $`T`$ along the ice line, across the melt plateau and along the liquid line, so the balance $`E(T) = E^n + \Delta t\,f_{snow}\,R(T)`$ has one root. It is found in closed form on the plateau when the plateau's enthalpy range holds it, else on the ice or the liquid line, and the fluxes are taken at that root. A thin pack under an open patch's bare-ground conductance therefore relaxes toward its balance and cannot overshoot it, and a melting pack under cold air freezes through the plateau and stops where the balance does.
   - Sublimation takes its latent heat from the balance, and the mass that leaves takes the pack's specific energy with it, so the rest keeps its temperature. A pack that would sublimate whole does so, the vapour taking all the energy left.
@@ -50,7 +50,7 @@ Ground evaporation from a frozen soil does not use the blend: its liquid sits on
 
 ### Snow-cover fraction
 
-The **Niu–Yang (2007) snow-cover fraction** is $`\mathrm{snowfac}=\tanh(\text{depth}/\text{scale})`$ (`snow_cover_fraction`), with scale = `ny07_a` × `[aerodynamics].soil_rough` × ($`\rho`$/100 kg m⁻³)^`ny07_m` and $`\rho`$ the layer's density. The scale is Niu & Yang's ground roughness, the micro-relief a thin pack has to fill: 6.25 cm at the defaults, so 1 cm of snow covers 16 % of the ground and 10 cm covers 92 %. The cover fraction ramps the ground's optics and the blend of the soil's top boundary, and it area-weights all boundary exchange, so a thin patchy pack barely exchanges (stable and continuous as $`\mathrm{snowfac}\to0`$). With no snow the result is bit-identical to a run without the store.
+The **Niu–Yang (2007) snow-cover fraction** is $`\mathrm{snowfac}=\tanh(\text{depth}/\text{scale})`$ (`snow_cover_fraction`), with scale = `cover_scale_factor` × `[aerodynamics].soil_rough` × ($`\rho`$/100 kg m⁻³)^`cover_density_exponent` and $`\rho`$ the layer's density. The scale is Niu & Yang's ground roughness, the micro-relief a thin pack has to fill: 6.25 cm at the defaults, so 1 cm of snow covers 16 % of the ground and 10 cm covers 92 %. The cover fraction ramps the ground's optics and the blend of the soil's top boundary, and it area-weights all boundary exchange, so a thin patchy pack barely exchanges (stable and continuous as $`\mathrm{snowfac}\to0`$). With no snow the result is bit-identical to a run without the store.
 
 Ground evaporation is such a tile flux: only the snow-free share evaporates, at the bare soil's own resistances, $`E=(1-\mathrm{snowfac})\,\rho\,(q_g-q_{air})/(r_{aero}+r_{soil})`$. Inflating $`r_{aero}`$ by $`1/(1-\mathrm{snowfac})`$ instead would differ whenever the dry-surface-layer resistance $`r_{soil}`$ is positive: it divides only the aerodynamic leg, so it over-predicts bare-soil evaporation at intermediate cover, most where a dry surface makes $`r_{soil}`$ dominant. The two agree only at no cover and full cover. The canopy's roughness sees the pack through its own burial fraction, the pack's depth over the canopy height, not through this cover fraction ([canopy_aerodynamics](canopy_aerodynamics.md) §1).
 
@@ -64,19 +64,21 @@ Ground evaporation is such a tile flux: only the snow-free share evaporates, at 
 
 ## Parameters
 
-The `[snow]` block; every key is optional ([configuration](../configuration.md)).
+The `[ground_surface_layer.water]` table; every key is optional ([configuration](../configuration.md)).
 
 | Symbol | Key | Default | Meaning |
 |---|---|---|---|
-| $`\rho_{snow}`$ | `rho_snow` | 250 kg m⁻³ | fresh snow's bulk density, at which snowfall adds depth; pond water the layer takes adds it as ice, at 917 kg m⁻³ |
-| $`k_{snow}`$ | `k_snow` | 0.15 W m⁻¹ K⁻¹ | thermal conductivity |
+| $`\rho_{snow}`$ | `fresh_density` | 250 kg m⁻³ | fresh snow's bulk density, at which snowfall adds depth; pond water the layer takes adds it as ice, at 917 kg m⁻³ |
+| $`k_{snow}`$ | `conductivity_at_fresh` | 0.15 W m⁻¹ K⁻¹ | thermal conductivity |
 | | `albedo_vis_fresh`, `albedo_nir_fresh` | 0.85, 0.65 | fresh-snow albedo, visible and near infrared |
 | | `albedo_vis_aged`, `albedo_nir_aged` | 0.518, 0.435 | aged-snow albedo; the pack's own liquid fraction blends fresh to aged |
-| $`\varepsilon_{snow}`$ | `snow_emiss` | 0.97 | longwave emissivity |
+| $`\varepsilon_{snow}`$ | `emissivity` | 0.97 | longwave emissivity |
 | | `liquid_holding_frac` | 0.10 | liquid fraction the pack holds before it percolates |
 | | `min_new_snow_mass` | 10⁻³ kg m⁻² | snowfall in one `dt_fast` that starts a pack |
-| | `tiny_snow_mass` | 10⁻⁶ kg m⁻² | pack mass below which it melts out into the soil |
-| | `ny07_a`, `ny07_m` | 2.5, 1.0 | shape factor and density exponent of the snow-cover scale |
+| | `tiny_snow_mass` | 10⁻⁶ kg m⁻² | pack mass below which it melts out into the pond |
+| | `cover_scale_factor`, `cover_density_exponent` | 2.5, 1.0 | shape factor and density exponent of the snow-cover scale |
+| | `pond_capacity` | 5 kg m⁻² | the pond above which its free water runs off |
+| | `initial_mass`, `initial_temp` | 0 kg m⁻², 270 K | the layer at a fresh start |
 
 ## Code map
 

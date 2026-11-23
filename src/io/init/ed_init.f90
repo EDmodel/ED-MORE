@@ -23,12 +23,11 @@ module ed_init
                                         refresh_canopy_depth, follow_organic_slots
    use ed_slow_ledger,           only : slow_ledger_t
    use ed_soil_carbon,           only : soil_carbon_steady_pools
-   use ed_patch_state_vars,      only : soil_carbon_state_t
-   use ed_organic_lib,         only : organic_state_t
-   use ed_organic_lib,           only : organic_registered_mass
-   use ed_organic_lib,        only : SLOT_LITTER, SLOT_MOSS
+   use ed_patch_state_vars,      only : soil_carbon_state_t, organic_state_t
+   use ed_ground_surface_lib,    only : porous_layer_matter
+   use ed_ground_surface_params, only : N_POROUS, MASS_FROM_METABOLIC_LITTER, MASS_FROM_SITE_DEPTH
    use ed_biogeochem_params,     only : IP_FAST_GRND
-   use ed_constants,             only : c2b, t_3ple, n_organic_slot
+   use ed_constants,             only : c2b, t_3ple
    use ed_slow_state,            only : advance_plant_traits, reacclimate_plant_traits
    use ed_init_bare_ground,      only : init_bare_ground, init_bare_sites, seed_bare_ground, seed_patch_stores, &
                                          N_PATCH_INIT
@@ -144,8 +143,9 @@ contains
       if (cfg%init%init_mode /= INIT_RESTART) then
          call init_fast_state(poly, cfg)
          poly%seed_canopy_air = .true.
-         if (verbose .and. cfg%snow_init_swe > 0.0_wp)                                             &
-            write(*,'(a,f6.1,a)') ' snow  : seeded initial pack SWE = ', cfg%snow_init_swe, ' kg/m2'
+         if (verbose .and. cfg%ground_surface%water%initial_mass > 0.0_wp)                                             &
+            write(*,'(a,f6.1,a)') ' snow  : seeded initial pack SWE = ', cfg%ground_surface%water%initial_mass,  &
+                                  ' kg/m2'
       end if
       !---~---
       !   What every start ends with: each site's terrain, the canopy-air depth the stand sets (a
@@ -167,26 +167,32 @@ contains
 
    !---~---
    !   Each patch's organic layer at the start (docs/science/surface_organic_layer.md), through the
-   ! path the slow step's litter follows (follow_organic_slots), from no layer: the litter, the
-   ! above-ground metabolic litter pool's dry matter, with [surface_layer].litter_on; the moss, its
-   ! site's [soil].moss_depth; either a layer only from ORGANIC_MIN_DEPTH. Each slot holds the water
+   ! path the slow step's litter follows (follow_organic_slots), from no layer. Each layer's matter
+   ! comes from its mass_source: the above-ground metabolic litter pool's dry matter, or the site's
+   ! [soil].moss_depth at its bulk density; either a layer only from min_depth. Each slot holds the water
    ! its curve holds at the top soil layer's matric head, as the water network would bring it to,
    ! at the top soil layer's temperature, its water frozen below t_3ple.
    !---~---
    subroutine seed_organic_layer(poly, cfg)
       type(polygon_t),   intent(inout) :: poly
       type(ed_config_t), intent(in)    :: cfg
-      real(wp)    :: mass(n_organic_slot, poly%patch%n), temp(poly%patch%n), fliq(poly%patch%n)
+      real(wp)    :: mass(N_POROUS, poly%patch%n), temp(poly%patch%n), fliq(poly%patch%n)
       real(wp)    :: head(poly%patch%n), heat(poly%patch%n), water(poly%patch%n)
-      integer(ik) :: ip
+      integer(ik) :: ip, k
       do ip = 1_ik, poly%patch%n
          associate (surf => poly%site%surface(poly%patch%owner_site(ip)), sc => poly%patch%soil_carbon(ip))
             poly%patch%organic(ip) = organic_state_t()
-            mass(SLOT_LITTER, ip) = 0.0_wp
-            if (cfg%organic%litter_on) mass(SLOT_LITTER, ip) = organic_registered_mass(c2b * sc%carbon(IP_FAST_GRND), &
-                                                                                       cfg%organic%litter%bulk_density)
-            mass(SLOT_MOSS, ip) = organic_registered_mass(surf%soil%moss_depth * cfg%organic%moss%bulk_density,    &
-                                                          cfg%organic%moss%bulk_density)
+            do k = 1_ik, N_POROUS
+               associate (m => cfg%ground_surface%porous(k))
+                  mass(k, ip) = 0.0_wp
+                  if (m%mass_source == MASS_FROM_METABOLIC_LITTER)                                          &
+                     mass(k, ip) = porous_layer_matter(c2b * sc%carbon(IP_FAST_GRND), m%bulk_density,           &
+                                                       cfg%ground_surface%min_depth)
+                  if (m%mass_source == MASS_FROM_SITE_DEPTH)                                                &
+                     mass(k, ip) = porous_layer_matter(surf%soil%moss_depth * m%bulk_density, m%bulk_density,   &
+                                                       cfg%ground_surface%min_depth)
+               end associate
+            end do
             associate (c => surf%soil_profile%layer_curve(1))
                head(ip) = soil_theta_to_head(c%retention, surf%theta_start(1), c%theta_sat, c%theta_res, c%par_a,   &
                                              c%par_n)
@@ -195,7 +201,7 @@ contains
             fliq(ip) = merge(1.0_wp, 0.0_wp, temp(ip) >= t_3ple)
          end associate
       end do
-      call follow_organic_slots(poly%patch, cfg%organic, mass, temp, fliq, head, heat, water)
+      call follow_organic_slots(poly%patch, cfg%ground_surface, mass, temp, fliq, head, heat, water)
    end subroutine seed_organic_layer
 
    !--- Each site's terrain: the polygon's elevation, flat, unless its [[sites]] table gives its own.
@@ -220,7 +226,7 @@ contains
    ! stand's fusion leaves no blend behind); each cohort settled in its patch as a recruit is
    ! born, its tissues at the canopy-air temperature holding the water they hold at the top
    ! soil layer's potential (the restructuring and the traits' acclimation change the tissues
-   ! the setup cohorts were born with); and the snowpack [fast].snow_init_swe asks for.
+   ! the setup cohorts were born with); and the snowpack [ground_surface_layer.water].initial_mass asks for.
    !---~---
    subroutine init_fast_state(poly, cfg)
       type(polygon_t),     intent(inout) :: poly
@@ -242,26 +248,26 @@ contains
             end do
          end associate
       end do
-      if (cfg%snow_init_swe > 0.0_wp) call seed_snow(poly, cfg)
+      if (cfg%ground_surface%water%initial_mass > 0.0_wp) call seed_snow(poly, cfg)
    end subroutine init_fast_state
 
-   !--- The initial snowpack, [fast].snow_init_swe at [fast].snow_init_temp, one layer per patch.
+   !--- The initial snowpack, [ground_surface_layer.water].initial_mass at its initial_temp, one layer per patch.
    subroutine seed_snow(poly, cfg)
       type(polygon_t),      intent(inout) :: poly
       type(ed_config_t),  intent(in)      :: cfg
       integer(ik) :: ipp
+      associate (w => cfg%ground_surface%water)
       do ipp = 1_ik, poly%patch%n
-         poly%patch%snow(ipp)%swe(1)         = cfg%snow_init_swe
-         poly%patch%snow(ipp)%snow_energy(1) =                                                   &
-            temp_to_internal_energy(0.0_wp, cfg%snow_init_swe, cfg%snow_init_temp, 0.0_wp)
-         poly%patch%snow(ipp)%snow_depth(1)  = cfg%snow_init_swe / cfg%snow%rho_snow
-         poly%patch%snow(ipp)%density(1)     = cfg%snow%rho_snow
+         poly%patch%snow(ipp)%swe(1)         = w%initial_mass
+         poly%patch%snow(ipp)%snow_energy(1) = temp_to_internal_energy(0.0_wp, w%initial_mass, w%initial_temp, 0.0_wp)
+         poly%patch%snow(ipp)%snow_depth(1)  = w%initial_mass / w%fresh_density
+         poly%patch%snow(ipp)%density(1)     = w%fresh_density
          poly%patch%snow(ipp)%nlayer         = 1_ik
-         call internal_energy_to_temp(poly%patch%snow(ipp)%snow_energy(1),                       &
-                                      cfg%snow_init_swe, 0.0_wp,                                 &
+         call internal_energy_to_temp(poly%patch%snow(ipp)%snow_energy(1), w%initial_mass, 0.0_wp,          &
                                       poly%patch%snow(ipp)%snow_temp(1),                         &
                                       poly%patch%snow(ipp)%snow_fliq(1))
       end do
+      end associate
    end subroutine seed_snow
 
    !--- What a restart read: its file and time, and a restructuring the stand still owes.

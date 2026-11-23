@@ -1187,8 +1187,8 @@ contains
          g%pack%nlayer         = 1_ik
          g%pack%swe(1)         = SWE(b)
          g%pack%snow_energy(1) = temp_to_internal_energy(0.0_wp, SWE(b), T_PACK(b), FLIQ(b))
-         g%pack%snow_depth(1)  = SWE(b) / g%params%rho_snow
-         g%pack%density(1)     = g%params%rho_snow
+         g%pack%snow_depth(1)  = SWE(b) / g%params%fresh_density
+         g%pack%density(1)     = g%params%fresh_density
          g%pack%snow_temp(1)   = T_PACK(b)
          g%pack%snow_fliq(1)   = FLIQ(b)
       end associate

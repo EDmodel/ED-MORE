@@ -23,7 +23,7 @@ module ed_surface
                                        sat_specific_humidity_temp_deriv, enthalpy_vapor,           &
                                        internal_energy_liquid, precip_enthalpy, liquid_energy_to_temp
    use ed_patch_state_vars,     only : snow_state_t
-   use ed_biophysics_params,    only : snow_params_t
+   use ed_ground_surface_params, only : water_material_t
    use ed_numerics,             only : within_roundoff
    use ed_ground_surface_lib,   only : water_layer_cover, water_layer_albedo, combined_density,             &
                                        water_layer_free_water, water_layer_resistance
@@ -95,7 +95,7 @@ module ed_surface
       real(wp) :: ground_emiss   = 0.95_wp              ! [-]
       type(snow_state_t)  :: pack                       ! the pack after the step's precipitation and drainage
       real(wp) :: snowfac    = 0.0_wp                   ! [-] its Niu-Yang cover fraction (0 without a pack)
-      type(snow_params_t) :: params                     ! the snow parameters
+      type(water_material_t) :: params                  ! the water layer's material
       real(wp) :: dt         = 0.0_wp                   ! [s] the step
    end type surface_env_t
 
@@ -257,13 +257,13 @@ contains
    pure function snow_cover_fraction(swe, snow_depth, density, params, ground_rough) result(snowfac)
       real(wp),            intent(in) :: swe, snow_depth   ! [kg/m2], [m]
       real(wp),            intent(in) :: density           ! [kg/m3] the layer's bulk density
-      type(snow_params_t), intent(in) :: params
+      type(water_material_t), intent(in) :: params
       real(wp),            intent(in) :: ground_rough   ! [m] the ground's roughness ([aerodynamics].soil_rough)
       real(wp) :: snowfac
       if (swe <= params%tiny_snow_mass) then
          snowfac = 0.0_wp
       else
-         snowfac = water_layer_cover(snow_depth, density, params%ny07_a, params%ny07_m, ground_rough)
+         snowfac = water_layer_cover(snow_depth, density, params%cover_scale_factor, params%cover_density_exponent, ground_rough)
       end if
    end function snow_cover_fraction
 
@@ -276,7 +276,7 @@ contains
    !---~---
    pure subroutine snow_blend_ground_optics(snow, params, ground_rough, albedo_vis, albedo_nir, emiss, temp)
       type(snow_state_t),  intent(in)    :: snow
-      type(snow_params_t), intent(in)    :: params
+      type(water_material_t), intent(in)    :: params
       real(wp),            intent(in)    :: ground_rough   ! [m] the ground's roughness ([aerodynamics].soil_rough)
       real(wp),            intent(inout) :: albedo_vis   ! [-] VIS albedo: the bare soil's on entry
       real(wp),            intent(inout) :: albedo_nir   ! [-] NIR albedo: the bare soil's on entry
@@ -287,10 +287,10 @@ contains
       fc = snow_cover_fraction(snow%swe(1), snow%snow_depth(1), snow%density(1), params, ground_rough)
       call snow_albedos(snow, params, snow_vis, snow_nir)
       emit_soil  = emiss * temp ** 4                                ! [K4] emission over sigma
-      emit_snow  = params%snow_emiss * snow%snow_temp(1) ** 4
+      emit_snow  = params%emissivity * snow%snow_temp(1) ** 4
       albedo_vis = (1.0_wp - fc) * albedo_vis + fc * snow_vis
       albedo_nir = (1.0_wp - fc) * albedo_nir + fc * snow_nir
-      emiss      = (1.0_wp - fc) * emiss + fc * params%snow_emiss
+      emiss      = (1.0_wp - fc) * emiss + fc * params%emissivity
       temp       = (((1.0_wp - fc) * emit_soil + fc * emit_snow) / emiss) ** 0.25_wp
    end subroutine snow_blend_ground_optics
 
@@ -300,7 +300,7 @@ contains
    !---~---
    pure subroutine snow_albedos(snow, params, albedo_vis, albedo_nir)
       type(snow_state_t),  intent(in)  :: snow
-      type(snow_params_t), intent(in)  :: params
+      type(water_material_t), intent(in)  :: params
       real(wp),            intent(out) :: albedo_vis, albedo_nir   ! [-]
       real(wp) :: fl
       fl = 0.0_wp
@@ -324,7 +324,7 @@ contains
       real(wp),            intent(in)  :: soil_albedo_vis, soil_albedo_nir, soil_emiss   ! [-] the bare soil's optics
       real(wp),            intent(in)  :: soil_temp               ! [K] the top soil node's temperature
       type(snow_state_t),  intent(in)  :: snow
-      type(snow_params_t), intent(in)  :: params
+      type(water_material_t), intent(in)  :: params
       real(wp),            intent(out) :: rnet_soil, sw_snow      ! [W/m2]
       real(wp) :: snow_vis, snow_nir
       rnet_soil = dn_vis * (1.0_wp - soil_albedo_vis) + dn_nir * (1.0_wp - soil_albedo_nir)              &
@@ -342,19 +342,19 @@ contains
    pure subroutine snow_accumulate(snow, snowfall, rainf, air_temp, dt, params)
       type(snow_state_t), intent(inout) :: snow                      ! the pack
       real(wp),            intent(in)    :: snowfall, rainf, air_temp, dt   ! [kg/m2/s], [kg/m2/s], [K], [s]
-      type(snow_params_t), intent(in)    :: params
+      type(water_material_t), intent(in)    :: params
       real(wp) :: dm_snow, dm_rain
       logical  :: has_layer
       dm_snow = max(0.0_wp, snowfall) * dt
       dm_rain = max(0.0_wp, rainf) * dt
       has_layer = (snow%nlayer >= 1_ik) .or. (dm_snow >= params%min_new_snow_mass)
       if (.not. has_layer) return                          ! bare ground and sub-threshold snow: no pack
-      if (snow%nlayer == 0_ik) snow%density(1) = params%rho_snow
-      if (snow%density(1) /= params%rho_snow)                                                        &
-         snow%density(1) = combined_density(snow%swe(1), snow%density(1), dm_snow, params%rho_snow)
+      if (snow%nlayer == 0_ik) snow%density(1) = params%fresh_density
+      if (snow%density(1) /= params%fresh_density)                                                        &
+         snow%density(1) = combined_density(snow%swe(1), snow%density(1), dm_snow, params%fresh_density)
       snow%swe(1)         = snow%swe(1) + dm_snow + dm_rain
       snow%snow_energy(1) = snow%snow_energy(1) + precip_enthalpy(dm_rain, dm_snow, air_temp)
-      snow%snow_depth(1)  = snow%snow_depth(1) + dm_snow / params%rho_snow   ! rain fills pores / refreezes -> no bulk depth
+      snow%snow_depth(1)  = snow%snow_depth(1) + dm_snow / params%fresh_density   ! rain fills pores / refreezes -> no bulk depth
       snow%nlayer         = 1_ik
    end subroutine snow_accumulate
 
@@ -364,7 +364,7 @@ contains
    !---~---
    pure subroutine snow_drain_meltwater(snow, params, melt)
       type(snow_state_t), intent(inout) :: snow     ! the pack
-      type(snow_params_t), intent(in)    :: params
+      type(water_material_t), intent(in)    :: params
       type(snow_out_t),   intent(out)   :: melt     ! the drained and dumped water, mass and enthalpy
       real(wp) :: wmass_free
       melt = snow_out_t()
@@ -419,7 +419,7 @@ contains
    !---~---
    pure logical function pond_freezes(w_pond, e_pond, params)
       real(wp),            intent(in) :: w_pond, e_pond   ! [kg/m2], [J/m2]
-      type(snow_params_t), intent(in) :: params
+      type(water_material_t), intent(in) :: params
       pond_freezes = w_pond > params%tiny_snow_mass .and. e_pond < w_pond * internal_energy_liquid(t_3ple)
    end function pond_freezes
 
@@ -588,9 +588,9 @@ contains
    pure function snow_base_conductance(snow_depth, env, params) result(gcond)
       real(wp),            intent(in) :: snow_depth   ! [m]
       type(surface_env_t), intent(in) :: env
-      type(snow_params_t), intent(in) :: params
+      type(water_material_t), intent(in) :: params
       real(wp) :: gcond
-      gcond = conductance_in_series(water_layer_resistance(snow_depth, snow_depth, params%k_snow), env%r_below)
+      gcond = conductance_in_series(water_layer_resistance(snow_depth, snow_depth, params%conductivity_at_fresh), env%r_below)
    end function snow_base_conductance
 
    !---~---
@@ -636,12 +636,12 @@ contains
          g_n      = gcond * (t_n - t_below)
          dh_dt    = sensible_heat_slope(env%ggnet, env%rho_air, env%cp_cas)
          dw_dt    = env%ggnet * env%rho_air * sat_specific_humidity_temp_deriv(t_n, env%press, fliq_n)
-         demit_dt = emission_slope(params%snow_emiss, t_n)
+         demit_dt = emission_slope(params%emissivity, t_n)
          !---~---
          !   The snow's net radiation at T^n: what it absorbs at its own albedo and emissivity,
          ! less its own emission.
          !---~---
-         rad_n    = env%sw_snow + params%snow_emiss * (env%lw_down - stefan_boltzmann * t_n ** 4)
+         rad_n    = env%sw_snow + params%emissivity * (env%lw_down - stefan_boltzmann * t_n ** 4)
          l_vap    = enthalpy_vapor(t_n) - e_old / swe0
          r0       = rad_n - h_n - l_vap * w_n - g_n
          drdt     = -(demit_dt + dh_dt + l_vap * dw_dt + gcond)                ! < 0
@@ -804,7 +804,7 @@ contains
    pure subroutine snow_take_exchange(snow, energy_amount, vapour_amount, params)
       type(snow_state_t),  intent(inout) :: snow                            ! the pack
       real(wp),            intent(in)    :: energy_amount, vapour_amount    ! [J/m2] in, [kg/m2] out
-      type(snow_params_t), intent(in)    :: params
+      type(water_material_t), intent(in)    :: params
       if (snow%nlayer == 0_ik) return
       if (.not. (snow%swe(1) - vapour_amount >= 0.0_wp                                                      &
                  .or. within_roundoff(snow%swe(1) - vapour_amount, snow%swe(1) + abs(vapour_amount))))         &

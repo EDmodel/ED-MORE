@@ -1,7 +1,7 @@
 ! SPDX-License-Identifier: Apache-2.0
 !---~---
 !   test_params_config -- the config blocks reach the records the model runs on.
-!   1. THE BLOCK LOADERS (ed_config_io): [soil], [fast], [snow] and [aerodynamics] from a
+!   1. THE BLOCK LOADERS (ed_config_io): [soil], [fast], [ground_surface_layer.water] and [aerodynamics] from a
 !      small TOML file. String selectors map to their codes, scalar keys override, keys absent
 !      from a block keep their type default, a file with no [soil] block keeps the geothermal
 !      bottom, the drainage boundary's two named ends, and the parameter record lists every key
@@ -20,23 +20,24 @@ program test_params_config
    use ed_test_assert,         only : check, check_true, test_report
    use ed_kinds,               only : wp, ik
    use ed_constants,           only : n_soil_layer_max
-   use ed_biophysics_params,   only : snow_params_t, aero_params_t
+   use ed_biophysics_params,   only : aero_params_t
    use ed_soil_params,         only : soil_params_t, soil_profile_t, SOIL_BC_AQUIFER, SOIL_BC_DRAIN,      &
                                       ENERGY_BC_GEOTHERMAL, ENERGY_BC_DIRICHLET
    use ed_soil_derive,         only : soil_layers, build_soil_profile
    use ed_soil_hydr_lib,       only : SOIL_RETENTION_VG, SOIL_RETENTION_CAMPBELL
    use ed_config,              only : ed_config_t, init_params_t
    use ed_toml,                only : toml_table_t, toml_parse_file, toml_write_record
-   use ed_config_io,           only : load_fast_params, load_soil, load_snow_params, load_aero_params, load_soil_temp, &
-                                      load_organic_params
-   use ed_organic_lib,      only : organic_params_t
+   use ed_config_io,           only : load_fast_params, load_soil, load_aero_params, load_soil_temp,          &
+                                      load_ground_surface_params
+   use ed_ground_surface_params, only : ground_surface_layer_params_t, POROUS_LITTER, POROUS_MOSS,           &
+                                        MASS_FROM_NONE, MASS_FROM_METABOLIC_LITTER
    implicit none
 
    call test_block_loaders()
    call test_soil_column()
    call test_soil_texture_lists()
    call test_init_soil_temp()
-   call test_surface_layer()
+   call test_ground_surface_layer()
 
    call test_report('test_params_config')
 
@@ -48,7 +49,7 @@ contains
       type(toml_table_t)   :: tm
       type(soil_params_t)  :: s
       type(ed_config_t)    :: c
-      type(snow_params_t)  :: sn
+      type(ground_surface_layer_params_t) :: g
       type(aero_params_t)  :: a
       integer(ik) :: u
       logical     :: ok
@@ -57,7 +58,6 @@ contains
       open(newunit=u, file=TOMLFILE, status='replace', action='write')
       write(u,'(a)') '[soil]'
       write(u,'(a)') 'water_bottom_bc   = "aquifer"'
-      write(u,'(a)') 'w_pond_max        = 9.0'
       write(u,'(a)') 'ground_albedo_nir = 0.25'
       write(u,'(a)') 'thermal_bottom_bc = "dirichlet"'
       write(u,'(a)') 'deep_temp         = 283.24'
@@ -66,9 +66,10 @@ contains
       write(u,'(a)') 'water_atol              = 2.5e-5'
       write(u,'(a)') 'soil_energy_budget_atol = 0.05'
       write(u,'(a)') ''
-      write(u,'(a)') '[snow]'
-      write(u,'(a)') 'rho_snow   = 300.0'
-      write(u,'(a)') 'snow_emiss = 0.95'
+      write(u,'(a)') '[ground_surface_layer.water]'
+      write(u,'(a)') 'fresh_density = 300.0'
+      write(u,'(a)') 'emissivity    = 0.95'
+      write(u,'(a)') 'pond_capacity = 9.0'
       write(u,'(a)') ''
       write(u,'(a)') '[aerodynamics]'
       write(u,'(a)') 'z0m_ratio = 0.10'
@@ -81,7 +82,7 @@ contains
 
       call load_fast_params(tm, c)
       call load_soil(tm, s)
-      call load_snow_params(tm, sn)
+      call load_ground_surface_params(tm, g)
       call load_aero_params(tm, a)
 
       print '(a)', 'test_block_loaders:'
@@ -90,7 +91,6 @@ contains
       call check_true('soil.water_bottom_bc "aquifer" -> SOIL_BC_AQUIFER', s%water_bottom_bc == SOIL_BC_AQUIFER,   &
                       real(s%water_bottom_bc, wp))
       call check('fast.water_atol overridden', c%water_atol,     2.5e-5_wp, 1.0e-12_wp)
-      call check('soil.w_pond_max overridden', s%w_pond_max, 9.0_wp, 0.0_wp)
       call check('soil.ground_albedo_nir overridden', s%ground_albedo_nir, 0.25_wp, 1.0e-12_wp)
       call check('soil.ground_albedo_vis absent -> default 0.15', s%ground_albedo_vis, 0.15_wp, 0.0_wp)
       call check('soil.ground_emissivity absent -> default 0.95', s%ground_emissivity, 0.95_wp, 0.0_wp)
@@ -110,10 +110,11 @@ contains
       call check('soil.deep_temp overridden', s%deep_temp, 283.24_wp, 1.0e-9_wp)
       call check('soil.deep_depth absent -> derived default 3.145', s%deep_depth, 3.145_wp, 1.0e-12_wp)
 
-      !--- [snow]: overrides + default.
-      call check('snow.rho_snow overridden',   sn%rho_snow,   300.0_wp, 1.0e-9_wp)
-      call check('snow.snow_emiss overridden', sn%snow_emiss, 0.95_wp,  1.0e-12_wp)
-      call check('snow.k_snow absent -> default', sn%k_snow,  0.15_wp,  1.0e-12_wp)
+      !--- [ground_surface_layer.water]: overrides + default.
+      call check('water.fresh_density overridden', g%water%fresh_density, 300.0_wp, 1.0e-9_wp)
+      call check('water.emissivity overridden',    g%water%emissivity,    0.95_wp,  1.0e-12_wp)
+      call check('water.pond_capacity overridden', g%water%pond_capacity, 9.0_wp,   0.0_wp)
+      call check('water.conductivity_at_fresh absent -> default', g%water%conductivity_at_fresh, 0.15_wp, 1.0e-12_wp)
 
       !--- [aerodynamics]: override (real + int) + default.
       call check('aero.z0m_ratio overridden',   a%z0m_ratio, 0.10_wp, 1.0e-12_wp)
@@ -425,31 +426,36 @@ contains
    end subroutine test_init_soil_temp
 
    !---~---
-   !   5. [surface_layer]: the defaults are the sourced materials, and a key replaces its one value.
+   !   5. [ground_surface_layer]: the defaults are the sourced materials, and a key in a table
+   ! replaces its one value; mass_source "none" takes a layer away.
    !---~---
-   subroutine test_surface_layer()
+   subroutine test_ground_surface_layer()
       character(len=*), parameter :: TOMLFILE = 'test_params_config_surface_tmp.toml'
       type(toml_table_t)     :: tm
-      type(organic_params_t) :: o, d
+      type(ground_surface_layer_params_t) :: o, d
       integer(ik) :: u
       logical     :: ok
-      print '(a)', 'test_surface_layer:'
-      call check_true('litter is on by default', d%litter_on)
-      call check('the litter''s default bulk density', d%litter%bulk_density, 45.0_wp, 0.0_wp)
-      call check('the moss''s default water at saturation', d%moss%theta_sat, 0.85_wp, 0.0_wp)
-      call check('the litter''s default saturated conductivity', d%litter%ksat, 1.83e-3_wp, 0.0_wp)
+      print '(a)', 'test_ground_surface_layer:'
+      call check_true('the litter takes the metabolic litter by default',                                    &
+                      d%porous(POROUS_LITTER)%mass_source == MASS_FROM_METABOLIC_LITTER)
+      call check('the litter''s default bulk density', d%porous(POROUS_LITTER)%bulk_density, 45.0_wp, 0.0_wp)
+      call check('the moss''s default water at saturation', d%porous(POROUS_MOSS)%theta_sat, 0.85_wp, 0.0_wp)
+      call check('the litter''s default saturated conductivity', d%porous(POROUS_LITTER)%ksat, 1.83e-3_wp, 0.0_wp)
+      call check('a layer from 0.1 mm', d%min_depth, 1.0e-4_wp, 0.0_wp)
       open(newunit=u, file=TOMLFILE, status='replace', action='write')
-      write(u,'(a)') '[surface_layer]'
-      write(u,'(a)') 'litter_on = false'
-      write(u,'(a)') 'moss_bulk_density = 64.0'
+      write(u,'(a)') '[ground_surface_layer.litter]'
+      write(u,'(a)') 'mass_source = "none"'
+      write(u,'(a)') '[ground_surface_layer.moss]'
+      write(u,'(a)') 'bulk_density = 64.0'
       close(u)
       call toml_parse_file(TOMLFILE, tm, ok)
-      call load_organic_params(tm, o)
-      call check_true('a key turns the litter off', .not. o%litter_on)
-      call check('a key sets the moss''s bulk density', o%moss%bulk_density, 64.0_wp, 0.0_wp)
-      call check('the keys it leaves keep their defaults', o%litter%k_dry, d%litter%k_dry, 0.0_wp)
+      call load_ground_surface_params(tm, o)
+      call check_true('a key takes the litter away', o%porous(POROUS_LITTER)%mass_source == MASS_FROM_NONE)
+      call check('a key sets the moss''s bulk density', o%porous(POROUS_MOSS)%bulk_density, 64.0_wp, 0.0_wp)
+      call check('the keys it leaves keep their defaults', o%porous(POROUS_LITTER)%k_dry,                     &
+                 d%porous(POROUS_LITTER)%k_dry, 0.0_wp)
       open(newunit=u, file=TOMLFILE, status='old')
       close(u, status='delete')
-   end subroutine test_surface_layer
+   end subroutine test_ground_surface_layer
 
 end program test_params_config

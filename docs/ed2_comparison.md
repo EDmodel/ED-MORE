@@ -130,7 +130,7 @@ either on is a decision to leave the shipped baseline.
 | `SOIL_DATABASE`, `SOILDEPTH_DB`, texture classes, pedotransfer functions | Without maps, the column's hydraulic and thermal parameters are given directly. With the `[maps]` soil maps, each layer's curve is Hodnett and Tomasella's (2002) van Genuchten fit (ED2's `SOIL_HYDRO_SCHEME = 2`) with Ottoni et al. (2019) conductivity, from texture and chemistry. Layers follow the SoilGrids depths | `[soil]`, `[maps]` | [soil_biophysics](science/soil_biophysics.md), "Hydraulic parameters from soil texture" |
 | `ISOILBC` 0–3; 1, `SLDRAIN` | Drainage `q = f·K` (free drainage `f = 1`, bedrock `f = 0`, a soil map's leaky base at its `f_leak`) or an aquifer, a head-driven two-way boundary. No slope-scaled lateral drainage | `[soil].water_bottom_bc` | [soil_biophysics](science/soil_biophysics.md) |
 | soil heat in the RK4 state | Implicit backward-Euler heat diffusion on internal energy; freeze/thaw and ice-aware conductivity and heat capacity always on. The bottom is no-flux (`geothermal`) or an optional Dirichlet anchor below the column. A shallow column reflects the annual wave off a no-flux base; the anchor is the alternative to deepening it | `[soil].thermal_bottom_bc`, `deep_temp`, `deep_depth` | [soil_biophysics](science/soil_biophysics.md), "The bottom thermal boundary" |
-| `NZS` (4), `IPERCOL` | One bulk snow layer: Niu–Yang cover fraction, accumulation, meltwater percolation, surface balance. The clearest resolution loss | `[snow]` | [snow_biophysics](science/snow_biophysics.md) |
+| `NZS` (4), `IPERCOL` | One bulk snow layer: Niu–Yang cover fraction, accumulation, meltwater percolation, surface balance. The clearest resolution loss | `[ground_surface_layer.water]` | [snow_biophysics](science/snow_biophysics.md) |
 | `therm_lib8` saturation vapour pressure (Murphy–Koop family) | Ambaum (2020) over liquid and over ice, blended on the liquid fraction; its slope is Clausius–Clapeyron with the model's latent heat | | [snow_biophysics](science/snow_biophysics.md), "Sublimation saturates over ice" |
 | `IED_GRNDVAP` 0–5; 0 (modified Lee–Pielke) | Dry-surface-layer resistance | `[soil].dsl_dmax`, `dsl_theta_init` | [soil_biophysics](science/soil_biophysics.md) |
 | `LEAF_MAXWHC` | Optional canopy interception into surface water with a Beer-law catch and a per-PFT storage capacity. Off by default | `[fast].canopy_water_on`, `intercept_*`; `[pft].*_surf_water_max` | [vegetation_energy_dynamics](science/vegetation_energy_dynamics.md) |
@@ -373,7 +373,7 @@ what they take from ED2 is listed here.
 The reference config, `ed_config_main.toml`, gives each key's default and meaning; what the defaults take
 from ED2 and the models ED2 builds on is listed here.
 
-- **Snow** (`[snow]`). The aged-snow albedos, 0.518 visible and 0.435 near infrared, are ED2's, and
+- **Snow** (`[ground_surface_layer.water]`). The aged-snow albedos, 0.518 visible and 0.435 near infrared, are ED2's, and
   `min_new_snow_mass` is ED2's `tiny_sfcwater_mass`. The liquid-holding fraction 0.10 is LEAF-3's 1:9 ratio
   of liquid to ice.
 - **Canopy aerodynamics** (`[aerodynamics]`). The roughness and displacement ratios are ED2's `vh2vr` and

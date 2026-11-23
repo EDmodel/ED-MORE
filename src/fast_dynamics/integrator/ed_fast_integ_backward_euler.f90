@@ -621,7 +621,7 @@ contains
          !--- A sub-step's balance that is not finite is never committed: the run stops.
          if (.not. finite_evaluation(water%ev(i_sol), tau_soil, tau_coh))                                     &
             error stop 'water_step: a sub-step of the soil-plant water network is not finite'
-         call water_commit_substep(soil, drive, h, tau_soil, tau_coh, water%ev(i_sol), water%state, water%flows,  &
+         call water_commit_substep(drive, h, tau_soil, tau_coh, water%ev(i_sol), water%state, water%flows,  &
                                    fast, cut, spilled)
          !---~---
          !   The next sub-step starts where this one ended: its start is this one's solution, whose
@@ -1255,8 +1255,7 @@ contains
    ! its strongest neighbour (the wood, for the leaves) carries the flow that closes its balance;
    ! the neighbour absorbs the slack (docs/science/soil_plant_water.md §3, "Conservation").
    !---~---
-   subroutine water_commit_substep(soil, drive, h, tau_soil, tau_coh, ev, state, flows, fast, cut, spilled)
-      type(soil_params_t), intent(in)    :: soil
+   subroutine water_commit_substep(drive, h, tau_soil, tau_coh, ev, state, flows, fast, cut, spilled)
       type(water_drive_t), intent(in)    :: drive
       real(wp),            intent(in)    :: h, tau_soil(:), tau_coh(:,:)
       type(water_tend_t),  intent(in)    :: ev
@@ -1414,15 +1413,15 @@ contains
       state%tau_coh = tau_coh
 
       !--- Spill: water above the pond's capacity runs off at the pond's temperature.
-      spill = max(0.0_wp, state%water_soil(POND) - soil%w_pond_max)
+      spill = max(0.0_wp, state%water_soil(POND) - drive%pond_capacity)
       spilled = spill > 0.0_wp
       if (spilled) then
          t_pond = liquid_energy_to_temp(state%e_pond / state%water_soil(POND))
          flows%spill = flows%spill + spill
          flows%spill_enth = flows%spill_enth + spill * internal_energy_liquid(t_pond)
          state%e_pond = state%e_pond - spill * internal_energy_liquid(t_pond)
-         state%water_soil(POND) = soil%w_pond_max
-         state%tau_soil(POND) = pond_water_to_head(soil%w_pond_max)
+         state%water_soil(POND) = drive%pond_capacity
+         state%tau_soil(POND) = pond_water_to_head(drive%pond_capacity)
       end if
       if (state%water_soil(POND) <= POND_TINY) then
          state%e_pond = 0.0_wp

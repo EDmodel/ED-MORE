@@ -34,9 +34,9 @@ src/
 │   │              and their values
 │   └── params/    the run's parameters, one leaf per TOML block: the types
 │                  and codes a kernel imports without ed_config (the PFT
-│                  table, the soil, forcing, output, the fast loop, snow and
-│                  aerodynamics, leaf, soil carbon, demography, trait
-│                  dynamics, sites, region, maps)
+│                  table, the soil, the ground's surface layers, forcing,
+│                  output, the fast loop, aerodynamics, leaf, soil carbon,
+│                  demography, trait dynamics, sites, region, maps)
 │
 │  ── STATE, one file per level of the hierarchy, each in sections ────────────
 ├── state/         ed_cohort_state_vars: the flat cohort structure-of-arrays

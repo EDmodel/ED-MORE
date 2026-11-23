@@ -246,8 +246,8 @@ program test_sites
    call refused('a table without area_fraction',                                                &
                 '[[sites]]'//nl//'slope = 5.0'//nl, 'sites.area_fraction')
    call refused('a key no [[sites]] table takes',                                               &
-                '[[sites]]'//nl//'area_fraction = 1.0'//nl//'w_pond_max = 1.0'//nl,              &
-                'sites.1.w_pond_max')
+                '[[sites]]'//nl//'area_fraction = 1.0'//nl//'dsl_dmax = 0.01'//nl,                &
+                'sites.1.dsl_dmax')
    call refused('a census run without census_site_id',                                          &
                 '[init]'//nl//'init_mode = 1'//nl//'[[sites]]'//nl//'area_fraction = 1.0'//nl,    &
                 'census_site_id')

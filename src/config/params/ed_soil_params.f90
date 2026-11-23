@@ -60,10 +60,9 @@ module ed_soil_params
       real(wp)    :: dry_conductivity   = 0.15_wp   ! [W/m/K]  dry-matrix conductivity
       real(wp)    :: dry_heat_capacity  = 2.0e6_wp  ! [J/m3/K] dry-matrix volumetric heat capacity
       !---~---
-      !   The surface: the pond, the dry surface layer (soil evaporation), and the bare-soil
-      ! optics, blended with snow where there is snow.
+      !   The surface: the dry surface layer (soil evaporation), and the bare-soil optics,
+      ! blended with snow where there is snow.
       !---~---
-      real(wp)    :: w_pond_max        = 5.0_wp     ! [kg/m2] ponding capacity before surface runoff
       real(wp)    :: dsl_dmax          = 0.015_wp   ! [m] DSL max thickness (soil evap)
       real(wp)    :: dsl_theta_init    = 0.8_wp     ! DSL initiation theta_1/theta_sat
       real(wp)    :: ground_albedo_vis = 0.15_wp    ! [-] soil albedo, visible

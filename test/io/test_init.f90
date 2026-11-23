@@ -446,20 +446,20 @@ contains
       call init_fast_state(poly, cfg)
       do ip = 1_ik, poly%patch%n
          call check(poly%patch%snow(ip)%nlayer == 0_ik .and. poly%patch%snow(ip)%swe(1) == 0.0_wp,               &
-                    'a patch holds snow with no [fast].snow_init_swe')
+                    'a patch holds snow with no initial_mass')
       end do
-      cfg%snow_init_swe  = SWE
-      cfg%snow_init_temp = T_PACK
+      cfg%ground_surface%water%initial_mass = SWE
+      cfg%ground_surface%water%initial_temp = T_PACK
       call init_bare_ground(poly, cfg, 3_ik)
       call finalize_init(poly)
       call init_fast_state(poly, cfg)
       do ip = 1_ik, poly%patch%n
          associate (snow => poly%patch%snow(ip))
             call check(snow%nlayer == 1_ik, 'a seeded patch does not hold one snow layer')
-            call check_close(snow%swe(1), SWE, 1.0e-15_wp, 'a seeded pack does not hold [fast].snow_init_swe')
+            call check_close(snow%swe(1), SWE, 1.0e-15_wp, 'a seeded pack does not hold its initial_mass')
             call check_close(snow%snow_temp(1), T_PACK, 1.0e-10_wp, 'a seeded pack''s energy does not give back its temperature')
             call check(snow%snow_fliq(1) == 0.0_wp, 'a seeded pack below freezing holds liquid')
-            call check_close(snow%snow_depth(1), SWE / cfg%snow%rho_snow, 1.0e-12_wp,                               &
+            call check_close(snow%snow_depth(1), SWE / cfg%ground_surface%water%fresh_density, 1.0e-12_wp,      &
                              'a seeded pack is not as deep as its water over the snow density')
          end associate
       end do
@@ -468,12 +468,12 @@ contains
       ! until the pack's first exchange, and the first window's canopy burial and snow cover
       ! would read the wrong depth.
       !---~---
-      cfg%snow%rho_snow = 350.0_wp
+      cfg%ground_surface%water%fresh_density = 350.0_wp
       call init_bare_ground(poly, cfg, 3_ik)
       call finalize_init(poly)
       call init_fast_state(poly, cfg)
-      call check_close(poly%patch%snow(1)%snow_depth(1), SWE / cfg%snow%rho_snow, 1.0e-12_wp,                       &
-                       'a pack seeded at [snow].rho_snow = 350 is as deep as its water over 350 kg/m3')
+      call check_close(poly%patch%snow(1)%snow_depth(1), SWE / cfg%ground_surface%water%fresh_density, 1.0e-12_wp,     &
+                       'a pack seeded at a fresh_density of 350 is as deep as its water over 350 kg/m3')
    end subroutine test_initial_snowpack
 
    !---~---

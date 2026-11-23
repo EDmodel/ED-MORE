@@ -28,8 +28,8 @@ module ed_config
    use ed_soil_params,          only : soil_params_t, soil_profile_t, SOIL_BC_DRAIN, SOIL_BC_AQUIFER, &
                                        ANNUAL_DAMPING_DEPTH
    use ed_soil_derive,          only : soil_layers, build_soil_profile, map_layer_texture
-   use ed_biophysics_params,    only : snow_params_t, aero_params_t
-   use ed_organic_lib,       only : organic_params_t
+   use ed_biophysics_params,    only : aero_params_t
+   use ed_ground_surface_params, only : ground_surface_layer_params_t
    use ed_biogeochem_params,    only : soil_carbon_params_t
    use ed_demography_params,    only : demography_params_t
    use ed_trait_dynamics_params, only : trait_dynamics_params_t
@@ -93,16 +93,13 @@ module ed_config
       logical     :: canopy_water_on     = .false.        ! the canopy's surface water
       real(wp)    :: intercept_alpha     = 1.0_wp         ! [-] Beer interception efficiency
       real(wp)    :: intercept_k         = 0.5_wp         ! [1/PAI] Beer interception extinction
-      real(wp)    :: snow_init_swe       = 0.0_wp         ! [kg/m2] snow seeded at the run start
-      real(wp)    :: snow_init_temp      = 270.0_wp       ! [K] its temperature
       integer(ik) :: n_fast_per_slow                      ! DERIVED nint(dt_slow / dt_fast), at least 1
 
       !--- [soil]: the ground: its column, surface and bottom boundaries.
       type(soil_params_t) :: soil
-      !--- [snow], [surface_layer], [aerodynamics].
-      type(snow_params_t)    :: snow
-      type(organic_params_t) :: organic
-      type(aero_params_t) :: aero
+      !--- [ground_surface_layer], [aerodynamics].
+      type(ground_surface_layer_params_t) :: ground_surface
+      type(aero_params_t)                 :: aero
 
       !--- [demography], with the treefall gaps and recruitment.
       type(demography_params_t) :: demography

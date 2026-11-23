@@ -17,9 +17,13 @@
 module ed_patch_state_vars
    use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
    use ed_kinds,              only : wp, ik
-   use ed_constants,          only : n_soil_layer_max, n_snow_layer_max, tiny_num, t_3ple, rho_h2o
-   use ed_therm_lib,          only : cas_molar_density
-   use ed_organic_lib,        only : organic_state_t
+   use ed_constants,          only : n_soil_layer_max, n_snow_layer_max, tiny_num, t_3ple, rho_h2o, cp_organic
+   use ed_therm_lib,          only : cas_molar_density, internal_energy_to_temp, temp_to_internal_energy
+   use ed_numerics,           only : within_roundoff
+   use ed_soil_hydr_lib,      only : soil_layer_curve_t, build_soil_layer_curve
+   use ed_ground_surface_lib, only : porous_layer_depth, porous_layer_capacity, porous_layer_fill,             &
+                                     porous_layer_resistance
+   use ed_ground_surface_params, only : ground_surface_layer_params_t, porous_material_t, N_POROUS
    use ed_diag_vars,          only : patch_diag_block, expand_patch_diag, reorder_patch_diag
    use ed_state_defaults,     only : UNSET_POSITIVE, CAN_CO2_UNSEEDED, CAN_DEPTH_UNSET
    use ed_soil_derive,        only : top_soil_psi
@@ -28,7 +32,10 @@ module ed_patch_state_vars
    implicit none
    private
 
-   public :: cas_state_t, snow_state_t, soil_water_state_t, soil_energy_state_t, soil_carbon_state_t
+   public :: cas_state_t, snow_state_t, organic_state_t, soil_water_state_t, soil_energy_state_t, soil_carbon_state_t
+   public :: organic_present, organic_layer_sums, organic_diagnose, organic_split_energy
+   public :: organic_take_exchange, organic_slot_curve, organic_slot_capacity, organic_spill
+   public :: organic_slot_depth, ground_top_temp
    public :: decomp_xi_t, litter_input_t
    public :: blend_cas, cas_set_depth, cas_capacities, cas_capacity_change
    public :: blend_snow, blend_organic, blend_soil_water, blend_soil_energy, blend_soil_carbon
@@ -74,6 +81,20 @@ module ed_patch_state_vars
       integer(ik) :: nlayer                     = 0_ik     ! layers in use (0 = no snow)
    end type snow_state_t
 
+   !---~---
+   !   The ground's organic layer above the soil, its slots top down (leaf litter over moss,
+   ! POROUS_LITTER and POROUS_MOSS), each with its dry matter, its water (liquid and ice) and its
+   ! internal energy; its depth is its matter over its material's bulk density. The slots share
+   ! one temperature, read off their summed energy, water and dry heat capacity; a slot with no
+   ! matter is absent (docs/science/surface_organic_layer.md).
+   !---~---
+   type :: organic_state_t
+      real(wp) :: mass(N_POROUS)    = 0.0_wp   ! [kg/m2] dry matter
+      real(wp) :: water(N_POROUS)   = 0.0_wp   ! [kg/m2] water, liquid and ice (prognostic)
+      real(wp) :: energy(N_POROUS)  = 0.0_wp   ! [J/m2]  internal energy (prognostic)
+      real(wp) :: temp = t_3ple                      ! [K]     the layer's, diagnosed
+      real(wp) :: fliq = 1.0_wp                      ! [-]     its water's liquid fraction, diagnosed
+   end type organic_state_t
 
    !---~---
    !   Soil water, and the pond on top of it. The pond holds its own energy, so water
@@ -431,6 +452,184 @@ contains
       c%exudate_c     = w1 * a%exudate_c     + w2 * b%exudate_c
    end function blend_litter_input
 
+
+   !--- THE ORGANIC LAYER: its sums, its temperature and its exchanges
+
+   !--- Whether a patch has an organic layer: dry matter in any slot.
+   pure logical function organic_present(org)
+      type(organic_state_t), intent(in) :: org
+      organic_present = any(org%mass > 0.0_wp)
+   end function organic_present
+
+   !--- [m] Slot k's depth: its matter over its material's bulk density.
+   pure real(wp) function organic_slot_depth(params, org, k) result(depth)
+      type(ground_surface_layer_params_t), intent(in) :: params
+      type(organic_state_t),  intent(in) :: org
+      integer(ik),            intent(in) :: k
+      type(porous_material_t) :: m
+      m     = params%porous(k)
+      depth = porous_layer_depth(org%mass(k), m%bulk_density)
+   end function organic_slot_depth
+
+   !---~---
+   !   [K] The temperature of the ground's top, which the canopy air and the radiation see: the
+   ! organic layer's where there is one, else the top soil node's.
+   !---~---
+   pure real(wp) function ground_top_temp(org, soil_temp_top) result(t)
+      type(organic_state_t), intent(in) :: org
+      real(wp),              intent(in) :: soil_temp_top   ! [K]
+      t = soil_temp_top
+      if (organic_present(org)) t = org%temp
+   end function ground_top_temp
+
+   !---~---
+   !   The organic layer as one thermal node (docs/science/surface_organic_layer.md): its dry heat
+   ! capacity, water, energy and the water it holds saturated summed over the slots, and its
+   ! thermal resistance. Each slot holds its water in its lower part and dries from its top: its
+   ! dried top, its depth times the share of saturation it does not hold, is what the layer's own
+   ! vapour crosses, and the heat crosses it too, at the slot's dry conductivity, in series with
+   ! its wet part at its saturated conductivity. The slots are in series.
+   !---~---
+   pure subroutine organic_layer_sums(org, params, dry_cap, water, energy, w_max, resistance, dry_depth)
+      type(organic_state_t),  intent(in)  :: org
+      type(ground_surface_layer_params_t), intent(in) :: params
+      real(wp),               intent(out) :: dry_cap      ! [J/m2/K]
+      real(wp),               intent(out) :: water        ! [kg/m2]
+      real(wp),               intent(out) :: energy       ! [J/m2]
+      real(wp),               intent(out) :: w_max        ! [kg/m2] the water the slots hold saturated
+      real(wp),               intent(out) :: resistance   ! [m2 K/W]
+      real(wp),               intent(out) :: dry_depth    ! [m] the dried top of the slots, summed
+      type(porous_material_t) :: m
+      real(wp)    :: depth, cap, fill
+      integer(ik) :: k
+      dry_cap    = 0.0_wp
+      water      = 0.0_wp
+      energy     = 0.0_wp
+      w_max      = 0.0_wp
+      resistance = 0.0_wp
+      dry_depth  = 0.0_wp
+      do k = 1_ik, N_POROUS
+         if (org%mass(k) <= 0.0_wp) cycle
+         m      = params%porous(k)
+         depth  = porous_layer_depth(org%mass(k), m%bulk_density)
+         cap    = organic_slot_capacity(params, org, k)
+         fill   = porous_layer_fill(org%water(k), cap)
+         dry_cap    = dry_cap + cp_organic * org%mass(k)
+         water      = water + org%water(k)
+         energy     = energy + org%energy(k)
+         w_max      = w_max + cap
+         resistance = resistance + porous_layer_resistance(depth, fill, m%k_dry, m%k_wet)
+         dry_depth  = dry_depth + depth * (1.0_wp - fill)
+      end do
+   end subroutine organic_layer_sums
+
+   !--- [kg/m2] The water slot k holds saturated: its material's theta_sat over its depth, its matter over its bulk density.
+   pure real(wp) function organic_slot_capacity(params, org, k) result(cap)
+      type(ground_surface_layer_params_t), intent(in) :: params
+      type(organic_state_t),  intent(in) :: org
+      integer(ik),            intent(in) :: k
+      type(porous_material_t) :: m
+      m   = params%porous(k)
+      cap = porous_layer_capacity(org%mass(k), m%bulk_density, m%theta_sat)
+   end function organic_slot_capacity
+
+   !---~---
+   !   Slot k's water retention and conductivity, its material's as a soil layer's
+   ! (build_soil_layer_curve), at its depth.
+   !---~---
+   pure function organic_slot_curve(params, org, k) result(c)
+      type(ground_surface_layer_params_t), intent(in) :: params
+      type(organic_state_t),  intent(in) :: org
+      integer(ik),            intent(in) :: k
+      type(soil_layer_curve_t)           :: c
+      type(porous_material_t) :: m
+      m = params%porous(k)
+      call build_soil_layer_curve(m%retention, m%theta_sat, m%theta_res, m%curve_par_a, m%curve_par_n, m%ksat,                &
+                                  porous_layer_depth(org%mass(k), m%bulk_density), c)
+   end function organic_slot_curve
+
+   !--- The layer's temperature and liquid fraction, from its summed energy, water and dry heat capacity.
+   pure subroutine organic_diagnose(org)
+      type(organic_state_t), intent(inout) :: org
+      if (.not. organic_present(org)) then
+         org%temp = t_3ple
+         org%fliq = 1.0_wp
+         return
+      end if
+      call internal_energy_to_temp(sum(org%energy), sum(org%water), cp_organic * sum(org%mass), org%temp, org%fliq)
+   end subroutine organic_diagnose
+
+   !---~---
+   !   The slots share one temperature: a total energy split among them, each its matter's and
+   ! its water's at the layer's temperature and liquid fraction, the last present slot taking
+   ! the remainder so the sum is the total exactly.
+   !---~---
+   pure subroutine organic_split_energy(org, total)
+      type(organic_state_t), intent(inout) :: org
+      real(wp),              intent(in)    :: total     ! [J/m2]
+      real(wp)    :: rest
+      integer(ik) :: k, last
+      org%energy = 0.0_wp
+      if (.not. organic_present(org)) return
+      call internal_energy_to_temp(total, sum(org%water), cp_organic * sum(org%mass), org%temp, org%fliq)
+      last = 0_ik
+      do k = 1_ik, N_POROUS
+         if (org%mass(k) > 0.0_wp) last = k
+      end do
+      rest = total
+      do k = 1_ik, N_POROUS
+         if (org%mass(k) <= 0.0_wp .or. k == last) cycle
+         org%energy(k) = temp_to_internal_energy(cp_organic * org%mass(k), org%water(k), org%temp, org%fliq)
+         rest = rest - org%energy(k)
+      end do
+      org%energy(last) = rest
+   end subroutine organic_split_energy
+
+   !---~---
+   !   The layer takes an exchange's amounts after the step's march: the energy in, and the vapour
+   ! each slot gave the canopy air as the water network took it (dew, negative, joined the top
+   ! slot), so the water that left carried its share of that energy.
+   !---~---
+   pure subroutine organic_take_exchange(org, energy_amount, vapour_amount)
+      type(organic_state_t), intent(inout) :: org
+      real(wp),              intent(in)    :: energy_amount                    ! [J/m2] in
+      real(wp),              intent(in)    :: vapour_amount(N_POROUS)    ! [kg/m2] out of each slot
+      if (.not. organic_present(org)) return
+      if (.not. all(org%water - vapour_amount >= 0.0_wp                                                     &
+                    .or. within_roundoff(org%water - vapour_amount, org%water + abs(vapour_amount))))         &
+         error stop 'organic_take_exchange: a slot gave the canopy air more vapour than it held'
+      org%water = max(0.0_wp, org%water - vapour_amount)   ! clamp-ok: the network's own amounts, to round-off (asserted)
+      call organic_split_energy(org, sum(org%energy) + energy_amount)
+   end subroutine organic_take_exchange
+
+   !---~---
+   !   The water a slot holds above saturation spills: dew or frost on a saturated or frozen slot,
+   ! which its pores cannot take and its ice keeps from passing on. Its water and energy, at the
+   ! layer's temperature and liquid fraction, are returned for the pond, which takes them at a
+   ! step's start.
+   !---~---
+   pure subroutine organic_spill(org, params, w_out, e_out)
+      type(organic_state_t),  intent(inout) :: org
+      type(ground_surface_layer_params_t), intent(in) :: params
+      real(wp),               intent(out)   :: w_out     ! [kg/m2]
+      real(wp),               intent(out)   :: e_out     ! [J/m2]
+      real(wp)    :: excess, total
+      integer(ik) :: k
+      w_out = 0.0_wp
+      e_out = 0.0_wp
+      if (.not. organic_present(org)) return
+      total = sum(org%energy)
+      call organic_diagnose(org)
+      do k = 1_ik, N_POROUS
+         if (org%mass(k) <= 0.0_wp) cycle
+         excess = max(0.0_wp, org%water(k) - organic_slot_capacity(params, org, k))
+         if (excess <= 0.0_wp) cycle
+         org%water(k) = org%water(k) - excess
+         w_out = w_out + excess
+         e_out = e_out + temp_to_internal_energy(0.0_wp, excess, org%temp, org%fliq)
+      end do
+      if (w_out > 0.0_wp) call organic_split_energy(org, total - e_out)
+   end subroutine organic_spill
 
    !--- THE PATCH LOCKSTEP: the routines that list every patch field, in section order
 

@@ -32,7 +32,10 @@ PATCH_STORE_TYPES = {"cas_state_t", "snow_state_t", "soil_water_state_t", "soil_
                      "soil_carbon_state_t", "decomp_xi_t", "litter_input_t", "blend_cas", "blend_snow",
                      "blend_soil_water", "blend_soil_energy", "blend_soil_carbon", "blend_decomp_xi",
                      "blend_litter_input", "cas_set_depth", "cas_capacities", "cas_capacity_change",
-                     "soil_water_store", "soil_energy_store"}
+                     "soil_water_store", "soil_energy_store",
+                     "organic_state_t", "organic_present", "organic_layer_sums", "organic_diagnose",
+                     "organic_split_energy", "organic_take_exchange", "organic_slot_curve", "organic_slot_capacity",
+                     "organic_spill", "organic_slot_depth", "ground_top_temp"}
 MODULE = re.compile(r"^module\s+(\w+)$", re.I)
 USE = re.compile(r"^use\s*(?:,\s*\w+\s*::\s*|::\s*|\s)\s*(\w+)\s*(,\s*only\s*:(.*))?$", re.I)
 

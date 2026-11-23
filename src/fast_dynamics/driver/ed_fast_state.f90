@@ -26,8 +26,7 @@ module ed_fast_state
    use ed_cohort_state_vars,     only : cohort_block, alloc_cohort_block, init_cohort, cohort_tissue_temps,       &
                                         set_cohort_tissue_temps, hold_cohort_tissue_temps
    use ed_met_types,             only : met_forcing_t
-   use ed_patch_state_vars,      only : decomp_xi_t
-   use ed_organic_lib,         only : organic_diagnose
+   use ed_patch_state_vars,      only : decomp_xi_t, organic_diagnose
    use ed_polygon_state_vars,    only : polygon_t
    use ed_state_defaults,        only : DMAX_PSI_LEAF_ACCUM_RESET
    use ed_canopy_aerodynamics,   only : canopy_roughness, open_canopy_fraction, canopy_burial_fraction

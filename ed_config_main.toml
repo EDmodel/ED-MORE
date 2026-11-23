@@ -42,14 +42,12 @@ gpp_ref             = 0.3      # [kgC/m2 leaf/yr] the GPP of a run without the l
 # ---- Budget checks. ----
 # soil_energy_budget_atol = 1.0e-2   # [K]  the soil-heat budget check's threshold (not a step tolerance)
 # debug_error         = false        # true: a budget breach stops the run; false: it is reported
-# ---- Switches and the initial snow. ----
+# ---- Switches. ----
 # forcing_sample_frac = 0.5          # [-]  where in each sub-step the forcing is sampled, in [0, 1]
 #                                    #   (docs/science/numerical_scheme.md §7)
 # canopy_water_on     = false        # the canopy's surface water and its evaporation
 # intercept_alpha     = 1.0          # [-]  Beer interception efficiency
 # intercept_k         = 0.5          # [1/PAI] Beer interception extinction
-# snow_init_swe       = 0.0          # [kg/m2] snow water equivalent at the run start
-# snow_init_temp      = 270.0        # [K]  its temperature
 
 [soil]
 # The ground: the column, its surface and its two bottom boundaries. Every key is optional, at the
@@ -72,13 +70,12 @@ solid_conductivity = 3.0   # [W/m/K]  mineral-solid thermal conductivity
 dry_conductivity   = 0.15  # [W/m/K]  dry-matrix thermal conductivity
 dry_heat_capacity  = 2.0e6 # [J/m3/K] dry-matrix volumetric heat capacity
 # ---- The surface. ----
-w_pond_max     = 5.0          # [kg/m2]  ponding capacity before surface runoff
 dsl_dmax       = 0.015        # [m]      dry-surface-layer thickness at most (soil evaporation)
 dsl_theta_init = 0.8          # [-]      the top layer's theta/theta_sat at which it starts
 ground_albedo_vis = 0.15      # [-]      bare-soil albedo, visible
 ground_albedo_nir = 0.30      # [-]      bare-soil albedo, near infrared
 ground_emissivity = 0.95      # [-]      bare-soil longwave emissivity; the litter's and the moss's too
-moss_depth     = 0.0          # [m]      the moss on the soil, under the litter ([surface_layer]); 0: none
+moss_depth     = 0.0          # [m]      the moss on the soil, under the litter ([ground_surface_layer.moss]); 0: none
 # ---- The bottom boundaries (docs/configuration.md "The bottom thermal boundary"). ----
 water_bottom_bc = "free_drain" # free_drain | bedrock | aquifer: drainage q = f K at f = 1 and 0, or a
                                #   water table at the base (wet sites)
@@ -89,46 +86,60 @@ thermal_bottom_bc = "geothermal" # geothermal: no heat flux at the base, which r
 #deep_depth    = 3.145        # [m]  depth of that anchor, below the bottom node; the default suits the
                               #      default column only
 
-[snow]
-# The snow pack's physical parameters (docs/science/snow_biophysics.md). The pack has no switch: a
-# column without snow never enters it. Every key optional, at the value shown.
-rho_snow           = 250.0    # [kg/m3] fresh snow's bulk density (snowfall's depth = its mass / rho)
-k_snow             = 0.15     # [W/m/K] thermal conductivity
-albedo_vis_fresh   = 0.85     # [-]     fresh-snow albedo, visible
-albedo_nir_fresh   = 0.65     # [-]     fresh-snow albedo, near infrared
-albedo_vis_aged    = 0.518    # [-]     aged-snow albedo, visible
-albedo_nir_aged    = 0.435    # [-]     aged-snow albedo, near infrared
-snow_emiss         = 0.97     # [-]     longwave emissivity
-liquid_holding_frac = 0.10    # [-]     liquid water the pack holds before it percolates
-min_new_snow_mass  = 1.0e-3   # [kg/m2] the snowfall that starts a pack
-tiny_snow_mass     = 1.0e-6   # [kg/m2] the pack that melts out into the soil
-ny07_a             = 2.5      # [-]     snow-cover fraction shape factor (Niu & Yang 2007)
-ny07_m             = 1.0      # [-]     snow-cover fraction exponent
+[ground_surface_layer]
+# The layers on the soil, top down: the water layer (snow, ice and the liquid they hold, whose free
+# water is the pond), the litter and the moss (docs/science/snow_biophysics.md,
+# docs/science/surface_organic_layer.md). Each material is a table below. Every key optional, at the
+# value shown.
+min_depth = 1.0e-4               # [m] the depth from which a porous layer's matter is a layer: thinner, it
+                                 #     stays where it came from (a film of a few micrometres no balance carries)
 
-[surface_layer]
-# The ground's organic layer above the soil (docs/science/surface_organic_layer.md): leaf litter over
-# moss, one thermal node, each slot a node of the soil-plant water network between the pond and the
-# soil. The litter is the above-ground metabolic litter pool's dry matter; the moss a site's
-# [soil].moss_depth. Every key optional, at the value shown.
-litter_on              = true     # the litter slot
-litter_bulk_density    = 45.0     # [kg/m3] dry mass per volume (Napoly et al. 2017)
-litter_k_dry           = 0.10     # [W/m/K] conductivity, dry (de Vries 1963, after Napoly et al. 2017)
-litter_k_wet           = 0.1294   # [W/m/K] saturated, 0.1 + 0.03 x theta_sat (the same)
-litter_retention       = "campbell" # van_genuchten | campbell: its water retention, as a soil layer's
-litter_theta_sat       = 0.98     # [m3/m3] (Letts et al. 2000, surface moss, as CLASS takes it, Wu et al. 2016)
-litter_theta_res       = 0.01     # [m3/m3] (the same)
-litter_curve_par_a     = -0.0103  # [m]     Campbell air-entry head (the same)
-litter_curve_par_n     = 2.3      # [-]     Campbell b (the same)
-litter_ksat            = 1.83e-3  # [m/s]   saturated conductivity (the same)
-moss_bulk_density      = 43.0     # [kg/m3] MAT tundra's top organic 5 cm (ARC LTER knb-lter-arc.20129.1)
-moss_k_dry             = 0.06     # [W/m/K] (Chadburn et al. 2015)
-moss_k_wet             = 0.50     # [W/m/K] saturated (Chadburn et al. 2015)
-moss_retention         = "van_genuchten" # van_genuchten | campbell
-moss_theta_sat         = 0.85     # [m3/m3] surface moss (Zhang et al. 2010, Table 4)
-moss_theta_res         = 0.18     # [m3/m3] (the same)
-moss_curve_par_a       = 50.0     # [1/m]   van Genuchten alpha (the same)
-moss_curve_par_n       = 1.45     # [-]     van Genuchten n (the same)
-moss_ksat              = 1.3e-3   # [m/s]   Arctic acrotelm (O'Connor et al. 2020)
+[ground_surface_layer.water]
+# The water layer: one bulk layer of fixed conductivity; snowfall adds its depth at fresh_density, rain
+# fills its pores.
+fresh_density          = 250.0   # [kg/m3] snowfall's bulk density (snowfall's depth = its mass / density)
+conductivity_at_fresh  = 0.15    # [W/m/K] thermal conductivity
+albedo_vis_fresh       = 0.85    # [-]     fresh-snow albedo, visible
+albedo_nir_fresh       = 0.65    # [-]     fresh-snow albedo, near infrared
+albedo_vis_aged        = 0.518   # [-]     wet (aged) snow albedo, visible
+albedo_nir_aged        = 0.435   # [-]     wet (aged) snow albedo, near infrared
+emissivity             = 0.97    # [-]     longwave emissivity
+liquid_holding_frac    = 0.10    # [-]     the layer's mass share its ice holds as liquid (LEAF-3's 1:9); the
+                                 #         rest of the liquid drains to the pond
+cover_scale_factor     = 2.5     # [-]     the cover's scale over [aerodynamics].soil_rough (Niu & Yang 2007)
+cover_density_exponent = 1.0     # [-]     the scale's growth with the layer's density (the same)
+min_new_snow_mass      = 1.0e-3  # [kg/m2] the snowfall that starts a layer
+tiny_snow_mass         = 1.0e-6  # [kg/m2] a layer this light melts out into the pond
+pond_capacity          = 5.0     # [kg/m2] the pond above which the free water runs off
+initial_mass           = 0.0     # [kg/m2] the layer at a fresh start
+initial_temp           = 270.0   # [K]     its temperature
+
+[ground_surface_layer.litter]
+# Leaf litter, on the moss: the above-ground metabolic litter pool's dry matter, each a node of the
+# soil-plant water network between the pond and the soil, retaining water as a soil layer does.
+mass_source  = "metabolic_litter"   # none | metabolic_litter | site_depth: where its dry matter comes from
+bulk_density = 45.0       # [kg/m3] dry mass per volume (Napoly et al. 2017)
+k_dry        = 0.10       # [W/m/K] conductivity, dry (de Vries 1963, after Napoly et al. 2017)
+k_wet        = 0.1294     # [W/m/K] saturated: de Vries' 0.1 + 0.03 x theta, at theta_sat 0.98 (the same)
+retention    = "campbell" # van_genuchten | campbell: its water retention, as a soil layer's
+theta_sat    = 0.98       # [m3/m3] (Letts et al. 2000, surface moss, as CLASS takes it, Wu et al. 2016)
+theta_res    = 0.01       # [m3/m3] (the same)
+curve_par_a  = -0.0103    # [m]     Campbell air-entry head (the same)
+curve_par_n  = 2.3        # [-]     Campbell b (the same)
+ksat         = 1.83e-3    # [m/s]   saturated conductivity (the same)
+
+[ground_surface_layer.moss]
+# Moss, on the soil: a site's [soil].moss_depth at its bulk density.
+mass_source  = "site_depth"   # none | metabolic_litter | site_depth
+bulk_density = 43.0       # [kg/m3] MAT tundra's top organic 5 cm (ARC LTER knb-lter-arc.20129.1)
+k_dry        = 0.06       # [W/m/K] (Chadburn et al. 2015)
+k_wet        = 0.50       # [W/m/K] saturated (Chadburn et al. 2015)
+retention    = "van_genuchten" # van_genuchten | campbell
+theta_sat    = 0.85       # [m3/m3] surface moss (Zhang et al. 2010, Table 4)
+theta_res    = 0.18       # [m3/m3] (the same)
+curve_par_a  = 50.0       # [1/m]   van Genuchten alpha (the same)
+curve_par_n  = 1.45       # [-]     van Genuchten n (the same)
+ksat         = 1.3e-3     # [m/s]   Arctic acrotelm (O'Connor et al. 2020)
 
 [aerodynamics]
 # Canopy aerodynamics (docs/science/canopy_aerodynamics.md, whose equations are cited). Every key

@@ -32,7 +32,10 @@
 #   toml_duplicate_key         a key set twice ([soil] depth), which TOML forbids
 #   init_soil_temp_layers      an [init].soil_temp list with another number of values than the column's
 #                              layers
-#   surface_layer_residual     an organic material whose residual water is not below its saturation
+#   ground_surface_layer_residual  a porous material whose residual water is not below its saturation
+#   ground_surface_layer_moved a key of the [snow] block, which [ground_surface_layer] replaced: the run
+#                              names the key that holds its value now
+#   ground_surface_layer_moss_thin  a site's moss thinner than a layer of the ground can be
 #   init_census_missing        a census file that is not there (init mode 1)
 #   init_census_empty          a census file with no row for the site
 #   init_restart_missing       a state file that is not there (init mode 2)
@@ -187,9 +190,17 @@ elseif(CASE STREQUAL "toml_duplicate_key")
 elseif(CASE STREQUAL "init_soil_temp_layers")
    replace_or_fail(text "\n# *soil_temp *= *[^ #\n]+" "\nsoil_temp = [280.0, 275.0]" "[init] soil_temp, commented out")
    set(expects "init\\.soil_temp: a list takes one value per soil layer")
-elseif(CASE STREQUAL "surface_layer_residual")
-   replace_or_fail(text "\nmoss_theta_res *= *[^ #\n]+" "\nmoss_theta_res = 0.90" "[surface_layer] moss_theta_res")
-   set(expects "surface_layer\\.moss_theta_res must lie in \\[0, theta_sat\\)")
+elseif(CASE STREQUAL "ground_surface_layer_residual")
+   replace_or_fail(text "(\n\\[ground_surface_layer\\.moss\\][^@]*\ntheta_res *= *)[^ #\n]+" "\\10.90"
+                   "[ground_surface_layer.moss] theta_res")
+   set(expects "ground_surface_layer\\.moss\\.theta_res must lie in \\[0, theta_sat\\)")
+elseif(CASE STREQUAL "ground_surface_layer_moved")
+   string(APPEND text "\n[snow]\nk_snow = 0.2\n")
+   set(expects "snow\\.k_snow .*it is now ground_surface_layer\\.water\\.conductivity_at_fresh"
+               "the configuration has missing, unknown or inapplicable keys")
+elseif(CASE STREQUAL "ground_surface_layer_moss_thin")
+   replace_or_fail(text "\nmoss_depth *= *[^ #\n]+" "\nmoss_depth = 5.0e-5" "[soil] moss_depth")
+   set(expects "soil\\.moss_depth must be 0 or at least ground_surface_layer\\.min_depth")
 elseif(CASE MATCHES "^hydraulics_")
    #----- The PFT file's copy beside the run, with one trait made impossible for every PFT. --------#
    file(READ "${SOURCE_DIR}/ed_config_pft.toml" pft)

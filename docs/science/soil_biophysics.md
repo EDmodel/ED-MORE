@@ -44,7 +44,7 @@ The **top boundary** is the pond, a store of its own. Rain enters it, and it exc
 q_{pond} = \sqrt{K(\theta_1)\,K_{sat}}\;\Big(1 + \frac{h-\psi_1}{-z_1}\Big) \qquad(4)
 ```
 
-from the pond, treated as a saturated layer as thick as the top one, to the top node at elevation $`z_1<0`$. This is eq. (3) with $w = 1/2$; $h$ is the pond's head and $`\psi_1`$ is in metres here. The flux is solved implicitly and is two-way: a top layer pushed past saturation exfiltrates to the pond. Where the ground has an organic layer, its litter and moss lie between the pond and the top layer as nodes of their own, and the top layer's top face takes the water the bottom slot passes down, by eq. (3) between that slot's centre and the top node ([surface_organic_layer](surface_organic_layer.md), Water). The pond holds up to `[soil].w_pond_max`; its first millimetre is a depression store, where its head grows as the square root of what it holds ([soil_plant_water](soil_plant_water.md) §2). Above `w_pond_max`, water runs off at the pond's temperature.
+from the pond, treated as a saturated layer as thick as the top one, to the top node at elevation $`z_1<0`$. This is eq. (3) with $w = 1/2$; $h$ is the pond's head and $`\psi_1`$ is in metres here. The flux is solved implicitly and is two-way: a top layer pushed past saturation exfiltrates to the pond. Where the ground has an organic layer, its litter and moss lie between the pond and the top layer as nodes of their own, and the top layer's top face takes the water the bottom slot passes down, by eq. (3) between that slot's centre and the top node ([surface_organic_layer](surface_organic_layer.md), Water). The pond holds up to `[ground_surface_layer.water].pond_capacity`; its first millimetre is a depression store, where its head grows as the square root of what it holds ([soil_plant_water](soil_plant_water.md) §2). Above `pond_capacity`, water runs off at the pond's temperature.
 
 The geometric mean with $`K_{sat}`$ is what lets the pond re-wet a dried surface. Near residual water content the top layer's own $`K(\theta_1)`$ is about $10^{-15}$ of $`K_{sat}`$ for a van Genuchten loam, so a face conductivity of $`K(\theta_1)`$ alone would seal the surface: after a dry season the pond would overflow and the soil would never re-wet.
 
@@ -306,7 +306,6 @@ The `[soil]` block ([configuration](../configuration.md) lists every key, and th
 | α or $\psi_{sat}$; $n$ or $b$ | `curve_par_a`, `curve_par_n` | 3.6 m⁻¹, 1.56 | van Genuchten α and $n$, or Campbell $\psi_{sat}$ (< 0, m) and $b$ |
 | $\psi_{fc}$ | `psi_fc` | −3.37 m | field-capacity matric head; sets each layer's field capacity |
 | $k_{solid}$, $k_{dry}$, $C_{dry}$ | `solid_conductivity`, `dry_conductivity`, `dry_heat_capacity` | 3.0, 0.15 W m⁻¹ K⁻¹; 2.0×10⁶ J m⁻³ K⁻¹ | thermal texture, eqs. (9)–(11) |
-| | `w_pond_max` | 5.0 kg m⁻² | ponding capacity before runoff |
 | $d_{max}$ | `dsl_dmax` | 0.015 m | greatest thickness of the dry surface layer |
 | | `dsl_theta_init` | 0.8 | top-layer $\theta/\theta_{sat}$ below which the dry surface layer forms |
 | | `water_bottom_bc` | `"free_drain"` | `"free_drain"`, `"bedrock"` or `"aquifer"` |

@@ -18,7 +18,7 @@ module ed_fast_dynamics
    use ed_met,                  only : met_co2
    use ed_forcing_params,       only : CO2_SOURCE_FILE
    use ed_polygon_state_vars,   only : polygon_t, patch_polygon_area
-   use ed_organic_lib,        only : ground_top_temp
+   use ed_patch_state_vars,     only : ground_top_temp
    use ed_fast_integ_types,         only : fast_static_state_t, fast_dynamic_state_t, fast_forcing_t, fast_output_t,   &
                                        fast_workspace_t, step_report_t, surface_source_slopes_t,                 &
                                        ensure_static_capacity,                                                   &

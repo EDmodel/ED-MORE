@@ -31,7 +31,7 @@ with $`c_{org}`$ = 1926 J kg⁻¹ K⁻¹ for dry organic matter (Farouki 1986). 
 
 ## Where the matter comes from
 
-- **Litter** follows the above-ground metabolic litter pool each slow step, after the soil-carbon step: $`M = 2\,C_{fast,grnd}`$, half of dry organic matter being carbon (`c2b`). The structural pool is left out: it holds the coarse woody debris too, and a big tree's dead wood spread over its gap patch would make a layer tens of centimetres deep. It joins once the soil carbon splits fine litter from woody debris. Matter that arrives or leaves does so at the layer's temperature, and the energy it brings or takes is a declared term of the slow ledger. Matter that arrives brings its water, as much per kilogram as the litter holds, or, where there was none, what its curve holds at the top soil layer's head, as at a start; that water comes from outside, as a recruit's does, and the slow ledger declares it with its energy. Water above what the slot's new depth holds saturated, or all its water when the litter is gone, passes to the pond with its energy. `[surface_layer].litter_on = false` keeps the litter slot empty.
+- **Litter** follows the above-ground metabolic litter pool each slow step, after the soil-carbon step: $`M = 2\,C_{fast,grnd}`$, half of dry organic matter being carbon (`c2b`). The structural pool is left out: it holds the coarse woody debris too, and a big tree's dead wood spread over its gap patch would make a layer tens of centimetres deep. It joins once the soil carbon splits fine litter from woody debris. Matter that arrives or leaves does so at the layer's temperature, and the energy it brings or takes is a declared term of the slow ledger. Matter that arrives brings its water, as much per kilogram as the litter holds, or, where there was none, what its curve holds at the top soil layer's head, as at a start; that water comes from outside, as a recruit's does, and the slow ledger declares it with its energy. Water above what the slot's new depth holds saturated, or all its water when the litter is gone, passes to the pond with its energy. `[ground_surface_layer.litter].mass_source = "none"` keeps the litter slot empty.
 - **Moss** is prescribed: its depth is a site key, `[soil].moss_depth` (0 by default, so no moss), at its material's bulk density. The checks refuse a moss thinner than the 0.1 mm from which a slot is a layer (`ORGANIC_MIN_DEPTH`), which would otherwise be dropped.
 - **The start.** A run that does not restart from a state file builds the layer from nothing through the path the litter follows each slow step (`follow_organic_slots`): both slots enter at the top soil layer's temperature, each holding what its curve holds at the top soil layer's head, frozen below the melting point.
 - **At a start** the slots are filled with this matter, each holding the water its curve holds at the top soil layer's matric head, as the water network would bring it to, at the top soil layer's temperature.
@@ -82,27 +82,28 @@ The layer's water and energy are stores of the whole-column water and energy bud
 
 ## Parameters
 
-The `[surface_layer]` block, every key optional ([configuration](../configuration.md)):
+The `[ground_surface_layer]` block's `min_depth` (0.1 mm, the depth from which a slot's matter is a layer) and its `litter` and `moss` tables, every key optional ([configuration](../configuration.md)):
 
 | Key | Default | Meaning | Source |
 |---|---|---|---|
-| `litter_on` | true | the litter slot | |
-| `litter_bulk_density` | 45 kg m⁻³ | dry mass per volume | Napoly et al. (2017) |
-| `litter_k_dry`, `litter_k_wet` | 0.10, 0.1294 W m⁻¹ K⁻¹ | conductivity dry and saturated | de Vries (1963): 0.1 + 0.03 θ, via Napoly et al. (2017), at θ = 0 and `litter_theta_sat` |
-| `litter_retention` | campbell | its retention curve's form | Letts et al. (2000), as CLASS takes its surface moss for litter and moss (Wu et al. 2016) |
-| `litter_theta_sat`, `litter_theta_res` | 0.98, 0.01 m³ m⁻³ | water at saturation and residual | the same: the surface moss (0–10 cm) row, Wu et al. (2016) Table 1 |
-| `litter_curve_par_a`, `litter_curve_par_n` | −0.0103 m, 2.3 | Campbell's air-entry head and $`b`$ | the same |
-| `litter_ksat` | 1.83×10⁻³ m s⁻¹ | saturated conductivity | the same |
-| `moss_bulk_density` | 43 kg m⁻³ | dry mass per volume | moist acidic tussock tundra, top 5 cm of the organic layer (ARC LTER, knb-lter-arc.20129.1) |
-| `moss_k_dry`, `moss_k_wet` | 0.06, 0.50 W m⁻¹ K⁻¹ | conductivity dry and saturated | Chadburn et al. (2015) |
-| `moss_retention` | van_genuchten | its retention curve's form | Zhang et al. (2010) |
-| `moss_theta_sat`, `moss_theta_res` | 0.85, 0.18 m³ m⁻³ | water at saturation and residual | Zhang et al. (2010) Table 4, surface moss and lichen (0–0.1 m) at Scotty Creek |
-| `moss_curve_par_a`, `moss_curve_par_n` | 50 m⁻¹, 1.45 | van Genuchten's α and n | the same |
-| `moss_ksat` | 1.3×10⁻³ m s⁻¹ | saturated conductivity | O'Connor et al. (2020), the Arctic Foothills' acrotelm |
+| `litter.mass_source` | metabolic_litter | where the litter's matter comes from: `none`, `metabolic_litter` or `site_depth` | |
+| `litter.bulk_density` | 45 kg m⁻³ | dry mass per volume | Napoly et al. (2017) |
+| `litter.k_dry`, `litter.k_wet` | 0.10, 0.1294 W m⁻¹ K⁻¹ | conductivity dry and saturated | de Vries (1963): 0.1 + 0.03 θ, via Napoly et al. (2017), at θ = 0 and `litter.theta_sat` |
+| `litter.retention` | campbell | its retention curve's form | Letts et al. (2000), as CLASS takes its surface moss for litter and moss (Wu et al. 2016) |
+| `litter.theta_sat`, `litter.theta_res` | 0.98, 0.01 m³ m⁻³ | water at saturation and residual | the same: the surface moss (0–10 cm) row, Wu et al. (2016) Table 1 |
+| `litter.curve_par_a`, `litter.curve_par_n` | −0.0103 m, 2.3 | Campbell's air-entry head and $`b`$ | the same |
+| `litter.ksat` | 1.83×10⁻³ m s⁻¹ | saturated conductivity | the same |
+| `moss.mass_source` | site_depth | where the moss's matter comes from: a site's `[soil].moss_depth` | |
+| `moss.bulk_density` | 43 kg m⁻³ | dry mass per volume | moist acidic tussock tundra, top 5 cm of the organic layer (ARC LTER, knb-lter-arc.20129.1) |
+| `moss.k_dry`, `moss.k_wet` | 0.06, 0.50 W m⁻¹ K⁻¹ | conductivity dry and saturated | Chadburn et al. (2015) |
+| `moss.retention` | van_genuchten | its retention curve's form | Zhang et al. (2010) |
+| `moss.theta_sat`, `moss.theta_res` | 0.85, 0.18 m³ m⁻³ | water at saturation and residual | Zhang et al. (2010) Table 4, surface moss and lichen (0–0.1 m) at Scotty Creek |
+| `moss.curve_par_a`, `moss.curve_par_n` | 50 m⁻¹, 1.45 | van Genuchten's α and n | the same |
+| `moss.ksat` | 1.3×10⁻³ m s⁻¹ | saturated conductivity | O'Connor et al. (2020), the Arctic Foothills' acrotelm |
 
 No retention curve of leaf litter has been measured; Letts et al.'s surface moss is the curve CLASS gives both its litter and its moss, and at −10 kPa it holds 0.14 m³ m⁻³, near the water drained litter holds, 0.12 (Putuhena & Cordery 1996, via Napoly et al. 2017).
 
-and `[soil].moss_depth` [m], which a `[[sites]]` table may set. The checks refuse a non-positive bulk density, conductivity or saturated conductivity, a residual outside $`[0, \theta_s)`$, a saturation outside (0, 1), and curve parameters of the wrong sign (van Genuchten's α > 0 and n > 1; Campbell's air-entry head < 0 and b > 0).
+and `[soil].moss_depth` [m], which a `[[sites]]` table may set; it is 0 or at least `min_depth`, and needs a table whose `mass_source` is `site_depth`. One table at most takes the metabolic litter. The checks refuse a non-positive bulk density, conductivity or saturated conductivity, a residual outside $`[0, \theta_s)`$, a saturation outside (0, 1), and curve parameters of the wrong sign (van Genuchten's α > 0 and n > 1; Campbell's air-entry head < 0 and b > 0).
 
 Every slot that is a layer, from 0.1 mm, is a node of the water network; the solver's node classes ([soil_plant_water](soil_plant_water.md) §3) eliminate a slot whose time scale is far below the sub-step and detach a group of nodes it cannot see, so neither a third of a millimetre of litter nor a frozen slot needs a floor of its own in the solver.
 
@@ -120,13 +121,13 @@ Every slot that is a layer, from 0.1 mm, is a node of the water network; the sol
 
 | Concept | Routine |
 |---|---|
-| the `[surface_layer]` block, the layer's state, its sums, each slot's depth, curve and capacity, its energy shared among the slots, its spill and its commit, the ground top's temperature | `ed_organic_lib`: `organic_params_t`, `organic_material_t`, `organic_state_t`, `ORGANIC_MIN_DEPTH`, `organic_registered_mass`, `organic_layer_sums`, `organic_diagnose`, `organic_split_energy`, `organic_slot_depth`, `organic_slot_curve`, `organic_slot_capacity`, `organic_spill`, `organic_take_exchange`, `ground_top_temp`; its blend, `ed_patch_state_vars`: `blend_organic` |
+| the `[ground_surface_layer]` block | `ed_ground_surface_params`: `ground_surface_layer_params_t`, `porous_material_t`, `POROUS_LITTER`, `POROUS_MOSS`, `MASS_FROM_*`; `ed_config_io`: `load_ground_surface_params`; `ed_config_check`: `check_ground_surface_layer` |
+| the layer's state, its sums, each slot's depth, curve and capacity, its energy shared among the slots, its spill and its commit, the ground top's temperature, its blend | `ed_patch_state_vars`: `organic_state_t`, `organic_layer_sums`, `organic_diagnose`, `organic_split_energy`, `organic_slot_depth`, `organic_slot_curve`, `organic_slot_capacity`, `organic_spill`, `organic_take_exchange`, `ground_top_temp`, `blend_organic` |
 | a porous layer's laws: its depth, capacity, fill, resistance and the matter that makes a layer | `ed_ground_surface_lib`: `porous_layer_depth`, `porous_layer_capacity`, `porous_layer_fill`, `porous_layer_resistance`, `porous_layer_matter` |
 | the balance and the ground surface's blend | `ed_surface`: `organic_surface_balance` (its held branch), `ground_surface_exchange` |
 | the slots in the water network, and their water and enthalpy after it | `ed_fast_integ_frozen`: `organic_network_drive`, `commit_organic_water`; the network: [soil_plant_water](soil_plant_water.md) |
 | the soil's vapour through it, and its own through its dried top | `ed_soil_water`: `organic_cover_path`, `vapour_diffusivity`, `ground_evaporation_rate`; `ed_fast_integ_frozen`: `organic_ground_sums`, `ground_inflow` |
 | the slots follow their matter: the litter its pools, at the start the moss too | `ed_slow_update`: `follow_organic_slots`; `ed_slow_dynamics`: `litter_follows_pools`; `ed_init`: `seed_organic_layer` |
-| the check of the block | `ed_config_check`: `check_surface_layer` |
 
 ## References
 - Chadburn, S. et al. (2015), *Geosci. Model Dev.* 8:1493 — the moss layer's thermal conductivity in JULES.

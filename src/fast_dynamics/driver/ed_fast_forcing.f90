@@ -20,7 +20,7 @@ module ed_fast_forcing
    use ed_canopy_radiation, only : rad_env_t, rad_out_t, alloc_rad_env, ground_optics_env_t
    use ed_canopy_radiation,     only : canopy_radiation, ground_optics
    use ed_surface,              only : snow_blend_ground_optics, ground_tile_radiation
-   use ed_organic_lib,        only : ground_top_temp
+   use ed_patch_state_vars,     only : ground_top_temp
    use ed_fast_integ_types,         only : fast_static_state_t, fast_dynamic_state_t, fast_forcing_t
    implicit none
    private
@@ -188,7 +188,7 @@ contains
       surf%soil_emiss  = cfg%soil%ground_emissivity
       surf%soil_temp   = soil_temp_top
       !--- A pack blends them toward its own (ed_surface).
-      call snow_blend_ground_optics(dynamic%snow, cfg%snow, cfg%aero%soil_rough, surf%soil_albedo(RAD_VIS),   &
+      call snow_blend_ground_optics(dynamic%snow, cfg%ground_surface%water, cfg%aero%soil_rough, surf%soil_albedo(RAD_VIS),   &
                                     surf%soil_albedo(RAD_NIR), surf%soil_emiss, surf%soil_temp)
       he = [.false., .false., .true.]
       call ground_optics(surf, N_RAD_BAND_DEFAULT, he, rf%grnd_refl, rf%grnd_emiss)
@@ -213,7 +213,7 @@ contains
       !--- What each tile takes of the radiation reaching the ground, at its own optics.
       call ground_tile_radiation(flux%dn_ground(RAD_VIS), flux%dn_ground(RAD_NIR), flux%dn_ground(RAD_LW),     &
                                  soil_albedo(RAD_VIS), soil_albedo(RAD_NIR), cfg%soil%ground_emissivity,       &
-                                 soil_temp_top, dynamic%snow, cfg%snow, forcing%rnet_soil, forcing%sw_snow)
+                                 soil_temp_top, dynamic%snow, cfg%ground_surface%water, forcing%rnet_soil, forcing%sw_snow)
       forcing%lw_down_ground = flux%dn_ground(RAD_LW)
       forcing%par_per_w     = par_w_2_umol                     ! true VIS absorbed -> photon flux
       !---~---

@@ -16,10 +16,11 @@
 !---~---
 module ed_fast_integ_types
    use ed_kinds, only : wp, ik
-   use ed_constants, only : n_soil_layer_max, n_organic_slot, t_3ple
+   use ed_constants, only : n_soil_layer_max, t_3ple
+   use ed_ground_surface_params, only : N_POROUS
    use ed_pft_params, only : leaf_photo_table_t
-   use ed_patch_state_vars,   only : cas_state_t, soil_water_state_t, soil_energy_state_t, snow_state_t, soil_carbon_state_t
-   use ed_organic_lib,      only : organic_state_t
+   use ed_patch_state_vars,   only : cas_state_t, soil_water_state_t, soil_energy_state_t, snow_state_t, soil_carbon_state_t, &
+                                     organic_state_t
    use ed_therm_lib, only : cas_temp_to_enthalpy, cas_enthalpy_to_temp
    use ed_biophysics_params,   only : aero_params_t
    use ed_biogeochem_params,   only : N_SOIL_POOL
@@ -619,12 +620,12 @@ module ed_fast_integ_types
    !---~---
    type :: water_organic_t
       integer(ik) :: n = 0_ik                                  ! slots in the network
-      integer(ik) :: slot(n_organic_slot) = 0_ik               ! node j's slot (SLOT_LITTER, SLOT_MOSS)
-      type(soil_layer_curve_t) :: curve(n_organic_slot)        ! node j's retention and conductivity
-      type(soil_ice_t)         :: ice(n_organic_slot)          ! its ice, held over the step
-      real(wp) :: depth(n_organic_slot) = 0.0_wp               ! [m]
-      real(wp) :: water(n_organic_slot) = 0.0_wp               ! [kg/m2] at the step's start, liquid and ice
-      real(wp) :: deficit(n_organic_slot) = 0.0_wp             ! [kg/m2] the water it lacks of its residual
+      integer(ik) :: slot(N_POROUS) = 0_ik               ! node j's slot (POROUS_LITTER, POROUS_MOSS)
+      type(soil_layer_curve_t) :: curve(N_POROUS)        ! node j's retention and conductivity
+      type(soil_ice_t)         :: ice(N_POROUS)          ! its ice, held over the step
+      real(wp) :: depth(N_POROUS) = 0.0_wp               ! [m]
+      real(wp) :: water(N_POROUS) = 0.0_wp               ! [kg/m2] at the step's start, liquid and ice
+      real(wp) :: deficit(N_POROUS) = 0.0_wp             ! [kg/m2] the water it lacks of its residual
       real(wp) :: t_org = t_3ple                               ! [K]
       real(wp) :: fliq  = 1.0_wp                               ! [-] its water's liquid share, by its energy
       type(ground_evap_env_t) :: air                          ! the top slot's evaporation boundary (slot_evaporation_setup)
@@ -633,6 +634,7 @@ module ed_fast_integ_types
    type :: water_drive_t
       real(wp) :: rain   = 0.0_wp                          ! [kg/m2/s] water reaching the pond
       real(wp) :: t_rain = 298.15_wp                       ! [K] the temperature that values it
+      real(wp) :: pond_capacity = 0.0_wp                   ! [kg/m2] the pond above which it runs off
       real(wp) :: t_soil(n_soil_layer_max) = 298.15_wp     ! [K] temperature of the water a layer gives up
       type(soil_ice_t) :: ice(n_soil_layer_max)              ! each layer's ice, held over the step
       real(wp) :: root_contact(n_soil_layer_max) = 1.0_wp ! [-] each layer's root-soil contact, held over the step
@@ -656,8 +658,8 @@ module ed_fast_integ_types
       real(wp), allocatable :: sapflow(:), transp(:)   ! (ncoh)
       real(wp) :: pond_flux = 0.0_wp               ! pond -> top layer
       real(wp) :: drain = 0.0_wp, evap = 0.0_wp    ! out of the bottom; out of the top layer to the air
-      real(wp) :: org_face(n_organic_slot) = 0.0_wp   ! down from organic node j to the node below it
-      real(wp) :: org_evap(n_organic_slot) = 0.0_wp   ! out of organic node j to the air (< 0: dew)
+      real(wp) :: org_face(N_POROUS) = 0.0_wp   ! down from organic node j to the node below it
+      real(wp) :: org_evap(N_POROUS) = 0.0_wp   ! out of organic node j to the air (< 0: dew)
       !---~---
       !   What the solve can see of each link, whether or not the node is detached: face c's flow's
       ! slopes in its upper node's unknown and its lower one's, and the largest slope of a soil
@@ -693,8 +695,8 @@ module ed_fast_integ_types
       ! enthalpy the slots gained with their water (their evaporation's is the march's), and the top
       ! soil layer's top face, in and out with their enthalpy.
       !---~---
-      real(wp) :: org_face(n_organic_slot) = 0.0_wp
-      real(wp) :: org_evap(n_organic_slot) = 0.0_wp
+      real(wp) :: org_face(N_POROUS) = 0.0_wp
+      real(wp) :: org_evap(N_POROUS) = 0.0_wp
       real(wp) :: org_enth = 0.0_wp
       real(wp) :: top_in  = 0.0_wp, top_in_enth  = 0.0_wp   ! bottom slot -> top layer
       real(wp) :: top_out = 0.0_wp, top_out_enth = 0.0_wp   ! top layer -> bottom slot
@@ -741,7 +743,7 @@ module ed_fast_integ_types
       type(organic_state_t)        :: org
       real(wp)                     :: org_water0  = 0.0_wp    ! [kg/m2]
       real(wp)                     :: org_energy0 = 0.0_wp    ! [J/m2]
-      real(wp) :: org_evap(n_organic_slot) = 0.0_wp           ! [kg/m2] each slot's evaporation, the network's
+      real(wp) :: org_evap(N_POROUS) = 0.0_wp           ! [kg/m2] each slot's evaporation, the network's
    end type frozen_t
 
    !---~---

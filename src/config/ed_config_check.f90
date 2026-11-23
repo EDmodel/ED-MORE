@@ -13,8 +13,8 @@ module ed_config_check
    use ed_kinds,              only : wp, ik
    use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
    use ed_constants,            only : n_soil_layer_max, day_sec, breast_height
-   use ed_organic_lib,       only : organic_material_t
-   use ed_organic_lib,          only : ORGANIC_MIN_DEPTH
+   use ed_ground_surface_params, only : water_material_t, porous_material_t, N_POROUS, MASS_FROM_METABOLIC_LITTER, &
+                                        MASS_FROM_SITE_DEPTH
    use ed_output_params,        only : STATE_DAYS, FC_DAY, FC_MONTH, TIER_MONTHLY, TIER_ANNUAL
    use ed_time,                 only : time_lt, time_valid, time_to_string, whole_years_between
    use ed_toml,                 only : toml_table_t, toml_has, toml_has_section
@@ -61,6 +61,32 @@ module ed_config_check
       'soil.dry_heat_capacity', 'soil.retention', 'soil.water_bottom_bc', 'soil.deep_temp',             &
       'soil.deep_depth', 'init.soil_theta']
 
+   !---~---
+   !   Keys that moved, each with the key that now holds its value: a run that sets one is told
+   ! where it went. [snow] and [surface_layer] became [ground_surface_layer]'s tables.
+   !---~---
+   character(len=*), parameter :: GS = 'ground_surface_layer.'
+   character(len=*), parameter :: MOVED_KEYS(2, 34) = reshape([character(len=64) ::                     &
+      'snow.rho_snow', GS//'water.fresh_density', 'snow.k_snow', GS//'water.conductivity_at_fresh',            &
+      'snow.albedo_vis_fresh', GS//'water.albedo_vis_fresh', 'snow.albedo_nir_fresh', GS//'water.albedo_nir_fresh', &
+      'snow.albedo_vis_aged', GS//'water.albedo_vis_aged', 'snow.albedo_nir_aged', GS//'water.albedo_nir_aged',     &
+      'snow.snow_emiss', GS//'water.emissivity', 'snow.liquid_holding_frac', GS//'water.liquid_holding_frac',       &
+      'snow.min_new_snow_mass', GS//'water.min_new_snow_mass', 'snow.tiny_snow_mass', GS//'water.tiny_snow_mass',   &
+      'snow.ny07_a', GS//'water.cover_scale_factor', 'snow.ny07_m', GS//'water.cover_density_exponent',            &
+      'soil.w_pond_max', GS//'water.pond_capacity', 'fast.snow_init_swe', GS//'water.initial_mass',                &
+      'fast.snow_init_temp', GS//'water.initial_temp',                                                           &
+      'surface_layer.litter_on', GS//'litter.mass_source ("none" for false)',                                    &
+      'surface_layer.litter_bulk_density', GS//'litter.bulk_density', 'surface_layer.litter_k_dry', GS//'litter.k_dry', &
+      'surface_layer.litter_k_wet', GS//'litter.k_wet', 'surface_layer.litter_retention', GS//'litter.retention',    &
+      'surface_layer.litter_theta_sat', GS//'litter.theta_sat', 'surface_layer.litter_theta_res', GS//'litter.theta_res', &
+      'surface_layer.litter_curve_par_a', GS//'litter.curve_par_a',                                              &
+      'surface_layer.litter_curve_par_n', GS//'litter.curve_par_n', 'surface_layer.litter_ksat', GS//'litter.ksat',  &
+      'surface_layer.moss_bulk_density', GS//'moss.bulk_density', 'surface_layer.moss_k_dry', GS//'moss.k_dry',      &
+      'surface_layer.moss_k_wet', GS//'moss.k_wet', 'surface_layer.moss_retention', GS//'moss.retention',            &
+      'surface_layer.moss_theta_sat', GS//'moss.theta_sat', 'surface_layer.moss_theta_res', GS//'moss.theta_res',    &
+      'surface_layer.moss_curve_par_a', GS//'moss.curve_par_a', 'surface_layer.moss_curve_par_n', GS//'moss.curve_par_n', &
+      'surface_layer.moss_ksat', GS//'moss.ksat'], [2, 34])
+
    !--- What the key checks found, one line per key, reported with the missing required keys.
    integer, parameter :: MAX_REPORT = 256
    type :: key_report_t
@@ -85,13 +111,22 @@ contains
       character(len=KEY_LEN) :: hint, key
       character(len=480)     :: line
       integer(ik) :: i
+      integer     :: j, moved
       do i = 1_ik, t%n
          key = table_key(t%key(i))
          if (any(known == key)) cycle
          if (key(1:6) == 'sites.' .and. any(SITE_GROUND_KEYS == key(7:))) cycle
          line = trim(t%key(i))//' (in '//trim(t%source)//') is not a key ED-MORE reads'
-         hint = nearest_key(key, known)
-         if (len_trim(hint) > 0) line = trim(line)//'; did you mean '//trim(hint)//'?'
+         moved = 0
+         do j = 1, size(MOVED_KEYS, 2)
+            if (MOVED_KEYS(1, j) == key) moved = j
+         end do
+         if (moved > 0) then
+            line = trim(line)//'; it is now '//trim(MOVED_KEYS(2, moved))
+         else
+            hint = nearest_key(key, known)
+            if (len_trim(hint) > 0) line = trim(line)//'; did you mean '//trim(hint)//'?'
+         end if
          call add_line(report, line)
       end do
    end subroutine check_config_keys
@@ -270,7 +305,7 @@ contains
       call check_run(cfg)
       call check_fast(cfg)
       call check_soil(cfg)
-      call check_surface_layer(cfg)
+      call check_ground_surface_layer(cfg)
       call check_demography(cfg)
       call check_init(cfg)
       call check_output(cfg)
@@ -336,10 +371,6 @@ contains
       if (cfg%soil%ground_albedo_vis < 0.0_wp .or. cfg%soil%ground_albedo_vis >= 1.0_wp .or.          &
           cfg%soil%ground_albedo_nir < 0.0_wp .or. cfg%soil%ground_albedo_nir >= 1.0_wp)              &
          error stop TAG//'soil.ground_albedo_vis and ground_albedo_nir must lie in [0, 1)'
-      if (.not. (cfg%soil%moss_depth >= 0.0_wp)) error stop TAG//'soil.moss_depth must be >= 0 [m]'
-      !--- A moss thinner than a layer of the ground would be dropped without a word.
-      if (cfg%soil%moss_depth > 0.0_wp .and. cfg%soil%moss_depth < ORGANIC_MIN_DEPTH)                   &
-         error stop TAG//'soil.moss_depth must be 0 or at least 1e-4 m (ORGANIC_MIN_DEPTH), the thinnest moss layer'
       if (cfg%soil%ground_emissivity <= 0.0_wp .or. cfg%soil%ground_emissivity > 1.0_wp)              &
          error stop TAG//'soil.ground_emissivity must lie in (0, 1]'
       associate (sc => cfg%soil)
@@ -419,38 +450,87 @@ contains
       end if
    end subroutine check_soil
 
-   !--- [surface_layer]: the organic layer's two materials.
-   subroutine check_surface_layer(cfg)
+   !---~---
+   !   [ground_surface_layer]: a positive min_depth, the water layer's material and each porous
+   ! layer's; one porous layer at most takes the metabolic litter pool's matter; and the site's
+   ! moss_depth, which a layer from site_depth needs and no other uses, is 0 or a layer from
+   ! min_depth, since a thinner one would be dropped without a word.
+   !---~---
+   subroutine check_ground_surface_layer(cfg)
       type(ed_config_t), intent(in) :: cfg
-      call check_material('litter', cfg%organic%litter)
-      call check_material('moss', cfg%organic%moss)
-   end subroutine check_surface_layer
+      character(len=6), parameter :: NAMES(N_POROUS) = [character(len=6) :: 'litter', 'moss']
+      integer(ik) :: k, from_litter, from_site
+      associate (g => cfg%ground_surface)
+         if (.not. (g%min_depth > 0.0_wp)) error stop TAG//'ground_surface_layer.min_depth must be > 0 [m]'
+         call check_water_material(g%water)
+         from_litter = 0_ik
+         from_site   = 0_ik
+         do k = 1_ik, N_POROUS
+            call check_porous_material(trim(NAMES(k)), g%porous(k))
+            if (g%porous(k)%mass_source == MASS_FROM_METABOLIC_LITTER) from_litter = from_litter + 1_ik
+            if (g%porous(k)%mass_source == MASS_FROM_SITE_DEPTH)       from_site   = from_site + 1_ik
+         end do
+         if (from_litter > 1_ik)                                                                            &
+            error stop TAG//'ground_surface_layer: one layer at most takes its mass_source from "metabolic_litter"'
+         if (.not. (cfg%soil%moss_depth >= 0.0_wp)) error stop TAG//'soil.moss_depth must be >= 0 [m]'
+         if (cfg%soil%moss_depth > 0.0_wp) then
+            if (from_site == 0_ik)                                                                         &
+               error stop TAG//'soil.moss_depth > 0 needs a ground_surface_layer table with mass_source = "site_depth"'
+            if (cfg%soil%moss_depth < g%min_depth)                                                         &
+               error stop TAG//'soil.moss_depth must be 0 or at least ground_surface_layer.min_depth, the thinnest layer'
+         end if
+      end associate
+   end subroutine check_ground_surface_layer
 
    !---~---
-   !   An organic material: a positive bulk density and conductivities, and a retention curve as
-   ! a soil layer's: 0 <= theta_res < theta_sat < 1, a positive saturated conductivity, and van
-   ! Genuchten's alpha > 0 and n > 1, or Campbell's air-entry head < 0 and b > 0.
+   !   The water layer's material: densities, conductivity and holding share positive, the
+   ! albedos and the emissivity fractions, the thresholds ordered, and a start of no mass or
+   ! at a temperature.
    !---~---
-   subroutine check_material(name, m)
-      character(len=*),         intent(in) :: name
-      type(organic_material_t), intent(in) :: m
+   subroutine check_water_material(w)
+      type(water_material_t), intent(in) :: w
+      character(len=*), parameter :: PRE = TAG//'ground_surface_layer.water.'
+      if (.not. (w%fresh_density > 0.0_wp)) error stop PRE//'fresh_density must be > 0 [kg/m3]'
+      if (.not. (w%conductivity_at_fresh > 0.0_wp)) error stop PRE//'conductivity_at_fresh must be > 0 [W/m/K]'
+      if (.not. all([w%albedo_vis_fresh, w%albedo_nir_fresh, w%albedo_vis_aged, w%albedo_nir_aged] >= 0.0_wp      &
+                    .and. [w%albedo_vis_fresh, w%albedo_nir_fresh, w%albedo_vis_aged, w%albedo_nir_aged] < 1.0_wp))   &
+         error stop PRE//'the albedos must lie in [0, 1)'
+      if (.not. (w%emissivity > 0.0_wp .and. w%emissivity <= 1.0_wp)) error stop PRE//'emissivity must lie in (0, 1]'
+      if (.not. (w%liquid_holding_frac >= 0.0_wp .and. w%liquid_holding_frac < 1.0_wp))                     &
+         error stop PRE//'liquid_holding_frac must lie in [0, 1)'
+      if (.not. (w%cover_scale_factor > 0.0_wp)) error stop PRE//'cover_scale_factor must be > 0'
+      if (.not. (w%tiny_snow_mass >= 0.0_wp .and. w%min_new_snow_mass >= w%tiny_snow_mass))                &
+         error stop PRE//'min_new_snow_mass must be at least tiny_snow_mass, and both >= 0 [kg/m2]'
+      if (.not. (w%pond_capacity >= 0.0_wp)) error stop PRE//'pond_capacity must be >= 0 [kg/m2]'
+      if (.not. (w%initial_mass >= 0.0_wp)) error stop PRE//'initial_mass must be >= 0 [kg/m2]'
+      if (.not. (w%initial_temp > 0.0_wp)) error stop PRE//'initial_temp must be > 0 [K]'
+   end subroutine check_water_material
+
+   !---~---
+   !   A porous layer's material: a positive bulk density and conductivities, and a retention
+   ! curve as a soil layer's: 0 <= theta_res < theta_sat < 1, a positive saturated conductivity,
+   ! and van Genuchten's alpha > 0 and n > 1, or Campbell's air-entry head < 0 and b > 0.
+   !---~---
+   subroutine check_porous_material(name, m)
+      character(len=*),        intent(in) :: name
+      type(porous_material_t), intent(in) :: m
       character(len=:), allocatable :: pre
-      pre = TAG//'surface_layer.'//name//'_'
+      pre = TAG//'ground_surface_layer.'//name//'.'
       if (.not. (m%bulk_density > 0.0_wp)) error stop pre//'bulk_density must be > 0 [kg/m3]'
-      if (.not. (m%k_dry > 0.0_wp .and. m%k_wet > 0.0_wp)) error stop pre//'k_dry and _k_wet must be > 0 [W/m/K]'
+      if (.not. (m%k_dry > 0.0_wp .and. m%k_wet > 0.0_wp)) error stop pre//'k_dry and k_wet must be > 0 [W/m/K]'
       if (.not. (m%theta_sat > 0.0_wp .and. m%theta_sat < 1.0_wp))                                    &
          error stop pre//'theta_sat must lie in (0, 1) m3/m3'
       if (.not. (m%theta_res >= 0.0_wp .and. m%theta_res < m%theta_sat))                              &
          error stop pre//'theta_res must lie in [0, theta_sat) m3/m3'
       if (.not. (m%ksat > 0.0_wp)) error stop pre//'ksat must be > 0 [m/s]'
       if (m%retention == SOIL_RETENTION_VG) then
-         if (.not. (m%par_a > 0.0_wp)) error stop pre//'curve_par_a (van Genuchten alpha, 1/m) must be > 0'
-         if (.not. (m%par_n > 1.0_wp)) error stop pre//'curve_par_n must exceed 1 for van Genuchten'
+         if (.not. (m%curve_par_a > 0.0_wp)) error stop pre//'curve_par_a (van Genuchten alpha, 1/m) must be > 0'
+         if (.not. (m%curve_par_n > 1.0_wp)) error stop pre//'curve_par_n must exceed 1 for van Genuchten'
       else
-         if (.not. (m%par_a < 0.0_wp)) error stop pre//'curve_par_a (Campbell psi_sat, m) must be < 0'
-         if (.not. (m%par_n > 0.0_wp)) error stop pre//'curve_par_n (Campbell b) must be > 0'
+         if (.not. (m%curve_par_a < 0.0_wp)) error stop pre//'curve_par_a (Campbell psi_sat, m) must be < 0'
+         if (.not. (m%curve_par_n > 0.0_wp)) error stop pre//'curve_par_n (Campbell b) must be > 0'
       end if
-   end subroutine check_material
+   end subroutine check_porous_material
 
    !---~---
    !   [demography]. A recruit must survive its own birth: the pool threshold exceeds the

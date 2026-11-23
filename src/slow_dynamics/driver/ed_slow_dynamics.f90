@@ -17,7 +17,7 @@ module ed_slow_dynamics
    use ed_kinds,                only : wp, ik
    use ed_config,               only : ed_config_t
    use ed_time,                 only : ed_time_t, day_of_year
-   use ed_constants,            only : c2b, n_organic_slot
+   use ed_constants,            only : c2b
    use ed_biogeochem_params,    only : IP_FAST_GRND
    use ed_polygon_state_vars,   only : polygon_t, patch_polygon_area
    use ed_patch_state_vars,     only : soil_carbon_state_t
@@ -43,8 +43,8 @@ module ed_slow_dynamics
                                        commit_soil_carbon, follow_organic_slots
    use ed_slow_diag,            only : open_slow_cohort_rows, write_slow_patch_rows
    use ed_soil_hydr_lib,          only : soil_theta_to_head
-   use ed_organic_lib,            only : organic_registered_mass
-   use ed_organic_lib,         only : SLOT_LITTER, SLOT_MOSS
+   use ed_ground_surface_lib,     only : porous_layer_matter
+   use ed_ground_surface_params,  only : N_POROUS, MASS_FROM_METABOLIC_LITTER
    implicit none
    private
 
@@ -67,6 +67,7 @@ contains
       type(slow_ledger_t), intent(inout) :: ledger   ! the slow ledger; an inactive one books nothing
       type(ed_time_t),   intent(in), optional :: step_start   ! the slow step's start (its day of year)
       type(soil_carbon_state_t), allocatable :: soil_pools(:)
+      integer(ik) :: k
 
       call slow_ledger_open(ledger, poly, cfg, step_start)
 
@@ -88,30 +89,37 @@ contains
       if (cfg%soil_carbon%soil_carbon_on) then
          call advance_soil_carbon(poly, cfg, ledger, soil_pools)
          call commit_soil_carbon(poly%patch, soil_pools)
-         if (cfg%organic%litter_on) call litter_follows_pools(poly, cfg, ledger)
+         if (any([(cfg%ground_surface%porous(k)%mass_source == MASS_FROM_METABOLIC_LITTER, k = 1_ik, N_POROUS)])) &
+            call litter_follows_pools(poly, cfg, ledger)
       end if
       call slow_ledger_mark(ledger, poly, cfg, SLOW_PHASE_SOILC)
       call clear_litter(poly)
    end subroutine advance_slow_dynamics
 
    !---~---
-   !   The organic layer's litter follows the above-ground metabolic litter pool (the structural pool,
-   ! which holds the coarse woody debris, waits for a fine-litter split), which the soil-carbon
-   ! step has just advanced (docs/science/surface_organic_layer.md), as a layer only from
-   ! ORGANIC_MIN_DEPTH; the moss keeps its matter. The water a layer the litter starts takes arrives
-   ! liquid. The energy and the water the dry matter brings or takes are declared.
+   !   The porous layer whose matter comes from the above-ground metabolic litter pool follows it
+   ! (the structural pool, which holds the coarse woody debris, waits for a fine-litter split),
+   ! which the soil-carbon step has just advanced (docs/science/surface_organic_layer.md), as a
+   ! layer only from min_depth; the other layers keep their matter. The water a layer the litter
+   ! starts takes arrives liquid. The energy and the water the dry matter brings or takes are
+   ! declared.
    !---~---
    subroutine litter_follows_pools(poly, cfg, ledger)
       type(polygon_t),     intent(inout) :: poly
       type(ed_config_t),   intent(in)    :: cfg
       type(slow_ledger_t), intent(inout) :: ledger
-      real(wp)    :: mass(n_organic_slot, poly%patch%n), t_new(poly%patch%n), head(poly%patch%n), heat(poly%patch%n)
+      real(wp)    :: mass(N_POROUS, poly%patch%n), t_new(poly%patch%n), head(poly%patch%n), heat(poly%patch%n)
       real(wp)    :: water(poly%patch%n), fliq_new(poly%patch%n)
-      integer(ik) :: ip
+      integer(ik) :: ip, k
       do ip = 1_ik, poly%patch%n
-         mass(SLOT_LITTER, ip) = organic_registered_mass(c2b * poly%patch%soil_carbon(ip)%carbon(IP_FAST_GRND),   &
-                                                         cfg%organic%litter%bulk_density)
-         mass(SLOT_MOSS, ip)   = poly%patch%organic(ip)%mass(SLOT_MOSS)
+         do k = 1_ik, N_POROUS
+            associate (m => cfg%ground_surface%porous(k))
+               mass(k, ip) = poly%patch%organic(ip)%mass(k)
+               if (m%mass_source == MASS_FROM_METABOLIC_LITTER)                                              &
+                  mass(k, ip) = porous_layer_matter(c2b * poly%patch%soil_carbon(ip)%carbon(IP_FAST_GRND),        &
+                                                    m%bulk_density, cfg%ground_surface%min_depth)
+            end associate
+         end do
          fliq_new(ip) = 1.0_wp
          t_new(ip) = poly%patch%soil_energy(ip)%soil_temp(1)
          associate (c => poly%site%surface(poly%patch%owner_site(ip))%soil_profile%layer_curve(1))
@@ -119,7 +127,7 @@ contains
                                           c%par_a, c%par_n)
          end associate
       end do
-      call follow_organic_slots(poly%patch, cfg%organic, mass, t_new, fliq_new, head, heat, water)
+      call follow_organic_slots(poly%patch, cfg%ground_surface, mass, t_new, fliq_new, head, heat, water)
       call slow_ledger_declare(ledger, energy_in = sum([(patch_polygon_area(poly, ip) * heat(ip),            &
                                                          ip = 1_ik, poly%patch%n)]),                         &
                                water_in = sum([(patch_polygon_area(poly, ip) * water(ip), ip = 1_ik, poly%patch%n)]))

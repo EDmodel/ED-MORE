@@ -1225,10 +1225,9 @@ module test_slow_update_litter
    use ed_kinds,                only : wp, ik
    use ed_constants,            only : rho_h2o, cp_organic
    use ed_therm_lib,            only : temp_to_internal_energy
-   use ed_patch_state_vars,     only : patch_block, alloc_patch_block
-   use ed_organic_lib,        only : organic_state_t, organic_split_energy
-   use ed_organic_lib,       only : organic_params_t, SLOT_LITTER, SLOT_MOSS
-   use ed_organic_lib,          only : ORGANIC_MIN_DEPTH, organic_registered_mass
+   use ed_patch_state_vars,     only : patch_block, alloc_patch_block, organic_state_t, organic_split_energy
+   use ed_ground_surface_params, only : ground_surface_layer_params_t, POROUS_LITTER, POROUS_MOSS
+   use ed_ground_surface_lib,   only : porous_layer_matter
    use ed_slow_update,          only : follow_organic_slots
    use ed_test_support,         only : banner, check, check_close
    implicit none
@@ -1237,19 +1236,21 @@ module test_slow_update_litter
 contains
    subroutine run_litter_follows()
       type(patch_block)      :: patch
-      type(organic_params_t) :: o
+      type(ground_surface_layer_params_t) :: o
       real(wp) :: heat(1), water(1), w0, e0, cap
       call banner('litter follows its pool')
-      !--- A film thinner than ORGANIC_MIN_DEPTH is no layer; from it, all its matter is.
-      call check(organic_registered_mass(0.5_wp * ORGANIC_MIN_DEPTH * o%litter%bulk_density, o%litter%bulk_density)  &
-                 == 0.0_wp, 'litter thinner than the minimum depth is no layer')
-      call check(organic_registered_mass(ORGANIC_MIN_DEPTH * o%litter%bulk_density, o%litter%bulk_density)            &
-                 == ORGANIC_MIN_DEPTH * o%litter%bulk_density, 'litter at the minimum depth is a layer, all of it')
+      !--- A film thinner than min_depth is no layer; from it, all its matter is.
+      associate (rho_b => o%porous(POROUS_LITTER)%bulk_density)
+         call check(porous_layer_matter(0.5_wp * o%min_depth * rho_b, rho_b, o%min_depth) == 0.0_wp,           &
+                    'litter thinner than the minimum depth is no layer')
+         call check(porous_layer_matter(o%min_depth * rho_b, rho_b, o%min_depth) == o%min_depth * rho_b,       &
+                    'litter at the minimum depth is a layer, all of it')
+      end associate
       call alloc_patch_block(patch, 1_ik, 1_ik)
       patch%n = 1_ik
       associate (org => patch%organic(1), sw => patch%soil_water(1))
          org = organic_state_t()
-         org%mass    = [0.02_wp * o%litter%bulk_density, 0.05_wp * o%moss%bulk_density]
+         org%mass    = [0.02_wp * o%porous(POROUS_LITTER)%bulk_density, 0.05_wp * o%porous(POROUS_MOSS)%bulk_density]
          org%water   = [0.5_wp * 0.02_wp * rho_h2o, 0.4_wp * 0.05_wp * rho_h2o]
          call organic_split_energy(org, temp_to_internal_energy(cp_organic * sum(org%mass), sum(org%water),      &
                                                                 285.0_wp, 1.0_wp))
@@ -1258,9 +1259,9 @@ contains
          !--- Shrinks to a fifth: 4 mm hold 3.92 kg/m2 saturated, of the 10 it held.
          w0 = sum(org%water) + sw%w_surface
          e0 = sum(org%energy) + sw%w_surface_energy
-         call follow_litter(patch, o, 0.004_wp * o%litter%bulk_density, heat, water)
-         cap = o%litter%theta_sat * rho_h2o * 0.004_wp
-         call check_close(org%water(SLOT_LITTER), cap, 1.0e-9_wp,                                                 &
+         call follow_litter(patch, o, 0.004_wp * o%porous(POROUS_LITTER)%bulk_density, heat, water)
+         cap = o%porous(POROUS_LITTER)%theta_sat * rho_h2o * 0.004_wp
+         call check_close(org%water(POROUS_LITTER), cap, 1.0e-9_wp,                                                 &
                           'shrinking litter keeps what its depth holds saturated')
          call check_close(sw%w_surface, 10.0_wp - cap, 1.0e-9_wp, 'and passes the rest to the pond')
          call check_close(sum(org%water) + sw%w_surface, w0, 1.0e-9_wp, 'the water closes')
@@ -1270,9 +1271,9 @@ contains
          w0 = sum(org%water) + sw%w_surface
          e0 = sum(org%energy) + sw%w_surface_energy
          call follow_litter(patch, o, 0.0_wp, heat, water)
-         call check(org%water(SLOT_LITTER) == 0.0_wp .and. org%mass(SLOT_LITTER) == 0.0_wp,                     &
+         call check(org%water(POROUS_LITTER) == 0.0_wp .and. org%mass(POROUS_LITTER) == 0.0_wp,                     &
                     'vanished litter holds nothing')
-         call check_close(org%water(SLOT_MOSS), 0.4_wp * 0.05_wp * rho_h2o, 1.0e-9_wp, 'the moss keeps its water')
+         call check_close(org%water(POROUS_MOSS), 0.4_wp * 0.05_wp * rho_h2o, 1.0e-9_wp, 'the moss keeps its water')
          call check_close(sum(org%water) + sw%w_surface, w0, 1.0e-9_wp, 'vanishing: the water closes')
          call check_close(sum(org%energy) + sw%w_surface_energy, e0 + heat(1), 1.0e-9_wp * abs(e0),             &
                           'vanishing: the energy closes')
@@ -1280,28 +1281,29 @@ contains
          w0 = sum(org%water)
          e0 = sum(org%energy)
          call follow_litter(patch, o, 0.1_wp, heat, water)
-         call check(org%mass(SLOT_LITTER) > 0.0_wp .and. org%water(SLOT_LITTER) > 0.0_wp,                         &
+         call check(org%mass(POROUS_LITTER) > 0.0_wp .and. org%water(POROUS_LITTER) > 0.0_wp,                         &
                     'new litter appears holding water')
-         call check_close(org%water(SLOT_LITTER) / (rho_h2o * 0.1_wp / o%litter%bulk_density), 0.1427_wp, 1.0e-3_wp, &
+         call check_close(org%water(POROUS_LITTER) / (rho_h2o * 0.1_wp / o%porous(POROUS_LITTER)%bulk_density),     &
+                          0.1427_wp, 1.0e-3_wp,                                                                      &
                           'what its curve holds at the top soil''s head of -1 m')
          call check_close(sum(org%water), w0 + water(1), 1.0e-12_wp, 'its water is declared')
          call check_close(sum(org%energy), e0 + heat(1), 1.0e-9_wp * abs(e0), 'and its energy')
          !--- Grows by half: the new matter brings water at the litter's own water content.
-         w0 = org%water(SLOT_LITTER)
+         w0 = org%water(POROUS_LITTER)
          call follow_litter(patch, o, 0.15_wp, heat, water)
-         call check_close(org%water(SLOT_LITTER), 1.5_wp * w0, 1.0e-12_wp, 'growing litter keeps its water content')
+         call check_close(org%water(POROUS_LITTER), 1.5_wp * w0, 1.0e-12_wp, 'growing litter keeps its water content')
       end associate
    end subroutine run_litter_follows
 
    !--- The slow step's follow: the litter to litter_mass, the moss as it is, a new layer's water liquid.
    subroutine follow_litter(patch, o, litter_mass, heat, water)
       type(patch_block),      intent(inout) :: patch
-      type(organic_params_t), intent(in)    :: o
+      type(ground_surface_layer_params_t), intent(in)    :: o
       real(wp),               intent(in)    :: litter_mass
       real(wp),               intent(out)   :: heat(1), water(1)
       real(wp) :: want(2, 1)
-      want(SLOT_LITTER, 1) = litter_mass
-      want(SLOT_MOSS, 1)   = patch%organic(1)%mass(SLOT_MOSS)
+      want(POROUS_LITTER, 1) = litter_mass
+      want(POROUS_MOSS, 1)   = patch%organic(1)%mass(POROUS_MOSS)
       call follow_organic_slots(patch, o, want, [280.0_wp], [1.0_wp], [-1.0_wp], heat, water)
    end subroutine follow_litter
 end module test_slow_update_litter

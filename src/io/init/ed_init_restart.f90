@@ -13,7 +13,8 @@ module ed_init_restart
    use iso_c_binding,       only : c_int, c_size_t
    use ed_kinds,            only : wp, ik
    use ed_biogeochem_params, only : N_SOIL_POOL, SOIL_POOL_NAME
-   use ed_constants,        only : n_soil_layer_max, n_snow_layer_max, n_organic_slot
+   use ed_constants,        only : n_soil_layer_max, n_snow_layer_max
+   use ed_ground_surface_params, only : N_POROUS
    use ed_state_defaults,   only : is_unset_positive
    use ed_config,           only : ed_config_t, growth_window_steps
    use ed_time,             only : ed_time_t, time_to_stamp, time_to_decimal_year
@@ -101,7 +102,7 @@ contains
       call nc_check(nc_def_dim_f(ncid, 'nmeta_real', int(N_META_REAL, c_size_t), d%meta_real), 'state dim mr')
       call nc_check(nc_def_dim_f(ncid, 'soil_layer', int(n_soil_layer_max, c_size_t), d%soil_layer), 'state dim soill')
       call nc_check(nc_def_dim_f(ncid, 'snow_layer', int(n_snow_layer_max, c_size_t), d%snow_layer), 'state dim snowl')
-      call nc_check(nc_def_dim_f(ncid, 'organic_slot', int(n_organic_slot, c_size_t), d%organic_slot),            &
+      call nc_check(nc_def_dim_f(ncid, 'organic_slot', int(N_POROUS, c_size_t), d%organic_slot),            &
                     'state dim orgs')
       call nc_check(nc_def_dim_f(ncid, 'growth_window', int(max(n_window,1_ik), c_size_t), d%growth_window),     &
                     'state dim gwin')

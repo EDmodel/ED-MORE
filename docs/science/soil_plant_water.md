@@ -101,7 +101,7 @@ What drives the network is held over the step: the rain, each cohort's transpira
 
 Fast and detached nodes are left out of the error estimate: a fast node's error is its neighbours', a detached node's is nil by construction.
 
-**Conservation.** Each store's water is advanced by the flows themselves, $`W \mathrel{+}= h\,F`$, so every kilogram that leaves one store arrives in another or crosses a boundary, whatever Newton's residual. A store whose own balance is solved apart -- an eliminated core node, a cohort's leaves on their one path -- takes its water from its own curve instead, and the face to its strongest neighbour (a neighbour that is not detached, and not a pond holding less than it would take; the wood, for the leaves) carries the flow that closes its balance; the neighbour absorbs the slack, which is small against what it holds. The pond gives no more than it holds: Newton, converged to its tolerance, can leave a draining pond a hair past empty, and the face it drained through then carries that much less, so the water and its enthalpy leave the pond as they arrive below; left past empty, its energy would be cut to nothing with the water it owed (at Toolik, 2.9·10⁻⁵ kg m⁻² beyond a pond of 0.022 put 26 J m⁻² into the column's ledger). After each sub-step, water above `[soil].w_pond_max` spills as runoff at the pond's temperature.
+**Conservation.** Each store's water is advanced by the flows themselves, $`W \mathrel{+}= h\,F`$, so every kilogram that leaves one store arrives in another or crosses a boundary, whatever Newton's residual. A store whose own balance is solved apart -- an eliminated core node, a cohort's leaves on their one path -- takes its water from its own curve instead, and the face to its strongest neighbour (a neighbour that is not detached, and not a pond holding less than it would take; the wood, for the leaves) carries the flow that closes its balance; the neighbour absorbs the slack, which is small against what it holds. The pond gives no more than it holds: Newton, converged to its tolerance, can leave a draining pond a hair past empty, and the face it drained through then carries that much less, so the water and its enthalpy leave the pond as they arrive below; left past empty, its energy would be cut to nothing with the water it owed (at Toolik, 2.9·10⁻⁵ kg m⁻² beyond a pond of 0.022 put 26 J m⁻² into the column's ledger). After each sub-step, water above `[ground_surface_layer.water].pond_capacity` spills as runoff at the pond's temperature.
 
 ## 4. Transpiration and the energy step
 
@@ -181,7 +181,7 @@ The network reports its work as these output variables, each a mean per fast ste
 |---|---|---|
 | `[fast].water_atol` | 1×10⁻⁴ | absolute tolerance of the network's error control: water content for soil layers and the pond, relative water content for tissues |
 | `[fast].rtol` | 2×10⁻³ | relative tolerance of every error-controlled store, the network's included |
-| `[soil].w_pond_max` | 5 kg m⁻² | pond capacity above which water runs off |
+| `[ground_surface_layer.water].pond_capacity` | 5 kg m⁻² | pond capacity above which water runs off |
 | `[pft].wstress_psi_close` | twice the turgor-loss potential | leaf potential at which transpiration is limited by the leaf's water (§4), as $R_{close}$ |
 
 Fixed in the code: the uptake ramp's width (10⁻² MPa), the transpiration corner (0.02 in $R$), the pond's depression depth (1 mm), the soil's specific storage (10⁻⁴ m⁻¹) and the Newton and sub-step controller constants of §3.

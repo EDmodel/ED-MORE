@@ -37,7 +37,7 @@ module ed_fast_diag
                                        SI_RHO_AIR, N_SI_ROWS
    use ed_met_types,            only : met_forcing_t
    use ed_polygon_state_vars,   only : polygon_t, patch_polygon_area
-   use ed_organic_lib,        only : ground_top_temp
+   use ed_patch_state_vars,     only : ground_top_temp
    use ed_fast_integ_types,         only : fast_static_state_t, fast_dynamic_state_t, fast_forcing_t, fast_output_t,  &
                                            step_exports_t
    implicit none
