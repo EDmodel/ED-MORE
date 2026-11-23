@@ -38,7 +38,7 @@ module ed_fast_integ_backward_euler
    use ed_therm_lib, only : cas_enthalpy_to_temp
    use ed_numerics,     only : sufficient_decrease, fraction_to_boundary, root_bracket_t, regula_falsi_point,       &
                                illinois_narrow
-   use ed_soil_hydr_lib,   only : pond_water_to_head, soil_layer_curve_t, curve_kinks
+   use ed_soil_hydr_lib,   only : pond_water_to_head, soil_layer_curve_t, curve_kinks, on_curve_corner
    use ed_soil_water,      only : ground_evaporation_setup
    use ed_linear_algebra, only : arrowhead_system_t, arrowhead_allocate, arrowhead_factor, arrowhead_solve, thomas_solve
    use ed_soil_params, only : soil_profile_t, soil_params_t
@@ -767,7 +767,7 @@ contains
    !   One sub-step: Newton on the end-of-sub-step water balance, with the core nodes in their
    ! classes (docs/science/soil_plant_water.md §3, "Node classes"). At the sub-step's start, from
    ! its evaluation, a node whose time scale is far below the sub-step is fast (classify_fast), and
-   ! adjacent fast nodes whose curve holds no water make one block (fast_blocks); every
+   ! adjacent fast nodes that relax at once make one block (fast_blocks); every
    ! evaluation first solves each block's balances together with its neighbours held (solve_block,
    ! nonlinear elimination), and Newton keeps their rows with a zero residual, so the factorised
    ! matrix gives the rest the Schur-eliminated step. At every iteration, a connected group of
@@ -804,6 +804,7 @@ contains
       integer(ik) :: it, ib, i_try, worst_at_try
       real(wp) :: step_free(water%nsoil)   ! the step before chop_at_kinks
       real(wp) :: t_relax(water%nsoil)     ! [s] each core node's time to relax to its neighbours
+      logical  :: at_once(water%nsoil)     ! each core node that relaxes at once (classify_fast)
       logical  :: ok, cut_new(water%nsoil), taken
       logical  :: chopped                  ! chop_at_kinks shortened the step
 
@@ -826,10 +827,10 @@ contains
          call water_derivs(static, profile, soil, hyd, drive, tau_soil, tau_coh, water%ev(i_sol), water%sys, .true.)
          water%start_ready = .true.
       end if
-      call classify_fast(water%sys, water%ev(i_sol), h, tol, scale_soil, fast, t_relax)
+      call classify_fast(drive, tau_soil, water%sys, water%ev(i_sol), h, tol, scale_soil, fast, t_relax, at_once)
       call inert_groups(water%ev(i_sol), h, tol, scale_soil, cut)
       fast = fast .and. .not. cut
-      call fast_blocks(water%ev(i_sol), t_relax, fast)
+      call fast_blocks(t_relax, at_once, fast)
       if (any(fast) .or. any(cut)) then
          water%start_ready = .false.
          call evaluate(tau_soil, tau_coh, i_sol)
@@ -855,6 +856,8 @@ contains
          call water_newton_factor(water%sys, h, water%ev(i_sol), ok)
          if (.not. ok) return
          if (it == 1_ik) water%sys_start = water%sys   ! the start's factorisation, for the error filter
+         !--- A trial's evaluation replaces the Jacobian sys held, so the start's is gone.
+         water%start_ready = .false.
          call arrowhead_solve(water%sys, merge(0.0_wp, -res_soil, fast .or. cut), -res_coh, step_soil, step_coh)
          !--- An eliminated or detached node's own solve, not the linear step, gives its unknown.
          step_soil = merge(0.0_wp, step_soil, fast .or. cut)
@@ -863,8 +866,6 @@ contains
          chopped = any(step_soil /= step_free)
          lam_max = step_limit(profile, drive%porous, tau_soil, tau_coh, step_soil, step_coh)
          lam = lam_max
-         !--- A trial's evaluation replaces the Jacobian sys held, so the start's is gone.
-         water%start_ready = .false.
          taken = .false.
          merit_best = huge(1.0_wp)
          lam_best = 0.0_wp
@@ -992,15 +993,20 @@ contains
    ! its flows, and it is eliminated. So is a node whose net outflow at the start would empty it
    ! within the sub-step, its relaxation time taken as nil: its storage there, a trace pond's over
    ! its depression, says nothing of the empty store it becomes, which a Newton step linearised at
-   ! the start would carry past the head where its face meets the node below. Of a run of adjacent
-   ! fast nodes, those whose curve holds no water are eliminated together, as blocks (fast_blocks).
+   ! the start would carry past the head where its face meets the node below. So, too, is a node
+   ! that starts on a corner of its curve (on_curve_corner): a Newton step linearised there holds
+   ! one side of the corner only, its own bracketed solve both. Of a run of adjacent fast nodes,
+   ! those that relax at once are eliminated together, as blocks (fast_blocks).
    !---~---
-   pure subroutine classify_fast(sys, ev, h, tol, scale_soil, fast, t_relax)
+   pure subroutine classify_fast(drive, tau_soil, sys, ev, h, tol, scale_soil, fast, t_relax, at_once)
+      type(water_drive_t),      intent(in)  :: drive
+      real(wp),                 intent(in)  :: tau_soil(:)
       type(arrowhead_system_t), intent(in)  :: sys
       type(water_tend_t),       intent(in)  :: ev
       real(wp),                 intent(in)  :: h, tol, scale_soil(:)
       logical,                  intent(out) :: fast(:)
       real(wp),                 intent(out) :: t_relax(:)   ! [s] each node's time to relax to its neighbours
+      logical,                  intent(out) :: at_once(:)   ! it holds no water where it starts, or starts on a corner
       real(wp)    :: big_l
       integer(ik) :: c, i, ib
       logical     :: seen(sys%nc), linked
@@ -1016,28 +1022,34 @@ contains
          linked = seen(c) .or. ev%root_link(c) >= tol * scale_soil(c)
          if (c > 1_ik) linked = linked .or. seen(c - 1_ik)
          t_relax(c) = abs(ev%dwater_soil(c)) / max(big_l, tiny_num)
-         if (-h * ev%inflow_soil(c) > ev%water_soil(c)) t_relax(c) = 0.0_wp   ! it empties within the sub-step
+         at_once(c) = ev%dwater_soil(c) == 0.0_wp
+         if (c > 1_ik .and. c <= 1_ik + drive%porous%n) then
+            at_once(c) = at_once(c) .or. on_curve_corner(drive%porous%ice(c - 1_ik), tau_soil(c))
+         else if (c > 1_ik + drive%porous%n) then
+            at_once(c) = at_once(c) .or. on_curve_corner(drive%ice(c - 1_ik - drive%porous%n), tau_soil(c))
+         end if
+         !--- So does one that empties within the sub-step.
+         if (at_once(c) .or. -h * ev%inflow_soil(c) > ev%water_soil(c)) t_relax(c) = 0.0_wp
          fast(c) = linked .and. t_relax(c) < FAST_SHARE * h
       end do
    end subroutine classify_fast
 
    !---~---
    !   The blocks of eliminated nodes (docs/science/soil_plant_water.md §3, "Node classes"). In a
-   ! run of adjacent fast nodes, the members whose curve holds no water at all where they start
-   ! (dW = 0: an empty pond, a frozen layer whose pores ice and liquid fill, below zero head) stay
-   ! eliminated, adjacent ones together as one block (solve_block): no Newton row of their own
-   ! could hold them. The members that hold water leave the run for the Newton, whose rows hold
-   ! them; a run of such members alone keeps its fastest one eliminated, so no eliminated node is
-   ! solved against a neighbour held that moves as fast.
+   ! run of adjacent fast nodes, the members that relax at once (at_once, from classify_fast: their
+   ! curve holds no water where they start, as an empty pond's or a frozen layer's whose pores ice
+   ! and liquid fill, below zero head; or they start on a corner of their curve, on_curve_corner)
+   ! stay eliminated, adjacent ones together as one block (solve_block): no Newton row of their own
+   ! could hold them. The other members leave the run for the Newton, whose rows hold them; a run of
+   ! such members alone keeps its fastest one eliminated (a node that empties within the sub-step
+   ! first), so no eliminated node is solved against a neighbour held that moves as fast.
    !---~---
-   pure subroutine fast_blocks(ev, t_relax, fast)
-      type(water_tend_t),       intent(in)    :: ev
+   pure subroutine fast_blocks(t_relax, at_once, fast)
       real(wp),                 intent(in)    :: t_relax(:)
+      logical,                  intent(in)    :: at_once(:)
       logical,                  intent(inout) :: fast(:)
       integer(ik) :: c1, c2, nc
-      logical     :: holds_none(size(fast))
       nc = size(fast, kind=ik)
-      holds_none = ev%dwater_soil(1:nc) == 0.0_wp
       c1 = 1_ik
       do while (c1 <= nc)
          if (.not. fast(c1)) then
@@ -1050,8 +1062,8 @@ contains
             c2 = c2 + 1_ik
          end do
          if (c2 > c1) then
-            if (any(holds_none(c1:c2))) then
-               fast(c1:c2) = holds_none(c1:c2)
+            if (any(at_once(c1:c2))) then
+               fast(c1:c2) = at_once(c1:c2)
             else
                fast(c1:c2) = .false.
                fast(c1 - 1_ik + minloc(t_relax(c1:c2), dim=1, kind=ik)) = .true.

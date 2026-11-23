@@ -16,6 +16,7 @@
 !---~---
 module ed_soil_hydr_lib
    use ed_kinds,       only : wp, ik
+   use ed_numerics,    only : within_roundoff
    use ed_constants,   only : grav_head, rho_h2o, day_sec, tiny_num, grav, t_3ple, latent_heat_fusion
    implicit none
    private
@@ -25,7 +26,7 @@ module ed_soil_hydr_lib
    !--- Retention curve: theta(head), head(theta) and potential(theta) read-offs.
    public :: SOIL_RETENTION_VG, SOIL_RETENTION_CAMPBELL, VG_PORE_CONNECTIVITY
    public :: soil_head_to_theta, soil_theta_to_head, soil_matric_potential, soil_theta_to_saturation
-   public :: soil_liquid_capacity, curve_kinks
+   public :: soil_liquid_capacity, curve_kinks, on_curve_corner
    !---~---
    !   The water relations the soil-plant water solver uses, in the variable it solves
    ! for: a soil layer's saturation (dry) or potential (wet), the pond's head.
@@ -704,5 +705,27 @@ contains
       n = 1_ik
       kinks(1) = c%se_switch
    end subroutine curve_kinks
+
+   !---~---
+   !   Whether a frozen layer's unknown tau sits, to round-off, on a corner of its curve, where its
+   ! water and its potential change their slopes in the unknown at once (soil_water_relations): its
+   ! melt plateau's top and the point its liquid fills the pores the ice leaves, where its potential
+   ! turns from fixed to rising and its storage from the ice's to none, and zero head above them,
+   ! where the specific storage begins. A frozen layer whose pores ice and liquid fill starts every
+   ! step on one. A Newton step linearised there holds one side of the corner only. A layer with no
+   ! ice has none: its storage alone breaks, at zero head and at Campbell's air entry, a kink a step
+   ! is chopped at (curve_kinks).
+   !---~---
+   pure logical function on_curve_corner(ice, tau) result(on)
+      type(soil_ice_t),         intent(in) :: ice
+      real(wp),                 intent(in) :: tau
+      real(wp) :: corner(3)
+      on = .false.
+      if (.not. (ice%theta_ice > 0.0_wp)) return
+      corner(1) = ice%tau_melt
+      corner(2) = ice%tau_full
+      corner(3) = ice%tau_full - ice%head_full / ice%dhead_full
+      on = any(within_roundoff(tau - corner, abs(corner)))
+   end function on_curve_corner
 
 end module ed_soil_hydr_lib
