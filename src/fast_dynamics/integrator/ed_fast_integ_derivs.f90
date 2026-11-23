@@ -28,7 +28,7 @@ module ed_fast_integ_derivs
    use ed_fast_integ_types, only : surface_state_t, surface_tend_t, cas_boundary_t,                                  &
                                march_state_t, frozen_t, march_tend_t, fast_static_state_t,                    &
                                water_drive_t, water_tend_t, water_work_t, ensure_water_capacity, POND, WOOD, LEAF, &
-                               water_porous_t
+                               water_porous_t, water_state_t
    use ed_site_state_vars, only : site_surface_t
    use ed_soil_hydr_lib,   only : soil_water_relations, soil_theta_to_unknown, pond_water_relations,              &
                                   pond_water_to_head, soil_ice_t
@@ -45,7 +45,7 @@ module ed_fast_integ_derivs
    private
 
    public :: surface_derivs, canopy_demand, march_derivs, cas_conductances
-   public :: set_water_state, water_derivs, node_balance, core_node_relations, wood_potentials
+   public :: set_water_state, unknowns_from_water, water_derivs, node_balance, core_node_relations, wood_potentials
 
    !---~---
    !   [-] The drive (head gradient) over which a wetting face's conductivity blends from the
@@ -329,9 +329,7 @@ contains
    !---~---
    !   set_water_state -- the network's state from the model's: each porous layer's water and
    ! each soil layer's water content and ice, the pond's water, and each cohort's leaf and wood
-   ! water [kg per plant]; each store's unknown is read from its water. A leafless cohort's
-   ! leaves hold none, so their unknown starts at the wood's potential less the head to the
-   ! crown, where an empty leaf comes to rest.
+   ! water [kg per plant]; each store's unknown is read from its water (unknowns_from_water).
    !---~---
    subroutine set_water_state(static, profile, hyd, theta, ice, w_pond, leaf_water, wood_water, water, porous)
       type(fast_static_state_t), intent(in)    :: static
@@ -343,58 +341,89 @@ contains
       real(wp),                  intent(in)    :: leaf_water(:), wood_water(:)   ! (ncoh) [kg/plant]
       type(water_work_t),        intent(inout) :: water
       type(water_porous_t), optional, intent(in) :: porous                       ! the porous layers, if any
+      type(water_porous_t) :: none
       integer(ik) :: k, i, j, n_porous, soff
-      real(wp)    :: psi, dpsi, w, dw, kk, dk, head1, elev
       n_porous = 0_ik
       if (present(porous)) n_porous = porous%n
       soff = 1_ik + n_porous
       call ensure_water_capacity(water, profile%n_active, n_porous, static%n)
       associate (st => water%state)
+         st%water_soil(POND) = w_pond
          do j = 1_ik, n_porous
-            st%tau_soil(1_ik + j)   = soil_theta_to_unknown(porous%curve(j), porous%ice(j),                            &
-                                                            (porous%water(j) + porous%deficit(j)) / (rho_h2o * porous%depth(j)))
             st%water_soil(1_ik + j) = porous%water(j)
          end do
          do k = 1_ik, profile%n_active
-            st%tau_soil(soff + k)   = soil_theta_to_unknown(profile%layer_curve(k), ice(k), theta(k))
             st%water_soil(soff + k) = rho_h2o * profile%dz(k) * theta(k)
          end do
-         !---~---
-         !   The pond starts at its water's head, but no higher than the head at which it neither
-         ! gives nor takes water from the node below it, the top porous layer or the top soil
-         ! layer: over dry ground a trace pond empties within the step, and its own head would
-         ! start Newton at a flow thousands of times what it holds.
-         !---~---
-         st%water_soil(POND) = w_pond
-         if (n_porous > 0_ik) then
-            call soil_water_relations(porous%curve(1), porous%ice(1), st%tau_soil(2), psi, dpsi, w, dw, kk, dk)
-            elev = -0.5_wp * porous%depth(1)
-         else
-            call soil_water_relations(profile%layer_curve(1), ice(1), st%tau_soil(2), psi, dpsi, w, dw, kk, dk)
-            elev = profile%z_node(1)
-         end if
-         head1 = psi / grav_head
-         st%tau_soil(POND) = min(pond_water_to_head(w_pond), head1 + elev)
          do i = 1_ik, static%n
-            associate (hp => hyd%pft(static%pft(i)))
-               st%tau_coh(WOOD, i)   = tissue_rwc_to_unknown(                                                  &
-                                          tissue_water_to_rwc(hp%wood_curve, static%bwood_water(i), wood_water(i)))
-               st%water_coh(WOOD, i) = wood_water(i) * static%nplant(i)
-               if (hp%leaf_curve%water_sat * static%bleaf(i) > tiny_num) then
-                  st%tau_coh(LEAF, i)   = tissue_rwc_to_unknown(                                               &
-                                             tissue_water_to_rwc(hp%leaf_curve, static%bleaf(i), leaf_water(i)))
-                  st%water_coh(LEAF, i) = leaf_water(i) * static%nplant(i)
-               else
-                  call tissue_water_relations(hp%wood_curve, static%bwood_water(i), static%nplant(i),            &
-                                              st%tau_coh(WOOD, i), psi, dpsi, w, dw)
-                  st%tau_coh(LEAF, i)   = tissue_rwc_to_unknown(tissue_psi_to_rwc(psi - static%crown_head(i),   &
-                                             hp%leaf_curve%pi0, hp%leaf_curve%elastic_mod))
-                  st%water_coh(LEAF, i) = 0.0_wp
-               end if
-            end associate
+            st%water_coh(WOOD, i) = wood_water(i) * static%nplant(i)
+            st%water_coh(LEAF, i) = leaf_water(i) * static%nplant(i)
          end do
       end associate
+      if (present(porous)) then
+         call unknowns_from_water(static, profile, hyd, ice, porous, water%state)
+      else
+         call unknowns_from_water(static, profile, hyd, ice, none, water%state)
+      end if
    end subroutine set_water_state
+
+   !---~---
+   !   unknowns_from_water -- each store's unknown read from the water it holds, the inverse of its
+   ! curve: a porous or soil layer's with its ice held, a porous layer below its residual at its
+   ! curve's dry end (its deficit carried as the offset), each cohort's tissues from their water per
+   ! plant. A leafless cohort's leaves hold none, so their unknown is the wood's potential less the
+   ! head to the crown, where an empty leaf comes to rest. The pond's is its water's head, but no
+   ! higher than the head at which it neither gives nor takes water from the node below it, the top
+   ! porous layer or the top soil layer: over dry ground a trace pond empties within the step, and
+   ! its own head would start Newton at a flow thousands of times what it holds.
+   !---~---
+   subroutine unknowns_from_water(static, profile, hyd, ice, porous, st)
+      type(fast_static_state_t), intent(in)    :: static
+      type(soil_profile_t),      intent(in)    :: profile
+      type(hydraulics_table_t),  intent(in)    :: hyd
+      type(soil_ice_t),          intent(in)    :: ice(:)     ! (nsl) each soil layer's ice
+      type(water_porous_t),      intent(in)    :: porous     ! the porous layers in the network
+      type(water_state_t),       intent(inout) :: st
+      integer(ik) :: k, i, j, soff
+      real(wp)    :: psi, dpsi, w, dw, kk, dk, head1, elev
+      soff = 1_ik + porous%n
+      do j = 1_ik, porous%n
+         st%tau_soil(1_ik + j) = soil_theta_to_unknown(porous%curve(j), porous%ice(j),                               &
+                                                       (st%water_soil(1_ik + j) + porous%deficit(j))                 &
+                                                       / (rho_h2o * porous%depth(j)))
+      end do
+      do k = 1_ik, profile%n_active
+         st%tau_soil(soff + k) = soil_theta_to_unknown(profile%layer_curve(k), ice(k),                             &
+                                                       st%water_soil(soff + k) / (rho_h2o * profile%dz(k)))
+      end do
+      if (porous%n > 0_ik) then
+         call soil_water_relations(porous%curve(1), porous%ice(1), st%tau_soil(2), psi, dpsi, w, dw, kk, dk)
+         elev = -0.5_wp * porous%depth(1)
+      else
+         call soil_water_relations(profile%layer_curve(1), ice(1), st%tau_soil(2), psi, dpsi, w, dw, kk, dk)
+         elev = profile%z_node(1)
+      end if
+      head1 = psi / grav_head
+      st%tau_soil(POND) = min(pond_water_to_head(st%water_soil(POND)), head1 + elev)
+      do i = 1_ik, static%n
+         associate (hp => hyd%pft(static%pft(i)))
+            st%tau_coh(WOOD, i) = tissue_rwc_to_unknown(tissue_water_to_rwc(hp%wood_curve, static%bwood_water(i),   &
+                                                                            st%water_coh(WOOD, i)                    &
+                                                                            / max(static%nplant(i), tiny_num)))
+            if (hp%leaf_curve%water_sat * static%bleaf(i) > tiny_num) then
+               st%tau_coh(LEAF, i) = tissue_rwc_to_unknown(tissue_water_to_rwc(hp%leaf_curve, static%bleaf(i),      &
+                                                                               st%water_coh(LEAF, i)                 &
+                                                                               / max(static%nplant(i), tiny_num)))
+            else
+               call tissue_water_relations(hp%wood_curve, static%bwood_water(i), static%nplant(i),                &
+                                           st%tau_coh(WOOD, i), psi, dpsi, w, dw)
+               st%tau_coh(LEAF, i)   = tissue_rwc_to_unknown(tissue_psi_to_rwc(psi - static%crown_head(i),         &
+                                                             hp%leaf_curve%pi0, hp%leaf_curve%elastic_mod))
+               st%water_coh(LEAF, i) = 0.0_wp
+            end if
+         end associate
+      end do
+   end subroutine unknowns_from_water
 
    !---~---
    !   water_derivs -- the network at one state: each store's potential and water from its
@@ -749,12 +778,14 @@ contains
    !   node_balance -- core node c's own backward-Euler balance over a sub-step of h, R = (W -
    ! W0)/h - inflow [kg/m2/s], and dR/dtau_c, at its unknown tau with every other store held at
    ! its state in tau_soil and its neighbours' relations given: the faces to the nodes above and
-   ! below (none to a detached node), and its own sources -- the water reaching the pond, the top
-   ! porous layer's evaporation, the top soil layer's evaporation, the bottom's drainage and each cohort's
-   ! uptake at its wood's potential. The nonlinear
-   ! elimination of a fast node and the closed form of a detached one solve R = 0 on it.
+   ! below (none to or from a detached node, as water_derivs cuts them), and its own sources --
+   ! the water reaching the pond, the top porous layer's evaporation, the top soil layer's
+   ! evaporation, the bottom's drainage and each cohort's uptake at its wood's potential; and, when
+   ! asked, dR/dtau of the node above (dr_up) and below (dr_down), which a block of eliminated
+   ! nodes solves with. The nonlinear elimination of a fast node or block and the closed form of a
+   ! detached one solve R = 0 on it.
    !---~---
-   subroutine node_balance(static, profile, soil, drive, c, tau_soil, w0, h, cut, psi_wood, r, dr)
+   subroutine node_balance(static, profile, soil, drive, c, tau_soil, w0, h, cut, psi_wood, r, dr, dr_up, dr_down)
       type(fast_static_state_t), intent(in)  :: static
       type(soil_profile_t),      intent(in)  :: profile
       type(soil_params_t),       intent(in)  :: soil
@@ -765,41 +796,41 @@ contains
       logical,                   intent(in)  :: cut(:)       ! (nsoil) the detached nodes: no faces, no roots
       real(wp),                  intent(in)  :: psi_wood(:)  ! (ncoh) [MPa]
       real(wp),                  intent(out) :: r, dr
+      real(wp), optional,        intent(out) :: dr_up, dr_down
       real(wp) :: psi, dpsi, w, dw, kc, dkc, q, dq_pa, dq_pb, dq_ka, dq_kb, w_b, dist, inflow, dinflow
-      real(wp) :: e, qbot, dsrc
-      real(wp) :: u, du_ds, du_dw, du_dk, nbr(4), x(6)
+      real(wp) :: e, qbot, dsrc, d_up, d_down
+      real(wp) :: u, du_ds, du_dw, du_dk, above(6), below(6)
       integer(ik) :: nsl, soff, nsoil, k, i
       logical :: wet
       nsl   = profile%n_active
       soff  = 1_ik + drive%porous%n
       nsoil = soff + nsl
       call core_node_relations(profile, drive, c, tau_soil(c), psi, dpsi, w, dw, kc, dkc)
-      !--- The neighbours' potentials and conductivities, held.
-      nbr = 0.0_wp
-      if (c > 1_ik) then
-         call core_node_relations(profile, drive, c - 1_ik, tau_soil(c - 1_ik), x(1), x(2), x(3), x(4), x(5), x(6))
-         nbr(1) = x(1)
-         nbr(2) = x(5)
-      end if
-      if (c < nsoil) then
-         call core_node_relations(profile, drive, c + 1_ik, tau_soil(c + 1_ik), x(1), x(2), x(3), x(4), x(5), x(6))
-         nbr(3) = x(1)
-         nbr(4) = x(5)
-      end if
       inflow  = 0.0_wp
       dinflow = 0.0_wp
-      if (.not. cut(c)) then
-         if (c > 1_ik) then
+      d_up    = 0.0_wp
+      d_down  = 0.0_wp
+      !--- The faces to the neighbours, held at their unknowns: (potential, its slope, water, its slope, K, its slope).
+      if (c > 1_ik) then
+         if (.not. (cut(c) .or. cut(c - 1_ik))) then
+            call core_node_relations(profile, drive, c - 1_ik, tau_soil(c - 1_ik), above(1), above(2), above(3),     &
+                                     above(4), above(5), above(6))
             call core_face_geometry(profile, drive, c - 1_ik, w_b, dist, wet)
-            call core_face_flux(wet, nbr(2), kc, w_b, nbr(1), psi, dist, q, dq_pa, dq_pb, dq_ka, dq_kb)
+            call core_face_flux(wet, above(5), kc, w_b, above(1), psi, dist, q, dq_pa, dq_pb, dq_ka, dq_kb)
             inflow  = inflow + q
             dinflow = dinflow + dq_pb * dpsi + dq_kb * dkc
+            d_up    = -(dq_pa * above(2) + dq_ka * above(6))
          end if
-         if (c < nsoil) then
+      end if
+      if (c < nsoil) then
+         if (.not. (cut(c) .or. cut(c + 1_ik))) then
+            call core_node_relations(profile, drive, c + 1_ik, tau_soil(c + 1_ik), below(1), below(2), below(3),     &
+                                     below(4), below(5), below(6))
             call core_face_geometry(profile, drive, c, w_b, dist, wet)
-            call core_face_flux(wet, kc, nbr(4), w_b, psi, nbr(3), dist, q, dq_pa, dq_pb, dq_ka, dq_kb)
+            call core_face_flux(wet, kc, below(5), w_b, psi, below(1), dist, q, dq_pa, dq_pb, dq_ka, dq_kb)
             inflow  = inflow - q
             dinflow = dinflow - (dq_pa * dpsi + dq_ka * dkc)
+            d_down  = dq_pb * below(2) + dq_kb * below(6)
          end if
       end if
       dsrc = 0.0_wp
@@ -817,6 +848,8 @@ contains
       end if
       r  = (w - w0) / h - inflow
       dr = dw / h - dinflow
+      if (present(dr_up))   dr_up   = d_up
+      if (present(dr_down)) dr_down = d_down
    end subroutine node_balance
 
 end module ed_fast_integ_derivs

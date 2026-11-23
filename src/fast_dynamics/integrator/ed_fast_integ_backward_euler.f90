@@ -20,7 +20,8 @@ module ed_fast_integ_backward_euler
    use ed_soil_heat,   only : soil_heat_env_t, soil_heat_out_t, soil_energy_step_implicit, set_soil_heat_env
    use ed_ground_surface_lib, only : porous_layer_temp
    use ed_patch_state_vars,   only : soil_energy_state_t
-   use ed_fast_integ_derivs, only : surface_derivs, cas_conductances, water_derivs, node_balance, wood_potentials
+   use ed_fast_integ_derivs, only : surface_derivs, cas_conductances, water_derivs, node_balance, wood_potentials, &
+                                    unknowns_from_water
    use ed_fast_integ_control, only : water_scales
    use ed_canopy_air_space,   only : cas_box_step_implicit, cas_env_t
    use ed_fast_integ_types,   only : march_state_t, frozen_t, surface_state_t, cas_boundary_t,                  &
@@ -31,13 +32,15 @@ module ed_fast_integ_backward_euler
                                WORK_WATER_FORCED_FAST, WORK_WATER_FORCED_CUT, WORK_WATER_FORCED_COHORT,           &
                                WORK_WATER_NODE_UNSOLVED, WORK_WATER_FAST_POND, WORK_WATER_FAST_SLOT,              &
                                WORK_WATER_FAST_LAYER, WORK_WATER_CUT_POND, WORK_WATER_CUT_SLOT,                   &
-                               WORK_WATER_CUT_LAYER, state_init, surface_source_slopes_t, water_porous_t
+                               WORK_WATER_CUT_LAYER, WORK_WATER_FORCED_HELD, WORK_WATER_LINE_SEARCH,              &
+                               WORK_WATER_BLOCK_SWEEP, state_init, surface_source_slopes_t, water_porous_t
    use ed_site_state_vars, only : site_surface_t
    use ed_therm_lib, only : cas_enthalpy_to_temp
-   use ed_numerics,     only : sufficient_decrease, fraction_to_boundary
+   use ed_numerics,     only : sufficient_decrease, fraction_to_boundary, root_bracket_t, regula_falsi_point,       &
+                               illinois_narrow
    use ed_soil_hydr_lib,   only : pond_water_to_head, soil_layer_curve_t, curve_kinks
    use ed_soil_water,      only : ground_evaporation_setup
-   use ed_linear_algebra, only : arrowhead_system_t, arrowhead_allocate, arrowhead_factor, arrowhead_solve
+   use ed_linear_algebra, only : arrowhead_system_t, arrowhead_allocate, arrowhead_factor, arrowhead_solve, thomas_solve
    use ed_soil_params, only : soil_profile_t, soil_params_t
    use ed_pft_params, only : hydraulics_table_t
    implicit none
@@ -45,7 +48,7 @@ module ed_fast_integ_backward_euler
 
    public :: backward_euler_stage, advance_plant_water, advance_surf_water_full
    public :: water_step
-   public :: water_jacobian_error   ! used only by the tests
+   public :: water_jacobian_error, substep_in_bounds   ! used only by the tests
    public :: newton_surface_solve, surface_source_slopes, surface_jacobian, surface_residual_scaled, &
              SURFACE_NEWTON_MAX                                                        ! used only by the tests
 
@@ -85,6 +88,12 @@ module ed_fast_integ_backward_euler
    real(wp),    parameter :: NEWTON_TOL     = 1.0e-2_wp
    integer(ik), parameter :: NEWTON_MAX     = 25_ik
    integer(ik), parameter :: BACKTRACK_MAX  = 12_ik
+   !---~---
+   !   When none of its BACKTRACK_MAX trials meets Armijo's test or lowers the merit, the line search
+   ! halves on BACKTRACK_DEEP more times looking for any fall, to 2^-39 of the step: a step past
+   ! which only round-off moves a smooth merit.
+   !---~---
+   integer(ik), parameter :: BACKTRACK_DEEP = 28_ik
    real(wp),    parameter :: STEP_MAX_SHARE = 0.9_wp
    real(wp),    parameter :: STEP_MAX_DRY   = 0.2_wp
    real(wp),    parameter :: SOIL_TAU_FLOOR = 1.0e-12_wp
@@ -98,7 +107,23 @@ module ed_fast_integ_backward_euler
    !---~---
    real(wp),    parameter :: FAST_SHARE       = NEWTON_TOL
    real(wp),    parameter :: NODE_SOLVE_SHARE = 1.0e-3_wp
-   integer(ik), parameter :: NODE_SOLVE_MAX   = 100_ik
+   integer(ik), parameter :: NODE_SOLVE_MAX   = 200_ik
+   !---~---
+   !   solve_node's bracket search: its first step Newton's, but at least NODE_STEP_MIN of the
+   ! unknown (or of one), so it moves the unknown however flat the balance; how far one step may
+   ! go towards zero on the dry side, to NODE_DRY_SHARE of the unknown, three decades of
+   ! saturation a step; and the steps out it takes before it gives up, NODE_BRACKET_MAX, each four
+   ! times the last, which reach 4^40 times the first. In the bracket, a spread wider than NODE_SPREAD_MAX (two decades) is halved
+   ! geometrically, and a bracket narrower than NODE_ROUNDOFF epsilons of the unknown has closed to
+   ! its round-off. A block of eliminated nodes takes at most BLOCK_NEWTON_MAX Newton steps or
+   ! sweeps. Numerical choices: none moves a converged answer.
+   !---~---
+   real(wp),    parameter :: NODE_STEP_MIN    = 1.0e-3_wp
+   real(wp),    parameter :: NODE_DRY_SHARE   = 1.0e-3_wp
+   integer(ik), parameter :: NODE_BRACKET_MAX = 40_ik
+   real(wp),    parameter :: NODE_SPREAD_MAX  = 1.0e2_wp
+   real(wp),    parameter :: NODE_ROUNDOFF    = 8.0_wp
+   integer(ik), parameter :: BLOCK_NEWTON_MAX = 50_ik
    !--- [-] The largest scaled imbalance the merit squares: far beyond any step the line search keeps.
    real(wp),    parameter :: MERIT_X_MAX      = 1.0e100_wp
    !---~---
@@ -540,6 +565,13 @@ contains
    ! not converge or meet the tolerance (counted, not hidden) with the reason and the worst
    ! store's class, the node balances left unsolved, and the core nodes by class. The drive is
    ! held over the step, so the ground evaporation's constant terms are set into it once, here.
+   !   A sub-step forced at the shortest length commits a solution of its balance (Newton
+   ! converged, only the error filter failed) as any other; an unconverged Newton iterate only if
+   ! what it commits is a state of the network (substep_in_bounds): every store finite and at or
+   ! above empty, its water within the error tolerance of its curve's at its unknown. Otherwise
+   ! the network holds still for the rest of the step, every store as it began the sub-step but
+   ! the pond, which takes the water reaching it. Either way each unknown is then read again from
+   ! its committed water, so the next sub-step starts on its curve.
    !---~---
    subroutine water_step(dt, static, profile, soil, hyd, drive, tols, water, work_count)
       real(wp),                  intent(in)    :: dt
@@ -554,19 +586,23 @@ contains
       real(wp)    :: t, h, h_min, err, rtol, atol
       real(wp)    :: scale_soil(water%nsoil), scale_coh(COHORT_STORES, water%ncoh)
       real(wp)    :: tau_soil(water%nsoil), tau_coh(COHORT_STORES, water%ncoh)
-      integer(ik) :: trials, iters, i_sol, worst_at, n_unsolved
-      logical     :: converged, last, spilled
+      integer(ik) :: trials, iters, i_sol, worst_at, n_unsolved, n_search, n_sweep
+      logical     :: converged, last, spilled, forced, kept
       logical     :: fast(water%nsoil), cut(water%nsoil)   ! the sub-step's eliminated and detached core nodes
+      type(water_state_t) :: start_state                   ! a forced sub-step's start, to hold still at
+      type(water_flows_t) :: start_flows
 
       rtol = tols%rtol(GRP_THETA)
       atol = tols%atol(GRP_THETA)
       call clear_flows(water%flows)
       work_count(WORK_WATER_NSUB:WORK_WATER_NFAIL) = 0_ik
       work_count(WORK_WATER_FORCED_NEWTON:WORK_WATER_CUT_LAYER) = 0_ik
+      work_count(WORK_WATER_FORCED_HELD:WORK_WATER_BLOCK_SWEEP) = 0_ik
       call arrowhead_allocate(water%sys, water%nsoil, water%ncoh, COHORT_STORES)
       call water_scales(static, profile, hyd, drive%porous, scale_soil, scale_coh)
       call ground_evaporation_setup(profile, soil, drive%ground)
       water%start_ready = .false.
+      forced = .false.
 
       t = 0.0_wp
       h = dt
@@ -579,9 +615,12 @@ contains
          tau_soil = water%state%tau_soil
          tau_coh = water%state%tau_coh
          call water_newton_substep(static, profile, soil, hyd, drive, h, atol, scale_soil, scale_coh,           &
-                                   tau_soil, tau_coh, water, converged, iters, i_sol, fast, cut, worst_at, n_unsolved)
+                                   tau_soil, tau_coh, water, converged, iters, i_sol, fast, cut, worst_at, n_unsolved, &
+                                   n_search, n_sweep)
          work_count(WORK_WATER_NEWTON) = work_count(WORK_WATER_NEWTON) + iters
          work_count(WORK_WATER_NODE_UNSOLVED) = work_count(WORK_WATER_NODE_UNSOLVED) + n_unsolved
+         work_count(WORK_WATER_LINE_SEARCH) = work_count(WORK_WATER_LINE_SEARCH) + n_search
+         work_count(WORK_WATER_BLOCK_SWEEP) = work_count(WORK_WATER_BLOCK_SWEEP) + n_sweep
          if (.not. converged .and. .not. last) then
             work_count(WORK_WATER_REJECT) = work_count(WORK_WATER_REJECT) + 1_ik
             h = max(h * NEWTON_FAIL_CUT, h_min)
@@ -605,29 +644,70 @@ contains
             h = max(h * max(SHRINK_MIN, SAFETY * err ** (-0.5_wp)), h_min)
             cycle
          end if
-         if (err > 1.0_wp) call count_forced(converged, worst_at)
+         forced = err > 1.0_wp
+         if (forced) call count_forced(converged, worst_at)
          call count_classes(fast, WORK_WATER_FAST_POND, WORK_WATER_FAST_SLOT, WORK_WATER_FAST_LAYER)
          call count_classes(cut, WORK_WATER_CUT_POND, WORK_WATER_CUT_SLOT, WORK_WATER_CUT_LAYER)
-         !--- A sub-step's balance that is not finite is never committed: the run stops.
-         if (.not. finite_evaluation(water%ev(i_sol), tau_soil, tau_coh))                                     &
-            error stop 'water_step: a sub-step of the soil-plant water network is not finite'
-         call water_commit_substep(drive, h, tau_soil, tau_coh, water%ev(i_sol), water%state, water%flows,  &
-                                   fast, cut, spilled)
+         if (converged) then
+            !--- A sub-step's balance that is not finite is never committed: the run stops.
+            if (.not. finite_evaluation(water%ev(i_sol), tau_soil, tau_coh))                                  &
+               error stop 'water_step: a sub-step of the soil-plant water network is not finite'
+            call water_commit_substep(drive, h, tau_soil, tau_coh, water%ev(i_sol), water%state, water%flows,  &
+                                      fast, cut, spilled)
+         else
+            start_state = water%state
+            start_flows = water%flows
+            kept = finite_evaluation(water%ev(i_sol), tau_soil, tau_coh)
+            if (kept) then
+               call water_commit_substep(drive, h, tau_soil, tau_coh, water%ev(i_sol), water%state, water%flows, &
+                                         fast, cut, spilled)
+               kept = substep_in_bounds(water%state, water%ev(i_sol), scale_soil, scale_coh, rtol, atol)
+            end if
+            if (.not. kept) then
+               !---~---
+               !   Held still: every store stays as it began the sub-step, but the pond, which takes
+               ! the water reaching it whatever the rest does (and spills it past its capacity). The
+               ! start held would fail again as it just did, so the hold lasts the rest of the step.
+               !---~---
+               water%state = start_state
+               water%flows = start_flows
+               h = dt - t
+               call hold_pond(h)
+               work_count(WORK_WATER_FORCED_HELD) = work_count(WORK_WATER_FORCED_HELD) + 1_ik
+            end if
+         end if
          !---~---
          !   The next sub-step starts where this one ended: its start is this one's solution, whose
          ! Jacobian sys still holds -- unless the spill moved the pond, or a node was detached, whose
-         ! cut faces the next sub-step's classes must not read.
+         ! cut faces the next sub-step's classes must not read, or the sub-step was forced, whose
+         ! unknowns are read again from the water it committed.
          !---~---
          water%i_start = i_sol
-         water%start_ready = .not. (spilled .or. any(cut))
+         water%start_ready = .not. (spilled .or. any(cut) .or. forced)
+         if (forced) call unknowns_from_water(static, profile, hyd, drive%ice(1:water%nsl), drive%porous, water%state)
          t = t + h
          work_count(WORK_WATER_NSUB) = work_count(WORK_WATER_NSUB) + 1_ik
          if (err <= 1.0_wp)                                                                                   &
             h = h * min(GROW_MAX, max(SHRINK_MIN, SAFETY * max(err, 1.0e-10_wp) ** (-0.5_wp))) ! clamp-ok: controller floor
       end do
+      !--- The potentials a forced last sub-step left are its unknowns' as read again from its water.
+      if (forced)                                                                                             &
+         call water_derivs(static, profile, soil, hyd, drive, water%state%tau_soil, water%state%tau_coh,         &
+                           water%ev(water%i_start), water%sys, .false.)
       water%state%psi_soil = water%ev(water%i_start)%psi_soil
       water%state%psi_coh  = water%ev(water%i_start)%psi_coh
    contains
+      !--- The pond over a held span hh: the water reaching it, and its spill past its capacity.
+      subroutine hold_pond(hh)
+         real(wp), intent(in) :: hh   ! [s]
+         real(wp) :: spill
+         water%state%water_soil(POND) = water%state%water_soil(POND) + hh * drive%rain
+         spill = max(0.0_wp, water%state%water_soil(POND) - drive%pond_capacity)
+         spilled = spill > 0.0_wp
+         water%flows%spill = water%flows%spill + spill
+         water%state%water_soil(POND) = water%state%water_soil(POND) - spill
+      end subroutine hold_pond
+
       !--- An accepted sub-step's nodes of a class, by kind: the pond, the porous layers, the soil layers.
       subroutine count_classes(mask, i_pond, i_slot, i_layer)
          logical,     intent(in) :: mask(:)
@@ -656,6 +736,24 @@ contains
       end subroutine count_forced
    end subroutine water_step
 
+   !---~---
+   !   Whether what a forced sub-step's unconverged iterate committed is a state of the network: every
+   ! store's water finite and at or above empty, and within the error tolerance (atol of its scale
+   ! plus rtol of its water) of what its curve holds at the iterate's unknown, the amount by which
+   ! the iterate's balance missed. A store below empty or past what its curve holds there is the
+   ! sign of an iterate gone wild.
+   !---~---
+   pure logical function substep_in_bounds(state, ev, scale_soil, scale_coh, rtol, atol) result(ok)
+      type(water_state_t), intent(in) :: state   ! the water the iterate committed
+      type(water_tend_t),  intent(in) :: ev      ! the network at the iterate
+      real(wp),            intent(in) :: scale_soil(:), scale_coh(:,:), rtol, atol
+      ok = all(ieee_is_finite(state%water_soil)) .and. all(ieee_is_finite(state%water_coh))
+      if (.not. ok) return
+      ok = all(state%water_soil >= 0.0_wp) .and. all(state%water_coh >= 0.0_wp)                               &
+           .and. all(abs(state%water_soil - ev%water_soil) <= atol * scale_soil + rtol * abs(state%water_soil))  &
+           .and. all(abs(state%water_coh - ev%water_coh) <= atol * scale_coh + rtol * abs(state%water_coh))
+   end function substep_in_bounds
+
    !--- Whether a sub-step's evaluation and unknowns are all finite numbers.
    pure logical function finite_evaluation(ev, tau_soil, tau_coh) result(ok)
       type(water_tend_t), intent(in) :: ev
@@ -668,17 +766,20 @@ contains
    !---~---
    !   One sub-step: Newton on the end-of-sub-step water balance, with the core nodes in their
    ! classes (docs/science/soil_plant_water.md §3, "Node classes"). At the sub-step's start, from
-   ! its evaluation, a node whose time scale is far below the sub-step is fast (classify_fast):
-   ! every evaluation first solves its own balance with its neighbours held (nonlinear
-   ! elimination), and Newton keeps its row with a zero residual, so the factorised matrix gives
-   ! the rest the Schur-eliminated step. At every iteration, a connected group of nodes the solve
-   ! cannot see is detached (inert_groups): its faces carry nothing and each member solves its
-   ! own balance with its own sources. A step that would carry a node across a kink of its curve
-   ! stops there for the iteration (chop_at_kinks). The node balances solve_node leaves unsolved
-   ! are counted (n_unsolved).
+   ! its evaluation, a node whose time scale is far below the sub-step is fast (classify_fast), and
+   ! adjacent fast nodes whose curve holds no water make one block (fast_blocks); every
+   ! evaluation first solves each block's balances together with its neighbours held (solve_block,
+   ! nonlinear elimination), and Newton keeps their rows with a zero residual, so the factorised
+   ! matrix gives the rest the Schur-eliminated step. At every iteration, a connected group of
+   ! nodes the solve cannot see is detached (inert_groups): its faces carry nothing and each member
+   ! solves its own balance with its own sources. A step that would carry a node across a kink of its curve stops there for the
+   ! iteration (chop_at_kinks). The line search takes no step that raises the merit: when every
+   ! trial would, Newton stops unconverged (n_search). The node balances left unsolved and the
+   ! blocks solved by sweeps are counted (n_unsolved, n_sweep).
    !---~---
    subroutine water_newton_substep(static, profile, soil, hyd, drive, h, atol, scale_soil, scale_coh,             &
-                                   tau_soil, tau_coh, water, converged, iters, i_sol, fast, cut, worst_at, n_unsolved)
+                                   tau_soil, tau_coh, water, converged, iters, i_sol, fast, cut, worst_at, n_unsolved, &
+                                   n_search, n_sweep)
       type(fast_static_state_t), intent(in)    :: static
       type(soil_profile_t),      intent(in)    :: profile
       type(soil_params_t),       intent(in)    :: soil
@@ -692,21 +793,26 @@ contains
       integer(ik),               intent(out)   :: i_sol   ! which of water%ev holds the solution
       logical,                   intent(out)   :: fast(:), cut(:)   ! (nsoil) the eliminated and detached nodes
       integer(ik),               intent(out)   :: worst_at     ! the store of the last worst imbalance (water_residual)
-      integer(ik),               intent(out)   :: n_unsolved   ! node balances solve_node left unsolved
+      integer(ik),               intent(out)   :: n_unsolved   ! node balances left unsolved
+      integer(ik),               intent(out)   :: n_search     ! line searches that found no step lowering the merit
+      integer(ik),               intent(out)   :: n_sweep      ! block solves that fell back to sweeps
       real(wp) :: res_soil(water%nsoil), res_coh(COHORT_STORES, water%ncoh)
       real(wp) :: step_soil(water%nsoil), step_coh(COHORT_STORES, water%ncoh)
       real(wp) :: try_soil(water%nsoil), try_coh(COHORT_STORES, water%ncoh)
       real(wp) :: res2_soil(water%nsoil), res2_coh(COHORT_STORES, water%ncoh)
-      real(wp) :: merit, merit_try, worst, worst_try, lam, lam_max, tol
+      real(wp) :: merit, merit_try, merit_best, worst, worst_try, lam, lam_max, lam_best, tol
       integer(ik) :: it, ib, i_try, worst_at_try
       real(wp) :: step_free(water%nsoil)   ! the step before chop_at_kinks
-      logical  :: ok, cut_new(water%nsoil)
+      real(wp) :: t_relax(water%nsoil)     ! [s] each core node's time to relax to its neighbours
+      logical  :: ok, cut_new(water%nsoil), taken
       logical  :: chopped                  ! chop_at_kinks shortened the step
 
       converged = .false.
       iters = 0_ik
       worst_at = 0_ik
       n_unsolved = 0_ik
+      n_search = 0_ik
+      n_sweep = 0_ik
       fast = .false.
       cut  = .false.
       tol  = NEWTON_TOL * atol / h
@@ -720,9 +826,10 @@ contains
          call water_derivs(static, profile, soil, hyd, drive, tau_soil, tau_coh, water%ev(i_sol), water%sys, .true.)
          water%start_ready = .true.
       end if
-      call classify_fast(water%sys, water%ev(i_sol), h, tol, scale_soil, fast)
+      call classify_fast(water%sys, water%ev(i_sol), h, tol, scale_soil, fast, t_relax)
       call inert_groups(water%ev(i_sol), h, tol, scale_soil, cut)
       fast = fast .and. .not. cut
+      call fast_blocks(water%ev(i_sol), t_relax, fast)
       if (any(fast) .or. any(cut)) then
          water%start_ready = .false.
          call evaluate(tau_soil, tau_coh, i_sol)
@@ -758,22 +865,53 @@ contains
          lam = lam_max
          !--- A trial's evaluation replaces the Jacobian sys held, so the start's is gone.
          water%start_ready = .false.
-         do ib = 1_ik, BACKTRACK_MAX
-            try_soil = tau_soil + lam * step_soil
-            try_coh = tau_coh + lam * step_coh
-            call evaluate(try_soil, try_coh, i_try)
-            call water_residual(water%state, h, water%ev(i_try), atol, scale_soil, scale_coh, res2_soil,          &
-                                res2_coh, merit_try, worst_try, worst_at_try, cut)
-            if (merit_try == merit_try .and. sufficient_decrease(merit_try, merit, lam)) exit
-            !---~---
-            !   A step chopped at a kink is not Newton's, and the decrease Armijo's test expects
-            ! of Newton's it cannot give: landing a node on a kink a hair away moves the merit by
-            ! a hair. It is taken if the merit does not grow, so the next step may cross.
-            !---~---
-            if (chopped .and. merit_try <= merit) exit
+         taken = .false.
+         merit_best = huge(1.0_wp)
+         lam_best = 0.0_wp
+         do ib = 1_ik, BACKTRACK_MAX + BACKTRACK_DEEP
+            call trial(lam)
+            if (merit_try == merit_try) then
+               if (ib <= BACKTRACK_MAX) then
+                  if (sufficient_decrease(merit_try, merit, lam)) then
+                     taken = .true.
+                     exit
+                  end if
+                  !---~---
+                  !   A step chopped at a kink is not Newton's, and the decrease Armijo's test
+                  ! expects of Newton's it cannot give: landing a node on a kink a hair away moves
+                  ! the merit by a hair. It is taken if the merit does not grow, so the next step
+                  ! may cross.
+                  !---~---
+                  if (chopped .and. merit_try <= merit) then
+                     taken = .true.
+                     exit
+                  end if
+                  if (merit_try < merit_best) then
+                     merit_best = merit_try
+                     lam_best   = lam
+                  end if
+               else if (merit_try < merit) then
+                  taken = .true.
+                  exit
+               end if
+            end if
+            if (ib == BACKTRACK_MAX .and. merit_best < merit) exit
             lam = 0.5_wp * lam
          end do
-         if (merit_try /= merit_try) return
+         !---~---
+         !   No trial met Armijo's test: the one of them that lowered the merit most is taken, else
+         ! the first shorter one that lowers it at all, the merit falling along Newton's direction
+         ! for every short enough step where the balances are smooth; if none does, Newton stops
+         ! here, unconverged, rather than take a step that raises it.
+         !---~---
+         if (.not. taken) then
+            if (.not. (merit_best < merit)) then
+               n_search = n_search + 1_ik
+               if (i_sol == i_try) call trial(0.0_wp)   ! the iterate's evaluation back in its slot
+               return
+            end if
+            call trial(lam_best)
+         end if
          tau_soil = try_soil
          tau_coh = try_coh
          res_soil = res2_soil
@@ -793,24 +931,51 @@ contains
 
    contains
 
+      !--- The network at lam of the Newton step: its residuals and their measures.
+      subroutine trial(share)
+         real(wp), intent(in) :: share
+         try_soil = tau_soil + share * step_soil
+         try_coh = tau_coh + share * step_coh
+         call evaluate(try_soil, try_coh, i_try)
+         call water_residual(water%state, h, water%ev(i_try), atol, scale_soil, scale_coh, res2_soil,             &
+                             res2_coh, merit_try, worst_try, worst_at_try, cut)
+      end subroutine trial
+
       !---~---
-      !   The network at an iterate: each eliminated or detached node's unknown from its own balance
-      ! (solve_node), the others' held, then every store's flows and the Jacobian, the detached
-      ! nodes' faces cut.
+      !   The network at an iterate: each detached node's unknown from its own balance (solve_node)
+      ! and each block of eliminated nodes' from their balances together (solve_block), the others'
+      ! held, then every store's flows and the Jacobian, the detached nodes' faces cut.
       !---~---
       subroutine evaluate(ts, tc, i_ev)
          real(wp),    intent(inout) :: ts(:), tc(:,:)
          integer(ik), intent(in)    :: i_ev
-         real(wp)    :: psi_wood(water%ncoh)
-         integer(ik) :: c
-         logical     :: solved
+         real(wp)    :: psi_wood(water%ncoh), node_tol(water%nsoil)
+         integer(ik) :: c, c2
+         logical     :: solved, swept
          if (any(fast) .or. any(cut)) then
             call wood_potentials(static, hyd, tc, psi_wood)
-            do c = 1_ik, water%nsoil
-               if (.not. (fast(c) .or. cut(c))) cycle
-               call solve_node(static, profile, soil, drive, c, ts, water%state%water_soil(c), h,                &
-                               NODE_SOLVE_SHARE * NEWTON_TOL * atol * scale_soil(c) / h, cut, psi_wood, solved)
-               if (.not. solved) n_unsolved = n_unsolved + 1_ik
+            node_tol = NODE_SOLVE_SHARE * NEWTON_TOL * atol * scale_soil / h
+            c = 1_ik
+            do while (c <= water%nsoil)
+               if (cut(c)) then
+                  call solve_node(static, profile, soil, drive, c, ts, water%state%water_soil(c), h, node_tol(c),   &
+                                  cut, psi_wood, solved)
+                  if (.not. solved) n_unsolved = n_unsolved + 1_ik
+                  c = c + 1_ik
+               else if (fast(c)) then
+                  c2 = c
+                  do while (c2 < water%nsoil)
+                     if (.not. fast(c2 + 1_ik)) exit
+                     c2 = c2 + 1_ik
+                  end do
+                  call solve_block(static, profile, soil, drive, c, c2, ts, water%state%water_soil, h, node_tol,    &
+                                   cut, psi_wood, solved, swept)
+                  if (.not. solved) n_unsolved = n_unsolved + 1_ik
+                  if (swept) n_sweep = n_sweep + 1_ik
+                  c = c2 + 1_ik
+               else
+                  c = c + 1_ik
+               end if
             end do
          end if
          call water_derivs(static, profile, soil, hyd, drive, ts, tc, water%ev(i_ev), water%sys, .true., cut)
@@ -824,14 +989,19 @@ contains
    ! of how far its unknown moves every balance, is the time it takes to relax to its neighbours,
    ! whatever the unknown's scale. Below FAST_SHARE of the sub-step, with a link the solve can see
    ! (seen_links, as inert_groups reads them), its storage is under the Newton tolerance's share of
-   ! its flows, and it is eliminated. Of two adjacent fast nodes only the faster is eliminated.
+   ! its flows, and it is eliminated. So is a node whose net outflow at the start would empty it
+   ! within the sub-step, its relaxation time taken as nil: its storage there, a trace pond's over
+   ! its depression, says nothing of the empty store it becomes, which a Newton step linearised at
+   ! the start would carry past the head where its face meets the node below. Of a run of adjacent
+   ! fast nodes, those whose curve holds no water are eliminated together, as blocks (fast_blocks).
    !---~---
-   pure subroutine classify_fast(sys, ev, h, tol, scale_soil, fast)
+   pure subroutine classify_fast(sys, ev, h, tol, scale_soil, fast, t_relax)
       type(arrowhead_system_t), intent(in)  :: sys
       type(water_tend_t),       intent(in)  :: ev
       real(wp),                 intent(in)  :: h, tol, scale_soil(:)
       logical,                  intent(out) :: fast(:)
-      real(wp)    :: big_l, t_relax(sys%nc)
+      real(wp),                 intent(out) :: t_relax(:)   ! [s] each node's time to relax to its neighbours
+      real(wp)    :: big_l
       integer(ik) :: c, i, ib
       logical     :: seen(sys%nc), linked
       call seen_links(ev, tol, scale_soil, seen)
@@ -846,18 +1016,50 @@ contains
          linked = seen(c) .or. ev%root_link(c) >= tol * scale_soil(c)
          if (c > 1_ik) linked = linked .or. seen(c - 1_ik)
          t_relax(c) = abs(ev%dwater_soil(c)) / max(big_l, tiny_num)
+         if (-h * ev%inflow_soil(c) > ev%water_soil(c)) t_relax(c) = 0.0_wp   ! it empties within the sub-step
          fast(c) = linked .and. t_relax(c) < FAST_SHARE * h
       end do
-      do c = 1_ik, sys%nc - 1_ik
-         if (fast(c) .and. fast(c + 1_ik)) then
-            if (t_relax(c) <= t_relax(c + 1_ik)) then
-               fast(c + 1_ik) = .false.
+   end subroutine classify_fast
+
+   !---~---
+   !   The blocks of eliminated nodes (docs/science/soil_plant_water.md §3, "Node classes"). In a
+   ! run of adjacent fast nodes, the members whose curve holds no water at all where they start
+   ! (dW = 0: an empty pond, a frozen layer whose pores ice and liquid fill, below zero head) stay
+   ! eliminated, adjacent ones together as one block (solve_block): no Newton row of their own
+   ! could hold them. The members that hold water leave the run for the Newton, whose rows hold
+   ! them; a run of such members alone keeps its fastest one eliminated, so no eliminated node is
+   ! solved against a neighbour held that moves as fast.
+   !---~---
+   pure subroutine fast_blocks(ev, t_relax, fast)
+      type(water_tend_t),       intent(in)    :: ev
+      real(wp),                 intent(in)    :: t_relax(:)
+      logical,                  intent(inout) :: fast(:)
+      integer(ik) :: c1, c2, nc
+      logical     :: holds_none(size(fast))
+      nc = size(fast, kind=ik)
+      holds_none = ev%dwater_soil(1:nc) == 0.0_wp
+      c1 = 1_ik
+      do while (c1 <= nc)
+         if (.not. fast(c1)) then
+            c1 = c1 + 1_ik
+            cycle
+         end if
+         c2 = c1
+         do while (c2 < nc)
+            if (.not. fast(c2 + 1_ik)) exit
+            c2 = c2 + 1_ik
+         end do
+         if (c2 > c1) then
+            if (any(holds_none(c1:c2))) then
+               fast(c1:c2) = holds_none(c1:c2)
             else
-               fast(c) = .false.
+               fast(c1:c2) = .false.
+               fast(c1 - 1_ik + minloc(t_relax(c1:c2), dim=1, kind=ik)) = .true.
             end if
          end if
+         c1 = c2 + 1_ik
       end do
-   end subroutine classify_fast
+   end subroutine fast_blocks
 
    !---~---
    !   The chain's faces the solve can see: face c, joining nodes c and c + 1, is seen when a whole
@@ -927,11 +1129,19 @@ contains
 
    !---~---
    !   solve_node -- core node c's unknown from its own balance (node_balance), every other store
-   ! held: Newton inside a bracket, bisecting when a step leaves the bracket or falls short. The
-   ! bracket is found by stepping out from the current unknown, so of several roots the nearest
-   ! is taken; on the dry side of the curve the steps are geometric, the unknown being a
-   ! saturation that may span many decades. Solved to tol [kg/m2/s], far inside Newton's; solved
-   ! says whether it was.
+   ! held, by a bracketed root search. The balance rises with the unknown (more water held, more
+   ! flowing out), so the root lies on the side its sign points to: the search steps out that way
+   ! from the current unknown, each step four times the last, Newton's at first (geometric towards
+   ! zero on the dry side, the unknown being a saturation that may span many decades), so of
+   ! several roots the nearest is taken. In the bracket it takes Newton's step where that lands
+   ! inside and the last one at least halved the residual, else the Illinois method's point
+   ! (ed_numerics), which closes in from both ends; it halves a bracket that has not halved over
+   ! two points (a balance flat on one side, as an empty pond's over a dry litter, holds the
+   ! Illinois point at that side), geometrically where the bracket spans decades. It is solved
+   ! when the residual is within tol [kg/m2/s], far inside Newton's, or when the bracket has
+   ! closed to round-off of the unknown with the residual within Newton's tolerance, the best the
+   ! arithmetic gives; solved says whether it was, the unknown left at the best point found
+   ! either way.
    !---~---
    subroutine solve_node(static, profile, soil, drive, c, ts, w0, h, tol, cut, psi_wood, solved)
       type(fast_static_state_t), intent(in)    :: static
@@ -944,84 +1154,207 @@ contains
       logical,                   intent(in)    :: cut(:)        ! (nsoil) the detached nodes
       real(wp),                  intent(in)    :: psi_wood(:)
       logical,                   intent(out)   :: solved
-      real(wp)    :: x, r, dr, a, b, ra, rb, dx, x_new
-      integer(ik) :: it
-      logical     :: have_a, have_b
-      solved = .true.
+      type(root_bracket_t) :: br
+      real(wp)    :: x, r, dr, x_new, dx, x_best, r_best, dr_best, r_last, width
+      integer(ik) :: it, stalled
+      logical     :: bracketed, newton_ok
       x = ts(c)
+      x_best = x
+      r_best = huge(1.0_wp)
+      dr_best = 0.0_wp
       call balance_at(x, r, dr)
-      if (abs(r) <= tol) return
-      have_a = r < 0.0_wp
-      have_b = .not. have_a
-      a = x
-      b = x
-      ra = r
-      rb = r
+      if (solved) return
       !--- Step out towards the root until the residual changes sign.
-      dx = -r / merge(dr, 1.0_wp, dr > 0.0_wp)
-      do it = 1_ik, NODE_SOLVE_MAX
-         if (have_a .and. have_b) exit
-         if (have_a) then
-            x_new = x + max(abs(dx), 1.0e-3_wp * max(abs(x), 1.0_wp))
-         else
-            x_new = x - max(abs(dx), 1.0e-3_wp * max(abs(x), 1.0_wp))
-            if (c /= POND) x_new = max(x_new, max(SOIL_TAU_FLOOR, 1.0e-3_wp * x))
-         end if
+      br%a = x
+      br%fa = r
+      bracketed = .false.
+      dx = -sign(NODE_STEP_MIN * max(abs(x), 1.0_wp), r)
+      if (dr > 0.0_wp) then
+         if (abs(r / dr) > abs(dx)) dx = -r / dr
+      end if
+      do it = 1_ik, NODE_BRACKET_MAX
+         x_new = x + dx
+         if (c /= POND) x_new = max(x_new, NODE_DRY_SHARE * x, SOIL_TAU_FLOOR)
+         if (x_new == x) exit                           ! at the dry floor, the residual still of one sign
          x = x_new
          call balance_at(x, r, dr)
-         if (abs(r) <= tol) then
+         if (solved) then
             ts(c) = x
             return
          end if
-         if (r < 0.0_wp) then
-            have_a = .true.
-            a = x
-            ra = r
-         else
-            have_b = .true.
-            b = x
-            rb = r
+         if (r * br%fa < 0.0_wp) then
+            bracketed = .true.
+            exit
          end if
+         br%a  = x
+         br%fa = r
          dx = 4.0_wp * dx
-         if (c /= POND .and. .not. have_a .and. x <= SOIL_TAU_FLOOR) exit
       end do
-      if (.not. (have_a .and. have_b)) then
-         ts(c) = x
-         solved = .false.
+      if (.not. bracketed) then
+         ts(c) = x_best
          return
       end if
-      !--- Newton inside the bracket.
-      x = merge(a, b, abs(ra) < abs(rb))
-      call balance_at(x, r, dr)
+      !--- The bracket's ends in order, a < b.
+      br%b  = x
+      br%fb = r
+      if (br%a > br%b) then
+         x_new = br%a
+         br%a  = br%b
+         br%b  = x_new
+         x_new = br%fa
+         br%fa = br%fb
+         br%fb = x_new
+      end if
+      br%kept = 0_ik
+      x  = x_best
+      r  = r_best
+      dr = dr_best
+      newton_ok = .true.
+      width = br%b - br%a
+      stalled = 0_ik
       do it = 1_ik, NODE_SOLVE_MAX
-         if (abs(r) <= tol) exit
-         x_new = x - r / merge(dr, tiny_num, dr > 0.0_wp)
-         if (.not. (dr > 0.0_wp) .or. x_new <= min(a, b) .or. x_new >= max(a, b)) then
-            if (c /= POND .and. min(a, b) > 0.0_wp .and. max(a, b) > 1.0e2_wp * min(a, b)) then
-               x_new = sqrt(a * b)
-            else
-               x_new = 0.5_wp * (a + b)
+         if (c /= POND .and. br%a > 0.0_wp .and. br%b > NODE_SPREAD_MAX * br%a) then
+            x_new = sqrt(br%a * br%b)
+         else if (stalled >= 2_ik) then
+            x_new = 0.5_wp * (br%a + br%b)
+         else
+            x_new = regula_falsi_point(br)
+            if (newton_ok .and. dr > 0.0_wp) then
+               if (x - r / dr > br%a .and. x - r / dr < br%b) x_new = x - r / dr
             end if
          end if
-         if (abs(x_new - x) <= 1.0e-15_wp * max(abs(x), 1.0e-12_wp)) exit   ! clamp-ok: the scale of a unit-free unknown near zero
+         r_last = abs(r)
          x = x_new
          call balance_at(x, r, dr)
-         if (r < 0.0_wp) then
-            a = x
+         if (solved) exit
+         call illinois_narrow(br, x, r)
+         newton_ok = abs(r) <= 0.5_wp * r_last
+         !--- A bracket that has not halved over two points is halved outright at the third.
+         if (br%b - br%a > 0.5_wp * width) then
+            stalled = stalled + 1_ik
          else
-            b = x
+            stalled = 0_ik
+            width   = br%b - br%a
+         end if
+         !---~---
+         !   Closed to round-off: the best the arithmetic gives, solved if within Newton's own
+         ! tolerance (tol is NODE_SOLVE_SHARE of it), else the balance jumps there.
+         !---~---
+         if (br%b - br%a <= NODE_ROUNDOFF * epsilon(1.0_wp) * max(abs(br%a), abs(br%b))) then
+            solved = abs(r_best) * NODE_SOLVE_SHARE <= tol
+            exit
          end if
       end do
-      ts(c) = x
-      solved = abs(r) <= tol
+      ts(c) = x_best
    contains
+      !--- The balance at xx, its slope, and the best point so far; solved once it is within tol.
       subroutine balance_at(xx, rr, drr)
          real(wp), intent(in)  :: xx
          real(wp), intent(out) :: rr, drr
          ts(c) = xx
          call node_balance(static, profile, soil, drive, c, ts, w0, h, cut, psi_wood, rr, drr)
+         if (abs(rr) < abs(r_best)) then
+            x_best  = xx
+            r_best  = rr
+            dr_best = drr
+         end if
+         solved = abs(rr) <= tol
       end subroutine balance_at
    end subroutine solve_node
+
+   !---~---
+   !   solve_block -- the unknowns of a block of adjacent eliminated core nodes, c1 to c2, from their
+   ! own balances solved together, the nodes outside held: Newton on the block's tridiagonal
+   ! Jacobian (node_balance's slopes to the nodes above and below; thomas_solve), each step kept
+   ! inside every node's curve as Newton's own steps are (node_step_limit) and backtracked until
+   ! the block's merit, the sum of its squared imbalances each over its tol, falls by Armijo's
+   ! test. Where Newton stalls, a sweep of each node's own bracketed solve (solve_node), down the
+   ! block and back up, moves it on, and Newton resumes from there (swept). A single node is
+   ! solve_node's alone. solved says whether every balance is within its tol.
+   !---~---
+   subroutine solve_block(static, profile, soil, drive, c1, c2, ts, w0, h, tol, cut, psi_wood, solved, swept)
+      type(fast_static_state_t), intent(in)    :: static
+      type(soil_profile_t),      intent(in)    :: profile
+      type(soil_params_t),       intent(in)    :: soil
+      type(water_drive_t),       intent(in)    :: drive
+      integer(ik),               intent(in)    :: c1, c2
+      real(wp),                  intent(inout) :: ts(:)
+      real(wp),                  intent(in)    :: w0(:), h, tol(:)   ! (nsoil) each node's start water; [s]; [kg/m2/s]
+      logical,                   intent(in)    :: cut(:)
+      real(wp),                  intent(in)    :: psi_wood(:)
+      logical,                   intent(out)   :: solved, swept
+      real(wp)    :: r(c2 - c1 + 1_ik), lo(c2 - c1 + 1_ik), di(c2 - c1 + 1_ik), up(c2 - c1 + 1_ik)
+      real(wp)    :: dx(c2 - c1 + 1_ik), x(c2 - c1 + 1_ik), merit, merit_try, lam
+      integer(ik) :: n, it, ib, j, c
+      logical     :: taken, one
+      n = c2 - c1 + 1_ik
+      swept = .false.
+      if (n == 1_ik) then
+         call solve_node(static, profile, soil, drive, c1, ts, w0(c1), h, tol(c1), cut, psi_wood, solved)
+         return
+      end if
+      call block_balance(r, lo, di, up, merit, solved)
+      do it = 1_ik, BLOCK_NEWTON_MAX
+         if (solved) return
+         taken = .false.
+         if (merit == merit) then
+            call thomas_solve(lo, di, up, -r, dx, n)
+            if (all(ieee_is_finite(dx))) then
+               lam = 1.0_wp
+               do j = 1_ik, n
+                  call node_step_limit(profile, drive%porous, c1 + j - 1_ik, ts(c1 + j - 1_ik), dx(j), lam)
+               end do
+               x = ts(c1:c2)
+               do ib = 1_ik, BACKTRACK_MAX
+                  ts(c1:c2) = x + lam * dx
+                  call block_balance(r, lo, di, up, merit_try, solved)
+                  if (merit_try == merit_try) then
+                     if (sufficient_decrease(merit_try, merit, lam)) then
+                        taken = .true.
+                        exit
+                     end if
+                  end if
+                  lam = 0.5_wp * lam
+               end do
+               if (.not. taken) ts(c1:c2) = x
+            end if
+         end if
+         if (taken) then
+            merit = merit_try
+         else
+            !---~---
+            !   Newton stalled: one sweep of each node's own solve, down the block and back up, and
+            ! Newton again from there.
+            !---~---
+            swept = .true.
+            do j = 1_ik, 2_ik * n
+               c = merge(c1 + j - 1_ik, c2 - (j - n) + 1_ik, j <= n)
+               call solve_node(static, profile, soil, drive, c, ts, w0(c), h, tol(c), cut, psi_wood, one)
+            end do
+            call block_balance(r, lo, di, up, merit, solved)
+         end if
+      end do
+   contains
+      !---~---
+      !   Each block node's balance at ts and its slopes in its own and its block neighbours'
+      ! unknowns (the Jacobian's sub-, main and super-diagonal), the merit, and whether every
+      ! balance is within its tol.
+      !---~---
+      subroutine block_balance(rr, a, b, cc, m, ok)
+         real(wp), intent(out) :: rr(:), a(:), b(:), cc(:), m
+         logical,  intent(out) :: ok
+         integer(ik) :: k
+         do k = 1_ik, n
+            call node_balance(static, profile, soil, drive, c1 + k - 1_ik, ts, w0(c1 + k - 1_ik), h, cut, psi_wood, &
+                              rr(k), b(k), a(k), cc(k))
+         end do
+         a(1)  = 0.0_wp
+         cc(n) = 0.0_wp
+         m  = sum((rr / tol(c1:c2)) ** 2)
+         ok = all(abs(rr) <= tol(c1:c2))
+         if (.not. all(ieee_is_finite(rr))) m = ieee_value(m, ieee_quiet_nan)
+      end subroutine block_balance
+   end subroutine solve_block
 
    !---~---
    !   A Newton step that would carry a node across a kink of its curve's storage (curve_kinks:
@@ -1137,17 +1470,10 @@ contains
       type(soil_profile_t),  intent(in) :: profile
       type(water_porous_t),  intent(in) :: porous
       real(wp),              intent(in) :: tau_soil(:), tau_coh(:,:), step_soil(:), step_coh(:,:)
-      integer(ik) :: k, i, j, c
+      integer(ik) :: i, j, c
       lam = 1.0_wp
-      do j = 1_ik, porous%n
-         c = 1_ik + j
-         lam = min(lam, fraction_to_boundary(tau_soil(c) - SOIL_TAU_FLOOR, step_soil(c), STEP_MAX_SHARE))
-         if (tau_soil(c) <= porous%curve(j)%se_switch) call cap_dry_change(tau_soil(c), step_soil(c), lam)
-      end do
-      do k = 1_ik, profile%n_active
-         c = 1_ik + porous%n + k
-         lam = min(lam, fraction_to_boundary(tau_soil(c) - SOIL_TAU_FLOOR, step_soil(c), STEP_MAX_SHARE))
-         if (tau_soil(c) <= profile%layer_curve(k)%se_switch) call cap_dry_change(tau_soil(c), step_soil(c), lam)
+      do c = 2_ik, 1_ik + porous%n + profile%n_active
+         call node_step_limit(profile, porous, c, tau_soil(c), step_soil(c), lam)
       end do
       do i = 1_ik, size(tau_coh, 2, kind=ik)
          do j = 1_ik, COHORT_STORES
@@ -1155,17 +1481,38 @@ contains
             call cap_dry_change(tau_coh(j, i), step_coh(j, i), lam)
          end do
       end do
-   contains
-      !---~---
-      !   The cap on the change applies below full saturation (an RWC or Se of one), where the
-      ! potential steepens towards empty; above it the curve is gentle and Newton moves freely.
-      !---~---
-      pure subroutine cap_dry_change(tau, d, lam)
-         real(wp), intent(in)    :: tau, d
-         real(wp), intent(inout) :: lam
-         if (tau < 1.0_wp .and. abs(d) > STEP_MAX_DRY) lam = min(lam, STEP_MAX_DRY / abs(d))
-      end subroutine cap_dry_change
    end function step_limit
+
+   !---~---
+   !   step_limit's rule for core node c, a porous or soil layer (the pond's head is not bounded):
+   ! lam, the share of its step d taken from its unknown tau, held to what keeps it inside its curve.
+   !---~---
+   pure subroutine node_step_limit(profile, porous, c, tau, d, lam)
+      type(soil_profile_t), intent(in)    :: profile
+      type(water_porous_t), intent(in)    :: porous
+      integer(ik),          intent(in)    :: c
+      real(wp),             intent(in)    :: tau, d
+      real(wp),             intent(inout) :: lam
+      real(wp) :: se_switch
+      if (c == POND) return
+      if (c <= 1_ik + porous%n) then
+         se_switch = porous%curve(c - 1_ik)%se_switch
+      else
+         se_switch = profile%layer_curve(c - 1_ik - porous%n)%se_switch
+      end if
+      lam = min(lam, fraction_to_boundary(tau - SOIL_TAU_FLOOR, d, STEP_MAX_SHARE))
+      if (tau <= se_switch) call cap_dry_change(tau, d, lam)
+   end subroutine node_step_limit
+
+   !---~---
+   !   The cap on the change applies below full saturation (an RWC or Se of one), where the
+   ! potential steepens towards empty; above it the curve is gentle and Newton moves freely.
+   !---~---
+   pure subroutine cap_dry_change(tau, d, lam)
+      real(wp), intent(in)    :: tau, d
+      real(wp), intent(inout) :: lam
+      if (tau < 1.0_wp .and. abs(d) > STEP_MAX_DRY) lam = min(lam, STEP_MAX_DRY / abs(d))
+   end subroutine cap_dry_change
 
    !--- The storage term dW/dtau / h each store adds to the Newton matrix's diagonal.
    pure subroutine water_storage_diagonal(h, ev, add_soil, add_coh)
@@ -1240,11 +1587,11 @@ contains
    !---~---
    !   Accept a sub-step: advance each store's water by the flows themselves, spill the pond above
    ! its capacity, and add what each path moved to the step's amounts. A store whose own balance
-   ! was solved apart -- an eliminated core node, a cohort's leaves on their one path -- takes its
-   ! water from its own curve, and the face to its strongest neighbour (the wood, for the leaves)
-   ! carries the flow that closes its balance; the neighbour absorbs the slack
-   ! (docs/science/soil_plant_water.md §3, "Conservation"). Water only: the heat it carries is the
-   ! energy solves'.
+   ! was solved apart -- a block of eliminated core nodes, a cohort's leaves on their one path --
+   ! takes its water from its own curve, and the faces from the block to its neighbour across its
+   ! stronger link (the wood, for the leaves) carry the flows that close each member's balance;
+   ! the neighbour absorbs the block's slack (docs/science/soil_plant_water.md §3,
+   ! "Conservation"). Water only: the heat it carries is the energy solves'.
    !---~---
    subroutine water_commit_substep(drive, h, tau_soil, tau_coh, ev, state, flows, fast, cut, spilled)
       type(water_drive_t), intent(in)    :: drive
@@ -1255,8 +1602,8 @@ contains
       logical,             intent(in)    :: fast(:), cut(:)   ! the eliminated and the detached core nodes
       logical,             intent(out)   :: spilled   ! the pond spilled, so its unknown moved
       real(wp) :: spill, sap(size(tau_coh, 2))
-      real(wp) :: qf(size(tau_soil)), dinfl(size(tau_soil)), slack
-      integer(ik) :: i, n_porous, nsoil, c, g
+      real(wp) :: qf(size(tau_soil)), dinfl(size(tau_soil)), slack(size(tau_soil)), total, carried
+      integer(ik) :: i, n_porous, nsoil, c, c1, c2, g
       logical     :: snap(size(tau_soil))   ! the eliminated nodes taken to their curve's water
 
       n_porous = drive%porous%n
@@ -1264,44 +1611,70 @@ contains
       !--- Down the chain: face c joins node c to c + 1.
       qf = ev%face
       !---~---
-      !   Each eliminated node at its curve's water: the face to its strongest neighbour carries the
-      ! flow that closes its balance there -- a neighbour that is not detached and holds the water
-      ! the slack would take from it. If neither neighbour can, the node keeps the water its flows
-      ! gave it, its slack Newton's, as any store's.
+      !   Each block of eliminated nodes at its curves' water: the faces from it to the neighbour
+      ! across its stronger link carry the flows that close each member's balance there -- a
+      ! neighbour that is not detached and holds the water the block's slack would take from it;
+      ! else the other neighbour. If neither can, the block keeps the water its flows gave it, its
+      ! slack Newton's, as any store's.
       !---~---
       dinfl = 0.0_wp
       snap  = fast
       if (.not. fast(POND)) call drain_only_what_is_held()
-      do c = 1_ik, nsoil
-         if (.not. fast(c)) cycle
-         slack = (ev%water_soil(c) - state%water_soil(c)) / h - (ev%inflow_soil(c) + dinfl(c))
-         if (c == 1_ik) then
-            g = 2_ik
-         else if (c == nsoil) then
-            g = nsoil - 1_ik
-         else if (abs(ev%face_dqb(c - 1_ik)) >= abs(ev%face_dqa(c))) then
-            g = c - 1_ik
-         else
-            g = c + 1_ik
+      c1 = 1_ik
+      do while (c1 <= nsoil)
+         if (.not. fast(c1)) then
+            c1 = c1 + 1_ik
+            cycle
          end if
-         if (.not. can_give(g)) then
-            g = 2_ik * c - g
-            if (g < 1_ik .or. g > nsoil) then
-               snap(c) = .false.
-               cycle
+         c2 = c1
+         do while (c2 < nsoil)
+            if (.not. fast(c2 + 1_ik)) exit
+            c2 = c2 + 1_ik
+         end do
+         do c = c1, c2
+            slack(c) = (ev%water_soil(c) - state%water_soil(c)) / h - (ev%inflow_soil(c) + dinfl(c))
+         end do
+         total = sum(slack(c1:c2))
+         !--- The neighbour across the stronger link (0 for none), else the other one.
+         g = 0_ik
+         if (c1 > 1_ik .and. c2 < nsoil) then
+            g = merge(c1 - 1_ik, c2 + 1_ik, abs(ev%face_dqb(c1 - 1_ik)) >= abs(ev%face_dqa(c2)))
+         else if (c1 > 1_ik) then
+            g = c1 - 1_ik
+         else if (c2 < nsoil) then
+            g = c2 + 1_ik
+         end if
+         if (g > 0_ik) then
+            if (.not. can_give(g, total)) then
+               g = merge(c2 + 1_ik, c1 - 1_ik, g == c1 - 1_ik)
+               if (g < 1_ik .or. g > nsoil) then
+                  g = 0_ik
+               else if (.not. can_give(g, total)) then
+                  g = 0_ik
+               end if
             end if
-            if (.not. can_give(g)) then
-               snap(c) = .false.
-               cycle
-            end if
          end if
-         dinfl(c) = dinfl(c) + slack
-         dinfl(g) = dinfl(g) - slack
-         if (g == c - 1_ik) then
-            qf(g) = qf(g) + slack
-         else
-            qf(c) = qf(c) - slack
+         if (g == 0_ik) then
+            snap(c1:c2) = .false.
+            c1 = c2 + 1_ik
+            cycle
          end if
+         carried = 0.0_wp
+         if (g == c2 + 1_ik) then                ! down the block: face c carries what the members above it lack
+            do c = c1, c2
+               carried  = carried + slack(c)
+               qf(c)    = qf(c) - carried
+               dinfl(c) = dinfl(c) + slack(c)
+            end do
+         else                                   ! up the block: face c - 1 carries what the members below it lack
+            do c = c2, c1, -1_ik
+               carried    = carried + slack(c)
+               qf(c - 1_ik) = qf(c - 1_ik) + carried
+               dinfl(c)   = dinfl(c) + slack(c)
+            end do
+         end if
+         dinfl(g) = dinfl(g) - total
+         c1 = c2 + 1_ik
       end do
       if (fast(POND) .and. .not. snap(POND)) call drain_only_what_is_held()
       !--- The flow that closes each leaf's balance at its curve's water.
@@ -1361,11 +1734,12 @@ contains
          dinfl(2)    = dinfl(2) - cut_flux
       end subroutine drain_only_what_is_held
 
-      !--- Whether neighbour gg, not detached, holds the water the slack would take from it.
-      logical function can_give(gg)
+      !--- Whether neighbour gg, not detached, holds the water a slack of amount would take from it.
+      logical function can_give(gg, amount)
          integer(ik), intent(in) :: gg
+         real(wp),    intent(in) :: amount   ! [kg/m2/s]
          can_give = .not. cut(gg)
-         if (can_give) can_give = state%water_soil(gg) + h * (ev%inflow_soil(gg) + dinfl(gg) - slack) >= 0.0_wp
+         if (can_give) can_give = state%water_soil(gg) + h * (ev%inflow_soil(gg) + dinfl(gg) - amount) >= 0.0_wp
       end function can_give
    end subroutine water_commit_substep
 

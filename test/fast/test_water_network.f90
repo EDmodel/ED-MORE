@@ -76,20 +76,36 @@
 !                        water closes.
 !  30. SMALL POND      : a small pond over a wet litter and moss empties within a step, never past
 !                        empty.
+!  31. ADJACENT ZERO STORAGE: an empty pond over a litter whose pores its ice and liquid fill, over
+!                        a thawed moss, under light rain: the pond and the litter, neither of
+!                        which holds water below zero head, are eliminated together; no sub-step
+!                        is forced, and the water closes.
+!  32. CRYOSUCTION     : a litter frozen at 268 K over a thawed, saturated moss: its freezing
+!                        curve's suction draws the moss's water up, but no further than its pores
+!                        hold; no sub-step is forced, and the water closes.
+!  33. FORCED BOUNDS   : what a forced sub-step's unconverged iterate would commit is kept only if
+!                        every store is finite, at or above empty and near its curve's water.
+!  34. SMOOTH FACE     : the flow between a frozen litter and a thawed moss and its slope are
+!                        continuous as the flow reverses: one conductance both ways.
+!  35. FREEZE-UP       : a wet litter and moss freeze over four days, the litter first, the ice
+!                        each holds rebuilt each step from its temperature on its freezing curve:
+!                        no sub-step forced, every store in its range, and every step closes.
 !---~---
 program test_water_network
    use ed_test_assert, only : check_true, check_close, check_int, test_report
    use, intrinsic :: iso_fortran_env, only : int64
+   use, intrinsic :: ieee_arithmetic, only : ieee_value, ieee_quiet_nan
    use ed_kinds,         only : wp, ik
    use ed_constants,     only : grav_head, rho_h2o, pi, tiny_num, n_soil_layer_max, grav, r_wv, p_std, mmh2o
    use ed_linear_algebra,  only : arrowhead_system_t, arrowhead_allocate, arrowhead_factor, arrowhead_solve
    use ed_fast_integ_types,  only : fast_static_state_t, water_drive_t, water_work_t, tol_set_t,                    &
                                 ensure_static_capacity, POND, WOOD, LEAF, GRP_THETA, N_WORK, WORK_WATER_NSUB,   &
                                 WORK_WATER_REJECT, WORK_WATER_NFAIL, water_porous_t,                           &
-                                WORK_WATER_FAST_SLOT, WORK_WATER_CUT_POND, WORK_WATER_CUT_SLOT
+                                WORK_WATER_FAST_SLOT, WORK_WATER_CUT_POND, WORK_WATER_CUT_SLOT,                &
+                                WORK_WATER_FAST_POND, water_state_t, water_tend_t
    use ed_fast_state,    only : derive_cohort_terms
    use ed_fast_integ_derivs, only : set_water_state, water_derivs
-   use ed_fast_integ_backward_euler, only : water_step, water_jacobian_error
+   use ed_fast_integ_backward_euler, only : water_step, water_jacobian_error, substep_in_bounds
    use ed_plant_hydr_lib,   only : water_curve_t, tissue_psi_to_rwc, tissue_psi_tlp
    use ed_pft_derive,       only : build_kirchhoff_table
    use ed_soil_hydr_lib,     only : SOIL_RETENTION_VG, SOIL_RETENTION_CAMPBELL, soil_theta_to_head, soil_ice_state,  &
@@ -153,6 +169,10 @@ program test_water_network
    call test_full_pond()
    call test_frozen_slot_to_pond()
    call test_pond_drains_what_it_holds()
+   call test_adjacent_zero_storage()
+   call test_cryosuction()
+   call test_forced_bounds()
+   call test_freeze_up()
    call test_report('test_water_network')
 
 contains
@@ -1639,5 +1659,236 @@ contains
       end do
       call check_true('pond drains what it holds: never past empty', w_min >= 0.0_wp, w_min)
    end subroutine test_pond_drains_what_it_holds
+
+   !---~---
+   !   Thin layers as thin_layers builds them, each holding the ice its freezing curve leaves it at
+   ! its own temperature (t_lit, t_moss), the rest liquid, as the porous layers' energy gives it.
+   !---~---
+   function layers_at(d_lit, theta_lit, t_lit, d_moss, theta_moss, t_moss) result(o)
+      real(wp), intent(in) :: d_lit, theta_lit, t_lit, d_moss, theta_moss, t_moss
+      type(water_porous_t) :: o
+      real(wp)    :: th(2), t(2), liq, dliq
+      integer(ik) :: j
+      o = thin_layers(d_lit, theta_lit, d_moss, theta_moss, .false.)
+      th = [theta_lit, theta_moss]
+      t  = [t_lit, t_moss]
+      if (d_lit <= 0.0_wp) then
+         th(1) = theta_moss
+         t(1)  = t_moss
+      end if
+      do j = 1_ik, o%n
+         call soil_liquid_capacity(o%curve(j), t(j), liq, dliq)
+         liq = min(th(j), liq)
+         o%ice(j) = soil_ice_state(o%curve(j), th(j) - liq, liq)
+      end do
+   end function layers_at
+
+   !--- The stand restarted from its network's end state, its litter and moss at their temperatures.
+   subroutine restart_at(st, d_lit, t_lit, d_moss, t_moss)
+      type(stand_t), intent(inout) :: st
+      real(wp),      intent(in)    :: d_lit, t_lit, d_moss, t_moss
+      integer(ik) :: nsl
+      nsl = soil%n_active
+      st%drive%porous = layers_at(d_lit, st%water%state%water_soil(2) / (rho_h2o * d_lit), t_lit,                &
+                                  d_moss, st%water%state%water_soil(3) / (rho_h2o * d_moss), t_moss)
+      call set_water_state(st%static, soil, hyd, st%water%state%water_soil(4:3+nsl) / (rho_h2o * soil%dz(1:nsl)),  &
+                           st%drive%ice, st%water%state%water_soil(POND),                                          &
+                           st%water%state%water_coh(LEAF, :) / st%static%nplant(1:st%static%n),                    &
+                           st%water%state%water_coh(WOOD, :) / st%static%nplant(1:st%static%n), st%water, st%drive%porous)
+   end subroutine restart_at
+
+   !---~---
+   !   31. An empty pond over a 3 mm litter on its melt plateau, a tenth of its pores ice and the
+   ! rest liquid, its pores full (it holds no more water below zero head), over a thawed 6 cm
+   ! moss, under rain.
+   !---~---
+   function plateau_litter(theta_moss) result(o)
+      real(wp), intent(in) :: theta_moss
+      type(water_porous_t) :: o
+      o = thin_layers(3.0e-3_wp, 0.98_wp, 0.06_wp, theta_moss, .false.)
+      o%ice(1) = soil_ice_state(o%curve(1), 0.10_wp, 0.88_wp)
+   end function plateau_litter
+
+   !--- The litter's unknown halfway up the head its full pores rise through to zero, where it holds no more water.
+   subroutine litter_in_full_band(st)
+      type(stand_t), intent(inout) :: st
+      associate (ice => st%drive%porous%ice(1))
+         st%water%state%tau_soil(2) = ice%tau_full - 0.5_wp * ice%head_full / ice%dhead_full
+      end associate
+   end subroutine litter_in_full_band
+
+   subroutine test_adjacent_zero_storage()
+      type(stand_t) :: st
+      real(wp) :: theta(soil%n_active), w0, worst
+      integer(ik) :: step, nfail, npond, nslot
+      print '(a)', 'test_adjacent_zero_storage:'
+      theta = 0.40_wp
+      call make_stand(st, 1_ik, theta, 0.0_wp, 0.95_wp, 0.9_wp, 0.0_wp, org=plateau_litter(0.80_wp))
+      call litter_in_full_band(st)
+      st%drive%rain = 1.0e-4_wp
+      worst = 0.0_wp
+      nfail = 0_ik
+      npond = 0_ik
+      nslot = 0_ik
+      do step = 1_ik, 4_ik
+         w0 = total_water(st)
+         call advance(st, sopts, 900.0_wp)
+         worst = max(worst, abs((total_water(st) - w0) - boundary_water_thin(st, 900.0_wp)) / max(w0, 1.0_wp))
+         nfail = nfail + st%work(WORK_WATER_NFAIL)
+         npond = npond + st%work(WORK_WATER_FAST_POND)
+         nslot = nslot + st%work(WORK_WATER_FAST_SLOT)
+         !--- The next step starts as the first: the litter's pores full, the moss as it ended.
+         st%drive%porous = plateau_litter(st%water%state%water_soil(3) / (rho_h2o * 0.06_wp))
+         st%water%state%water_soil(2) = st%drive%porous%water(1)
+         call set_water_state(st%static, soil, hyd,                                                                &
+                              st%water%state%water_soil(4:3+soil%n_active) / (rho_h2o * soil%dz(1:soil%n_active)), &
+                              st%drive%ice, st%water%state%water_soil(POND),                                       &
+                              st%water%state%water_coh(LEAF, :) / st%static%nplant(1:1),                          &
+                              st%water%state%water_coh(WOOD, :) / st%static%nplant(1:1), st%water, st%drive%porous)
+         call litter_in_full_band(st)
+      end do
+      print '(a,2i8)', '  info : adjacent zero storage: pond and litter eliminated (node-sub-steps) ', npond, nslot
+      call check_true('adjacent zero storage: the pond and the litter are both eliminated',                          &
+                      npond > 0_ik .and. nslot > 0_ik, real(min(npond, nslot), wp))
+      call check_int('adjacent zero storage: no sub-step forced through', nfail, 0_ik)
+      call check_true('adjacent zero storage: every step closes to round-off', worst < 1.0e-13_wp, worst)
+   end subroutine test_adjacent_zero_storage
+
+   !--- 32. A 1 cm litter frozen at 268 K (liquid on its curve, the rest ice) over a thawed, saturated moss, a day.
+   subroutine test_cryosuction()
+      type(stand_t) :: st
+      real(wp) :: theta(soil%n_active), w0, worst, w_lit, cap_lit, w_start
+      integer(ik) :: step, nfail
+      print '(a)', 'test_cryosuction:'
+      theta = 0.40_wp
+      call make_stand(st, 1_ik, theta, 0.0_wp, 0.95_wp, 0.9_wp, 0.0_wp,                                              &
+                      org=layers_at(1.0e-2_wp, 0.60_wp, 268.0_wp, 0.06_wp, 0.85_wp, 275.0_wp))
+      cap_lit = 0.98_wp * rho_h2o * 1.0e-2_wp
+      w_start = st%water%state%water_soil(2)
+      worst = 0.0_wp
+      nfail = 0_ik
+      w_lit = 0.0_wp
+      do step = 1_ik, 96_ik
+         w0 = total_water(st)
+         call advance(st, sopts, 900.0_wp)
+         worst = max(worst, abs((total_water(st) - w0) - boundary_water_thin(st, 900.0_wp)) / max(w0, 1.0_wp))
+         nfail = nfail + st%work(WORK_WATER_NFAIL)
+         w_lit = max(w_lit, st%water%state%water_soil(2))
+         call restart_at(st, 1.0e-2_wp, 268.0_wp, 0.06_wp, 275.0_wp)
+      end do
+      print '(a,2es12.4)', '  info : cryosuction: litter water from, to most ', w_start, w_lit
+      call check_true('cryosuction: the frozen litter holds no more than its pores (to 10 m of head)',              &
+                      w_lit <= cap_lit + rho_h2o * 1.0e-2_wp * 1.0e-4_wp * 10.0_wp, w_lit - cap_lit)
+      call check_int('cryosuction: no sub-step forced through', nfail, 0_ik)
+      call check_true('cryosuction: every step closes to round-off', worst < 1.0e-13_wp, worst)
+   end subroutine test_cryosuction
+
+   !--- 33. The bounds a forced sub-step's iterate must meet to be committed.
+   subroutine test_forced_bounds()
+      type(water_state_t) :: state
+      type(water_tend_t)  :: ev
+      real(wp) :: scale_soil(3), scale_coh(2, 1)
+      print '(a)', 'test_forced_bounds:'
+      scale_soil = 26.0_wp
+      scale_coh  = 50.0_wp
+      allocate(state%water_soil(3), state%water_coh(2, 1), ev%water_soil(3), ev%water_coh(2, 1))
+      ev%water_soil  = [0.0_wp, 9.8_wp, 11.0_wp]
+      ev%water_coh   = reshape([20.0_wp, 4.0_wp], [2, 1])
+      state%water_soil = ev%water_soil
+      state%water_coh  = ev%water_coh
+      call check_true('forced bounds: an iterate on its curves is kept',                                             &
+                      substep_in_bounds(state, ev, scale_soil, scale_coh, WATER_RTOL, WATER_ATOL), 1.0_wp)
+      state%water_soil(1) = -1.0e-3_wp
+      call check_true('forced bounds: a pond overdrawn is refused',                                                 &
+                      .not. substep_in_bounds(state, ev, scale_soil, scale_coh, WATER_RTOL, WATER_ATOL), 1.0_wp)
+      state%water_soil = ev%water_soil
+      state%water_soil(2) = ev%water_soil(2) + 7.0_wp
+      call check_true('forced bounds: a layer 7 kg past its curve''s water is refused',                             &
+                      .not. substep_in_bounds(state, ev, scale_soil, scale_coh, WATER_RTOL, WATER_ATOL), 1.0_wp)
+      state%water_soil = ev%water_soil
+      state%water_coh(LEAF, 1) = -0.1_wp
+      call check_true('forced bounds: a leaf below empty is refused',                                               &
+                      .not. substep_in_bounds(state, ev, scale_soil, scale_coh, WATER_RTOL, WATER_ATOL), 1.0_wp)
+      state%water_coh = ev%water_coh
+      state%water_soil(3) = ieee_value(1.0_wp, ieee_quiet_nan)
+      call check_true('forced bounds: a store not finite is refused',                                               &
+                      .not. substep_in_bounds(state, ev, scale_soil, scale_coh, WATER_RTOL, WATER_ATOL), 1.0_wp)
+   end subroutine test_forced_bounds
+
+   !---~---
+   !   34. A litter at 272.5 K whose pores ice and liquid fill (its conductivity fixed at its
+   ! ice-impeded value, many decades below the moss's) over a saturated moss: the flow down their
+   ! face, and its slope in the litter's head, on either side of the head at which it reverses.
+   !---~---
+   subroutine test_smooth_face()
+      type(stand_t) :: st
+      type(water_tend_t) :: ev
+      real(wp) :: theta(soil%n_active), tau(soil%n_active + 3), q(4), heads(4), slope_below, slope_above, h_rev
+      integer(ik) :: k
+      print '(a)', 'test_smooth_face:'
+      theta = 0.40_wp
+      call make_stand(st, 0_ik, theta, 0.0_wp, 0.95_wp, 0.9_wp, 0.0_wp,                                              &
+                      org=layers_at(1.0e-2_wp, 0.98_wp, 272.5_wp, 0.06_wp, 0.85_wp, 275.0_wp))
+      ev = st%water%ev(1)
+      tau = st%water%state%tau_soil
+      !--- The moss saturated; the face reverses with the litter 3.5 cm (the nodes' distance) below the moss's head.
+      associate (cm => st%drive%porous%curve(2), ice => st%drive%porous%ice(1))
+         tau(3) = cm%se_switch + cm%slope_switch * (0.0_wp - cm%head_switch)
+         call water_derivs(st%static, soil, sopts, hyd, st%drive, tau, st%water%state%tau_coh, ev, st%water%sys, .false.)
+         h_rev = ev%psi_soil(3) / grav_head - 0.5_wp * (1.0e-2_wp + 0.06_wp)
+         heads = h_rev + [-4.0e-3_wp, -2.0e-3_wp, 2.0e-3_wp, 4.0e-3_wp]
+         call check_true('smooth face: the heads lie where the litter''s pores are full', ice%head_full < heads(1),  &
+                         ice%head_full)
+         do k = 1_ik, 4_ik
+            tau(2) = ice%tau_full + (heads(k) - ice%head_full) / ice%dhead_full
+            call water_derivs(st%static, soil, sopts, hyd, st%drive, tau, st%water%state%tau_coh, ev, st%water%sys,    &
+                              .false.)
+            q(k) = ev%face(2)
+         end do
+      end associate
+      print '(a,5es12.4)', '  info : smooth face: reversal head, flows ', h_rev, q
+      slope_below = (q(2) - q(1)) / (heads(2) - heads(1))
+      slope_above = (q(4) - q(3)) / (heads(4) - heads(3))
+      call check_true('smooth face: the flow reverses between the heads', q(1) < 0.0_wp .and. q(4) > 0.0_wp, q(1))
+      call check_close('smooth face: its slope is the same on either side of the reversal', slope_above / slope_below, &
+                       1.0_wp, 1.0e-6_wp)
+   end subroutine test_smooth_face
+
+   !---~---
+   !   35. A wet 11 mm litter and 6 cm moss over a wet soil freeze over four days, as at Toolik in
+   ! autumn: the litter from 273.5 to 266 K, the moss a day behind it and slower, the ice each
+   ! holds rebuilt every step from its temperature on its freezing curve, as the porous layers'
+   ! energy gives it.
+   !---~---
+   subroutine test_freeze_up()
+      type(stand_t) :: st
+      real(wp) :: theta(soil%n_active), w0, worst, t_lit, t_moss, w_min, over
+      integer(ik) :: step, nfail
+      print '(a)', 'test_freeze_up:'
+      theta = 0.40_wp
+      call make_stand(st, 1_ik, theta, 0.0_wp, 0.95_wp, 0.9_wp, 0.0_wp,                                              &
+                      org=layers_at(1.1e-2_wp, 0.90_wp, 273.5_wp, 0.06_wp, 0.85_wp, 274.0_wp))
+      worst = 0.0_wp
+      nfail = 0_ik
+      w_min = huge(1.0_wp)
+      over  = -huge(1.0_wp)
+      do step = 1_ik, 384_ik
+         w0 = total_water(st)
+         call advance(st, sopts, 900.0_wp)
+         worst = max(worst, abs((total_water(st) - w0) - boundary_water_thin(st, 900.0_wp)) / max(w0, 1.0_wp))
+         nfail = nfail + st%work(WORK_WATER_NFAIL)
+         w_min = min(w_min, minval(st%water%state%water_soil(2:)))
+         over  = max(over, st%water%state%water_soil(2) - 0.98_wp * rho_h2o * 1.1e-2_wp,                             &
+                     st%water%state%water_soil(3) - 0.85_wp * rho_h2o * 0.06_wp)
+         t_lit  = 273.5_wp - 7.5_wp * min(1.0_wp, real(step, wp) / 384.0_wp)
+         t_moss = 274.0_wp - 5.0_wp * min(1.0_wp, max(0.0_wp, real(step - 96_ik, wp) / 288.0_wp))
+         call restart_at(st, 1.1e-2_wp, t_lit, 0.06_wp, t_moss)
+      end do
+      call check_int('freeze-up: no sub-step forced through', nfail, 0_ik)
+      call check_true('freeze-up: no layer below empty', w_min >= 0.0_wp, w_min)
+      call check_true('freeze-up: neither layer past its pores (to 10 m of head)',                                 &
+                      over <= rho_h2o * 0.06_wp * 1.0e-4_wp * 10.0_wp, over)
+      call check_true('freeze-up: every step closes to round-off', worst < 1.0e-13_wp, worst)
+   end subroutine test_freeze_up
 
 end program test_water_network

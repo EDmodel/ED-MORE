@@ -46,7 +46,8 @@ module ed_fast_integ_types
              WORK_WATER_NFAIL, WORK_RK45_RESCUE, WORK_CLAMP_STAGE, WORK_WATER_FORCED_NEWTON,                      &
              WORK_WATER_FORCED_FAST, WORK_WATER_FORCED_CUT, WORK_WATER_FORCED_COHORT, WORK_WATER_NODE_UNSOLVED,  &
              WORK_WATER_FAST_POND, WORK_WATER_FAST_SLOT, WORK_WATER_FAST_LAYER, WORK_WATER_CUT_POND,             &
-             WORK_WATER_CUT_SLOT, WORK_WATER_CUT_LAYER, WORK_STACK_NEWTON, WORK_STACK_FALLBACK, N_WORK
+             WORK_WATER_CUT_SLOT, WORK_WATER_CUT_LAYER, WORK_STACK_NEWTON, WORK_STACK_FALLBACK,                  &
+             WORK_WATER_FORCED_HELD, WORK_WATER_LINE_SEARCH, WORK_WATER_BLOCK_SWEEP, N_WORK
    public :: GRP_ENTH, GRP_SHV, GRP_CO2, GRP_SE, GRP_LEAF_W, GRP_WOOD_W, GRP_THETA, N_TOL_GROUP
    public :: tol_set_t, error_control_t
    public :: ensure_static_capacity, ensure_dynamic_capacity, ensure_forcing_capacity, ensure_output_capacity
@@ -345,7 +346,17 @@ module ed_fast_integ_types
    !---~---
    integer(ik), parameter :: WORK_STACK_NEWTON     = 20_ik
    integer(ik), parameter :: WORK_STACK_FALLBACK   = 21_ik
-   integer(ik), parameter :: N_WORK                = 21_ik
+   !---~---
+   !   The water network's failure paths: the sub-steps forced at the shortest length whose
+   ! unconverged Newton iterate would have committed a store out of its bounds, from which the
+   ! network held still for the rest of the step instead (WORK_WATER_FORCED_HELD); the Newton iterations stopped because no
+   ! backtracked step lowered the merit (WORK_WATER_LINE_SEARCH); and the solves of a block of
+   ! eliminated nodes whose Newton fell back to Gauss-Seidel sweeps (WORK_WATER_BLOCK_SWEEP).
+   !---~---
+   integer(ik), parameter :: WORK_WATER_FORCED_HELD = 22_ik
+   integer(ik), parameter :: WORK_WATER_LINE_SEARCH = 23_ik
+   integer(ik), parameter :: WORK_WATER_BLOCK_SWEEP = 24_ik
+   integer(ik), parameter :: N_WORK                 = 24_ik
 
    !---~---
    !   The per-patch conservation ledgers. The per-kernel ledgers close by construction;
