@@ -435,11 +435,12 @@ contains
    !   Move water [kg/m2] and the energy it carries [J/m2] from one store to another, a matched
    ! pair: what the one gives the other takes, so every ledger that holds both sees no change. A
    ! store asked for more water than it holds beyond round-off stops the run; within round-off it
-   ! gives what it holds.
+   ! gives what it holds. The amounts arrive as copies (value), so a store may give all it holds
+   ! by passing its own water and energy.
    !---~---
    pure subroutine store_move(from, to, water, energy)
       class(ground_store_t), intent(inout) :: from, to
-      real(wp),              intent(in)    :: water, energy
+      real(wp), value,       intent(in)    :: water, energy
       real(wp) :: moved
       moved = water
       if (water > from%water) then
