@@ -102,7 +102,8 @@ program test_water_network
                                 ensure_static_capacity, POND, WOOD, LEAF, GRP_THETA, N_WORK, WORK_WATER_NSUB,   &
                                 WORK_WATER_REJECT, WORK_WATER_NFAIL, water_porous_t,                           &
                                 WORK_WATER_FAST_SLOT, WORK_WATER_CUT_POND, WORK_WATER_CUT_SLOT,                &
-                                WORK_WATER_FAST_POND, water_state_t, water_tend_t
+                                WORK_WATER_FAST_POND, water_state_t, water_tend_t, WORK_WATER_BLOCK_SWEEP,     &
+                                WORK_WATER_NODE_UNSOLVED
    use ed_fast_state,    only : derive_cohort_terms
    use ed_fast_integ_derivs, only : set_water_state, water_derivs
    use ed_fast_integ_backward_euler, only : water_step, water_jacobian_error, substep_in_bounds
@@ -174,6 +175,7 @@ program test_water_network
    call test_forced_bounds()
    call test_smooth_face()
    call test_freeze_up()
+   call test_thin_frozen_litter_dries()
    call test_report('test_water_network')
 
 contains
@@ -1783,6 +1785,60 @@ contains
       call check_int('cryosuction: no sub-step forced through', nfail, 0_ik)
       call check_true('cryosuction: every step closes to round-off', worst < 1.0e-13_wp, worst)
    end subroutine test_cryosuction
+
+   !---~---
+   !   An empty pond over a 0.35 mm litter, as Harvard's winter litter: dry (theta 0.127, its
+   ! potential about -1 m) and a trace of ice (8e-5) on its melt plateau's top, over a top soil
+   ! frozen hard, drying into dry air for a day. The pond and the litter make a block of eliminated
+   ! nodes; the pond's face onto so thin a litter is far stiffer than the litter's storage. The
+   ! block's own Newton solves it, with the pond eliminated inside it, without sweeps.
+   !---~---
+   subroutine test_thin_frozen_litter_dries()
+      type(stand_t) :: st
+      real(wp), parameter :: D_LIT = 3.5e-4_wp, ICE = 8.0e-5_wp
+      real(wp) :: theta(soil%n_active), th, w0, worst
+      integer(ik) :: step, nfail, nsweep, nunsolved
+      print '(a)', 'test_thin_frozen_litter_dries:'
+      theta = 0.30_wp
+      call make_stand(st, 1_ik, theta, 0.0_wp, 0.95_wp, 0.9_wp, 0.0_wp,                                              &
+                      org=thin_frozen_litter(D_LIT, 0.127_wp + ICE, ICE))
+      call seal_top(st, 2_ik, theta, 0.0_wp)
+      st%drive%ground%q_air = 0.002_wp
+      worst = 0.0_wp
+      nfail = 0_ik
+      nsweep = 0_ik
+      nunsolved = 0_ik
+      do step = 1_ik, 96_ik
+         st%drive%porous%air = slot_evaporation_setup(st%drive%ground, 268.0_wp, 0.0_wp)
+         w0 = total_water(st)
+         call advance(st, sopts, 900.0_wp)
+         worst = max(worst, abs((total_water(st) - w0) - boundary_water_thin(st, 900.0_wp)) / max(w0, 1.0_wp))
+         nfail = nfail + st%work(WORK_WATER_NFAIL)
+         nsweep = nsweep + st%work(WORK_WATER_BLOCK_SWEEP)
+         nunsolved = nunsolved + st%work(WORK_WATER_NODE_UNSOLVED)
+         !--- The next step starts as the first: the trace of ice kept while the litter holds it, on its plateau's top.
+         th = st%water%state%water_soil(2) / (rho_h2o * D_LIT)
+         st%drive%porous = thin_frozen_litter(D_LIT, th, min(ICE, 0.5_wp * th))
+         call set_water_state(st%static, soil, hyd,                                                                &
+                              st%water%state%water_soil(3:2+soil%n_active) / (rho_h2o * soil%dz(1:soil%n_active)), &
+                              st%drive%ice, st%water%state%water_soil(POND),                                       &
+                              st%water%state%water_coh(LEAF, :) / st%static%nplant(1:1),                          &
+                              st%water%state%water_coh(WOOD, :) / st%static%nplant(1:1), st%water, st%drive%porous)
+      end do
+      print '(a,3i8,es12.4)', '  info : thin frozen litter: forced, block sweeps, unsolved, final theta ',        &
+         nfail, nsweep, nunsolved, th
+      call check_int('thin frozen litter: no block solve falls back to sweeps', nsweep, 0_ik)
+      call check_int('thin frozen litter: no sub-step forced through', nfail, 0_ik)
+      call check_true('thin frozen litter: every step closes to round-off', worst < 1.0e-13_wp, worst)
+   end subroutine test_thin_frozen_litter_dries
+
+   !--- A litter d_lit deep holding theta [m3/m3] of water, ice of it ice and the rest liquid, as thin_layers builds it.
+   function thin_frozen_litter(d_lit, theta, ice) result(o)
+      real(wp), intent(in) :: d_lit, theta, ice
+      type(water_porous_t) :: o
+      o = thin_layers(d_lit, theta, 0.0_wp, 0.0_wp, .false.)
+      o%ice(1) = soil_ice_state(o%curve(1), ice, theta - ice)
+   end function thin_frozen_litter
 
    !--- 33. The bounds a forced sub-step's iterate must meet to be committed.
    subroutine test_forced_bounds()

@@ -1280,9 +1280,17 @@ contains
    ! Jacobian (node_balance's slopes to the nodes above and below; thomas_solve), each step kept
    ! inside every node's curve as Newton's own steps are (node_step_limit) and backtracked until
    ! the block's merit, the sum of its squared imbalances each over its tol, falls by Armijo's
-   ! test. Where Newton stalls, a sweep of each node's own bracketed solve (solve_node), down the
-   ! block and back up, moves it on, and Newton resumes from there (swept). A single node is
-   ! solve_node's alone. solved says whether every balance is within its tol.
+   ! test. A block topped by the pond, which then holds no water (fast_blocks), has the pond
+   ! eliminated inside it as the block is from the network: every evaluation first solves the
+   ! pond's own balance (solve_node) with the node below it held, so the block's Newton runs on
+   ! the nodes below, and the pond passes down what reaches it, its slopes folded into the node
+   ! below's (the Schur complement). The pond's face onto a thin node below is far stiffer than
+   ! that node's storage, and the pond's potential is linear in its unknown where the node's is
+   ! not: kept in the Newton, the two locked heads part by the curvature of the node's curve at
+   ! any step that moves them, and the merit grows at every step the line search tries. Where
+   ! Newton stalls, a sweep of each node's own bracketed solve (solve_node), down the block and
+   ! back up, moves it on, and Newton resumes from there (swept). A single node is solve_node's
+   ! alone. solved says whether every balance is within its tol.
    !---~---
    subroutine solve_block(static, profile, soil, drive, c1, c2, ts, w0, h, tol, cut, psi_wood, solved, swept)
       type(fast_static_state_t), intent(in)    :: static
@@ -1297,7 +1305,7 @@ contains
       logical,                   intent(out)   :: solved, swept
       real(wp)    :: r(c2 - c1 + 1_ik), lo(c2 - c1 + 1_ik), di(c2 - c1 + 1_ik), up(c2 - c1 + 1_ik)
       real(wp)    :: dx(c2 - c1 + 1_ik), x(c2 - c1 + 1_ik), merit, merit_try, lam
-      integer(ik) :: n, it, ib, j, c
+      integer(ik) :: n, it, ib, j, c, k1, m
       logical     :: taken, one
       n = c2 - c1 + 1_ik
       swept = .false.
@@ -1305,20 +1313,24 @@ contains
          call solve_node(static, profile, soil, drive, c1, ts, w0(c1), h, tol(c1), cut, psi_wood, solved)
          return
       end if
+      !--- The block's Newton runs on k1 .. c2, m nodes: below the pond where the pond tops it.
+      k1 = c1
+      if (c1 == POND) k1 = c1 + 1_ik
+      m = c2 - k1 + 1_ik
       call block_balance(r, lo, di, up, merit, solved)
       do it = 1_ik, BLOCK_NEWTON_MAX
          if (solved) return
          taken = .false.
          if (merit == merit) then
-            call thomas_solve(lo, di, up, -r, dx, n)
-            if (all(ieee_is_finite(dx))) then
+            call thomas_solve(lo(1:m), di(1:m), up(1:m), -r(1:m), dx(1:m), m)
+            if (all(ieee_is_finite(dx(1:m)))) then
                lam = 1.0_wp
-               do j = 1_ik, n
-                  call node_step_limit(profile, drive%porous, c1 + j - 1_ik, ts(c1 + j - 1_ik), dx(j), lam)
+               do j = 1_ik, m
+                  call node_step_limit(profile, drive%porous, k1 + j - 1_ik, ts(k1 + j - 1_ik), dx(j), lam)
                end do
                x = ts(c1:c2)
                do ib = 1_ik, BACKTRACK_MAX
-                  ts(c1:c2) = x + lam * dx
+                  ts(k1:c2) = x(k1 - c1 + 1_ik:) + lam * dx(1:m)
                   call block_balance(r, lo, di, up, merit_try, solved)
                   if (merit_try == merit_try) then
                      if (sufficient_decrease(merit_try, merit, lam)) then
@@ -1348,23 +1360,35 @@ contains
       end do
    contains
       !---~---
-      !   Each block node's balance at ts and its slopes in its own and its block neighbours'
-      ! unknowns (the Jacobian's sub-, main and super-diagonal), the merit, and whether every
-      ! balance is within its tol.
+      !   The Newton nodes' balances at ts and their slopes in their own and their block neighbours'
+      ! unknowns (the Jacobian's sub-, main and super-diagonal, rows 1 .. m), the merit over them,
+      ! and whether every balance of the block is within its tol. A pond on top is solved first,
+      ! the node below held, and its slopes folded into that node's own: the node's balance moves
+      ! with its unknown as the pond's solution follows it.
       !---~---
-      subroutine block_balance(rr, a, b, cc, m, ok)
-         real(wp), intent(out) :: rr(:), a(:), b(:), cc(:), m
+      subroutine block_balance(rr, a, b, cc, merit_out, ok)
+         real(wp), intent(out) :: rr(:), a(:), b(:), cc(:), merit_out
          logical,  intent(out) :: ok
+         real(wp)    :: r_pond, dr_pond, dr_pond_down, dr_pond_up
          integer(ik) :: k
-         do k = 1_ik, n
-            call node_balance(static, profile, soil, drive, c1 + k - 1_ik, ts, w0(c1 + k - 1_ik), h, cut, psi_wood, &
+         logical     :: pond_ok
+         pond_ok = .true.
+         if (k1 > c1) then
+            call solve_node(static, profile, soil, drive, c1, ts, w0(c1), h, tol(c1), cut, psi_wood, pond_ok)
+            call node_balance(static, profile, soil, drive, c1, ts, w0(c1), h, cut, psi_wood, r_pond, dr_pond,       &
+                              dr_pond_up, dr_pond_down)
+            pond_ok = abs(r_pond) <= tol(c1)
+         end if
+         do k = 1_ik, m
+            call node_balance(static, profile, soil, drive, k1 + k - 1_ik, ts, w0(k1 + k - 1_ik), h, cut, psi_wood, &
                               rr(k), b(k), a(k), cc(k))
          end do
+         if (k1 > c1 .and. dr_pond > 0.0_wp) b(1) = b(1) - a(1) * dr_pond_down / dr_pond
          a(1)  = 0.0_wp
-         cc(n) = 0.0_wp
-         m  = sum((rr / tol(c1:c2)) ** 2)
-         ok = all(abs(rr) <= tol(c1:c2))
-         if (.not. all(ieee_is_finite(rr))) m = ieee_value(m, ieee_quiet_nan)
+         cc(m) = 0.0_wp
+         merit_out = sum((rr(1:m) / tol(k1:c2)) ** 2)
+         ok = pond_ok .and. all(abs(rr(1:m)) <= tol(k1:c2))
+         if (.not. all(ieee_is_finite(rr(1:m)))) merit_out = ieee_value(merit_out, ieee_quiet_nan)
       end subroutine block_balance
    end subroutine solve_block
 
