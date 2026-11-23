@@ -137,8 +137,8 @@ contains
    !---~---
    !   max(x, 0) with its corner rounded over [0, width] by the cubic 2x^2/w - x^3/w^2,
    ! which matches both sides in value and slope, so Newton never meets a corner.
-   ! Every one-way water flow uses it: root uptake, the leaves' supply limit and
-   ! ground evaporation (docs/science/soil_plant_water.md eq. (1)).
+   ! Every one-way water flow uses it: root uptake, the leaves' supply limit, ground
+   ! evaporation and the pond's wetting face (docs/science/soil_plant_water.md eq. (1)).
    !---~---
    elemental subroutine smooth_max0(x, width, f, df)
       real(wp), intent(in)  :: x, width
@@ -160,8 +160,8 @@ contains
    !---~---
    !   The cubic smooth step from 0 to 1, 3x^2 - 2x^3 with x held to [0, 1], and its slope in x:
    ! flat at both ends, so a switch made through it has no corner for Newton to meet. The ground's
-   ! evaporation tapers through it as its water runs out, roots lose their contact with freezing
-   ! soil, and a wetting face's conductivity turns upstream.
+   ! evaporation tapers through it as its water runs out, and roots lose their contact with
+   ! freezing soil.
    !---~---
    elemental subroutine smooth_step(x, f, df)
       real(wp), intent(in)  :: x

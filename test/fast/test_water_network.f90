@@ -172,6 +172,7 @@ program test_water_network
    call test_adjacent_zero_storage()
    call test_cryosuction()
    call test_forced_bounds()
+   call test_smooth_face()
    call test_freeze_up()
    call test_report('test_water_network')
 

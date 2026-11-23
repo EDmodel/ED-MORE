@@ -38,7 +38,7 @@ module ed_fast_integ_derivs
                                      root_water_uptake
    use ed_soil_water, only : soil_water_flux, bottom_flux, store_evaporation, dry_layer_resistance
    use ed_linear_algebra, only : arrowhead_system_t
-   use ed_numerics,       only : smooth_step
+   use ed_numerics,       only : smooth_max0
    use ed_soil_params, only : soil_profile_t, soil_params_t
    use ed_pft_params, only : hydraulics_table_t
    implicit none
@@ -48,10 +48,10 @@ module ed_fast_integ_derivs
    public :: set_water_state, unknowns_from_water, water_derivs, node_balance, core_node_relations, wood_potentials
 
    !---~---
-   !   [-] The drive (head gradient) over which a wetting face's conductivity blends from the
-   ! downstream node's to the upstream one's, through their arithmetic mean at no flow: a
-   ! centimetre of head per metre, far below the gradients of a wetting or drying front and well
-   ! above round-off. A numerical choice.
+   !   [-] The drive (head gradient) over which the pond's face turns from the conductivity of the
+   ! node below to the pond's as the flow turns down (core_face_flux): a centimetre of head per
+   ! metre, far below the gradients of a wetting front and well above round-off. A numerical
+   ! choice.
    !---~---
    real(wp), parameter :: WET_BLEND_WIDTH = 1.0e-2_wp
 
@@ -642,11 +642,13 @@ contains
    !---~---
    !   Face c of the chain, joining node c to node c + 1: the weight of node c + 1's conductivity
    ! in the face's, the distance between the two nodes, which is also the drop in elevation, and
-   ! whether it wets (core_face_flux): the pond's face to the top porous layer and the faces
-   ! between them. The bottom porous layer's face into the top soil layer takes the soil's thickness-weighted
-   ! mean, as a soil face, so the soil's conductivity limits what enters it: upstream, a saturated
-   ! moss would drain into a clay at the moss's conductivity, tens of kilograms a second. The pond
-   ! counts as a saturated layer as thick as the node below it.
+   ! whether it wets (core_face_flux): the pond's face onto the top porous layer alone. Every face
+   ! below the pond takes the thickness-weighted geometric mean of its nodes' conductivities, as a
+   ! soil face does, one conductance whichever way the water flows: between the porous layers, a
+   ! frozen litter over a thawed moss draws water up through its own ice-impeded conductivity, not
+   ! through the moss's, and gives it back the same way; into the top soil layer, the soil's
+   ! conductivity limits what enters it. The pond counts as a saturated layer as thick as the node
+   ! below it.
    !---~---
    pure subroutine core_face_geometry(profile, drive, c, w_b, dist, wet)
       type(soil_profile_t), intent(in)  :: profile
@@ -673,7 +675,7 @@ contains
             w_b  = drive%porous%depth(j) / (drive%porous%depth(j) + profile%dz(1))
             dist = 0.5_wp * drive%porous%depth(j) - profile%z_node(1)
          end if
-         wet = j < n_porous     ! the bottom porous layer's face into the soil: the soil's conductivity limits it
+         wet = .false.
       else
          j = c - 1_ik - n_porous
          w_b  = profile%face_weight(j)
@@ -683,32 +685,32 @@ contains
    end subroutine core_face_geometry
 
    !---~---
-   !   The flow down a face of the chain [kg/m2/s] and its slopes. A soil face takes the
-   ! thickness-weighted geometric mean of its nodes' conductivities (soil_water_flux). A face
-   ! touching a porous layer from above wets: it takes the upstream node's conductivity (Forsyth, Wu &
-   ! Pruess 1995), so water reaches a dry layer, or leaves a wet one into dry ground, at the wet
-   ! side's conductivity rather than at the vanishing one of the dry side; near no flow, over a
-   ! drive of WET_BLEND_WIDTH either way, the two blend through their arithmetic mean by the cubic
-   ! smooth step, so Newton meets no switch.
+   !   The flow down a face of the chain [kg/m2/s] and its slopes. A face takes the
+   ! thickness-weighted geometric mean of its nodes' conductivities (soil_water_flux), but the
+   ! pond's face onto a porous layer wets: water flowing down it takes the pond's conductivity, the
+   ! saturated layer's, the upstream node's (Forsyth, Wu & Pruess 1995), so the pond's water
+   ! enters a dry litter at its saturated conductivity rather than at the vanishing one of its dry
+   ! pores; water flowing up takes the layer's own. The flow is the layer's conductivity times the
+   ! drive, plus the difference of the two conductivities times the drive's rounded positive part
+   ! (smooth_max0 over WET_BLEND_WIDTH): it rises with the drive at every drive, its slope between
+   ! the two conductivities', so Newton meets neither a switch nor a fold.
    !---~---
    pure subroutine core_face_flux(wet, k_a, k_b, w_b, psi_a, psi_b, dist, q, dq_pa, dq_pb, dq_ka, dq_kb)
       logical,  intent(in)  :: wet
       real(wp), intent(in)  :: k_a, k_b, w_b, psi_a, psi_b, dist
       real(wp), intent(out) :: q, dq_pa, dq_pb, dq_ka, dq_kb
-      real(wp) :: drive, sb, dsb, k_face
+      real(wp) :: drive, down, ddown
       if (.not. wet) then
          call soil_water_flux(k_a, k_b, w_b, psi_a, psi_b, dist, dist, q, dq_pa, dq_pb, dq_ka, dq_kb)
          return
       end if
       drive = ((psi_a - psi_b) / grav_head + dist) / dist
-      call smooth_step(0.5_wp * (drive / WET_BLEND_WIDTH + 1.0_wp), sb, dsb)   ! 0 upstream b, 1 upstream a
-      dsb   = 0.5_wp * dsb / WET_BLEND_WIDTH
-      k_face = k_b + (k_a - k_b) * sb
-      q      = rho_h2o * k_face * drive
-      dq_pa  = rho_h2o * (k_face + (k_a - k_b) * dsb * drive) / (grav_head * dist)
+      call smooth_max0(drive, WET_BLEND_WIDTH, down, ddown)    ! the drive's rounded downward part
+      q      = rho_h2o * (k_b * drive + (k_a - k_b) * down)
+      dq_pa  = rho_h2o * (k_b + (k_a - k_b) * ddown) / (grav_head * dist)
       dq_pb  = -dq_pa
-      dq_ka  = rho_h2o * drive * sb
-      dq_kb  = rho_h2o * drive * (1.0_wp - sb)
+      dq_ka  = rho_h2o * down
+      dq_kb  = rho_h2o * (drive - down)
    end subroutine core_face_flux
 
    !---~---
