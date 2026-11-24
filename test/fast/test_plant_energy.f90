@@ -31,7 +31,7 @@
 program test_plant_energy
    use ed_test_assert,    only : check, check_true, test_report
    use ed_kinds,          only : wp, ik
-   use ed_constants,      only : cp_air, cp_liq, stefan_boltzmann, pi
+   use ed_constants,      only : cp_air, cp_liq, stefan_boltzmann, pi, t_3ple
    use ed_therm_lib,      only : enthalpy_vapor, internal_energy_liquid, latent_heat_vap, sat_specific_humidity,   &
                                  sat_specific_humidity_temp_deriv, tissue_temp_to_energy
    use ed_canopy_water,   only : canopy_water_out_t
@@ -57,6 +57,7 @@ program test_plant_energy
    call test_surface_water_evaporation()
    call test_tissue_longwave()
    call test_commit()
+   call test_commit_buried()
    call test_commit_heavy_surface_water()
 
    call test_report('test_plant_energy')
@@ -541,7 +542,7 @@ contains
       t_leaf = TL0
       t_wood = TW0
       call commit_tissue_energy(env, [1.0_wp], DT, [TL_AVG], [TW_AVG], 1_ik, [WL0 + DWL], [WW0 + DWW],          &
-                                [0.0_wp], [0.0_wp], [0.0_wp], [0.0_wp], e_leaf, e_wood, t_leaf, t_wood,          &
+                                [0.0_wp], [0.0_wp], [0.0_wp], [0.0_wp], t_3ple, e_leaf, e_wood, t_leaf, t_wood,  &
                                 store0, store1)
       heat = (DL + WL0 * cp_liq) * (TL_AVG - TL0) + (DW + WW0 * cp_liq) * (TW_AVG - TW0)
       enth = DWL * internal_energy_liquid(TL0) + DWW * internal_energy_liquid(TW0)
@@ -557,6 +558,38 @@ contains
                       .and. abs(tissue_temp_to_energy(DW, WW0 + DWW, t_wood(1)) - e_wood(1))                   &
                             <= 1.0e-12_wp * abs(e_wood(1)))
    end subroutine test_commit
+
+   !---~---
+   !   A cohort a snow pack buries to its crown's middle (buried share 0.5), relaxing as test_commit's
+   ! with its exposed share's heat capacity, while the water layer's node brings its buried share to
+   ! 272 K: each tissue gains its exposed share's relaxation and its buried share's move to 272 K.
+   !---~---
+   subroutine test_commit_buried()
+      real(wp), parameter :: DT = 900.0_wp, B = 0.5_wp, T_BURIED = 272.0_wp
+      real(wp), parameter :: DL = 2.0e3_wp, DW = 4.0e4_wp, WL0 = 0.8_wp, WW0 = 9.0_wp
+      real(wp), parameter :: TL0 = 275.0_wp, TW0 = 274.0_wp, TL_AVG = 276.0_wp, TW_AVG = 274.5_wp
+      type(plant_energy_env_t) :: env
+      real(wp) :: e_leaf(1), e_wood(1), t_leaf(1), t_wood(1), store0, store1, heat, cl, cw
+      print '(a)', 'test_commit_buried:'
+      call commit_env(env, DL, WL0, DW, WW0, TL0, TW0, DT)
+      env%buried = B
+      env%leaf_hcap_per_dt = (1.0_wp - B) * env%leaf_hcap_per_dt
+      env%wood_hcap_per_dt = (1.0_wp - B) * env%wood_hcap_per_dt
+      e_leaf = tissue_temp_to_energy(DL, WL0, TL0)
+      e_wood = tissue_temp_to_energy(DW, WW0, TW0)
+      t_leaf = TL0
+      t_wood = TW0
+      call commit_tissue_energy(env, [1.0_wp], DT, [TL_AVG], [TW_AVG], 1_ik, [WL0], [WW0], [0.0_wp], [0.0_wp],    &
+                                [0.0_wp], [0.0_wp], T_BURIED, e_leaf, e_wood, t_leaf, t_wood, store0, store1)
+      cl   = DL + WL0 * cp_liq
+      cw   = DW + WW0 * cp_liq
+      heat = (1.0_wp - B) * (cl * (TL_AVG - TL0) + cw * (TW_AVG - TW0)) + B * (cl * (T_BURIED - TL0) + cw * (T_BURIED - TW0))
+      call check_true('commit_tissue_energy: a half-buried cohort gains its exposed share''s relaxation and its '//  &
+                      'buried share''s move to the water layer''s temperature',                                      &
+                      abs((store1 - store0) - heat) <= 1.0e-12_wp * abs(heat))
+      call check('commit_tissue_energy: its leaf ends between the two', t_leaf(1),                                &
+                 (1.0_wp - B) * TL_AVG + B * T_BURIED, 1.0e-9_wp)
+   end subroutine test_commit_buried
 
    !---~---
    !   A nearly leafless cohort at Palo Verde's first rains (one plant per m2): its leaf holds
@@ -579,7 +612,7 @@ contains
       t_leaf = TL0
       t_wood = TW0
       call commit_tissue_energy(env, [1.0_wp], DT, [TL_AVG], [TW0], 1_ik, [WL], [WW], [F0], [0.0_wp], [0.0_wp],    &
-                                [0.0_wp], e_leaf, e_wood, t_leaf, t_wood, store0, store1)
+                                [0.0_wp], t_3ple, e_leaf, e_wood, t_leaf, t_wood, store0, store1)
       call check('commit_tissue_energy: surface water heavier than its tissue, evaporated within the step, leaves '//  &
                  'the tissue at the step''s temperature', t_leaf(1), TL_AVG, 1.0e-6_wp)
    end subroutine test_commit_heavy_surface_water
@@ -593,7 +626,11 @@ contains
       type(plant_energy_env_t), intent(out) :: env
       real(wp),                 intent(in)  :: dry_leaf, w_leaf, dry_wood, w_wood, t_leaf0, t_wood0, dt
       allocate(env%leaf_hcap_per_dt(1), env%wood_hcap_per_dt(1), env%t_leaf0(1), env%t_wood0(1),                 &
-               env%leaf_dry_hcap(1), env%wood_dry_hcap(1), env%leaf_water_enth(1), env%wood_water_enth(1))
+               env%leaf_dry_hcap(1), env%wood_dry_hcap(1), env%leaf_water_enth(1), env%wood_water_enth(1),        &
+               env%leaf_wmass(1), env%wood_wmass(1), env%buried(1))
+      env%leaf_wmass       = w_leaf
+      env%wood_wmass       = w_wood
+      env%buried           = 0.0_wp
       env%leaf_dry_hcap    = dry_leaf
       env%wood_dry_hcap    = dry_wood
       env%leaf_hcap_per_dt = tissue_hcap_per_dt(dry_leaf, w_leaf, dt)

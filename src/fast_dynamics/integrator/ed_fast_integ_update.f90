@@ -9,7 +9,7 @@
 !---~---
 module ed_fast_integ_update
    use ed_kinds,              only : wp, ik
-   use ed_constants,          only : rho_h2o, tiny_num, mmh2o
+   use ed_constants,          only : rho_h2o, tiny_num, mmh2o, t_3ple
    use ed_config,             only : ed_config_t
    use ed_site_state_vars,    only : site_surface_t
    use ed_fast_integ_types,       only : fast_static_state_t, fast_dynamic_state_t, fast_forcing_t, fast_output_t,     &
@@ -70,6 +70,7 @@ contains
       type(fast_output_t),        intent(inout) :: out
       type(commit_amounts_t),     intent(out)   :: moved
       real(wp)    :: t_leaf_avg(static%n), t_wood_avg(static%n), leaf_surf_water0(static%n), wood_surf_water0(static%n)
+      real(wp)    :: t_buried   ! [K] the buried tissue's end temperature
       integer(ik) :: n, nsl, k
 
       n   = static%n
@@ -92,9 +93,13 @@ contains
                                dynamic%soil_energy%soil_fliq)
       t_leaf_avg(1:n) = acc%tissue_leaf_int(1:n) / dt_fast
       t_wood_avg(1:n) = acc%tissue_wood_int(1:n) / dt_fast
+      !--- The buried tissue ends at the temperature the heat the water layer's node gave it brings it to.
+      t_buried = t_3ple
+      if (frozen%ground%buried_cap > 0.0_wp)                                                                   &
+         t_buried = (acc%stores%buried_heat + frozen%ground%buried_energy) / frozen%ground%buried_cap
       call commit_tissue_energy(frozen%tissue, static%nplant, dt_fast, t_leaf_avg, t_wood_avg, n,                 &
                                 dynamic%leaf_water_mass, dynamic%wood_water_mass, leaf_surf_water0, wood_surf_water0,         &
-                                dynamic%leaf_surf_water, dynamic%wood_surf_water, dynamic%leaf_energy,            &
+                                dynamic%leaf_surf_water, dynamic%wood_surf_water, t_buried, dynamic%leaf_energy,  &
                                 dynamic%wood_energy, dynamic%leaf_temp, dynamic%wood_temp, moved%tissue_store0,   &
                                 moved%tissue_store1)
       !--- Each cohort's transpiration over the step, as the leaf water was debited.

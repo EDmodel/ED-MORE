@@ -183,6 +183,7 @@ contains
 
       call tissue_coefficients(dt_fast, cfg, static, forcing, dynamic, out%aero, rho, cp_cas, frozen%tissue,          &
                                frozen%veg_surface, frozen%plant)
+      call buried_tissue_store(frozen%tissue, static%n, dt_fast, frozen%ground%buried_cap, frozen%ground%buried_energy)
       call canopy_air_boundary(cfg%aero, static%geom, out%aero, forcing, rho, cp_cas, press, frozen%cas, frozen%ground)
       call ground_inflow(site%soil_profile, forcing, dynamic, out%aero%ggnet, tcas, qcas, rho, &
                          t_soil_top, nsl, cfg%ground_surface, frozen)
@@ -288,6 +289,7 @@ contains
       call fit(frozen%tissue%wood_wmass, n)
       call fit(frozen%tissue%leaf_dry_hcap, n)
       call fit(frozen%tissue%leaf_wmass, n)
+      call fit(frozen%tissue%buried, n)
       call fit(frozen%tissue%leaf_hcap_per_dt, n)
       call fit(frozen%tissue%wood_hcap_per_dt, n)
       call fit(frozen%tissue%t_leaf0, n)
@@ -336,6 +338,7 @@ contains
       call move_alloc(from%tissue%wood_wmass, to%tissue%wood_wmass)
       call move_alloc(from%tissue%leaf_dry_hcap, to%tissue%leaf_dry_hcap)
       call move_alloc(from%tissue%leaf_wmass, to%tissue%leaf_wmass)
+      call move_alloc(from%tissue%buried, to%tissue%buried)
       call move_alloc(from%tissue%leaf_hcap_per_dt, to%tissue%leaf_hcap_per_dt)
       call move_alloc(from%tissue%wood_hcap_per_dt, to%tissue%wood_hcap_per_dt)
       call move_alloc(from%tissue%t_leaf0, to%tissue%t_leaf0)
@@ -707,10 +710,14 @@ contains
          !---~---
          !   Tissue heat store a = cap/dt_fast, relaxing from the start-of-step temperature
          ! (docs/science/vegetation_energy_dynamics.md eqs. (3)-(5)): an algebraic closure in every
-         ! stage evaluation, not a tableau unknown.
+         ! stage evaluation, not a tableau unknown. The share a snow pack buries is the water
+         ! layer's node's (buried_tissue_store), so the balance runs on the exposed share's.
          !---~---
-         tissue%leaf_hcap_per_dt(i) = tissue_hcap_per_dt(tissue%leaf_dry_hcap(i), tissue%leaf_wmass(i), dt_fast)
-         tissue%wood_hcap_per_dt(i) = tissue_hcap_per_dt(tissue%wood_dry_hcap(i), tissue%wood_wmass(i), dt_fast)
+         tissue%buried(i)           = 1.0_wp - static%exposed(i)
+         tissue%leaf_hcap_per_dt(i) = static%exposed(i)                                                        &
+                                      * tissue_hcap_per_dt(tissue%leaf_dry_hcap(i), tissue%leaf_wmass(i), dt_fast)
+         tissue%wood_hcap_per_dt(i) = static%exposed(i)                                                        &
+                                      * tissue_hcap_per_dt(tissue%wood_dry_hcap(i), tissue%wood_wmass(i), dt_fast)
          tissue%t_leaf0(i) = dynamic%leaf_temp(i)
          tissue%t_wood0(i) = dynamic%wood_temp(i)
          tissue%leaf_emiss(i) = static%leaf_emissivity(i)
@@ -801,6 +808,31 @@ contains
       call canopy_demand(y_stage, cas_start, frozen%tissue, frozen%veg_surface, n, sf0)
       frozen%water_drive%e_demand(1:n) = sf0%transp_c(1:n)
    end subroutine transpiration_demand
+
+   !---~---
+   !   The tissue a snow pack buries, as the water layer's node holds it over the step
+   ! (docs/science/vegetation_energy_dynamics.md, "Buried tissue"): each cohort's buried share of
+   ! its leaves' and wood's heat capacity, its tissue and its water (tissue_hcap_per_dt), and their
+   ! heat at their start temperatures, from zero kelvin, as the node's phase law counts a dry
+   ! heat capacity's.
+   !---~---
+   pure subroutine buried_tissue_store(tissue, n, dt_fast, cap, energy)
+      type(plant_energy_env_t), intent(in)  :: tissue
+      integer(ik),              intent(in)  :: n
+      real(wp),                 intent(in)  :: dt_fast
+      real(wp),                 intent(out) :: cap, energy   ! [J/m2/K], [J/m2]
+      real(wp)    :: c_leaf, c_wood
+      integer(ik) :: i
+      cap    = 0.0_wp
+      energy = 0.0_wp
+      do i = 1_ik, n
+         if (.not. (tissue%buried(i) > 0.0_wp)) cycle
+         c_leaf = tissue%buried(i) * tissue_hcap_per_dt(tissue%leaf_dry_hcap(i), tissue%leaf_wmass(i), dt_fast) * dt_fast
+         c_wood = tissue%buried(i) * tissue_hcap_per_dt(tissue%wood_dry_hcap(i), tissue%wood_wmass(i), dt_fast) * dt_fast
+         cap    = cap + c_leaf + c_wood
+         energy = energy + c_leaf * tissue%t_leaf0(i) + c_wood * tissue%t_wood0(i)
+      end do
+   end subroutine buried_tissue_store
 
    !---~---
    !   The porous layers as nodes of the water network (docs/science/surface_organic_layer.md,

@@ -80,6 +80,12 @@ module ed_plant_energy
       real(wp), allocatable :: wood_wmass(:)      ! [kg/m2]   the wood store's water (sapwood, fine roots)
       real(wp), allocatable :: leaf_dry_hcap(:)   ! [J/m2/K]  dry leaf heat capacity
       real(wp), allocatable :: leaf_wmass(:)      ! [kg/m2]   internal (symplast) leaf water
+      !---~---
+      !   The share of each cohort's crown a snow pack buries (1 - its exposed share): its balance
+      ! runs on the rest of its heat capacity, and the buried share's heat is the water layer's
+      ! node's (docs/science/vegetation_energy_dynamics.md, "Buried tissue").
+      !---~---
+      real(wp), allocatable :: buried(:)          ! [-]
    end type plant_energy_env_t
 
    !---~---
@@ -313,10 +319,12 @@ contains
    ! share of the heat is a step behind, and it lies between the start-of-step temperature
    ! and t_avg even where surface water far heavier than its tissue evaporated within the
    ! step. A tissue with no heat capacity keeps a temperature: wood its own, a leaf its wood's.
+   ! The share of a tissue a snow pack buries ends at t_buried, the water layer's node's
+   ! temperature over the step, its heat the node's: a matched pair with the water layer.
    !---~---
    pure subroutine commit_tissue_energy(env, nplant, dt, t_leaf_avg, t_wood_avg, n, leaf_water_mass,          &
                                         wood_water_mass, leaf_surf_water0, wood_surf_water0, leaf_surf_water1,     &
-                                        wood_surf_water1,                                                          &
+                                        wood_surf_water1, t_buried,                                                &
                                         leaf_energy, wood_energy, leaf_temp, wood_temp, store0, store1)
       type(plant_energy_env_t), intent(in)    :: env                                ! the cohorts' inputs for the step
       real(wp),                 intent(in)    :: nplant(:)                          ! [plant/m2]
@@ -326,6 +334,7 @@ contains
       real(wp),                 intent(in)    :: leaf_water_mass(:), wood_water_mass(:)   ! [kg/plant] end of step
       real(wp),                 intent(in)    :: leaf_surf_water0(:), wood_surf_water0(:)   ! [kg/m2 ground] start of step
       real(wp),                 intent(in)    :: leaf_surf_water1(:), wood_surf_water1(:)   ! [kg/m2 ground] end of step
+      real(wp),                 intent(in)    :: t_buried                           ! [K] the buried shares' end temperature
       real(wp),                 intent(inout) :: leaf_energy(:), wood_energy(:)     ! [J/m2 ground]
       real(wp),                 intent(inout) :: leaf_temp(:), wood_temp(:)         ! [K]
       real(wp),                 intent(out)   :: store0, store1                     ! [J/m2 ground] the tissue store
@@ -336,6 +345,12 @@ contains
       do i = 1_ik, n
          heat_leaf = env%leaf_hcap_per_dt(i) * dt * (t_leaf_avg(i) - env%t_leaf0(i))
          heat_wood = env%wood_hcap_per_dt(i) * dt * (t_wood_avg(i) - env%t_wood0(i))
+         if (env%buried(i) > 0.0_wp) then
+            heat_leaf = heat_leaf + env%buried(i) * tissue_hcap_per_dt(env%leaf_dry_hcap(i), env%leaf_wmass(i), dt) &
+                                    * dt * (t_buried - env%t_leaf0(i))
+            heat_wood = heat_wood + env%buried(i) * tissue_hcap_per_dt(env%wood_dry_hcap(i), env%wood_wmass(i), dt) &
+                                    * dt * (t_buried - env%t_wood0(i))
+         end if
          enth_leaf = env%leaf_water_enth(i) * dt                                                           &
                      + (leaf_surf_water1(i) - leaf_surf_water0(i)) * internal_energy_liquid(env%t_leaf0(i))
          enth_wood = env%wood_water_enth(i) * dt                                                           &

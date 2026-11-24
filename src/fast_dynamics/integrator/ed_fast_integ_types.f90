@@ -1279,6 +1279,7 @@ contains
       acc%whole_cond_enth = b2*s2%whole_cond_enth + b3*s3%whole_cond_enth
       acc%stores%energy_in  = b2*s2%stores%energy_in  + b3*s3%stores%energy_in
       acc%stores%vapour_out = b2*s2%stores%vapour_out + b3*s3%stores%vapour_out
+      acc%stores%buried_heat = b2*s2%stores%buried_heat + b3*s3%stores%buried_heat
       acc%stack_newton      = s2%stack_newton + s3%stack_newton
       acc%stack_fallback    = s2%stack_fallback + s3%stack_fallback
       acc%veg_surface_evap = b2*s2%veg_surface_evap + b3*s3%veg_surface_evap
@@ -1322,6 +1323,7 @@ contains
       acc%whole_cond_enth = acc%whole_cond_enth + s%whole_cond_enth
       acc%stores%energy_in  = acc%stores%energy_in  + s%stores%energy_in
       acc%stores%vapour_out = acc%stores%vapour_out + s%stores%vapour_out
+      acc%stores%buried_heat = acc%stores%buried_heat + s%stores%buried_heat
       acc%stack_newton      = acc%stack_newton + s%stack_newton
       acc%stack_fallback    = acc%stack_fallback + s%stack_fallback
       acc%veg_surface_evap = acc%veg_surface_evap + s%veg_surface_evap

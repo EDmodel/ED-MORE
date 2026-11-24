@@ -67,6 +67,7 @@ module ed_surface
    type :: store_exchange_t
       real(wp) :: energy_in(N_SURFACE_STORE)  = 0.0_wp   ! [W/m2] or [J/m2]       energy into the store
       real(wp) :: vapour_out(N_SURFACE_STORE) = 0.0_wp   ! [kg/m2/s] or [kg/m2]   vapour from it to the canopy air
+      real(wp) :: buried_heat = 0.0_wp                   ! [W/m2] or [J/m2]       from the water layer into the buried tissue
    end type store_exchange_t
 
    !---~---
@@ -130,6 +131,13 @@ module ed_surface
       real(wp) :: free_down = 0.0_wp                    ! [kg/m2/s]
       real(wp) :: runoff    = 0.0_wp                    ! [kg/m2/s]
       real(wp) :: free_temp = t_3ple                    ! [K]
+      !---~---
+      !   The plant tissue a snow pack buries, which the water layer's node holds at its own
+      ! temperature (docs/science/vegetation_energy_dynamics.md, "Buried tissue"): its heat
+      ! capacity and its heat at the step's start, from zero kelvin.
+      !---~---
+      real(wp) :: buried_cap    = 0.0_wp                ! [J/m2/K]
+      real(wp) :: buried_energy = 0.0_wp                ! [J/m2]
       type(water_layer_state_t) :: pack                 ! the water layer over the step, its free water apart
       real(wp) :: snowfac    = 0.0_wp                   ! [-] its cover (water_layer_cover_of; 0 for a film)
       type(water_material_t) :: params                  ! the water layer's material
@@ -265,14 +273,16 @@ contains
       cover  = max(0.0_wp, min(1.0_wp, env%snowfac))
       n = 0_ik
       if (env%pack%water > 0.0_wp .and. cover > 0.0_wp) then
+         !--- The water layer's node, with the plant tissue the pack buries at its temperature (vegetation_energy_dynamics.md).
          n = n + 1_ik
          store(n)          = STORE_WATER
          node(n)%water     = env%pack%water
-         node(n)%energy    = env%pack%energy
+         node(n)%energy    = env%pack%energy + env%buried_energy
+         node(n)%dry_cap   = env%buried_cap
          node(n)%area      = cover
          node(n)%emiss     = env%params%emissivity
          node(n)%rad       = env%sw_snow
-         call internal_energy_to_temp(node(n)%energy, node(n)%water, 0.0_wp, node(n)%temp, node(n)%fliq)
+         call internal_energy_to_temp(env%pack%energy, env%pack%water, 0.0_wp, node(n)%temp, node(n)%fliq)
          resistance(n)     = water_layer_resistance(layer_depth(env%pack), env%pack%matrix_depth,                  &
                                                     matrix_conductivity(env%pack, env%params))
          contact(n)        = cover
@@ -330,6 +340,11 @@ contains
          g_top      = g_top      + (1.0_wp - cover) * (env%rnet_soil - h_bare)
       end if
       call advected_heat(env, top_porous, n, flux, g_top, stores%energy_in(STORE_WATER))
+      !--- The buried tissue's share of the water layer's node's heat, a matched pair with the layer.
+      if (n > 0_ik .and. top_porous > 1_ik .and. env%buried_cap > 0.0_wp) then
+         stores%buried_heat = (env%buried_cap * flux(1)%t_surf - env%buried_energy) / env%dt
+         stores%energy_in(STORE_WATER) = stores%energy_in(STORE_WATER) - stores%buried_heat
+      end if
    end subroutine ground_surface_exchange
 
    !---~---

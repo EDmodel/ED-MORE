@@ -270,6 +270,8 @@ contains
                                + B4*s(4)%stores%energy_in  + B6*s(6)%stores%energy_in) * dt
       acc%stores%vapour_out = (B1*s(1)%stores%vapour_out + B3*s(3)%stores%vapour_out                        &
                                + B4*s(4)%stores%vapour_out + B6*s(6)%stores%vapour_out) * dt
+      acc%stores%buried_heat = (B1*s(1)%stores%buried_heat + B3*s(3)%stores%buried_heat                     &
+                                + B4*s(4)%stores%buried_heat + B6*s(6)%stores%buried_heat) * dt
       acc%stack_newton   = sum(s%stack_newton)
       acc%stack_fallback = sum(s%stack_fallback)
       acc%veg_surface_evap = (B1*s(1)%veg_surface_evap + B3*s(3)%veg_surface_evap + B4*s(4)%veg_surface_evap     &
