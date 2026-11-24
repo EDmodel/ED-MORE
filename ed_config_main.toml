@@ -98,9 +98,10 @@ min_depth = 1.0e-4               # [m] the depth from which matter is a layer: a
 [ground_surface_layer.water]
 # The water layer: snow, ice and ponded water, one bulk layer; snowfall adds its depth at
 # fresh_density, rain fills its pores.
-fresh_density          = 250.0   # [kg/m3] snowfall's bulk density (snowfall's depth = its mass / density):
-                                 #         CLM's bulk snow density (bdsno; Lawrence et al. 2018, §2.2), a settled
-                                 #         pack's rather than new snow's (100 in Niu & Yang 2007)
+fresh_density          = 250.0   # [kg/m3] the bulk density snowfall adds depth at (its depth = its mass /
+                                 #         density): the layer does not compact, so a settled pack's, CLM's bulk
+                                 #         density of snow, its initial estimate of a pack's (Lawrence et al. 2018,
+                                 #         §2.3.2); new snow is lighter, 50-169 (CLM4.5, Oleson et al. 2013, eq. 7.21)
 conductivity_at_fresh  = 0.15    # [W/m/K] its ice matrix's thermal conductivity at fresh_density, Calonne et
                                  #         al. (2011)'s law there (0.1495), which scales it to the matrix's density
 albedo_vis_fresh       = 0.95    # [-]     fresh-snow albedo, visible: BATS's new snow (Dickinson et al. 1993,

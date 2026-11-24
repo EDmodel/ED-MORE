@@ -231,7 +231,7 @@ with $H$ the height, $b$ = `snow_bending` and $c$ = `crown_base_fraction`. A pon
 
 ## 8. Limitations
 
-- **One bulk water layer.** Snow is a single layer, with no compaction and no ageing of its albedo with time. It cannot hold an ice lid over liquid, only their mixture on the plateau, and still water's conductivity understates a convecting pond's heat transport.
+- **One bulk water layer.** Snow is a single layer, with no compaction and no ageing of its albedo with time: snowfall adds depth at a settled pack's density, not new snow's. It cannot hold an ice lid over liquid, only their mixture on the plateau, and still water's conductivity understates a convecting pond's heat transport.
 - **The pond's contact area.** The free water infiltrates and runs off over the whole patch, while its energy exchanges and conducts over its cover, eq. (5): a 5 mm pond covers 2 % of the ground.
 - **Litter as a full sheet.** A litter layer covers the whole ground from 0.1 mm (4.5 g m⁻²) and switches on and off at that depth. Real thin litter is patchy; a cover law by mass would follow its area.
 - **The litter's hydraulics.** The litter is a continuum porous layer on the retention and conductivity curves the config gives (by default Letts et al. 2000's surface moss, as CLASS takes it), so a thin litter over a wet layer below draws water up and evaporates near the rate the air allows. Forest-floor measurements support continuum flow through the forest floor as a whole (Kosugi et al. 2001). Models of the litter layer itself instead exclude capillary rise into it (Napoly et al. 2017), and the evidence is mixed (Matthews 2014).
@@ -248,7 +248,7 @@ The `[ground_surface_layer]` block, every key optional ([configuration](../confi
 
 | Symbol | Key | Default | Meaning | Source |
 |---|---|---|---|---|
-| $`\rho_{fresh}`$ | `fresh_density` | 250 kg m⁻³ | snowfall's bulk density | CLM's bulk snow density (Lawrence et al. 2018, §2.2), a settled pack's rather than new snow's (100 kg m⁻³ in Niu & Yang 2007) |
+| $`\rho_{fresh}`$ | `fresh_density` | 250 kg m⁻³ | the bulk density snowfall adds depth at | a settled pack's, since the layer does not compact: CLM's bulk density of snow, its initial estimate of a pack's (Lawrence et al. 2018, §2.3.2; Oleson et al. 2013, §2.2.2); new snow is lighter, 50–169 kg m⁻³ (Oleson et al. 2013, eq. 7.21, after Anderson 1976) |
 | $`k_{fresh}`$ | `conductivity_at_fresh` | 0.15 W m⁻¹ K⁻¹ | the matrix's conductivity at `fresh_density`, scaled by eq. (7) | Calonne et al. (2011)'s regression at `fresh_density` (0.1495) |
 | | `albedo_vis_fresh`, `albedo_nir_fresh` | 0.95, 0.65 | fresh snow's albedo | BATS's new snow at a zenith angle below 60° (Dickinson et al. 1993, §2e, eq. 5) |
 | | `albedo_vis_aged`, `albedo_nir_aged` | 0.518, 0.435 | wet (aged) snow's albedo | ED2's (`ed_params`), after Roesch et al. (2002) |
@@ -309,7 +309,7 @@ Fixed in the code: $`\rho_{ref}`$ = 100 kg m⁻³ in eq. (5) (Niu & Yang 2007's 
 - Niu, G.-Y. & Yang, Z.-L. (2007), *J. Geophys. Res.* 112:D21101, doi:10.1029/2007JD008674 — snow-cover fraction (eq. 4).
 - O'Connor, M. T. et al. (2020), *Geophys. Res. Lett.* 47:e2020GL087646 — the saturated conductivity of the Arctic Foothills' acrotelm.
 - Oleson, K. W. et al. (2010), *Technical Description of version 4.0 of the Community Land Model (CLM)*, NCAR/TN-478+STR, doi:10.5065/D6FB50WZ — the snow-cover fraction's density exponent for CLM (eq. 3.50).
-- Oleson, K. W. et al. (2013), *Technical Description of version 4.5 of the Community Land Model (CLM)*, NCAR/TN-503+STR, doi:10.5065/D6RR1W7M — the maximum ponding depth.
+- Oleson, K. W. et al. (2013), *Technical Description of version 4.5 of the Community Land Model (CLM)*, NCAR/TN-503+STR, doi:10.5065/D6RR1W7M — the bulk density of snow (§2.2.2) and of new snow (eq. 7.21).
 - Roesch, A., Wild, M., Pinker, R. & Ohmura, A. (2002), *J. Geophys. Res.* 107(D14):4221, doi:10.1029/2001JD000809 — snow albedo on land, the source of ED2's aged-snow albedo.
 - Swenson, S. C. & Lawrence, D. M. (2014), *J. Geophys. Res. Atmos.* 119:10299 — the dry surface layer's resistance to evaporation.
 - Walko, R. L. et al. (2000), *J. Appl. Meteorol.* 39(6):931–944, doi:10.1175/1520-0450(2000)039<0931:CABHMF>2.0.CO;2 — LEAF-3, its snow's liquid holding.

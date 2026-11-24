@@ -33,7 +33,7 @@ module ed_ground_surface_params
    ! pond, which runs off above pond_capacity.
    !---~---
    type :: water_material_t
-      real(wp) :: fresh_density          = 250.0_wp    ! [kg/m3] snowfall's bulk density
+      real(wp) :: fresh_density          = 250.0_wp    ! [kg/m3] the bulk density snowfall adds depth at
       real(wp) :: conductivity_at_fresh  = 0.15_wp     ! [W/m/K] the matrix's thermal conductivity at fresh_density
       real(wp) :: albedo_vis_fresh       = 0.95_wp     ! [-] fresh snow, visible (BATS)
       real(wp) :: albedo_nir_fresh       = 0.65_wp     ! [-] fresh snow, near infrared
