@@ -12,5 +12,6 @@ prints what ED-MORE would derive from the same texture:
 | `organic_fraction`, `organic_thermal` | the three thermal keys of an organic horizon | the mineral's values blended with peat's by the organic fraction, organic matter per volume over 130 kg m⁻³, as CLM5 does (Lawrence & Slater 2008) |
 | `read_megapit` | each horizon's depths, texture, chemistry and bulk density | NEON's soil megapit (DP1.00096.001) |
 
-The sites' scripts import it: example 04's [`harvard_traits.py`](../../../examples/example04_column_biophysics/sites/harvard/harvard_traits.py).
+The sites' scripts import it: example 04's [`harvard_traits.py`](../../../examples/example04_column_biophysics/sites/harvard/harvard_traits.py)
+and [`toolik_traits.py`](../../../examples/example04_column_biophysics/sites/toolik/toolik_traits.py).
 The tests (`tests/`) check the formulas against the model's and the blend's two ends.

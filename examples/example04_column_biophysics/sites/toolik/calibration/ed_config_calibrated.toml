@@ -1,0 +1,212 @@
+# SPDX-License-Identifier: Apache-2.0
+# CALIBRATED by scripts/calibrate_fast from ed_config_eval.toml.
+# Every line is the base file's, comments included, except these keys the fit set
+# (calibrated value, the base file's value; EFFECTIVE: its value belongs to this model structure;
+# KATTGE & KNORR: fixed at the growth temperature's value, not fitted):
+#   leaf_physiology.ds_vcmax       658.978  (650)  KATTGE & KNORR
+#   leaf_physiology.ds_jmax        653.102  (640)  KATTGE & KNORR
+# and these settings of the calibration (calibration.toml [overrides], the variant, [calibrated]):
+#   init.pft_config                "calibration/pft_parameters_calibrated.toml"
+#   output.prefix                  "cal"
+#   init.reacclimate_traits        true
+# ED-MORE example 04, the Toolik site: NEON's TOOL tower in moist acidic tussock tundra on the northern
+# foothills of the Brooks Range, Alaska, over six years, 2019-01-02 to 2025-01-01 UTC, with hourly output to
+# compare with the tower's fluxes. The stand is synthesised from the site's harvests and cover
+# (make_toolik_census.py) and frozen. The permafrost column starts from a 30-year spin-up on the six tower
+# years, recycled (run_site.py), whose state this run restarts from. Every output stamp is UTC.
+
+[run]
+dt_slow    = "1d"
+start_time = "2019-01-02"      # the forcing's first record is 2019-01-01 09:00 UTC (midnight AKST)
+end_time   = "2025-01-01"
+n_threads  = 4
+
+[fast]
+fast_biophysics_on  = true
+dt_fast             = "900s"
+time_integrator     = "esdirk2"
+rtol                = 2.0e-3
+canopy_water_on     = true
+
+[demography]
+# The stand is frozen at the census: no growth, mortality or restructuring, while the leaves follow
+# the season (docs/science/demography.md §7). The keys below build the starting stand from the census.
+demography_on             = false
+recruitment_on            = true
+cohort_fusion_on          = true
+patch_disturbance_on      = true
+patch_fusion_on           = false   # the land-cover patches stay apart: their plants do not compete for light
+max_cohort                = 60
+n_cohort_fusion_iter      = 6
+cohort_size_tol_min       = 0.02
+cohort_size_tol_max       = 0.10
+cohort_lai_cap            = 1.0
+min_cohort_carbon         = 1.0e-6
+negligible_nplant         = 1.0e-8
+split_eps                 = 1.0e-4
+cohort_fission_on         = true
+n_height_layers           = 16
+max_patch                 = 60
+n_patch_fusion_iter       = 6
+patch_light_tol           = 0.04
+patch_light_tol_max       = 0.08
+patch_light_maxdev_factor = 1.5
+min_patch_area            = 1.0e-4
+conservation_tol          = 0.001
+growth_memory_days        = 365.0
+patch_disturbance_rate    = 0.014
+disturbance_survive_height = 10.0
+min_recruit_size          = 1.0e-2
+
+[init]
+init_mode    = 2                  # the spin-up's state (run_site.py); the spin-up itself starts from the census
+restart_file = "output/spinup-S-20190102000000.nc"
+census_file  = "data/toolik_census_ed.csv"   # run_site.py builds it (make_toolik_census.py)
+pft_config   = "calibration/pft_parameters_calibrated.toml"
+# [K] the spin-up's start, one per soil layer (toolik_traits.py): NEON's five soil plots on 1-2 July 2019, in
+# midsummer when the spin-up starts, 8.3 C at the top to -0.2 C at 56 cm, then a line to the deep temperature
+soil_temp    = [281.43, 280.17, 279.17, 278.23, 276.95, 276.00, 275.18, 273.06, 272.93, 272.91, 272.87, 272.82, 272.74, 272.63, 272.47, 272.23, 271.88, 271.33, 270.58, 269.66]
+                                  # each layer starts at its field capacity ([soil], a texture per layer)
+
+reacclimate_traits = true   # set by calibrate_fast
+[output]
+state_write       = false
+state_interval    = "6 years"
+state_file_dir    = "output"
+state_file_prefix = "eval"
+enabled       = true
+dir           = "output"
+prefix        = "cal"
+overwrite     = true
+io_config     = "output_variables.toml"
+cohort_max    = 4096
+patch_max     = 256
+sync_every    = "flush"
+fast_interval_steps = 4                # 4 * dt_fast (900 s) = hourly records
+
+[output.fast]
+enabled    = true
+file_chunk = "year"
+
+[output.daily]
+enabled    = true
+file_chunk = "all"
+
+[output.monthly]
+enabled    = false
+file_chunk = "year"
+
+[output.annual]
+enabled    = false
+file_chunk = "all"
+
+[trait_dynamics]
+trait_plasticity_on = true
+
+[leaf_physiology]
+stomatal_model     = "medlyn"
+temp_response_form = "peaked"
+colimitation       = "quadratic"
+use_boundary_layer = false
+kc25    = 40.49
+ko25    = 27840.0
+gstar25 = 4.275
+ea_kc     = 79430.0
+ea_ko     = 36380.0
+ea_gstar  = 37830.0
+ea_vcmax  = 65330.0
+ea_jmax   = 43540.0
+ea_rd     = 46390.0
+hd_vcmax  = 200000.0
+hd_jmax   = 200000.0
+hd_rd     = 200000.0
+ds_vcmax  = 658.978
+ds_jmax   = 653.102
+ds_rd     = 490.0
+o2_mol_frac      = 0.209
+leaf_absorptance = 0.85
+phi_psii         = 0.74
+
+[site]
+latitude              = 68.6611       # NEON's TOOL tower (toolik_site.toml)
+longitude             = -149.3705
+elevation             = 843.0
+apply_elevation_lapse = false         # the tower measures at the site
+
+[forcing]
+forcing_on     = true
+format         = "default"
+path           = "data/toolik_forcing.nc"          # run_site.py builds it (make_tower_forcing.py)
+grid_index     = 1
+grid_match     = "explicit"
+tq_height      = 8.42              # the tower's own heights, above the ground at its base (toolik_site.toml)
+wind_height    = 8.89
+height_above   = "ground"
+wind_exposure  = "local"
+timestep       = "1800s"
+avg_convention = "begin"
+sw_partition   = "clearidx"
+lwdown_source  = "file"
+# The repository's CO2 file ends in 2022 and ED-MORE does not extrapolate it: the run holds NOAA's global
+# mean of 2019-2024, as at Harvard.
+co2_source     = "const"
+co2_const      = 418.0
+recycle        = false             # the six tower years cover the run; the spin-up recycles them
+start_clamp    = "error"
+
+[aerodynamics]
+# The canopy's roughness over its height. The stand is three land-cover patches (make_toolik_census.py), each
+# rough by its own plants' height, the deciduous shrubs' 20 cm, the tussocks' 14.6 and the evergreens' 8, so
+# the site's roughness at the tower is their blend (Mason 1988). The plants are sparse and the moss shows
+# between them: the tower's near-neutral roughness in June-August, 0.0076 m (u* over the log law at 8.9 m,
+# |z/L| < 0.05, 2019-2024), is the blend's when the roughness is 0.076 of the height, against a dense
+# canopy's 0.13 (the model's default, which makes the blend 0.013 m). The moss's own roughness is below the
+# evergreens', so the plants set it; no measurement of the moss's was found. Over snow the tower reads 0.0019 m.
+z0m_ratio  = 0.076
+soil_rough = 0.005                   # [m]
+
+[soil_carbon]
+soil_carbon_on = true
+# The spin-up starts in steady state with the stand's litter (make_toolik_census.py's summary): the leaf fall
+# and fine-root turnover of the three PFTs, the shrubs' wood from their background mortality.
+spinup_steady      = true
+spinup_labile_grnd = 2.064830e-05     # [kgC/m2/day]
+spinup_labile_soil = 6.671200e-04
+spinup_struct_grnd = 1.127072e-05
+spinup_struct_soil = 2.931591e-04
+
+# Toolik's soil at NEON's megapit, below its Oi (0-6 cm), which is the moss on the soil (moss_depth): the
+# organic horizons Oe and Oa (6-21 cm in the pit), peat, then the gleyed silt loam with gravel, Bg and Cg
+# (21-73 cm), which the column carries to 18 m, where nothing deeper was measured. Each layer takes its
+# horizon's properties (toolik_traits.py):
+#   - Oe and Oa: the Imnavait Creek pit IMN-1's sample nearest each in decomposition (ORNL DAAC 2149,
+#     Bakian-Dogaheh et al. 2023), the hemic IMN-1-2 and the sapric IMN-1-4: its porosity and the van
+#     Genuchten curve fitted to its paired water content and matric potential; peat's Ks by decomposition, hemic and sapric (Letts et al. 2000,
+#     Atmos.-Ocean 38:141); CLM5's thermal blend of the mineral soil with peat, by the organic fraction
+#     from the pit's carbon and IMN-1's bulk density (Lawrence & Slater 2008, Clim. Dyn. 30:145);
+#   - Bg and Cg: the model's texture formulas on the pit's texture, chemistry and bulk density;
+#   - the permafrost below 0.57 m, the bottom of the layer holding NEON's deepest sensors that thaw (56 cm):
+#     the Cg at the dry density of the region's loamy permafrost, 0.66 g/cm3, the median of 20 loamy layers
+#     below the thaw depth at Jorgenson's Toolik sites (2016, Arctic Data Center, doi:10.18739/A2CP5C), two
+#     thirds ice. Texture and carbon would give them about twice that density: the ice lenses push the grains
+#     apart. The model has no excess ice, so the lower density stands in for it, as pore space the ice fills.
+# The permafrost seals the column: the base takes no drainage. The base conducts to the permafrost's
+# temperature at 20 m: the nearest borehole of the northern foothills, Galbraith Lake, 25 km south, read
+# -4.55 C at 20 m in 2014 after -5.0 in 2000 (Romanovsky, Cable & Kholodov 2015, GeoQuebec 2015, paper
+# 479, Fig. 1b, read off the figure), carried to 2021 at that trend.
+[soil]
+depth           = 18.0             # [m]
+water_bottom_bc = "bedrock"
+layer_bottoms   = [0.05, 0.11, 0.15, 0.23, 0.31, 0.39, 0.48, 0.57, 0.67, 0.8, 1, 1.3, 1.7, 2.3, 3.2, 4.5, 6.5, 9.5, 13.5, 18]   # [m] 5-9 cm through the horizons and the active layer, then about 1.4-fold
+theta_sat   = [0.900, 0.900, 0.880, 0.454, 0.454, 0.454, 0.239, 0.239, 0.621, 0.621, 0.621, 0.621, 0.621, 0.621, 0.621, 0.621, 0.621, 0.621, 0.621, 0.621]   # [m3/m3]
+theta_res   = [0.091, 0.091, 0.052, 0.150, 0.150, 0.150, 0.153, 0.153, 0.153, 0.153, 0.153, 0.153, 0.153, 0.153, 0.153, 0.153, 0.153, 0.153, 0.153, 0.153]   # [m3/m3]
+curve_par_a = [1.12, 1.12, 1.16, 2.03, 2.03, 2.03, 2.04, 2.04, 2.04, 2.04, 2.04, 2.04, 2.04, 2.04, 2.04, 2.04, 2.04, 2.04, 2.04, 2.04]   # [1/m] van Genuchten alpha
+curve_par_n = [2.18, 2.18, 1.48, 1.34, 1.34, 1.34, 1.34, 1.34, 1.34, 1.34, 1.34, 1.34, 1.34, 1.34, 1.34, 1.34, 1.34, 1.34, 1.34, 1.34]   # [-]   van Genuchten n
+ksat        = [2e-06, 2e-06, 1e-07, 5.44e-06, 5.44e-06, 5.44e-06, 4.83e-07, 4.83e-07, 1.28e-05, 1.28e-05, 1.28e-05, 1.28e-05, 1.28e-05, 1.28e-05, 1.28e-05, 1.28e-05, 1.28e-05, 1.28e-05, 1.28e-05, 1.28e-05]   # [m/s]
+solid_conductivity = [0.89, 0.89, 1.03, 3.67, 3.67, 3.67, 3.65, 3.65, 3.65, 3.65, 3.65, 3.65, 3.65, 3.65, 3.65, 3.65, 3.65, 3.65, 3.65, 3.65]   # [W/m/K]
+dry_conductivity   = [0.0767, 0.0767, 0.0825, 0.202, 0.202, 0.202, 0.453, 0.453, 0.117, 0.117, 0.117, 0.117, 0.117, 0.117, 0.117, 0.117, 0.117, 0.117, 0.117, 0.117]   # [W/m/K]
+dry_heat_capacity  = [2.444e+05, 2.444e+05, 2.919e+05, 1.203e+06, 1.203e+06, 1.203e+06, 1.677e+06, 1.677e+06, 8.368e+05, 8.368e+05, 8.368e+05, 8.368e+05, 8.368e+05, 8.368e+05, 8.368e+05, 8.368e+05, 8.368e+05, 8.368e+05, 8.368e+05, 8.368e+05]   # [J/m3/K]
+moss_depth  = 0.06                 # [m] the pit's Oi, live and dead moss over the soil ([ground_surface_layer.moss])
+thermal_bottom_bc = "dirichlet"
+deep_temp   = 268.75               # [K] -4.4 C
+deep_depth  = 19.94                # [m] the borehole's 20 m below the ground surface, the moss's top

@@ -324,6 +324,15 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   `mean_ground_top_temp_py` (the last three with `_pa` twins); and a run's log ends with the water
   solve's forced sub-steps by reason (`forced[water]`) and the ground stack's Newton iterations and
   fallbacks (`surface stack`). (#100)
+- Example 04's Toolik site (prototype): NEON's TOOL tower (AmeriFlux US-xTL) in moist acidic tussock tundra
+  over permafrost, 2019–2024. An 18 m column conducts to the nearest borehole's temperature, peat over gleyed
+  mineral soil under a moss layer, and the snow buries three plant types, each on its own land-cover patch: a
+  tussock sedge as a grass, and deciduous and evergreen dwarf shrubs sized by their stems' diameter at the
+  ground, synthesised from the ARC LTER MAT06 harvest and NEON's plant cover. The column spins up for 30
+  years on the six tower years, and `calibrate_fast` fits the three types from the spin-up's state, against
+  the tower's fluxes and NEON's soil temperatures. USCRN's humidity and precipitation and the FLUXNET
+  product's ERA5 wind and pressure stand in where the tower has none. Example 02's part 4 fits the three
+  types' phenology to NEON's tagged plants and the tower's PhenoCam. (#TBD)
 - `scripts/prepare_input/soil/soil_horizons.py`: the model's texture formulas (hydraulic and thermal),
   CLM5's blend of a mineral soil with peat by its organic fraction, and a reader for NEON's soil pits, shared
   by the sites' soil scripts; Harvard's `[soil]` values are unchanged. (#TBD)

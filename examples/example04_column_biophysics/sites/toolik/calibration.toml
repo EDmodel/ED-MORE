@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: Apache-2.0
+# The fast-parameter calibration at Toolik (scripts/calibrate_fast; the protocol its README links).
+# run_site.py --calibrate runs it. Every setting, its default and why: scripts/calibrate_fast/
+# calibration_reference.toml. Only the choices that differ from the defaults are here. Paths are relative
+# to this file.
+
+[base]
+main       = "ed_config_eval.toml"     # with the PFT file it names (pft_parameters.toml), its forcing and the
+                                       #   spin-up's state it restarts from (run_site.py makes both)
+parameters = "../../../../scripts/calibrate_fast/parameters.toml"
+
+# The tower's facts (file, clock, columns, units, which values were measured, the u* thresholds) are
+# toolik_site.toml, the forcing build's own. Its leaf-on months, June to August, hold the windows.
+[tower]
+site = "toolik_site.toml"
+
+# The three PFTs' keys, each with its plant type's meta-analysis priors: the tussock sedge (PFT 1), the
+# evergreen and the deciduous dwarf shrubs (PFTs 2 and 3).
+[fit]
+# The leaves' carbon and water keys of each PFT, its cold limit on growth, and the canopy's light extinction.
+# z0m_ratio keeps the value fitted to the tower's u* (ed_config_eval.toml); the tundra stays wet, so the
+# water-stress key keeps the PFT file's.
+keys            = ["vcmax25", "stomatal_g1", "stomatal_g0", "leaf_angle_mean", "capacity_low_temp", "kappa"]
+pfts            = [1, 2, 3]
+plant_types     = ["c3_grass", "shrub", "shrub"]
+timeout_per_day = 30.0
+
+# The windows: the rule's, in the snow-free green season, June to August. The tower has no turbulent
+# fluxes in 2020.
+[windows]
+months          = [6, 7, 8]
+per_year        = 24           # half-month slots: the green season is three months, so six windows, not the
+                               #   default eight slots' two
+min_coverage    = 0.3          # the tower measures GPP in 26-50 % of June-August's daytime records and the forcing
+                               #   is observed in 57-86 % (2021-2024): at the default 0.5 only 2024 has a window.
+                               #   Each window still scores only its measured records.
+skip_hours      = 3            # the first hours after a restart with changed traits are not scored
+chain_lead_days = 365          # the stand is frozen, so each chain runs the phenology, from the spin-up's state
+                               #   (a restart: the chains start at its date, 2019-01-02) to the window's own
+                               #   canopy; a year's lead keeps the windows from 2020
+
+# No seasonal run: the green season (92 days) is shorter than a run, and the tundra over its permafrost
+# table stays wet, so the water-stress keys keep the PFT file's values.
+[seasonal_runs]
+max_runs = 0
+
+# Set in the calibrated main config the fit writes (ed_config_calibrated.toml), beside the MAP.
+[calibrated]
+"init.pft_config" = "calibration/pft_parameters_calibrated.toml"
+"output.prefix"   = "cal"

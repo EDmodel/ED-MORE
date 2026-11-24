@@ -1,0 +1,109 @@
+# Example 02, part 4: Toolik's tussock tundra, its sedge and its evergreen and deciduous dwarf shrubs fitted
+# with every cohort's own cues (scripts/calibrate_phenology). Every plant type flushes on warmth and long days
+# and sheds on cold and short days, as Harvard's broadleaves do (part 2); at 68.7 N the day is 24 hours long
+# from late May to mid July, so the warmth times the flush and the shortening days in August help end it.
+# prepare_observations.py writes the observations below into ../data/toolik_stand/; the coupled runs are
+# example 04's Toolik stand, from its spin-up's state.
+#
+#   python ../../../scripts/calibrate_phenology/calibrate_phenology.py iterate \
+#          --config phenology.toml --work ../data/toolik_stand_runs --workers 40
+
+[run]
+# Example 04's Toolik run: the tower's forcing, the stand synthesised from the site's harvest and cover and
+# frozen, 2019-2024, from the spin-up's state on 2 January 2019, and the PFT file the fitted values go into
+# (run example 04's Toolik site first: its README, Run).
+config     = "../../example04_column_biophysics/sites/toolik/ed_config_eval.toml"
+score_from = "2019-01-02"            # the spin-up's state carries the cue memory and the winter canopy
+threads    = 4
+
+[fit]
+# The deciduous shrubs (PFT 3) and the sedge (PFT 1): the warmth that flushes them and how fast; the day
+# length that ends the flush; the cold, the day length and the rate that end their season. The flush runs
+# while the days are warm and long, so its day-length gate is what lets the leaves fall in August, while
+# the day is still 16-20 hours long. The evergreens (PFT 2): the warmth that breaks their buds and how fast
+# the new shoots fill; nothing at the site records when their old leaves fall, so their shed keeps the PFT
+# file's values, as does the share of the canopy each type keeps through the winter (min_leaf_cover).
+keys = ["flush_degree_days_pft3", "flush_rate_max_pft3", "flush_light_hours_pft3", "shed_base_temp_pft3",
+        "shed_degree_days_pft3", "shed_light_hours_pft3", "shed_rate_max_pft3",
+        "flush_degree_days_pft1", "flush_rate_max_pft1", "flush_light_hours_pft1", "shed_base_temp_pft1",
+        "shed_degree_days_pft1", "shed_light_hours_pft1", "shed_rate_max_pft1",
+        "flush_degree_days_pft2", "flush_rate_max_pft2"]
+iterations = 6
+
+[bounds]
+flush_degree_days = [5.0, 400.0]       # [K day] above 5 C from 1 January: about 108 by mid-June at TOOL
+flush_rate_max    = [0.005, 0.333]     # [1/day] the tussocks green over about 70 days (NEON's graminoids)
+shed_base_temp    = [275.15, 293.15]   # [K] the tundra's late summer is 5-10 C
+flush_light_hours = [12.0, 23.5]       # [h/day] the cohorts' hours of light: 24 from late May to mid July,
+shed_light_hours  = [8.0, 23.5]        #   19.5 on 1 August, 16.5 on 20 August (the coupled run)
+
+#----- The deciduous shrubs -----------------------------------------------------------------------#
+# NEON's tagged Betula nana, willows and Vaccinium uliginosum: the share of each canopy in green leaf.
+[[target]]
+name  = "NEON deciduous shrubs, green share"
+kind  = "fraction"
+file  = "../data/toolik_stand/deciduous_green.csv"
+pfts  = [3]
+sigma = 0.15
+
+# The median day each year their plants first break bud, against the day the cohorts' canopy, scaled
+# between the year's least and most, passes a tenth.
+[[target]]
+name      = "NEON deciduous shrubs, bud break"
+kind      = "date"
+file      = "../data/toolik_stand/deciduous_budbreak.csv"
+pfts      = [3]
+level     = 0.1
+direction = "up"
+doy_min   = 121
+doy_max   = 213
+sigma     = 7.0
+
+[[target]]
+name  = "deciduous shrubs, annual loss"
+kind  = "annual_loss"
+pfts  = [3]
+value = 1.0
+sigma = 0.05
+
+#----- The sedge ----------------------------------------------------------------------------------#
+# NEON's tagged Eriophorum vaginatum, Carex bigelowii and Calamagrostis: the share of each plant that is
+# green.
+[[target]]
+name  = "NEON graminoids, green share"
+kind  = "fraction"
+file  = "../data/toolik_stand/graminoid_green.csv"
+pfts  = [1]
+sigma = 0.15
+
+# E. vaginatum's leaves live about 1.1 years (Aerts 2009, Polar Biol. 32:207, Table 4): nine tenths of the
+# canopy a year.
+[[target]]
+name  = "sedge annual loss"
+kind  = "annual_loss"
+pfts  = [1]
+value = 0.9
+sigma = 0.1
+
+#----- The evergreen dwarf shrubs ------------------------------------------------------------------#
+[[target]]
+name      = "NEON evergreen shrubs, bud break"
+kind      = "date"
+file      = "../data/toolik_stand/evergreen_budbreak.csv"
+pfts      = [2]
+level     = 0.1
+direction = "up"
+doy_min   = 121
+doy_max   = 244
+sigma     = 7.0
+
+#----- The tundra in the camera's view -------------------------------------------------------------#
+# The tower camera's greenness over the snow-free season, scaled within each year, against the stand's leaf
+# area scaled the same way.
+[[target]]
+name  = "PhenoCam tundra"
+kind  = "fraction"
+file  = "../data/toolik_stand/phenocam_tundra.csv"
+pfts  = [1, 2, 3]
+scale = "year_minmax"
+sigma = 0.15

@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: Apache-2.0
+# The variables the Toolik evaluation run writes: the hourly fluxes and states the tower also measures,
+# the forcing as the model saw it, and the permafrost column and the layers on it daily. Tiers:
+# F = sub-daily (hourly here, fast_interval_steps = 4), D = daily. Every stamp is UTC. "*" = false starts
+# from nothing, so only these are written.
+[variables]
+"*"                      = false
+"mean_resid_*_py"        = "D"     # the energy and water budget residuals: is the run sane?
+mean_sw_in_py            = "F"     # incoming shortwave, as the model disaggregated it
+mean_lwdown_py           = "F"     # downward longwave at the canopy top (the forcing)
+mean_rnet_py             = "F"     # net all-wave radiation      <-> the tower's NETRAD
+mean_le_py               = "F"     # latent heat flux            <-> LE
+mean_h_py                = "F"     # sensible heat flux          <-> H
+mean_gpp_py              = "F"     # gross primary productivity  <-> GPP_NT_VUT_REF
+mean_nee_py              = "F"     # net ecosystem exchange      <-> NEE
+mean_rhet_py             = "F"     # heterotrophic respiration
+mean_raut_py             = "F"     # autotrophic respiration
+mean_ustar_py            = "F"     # friction velocity           <-> USTAR
+mean_air_temp_py         = "F"     # the forcing's air temperature, at the tower height
+mean_qair_py             = "F"     # the forcing's specific humidity
+mean_psurf_py            = "F"     # the forcing's pressure, at the ground
+mean_wind_py             = "F"     # the forcing's wind, at the tower height
+mean_precip_py           = "F D"   # the forcing's total precipitation
+mean_rainf_py            = "F"     # its rain part, split at each patch's canopy-air top
+mean_cas_temp_py         = "F"     # canopy-air-space temperature
+mean_sw_up_py            = "F D"   # shortwave leaving the canopy top  <-> SW_OUT (the albedo)
+mean_lw_up_py            = "F D"   # upwelling longwave          <-> LW_OUT
+mean_heat_gain_soil_py   = "F"     # heat into the soil column      <-> G
+mean_et_py               = "D"
+mean_growth_resp_py      = "D"
+# The permafrost column and the ground surface layers on it: the water layer (the snow), the litter, the moss.
+mean_soil_temp_layer_si  = "F D"   # soil temperature, all layers  <-> TS (NEON, 2-56 cm); the thaw depth
+mean_soil_water_layer_si = "F D"   # volumetric soil water, liquid and ice  <-> SWC
+mean_soil_fliq_layer_si  = "D"     # its liquid share, for the soil figure (plot_soil.py)
+mean_ground_top_temp_py  = "F D"   # the ground top's temperature: the litter's, else the moss's, under the snow
+mean_litter_water_py     = "D"     # the litter's water
+mean_moss_water_py       = "D"     # the moss's water
+mean_water_layer_mass_py = "D"     # the water layer's water, the snow's  <-> the SNOTEL pillow, the snow surveys
+mean_water_layer_depth_py = "D"    # its depth, the snow's       <-> NEON's and USCRN's depth sensors
+mean_soilc_total_py      = "D"     # soil organic carbon
+# The stand.
+mean_lai_py              = "D"
+mean_lai_pft_py          = "D"     # the sedge's and the two shrubs' leaf area
+mean_agb_py              = "D"
+mean_canopy_height_py    = "D"
+mean_cas_depth_pa        = "D"     # each patch's canopy-air top, the height the forcing is moved to
+mean_air_temp_cas_top_pa = "D"
+mean_wind_cas_top_pa     = "D"
+area_pa                  = "D"
