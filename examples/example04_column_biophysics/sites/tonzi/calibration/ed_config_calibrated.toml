@@ -3,7 +3,7 @@
 # Every line is the base file's, comments included, except these keys the fit set
 # (calibrated value, the base file's value; EFFECTIVE: its value belongs to this model structure;
 # KATTGE & KNORR: fixed at the growth temperature's value, not fitted):
-#   aerodynamics.z0m_ratio         0.152543  (0.13)  EFFECTIVE
+#   aerodynamics.z0m_ratio         0.144553  (0.13)  EFFECTIVE
 #   leaf_physiology.ds_vcmax       650.575  (650)  KATTGE & KNORR
 #   leaf_physiology.ds_jmax        647.213  (640)  KATTGE & KNORR
 # and these settings of the calibration (calibration.toml [overrides], the variant, [calibrated]):
@@ -180,7 +180,7 @@ soil_rough = 0.085                   # [m]
 #     (Miller 2009, Table 3.5).
 # One loam to 9 m held five times the water at depth, and the oaks transpired 30-50 W/m2 too much in the
 # wet summers.
-z0m_ratio = 0.152543   # set by calibrate_fast
+z0m_ratio = 0.144553   # set by calibrate_fast
 [soil]
 depth           = 9.0              # [m]
 water_bottom_bc = "aquifer"        # the water table under the oaks' roots
