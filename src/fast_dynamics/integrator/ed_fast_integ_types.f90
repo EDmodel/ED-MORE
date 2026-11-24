@@ -642,7 +642,6 @@ module ed_fast_integ_types
       type(soil_ice_t)         :: ice(N_POROUS)          ! its ice, held over the step
       real(wp) :: depth(N_POROUS) = 0.0_wp               ! [m]
       real(wp) :: water(N_POROUS) = 0.0_wp               ! [kg/m2] at the step's start, liquid and ice
-      real(wp) :: deficit(N_POROUS) = 0.0_wp             ! [kg/m2] the water it lacks of its residual
       type(ground_evap_env_t) :: air(N_POROUS)           ! node j's evaporation boundary (slot_evaporation_setup)
    end type water_porous_t
 

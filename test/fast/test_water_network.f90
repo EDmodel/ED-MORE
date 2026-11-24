@@ -90,6 +90,10 @@
 !  35. FREEZE-UP       : a wet litter and moss freeze over four days, the litter first, the ice
 !                        each holds rebuilt each step from its temperature on its freezing curve:
 !                        no sub-step forced, every store in its range, and every step closes.
+!  36. BELOW RESIDUAL  : a soil layer that starts 0.02 below its residual carries what it lacks
+!                        as an offset, as a porous layer does: its start's water is exact, under
+!                        light rain no sub-step is forced, it loses none of its water, and the
+!                        water closes.
 !---~---
 program test_water_network
    use ed_test_assert, only : check_true, check_close, check_int, test_report
@@ -1009,6 +1013,7 @@ contains
       call test_frozen_surface_evaporation()
       call test_frozen_sublimation()
       call test_dry_peat()
+      call test_below_residual()
       soil = clay
    end subroutine test_column_scenarios
 
@@ -1465,6 +1470,49 @@ contains
       call check_close('dry peat: change in store = the water crossing the boundary', total_water(col) - w0,       &
                        crossed, 1.0e-10_wp * w0)
    end subroutine test_dry_peat
+
+   !---~---
+   !   36. The loam column's top layer starting 0.02 below its residual (a state the slow step or a
+   ! restart may leave), under moist air and 1 mm/h of rain for a day: the layer's held state
+   ! carries what it lacks (soil_ice_state), so the network's start water is the store's, no
+   ! sub-step is forced, the layer loses none of its water, and the column's water closes against
+   ! its boundary. (Its conductivity at its curve's dry end passes almost none of the rain.)
+   !---~---
+   subroutine test_below_residual()
+      type(soil_params_t) :: opts
+      type(stand_t)       :: col
+      real(wp) :: theta(10), w0, crossed, psi, dpsi, w_curve, dw, kc, dk, bottoms(n_soil_layer_max)
+      integer(ik) :: step, nfail, k
+      call geometric_layer_bottoms(2.0_wp, 10_ik, 3.0_wp, bottoms)
+      call build_profile_hydraulics(10_ik, SOIL_RETENTION_VG, bottoms, 0.43_wp, 0.078_wp, 2.89e-6_wp, 3.6_wp, 1.56_wp, &
+                                    -3.37_wp, soil)
+      theta    = 0.25_wp
+      theta(1) = soil%theta_res(1) - 0.02_wp
+      call make_column(col, theta)
+      do k = 1_ik, 10_ik
+         col%drive%ice(k) = soil_ice_state(soil%layer_curve(k), 0.0_wp, theta(k))
+      end do
+      call set_water_state(col%static, soil, hyd, theta, col%drive%ice, 0.0_wp, [real(wp) ::], [real(wp) ::],    &
+                           col%water)
+      call soil_water_relations(soil%layer_curve(1), col%drive%ice(1), col%water%state%tau_soil(2), psi, dpsi,    &
+                                w_curve, dw, kc, dk)
+      call check_close('below residual: the start''s water is the store''s', w_curve,                              &
+                       rho_h2o * soil%dz(1) * theta(1), 1.0e-6_wp * rho_h2o * soil%dz(1))
+      col%drive%rain = 1.0_wp / 3600.0_wp
+      w0 = total_water(col)
+      crossed = 0.0_wp
+      nfail = 0_ik
+      do step = 1_ik, 96_ik
+         call advance(col, opts, 900.0_wp)
+         crossed = crossed + boundary_water(col, 900.0_wp)
+         nfail = nfail + col%work(WORK_WATER_NFAIL)
+      end do
+      call check_int('below residual: no sub-step forced through', nfail, 0_ik)
+      call check_true('below residual: the layer loses none of the water it holds', col%water%state%water_soil(2)  &
+                      >= rho_h2o * soil%dz(1) * theta(1) * (1.0_wp - 1.0e-12_wp), col%water%state%water_soil(2))
+      call check_close('below residual: change in store = the water crossing the boundary', total_water(col) - w0, &
+                       crossed, 1.0e-10_wp * w0)
+   end subroutine test_below_residual
 
    !--- Small helpers.
    !--- A linear congruential generator, in 64-bit arithmetic so the product cannot overflow.

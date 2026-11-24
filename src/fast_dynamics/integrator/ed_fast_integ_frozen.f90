@@ -870,11 +870,9 @@ contains
             o%water(o%n)   = layer(k)%water
             o%curve(o%n)   = porous_layer_curve(m, layer(k))
             theta = layer(k)%water / (rho_h2o * depth)
-            o%deficit(o%n) = max(0.0_wp, m%theta_res - theta) * rho_h2o * depth
             o%air(o%n)     = slot_evaporation_setup(frozen%water_drive%ground, layer(k)%temp, path, m%theta_sat)
             path  = path + porous_cover_path(depth, theta, m%theta_sat)
             ice   = (1.0_wp - layer(k)%fliq) * theta
-            theta = max(theta, m%theta_res)
             o%ice(o%n) = soil_ice_state(o%curve(o%n), ice, theta - ice)
          end do
       end associate

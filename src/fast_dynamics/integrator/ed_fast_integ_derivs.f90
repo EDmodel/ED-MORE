@@ -373,8 +373,8 @@ contains
 
    !---~---
    !   unknowns_from_water -- each store's unknown read from the water it holds, the inverse of its
-   ! curve: a porous or soil layer's with its ice held, a porous layer below its residual at its
-   ! curve's dry end (its deficit carried as the offset), each cohort's tissues from their water per
+   ! curve: a porous or soil layer's with its ice held, and below its residual at its curve's dry
+   ! end, the water it lacks carried as the offset (soil_ice_t), each cohort's tissues from their water per
    ! plant. A leafless cohort's leaves hold none, so their unknown is the wood's potential less the
    ! head to the crown, where an empty leaf comes to rest. The pond's is its water's head, but no
    ! higher than the head at which it neither gives nor takes water from the node below it, the top
@@ -393,8 +393,7 @@ contains
       soff = 1_ik + porous%n
       do j = 1_ik, porous%n
          st%tau_soil(1_ik + j) = soil_theta_to_unknown(porous%curve(j), porous%ice(j),                               &
-                                                       (st%water_soil(1_ik + j) + porous%deficit(j))                 &
-                                                       / (rho_h2o * porous%depth(j)))
+                                                       st%water_soil(1_ik + j) / (rho_h2o * porous%depth(j)))
       end do
       do k = 1_ik, profile%n_active
          st%tau_soil(soff + k) = soil_theta_to_unknown(profile%layer_curve(k), ice(k),                             &
@@ -646,7 +645,6 @@ contains
       else if (c <= soff) then
          call soil_water_relations(drive%porous%curve(c - 1_ik), drive%porous%ice(c - 1_ik), tau, psi, dpsi, w, dw,   &
                                    kc, dkc)
-         w = w - drive%porous%deficit(c - 1_ik)   ! a layer below its residual: its curve's water less the lack
       else
          call soil_water_relations(profile%layer_curve(c - soff), drive%ice(c - soff), tau, psi, dpsi, w, dw, kc, dkc)
       end if
