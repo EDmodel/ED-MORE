@@ -132,6 +132,10 @@ struct_lignin_frac     = [0.25, 0.25]
 # (make_tonzi_census.py), with lai_b2 = 0.
 height_allometry = "power"
 hgt_max    = [16.6, 0.3]              # [m]
+# The crown's base over the height, which a snow pack buries from: the oaks at the default; the grass's
+# leaves rise from its base, CLM5's grass canopy bottom over top, 0.01 m over 0.5 m (CLM5 tech note,
+# Table 2.2.2).
+crown_base_fraction = [0.5, 0.02]       # [-]
 b1Ht       = -0.17154
 b2Ht       = 0.74112
 agb_c1     = 0.03365
