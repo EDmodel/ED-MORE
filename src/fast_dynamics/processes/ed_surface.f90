@@ -17,7 +17,7 @@
 !---~---
 module ed_surface
    use ed_kinds,                only : wp, ik
-   use ed_constants,            only : t_3ple, tiny_num, cp_air, cp_ice, cp_liq, stefan_boltzmann, &
+   use ed_constants,            only : t_3ple, tiny_num, cp_air, cp_ice, cp_liq, cp_vap, stefan_boltzmann, &
                                        latent_heat_fusion, tsupercool_liq, rho_h2o
    use ed_therm_lib,            only : internal_energy_to_temp, sat_specific_humidity,                        &
                                        sat_specific_humidity_temp_deriv, enthalpy_vapor,           &
@@ -27,7 +27,7 @@ module ed_surface
    use ed_ground_surface_params, only : water_material_t, N_POROUS
    use ed_linear_algebra,       only : thomas_solve
    use ed_numerics,             only : root_bracket_t, regula_falsi_point, illinois_narrow
-   use ed_soil_hydr_lib,        only : soil_layer_curve_t, soil_liquid_capacity
+   use ed_soil_hydr_lib,        only : soil_layer_curve_t
    use ed_ground_surface_lib,   only : water_layer_cover, water_layer_albedo, water_layer_depth,              &
                                        water_layer_free_water, water_layer_resistance, water_layer_bulk_density, &
                                        matrix_depth_update, porous_energy_state, film_on_porous_layer
@@ -71,11 +71,11 @@ module ed_surface
    !---~---
    !   One porous layer as the stack's balance reads it over a step: its dry heat capacity (none
    ! where there is no layer), its depth and its freezing curve (its retention curve at its
-   ! depth), on which its energy holds its water's phase; the water it holds over the step, the
-   ! water network's end water with its own evaporation not yet gone; its energy, temperature and
-   ! liquid fraction at the step's start; its thermal resistance top to bottom; its evaporation,
-   ! the water network's, held over the step per unit ground area; and the water network's net
-   ! flow over the step out of its bottom, into the next layer below or the soil (< 0: up into it).
+   ! depth), on which its energy holds its water's phase; the water it keeps over the step, the
+   ! water network's end water, its own evaporation gone; its energy, temperature and liquid
+   ! fraction at the step's start; its thermal resistance top to bottom; its evaporation, the
+   ! water network's, held over the step per unit ground area; and the water network's net flow
+   ! over the step out of its bottom, into the next layer below or the soil (< 0: up into it).
    !---~---
    type :: porous_node_env_t
       real(wp) :: dry_cap    = 0.0_wp                   ! [J/m2/K]
@@ -157,7 +157,8 @@ module ed_surface
 
    !---~---
    !   One node of the ground's surface, the water layer, the litter or the moss, as its balance
-   ! over a step reads it: its water over the step and its energy at the step's start, with its
+   ! over a step reads it: its water over the step (a porous layer's what it keeps, its held
+   ! vapour apart: node_linearization) and its energy at the step's start, with its
    ! temperature and liquid fraction there, the point its exchange is linearized about, and the law
    ! its energy holds its water's phase by: pure water's for the water layer, the soil's freezing
    ! curve for a porous layer (docs/science/soil_biophysics.md eq. (15)); the share
@@ -212,13 +213,15 @@ module ed_surface
    !---~---
    !   A node's exchange with the canopy air and its emission, linearized about its temperature at
    ! the step's start: the sensible heat and its slope, its vapour live (and its slope) or held,
-   ! the vapour's latent heat less the water's own energy, and its emission's slope.
+   ! the vapour's latent heat less the water's own energy, the energy a kilogram of its held vapour
+   ! takes from its balance and that energy's slope, and its emission's slope.
    !---~---
    type :: node_lin_t
       real(wp) :: h_n = 0.0_wp, dh_dt = 0.0_wp           ! [W/m2], [W/m2/K]
       real(wp) :: w_n = 0.0_wp, dw_dt = 0.0_wp           ! [kg/m2/s], [kg/m2/s/K] per unit of the node's share
       real(wp) :: vh  = 0.0_wp                           ! [kg/m2/s] held, per unit ground area
       real(wp) :: l_vap = 0.0_wp                         ! [J/kg]
+      real(wp) :: l_held = 0.0_wp, dl_held = 0.0_wp      ! [J/kg], [J/kg/K]
       real(wp) :: demit_dt = 0.0_wp                      ! [W/m2/K]
    end type node_lin_t
 
@@ -536,7 +539,8 @@ contains
       !---~---
       do pass = 1, 2
          r0   = node_exchange(node, lin, node%temp) + link_heat(node, node%temp, node%t_above, node%t_below)
-         drdt = -(a * (lin%demit_dt + lin%dh_dt + lin%l_vap * lin%dw_dt) + node%g_above + node%g_below)   ! < 0
+         drdt = -(a * (lin%demit_dt + lin%dh_dt + lin%l_vap * lin%dw_dt) + lin%dl_held * lin%vh             &
+                  + node%g_above + node%g_below)                                                                ! < 0
          if (node%on_curve) then
             call curve_node_root(node, cd, e0, r0, drdt, dt, t_new, fl_new)
          else
@@ -606,9 +610,17 @@ contains
          do i = 1_ik, n
             call node_linearization(node(i), env, lin(i))
             slope(i) = -(node(i)%area * (lin(i)%demit_dt + lin(i)%dh_dt + lin(i)%l_vap * lin(i)%dw_dt)         &
-                         + node(i)%g_above + node(i)%g_below)
+                         + lin(i)%dl_held * lin(i)%vh + node(i)%g_above + node(i)%g_below)
          end do
+         !---~---
+         !   Newton starts each node at its start temperature: a porous node's energy at the step's
+         ! start holds the water its vapour takes, so it starts less that water's own energy.
+         !---~---
          e = e0
+         do i = 1_ik, n
+            if (node(i)%on_curve .and. node(i)%vapour_held) e(i) = e0(i) - env%dt * node(i)%vapour_rate          &
+                                                                   * water_specific_energy(node(i)%temp, node(i)%fliq)
+         end do
          converged = .false.
          do it = 1_ik, it_max + 1_ik
             call stack_residual(node, lin, n, env%dt, e0, cd, e, t, fl, dtde, res, cap)
@@ -746,14 +758,23 @@ contains
       dtemp = t - node%temp
       phi = node%area * (node%rad - lin%demit_dt * dtemp - lin%h_n - lin%dh_dt * dtemp                          &
                          - lin%l_vap * (lin%w_n + lin%dw_dt * dtemp))                                           &
-            - lin%l_vap * lin%vh
+            - (lin%l_held + lin%dl_held * dtemp) * lin%vh
    end function node_exchange
 
    !---~---
    !   A node's linearization about its temperature at the step's start (node_lin_t): its
    ! sensible heat through the canopy air's conductance, its vapour live from its own saturation
-   ! or the water network's held rate, the vapour's latent heat less the water's own energy
-   ! (from the datum, so a trace of water stays exact), and its emission's slope.
+   ! or held, the vapour's latent heat less the water's own energy (from the datum, so a trace of
+   ! water stays exact), and its emission's slope. The water layer holds the water of its vapour
+   ! over the step: the balance takes the vapour's latent heat and the water leaves with its own
+   ! energy at the node's end state (water_specific_energy), held vapour too (a live vapour past
+   ! what the layer holds is held at what empties it). A porous layer's held vapour is the water
+   ! network's, its water apart from what the layer keeps over the step (node%water): the vapour
+   ! takes its whole enthalpy at the layer's temperature from the layer's energy, and the layer's
+   ! phase law reads what is left. So the vapour reaches the canopy air with its own enthalpy, and
+   ! the layer's balance does not depend on which phase gave it, which on the freezing curve
+   ! would jump by the latent heat of fusion at the curve's onset, where a stage's canopy-air
+   ! balance, its ground's sources jumping, could have no root.
    !---~---
    pure subroutine node_linearization(node, env, lin)
       type(surface_node_t), intent(in)  :: node
@@ -768,26 +789,14 @@ contains
          lin%dw_dt = env%ggnet * env%rho_air * sat_specific_humidity_temp_deriv(node%temp, env%press, node%fliq)
       end if
       lin%demit_dt = emission_slope(node%emiss, node%temp)
-      lin%l_vap    = enthalpy_vapor(node%temp) - node_water_energy(node, node%temp, node%fliq)
+      lin%l_vap    = enthalpy_vapor(node%temp) - water_specific_energy(node%temp, node%fliq)
+      lin%l_held   = lin%l_vap
+      lin%dl_held  = 0.0_wp
+      if (node%on_curve) then
+         lin%l_held  = enthalpy_vapor(node%temp)
+         lin%dl_held = cp_vap
+      end if
    end subroutine node_linearization
-
-   !---~---
-   !   [J/kg] The energy a kilogram of water leaving a node by its vapour takes from it at
-   ! temperature t: the water layer's at its liquid fraction fl; a porous layer's what its law
-   ! gives up at t, its ice while its curve holds less liquid than it has (the liquid stays at the
-   ! curve's), its liquid otherwise.
-   !---~---
-   pure real(wp) function node_water_energy(node, t, fl) result(u)
-      type(surface_node_t), intent(in) :: node
-      real(wp),             intent(in) :: t, fl
-      real(wp) :: liq, dliq
-      u = water_specific_energy(t, fl)
-      if (.not. node%on_curve .or. fl >= 1.0_wp) return
-      u = internal_energy_liquid(t)
-      if (t >= t_3ple) return
-      call soil_liquid_capacity(node%curve, t, liq, dliq)
-      if (liq * rho_h2o * node%depth < node%water) u = cp_ice * t
-   end function node_water_energy
 
    !---~---
    !   A node's fluxes at its temperature t and liquid fraction fl, the node above at t_above and
@@ -806,7 +815,9 @@ contains
       flux%rad       = node%area * (node%rad - lin%demit_dt * dtemp)
       flux%h         = node%area * (lin%h_n + lin%dh_dt * dtemp)
       flux%w_flux    = node%area * (lin%w_n + lin%dw_dt * dtemp) + lin%vh
-      flux%le        = flux%w_flux * (lin%l_vap + node_water_energy(node, t, fl))
+      flux%le        = flux%w_flux * (lin%l_vap + water_specific_energy(t, fl))
+      if (node%on_curve) flux%le = (flux%w_flux - lin%vh) * (lin%l_vap + water_specific_energy(t, fl))           &
+                                   + lin%vh * (lin%l_held + lin%dl_held * dtemp)
       flux%g_below   = node%g_below * (t - node%t_below)
       flux%energy_in = flux%rad - flux%h - flux%le + link_heat(node, t, node%t_above, node%t_below)               &
                        - node%m_out * internal_energy_liquid(t)

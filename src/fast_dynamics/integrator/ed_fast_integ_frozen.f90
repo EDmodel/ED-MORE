@@ -1060,12 +1060,13 @@ contains
    !---~---
    !   The porous layers and the free water as the ground surface's stack reads them over the
    ! march (porous_node_env_t; surface_env_t's free water), from what the water network moved:
-   ! each layer holds its end water with its own evaporation not yet gone, which the update takes
-   ! with the march's energy, as the pack keeps its vapour, so the stack balances the layer with
-   ! the water it held; its dry heat capacity, its energy and temperature at the step's start, its
-   ! thermal resistance at its end water, its evaporation over the step, and the network's net
-   ! flow out of its bottom; the free water's net flow into the ground and its runoff. The heat
-   ! that water carries is the stack's (ground_surface_exchange).
+   ! each layer's record holds its end water with its own evaporation not yet gone, which the
+   ! update takes with the march's energy, and its node the end water it keeps, its vapour
+   ! taking its whole enthalpy from the layer's energy; its dry heat capacity, its energy and
+   ! temperature at the step's start, its thermal resistance at its end water, its evaporation
+   ! over the step, and the network's net flow out of its bottom; the free water's net flow into
+   ! the ground and its runoff. The heat that water carries is the stack's
+   ! (ground_surface_exchange).
    !---~---
    subroutine porous_nodes(params, dt_fast, water, frozen)
       type(ground_surface_layer_params_t), intent(in)    :: params
@@ -1086,7 +1087,7 @@ contains
                node%dry_cap    = cp_organic * layer%matter
                node%depth      = frozen%water_drive%porous%depth(j)
                node%curve      = frozen%water_drive%porous%curve(j)
-               node%water      = layer%water
+               node%water      = water%state%water_soil(1_ik + j)
                node%energy     = layer%energy
                node%temp       = layer%temp
                node%fliq       = layer%fliq

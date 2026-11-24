@@ -50,6 +50,12 @@
 !      solved together: what the nodes take is what they absorb less what they give the air and
 !      the soil; Newton's root is the Gauss-Seidel sweeps' root; a single node's is its own
 !      closed form's.
+!  13. THE FREEZING ONSET: a saturated 3.4 mm litter just above the triple point, evaporating at
+!      the network's rate, between a thin wet pack over a ninth of the ground and wet moss, under
+!      canopy air swept across the temperature at which the litter's own ends at the triple point:
+!      the ground's latent and sensible heat change continuously, with no jump of the litter's
+!      vapour times the latent heat of fusion (3.2 W/m2). The canopy air's balance over such a
+!      jump has no root (a tundra's late-summer snowfall on wet litter).
 ! The energy datum the pack is held in is test_therm_lib's.
 !---~---
 program test_surface
@@ -92,6 +98,7 @@ program test_surface
    call test_insulation()
    call test_stack()
    call test_stack_water()
+   call test_freezing_onset()
 
    call test_report('test_surface')
 
@@ -849,16 +856,21 @@ contains
       node%t_below     = env%t_soil_top
    end function porous_node
 
-   !--- A node's temperature after it takes an exchange over the balance's step.
+   !---~---
+   !   A node's temperature after it takes an exchange over the balance's step: a porous node's
+   ! water is what it keeps, its held vapour apart, and its live vapour leaves from it.
+   !---~---
    real(wp) function committed_temp(node, dt, flux) result(t)
       type(surface_node_t), intent(in) :: node
       real(wp),             intent(in) :: dt
       type(node_flux_t),    intent(in) :: flux
-      real(wp) :: fl
+      real(wp) :: fl, held
       if (node%on_curve) then
+         held = 0.0_wp
+         if (node%vapour_held) held = node%vapour_rate
          call porous_layer_temp((node%energy + dt * flux%energy_in) / node%depth,                                   &
-                                (node%water - dt * flux%w_flux) / (1000.0_wp * node%depth), node%dry_cap / node%depth, &
-                                node%curve, t, fl)
+                                (node%water - dt * (flux%w_flux - held)) / (1000.0_wp * node%depth),                &
+                                node%dry_cap / node%depth, node%curve, t, fl)
          return
       end if
       call internal_energy_to_temp(node%energy + dt * flux%energy_in, node%water - dt * flux%w_flux, node%dry_cap,  &
@@ -1020,5 +1032,49 @@ contains
       node(2)%m_above = env%porous(POROUS_LITTER)%down
       node(2)%m_out   = env%porous(POROUS_MOSS)%down
    end subroutine stack_nodes
+
+   !---~---
+   !   13. The ground's exchange across its litter's freezing onset: the state a tundra's late-summer
+   ! snowfall left, a thin wet pack over 11 % of the ground on a saturated litter just above the
+   ! triple point over wet moss, swept from 271 to 275 K in canopy-air temperatures 0.002 K apart,
+   ! over which the ground's heat changes by about 0.1 W/m2 a step.
+   !---~---
+   subroutine test_freezing_onset()
+      type(ground_surface_layer_params_t) :: o
+      type(surface_env_t)    :: env
+      type(store_exchange_t) :: stores
+      real(wp) :: h_ground, le_ground, g_top, ground_rad, last, jump
+      integer(ik) :: it, fb, i
+      print '(a)', 'test_freezing_onset:'
+      env%dt          = 900.0_wp
+      env%lw_down     = 313.0_wp
+      env%rnet_soil   = -3.3_wp
+      env%ggnet       = 0.0423_wp
+      env%rho_air     = 1.282_wp
+      env%cp_cas      = 1008.0_wp
+      env%press       = 101325.0_wp
+      env%can_shv     = 4.04e-3_wp
+      env%t_soil_top  = 276.53_wp
+      env%r_soil_top  = 0.042_wp
+      env%ground_emiss = 0.95_wp
+      env%pack%water        = 1.05_wp
+      env%pack%energy       = temp_to_internal_energy(0.0_wp, 1.05_wp, t_3ple, 0.1_wp)
+      env%pack%matrix_depth = 3.9e-3_wp
+      env%snowfac   = 0.113_wp
+      env%free_temp = t_3ple
+      env%free_down = 9.7e-6_wp
+      env%porous(POROUS_LITTER) = porous_env(o, POROUS_LITTER, 292.3_wp / cp_organic, 3.314_wp, 273.33_wp)
+      env%porous(POROUS_MOSS)   = porous_env(o, POROUS_MOSS, 4969.1_wp / cp_organic, 51.0_wp, 274.06_wp)
+      env%porous(POROUS_LITTER)%vapour = 9.49e-6_wp
+      env%porous(POROUS_LITTER)%down   = 2.4e-7_wp
+      jump = 0.0_wp
+      do i = 0, 2000
+         env%can_temp = 271.0_wp + 0.002_wp * real(i, wp)
+         call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, stores, it, fb)
+         if (i > 0) jump = max(jump, abs(h_ground + le_ground - last))
+         last = h_ground + le_ground
+      end do
+      call check_true('the freezing onset: the ground''s heat to the canopy air is continuous', jump < 0.5_wp, jump)
+   end subroutine test_freezing_onset
 
 end program test_surface
