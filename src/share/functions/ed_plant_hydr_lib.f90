@@ -69,11 +69,11 @@ module ed_plant_hydr_lib
    !---~---
    !   [K] The span below the triple point over which a layer's roots lose their contact with
    ! its water as it freezes (root_soil_contact): a layer in its zero curtain, just below the
-   ! triple point, still conducts; one a kelvin colder conducts nothing. The cut is CLM4.5's,
-   ! which drops a layer from root water uptake once it is 2 K below freezing (Oleson et al. 2013,
-   ! eq. 8.27); the kelvin over which ours closes has no measured source.
+   ! triple point, still conducts; one 2 K colder conducts nothing, CLM4.5's cut, which drops a
+   ! layer from root water uptake once it is 2 K below freezing (Oleson et al. 2013, eq. 8.27). The
+   ! smooth step between is numerical, so Newton meets no corner.
    !---~---
-   real(wp), parameter :: ROOT_FREEZE_WIDTH = 1.0_wp
+   real(wp), parameter :: ROOT_FREEZE_WIDTH = 2.0_wp
 
 contains
 
