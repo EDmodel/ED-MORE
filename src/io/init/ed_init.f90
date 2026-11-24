@@ -15,19 +15,15 @@ module ed_init
    use ed_time,                  only : ed_time_t, time_to_string
    use ed_config,                only : ed_config_t, INIT_CENSUS, INIT_RESTART
    use ed_soil_derive,           only : top_soil_psi
-   use ed_soil_hydr_lib,         only : soil_theta_to_head
    use ed_therm_lib,             only : temp_to_internal_energy, internal_energy_to_temp
    use ed_cohort_state_vars,     only : set_cohort_tissue_water, hold_cohort_tissue_temps
    use ed_polygon_state_vars,    only : polygon_t
    use ed_slow_update,           only : update_overtopping_lai, max_cohort_count, commit_trait_carbon,  &
-                                        refresh_canopy_depth, follow_porous_layers
+                                        refresh_canopy_depth
    use ed_slow_ledger,           only : slow_ledger_t
    use ed_soil_carbon,           only : soil_carbon_steady_pools
    use ed_patch_state_vars,      only : soil_carbon_state_t, porous_layer_state_t, water_layer_state_t
-   use ed_ground_surface_lib,    only : porous_layer_matter
-   use ed_ground_surface_params, only : N_POROUS, MASS_FROM_METABOLIC_LITTER, MASS_FROM_SITE_DEPTH
-   use ed_biogeochem_params,     only : IP_FAST_GRND
-   use ed_constants,             only : c2b
+   use ed_slow_dynamics,         only : follow_porous_sources
    use ed_slow_state,            only : advance_plant_traits, reacclimate_plant_traits
    use ed_init_bare_ground,      only : init_bare_ground, init_bare_sites, seed_bare_ground, seed_patch_stores, &
                                          N_PATCH_INIT
@@ -161,46 +157,28 @@ contains
          if (verbose) write(*,'(a,f8.3,a)') ' soilc : steady-state spin-up, total = ',            &
             sum(pools%carbon), ' kgC/m2'
       end if
-      if (cfg%init%init_mode /= INIT_RESTART) call seed_porous_layers(poly, cfg)
+      call seed_porous_layers(poly, cfg)
       ok = .true.
    end subroutine init_polygon
 
    !---~---
    !   Each patch's porous layers at the start (docs/science/surface_organic_layer.md), through the
-   ! path the slow step's litter follows (follow_porous_layers), from no layer. Each layer's matter
-   ! comes from its mass_source: the above-ground metabolic litter pool's dry matter, or the site's
-   ! [soil].moss_depth at its bulk density; either a layer only from min_depth. Each slot holds the water
-   ! its curve holds at the top soil layer's matric head, as the water network would bring it to,
-   ! at the top soil layer's temperature, its water's phase its freezing curve's there.
+   ! one path the slow step's follows (follow_porous_sources): a fresh start from no layer, a
+   ! restart from the layers its state file held, so a layer the file lacks, or one its
+   ! mass_source no longer gives, is made or removed. The water the matter brings arrives from
+   ! outside, at the top soil layer's matric head, temperature and liquid fraction.
    !---~---
    subroutine seed_porous_layers(poly, cfg)
       type(polygon_t),   intent(inout) :: poly
       type(ed_config_t), intent(in)    :: cfg
-      real(wp)    :: mass(N_POROUS, poly%patch%n), temp(poly%patch%n)
-      real(wp)    :: head(poly%patch%n), heat(poly%patch%n), water(poly%patch%n)
-      integer(ik) :: ip, k
-      do ip = 1_ik, poly%patch%n
-         associate (surf => poly%site%surface(poly%patch%owner_site(ip)), sc => poly%patch%soil_carbon(ip))
+      real(wp)    :: heat(poly%patch%n), water(poly%patch%n)
+      integer(ik) :: ip
+      if (cfg%init%init_mode /= INIT_RESTART) then
+         do ip = 1_ik, poly%patch%n
             poly%patch%ground_surface(ip)%porous = porous_layer_state_t()
-            do k = 1_ik, N_POROUS
-               associate (m => cfg%ground_surface%porous(k))
-                  mass(k, ip) = 0.0_wp
-                  if (m%mass_source == MASS_FROM_METABOLIC_LITTER)                                          &
-                     mass(k, ip) = porous_layer_matter(c2b * sc%carbon(IP_FAST_GRND), m%bulk_density,           &
-                                                       cfg%ground_surface%min_depth)
-                  if (m%mass_source == MASS_FROM_SITE_DEPTH)                                                &
-                     mass(k, ip) = porous_layer_matter(surf%soil%moss_depth * m%bulk_density, m%bulk_density,   &
-                                                       cfg%ground_surface%min_depth)
-               end associate
-            end do
-            associate (c => surf%soil_profile%layer_curve(1))
-               head(ip) = soil_theta_to_head(c%retention, surf%theta_start(1), c%theta_sat, c%theta_res, c%par_a,   &
-                                             c%par_n)
-            end associate
-            temp(ip) = poly%patch%soil_energy(ip)%soil_temp(1)
-         end associate
-      end do
-      call follow_porous_layers(poly%patch, cfg%ground_surface, mass, temp, head, heat, water)
+         end do
+      end if
+      call follow_porous_sources(poly, cfg, .false., heat, water)
    end subroutine seed_porous_layers
 
    !--- Each site's terrain: the polygon's elevation, flat, unless its [[sites]] table gives its own.

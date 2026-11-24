@@ -26,7 +26,7 @@ module ed_soil_hydr_lib
    !--- Retention curve: theta(head), head(theta) and potential(theta) read-offs.
    public :: SOIL_RETENTION_VG, SOIL_RETENTION_CAMPBELL, VG_PORE_CONNECTIVITY
    public :: soil_head_to_theta, soil_theta_to_head, soil_matric_potential, soil_theta_to_saturation
-   public :: soil_liquid_capacity, curve_kinks, on_curve_corner
+   public :: soil_liquid_capacity, curve_kinks, on_curve_corner, PSI_AIR_DRY
    !---~---
    !   The water relations the soil-plant water solver uses, in the variable it solves
    ! for: a soil layer's saturation (dry) or potential (wet), the pond's head.
@@ -74,6 +74,8 @@ module ed_soil_hydr_lib
    ! none.
    !---~---
    real(wp), parameter :: SE_MIN = 1.0e-9_wp
+   !--- CLM5 eq 5.78: the 'air dry' matric head [m], where a soil counts as dry (CLM5's 1e7 mm).
+   real(wp), parameter :: PSI_AIR_DRY = -1.0e4_wp
    !---~---
    !   The largest logarithm the dry-soil head is evaluated at: e^700 m of head is far
    ! beyond any physical soil and still finite in double precision.

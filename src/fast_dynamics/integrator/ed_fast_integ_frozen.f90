@@ -1115,23 +1115,27 @@ contains
    end function top_porous
 
    !---~---
-   !   [-] The porous layers' wetness, the water they hold over the water they hold saturated, all
-   ! layers together, which the above-ground litter's decomposition reads.
+   !   [-] The porous layers' wetness, all layers together, which the above-ground litter's
+   ! decomposition reads: their saturation above residual, the water they hold beyond their
+   ! residual over what they hold beyond it saturated, as the soil's wetness is read.
    !---~---
    pure real(wp) function porous_layers_wetness(porous, params) result(wet)
       type(porous_layer_state_t),          intent(in) :: porous(:)
       type(ground_surface_layer_params_t), intent(in) :: params
-      real(wp)    :: w, w_sat
+      real(wp)    :: w, w_sat, w_res
       integer(ik) :: k
       w     = 0.0_wp
       w_sat = 0.0_wp
+      w_res = 0.0_wp
       do k = 1_ik, N_POROUS
          if (porous(k)%matter <= 0.0_wp) cycle
          w     = w + porous(k)%water
          w_sat = w_sat + porous_layer_capacity(porous(k)%matter, params%porous(k)%bulk_density,                  &
                                                params%porous(k)%theta_sat)
+         w_res = w_res + porous_layer_capacity(porous(k)%matter, params%porous(k)%bulk_density,                  &
+                                               params%porous(k)%theta_res)
       end do
-      wet = w / max(w_sat, tiny_num)
+      wet = (w - w_res) / max(w_sat - w_res, tiny_num)
    end function porous_layers_wetness
 
 end module ed_fast_integ_frozen

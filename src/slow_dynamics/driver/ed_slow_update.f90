@@ -17,8 +17,7 @@ module ed_slow_update
    use ed_constants,            only : tiny_num, lnexp_min, lnexp_max, almost_one, yr_sec, rho_air_ref, umol_2_kgc, &
                                        cp_organic, rho_h2o
    use ed_therm_lib,            only : internal_energy_to_temp
-   use ed_ground_surface_params, only : ground_surface_layer_params_t, porous_material_t, N_POROUS
-   use ed_soil_hydr_lib,        only : soil_head_to_theta
+   use ed_ground_surface_params, only : ground_surface_layer_params_t, N_POROUS
    use ed_numerics,             only : equal_height_layers, conserved, pair_mean, within_roundoff
    use ed_cohort_state_vars,    only : cohort_block, cohort_deriv_block, set_cohort_size_from_carbon,    &
                                        hold_cohort_tissue_temps, reorder_cohort_block,                   &
@@ -30,7 +29,7 @@ module ed_slow_update
    use ed_patch_state_vars,     only : patch_block, soil_carbon_state_t, blend_patch_stores,             &
                                        add_shed_water, patch_physical_state, DIST_TREEFALL,              &
                                        expand_patch_block, reorder_patch_block, cas_set_depth,           &
-                                       porous_layers_diagnose, porous_layers_spill, porous_layer_energy_at
+                                       porous_layers_diagnose, porous_layers_spill
    use ed_polygon_state_vars,   only : polygon_t, rebuild_cohort_map, assign_cohort_id,                  &
                                        patch_polygon_area, rebuild_patch_map, assign_patch_id
    use ed_allometry_lib,        only : height_to_diameter, carbon_to_structure, GROWTH_GRASS
@@ -285,66 +284,69 @@ contains
    end subroutine commit_soil_carbon
 
    !---~---
-   !   Each patch's porous layers follow their dry matter, target_mass
-   ! (docs/science/surface_organic_layer.md): at a run's start the litter's pool and the site's
-   ! moss, at each slow step the litter's pool. Each layer is a store at its own temperature: its
-   ! matter enters or leaves at that temperature, or at t_new in a layer the matter starts, its
-   ! energy the layer's freezing curve's there (porous_layer_energy_at). Matter that arrives brings
-   ! its water: as much per kilogram as the layer holds, or, in an empty layer, what its curve holds
-   ! at the top soil layer's head (head_new), its phase the curve's at that temperature; that water
-   ! arrives from outside, as a recruit's does, and is declared (water). What a layer then holds beyond its saturation, or all
-   ! its water when its matter is gone, passes to the water layer (porous_layers_spill). heat
-   ! returns each patch's energy in with the matter and its water, which the caller declares. A
-   ! layer whose matter and water are all gone keeps no energy: what it had left is round-off,
-   ! which is asserted, and goes with the heat declared.
+   !   follow_porous_layers -- each patch's porous layers follow their dry matter, target_mass
+   ! (docs/science/surface_organic_layer.md), one operator for the litter and the moss at a run's
+   ! start, at a restart and at every slow step. Matter that arrives enters at the layer's
+   ! temperature, or at the top soil layer's in a layer it starts, its dry heat declared (heat).
+   ! It brings the water its own volume holds at the top soil layer's matric head (theta_arrive,
+   ! per volume of the matter), drawn from the top soil layer with that water's energy there
+   ! (water_energy, per kilogram: the layer's temperature and liquid fraction), a matched pair,
+   ! when draw; at a start, which has no ledger, the water arrives from outside with that energy,
+   ! and is declared with it (water, heat). The top soil layer gives no more than it holds above
+   ! its residual (soil_spare). Matter that leaves takes its dry heat at the layer's temperature
+   ! (declared); its water stays, and what a layer then holds beyond its saturation, or all its
+   ! water when its matter is gone, passes to the water layer (porous_layers_spill). A layer
+   ! whose matter and water are all gone keeps no energy: what it had left is round-off, which is
+   ! asserted, and goes with the heat declared.
    !---~---
-   subroutine follow_porous_layers(patch, params, target_mass, t_new, head_new, heat, water)
+   subroutine follow_porous_layers(patch, params, target_mass, t_new, theta_arrive, water_energy, soil_spare,   &
+                                   soil_dz, draw, heat, water)
       type(patch_block),                   intent(inout) :: patch
       type(ground_surface_layer_params_t), intent(in)    :: params
-      real(wp),               intent(in)    :: target_mass(:,:)   ! [kg/m2] (layer, patch)
-      real(wp),               intent(in)    :: t_new(:)           ! [K] (patch) the top soil layer's
-      real(wp),               intent(in)    :: head_new(:)        ! [m] (patch) the top soil layer's matric head
-      real(wp),               intent(out)   :: heat(:)            ! [J/m2] (patch) in with the matter, out if < 0
-      real(wp),               intent(out)   :: water(:)           ! [kg/m2] (patch) in with the matter
-      type(porous_material_t) :: m
-      real(wp)    :: temp, dm, add, e_in, scale(N_POROUS)
+      real(wp),               intent(in)    :: target_mass(:,:)    ! [kg/m2] (layer, patch)
+      real(wp),               intent(in)    :: t_new(:)            ! [K] (patch) the top soil layer's
+      real(wp),               intent(in)    :: theta_arrive(:,:)   ! [m3/m3] (layer, patch) at its matric head
+      real(wp),               intent(in)    :: water_energy(:)     ! [J/kg] (patch) its water's, as it holds it
+      real(wp),               intent(in)    :: soil_spare(:)       ! [kg/m2] (patch) its water above its residual
+      real(wp),               intent(in)    :: soil_dz(:)          ! [m] (patch) its thickness
+      logical,                intent(in)    :: draw                ! the water comes from it (else from outside)
+      real(wp),               intent(out)   :: heat(:)             ! [J/m2] (patch) in, out if < 0
+      real(wp),               intent(out)   :: water(:)            ! [kg/m2] (patch) in from outside
+      real(wp)    :: temp, dm, add, e_add, q_dry, spare, scale(N_POROUS)
       integer(ik) :: ip, k
       heat(1:patch%n)  = 0.0_wp
       water(1:patch%n) = 0.0_wp
       do ip = 1_ik, patch%n
          if (all(target_mass(1:N_POROUS, ip) == patch%ground_surface(ip)%porous%matter)) cycle
+         spare = soil_spare(ip)
          associate (layer => patch%ground_surface(ip)%porous, water_layer => patch%ground_surface(ip)%water)
             call porous_layers_diagnose(layer, params)
             scale = abs(layer%energy)
             do k = 1_ik, N_POROUS
                if (target_mass(k, ip) == layer(k)%matter) cycle
-               m = params%porous(k)
                temp = layer(k)%temp
                if (layer(k)%matter <= 0.0_wp) temp = t_new(ip)
-               !--- The matter that arrives brings its water.
-               dm  = target_mass(k, ip) - layer(k)%matter
-               add = 0.0_wp
-               if (dm > 0.0_wp) then
-                  if (layer(k)%matter > 0.0_wp) then
-                     add = layer(k)%water * (target_mass(k, ip) / layer(k)%matter - 1.0_wp)
-                  else
-                     add = soil_head_to_theta(m%retention, head_new(ip), m%theta_sat, m%theta_res, m%curve_par_a,      &
-                                              m%curve_par_n) * rho_h2o * target_mass(k, ip) / m%bulk_density
-                  end if
+               dm    = target_mass(k, ip) - layer(k)%matter
+               q_dry = cp_organic * dm * temp
+               add   = 0.0_wp
+               if (dm > 0.0_wp) add = theta_arrive(k, ip) * rho_h2o * dm / params%porous(k)%bulk_density
+               if (draw) then
+                  add   = max(0.0_wp, min(add, spare))
+                  spare = spare - add
                end if
-               if (target_mass(k, ip) > 0.0_wp) then
-                  e_in = -porous_layer_energy_at(layer(k), m, temp)          ! none for a layer the matter starts
-                  layer(k)%matter = target_mass(k, ip)
-                  layer(k)%water  = layer(k)%water + add
-                  e_in = e_in + porous_layer_energy_at(layer(k), m, temp)
+               e_add = add * water_energy(ip)
+               layer(k)%matter = target_mass(k, ip)
+               layer(k)%water  = layer(k)%water + add
+               layer(k)%energy = layer(k)%energy + q_dry + e_add
+               scale(k) = scale(k) + abs(q_dry) + abs(e_add)
+               heat(ip) = heat(ip) + q_dry
+               if (draw) then
+                  patch%soil_water(ip)%theta(1)        = patch%soil_water(ip)%theta(1) - add / (rho_h2o * soil_dz(ip))
+                  patch%soil_energy(ip)%soil_energy(1) = patch%soil_energy(ip)%soil_energy(1) - e_add / soil_dz(ip)
                else
-                  e_in = -cp_organic * layer(k)%matter * temp                ! its water stays, to pass on
-                  layer(k)%matter = 0.0_wp
+                  heat(ip)  = heat(ip) + e_add
+                  water(ip) = water(ip) + add
                end if
-               scale(k) = scale(k) + abs(e_in)
-               layer(k)%energy = layer(k)%energy + e_in
-               heat(ip)  = heat(ip) + e_in
-               water(ip) = water(ip) + add
             end do
             call porous_layers_spill(layer, params, water_layer)
             do k = 1_ik, N_POROUS

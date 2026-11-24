@@ -17,7 +17,8 @@ module ed_slow_dynamics
    use ed_kinds,                only : wp, ik
    use ed_config,               only : ed_config_t
    use ed_time,                 only : ed_time_t, day_of_year
-   use ed_constants,            only : c2b
+   use ed_constants,            only : c2b, rho_h2o, cp_ice
+   use ed_therm_lib,            only : internal_energy_liquid
    use ed_biogeochem_params,    only : IP_FAST_GRND
    use ed_polygon_state_vars,   only : polygon_t, patch_polygon_area
    use ed_patch_state_vars,     only : soil_carbon_state_t
@@ -42,17 +43,25 @@ module ed_slow_dynamics
                                        fuse_patches, terminate_patches, commit_trait_carbon,             &
                                        commit_soil_carbon, follow_porous_layers
    use ed_slow_diag,            only : open_slow_cohort_rows, write_slow_patch_rows
-   use ed_soil_hydr_lib,          only : soil_theta_to_head
-   use ed_ground_surface_lib,     only : porous_layer_matter
-   use ed_ground_surface_params,  only : N_POROUS, MASS_FROM_METABOLIC_LITTER
+   use ed_soil_hydr_lib,          only : soil_theta_to_head, soil_head_to_theta, soil_layer_curve_t, PSI_AIR_DRY
+   use ed_ground_surface_lib,     only : porous_layer_matter, porous_layer_temp
+   use ed_ground_surface_params,  only : N_POROUS, MASS_FROM_METABOLIC_LITTER, MASS_FROM_SITE_DEPTH
    implicit none
    private
 
    public :: advance_slow_dynamics, advance_boundary_dynamics, settle_tissue_water
-   public :: vegetation_dynamics, restructure_stand
+   public :: vegetation_dynamics, restructure_stand, follow_porous_sources
 
    !--- Patch disturbance runs once a year, so it integrates its yearly rate over this interval.
    real(wp), parameter :: PATCH_DYNAMICS_INTERVAL = 1.0_wp   ! [yr]
+   !---~---
+   !   The search for the head the top soil layer and new porous matter share (common_head): its
+   ! first step down [m], its most tenfold steps (past the air-dry head, where it stops), and its
+   ! most halvings. Numerical choices: the root lies far inside them.
+   !---~---
+   real(wp),    parameter :: HEAD_STEP_MIN    = 1.0e-3_wp
+   integer(ik), parameter :: HEAD_BRACKET_MAX = 12_ik
+   integer(ik), parameter :: HEAD_BISECT_MAX  = 60_ik
 
 contains
 
@@ -67,7 +76,8 @@ contains
       type(slow_ledger_t), intent(inout) :: ledger   ! the slow ledger; an inactive one books nothing
       type(ed_time_t),   intent(in), optional :: step_start   ! the slow step's start (its day of year)
       type(soil_carbon_state_t), allocatable :: soil_pools(:)
-      integer(ik) :: k
+      real(wp),                  allocatable :: heat(:), water(:)
+      integer(ik) :: ip
 
       call slow_ledger_open(ledger, poly, cfg, step_start)
 
@@ -89,47 +99,142 @@ contains
       if (cfg%soil_carbon%soil_carbon_on) then
          call advance_soil_carbon(poly, cfg, ledger, soil_pools)
          call commit_soil_carbon(poly%patch, soil_pools)
-         if (any([(cfg%ground_surface%porous(k)%mass_source == MASS_FROM_METABOLIC_LITTER, k = 1_ik, N_POROUS)])) &
-            call litter_follows_pools(poly, cfg, ledger)
       end if
+      !--- The porous layers follow their matter, the water it brings drawn from the top soil layer; the dry heat declared.
+      allocate(heat(poly%patch%n), water(poly%patch%n))
+      call follow_porous_sources(poly, cfg, .true., heat, water)
+      call slow_ledger_declare(ledger, energy_in = sum([(patch_polygon_area(poly, ip) * heat(ip),                 &
+                                                         ip = 1_ik, poly%patch%n)]))
       call slow_ledger_mark(ledger, poly, cfg, SLOW_PHASE_SOILC)
       call clear_litter(poly)
    end subroutine advance_slow_dynamics
 
    !---~---
-   !   The porous layer whose matter comes from the above-ground metabolic litter pool follows it
-   ! (the structural pool, which holds the coarse woody debris, waits for a fine-litter split),
-   ! which the soil-carbon step has just advanced (docs/science/surface_organic_layer.md), as a
-   ! layer only from min_depth; the other layers keep their matter. The energy and the water the
-   ! dry matter brings or takes are declared.
+   !   follow_porous_sources -- each patch's porous layers follow the matter their mass_source gives
+   ! (docs/science/surface_organic_layer.md): the above-ground metabolic litter pool's dry matter
+   ! (the structural pool, which holds the coarse woody debris, waits for a fine-litter split), a
+   ! site's [soil].moss_depth at the material's bulk density, or none, each a layer only from
+   ! min_depth (porous_layer_matter), at a run's start, at a restart and at every slow step
+   ! (follow_porous_layers). The matter that arrives brings the water its own volume holds at a
+   ! matric head, with the energy that water has in the top soil layer, at that layer's
+   ! temperature and liquid fraction. During a run it is drawn from the top soil layer (draw), at
+   ! the head the two share once it has left the layer (common_head), so a large fall of litter
+   ! on dry soil takes what the soil can give, never drawing it below its air-dry head; the
+   ! layer's temperature and liquid fraction are then read again from its energy. At a start it arrives
+   ! from outside, at the head the top soil layer's liquid gives (on its freezing curve where it
+   ! is frozen). heat and water return what each patch took from outside, which the caller
+   ! declares.
    !---~---
-   subroutine litter_follows_pools(poly, cfg, ledger)
-      type(polygon_t),     intent(inout) :: poly
-      type(ed_config_t),   intent(in)    :: cfg
-      type(slow_ledger_t), intent(inout) :: ledger
-      real(wp)    :: mass(N_POROUS, poly%patch%n), t_new(poly%patch%n), head(poly%patch%n), heat(poly%patch%n)
-      real(wp)    :: water(poly%patch%n)
+   subroutine follow_porous_sources(poly, cfg, draw, heat, water)
+      type(polygon_t),   intent(inout) :: poly
+      type(ed_config_t), intent(in)    :: cfg
+      logical,           intent(in)    :: draw
+      real(wp),          intent(out)   :: heat(:), water(:)   ! [J/m2], [kg/m2] (patch)
+      real(wp)    :: mass(N_POROUS, poly%patch%n), theta_in(N_POROUS, poly%patch%n)
+      real(wp)    :: t_new(poly%patch%n), u_water(poly%patch%n), spare(poly%patch%n), dz(poly%patch%n)
+      real(wp)    :: head, t1, fl1
+      real(wp)    :: th_liq_top, dz_top, arriving(N_POROUS)   ! common_head's: the top soil layer, the matter arriving
+      type(soil_layer_curve_t) :: c_top
       integer(ik) :: ip, k
       do ip = 1_ik, poly%patch%n
-         do k = 1_ik, N_POROUS
-            associate (m => cfg%ground_surface%porous(k))
-               mass(k, ip) = poly%patch%ground_surface(ip)%porous(k)%matter
-               if (m%mass_source == MASS_FROM_METABOLIC_LITTER)                                              &
-                  mass(k, ip) = porous_layer_matter(c2b * poly%patch%soil_carbon(ip)%carbon(IP_FAST_GRND),        &
-                                                    m%bulk_density, cfg%ground_surface%min_depth)
-            end associate
-         end do
-         t_new(ip) = poly%patch%soil_energy(ip)%soil_temp(1)
-         associate (c => poly%site%surface(poly%patch%owner_site(ip))%soil_profile%layer_curve(1))
-            head(ip) = soil_theta_to_head(c%retention, poly%patch%soil_water(ip)%theta(1), c%theta_sat, c%theta_res,   &
-                                          c%par_a, c%par_n)
+         associate (surf => poly%site%surface(poly%patch%owner_site(ip)), sc => poly%patch%soil_carbon(ip),     &
+                    c => poly%site%surface(poly%patch%owner_site(ip))%soil_profile%layer_curve(1),           &
+                    theta1 => poly%patch%soil_water(ip)%theta(1))
+            t1  = poly%patch%soil_energy(ip)%soil_temp(1)
+            fl1 = poly%patch%soil_energy(ip)%soil_fliq(1)
+            head = soil_theta_to_head(c%retention, fl1 * theta1, c%theta_sat, c%theta_res, c%par_a, c%par_n)
+            do k = 1_ik, N_POROUS
+               associate (m => cfg%ground_surface%porous(k))
+                  mass(k, ip) = 0.0_wp
+                  if (m%mass_source == MASS_FROM_METABOLIC_LITTER)                                          &
+                     mass(k, ip) = porous_layer_matter(c2b * sc%carbon(IP_FAST_GRND), m%bulk_density,           &
+                                                       cfg%ground_surface%min_depth)
+                  if (m%mass_source == MASS_FROM_SITE_DEPTH)                                                &
+                     mass(k, ip) = porous_layer_matter(surf%soil%moss_depth * m%bulk_density, m%bulk_density,   &
+                                                       cfg%ground_surface%min_depth)
+               end associate
+            end do
+            if (draw) then
+               c_top      = c
+               th_liq_top = fl1 * theta1
+               dz_top     = surf%soil_profile%dz(1)
+               arriving   = max(0.0_wp, mass(:, ip) - poly%patch%ground_surface(ip)%porous%matter)
+               head       = common_head(head)
+            end if
+            do k = 1_ik, N_POROUS
+               associate (m => cfg%ground_surface%porous(k))
+                  theta_in(k, ip) = soil_head_to_theta(m%retention, head, m%theta_sat, m%theta_res, m%curve_par_a, &
+                                                       m%curve_par_n)
+               end associate
+            end do
+            t_new(ip)   = t1
+            u_water(ip) = fl1 * internal_energy_liquid(t1) + (1.0_wp - fl1) * cp_ice * t1
+            dz(ip)      = surf%soil_profile%dz(1)
+            spare(ip)   = max(0.0_wp, fl1 * theta1 - soil_head_to_theta(c%retention, PSI_AIR_DRY, c%theta_sat,       &
+                                                                    c%theta_res, c%par_a, c%par_n)) * rho_h2o * dz(ip)
          end associate
       end do
-      call follow_porous_layers(poly%patch, cfg%ground_surface, mass, t_new, head, heat, water)
-      call slow_ledger_declare(ledger, energy_in = sum([(patch_polygon_area(poly, ip) * heat(ip),            &
-                                                         ip = 1_ik, poly%patch%n)]),                         &
-                               water_in = sum([(patch_polygon_area(poly, ip) * water(ip), ip = 1_ik, poly%patch%n)]))
-   end subroutine litter_follows_pools
+      call follow_porous_layers(poly%patch, cfg%ground_surface, mass, t_new, theta_in, u_water, spare, dz, draw,   &
+                                heat, water)
+      if (.not. draw) return
+      do ip = 1_ik, poly%patch%n
+         associate (prof => poly%site%surface(poly%patch%owner_site(ip))%soil_profile,                           &
+                    se => poly%patch%soil_energy(ip))
+            call porous_layer_temp(se%soil_energy(1), poly%patch%soil_water(ip)%theta(1), prof%dry_heat_capacity(1), &
+                                   prof%layer_curve(1), se%soil_temp(1), se%soil_fliq(1))
+         end associate
+      end do
+   contains
+      !---~---
+      !   [m] The matric head the top soil layer (c_top, its liquid th_liq_top over its depth dz_top)
+      ! and the matter arriving (arriving [kg/m2], per layer) share once the water the matter takes
+      ! has left the layer, at head h1 before: the root of what the matter holds at a head less what
+      ! the layer gives down to it (excess), which falls as the head falls, so the layer is drawn
+      ! down only to where the two agree, and never below its air-dry head (PSI_AIR_DRY), where the
+      ! search stops and the layer gives what it holds above that (follow_porous_layers' spare).
+      ! Bracketed by tenfold steps down from h1 and halved geometrically.
+      !---~---
+      real(wp) function common_head(h1) result(h)
+         real(wp), intent(in) :: h1
+         real(wp)    :: lo, hi, mid
+         integer(ik) :: it
+         h = h1
+         if (.not. any(arriving > 0.0_wp) .or. excess(h1) <= 0.0_wp .or. h1 <= PSI_AIR_DRY) return
+         hi = h1
+         lo = min(h1, -HEAD_STEP_MIN)
+         do it = 1_ik, HEAD_BRACKET_MAX
+            if (excess(lo) <= 0.0_wp .or. lo <= PSI_AIR_DRY) exit
+            hi = lo
+            lo = max(10.0_wp * lo, PSI_AIR_DRY)
+         end do
+         if (excess(lo) > 0.0_wp) then
+            h = lo
+            return
+         end if
+         do it = 1_ik, HEAD_BISECT_MAX
+            mid = -sqrt(lo * min(hi, -HEAD_STEP_MIN))
+            if (excess(mid) > 0.0_wp) then
+               hi = mid
+            else
+               lo = mid
+            end if
+         end do
+         h = lo
+      end function common_head
+      !--- [kg/m2] At head hh, what the arriving matter holds less what the top soil layer gives down to hh.
+      real(wp) function excess(hh)
+         real(wp), intent(in) :: hh
+         integer(ik) :: kk
+         excess = -rho_h2o * dz_top * (th_liq_top - soil_head_to_theta(c_top%retention, hh, c_top%theta_sat,        &
+                                                                       c_top%theta_res, c_top%par_a, c_top%par_n))
+         do kk = 1_ik, N_POROUS
+            associate (m => cfg%ground_surface%porous(kk))
+               excess = excess + soil_head_to_theta(m%retention, hh, m%theta_sat, m%theta_res, m%curve_par_a,          &
+                                                    m%curve_par_n) * rho_h2o * arriving(kk) / m%bulk_density
+            end associate
+         end do
+      end function excess
+   end subroutine follow_porous_sources
 
    !---~---
    !   Advance the vegetation one slow step: phenology, trait plasticity, carbon allocation, the

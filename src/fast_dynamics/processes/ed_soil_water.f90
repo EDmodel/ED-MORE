@@ -16,7 +16,7 @@ module ed_soil_water
    use ed_kinds,              only : wp, ik
    use ed_constants,          only : rho_h2o, grav, grav_head, r_wv, tiny_num, p_std, safe_exp, t_kelvin
    use ed_soil_params,        only : soil_profile_t, soil_params_t, SOIL_BC_AQUIFER
-   use ed_soil_hydr_lib,      only : soil_head_to_theta
+   use ed_soil_hydr_lib,      only : soil_head_to_theta, PSI_AIR_DRY
    use ed_numerics,           only : smooth_max0, smooth_step
    use ed_therm_lib,          only : sat_specific_humidity
    implicit none
@@ -40,8 +40,6 @@ module ed_soil_water
    ! (evaporation_supply).
    !---~---
    real(wp), parameter :: EVAP_SUPPLY_SPAN    = 1.0e-4_wp
-   !--- CLM5 eq 5.78: the 'air dry' matric head [m], where the soil counts as dry (CLM5's 1e7 mm).
-   real(wp), parameter :: PSI_AIR_DRY = -1.0e4_wp
    !---~---
    !   Water vapour's diffusivity in air, D = DVAP_AIR_0 (T/t_kelvin)^DVAP_AIR_TEXP, as CLM5
    ! takes it (Swenson & Lawrence 2014), and the Millington-Quirk (1961) tortuosity
