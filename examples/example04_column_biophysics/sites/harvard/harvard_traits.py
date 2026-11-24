@@ -11,8 +11,8 @@ prints is what those files hold, with its source beside each value.
     basal area, at 0.5 gC per g of dry leaf (SLA = 2 / LMA);
   * the soil column: NEON's HARV megapit (DP1.00096.001) above its dense till, each horizon's van
     Genuchten curve and Ks from its texture by the model's own formulas (Hodnett & Tomasella 2002,
-    Ottoni et al. 2019, coarse fragments after Saxton & Rawls 2006: ed_soil_hydr_lib.f90,
-    soil_texture_to_hydraulics), and the column's one curve as their thickness-weighted mean.
+    Ottoni et al. 2019, coarse fragments after Saxton & Rawls 2006: scripts/prepare_input/soil), and
+    the column's one curve as their thickness-weighted mean.
 
 Usage:
   python harvard_traits.py --data <harvard data>   # the layout of fetch_data.py (hf_archive/, neon/, gwdd/)
@@ -33,10 +33,10 @@ except ImportError:                     # Python < 3.11
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "..", "scripts", "prepare_input", "census"))
+sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "..", "scripts", "prepare_input", "soil"))
 import make_census as mc                # noqa: E402
+import soil_horizons as sh              # noqa: E402
 
-GRAV_HEAD = 9.80665e-3                  # [MPa per m of water head]
-PARTICLE_DENSITY = 2.65                 # [g/cm3] mineral grains and fragments (Saxton & Rawls 2006)
 C_PER_DRY_LEAF = 0.5                    # [gC/g] as ED-MORE's C2B
 # NEON's taxon codes of the stand's species (HF253 code -> NEON taxonID).
 NEON_TAXON = {"querru": "QURU", "acerru": "ACRU", "tsugca": "TSCA", "pinust": "PIST", "pinure": "PIRE",
@@ -95,46 +95,14 @@ def specific_leaf_area(trees, data):
     return sla
 
 
-def vg_theta(head, theta_sat, theta_res, alpha, n):
-    """Van Genuchten water content at a matric head [m, < 0]."""
-    return theta_res + (theta_sat - theta_res) * (1.0 + (alpha * abs(head)) ** n) ** (1.0 / n - 1.0)
-
-
-def horizon_hydraulics(h):
-    """One horizon's curve and Ks: soil_texture_to_hydraulics of ed_soil_hydr_lib.f90."""
-    oc = h["carbonTot"] / 10.0                                                # [%]
-    sand, silt, clay, cec, ph, bd = h["sandTotal"], h["siltTotal"], h["clayTotal"], h["cecdNh4"], h["phH2o"], h["bd"]
-    alpha = math.exp((-2.294 - 3.526 * silt + 2.440 * oc - 0.076 * cec - 11.331 * ph + 0.019 * silt ** 2) / 100.0) \
-        * GRAV_HEAD * 1000.0                                                  # [1/kPa] -> [1/m]
-    n = math.exp((62.986 - 0.833 * clay - 0.529 * oc + 0.593 * ph + 0.007 * clay ** 2 - 0.014 * sand * silt) / 100.0)
-    theta_sat = (81.799 + 0.099 * clay - 31.42 * bd + 0.018 * cec + 0.451 * ph - 0.0005 * sand * clay) / 100.0
-    theta_res = max((22.733 - 0.164 * sand + 0.235 * cec - 0.831 * ph + 0.0018 * clay ** 2
-                     + 0.0026 * sand * clay) / 100.0, 0.0)
-    drainable = max(theta_sat - vg_theta(-0.033 / GRAV_HEAD, theta_sat, theta_res, alpha, n), 1e-30)
-    ksat = 19.31 / 86400.0 * drainable ** 1.948
-    # the fragments: NEON gives their mass in the < 20 mm fraction; their volume from the two densities
-    w = (h["coarseFrag2To5"] + h["coarseFrag5To20"]) / 1000.0
-    rock_volume = (w / PARTICLE_DENSITY) / (w / PARTICLE_DENSITY + (1.0 - w) / bd)
-    ratio = bd / PARTICLE_DENSITY
-    rock_mass = rock_volume / (ratio * (1.0 - rock_volume) + rock_volume)
-    return dict(theta_sat=theta_sat * (1 - rock_volume), theta_res=theta_res * (1 - rock_volume), alpha=alpha, n=n,
-                ksat=ksat * (1 - rock_mass) / (1 - rock_mass * (1 - 1.5 * ratio)), rock_volume=rock_volume)
-
-
 def soil_column(data):
     folder = glob.glob(os.path.join(data, "neon", "DP1.00096.001", "*"))[0]
-    bio = pd.read_csv(glob.glob(os.path.join(folder, "*mgp_perbiogeosample*"))[0]).set_index("horizonName")
-    bulk = pd.read_csv(glob.glob(os.path.join(folder, "*mgp_perbulksample*"))[0]).set_index("horizonName")
-    rows = []
-    for name in SOIL_HORIZONS:
-        h = bio.loc[name].to_dict()
-        h["bd"] = float(bulk.loc[name, "bulkDensExclCoarseFrag"])
-        r = horizon_hydraulics(h)
-        r.update(horizon=name, top=h["biogeoTopDepth"] / 100.0, bottom=h["biogeoBottomDepth"] / 100.0,
-                 sand=h["sandTotal"], clay=h["clayTotal"], oc=h["carbonTot"], bd=h["bd"])
-        rows.append(r)
-    t = pd.DataFrame(rows).set_index("horizon")
-    print("soil horizons, NEON megapit (DP1.00096.001), the model's texture formulas:")
+    t = sh.read_megapit(folder).loc[SOIL_HORIZONS]
+    for name, h in t.iterrows():
+        r = sh.horizon_hydraulics(h["sand"], h["silt"], h["clay"], h["oc"], h["cec"], h["ph"], h["bd"], h["rock_volume"])
+        for key in ("theta_sat", "theta_res", "alpha", "n", "ksat"):
+            t.loc[name, key] = r[key]
+    print("soil horizons, NEON megapit (DP1.00096.001), the model's texture formulas (oc in %):")
     print(t[["top", "bottom", "sand", "clay", "oc", "bd", "rock_volume", "theta_sat", "theta_res", "alpha", "n",
              "ksat"]].to_string(float_format=lambda v: f"{v:.4g}"))
     w = (t["bottom"] - t["top"]).to_numpy()

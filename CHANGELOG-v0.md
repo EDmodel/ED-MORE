@@ -324,6 +324,9 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   `mean_ground_top_temp_py` (the last three with `_pa` twins); and a run's log ends with the water
   solve's forced sub-steps by reason (`forced[water]`) and the ground stack's Newton iterations and
   fallbacks (`surface stack`). (#100)
+- `scripts/prepare_input/soil/soil_horizons.py`: the model's texture formulas (hydraulic and thermal),
+  CLM5's blend of a mineral soil with peat by its organic fraction, and a reader for NEON's soil pits, shared
+  by the sites' soil scripts; Harvard's `[soil]` values are unchanged. (#TBD)
 
 ### Changed
 
