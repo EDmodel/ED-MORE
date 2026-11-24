@@ -2141,6 +2141,7 @@ contains
       theta = 0.40_wp
       call make_stand(st, 0_ik, theta, 0.0_wp, 0.95_wp, 0.9_wp, 0.0_wp,                                              &
                       org=layers_at(1.0e-2_wp, 0.98_wp, 272.5_wp, 0.06_wp, 0.85_wp, 275.0_wp))
+      call ground_evaporation_setup(soil, sopts, st%drive%ground)   ! as the solve sets it before water_derivs
       ev = st%water%ev(1)
       tau = st%water%state%tau_soil
       !--- The moss saturated; the face reverses with the litter 3.5 cm (the nodes' distance) below the moss's head.
