@@ -49,7 +49,7 @@ module ed_fast_integ_backward_euler
 
    public :: backward_euler_stage, advance_plant_water, advance_surf_water_full
    public :: water_step
-   public :: water_jacobian_error, substep_in_bounds   ! used only by the tests
+   public :: water_jacobian_error, substep_in_bounds, classify_fast_leaves   ! used only by the tests
    public :: newton_surface_solve, surface_source_slopes, surface_jacobian, surface_residual_scaled, &
              SURFACE_NEWTON_MAX                                                        ! used only by the tests
 
@@ -631,6 +631,7 @@ contains
       logical     :: fast(water%nsoil), cut(water%nsoil)   ! the sub-step's eliminated and detached core nodes
       logical     :: held_out(water%nsoil)                 ! the core nodes held out for the rest of the step
       logical     :: was_fast(water%nsoil), was_cut(water%nsoil)   ! the classes of the last accepted sub-step
+      logical     :: fast_leaf(water%ncoh), was_fast_leaf(water%ncoh)   ! each cohort's leaves fast, now and then
       type(water_state_t) :: start_state                   ! a forced sub-step's start, to hold still at
       type(water_flows_t) :: start_flows
 
@@ -648,6 +649,7 @@ contains
       held_out = .false.
       was_fast = .false.
       was_cut  = .false.
+      was_fast_leaf = .false.
 
       t = 0.0_wp
       h = dt
@@ -660,8 +662,8 @@ contains
          tau_soil = water%state%tau_soil
          tau_coh = water%state%tau_coh
          call water_newton_substep(static, profile, soil, hyd, drive, h, atol, scale_soil, scale_coh,           &
-                                   tau_soil, tau_coh, held_out, was_fast, was_cut, water, converged, iters, i_sol,     &
-                                   fast, cut, worst_at, n_unsolved, n_search, n_sweep)
+                                   tau_soil, tau_coh, held_out, was_fast, was_cut, was_fast_leaf, water, converged,     &
+                                   iters, i_sol, fast, cut, fast_leaf, worst_at, n_unsolved, n_search, n_sweep)
          work_count(WORK_WATER_NEWTON) = work_count(WORK_WATER_NEWTON) + iters
          work_count(WORK_WATER_NODE_UNSOLVED) = work_count(WORK_WATER_NODE_UNSOLVED) + n_unsolved
          work_count(WORK_WATER_LINE_SEARCH) = work_count(WORK_WATER_LINE_SEARCH) + n_search
@@ -705,19 +707,20 @@ contains
          call count_classes(cut, WORK_WATER_CUT_POND, WORK_WATER_CUT_SLOT, WORK_WATER_CUT_LAYER)
          was_fast = fast
          was_cut  = cut .and. .not. held_out
+         was_fast_leaf = fast_leaf
          if (converged) then
             !--- A sub-step's balance that is not finite is never committed: the run stops.
             if (.not. finite_evaluation(water%ev(i_sol), tau_soil, tau_coh))                                  &
                error stop 'water_step: a sub-step of the soil-plant water network is not finite'
             call water_commit_substep(drive, h, tau_soil, tau_coh, water%ev(i_sol), water%state, water%flows,  &
-                                      fast, cut, spilled)
+                                      fast, cut, fast_leaf, spilled)
          else
             start_state = water%state
             start_flows = water%flows
             kept = finite_evaluation(water%ev(i_sol), tau_soil, tau_coh)
             if (kept) then
                call water_commit_substep(drive, h, tau_soil, tau_coh, water%ev(i_sol), water%state, water%flows, &
-                                         fast, cut, spilled)
+                                         fast, cut, fast_leaf, spilled)
                kept = substep_in_bounds(water%state, water%ev(i_sol), scale_soil, scale_coh, rtol, atol)
             end if
             if (.not. kept) then
@@ -836,8 +839,8 @@ contains
    ! blocks solved by sweeps are counted (n_unsolved, n_sweep).
    !---~---
    subroutine water_newton_substep(static, profile, soil, hyd, drive, h, atol, scale_soil, scale_coh,             &
-                                   tau_soil, tau_coh, held_out, was_fast, was_cut, water, converged, iters, i_sol,     &
-                                   fast, cut, worst_at, n_unsolved, n_search, n_sweep)
+                                   tau_soil, tau_coh, held_out, was_fast, was_cut, was_fast_leaf, water, converged,     &
+                                   iters, i_sol, fast, cut, fast_leaf, worst_at, n_unsolved, n_search, n_sweep)
       type(fast_static_state_t), intent(in)    :: static
       type(soil_profile_t),      intent(in)    :: profile
       type(soil_params_t),       intent(in)    :: soil
@@ -847,11 +850,13 @@ contains
       real(wp),                  intent(inout) :: tau_soil(:), tau_coh(:,:)   ! start of sub-step in, solution out
       logical,                   intent(in)    :: held_out(:)   ! (nsoil) core nodes held out, detached whatever their links
       logical,                   intent(in)    :: was_fast(:), was_cut(:)   ! (nsoil) the last accepted sub-step's classes
+      logical,                   intent(in)    :: was_fast_leaf(:)          ! (ncoh) its cohorts' leaves' class
       type(water_work_t),        intent(inout) :: water
       logical,                   intent(out)   :: converged
       integer(ik),               intent(out)   :: iters
       integer(ik),               intent(out)   :: i_sol   ! which of water%ev holds the solution
       logical,                   intent(out)   :: fast(:), cut(:)   ! (nsoil) the eliminated and detached nodes
+      logical,                   intent(out)   :: fast_leaf(:)      ! (ncoh) the cohorts whose leaves are fast
       integer(ik),               intent(out)   :: worst_at     ! the store of the last worst imbalance (water_residual)
       integer(ik),               intent(out)   :: n_unsolved   ! node balances left unsolved
       integer(ik),               intent(out)   :: n_search     ! line searches that found no step lowering the merit
@@ -889,6 +894,7 @@ contains
       end if
       call classify_fast(drive, tau_soil, water%sys, water%ev(i_sol), h, tol, scale_soil, was_fast, fast, t_relax,   &
                          at_once)
+      call classify_fast_leaves(water%sys, water%ev(i_sol), h, atol, scale_coh, was_fast_leaf, fast_leaf)
       call inert_groups(water%ev(i_sol), h, tol, scale_soil, was_cut, cut)
       cut  = cut .or. held_out
       fast = fast .and. .not. cut
@@ -1117,6 +1123,35 @@ contains
          if (c < size(held, kind=ik)) f(c) = hysteresis(held(c) .or. held(c + 1_ik))
       end do
    end function face_hysteresis
+
+   !---~---
+   !   Each cohort's leaves at a sub-step's start, classified as a core node is (classify_fast): their
+   ! time to relax, their storage over the flow part of their Jacobian column (the sapflow's slope
+   ! and the transpiration's), fast below FAST_SHARE of the sub-step, with the same hysteresis.
+   ! Leaves relax at once that hold no water to store (leafless), that their outflow at the start
+   ! would empty within the sub-step, or that hold less than their cohort's absolute tolerance: the
+   ! cohort's balance is solved to a share of the water its whole plant holds (water_scales), so the
+   ! water such leaves take from their flows is not resolved and can leave their curve, even past
+   ! empty. A fast leaf takes its water from its curve at the commit, the sapflow closing its
+   ! balance; a slower one keeps the water its flows give it, as any store does.
+   !---~---
+   pure subroutine classify_fast_leaves(sys, ev, h, atol, scale_coh, was_fast, fast)
+      type(arrowhead_system_t), intent(in)  :: sys
+      type(water_tend_t),       intent(in)  :: ev
+      real(wp),                 intent(in)  :: h, atol
+      real(wp),                 intent(in)  :: scale_coh(:,:)   ! (2, ncoh) [kg/m2] each cohort's water scale
+      logical,                  intent(in)  :: was_fast(:)      ! (ncoh) the last accepted sub-step's
+      logical,                  intent(out) :: fast(:)          ! (ncoh)
+      real(wp)    :: big_l, t_relax
+      integer(ik) :: i
+      do i = 1_ik, sys%nb
+         big_l   = abs(sys%d(LEAF, LEAF, i)) + abs(sys%d(WOOD, LEAF, i))
+         t_relax = abs(ev%dwater_coh(LEAF, i)) / max(big_l, tiny_num)
+         if (ev%dwater_coh(LEAF, i) == 0.0_wp .or. -h * ev%inflow_coh(LEAF, i) > ev%water_coh(LEAF, i)        &
+             .or. ev%water_coh(LEAF, i) < atol * scale_coh(LEAF, i) * hysteresis(was_fast(i))) t_relax = 0.0_wp
+         fast(i) = t_relax < FAST_SHARE * h * hysteresis(was_fast(i))
+      end do
+   end subroutine classify_fast_leaves
 
    !---~---
    !   The blocks of eliminated nodes (docs/science/soil_plant_water.md §3, "Node classes"). In a
@@ -1714,19 +1749,20 @@ contains
    !---~---
    !   Accept a sub-step: advance each store's water by the flows themselves, spill the pond above
    ! its capacity, and add what each path moved to the step's amounts. A store whose own balance
-   ! was solved apart -- a block of eliminated core nodes, a cohort's leaves on their one path --
-   ! takes its water from its own curve, and the faces from the block to its neighbour across its
-   ! stronger link (the wood, for the leaves) carry the flows that close each member's balance;
-   ! the neighbour absorbs the block's slack (docs/science/soil_plant_water.md §3,
-   ! "Conservation"). Water only: the heat it carries is the energy solves'.
+   ! was solved apart -- a block of eliminated core nodes, a cohort's fast leaves on their one path
+   ! (classify_fast_leaves) -- takes its water from its own curve, and the faces from the block to
+   ! its neighbour across its stronger link (the wood, for the leaves) carry the flows that close
+   ! each member's balance; the neighbour absorbs the block's slack (docs/science/soil_plant_water.md
+   ! §3, "Conservation"). Water only: the heat it carries is the energy solves'.
    !---~---
-   subroutine water_commit_substep(drive, h, tau_soil, tau_coh, ev, state, flows, fast, cut, spilled)
+   subroutine water_commit_substep(drive, h, tau_soil, tau_coh, ev, state, flows, fast, cut, fast_leaf, spilled)
       type(water_drive_t), intent(in)    :: drive
       real(wp),            intent(in)    :: h, tau_soil(:), tau_coh(:,:)
       type(water_tend_t),  intent(in)    :: ev
       type(water_state_t), intent(inout) :: state
       type(water_flows_t), intent(inout) :: flows
       logical,             intent(in)    :: fast(:), cut(:)   ! the eliminated and the detached core nodes
+      logical,             intent(in)    :: fast_leaf(:)      ! the cohorts whose leaves are fast
       logical,             intent(out)   :: spilled   ! the pond spilled, so its unknown moved
       real(wp) :: spill, sap(size(tau_coh, 2))
       real(wp) :: qf(size(tau_soil)), dinfl(size(tau_soil)), slack(size(tau_soil)), total, carried
@@ -1804,9 +1840,10 @@ contains
          c1 = c2 + 1_ik
       end do
       if (fast(POND) .and. .not. snap(POND)) call drain_only_what_is_held()
-      !--- The flow that closes each leaf's balance at its curve's water.
+      !--- The flow that closes each fast leaf's balance at its curve's water; a slower leaf's is its sapflow's.
       do i = 1_ik, size(tau_coh, 2, kind=ik)
-         sap(i) = (ev%water_coh(LEAF, i) - state%water_coh(LEAF, i)) / h + ev%transp(i)
+         sap(i) = ev%sapflow(i)
+         if (fast_leaf(i)) sap(i) = (ev%water_coh(LEAF, i) - state%water_coh(LEAF, i)) / h + ev%transp(i)
       end do
 
       !---~---
@@ -1819,6 +1856,7 @@ contains
          if (snap(c)) state%water_soil(c) = ev%water_soil(c)
       end do
       do i = 1_ik, size(tau_coh, 2, kind=ik)
+         if (.not. fast_leaf(i)) cycle
          state%water_coh(LEAF, i) = ev%water_coh(LEAF, i)
          state%water_coh(WOOD, i) = state%water_coh(WOOD, i) - h * (sap(i) - ev%sapflow(i))
       end do

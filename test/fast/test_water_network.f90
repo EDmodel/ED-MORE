@@ -19,6 +19,8 @@
 !   8. LEAFLESS        : a cohort with no leaves: its leaf sits at the wood less the crown head.
 !   8a. REFILL BURST   : dwarf shrubs whose wood is 7 % short over saturated soil refill within
 !                        the step, through roots far quicker than any sub-step, forcing none.
+!   8b. FLUSHING LEAVES: leaves holding far less than their cohort's tolerance on its plant take
+!                        their water from their curve: they never pass empty, and water closes.
 !   9. DRY-LAYER STORM : a thin top layer near residual, a stand refilling its wood, then a
 !                        storm: converges, no store leaves its range.
 !  10. SATURATED       : rain on a saturated column ponds, spills, and conserves.
@@ -110,8 +112,9 @@ program test_water_network
                                 WORK_WATER_NODE_UNSOLVED, WORK_WATER_HELD_OUT, WORK_WATER_FORCED_HELD
    use ed_fast_state,    only : derive_cohort_terms
    use ed_fast_integ_derivs, only : set_water_state, water_derivs
-   use ed_fast_integ_backward_euler, only : water_step, water_jacobian_error, substep_in_bounds
-   use ed_plant_hydr_lib,   only : water_curve_t, tissue_psi_to_rwc, tissue_psi_tlp
+   use ed_fast_integ_backward_euler, only : water_step, water_jacobian_error, substep_in_bounds, classify_fast_leaves
+   use ed_fast_integ_control, only : water_scales
+   use ed_plant_hydr_lib,   only : water_curve_t, tissue_psi_to_rwc, tissue_psi_tlp, tissue_water_relations
    use ed_pft_derive,       only : build_kirchhoff_table
    use ed_soil_hydr_lib,     only : SOIL_RETENTION_VG, SOIL_RETENTION_CAMPBELL, soil_theta_to_head, soil_ice_state,  &
                                     soil_liquid_capacity, soil_water_relations, build_soil_layer_curve, soil_ice_t, &
@@ -159,6 +162,7 @@ program test_water_network
    call test_infeasible_demand()
    call test_leafless()
    call test_refill_burst()
+   call test_flushing_leaves()
    call test_dry_layer_storm()
    call test_saturated()
    call test_accuracy()
@@ -710,6 +714,72 @@ contains
       call check_true('refill burst: the wood refilled', st%water%state%tau_coh(WOOD, 1) > 0.99_wp,             &
                       st%water%state%tau_coh(WOOD, 1))
    end subroutine test_refill_burst
+
+   !---~---
+   !   Two canopy trees whose leaves relax slowly (a wood-to-leaf path a hundredth of the
+   ! fixture's), one in full leaf and one flushing, a milligram of leaf per plant: its leaves'
+   ! water (about 3e-8 kg/m2) lies far below the cohort's absolute tolerance on its whole plant's
+   ! water (about 6e-5), which the cohort's balance is solved to a share of. Both leaves relax
+   ! slower than the fast share of a 900 s sub-step; the full ones keep their flows' water, the
+   ! flushing ones take theirs from their curve (classify_fast_leaves). Over a day of
+   ! transpiration no sub-step is forced, the flushing leaves never pass empty and end on their
+   ! curve, and the water closes.
+   !---~---
+   subroutine test_flushing_leaves()
+      type(stand_t) :: st
+      type(water_tend_t) :: ev
+      real(wp) :: theta(soil%n_active), wood_w(2), leaf_w(2), w0, crossed, w_min, psi, dpsi, w_curve, dw
+      real(wp) :: scale_soil(soil%n_active + 1), scale_coh(2, 2), t_relax(2)
+      logical  :: fast(2)
+      integer(ik) :: step, nfail, i
+      theta = 0.30_wp
+      call make_stand(st, 2_ik, theta, 0.0_wp, 1.0_wp, 0.8_wp, 0.0_wp)
+      st%static%height(2)    = st%static%height(1)
+      st%static%bleaf(2)     = 1.0e-6_wp
+      st%static%leaf_area(2) = 16.0_wp * st%static%bleaf(2)
+      call derive_cohort_terms(st%static, hyd, soil)
+      st%static%k_plant(1:2) = 1.0e-2_wp * st%static%k_plant(1:2)
+      associate (s => st%static, lc => hyd%pft(1)%leaf_curve, wc => hyd%pft(1)%wood_curve)
+         leaf_w = s%bleaf(1:2) * lc%water_sat
+         wood_w = s%bwood_water(1:2) * wc%water_sat * ((1.0_wp - wc%apoplast_frac) * 0.8_wp + wc%apoplast_frac)
+      end associate
+      call set_water_state(st%static, soil, hyd, theta, st%drive%ice, 0.0_wp, leaf_w, wood_w, st%water)
+      st%drive%e_demand = 1.0e-9_wp * st%static%nplant(1:2) * st%static%bleaf(1:2) / st%static%bleaf(2)
+      !--- The classes at the start: both slower than the fast share (1 %) of the sub-step.
+      ev = st%water%ev(1)
+      call arrowhead_allocate(st%water%sys, st%water%nsoil, st%water%ncoh, 2_ik)
+      call ground_evaporation_setup(soil, sopts, st%drive%ground)
+      call water_derivs(st%static, soil, sopts, hyd, st%drive, st%water%state%tau_soil, st%water%state%tau_coh,   &
+                        ev, st%water%sys, .true.)
+      call water_scales(st%static, soil, hyd, st%drive%porous, scale_soil, scale_coh)
+      do i = 1_ik, 2_ik
+         t_relax(i) = abs(ev%dwater_coh(LEAF, i))                                                               &
+                      / (abs(st%water%sys%d(LEAF, LEAF, i)) + abs(st%water%sys%d(WOOD, LEAF, i)))
+      end do
+      call check_true('flushing leaves: both relax slower than the fast share of 900 s', minval(t_relax) > 9.0_wp, &
+                      minval(t_relax))
+      call classify_fast_leaves(st%water%sys, ev, 900.0_wp, WATER_ATOL, scale_coh, [.false., .false.], fast)
+      call check_true('flushing leaves: the full leaves keep their flows'' water', .not. fast(1))
+      call check_true('flushing leaves: the flushing leaves take their curve''s', fast(2))
+      w0 = total_water(st)
+      crossed = 0.0_wp
+      nfail = 0_ik
+      w_min = huge(1.0_wp)
+      do step = 1_ik, 96_ik
+         call advance(st, sopts, 900.0_wp)
+         crossed = crossed + boundary_water(st, 900.0_wp)
+         nfail = nfail + st%work(WORK_WATER_NFAIL)
+         w_min = min(w_min, st%water%state%water_coh(LEAF, 2))
+      end do
+      call tissue_water_relations(hyd%pft(1)%leaf_curve, st%static%bleaf(2), st%static%nplant(2),                 &
+                                  st%water%state%tau_coh(LEAF, 2), psi, dpsi, w_curve, dw)
+      call check_int('flushing leaves: no sub-step forced through', nfail, 0_ik)
+      call check_true('flushing leaves: the leaves never pass empty', w_min > 0.0_wp, w_min)
+      call check_close('flushing leaves: the leaves end on their curve', st%water%state%water_coh(LEAF, 2), w_curve, &
+                       1.0e-6_wp * w_curve)
+      call check_close('flushing leaves: change in store = the water crossing the boundary', total_water(st) - w0,  &
+                       crossed, 1.0e-10_wp * w0)
+   end subroutine test_flushing_leaves
 
    !---~---
    !   A dry-layer storm, from a BCI regrowth stand: the top 2.6 cm a hair above residual, a
