@@ -63,15 +63,15 @@ module ed_soil_water
       real(wp) :: snow_free_frac = 1.0_wp                 ! [-] snow-free area fraction (1-snowfac) that evaporates,
                                                           ! an area-weighted tile flux (snow_biophysics.md)
       !---~---
-      !   The porous layers above the soil: their depth as an equivalent path in free air, each
+      !   The porous layers above the store: their depth as an equivalent path in free air, each
       ! layer's depth over its Millington-Quirk tortuosity (0 without one).
       !---~---
       real(wp) :: cover_path = 0.0_wp                     ! [m]
       !--- Set by ground_evaporation_setup from the fields above and the top layer's curve.
       real(wp) :: rv_t            = 0.0_wp   ! [J/kg] R_v T of the ground skin, the scale of Philip's humidity
       real(wp) :: q_sat           = 0.0_wp   ! [kg/kg] saturation specific humidity at the ground skin
-      real(wp) :: theta_init      = 0.0_wp   ! [m3/m3] top-layer water content below which the dry layer forms
-      real(wp) :: theta_span      = 0.0_wp   ! [m3/m3] theta_init less the air-dry water content
+      real(wp) :: theta_init      = 0.0_wp   ! [m3/m3] the store's water content below which its dry layer forms
+      real(wp) :: theta_span      = 0.0_wp   ! [m3/m3] theta_init less the water content at which it is whole
       real(wp) :: dsl_diffusivity = 0.0_wp   ! [m2/s] vapour diffusivity through the dry surface layer
       real(wp) :: r_cover         = 0.0_wp   ! [s/m]  the vapour's resistance through the porous layers
    end type ground_evap_env_t
@@ -140,49 +140,66 @@ contains
    !---~---
    !   The terms of ground_evaporation_rate that depend only on its boundary and the top layer's
    ! curve, so they are computed once for a boundary: R_v T and the saturation humidity at the
-   ! ground skin over liquid at the air's pressure, and the dry surface layer's water-content
-   ! span and vapour diffusivity (docs/science/soil_plant_water.md §3). A frozen layer's ice
-   ! enters through its liquid's potential, which the freezing curve puts at the ice's vapour
-   ! pressure (docs/science/soil_biophysics.md, "Frozen soil").
+   ! ground skin over liquid at the air's pressure, the dry surface layer's water contents and
+   ! vapour diffusivity (dry_layer_setup: it forms below dsl_theta_init of saturation and is
+   ! whole at the air-dry water content), and the porous layers' open pores above it as a
+   ! resistance (docs/science/soil_plant_water.md §3). A frozen layer's ice enters through its
+   ! liquid's potential, which the freezing curve puts at the ice's vapour pressure
+   ! (docs/science/soil_biophysics.md, "Frozen soil").
    !---~---
    pure subroutine ground_evaporation_setup(profile, soil, forcing)
       type(soil_profile_t),    intent(in)    :: profile
       type(soil_params_t),     intent(in)    :: soil
       type(ground_evap_env_t), intent(inout) :: forcing   ! its boundary in, its derived terms set
-      real(wp) :: theta_air, dvap, phi, phi_air, tau
+      real(wp) :: theta_air
       forcing%rv_t  = r_wv * forcing%t_ground
       forcing%q_sat = sat_specific_humidity(forcing%t_ground, forcing%press)
-      !--- The dry surface layer, referenced to the air-dry water content.
       theta_air = soil_head_to_theta(profile%retention, PSI_AIR_DRY, profile%theta_sat(1), profile%theta_res(1),  &
                                      profile%curve_par_a(1), profile%curve_par_n(1))
-      forcing%theta_init = soil%dsl_theta_init * profile%theta_sat(1)
-      dvap    = vapour_diffusivity(forcing%t_ground)
-      phi     = profile%theta_sat(1)
-      phi_air = max(phi - theta_air, tiny_num)
-      tau     = phi_air ** MQ_TORTUOSITY_EXP / max(phi * phi, tiny_num)   ! [-] Millington-Quirk tortuosity
-      forcing%theta_span      = max(forcing%theta_init - theta_air, tiny_num)
-      forcing%dsl_diffusivity = max(dvap * tau, tiny_num)
-      forcing%r_cover         = forcing%cover_path / dvap
+      call dry_layer_setup(soil%dsl_theta_init * profile%theta_sat(1), theta_air, profile%theta_sat(1), forcing)
+      forcing%r_cover = forcing%cover_path / vapour_diffusivity(forcing%t_ground)
    end subroutine ground_evaporation_setup
 
    !---~---
-   !   The boundary a porous layer's evaporation reads, for philip_evaporation: the canopy air
-   ! over the ground (the ground's boundary's), the layer's temperature, and its dried top's path
-   ! for the vapour (porous_cover_path of the dried depth, in free air) as the cover in series. A
-   ! porous layer has no dry surface layer of its own: its dried top is that path.
+   !   The boundary a porous layer's evaporation reads (philip_evaporation through
+   ! dry_layer_resistance): the canopy air over the ground (the ground's boundary's), the layer's
+   ! temperature, the open pores of the porous layers above it as a path in free air
+   ! (porous_cover_path), and its own dried top, by the soil's dry-surface-layer law with the
+   ! layer's own terms: it forms as soon as the layer holds less than saturated and is the whole
+   ! layer when it holds nothing, so the layer's water fills its lower part and the vapour crosses
+   ! the dried rest's open pores (dry_layer_setup with theta_on its porosity, theta_off nothing).
    !---~---
-   pure function slot_evaporation_setup(ground, t_layer, dry_path) result(env)
-      type(ground_evap_env_t), intent(in) :: ground     ! the ground's boundary (the canopy air, its conductance)
-      real(wp),                intent(in) :: t_layer    ! [K] the porous layer's temperature
-      real(wp),                intent(in) :: dry_path   ! [m] its dried top, as a depth of free air
+   pure function slot_evaporation_setup(ground, t_layer, cover_path, porosity) result(env)
+      type(ground_evap_env_t), intent(in) :: ground       ! the ground's boundary (the canopy air, its conductance)
+      real(wp),                intent(in) :: t_layer      ! [K] the porous layer's temperature
+      real(wp),                intent(in) :: cover_path   ! [m] the porous layers above it, as a depth of free air
+      real(wp),                intent(in) :: porosity     ! [m3/m3] its water at saturation
       type(ground_evap_env_t) :: env
       env = ground
-      env%t_ground        = t_layer
-      env%rv_t            = r_wv * t_layer
-      env%q_sat           = sat_specific_humidity(t_layer, ground%press)
-      env%cover_path      = dry_path
-      env%r_cover         = dry_path / vapour_diffusivity(t_layer)
+      env%t_ground   = t_layer
+      env%rv_t       = r_wv * t_layer
+      env%q_sat      = sat_specific_humidity(t_layer, ground%press)
+      env%cover_path = cover_path
+      env%r_cover    = cover_path / vapour_diffusivity(t_layer)
+      call dry_layer_setup(porosity, 0.0_wp, porosity, env)
    end function slot_evaporation_setup
+
+   !---~---
+   !   A store's dry surface layer, the terms of dry_layer_resistance (the Swenson-Lawrence form,
+   ! CLM5 eqs. 5.79-5.80): it forms below theta_on and is whole at theta_off, the vapour crossing
+   ! its open pores at water's diffusivity in air at the store's temperature times their
+   ! Millington-Quirk tortuosity at theta_off.
+   !---~---
+   pure subroutine dry_layer_setup(theta_on, theta_off, porosity, forcing)
+      real(wp),                intent(in)    :: theta_on, theta_off, porosity   ! [m3/m3]
+      type(ground_evap_env_t), intent(inout) :: forcing                         ! its t_ground in, the terms set
+      real(wp) :: phi_air, tau
+      phi_air = max(porosity - theta_off, tiny_num)
+      tau     = phi_air ** MQ_TORTUOSITY_EXP / max(porosity * porosity, tiny_num)   ! [-] Millington-Quirk tortuosity
+      forcing%theta_init      = theta_on
+      forcing%theta_span      = max(theta_on - theta_off, tiny_num)
+      forcing%dsl_diffusivity = max(vapour_diffusivity(forcing%t_ground) * tau, tiny_num)
+   end subroutine dry_layer_setup
 
    !--- [m2/s] Water vapour's diffusivity in air at `temp` [K].
    elemental function vapour_diffusivity(temp) result(dvap)
@@ -235,20 +252,23 @@ contains
    end subroutine philip_evaporation
 
    !---~---
-   !   The top layer's dry surface layer: its resistance to the layer's vapour [s/m] and the
-   ! resistance's slope in the layer's water content, the Swenson-Lawrence form (CLM5 eqs.
-   ! 5.79-5.80), from theta_init down to the air-dry water content, its corner rounded.
+   !   A store's dry surface layer, the one law of the top soil layer and of every porous layer:
+   ! its resistance to the store's vapour [s/m] and the resistance's slope in the store's water
+   ! content, the Swenson-Lawrence form (CLM5 eqs. 5.79-5.80): as deep as depth_max over the span
+   ! from theta_init down to its dry end, its corner rounded, crossed at dsl_diffusivity
+   ! (dry_layer_setup). The top soil layer's depth_max is [soil].dsl_dmax, a porous layer's its own
+   ! depth.
    !---~---
-   pure subroutine dry_layer_resistance(theta1, forcing, soil, r_dry, dr_dry)
-      real(wp),                intent(in)  :: theta1      ! [m3/m3] the water content the dry layer reads
-      type(ground_evap_env_t), intent(in)  :: forcing     ! the boundary, after ground_evaporation_setup
-      type(soil_params_t),     intent(in)  :: soil
+   pure subroutine dry_layer_resistance(theta, depth_max, forcing, r_dry, dr_dry)
+      real(wp),                intent(in)  :: theta       ! [m3/m3] the water content the dry layer reads
+      real(wp),                intent(in)  :: depth_max   ! [m] its depth where the store is dry
+      type(ground_evap_env_t), intent(in)  :: forcing     ! the boundary, after dry_layer_setup
       real(wp),                intent(out) :: r_dry       ! [s/m]
       real(wp),                intent(out) :: dr_dry      ! [s/m per m3/m3]
       real(wp) :: dry, ddry
-      call smooth_max0(forcing%theta_init - theta1, DSL_THETA_WIDTH, dry, ddry)
-      r_dry  = soil%dsl_dmax * dry / forcing%theta_span / forcing%dsl_diffusivity
-      dr_dry = -soil%dsl_dmax * ddry / forcing%theta_span / forcing%dsl_diffusivity
+      call smooth_max0(forcing%theta_init - theta, DSL_THETA_WIDTH, dry, ddry)
+      r_dry  = depth_max * dry / forcing%theta_span / forcing%dsl_diffusivity
+      dr_dry = -depth_max * ddry / forcing%theta_span / forcing%dsl_diffusivity
    end subroutine dry_layer_resistance
 
    !--- ground_evaporation_rate -- the top layer's evaporation: philip_evaporation through its dry surface layer.
@@ -261,7 +281,7 @@ contains
       real(wp),               intent(out) :: de_dtheta   ! [kg/m2/s per m3/m3]
       real(wp),               intent(out) :: de_dpsi     ! [kg/m2/s per MPa]
       real(wp) :: r_dry, dr_dry
-      call dry_layer_resistance(theta1, forcing, soil, r_dry, dr_dry)
+      call dry_layer_resistance(theta1, soil%dsl_dmax, forcing, r_dry, dr_dry)
       call philip_evaporation(psi1, r_dry, dr_dry, forcing, e_soil, de_dtheta, de_dpsi)
    end subroutine ground_evaporation_rate
 

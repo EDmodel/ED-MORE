@@ -631,8 +631,8 @@ module ed_fast_integ_types
    !   The porous layers in the network, top down (docs/science/surface_organic_layer.md, Water):
    ! each node's layer (POROUS_LITTER, POROUS_MOSS), its retention curve and ice, held over the
    ! step, its depth and its water at the step's start, the water it lacks of its residual, and the
-   ! boundary the top one evaporates to, by the soil's law. n = 0 without a porous layer: the
-   ! network is the pond and the soil.
+   ! boundary it evaporates to, by the soil's law, through the porous layers above it. n = 0
+   ! without a porous layer: the network is the pond and the soil.
    !---~---
    type :: water_porous_t
       integer(ik) :: n = 0_ik                            ! porous layers in the network
@@ -642,7 +642,7 @@ module ed_fast_integ_types
       real(wp) :: depth(N_POROUS) = 0.0_wp               ! [m]
       real(wp) :: water(N_POROUS) = 0.0_wp               ! [kg/m2] at the step's start, liquid and ice
       real(wp) :: deficit(N_POROUS) = 0.0_wp             ! [kg/m2] the water it lacks of its residual
-      type(ground_evap_env_t) :: air                     ! the top one's evaporation boundary (slot_evaporation_setup)
+      type(ground_evap_env_t) :: air(N_POROUS)           ! node j's evaporation boundary (slot_evaporation_setup)
    end type water_porous_t
 
    !---~---

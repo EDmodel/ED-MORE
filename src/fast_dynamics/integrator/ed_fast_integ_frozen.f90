@@ -808,21 +808,19 @@ contains
    ! water; its ice what its energy holds on its freezing curve, the soil's law, held over the step
    ! as a frozen soil layer's, so the network's liquid is the energy's. The water it lacks of its
    ! residual, if it holds less (litter just arrived, dry), is carried as an offset, so its
-   ! potential is its curve's dry end and its mass exact.
-   ! The top layer evaporates by the soil's law (slot_evaporation_setup) to the canopy air through
-   ! the layers' dried tops, free air through their open pores (porous_cover_path of a dried
-   ! depth), at the top layer's temperature.
+   ! potential is its curve's dry end and its mass exact. Each layer evaporates by the soil's law
+   ! to the canopy air at its own temperature (slot_evaporation_setup), through its own dried top,
+   ! which its water sets over the step, and the open pores of the layers above it, held over the
+   ! step (porous_cover_path), as the top soil layer's vapour crosses them all.
    !---~---
    subroutine porous_network_drive(params, frozen)
       type(ground_surface_layer_params_t), intent(in)    :: params
       type(frozen_t),                      intent(inout) :: frozen
       type(porous_material_t) :: m
-      real(wp)    :: depth, theta, ice, fill, path
-      integer(ik) :: k, k_top
+      real(wp)    :: depth, theta, ice, path
+      integer(ik) :: k
       associate (o => frozen%water_drive%porous, layer => frozen%porous)
          o%n = 0_ik
-         k_top = top_porous(layer)
-         if (k_top == 0_ik) return
          path = 0.0_wp
          do k = 1_ik, N_POROUS
             if (layer(k)%matter <= 0.0_wp) cycle
@@ -835,13 +833,12 @@ contains
             o%curve(o%n)   = porous_layer_curve(m, layer(k))
             theta = layer(k)%water / (rho_h2o * depth)
             o%deficit(o%n) = max(0.0_wp, m%theta_res - theta) * rho_h2o * depth
+            o%air(o%n)     = slot_evaporation_setup(frozen%water_drive%ground, layer(k)%temp, path, m%theta_sat)
+            path  = path + porous_cover_path(depth, theta, m%theta_sat)
             ice   = (1.0_wp - layer(k)%fliq) * theta
             theta = max(theta, m%theta_res)
             o%ice(o%n) = soil_ice_state(o%curve(o%n), ice, theta - ice)
-            fill = porous_layer_fill(layer(k)%water, porous_layer_capacity(layer(k)%matter, m%bulk_density, m%theta_sat))
-            path = path + porous_cover_path(depth * (1.0_wp - fill), 0.0_wp, m%theta_sat)
          end do
-         o%air = slot_evaporation_setup(frozen%water_drive%ground, layer(k_top)%temp, path)
       end associate
    end subroutine porous_network_drive
 

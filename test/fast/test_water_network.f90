@@ -117,7 +117,7 @@ program test_water_network
    use ed_soil_params, only : soil_profile_t, soil_params_t, SOIL_BC_DRAIN, SOIL_BC_AQUIFER
    use ed_soil_derive,        only : build_profile_hydraulics
    use ed_test_soil_grid, only : geometric_layer_bottoms
-   use ed_soil_water,    only : ground_evap_env_t, ground_evaporation_setup, slot_evaporation_setup
+   use ed_soil_water,    only : ground_evap_env_t, ground_evaporation_setup, slot_evaporation_setup, porous_cover_path
    implicit none
 
    !---~---
@@ -310,8 +310,26 @@ contains
          if (frozen) liq = min(theta_moss, frozen_liquid(o%curve(o%n)))
          o%ice(o%n) = soil_ice_state(o%curve(o%n), theta_moss - liq, liq)
       end if
-      o%air   = slot_evaporation_setup(forc, 285.0_wp, 0.0_wp)
+      call porous_air(o, forc, 285.0_wp)
    end function thin_layers
+
+   !---~---
+   !   Each thin layer's evaporation boundary at a temperature, the ground's air over it: through
+   ! its own dried top and the open pores of the layers above it, as the model builds it.
+   !---~---
+   subroutine porous_air(o, ground, temp)
+      type(water_porous_t),    intent(inout) :: o
+      type(ground_evap_env_t), intent(in)    :: ground
+      real(wp),                intent(in)    :: temp
+      real(wp)    :: path, theta
+      integer(ik) :: j
+      path = 0.0_wp
+      do j = 1_ik, o%n
+         o%air(j) = slot_evaporation_setup(ground, temp, path, o%curve(j)%theta_sat)
+         theta = o%water(j) / (rho_h2o * o%depth(j))
+         path  = path + porous_cover_path(o%depth(j), theta, o%curve(j)%theta_sat)
+      end do
+   end subroutine porous_air
 
    !--- The liquid a frozen layer holds at 268 K, on its freezing curve, as a frozen soil layer's.
    real(wp) function frozen_liquid(cv)
@@ -480,6 +498,19 @@ contains
       call make_stand(st, 3_ik, theta, 0.0_wp, 0.9_wp, 0.85_wp, 1.0e-5_wp, leafless=.true.)
       err = water_jacobian_error(st%static, soil, sopts, hyd, st%drive, st%water, 300.0_wp)
       call check_true('jacobian: a leafless cohort', err < 1.0e-5_wp, err)
+      !---~---
+      !   A drying litter over a moss, both evaporating, the moss through the litter's open pores, into
+      ! dry air, under a pond at 2 mm of head: a pond at the litter's own head would sit exactly where
+      ! its wetting face's rounding begins, whose second derivative a difference across it sees.
+      !---~---
+      theta = 0.3_wp
+      call make_stand(st, 2_ik, theta, 2.0_wp, 0.9_wp, 0.85_wp, 1.0e-5_wp,                                        &
+                      org=thin_layers(1.0e-2_wp, 0.40_wp, 0.05_wp, 0.50_wp, .false.))
+      st%water%state%tau_soil(POND) = 2.0e-3_wp
+      st%drive%ground%q_air = 0.002_wp
+      call porous_air(st%drive%porous, st%drive%ground, 290.0_wp)
+      err = water_jacobian_error(st%static, soil, sopts, hyd, st%drive, st%water, 300.0_wp)
+      call check_true('jacobian: a litter and a moss drying, each through its own dried top', err < 1.0e-5_wp, err)
    end subroutine test_jacobian
 
    subroutine test_conservation()
@@ -1573,7 +1604,7 @@ contains
                       org=thin_layers(3.0e-3_wp, 0.03_wp, 0.0_wp, 0.0_wp, .false.))
       call seal_top(st, 2_ik, theta, 0.0_wp)
       st%drive%ground%q_air = 0.005_wp
-      st%drive%porous%air = slot_evaporation_setup(st%drive%ground, 285.0_wp, 0.0_wp)
+      call porous_air(st%drive%porous, st%drive%ground, 285.0_wp)
       nfail = 0_ik
       th_min = 1.0_wp
       do step = 1_ik, 48_ik
@@ -1582,7 +1613,7 @@ contains
          th = st%water%state%water_soil(2) / (rho_h2o * 3.0e-3_wp)
          th_min = min(th_min, th)
          st%drive%porous = thin_layers(3.0e-3_wp, th, 0.0_wp, 0.0_wp, .false.)
-         st%drive%porous%air = slot_evaporation_setup(st%drive%ground, 285.0_wp, 0.0_wp)
+         call porous_air(st%drive%porous, st%drive%ground, 285.0_wp)
          call set_water_state(st%static, soil, hyd,                                                                &
                               st%water%state%water_soil(3:2+soil%n_active) / (rho_h2o * soil%dz(1:soil%n_active)), &
                               st%drive%ice, st%water%state%water_soil(POND),                                       &
@@ -1810,7 +1841,7 @@ contains
       nsweep = 0_ik
       nunsolved = 0_ik
       do step = 1_ik, 96_ik
-         st%drive%porous%air = slot_evaporation_setup(st%drive%ground, 268.0_wp, 0.0_wp)
+         call porous_air(st%drive%porous, st%drive%ground, 268.0_wp)
          w0 = total_water(st)
          call advance(st, sopts, 900.0_wp)
          worst = max(worst, abs((total_water(st) - w0) - boundary_water_thin(st, 900.0_wp)) / max(w0, 1.0_wp))

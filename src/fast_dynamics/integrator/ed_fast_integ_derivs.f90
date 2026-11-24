@@ -521,7 +521,7 @@ contains
          call node_sources(profile, soil, drive, c, ev%water_soil(c), ev%dwater_soil(c), ev%psi_soil(c),            &
                            ev%dpsi_soil(c), ev%k_soil(c), ev%dk_soil(c), ev%inflow_soil(c), dsrc, e, qbot)
          if (with_jacobian) sys%a(c, c) = sys%a(c, c) + dsrc
-         if (c == 2_ik .and. n_porous > 0_ik) ev%porous_evap(1) = e
+         if (c > 1_ik .and. c <= soff) ev%porous_evap(c - 1_ik) = e
          if (c == soff + 1_ik) ev%evap = e
          if (c == nsoil) ev%drain = qbot
       end do
@@ -716,13 +716,14 @@ contains
    !---~---
    !   Core node c's own sources, besides its faces and its roots, added to its net inflow
    ! [kg/m2/s], and their slope in its unknown added to dout, the slope of its outflow: the water
-   ! reaching the pond; the evaporation of the top porous layer, through its dried top, and of the
-   ! top soil layer, through its dry surface layer and the porous layers above it, each by the one
-   ! law (store_evaporation; for the porous layer Philip's humidity at its potential smoothly stops
-   ! where it meets the canopy air's, so a drying layer comes to rest at its equilibrium with the air); and
-   ! the drainage from the bottom layer. evap and drain return the node's. The dry surface layer
-   ! reads the liquid and dsl_theta_init of the ice, so its onset is dsl_theta_init of the pores
-   ! the ice leaves (CLM5's effective porosity).
+   ! reaching the pond; the evaporation of every porous layer and of the top soil layer, each by
+   ! the one law (store_evaporation: Philip's humidity at its potential, smoothly stopping where it
+   ! meets the canopy air's, so a drying store comes to rest at its equilibrium with the air)
+   ! through its own dry surface layer (dry_layer_resistance), which its own water sets, and the
+   ! open pores of the porous layers above it; and the drainage from the bottom layer. evap and
+   ! drain return the node's. A store's dry surface layer reads its liquid and dsl_theta_init of
+   ! its ice (a porous layer's dsl_theta_init being one), so its onset is dsl_theta_init of the
+   ! pores the ice leaves (CLM5's effective porosity).
    !---~---
    pure subroutine node_sources(profile, soil, drive, c, w, dw, psi, dpsi, kc, dkc, inflow, dout, evap, drain)
       type(soil_profile_t), intent(in)    :: profile
@@ -733,22 +734,25 @@ contains
       real(wp),             intent(inout) :: inflow, dout                 ! [kg/m2/s], its slope in the unknown
       real(wp),             intent(out)   :: evap, drain                  ! [kg/m2/s]
       real(wp)    :: de, r_dry, dr_dry, qbot, dqbot_dpsi, dqbot_dk
-      integer(ik) :: nsl, soff
+      integer(ik) :: nsl, soff, j
       nsl  = profile%n_active
       soff = 1_ik + drive%porous%n
       evap  = 0.0_wp
       drain = 0.0_wp
       if (c == POND) inflow = inflow + drive%rain
-      if (c == 2_ik .and. soff > 1_ik) then
-         call store_evaporation(drive%porous%air, psi, dpsi, w, dw, drive%porous%depth(1),                         &
-                                drive%porous%curve(1)%theta_res, drive%porous%curve(1)%theta_sat, 0.0_wp, 0.0_wp,   &
+      if (c > 1_ik .and. c <= soff) then
+         j = c - 1_ik
+         call dry_layer_resistance(w / (rho_h2o * drive%porous%depth(j)), drive%porous%depth(j), drive%porous%air(j),  &
+                                   r_dry, dr_dry)
+         call store_evaporation(drive%porous%air(j), psi, dpsi, w, dw, drive%porous%depth(j),                       &
+                                drive%porous%curve(j)%theta_res, drive%porous%curve(j)%theta_sat, r_dry, dr_dry,    &
                                 evap, de)
          inflow = inflow - evap
          dout   = dout + de
       end if
       if (c == soff + 1_ik) then
          call dry_layer_resistance(w / (rho_h2o * profile%dz(1)) - (1.0_wp - soil%dsl_theta_init) * drive%ice(1)%theta_ice, &
-                                   drive%ground, soil, r_dry, dr_dry)
+                                   soil%dsl_dmax, drive%ground, r_dry, dr_dry)
          call store_evaporation(drive%ground, psi, dpsi, w, dw, profile%dz(1), profile%theta_res(1),                &
                                 profile%theta_sat(1), r_dry, dr_dry, evap, de)
          inflow = inflow - evap
