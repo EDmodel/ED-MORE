@@ -16,7 +16,7 @@
 module ed_fast_integ_backward_euler
    use, intrinsic :: ieee_arithmetic, only : ieee_is_finite, ieee_value, ieee_quiet_nan
    use ed_kinds, only : wp, ik
-   use ed_constants,   only : tiny_num
+   use ed_constants,   only : tiny_num, cp_air, cp_vap, tsupercool_vap
    use ed_soil_heat,   only : soil_heat_env_t, soil_heat_out_t, soil_energy_step_implicit, set_soil_heat_env
    use ed_ground_surface_lib, only : porous_layer_temp
    use ed_patch_state_vars,   only : soil_energy_state_t
@@ -36,7 +36,7 @@ module ed_fast_integ_backward_euler
                                WORK_WATER_BLOCK_SWEEP, WORK_WATER_HELD_OUT, state_init, surface_source_slopes_t,  &
                                water_porous_t
    use ed_site_state_vars, only : site_surface_t
-   use ed_therm_lib, only : cas_enthalpy_to_temp
+   use ed_therm_lib, only : cas_enthalpy_to_temp, cas_heat_capacity
    use ed_numerics,     only : sufficient_decrease, fraction_to_boundary, root_bracket_t, regula_falsi_point,       &
                                illinois_narrow
    use ed_soil_hydr_lib,   only : pond_water_to_head, soil_layer_curve_t, curve_kinks, on_curve_corner
@@ -68,6 +68,13 @@ module ed_fast_integ_backward_euler
    integer(ik), parameter :: SURFACE_NEWTON_MAX = 4_ik
    integer(ik), parameter :: SURFACE_LS_MAX     = 6_ik
    integer(ik), parameter :: SURFACE_FEVAL_MAX  = 24_ik
+   !---~---
+   !   [-] The most of its way to zero a canopy-air Newton step may take the canopy air's humidity
+   ! or its absolute temperature (fraction to the boundary, as STEP_MAX_SHARE in the water
+   ! network's Newton), so every trial the line search evaluates is a state the canopy air can
+   ! hold.
+   !---~---
+   real(wp),    parameter :: SURFACE_STEP_MAX_SHARE = 0.9_wp
    !---~---
    !   Held source slopes are taken afresh after a step on them that converges poorly: one whose
    ! line search had to shorten it, or one that cut the scaled residual by less than
@@ -386,7 +393,7 @@ contains
             delH = (-R_H*J22 + R_q*J12)/detJ
             delq = (-R_q*J11 + R_H*J21)/detJ
          end if
-         lam = 1.0_wp
+         lam = surface_domain_step(Hk, qk, delH, delq)
          rn0 = R_H*R_H + R_q*R_q
          Ht = Hk
          qt = qk
@@ -429,6 +436,25 @@ contains
       ! passes, else the accepted line-search trial. The caller commits the box from it.
       !---~---
    end subroutine newton_surface_solve
+
+   !---~---
+   !   [-] The share of a canopy-air Newton step (dh, dq from the state h, q) the line search starts
+   ! from: the whole step, or less where it would take the canopy air's humidity or its absolute
+   ! temperature more than SURFACE_STEP_MAX_SHARE of its way to zero. The temperature along the
+   ! step, T = (h + q c_v T_v) / c_p(q) (cas_enthalpy_to_temp), is a ratio of two functions linear
+   ! in the share, so the share at which it reaches its floor is in closed form.
+   !---~---
+   pure real(wp) function surface_domain_step(h, q, dh, dq) result(lam)
+      real(wp), intent(in) :: h, q, dh, dq   ! [J/kg], [kg/kg] the state and the step
+      real(wp) :: num0, dnum, den0, dden, t_floor
+      lam = min(1.0_wp, fraction_to_boundary(q, dq, SURFACE_STEP_MAX_SHARE))
+      num0 = h + q * cp_vap * tsupercool_vap
+      dnum = dh + dq * cp_vap * tsupercool_vap
+      den0 = cas_heat_capacity(q)
+      dden = dq * (cp_vap - cp_air)
+      t_floor = (1.0_wp - SURFACE_STEP_MAX_SHARE) * num0 / den0
+      if (dnum - t_floor * dden < 0.0_wp) lam = min(lam, (t_floor * den0 - num0) / (dnum - t_floor * dden))
+   end function surface_domain_step
 
    !---~---
    !   The canopy-air balance's residuals as changes of the canopy air over the stage, each over its
