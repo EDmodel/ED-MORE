@@ -34,14 +34,15 @@ module ed_fast_integ_update
    !---~---
    !   What the update moved besides the march, which the ledgers book: the surface water's
    ! overflow at its capacity and deficit below zero, and their net enthalpy at the tissues'
-   ! start-of-step temperatures, the tissue store (surface water included) before and after, and
-   ! the ground's surface stores at the step's end.
+   ! start-of-step temperatures, the tissue store (surface water included) before and after, the
+   ! ground's surface stores at the step's end, and the vapour the ground gave from ice.
    !---~---
    type :: commit_amounts_t
       real(wp) :: surf_overflow = 0.0_wp, surf_deficit = 0.0_wp   ! [kg/m2]
       real(wp) :: surf_net_enth = 0.0_wp                          ! [J/m2] (overflow - deficit) x u_liq
       real(wp) :: tissue_store0 = 0.0_wp, tissue_store1 = 0.0_wp  ! [J/m2]
       type(ground_store_t) :: surface1                            ! [kg/m2], [J/m2] the ground's surface stores at the end
+      real(wp) :: vapour_ice = 0.0_wp                             ! [kg/m2] the ground's vapour from its frozen share
    end type commit_amounts_t
 
 contains
@@ -141,6 +142,17 @@ contains
                                        - water_layer_ice(dynamic%ground_surface%water)                             &
                                        - acc%stores%vapour_out(STORE_WATER) * (1.0_wp - dynamic%ground_surface%water%fliq)
       out%report%exports%free_water  = frozen%hydrology%free_water1
+      !---~---
+      !   The vapour the ground gave from ice: each store's, the water layer's, each porous layer's
+      ! and the top soil layer's, times its frozen share at the step's end, as the melt above splits
+      ! the water layer's.
+      !---~---
+      moved%vapour_ice = acc%stores%vapour_out(STORE_WATER) * (1.0_wp - dynamic%ground_surface%water%fliq)       &
+                         + frozen%ground%soil_evap * dt_fast * (1.0_wp - dynamic%soil_energy%soil_fliq(1))
+      do k = 1_ik, N_POROUS
+         moved%vapour_ice = moved%vapour_ice + acc%stores%vapour_out(STORE_WATER + k)                             &
+                                               * (1.0_wp - dynamic%ground_surface%porous(k)%fliq)
+      end do
       !--- And the warm start of the next march.
       dynamic%adapt_dt_last = dt_warm
    end subroutine update_dynamic_state
@@ -212,11 +224,12 @@ contains
       report%exports%atm_vap_export  = acc%atm_vap_out
       !---~---
       !   The reported latent heat, booked once: the vapour exported at its latent heat at the
-      ! step's final canopy-air temperature, ice for the snow pack's share of it (sublimation) and
-      ! liquid for the rest. Both LE and the energy budget's outflows read this number.
+      ! step's final canopy-air temperature, ice for the share of it the ground's stores gave from
+      ! their ice (sublimation) and liquid for the rest. Both LE and the energy budget's outflows
+      ! read this number.
       !---~---
       if (acc%atm_vap_out > tiny_num) then
-         fliq = 1.0_wp - min(1.0_wp, max(0.0_wp, acc%stores%vapour_out(STORE_WATER) / acc%atm_vap_out))
+         fliq = 1.0_wp - min(1.0_wp, max(0.0_wp, moved%vapour_ice / acc%atm_vap_out))
       else
          fliq = 1.0_wp
       end if
