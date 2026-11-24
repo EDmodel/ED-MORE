@@ -120,8 +120,10 @@ liquid_holding_frac    = 0.10    # [-]     the layer's mass share its ice holds 
 cover_scale_factor     = 2.5     # [-]     the cover's scale over [aerodynamics].soil_rough (Niu & Yang 2007, eq. 4)
 cover_density_exponent = 1.0     # [-]     the scale's growth with the layer's density: the value Niu & Yang (2007)
                                  #         give for CLM (their 1.6 is a basin fit)
-pond_capacity          = 5.0     # [kg/m2] the pond above which the free water runs off (no verified source;
-                                 #         CLM4.5 holds 10, Oleson et al. 2013)
+pond_capacity          = 5.0     # [kg/m2] the pond above which the free water runs off: no verified source
+                                 #         (CLM's surface water has no fixed capacity, its runoff threshold set by
+                                 #         the slope, and CLM4.5's 10 kg/m2 is the top soil layer's allowance
+                                 #         above saturation before drainage, another store)
 initial_mass           = 0.0     # [kg/m2] the layer at a fresh start
 initial_temp           = 270.0   # [K]     its temperature
 

@@ -257,7 +257,7 @@ The `[ground_surface_layer]` block, every key optional ([configuration](../confi
 | $`\varepsilon_w`$ | `emissivity` | 0.97 | longwave emissivity | CLM5's snow (the same, §2.4), as ED2's |
 | $h$ | `liquid_holding_frac` | 0.10 | the layer's mass share its ice holds as liquid | LEAF-3's 1:9 (Walko et al. 2000), as ED2 percolates |
 | $a$, $m$ | `cover_scale_factor`, `cover_density_exponent` | 2.5, 1.0 | the cover's scale over the ground's roughness, and its growth with density, eq. (5) | Niu & Yang (2007), eq. 4, with the exponent they give for CLM (Oleson et al. 2010, eq. 3.50) |
-| | `pond_capacity` | 5 kg m⁻² | the free water above which it runs off | no verified source (CLM4.5 holds 10 kg m⁻², Oleson et al. 2013) |
+| | `pond_capacity` | 5 kg m⁻² | the free water above which it runs off | no verified source: CLM's surface water has no fixed capacity, its runoff threshold set by the slope (Oleson et al. 2013, §7.3.2), and CLM4.5's 10 kg m⁻² is the top soil layer's allowance above saturation before drainage (the same, §7.6), another store |
 | | `initial_mass`, `initial_temp` | 0 kg m⁻², 270 K | the layer at a fresh start | |
 
 `[ground_surface_layer.litter]` and `[ground_surface_layer.moss]`. Each material's hydraulics are a parameter set the config gives: a retention curve, van Genuchten's or Campbell's, and a saturated conductivity, as a soil layer's.
@@ -309,7 +309,7 @@ Fixed in the code: $`\rho_{ref}`$ = 100 kg m⁻³ in eq. (5) (Niu & Yang 2007's 
 - Niu, G.-Y. & Yang, Z.-L. (2007), *J. Geophys. Res.* 112:D21101, doi:10.1029/2007JD008674 — snow-cover fraction (eq. 4).
 - O'Connor, M. T. et al. (2020), *Geophys. Res. Lett.* 47:e2020GL087646 — the saturated conductivity of the Arctic Foothills' acrotelm.
 - Oleson, K. W. et al. (2010), *Technical Description of version 4.0 of the Community Land Model (CLM)*, NCAR/TN-478+STR, doi:10.5065/D6FB50WZ — the snow-cover fraction's density exponent for CLM (eq. 3.50).
-- Oleson, K. W. et al. (2013), *Technical Description of version 4.5 of the Community Land Model (CLM)*, NCAR/TN-503+STR, doi:10.5065/D6RR1W7M — the bulk density of snow (§2.2.2) and of new snow (eq. 7.21).
+- Oleson, K. W. et al. (2013), *Technical Description of version 4.5 of the Community Land Model (CLM)*, NCAR/TN-503+STR, doi:10.5065/D6RR1W7M — the bulk density of snow (§2.2.2) and of new snow (eq. 7.21); surface water (§7.3.2) and soil ponding (§7.6).
 - Roesch, A., Wild, M., Pinker, R. & Ohmura, A. (2002), *J. Geophys. Res.* 107(D14):4221, doi:10.1029/2001JD000809 — snow albedo on land, the source of ED2's aged-snow albedo.
 - Swenson, S. C. & Lawrence, D. M. (2014), *J. Geophys. Res. Atmos.* 119:10299 — the dry surface layer's resistance to evaporation.
 - Walko, R. L. et al. (2000), *J. Appl. Meteorol.* 39(6):931–944, doi:10.1175/1520-0450(2000)039<0931:CABHMF>2.0.CO;2 — LEAF-3, its snow's liquid holding.
