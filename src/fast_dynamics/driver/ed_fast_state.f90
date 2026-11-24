@@ -105,7 +105,7 @@ contains
       integer(ik),                intent(in)    :: ip
       type(fast_static_state_t),  intent(inout) :: static    ! sized to the largest patch (ensure_static_capacity)
       type(fast_dynamic_state_t), intent(inout) :: dynamic   ! sized to the largest patch (ensure_dynamic_capacity)
-      real(wp)    :: sum_lai, sum_wai, t_leaf_e, t_wood_e
+      real(wp)    :: sum_lai, sum_wai, t_leaf_e, t_wood_e, bend
       integer(ik) :: i0, ncoh, i, j
 
       ncoh = poly%patch%cohort_count(ip)
@@ -129,8 +129,10 @@ contains
       !   Canopy geometry. The open fraction exp(-(LAI + WAI)) weighs bare ground in the ground
       ! conductance (docs/science/canopy_aerodynamics.md eq. (7)), so a patch without cohorts
       ! couples as bare soil; the pack at the window's start buries the canopy's roughness,
-      ! eq. (1). The canopy is at least the height whose roughness is the bare soil's, so a
-      ! patch without cohorts, or with only shorter ones, has the soil's roughness.
+      ! eq. (1), the canopy standing at its tops bent by the pack (crown_exposed_fraction's
+      ! bend), as its crowns' burial reads them. The canopy is at least the height whose roughness
+      ! is the bare soil's, so a patch without cohorts, or with only shorter ones, has the soil's
+      ! roughness.
       !---~---
       sum_lai = 0.0_wp
       sum_wai = 0.0_wp
@@ -140,7 +142,10 @@ contains
       end do
       static%geom%veg_height = cfg%aero%soil_rough / cfg%aero%z0m_ratio
       do j = 1_ik, ncoh
-         static%geom%veg_height = max(static%geom%veg_height, static%height(j))
+         bend = 0.0_wp
+         if (poly%patch%ground_surface(ip)%water%matrix_depth > 0.0_wp)                                         &
+            bend = poly%cohort%pft_table%allom(static%pft(j))%snow_bending
+         static%geom%veg_height = max(static%geom%veg_height, static%height(j) * (1.0_wp - bend))
       end do
       static%geom%opencan_frac = open_canopy_fraction(sum_lai, sum_wai)
       static%geom%snowfac      = canopy_burial_fraction(poly%patch%ground_surface(ip)%water%matrix_depth,           &
@@ -323,6 +328,7 @@ contains
          !--- Per-ground indices: nplant * per-plant area, formed here, never stored.
          static%lai(j)           = cohort%nplant(i) * cohort%leaf_area(i)
          static%wai(j)           = cohort%nplant(i) * cohort%wood_area(i)
+         static%wai_whole(j)     = static%wai(j)
          !--- Carbon pools the fast loop reads (capacitance + thermal stores).
          static%bleaf(j)         = cohort%leaf_carbon(i)
          static%broot(j)         = cohort%fineroot_carbon(i)

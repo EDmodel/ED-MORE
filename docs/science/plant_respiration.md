@@ -56,7 +56,9 @@ $`C_{\mathrm{sap}}`$ the cohort's sapwood carbon [kgC/plant] (the sapwood fracti
 which counts the coarse roots as $`A_{\mathrm{stem}}`$ does through $`f_{\mathrm{ag}}`$), as dry mass
 over the PFT's wood density $\rho$ [g cm⁻³]; $h$ the cohort height [m], $n$ = `nplant`
 $`[\mathrm{plant\,m^{-2}}]`$, and WAI the **per-ground** wood area index (hence the $`/n`$ returning the
-branch term to a per-plant area). The result is per plant
+branch term to a per-plant area), the whole crown's: wood a snow pack buries respires too, as the
+leaves' $R_d$ is the whole leaf area's ([canopy_aerodynamics](canopy_aerodynamics.md), "Snow on the
+canopy"). The result is per plant
 $`[\mathrm{\mu mol\,CO_2\,plant^{-1}\,s^{-1}}]`$; the caller multiplies by `nplant` for the patch total.
 Four details are load-bearing:
 

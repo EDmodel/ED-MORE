@@ -34,7 +34,10 @@ d = c_d\,h\,(1-\mathrm{snowfac}) \qquad(1)
 
 with $`c_{z0}=`$ `z0m_ratio` (0.13, ED2 `vh2vr`), $`c_d=`$ `d_ratio` (0.63, ED2 `vh2dh`) and
 $`z_{0,snow}=`$ `snow_rough`, which also floors $`z_{0m}`$ (`canopy_roughness`). The burial fraction is
-ED2's: the pack's depth over the canopy height, capped at 0.99 (`canopy_burial_fraction`). It is taken
+ED2's: the pack's depth over the canopy height, capped at 0.99 (`canopy_burial_fraction`). While a pack
+lies on the canopy, its height is its tallest top bent by the pack, $`\max h\,(1-b)`$ over the cohorts, as
+their crowns' burial reads it (eq. (1b)), so a pack that buries a crown's top buries the canopy's
+roughness too. It is taken
 from the pack at the start of the forcing window, and the roughness is fixed for the window. It is
 distinct from the ground's snow-cover fraction ([snow_biophysics](snow_biophysics.md)). The height
 above the displacement, $`z_{ldis}=\max(z_{ref}-d,\,2z_{0m})`$, is the surface-layer thickness the
@@ -59,7 +62,10 @@ pack below the crown. The leaves and wood under the pack leave the canopy for th
 cohort's LAI and WAI become their exposed shares, so the two-stream, the gas exchange, the
 transpiration, the open fraction $W$, the interception and the tissues' exchange all see only what
 stands above the snow, and the buried part's ground is the pack's. Its gross photosynthesis is that
-of its exposed leaves. Its phenology cues read its own environment: no light while it is wholly
+of its exposed leaves, and its leaves' transpiration is reported per area of those leaves, as their
+photosynthesis is. Its respiration is the whole crown's: its leaves' and its stem's, the stem's surface
+from its whole wood area, buried or not ([plant_respiration](plant_respiration.md)). Its phenology cues
+read its own environment: no light while it is wholly
 buried, and a temperature blended from the canopy air and, for its buried share, the ground's
 surface under the pack ([plant_phenology](plant_phenology.md) §2). The defaults (CLM5's canopy
 bottom over top, 0.5, for its temperate trees; no bending) leave a tree taller than twice the pack

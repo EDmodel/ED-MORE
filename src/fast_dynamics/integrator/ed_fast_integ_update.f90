@@ -102,10 +102,13 @@ contains
                                 dynamic%leaf_surf_water, dynamic%wood_surf_water, t_buried, dynamic%leaf_energy,  &
                                 dynamic%wood_energy, dynamic%leaf_temp, dynamic%wood_temp, moved%tissue_store0,   &
                                 moved%tissue_store1)
-      !--- Each cohort's transpiration over the step, as the leaf water was debited.
+      !---~---
+      !   Each cohort's transpiration over the step, as the leaf water was debited, per area of the
+      ! leaves above the snow pack that transpire it, as their photosynthesis is reported.
+      !---~---
       if (out%capture .and. allocated(acc%transp_coh))                                                       &
          out%cdiag(CO_TRANSP, 1:n) = transp_per_leaf_area(acc%transp_coh(1:n), dt_fast, static%nplant(1:n),     &
-                                                          static%leaf_area(1:n))
+                                                          static%leaf_area(1:n) * static%exposed(1:n))
       !---~---
       !   The water layer takes its exchange over the march, the energy and vapour the canopy air
       ! and the soil received from it (docs/science/snow_biophysics.md §The snow store) and the heat
