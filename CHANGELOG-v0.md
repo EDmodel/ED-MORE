@@ -202,8 +202,11 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   layer's free water and freezes in it; the canopy intercepts rain only, its snowfall passing to the
   ground; a pack buries the crowns it reaches; and the above-ground litter decays at the litter's
   temperature and moisture. Litter is on by default, so every run with litter pools moves. Example
-  04's first year, beta against this release with gfortran: BCI LE [P5] and H [P5] W/m²; Harvard LE
-  [P5] and H [P5] (with #99's census); Tonzi LE [P5], H [P5] and net radiation [P5]. (#100)
+  04's first year at its default parameters, beta against this release with gfortran: BCI LE 77.8 to
+  76.6 and H 62.2 to 63.3 W/m² (GPP −0.1 %); Harvard LE 53.9 to 57.8 and H 35.8 to 32.6 W/m² (GPP
+  −1.5 %; with #99's census); Tonzi LE 41.4 to 42.7, H 46.2 to 47.4 and net radiation 84.2 to 86.3 W/m²
+  (GPP −1.1 %). Examples 02 (its Harvard stand), 04 (BCI and Harvard), 05 and 07 are refit and rerun on
+  this release; their READMEs give the results. (#100)
 - A soil's solids conduct heat by their quartz content, the geometric mean of quartz (7.7 W m⁻¹ K⁻¹)
   and the other minerals (2.0), with the quartz taken as the sand and silt and clay counting with the
   other minerals (Johansen 1975; Peters-Lidard et al. 1998; docs/science/soil_biophysics.md eq. (9)).
