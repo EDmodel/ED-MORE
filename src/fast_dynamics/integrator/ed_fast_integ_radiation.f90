@@ -3,7 +3,7 @@
 !   ed_fast_integ_radiation -- the step's radiation: the sky (fast_forcing_t's) through the
 ! two-stream canopy onto the ground as the ground's stage left it, so the canopy, the ground's
 ! optics and its surface's balance see one ground (docs/science/canopy_radiation_transfer.md
-! §4, docs/science/snow_biophysics.md, "The ground's radiation").
+! §4, docs/science/ground_surface_layers.md, "The ground's radiation").
 !---~---
 module ed_fast_integ_radiation
    use ed_kinds,             only : wp, ik

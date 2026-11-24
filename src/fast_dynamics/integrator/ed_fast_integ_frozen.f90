@@ -117,7 +117,7 @@ contains
 
       !---~---
       !   The processes' rates at the start state. The ground's surface is the top porous layer
-      ! where there is one (docs/science/surface_organic_layer.md): the aerodynamics and the
+      ! where there is one (docs/science/ground_surface_layers.md §7): the aerodynamics and the
       ! litter's decomposition read its temperature, the soil's own evaporation the top soil node's.
       !---~---
       t_soil_top = dynamic%soil_energy%soil_temp(1)
@@ -841,7 +841,7 @@ contains
    end subroutine buried_tissue_store
 
    !---~---
-   !   The porous layers as nodes of the water network (docs/science/surface_organic_layer.md,
+   !   The porous layers as nodes of the water network (docs/science/ground_surface_layers.md §4,
    ! Water), top down, every layer that holds matter: its retention curve at its depth and its
    ! water; its ice what its energy holds on its freezing curve, the soil's law, held over the step
    ! as a frozen soil layer's, so the network's liquid is the energy's. The water it lacks of its

@@ -285,7 +285,7 @@ contains
 
    !---~---
    !   follow_porous_layers -- each patch's porous layers follow their dry matter, target_mass
-   ! (docs/science/surface_organic_layer.md), one operator for the litter and the moss at a run's
+   ! (docs/science/ground_surface_layers.md §5), one operator for the litter and the moss at a run's
    ! start, at a restart and at every slow step. Matter that arrives enters at the layer's
    ! temperature, or at the top soil layer's in a layer it starts, its dry heat declared (heat).
    ! It brings the water its own volume holds at the top soil layer's matric head (theta_arrive,

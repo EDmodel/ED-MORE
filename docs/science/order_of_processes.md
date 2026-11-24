@@ -138,26 +138,30 @@ the slow step: the soil-carbon pools, the tissue water the turnover shed, and th
 1. **Forcing** (`patch_forcing`). The patch takes the site's sample moved to its own canopy-air top:
    the wind along its log profile, the temperature conserving potential temperature
    ([forcing](forcing.md) §8), and the rain and snow split at that temperature. The aerodynamics and
-   the canopy air's exchange with the atmosphere use this copy. The site sample's air temperature
-   joins the phenology sum.
-2. **Radiation** (`apply_rt_forcing`, in the same call). The canopy radiation transfer splits absorbed
-   shortwave and longwave among the cohorts and the ground
-   ([canopy_radiation_transfer](canopy_radiation_transfer.md)), with forcing on or off. It runs before
-   the coupled step.
-3. **The coupled step** (`fast_step`, [coupled_biophysics](coupled_biophysics.md)), in this order:
-   1. The pre-pass (`build_frozen`) computes, from the state at the start of the step: the
-      aerodynamic environment above the canopy ([canopy_aerodynamics](canopy_aerodynamics.md)); leaf
-      gas exchange (GPP, stomatal conductance, leaf respiration); stem, root and heterotrophic
-      respiration; the canopy-air capacities and exchange conductances; the snow stage; canopy
-      interception; and the tissue and ground coefficients.
-   2. The soil–plant water network is stepped (`water_step`, [soil_plant_water](soil_plant_water.md)).
+   the canopy air's exchange with the atmosphere use this copy, and it carries the sky: the sun's height
+   and the radiation reaching the canopy's top. The site sample's air temperature joins the phenology
+   sum.
+2. **The coupled step** (`fast_step`, [coupled_biophysics](coupled_biophysics.md)), in this order:
+   1. The ground's stage (`ground_stage`, [ground_surface_layers](ground_surface_layers.md)): the step's
+      rain, snowfall and shed water join the water layer, which keeps what its ice holds and passes its
+      free water on to the water network, and its cover for the step is set.
+   2. The radiation (`canopy_ground_radiation`): the canopy radiation transfer splits absorbed
+      shortwave and longwave among the cohorts and the ground the stage leaves
+      ([canopy_radiation_transfer](canopy_radiation_transfer.md)), so the two-stream's ground and the
+      ground's energy balance have one cover.
+   3. The pre-pass (`build_frozen`, which also runs the two stages above) computes, from the state at
+      the start of the step: the aerodynamic environment above the canopy
+      ([canopy_aerodynamics](canopy_aerodynamics.md)); leaf gas exchange (GPP, stomatal conductance,
+      leaf respiration); stem, root and heterotrophic respiration; the canopy-air capacities and
+      exchange conductances; canopy interception; and the tissue and ground coefficients.
+   4. The soil–plant water network is stepped (`water_step`, [soil_plant_water](soil_plant_water.md)).
       Its time-mean flows join the pre-pass as constants.
-   3. One integrator (`esdirk2` or `rk45`, [numerical_scheme](numerical_scheme.md)) advances the
-      canopy air, the leaf and wood energy, the soil heat and the snow together. Everything the
+   5. One integrator (`esdirk2` or `rk45`, [numerical_scheme](numerical_scheme.md)) advances the
+      canopy air, the leaf and wood energy, the soil heat and the ground's surface layers together. Everything the
       pre-pass and the water network computed stays frozen over the step, except the
       canopy-air-to-atmosphere conductances, which are re-solved at every stage.
-   4. The update commits the step and closes the ledgers.
-4. **Record** (`record_substep`, `accumulate_fast_to_slow`):
+   6. The update commits the step and closes the ledgers.
+3. **Record** (`record_substep`, `accumulate_fast_to_slow`):
    - the sub-daily output samples and the step diagnostic blocks, each weighted by `dt_fast`;
    - for the slow dynamics: each cohort's gross GPP and maintenance respiration, hours of light, the
      running daily maximum of leaf water potential, and the soil-carbon environment scalar and
@@ -342,7 +346,8 @@ file's instant, so none carries `mean_`.
 | one slow step | `polygon_step` | `ed_polygon` |
 | the coupled step: the owed restructuring, the acclimation, the fast loop, the slow dynamics | `advance_one_step` | `ed_stepper` |
 | the fast loop | `fast_dynamics` | `ed_fast_dynamics` |
-| the forcing window, each site's and each patch's sample, the radiation | `sample_window`, `site_forcing`, `patch_forcing`, `apply_rt_forcing` | `ed_fast_forcing` |
+| the forcing window, each site's and each patch's sample | `sample_window`, `site_forcing`, `patch_forcing` | `ed_fast_forcing` |
+| the ground's stage and the radiation, at the step's start | `ground_stage`; `canopy_ground_radiation` | `ed_fast_integ_frozen`; `ed_fast_integ_radiation` |
 | vertical corrections: the terrain lapse at ingest, the move to each patch's canopy-air top | `read_record`; `met_to_cas_top` | `ed_met` |
 | one fast step of one patch | `fast_step` (`build_frozen`, `water_step`) | `ed_fast_integ_stepper` |
 | the slow dynamics | `advance_slow_dynamics` | `ed_slow_dynamics` |

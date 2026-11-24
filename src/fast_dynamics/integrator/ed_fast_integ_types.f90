@@ -629,7 +629,7 @@ module ed_fast_integ_types
    end type plant_water_t
 
    !---~---
-   !   The porous layers in the network, top down (docs/science/surface_organic_layer.md, Water):
+   !   The porous layers in the network, top down (docs/science/ground_surface_layers.md §4):
    ! each node's layer (POROUS_LITTER, POROUS_MOSS), its retention curve and ice, held over the
    ! step, its depth and its water at the step's start, the water it lacks of its residual, and the
    ! boundary it evaporates to, by the soil's law, through the porous layers above it. n = 0

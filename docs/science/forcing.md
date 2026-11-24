@@ -437,12 +437,12 @@ form, whose saturation pressure is 4.4 Pa below the model's at 25 °C). With `RH
 saturation in the model.
 
 Both conversions go through the **same** Ambaum (2020) saturation vapour pressure the rest of ED-MORE
-uses (`sat_vapor_pressure` in `ed_therm_lib`, [snow biophysics](snow_biophysics.md) eq. (1) with
+uses (`sat_vapor_pressure` in `ed_therm_lib`, [ground surface layers](ground_surface_layers.md) eq. (11) with
 $`f_{liq}=1`$), taken over **liquid** water, deliberately. Dewpoint
 is *defined* as the temperature at which the liquid saturation vapour pressure equals the actual one,
 and a relative-humidity sensor reports against liquid water (the WMO convention) even below freezing,
 so the ice branch that `sat_vapor_pressure` has for frozen surfaces
-([snow biophysics](snow_biophysics.md), "Sublimation saturates over ice") must not be applied here.
+([ground surface layers](ground_surface_layers.md), "Vapour saturates over ice") must not be applied here.
 Every diagnostic output file of an ED_ERA5land run names the formula in its `forcing_qair` global
 attribute. The dewpoint form uses the fact that the actual vapour pressure *is* the saturation vapour
 pressure at the dewpoint; RH is clipped to $[0,1]$ first, and every form to saturation after. The

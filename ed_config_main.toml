@@ -88,9 +88,8 @@ thermal_bottom_bc = "geothermal" # geothermal: no heat flux at the base, which r
 
 [ground_surface_layer]
 # The layers on the soil, top down: the water layer (snow, ice and the liquid they hold, whose free
-# water is the pond), the litter and the moss (docs/science/snow_biophysics.md,
-# docs/science/surface_organic_layer.md). Each material is a table below. Every key optional, at the
-# value shown.
+# water is the pond), the litter and the moss (docs/science/ground_surface_layers.md). Each material
+# is a table below. Every key optional, at the value shown.
 min_depth = 1.0e-4               # [m] the depth from which a porous layer's matter is a layer: thinner, it
                                  #     stays where it came from (a film of a few micrometres no balance carries)
 

@@ -92,8 +92,8 @@ The main file holds all non-PFT settings. It names the PFT file in `[init].pft_c
 |---|---|
 | `[run]` | the slow step `dt_slow` (`"1d"`, `"12h"`, `"900s"`: a number and a unit `s`, `m`, `h`, `d` or `w`; a bare number is seconds), the span as calendar dates (`start_time`, `end_time`, exclusive; `"YYYY-MM-DD[ HH:MM:SS]"`, Gregorian with leap years), `mode` (`"site"`, the default, or `"region"`), the thread count and two slow-step switches |
 | `[fast]` | the sub-daily loop: whether it runs (`fast_biophysics_on`), its step `dt_fast`, the GPP of a run without it (`gpp_ref`; its soil carbon decays at `[soil_carbon].spinup_xi`), the integrator and its error control (`time_integrator`, `rtol`, `atol_scale`, `water_atol`), the budget checks (`soil_energy_budget_atol`, `debug_error`) and canopy interception |
-| `[soil]` | the ground: column, hydraulic and thermal texture, surface (and the moss on it, `moss_depth`), and the two bottom boundaries |
-| `[ground_surface_layer]` | the layers on the soil, top down: `min_depth`, the depth from which a porous layer's matter is a layer, and one table per material. `[ground_surface_layer.water]`: the water layer (snow, ice and the liquid they hold) and its pond: fresh snow's density, its ice matrix's conductivity at that density, the albedos of fresh and aged snow, solid ice and standing water, the emissivity, the liquid its ice holds, the cover's scale, the pond's capacity, and the layer at a fresh start ([snow_biophysics](science/snow_biophysics.md)). `[ground_surface_layer.litter]` and `[ground_surface_layer.moss]`: each porous layer's `mass_source` (`none`, `metabolic_litter`, or `site_depth`, a site's `[soil].moss_depth`), its bulk density, its conductivity dry and saturated, and its water retention as a soil layer's ([surface_organic_layer](science/surface_organic_layer.md)) |
+| `[soil]` | the ground: column, hydraulic and thermal texture, surface, the moss on it (`moss_depth` [m]: 0, the default, or at least `[ground_surface_layer].min_depth`, with a material whose `mass_source` is `site_depth`; a `[[sites]]` table may set it), and the two bottom boundaries |
+| `[ground_surface_layer]` | the layers on the soil, top down: `min_depth`, the depth from which a porous layer's matter is a layer, and one table per material. `[ground_surface_layer.water]`: the water layer (snow, ice and ponded water), whose free water is the pond: fresh snow's density, its ice matrix's conductivity at that density, the albedos of fresh and aged snow, solid ice and standing water, the emissivity, the liquid its ice holds, the cover's scale, the pond's capacity, and the layer at a fresh start ([ground_surface_layers](science/ground_surface_layers.md)). `[ground_surface_layer.litter]` and `[ground_surface_layer.moss]`: each porous layer's `mass_source` (`none`, `metabolic_litter`, or `site_depth`, a site's `[soil].moss_depth`), its bulk density, its conductivity dry and saturated, and its water retention as a soil layer's ([ground_surface_layers](science/ground_surface_layers.md)) |
 | `[aerodynamics]` | the canopy aerodynamics' parameters |
 | `[demography]` | the stand's structure: one switch per operator, and the settings of cohort and patch fusion, fission, the cull, treefall gaps and recruitment |
 | `[init]` | how the run starts, and the path to the PFT file |
@@ -435,6 +435,11 @@ Every curve is capped at the PFT's `[allometry].hgt_max`, and biomass (`agb_c1`,
 (`sapwood_area_b1`, `sapwood_area_b2`) and the share of the wood above ground (`aboveground_frac`) are
 per PFT too. A cohort reproduces once its height reaches its PFT's `[pft].min_repro_height` [m], a height
 set outside ED-MORE.
+
+**Snow on the crown.** A snow pack buries a crown from its base: `[allometry].crown_base_fraction`, the
+crown's base over the height (0.5 by default), and `snow_bending`, the share of its height a pack bends a
+plant down by (0 by default), each in [0, 1)
+([`science/ground_surface_layers.md`](science/ground_surface_layers.md) §6).
 
 **Leaf traits.** Leaves are parameterized by their turnover: `[pft].leaf_turnover_rate_toc` [yr⁻¹, > 0]
 is the share of a top-of-canopy cohort's leaf carbon that background turnover replaces a year, and with

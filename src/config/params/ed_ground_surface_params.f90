@@ -2,7 +2,7 @@
 !---~---
 !   ed_ground_surface_params -- the [ground_surface_layer] block: the layers on the soil, top
 ! down the water layer (snow, ice and ponded water), the litter and the moss, each a material
-! with its own table (docs/science/snow_biophysics.md, docs/science/surface_organic_layer.md).
+! with its own table (docs/science/ground_surface_layers.md).
 ! Types and codes only: a config leaf the kernels import without ed_config.
 !---~---
 module ed_ground_surface_params

@@ -111,7 +111,7 @@ contains
                                                           static%leaf_area(1:n) * static%exposed(1:n))
       !---~---
       !   The water layer takes its exchange over the march, the energy and vapour the canopy air
-      ! and the soil received from it (docs/science/snow_biophysics.md §The snow store) and the heat
+      ! and the soil received from it (docs/science/ground_surface_layers.md §3) and the heat
       ! its free water's flows carried, its free water back as the water network leaves it, and
       ! the condensate with the enthalpy the canopy air gave up for it at each stage
       ! (boundary_flux_t).
@@ -122,7 +122,7 @@ contains
                               ground_store_t(water=acc%whole_cond, energy=acc%whole_cond_enth),                   &
                               frozen%stage%ice_held, frozen%ground%params)
       !---~---
-      !   Each porous layer takes its own (docs/science/surface_organic_layer.md): the march's energy,
+      !   Each porous layer takes its own (docs/science/ground_surface_layers.md §3): the march's energy,
       ! the heat of the water that passed through it included, and the vapour the water network
       ! took from it, which the canopy air received.
       !---~---

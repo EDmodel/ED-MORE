@@ -111,7 +111,7 @@ contains
 
    !---~---
    !   follow_porous_sources -- each patch's porous layers follow the matter their mass_source gives
-   ! (docs/science/surface_organic_layer.md): the above-ground metabolic litter pool's dry matter
+   ! (docs/science/ground_surface_layers.md §5): the above-ground metabolic litter pool's dry matter
    ! (the structural pool, which holds the coarse woody debris, waits for a fine-litter split), a
    ! site's [soil].moss_depth at the material's bulk density, or none, each a layer only from
    ! min_depth (porous_layer_matter), at a run's start, at a restart and at every slow step

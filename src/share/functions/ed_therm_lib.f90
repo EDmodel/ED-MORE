@@ -4,7 +4,7 @@
 ! the specific energies of liquid, ice, vapour and canopy air in one datum and the energy
 ! -> temperature inverter with phase change (docs/science/soil_biophysics.md); moist
 ! air: saturation vapour pressure and humidity, VPD, the dry air's pressure, density and the gas
-! constant (docs/science/snow_biophysics.md eq. (1), docs/science/forcing.md eq. (11)); the
+! constant (docs/science/ground_surface_layers.md eq. (11), docs/science/forcing.md eq. (11)); the
 ! rain/snow split; the air at another height (docs/science/forcing.md §8); plant
 ! tissue heat capacity and energy (docs/science/vegetation_energy_dynamics.md eqs.
 ! (8)-(10)); soil heat: the thermal properties of a texture and the soil's conductivity
@@ -187,12 +187,12 @@ contains
    end subroutine precip_phase
 
    !---~---
-   !   Moist air (docs/science/snow_biophysics.md eq. (1), docs/science/forcing.md eq.
+   !   Moist air (docs/science/ground_surface_layers.md eq. (11), docs/science/forcing.md eq.
    ! (11)).
    !---~---
 
    !---~---
-   !   Saturation vapour pressure [Pa] (docs/science/snow_biophysics.md eq. (1)): Ambaum
+   !   Saturation vapour pressure [Pa] (docs/science/ground_surface_layers.md eq. (11)): Ambaum
    ! (2020) over liquid and over ice, blended by the liquid fraction fliq. Without fliq it is
    ! over liquid, as dewpoint and VPD need (docs/science/forcing.md §7).
    !---~---
@@ -213,7 +213,7 @@ contains
 
    !---~---
    !   The saturation vapour pressure e [Pa] over one phase (phase = 1 liquid, 0 ice) and its
-   ! slope de/dT [Pa/K] (docs/science/snow_biophysics.md eqs. (1), (2)). The latent heat is the
+   ! slope de/dT [Pa/K] (docs/science/ground_surface_layers.md eqs. (11), (12)). The latent heat is the
    ! Kirchhoff L(T) of latent_heat_vap, so the slope is the Clausius-Clapeyron equation
    ! e L / (Rv T**2) by construction, and both phases meet at es_3ple at t_3ple.
    !---~---

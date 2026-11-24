@@ -13,7 +13,7 @@
 !      (docs/science/coupled_biophysics.md, principle 1).
 !   3. CLAUSIUS-CLAPEYRON (sat_vapor_pressure_temp_deriv): the slope of e_sat against a
 !      finite difference, and e L / (Rv T**2) with the model's latent heat, over both phases.
-!   4. ICE SATURATION (sat_vapor_pressure; docs/science/snow_biophysics.md eq. (1)): an
+!   4. ICE SATURATION (sat_vapor_pressure; docs/science/ground_surface_layers.md eq. (11)): an
 !      absent liquid fraction is the liquid curve to the bit; the branches meet at the
 !      triple point, at es_3ple; both phases agree with Murphy & Koop (2005); at 268 K the air saturated
 !      over ice holds 3-8 % less vapour than over liquid.
@@ -217,7 +217,7 @@ contains
    end subroutine test_clausius
 
    !---~---
-   !   4. SATURATION OVER ICE (docs/science/snow_biophysics.md eq. (1)). The liquid curve over a
+   !   4. SATURATION OVER ICE (docs/science/ground_surface_layers.md eq. (11)). The liquid curve over a
    ! frozen surface overstates e_sat by 10 % at -10 C and 34 % at -30 C, which would overdrive
    ! sublimation from the snow pack and from frozen soil. Three things must hold:
    !   (a) an ABSENT fliq gives the liquid curve (fliq = 1) BIT-IDENTICALLY;

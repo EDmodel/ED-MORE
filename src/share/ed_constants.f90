@@ -82,7 +82,7 @@ module ed_constants
    real(wp), parameter :: tissue_c_leaf     = 3200.0_wp       ! [J/kg/K] dry leaf specific heat
    real(wp), parameter :: tissue_c_wood_dry = 1217.0_wp       ! [J/kg/K] dry wood specific heat, 103.1 + 3.867 T at 15 degC
 
-   !--- Physical constants: the organic layer's dry matter, litter and moss (docs/science/surface_organic_layer.md).
+   !--- Physical constants: the porous layers' dry matter, litter and moss (docs/science/ground_surface_layers.md).
    real(wp), parameter :: cp_organic = 1926.0_wp   ! [J/kg/K] dry organic matter's specific heat (Farouki 1986)
 
    !--- Reference conditions.

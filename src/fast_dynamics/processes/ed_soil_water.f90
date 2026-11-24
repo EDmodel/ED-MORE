@@ -64,7 +64,7 @@ module ed_soil_water
                                                           ! (1/ggnet), not inflated for snow: the one leg the
                                                           ! ground's stores share (ground_vapour)
       real(wp) :: snow_free_frac = 1.0_wp                 ! [-] snow-free area fraction (1-snowfac) that evaporates,
-                                                          ! an area-weighted tile flux (snow_biophysics.md)
+                                                          ! an area-weighted tile flux (ground_surface_layers.md)
       !---~---
       !   The porous layers above the store: their depth as an equivalent path in free air, each
       ! layer's depth over its Millington-Quirk tortuosity (0 without one).

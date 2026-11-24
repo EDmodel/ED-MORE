@@ -1,7 +1,7 @@
 ! SPDX-License-Identifier: Apache-2.0
 !---~---
 !   ed_ground_surface_lib -- the laws of the ground's surface layers and of the porous media
-! below and among them (docs/science/snow_biophysics.md, docs/science/surface_organic_layer.md,
+! below and among them (docs/science/ground_surface_layers.md,
 ! docs/science/soil_biophysics.md):
 !   * a porous medium's phase (soil, litter, moss): its temperature and liquid share from its
 !     energy on its freezing curve, and back;
@@ -194,7 +194,7 @@ contains
       end if
    end subroutine film_on_porous_layer
 
-   !--- A porous layer of the ground's surface (docs/science/surface_organic_layer.md).
+   !--- A porous layer of the ground's surface (docs/science/ground_surface_layers.md §1).
 
    !--- [m] A porous layer's depth: its dry matter [kg/m2] over its material's bulk density [kg/m3].
    elemental real(wp) function porous_layer_depth(matter, bulk_density) result(depth)
@@ -240,7 +240,7 @@ contains
       if (bulk_density > 0.0_wp .and. matter >= min_depth * bulk_density) registered = matter
    end function porous_layer_matter
 
-   !--- The water layer: snow, ice and ponded water (docs/science/snow_biophysics.md).
+   !--- The water layer: snow, ice and ponded water (docs/science/ground_surface_layers.md §1).
 
    !---~---
    !   [kg/m2] The free water of a water layer of water [kg/m2] at a liquid fraction [-]: the

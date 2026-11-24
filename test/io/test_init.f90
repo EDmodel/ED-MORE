@@ -16,7 +16,7 @@
 !      defaults pinned (288 K, theta = 0.30); a start below freezing holds the liquid its
 !      freezing curve allows; a texture per layer starts each layer at its own field capacity;
 !      and bare ground is empty unless a PFT's nbg_init_density seeds it at its min_recruit_height.
-!   4. THE INITIAL SNOWPACK (ed_init: init_fast_state; docs/science/snow_biophysics.md): no
+!   4. THE INITIAL SNOWPACK (ed_init: init_fast_state; docs/science/ground_surface_layers.md §5): no
 !      [fast].snow_init_swe seeds no pack; one seeds every patch with one frozen layer of that
 !      water equivalent at [fast].snow_init_temp, as deep as its water over the snow density,
 !      at a configured density too.

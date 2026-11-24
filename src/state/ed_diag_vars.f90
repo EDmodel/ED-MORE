@@ -309,7 +309,7 @@ module ed_diag_vars
    integer(ik), parameter, public :: PA_BUDGET_CAS_CAP_ENERGY = 65_ik ! [W/m2]
    integer(ik), parameter, public :: PA_BUDGET_CAS_CAP_WATER  = 66_ik ! [kg/m2/s]
    integer(ik), parameter, public :: PA_BUDGET_CAS_CAP_CO2    = 67_ik ! [umol/m2/s]
-   !--- The ground's surface layers (docs/science/surface_organic_layer.md, snow_biophysics.md).
+   !--- The ground's surface layers (docs/science/ground_surface_layers.md).
    integer(ik), parameter, public :: PA_GROUND_TOP_TEMP      = 68_ik  ! [K] the porous layers', else the top soil node's
    integer(ik), parameter, public :: PA_LITTER_WATER         = 69_ik  ! [kg/m2] the litter's water, liquid and ice
    integer(ik), parameter, public :: PA_MOSS_WATER           = 70_ik  ! [kg/m2] the moss's water, liquid and ice

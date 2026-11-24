@@ -39,7 +39,7 @@ lies on the canopy, its height is its tallest top bent by the pack, $`\max h\,(1
 their crowns' burial reads it (eq. (1b)), so a pack that buries a crown's top buries the canopy's
 roughness too. It is taken
 from the pack at the start of the forcing window, and the roughness is fixed for the window. It is
-distinct from the ground's snow-cover fraction ([snow_biophysics](snow_biophysics.md)). The height
+distinct from the water layer's cover of the ground ([ground_surface_layers](ground_surface_layers.md) eq. (5)). The height
 above the displacement, $`z_{ldis}=\max(z_{ref}-d,\,2z_{0m})`$, is the surface-layer thickness the
 Monin–Obukhov solve integrates over. The CAS depth is
 $`\max(\text{min\_canopy\_depth},\,h+\text{canopy\_freeboard})`$, the tallest cohort plus a freeboard
@@ -302,7 +302,7 @@ The `[aerodynamics]` block, held in `aero_params_t`; every key is optional.
 | $`c_{z0}`$ | `z0m_ratio` | roughness length over canopy height (0.13) |
 | $`c_d`$ | `d_ratio` | displacement height over canopy height (0.63) |
 | $`z_{0,snow}`$ | `snow_rough` | snow-surface roughness, a buried canopy's $`z_{0m}`$ and the $`z_{0m}`$ floor (0.001 m) |
-| $`z_{0g}`$ | `soil_rough` | bare soil's roughness length (0.01 m, CLM's `zlnd`): the soil coefficient of eq. (7), a bare patch's $`z_{0m}`$ and the length scale of the snow-cover fraction ([snow_biophysics](snow_biophysics.md)) |
+| $`z_{0g}`$ | `soil_rough` | bare soil's roughness length (0.01 m, CLM's `zlnd`): the soil coefficient of eq. (7), a bare patch's $`z_{0m}`$ and the length scale of the water layer's cover ([ground_surface_layers](ground_surface_layers.md) eq. (5)) |
 | none | `n_iter_mo` | the most Monin–Obukhov sweeps (20); they stop when $`u_*\cdot\mathrm{temp1}`$ settles to $`10^{-4}`$ |
 | $`\zeta_m,\zeta_t`$ | `zeta_m`, `zeta_t` | momentum and scalar range transitions of CLM5 (1.574, 0.465) |
 | none | `zeta_max_stable` | cap on the stable $\zeta$, of the first guess and of each sweep (0.5) |

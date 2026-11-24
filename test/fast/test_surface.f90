@@ -1,7 +1,7 @@
 ! SPDX-License-Identifier: Apache-2.0
 !---~---
 !   test_surface -- the ground's surface and its water layer (ed_surface;
-! docs/science/snow_biophysics.md). The layer steps as the integrator steps it: its stage
+! docs/science/ground_surface_layers.md). The layer steps as the integrator steps it: its stage
 ! (water_layer_stage: what falls joins it and its free water leaves it), the ground surface's
 ! exchange at its state (ground_surface_exchange), then it takes the step's amounts
 ! (water_layer_commit); its energy ledger is what the surroundings give up by the ground
@@ -281,7 +281,7 @@ contains
    !---~---
    !   A cold pack at the temperature of its surroundings: the sky emits what it does, the soil
    ! is at its temperature, and the canopy air is saturated over ICE (fliq = 0), as the pack's
-   ! surface saturates (docs/science/snow_biophysics.md eq. (1)); so nothing flows and it
+   ! surface saturates (docs/science/ground_surface_layers.md eq. (11)); so nothing flows and it
    ! stays as it is. Saturated over LIQUID instead, the canopy air holds more vapour than the
    ! frozen surface, 3-8 % more at 268 K, and the pack gains mass by deposition.
    !---~---

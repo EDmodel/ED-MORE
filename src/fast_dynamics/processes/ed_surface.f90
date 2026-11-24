@@ -2,7 +2,7 @@
 !---~---
 !   ed_surface -- the ground's surface: the bare-ground skin and the water layer (snow, ice
 ! and ponded water, one store), blended by the water layer's cover, each giving the soil-top
-! boundary and the canopy-air fluxes (docs/science/snow_biophysics.md):
+! boundary and the canopy-air fluxes (docs/science/ground_surface_layers.md):
 !   * ground_surface_exchange -- the blend at one canopy-air and soil-top state;
 !   * ground_surface_fluxes -- the bare ground's sensible and latent fluxes;
 !   * water_layer_stage -- the water layer before a step: the water that reaches it, its
@@ -246,10 +246,10 @@ contains
 
    !---~---
    !   ground_surface_exchange -- the ground surface at one canopy-air and soil-top state
-   ! (docs/science/snow_biophysics.md, "The snow store"; docs/science/surface_organic_layer.md,
-   ! Heat): its layers top down, the water layer over its cover, the litter and the moss, each a
-   ! thermal node, relaxed over the step together (surface_stack_balance) over the soil top; and
-   ! the bare soil over what the water layer leaves where no porous layer lies. The top porous
+   ! (docs/science/ground_surface_layers.md §3): its layers top down, the water layer over its
+   ! cover, the litter and the moss, each a thermal node, relaxed over the step together
+   ! (surface_stack_balance) over the soil top; and the bare soil over what the water layer leaves
+   ! where no porous layer lies. The top porous
    ! layer exchanges over what the water layer leaves, the one beneath it with its neighbours
    ! only. A node's temperature is its top face's, the one it emits and exchanges at, so the heat
    ! it passes down crosses its whole depth to the next node's top face, and the bottom node's the
@@ -488,7 +488,7 @@ contains
    !   The ground's optics under a pack, for the two-stream: its albedo and emissivity blended
    ! toward the pack's by its cover, the one the pack's balance exchanges over, so a partial pack
    ! is continuous, and the temperature at which the blended emissivity emits what the soil and
-   ! the pack emit at their own (docs/science/snow_biophysics.md, "The ground's radiation").
+   ! the pack emit at their own (docs/science/ground_surface_layers.md, "The ground's radiation").
    ! Unchanged without cover.
    !---~---
    pure subroutine snow_blend_ground_optics(snow, fc, params, albedo_vis, albedo_nir, emiss, temp)
@@ -551,7 +551,7 @@ contains
 
    !---~---
    !   The radiation each tile of the ground absorbs per unit of its own area, from what
-   ! reaches the ground in each band (docs/science/snow_biophysics.md, "The ground's
+   ! reaches the ground in each band (docs/science/ground_surface_layers.md, "The ground's
    ! radiation"): the bare soil's net all-wave radiation at its albedo and emissivity and the
    ! top soil node's temperature, and the shortwave the snow absorbs at its own albedo. The
    ! snow's longwave is formed in its balance, at its own temperature. Weighted by the cover,
@@ -577,9 +577,8 @@ contains
    !---~---
    !   surface_node_balance -- one node's exchange over dt, per unit ground area, its neighbours
    ! held, from a linearized backward-Euler balance of its energy that is not committed
-   ! (docs/science/snow_biophysics.md, "The snow store"; docs/science/surface_organic_layer.md,
-   ! Heat): the balance's one root T, in closed form on the melt plateau or else on the ice or
-   ! liquid line, with its dry heat capacity on each, and the fluxes at T (node_fluxes). Over its
+   ! (docs/science/ground_surface_layers.md §3): the balance's one root T, in closed form on the
+   ! melt plateau or else on the ice or liquid line, with its dry heat capacity on each, and the fluxes at T (node_fluxes). Over its
    ! share of the ground it takes its net radiation and gives sensible heat and vapour, a
    ! kilogram of which carries enthalpy_vapor less the water's own energy; it takes heat from the
    ! node above and gives it to the node below, implicit in its own temperature, so a node of
@@ -986,10 +985,10 @@ contains
    !--- The water layer: its stage before a step, its cover, and its commit after.
 
    !---~---
-   !   water_layer_stage -- the water layer before a step (docs/science/snow_biophysics.md, "The
-   ! snow store"): the throughfall's rain and snow and the water the tissues shed join it with
-   ! their enthalpy, the snow adding its depth at the fresh density, and the matrix follows the
-   ! ice the store then holds (matrix_depth_update: rain that freezes in cold snow fills its
+   !   water_layer_stage -- the water layer before a step (docs/science/ground_surface_layers.md §2):
+   ! the throughfall's rain and snow and the water the tissues shed join it with their enthalpy,
+   ! the snow adding its depth at the fresh density, and the matrix follows the ice the store then
+   ! holds (matrix_depth_update: rain that freezes in cold snow fills its
    ! pores). From min_depth deep the store is a layer, its free water the liquid beyond what its
    ! ice holds; thinner it is a film, whose liquid is all free and which comes to the temperature
    ! of the node it lies on by a matched heat move (film_heat, from that node): the top porous

@@ -121,7 +121,7 @@ contains
    ! eqs. (3)-(4)). The above-ground pools (1, 3) take the surface temperature and the
    ! rest the soil's (ED2's A_decomp / B_decomp). With porous layers on the soil, they take the
    ! top one's temperature and their wetness, surf_rel, as their moisture
-   ! (docs/science/surface_organic_layer.md).
+   ! (docs/science/ground_surface_layers.md §7).
    ! xi > 0; under the default scheme it is also <= 1, while scheme 5's Q10 is uncapped.
    !---~---
    pure subroutine decomposition_env_scalar(soil_temp_surf, soil_temp_active, theta_active, theta_dry, &

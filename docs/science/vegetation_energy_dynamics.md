@@ -376,7 +376,7 @@ A snow pack buries the share $`b = 1 - e`$ of a cohort's crown that lies below i
 canopy air through its leaf and wood area, which carry $`e`$, and its balance above runs on $`e`$ of the tissue's
 heat capacity over the step. The buried share takes the temperature of the snow around it: its heat capacity
 $`b\,C`$ (its dry matter and its water) and its heat at its start temperature join the water layer's node in the
-ground's stack as a dry heat capacity ([snow_biophysics](snow_biophysics.md)), so the node and the buried tissue
+ground's stack as a dry heat capacity ([ground_surface_layers](ground_surface_layers.md) §6), so the node and the buried tissue
 relax together to one temperature over the step. The heat the buried tissue gains,
 $`Q_b = C_b T_w - \sum b\,C\,T^n`$ with $`C_b = \sum b\,C`$ over the cohorts, leaves the water layer's own store
 and reaches each cohort's tissues as $`b\,C\,(\bar T - T^n)`$, with $`\bar T = (Q_b + \sum b\,C\,T^n)/C_b`$ the

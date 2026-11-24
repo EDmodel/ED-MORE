@@ -66,9 +66,8 @@ module ed_patch_state_vars
    end type cas_state_t
 
    !---~---
-   !   The ground's surface layers (docs/science/snow_biophysics.md,
-   ! docs/science/surface_organic_layer.md): each a store of water (liquid and ice) and its
-   ! internal energy per ground area, with its temperature and liquid fraction read off them.
+   !   The ground's surface layers (docs/science/ground_surface_layers.md §1): each a store of water
+   ! (liquid and ice) and its internal energy per ground area, with its temperature and liquid fraction read off them.
    ! The water layer holds snow, ice and ponded water, and its ice matrix's depth; its liquid
    ! beyond what its ice holds is its free water, the pond. The porous layers, top down litter over
    ! moss (POROUS_LITTER, POROUS_MOSS), each hold their dry matter, their depth that matter over
