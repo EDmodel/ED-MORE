@@ -36,11 +36,13 @@ module ed_ground_surface_lib
 
    !---~---
    !   The inversion of a porous medium's energy on its freezing curve: the most Newton steps,
-   ! and the temperature step [K] below which it has converged.
+   ! and the temperature step [K] below which it has converged. Numerical choices: the Newton is
+   ! safeguarded by bisection, which alone closes a 300 K bracket to 1e-10 K in 42 halvings, and
+   ! 1e-10 K is far inside the stack's own tolerance (STACK_TEMP_TOL, 1e-8 K).
    !---~---
    integer(ik), parameter :: PHASE_TEMP_ITER_MAX = 60_ik
    real(wp),    parameter :: PHASE_TEMP_TOL      = 1.0e-10_wp
-   !--- [kg/m3] The density Niu & Yang (2007)'s cover scale is referenced to.
+   !--- [kg/m3] The density Niu & Yang (2007)'s cover scale is referenced to, their fresh snow's (eq. 4).
    real(wp),    parameter :: COVER_DENSITY_REF = 100.0_wp
    !---~---
    !   Calonne et al. (2011)'s regression of snow's effective thermal conductivity [W/m/K] on its

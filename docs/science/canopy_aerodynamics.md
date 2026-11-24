@@ -67,9 +67,10 @@ photosynthesis is. Its respiration is the whole crown's: its leaves' and its ste
 from its whole wood area, buried or not ([plant_respiration](plant_respiration.md)). Its phenology cues
 read its own environment: no light while it is wholly
 buried, and a temperature blended from the canopy air and, for its buried share, the ground's
-surface under the pack ([plant_phenology](plant_phenology.md) §2). The defaults (CLM5's canopy
-bottom over top, 0.5, for its temperate trees; no bending) leave a tree taller than twice the pack
-whole: CLM5's shrubs (0.2) and grasses (0.02) set their own.
+surface under the pack ([plant_phenology](plant_phenology.md) §2). The defaults (canopy bottom
+over top 0.5, CLM4.5's needleleaf trees, Oleson et al. 2013, Table 2.2; no bending) leave a tree taller
+than twice the pack whole: CLM5's shrubs (0.2) and grasses (0.02) set their own (Lawrence et al. 2018,
+Table 2.2.2), and CTSM bends grasses and crops by 0.2 of their height (Lombardozzi et al. 2018).
 
 ## 2. The CLM5 Monin-Obukhov surface layer
 
@@ -354,3 +355,10 @@ The leaf width and branch diameter that set $\ell$ are PFT traits (`[pft]`).
 - Zeng, X., et al. (2005), Treatment of undercanopy turbulence in land models, *J. Climate* 18,
   5086–5094: the open-fraction blend of eq. (7); Sakaguchi, K., and X. Zeng (2009), *J. Geophys.
   Res.* 114, D01107: its under-canopy stability factor.
+- Oleson, K. W. et al. (2013), *Technical Description of version 4.5 of the Community Land Model (CLM)*, NCAR/TN-503+STR, doi:10.5065/D6RR1W7M, Table 2.2: the
+  needleleaf trees' canopy bottom over top.
+- Lawrence, D. et al. (2018), *Technical Description of version 5.0 of the Community Land Model (CLM)*,
+  NCAR, Table 2.2.2: the shrubs' and grasses' canopy bottom over top.
+- Lombardozzi, D. L. et al. (2018), Cover crops may cause winter warming in snow-covered regions,
+  *Geophys. Res. Lett.* 45(18):9889–9897, doi:10.1029/2018GL079000: the snow bending of grasses and crops
+  (CTSM's `CNVegStructUpdateMod`).

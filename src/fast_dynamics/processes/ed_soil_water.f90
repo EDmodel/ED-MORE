@@ -38,7 +38,9 @@ module ed_soil_water
    !---~---
    !   [-] The share of the top layer's span from residual to saturation over which its
    ! evaporation tapers to nothing as its water above residual, ice included, runs out
-   ! (evaporation_supply).
+   ! (evaporation_supply). A numerical choice: narrow enough that the water it leaves evaporating
+   ! at a reduced rate is negligible (about 2 micrometres in a 5 cm layer of span 0.35), smooth
+   ! enough that Newton meets no corner at residual.
    !---~---
    real(wp), parameter :: EVAP_SUPPLY_SPAN    = 1.0e-4_wp
    !---~---
@@ -390,9 +392,9 @@ contains
    ! water above residual: one until that water, ice included, is EVAP_SUPPLY_SPAN of the span
    ! from residual to saturation, then a smooth step to nothing at residual. A steep retention
    ! curve keeps its pore air near saturation almost to residual, so Philip's humidity alone
-   ! would stop the evaporation only a trillionth of the span above it; CLM5 too limits the
-   ! soil's evaporation to the water its top layer holds (docs/science/soil_biophysics.md, "The
-   ! soil water column").
+   ! would stop the evaporation only a trillionth of the span above it, and the layer would
+   ! evaporate water its curve cannot represent (docs/science/soil_biophysics.md, "The soil water
+   ! column").
    !---~---
    elemental subroutine evaporation_supply(avail, f, df, width)
       real(wp), intent(in)           :: avail   ! [-] the layer's water above residual over its span to saturation

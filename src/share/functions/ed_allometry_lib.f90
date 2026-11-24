@@ -51,10 +51,11 @@ module ed_allometry_lib
       real(wp)    :: diameter_height = breast_height ! [m] 1.3 m (breast height) for a tree, 0 (the root collar)
                                                   !     for a shrub; a grass has no diameter
       !---~---
-      !   The crown under a snow pack: its base as a share of the height (CLM5's canopy bottom over
-      ! top, 8.5/17 m and 11.5/20 m for its temperate needleleaf and broadleaf deciduous trees; 0.2
-      ! for its shrubs, 0.02 for its grasses), and how far the pack bends it down, as a share of
-      ! the height (ELM's and CTSM's snow bending; 0, none, by default).
+      !   The crown under a snow pack: its base as a share of the height (canopy bottom over top:
+      ! CLM4.5's needleleaf trees 8.5 m under 17 m, Oleson et al. 2013, Table 2.2; CLM5's shrubs
+      ! 0.2 and grasses 0.02, Lawrence et al. 2018, Table 2.2.2), and how far the pack bends it down,
+      ! as a share of the height (CTSM's 0.2 for grasses and crops, Lombardozzi et al. 2018; none,
+      ! as for trees and shrubs, by default).
       !---~---
       real(wp)    :: crown_base_fraction = 0.5_wp ! [-]
       real(wp)    :: snow_bending        = 0.0_wp ! [-]

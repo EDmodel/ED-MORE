@@ -47,13 +47,19 @@ module ed_surface
    !---~---
    !   The stack's solve (surface_stack_balance): the most nodes it holds, the water layer and the
    ! porous layers; Newton's most iterations before the Gauss-Seidel sweeps, and their most sweeps;
-   ! and the temperature [K] within which a node's balance is met, the soil heat solve's.
+   ! and the temperature [K] within which a node's balance is met, the soil heat solve's. Numerical
+   ! choices: Newton on a few smooth nodes converges in a handful of iterations, so twelve that do
+   ! not mark a corner it cannot cross, which the sweeps, each node solved in closed form or in a
+   ! bracket, cross at the cost of more sweeps; 500 bound that cost.
    !---~---
    integer(ik), parameter :: STACK_NODES_MAX  = 3_ik
    integer(ik), parameter :: STACK_NEWTON_MAX = 12_ik
    integer(ik), parameter :: STACK_SWEEP_MAX  = 500_ik
    real(wp),    parameter :: STACK_TEMP_TOL   = 1.0e-8_wp
-   !--- The most steps of a porous node's own root on its freezing curve (curve_node_root).
+   !---~---
+   !   The most steps of a porous node's own root on its freezing curve (curve_node_root): a
+   ! bracketed Newton, which closes any bracket of the stack's to its tolerance well within them.
+   !---~---
    integer(ik), parameter :: STACK_ROOT_MAX   = 60_ik
 
    !---~---

@@ -69,7 +69,9 @@ module ed_plant_hydr_lib
    !---~---
    !   [K] The span below the triple point over which a layer's roots lose their contact with
    ! its water as it freezes (root_soil_contact): a layer in its zero curtain, just below the
-   ! triple point, still conducts; one a kelvin colder conducts nothing.
+   ! triple point, still conducts; one a kelvin colder conducts nothing. The cut is CLM4.5's,
+   ! which drops a layer from root water uptake once it is 2 K below freezing (Oleson et al. 2013,
+   ! eq. 8.27); the kelvin over which ours closes has no measured source.
    !---~---
    real(wp), parameter :: ROOT_FREEZE_WIDTH = 1.0_wp
 
@@ -371,8 +373,8 @@ contains
    !   The share of a layer's rhizosphere conductance its roots keep at its temperature [-]: one
    ! at and above the triple point, none ROOT_FREEZE_WIDTH below it, a smooth step between. A
    ! root in frozen soil touches ice, not liquid, and its tips harden: it neither takes up
-   ! water nor loses it, as CLM5 drops frozen layers from root water uptake
-   ! (docs/science/plant_hydraulics.md eq. (14)).
+   ! water nor loses it, as CLM4.5 drops frozen layers from root water uptake
+   ! (docs/science/plant_hydraulics.md §4, "Frozen layers").
    !---~---
    elemental function root_soil_contact(t_soil) result(contact)
       real(wp), intent(in) :: t_soil   ! [K] the layer's temperature

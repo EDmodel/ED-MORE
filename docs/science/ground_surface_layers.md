@@ -236,7 +236,7 @@ with $H$ the height, $b$ = `snow_bending` and $c$ = `crown_base_fraction`. A pon
 - **Litter as a full sheet.** A litter layer covers the whole ground from 0.1 mm (4.5 g m⁻²) and switches on and off at that depth. Real thin litter is patchy; a cover law by mass would follow its area.
 - **The litter's hydraulics.** The litter is a continuum porous layer on the retention and conductivity curves the config gives (by default Letts et al. 2000's surface moss, as CLASS takes it), so a thin litter over a wet layer below draws water up and evaporates near the rate the air allows. Forest-floor measurements support continuum flow through the forest floor as a whole (Kosugi et al. 2001). Models of the litter layer itself instead exclude capillary rise into it (Napoly et al. 2017), and the evidence is mixed (Matthews 2014).
 - **Each porous layer dries from its top.** A Sphagnum moss draws water up to its tips and keeps its top wetter, so its dried depth would be thinner.
-- **The porous layers' optics are the soil's**, albedo and emissivity alike; no measured emissivity of litter or moss is used.
+- **The porous layers' optics are the soil's**, albedo and emissivity alike; no measured emissivity of litter or moss is used, and the soil's own 0.95 has no measured source.
 - **What reads the ground's temperature** (the stability, decomposition, a buried cohort's phenology) reads the top porous layer's or the soil's, never the water layer's.
 - **Held rates.** The porous layers' and the soil's evaporation are the water network's, held over the march at the step's start humidity; the next step's network restores the response. Burial holds over each slow step's fast loop.
 
@@ -248,16 +248,16 @@ The `[ground_surface_layer]` block, every key optional ([configuration](../confi
 
 | Symbol | Key | Default | Meaning | Source |
 |---|---|---|---|---|
-| $`\rho_{fresh}`$ | `fresh_density` | 250 kg m⁻³ | snowfall's bulk density | |
-| $`k_{fresh}`$ | `conductivity_at_fresh` | 0.15 W m⁻¹ K⁻¹ | the matrix's conductivity at `fresh_density`, scaled by eq. (7) | |
-| | `albedo_vis_fresh`, `albedo_nir_fresh` | 0.85, 0.65 | fresh snow's albedo | |
-| | `albedo_vis_aged`, `albedo_nir_aged` | 0.518, 0.435 | wet (aged) snow's albedo | |
+| $`\rho_{fresh}`$ | `fresh_density` | 250 kg m⁻³ | snowfall's bulk density | CLM's bulk snow density (Lawrence et al. 2018, §2.2), a settled pack's rather than new snow's (100 kg m⁻³ in Niu & Yang 2007) |
+| $`k_{fresh}`$ | `conductivity_at_fresh` | 0.15 W m⁻¹ K⁻¹ | the matrix's conductivity at `fresh_density`, scaled by eq. (7) | Calonne et al. (2011)'s regression at `fresh_density` (0.1495) |
+| | `albedo_vis_fresh`, `albedo_nir_fresh` | 0.85, 0.65 | fresh snow's albedo | no verified source |
+| | `albedo_vis_aged`, `albedo_nir_aged` | 0.518, 0.435 | wet (aged) snow's albedo | ED2's (`ed_params`), after Roesch et al. (2002) |
 | $`\alpha_{ice}`$ | `albedo_vis_ice`, `albedo_nir_ice` | 0.60, 0.40 | solid ice's albedo | CLM5's lake ice (Lawrence et al. 2018, eqs. 2.3.61–2.3.62) |
 | $`\alpha_{liq}`$ | `albedo_vis_liquid`, `albedo_nir_liquid` | 0.10, 0.10 | standing water's albedo | CLM5's diffuse open lake water (the same, eq. 2.3.60) |
-| $`\varepsilon_w`$ | `emissivity` | 0.97 | longwave emissivity | CLM5's snow (the same, §2.4) |
-| $h$ | `liquid_holding_frac` | 0.10 | the layer's mass share its ice holds as liquid | LEAF-3's 1:9 |
-| $a$, $m$ | `cover_scale_factor`, `cover_density_exponent` | 2.5, 1.0 | the cover's scale over the ground's roughness, and its growth with density, eq. (5) | Niu & Yang (2007) |
-| | `pond_capacity` | 5 kg m⁻² | the free water above which it runs off | |
+| $`\varepsilon_w`$ | `emissivity` | 0.97 | longwave emissivity | CLM5's snow (the same, §2.4), as ED2's |
+| $h$ | `liquid_holding_frac` | 0.10 | the layer's mass share its ice holds as liquid | LEAF-3's 1:9 (Walko et al. 2000), as ED2 percolates |
+| $a$, $m$ | `cover_scale_factor`, `cover_density_exponent` | 2.5, 1.0 | the cover's scale over the ground's roughness, and its growth with density, eq. (5) | Niu & Yang (2007), eq. 4, with the exponent they give for CLM (Oleson et al. 2010, eq. 3.50) |
+| | `pond_capacity` | 5 kg m⁻² | the free water above which it runs off | no verified source (CLM4.5 holds 10 kg m⁻², Oleson et al. 2013) |
 | | `initial_mass`, `initial_temp` | 0 kg m⁻², 270 K | the layer at a fresh start | |
 
 `[ground_surface_layer.litter]` and `[ground_surface_layer.moss]`. Each material's hydraulics are a parameter set the config gives: a retention curve, van Genuchten's or Campbell's, and a saturated conductivity, as a soil layer's.
@@ -274,7 +274,7 @@ The `[ground_surface_layer]` block, every key optional ([configuration](../confi
 
 `[soil].moss_depth` [m], which a `[[sites]]` table may set, is 0 or at least `min_depth`, and needs a table whose `mass_source` is `site_depth`; one table at most takes the metabolic litter. The checks refuse a non-positive bulk density, conductivity or saturated conductivity, a residual outside $`[0, \theta_s)`$, a saturation outside (0, 1), curve parameters of the wrong sign (van Genuchten's α > 0 and n > 1; Campbell's air-entry head < 0 and b > 0), a `fresh_density` not below solid ice's, an albedo outside [0, 1), an emissivity outside (0, 1], and a `liquid_holding_frac` outside [0, 1). The keys of the `[snow]` and `[surface_layer]` blocks stop a run, naming the key that holds their value.
 
-Fixed in the code: $`\rho_{ref}`$ = 100 kg m⁻³ in eq. (5) (Niu & Yang 2007), $`k_w`$ = 0.57 W m⁻¹ K⁻¹ for still water, $`c_{org}`$ = 1926 J kg⁻¹ K⁻¹ (Farouki 1986), and the stack solver's iteration limits and tolerance (`STACK_*` in `ed_surface`), which are numerical.
+Fixed in the code: $`\rho_{ref}`$ = 100 kg m⁻³ in eq. (5) (Niu & Yang 2007's fresh snow), $`k_w`$ = 0.57 W m⁻¹ K⁻¹ for still water, $`c_{org}`$ = 1926 J kg⁻¹ K⁻¹ (Farouki 1986), and the stack solver's iteration limits and tolerance (`STACK_*` in `ed_surface`), which are numerical.
 
 ## Code map
 
@@ -305,8 +305,12 @@ Fixed in the code: $`\rho_{ref}`$ = 100 kg m⁻³ in eq. (5) (Niu & Yang 2007), 
 - McLaren, J. (2021), *Soil biogeochemical variables collected on the Arctic LTER experimental plots in moist acidic, moist non-acidic, wet shrub and shrub tundra, Toolik Field Station, Alaska 2015*, Arctic LTER, knb-lter-arc.20129.1 — the bulk density of the top 5 cm of the organic soil.
 - Murphy, D. M. & Koop, T. (2005), *Q. J. R. Meteorol. Soc.* 131:1539 — vapour pressure over ice.
 - Napoly, A. et al. (2017), *Geosci. Model Dev.* 10:1621–1644 — the ISBA-MEB forest-floor litter layer.
-- Niu, G.-Y. & Yang, Z.-L. (2007), *J. Geophys. Res.* 112:D21101 — snow-cover fraction.
+- Niu, G.-Y. & Yang, Z.-L. (2007), *J. Geophys. Res.* 112:D21101, doi:10.1029/2007JD008674 — snow-cover fraction (eq. 4).
 - O'Connor, M. T. et al. (2020), *Geophys. Res. Lett.* 47:e2020GL087646 — the saturated conductivity of the Arctic Foothills' acrotelm.
+- Oleson, K. W. et al. (2010), *Technical Description of version 4.0 of the Community Land Model (CLM)*, NCAR/TN-478+STR, doi:10.5065/D6FB50WZ — the snow-cover fraction's density exponent for CLM (eq. 3.50).
+- Oleson, K. W. et al. (2013), *Technical Description of version 4.5 of the Community Land Model (CLM)*, NCAR/TN-503+STR, doi:10.5065/D6RR1W7M — the maximum ponding depth.
+- Roesch, A., Wild, M., Pinker, R. & Ohmura, A. (2002), *J. Geophys. Res.* 107(D14):4221, doi:10.1029/2001JD000809 — snow albedo on land, the source of ED2's aged-snow albedo.
 - Swenson, S. C. & Lawrence, D. M. (2014), *J. Geophys. Res. Atmos.* 119:10299 — the dry surface layer's resistance to evaporation.
+- Walko, R. L. et al. (2000), *J. Appl. Meteorol.* 39(6):931–944, doi:10.1175/1520-0450(2000)039<0931:CABHMF>2.0.CO;2 — LEAF-3, its snow's liquid holding.
 - Wu, Y., Verseghy, D. L. & Melton, J. R. (2016), *Geosci. Model Dev.* 9:2639 — CLASS's organic soil parameters, Table 1.
 - Zhang, Y., Carey, S. K., Quinton, W. L. et al. (2010), *Hydrol. Earth Syst. Sci.* 14:729 — the retention of surface moss at Scotty Creek, Table 4.

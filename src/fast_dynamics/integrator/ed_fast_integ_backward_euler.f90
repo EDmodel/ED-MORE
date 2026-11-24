@@ -127,17 +127,22 @@ module ed_fast_integ_backward_euler
    !   solve_node's bracket search: its first step Newton's, but at least NODE_STEP_MIN of the
    ! unknown (or of one), so it moves the unknown however flat the balance; how far one step may
    ! go towards zero on the dry side, to NODE_DRY_SHARE of the unknown, three decades of
-   ! saturation a step; and the steps out it takes before it gives up, NODE_BRACKET_MAX, each four
-   ! times the last, which reach 4^40 times the first. In the bracket, a spread wider than NODE_SPREAD_MAX (two decades) is halved
-   ! geometrically, and a bracket narrower than NODE_ROUNDOFF epsilons of the unknown has closed to
-   ! its round-off. A block of eliminated nodes takes at most BLOCK_NEWTON_MAX Newton steps or
-   ! sweeps. Numerical choices: none moves a converged answer.
+   ! saturation a step, so a dry node crosses many decades geometrically and never steps to zero;
+   ! and the steps out it takes before it gives up, NODE_BRACKET_MAX, each NODE_STEP_GROWTH times
+   ! the last, which reach 4^40 (about 1e24) times the first, beyond any range of the unknown, so a
+   ! balance not bracketed then has no change of sign. In the bracket, a spread wider than
+   ! NODE_SPREAD_MAX (two decades) is halved geometrically, where the arithmetic midpoint would
+   ! take about three points a decade, and a bracket narrower than NODE_ROUNDOFF epsilons of the
+   ! unknown has closed to its last bits. A block of eliminated nodes takes at most
+   ! BLOCK_NEWTON_MAX Newton steps or sweeps: a smooth block converges in under ten. Numerical
+   ! choices: none moves a converged answer.
    !---~---
    real(wp),    parameter :: NODE_STEP_MIN    = 1.0e-3_wp
    real(wp),    parameter :: NODE_DRY_SHARE   = 1.0e-3_wp
    integer(ik), parameter :: NODE_BRACKET_MAX = 40_ik
    real(wp),    parameter :: NODE_SPREAD_MAX  = 1.0e2_wp
    real(wp),    parameter :: NODE_ROUNDOFF    = 8.0_wp
+   real(wp),    parameter :: NODE_STEP_GROWTH = 4.0_wp
    integer(ik), parameter :: BLOCK_NEWTON_MAX = 50_ik
    !--- [-] The largest scaled imbalance the merit squares: far beyond any step the line search keeps.
    real(wp),    parameter :: MERIT_X_MAX      = 1.0e100_wp
@@ -1326,7 +1331,7 @@ contains
          end if
          br%a  = x
          br%fa = r
-         dx = 4.0_wp * dx
+         dx = NODE_STEP_GROWTH * dx
       end do
       if (.not. bracketed) then
          ts(c) = x_best

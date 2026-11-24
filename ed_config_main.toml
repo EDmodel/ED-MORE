@@ -74,7 +74,8 @@ dsl_dmax       = 0.015        # [m]      dry-surface-layer thickness at most (so
 dsl_theta_init = 0.8          # [-]      the top layer's theta/theta_sat at which it starts
 ground_albedo_vis = 0.15      # [-]      the uncovered ground's albedo (bare soil, litter, moss), visible
 ground_albedo_nir = 0.30      # [-]      the same, near infrared
-ground_emissivity = 0.95      # [-]      bare-soil longwave emissivity; the litter's and the moss's too
+ground_emissivity = 0.95      # [-]      the uncovered ground's longwave emissivity (bare soil, litter, moss); no
+                              #          measured source for any of them (CLM5 takes 0.96 for soil)
 moss_depth     = 0.0          # [m]      the moss on the soil, under the litter ([ground_surface_layer.moss]); 0: none
 # ---- The bottom boundaries (docs/configuration.md "The bottom thermal boundary"). ----
 water_bottom_bc = "free_drain" # free_drain | bedrock | aquifer: drainage q = f K at f = 1 and 0, or a
@@ -97,23 +98,28 @@ min_depth = 1.0e-4               # [m] the depth from which matter is a layer: a
 [ground_surface_layer.water]
 # The water layer: snow, ice and ponded water, one bulk layer; snowfall adds its depth at
 # fresh_density, rain fills its pores.
-fresh_density          = 250.0   # [kg/m3] snowfall's bulk density (snowfall's depth = its mass / density)
-conductivity_at_fresh  = 0.15    # [W/m/K] its ice matrix's thermal conductivity at fresh_density, scaled to
-                                 #         the matrix's own density by Calonne et al. (2011)'s law
-albedo_vis_fresh       = 0.85    # [-]     fresh-snow albedo, visible
-albedo_nir_fresh       = 0.65    # [-]     fresh-snow albedo, near infrared
-albedo_vis_aged        = 0.518   # [-]     wet (aged) snow albedo, visible
-albedo_nir_aged        = 0.435   # [-]     wet (aged) snow albedo, near infrared
+fresh_density          = 250.0   # [kg/m3] snowfall's bulk density (snowfall's depth = its mass / density):
+                                 #         CLM's bulk snow density (bdsno; Lawrence et al. 2018, §2.2), a settled
+                                 #         pack's rather than new snow's (100 in Niu & Yang 2007)
+conductivity_at_fresh  = 0.15    # [W/m/K] its ice matrix's thermal conductivity at fresh_density, Calonne et
+                                 #         al. (2011)'s law there (0.1495), which scales it to the matrix's density
+albedo_vis_fresh       = 0.85    # [-]     fresh-snow albedo, visible (no verified source)
+albedo_nir_fresh       = 0.65    # [-]     fresh-snow albedo, near infrared (no verified source)
+albedo_vis_aged        = 0.518   # [-]     wet (aged) snow albedo, visible: ED2's (ed_params), after Roesch et al.
+                                 #         (2002)
+albedo_nir_aged        = 0.435   # [-]     wet (aged) snow albedo, near infrared (the same)
 albedo_vis_ice         = 0.60    # [-]     solid ice, visible: CLM5's lake ice (tech note eqs. 2.3.61-2.3.62)
 albedo_nir_ice         = 0.40    # [-]     solid ice, near infrared (the same)
 albedo_vis_liquid      = 0.10    # [-]     standing water: CLM5's diffuse albedo of open lake water (eq. 2.3.60)
 albedo_nir_liquid      = 0.10    # [-]     (the same)
-emissivity             = 0.97    # [-]     longwave emissivity
-liquid_holding_frac    = 0.10    # [-]     the layer's mass share its ice holds as liquid (LEAF-3's 1:9); the
-                                 #         rest of the liquid drains to the pond
-cover_scale_factor     = 2.5     # [-]     the cover's scale over [aerodynamics].soil_rough (Niu & Yang 2007)
-cover_density_exponent = 1.0     # [-]     the scale's growth with the layer's density (the same)
-pond_capacity          = 5.0     # [kg/m2] the pond above which the free water runs off
+emissivity             = 0.97    # [-]     longwave emissivity: CLM5's snow (Lawrence et al. 2018, §2.4), ED2's
+liquid_holding_frac    = 0.10    # [-]     the layer's mass share its ice holds as liquid: LEAF-3's 1:9 (Walko et
+                                 #         al. 2000), as ED2 percolates; the rest of the liquid drains to the pond
+cover_scale_factor     = 2.5     # [-]     the cover's scale over [aerodynamics].soil_rough (Niu & Yang 2007, eq. 4)
+cover_density_exponent = 1.0     # [-]     the scale's growth with the layer's density: the value Niu & Yang (2007)
+                                 #         give for CLM (their 1.6 is a basin fit)
+pond_capacity          = 5.0     # [kg/m2] the pond above which the free water runs off (no verified source;
+                                 #         CLM4.5 holds 10, Oleson et al. 2013)
 initial_mass           = 0.0     # [kg/m2] the layer at a fresh start
 initial_temp           = 270.0   # [K]     its temperature
 
