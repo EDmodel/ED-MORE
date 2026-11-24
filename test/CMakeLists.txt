@@ -272,7 +272,8 @@ if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
    list(APPEND refused_cases soil_nan_layer)
 endif()
 list(APPEND refused_cases toml_unclosed_string toml_duplicate_key config_fineroot_plastic init_soil_temp_layers
-                          ground_surface_layer_residual ground_surface_layer_moved ground_surface_layer_moss_thin)
+                          ground_surface_layer_residual ground_surface_layer_moved ground_surface_layer_moss_thin
+                          ground_surface_layer_fresh_density)
 foreach(case IN LISTS refused_cases)
    ed_add_test(${case}_refused
                COMMAND ${CMAKE_COMMAND} -DEDMORE_MAIN=$<TARGET_FILE:ed_main> -DSOURCE_DIR=${PROJECT_SOURCE_DIR}

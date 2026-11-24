@@ -22,7 +22,9 @@
 !      saturating under a storm (ESDIRK2); an aquifer wetting a dry column from below.
 !   6. SNOW: a melting pack, shed water under a pack and snowfall each close the column's
 !      water and energy on both schemes; snowfall arrives in the column; snowfall too light
-!      to start a pack reaches the ground as ice.
+!      to start a pack reaches the ground as ice. A pack on a litter and a moss, the litter
+!      within its pores or beyond them, closes every ledger on both schemes, and each layer
+!      stays within its pores at a temperature in range.
 !   7. PLANT WATER AND HEAT: the leaf potential converges in dt_fast; the wood's heat
 !      store lags the canopy air on both schemes; refilling wood takes no heat from water
 !      at its own temperature; the wood's heat capacity follows its water; the canopy's
@@ -61,7 +63,7 @@ program test_fast_integ_step
    use ed_patch_state_vars,     only : cas_set_depth, porous_layer_state_t, porous_layers_diagnose,          &
                                        ground_store_present, porous_layer_energy_at
    use ed_ground_surface_lib,   only : water_layer_bulk_density
-   use ed_ground_surface_params, only : POROUS_LITTER, POROUS_MOSS
+   use ed_ground_surface_params, only : POROUS_LITTER, POROUS_MOSS, N_POROUS
    use ed_fast_integ_types,     only : frozen_t, march_state_t, ensure_output_capacity, WORK_RK45_RESCUE,          &
                                        WORK_INTEG_STEPS, surface_state_t, surface_tend_t
    use ed_test_fast_fixture,    only : fast_column_t, make_fast_column, gather_column, reset_column, step_column,  &
@@ -128,6 +130,7 @@ program test_fast_integ_step
    call test_shed_under_pack()
    call test_pond_under_pack()
    call test_litter_day()
+   call test_pack_on_litter()
    call test_snowfall_conserved()
    call test_light_snowfall()
    call test_psi_dt_convergence()
@@ -947,6 +950,54 @@ contains
       end do
       call use_scheme(INTEG_ESDIRK2)
    end subroutine test_litter_day
+
+   !---~---
+   !   A pack on the porous layers, on both schemes: 60 kg/m2 of snow over 3 cm of litter and 5 cm
+   ! of moss just below freezing, under the day's light snowfall in sub-freezing air. Every ledger
+   ! closes, the pack and the soil stay physical, the pack lasts the day, and each layer holds no
+   ! more than its pores, beyond them only what its specific storage holds under the free water's
+   ! head (a metre bounds it), at a temperature in range. Then the same day on a litter filled
+   ! beyond its pores, whose excess the first stage passes to the pack.
+   !---~---
+   subroutine test_pack_on_litter()
+      type(day_t) :: d
+      integer(ik) :: is, iv, k
+      character(len=7) :: nm
+      character(len=:), allocatable :: tag
+      real(wp)    :: cap, depth
+      print '(a)', 'test_pack_on_litter:'
+      do is = 1_ik, size(SCHEMES, kind=ik)
+         call use_scheme(SCHEMES(is))
+         nm = scheme_name(SCHEMES(is))
+         do iv = 1_ik, 2_ik
+            d = day_t(snow_seed = 60.0_wp, litter_seed = 1.35_wp, moss_seed = 2.15_wp, moss_theta = 0.40_wp,       &
+                      org_temp = 272.0_wp, snowfall = 2.0e-5_wp)
+            tag = trim(nm)//' pack on litter: '
+            if (iv == 2_ik) then
+               d%litter_theta = 1.05_wp
+               tag = trim(nm)//' pack on an overfull litter: '
+            end if
+            call march_day(d)
+            call check_true(tag//'all seven ledgers close', all_ledgers_closed(col%out%report))
+            call check_true(tag//'the pack and the soil stay physical', d%snow_physical,                         &
+                            col%dynamic%ground_surface%water%temp)
+            call check_true(tag//'the pack lasts the day', col%dynamic%ground_surface%water%water > 0.0_wp,        &
+                            col%dynamic%ground_surface%water%water)
+            associate (layer => col%dynamic%ground_surface%porous, o => col%cfg%ground_surface)
+               do k = 1_ik, N_POROUS
+                  depth = layer(k)%matter / o%porous(k)%bulk_density
+                  cap   = o%porous(k)%theta_sat * rho_h2o * depth
+                  call check_true(tag//'each layer holds no more than its pores, to a metre of head',              &
+                                  layer(k)%water <= cap + rho_h2o * depth * SOIL_SPECIFIC_STORAGE * 1.0_wp,       &
+                                  layer(k)%water - cap)
+                  call check_true(tag//'each layer''s temperature in range',                                    &
+                                  layer(k)%temp > 250.0_wp .and. layer(k)%temp < 290.0_wp, layer(k)%temp)
+               end do
+            end associate
+         end do
+      end do
+      call use_scheme(INTEG_ESDIRK2)
+   end subroutine test_pack_on_litter
 
    !---~---
    !   Snowfall is a boundary water input like rain, and every kilogram of it must end in the

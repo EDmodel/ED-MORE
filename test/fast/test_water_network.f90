@@ -5,7 +5,8 @@
 !
 !   1. ARROWHEAD SOLVE : the Schur solve equals dense elimination on a random arrowhead system.
 !   2. JACOBIAN        : the assembled Jacobian equals the residual's derivative (wet, dry,
-!                        ponded, leafless).
+!                        ponded, leafless; a frozen litter and frozen soil layers, each inside
+!                        its melt plateau; roots in partial contact with the top layers).
 !   3. CONSERVATION    : two days of rain, transpiration, evaporation and drainage close to
 !                        round-off, step by step.
 !   4. PLANT ONLY      : a soil too deep for the stand to draw down: under a steady demand the
@@ -96,11 +97,19 @@
 !                        as an offset, as a porous layer does: its start's water is exact, under
 !                        light rain no sub-step is forced, it loses none of its water, and the
 !                        water closes.
+!  37. NODE BALANCE    : a core node's own balance (node_balance), the other stores held, is the
+!                        network's (water_derivs) at the same state on a stand over a litter and a
+!                        moss: its residual, its slope in its own unknown and in its neighbours';
+!                        with a node detached, the faces it touches carry nothing in either.
+!  38. SOLVE NODE      : a thin litter's own balance (solve_node), its neighbours held: to a
+!                        tolerance it is solved, within it; asked for no residual at all it is
+!                        not, and it leaves its unknown finite where the residual is no larger
+!                        than at its start.
 !---~---
 program test_water_network
    use ed_test_assert, only : check_true, check_close, check_int, test_report
    use, intrinsic :: iso_fortran_env, only : int64
-   use, intrinsic :: ieee_arithmetic, only : ieee_value, ieee_quiet_nan
+   use, intrinsic :: ieee_arithmetic, only : ieee_value, ieee_quiet_nan, ieee_is_finite
    use ed_kinds,         only : wp, ik
    use ed_constants,     only : grav_head, rho_h2o, pi, tiny_num, n_soil_layer_max, grav, r_wv, p_std, mmh2o
    use ed_linear_algebra,  only : arrowhead_system_t, arrowhead_allocate, arrowhead_factor, arrowhead_solve
@@ -109,10 +118,11 @@ program test_water_network
                                 WORK_WATER_REJECT, WORK_WATER_NFAIL, water_porous_t,                           &
                                 WORK_WATER_FAST_SLOT, WORK_WATER_CUT_POND, WORK_WATER_CUT_SLOT,                &
                                 WORK_WATER_FAST_POND, water_state_t, water_tend_t, WORK_WATER_BLOCK_SWEEP,     &
-                                WORK_WATER_NODE_UNSOLVED, WORK_WATER_HELD_OUT, WORK_WATER_FORCED_HELD
+                                WORK_WATER_NODE_UNSOLVED, WORK_WATER_HELD_OUT, WORK_WATER_FORCED_HELD, COHORT_STORES
    use ed_fast_state,    only : derive_cohort_terms
-   use ed_fast_integ_derivs, only : set_water_state, water_derivs
-   use ed_fast_integ_backward_euler, only : water_step, water_jacobian_error, substep_in_bounds, classify_fast_leaves
+   use ed_fast_integ_derivs, only : set_water_state, water_derivs, node_balance, wood_potentials
+   use ed_fast_integ_backward_euler, only : water_step, water_jacobian_error, substep_in_bounds, classify_fast_leaves, &
+                                            solve_node
    use ed_fast_integ_control, only : water_scales
    use ed_plant_hydr_lib,   only : water_curve_t, tissue_psi_to_rwc, tissue_psi_tlp, tissue_water_relations
    use ed_pft_derive,       only : build_kirchhoff_table
@@ -185,6 +195,8 @@ program test_water_network
    call test_freeze_up()
    call test_thin_frozen_litter_dries()
    call test_saturated_sealed_storm()
+   call test_node_balance()
+   call test_solve_node()
    call test_report('test_water_network')
 
 contains
@@ -488,6 +500,7 @@ contains
    subroutine test_jacobian()
       type(stand_t) :: st
       real(wp) :: theta(soil%n_active), err
+      integer(ik) :: k
       theta = 0.36_wp
       call make_stand(st, 3_ik, theta, 0.0_wp, 0.95_wp, 0.9_wp, 4.0e-5_wp)
       err = water_jacobian_error(st%static, soil, sopts, hyd, st%drive, st%water, 300.0_wp)
@@ -519,7 +532,57 @@ contains
       call porous_air(st%drive%porous, st%drive%ground, 290.0_wp)
       err = water_jacobian_error(st%static, soil, sopts, hyd, st%drive, st%water, 300.0_wp)
       call check_true('jacobian: a litter and a moss drying, each through its own dried top', err < 1.0e-5_wp, err)
+      !---~---
+      !   A litter frozen at 268 K over a thawed moss, on a soil frozen at 270 K in its top two layers,
+      ! their roots cut off, under a pond at 2 mm of head (an empty pond sits at its face's corner):
+      ! each frozen node's unknown halfway down its melt plateau, where a difference does not
+      ! straddle the plateau's ends.
+      !---~---
+      theta = 0.36_wp
+      call make_stand(st, 3_ik, theta, 2.0_wp, 0.95_wp, 0.9_wp, 2.0e-5_wp,                                        &
+                      org=layers_at(1.0e-2_wp, 0.60_wp, 268.0_wp, 0.06_wp, 0.70_wp, 275.0_wp))
+      call freeze_stand_top(st, theta, 2_ik, 270.0_wp)
+      st%water%state%tau_soil(POND) = 2.0e-3_wp
+      call check_true('jacobian: the litter and the top soil layers hold ice', st%drive%porous%ice(1)%theta_ice > 0.0_wp &
+                      .and. st%drive%ice(1)%theta_ice > 0.0_wp .and. st%drive%ice(2)%theta_ice > 0.0_wp,            &
+                      st%drive%porous%ice(1)%theta_ice)
+      associate (ts => st%water%state%tau_soil, n_porous => st%drive%porous%n)
+         ts(2) = 0.5_wp * (st%drive%porous%ice(1)%tau_dry + st%drive%porous%ice(1)%tau_melt)
+         do k = 1_ik, 2_ik
+            ts(1_ik + n_porous + k) = 0.5_wp * (st%drive%ice(k)%tau_dry + st%drive%ice(k)%tau_melt)
+         end do
+      end associate
+      err = water_jacobian_error(st%static, soil, sopts, hyd, st%drive, st%water, 300.0_wp)
+      call check_true('jacobian: a frozen litter and frozen soil layers, inside their melt plateaus', err < 1.0e-5_wp, &
+                      err)
+      !--- Roots in partial contact with the top three layers.
+      theta = 0.33_wp
+      call make_stand(st, 3_ik, theta, 0.0_wp, 0.9_wp, 0.85_wp, 3.0e-5_wp)
+      st%drive%root_contact(1:3) = [0.0_wp, 0.5_wp, 0.8_wp]
+      err = water_jacobian_error(st%static, soil, sopts, hyd, st%drive, st%water, 300.0_wp)
+      call check_true('jacobian: roots in partial contact with the top layers', err < 1.0e-5_wp, err)
    end subroutine test_jacobian
+
+   !---~---
+   !   The stand's top nk soil layers frozen at temp, each keeping the liquid its freezing curve holds
+   ! there and the rest ice, their roots cut off, and the network restarted from that state.
+   !---~---
+   subroutine freeze_stand_top(st, theta, nk, temp)
+      type(stand_t), intent(inout) :: st
+      real(wp),      intent(in)    :: theta(:), temp
+      integer(ik),   intent(in)    :: nk
+      real(wp)    :: liq, dliq
+      integer(ik) :: k
+      do k = 1_ik, nk
+         call soil_liquid_capacity(soil%layer_curve(k), temp, liq, dliq)
+         liq = min(theta(k), liq)
+         st%drive%ice(k) = soil_ice_state(soil%layer_curve(k), theta(k) - liq, liq)
+      end do
+      st%drive%root_contact(1:nk) = 0.0_wp
+      call set_water_state(st%static, soil, hyd, theta, st%drive%ice, (st%water%state%water_soil(POND)),              &
+                           st%water%state%water_coh(LEAF, :) / st%static%nplant(1:st%static%n),                    &
+                           st%water%state%water_coh(WOOD, :) / st%static%nplant(1:st%static%n), st%water, st%drive%porous)
+   end subroutine freeze_stand_top
 
    subroutine test_conservation()
       type(stand_t) :: st
@@ -2135,5 +2198,101 @@ contains
                       over <= rho_h2o * 0.06_wp * 1.0e-4_wp * 10.0_wp, over)
       call check_true('freeze-up: every step closes to round-off', worst < 1.0e-13_wp, worst)
    end subroutine test_freeze_up
+
+   !---~---
+   !   37. A stand over a drying litter and a moss under a 2 kg/m2 pond, each core node's balance over
+   ! 300 s from a start 0.1 kg/m2 above its water: node_balance's residual and slopes against
+   ! water_derivs' net inflow and Jacobian at the same state, each to round-off of the flows it
+   ! sums. Then the moss detached: the litter's, the moss's and the top soil layer's residuals.
+   !---~---
+   subroutine test_node_balance()
+      real(wp), parameter :: H = 300.0_wp   ! [s]
+      type(stand_t)      :: st
+      type(water_tend_t) :: ev
+      real(wp) :: theta(soil%n_active), r, dr, dr_up, dr_down, scale_r, scale_dr
+      real(wp), allocatable :: w0(:), psi_wood(:)
+      logical,  allocatable :: cut(:)
+      integer(ik) :: c, nsoil
+      print '(a)', 'test_node_balance:'
+      theta = 0.3_wp
+      call make_stand(st, 2_ik, theta, 2.0_wp, 0.9_wp, 0.85_wp, 1.0e-5_wp,                                        &
+                      org=thin_layers(1.0e-2_wp, 0.40_wp, 0.05_wp, 0.50_wp, .false.))
+      nsoil = st%water%nsoil
+      call ground_evaporation_setup(soil, sopts, st%drive%ground)
+      call arrowhead_allocate(st%water%sys, nsoil, st%water%ncoh, COHORT_STORES)
+      ev = st%water%ev(1)
+      call water_derivs(st%static, soil, sopts, hyd, st%drive, st%water%state%tau_soil, st%water%state%tau_coh, ev,  &
+                        st%water%sys, .true.)
+      allocate(psi_wood(st%static%n), cut(nsoil))
+      call wood_potentials(st%static, hyd, st%water%state%tau_coh, psi_wood)
+      w0  = ev%water_soil + 0.1_wp
+      cut = .false.
+      associate (a => st%water%sys%a)
+         do c = 1_ik, nsoil
+            call node_balance(st%static, soil, sopts, st%drive, c, st%water%state%tau_soil, w0(c), H, cut, psi_wood, &
+                              r, dr, dr_up, dr_down)
+            scale_r  = abs(ev%water_soil(c) - w0(c)) / H + abs(ev%inflow_soil(c)) + abs(ev%face(c))
+            scale_dr = abs(ev%dwater_soil(c)) / H + abs(a(c, c)) + abs(ev%face_dqa(c)) + abs(ev%face_dqb(c))            &
+                       + ev%root_link(c)
+            if (c > 1_ik) then
+               scale_r  = scale_r + abs(ev%face(c - 1_ik))
+               scale_dr = scale_dr + abs(ev%face_dqa(c - 1_ik)) + abs(ev%face_dqb(c - 1_ik))
+            end if
+            call check_close('node balance: its residual, the network''s', r,                                     &
+                             (ev%water_soil(c) - w0(c)) / H - ev%inflow_soil(c), 1.0e-12_wp * scale_r)
+            call check_close('node balance: its slope, the network''s storage and diagonal', dr,                   &
+                             ev%dwater_soil(c) / H + a(c, c), 1.0e-12_wp * scale_dr)
+            if (c > 1_ik) call check_close('node balance: its slope in the node above''s unknown, the network''s',  &
+                                           dr_up, a(c, c - 1_ik), 1.0e-12_wp * scale_dr)
+            if (c < nsoil) call check_close('node balance: its slope in the node below''s unknown, the network''s', &
+                                            dr_down, a(c, c + 1_ik), 1.0e-12_wp * scale_dr)
+         end do
+      end associate
+      !--- The moss detached: no face to or from it, in either.
+      cut(3) = .true.
+      call water_derivs(st%static, soil, sopts, hyd, st%drive, st%water%state%tau_soil, st%water%state%tau_coh, ev,  &
+                        st%water%sys, .false., cut)
+      do c = 2_ik, 4_ik
+         call node_balance(st%static, soil, sopts, st%drive, c, st%water%state%tau_soil, w0(c), H, cut, psi_wood,    &
+                           r, dr)
+         scale_r = abs(ev%water_soil(c) - w0(c)) / H + abs(ev%inflow_soil(c))
+         call check_close('node balance: with the moss detached, the network''s residual', r,                     &
+                          (ev%water_soil(c) - w0(c)) / H - ev%inflow_soil(c), 1.0e-12_wp * scale_r)
+      end do
+   end subroutine test_node_balance
+
+   !---~---
+   !   38. A 3 mm litter at theta 0.5 over a 6 cm moss near saturation, its balance over 300 s from its
+   ! own water, the pond, the moss and the soil held: solve_node to 1e-9 kg/m2/s, then to none.
+   !---~---
+   subroutine test_solve_node()
+      real(wp), parameter :: H = 300.0_wp, TOL = 1.0e-9_wp   ! [s], [kg/m2/s]
+      type(stand_t) :: st
+      real(wp) :: theta(soil%n_active), w0, r0, r, dr
+      real(wp), allocatable :: ts(:), psi_wood(:)
+      logical,  allocatable :: cut(:)
+      logical :: solved
+      print '(a)', 'test_solve_node:'
+      theta = 0.3_wp
+      call make_stand(st, 1_ik, theta, 0.0_wp, 0.95_wp, 0.9_wp, 0.0_wp,                                          &
+                      org=thin_layers(3.0e-3_wp, 0.5_wp, 0.06_wp, 0.85_wp, .false.))
+      call ground_evaporation_setup(soil, sopts, st%drive%ground)
+      allocate(psi_wood(st%static%n), cut(st%water%nsoil))
+      call wood_potentials(st%static, hyd, st%water%state%tau_coh, psi_wood)
+      cut = .false.
+      w0  = st%water%state%water_soil(2)
+      ts  = st%water%state%tau_soil
+      call node_balance(st%static, soil, sopts, st%drive, 2_ik, ts, w0, H, cut, psi_wood, r0, dr)
+      call check_true('solve node: the litter starts out of balance', abs(r0) > 1.0e3_wp * TOL, r0)
+      call solve_node(st%static, soil, sopts, st%drive, 2_ik, ts, w0, H, TOL, cut, psi_wood, solved)
+      call node_balance(st%static, soil, sopts, st%drive, 2_ik, ts, w0, H, cut, psi_wood, r, dr)
+      call check_true('solve node: solved to its tolerance', solved .and. abs(r) <= TOL, r)
+      ts = st%water%state%tau_soil
+      call solve_node(st%static, soil, sopts, st%drive, 2_ik, ts, w0, H, 0.0_wp, cut, psi_wood, solved)
+      call node_balance(st%static, soil, sopts, st%drive, 2_ik, ts, w0, H, cut, psi_wood, r, dr)
+      call check_true('solve node: asked for no residual at all, it is not solved', .not. solved)
+      call check_true('solve node: its unknown stays finite', ieee_is_finite(ts(2)), ts(2))
+      call check_true('solve node: its residual no larger than at its start', abs(r) <= abs(r0), r)
+   end subroutine test_solve_node
 
 end program test_water_network

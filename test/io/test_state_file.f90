@@ -13,7 +13,11 @@
 !   4. a run of another growth-window length seeds each cohort's rings full of its growth_avg;
 !   5. the reader refuses a file it cannot start from, and says why; and a run whose polygons
 !      the file does not each hold a row for is refused (restart_file_slots, as region_open
-!      matches them): a site run (polygon 0) a region's file, a region a site's file.
+!      matches them): a site run (polygon 0) a region's file, a region a site's file;
+!   6. a file from before the ground's surface layers were one record: its snow pack's one layer
+!      is the water layer, its pond joins that layer, its organic_* variables are the porous
+!      layers, and a density it held is not read; without organic_* variables the porous layers
+!      come back empty, and a run that starts from such a file with a moss_depth makes its moss.
 ! A store a restart drops comes back at its default: stomata reopened mid-drought, phenology
 ! reborn at flush 1 and shed 0, soil bone dry at 0 K. Section 1 catches it for every variable
 ! the file holds, and section 2 makes sure a new variable is stamped here before it counts.
@@ -24,7 +28,10 @@ program test_state_file
    use ed_kinds,                only : wp, ik
    use ed_constants,            only : n_soil_layer_max
    use ed_biogeochem_params,    only : N_SOIL_POOL
-   use ed_config,               only : ed_config_t, growth_window_steps
+   use ed_config,               only : ed_config_t, growth_window_steps, INIT_RESTART
+   use ed_therm_lib,            only : temp_to_internal_energy, internal_energy_liquid
+   use ed_ground_surface_params, only : N_POROUS, POROUS_MOSS
+   use ed_init,                 only : init_polygon
    use ed_polygon_state_vars,   only : polygon_t, alloc_polygon
    use ed_site_state_vars,      only : make_site_surface
    use ed_cohort_state_vars,    only : hold_cohort_tissue_temps, set_cohort_size_from_carbon
@@ -33,9 +40,10 @@ program test_state_file
                                        read_restart_file, restart_file_slots
    use ed_time,                 only : ed_time_t
    use ed_netcdf_c,             only : NC_NOERR, NC_NOWRITE, nc_open_f, nc_close, nc_inq_varid_f, nc_inq_dimlen,  &
-                                       nc_get_vara_double
+                                       nc_get_vara_double, NC_DOUBLE, nc_def_dim_f, nc_def_var_f, nc_enddef,         &
+                                       nc_put_vara_double, nc_inq_dimid, cstr
    use ed_test_support,         only : build_test_config
-   use ed_test_assert,          only : check_true, test_report
+   use ed_test_assert,          only : check, check_true, check_close, test_report
    implicit none
 
    interface
@@ -50,7 +58,23 @@ program test_state_file
          character(kind=c_char), intent(out) :: name(*)
          integer(c_int),         intent(out) :: xtypep, ndimsp, dimidsp(*), nattsp
       end function nc_inq_var
+      integer(c_int) function nc_inq_attname(ncid, varid, attnum, name) bind(c, name='nc_inq_attname')
+         import :: c_int, c_char
+         integer(c_int), value,  intent(in)  :: ncid, varid, attnum
+         character(kind=c_char), intent(out) :: name(*)
+      end function nc_inq_attname
+      integer(c_int) function nc_redef(ncid) bind(c, name='nc_redef')
+         import :: c_int
+         integer(c_int), value, intent(in) :: ncid
+      end function nc_redef
+      integer(c_int) function nc_rename_var(ncid, varid, name) bind(c, name='nc_rename_var')
+         import :: c_int, c_char
+         integer(c_int), value,  intent(in) :: ncid, varid
+         character(kind=c_char), intent(in) :: name(*)
+      end function nc_rename_var
    end interface
+
+   integer(c_int), parameter :: NC_WRITE = 1_c_int   ! netCDF's open mode for writing
 
    !---~---
    !   The variables a reader that skipped them would still hold: the polygon's structure,
@@ -65,6 +89,8 @@ program test_state_file
    character(len=*), parameter :: FILE_B = './test_sf_b-S-20000101000000.nc'
    character(len=*), parameter :: FILE_Z = './test_sf_z-S-20000101000000.nc'
    character(len=*), parameter :: FILE_R = './test_sf_r-S-20000101000000.nc'   ! a region's: polygons 35, 18, 53
+   character(len=*), parameter :: FILE_O = './test_sf_o-S-20000101000000.nc'   ! an older file, organic_* and all
+   character(len=*), parameter :: FILE_N = './test_sf_n-S-20000101000000.nc'   ! an older file with no organic_*
 
    type(ed_config_t)   :: cfg
    type(polygon_t)     :: poly, back
@@ -80,6 +106,7 @@ program test_state_file
    call test_restructuring_owed()
    call test_other_window()
    call test_refusals()
+   call test_older_file()
 
    call test_report('test_state_file')
 
@@ -190,6 +217,206 @@ contains
       call restart_file_slots(FILE_A, [35_ik, 18_ik, 53_ik], slot, why)
       call check_true('a region refuses a site state file', index(why, 'does not hold polygon 35') > 0)
    end subroutine test_refusals
+
+   !---~---
+   !   6. A's ground-surface variables renamed away and an older file's put in their place: each
+   ! patch's snow pack as its one layer, its pond apart, its organic_* variables (or none) and a
+   ! density no reader takes. The pack is 10 + ip kg/m2 at 265 K at the first pack's density, the
+   ! pond ip / 2 kg/m2 at 274 K, and the organic_* values each patch's own.
+   !---~---
+   subroutine test_older_file()
+      real(wp), parameter :: MOSS_DEPTH = 0.05_wp   ! [m]
+      real(c_double)    :: snow(3, 5), pond(3, 2), organic(N_POROUS, 3, 3)
+      type(ed_config_t) :: cfg_r
+      type(polygon_t)   :: started
+      type(ed_time_t)   :: now_r
+      logical           :: ok
+      integer(ik)       :: ip, k
+      character(len=2)  :: tag
+      print '(a)', '-- 6. a state file from before the ground''s surface layers were one record --'
+      do ip = 1_ik, 3_ik
+         snow(ip, 1) = 10.0_wp + real(ip, wp)
+         snow(ip, 2) = temp_to_internal_energy(0.0_wp, snow(ip, 1), 265.0_wp, 0.0_wp)
+         snow(ip, 3) = snow(ip, 1) / 250.0_wp
+         snow(ip, 4) = 265.0_wp
+         snow(ip, 5) = 0.0_wp
+         pond(ip, 1) = 0.5_wp * real(ip, wp)
+         pond(ip, 2) = pond(ip, 1) * internal_energy_liquid(274.0_wp)
+         organic(:, 1, ip) = [1.1_wp, 2.0_wp] + 0.1_wp * real(ip, wp)
+         organic(:, 2, ip) = [3.0_wp, 15.0_wp] + real(ip, wp)
+         organic(:, 3, ip) = [1.0e6_wp, 5.0e6_wp] * real(1_ik + ip, wp)
+      end do
+      call write_older_state('test_sf_o', FILE_O, snow, pond, organic, .true.)
+      call read_restart_file(back, cfg, FILE_O, rt, found, polygon=1_ik)
+      call check_true('older file: it is read', found .and. back%patch%n == 3_ik)
+      do ip = 1_ik, 3_ik
+         write(tag, '(i0)') ip
+         associate (gs => back%patch%ground_surface(ip))
+            call check_close('older file, patch '//trim(tag)//': the water layer holds the pack and the pond',       &
+                             gs%water%water, snow(ip, 1) + pond(ip, 1), 1.0e-12_wp)
+            call check_close('older file, patch '//trim(tag)//': and their energy', gs%water%energy,                 &
+                             snow(ip, 2) + pond(ip, 2), 1.0e-9_wp * abs(snow(ip, 2)))
+            call check_close('older file, patch '//trim(tag)//': as deep as the pack', gs%water%matrix_depth,         &
+                             snow(ip, 3), 0.0_wp)
+            do k = 1_ik, N_POROUS
+               call check_close('older file, patch '//trim(tag)//': a porous layer''s matter, the file''s organic', &
+                                gs%porous(k)%matter, organic(k, 1, ip), 0.0_wp)
+               call check_close('older file, patch '//trim(tag)//': its water', gs%porous(k)%water,                  &
+                                organic(k, 2, ip), 0.0_wp)
+               call check_close('older file, patch '//trim(tag)//': its energy', gs%porous(k)%energy,                &
+                                organic(k, 3, ip), 0.0_wp)
+            end do
+         end associate
+      end do
+      !--- No organic_* variables: the porous layers come back empty.
+      call write_older_state('test_sf_n', FILE_N, snow, pond, organic, .false.)
+      call read_restart_file(back, cfg, FILE_N, rt, found, polygon=1_ik)
+      call check_true('older file without organic_* variables: it is read', found)
+      do ip = 1_ik, 3_ik
+         do k = 1_ik, N_POROUS
+            associate (layer => back%patch%ground_surface(ip)%porous(k))
+               call check_true('older file without organic_* variables: the porous layers are empty',              &
+                               layer%matter == 0.0_wp .and. layer%water == 0.0_wp .and. layer%energy == 0.0_wp)
+            end associate
+         end do
+      end do
+      !--- A run that starts from it with a moss_depth makes its moss on every patch.
+      cfg_r = cfg
+      cfg_r%init%init_mode    = INIT_RESTART
+      cfg_r%init%restart_file = FILE_N
+      cfg_r%soil%moss_depth   = MOSS_DEPTH
+      now_r = now
+      call init_polygon(started, cfg_r, 'an older state file', .false., 1_ik, now_r, ok, 0_ik, 0.0_wp, 0.0_wp,       &
+                        0.0_wp)
+      call check_true('a run starts from an older file', ok .and. started%patch%n == 3_ik)
+      do ip = 1_ik, started%patch%n
+         associate (moss => started%patch%ground_surface(ip)%porous(POROUS_MOSS))
+            call check_close('a run from an older file makes the moss its moss_depth gives', moss%matter,         &
+                             MOSS_DEPTH * cfg%ground_surface%porous(POROUS_MOSS)%bulk_density, 1.0e-12_wp)
+            call check_true('and the moss holds water', moss%water > 0.0_wp, moss%water)
+         end associate
+      end do
+   end subroutine test_older_file
+
+   !---~---
+   !   The fixture's state as an older file held it, at path, written as prefix: the ground-surface
+   ! variables renamed to names no reader takes, the porous layers' to the older file's organic_*
+   ! names when with_organic, and the snow pack's layer (snow: water, energy, depth, temperature
+   ! and liquid fraction by patch), the pond (pond: water and energy by patch) and the density
+   ! the older file held (organic_density_pa) defined and put.
+   !---~---
+   subroutine write_older_state(prefix, path, snow, pond, organic, with_organic)
+      character(len=*), intent(in) :: prefix, path
+      real(c_double),   intent(in) :: snow(:,:), pond(:,:), organic(:,:,:)
+      logical,          intent(in) :: with_organic
+      character(len=*), parameter :: LAYER(5)  = [character(len=12) :: 'water', 'energy', 'matrix_depth', 'temp', &
+                                                  'fliq']
+      character(len=*), parameter :: SNOW_VAR(5) = [character(len=6) :: 'swe', 'energy', 'depth', 'temp', 'fliq']
+      character(len=*), parameter :: POROUS(3)  = [character(len=6) :: 'matter', 'water', 'energy']
+      character(len=*), parameter :: ORGANIC_VAR(3) = [character(len=6) :: 'mass', 'water', 'energy']
+      real(c_double)    :: density(3), values(N_POROUS * 3)
+      integer(c_int)    :: ncid, d_poly, d_patch, d_snow, v_snow(5), v_pond(2), v_dens, varid
+      integer(c_size_t) :: n_patch
+      integer           :: k
+      n_patch = int(size(pond, 1), c_size_t)
+      call write_state(poly, prefix, .false., .false.)
+      !--- The renames first, on their own: a netCDF-4 file takes them in data mode.
+      call nc_ok(nc_open_f(path, NC_WRITE, ncid), 'open '//path)
+      call read_every_attribute(ncid)
+      do k = 1, size(LAYER)
+         call rename_var(ncid, 'ground_water_layer_'//trim(LAYER(k))//'_pa', 'unread_water_layer_'//trim(LAYER(k))//'_pa')
+      end do
+      do k = 1, size(POROUS)
+         if (with_organic) then
+            call rename_var(ncid, 'ground_porous_layer_'//trim(POROUS(k))//'_pa', 'organic_'//trim(ORGANIC_VAR(k))//'_pa')
+         else
+            call rename_var(ncid, 'ground_porous_layer_'//trim(POROUS(k))//'_pa', 'unread_porous_'//trim(POROUS(k))//'_pa')
+         end if
+      end do
+      call nc_ok(nc_close(ncid), 'close after the renames')
+      !--- Then the older file's variables, defined and put.
+      call nc_ok(nc_open_f(path, NC_WRITE, ncid), 'reopen '//path)
+      call nc_ok(nc_redef(ncid), 'redef')
+      d_poly  = dim_id(ncid, 'polygon')
+      d_patch = dim_id(ncid, 'patch')
+      call nc_ok(nc_def_dim_f(ncid, 'snow_layer', 1_c_size_t, d_snow), 'def snow_layer')
+      do k = 1, size(SNOW_VAR)
+         call nc_ok(nc_def_var_f(ncid, 'snow_'//trim(SNOW_VAR(k))//'_layer_pa', NC_DOUBLE, 3_c_int,                &
+                                 [d_poly, d_patch, d_snow], v_snow(k)), 'def snow_'//trim(SNOW_VAR(k)))
+      end do
+      call nc_ok(nc_def_var_f(ncid, 'soil_w_surface_pa', NC_DOUBLE, 2_c_int, [d_poly, d_patch], v_pond(1)), 'def pond')
+      call nc_ok(nc_def_var_f(ncid, 'soil_w_surface_enth_pa', NC_DOUBLE, 2_c_int, [d_poly, d_patch], v_pond(2)),       &
+                 'def pond energy')
+      call nc_ok(nc_def_var_f(ncid, 'organic_density_pa', NC_DOUBLE, 2_c_int, [d_poly, d_patch], v_dens),             &
+                 'def density')
+      call nc_ok(nc_enddef(ncid), 'enddef')
+      do k = 1, size(SNOW_VAR)
+         call nc_ok(nc_put_vara_double(ncid, v_snow(k), [0_c_size_t, 0_c_size_t, 0_c_size_t],                     &
+                                       [1_c_size_t, n_patch, 1_c_size_t], snow(:, k)), 'put snow')
+      end do
+      do k = 1, 2
+         call nc_ok(nc_put_vara_double(ncid, v_pond(k), [0_c_size_t, 0_c_size_t], [1_c_size_t, n_patch], pond(:, k)), &
+                    'put pond')
+      end do
+      density = 999.0_wp
+      call nc_ok(nc_put_vara_double(ncid, v_dens, [0_c_size_t, 0_c_size_t], [1_c_size_t, n_patch], density),        &
+                 'put density')
+      if (with_organic) then
+         do k = 1, size(ORGANIC_VAR)
+            call nc_ok(nc_inq_varid_f(ncid, 'organic_'//trim(ORGANIC_VAR(k))//'_pa', varid), 'inq organic')
+            values = reshape(organic(:, k, :), [N_POROUS * 3])
+            call nc_ok(nc_put_vara_double(ncid, varid, [0_c_size_t, 0_c_size_t, 0_c_size_t],                      &
+                                          [1_c_size_t, n_patch, int(N_POROUS, c_size_t)], values), 'put organic')
+         end do
+      end if
+      call nc_ok(nc_close(ncid), 'close '//path)
+   end subroutine write_older_state
+
+   !---~---
+   !   Every variable's attributes listed, as a reader that opens a file whole lists them. The
+   ! netCDF library reads a netCDF-4 variable's attributes only when asked, and renaming a
+   ! variable before they are read makes the file's close fail.
+   !---~---
+   subroutine read_every_attribute(ncid)
+      integer(c_int), intent(in) :: ncid
+      character(kind=c_char) :: name(257)
+      integer(c_int) :: nvar, varid, xtype, ndims, dimids(8), natts, att
+      call nc_ok(nc_inq_nvars(ncid, nvar), 'inq nvars')
+      do varid = 0_c_int, nvar - 1_c_int
+         call nc_ok(nc_inq_var(ncid, varid, name, xtype, ndims, dimids, natts), 'inq var')
+         do att = 0_c_int, natts - 1_c_int
+            call nc_ok(nc_inq_attname(ncid, varid, att, name), 'inq attname')
+         end do
+      end do
+   end subroutine read_every_attribute
+
+   !--- Rename variable old_name to new_name in an open file.
+   subroutine rename_var(ncid, old_name, new_name)
+      integer(c_int),   intent(in) :: ncid
+      character(len=*), intent(in) :: old_name, new_name
+      character(kind=c_char) :: cname(len_trim(new_name) + 1)
+      integer(c_int) :: varid
+      call nc_ok(nc_inq_varid_f(ncid, old_name, varid), 'inq '//old_name)
+      cname = cstr(new_name)
+      call nc_ok(nc_rename_var(ncid, varid, cname), 'rename '//old_name)
+   end subroutine rename_var
+
+   !--- A dimension's id in an open file.
+   integer(c_int) function dim_id(ncid, name) result(id)
+      integer(c_int),   intent(in) :: ncid
+      character(len=*), intent(in) :: name
+      character(kind=c_char) :: cname(len_trim(name) + 1)
+      cname = cstr(name)
+      call nc_ok(nc_inq_dimid(ncid, cname, id), 'inq dim '//name)
+   end function dim_id
+
+   !--- A netCDF call that must succeed.
+   subroutine nc_ok(status, what)
+      integer(c_int),   intent(in) :: status
+      character(len=*), intent(in) :: what
+      if (status /= NC_NOERR) print '(3a,i0)', ' older file: netCDF ', what, ' returned ', status
+      call check(status == NC_NOERR, 'older file: netCDF '//what)
+   end subroutine nc_ok
 
    !---~---
    !   The fixture: two sites (0.3 and 0.7 of the polygon) of one and two patches, four

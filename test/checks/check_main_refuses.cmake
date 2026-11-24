@@ -36,6 +36,7 @@
 #   ground_surface_layer_moved a key of the [snow] block: the run names the [ground_surface_layer] key
 #                              that holds its value
 #   ground_surface_layer_moss_thin  a site's moss thinner than a layer of the ground can be
+#   ground_surface_layer_fresh_density  fresh snow denser than solid ice
 #   init_census_missing        a census file that is not there (init mode 1)
 #   init_census_empty          a census file with no row for the site
 #   init_restart_missing       a state file that is not there (init mode 2)
@@ -201,6 +202,10 @@ elseif(CASE STREQUAL "ground_surface_layer_moved")
 elseif(CASE STREQUAL "ground_surface_layer_moss_thin")
    replace_or_fail(text "\nmoss_depth *= *[^ #\n]+" "\nmoss_depth = 5.0e-5" "[soil] moss_depth")
    set(expects "soil\\.moss_depth must be 0 or at least ground_surface_layer\\.min_depth")
+elseif(CASE STREQUAL "ground_surface_layer_fresh_density")
+   replace_or_fail(text "(\n\\[ground_surface_layer\\.water\\][^@]*\nfresh_density *= *)[^ #\n]+" "\\1950.0"
+                   "[ground_surface_layer.water] fresh_density")
+   set(expects "ground_surface_layer\\.water\\.fresh_density must be below solid ice's")
 elseif(CASE MATCHES "^hydraulics_")
    #----- The PFT file's copy beside the run, with one trait made impossible for every PFT. --------#
    file(READ "${SOURCE_DIR}/ed_config_pft.toml" pft)

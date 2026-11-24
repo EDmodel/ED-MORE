@@ -49,7 +49,7 @@ module ed_fast_integ_backward_euler
 
    public :: backward_euler_stage, advance_plant_water, advance_surf_water_full
    public :: water_step
-   public :: water_jacobian_error, substep_in_bounds, classify_fast_leaves   ! used only by the tests
+   public :: water_jacobian_error, substep_in_bounds, classify_fast_leaves, solve_node   ! used only by the tests
    public :: newton_surface_solve, surface_source_slopes, surface_jacobian, surface_residual_scaled, &
              SURFACE_NEWTON_MAX                                                        ! used only by the tests
 

@@ -29,20 +29,23 @@
 !      ground surface's exchange takes that specific heat from its surroundings.
 !   9. THE STAGE (water_layer_stage): light snowfall on frozen ground gathers as a film at the
 !      ground's temperature until it is a layer; a dusting on warm ground melts, the ground
-!      paying, and drains; a pond with a round-off share of ice is free water and covers nothing;
-!      a cold pack freezes a pond within its pores; a warm pond is all free water.
+!      paying, and drains; a pond with a round-off share of ice is free water and covers nothing,
+!      and holds neither ice nor an ice matrix over the step; a cold pack freezes a pond within
+!      its pores; a warm pond is all free water.
 !  10. THE POROUS LAYERS (their helpers in ed_patch_state_vars, and surface_node_balance): a layer
 !      holds its theta_sat over its depth, and passes what it holds beyond to the water layer at its
-!      temperature; each its own temperature, from its own energy; heat
+!      temperature, to a cold pack as ice in its pores, whose stage then frees no water and keeps
+!      its matrix; each its own temperature, from its own energy; heat
 !      crosses a layer's dried top at its dry conductivity, in series with its wet part. Each
 !      layer's curve is its material's at its depth (the moss's at -10 kPa as Zhang et al. 2010
 !      measured, the litter's near what drained litter holds), whether frozen or empty. Its
 !      balance closes on its energy, a thin layer of little heat capacity relaxes over an hour
 !      without passing its surroundings, a dry layer does not evaporate, and a wet one gives no
-!      more than it holds; held at the network's rate it gives that rate, evaporation or dew, and
+!      more than it holds; held at a given rate of either sign it gives that rate, and
 !      takes its root; the soil takes what it conducts down, less the soil's own evaporation's
 !      latent heat, and with a pack on it the ground's energy closes on what the pack and the
-!      layer keep.
+!      layer keep; under a pack that covers nine tenths of it or all of it, the layer held at the
+!      network's evaporation gives that rate, and the ground's energy closes.
 !  11. INSULATION: a deep pack colder than the soil, in balance with the air, passes the soil
 !      the heat its whole depth and the top soil node conduct in series, since its one
 !      temperature is its surface's; twice as deep, it passes less.
@@ -56,6 +59,8 @@
 !      the ground's latent and sensible heat change continuously, with no jump of the litter's
 !      vapour times the latent heat of fusion (3.2 W/m2). The canopy air's balance over such a
 !      jump has no root (a tundra's late-summer snowfall on wet litter).
+!  14. WHOLE SUBLIMATION: a pack too thin for the step's sublimation gives the canopy air all its
+!      water, keeps none of its energy, and its energy change is what its surroundings gave.
 ! The energy datum the pack is held in is test_therm_lib's.
 !---~---
 program test_surface
@@ -99,6 +104,7 @@ program test_surface
    call test_stack()
    call test_stack_water()
    call test_freezing_onset()
+   call test_whole_sublimation()
 
    call test_report('test_surface')
 
@@ -560,6 +566,8 @@ contains
                       st%free%water)
       call check('and it covers what 3 mm of water does', water_layer_cover_of(water_layer_exposed(layer, st%free),  &
                  st%is_layer, p, 0.01_wp), tanh(3.0e-3_wp / (p%cover_scale_factor * 0.01_wp * 10.0_wp)), 1.0e-6_wp)
+      call check_true('it holds no ice over the step', st%ice_held < 1.0e-9_wp, st%ice_held)
+      call check_true('and builds no ice matrix', layer%matrix_depth < 1.0e-12_wp, layer%matrix_depth)
 
       !--- (d) A cold deep pack and a pond at the triple point, one store: the pack's cold freezes it in its pores.
       layer = cold_pack(40.0_wp, 255.0_wp, p)
@@ -625,6 +633,8 @@ contains
       type(porous_layer_state_t)    :: layer(N_POROUS)
       type(soil_layer_curve_t) :: c
       type(ground_store_t)     :: pond
+      type(water_layer_state_t) :: pack
+      type(water_stage_out_t)  :: st
       real(wp) :: cap_litter, cap_moss, fill, e0, e_moss
       print '(a)', 'test_porous_layers:'
       layer = two_layers(o, 280.0_wp, 283.0_wp)
@@ -686,6 +696,27 @@ contains
                  1.0e-9_wp * abs(e0))
       call check('beyond saturation: a layer within its pores keeps all it holds', layer(POROUS_MOSS)%energy,     &
                  e_moss, 0.0_wp)
+      !---~---
+      !   The same litter under a cold pack (30 kg/m2 at 265 K), the water layer it spills into: the
+      ! pack takes the excess, as ice at the litter's temperature, and the litter keeps its own; the
+      ! pack's stage then frees no water and keeps its ice matrix, the ice that joined it in its pores.
+      !---~---
+      layer = two_layers(o, 265.0_wp, 283.0_wp)
+      layer%water  = [cap_litter + 2.0_wp, 2.0_wp]
+      call set_layer_temps(layer, o, [265.0_wp, 283.0_wp])
+      pack = cold_pack(30.0_wp, 265.0_wp, o%water)
+      e0 = sum(layer%energy) + pack%energy
+      call porous_layers_spill(layer, o, pack)
+      call check('under a pack: the pack takes the excess', pack%water, 32.0_wp, 1.0e-12_wp)
+      call check('under a pack: the energy goes with the water', sum(layer%energy) + pack%energy, e0,           &
+                 1.0e-9_wp * abs(e0))
+      call check('under a pack: the litter keeps its temperature', layer(POROUS_LITTER)%temp, 265.0_wp, 1.0e-7_wp)
+      call water_layer_stage(0.0_wp, 0.0_wp, 265.0_wp, 0.0_wp, 0.0_wp, 900.0_wp, o%water, MIN_DEPTH, 265.0_wp,       &
+                             0.0_wp, pack, st)
+      call check_true('under a pack: the pack is all ice at the litter''s temperature',                            &
+                      pack%fliq == 0.0_wp .and. abs(pack%temp - 265.0_wp) < 1.0e-7_wp, pack%temp)
+      call check('under a pack: its stage frees no water', st%free%water, 0.0_wp, 0.0_wp)
+      call check('under a pack: and keeps its matrix', pack%matrix_depth, 30.0_wp / o%water%fresh_density, 1.0e-15_wp)
    end subroutine test_porous_layers
 
    !--- A porous layer as the stack reads it: water [kg/m2] at temp, its matter's heat, its resistance.
@@ -713,13 +744,14 @@ contains
 
    !---~---
    !   10b. One node's balance (surface_node_balance), and the ground surface with the porous
-   ! layers: a node held at the network's evaporation or dew gives that rate per unit ground area,
+   ! layers: a node held at a given rate of either sign gives that rate per unit ground area,
    ! even where the pack covers it all; its energy closes and the exchange it takes gives back the
    ! temperature it solved for; a node whose vapour is the canopy air's evaporates no more than it
    ! holds; and a pack on the ice line is the closed form of its own balance.
    !---~---
    subroutine test_porous_balance()
       real(wp), parameter :: DT = 3600.0_wp
+      real(wp), parameter :: COVERS(2) = [0.9_wp, 1.0_wp]   ! [-] the pack's covers the held vapour is taken under
       type(ground_surface_layer_params_t) :: o
       type(surface_env_t)    :: env
       type(surface_node_t)   :: node
@@ -727,7 +759,8 @@ contains
       type(water_material_t)    :: p
       real(wp) :: h_ground, le_ground, g_top, ground_rad, s_in, o_in
       type(store_exchange_t) :: stores
-      integer(ik) :: it_stack, fb_stack
+      integer(ik) :: it_stack, fb_stack, i
+      character(len=40) :: tag
       print '(a)', 'test_porous_balance:'
       call cold_env(env)
       env%dt           = DT
@@ -738,7 +771,7 @@ contains
       env%ground_emiss = 0.95_wp
       env%porous(POROUS_LITTER) = porous_env(o, POROUS_LITTER, 0.03_wp * o%porous(POROUS_LITTER)%bulk_density,      &
                                              1.0_wp, 280.0_wp)   ! litter alone: 1.35 kg/m2, 2.6 kJ/m2/K dry
-      !--- Held at the water network's rate, evaporation or dew: the layer gives that rate, its energy closes, it takes its root.
+      !--- Held at a given rate of either sign: the layer gives that rate, its energy closes, it takes its root.
       env%porous(POROUS_LITTER)%vapour = 1.0e-5_wp
       node = porous_node(env, 1.0_wp)
       call surface_node_balance(node, env, ofx)
@@ -752,11 +785,11 @@ contains
       env%porous(POROUS_LITTER)%vapour = -2.0e-6_wp
       node = porous_node(env, 1.0_wp)
       call surface_node_balance(node, env, ofx)
-      call check('held: dew at the network''s rate', ofx%w_flux, -2.0e-6_wp, 1.0e-18_wp)
-      call check_true('held: dew gives the layer its latent heat', ofx%le < 0.0_wp, ofx%le)
-      call check('held: dew, the exchange it takes gives back its root', committed_temp(node, env%dt, ofx),         &
+      call check('held: a negative rate (the kernel takes either sign)', ofx%w_flux, -2.0e-6_wp, 1.0e-18_wp)
+      call check_true('held: a negative rate gives the layer its latent heat', ofx%le < 0.0_wp, ofx%le)
+      call check('held: a negative rate, the exchange it takes gives back its root', committed_temp(node, env%dt, ofx),         &
                  ofx%t_surf, 1.0e-6_wp)
-      !--- Under a pack that covers all of it, the network's evaporation is still the layer's, per unit ground area.
+      !--- Under a pack that covers all of it, the held evaporation is still the layer's, per unit ground area.
       env%porous(POROUS_LITTER)%vapour = 1.0e-5_wp
       node = porous_node(env, 0.0_wp)
       call surface_node_balance(node, env, ofx)
@@ -799,6 +832,20 @@ contains
       call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, stores, it_stack, fb_stack)
       call check('pack and layer: the ground''s energy closes', ground_rad - h_ground - le_ground - g_top,          &
                  sum(stores%energy_in(1:N_SURFACE_STORE)), 1.0e-9_wp)
+      !---~---
+      !   The layer's evaporation the network's under a pack that covers nine tenths of it and all of
+      ! it: the layer gives that rate whatever the cover, and the ground's energy still closes.
+      !---~---
+      env%porous(POROUS_LITTER)%vapour = 1.0e-5_wp
+      do i = 1_ik, size(COVERS, kind=ik)
+         env%snowfac = COVERS(i)
+         write(tag, '(a,f4.2)') 'held under a pack of cover ', COVERS(i)
+         call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, stores, it_stack, fb_stack)
+         call check(trim(tag)//': the layer gives the network''s rate',                                           &
+                    stores%vapour_out(STORE_WATER + POROUS_LITTER), 1.0e-5_wp, 1.0e-18_wp)
+         call check(trim(tag)//': the ground''s energy closes', ground_rad - h_ground - le_ground - g_top,         &
+                    sum(stores%energy_in(1:N_SURFACE_STORE)), 1.0e-9_wp)
+      end do
    end subroutine test_porous_balance
 
    !---~---
@@ -1079,5 +1126,31 @@ contains
       end do
       call check_true('the freezing onset: the ground''s heat to the canopy air is continuous', jump < 0.5_wp, jump)
    end subroutine test_freezing_onset
+
+   !---~---
+   !   14. A pack of 0.2 g/m2 at 268 K over 0.6 of the ground, under canopy air at 270 K and 30 %
+   ! of its saturation through a bare ground's conductance: its live vapour would take its water
+   ! many times over within the step, so it is held at what empties the pack.
+   !---~---
+   subroutine test_whole_sublimation()
+      real(wp), parameter :: SWE = 2.0e-4_wp, DT = 900.0_wp, COVER = 0.6_wp   ! [kg/m2], [s], [-]
+      type(water_layer_state_t) :: snow
+      type(surface_env_t)       :: env
+      type(water_material_t)    :: p
+      real(wp) :: e0, gain, vapour, g_top
+      print '(a)', 'test_whole_sublimation:'
+      call cold_env(env)
+      env%can_temp = 270.0_wp
+      env%can_shv  = 0.3_wp * sat_specific_humidity(270.0_wp, env%press)
+      env%ggnet    = 0.05_wp
+      snow = cold_pack(SWE, 268.0_wp, p)
+      e0 = snow%energy
+      call snow_step(snow, env, COVER, DT, gain, vapour, g_top)
+      call check('whole sublimation: the vapour taken is all the pack held', vapour, SWE, 1.0e-15_wp)
+      call check('whole sublimation: the pack holds no water', snow%water, 0.0_wp, 1.0e-18_wp)
+      call check('whole sublimation: and none of its energy', snow%energy, 0.0_wp, 1.0e-9_wp * abs(e0))
+      call check('whole sublimation: its energy change is what its surroundings gave', snow%energy - e0, gain,     &
+                 1.0e-9_wp * abs(e0))
+   end subroutine test_whole_sublimation
 
 end program test_surface
