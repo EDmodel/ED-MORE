@@ -1318,6 +1318,18 @@ contains
          call check_close(total_energy(), e0 + heat(1), 1.0e-9_wp * abs(e0), 'on frozen ground: the energy closes')
          call check_close(heat(1), cp_organic * 0.05_wp * t_before, 1.0e-9_wp * heat(1),                              &
                           'the dry matter enters at the litter''s temperature')
+         !--- A litter that holds no water vanishes: all its energy goes with its matter, declared.
+         w0 = total_water()
+         e0 = total_energy()
+         org(POROUS_LITTER)%water  = 0.0_wp
+         org(POROUS_LITTER)%energy = cp_organic * org(POROUS_LITTER)%matter * 276.123456789_wp
+         e0 = total_energy()
+         call follow_litter(0.0_wp, internal_energy_liquid(280.0_wp), huge(1.0_wp))
+         call check(org(POROUS_LITTER)%energy == 0.0_wp .and. org(POROUS_LITTER)%matter == 0.0_wp                   &
+                    .and. org(POROUS_LITTER)%water == 0.0_wp, 'a dry litter that vanishes keeps nothing')
+         call check_close(total_energy(), e0 + heat(1), 1.0e-9_wp * abs(e0), 'and its energy is declared')
+         !--- It returns, as before.
+         call follow_litter(0.2_wp, internal_energy_liquid(280.0_wp), huge(1.0_wp))
          !--- The top soil holds little above its residual: the litter takes that much only.
          w0 = org(POROUS_LITTER)%water
          call follow_litter(0.3_wp, internal_energy_liquid(280.0_wp), 1.0e-3_wp)

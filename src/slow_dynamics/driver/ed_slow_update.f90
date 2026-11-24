@@ -18,7 +18,7 @@ module ed_slow_update
                                        cp_organic, rho_h2o
    use ed_therm_lib,            only : internal_energy_to_temp
    use ed_ground_surface_params, only : ground_surface_layer_params_t, N_POROUS
-   use ed_numerics,             only : equal_height_layers, conserved, pair_mean, within_roundoff
+   use ed_numerics,             only : equal_height_layers, conserved, pair_mean
    use ed_cohort_state_vars,    only : cohort_block, cohort_deriv_block, set_cohort_size_from_carbon,    &
                                        hold_cohort_tissue_temps, reorder_cohort_block,                   &
                                        compact_cohort_block, expand_cohort_block, copy_cohort,           &
@@ -295,9 +295,11 @@ contains
    ! and is declared with it (water, heat). The top soil layer gives no more than it holds above
    ! its residual (soil_spare). Matter that leaves takes its dry heat at the layer's temperature
    ! (declared); its water stays, and what a layer then holds beyond its saturation, or all its
-   ! water when its matter is gone, passes to the water layer (porous_layers_spill). A layer
-   ! whose matter and water are all gone keeps no energy: what it had left is round-off, which is
-   ! asserted, and goes with the heat declared.
+   ! water when its matter is gone, passes to the water layer (porous_layers_spill). A layer that
+   ! goes holding no water takes all its energy with its matter, the energy of its matter alone
+   ! (its temperature is read off it only to the phase law's tolerance, far coarser than
+   ! round-off). A slot with no matter holds nothing: what round-off left in it joins the water
+   ! layer.
    !---~---
    subroutine follow_porous_layers(patch, params, target_mass, t_new, theta_arrive, water_energy, soil_spare,   &
                                    soil_dz, draw, heat, water)
@@ -312,7 +314,7 @@ contains
       logical,                intent(in)    :: draw                ! the water comes from it (else from outside)
       real(wp),               intent(out)   :: heat(:)             ! [J/m2] (patch) in, out if < 0
       real(wp),               intent(out)   :: water(:)            ! [kg/m2] (patch) in from outside
-      real(wp)    :: temp, dm, add, e_add, q_dry, spare, scale(N_POROUS)
+      real(wp)    :: temp, dm, add, e_add, q_dry, spare
       integer(ik) :: ip, k
       heat(1:patch%n)  = 0.0_wp
       water(1:patch%n) = 0.0_wp
@@ -321,13 +323,14 @@ contains
          spare = soil_spare(ip)
          associate (layer => patch%ground_surface(ip)%porous, water_layer => patch%ground_surface(ip)%water)
             call porous_layers_diagnose(layer, params)
-            scale = abs(layer%energy)
             do k = 1_ik, N_POROUS
                if (target_mass(k, ip) == layer(k)%matter) cycle
                temp = layer(k)%temp
                if (layer(k)%matter <= 0.0_wp) temp = t_new(ip)
                dm    = target_mass(k, ip) - layer(k)%matter
                q_dry = cp_organic * dm * temp
+               !--- A layer that goes holding no water takes all its energy, its matter's, with it.
+               if (target_mass(k, ip) <= 0.0_wp .and. .not. (layer(k)%water > 0.0_wp)) q_dry = -layer(k)%energy
                add   = 0.0_wp
                if (dm > 0.0_wp) add = theta_arrive(k, ip) * rho_h2o * dm / params%porous(k)%bulk_density
                if (draw) then
@@ -338,7 +341,6 @@ contains
                layer(k)%matter = target_mass(k, ip)
                layer(k)%water  = layer(k)%water + add
                layer(k)%energy = layer(k)%energy + q_dry + e_add
-               scale(k) = scale(k) + abs(q_dry) + abs(e_add)
                heat(ip) = heat(ip) + q_dry
                if (draw) then
                   patch%soil_water(ip)%theta(1)        = patch%soil_water(ip)%theta(1) - add / (rho_h2o * soil_dz(ip))
@@ -349,11 +351,15 @@ contains
                end if
             end do
             call porous_layers_spill(layer, params, water_layer)
+            !---~---
+            !   A slot with no matter holds nothing: whatever water and energy a round-off left in it
+            ! join the water layer, a matched move.
+            !---~---
             do k = 1_ik, N_POROUS
                if (layer(k)%matter > 0.0_wp) cycle
-               if (.not. within_roundoff(layer(k)%energy, scale(k)))                                            &
-                  error stop 'follow_porous_layers: a layer whose matter is gone keeps energy beyond round-off'
-               heat(ip) = heat(ip) - layer(k)%energy
+               water_layer%water  = water_layer%water  + layer(k)%water
+               water_layer%energy = water_layer%energy + layer(k)%energy
+               layer(k)%water  = 0.0_wp
                layer(k)%energy = 0.0_wp
             end do
             if (water_layer%water > 0.0_wp)                                                                     &
