@@ -8,8 +8,8 @@
 !      plant's entropy shift keeps more capacity in heat and moves the optimum up.
 !   2. DATUM (internal_energy_to_temp, temp_to_internal_energy, internal_energy_ice): the
 !      phase-change inverter round-trips liquid and ice, is continuous at the ends of the
-!      melt plateau and sits at t_3ple on it; ice holds internal_energy_ice per kilogram,
-!      and melting it at t_3ple costs the latent heat of fusion
+!      plateau at the triple point and sits at t_3ple on it; ice holds internal_energy_ice per
+!      kilogram, and melting it at t_3ple costs the latent heat of fusion
 !      (docs/science/coupled_biophysics.md, principle 1).
 !   3. CLAUSIUS-CLAPEYRON (sat_vapor_pressure_temp_deriv): the slope of e_sat against a
 !      finite difference, and e L / (Rv T**2) with the model's latent heat, over both phases.
@@ -158,7 +158,7 @@ contains
 
    !---~---
    !   2. The phase-change inverter, per m3 of soil with 1000 J/m3/K of dry matter and 0.3 kg of
-   ! water: liquid and ice round-trip; at both ends of the melt plateau it reads t_3ple, and
+   ! water: liquid and ice round-trip; at both ends of the plateau at the triple point it reads t_3ple, and
    ! half way along it t_3ple and half liquid. And 5 kg of snow, with no dry matter: all ice,
    ! it holds internal_energy_ice per kilogram, and melting it at t_3ple costs 5 x 3.34e5 J.
    !---~---
@@ -238,7 +238,7 @@ contains
 
       !---~---
       !   (b) both branches are es_3ple at t_3ple, because ice's latent heat there is the liquid's
-      ! plus the fusion heat, so they meet EXACTLY at the triple point, where the melt plateau
+      ! plus the fusion heat, so they meet EXACTLY at the triple point, where the plateau
       ! sits. A surface melting at t_3ple then sees no step in e_sat as fliq changes.
       !---~---
       call check('liquid branch is es_3ple at t_3ple', sat_vapor_pressure(t_3ple), es_3ple, 1.0e-9_wp)

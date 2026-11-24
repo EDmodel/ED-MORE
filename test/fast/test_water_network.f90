@@ -1710,7 +1710,7 @@ contains
    !   27. A litter over a soil frozen hard at the top, under canopy air at 24 % humidity, dries by
    ! Philip's pore humidity to its equilibrium with the air, near theta 0.012 (a head of about -2e4
    ! m), above its residual. (Over unfrozen soil it would draw the soil's water up through its
-   ! upstream face, and dry only to the soil's potential.)
+   ! face to the soil, and dry only to the soil's potential.)
    !---~---
    subroutine test_drying_litter()
       type(stand_t) :: st

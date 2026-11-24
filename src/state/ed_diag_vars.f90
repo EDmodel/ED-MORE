@@ -237,7 +237,7 @@ module ed_diag_vars
    integer(ik), parameter, public :: PA_LW_GROUND            = 19_ik  ! [W/m2] net longwave at the ground
    integer(ik), parameter, public :: PA_APAR                 = 20_ik  ! [W/m2] PAR (VIS) the leaves absorbed
    integer(ik), parameter, public :: PA_H_CANOPY             = 21_ik  ! [W/m2] sensible heat, leaves and wood -> canopy air
-   integer(ik), parameter, public :: PA_H_GROUND             = 22_ik  ! [W/m2] sensible heat, ground (soil, snow) -> canopy air
+   integer(ik), parameter, public :: PA_H_GROUND             = 22_ik  ! [W/m2] sensible heat, ground (layers, soil) -> CAS
    !---~---
    !   The whole-column energy budget's other terms (docs/science/diagnostics.md §4, The budgets):
    ! Rn + bottom heat - H - LE + the precipitation's enthalpy - the outflows' - store gains =
@@ -248,7 +248,7 @@ module ed_diag_vars
    integer(ik), parameter, public :: PA_OUTFLOW_ENTH         = 25_ik  ! [W/m2] enthalpy runoff, drainage, overflow, vapour carry out
    integer(ik), parameter, public :: PA_HEAT_GAIN_SOIL       = 26_ik  ! [W/m2] the soil column's energy gain
    integer(ik), parameter, public :: PA_HEAT_GAIN_CANOPY     = 27_ik  ! [W/m2] the canopy air's and tissues' energy gain
-   integer(ik), parameter, public :: PA_HEAT_GAIN_SURFACE    = 28_ik  ! [W/m2] the snow pack's and pond's energy gain
+   integer(ik), parameter, public :: PA_HEAT_GAIN_SURFACE    = 28_ik  ! [W/m2] the ground's surface layers' energy gain
    !--- 5. Carbon and water fluxes
    integer(ik), parameter, public :: PA_GPP                  = 29_ik  ! [umol CO2/m2/s] patch GPP rate
    integer(ik), parameter, public :: PA_NPP                  = 30_ik  ! [umol CO2/m2/s] GPP net of maintenance respiration
@@ -300,7 +300,7 @@ module ed_diag_vars
    integer(ik), parameter, public :: PA_CAS_SHV              = 58_ik  ! [kg/kg]
    integer(ik), parameter, public :: PA_CAS_CO2              = 59_ik  ! [umol/mol]
    integer(ik), parameter, public :: PA_CAS_VPD              = 60_ik  ! [Pa]
-   integer(ik), parameter, public :: PA_SOIL_TEMP_TOP        = 61_ik  ! [K] top soil layer (the ground surface when snow-free)
+   integer(ik), parameter, public :: PA_SOIL_TEMP_TOP        = 61_ik  ! [K] top soil layer (the surface where no layer lies)
    integer(ik), parameter, public :: PA_FREE_WATER           = 62_ik  ! [kg/m2] the free water, the pond that infiltrates
    !--- 7. Budget residuals
    integer(ik), parameter, public :: PA_RESID_ENERGY         = 63_ik  ! [W/m2] whole-column energy residual
@@ -310,7 +310,7 @@ module ed_diag_vars
    integer(ik), parameter, public :: PA_BUDGET_CAS_CAP_WATER  = 66_ik ! [kg/m2/s]
    integer(ik), parameter, public :: PA_BUDGET_CAS_CAP_CO2    = 67_ik ! [umol/m2/s]
    !--- The ground's surface layers (docs/science/ground_surface_layers.md).
-   integer(ik), parameter, public :: PA_GROUND_TOP_TEMP      = 68_ik  ! [K] the porous layers', else the top soil node's
+   integer(ik), parameter, public :: PA_GROUND_TOP_TEMP      = 68_ik  ! [K] the top porous layer's, else the top soil node's
    integer(ik), parameter, public :: PA_LITTER_WATER         = 69_ik  ! [kg/m2] the litter's water, liquid and ice
    integer(ik), parameter, public :: PA_MOSS_WATER           = 70_ik  ! [kg/m2] the moss's water, liquid and ice
    integer(ik), parameter, public :: PA_WATER_LAYER_COVER    = 71_ik  ! [-] the share of the ground the water layer covers

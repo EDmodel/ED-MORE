@@ -1198,7 +1198,7 @@ contains
       case (0_ik)
          on = pack%temp < t_3ple                                     ! the ice line
       case (1_ik)
-         on = pack%fliq > 0.0_wp .and. pack%fliq < 1.0_wp    ! the melt plateau
+         on = pack%fliq > 0.0_wp .and. pack%fliq < 1.0_wp    ! the plateau at the triple point
       case (2_ik)
          on = pack%temp > t_3ple                                     ! the liquid line
       case default

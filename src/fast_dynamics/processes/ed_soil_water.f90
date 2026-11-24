@@ -136,7 +136,7 @@ contains
       if (soil%water_bottom_bc == SOIL_BC_AQUIFER) then
          !---~---
          !   The table is saturated (psi 0, K_sat), half a layer below the node; the face takes
-         ! the geometric mean of the two conductivities, as the pond face does at the top.
+         ! the geometric mean of the two conductivities, as the pond's face onto the top soil layer does.
          !---~---
          delta = 0.5_wp * profile%dz(n)
          call soil_water_flux(k_n, profile%ksat(n) * impedance, 0.5_wp, psi_n, 0.0_wp, delta, delta, q,  &

@@ -374,7 +374,7 @@ The reference config, `ed_config_main.toml`, gives each key's default and meanin
 from ED2 and the models ED2 builds on is listed here.
 
 - **Snow** (`[ground_surface_layer.water]`). The aged-snow albedos, 0.518 visible and 0.435 near infrared, are ED2's, and
-  `min_new_snow_mass` is ED2's `tiny_sfcwater_mass`. The liquid-holding fraction 0.10 is LEAF-3's 1:9 ratio
+  `[ground_surface_layer].min_depth`, the depth from which water is a layer, stands in for ED2's `tiny_sfcwater_mass`. The liquid-holding fraction 0.10 is LEAF-3's 1:9 ratio
   of liquid to ice.
 - **Canopy aerodynamics** (`[aerodynamics]`). The roughness and displacement ratios are ED2's `vh2vr` and
   `vh2dh`; the Monin–Obukhov constants and the convective velocity scale `wc` are CLM5's, and the

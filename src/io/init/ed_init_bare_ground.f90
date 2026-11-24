@@ -81,7 +81,7 @@ contains
    !---~---
    !   A start's patch stores, the same on every patch of a site: the soil at its site's
    ! theta_start and [init].soil_temp (one value, or one per layer), its water liquid and ice
-   ! as the layer's freezing curve holds them there (soil_layer_energy); the pond dry; and the
+   ! as the layer's freezing curve holds them there (porous_layer_energy); the pond dry; and the
    ! canopy air at the reference climate (met_forcing_t's air, at the run's CO2), which the
    ! fast loop's first window replaces with the first forcing sample
    ! (docs/science/canopy_air_space_biophysics.md, The start).

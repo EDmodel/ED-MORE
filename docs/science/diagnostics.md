@@ -312,8 +312,9 @@ per patch (`mean_skin_temp_pa`), and both are written sub-daily as well as daily
 - **What it is.** The black-body temperature of the longwave leaving the canopy top, $`(L^\uparrow /
   \sigma)^{1/4}`$, taken per patch and sub-step and then averaged. It is what an infrared thermometer
   or a satellite land-surface temperature sees, and over a forest it is mostly the canopy.
-- **What it is not.** It is not the soil. ED-MORE has no skin layer of its own: snow-free, the ground
-  surface is the top soil layer, `mean_soil_temp_top_py`. That layer's node sits at its midpoint (2.5 cm
+- **What it is not.** It is not the soil. ED-MORE has no skin layer of its own: where no layer lies on it, the
+  ground surface is the top soil layer, `mean_soil_temp_top_py`, and under a porous layer it is that
+  layer's top, `mean_ground_top_temp_py`. That layer's node sits at its midpoint (2.5 cm
   down for the default 5 cm top layer), so its diurnal swing is damped and lagged against the air's.
 - **Why it is formed inside the step.** Because of the fourth root, the skin temperature of the mean
   longwave is not the mean skin temperature.
@@ -425,8 +426,8 @@ entries are formed there for a reason:
 - **ET's sources** are the vapour the canopy air was credited over the sub-step, as its ledger
   booked them: transpiration (`mean_transp_py`), the evaporation of the water on the leaves' and
   wood's surfaces (`mean_veg_surface_evap_py`, negative when dew forms on them), the ground's
-  evaporation, bare soil and snow pack (`mean_ground_evap_py`), and the condensate that left the
-  canopy air for the soil (`mean_dew_py`). ET (`mean_et_py`, and its latent heat, `mean_le_py`) is
+  evaporation, from the water layer, the litter, the moss and the soil (`mean_ground_evap_py`), and the
+  condensate that left the canopy air for the water layer (`mean_dew_py`). ET (`mean_et_py`, and its latent heat, `mean_le_py`) is
   the canopy air's vapour export to the atmosphere: the first three less the dew, less the canopy
   air's own vapour gain, which is small beyond a few hours.
 - **Respiration** is split as the fast loop booked it. Leaf, stem and fine-root maintenance
@@ -457,14 +458,14 @@ P + S - \mathrm{ET} - R - O_v - \Delta W = -\epsilon_W
   `mean_runoff_surf_py` and `mean_drainage_py`);
 - $`O_v`$, the water on the leaves' and wood's surfaces above their capacity, which the update removes
   (`mean_veg_surface_overflow_py`);
-- $`\Delta W`$, the gain of every store: soil, pond, the organic layer, plants, the leaves' and wood's
-  surface water, snow pack and canopy-air vapour
+- $`\Delta W`$, the gain of every store: soil, the ground's surface layers (the water layer with its pond,
+  the litter and the moss), plants, the leaves' and wood's surface water, and canopy-air vapour
   (`mean_water_store_gain_py`);
 - $`\epsilon_W`$, the residual (`mean_resid_water_py`).
 
 The water's paths inside the column are written too, though they cancel in the budget: interception
 and throughfall (`mean_intercept_py`, `mean_throughfall_py`, which add up to the precipitation),
-infiltration (the pond's into the ground: into the organic layer's top slot where there is one, else
+infiltration (the pond's into the ground: into the top porous layer where there is one, else
 into the top soil layer), the water layer's meltwater and vapour (`mean_infiltration_py`, `mean_ice_melt_py`,
 `mean_water_layer_evap_py`), and the stores themselves (`mean_veg_surface_water_py`, `mean_soil_water_total_py`,
 `mean_plant_water_py`) with the leaves' wet fraction (`mean_wet_fraction_py`, per cohort
@@ -485,13 +486,13 @@ R_n + G_b + P_e - H - \lambda E - O_e - \Delta E_{soil} - \Delta E_{canopy} - \D
   drainage through the column's bottom, the surface water's overflow, and the exported vapour's
   beyond $`\lambda E`$. Both are carried by water crossing the column's boundary, not by the air;
 - $`\Delta E`$, the energy gains of the soil column, of the canopy air and the tissues, and of the
-  snow pack and the pond (`mean_heat_gain_soil_py`, `mean_heat_gain_canopy_py`,
+  ground's surface layers, the water layer with its pond, the litter and the moss (`mean_heat_gain_soil_py`, `mean_heat_gain_canopy_py`,
   `mean_heat_gain_surface_py`);
 - $`\epsilon_E`$, the residual (`mean_resid_energy_py`).
 
 $`H`$ is also split by its source: the leaves' and wood's (`mean_h_canopy_py`) and the ground's
 (`mean_h_ground_py`). Their sum is the sensible heat into the canopy air, which differs from $`H`$ by
-the canopy air's own warming and the enthalpy its condensate takes to the soil.
+the canopy air's own warming and the enthalpy its condensate takes to the water layer.
 
 The canopy air's gains above are valued at each step's own capacity, so both budgets close step by
 step without the next terms. The canopy air's content also changes between steps, when its capacity

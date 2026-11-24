@@ -47,7 +47,7 @@ program test_config_keys
    write(u,'(a)') '[output]'
    write(u,'(a)') 'strict_caps = true'              ! not a key
    write(u,'(a)') '[snow]'
-   write(u,'(a)') 'k_snow = 0.2'                    ! a key whose block was replaced
+   write(u,'(a)') 'k_snow = 0.2'                    ! a key the loader maps to another
    close(u)
    call toml_parse_file('test_config_keys.toml', t, ok)
    call check(ok, 'the test config parses')

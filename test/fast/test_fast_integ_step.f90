@@ -840,9 +840,8 @@ contains
    !---~---
    !   The day's turnover shed water reaches the pond with the meltwater, at the melt temperature,
    ! whenever a pack exists, and both whole-column ledgers book that inflow's enthalpy under the
-   ! pack too. Left unbooked it is a constant residual of shed*dt*u_liq(t_melt) every winter step
-   ! (~1.8 J/m2 at 150 s in the Ithaca example, +6.75 MJ/m2 over a 50-year spin-up), small enough
-   ! to pass the tolerance, so closure is asked to round-off, on both schemes.
+   ! pack too. Left unbooked it would be a constant residual of shed*dt*u_liq(t_melt) every winter
+   ! step, small enough to pass the tolerance, so closure is asked to round-off, on both schemes.
    !---~---
    subroutine test_shed_under_pack()
       type(day_t) :: d
@@ -1354,9 +1353,8 @@ contains
    !   A very dense canopy (LAI 8) in a hard cold snap at twice dt_fast: the operating point that
    ! rails the explicit RK45 surface at scale. Whether the rescue onto ESDIRK2 fires here or the
    ! stage clamps alone hold it, the committed state stays physical (canopy air, leaf and soil in
-   ! 250-340 K, GPP a number). A 30-year Ithaca run collapses at LAI ~1 in its winter of 2050
-   ! without the rescue, a point no short march reproduces, so the rescue count is printed, not
-   ! asserted.
+   ! 250-340 K, GPP a number). Without the rescue a long run can collapse at a point no short
+   ! march reproduces, so the rescue count is printed, not asserted.
    !---~---
    subroutine test_rk45_dense_cold()
       integer(ik) :: istep, rescues

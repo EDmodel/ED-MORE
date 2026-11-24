@@ -397,7 +397,7 @@ module ed_fast_integ_types
       !---~---
       !   The canopy air's vapour sources over the step, as its ledger booked them: the cohorts'
       ! transpiration, the evaporation of the leaves' and wood's surface water (net of dew onto
-      ! it), the ground's (bare soil and snow pack), and the condensate (dew, fog) it lost to
+      ! it), the ground's (the water layer, the litter, the moss and the soil), and the condensate (dew, fog) it lost to
       ! the water layer. ET (atm_vap_export) is the first three less the condensate, less the
       ! canopy air's own vapour gain.
       !---~---
@@ -831,7 +831,7 @@ module ed_fast_integ_types
       integer(ik) :: stack_newton = 0_ik, stack_fallback = 0_ik   ! the stage's surface stack's work (surface_tend_t's)
       real(wp) :: veg_surface_evap = 0.0_wp                      ! [kg/m2/s] leaf and wood surface water evaporated (dew < 0)
       real(wp) :: h_canopy     = 0.0_wp                          ! [W/m2]    the leaves' and wood's sensible heat to the CAS
-      real(wp) :: h_ground     = 0.0_wp                          ! [W/m2]    the ground's (soil, snow) sensible heat to the CAS
+      real(wp) :: h_ground     = 0.0_wp                          ! [W/m2]    the ground's (layers, soil) sensible heat to the CAS
       !---~---
       !   Net CAS -> atmosphere export at the ledger's own stage states and conductances: the
       ! reported H and LE (ed_fast_integ_stepper%atm_fluxes; docs/science/numerical_scheme.md §5b).
@@ -868,7 +868,7 @@ module ed_fast_integ_types
       integer(ik) :: stack_newton = 0_ik, stack_fallback = 0_ik   ! the stages' surface stack's work, summed
       real(wp) :: veg_surface_evap    = 0.0_wp    ! [kg/m2] leaf and wood surface water evaporated (dew < 0)
       real(wp) :: h_canopy     = 0.0_wp    ! [J/m2]  the leaves' and wood's sensible heat to the CAS
-      real(wp) :: h_ground     = 0.0_wp    ! [J/m2]  the ground's (soil, snow) sensible heat to the CAS
+      real(wp) :: h_ground     = 0.0_wp    ! [J/m2]  the ground's (its layers, soil) sensible heat to the CAS
       real(wp) :: atm_heat_out = 0.0_wp    ! [J/m2]  net CAS -> atmosphere sensible-heat export (reported H)
       real(wp) :: atm_vap_out  = 0.0_wp    ! [kg/m2] net CAS -> atmosphere vapour export (reported LE / L_v)
       real(wp) :: rad_net      = 0.0_wp    ! [J/m2]  net radiation the canopy and the ground booked (reported)

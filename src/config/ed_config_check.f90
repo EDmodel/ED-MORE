@@ -47,7 +47,8 @@ module ed_config_check
 
    !---~---
    !   The [soil] keys a [[sites]] table may set, under the same names: the site's soil column
-   ! and its bottom. The ground's surface and its thermal boundary are the run's.
+   ! and its bottom, and the moss on it. The rest of the ground's surface and its thermal boundary are
+   ! the run's.
    !---~---
    character(len=*), parameter :: SITE_GROUND_KEYS(16) = [character(len=24) ::                     &
       'depth', 'layer_bottoms', 'retention', 'theta_sat', 'theta_res', 'ksat', 'curve_par_a',        &
@@ -62,8 +63,8 @@ module ed_config_check
       'soil.deep_depth', 'init.soil_theta']
 
    !---~---
-   !   Keys that moved, each with the key that now holds its value: a run that sets one is told
-   ! where it went. [snow] and [surface_layer] became [ground_surface_layer]'s tables.
+   !   Keys the reference does not list, each with the key that holds its value: a run that sets
+   ! one is told which. The [snow] and [surface_layer] keys' values are [ground_surface_layer]'s.
    !---~---
    character(len=*), parameter :: GS = 'ground_surface_layer.'
    character(len=*), parameter :: MOVED_KEYS(2, 36) = reshape([character(len=64) ::                     &

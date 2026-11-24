@@ -179,7 +179,7 @@ module ed_patch_state_vars
       !--- 5. GROUND SURFACE LAYERS
       type(ground_surface_state_t), allocatable :: ground_surface(:)   ! the water layer, the litter and the moss
       !--- 6. SOIL WATER AND HEAT
-      type(soil_water_state_t),   allocatable :: soil_water(:)   ! soil water and the pond
+      type(soil_water_state_t),   allocatable :: soil_water(:)   ! soil water
       type(soil_energy_state_t),  allocatable :: soil_energy(:)  ! soil heat
       !--- 7. SOIL CARBON
       type(soil_carbon_state_t),  allocatable :: soil_carbon(:)  ! soil-carbon pools

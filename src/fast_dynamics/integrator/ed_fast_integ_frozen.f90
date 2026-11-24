@@ -924,7 +924,7 @@ contains
                                            (1.0_wp - dynamic%soil_energy%soil_fliq(1:nsl))                        &
                                            * dynamic%soil_water%theta(1:nsl),                                     &
                                            dynamic%soil_energy%soil_fliq(1:nsl) * dynamic%soil_water%theta(1:nsl))
-         !--- Each layer's roots lose their contact with it as it freezes (docs/science/plant_hydraulics.md eq. (14)).
+         !--- Each layer's roots lose their contact with it as it freezes (docs/science/plant_hydraulics.md §4, "Frozen layers").
          drive%root_contact(1:nsl) = root_soil_contact(dynamic%soil_energy%soil_temp(1:nsl))
          !---~---
          !   The rain the surface water captures and drips back is liquid at the air's temperature

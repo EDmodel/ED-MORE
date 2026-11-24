@@ -293,7 +293,7 @@ contains
    ! (water_energy, per kilogram: the layer's temperature and liquid fraction), a matched pair,
    ! when draw; at a start, which has no ledger, the water arrives from outside with that energy,
    ! and is declared with it (water, heat). The top soil layer gives no more than it holds above
-   ! its residual (soil_spare). Matter that leaves takes its dry heat at the layer's temperature
+   ! its air-dry water content (soil_spare). Matter that leaves takes its dry heat at the layer's temperature
    ! (declared); its water stays, and what a layer then holds beyond its saturation, or all its
    ! water when its matter is gone, passes to the water layer (porous_layers_spill). A layer that
    ! goes holding no water takes all its energy with its matter, the energy of its matter alone

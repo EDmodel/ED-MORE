@@ -165,7 +165,7 @@ contains
    !   Each patch's porous layers at the start (docs/science/ground_surface_layers.md §5), through the
    ! one path the slow step's follows (follow_porous_sources): a fresh start from no layer, a
    ! restart from the layers its state file held, so a layer the file lacks, or one its
-   ! mass_source no longer gives, is made or removed. The water the matter brings arrives from
+   ! mass_source does not give, is made or removed. The water the matter brings arrives from
    ! outside, at the top soil layer's matric head, temperature and liquid fraction.
    !---~---
    subroutine seed_porous_layers(poly, cfg)

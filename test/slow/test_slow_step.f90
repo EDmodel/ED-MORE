@@ -1022,8 +1022,7 @@ contains
    !   restructure_stand (apply_patch_disturbance) CREATES patches after vegetation_dynamics has
    ! filled the step's litter, and the consumer (advance_soil_carbon) loops to the NEW
    ! patch count. An accumulator sized to the patch count when it was filled is read past its
-   ! end, feeding undefined memory into the CENTURY litter input (1.8e9 kgC/m2 on a gap patch
-   ! born that step, over a 50-year spin-up).
+   ! end, feeding undefined memory into the CENTURY litter input.
    !
    !   The slow ledger cannot catch that: it DECLARES the same out-of-bounds read as a boundary
    ! term and so balances perfectly against the garbage. Only `-check bounds` sees it.

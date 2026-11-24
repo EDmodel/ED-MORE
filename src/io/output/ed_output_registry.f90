@@ -445,7 +445,7 @@ contains
                         FREQ_NONE, FLD_P_DIAG0 + PA_LITTER_WATER)
       call add_variable(reg, 'mean_moss_water_pa', 'patch moss''s water', 'kg/m2', DIM_PATCH, AGG_TMEAN, GRP_WATER,        &
                         FREQ_NONE, FLD_P_DIAG0 + PA_MOSS_WATER)
-      call add_variable(reg, 'mean_ground_top_temp_py', 'the ground''s top: the porous layers'', else the top soil node''s', &
+      call add_variable(reg, 'mean_ground_top_temp_py', 'the ground''s top: the top porous layer''s, else the top soil node''s', &
                         'K', DIM_SCALAR, AGG_TMEAN, GRP_ENERGY, DAY_MON_YR, FLD_P_DIAG0 + PA_GROUND_TOP_TEMP)
       call add_variable(reg, 'mean_ground_top_temp_pa', 'patch ground''s top temperature', 'K', DIM_PATCH, AGG_TMEAN,      &
                         GRP_ENERGY, FREQ_NONE, FLD_P_DIAG0 + PA_GROUND_TOP_TEMP)
@@ -807,8 +807,8 @@ contains
                         DIM_PATCH, AGG_TMEAN, GRP_WATER, FREQ_NONE, FLD_P_DIAG0 + PA_VEG_SURFACE_EVAP, flux=.true.)
       call add_variable(reg, 'mean_ground_evap_pa', 'patch ground evaporation: its surface layers and the soil',         &
                         'kg/m2/s', DIM_PATCH, AGG_TMEAN, GRP_WATER, FREQ_NONE, FLD_P_DIAG0 + PA_GROUND_EVAP, flux=.true.)
-      call add_variable(reg, 'mean_dew_pa', 'patch condensation from the canopy air, to the soil', 'kg/m2/s', DIM_PATCH,        &
-                        AGG_TMEAN, GRP_WATER, FREQ_NONE, FLD_P_DIAG0 + PA_DEW, flux=.true.)
+      call add_variable(reg, 'mean_dew_pa', 'patch condensation from the canopy air, to the water layer', 'kg/m2/s',      &
+                        DIM_PATCH, AGG_TMEAN, GRP_WATER, FREQ_NONE, FLD_P_DIAG0 + PA_DEW, flux=.true.)
       call add_variable(reg, 'mean_resid_energy_pa', 'patch signed energy-budget residual (+ = appearing)', 'W/m2', DIM_PATCH,  &
                         AGG_TMEAN, GRP_NUMERICS, FREQ_NONE, FLD_P_DIAG0 + PA_RESID_ENERGY, flux=.true.)
       call add_variable(reg, 'mean_resid_water_pa', 'patch signed water-budget residual (+ = appearing)', 'kg/m2/s',            &

@@ -385,7 +385,7 @@ temperature the march's integral of $`Q_b`$ brings the buried tissue to (`buried
 and its surface water's capture (`tissue_water_heat`, eq. (1)'s advected term), splits by the same shares: the
 exposed share's balance takes $`e`$ of it, and the buried share's store $`b`$ of it at the commit. Given whole to
 the exposed balance, the heat of the water reaching a cohort buried whole, whose balance has neither area nor heat
-capacity, was dropped: 0.3 J m⁻² in a step at Toolik. Where the snow is a film, no node holds the buried tissue,
+capacity, would be lost. Where the snow is a film, no node holds the buried tissue,
 and its share keeps its heat and its share of the water's.
 
 ## Prognostic state

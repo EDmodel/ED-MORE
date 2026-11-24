@@ -271,7 +271,7 @@ contains
       end do
       call check_true('melted out (the store is empty)', .not. ground_store_present(snow),                     &
                       merge(1.0_wp, 0.0_wp, ground_store_present(snow)))
-      call check_true('saw the melt plateau (0<fliq<1)', saw_plateau, merge(1.0_wp, 0.0_wp, saw_plateau))
+      call check_true('saw the plateau at the triple point (0<fliq<1)', saw_plateau, merge(1.0_wp, 0.0_wp, saw_plateau))
       call check('plateau temperature = t_3ple', plateau_temp, t_3ple, 1.0e-6_wp)
       call check_true('meltwater drained to soil (> half of swe0)', tot_melt > 0.5_wp * swe0, tot_melt)
       call check('MASS closure: 0 = swe0 - out', 0.0_wp, swe0 - mass_out, 1.0e-7_wp)

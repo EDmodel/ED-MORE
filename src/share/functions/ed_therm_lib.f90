@@ -274,7 +274,7 @@ contains
    end function rh_to_specific_humidity
 
    !---~---
-   !   The slope d(e_sat)/dT [Pa/K], at fixed fliq: on the melt plateau, where fliq
+   !   The slope d(e_sat)/dT [Pa/K], at fixed fliq: on the plateau at the triple point, where fliq
    ! changes, the temperature is pinned at the triple point.
    !---~---
    elemental function sat_vapor_pressure_temp_deriv(t_k, fliq) result(desat)

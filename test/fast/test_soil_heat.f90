@@ -16,9 +16,9 @@
 !      it; its energy changes by exactly the heat let in.
 !   5. STEP INDEPENDENCE: a column frozen from the top for two days gives the same profile
 !      with 30-minute and 1-minute steps.
-!   6. ABOVE SATURATION (soil_layer_temp): a layer stored beyond theta_sat is liquid above
+!   6. ABOVE SATURATION (porous_layer_temp): a layer stored beyond theta_sat is liquid above
 !      t_3ple, and its excess freezes at t_3ple.
-!   7. MASS-CHANGE NEUTRALITY (soil_layer_temp): water that leaves or enters a layer with
+!   7. MASS-CHANGE NEUTRALITY (porous_layer_temp): water that leaves or enters a layer with
 !      its own enthalpy leaves the layer's temperature unchanged.
 !   8. ANNUAL DAMPING: the amplitude of an annual surface wave decays with depth as
 !      exp(-z/d), d = sqrt(2 alpha/omega), the semi-infinite analytic solution, under the
@@ -335,7 +335,7 @@ contains
 
    !---~---
    !   TEMPERATURE-NEUTRALITY of a mass change that carries its own enthalpy, on the soil's
-   ! own inverter, soil_layer_temp.
+   ! own inverter, porous_layer_temp.
    !
    !   The column inverts a layer's water content against its internal energy, so water
    ! that leaves or enters a layer without its matching enthalpy lands entirely in the

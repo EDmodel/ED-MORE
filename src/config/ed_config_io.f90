@@ -335,7 +335,7 @@ contains
 
    !---~---
    !   The [soil] keys a [[sites]] table may set as well (SITE_GROUND_KEYS): the column's layers,
-   ! its hydraulic and thermal texture, the water bottom boundary and the thermal anchor.
+   ! its hydraulic and thermal texture, the water bottom boundary, the thermal anchor and the moss depth.
    !---~---
    subroutine load_soil_ground(tm, s)
       type(toml_table_t),  intent(in)    :: tm

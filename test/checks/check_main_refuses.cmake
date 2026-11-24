@@ -33,8 +33,8 @@
 #   init_soil_temp_layers      an [init].soil_temp list with another number of values than the column's
 #                              layers
 #   ground_surface_layer_residual  a porous material whose residual water is not below its saturation
-#   ground_surface_layer_moved a key of the [snow] block, which [ground_surface_layer] replaced: the run
-#                              names the key that holds its value now
+#   ground_surface_layer_moved a key of the [snow] block: the run names the [ground_surface_layer] key
+#                              that holds its value
 #   ground_surface_layer_moss_thin  a site's moss thinner than a layer of the ground can be
 #   init_census_missing        a census file that is not there (init mode 1)
 #   init_census_empty          a census file with no row for the site

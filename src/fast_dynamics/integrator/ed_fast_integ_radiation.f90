@@ -48,7 +48,7 @@ contains
       logical :: he(N_RAD_BAND_DEFAULT)
 
       ncoh = static%n
-      !--- Bare-soil albedo per band from [soil] (no longwave reflection) and the ground's emission temperature.
+      !--- The uncovered ground's albedo per band from [soil] (no longwave reflection) and its emission temperature.
       soil_albedo   = [cfg%soil%ground_albedo_vis, cfg%soil%ground_albedo_nir, 0.0_wp]
       soil_temp_top = ground_top_temp(dynamic%ground_surface, dynamic%soil_energy%soil_temp(1))
 

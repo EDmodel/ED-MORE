@@ -72,8 +72,8 @@ dry_heat_capacity  = 2.0e6 # [J/m3/K] dry-matrix volumetric heat capacity
 # ---- The surface. ----
 dsl_dmax       = 0.015        # [m]      dry-surface-layer thickness at most (soil evaporation)
 dsl_theta_init = 0.8          # [-]      the top layer's theta/theta_sat at which it starts
-ground_albedo_vis = 0.15      # [-]      bare-soil albedo, visible
-ground_albedo_nir = 0.30      # [-]      bare-soil albedo, near infrared
+ground_albedo_vis = 0.15      # [-]      the uncovered ground's albedo (bare soil, litter, moss), visible
+ground_albedo_nir = 0.30      # [-]      the same, near infrared
 ground_emissivity = 0.95      # [-]      bare-soil longwave emissivity; the litter's and the moss's too
 moss_depth     = 0.0          # [m]      the moss on the soil, under the litter ([ground_surface_layer.moss]); 0: none
 # ---- The bottom boundaries (docs/configuration.md "The bottom thermal boundary"). ----
@@ -90,8 +90,9 @@ thermal_bottom_bc = "geothermal" # geothermal: no heat flux at the base, which r
 # The layers on the soil, top down: the water layer (snow, ice and the liquid they hold, whose free
 # water is the pond), the litter and the moss (docs/science/ground_surface_layers.md). Each material
 # is a table below. Every key optional, at the value shown.
-min_depth = 1.0e-4               # [m] the depth from which a porous layer's matter is a layer: thinner, it
-                                 #     stays where it came from (a film of a few micrometres no balance carries)
+min_depth = 1.0e-4               # [m] the depth from which matter is a layer: a thinner porous layer's matter
+                                 #     stays in its pool, and thinner water is a film; a numerical choice, far
+                                 #     above the depths whose heat capacity no balance carries
 
 [ground_surface_layer.water]
 # The water layer: snow, ice and ponded water, one bulk layer; snowfall adds its depth at

@@ -59,8 +59,8 @@ Two kinds of value are not in the config:
 The test `config_keys_listed` holds the references equal to the keys the loader reads. Before a run
 starts, the loader checks every key of both files and reports all the problems at once:
 
-- a key the reference does not list, with a suggestion: the key that now holds its value, for a key
-  whose block was replaced (`snow.k_snow` → `ground_surface_layer.water.conductivity_at_fresh`), the
+- a key the reference does not list, with a suggestion: the key that holds its value, for a key the
+  loader maps to another (`snow.k_snow` → `ground_surface_layer.water.conductivity_at_fresh`), the
   section it moved to (`state.cohort_max` → `output.cohort_max`) or the key it most likely meant (a
   misspelling);
 - a listed key that the run's other settings give nothing to do, with the setting that makes it

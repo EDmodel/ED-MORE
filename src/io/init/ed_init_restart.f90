@@ -1008,11 +1008,11 @@ contains
    end subroutine get_patch_vars
 
    !---~---
-   !   A state file from before the ground's surface layers were one record: its snow pack is the
-   ! water layer (its single snow layer's mass, energy, depth, temperature and liquid fraction;
-   ! the density it held is the mass over that depth), and its organic layer's slots are the
-   ! porous layers. A file from before the organic layer has none: the litter returns from the
-   ! pools at the first slow step.
+   !   A state file that holds the snow pack and the litter and moss apart (snow_*_layer_pa,
+   ! organic_*_pa): its snow pack is the water layer (its single snow layer's mass, energy,
+   ! depth, temperature and liquid fraction; the density it held is the mass over that depth),
+   ! and its litter and moss are the porous layers. A file with neither leaves them empty: the
+   ! start's follow builds them from their sources (seed_porous_layers).
    !---~---
    subroutine read_older_surface_layers(r, p, npat)
       type(file_row_t),  intent(in)    :: r

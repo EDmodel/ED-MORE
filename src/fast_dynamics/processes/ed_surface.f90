@@ -176,7 +176,7 @@ module ed_surface
    ! vapour apart: node_linearization) and its energy at the step's start, with its
    ! temperature and liquid fraction there, the point its exchange is linearized about, and the law
    ! its energy holds its water's phase by: pure water's for the water layer, the soil's freezing
-   ! curve for a porous layer (docs/science/soil_biophysics.md eq. (15)); the share
+   ! curve for a porous layer (docs/science/soil_biophysics.md eqs. (14)-(15)); the share
    ! of the ground it exchanges with the canopy air over, the net radiation it absorbs per unit of
    ! that share at its temperature, its vapour, either the canopy air's (live, from its own
    ! saturation) or the water network's rate held over the step, per unit ground area; its
@@ -199,7 +199,7 @@ module ed_surface
       real(wp) :: rad         = 0.0_wp      ! [W/m2]   net all-wave radiation per unit of that share
       real(wp) :: emiss       = 1.0_wp      ! [-]      its emissivity
       logical  :: vapour_held = .false.     ! its vapour is the water network's
-      real(wp) :: vapour_rate = 0.0_wp      ! [kg/m2/s] that rate (< 0: dew)
+      real(wp) :: vapour_rate = 0.0_wp      ! [kg/m2/s] that rate (the network gives a porous layer no dew)
       real(wp) :: g_above     = 0.0_wp      ! [W/m2/K] to the node above
       real(wp) :: t_above     = t_3ple      ! [K]      the node above's temperature
       real(wp) :: g_below     = 0.0_wp      ! [W/m2/K] to the node below
@@ -575,19 +575,19 @@ contains
    end subroutine ground_tile_radiation
 
    !---~---
-   !   surface_node_balance -- one node's exchange over dt, per unit ground area, its neighbours
-   ! held, from a linearized backward-Euler balance of its energy that is not committed
+   !   surface_node_balance -- one node's exchange over dt, per unit ground area, its neighbours held,
+   ! from a linearized backward-Euler balance of its energy that is not committed
    ! (docs/science/ground_surface_layers.md §3): the balance's one root T, in closed form on the
-   ! melt plateau or else on the ice or liquid line, with its dry heat capacity on each, and the fluxes at T (node_fluxes). Over its
-   ! share of the ground it takes its net radiation and gives sensible heat and vapour, a
-   ! kilogram of which carries enthalpy_vapor less the water's own energy; it takes heat from the
-   ! node above and gives it to the node below, implicit in its own temperature, so a node of
-   ! little heat capacity relaxes without overshooting; and the water that passes through it
-   ! brings its giver's heat and leaves with its own, so the water leaving over the step is part
-   ! of what the balance warms or cools (node_storage). Its own vapour, once the linearization
-   ! takes it past the water it holds, is held there and the balance solved again, so a node that
-   ! loses all its water to the air ends with none of its energy. The stack's Gauss-Seidel sweeps
-   ! solve each node by it.
+   ! plateau at the triple point or else on the ice or liquid line, with its dry heat capacity on
+   ! each, and the fluxes at T (node_fluxes). Over its share of the ground it takes its net radiation
+   ! and gives sensible heat and vapour, a kilogram of which carries enthalpy_vapor less the water's
+   ! own energy; it takes heat from the node above and gives it to the node below, implicit in its
+   ! own temperature, so a node of little heat capacity relaxes without overshooting; and the water
+   ! that passes through it brings its giver's heat and leaves with its own, so the water leaving
+   ! over the step is part of what the balance warms or cools (node_storage). Its own vapour, once
+   ! the linearization takes it past the water it holds, is held there and the balance solved again,
+   ! so a node that loses all its water to the air ends with none of its energy. The stack's
+   ! Gauss-Seidel sweeps solve each node by it.
    !---~---
    pure subroutine surface_node_balance(node, env, flux)
       type(surface_node_t), intent(in)  :: node
@@ -642,7 +642,7 @@ contains
    ! from the node above and gives the node below, by conduction and with the water passing
    ! between them, implicit in both their temperatures, the bottom node's to the soil top at its
    ! temperature held. Newton on the nodes' energies, each node's temperature read off its energy
-   ! on its own phase law (the ice line, the melt plateau, the liquid line), so a node crossing a
+   ! on its own phase law (the ice line, the plateau at the triple point, the liquid line), so a node crossing a
    ! kink takes the next step from where it landed; the tridiagonal system's columns are
    ! diagonally dominant (the water a node gives is part of its own heat capacity), so it is never
    ! singular. A node whose live vapour would take more than it holds has that vapour held at
@@ -958,7 +958,7 @@ contains
 
    !---~---
    !   Water with dry heat (internal_energy_to_temp) at an energy: its temperature, liquid
-   ! fraction, dT/dE (0 on the melt plateau) and the heat capacity of its line, the ice line's on
+   ! fraction, dT/dE (0 on the plateau at the triple point) and the heat capacity of its line, the ice line's on
    ! the plateau [J/m2/K].
    !---~---
    elemental pure subroutine water_phase(e, w, cd, t, fl, dtde, cap)
