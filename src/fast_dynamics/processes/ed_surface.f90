@@ -1062,8 +1062,9 @@ contains
          free = water_layer_free_water(layer%water, layer%fliq, holding)
          if (free > 0.0_wp) call store_move(layer, st%free, free, free * internal_energy_liquid(layer%temp))
       end if
-      st%ice_held = water_layer_ice(layer)
+      !--- What the layer holds over the step: read off it once its free water has left.
       call diagnose_water_layer(layer)
+      st%ice_held = water_layer_ice(layer)
    end subroutine water_layer_stage
 
    !---~---

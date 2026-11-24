@@ -578,6 +578,21 @@ contains
       call check_true('all ice', layer%fliq == 0.0_wp .and. layer%temp < t_3ple, layer%temp)
       call check('within its pores: no deeper', layer%matrix_depth, 40.0_wp / p%fresh_density, 1.0e-15_wp)
 
+      !---~---
+      !   (d2) A melting pack, 30 kg/m2 a fifth liquid: its ice holds a ninth of its own mass in
+      ! liquid (liquid_holding_frac 0.1), so the rest, 6 - 24/9 kg/m2, is free; the layer holds its
+      ! 24 kg/m2 of ice over the step, the ice its matrix follows at the commit.
+      !---~---
+      layer = water_layer_state_t()
+      layer%water  = 30.0_wp
+      layer%energy = temp_to_internal_energy(0.0_wp, 30.0_wp, t_3ple, 0.2_wp)
+      layer%matrix_depth = 24.0_wp / p%fresh_density
+      call water_layer_stage(0.0_wp, 0.0_wp, 275.0_wp, 0.0_wp, 0.0_wp, DT, p, MIN_DEPTH, 272.0_wp, 0.0_wp, layer, st)
+      call check('a melting pack: its free water, the liquid its ice does not hold', st%free%water,                &
+                 6.0_wp - 24.0_wp * p%liquid_holding_frac / (1.0_wp - p%liquid_holding_frac), 1.0e-12_wp)
+      call check('a melting pack: it holds all its ice over the step', st%ice_held, 24.0_wp, 1.0e-12_wp)
+      call check('a melting pack: the ice it holds is the layer''s', st%ice_held, water_layer_ice(layer), 1.0e-12_wp)
+
       !--- (e) A warm pond: all free water, the layer empty.
       layer = water_layer_state_t()
       layer%water  = 2.0_wp
