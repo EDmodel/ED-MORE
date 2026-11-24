@@ -35,7 +35,7 @@ module ed_ground_surface_params
    type :: water_material_t
       real(wp) :: fresh_density          = 250.0_wp    ! [kg/m3] snowfall's bulk density
       real(wp) :: conductivity_at_fresh  = 0.15_wp     ! [W/m/K] the matrix's thermal conductivity at fresh_density
-      real(wp) :: albedo_vis_fresh       = 0.85_wp     ! [-] fresh snow, visible
+      real(wp) :: albedo_vis_fresh       = 0.95_wp     ! [-] fresh snow, visible (BATS)
       real(wp) :: albedo_nir_fresh       = 0.65_wp     ! [-] fresh snow, near infrared
       real(wp) :: albedo_vis_aged        = 0.518_wp    ! [-] wet (aged) snow, visible
       real(wp) :: albedo_nir_aged        = 0.435_wp    ! [-] wet (aged) snow, near infrared

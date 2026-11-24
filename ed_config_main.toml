@@ -103,8 +103,9 @@ fresh_density          = 250.0   # [kg/m3] snowfall's bulk density (snowfall's d
                                  #         pack's rather than new snow's (100 in Niu & Yang 2007)
 conductivity_at_fresh  = 0.15    # [W/m/K] its ice matrix's thermal conductivity at fresh_density, Calonne et
                                  #         al. (2011)'s law there (0.1495), which scales it to the matrix's density
-albedo_vis_fresh       = 0.85    # [-]     fresh-snow albedo, visible (no verified source)
-albedo_nir_fresh       = 0.65    # [-]     fresh-snow albedo, near infrared (no verified source)
+albedo_vis_fresh       = 0.95    # [-]     fresh-snow albedo, visible: BATS's new snow (Dickinson et al. 1993,
+                                 #         §2e, eq. 5)
+albedo_nir_fresh       = 0.65    # [-]     fresh-snow albedo, near infrared (the same)
 albedo_vis_aged        = 0.518   # [-]     wet (aged) snow albedo, visible: ED2's (ed_params), after Roesch et al.
                                  #         (2002)
 albedo_nir_aged        = 0.435   # [-]     wet (aged) snow albedo, near infrared (the same)

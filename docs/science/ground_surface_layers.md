@@ -250,7 +250,7 @@ The `[ground_surface_layer]` block, every key optional ([configuration](../confi
 |---|---|---|---|---|
 | $`\rho_{fresh}`$ | `fresh_density` | 250 kg m⁻³ | snowfall's bulk density | CLM's bulk snow density (Lawrence et al. 2018, §2.2), a settled pack's rather than new snow's (100 kg m⁻³ in Niu & Yang 2007) |
 | $`k_{fresh}`$ | `conductivity_at_fresh` | 0.15 W m⁻¹ K⁻¹ | the matrix's conductivity at `fresh_density`, scaled by eq. (7) | Calonne et al. (2011)'s regression at `fresh_density` (0.1495) |
-| | `albedo_vis_fresh`, `albedo_nir_fresh` | 0.85, 0.65 | fresh snow's albedo | no verified source |
+| | `albedo_vis_fresh`, `albedo_nir_fresh` | 0.95, 0.65 | fresh snow's albedo | BATS's new snow at a zenith angle below 60° (Dickinson et al. 1993, §2e, eq. 5) |
 | | `albedo_vis_aged`, `albedo_nir_aged` | 0.518, 0.435 | wet (aged) snow's albedo | ED2's (`ed_params`), after Roesch et al. (2002) |
 | $`\alpha_{ice}`$ | `albedo_vis_ice`, `albedo_nir_ice` | 0.60, 0.40 | solid ice's albedo | CLM5's lake ice (Lawrence et al. 2018, eqs. 2.3.61–2.3.62) |
 | $`\alpha_{liq}`$ | `albedo_vis_liquid`, `albedo_nir_liquid` | 0.10, 0.10 | standing water's albedo | CLM5's diffuse open lake water (the same, eq. 2.3.60) |
@@ -297,6 +297,7 @@ Fixed in the code: $`\rho_{ref}`$ = 100 kg m⁻³ in eq. (5) (Niu & Yang 2007's 
 - Calonne, N., Flin, F., Morin, S., Lesaffre, B., Rolland du Roscoat, S., and Geindreau, C. (2011), *Geophys. Res. Lett.* 38:L23501, doi:10.1029/2011GL049234 — snow's effective thermal conductivity against its density.
 - Chadburn, S. et al. (2015), *Geosci. Model Dev.* 8:1493 — the moss layer's thermal conductivity in JULES.
 - de Vries, D. A. (1963), in *Physics of Plant Environment*, North-Holland — thermal properties of soils.
+- Dickinson, R. E., Henderson-Sellers, A. & Kennedy, P. J. (1993), *Biosphere-Atmosphere Transfer Scheme (BATS) Version 1e as Coupled to the NCAR Community Climate Model*, NCAR/TN-387+STR, doi:10.5065/D67W6959 — new snow's albedo (§2e, eq. 5).
 - Farouki, O. T. (1986), *Thermal Properties of Soils*, Trans Tech — the heat capacity of organic matter.
 - Kosugi, K., Mori, K. & Yasuda, H. (2001), *J. Hydrol.* 246:96–108, doi:10.1016/S0022-1694(01)00366-3 — the hydraulic properties of a forest floor.
 - Lawrence, D. et al. (2018), *Technical Description of version 5.0 of the Community Land Model (CLM)*, NCAR — lake ice, open-water and snow optics.
