@@ -14,15 +14,6 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ### Upgrading
 
-- `[surface_layer].litter_water_capacity` and `moss_water_capacity` are gone, and a configuration that
-  sets them is refused: each material's water at saturation, `<slot>_theta_sat`, takes their place, with
-  its retention curve. `litter_k_wet` is the litter's saturated conductivity, 0.1294 W m⁻¹ K⁻¹ by
-  default (it was 0.1036, at the old capacity). A state file from before may hold a moss's water above
-  its new saturation (0.85 m³ m⁻³); the water network pushes the excess out in its first step.
-  `mean_infiltration_py` is the pond's infiltration into the ground: into the organic layer's top slot
-  where there is one. (#TBD)
-- A state file carries `snow_density_layer_pa`, the snow layer's bulk density. A state file from
-  before it starts each layer at its mass over its depth. (#TBD)
 - `[output.<tier>].file_chunk = "run"` is now `"all"`, one file for all of the run's records; `"run"`
   stops the run. A monthly file can no longer be a day long, nor an annual one shorter than a year.
 - A run stops before its first step if a diagnostic file it would write exists: remove the old files,
@@ -86,105 +77,30 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   Map `treeID` to the table's tree id (`tree.id` in a ForestGEO stem table), and `stemID` to its stem
   id. The summary's `stems_in_file` and `stems_per_ha` are now `plants_in_file` and `plants_per_ha`.
   (#99)
+- `[snow]` is replaced by `[ground_surface_layer]`, the layers on the soil top down: a water layer
+  (snow, ice and ponded water) and the litter and the moss, one table per material (`water`, `litter`,
+  `moss`) beside `min_depth`. A key that moved stops the run, naming the key that holds its value:
+  `[snow].rho_snow` is `water.fresh_density`, `k_snow` is `water.conductivity_at_fresh`, `snow_emiss`
+  is `water.emissivity`, `albedo_*` are `water.albedo_*`, `ny07_a` and `ny07_m` are
+  `water.cover_scale_factor` and `cover_density_exponent`, `liquid_holding_frac` is
+  `water.liquid_holding_frac`; `[soil].w_pond_max` is `water.pond_capacity`; `[fast].snow_init_swe`
+  and `snow_init_temp` are `water.initial_mass` and `initial_temp`; and `min_new_snow_mass` and
+  `tiny_snow_mass` give way to `[ground_surface_layer].min_depth`, the depth from which water is a
+  layer (0.1 mm, 0.025 kg m⁻² of fresh snow). (#100)
+- The water layer's outputs are renamed: `mean_swe_py` and `_pa` are `mean_water_layer_mass_py` and
+  `_pa` (its water: snow, ice and the pond), `mean_w_surface_py` and `_pa` are `mean_free_water_py`
+  and `_pa`, `mean_snow_depth_py` is `mean_water_layer_depth_py`, `mean_snowmelt_py` is
+  `mean_ice_melt_py`, and `mean_sublimation_py` is `mean_water_layer_evap_py`, the pond's evaporation
+  included. An io_config that names an old one stops the run. `mean_ground_evap_py`,
+  `mean_h_ground_py`, `mean_heat_gain_surface_py` and `mean_infiltration_py` keep their names and
+  take in the new layers (docs/science/ground_surface_layers.md §7). (#100)
+- A state file carries the ground's surface layers (`ground_water_layer_*_pa`,
+  `ground_porous_layer_*_pa`). One from before is read with its snow pack and its pond joined into the
+  water layer, the pack's depth its matrix's, and the litter and the moss are built at the restart from
+  their sources; such a restart is not bit for bit with the run that wrote the file. (#100)
 
 ### Answer changes
 
-- The soil-plant water Newton treats its small and inert stores by one rule, the node classes
-  (docs/science/soil_plant_water.md §3). A core node whose time to relax to its neighbours is under 1 %
-  of the sub-step is eliminated: every evaluation solves its own backward-Euler balance with its
-  neighbours held, and the factorised matrix gives the rest the Schur-eliminated step. A run of the
-  chain with no storage and no link the solve can see is detached for the iteration, its faces cut.
-  Newton steps stop at Campbell's air entry. They replace the isolation of single stores and the
-  pond's own commit; an empty or trace pond is now an eliminated node. Example 04's BCI, Harvard and
-  Tonzi first years force no water solve with gfortran or ifx, as before, and their annual GPP, LE and
-  Rnet are unchanged to four decimals (BCI's H 69.1272 to 69.1271 W/m²); the threshold ten times larger
-  or smaller gives the same. (#TBD)
-- The organic layer's dried top insulates. Each slot holds its water in its lower part and dries from its top,
-  and its vapour already crossed that dried depth; its heat now crosses it too, at the slot's dry conductivity,
-  in series with the wet part at its wet one (docs/science/surface_organic_layer.md, "Heat"). The conductivity
-  was linear in the slot's fill: 3 cm of dried moss over 3 cm of wet moss conducted 0.28 W m⁻¹ K⁻¹, and now
-  0.11. Example 04's BCI, Harvard and Tonzi, whose litter conducts almost alike dry and wet, move at round-off
-  (annual H at BCI 69.1271 to 69.1272 W/m²), with both compilers. (#TBD)
-- A soil's solids conduct heat by their quartz content, the geometric mean of quartz (7.7 W m⁻¹ K⁻¹) and the other
-  minerals (2.0), with the quartz taken as the sand and silt and clay counting with the other minerals (Johansen
-  1975; Peters-Lidard et al. 1998; docs/science/soil_biophysics.md eq. (9)). CLM5's arithmetic mean of sand and
-  clay left silt out and gave a loam of 45 % sand 7.0 W m⁻¹ K⁻¹, where this gives 3.7. It applies where the soil
-  comes from the maps: over example 06's 983 cells the solids' conductivity falls from a median of 5.6 to 3.1
-  W m⁻¹ K⁻¹. Sites with their own `[soil]` keys, BCI, Harvard and Tonzi among them, are bit-for-bit. (#TBD)
-- The snow pack conducts to the soil through its whole depth. Its one temperature is its surface's: it emits, and
-  exchanges heat and vapour with the canopy air, at that temperature. But the heat between it and the soil crossed
-  only half the depth, so the soil lost heat to the snow's surface as if the pack were half as deep
-  (docs/science/snow_biophysics.md, "The snow store"). In a tundra column the pack's temperature follows the snow
-  surface's radiometric temperature, about 8 K below the measured pack's mean in winter, and the soil under it lost
-  2.4 times what heat-flux plates measured. BCI and Tonzi are bit-for-bit. In Harvard's first year the top soil
-  layer's December–March mean warms from −1.68 to −1.34 °C and its winter heat loss falls from 18.1 to 17.0 W/m²;
-  annual LE moves from 56.985 to 56.970 W/m² and H from 33.31 to 33.20, with both compilers. (#TBD)
-- Two numerical corners in the soil-water solve are gone (docs/science/soil_plant_water.md §3). A frozen layer's
-  melt plateau now spans the unknown its ice's water would span on the liquid's curve at the layer's start, so the
-  layer's water keeps its slope where the ice takes over. With a trace of ice at freeze-up, the fixed half of the
-  unknown made the plateau store almost nothing, and Newton swung across its top for whole sub-steps. The error
-  estimate now filters through the sub-step's first Newton factorisation as well as its last, each with its own
-  storage slopes. A tissue refilling through its roots shuts its one-way uptake as it catches up with the soil, so
-  at the end the matrix no longer saw the exchange that had settled, and the refill read as error down to the
-  smallest sub-step. In a tundra column's 30-year spin-up, the steps with a sub-step forced through fall from 59
-  to 1.
-  Example 04's first year moves within the solver's tolerance, with both compilers: annual LE 70.7221 to 70.7223
-  W/m² at BCI, 56.9858 to 56.9853 at Harvard, 43.0917 unchanged at Tonzi; GPP and H to five figures. (#TBD)
-- The soil-water solve takes out a store it cannot see. An empty pond on sealed frozen ground and a frozen layer
-  whose pores are full hold no more water as their unknown moves, and the ice has all but stopped their exchanges,
-  so the Newton matrix was singular or nearly so. A tundra column's spring then forced sub-steps through
-  unconverged, or one Newton step sent the pond off by kilometres and broke the run. A store whose unknown moves no
-  balance by as much as the convergence tolerance is now solved on its own (docs/science/soil_plant_water.md §3,
-  "Isolated stores"). It keeps its unknown when no other store moves its balance and its balance is met. An empty
-  pond that receives more than the ground takes at zero head steps to the head that holds the water. BCI and Tonzi
-  are bit-for-bit, and Harvard's frozen winter moves within the solver's tolerance: annual LE, H and GPP are
-  unchanged to six figures and soil water moves by at most 2×10⁻⁵, with both compilers. (#TBD)
-- The organic layer's own water evaporates through its dried top. Each slot holds its water in its lower part and
-  dries from its top, so the vapour crosses each slot's depth times the share of its capacity it does not hold,
-  through its open pores (Millington–Quirk, as the soil's vapour crosses the layer), in series with the ground's
-  conductance. It used to evaporate at the wet-surface rate times the layer's fill: a 6 cm moss that holds up to
-  54 mm stays half full through a wet summer, so it evaporated at half the open-water rate, where 3 cm of dried
-  moss add about 1,500 s/m (docs/science/surface_organic_layer.md, "Water"). In example 04's first year LE falls
-  0.1 % at BCI (78.14 to 78.09 W/m²), 0.4 % at Harvard (57.23 to 56.99) and 0.5 % at Tonzi (43.32 to 43.09), H
-  rises by as much, and GPP and the net radiation do not move, with both compilers: their litter is thin. (#TBD)
-- The top soil layer's evaporation is limited by its supply: the whole demand until its water above residual, ice
-  included, falls to 10⁻⁴ of its span to saturation, then a smooth step to nothing at residual. A steep retention
-  curve keeps its pore air near saturation almost to residual (a peat of n 3.3 above half saturation down to
-  S_e = 10⁻⁹), so the layer evaporated until the solver could not represent what was left, and its water step failed.
-  The water network's Newton also keeps every soil layer's unknown above 10⁻¹² (docs/science/soil_biophysics.md, "The
-  soil water column"; soil_plant_water.md §3). Example 04's sites never reach the limit: their fluxes move by
-  round-off, at most 0.15 W/m² in an hour (Tonzi with ifx; gfortran's Tonzi is bit for bit). (#TBD)
-- A frozen soil layer's roots take up no water: each layer's soil-to-root conductance is multiplied by its roots'
-  contact, one at and above the triple point and none a kelvin below it, as CLM5 drops frozen layers from root water
-  uptake. A frozen layer just below the triple point, whose ice now supplies the water drawn from it, would otherwise
-  feed the roots by melting (docs/science/plant_hydraulics.md eq. (14)). In example 04's first year BCI is bit for
-  bit, and Harvard's and Tonzi's fluxes move by under 0.002 W/m² in any hour. (#TBD)
-- A frozen soil layer's ice supplies the water drawn out of it. Water a frozen layer loses below the liquid it
-  starts a step with (sublimation, drainage, root uptake) melts its ice, its liquid staying at the freezing curve's
-  potential, where it used to come from the liquid alone. A steep retention curve, a peat's, holds too little liquid
-  above residual when frozen to supply a step's sublimation: its water step failed, a wrong state was committed and
-  the run ended in NaN within days (docs/science/soil_biophysics.md, "Frozen soil"). In example 04's first year BCI,
-  which never freezes, is bit for bit; Harvard's mean LE moves 0.001 % and its SWE 0.02 % (an hour's LE at most
-  0.2 W/m²), Tonzi's less. (#TBD)
-- The ground has an organic layer: leaf litter, the above-ground metabolic litter pool's dry matter, over moss
-  (`[soil].moss_depth`, none by default). It is the ground's surface where it exists: it absorbs the
-  ground's radiation, holds water up to its capacity (rain fills it before it ponds), evaporates, and
-  insulates the soil, the snow conducting into it. The above-ground litter decays at its temperature
-  and moisture. Litter is on by default (`[surface_layer].litter_on`), so every run with litter pools
-  moves (docs/science/surface_organic_layer.md). In example 04's first year the litter's own rain and
-  its evaporation raise LE 0.5 % at BCI, 6.2 % at Harvard (53.9 to 57.2 W/m², H 35.9 to 33.1) and
-  4.7 % at Tonzi (41.4 to 43.3 W/m², the upwelling longwave 1.8 W/m² lower); GPP moves −0.05 to
-  −1.1 % and Harvard's mean SWE −3 %. The above-ground pools decay at the litter's moisture, so
-  Harvard's heterotrophic respiration rises fourfold (0.017 to 0.068 µmol m⁻² s⁻¹). (#TBD)
-- The pond is the free water of the ground's water layer, which can now freeze. At each fast step's
-  start a pond joins a snow pack, sharing its energy: the pack freezes what its cold can, and the
-  rest stays the pond. A pond below its freezing point (sub-threshold snow, freezing rain) starts a layer of ice. It
-  used to stay liquid and could hold the energy of ice far below 0 °C. The layer gains a bulk density:
-  snowfall adds depth at `[snow].rho_snow`, and water the layer keeps from a pond adds it as ice, at
-  917 kg/m³. A pack with no pond and a warm pond with no pack are unchanged: BCI and Tonzi (example
-  04) are bit for bit. At Harvard in 2019, meltwater that pooled on the frozen ground under the pack
-  now refreezes into it: the mean SWE rises 28 % (14.4 to 18.4 kg/m²) and the pack melts out a week
-  later; LE moves −0.03 % and H +0.2 %. (#TBD)
 - The latent heat flux (`mean_le_pa`, `mean_le_py`) rises by 13 % on average (January 2021: 16.6 to
   18.8 W/m2), and by at most 3.2 W/m2 on a day, in the region test's synthetic January-February
   2021 run, where the canopy air is mostly below freezing and the vapour takes the latent heat of
@@ -271,32 +187,41 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   NaN. Harvard's means move in the fifth digit and its LAI by at most 1.4·10⁻⁴; BCI is bit for bit. With the
   cull, Palo Verde's 150-year regrowth ends with 1.6 % more biomass and 2.1 % more LAI (7.57 to 7.69 kgC
   m⁻², 4.85 to 4.95). (#95)
-- The organic layer's litter and moss are nodes of the soil-plant water network, between the pond and the
-  top soil layer, on their materials' retention curves (docs/science/surface_organic_layer.md, "Water"):
-  they fill, drain and are drawn on as soil layers are, the top slot evaporating by the soil's own law. A
-  slot is a layer only from 0.1 mm deep. In example 04's first year LE falls by up to 1.3 % and H rises
-  by up to 1.6 % (BCI LE 83.40 to 82.30, H 69.13 to 70.00 W/m²; Harvard 56.97 to 56.31, 33.20 to 33.73;
-  Tonzi 43.09 to 42.80, 46.64 to 46.87), GPP and Rnet move within 0.07 %, the same with gfortran and ifx.
-  (#TBD)
 - A plant is one individual: a tree with several stems is one plant at the diameter of their summed basal
   area, $`\sqrt{\sum_i D_i^2}`$, as `make_census.py` now lumps a stem table. Harvard's stand (examples 04 and
   07) is 10,014 trees from 12,075 stems at the same 41.6 m² ha⁻¹: its allometric LAI falls 2.7 %, its AGB
   rises 2.4 % and its biomass mortality falls from 0.82 to 0.72 % yr⁻¹; its fitted `lai_b1`, phenology and
   soil-carbon spin-up predate the change. BCI's tree tables keep each tree's main stem (the tool warns). (#99)
+- The ground has surface layers, top down: one water layer, snow, ice and ponded water together,
+  then the litter, the above-ground metabolic litter pool's dry matter, and the moss, a site's
+  `[soil].moss_depth` (none by default) (docs/science/ground_surface_layers.md). Each layer has its own
+  temperature, and their energies are solved together over the soil top, each emitting and exchanging
+  at its own; a layer's heat to the one below crosses its whole depth. The litter and the moss are
+  nodes of the soil-plant water network on their materials' retention curves, and every store on the
+  ground evaporates through its own dried top and one shared aerodynamic leg. The pond is the water
+  layer's free water and freezes in it; the canopy intercepts rain only, its snowfall passing to the
+  ground; a pack buries the crowns it reaches; and the above-ground litter decays at the litter's
+  temperature and moisture. Litter is on by default, so every run with litter pools moves. Example
+  04's first year, beta against this release with gfortran: BCI LE [P5] and H [P5] W/m²; Harvard LE
+  [P5] and H [P5] (with #99's census); Tonzi LE [P5], H [P5] and net radiation [P5]. (#100)
+- A soil's solids conduct heat by their quartz content, the geometric mean of quartz (7.7 W m⁻¹ K⁻¹)
+  and the other minerals (2.0), with the quartz taken as the sand and silt and clay counting with the
+  other minerals (Johansen 1975; Peters-Lidard et al. 1998; docs/science/soil_biophysics.md eq. (9)).
+  CLM5's arithmetic mean of sand and clay left silt out and gave a loam of 45 % sand 7.0 W m⁻¹ K⁻¹,
+  where this gives 3.7. It applies where the soil comes from the maps: over example 06's 983 cells the
+  solids' conductivity falls from a median of 5.6 to 3.1 W m⁻¹ K⁻¹. Sites with their own `[soil]` keys,
+  example 04's among them, do not move. (#100)
+- Frozen ground and the water solve. A frozen soil layer's roots take up no water, and its ice
+  supplies the water drawn out of it; the top layer's evaporation stops at its residual. The
+  soil-plant water solve treats its small and inert stores by one rule (docs/science/soil_plant_water.md
+  §3): a store that relaxes within the sub-step is solved on its own and eliminated, a group the solve
+  cannot see is detached, a cohort's leaves are classified as the soil's stores are, and a sub-step
+  that fails holds out its worst store rather than committing an unconverged state. A tundra column's
+  freeze-up and spring, which forced sub-steps through or ended a run in NaN, now solve. Example 04's
+  first year moves with the surface layers above. (#100)
 
 ### Added
 
-- A snow pack buries the crowns it reaches: each cohort's leaves and wood under the pack leave the
-  canopy (radiation, gas exchange, transpiration, the open fraction, interception, the tissues'
-  exchange), and its phenology cues read no light while it is wholly buried and, for its buried
-  share, the ground's temperature. Per PFT, `[allometry].crown_base_fraction` (the crown's base over
-  the height, default 0.5) and `snow_bending` (default 0). A crown above the pack is unchanged, so
-  the examples are bit for bit. (#TBD)
-- `[surface_layer]`: the organic layer's materials, litter and moss (bulk density, conductivity dry and
-  saturated, and a soil layer's water retention: `<slot>_retention`, `theta_sat`, `theta_res`,
-  `curve_par_a`, `curve_par_n`, `ksat`), and `[soil].moss_depth`, per site. Outputs `mean_organic_temp_py` and
-  `mean_organic_water_py` (and `_pa`). A state file carries the layer (`organic_*_pa`); one from
-  before starts without it, the litter returning from its pools at the first slow step. (#TBD)
 - Four output variables split evapotranspiration by where the vapour comes from:
   `mean_transp_py` (transpiration), `mean_veg_surface_evap_py` (evaporation of the water on the
   leaves' and wood's surfaces), `mean_ground_evap_py` (bare soil and snow) and `mean_dew_py`
@@ -388,6 +313,14 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   gains `diameter_height` and `min_recruit_height` columns. (#99)
 - `[init].soil_temp` may list one temperature per soil layer, top down, for a column whose start differs
   with depth, such as a thawed top over permafrost; a list needs one value per layer. (#99)
+- The ground's surface layers and what reads them: `[ground_surface_layer]`'s materials (the litter's
+  and the moss's bulk density, conductivity dry and saturated, and water retention as a soil layer's;
+  the water layer's solid-ice and standing-water albedos), `[soil].moss_depth` per site, and per PFT
+  `[allometry].crown_base_fraction` and `snow_bending`; the outputs `mean_water_layer_ice_py`,
+  `mean_water_layer_cover_py`, `mean_litter_water_py`, `mean_moss_water_py` and
+  `mean_ground_top_temp_py` (the last three with `_pa` twins); and a run's log ends with the water
+  solve's forced sub-steps by reason (`forced[water]`) and the ground stack's Newton iterations and
+  fallbacks (`surface stack`). (#100)
 
 ### Changed
 
@@ -453,6 +386,10 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   `TA_F_MDS` or `SW_IN_F_MDS` count as fills, not observations. (#91)
 - `calibrate_fast.py check` rebuilds its trials from the values the prior trial ran with, so a key
   whose transform does not round-trip exactly no longer stops it. (#91)
+- `calibrate_fast` runs its trials again after the model is rebuilt: it named its trials, chains and
+  parameter record by the configs alone, so a run after a rebuild reused the old build's results. Each
+  name now hashes the model's compiled code too, and `calibrate_fast.py check` finds the trials it ran.
+  (#100)
 
 ## [0.4.1] - 2026-10-26
 
