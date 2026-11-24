@@ -254,21 +254,21 @@ Two choices are BCI's own:
 
 | key | calibrated (68 % range) | prior centre |
 |---|---|---|
-| `vcmax25` [µmol m⁻² s⁻¹] | 33.6 (32.7–34.5) | 39.9 (from the climate) |
-| `stomatal_g1` [kPa^0.5] | 2.88 (2.81–2.95) | 2.80 (from the climate) |
-| `stomatal_g0` [mol m⁻² s⁻¹] | 0.0003 (0.0002–0.0006) | 0.01 |
-| `leaf_angle_mean` [°] | 51.6 (47.7–55.4) | 45 |
+| `vcmax25` [µmol m⁻² s⁻¹] | 34.4 (33.5–35.4) | 44.7 (from the climate) |
+| `stomatal_g1` [kPa^0.5] | 2.99 (2.91–3.07) | 2.78 (from the climate) |
+| `stomatal_g0` [mol m⁻² s⁻¹] | 0.0005 (0.0003–0.0012) | 0.01 |
+| `leaf_angle_mean` [°] | 43.1 (38.5–47.7) | 45 |
 | `z0m_ratio` | 0.049 (0.048–0.051) | 0.13 |
-| `wstress_sref_stomata` | 2.8 (1.4–4.7: the data barely constrain it) | 2 |
-| κ | 0.714 (0.680–0.747) | 0.65 |
+| `wstress_sref_stomata` | 3.4 (1.8–5.3: the data barely constrain it) | 2 |
+| κ | 0.692 (0.660–0.724) | 0.65 |
 
 On the validation windows, the RMSE in units of each target's error goes from default to calibrated:
-u\* 2.16 → 0.73, GPP 2.32 → 1.59, upwelling longwave 4.12 → 3.93, LE 1.66 → 1.59, and H 3.85 → 4.29.
+u\* 2.17 → 0.74, GPP 2.34 → 1.59, upwelling longwave 4.16 → 4.03, LE 1.61 → 1.57, and H 3.84 → 4.24.
 **The validation fails on H**: the protocol asks that no target do more than 10 % worse than the default,
-and H does 11 % worse. The calibrated parameters ship as the fit's best, with H flagged: lowering the
+and H does 10.4 % worse. The calibrated parameters ship as the fit's best, with H flagged: lowering the
 canopy's sensible heat would cost GPP, u\* and the longwave. Sharing the energy-balance gap between H and
-LE instead moves `stomatal_g1` to 4.75 and `vcmax25` to 30.6. The fit's 996 runs took 60 minutes on 200
-cores of five nodes, with the queue workers of [Run](#run).
+LE instead moves `stomatal_g1` to 4.83 and `vcmax25` to 30.8. The fit's 836 runs took 45 minutes on 120
+cores of three nodes, with the queue workers of [Run](#run).
 
 ```bash
 cd examples/example04_column_biophysics/sites/bci
