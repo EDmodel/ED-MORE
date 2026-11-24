@@ -49,7 +49,7 @@ module ed_fast_integ_backward_euler
 
    public :: backward_euler_stage, advance_plant_water, advance_surf_water_full
    public :: water_step
-   public :: water_jacobian_error, substep_in_bounds, classify_fast_leaves, solve_node   ! used only by the tests
+   public :: water_jacobian_error, substep_in_bounds, classify_fast_leaves, inert_groups, solve_node   ! used only by the tests
    public :: newton_surface_solve, surface_source_slopes, surface_jacobian, surface_residual_scaled, &
              SURFACE_NEWTON_MAX                                                        ! used only by the tests
 
@@ -906,7 +906,7 @@ contains
       call classify_fast(drive, tau_soil, water%sys, water%ev(i_sol), h, tol, scale_soil, was_fast, fast, t_relax,   &
                          at_once)
       call classify_fast_leaves(water%sys, water%ev(i_sol), h, atol, scale_coh, was_fast_leaf, fast_leaf)
-      call inert_groups(water%ev(i_sol), h, tol, scale_soil, was_cut, cut)
+      call inert_groups(water%ev(i_sol), h, tol, scale_soil, was_cut, held_out, cut)
       cut  = cut .or. held_out
       fast = fast .and. .not. cut
       call fast_blocks(t_relax, at_once, fast)
@@ -921,7 +921,7 @@ contains
          if (worst <= 1.0_wp) exit
          iters = it
          !--- A group the solve has lost sight of is detached; one whose links have returned rejoins.
-         call inert_groups(water%ev(i_sol), h, tol, scale_soil, cut .and. .not. held_out, cut_new)
+         call inert_groups(water%ev(i_sol), h, tol, scale_soil, cut .and. .not. held_out, held_out, cut_new)
          cut_new = cut_new .or. held_out
          if (any(cut_new .neqv. cut)) then
             cut  = cut_new
@@ -1233,25 +1233,33 @@ contains
    ! close to it that a step sends its unknowns off by kilometres: an empty pond on sealed frozen
    ! ground, a frozen layer whose pores are full, and those with frozen porous layers between. A
    ! node detached before (was_cut) rejoins only once its storage or a link out is
-   ! CLASS_HYSTERESIS times what the solve can see.
+   ! CLASS_HYSTERESIS times what the solve can see. A node held out for the rest of the step
+   ! (held_out) is outside the network: its faces carry nothing, so they join no group, and its
+   ! storage makes none active; a node whose only link was to it, an empty pond over a layer held
+   ! out, is a group of its own, and detached if it holds nothing.
    !---~---
-   pure subroutine inert_groups(ev, h, tol, scale_soil, was_cut, cut)
+   pure subroutine inert_groups(ev, h, tol, scale_soil, was_cut, held_out, cut)
       type(water_tend_t), intent(in)  :: ev
       real(wp),           intent(in)  :: h, tol, scale_soil(:)
       logical,            intent(in)  :: was_cut(:)
+      logical,            intent(in)  :: held_out(:)   ! the nodes held out for the rest of the step
       logical,            intent(out) :: cut(:)
       integer(ik) :: nc, c, first
       logical     :: seen_link(size(cut)), active
       real(wp)    :: seen_at
       nc = size(cut, kind=ik)
       call seen_links(ev, tol, scale_soil, face_hysteresis(was_cut(1:nc)), seen_link)
+      do c = 1_ik, nc - 1_ik
+         if (held_out(c) .or. held_out(c + 1_ik)) seen_link(c) = .false.
+      end do
       cut = .false.
       !--- The chain's groups: runs of nodes joined by seen faces.
       first = 1_ik
       active = .false.
       do c = 1_ik, nc
          seen_at = tol * scale_soil(c) * hysteresis(was_cut(c))
-         if (abs(ev%dwater_soil(c)) / h >= seen_at .or. ev%root_link(c) >= seen_at) active = .true.
+         if (.not. held_out(c) .and. (abs(ev%dwater_soil(c)) / h >= seen_at .or. ev%root_link(c) >= seen_at))      &
+            active = .true.
          if (.not. seen_link(c)) then
             if (.not. active) cut(first:c) = .true.
             first  = c + 1_ik

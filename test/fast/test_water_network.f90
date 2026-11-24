@@ -105,6 +105,9 @@
 !                        tolerance it is solved, within it; asked for no residual at all it is
 !                        not, and it leaves its unknown finite where the residual is no larger
 !                        than at its start.
+!  39. HELD OUT        : an empty pond whose one link is to a litter held out for the rest of the
+!                        step is a group of its own, holding nothing, and is detached (inert_groups);
+!                        with the litter in the network the pond and it are one group, kept.
 !---~---
 program test_water_network
    use ed_test_assert, only : check_true, check_close, check_int, test_report
@@ -122,7 +125,7 @@ program test_water_network
    use ed_fast_state,    only : derive_cohort_terms
    use ed_fast_integ_derivs, only : set_water_state, water_derivs, node_balance, wood_potentials
    use ed_fast_integ_backward_euler, only : water_step, water_jacobian_error, substep_in_bounds, classify_fast_leaves, &
-                                            solve_node
+                                            solve_node, inert_groups
    use ed_fast_integ_control, only : water_scales
    use ed_plant_hydr_lib,   only : water_curve_t, tissue_psi_to_rwc, tissue_psi_tlp, tissue_water_relations
    use ed_pft_derive,       only : build_kirchhoff_table
@@ -197,6 +200,7 @@ program test_water_network
    call test_saturated_sealed_storm()
    call test_node_balance()
    call test_solve_node()
+   call test_held_out_isolates()
    call test_report('test_water_network')
 
 contains
@@ -2294,5 +2298,33 @@ contains
       call check_true('solve node: its unknown stays finite', ieee_is_finite(ts(2)), ts(2))
       call check_true('solve node: its residual no larger than at its start', abs(r) <= abs(r0), r)
    end subroutine test_solve_node
+
+   !---~---
+   !   39. A chain as Harvard's spring left one: an empty pond (no storage) over a litter, a moss
+   ! and a soil layer that hold water, each face seen. The litter is held out for the rest of the
+   ! step. Its faces carry nothing, so the pond's one link is gone: the pond is a group of its
+   ! own that holds nothing, and is detached, so the Newton matrix keeps a row for it. With the
+   ! litter in the network, the pond is linked to a store that holds water, and stays.
+   !---~---
+   subroutine test_held_out_isolates()
+      integer(ik), parameter :: NC = 4
+      real(wp),    parameter :: H = 9.0e-3_wp, TOL = 1.0e-8_wp   ! [s], [kg/m2/s per kg/m2]
+      type(water_tend_t) :: ev
+      real(wp) :: scale(NC)
+      logical  :: cut(NC), none(NC), held(NC)
+      allocate(ev%dwater_soil(NC), ev%face_dqa(NC), ev%face_dqb(NC), ev%root_link(NC))
+      ev%dwater_soil = [0.0_wp, 20.0_wp, 50.0_wp, 40.0_wp]   ! [kg/m2 per unit unknown] the pond holds nothing
+      ev%face_dqa    = [1.0e-3_wp, 1.0e-3_wp, 1.0e-3_wp, 0.0_wp]
+      ev%face_dqb    = ev%face_dqa
+      ev%root_link   = 0.0_wp
+      scale = [26.0_wp, 26.0_wp, 51.0_wp, 45.0_wp]
+      none  = .false.
+      held  = [.false., .true., .false., .false.]
+      call inert_groups(ev, H, TOL, scale, none, none, cut)
+      call check_true('held out: with the litter in the network nothing is detached', .not. any(cut))
+      call inert_groups(ev, H, TOL, scale, none, held, cut)
+      call check_true('held out: the pond whose one link it was is detached', cut(1))
+      call check_true('held out: the moss and the soil below stay', .not. (cut(3) .or. cut(4)))
+   end subroutine test_held_out_isolates
 
 end program test_water_network
