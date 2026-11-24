@@ -30,7 +30,8 @@ module ed_surface
    use ed_soil_hydr_lib,        only : soil_layer_curve_t
    use ed_ground_surface_lib,   only : water_layer_cover, water_layer_albedo, water_layer_depth,              &
                                        water_layer_free_water, water_layer_resistance, water_layer_bulk_density, &
-                                       matrix_depth_update, porous_energy_state, film_on_porous_layer
+                                       matrix_depth_update, porous_energy_state, film_on_porous_layer,          &
+                                       water_layer_optics_shares, snow_matrix_conductivity
    implicit none
    private
 
@@ -273,7 +274,7 @@ contains
          node(n)%rad       = env%sw_snow
          call internal_energy_to_temp(node(n)%energy, node(n)%water, 0.0_wp, node(n)%temp, node(n)%fliq)
          resistance(n)     = water_layer_resistance(layer_depth(env%pack), env%pack%matrix_depth,                  &
-                                                    env%params%conductivity_at_fresh)
+                                                    matrix_conductivity(env%pack, env%params))
          contact(n)        = cover
       end if
       top_porous = n + 1_ik
@@ -463,19 +464,43 @@ contains
    end subroutine snow_blend_ground_optics
 
    !---~---
-   !   The pack's own shortwave albedos, fresh to aged by its surface liquid fraction; a pack
-   ! this step's snowfall has yet to make is fresh.
+   !   The water layer's own shortwave albedos (water_layer_albedo): the water standing above its
+   ! ice matrix at standing water's, the matrix at snow's, fresh to aged by the layer's liquid
+   ! fraction, as far as its density lies from solid ice's, else at ice's
+   ! (water_layer_optics_shares). A layer this step's snowfall has yet to make is fresh snow.
    !---~---
    pure subroutine snow_albedos(snow, params, albedo_vis, albedo_nir)
       type(water_layer_state_t), intent(in) :: snow
       type(water_material_t), intent(in)  :: params
       real(wp),            intent(out) :: albedo_vis, albedo_nir   ! [-]
-      real(wp) :: fl
-      fl = 0.0_wp
-      if (ground_store_present(snow)) fl = snow%fliq
-      albedo_vis = water_layer_albedo(fl, params%albedo_vis_fresh, params%albedo_vis_aged)
-      albedo_nir = water_layer_albedo(fl, params%albedo_nir_fresh, params%albedo_nir_aged)
+      real(wp) :: fl, standing, porous_share
+      fl           = 0.0_wp
+      standing     = 0.0_wp
+      porous_share = 1.0_wp
+      if (ground_store_present(snow)) then
+         fl = snow%fliq
+         call water_layer_optics_shares(snow%matrix_depth, water_layer_ice(snow), snow%fliq * snow%water,            &
+                                        params%fresh_density, standing, porous_share)
+      end if
+      albedo_vis = water_layer_albedo(standing, porous_share, fl, params%albedo_vis_fresh, params%albedo_vis_aged,   &
+                                      params%albedo_vis_ice, params%albedo_vis_liquid)
+      albedo_nir = water_layer_albedo(standing, porous_share, fl, params%albedo_nir_fresh, params%albedo_nir_aged,   &
+                                      params%albedo_nir_ice, params%albedo_nir_liquid)
    end subroutine snow_albedos
+
+   !---~---
+   !   [W/m/K] The water layer's ice matrix's conductivity at the matrix's density, its ice over its
+   ! depth (snow_matrix_conductivity); the fresh snow's where it has no matrix, whose depth, nil,
+   ! then carries no resistance.
+   !---~---
+   pure real(wp) function matrix_conductivity(layer, params) result(k)
+      type(water_layer_state_t), intent(in) :: layer
+      type(water_material_t),    intent(in) :: params
+      k = params%conductivity_at_fresh
+      if (layer%matrix_depth > 0.0_wp)                                                                          &
+         k = snow_matrix_conductivity(water_layer_ice(layer) / layer%matrix_depth, params%conductivity_at_fresh,  &
+                                      params%fresh_density)
+   end function matrix_conductivity
 
    !---~---
    !   The radiation each tile of the ground absorbs per unit of its own area, from what

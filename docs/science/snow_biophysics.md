@@ -20,6 +20,24 @@ The snow kernels live in `ed_surface`; the pack is a single bulk layer. The prog
   - The **pack-to-soil conductance** is the series resistance of the whole snow depth and the top soil node. The pack's one temperature is its surface's: it emits, and exchanges heat and vapour with the canopy air, at that temperature. The heat between it and the soil therefore crosses the whole pack, as it does from a real pack's surface to its base. Through half the depth, the soil lost heat to the snow's surface as if the pack were half as deep. The layer's heat capacity is still the whole pack's, at its surface's temperature, so its cold content is that of a pack as cold as its surface; only a layered pack would separate the two. The conductance falls as the pack deepens ($`k_{snow}\ll k_{soil}`$), which decouples the soil and caps the winter soil surface, and it is the soil's top boundary against the march's own top-node temperature. The top node's $`k_{soil}`$ is the soil heat solver's conductivity of layer 1 at the step's start (its water, ice fraction and texture), so a frozen or a dry top layer conducts as the soil says it does.
 - **Commit** (`snow_take_exchange`, through `store_take_exchange`). The pack takes the march's time integral of the exchange, the energy and vapour the canopy air and the soil received from it, so the pack, the canopy air and the soil close together in the whole-column ledgers. Its temperature is read off the new energy.
 
+### The water layer's optics and conductivity
+
+The layer's albedo in each band weighs three surfaces (`water_layer_albedo`, `water_layer_optics_shares`): the
+water standing above its ice matrix, the share $`s = \max(0, I/\rho_{ice} + L/\rho_w - d_m)/d`$ of its depth $`d`$
+($`I`$, $`L`$ its ice and liquid, $`d_m`$ its matrix's depth), at standing water's albedo; and the matrix, at
+snow's (fresh to aged by the liquid fraction) over its porous share $`p = (\rho_{ice}-\rho_m)/(\rho_{ice}-\rho_{fresh})`$,
+clipped to [0, 1], and at solid ice's over the rest, $`\rho_m = I/d_m`$ the matrix's density:
+$`\alpha = s\,\alpha_{liq} + (1-s)\,[p\,\alpha_{snow} + (1-p)\,\alpha_{ice}]`$. Fresh snow has $`s = 0`$, $`p = 1`$, so its
+albedo is snow's; a pond has $`s = 1`$; a pond frozen solid has $`p = 0`$.
+
+The matrix conducts at Calonne et al. (2011)'s regression of snow's effective conductivity on density,
+$`k_C(\rho) = 2.5\times10^{-6}\rho^2 - 1.23\times10^{-4}\rho + 0.024`$ W m⁻¹ K⁻¹ (as Brondex et al. 2023 give it, their
+eq. A3), fitted at 271 K over about 100–550 kg m⁻³, used as a shape scaled by `conductivity_at_fresh`:
+$`k_m = k_{snow}\,k_C(\rho_m)/k_C(\rho_{fresh})`$ (`snow_matrix_conductivity`), so fresh snow keeps $`k_{snow}`$. Above
+the fitted range, towards solid ice, the law is used as that shape beyond its range, still scaled by
+`conductivity_at_fresh`: solid ice conducts about 13 times more than fresh snow. The water standing above the matrix conducts as still
+liquid water.
+
 ### The ground's radiation
 
 The two-stream sees one ground, the bare soil and the pack blended by the cover fraction $`f`$ (`snow_blend_ground_optics`). Its albedo and emissivity are the cover-weighted means, and it emits at the temperature $`T_{eff}`$ at which the blended emissivity $`\bar\varepsilon`$ gives the two tiles' emission, $`\bar\varepsilon\,\sigma T_{eff}^4 = f\,\varepsilon_{snow}\sigma T_{snow}^4 + (1-f)\,\varepsilon_{soil}\sigma T_{soil}^4`$.
@@ -69,9 +87,11 @@ The `[ground_surface_layer.water]` table; every key is optional ([configuration]
 | Symbol | Key | Default | Meaning |
 |---|---|---|---|
 | $`\rho_{snow}`$ | `fresh_density` | 250 kg m⁻³ | fresh snow's bulk density, at which snowfall adds depth; pond water the layer takes adds it as ice, at 917 kg m⁻³ |
-| $`k_{snow}`$ | `conductivity_at_fresh` | 0.15 W m⁻¹ K⁻¹ | thermal conductivity |
+| $`k_{snow}`$ | `conductivity_at_fresh` | 0.15 W m⁻¹ K⁻¹ | the ice matrix's thermal conductivity at `fresh_density`; Calonne et al. (2011)'s density law scales it to the matrix's own density |
 | | `albedo_vis_fresh`, `albedo_nir_fresh` | 0.85, 0.65 | fresh-snow albedo, visible and near infrared |
 | | `albedo_vis_aged`, `albedo_nir_aged` | 0.518, 0.435 | aged-snow albedo; the pack's own liquid fraction blends fresh to aged |
+| | `albedo_vis_ice`, `albedo_nir_ice` | 0.60, 0.40 | solid ice's albedo: CLM5's lake ice (tech note, Surface Albedos, eqs. 2.3.61-2.3.62) |
+| | `albedo_vis_liquid`, `albedo_nir_liquid` | 0.10, 0.10 | standing water's albedo: CLM5's diffuse albedo of open lake water (the same, eq. 2.3.60) |
 | $`\varepsilon_{snow}`$ | `emissivity` | 0.97 | longwave emissivity |
 | | `liquid_holding_frac` | 0.10 | liquid fraction the pack holds before it percolates |
 | | `min_new_snow_mass` | 10⁻³ kg m⁻² | snowfall in one `dt_fast` that starts a pack |
@@ -96,4 +116,7 @@ The `[ground_surface_layer.water]` table; every key is optional ([configuration]
 ## References
 - Ambaum (2020), *Q. J. R. Meteorol. Soc.* 146:4252, doi:10.1002/qj.3899 — saturation vapour pressure over water and ice.
 - Murphy & Koop (2005), *Q. J. R. Meteorol. Soc.* 131:1539 — vapour pressure over ice.
+- Calonne, N., Flin, F., Morin, S., Lesaffre, B., Rolland du Roscoat, S., and Geindreau, C. (2011), *Geophys. Res. Lett.* 38:L23501, doi:10.1029/2011GL049234 — snow's effective thermal conductivity against its density.
+- Brondex, J., et al. (2023), *Geosci. Model Dev.* 16:7075, doi:10.5194/gmd-16-7075-2023 — gives Calonne et al. (2011)'s regression and its fitted range (eq. A3).
+- Lawrence, D. et al. (2018), *Technical Description of version 5.0 of the Community Land Model (CLM)*, NCAR, Surface Albedos, eqs. 2.3.60-2.3.62 — lake ice and open-water albedos.
 - Niu & Yang (2007), *JGR* 112:D21101 — snow-cover fraction.

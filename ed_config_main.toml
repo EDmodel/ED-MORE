@@ -95,14 +95,19 @@ min_depth = 1.0e-4               # [m] the depth from which a porous layer's mat
                                  #     stays where it came from (a film of a few micrometres no balance carries)
 
 [ground_surface_layer.water]
-# The water layer: one bulk layer of fixed conductivity; snowfall adds its depth at fresh_density, rain
-# fills its pores.
+# The water layer: snow, ice and ponded water, one bulk layer; snowfall adds its depth at
+# fresh_density, rain fills its pores.
 fresh_density          = 250.0   # [kg/m3] snowfall's bulk density (snowfall's depth = its mass / density)
-conductivity_at_fresh  = 0.15    # [W/m/K] thermal conductivity
+conductivity_at_fresh  = 0.15    # [W/m/K] its ice matrix's thermal conductivity at fresh_density, scaled to
+                                 #         the matrix's own density by Calonne et al. (2011)'s law
 albedo_vis_fresh       = 0.85    # [-]     fresh-snow albedo, visible
 albedo_nir_fresh       = 0.65    # [-]     fresh-snow albedo, near infrared
 albedo_vis_aged        = 0.518   # [-]     wet (aged) snow albedo, visible
 albedo_nir_aged        = 0.435   # [-]     wet (aged) snow albedo, near infrared
+albedo_vis_ice         = 0.60    # [-]     solid ice, visible: CLM5's lake ice (tech note eqs. 2.3.61-2.3.62)
+albedo_nir_ice         = 0.40    # [-]     solid ice, near infrared (the same)
+albedo_vis_liquid      = 0.10    # [-]     standing water: CLM5's diffuse albedo of open lake water (eq. 2.3.60)
+albedo_nir_liquid      = 0.10    # [-]     (the same)
 emissivity             = 0.97    # [-]     longwave emissivity
 liquid_holding_frac    = 0.10    # [-]     the layer's mass share its ice holds as liquid (LEAF-3's 1:9); the
                                  #         rest of the liquid drains to the pond

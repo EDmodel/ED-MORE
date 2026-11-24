@@ -31,7 +31,8 @@ module ed_ground_surface_lib
    !--- The water layer.
    public :: water_layer_free_water, water_layer_depth, matrix_depth_update
    public :: water_layer_bulk_density
-   public :: water_layer_cover, water_layer_albedo, water_layer_resistance
+   public :: water_layer_cover, water_layer_albedo, water_layer_optics_shares, water_layer_resistance
+   public :: snow_matrix_conductivity
 
    !---~---
    !   The inversion of a porous medium's energy on its freezing curve: the most Newton steps,
@@ -41,6 +42,14 @@ module ed_ground_surface_lib
    real(wp),    parameter :: PHASE_TEMP_TOL      = 1.0e-10_wp
    !--- [kg/m3] The density Niu & Yang (2007)'s cover scale is referenced to.
    real(wp),    parameter :: COVER_DENSITY_REF = 100.0_wp
+   !---~---
+   !   Calonne et al. (2011)'s regression of snow's effective thermal conductivity [W/m/K] on its
+   ! density rho [kg/m3], k = A2 rho^2 + A1 rho + A0, fitted at 271 K to conductivities computed on
+   ! 3-D images of seasonal snow from about 100 to 550 kg/m3.
+   !---~---
+   real(wp),    parameter :: CALONNE_A2 = 2.5e-6_wp     ! [W m5/kg2/K]
+   real(wp),    parameter :: CALONNE_A1 = -1.23e-4_wp   ! [W m2/kg/K]
+   real(wp),    parameter :: CALONNE_A0 = 0.024_wp      ! [W/m/K]
 
 contains
 
@@ -297,11 +306,57 @@ contains
       cover = tanh(depth / scale)
    end function water_layer_cover
 
-   !--- [-] A snow layer's albedo in one band: fresh to aged by its liquid fraction [-].
-   elemental real(wp) function water_layer_albedo(fliq, albedo_fresh, albedo_aged) result(albedo)
-      real(wp), intent(in) :: fliq, albedo_fresh, albedo_aged
-      albedo = (1.0_wp - fliq) * albedo_fresh + fliq * albedo_aged
+   !---~---
+   !   [-] A water layer's albedo in one band: the water standing above its ice matrix (its share
+   ! standing) at standing water's, the rest at its matrix's: snow's, fresh to aged by the layer's
+   ! liquid fraction, over the matrix's porous share, solid ice's over the rest.
+   !---~---
+   elemental real(wp) function water_layer_albedo(standing, porous_share, fliq, albedo_fresh, albedo_aged,       &
+                                                  albedo_ice, albedo_liquid) result(albedo)
+      real(wp), intent(in) :: standing, porous_share, fliq           ! [-] (water_layer_optics_shares), [-]
+      real(wp), intent(in) :: albedo_fresh, albedo_aged, albedo_ice, albedo_liquid
+      real(wp) :: snow
+      snow   = (1.0_wp - fliq) * albedo_fresh + fliq * albedo_aged
+      albedo = standing * albedo_liquid + (1.0_wp - standing) * (porous_share * snow + (1.0_wp - porous_share) * albedo_ice)
    end function water_layer_albedo
+
+   !---~---
+   !   The shares a water layer's optics weigh (water_layer_albedo), from its ice matrix's depth
+   ! [m], its ice and its liquid [kg/m2]: standing, the share of its depth that its ice and liquid
+   ! fill beyond the matrix, water standing over it (none in snow whose pores are not full, all of
+   ! a pond); and porous_share, how far the matrix's density lies from solid ice's towards the
+   ! fresh density [kg/m3] (one for fresh snow, none for ice).
+   !---~---
+   elemental subroutine water_layer_optics_shares(matrix_depth, ice, liquid, fresh_density, standing, porous_share)
+      real(wp), intent(in)  :: matrix_depth, ice, liquid, fresh_density   ! [m], [kg/m2], [kg/m2], [kg/m3]
+      real(wp), intent(out) :: standing, porous_share                     ! [-]
+      real(wp) :: depth, rho_matrix
+      depth = water_layer_depth(matrix_depth, ice, liquid)
+      standing     = 0.0_wp
+      porous_share = 0.0_wp
+      if (.not. (depth > 0.0_wp)) return
+      standing = min(1.0_wp, max(0.0_wp, ice / rho_ice + liquid / rho_h2o - matrix_depth) / depth)
+      if (.not. (matrix_depth > 0.0_wp)) return
+      rho_matrix   = ice / matrix_depth
+      porous_share = min(1.0_wp, max(0.0_wp, (rho_ice - rho_matrix) / (rho_ice - fresh_density)))
+   end subroutine water_layer_optics_shares
+
+   !---~---
+   !   [W/m/K] The thermal conductivity of a water layer's ice matrix at its density [kg/m3]:
+   ! Calonne et al. (2011)'s density law as a shape, scaled so the matrix conducts k_fresh at the
+   ! fresh density. The law is fitted from about 100 to 550 kg/m3; a denser matrix, up to solid
+   ! ice, takes the law's shape beyond that range, still scaled by k_fresh, so from 0.15 W/m/K in
+   ! fresh snow it reaches about 2 at solid ice's.
+   !---~---
+   elemental real(wp) function snow_matrix_conductivity(rho_matrix, k_fresh, fresh_density) result(k)
+      real(wp), intent(in) :: rho_matrix, k_fresh, fresh_density   ! [kg/m3], [W/m/K], [kg/m3]
+      k = k_fresh * calonne(rho_matrix) / calonne(fresh_density)
+   contains
+      elemental real(wp) function calonne(rho) result(kc)
+         real(wp), intent(in) :: rho
+         kc = (CALONNE_A2 * rho + CALONNE_A1) * rho + CALONNE_A0
+      end function calonne
+   end function snow_matrix_conductivity
 
    !---~---
    !   [m2 K/W] A water layer's thermal resistance top to bottom: its ice matrix's depth at the

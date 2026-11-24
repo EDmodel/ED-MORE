@@ -27,16 +27,22 @@ module ed_ground_surface_params
 
    !---~---
    !   [ground_surface_layer.water]: the water layer, snow, ice and the liquid they hold, one
-   ! layer of fixed conductivity. Its free water beyond what its ice holds is the pond, which runs
-   ! off above pond_capacity.
+   ! layer. Its ice matrix conducts at conductivity_at_fresh at the fresh density, scaled to its own
+   ! density by Calonne et al. (2011)'s law; its albedo blends snow's, solid ice's and standing
+   ! water's (CLM5's lake ice and open water). Its free water beyond what its ice holds is the
+   ! pond, which runs off above pond_capacity.
    !---~---
    type :: water_material_t
       real(wp) :: fresh_density          = 250.0_wp    ! [kg/m3] snowfall's bulk density
-      real(wp) :: conductivity_at_fresh  = 0.15_wp     ! [W/m/K] thermal conductivity
+      real(wp) :: conductivity_at_fresh  = 0.15_wp     ! [W/m/K] the matrix's thermal conductivity at fresh_density
       real(wp) :: albedo_vis_fresh       = 0.85_wp     ! [-] fresh snow, visible
       real(wp) :: albedo_nir_fresh       = 0.65_wp     ! [-] fresh snow, near infrared
       real(wp) :: albedo_vis_aged        = 0.518_wp    ! [-] wet (aged) snow, visible
       real(wp) :: albedo_nir_aged        = 0.435_wp    ! [-] wet (aged) snow, near infrared
+      real(wp) :: albedo_vis_ice         = 0.60_wp     ! [-] solid ice, visible
+      real(wp) :: albedo_nir_ice         = 0.40_wp     ! [-] solid ice, near infrared
+      real(wp) :: albedo_vis_liquid      = 0.10_wp     ! [-] standing water, visible
+      real(wp) :: albedo_nir_liquid      = 0.10_wp     ! [-] standing water, near infrared
       real(wp) :: emissivity             = 0.97_wp     ! [-] longwave emissivity
       real(wp) :: liquid_holding_frac    = 0.10_wp     ! [-] the layer's mass share its ice holds as liquid
       real(wp) :: cover_scale_factor     = 2.5_wp      ! [-] Niu & Yang (2007)'s cover scale over the roughness

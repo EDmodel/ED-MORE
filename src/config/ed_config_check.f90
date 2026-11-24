@@ -12,7 +12,7 @@
 module ed_config_check
    use ed_kinds,              only : wp, ik
    use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
-   use ed_constants,            only : n_soil_layer_max, day_sec, breast_height
+   use ed_constants,            only : n_soil_layer_max, day_sec, breast_height, rho_ice
    use ed_ground_surface_params, only : water_material_t, porous_material_t, N_POROUS, MASS_FROM_METABOLIC_LITTER, &
                                         MASS_FROM_SITE_DEPTH
    use ed_output_params,        only : STATE_DAYS, FC_DAY, FC_MONTH, TIER_MONTHLY, TIER_ANNUAL
@@ -493,9 +493,11 @@ contains
       character(len=*), parameter :: PRE = TAG//'ground_surface_layer.water.'
       if (.not. (w%fresh_density > 0.0_wp)) error stop PRE//'fresh_density must be > 0 [kg/m3]'
       if (.not. (w%conductivity_at_fresh > 0.0_wp)) error stop PRE//'conductivity_at_fresh must be > 0 [W/m/K]'
-      if (.not. all([w%albedo_vis_fresh, w%albedo_nir_fresh, w%albedo_vis_aged, w%albedo_nir_aged] >= 0.0_wp      &
-                    .and. [w%albedo_vis_fresh, w%albedo_nir_fresh, w%albedo_vis_aged, w%albedo_nir_aged] < 1.0_wp))   &
-         error stop PRE//'the albedos must lie in [0, 1)'
+      associate (albedos => [w%albedo_vis_fresh, w%albedo_nir_fresh, w%albedo_vis_aged, w%albedo_nir_aged,        &
+                             w%albedo_vis_ice, w%albedo_nir_ice, w%albedo_vis_liquid, w%albedo_nir_liquid])
+         if (.not. all(albedos >= 0.0_wp .and. albedos < 1.0_wp)) error stop PRE//'the albedos must lie in [0, 1)'
+      end associate
+      if (.not. (w%fresh_density < rho_ice)) error stop PRE//'fresh_density must be below solid ice''s [kg/m3]'
       if (.not. (w%emissivity > 0.0_wp .and. w%emissivity <= 1.0_wp)) error stop PRE//'emissivity must lie in (0, 1]'
       if (.not. (w%liquid_holding_frac >= 0.0_wp .and. w%liquid_holding_frac < 1.0_wp))                     &
          error stop PRE//'liquid_holding_frac must lie in [0, 1)'

@@ -30,7 +30,8 @@ program test_ground_surface_lib
                                      porous_energy_at_temp, porous_layer_depth, porous_layer_capacity,           &
                                      porous_layer_fill, porous_layer_resistance, porous_layer_matter,            &
                                      water_layer_free_water, water_layer_depth, matrix_depth_update,             &
-                                     water_layer_cover, water_layer_albedo,                                      &
+                                     water_layer_cover, water_layer_albedo, water_layer_optics_shares,           &
+                                     snow_matrix_conductivity,                                                   &
                                      water_layer_resistance, film_on_porous_layer
    use ed_therm_lib,          only : internal_energy_liquid
    implicit none
@@ -141,6 +142,7 @@ contains
    !---~---
    subroutine test_water_layer_surface()
       real(wp), parameter :: A = 2.5_wp, M = 1.0_wp, Z0 = 0.01_wp
+      real(wp) :: standing, porous
       call check_close('1 cm of fresh snow covers 0.16', water_layer_cover(0.01_wp, 250.0_wp, A, M, Z0),           &
                        tanh(0.16_wp), 1.0e-15_wp)
       call check_close('10 cm of fresh snow covers 0.92', water_layer_cover(0.10_wp, 250.0_wp, A, M, Z0),          &
@@ -149,8 +151,31 @@ contains
                        tanh(0.04_wp), 1.0e-15_wp)
       call check_close('5 cm of ponded water covers 0.20', water_layer_cover(0.05_wp, 1000.0_wp, A, M, Z0),        &
                        tanh(0.2_wp), 1.0e-15_wp)
-      call check_close('dry snow is fresh', water_layer_albedo(0.0_wp, 0.85_wp, 0.518_wp), 0.85_wp, 0.0_wp)
-      call check_close('wet snow is aged', water_layer_albedo(1.0_wp, 0.85_wp, 0.518_wp), 0.518_wp, 0.0_wp)
+      call check_close('dry snow is fresh', water_layer_albedo(0.0_wp, 1.0_wp, 0.0_wp, 0.85_wp, 0.518_wp, 0.6_wp,   &
+                       0.1_wp), 0.85_wp, 0.0_wp)
+      call check_close('wet snow is aged', water_layer_albedo(0.0_wp, 1.0_wp, 1.0_wp, 0.85_wp, 0.518_wp, 0.6_wp,    &
+                       0.1_wp), 0.518_wp, 0.0_wp)
+      call water_layer_optics_shares(0.1_wp, 25.0_wp, 0.0_wp, 250.0_wp, standing, porous)
+      call check_close('fresh snow: nothing standing', standing, 0.0_wp, 0.0_wp)
+      call check_close('fresh snow: its matrix all porous', porous, 1.0_wp, 1.0e-15_wp)
+      call water_layer_optics_shares(0.0_wp, 0.0_wp, 50.0_wp, 250.0_wp, standing, porous)
+      call check_close('a pond stands whole', standing, 1.0_wp, 1.0e-15_wp)
+      call check_close('a pond is open water', water_layer_albedo(standing, porous, 1.0_wp, 0.85_wp, 0.518_wp,       &
+                       0.6_wp, 0.1_wp), 0.1_wp, 1.0e-15_wp)
+      call water_layer_optics_shares(50.0_wp / rho_ice, 50.0_wp, 0.0_wp, 250.0_wp, standing, porous)
+      call check_close('a frozen pond is solid ice', water_layer_albedo(standing, porous, 0.0_wp, 0.85_wp, 0.518_wp, &
+                       0.6_wp, 0.1_wp), 0.6_wp, 1.0e-12_wp)
+      call water_layer_optics_shares(0.1_wp, 25.0_wp, 15.0_wp, 250.0_wp, standing, porous)
+      call check_close('snow whose pores are not full stands none', standing, 0.0_wp, 0.0_wp)
+      call water_layer_optics_shares(0.1_wp, 25.0_wp, 80.0_wp, 250.0_wp, standing, porous)
+      call check_close('snow whose pores water fills to above stands a share', standing,                          &
+                       (25.0_wp / rho_ice + 80.0_wp / rho_h2o - 0.1_wp) / water_layer_depth(0.1_wp, 25.0_wp, 80.0_wp), &
+                       1.0e-12_wp)
+      call check_close('the matrix conducts its fresh value at the fresh density',                                &
+                       snow_matrix_conductivity(250.0_wp, 0.15_wp, 250.0_wp), 0.15_wp, 1.0e-15_wp)
+      call check_close('and Calonne et al. (2011)''s ratio at solid ice''s',                                         &
+                       snow_matrix_conductivity(rho_ice, 0.15_wp, 250.0_wp),                                        &
+                       0.15_wp * (2.5e-6_wp * rho_ice ** 2 - 1.23e-4_wp * rho_ice + 0.024_wp) / 0.149500_wp, 1.0e-12_wp)
       call check_close('the matrix alone', water_layer_resistance(0.4_wp, 0.4_wp, 0.15_wp), 0.4_wp / 0.15_wp,     &
                        0.0_wp)
       call check_close('and the water standing above it', water_layer_resistance(0.15_wp, 0.1_wp, 0.15_wp),       &
