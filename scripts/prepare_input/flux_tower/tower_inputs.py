@@ -117,6 +117,7 @@ class Site:
     fluxes: dict = field(default_factory=dict)
     provider: dict = field(default_factory=dict)
     leaf_on_months: list = field(default_factory=lambda: list(range(1, 13)))
+    night_shortwave_max: float = 1.0e-3    # [clock].night_shortwave_max: V2's bound on the shortwave in model night
 
 
 def _require(table, key, where):
@@ -220,7 +221,8 @@ def read_site(path):
         wind_height=float(_require(heights, "wind_height", "heights")),
         pressure_height=float(_require(heights, "pressure_height", "heights")),
         variables=variables, gapfill=gapfill, fluxes=fluxes, provider=provider,
-        leaf_on_months=sorted(set(leaf_on)))
+        leaf_on_months=sorted(set(leaf_on)),
+        night_shortwave_max=float(clock.get("night_shortwave_max", 1.0e-3)))
 
 
 @dataclass

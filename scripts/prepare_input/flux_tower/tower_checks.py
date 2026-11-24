@@ -20,7 +20,8 @@ import pandas as pd
 import tower_inputs as ti
 
 V2_MAX_SHIFT_MIN = 10.0        # [min] the envelope's best-fit shift may be at most this
-V2_MAX_NIGHT_SW = 1.0e-3       # the shortwave fraction the model would zero may be at most this
+V2_MAX_NIGHT_SW = 1.0e-3       # the shortwave fraction the model would zero may be at most this, unless the site
+                               # declares its own ([clock].night_shortwave_max: a high latitude's twilight)
 V3_MAX_RESIDUAL_PA = 1.0       # [Pa] 99th percentile of |VPD - (1 - RH) e_s(T)|
 V4_MAX_BAD_FRACTION = 0.05     # more than this out of bounds is a unit error, not a few spikes
 
@@ -207,7 +208,7 @@ def check_sun(stamps_utc, sw, site, shifts_min=range(-60, 61, 5)):
                          f"RMSE {scores[0]:.1f} W/m2 as declared, {scores[best]:.1f} at the best shift. A stamp "
                          f"at the other end of the interval is 30 min for half-hourly data; a clock in the "
                          f"wrong zone is whole hours.")
-    if night_fraction > V2_MAX_NIGHT_SW:
+    if night_fraction > max(V2_MAX_NIGHT_SW, site.night_shortwave_max):
         raise SystemExit(f"ERROR (V2): {100.0 * night_fraction:.2f}% of the shortwave falls in intervals the model "
                          f"treats as night under the declared clock; check clock.utc_offset and clock.stamp.")
     return result

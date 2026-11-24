@@ -327,6 +327,8 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - `scripts/prepare_input/soil/soil_horizons.py`: the model's texture formulas (hydraulic and thermal),
   CLM5's blend of a mineral soil with peat by its organic fraction, and a reader for NEON's soil pits, shared
   by the sites' soil scripts; Harvard's `[soil]` values are unchanged. (#TBD)
+- A flux-tower site may declare `[clock].night_shortwave_max`, with its reason: the share of its shortwave
+  the clock check V2 accepts where the model sees night, for a high latitude's twilight. (#TBD)
 
 ### Changed
 

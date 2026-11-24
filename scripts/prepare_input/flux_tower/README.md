@@ -105,7 +105,7 @@ calibration reports them instead of stopping.
 | | Check |
 |---|---|
 | V1 | the time axis is uniform at `timestep`, sorted, without duplicates |
-| V2 | under the declared clock and stamp, the shortwave fits the model's own sun within 10 min, and less than 0.1 % of it falls where the model sees night. This catches a local-time file declared UTC and a stamp at the wrong end of the interval, errors that keep daily totals right and scramble the sub-daily phase |
+| V2 | under the declared clock and stamp, the shortwave fits the model's own sun within 10 min, and less than 0.1 % of it falls where the model sees night. This catches a local-time file declared UTC and a stamp at the wrong end of the interval, errors that keep daily totals right and scramble the sub-daily phase. A high-latitude site whose twilight is lit below the model's horizon may declare a larger share, `[clock].night_shortwave_max`, with its reason |
 | V3 | with RH and VPD both given, the VPD is (1 − RH)·e_s(T) under the declared curve, to 1 Pa at the 99th percentile. A wrong declaration is answered with the curve that fits |
 | V4 | physical bounds in ED-MORE units, for the fluxes too. Out-of-bounds values become missing; more than 5 % of a variable is taken as a unit error |
 | F1 | net radiation against its four components: the median of \|Rnet − (SW_in − SW_out + LW_in − LW_out)\| within 25 W m⁻² |
