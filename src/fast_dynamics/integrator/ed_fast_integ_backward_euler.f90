@@ -33,7 +33,8 @@ module ed_fast_integ_backward_euler
                                WORK_WATER_NODE_UNSOLVED, WORK_WATER_FAST_POND, WORK_WATER_FAST_SLOT,              &
                                WORK_WATER_FAST_LAYER, WORK_WATER_CUT_POND, WORK_WATER_CUT_SLOT,                   &
                                WORK_WATER_CUT_LAYER, WORK_WATER_FORCED_HELD, WORK_WATER_LINE_SEARCH,              &
-                               WORK_WATER_BLOCK_SWEEP, state_init, surface_source_slopes_t, water_porous_t
+                               WORK_WATER_BLOCK_SWEEP, WORK_WATER_HELD_OUT, state_init, surface_source_slopes_t,  &
+                               water_porous_t
    use ed_site_state_vars, only : site_surface_t
    use ed_therm_lib, only : cas_enthalpy_to_temp
    use ed_numerics,     only : sufficient_decrease, fraction_to_boundary, root_bracket_t, regula_falsi_point,       &
@@ -566,12 +567,18 @@ contains
    ! store's class, the node balances left unsolved, and the core nodes by class. The drive is
    ! held over the step, so the ground evaporation's constant terms are set into it once, here.
    !   A sub-step forced at the shortest length commits a solution of its balance (Newton
-   ! converged, only the error filter failed) as any other; an unconverged Newton iterate only if
-   ! what it commits is a state of the network (substep_in_bounds): every store finite and at or
-   ! above empty, its water within the error tolerance of its curve's at its unknown. Otherwise
-   ! the network holds still for the rest of the step, every store as it began the sub-step but
-   ! the pond, which takes the water reaching it. Either way each unknown is then read again from
-   ! its committed water, so the next sub-step starts on its curve.
+   ! converged, only the error filter failed) as any other. A sub-step whose Newton fails at the
+   ! shortest length is not taken: the core node whose balance was worst is held out of the
+   ! network for the rest of the step, as an inert node is detached (inert_groups) -- its faces
+   ! carry nothing and it takes only its own sources, the pond the water reaching it, a porous or
+   ! soil layer its evaporation -- and the sub-step is retaken from its start at the rest of the
+   ! step. The rest of the network, the plants' supply from the soil among it, goes on. Only when
+   ! the worst store is a cohort's, or a node already held out, is an unconverged Newton iterate
+   ! committed, if what it commits is a state of the network (substep_in_bounds): every store
+   ! finite and at or above empty, its water within the error tolerance of its curve's at its
+   ! unknown; otherwise the network holds still for the rest of the step, every store as it began
+   ! the sub-step but the pond, which takes the water reaching it. Either way each unknown is then
+   ! read again from its committed water, so the next sub-step starts on its curve.
    !---~---
    subroutine water_step(dt, static, profile, soil, hyd, drive, tols, water, work_count)
       real(wp),                  intent(in)    :: dt
@@ -589,6 +596,7 @@ contains
       integer(ik) :: trials, iters, i_sol, worst_at, n_unsolved, n_search, n_sweep
       logical     :: converged, last, spilled, forced, kept
       logical     :: fast(water%nsoil), cut(water%nsoil)   ! the sub-step's eliminated and detached core nodes
+      logical     :: held_out(water%nsoil)                 ! the core nodes held out for the rest of the step
       type(water_state_t) :: start_state                   ! a forced sub-step's start, to hold still at
       type(water_flows_t) :: start_flows
 
@@ -597,12 +605,13 @@ contains
       call clear_flows(water%flows)
       work_count(WORK_WATER_NSUB:WORK_WATER_NFAIL) = 0_ik
       work_count(WORK_WATER_FORCED_NEWTON:WORK_WATER_CUT_LAYER) = 0_ik
-      work_count(WORK_WATER_FORCED_HELD:WORK_WATER_BLOCK_SWEEP) = 0_ik
+      work_count(WORK_WATER_FORCED_HELD:WORK_WATER_HELD_OUT) = 0_ik
       call arrowhead_allocate(water%sys, water%nsoil, water%ncoh, COHORT_STORES)
       call water_scales(static, profile, hyd, drive%porous, scale_soil, scale_coh)
       call ground_evaporation_setup(profile, soil, drive%ground)
       water%start_ready = .false.
       forced = .false.
+      held_out = .false.
 
       t = 0.0_wp
       h = dt
@@ -615,8 +624,8 @@ contains
          tau_soil = water%state%tau_soil
          tau_coh = water%state%tau_coh
          call water_newton_substep(static, profile, soil, hyd, drive, h, atol, scale_soil, scale_coh,           &
-                                   tau_soil, tau_coh, water, converged, iters, i_sol, fast, cut, worst_at, n_unsolved, &
-                                   n_search, n_sweep)
+                                   tau_soil, tau_coh, held_out, water, converged, iters, i_sol, fast, cut, worst_at,   &
+                                   n_unsolved, n_search, n_sweep)
          work_count(WORK_WATER_NEWTON) = work_count(WORK_WATER_NEWTON) + iters
          work_count(WORK_WATER_NODE_UNSOLVED) = work_count(WORK_WATER_NODE_UNSOLVED) + n_unsolved
          work_count(WORK_WATER_LINE_SEARCH) = work_count(WORK_WATER_LINE_SEARCH) + n_search
@@ -625,6 +634,16 @@ contains
             work_count(WORK_WATER_REJECT) = work_count(WORK_WATER_REJECT) + 1_ik
             h = max(h * NEWTON_FAIL_CUT, h_min)
             cycle
+         end if
+         !--- Failed at the shortest length: the worst core node held out, and the sub-step retaken at the rest of the step.
+         if (.not. converged .and. worst_at >= 1_ik .and. worst_at <= water%nsoil) then
+            if (.not. held_out(worst_at)) then
+               held_out(worst_at) = .true.
+               work_count(WORK_WATER_HELD_OUT) = work_count(WORK_WATER_HELD_OUT) + 1_ik
+               work_count(WORK_WATER_REJECT) = work_count(WORK_WATER_REJECT) + 1_ik
+               h = dt - t
+               cycle
+            end if
          end if
          !---~---
          !   A sub-step whose start already balanced took no iteration: it ends where it began, its
@@ -771,15 +790,16 @@ contains
    ! evaluation first solves each block's balances together with its neighbours held (solve_block,
    ! nonlinear elimination), and Newton keeps their rows with a zero residual, so the factorised
    ! matrix gives the rest the Schur-eliminated step. At every iteration, a connected group of
-   ! nodes the solve cannot see is detached (inert_groups): its faces carry nothing and each member
-   ! solves its own balance with its own sources. A step that would carry a node across a kink of its curve stops there for the
+   ! nodes the solve cannot see is detached (inert_groups), as is every node water_step holds out
+   ! (held_out): its faces carry nothing and each member solves its own balance with its own
+   ! sources. A step that would carry a node across a kink of its curve stops there for the
    ! iteration (chop_at_kinks). The line search takes no step that raises the merit: when every
    ! trial would, Newton stops unconverged (n_search). The node balances left unsolved and the
    ! blocks solved by sweeps are counted (n_unsolved, n_sweep).
    !---~---
    subroutine water_newton_substep(static, profile, soil, hyd, drive, h, atol, scale_soil, scale_coh,             &
-                                   tau_soil, tau_coh, water, converged, iters, i_sol, fast, cut, worst_at, n_unsolved, &
-                                   n_search, n_sweep)
+                                   tau_soil, tau_coh, held_out, water, converged, iters, i_sol, fast, cut, worst_at,   &
+                                   n_unsolved, n_search, n_sweep)
       type(fast_static_state_t), intent(in)    :: static
       type(soil_profile_t),      intent(in)    :: profile
       type(soil_params_t),       intent(in)    :: soil
@@ -787,6 +807,7 @@ contains
       type(water_drive_t),       intent(in)    :: drive
       real(wp),                  intent(in)    :: h, atol, scale_soil(:), scale_coh(:,:)
       real(wp),                  intent(inout) :: tau_soil(:), tau_coh(:,:)   ! start of sub-step in, solution out
+      logical,                   intent(in)    :: held_out(:)   ! (nsoil) core nodes held out, detached whatever their links
       type(water_work_t),        intent(inout) :: water
       logical,                   intent(out)   :: converged
       integer(ik),               intent(out)   :: iters
@@ -829,6 +850,7 @@ contains
       end if
       call classify_fast(drive, tau_soil, water%sys, water%ev(i_sol), h, tol, scale_soil, fast, t_relax, at_once)
       call inert_groups(water%ev(i_sol), h, tol, scale_soil, cut)
+      cut  = cut .or. held_out
       fast = fast .and. .not. cut
       call fast_blocks(t_relax, at_once, fast)
       if (any(fast) .or. any(cut)) then
@@ -843,6 +865,7 @@ contains
          iters = it
          !--- A group the solve has lost sight of is detached; one whose links have returned rejoins.
          call inert_groups(water%ev(i_sol), h, tol, scale_soil, cut_new)
+         cut_new = cut_new .or. held_out
          if (any(cut_new .neqv. cut)) then
             cut  = cut_new
             fast = fast .and. .not. cut

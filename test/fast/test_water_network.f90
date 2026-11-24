@@ -103,7 +103,7 @@ program test_water_network
                                 WORK_WATER_REJECT, WORK_WATER_NFAIL, water_porous_t,                           &
                                 WORK_WATER_FAST_SLOT, WORK_WATER_CUT_POND, WORK_WATER_CUT_SLOT,                &
                                 WORK_WATER_FAST_POND, water_state_t, water_tend_t, WORK_WATER_BLOCK_SWEEP,     &
-                                WORK_WATER_NODE_UNSOLVED
+                                WORK_WATER_NODE_UNSOLVED, WORK_WATER_HELD_OUT, WORK_WATER_FORCED_HELD
    use ed_fast_state,    only : derive_cohort_terms
    use ed_fast_integ_derivs, only : set_water_state, water_derivs
    use ed_fast_integ_backward_euler, only : water_step, water_jacobian_error, substep_in_bounds
@@ -176,6 +176,7 @@ program test_water_network
    call test_smooth_face()
    call test_freeze_up()
    call test_thin_frozen_litter_dries()
+   call test_saturated_sealed_storm()
    call test_report('test_water_network')
 
 contains
@@ -1831,6 +1832,44 @@ contains
       call check_int('thin frozen litter: no sub-step forced through', nfail, 0_ik)
       call check_true('thin frozen litter: every step closes to round-off', worst < 1.0e-13_wp, worst)
    end subroutine test_thin_frozen_litter_dries
+
+   !---~---
+   !   Rain on an empty pond over a saturated 2.2 mm litter and a saturated 6 cm moss, on a top soil
+   ! frozen hard, as Toolik's thaw ponds: the column below the pond holds water only through its
+   ! specific storage, so the rain ponds. Every step closes, no store goes below empty, and no
+   ! sub-step is taken unconverged or holds the network still.
+   !---~---
+   subroutine test_saturated_sealed_storm()
+      type(stand_t) :: st
+      real(wp) :: theta(soil%n_active), w0, worst, w_min
+      integer(ik) :: step, nfail, nheld, nout
+      print '(a)', 'test_saturated_sealed_storm:'
+      theta = 0.40_wp
+      call make_stand(st, 1_ik, theta, 0.0_wp, 0.95_wp, 0.9_wp, 2.0e-5_wp,                                         &
+                      org=thin_layers(2.2e-3_wp, 0.98_wp, 0.06_wp, 0.85_wp, .false.))
+      call seal_top(st, 2_ik, theta, 0.0_wp)
+      st%drive%rain = 5.0e-3_wp
+      worst = 0.0_wp
+      w_min = huge(1.0_wp)
+      nfail = 0_ik
+      nheld = 0_ik
+      nout  = 0_ik
+      do step = 1_ik, 8_ik
+         w0 = total_water(st)
+         call advance(st, sopts, 900.0_wp)
+         worst = max(worst, abs((total_water(st) - w0) - boundary_water_thin(st, 900.0_wp)) / max(w0, 1.0_wp))
+         w_min = min(w_min, minval(st%water%state%water_soil))
+         nfail = nfail + st%work(WORK_WATER_NFAIL)
+         nheld = nheld + st%work(WORK_WATER_FORCED_HELD)
+         nout  = nout + st%work(WORK_WATER_HELD_OUT)
+         call restart_stand(st, 2.2e-3_wp, 0.06_wp, .false.)
+      end do
+      print '(a,3i8)', '  info : saturated sealed storm: forced, network held, nodes held out ', nfail, nheld, nout
+      call check_int('saturated sealed storm: no sub-step forced through', nfail, 0_ik)
+      call check_int('saturated sealed storm: the network never holds still', nheld, 0_ik)
+      call check_true('saturated sealed storm: no store below empty', w_min >= 0.0_wp, w_min)
+      call check_true('saturated sealed storm: every step closes to round-off', worst < 1.0e-13_wp, worst)
+   end subroutine test_saturated_sealed_storm
 
    !--- A litter d_lit deep holding theta [m3/m3] of water, ice of it ice and the rest liquid, as thin_layers builds it.
    function thin_frozen_litter(d_lit, theta, ice) result(o)

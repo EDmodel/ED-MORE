@@ -26,7 +26,8 @@ module ed_polygon
    use ed_fast_integ_types,           only : WORK_WATER_NFAIL, WORK_WATER_FORCED_NEWTON, WORK_WATER_FORCED_FAST,   &
                                              WORK_WATER_FORCED_CUT, WORK_WATER_FORCED_COHORT,                      &
                                              WORK_WATER_NODE_UNSOLVED, WORK_STACK_NEWTON, WORK_STACK_FALLBACK,     &
-                                             WORK_WATER_FORCED_HELD, WORK_WATER_LINE_SEARCH, WORK_WATER_BLOCK_SWEEP
+                                             WORK_WATER_FORCED_HELD, WORK_WATER_LINE_SEARCH, WORK_WATER_BLOCK_SWEEP, &
+                                             WORK_WATER_HELD_OUT
    use ed_slow_update,                only : max_cohort_count
    use ed_slow_ledger,                only : slow_ledger_report
    use ed_soil_carbon,                only : soil_carbon_bad_pool
@@ -280,18 +281,20 @@ contains
          !---~---
          !   Why: the water network's sub-steps taken although unconverged, those whose Newton had
          ! not converged (the rest failed the error filter), those of them over which it held still,
-         ! and the class of the worst store; the eliminated or detached nodes whose own balance was
-         ! left unsolved; the Newton iterations a failed line search stopped; and the blocks of
-         ! eliminated nodes solved by Gauss-Seidel sweeps.
+         ! and the class of the worst store; the core nodes held out for the rest of a step; the
+         ! eliminated or detached nodes whose own balance was left unsolved; the Newton iterations a
+         ! failed line search stopped; and the blocks of eliminated nodes solved by Gauss-Seidel
+         ! sweeps.
          !---~---
          associate (w => run%ledgers%work)
             if (w(WORK_WATER_NFAIL) + w(WORK_WATER_NODE_UNSOLVED) + w(WORK_WATER_LINE_SEARCH)          &
-                + w(WORK_WATER_BLOCK_SWEEP) > 0_ik)                                                    &
-               write(*,'(a,i0,a,i0,a,i0,a,i0,a,i0,a,i0,a,i0,a,i0,a,i0,a,i0)') ' forced[water] sub-steps = ', &
+                + w(WORK_WATER_BLOCK_SWEEP) + w(WORK_WATER_HELD_OUT) > 0_ik)                           &
+               write(*,'(a,i0,a,i0,a,i0,a,i0,a,i0,a,i0,a,i0,a,i0,a,i0,a,i0,a,i0)') ' forced[water] sub-steps = ', &
                   w(WORK_WATER_NFAIL), '  newton = ', w(WORK_WATER_FORCED_NEWTON), '  error filter = ',  &
                   w(WORK_WATER_NFAIL) - w(WORK_WATER_FORCED_NEWTON), '  held = ', w(WORK_WATER_FORCED_HELD), &
                   '  worst eliminated = ', w(WORK_WATER_FORCED_FAST), '  detached = ',                 &
                   w(WORK_WATER_FORCED_CUT), '  cohort = ', w(WORK_WATER_FORCED_COHORT),                 &
+                  '  held out = ', w(WORK_WATER_HELD_OUT),                                              &
                   '  unsolved nodes = ', w(WORK_WATER_NODE_UNSOLVED), '  line search = ',              &
                   w(WORK_WATER_LINE_SEARCH), '  block sweeps = ', w(WORK_WATER_BLOCK_SWEEP)
             !--- The ground surface's stack: its Newton iterations and its fallbacks to Gauss-Seidel sweeps.
