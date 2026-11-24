@@ -332,15 +332,15 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   years on the six tower years, and `calibrate_fast` fits the three types from the spin-up's state, against
   the tower's fluxes and NEON's soil temperatures. USCRN's humidity and precipitation and the FLUXNET
   product's ERA5 wind and pressure stand in where the tower has none. Example 02's part 4 fits the three
-  types' phenology to NEON's tagged plants and the tower's PhenoCam. (#TBD)
+  types' phenology to NEON's tagged plants and the tower's PhenoCam. (#102)
 - `scripts/prepare_input/soil/soil_horizons.py`: the model's texture formulas (hydraulic and thermal),
   CLM5's blend of a mineral soil with peat by its organic fraction, and a reader for NEON's soil pits, shared
-  by the sites' soil scripts; Harvard's `[soil]` values are unchanged. (#TBD)
+  by the sites' soil scripts; Harvard's `[soil]` values are unchanged. (#102)
 - A flux-tower site may declare `[clock].night_shortwave_max`, with its reason: the share of its shortwave
-  the clock check V2 accepts where the model sees night, for a high latitude's twilight. (#TBD)
+  the clock check V2 accepts where the model sees night, for a high latitude's twilight. (#102)
 - `calibrate_phenology` starts the offline stand of a run from a state file (`[init].init_mode = 2`) from
   that file's phenology memory and the run's first-day leaf, so a winter start stays bare and closes against
-  its own coupled run. A run from a census is unchanged. (#TBD)
+  its own coupled run. A run from a census is unchanged. (#102)
 
 ### Changed
 
@@ -388,11 +388,11 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   restart continues from its state's time, so the parameter record's run and every chain now start at the
   state's date and keep the restart. The record run started at the first window and stopped in the forcing
   reader, and the chains started from the census a lead before each window, not from the spin-up's soil.
-  A window before the state's date stops with a message. (#TBD)
+  A window before the state's date stops with a message. (#102)
 - The calibrated config of a base that restarts from a state file sets `init.reacclimate_traits = true`,
   unless `[calibrated]` says otherwise: without it every cohort kept the traits its state held, and the
   fitted `vcmax25`, `stomatal_g1` and `capacity_low_temp` never reached the calibrated run. Census bases
-  are unchanged. (#TBD)
+  are unchanged. (#102)
 - `calibrate_fast` with `[closure].shares = "none"` no longer stops at the closure alternative: with H and LE
   scored as measured there is no closure factor, and the alternative is skipped with that reason. (#96)
 - Cohort output under daily growth: the stand is re-sorted every day, so a monthly cohort record could
