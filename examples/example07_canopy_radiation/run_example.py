@@ -58,7 +58,7 @@ HARVARD_PFT = {
     "allometry.chave_c":   [-0.097823, 0.00026528],
     "allometry.chave_rse": [0.25066, 0.25667],
     "allometry.hgt_max":   [28.0, 28.0],
-    "allometry.lai_b1":    [0.1746, 0.23384770],
+    "allometry.lai_b1":    [0.1791, 0.23384770],
 }
 ALLOM_KEYS = ("height_allometry", "chave_a", "chave_b", "chave_c", "chave_rse", "chave_e", "b1Ht", "b2Ht",
               "hgt_max", "lai_b1", "lai_b2", "wai_b1", "wai_b2")
