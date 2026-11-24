@@ -52,7 +52,9 @@ cues once (about 30 MB for 1,000 cohorts and five years). On Slurm, ask for the 
 Every setting is listed in [`phenology_reference.toml`](phenology_reference.toml) with its default and the reason
 for it; that file is also the schema, so a setting it does not list stops the tool. `[run].config` names the
 site's main file and `[run].score_from` the first day scored. The year before it spins up the cue memory and the
-canopy from the census, which starts in full leaf.
+canopy from the census, which starts in full leaf. A site whose run starts from a spin-up's state file
+(`[init].init_mode = 2`, as Toolik's) needs no such year: each cohort starts from the file's phenology memory, and
+the offline stand starts its column from the same memory and the run's first-day leaf cover.
 
 - **The fitted keys** are named `key_pftN` (`flush_degree_days_pft1`). The PFT file's cue masks say which cues a
   PFT has; the fit sets their values. `leaf_turnover_rate` is the PFT file's `[pft].leaf_turnover_rate_toc`. A

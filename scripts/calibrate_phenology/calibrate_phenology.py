@@ -63,7 +63,7 @@ def drivers_for(s, cfg: RunConfig, values: dict, rundir: Path) -> Path:
         return path
     print(f"  {rundir.name}: the coupled run ...", flush=True)
     coupled.run(main, s["run"]["runner"])
-    coupled.read(rundir / "out", values).save(path)
+    coupled.read(rundir / "out", values, coupled.restart_file(cfg)).save(path)
     stamp.write_text(digest + "\n")
     return path
 

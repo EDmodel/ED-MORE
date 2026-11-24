@@ -329,6 +329,9 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   by the sites' soil scripts; Harvard's `[soil]` values are unchanged. (#TBD)
 - A flux-tower site may declare `[clock].night_shortwave_max`, with its reason: the share of its shortwave
   the clock check V2 accepts where the model sees night, for a high latitude's twilight. (#TBD)
+- `calibrate_phenology` starts the offline stand of a run from a state file (`[init].init_mode = 2`) from
+  that file's phenology memory and the run's first-day leaf, so a winter start stays bare and closes against
+  its own coupled run. A run from a census is unchanged. (#TBD)
 
 ### Changed
 

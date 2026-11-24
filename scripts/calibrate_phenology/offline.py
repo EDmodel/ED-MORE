@@ -68,6 +68,15 @@ class Stand:
             out[k.pft] = replace(out[k.pft], **{k.name: float(values[k.label])})
         return out
 
+    def start(self, c):
+        """The phenology state and the leaf cover columns `c` start from: born flushing in full leaf, as
+        from the census, or the coupled run's state file's state (coupled.read)."""
+        d = self.d
+        if d.state is None:
+            return None, 1.0
+        names = [f.name for f in fields(pheno.State)]
+        return [pheno.State(**dict(zip(names, row))) for row in d.state[c]], d.cover0[c]
+
     def run(self, params: dict, pfts=None) -> tuple[np.ndarray, np.ndarray]:
         """Leaf cover and leaf loss (n_col, n_day) of the PFTs `pfts` (all by default); the other
         columns are NaN. A cohort's turnover rate is its coupled one scaled by the PFT's
@@ -80,7 +89,9 @@ class Stand:
                 continue
             q = params[p]
             scale = q.leaf_turnover_rate / self.base[p].leaf_turnover_rate
-            out = pheno.run(q, d.temp[c], d.hours[c], self.doy, d.psi[c], leaf_turnover_rate=d.turnover[c] * scale)
+            state, cover0 = self.start(c)
+            out = pheno.run(q, d.temp[c], d.hours[c], self.doy, d.psi[c], leaf_turnover_rate=d.turnover[c] * scale,
+                            state=state, leaf_cover=cover0)
             cover[c], loss[c] = out.leaf_cover, out.leaf_loss
         return cover, loss
 
