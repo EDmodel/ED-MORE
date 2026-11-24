@@ -93,7 +93,7 @@ contains
       call check('fast.water_atol overridden', c%water_atol,     2.5e-5_wp, 1.0e-12_wp)
       call check('soil.ground_albedo_nir overridden', s%ground_albedo_nir, 0.25_wp, 1.0e-12_wp)
       call check('soil.ground_albedo_vis absent -> default 0.15', s%ground_albedo_vis, 0.15_wp, 0.0_wp)
-      call check('soil.ground_emissivity absent -> default 0.95', s%ground_emissivity, 0.95_wp, 0.0_wp)
+      call check('soil.ground_emissivity absent -> default 0.96', s%ground_emissivity, 0.96_wp, 0.0_wp)
       call check('soil.dsl_dmax absent -> default 0.015', s%dsl_dmax, 0.015_wp, 0.0_wp)
 
       !---~---

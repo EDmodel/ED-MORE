@@ -128,7 +128,7 @@ module ed_surface
       ! and their emissivity, the ground's.
       !---~---
       type(porous_node_env_t) :: porous(N_POROUS)
-      real(wp) :: ground_emiss   = 0.95_wp              ! [-]
+      real(wp) :: ground_emiss   = 0.96_wp              ! [-]
       !---~---
       !   The water layer's free water over the step: the water network's net flow from it into
       ! the ground below (< 0: up into it), its runoff, its temperature at the stage, and what it

@@ -236,7 +236,7 @@ with $H$ the height, $b$ = `snow_bending` and $c$ = `crown_base_fraction`. A pon
 - **Litter as a full sheet.** A litter layer covers the whole ground from 0.1 mm (4.5 g m⁻²) and switches on and off at that depth. Real thin litter is patchy; a cover law by mass would follow its area.
 - **The litter's hydraulics.** The litter is a continuum porous layer on the retention and conductivity curves the config gives (by default Letts et al. 2000's surface moss, as CLASS takes it), so a thin litter over a wet layer below draws water up and evaporates near the rate the air allows. Forest-floor measurements support continuum flow through the forest floor as a whole (Kosugi et al. 2001). Models of the litter layer itself instead exclude capillary rise into it (Napoly et al. 2017), and the evidence is mixed (Matthews 2014).
 - **Each porous layer dries from its top.** A Sphagnum moss draws water up to its tips and keeps its top wetter, so its dried depth would be thinner.
-- **The porous layers' optics are the soil's**, albedo and emissivity alike; no measured emissivity of litter or moss is used, and the soil's own 0.95 has no measured source.
+- **The porous layers' optics are the soil's**, albedo and emissivity alike; the soil's emissivity is CLM5's 0.96, and no measured emissivity of litter or moss is used.
 - **What reads the ground's temperature** (the stability, decomposition, a buried cohort's phenology) reads the top porous layer's or the soil's, never the water layer's.
 - **Held rates.** The porous layers' and the soil's evaporation are the water network's, held over the march at the step's start humidity; the next step's network restores the response. Burial holds over each slow step's fast loop.
 

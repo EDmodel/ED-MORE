@@ -347,7 +347,7 @@ vegetation indices are built on. A snow-covered ground raises both.
 | $`\rho_{wood},\tau_{wood}`$ | `[pft].wood_reflect_vis`, `wood_reflect_nir`, `wood_transmit_vis`, `wood_transmit_nir` | wood reflectance and transmittance |
 | $`\varepsilon_{leaf},\varepsilon_{wood}`$ | `[pft].leaf_emissivity`, `wood_emissivity` | longwave: $`\rho=1-\varepsilon,\ \tau=0`$ |
 | $`\Omega_{leaf},\Omega_{wood}`$ | `[pft].leaf_clumping`, `wood_clumping` | clumping factors in $(0,1]$ |
-| $`\varepsilon_{soil}`$ | `[soil].ground_emissivity` (0.95) | the uncovered ground's thermal emissivity (bare soil, litter and moss) |
+| $`\varepsilon_{soil}`$ | `[soil].ground_emissivity` (0.96, CLM5's soil, Lawrence et al. 2018, §2.4) | the uncovered ground's thermal emissivity (bare soil; litter and moss take it, unmeasured) |
 | — | `[soil].ground_albedo_vis`, `[soil].ground_albedo_nir` (0.15, 0.30) | the uncovered ground's shortwave albedo per band (bare soil, litter and moss) |
 | $`\alpha_{leaf}`$ | `[leaf_physiology].leaf_absorptance` | leaf VIS absorptance (the PAR conversion above) |
 
@@ -376,3 +376,4 @@ vegetation indices are built on. A snow-covered ground raises both.
 - van der Tol et al. (2009), *Biogeosciences* 6:3109: SCOPE (leaf angle and `volscatt`).
 - Goel & Strebel (1984), *Agron. J.* 76:800: Beta leaf-inclination distribution.
 - ED2 `../ED2/ED/src/dynamics/twostream_rad.f90`.
+- Lawrence, D. et al. (2018), *Technical Description of version 5.0 of the Community Land Model (CLM)*, NCAR, §2.4: the soil's longwave emissivity.

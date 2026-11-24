@@ -74,8 +74,8 @@ dsl_dmax       = 0.015        # [m]      dry-surface-layer thickness at most (so
 dsl_theta_init = 0.8          # [-]      the top layer's theta/theta_sat at which it starts
 ground_albedo_vis = 0.15      # [-]      the uncovered ground's albedo (bare soil, litter, moss), visible
 ground_albedo_nir = 0.30      # [-]      the same, near infrared
-ground_emissivity = 0.95      # [-]      the uncovered ground's longwave emissivity (bare soil, litter, moss); no
-                              #          measured source for any of them (CLM5 takes 0.96 for soil)
+ground_emissivity = 0.96      # [-]      the uncovered ground's longwave emissivity: CLM5's soil (Lawrence et al.
+                              #          2018, §2.4); litter and moss take it, unmeasured
 moss_depth     = 0.0          # [m]      the moss on the soil, under the litter ([ground_surface_layer.moss]); 0: none
 # ---- The bottom boundaries (docs/configuration.md "The bottom thermal boundary"). ----
 water_bottom_bc = "free_drain" # free_drain | bedrock | aquifer: drainage q = f K at f = 1 and 0, or a
