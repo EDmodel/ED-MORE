@@ -5,11 +5,14 @@
 !   * soil_water_flux         -- Darcy flow between two layers, or the pond and the top
 !                                layer;
 !   * bottom_flux             -- drainage through the bottom face, or a two-way aquifer;
-!   * philip_evaporation      -- evaporation from a store of the ground's water through given
-!                                resistances, the law the top soil layer and a porous layer share;
-!   * ground_evaporation_rate -- the top layer's, through its dry surface layer, on the
-!                                boundary's terms that ground_evaporation_setup computes;
-!   * store_evaporation       -- a store's, supplied while it holds water above its residual.
+!   * ground_vapour           -- the evaporation of the ground's stores on the snow-free
+!                                share, each through its own path up to the ground's surface
+!                                node and from there through the one aerodynamic leg;
+!   * store_vapour_path       -- a store's path: its pore humidity and its conductance up to
+!                                the node, through its dry surface layer and the porous layers
+!                                above it, supplied while it holds water above its residual;
+!   * ground_evaporation_rate -- the top soil layer's alone, on the boundary's terms that
+!                                ground_evaporation_setup computes.
 ! Layer water relations are in ed_soil_hydr_lib, root uptake in ed_plant_hydraulics.
 !---~---
 module ed_soil_water
@@ -23,16 +26,14 @@ module ed_soil_water
    private
 
    public :: soil_water_flux, ground_evaporation_rate, bottom_flux, evaporation_supply
-   public :: philip_evaporation, dry_layer_resistance, store_evaporation
+   public :: ground_vapour, store_vapour_path, vapour_path_t, dry_layer_resistance
    public :: ground_evap_env_t, ground_evaporation_setup, porous_cover_path, vapour_diffusivity
    public :: slot_evaporation_setup
 
    !---~---
-   !   Widths of the two rounded corners in ground_evaporation_rate: [kg/kg] where the surface's
-   ! humidity meets the air's (evaporation stops; there is no dew), and [m3/m3] where the top
-   ! layer dries below the moisture at which the dry surface layer starts to form.
+   !   [m3/m3] The width of the rounded corner in dry_layer_resistance where a store dries below
+   ! the moisture at which its dry surface layer starts to form.
    !---~---
-   real(wp), parameter :: EVAP_HUMIDITY_WIDTH = 1.0e-6_wp
    real(wp), parameter :: DSL_THETA_WIDTH     = 1.0e-3_wp
    !---~---
    !   [-] The share of the top layer's span from residual to saturation over which its
@@ -50,16 +51,18 @@ module ed_soil_water
    real(wp), parameter :: MQ_TORTUOSITY_EXP = 10.0_wp / 3.0_wp      ! [-]
 
    !---~---
-   !   The boundary ground_evaporation_rate reads: the ground skin and the canopy air over it,
-   ! and the terms that depend only on them and the top layer's curve.
+   !   The boundary a store's evaporation reads (store_vapour_path, ground_vapour): the store's
+   ! temperature and the canopy air over the ground with the leg to it, and the terms that depend
+   ! only on them and the store's curve.
    !---~---
    type :: ground_evap_env_t
       real(wp) :: t_ground = 298.15_wp                    ! [K] ground skin temperature
       real(wp) :: q_air    = 0.0_wp                       ! [kg/kg] canopy-air specific humidity (soil evap)
       real(wp) :: rho_air  = 1.2_wp                       ! [kg/m3] canopy-air density (soil evap)
       real(wp) :: press    = p_std                        ! [Pa] air pressure, for the saturation humidity
-      real(wp) :: r_aero   = 100.0_wp                     ! [s/m] aerodynamic resistance of the bare-soil tile
-                                                          ! (1/ggnet), not inflated for snow
+      real(wp) :: r_aero   = 100.0_wp                     ! [s/m] the ground's aerodynamic resistance to the canopy air
+                                                          ! (1/ggnet), not inflated for snow: the one leg the
+                                                          ! ground's stores share (ground_vapour)
       real(wp) :: snow_free_frac = 1.0_wp                 ! [-] snow-free area fraction (1-snowfac) that evaporates,
                                                           ! an area-weighted tile flux (snow_biophysics.md)
       !---~---
@@ -75,6 +78,16 @@ module ed_soil_water
       real(wp) :: dsl_diffusivity = 0.0_wp   ! [m2/s] vapour diffusivity through the dry surface layer
       real(wp) :: r_cover         = 0.0_wp   ! [s/m]  the vapour's resistance through the porous layers
    end type ground_evap_env_t
+
+   !---~---
+   !   One store's path for its vapour as the shared leg reads it (ground_vapour): the humidity of
+   ! its pore air and the conductance of its path up to the ground's surface node, each with its
+   ! slope in the store's unknown.
+   !---~---
+   type :: vapour_path_t
+      real(wp) :: q  = 0.0_wp, dq = 0.0_wp    ! [kg/kg], [kg/kg per unit of the unknown]
+      real(wp) :: g  = 0.0_wp, dg = 0.0_wp    ! [m/s],   [m/s per unit of the unknown]
+   end type vapour_path_t
 
 contains
 
@@ -138,9 +151,9 @@ contains
    end subroutine bottom_flux
 
    !---~---
-   !   The terms of ground_evaporation_rate that depend only on its boundary and the top layer's
-   ! curve, so they are computed once for a boundary: R_v T and the saturation humidity at the
-   ! ground skin over liquid at the air's pressure, the dry surface layer's water contents and
+   !   The terms of the top soil layer's evaporation that depend only on its boundary and the
+   ! layer's curve, so they are computed once for a boundary: R_v T and the saturation humidity
+   ! at the ground skin over liquid at the air's pressure, the dry surface layer's water contents and
    ! vapour diffusivity (dry_layer_setup: it forms below dsl_theta_init of saturation and is
    ! whole at the air-dry water content), and the porous layers' open pores above it as a
    ! resistance (docs/science/soil_plant_water.md §3). A frozen layer's ice enters through its
@@ -161,7 +174,7 @@ contains
    end subroutine ground_evaporation_setup
 
    !---~---
-   !   The boundary a porous layer's evaporation reads (philip_evaporation through
+   !   The boundary a porous layer's evaporation reads (store_vapour_path through
    ! dry_layer_resistance): the canopy air over the ground (the ground's boundary's), the layer's
    ! temperature, the open pores of the porous layers above it as a path in free air
    ! (porous_cover_path), and its own dried top, by the soil's dry-surface-layer law with the
@@ -224,34 +237,6 @@ contains
    end function porous_cover_path
 
    !---~---
-   !   philip_evaporation -- evaporation [kg/m2/s] from a store of the ground's water, with its
-   ! derivatives: Philip's pore-space humidity at the store's potential, smoothly stopping where it
-   ! meets the canopy air's (there is no dew), through the aerodynamic resistance r_aero, the
-   ! store's own dry-surface resistance r_dry and the cover above it in series, from the snow-free
-   ! share only (docs/science/soil_biophysics.md, "The soil water column"). r_dry's slope in the
-   ! store's water content, dr_dry, gives the flux's. The boundary's fixed terms are
-   ! ground_evaporation_setup's, or slot_evaporation_setup's.
-   !---~---
-   pure subroutine philip_evaporation(psi, r_dry, dr_dry, forcing, e, de_dtheta, de_dpsi)
-      real(wp),                intent(in)  :: psi         ! [MPa]   the store's matric potential
-      real(wp),                intent(in)  :: r_dry       ! [s/m]   its dry-surface resistance
-      real(wp),                intent(in)  :: dr_dry      ! [s/m per m3/m3] its slope in the store's water content
-      type(ground_evap_env_t), intent(in)  :: forcing     ! the boundary
-      real(wp),                intent(out) :: e           ! [kg/m2/s]
-      real(wp),                intent(out) :: de_dtheta   ! [kg/m2/s per m3/m3]
-      real(wp),                intent(out) :: de_dpsi     ! [kg/m2/s per MPa]
-      real(wp) :: alpha, dalpha, drive, ddrive, resist
-      alpha  = safe_exp(psi / grav_head * grav / forcing%rv_t)   ! Philip's humidity, on the head
-      dalpha = alpha * grav / forcing%rv_t / grav_head           ! per MPa
-      call smooth_max0(alpha * forcing%q_sat - forcing%q_air, EVAP_HUMIDITY_WIDTH, drive, ddrive)
-      resist = forcing%r_aero + r_dry
-      if (forcing%r_cover > 0.0_wp) resist = resist + forcing%r_cover      ! the porous layers above
-      e         = forcing%snow_free_frac * forcing%rho_air * drive / resist
-      de_dpsi   = forcing%snow_free_frac * forcing%rho_air * ddrive * forcing%q_sat * dalpha / resist
-      de_dtheta = -e * dr_dry / resist
-   end subroutine philip_evaporation
-
-   !---~---
    !   A store's dry surface layer, the one law of the top soil layer and of every porous layer:
    ! its resistance to the store's vapour [s/m] and the resistance's slope in the store's water
    ! content, the Swenson-Lawrence form (CLM5 eqs. 5.79-5.80): as deep as depth_max over the span
@@ -271,44 +256,134 @@ contains
       dr_dry = -depth_max * ddry / forcing%theta_span / forcing%dsl_diffusivity
    end subroutine dry_layer_resistance
 
-   !--- ground_evaporation_rate -- the top layer's evaporation: philip_evaporation through its dry surface layer.
-   pure subroutine ground_evaporation_rate(theta1, psi1, forcing, soil, e_soil, de_dtheta, de_dpsi)
-      real(wp),               intent(in)  :: theta1      ! [m3/m3] top-layer water content
-      real(wp),               intent(in)  :: psi1        ! [MPa]   top-layer matric potential
-      type(ground_evap_env_t), intent(in) :: forcing   ! the boundary, after ground_evaporation_setup
-      type(soil_params_t),    intent(in)  :: soil
-      real(wp),               intent(out) :: e_soil      ! [kg/m2/s] ground evaporation
-      real(wp),               intent(out) :: de_dtheta   ! [kg/m2/s per m3/m3]
-      real(wp),               intent(out) :: de_dpsi     ! [kg/m2/s per MPa]
-      real(wp) :: r_dry, dr_dry
-      call dry_layer_resistance(theta1, soil%dsl_dmax, forcing, r_dry, dr_dry)
-      call philip_evaporation(psi1, r_dry, dr_dry, forcing, e_soil, de_dtheta, de_dpsi)
-   end subroutine ground_evaporation_rate
+   !---~---
+   !   ground_vapour -- the evaporation [kg/m2/s] of the ground's stores on the snow-free share,
+   ! the porous layers' and the top soil layer's, and its slopes (docs/science/soil_biophysics.md,
+   ! "The soil water column"). Each store's vapour crosses its own path, its dried top and the
+   ! open pores of the porous layers above it, up to the ground's surface node; the paths meet
+   ! there in parallel, and the node passes their sum to the canopy air through the one
+   ! aerodynamic leg the ground's sensible heat takes, r_aero = 1/g_a. The node's humidity q_s
+   ! holds the balance in closed form,
+   !     g_a (q_s - q_air) = sum_i g_i (q_i - q_s)
+   ! over the stores more humid than the node: a store drier than it takes nothing, so there is
+   ! no dew, from the air or between the stores. Those stores are the most humid ones, taken most
+   ! humid first while each is more humid than the node of those before it. Store i evaporates
+   ! rho g_i (q_i - q_s), written with q_s's closed form as rho g_i/G [g_a (q_i - q_air) +
+   ! sum_k g_k (q_i - q_k)], G the sum of the conductances, which holds when a store's path is
+   ! open (g_i unbounded, q_s = q_i). de(i, k) is store i's slope in store k's unknown, through
+   ! store k's humidity and its path's conductance (vapour_path_t).
+   !---~---
+   pure subroutine ground_vapour(n, path, forcing, e, de)
+      integer(ik),             intent(in)  :: n
+      type(vapour_path_t),     intent(in)  :: path(n)
+      type(ground_evap_env_t), intent(in)  :: forcing   ! the leg: r_aero, q_air, rho_air, snow_free_frac
+      real(wp),                intent(out) :: e(n)      ! [kg/m2/s]
+      real(wp),                intent(out) :: de(n, n)  ! [kg/m2/s per unit of the unknown]
+      real(wp)    :: g_a, big_g, sum_gq, area_rho, b(n), rest(n)
+      integer(ik) :: i, k, next
+      logical     :: on(n)
+      e  = 0.0_wp
+      de = 0.0_wp
+      g_a    = 1.0_wp / max(forcing%r_aero, tiny_num)
+      big_g  = g_a
+      sum_gq = g_a * forcing%q_air
+      on = .false.
+      do
+         next = 0_ik
+         do k = 1_ik, n
+            if (on(k) .or. .not. (path(k)%g > 0.0_wp)) cycle
+            if (next == 0_ik) then
+               next = k
+            else if (path(k)%q > path(next)%q) then
+               next = k
+            end if
+         end do
+         if (next == 0_ik) exit
+         if (.not. (path(next)%q * big_g > sum_gq)) exit     ! no more humid than the node so far
+         on(next) = .true.
+         big_g  = big_g + path(next)%g
+         sum_gq = sum_gq + path(next)%g * path(next)%q
+      end do
+      !--- b(i) = G (q_i - q_s), and rest(i) = G - g_i, both free of g_i.
+      do i = 1_ik, n
+         if (.not. on(i)) cycle
+         b(i)    = g_a * (path(i)%q - forcing%q_air)
+         rest(i) = g_a
+         do k = 1_ik, n
+            if (k == i .or. .not. on(k)) cycle
+            b(i)    = b(i) + path(k)%g * (path(i)%q - path(k)%q)
+            rest(i) = rest(i) + path(k)%g
+         end do
+      end do
+      area_rho = forcing%snow_free_frac * forcing%rho_air
+      do i = 1_ik, n
+         if (.not. on(i)) cycle
+         e(i)     = area_rho * path(i)%g / big_g * b(i)
+         de(i, i) = area_rho * (path(i)%g / big_g * rest(i) * path(i)%dq + b(i) / big_g * rest(i) / big_g * path(i)%dg)
+         do k = 1_ik, n
+            if (k == i .or. .not. on(k)) cycle
+            de(i, k) = -area_rho * path(i)%g / big_g * (path(k)%g * path(k)%dq + b(k) / big_g * path(k)%dg)
+         end do
+      end do
+   end subroutine ground_vapour
 
    !---~---
-   !   store_evaporation -- the evaporation [kg/m2/s] of a store at the ground's top, the top soil
-   ! layer or the top porous layer, depth deep and holding water w [kg/m2], and its slope in the
-   ! store's unknown, given its water's and its potential's slopes: philip_evaporation through r_dry,
-   ! supplied while the store holds water above its residual, ice included (evaporation_supply).
+   !   store_vapour_path -- the path of a store's vapour up to the ground's surface node
+   ! (ground_vapour): the store depth deep, holding water w [kg/m2] at potential psi, with their
+   ! slopes in its unknown. Its pore air holds Philip's humidity alpha(psi) q_sat at the store's
+   ! temperature (alpha = exp(psi g / R_v T)); its path crosses its dry surface layer r_dry
+   ! (dry_layer_resistance, whose slope in the water content is dr_dry) and the porous layers
+   ! above it (r_cover), its conductance the share of its demand its water can supply
+   ! (evaporation_supply, its water above residual, ice included) over their sum.
    !---~---
-   pure subroutine store_evaporation(forcing, psi, dpsi, w, dw, depth, theta_res, theta_sat, r_dry, dr_dry, e, de)
-      type(ground_evap_env_t), intent(in)  :: forcing
-      real(wp),                intent(in)  :: psi, dpsi       ! [MPa] its potential and its slope
-      real(wp),                intent(in)  :: w, dw           ! [kg/m2] its water and its slope
-      real(wp),                intent(in)  :: depth           ! [m]
-      real(wp),                intent(in)  :: theta_res, theta_sat   ! [m3/m3] its curve's ends
-      real(wp),                intent(in)  :: r_dry, dr_dry   ! [s/m], [s/m per m3/m3] its dry-surface resistance
-      real(wp),                intent(out) :: e, de           ! [kg/m2/s], its slope in the unknown
-      real(wp) :: theta, de_dtheta, de_dpsi, span, supply, dsupply
-      theta = w / (rho_h2o * depth)
-      call philip_evaporation(psi, r_dry, dr_dry, forcing, e, de_dtheta, de_dpsi)
-      span = theta_sat - theta_res
+   pure function store_vapour_path(forcing, psi, dpsi, w, dw, depth, theta_res, theta_sat, r_dry, dr_dry) result(path)
+      type(ground_evap_env_t), intent(in) :: forcing          ! the store's boundary
+      real(wp),                intent(in) :: psi, dpsi        ! [MPa] its potential and its slope
+      real(wp),                intent(in) :: w, dw            ! [kg/m2] its water and its slope
+      real(wp),                intent(in) :: depth            ! [m]
+      real(wp),                intent(in) :: theta_res, theta_sat   ! [m3/m3] its curve's ends
+      real(wp),                intent(in) :: r_dry, dr_dry    ! [s/m], [s/m per m3/m3] its dry surface layer
+      type(vapour_path_t) :: path
+      real(wp) :: theta, dtheta, span, supply, dsupply, resist
+      path%q  = safe_exp(psi / grav_head * grav / forcing%rv_t) * forcing%q_sat
+      path%dq = path%q * grav / (forcing%rv_t * grav_head) * dpsi
+      theta  = w / (rho_h2o * depth)
+      dtheta = dw / (rho_h2o * depth)
+      span   = theta_sat - theta_res
       call evaporation_supply((theta - theta_res) / span, supply, dsupply)
-      de_dtheta = supply * de_dtheta + e * dsupply / span
-      de_dpsi   = supply * de_dpsi
-      e         = supply * e
-      de        = de_dtheta * dw / (rho_h2o * depth) + de_dpsi * dpsi
-   end subroutine store_evaporation
+      resist  = max(r_dry + forcing%r_cover, tiny_num)
+      path%g  = supply / resist
+      path%dg = (dsupply / span - supply * dr_dry / resist) / resist * dtheta
+   end function store_vapour_path
+
+   !---~---
+   !   ground_evaporation_rate -- the top soil layer's evaporation [kg/m2/s] alone through the
+   ! leg (ground_vapour with that one store, its whole supply), and its slopes in the layer's water
+   ! content and its potential.
+   !---~---
+   pure subroutine ground_evaporation_rate(theta1, psi1, forcing, soil, e_soil, de_dtheta, de_dpsi)
+      real(wp),                intent(in)  :: theta1      ! [m3/m3] top-layer water content
+      real(wp),                intent(in)  :: psi1        ! [MPa]   top-layer matric potential
+      type(ground_evap_env_t), intent(in)  :: forcing     ! the boundary, after ground_evaporation_setup
+      type(soil_params_t),     intent(in)  :: soil
+      real(wp),                intent(out) :: e_soil      ! [kg/m2/s] ground evaporation
+      real(wp),                intent(out) :: de_dtheta   ! [kg/m2/s per m3/m3]
+      real(wp),                intent(out) :: de_dpsi     ! [kg/m2/s per MPa]
+      type(vapour_path_t) :: path(1)
+      real(wp) :: r_dry, dr_dry, resist, e(1), de(1, 1)
+      call dry_layer_resistance(theta1, soil%dsl_dmax, forcing, r_dry, dr_dry)
+      resist = max(r_dry + forcing%r_cover, tiny_num)
+      path(1)%q  = safe_exp(psi1 / grav_head * grav / forcing%rv_t) * forcing%q_sat
+      path(1)%g  = 1.0_wp / resist
+      path(1)%dq = path(1)%q * grav / (forcing%rv_t * grav_head)      ! per MPa
+      call ground_vapour(1_ik, path, forcing, e, de)
+      e_soil  = e(1)
+      de_dpsi = de(1, 1)
+      path(1)%dq = 0.0_wp
+      path(1)%dg = -dr_dry / resist ** 2                                ! per m3/m3
+      call ground_vapour(1_ik, path, forcing, e, de)
+      de_dtheta = de(1, 1)
+   end subroutine ground_evaporation_rate
 
    !---~---
    !   The share of its demand a top layer's water can supply [-], and its slope in the layer's

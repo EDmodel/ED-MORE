@@ -37,11 +37,12 @@ The paths:
   embolised cohort's leaves stay joined to its wood. It is the exact steady flux without gravity; with
   it, it overstates that flux where the xylem is embolised and the head is a large share of the drop, by a few percent at most on realistic ranges
   ([plant_hydraulics](plant_hydraulics.md) §3).
-- **Boundaries** — rain into the pond; ground evaporation from layer 1 (Philip's pore humidity with
-  the Swenson–Lawrence dry-surface-layer resistance, and the organic slots' cover); the organic slots'
-  own evaporation from the top slot by the soil's law (Philip's pore humidity, implicit in the slot's
-  potential, with the same smooth stop and supply limit as layer 1's; the dried top's path in series), the
-  slots below feeding it through their faces; drainage out of the bottom layer
+- **Boundaries** — rain into the pond; evaporation from layer 1 and from every slot, each by the soil's
+  law (Philip's pore humidity, implicit in the store's potential, with its supply limit at residual)
+  through its own path, its dried top (the Swenson–Lawrence dry-surface-layer resistance) and the open
+  pores of the slots above it, up to one ground-surface node that passes their sum to the canopy air
+  through the ground's one aerodynamic leg (`ground_vapour`; [soil_biophysics](soil_biophysics.md), "The
+  soil water column"), each store's flux implicit in every evaporating store's unknown; drainage out of the bottom layer
   (`[soil].water_bottom_bc`: drainage at a factor of free drainage, 1 to 0 for bedrock, or a head-driven
   two-way aquifer); and each cohort's transpiration out of its leaves.
 
@@ -201,7 +202,7 @@ Fixed in the code: the uptake ramp's width (10⁻² MPa), the transpiration corn
 | the stores' water relations in their unknowns | `ed_soil_hydr_lib`: `soil_water_relations`, `pond_water_relations` and their inverses, `VG_PORE_CONNECTIVITY`; `ed_plant_hydr_lib`: `tissue_water_relations` and its inverses |
 | the leaf energy balance at held transpiration | `ed_plant_energy`: `transp_held` and `transp_net` of `plant_energy_env_t` |
 | plant flows | `ed_plant_hydraulics`: `root_water_uptake`, `root_water_uptake_profile`, `xylem_sapflow` (through the Kirchhoff mean, the PFT's table from `ed_pft_derive`) and the leaves' supply limit `supply_limited_transpiration`; their conductances `rhizosphere_conductance` and `xylem_max_conductance` (`ed_plant_hydr_lib`); the flows' rounded corner `smooth_max0` (`ed_numerics`) |
-| soil flows | `ed_soil_water`: `soil_water_flux`, `ground_evaporation_rate` (its per-step terms from `ground_evaporation_setup`), `bottom_flux` |
+| soil flows | `ed_soil_water`: `soil_water_flux`, `ground_vapour` and `store_vapour_path` (the soil's per-step terms from `ground_evaporation_setup`), `bottom_flux` |
 | one patch's step | `ed_fast_integ_frozen`: `ground_inflow` (the drive; the pond's inflow is `ed_soil_water`'s `pond_inflow`) and `organic_network_drive` (the slots), then `fast_step` calls `water_step` and `record_water_flows`, which ends with `commit_organic_water` |
 | an organic slot's curve, and its evaporation's boundary | `ed_patch_state_vars`: `porous_layer_curve`; `ed_soil_water`: `slot_evaporation_setup` |
 | plant water over the step | `ed_fast_integ_backward_euler`: `advance_plant_water` (ESDIRK2; constant rates, RK45 integrates the same rates in its stages) |

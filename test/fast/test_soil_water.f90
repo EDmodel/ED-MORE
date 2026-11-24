@@ -28,6 +28,12 @@
 !   9. SUPPLY (evaporation_supply): the top layer supplies its whole demand until its water
 !      above residual is a ten-thousandth of its span, nothing at residual, and a smooth,
 !      rising step between whose slope matches finite differences.
+!  10. ONE LEG (ground_vapour; soil_biophysics.md "The soil water column"): stores in parallel
+!      up to the ground's surface node share the one aerodynamic leg: one store is the series
+!      law; two equal stores evaporate as one of twice the conductance, less than twice one;
+!      the stores' sum leaves the node through the leg at its closed-form humidity; a store
+!      drier than the node takes nothing (no dew); a store whose path is open sets the node's
+!      humidity; and the slopes match finite differences.
 !---~---
 program test_soil_water
    use ed_test_assert,     only : check_true, check_close, test_report
@@ -36,7 +42,7 @@ program test_soil_water
    use ed_soil_hydr_lib,   only : SOIL_RETENTION_VG, soil_theta_to_head, soil_liquid_capacity, soil_ice_state,  &
                                   soil_ice_t
    use ed_soil_water,      only : ground_evaporation_rate, ground_evaporation_setup, soil_water_flux, ground_evap_env_t, &
-                                  bottom_flux, evaporation_supply
+                                  bottom_flux, evaporation_supply, ground_vapour, vapour_path_t
    use ed_therm_lib,       only : sat_specific_humidity, sat_vapor_pressure, specific_humidity_to_vapor_pressure
    use ed_soil_params,     only : soil_profile_t, soil_params_t, SOIL_BC_DRAIN, SOIL_BC_AQUIFER
    use ed_soil_derive,     only : build_profile_hydraulics
@@ -52,6 +58,7 @@ program test_soil_water
    call test_evap_at_pressure()
    call test_aquifer_face_ice()
    call test_evaporation_supply()
+   call test_one_leg()
 
    call test_report('test_soil_water')
 
@@ -438,5 +445,75 @@ contains
       call check_true('SUPPLY: the step rises with the water', rising)
       call check_true('SUPPLY: its slope matches finite differences', ok_fd)
    end subroutine test_evaporation_supply
+
+   !---~---
+   !   10. The ground's stores share one leg: a 60 s/m leg over 1.2 kg/m3 air at 0.008 kg/kg, the
+   ! stores' paths of 40 to 400 s/m, their pore humidities 0.010 to 0.016 kg/kg (the node of the
+   ! two most humid at 0.0130 kg/kg).
+   !---~---
+   subroutine test_one_leg()
+      type(ground_evap_env_t) :: f
+      type(vapour_path_t)     :: p(3), pp(3)
+      real(wp) :: e(3), de(3, 3), ep(3), em(3), dum(3, 3), q_node, g_sum, h, fd
+      integer  :: i, k
+      logical  :: ok_fd
+      print '(a)', 'test_one_leg:'
+      f%r_aero = 60.0_wp
+      f%q_air  = 0.008_wp
+      f%rho_air = 1.2_wp
+      f%snow_free_frac = 1.0_wp
+      p(1) = vapour_path_t(q=0.016_wp, dq=0.0_wp, g=1.0_wp / 40.0_wp, dg=0.0_wp)
+      call ground_vapour(1_ik, p(1:1), f, e(1:1), de(1:1, 1:1))
+      call check_close('ONE LEG: one store is the series law rho dq / (r_aero + r_path)', e(1),                  &
+                       1.2_wp * (0.016_wp - 0.008_wp) / (60.0_wp + 40.0_wp), 1.0e-15_wp)
+      !--- Two equal stores: one store of twice the conductance, less than twice one store.
+      p(2) = p(1)
+      call ground_vapour(2_ik, p(1:2), f, e(1:2), de(1:2, 1:2))
+      call check_close('ONE LEG: two equal stores evaporate as one of twice the conductance', e(1) + e(2),         &
+                       1.2_wp * (0.016_wp - 0.008_wp) / (60.0_wp + 20.0_wp), 1.0e-15_wp)
+      call check_true('ONE LEG: less than twice one store (the leg counted once)',                                  &
+                      e(1) + e(2) < 2.0_wp * 1.2_wp * (0.016_wp - 0.008_wp) / 100.0_wp, e(1) + e(2))
+      !--- Three stores: the sum leaves through the leg at the node's closed-form humidity.
+      p(2) = vapour_path_t(q=0.014_wp, dq=0.0_wp, g=1.0_wp / 150.0_wp, dg=0.0_wp)
+      p(3) = vapour_path_t(q=0.010_wp, dq=0.0_wp, g=1.0_wp / 400.0_wp, dg=0.0_wp)
+      call ground_vapour(3_ik, p, f, e, de)
+      g_sum  = 1.0_wp / 60.0_wp + p(1)%g + p(2)%g
+      q_node = (0.008_wp / 60.0_wp + p(1)%g * p(1)%q + p(2)%g * p(2)%q) / g_sum
+      call check_true('ONE LEG: a store drier than the node takes nothing', p(3)%q < q_node .and. e(3) == 0.0_wp,    &
+                      e(3))
+      call check_close('ONE LEG: the stores'' sum leaves through the leg', e(1) + e(2),                              &
+                       1.2_wp * (q_node - 0.008_wp) / 60.0_wp, 1.0e-15_wp)
+      call check_close('ONE LEG: each store gives rho g (q - q_node)', e(2), 1.2_wp * p(2)%g * (p(2)%q - q_node),    &
+                       1.0e-15_wp)
+      !--- An open path (no resistance): the node takes its humidity.
+      pp = p
+      pp(1)%g = 1.0e30_wp
+      call ground_vapour(3_ik, pp, f, e, de)
+      call check_close('ONE LEG: an open path sets the node''s humidity', e(1) + e(2) + e(3),                       &
+                       1.2_wp * (0.016_wp - 0.008_wp) / 60.0_wp, 1.0e-13_wp)
+      call check_true('ONE LEG: and the stores under it, drier, take nothing', e(2) == 0.0_wp .and. e(3) == 0.0_wp)
+      !--- The slopes, all three stores evaporating, through each one's humidity and conductance.
+      f%q_air = 0.004_wp
+      p(1) = vapour_path_t(q=0.016_wp, dq=2.0e-3_wp, g=1.0_wp / 40.0_wp, dg=-3.0e-4_wp)
+      p(2) = vapour_path_t(q=0.014_wp, dq=1.0e-3_wp, g=1.0_wp / 150.0_wp, dg=2.0e-5_wp)
+      p(3) = vapour_path_t(q=0.013_wp, dq=5.0e-4_wp, g=1.0_wp / 400.0_wp, dg=1.0e-5_wp)
+      call ground_vapour(3_ik, p, f, e, de)
+      ok_fd = all(e > 0.0_wp)
+      h = 1.0e-3_wp
+      do k = 1, 3
+         pp = p
+         pp(k)%q = p(k)%q + h * p(k)%dq
+         pp(k)%g = p(k)%g + h * p(k)%dg
+         call ground_vapour(3_ik, pp, f, ep, dum)
+         pp(k)%q = p(k)%q - h * p(k)%dq
+         pp(k)%g = p(k)%g - h * p(k)%dg
+         call ground_vapour(3_ik, pp, f, em, dum)
+         do i = 1, 3
+            fd = (ep(i) - em(i)) / (2.0_wp * h)
+            if (.not. fd_agrees(de(i, k), fd, 1.0e-6_wp, 1.0e-16_wp)) ok_fd = .false.
+         end do
+      end do
+      call check_true('ONE LEG: the slopes match finite differences', ok_fd)
+   end subroutine test_one_leg
 
 end program test_soil_water

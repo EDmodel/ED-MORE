@@ -36,11 +36,13 @@ module ed_fast_integ_derivs
                                    tissue_psi_to_rwc
    use ed_plant_hydraulics,   only : supply_limited_transpiration, root_water_uptake_profile, xylem_sapflow,        &
                                      root_water_uptake
-   use ed_soil_water, only : soil_water_flux, bottom_flux, store_evaporation, dry_layer_resistance
+   use ed_soil_water, only : soil_water_flux, bottom_flux, dry_layer_resistance, ground_vapour, store_vapour_path,  &
+                             vapour_path_t
    use ed_linear_algebra, only : arrowhead_system_t
    use ed_numerics,       only : smooth_max0
    use ed_soil_params, only : soil_profile_t, soil_params_t
    use ed_pft_params, only : hydraulics_table_t
+   use ed_ground_surface_params, only : N_POROUS
    implicit none
    private
 
@@ -54,6 +56,8 @@ module ed_fast_integ_derivs
    ! choice.
    !---~---
    real(wp), parameter :: WET_BLEND_WIDTH = 1.0e-2_wp
+   !--- The most stores that evaporate: every porous layer and the top soil layer.
+   integer(ik), parameter :: N_EVAP_MAX = N_POROUS + 1_ik
 
 contains
 
@@ -448,9 +452,10 @@ contains
       logical,         optional, intent(in)    :: cut(:) ! (nsoil) nodes detached from the solve
       integer(ik) :: k, i, ca, cb, c, nsl, nsoil, n_porous, soff
       real(wp) :: q, dq_pa, dq_pb, dq_ka, dq_kb, dqa, dqb, u, s, ds_w, ds_l
-      real(wp) :: e, de, qbot, dsrc
+      real(wp) :: e, de, qbot, dsrc, e_vap(N_EVAP_MAX), de_vap(N_EVAP_MAX, N_EVAP_MAX)
       real(wp) :: psi_w, dpsi_w, u_sum, dqb_sum, du_dpsi(profile%n_active), du_dk(profile%n_active)
       real(wp) :: w_b, dist
+      integer(ik) :: m
       logical  :: wet, is_cut(size(tau_soil))
 
       nsl   = profile%n_active
@@ -463,10 +468,11 @@ contains
       ev%inflow_soil = 0.0_wp
       ev%inflow_coh = 0.0_wp
       !---~---
-      !   The Jacobian's entries are written afresh: the core's band, which the flows add into, is
-      ! cleared; every other entry an evaluation touches is set outright below, and the rest stay
-      ! zero from arrowhead_allocate.
+      !   The Jacobian's entries are written afresh: the core's band and the evaporating stores'
+      ! block (nodes 2 .. soff + 1), which the flows add into, are cleared; every other entry an
+      ! evaluation touches is set outright below, and the rest stay zero from arrowhead_allocate.
       !---~---
+      m = n_porous + 1_ik
       if (with_jacobian) then
          do c = 1_ik, nsoil
             sys%a(c, c) = 0.0_wp
@@ -475,6 +481,7 @@ contains
                sys%a(c + 1_ik, c) = 0.0_wp
             end if
          end do
+         sys%a(2:soff + 1_ik, 2:soff + 1_ik) = 0.0_wp
       end if
 
       !--- Storage.
@@ -514,17 +521,23 @@ contains
          call add_soil_flow(ca, cb, q, dqa, dqb)
       end do
 
-      !--- Each node's own sources: the water reaching the pond, the top porous and soil layers' evaporation, drainage.
-      ev%porous_evap = 0.0_wp
+      !--- Each node's own sources: the water reaching the pond, and the drainage.
       do c = 1_ik, nsoil
          dsrc = 0.0_wp
-         call node_sources(profile, soil, drive, c, ev%water_soil(c), ev%dwater_soil(c), ev%psi_soil(c),            &
-                           ev%dpsi_soil(c), ev%k_soil(c), ev%dk_soil(c), ev%inflow_soil(c), dsrc, e, qbot)
+         call node_sources(profile, soil, drive, c, ev%psi_soil(c), ev%dpsi_soil(c), ev%k_soil(c), ev%dk_soil(c),     &
+                           ev%inflow_soil(c), dsrc, qbot)
          if (with_jacobian) sys%a(c, c) = sys%a(c, c) + dsrc
-         if (c > 1_ik .and. c <= soff) ev%porous_evap(c - 1_ik) = e
-         if (c == soff + 1_ik) ev%evap = e
          if (c == nsoil) ev%drain = qbot
       end do
+
+      !--- The porous layers' and the top soil layer's vapour, through the one leg to the canopy air.
+      call network_vapour(profile, soil, drive, ev%psi_soil(2:soff + 1_ik), ev%dpsi_soil(2:soff + 1_ik),             &
+                          ev%water_soil(2:soff + 1_ik), ev%dwater_soil(2:soff + 1_ik), e_vap, de_vap)
+      ev%porous_evap = 0.0_wp
+      ev%porous_evap(1:n_porous) = e_vap(1:n_porous)
+      ev%evap = e_vap(m)
+      ev%inflow_soil(2:soff + 1_ik) = ev%inflow_soil(2:soff + 1_ik) - e_vap(1:m)
+      if (with_jacobian) sys%a(2:soff + 1_ik, 2:soff + 1_ik) = sys%a(2:soff + 1_ik, 2:soff + 1_ik) + de_vap(1:m, 1:m)
 
       !---~---
       !   Each cohort: uptake from its layers, sapflow to its leaves, and transpiration. The
@@ -714,57 +727,64 @@ contains
    end subroutine core_face_flux
 
    !---~---
-   !   Core node c's own sources, besides its faces and its roots, added to its net inflow
-   ! [kg/m2/s], and their slope in its unknown added to dout, the slope of its outflow: the water
-   ! reaching the pond; the evaporation of every porous layer and of the top soil layer, each by
-   ! the one law (store_evaporation: Philip's humidity at its potential, smoothly stopping where it
-   ! meets the canopy air's, so a drying store comes to rest at its equilibrium with the air)
-   ! through its own dry surface layer (dry_layer_resistance), which its own water sets, and the
-   ! open pores of the porous layers above it; and the drainage from the bottom layer. evap and
-   ! drain return the node's. A store's dry surface layer reads its liquid and dsl_theta_init of
-   ! its ice (a porous layer's dsl_theta_init being one), so its onset is dsl_theta_init of the
-   ! pores the ice leaves (CLM5's effective porosity).
+   !   Core node c's own sources, besides its faces, its roots and its vapour, added to its net
+   ! inflow [kg/m2/s], and their slope in its unknown added to dout, the slope of its outflow: the
+   ! water reaching the pond, and the drainage from the bottom layer, which drain returns.
    !---~---
-   pure subroutine node_sources(profile, soil, drive, c, w, dw, psi, dpsi, kc, dkc, inflow, dout, evap, drain)
+   pure subroutine node_sources(profile, soil, drive, c, psi, dpsi, kc, dkc, inflow, dout, drain)
       type(soil_profile_t), intent(in)    :: profile
       type(soil_params_t),  intent(in)    :: soil
       type(water_drive_t),  intent(in)    :: drive
       integer(ik),          intent(in)    :: c
-      real(wp),             intent(in)    :: w, dw, psi, dpsi, kc, dkc   ! its water, potential, conductivity, slopes
-      real(wp),             intent(inout) :: inflow, dout                 ! [kg/m2/s], its slope in the unknown
-      real(wp),             intent(out)   :: evap, drain                  ! [kg/m2/s]
-      real(wp)    :: de, r_dry, dr_dry, qbot, dqbot_dpsi, dqbot_dk
-      integer(ik) :: nsl, soff, j
-      nsl  = profile%n_active
-      soff = 1_ik + drive%porous%n
-      evap  = 0.0_wp
+      real(wp),             intent(in)    :: psi, dpsi, kc, dkc               ! its potential, conductivity, slopes
+      real(wp),             intent(inout) :: inflow, dout                     ! [kg/m2/s], its slope in the unknown
+      real(wp),             intent(out)   :: drain                            ! [kg/m2/s]
+      real(wp)    :: qbot, dqbot_dpsi, dqbot_dk
+      integer(ik) :: nsl
+      nsl   = profile%n_active
       drain = 0.0_wp
       if (c == POND) inflow = inflow + drive%rain
-      if (c > 1_ik .and. c <= soff) then
-         j = c - 1_ik
-         call dry_layer_resistance(w / (rho_h2o * drive%porous%depth(j)), drive%porous%depth(j), drive%porous%air(j),  &
-                                   r_dry, dr_dry)
-         call store_evaporation(drive%porous%air(j), psi, dpsi, w, dw, drive%porous%depth(j),                       &
-                                drive%porous%curve(j)%theta_res, drive%porous%curve(j)%theta_sat, r_dry, dr_dry,    &
-                                evap, de)
-         inflow = inflow - evap
-         dout   = dout + de
-      end if
-      if (c == soff + 1_ik) then
-         call dry_layer_resistance(w / (rho_h2o * profile%dz(1)) - (1.0_wp - soil%dsl_theta_init) * drive%ice(1)%theta_ice, &
-                                   soil%dsl_dmax, drive%ground, r_dry, dr_dry)
-         call store_evaporation(drive%ground, psi, dpsi, w, dw, profile%dz(1), profile%theta_res(1),                &
-                                profile%theta_sat(1), r_dry, dr_dry, evap, de)
-         inflow = inflow - evap
-         dout   = dout + de
-      end if
-      if (c == soff + nsl) then
+      if (c == 1_ik + drive%porous%n + nsl) then
          call bottom_flux(profile, soil, nsl, psi, kc, drive%ice(nsl)%impedance, qbot, dqbot_dpsi, dqbot_dk)
          drain  = rho_h2o * qbot
          inflow = inflow - drain
          dout   = dout + rho_h2o * (dqbot_dpsi * dpsi + dqbot_dk * dkc)
       end if
    end subroutine node_sources
+
+   !---~---
+   !   network_vapour -- the vapour of the network's evaporating stores at one state, the porous
+   ! layers (nodes 2 .. soff) and the top soil layer (node soff + 1), top down, given each one's
+   ! potential and water with their slopes in its unknown: each store's path to the ground's
+   ! surface node, through its own dry surface layer (dry_layer_resistance), which its own water
+   ! sets, and the open pores of the porous layers above it (store_vapour_path), and their
+   ! evaporation through the one leg to the canopy air (ground_vapour), with its slopes in every
+   ! evaporating store's unknown, de(i, k) store i's in store k's. A store's dry surface layer
+   ! reads its liquid and dsl_theta_init of its ice (a porous layer's dsl_theta_init being one),
+   ! so its onset is dsl_theta_init of the pores the ice leaves (CLM5's effective porosity).
+   !---~---
+   pure subroutine network_vapour(profile, soil, drive, psi, dpsi, w, dw, e, de)
+      type(soil_profile_t), intent(in)  :: profile
+      type(soil_params_t),  intent(in)  :: soil
+      type(water_drive_t),  intent(in)  :: drive
+      real(wp),             intent(in)  :: psi(:), dpsi(:), w(:), dw(:)   ! (porous%n + 1) [MPa], [kg/m2] and slopes
+      real(wp),             intent(out) :: e(:), de(:,:)                  ! [kg/m2/s], its slopes
+      type(vapour_path_t) :: path(N_EVAP_MAX)
+      real(wp)    :: r_dry, dr_dry
+      integer(ik) :: j, m
+      m = drive%porous%n + 1_ik
+      do j = 1_ik, drive%porous%n
+         call dry_layer_resistance(w(j) / (rho_h2o * drive%porous%depth(j)), drive%porous%depth(j),                  &
+                                   drive%porous%air(j), r_dry, dr_dry)
+         path(j) = store_vapour_path(drive%porous%air(j), psi(j), dpsi(j), w(j), dw(j), drive%porous%depth(j),        &
+                                     drive%porous%curve(j)%theta_res, drive%porous%curve(j)%theta_sat, r_dry, dr_dry)
+      end do
+      call dry_layer_resistance(w(m) / (rho_h2o * profile%dz(1)) - (1.0_wp - soil%dsl_theta_init) * drive%ice(1)%theta_ice, &
+                                soil%dsl_dmax, drive%ground, r_dry, dr_dry)
+      path(m) = store_vapour_path(drive%ground, psi(m), dpsi(m), w(m), dw(m), profile%dz(1), profile%theta_res(1),      &
+                                  profile%theta_sat(1), r_dry, dr_dry)
+      call ground_vapour(m, path(1:m), drive%ground, e(1:m), de(1:m, 1:m))
+   end subroutine network_vapour
 
    !--- Each cohort's wood potential [MPa] at its unknown, which a soil node's uptake reads.
    subroutine wood_potentials(static, hyd, tau_coh, psi_wood)
@@ -785,8 +805,9 @@ contains
    ! W0)/h - inflow [kg/m2/s], and dR/dtau_c, at its unknown tau with every other store held at
    ! its state in tau_soil and its neighbours' relations given: the faces to the nodes above and
    ! below (none to or from a detached node, as water_derivs cuts them), and its own sources --
-   ! the water reaching the pond, the top porous layer's evaporation, the top soil layer's
-   ! evaporation, the bottom's drainage and each cohort's uptake at its wood's potential; and, when
+   ! the water reaching the pond, the evaporation of a porous layer or the top soil layer, the
+   ! other evaporating stores held (network_vapour), the bottom's drainage and each cohort's uptake
+   ! at its wood's potential; and, when
    ! asked, dR/dtau of the node above (dr_up) and below (dr_down), which a block of eliminated
    ! nodes solves with. The nonlinear elimination of a fast node or block and the closed form of a
    ! detached one solve R = 0 on it.
@@ -804,9 +825,11 @@ contains
       real(wp),                  intent(out) :: r, dr
       real(wp), optional,        intent(out) :: dr_up, dr_down
       real(wp) :: psi, dpsi, w, dw, kc, dkc, q, dq_pa, dq_pb, dq_ka, dq_kb, w_b, dist, inflow, dinflow
-      real(wp) :: e, qbot, dsrc, d_up, d_down
+      real(wp) :: qbot, dsrc, d_up, d_down
       real(wp) :: u, du_ds, du_dw, du_dk, above(6), below(6)
-      integer(ik) :: nsl, soff, nsoil, k, i
+      real(wp) :: vp(N_EVAP_MAX), vdp(N_EVAP_MAX), vw(N_EVAP_MAX), vdw(N_EVAP_MAX), kdum, dkdum
+      real(wp) :: e_vap(N_EVAP_MAX), de_vap(N_EVAP_MAX, N_EVAP_MAX)
+      integer(ik) :: nsl, soff, nsoil, k, i, m, j
       logical :: wet
       nsl   = profile%n_active
       soff  = 1_ik + drive%porous%n
@@ -840,7 +863,28 @@ contains
          end if
       end if
       dsrc = 0.0_wp
-      call node_sources(profile, soil, drive, c, w, dw, psi, dpsi, kc, dkc, inflow, dsrc, e, qbot)
+      call node_sources(profile, soil, drive, c, psi, dpsi, kc, dkc, inflow, dsrc, qbot)
+      !--- An evaporating store's vapour, the others held: its slopes in its neighbours' unknowns join theirs.
+      if (c > 1_ik .and. c <= soff + 1_ik) then
+         m = soff
+         do j = 1_ik, m
+            if (j + 1_ik == c) then
+               vp(j)  = psi
+               vdp(j) = dpsi
+               vw(j)  = w
+               vdw(j) = dw
+            else
+               call core_node_relations(profile, drive, j + 1_ik, tau_soil(j + 1_ik), vp(j), vdp(j), vw(j), vdw(j),    &
+                                        kdum, dkdum)
+            end if
+         end do
+         call network_vapour(profile, soil, drive, vp(1:m), vdp(1:m), vw(1:m), vdw(1:m), e_vap, de_vap)
+         j = c - 1_ik
+         inflow = inflow - e_vap(j)
+         dsrc   = dsrc + de_vap(j, j)
+         if (j > 1_ik) d_up   = d_up + de_vap(j, j - 1_ik)
+         if (j < m)    d_down = d_down + de_vap(j, j + 1_ik)
+      end if
       dinflow = dinflow - dsrc
       if (c > soff .and. .not. cut(c)) then
          k = c - soff
