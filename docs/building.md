@@ -168,9 +168,14 @@ an edit to one file takes ~35 s to rebuild instead of ~4 s, and rebuilding the t
 most of the gain at 20 threads, none of the relink.
 
 **profile** is dev with `-g`, which VTune and perf read; gprof also needs `-pg`
-(`cmake --preset profile -DCMAKE_Fortran_FLAGS="-g -pg"`). **debug** is many times slower and prints
-one harmless `arg_temp_created` remark per netCDF call; prefer dev when the output layer is what you
-are exercising.
+(`cmake --preset profile -DCMAKE_Fortran_FLAGS="-g -pg"`). **debug** is many times slower; it traps
+invalid, divide-by-zero and overflow floating-point operations (ifx `-fpe0`, gfortran
+`-ffpe-trap=invalid,zero,overflow`), so the model must not make one in normal operation. Its ifx flags
+check everything but `arg_temp_created`: those warnings (an array temporary passed as an argument, at
+every netCDF call and wherever an expression is an actual argument) each print a traceback, filled a
+Toolik run's log at about 60 MB a minute, and, raised in one OpenMP thread while another thread reported a
+trapped error, corrupted the Intel Fortran runtime's diagnostics: the run died of a segmentation fault
+or "stack smashing detected" in the runtime's traceback rather than with the error's own message.
 
 ## Parallel builds
 

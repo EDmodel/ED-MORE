@@ -158,7 +158,7 @@ function(ed_fortran_flags tgt)
       target_compile_options(${tgt} PRIVATE -stand f18 -warn all -diag-disable=7712
          $<$<BOOL:${ED_HEAP_ARRAYS}>:-heap-arrays;256>
          $<$<BOOL:${ED_AUTO_LOCALS}>:-auto>
-         $<$<CONFIG:Debug>:-O0;-g;-check;all;-fpe0;-traceback>
+         $<$<CONFIG:Debug>:-O0;-g;-check;all,noarg_temp_created;-fpe0;-traceback>
          $<$<CONFIG:Release>:-O2>)
    elseif(id STREQUAL "NVHPC" OR id STREQUAL "PGI")
       target_compile_options(${tgt} PRIVATE -Minform=warn
@@ -379,9 +379,10 @@ endif()
 
 #----- Diagnostic output's writer (src/io/output/ed_output_stream.f90): the netCDF files. Links    #
 #      the netCDF bindings (ed_netcdf_c, above). netCDF is always compiled.                          #
-#      (The C-binding layer passes array temporaries to the netCDF C `(*)` dummies --                #
-#      correct for interop, but Intel Debug `-check all` emits a harmless arg_temp_created warning   #
-#      per call; a Release build, the default, is clean.)                                            #
+#      (The C-binding layer passes array temporaries to the netCDF C `(*)` dummies -- correct for    #
+#      interop; Intel Debug checks everything but arg_temp_created, whose warnings, each with a     #
+#      traceback, flood a run's log and, raised in one OpenMP thread while another reports an       #
+#      error, corrupt the Fortran runtime's diagnostics.)                                            #
 add_library(ed_output_stream STATIC ${CMAKE_CURRENT_SOURCE_DIR}/src/io/output/ed_output_stream.f90)
 target_link_libraries(ed_output_stream PUBLIC ed_netcdf_c ed_output)
 ed_fortran_flags(ed_output_stream)
