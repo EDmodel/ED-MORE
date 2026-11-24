@@ -355,7 +355,8 @@ contains
                frozen%tissue%abs_sw_wood(n), frozen%tissue%abs_lw_wood(n), frozen%tissue%wai(n),                &
                frozen%tissue%leaf_hcap_per_dt(n), frozen%tissue%wood_hcap_per_dt(n), frozen%tissue%t_leaf0(n),  &
                frozen%tissue%t_wood0(n), frozen%tissue%qwflux_wl(n), frozen%tissue%q_wood_net(n),               &
-               frozen%tissue%leaf_emiss(n), frozen%tissue%wood_emiss(n), frozen%tissue%transp_net(n))
+               frozen%tissue%leaf_emiss(n), frozen%tissue%wood_emiss(n), frozen%tissue%transp_net(n),           &
+               frozen%tissue%buried(n))
       do i = 1_ik, n
          frozen%tissue%lai(i)    = 2.0_wp - 0.5_wp * real(i - 1_ik, wp)
          frozen%tissue%abs_sw(i) = 250.0_wp - 50.0_wp * real(i - 1_ik, wp)
@@ -373,6 +374,7 @@ contains
       frozen%tissue%t_wood0 = 298.5_wp
       frozen%tissue%qwflux_wl  = 0.0_wp
       frozen%tissue%q_wood_net = 0.0_wp
+      frozen%tissue%buried     = 0.0_wp
       frozen%tissue%leaf_emiss = 0.95_wp
       frozen%tissue%wood_emiss = 0.95_wp
       frozen%tissue%transp_net = frozen%plant%sapflow_frozen * frozen%plant%nplant

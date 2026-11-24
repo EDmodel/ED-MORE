@@ -97,7 +97,7 @@ contains
       t_buried = t_3ple
       if (frozen%ground%buried_cap > 0.0_wp)                                                                   &
          t_buried = (acc%stores%buried_heat + frozen%ground%buried_energy) / frozen%ground%buried_cap
-      call commit_tissue_energy(frozen%tissue, static%nplant, dt_fast, t_leaf_avg, t_wood_avg, n,                 &
+      call commit_tissue_energy(frozen%tissue, frozen%veg_surface, static%nplant, dt_fast, t_leaf_avg, t_wood_avg, n, &
                                 dynamic%leaf_water_mass, dynamic%wood_water_mass, leaf_surf_water0, wood_surf_water0,         &
                                 dynamic%leaf_surf_water, dynamic%wood_surf_water, t_buried, dynamic%leaf_energy,  &
                                 dynamic%wood_energy, dynamic%leaf_temp, dynamic%wood_temp, moved%tissue_store0,   &

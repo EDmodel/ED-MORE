@@ -381,8 +381,12 @@ relax together to one temperature over the step. The heat the buried tissue gain
 $`Q_b = C_b T_w - \sum b\,C\,T^n`$ with $`C_b = \sum b\,C`$ over the cohorts, leaves the water layer's own store
 and reaches each cohort's tissues as $`b\,C\,(\bar T - T^n)`$, with $`\bar T = (Q_b + \sum b\,C\,T^n)/C_b`$ the
 temperature the march's integral of $`Q_b`$ brings the buried tissue to (`buried_tissue_store`,
-`commit_tissue_energy`): a matched pair, so the column's energy closes with nothing declared. Where the snow is a
-film, no node holds the buried tissue, and its share keeps its heat.
+`commit_tissue_energy`): a matched pair. The heat the water reaching a cohort brings beyond its own, its sapflow's
+and its surface water's capture (`tissue_water_heat`, eq. (1)'s advected term), splits by the same shares: the
+exposed share's balance takes $`e`$ of it, and the buried share's store $`b`$ of it at the commit. Given whole to
+the exposed balance, the heat of the water reaching a cohort buried whole, whose balance has neither area nor heat
+capacity, was dropped: 0.3 J m⁻² in a step at Toolik. Where the snow is a film, no node holds the buried tissue,
+and its share keeps its heat and its share of the water's.
 
 ## Prognostic state
 

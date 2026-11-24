@@ -541,7 +541,7 @@ contains
       e_wood = tissue_temp_to_energy(DW, WW0, TW0)
       t_leaf = TL0
       t_wood = TW0
-      call commit_tissue_energy(env, [1.0_wp], DT, [TL_AVG], [TW_AVG], 1_ik, [WL0 + DWL], [WW0 + DWW],          &
+      call commit_tissue_energy(env, no_capture(), [1.0_wp], DT, [TL_AVG], [TW_AVG], 1_ik, [WL0 + DWL], [WW0 + DWW], &
                                 [0.0_wp], [0.0_wp], [0.0_wp], [0.0_wp], t_3ple, e_leaf, e_wood, t_leaf, t_wood,  &
                                 store0, store1)
       heat = (DL + WL0 * cp_liq) * (TL_AVG - TL0) + (DW + WW0 * cp_liq) * (TW_AVG - TW0)
@@ -563,6 +563,7 @@ contains
    !   A cohort a snow pack buries to its crown's middle (buried share 0.5), relaxing as test_commit's
    ! with its exposed share's heat capacity, while the water layer's node brings its buried share to
    ! 272 K: each tissue gains its exposed share's relaxation and its buried share's move to 272 K.
+   ! Buried whole, a cohort's store takes the heat the water reaching it brings.
    !---~---
    subroutine test_commit_buried()
       real(wp), parameter :: DT = 900.0_wp, B = 0.5_wp, T_BURIED = 272.0_wp
@@ -579,8 +580,8 @@ contains
       e_wood = tissue_temp_to_energy(DW, WW0, TW0)
       t_leaf = TL0
       t_wood = TW0
-      call commit_tissue_energy(env, [1.0_wp], DT, [TL_AVG], [TW_AVG], 1_ik, [WL0], [WW0], [0.0_wp], [0.0_wp],    &
-                                [0.0_wp], [0.0_wp], T_BURIED, e_leaf, e_wood, t_leaf, t_wood, store0, store1)
+      call commit_tissue_energy(env, no_capture(), [1.0_wp], DT, [TL_AVG], [TW_AVG], 1_ik, [WL0], [WW0], [0.0_wp], &
+                                [0.0_wp], [0.0_wp], [0.0_wp], T_BURIED, e_leaf, e_wood, t_leaf, t_wood, store0, store1)
       cl   = DL + WL0 * cp_liq
       cw   = DW + WW0 * cp_liq
       heat = (1.0_wp - B) * (cl * (TL_AVG - TL0) + cw * (TW_AVG - TW0)) + B * (cl * (T_BURIED - TL0) + cw * (T_BURIED - TW0))
@@ -589,6 +590,21 @@ contains
                       abs((store1 - store0) - heat) <= 1.0e-12_wp * abs(heat))
       call check('commit_tissue_energy: its leaf ends between the two', t_leaf(1),                                &
                  (1.0_wp - B) * TL_AVG + B * T_BURIED, 1.0e-9_wp)
+      !---~---
+      !   Buried whole, at the water layer's temperature, its wood taking 2 W/m2 with the water
+      ! reaching it: its balance holds nothing, so its store takes that heat.
+      !---~---
+      call commit_env(env, DL, WL0, DW, WW0, T_BURIED, T_BURIED, DT)
+      env%buried = 1.0_wp
+      env%leaf_hcap_per_dt = 0.0_wp
+      env%wood_hcap_per_dt = 0.0_wp
+      env%q_wood_net = 2.0_wp
+      e_leaf = tissue_temp_to_energy(DL, WL0, T_BURIED)
+      e_wood = tissue_temp_to_energy(DW, WW0, T_BURIED)
+      call commit_tissue_energy(env, no_capture(), [1.0_wp], DT, [T_BURIED], [T_BURIED], 1_ik, [WL0], [WW0], [0.0_wp], &
+                                [0.0_wp], [0.0_wp], [0.0_wp], T_BURIED, e_leaf, e_wood, t_leaf, t_wood, store0, store1)
+      call check('commit_tissue_energy: a cohort buried whole keeps the heat of the water reaching it',           &
+                 store1 - store0, 2.0_wp * DT, 1.0e-9_wp)
    end subroutine test_commit_buried
 
    !---~---
@@ -611,11 +627,17 @@ contains
       e_wood = tissue_temp_to_energy(DW, WW, TW0)
       t_leaf = TL0
       t_wood = TW0
-      call commit_tissue_energy(env, [1.0_wp], DT, [TL_AVG], [TW0], 1_ik, [WL], [WW], [F0], [0.0_wp], [0.0_wp],    &
-                                [0.0_wp], t_3ple, e_leaf, e_wood, t_leaf, t_wood, store0, store1)
+      call commit_tissue_energy(env, no_capture(), [1.0_wp], DT, [TL_AVG], [TW0], 1_ik, [WL], [WW], [F0], [0.0_wp], &
+                                [0.0_wp], [0.0_wp], t_3ple, e_leaf, e_wood, t_leaf, t_wood, store0, store1)
       call check('commit_tissue_energy: surface water heavier than its tissue, evaporated within the step, leaves '//  &
                  'the tissue at the step''s temperature', t_leaf(1), TL_AVG, 1.0e-6_wp)
    end subroutine test_commit_heavy_surface_water
+
+   !--- One cohort's surface water capturing nothing: no rain, no transfer between its tissues.
+   function no_capture() result(veg_surface)
+      type(canopy_water_out_t) :: veg_surface
+      allocate(veg_surface%intercept_leaf(1), veg_surface%intercept_wood(1), veg_surface%transfer_lw(1), source=0.0_wp)
+   end function no_capture
 
    !---~---
    !   The commit's inputs for one cohort: each tissue's dry heat capacity, its heat capacity over
@@ -627,7 +649,9 @@ contains
       real(wp),                 intent(in)  :: dry_leaf, w_leaf, dry_wood, w_wood, t_leaf0, t_wood0, dt
       allocate(env%leaf_hcap_per_dt(1), env%wood_hcap_per_dt(1), env%t_leaf0(1), env%t_wood0(1),                 &
                env%leaf_dry_hcap(1), env%wood_dry_hcap(1), env%leaf_water_enth(1), env%wood_water_enth(1),        &
-               env%leaf_wmass(1), env%wood_wmass(1), env%buried(1))
+               env%leaf_wmass(1), env%wood_wmass(1), env%buried(1), env%qwflux_wl(1), env%q_wood_net(1))
+      env%qwflux_wl        = 0.0_wp
+      env%q_wood_net       = 0.0_wp
       env%leaf_wmass       = w_leaf
       env%wood_wmass       = w_wood
       env%buried           = 0.0_wp
@@ -704,7 +728,7 @@ contains
       allocate(env%h_coeff_leaf(n), env%g_transp_leaf(n), env%abs_sw(n), env%abs_lw(n), env%lai(n),            &
                env%h_coeff_w(n), env%abs_sw_wood(n), env%abs_lw_wood(n), env%wai(n), env%leaf_hcap_per_dt(n),  &
                env%wood_hcap_per_dt(n), env%t_leaf0(n), env%t_wood0(n), env%qwflux_wl(n), env%q_wood_net(n),   &
-               env%transp_net(n), env%leaf_emiss(n), env%wood_emiss(n), source=0.0_wp)
+               env%transp_net(n), env%leaf_emiss(n), env%wood_emiss(n), env%buried(n), source=0.0_wp)
       env%t_leaf0 = T_CAS
       env%t_wood0 = T_CAS
       env%leaf_emiss = 0.97_wp
