@@ -76,7 +76,7 @@ program test_surface
    use ed_surface,            only : surface_env_t, porous_node_env_t, water_stage_out_t, surface_node_t,      &
                                      node_flux_t, surface_node_balance, surface_stack_balance, water_layer_stage,  &
                                      water_layer_commit,                                                        &
-                                     water_layer_cover_of, water_layer_ice, ground_surface_exchange,           &
+                                     water_layer_cover_of, water_layer_ice, ground_surface_exchange, water_layer_exposed, &
                                      store_exchange_t, STORE_WATER, N_SURFACE_STORE,                            &
                                      snow_blend_ground_optics, ground_tile_radiation, ground_surface_fluxes,    &
                                      conductance_in_series
@@ -547,16 +547,19 @@ contains
                  1.0e-9_wp)
       call check_true('nothing is left', .not. ground_store_present(layer))
 
-      !--- (c) A pond holding a round-off share of ice: free water, covering nothing.
+      !---~---
+      !   (c) A 3 mm pond holding a round-off share of ice: its water free, the pond a layer that covers
+      ! what a 3 mm layer of its density covers (water_layer_exposed: the free water with the rest).
+      !---~---
       layer = water_layer_state_t()
       layer%water  = 3.0_wp
       layer%energy = 3.0_wp * internal_energy_liquid(t_3ple) - 1.0e-6_wp
       call water_layer_stage(0.0_wp, 0.0_wp, 280.0_wp, 0.0_wp, 0.0_wp, DT, p, MIN_DEPTH, 275.0_wp, 1.0_wp, layer, st)
-      call check_true('a pond with a trace of ice holds no layer over the step', .not. st%is_layer)
+      call check_true('a 3 mm pond with a trace of ice is a layer', st%is_layer)
       call check_true('its water is free, but for the trace and what it holds', st%free%water > 3.0_wp - 1.0e-9_wp, &
                       st%free%water)
-      call check_true('and it covers nothing', water_layer_cover_of(layer, st%is_layer, p, 0.01_wp) < 1.0e-6_wp,    &
-                      water_layer_cover_of(layer, st%is_layer, p, 0.01_wp))
+      call check('and it covers what 3 mm of water does', water_layer_cover_of(water_layer_exposed(layer, st%free),  &
+                 st%is_layer, p, 0.01_wp), tanh(3.0e-3_wp / (p%cover_scale_factor * 0.01_wp * 10.0_wp)), 1.0e-6_wp)
 
       !--- (d) A cold deep pack and a pond at the triple point, one store: the pack's cold freezes it in its pores.
       layer = cold_pack(40.0_wp, 255.0_wp, p)

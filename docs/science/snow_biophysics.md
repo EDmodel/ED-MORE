@@ -20,7 +20,16 @@ The snow kernels live in `ed_surface`; the pack is a single bulk layer. The prog
   - The **pack-to-soil conductance** is the series resistance of the whole snow depth and the top soil node. The pack's one temperature is its surface's: it emits, and exchanges heat and vapour with the canopy air, at that temperature. The heat between it and the soil therefore crosses the whole pack, as it does from a real pack's surface to its base. Through half the depth, the soil lost heat to the snow's surface as if the pack were half as deep. The layer's heat capacity is still the whole pack's, at its surface's temperature, so its cold content is that of a pack as cold as its surface; only a layered pack would separate the two. The conductance falls as the pack deepens ($`k_{snow}\ll k_{soil}`$), which decouples the soil and caps the winter soil surface, and it is the soil's top boundary against the march's own top-node temperature. The top node's $`k_{soil}`$ is the soil heat solver's conductivity of layer 1 at the step's start (its water, ice fraction and texture), so a frozen or a dry top layer conducts as the soil says it does.
 - **Commit** (`snow_take_exchange`, through `store_take_exchange`). The pack takes the march's time integral of the exchange, the energy and vapour the canopy air and the soil received from it, so the pack, the canopy air and the soil close together in the whole-column ledgers. Its temperature is read off the new energy.
 
-### The water layer's optics and conductivity
+### The exposed water layer: its pond, optics and conductivity
+
+A layer of the water layer, from `min_depth` deep, is everything it holds, its free water included: a pond is
+a layer as a snowpack is. Its cover, its optics and its conductance are the whole store's at the stage
+(`water_layer_exposed`), and its node in the ground's stack holds what it keeps over the step and the free water
+the water network leaves it at the step's end. The water it gives the ground leaves it at the node's own
+temperature, the water rising into it arrives at its giver's, and the runoff the pond's capacity spills leaves at
+the free water's stage temperature; ponded water therefore takes the sun, emits, and evaporates as open water
+over its cover. A film, thinner than `min_depth`, does not exchange, and its free water keeps its stage
+temperature.
 
 The layer's albedo in each band weighs three surfaces (`water_layer_albedo`, `water_layer_optics_shares`): the
 water standing above its ice matrix, the share $`s = \max(0, I/\rho_{ice} + L/\rho_w - d_m)/d`$ of its depth $`d`$

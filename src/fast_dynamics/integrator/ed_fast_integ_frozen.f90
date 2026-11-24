@@ -55,7 +55,7 @@ module ed_fast_integ_frozen
    use ed_leaf_gas_exchange, only : leaf_gas_exchange_batch, cohort_leaf_par
    use ed_respiration,   only : stem_maintenance_respiration, fine_root_maintenance_respiration, root_zone_temp_scale, &
                                 decomposition_env_scalar, decomposition_transfer_matrix, heterotrophic_respiration
-   use ed_surface, only : surface_env_t, porous_node_env_t, water_layer_stage, water_layer_cover_of
+   use ed_surface, only : surface_env_t, porous_node_env_t, water_layer_stage, water_layer_cover_of, water_layer_exposed
    use ed_soil_water, only : porous_cover_path, slot_evaporation_setup
    use ed_therm_lib,          only : internal_energy_liquid,                                                     &
                                      cas_enthalpy_to_temp, cas_heat_capacity, air_vpd, air_density,             &
@@ -112,7 +112,7 @@ contains
       ! the two-stream's ground and the surface's balance have one cover.
       !---~---
       call ground_stage(dt_fast, cfg, site, static, forcing, dynamic, out, frozen)
-      if (forcing%sky_live) call canopy_ground_radiation(cfg, static, dynamic, frozen%ground%pack,              &
+      if (forcing%sky_live) call canopy_ground_radiation(cfg, static, dynamic, frozen%ground%exposed,           &
                                                          frozen%ground%snowfac, forcing)
 
       !---~---
@@ -250,15 +250,21 @@ contains
          !--- A film's heat comes from the top soil layer, at the march's start.
          frozen%stage_soil_heat = frozen%stage%film_heat
       end if
-      frozen%ground%snowfac = water_layer_cover_of(frozen%ground%pack, frozen%stage%is_layer,                     &
+      !---~---
+      !   The layer exposed, what it holds and its free water together, sets its cover of the
+      ! ground and its optics (water_layer_exposed).
+      !---~---
+      frozen%ground%exposed = water_layer_exposed(frozen%ground%pack, frozen%stage%free)
+      frozen%ground%snowfac = water_layer_cover_of(frozen%ground%exposed, frozen%stage%is_layer,                  &
                                                    cfg%ground_surface%water, cfg%aero%soil_rough)
       !---~---
       !   The free water reaches the water network's pond over the step at a steady rate, so the
       ! pond starts from empty at the head the ground below gives it. The network moves its water;
-      ! its heat stays with the water layer's store, which keeps the free water's temperature.
+      ! its heat is the water layer's store's.
       !---~---
       frozen%water_drive%rain = frozen%stage%free%water / dt_fast
-      frozen%ground%free_temp = frozen%stage%free_temp
+      frozen%ground%free_temp  = frozen%stage%free_temp
+      frozen%ground%free_start = frozen%stage%free
       out%report%exports%water_layer_cover = frozen%ground%snowfac
    end subroutine ground_stage
 
@@ -1110,6 +1116,7 @@ contains
       associate (fl => water%flows, env => frozen%ground)
          env%free_down = fl%face(POND) / dt_fast
          env%runoff    = fl%spill / dt_fast
+         env%free_end  = water%state%water_soil(POND)
          env%porous    = porous_node_env_t()
          do j = 1_ik, water%n_porous
             k = frozen%water_drive%porous%slot(j)

@@ -36,7 +36,7 @@ module ed_surface
    private
 
    public :: ground_surface_exchange, ground_surface_fluxes
-   public :: water_layer_stage, water_layer_commit, water_layer_cover_of, water_layer_ice
+   public :: water_layer_stage, water_layer_commit, water_layer_cover_of, water_layer_ice, water_layer_exposed
    public :: snow_blend_ground_optics
    public :: ground_tile_radiation
    public :: surface_env_t, porous_node_env_t, water_stage_out_t, surface_node_t, node_flux_t, store_exchange_t
@@ -125,8 +125,11 @@ module ed_surface
       real(wp) :: ground_emiss   = 0.95_wp              ! [-]
       !---~---
       !   The water layer's free water over the step: the water network's net flow from it into
-      ! the ground below (< 0: up into it), its runoff, and its temperature at the stage, which it
-      ! keeps: it does not exchange, so the water that leaves it leaves at that temperature.
+      ! the ground below (< 0: up into it), its runoff, its temperature at the stage, and what it
+      ! held there and holds at the step's end. Where the water layer is a layer it is part of the
+      ! layer's node, which exchanges; where the store is a film, the free water does not exchange
+      ! and the water that leaves it leaves at its stage temperature. The runoff, the free water
+      ! the pond's capacity spills, leaves at that temperature either way.
       !---~---
       real(wp) :: free_down = 0.0_wp                    ! [kg/m2/s]
       real(wp) :: runoff    = 0.0_wp                    ! [kg/m2/s]
@@ -138,7 +141,10 @@ module ed_surface
       !---~---
       real(wp) :: buried_cap    = 0.0_wp                ! [J/m2/K]
       real(wp) :: buried_energy = 0.0_wp                ! [J/m2]
+      type(ground_store_t) :: free_start                ! [kg/m2], [J/m2]
+      real(wp) :: free_end  = 0.0_wp                    ! [kg/m2]
       type(water_layer_state_t) :: pack                 ! the water layer over the step, its free water apart
+      type(water_layer_state_t) :: exposed              ! the water layer and its free water at the stage
       real(wp) :: snowfac    = 0.0_wp                   ! [-] its cover (water_layer_cover_of; 0 for a film)
       type(water_material_t) :: params                  ! the water layer's material
       real(wp) :: dt         = 0.0_wp                   ! [s] the step
@@ -269,22 +275,34 @@ contains
       type(node_flux_t)    :: flux(STACK_NODES_MAX)
       real(wp)    :: resistance(STACK_NODES_MAX), contact(STACK_NODES_MAX), cover, h_bare, le_soil
       integer(ik) :: store(STACK_NODES_MAX), n, i, k, top_porous
+      logical     :: water_node   ! the water layer is the stack's top node
+      type(water_layer_state_t) :: exposed
       stores = store_exchange_t()
       cover  = max(0.0_wp, min(1.0_wp, env%snowfac))
       n = 0_ik
-      if (env%pack%water > 0.0_wp .and. cover > 0.0_wp) then
-         !--- The water layer's node, with the plant tissue the pack buries at its temperature (vegetation_energy_dynamics.md).
+      water_node = .false.
+      if (env%pack%water + env%free_start%water > 0.0_wp .and. cover > 0.0_wp) then
+         !---~---
+         !   The water layer's node: what it held over the step and its free water, at their start
+         ! energy and temperature (water_layer_exposed), holding at the step's end what the water
+         ! network leaves of the free water, and the plant tissue the pack buries at its
+         ! temperature (vegetation_energy_dynamics.md); the water it gives the ground leaves at the
+         ! node's temperature (advect_through).
+         !---~---
+         exposed = water_layer_exposed(env%pack, env%free_start)
          n = n + 1_ik
+         water_node        = .true.
          store(n)          = STORE_WATER
-         node(n)%water     = env%pack%water
-         node(n)%energy    = env%pack%energy + env%buried_energy
+         node(n)%water     = env%pack%water + env%free_end
+         node(n)%energy    = exposed%energy + env%buried_energy
          node(n)%dry_cap   = env%buried_cap
+         node(n)%temp      = exposed%temp
+         node(n)%fliq      = exposed%fliq
          node(n)%area      = cover
          node(n)%emiss     = env%params%emissivity
          node(n)%rad       = env%sw_snow
-         call internal_energy_to_temp(env%pack%energy, env%pack%water, 0.0_wp, node(n)%temp, node(n)%fliq)
-         resistance(n)     = water_layer_resistance(layer_depth(env%pack), env%pack%matrix_depth,                  &
-                                                    matrix_conductivity(env%pack, env%params))
+         resistance(n)     = water_layer_resistance(layer_depth(exposed), exposed%matrix_depth,                  &
+                                                    matrix_conductivity(exposed, env%params))
          contact(n)        = cover
       end if
       top_porous = n + 1_ik
@@ -318,7 +336,7 @@ contains
          end if
          if (i > 1_ik) node(i)%g_above = node(i - 1_ik)%g_below
       end do
-      call advect_through(env, top_porous, n, node)
+      call advect_through(env, water_node, top_porous, n, node)
       call surface_stack_balance(node, n, env, flux, iterations, fallback)
       call ground_surface_fluxes(env%t_soil_top, env%can_temp, env%ggnet, env%rho_air, env%cp_cas, env%soil_evap,    &
                                  h_bare, le_soil)
@@ -339,9 +357,9 @@ contains
          ground_rad = ground_rad + (1.0_wp - cover) * env%rnet_soil
          g_top      = g_top      + (1.0_wp - cover) * (env%rnet_soil - h_bare)
       end if
-      call advected_heat(env, top_porous, n, flux, g_top, stores%energy_in(STORE_WATER))
+      call advected_heat(env, water_node, top_porous, n, flux, g_top, stores%energy_in(STORE_WATER))
       !--- The buried tissue's share of the water layer's node's heat, a matched pair with the layer.
-      if (n > 0_ik .and. top_porous > 1_ik .and. env%buried_cap > 0.0_wp) then
+      if (water_node .and. env%buried_cap > 0.0_wp) then
          stores%buried_heat = (env%buried_cap * flux(1)%t_surf - env%buried_energy) / env%dt
          stores%energy_in(STORE_WATER) = stores%energy_in(STORE_WATER) - stores%buried_heat
       end if
@@ -352,29 +370,38 @@ contains
    ! (surface_node_t): down a chain from the free water through the porous layers (nodes
    ! top_porous .. n) into the soil, each face's net flow. Water a face carries from a node leaves
    ! it at its own temperature (m_out) and reaches the node across at that temperature (m_above,
-   ! m_below); water from the free water or the soil, whose temperatures are held, brings the
-   ! node a fixed heat (q_in). The water layer's held part takes no water: the free water is the
-   ! store that drains.
+   ! m_below); water from the soil, whose temperature is held, brings the node a fixed heat (q_in).
+   ! Where the water layer is the stack's top node (water_node), the free water is part of it: what
+   ! it gives the ground leaves it at its temperature, and what rises into it arrives at its giver's;
+   ! its runoff leaves at the free water's stage temperature, a fixed heat. Where it is not, the
+   ! free water keeps its stage temperature, and the water it gives the top porous layer brings
+   ! that layer a fixed heat.
    !---~---
-   pure subroutine advect_through(env, top_porous, n, node)
+   pure subroutine advect_through(env, water_node, top_porous, n, node)
       type(surface_env_t),  intent(in)    :: env
+      logical,              intent(in)    :: water_node      ! node 1 is the water layer's
       integer(ik),          intent(in)    :: top_porous, n   ! the porous layers are nodes top_porous .. n
       type(surface_node_t), intent(inout) :: node(:)
       real(wp)    :: q
       integer(ik) :: i, k
       q = env%free_down                       ! down the face above the top porous layer
+      if (water_node) then
+         node(1)%m_out = max(q, 0.0_wp)
+         node(1)%q_in  = -env%runoff * internal_energy_liquid(env%free_temp)
+         if (n < top_porous) node(1)%q_in = node(1)%q_in + max(-q, 0.0_wp) * internal_energy_liquid(env%t_soil_top)
+      end if
       i = top_porous - 1_ik
       do k = 1_ik, N_POROUS
          if (.not. (env%porous(k)%dry_cap > 0.0_wp)) cycle
          i = i + 1_ik
-         if (i == top_porous) then
+         if (i == top_porous .and. .not. water_node) then
             node(i)%q_in  = node(i)%q_in + max(q, 0.0_wp) * internal_energy_liquid(env%free_temp)
             node(i)%m_out = node(i)%m_out + max(-q, 0.0_wp)
          else
             node(i)%m_above      = max(q, 0.0_wp)
-            node(i - 1_ik)%m_out = node(i - 1_ik)%m_out + max(q, 0.0_wp)
             node(i - 1_ik)%m_below = max(-q, 0.0_wp)
             node(i)%m_out        = node(i)%m_out + max(-q, 0.0_wp)
+            if (i > top_porous) node(i - 1_ik)%m_out = node(i - 1_ik)%m_out + max(q, 0.0_wp)
          end if
          q = env%porous(k)%down
       end do
@@ -388,12 +415,15 @@ contains
    !---~---
    !   The heat the water the water network moved carried at the stack's solution (advect_through's
    ! chain): into the soil top, the bottom porous layer's down at its temperature, or the free
-   ! water's at its own where no porous layer lies, less what rose from the soil at its top's; and
-   ! the free water's own change, the water and its runoff leaving it at its temperature and the
-   ! water rising into it at its giver's, which the water layer's store takes.
+   ! water's, at the water layer's node's or its stage temperature, where no porous layer lies,
+   ! less what rose from the soil at its top's; and, where the water layer is no node, the free
+   ! water's own change, the water and its runoff leaving it at its stage temperature and the
+   ! water rising into it at its giver's, which the water layer's store takes (a node's own
+   ! balance holds them).
    !---~---
-   pure subroutine advected_heat(env, top_porous, n, flux, g_top, free_heat)
+   pure subroutine advected_heat(env, water_node, top_porous, n, flux, g_top, free_heat)
       type(surface_env_t), intent(in)    :: env
+      logical,             intent(in)    :: water_node
       integer(ik),         intent(in)    :: top_porous, n
       type(node_flux_t),   intent(in)    :: flux(:)
       real(wp),            intent(inout) :: g_top       ! [W/m2] into the soil top
@@ -402,6 +432,7 @@ contains
       integer(ik) :: k
       q_soil  = env%free_down
       t_giver = env%free_temp
+      if (water_node) t_giver = flux(1)%t_surf
       do k = 1_ik, N_POROUS
          if (env%porous(k)%dry_cap > 0.0_wp) q_soil = env%porous(k)%down
       end do
@@ -412,6 +443,7 @@ contains
       end if
       g_top = g_top + max(q_soil, 0.0_wp) * internal_energy_liquid(t_giver)                                     &
                     - max(-q_soil, 0.0_wp) * internal_energy_liquid(env%t_soil_top)
+      if (water_node) return
       free_heat = free_heat - (max(env%free_down, 0.0_wp) + env%runoff) * internal_energy_liquid(env%free_temp)     &
                             + max(-env%free_down, 0.0_wp) * internal_energy_liquid(t_first)
    end subroutine advected_heat
@@ -966,11 +998,10 @@ contains
    ! since a thin litter holds too little heat to melt a dusting alone; the top soil layer, whose
    ! heat capacity a film is far below, gives it its temperature and phase (t_below, fliq_below).
    ! The free water is set apart with its energy at the layer's temperature (free, free_temp): it
-   ! is what the water network moves over the step, and it keeps that temperature, so the water
-   ! that leaves it leaves at it. The rest, held, is what the layer's balance takes, a layer itself
-   ! only from min_depth deep (is_layer): a pond's skim of ice sits in it, exchanging nothing. A
-   ! store all liquid sets all it holds apart, as does one the water network left a round-off
-   ! short of empty.
+   ! is what the water network moves over the step. The rest is held. A store all liquid sets all
+   ! it holds apart, as does one the water network left a round-off short of empty. A layer
+   ! (is_layer), the two together, a pond's water as a snowpack's, exchange with the canopy air
+   ! over the layer's cover (ground_surface_exchange); a film does not.
    !---~---
    pure subroutine water_layer_stage(rainfall, snowfall, t_air, shed, shed_enth, dt, params, min_depth, t_below,   &
                                      fliq_below, layer, st, below, below_dry_cap, below_depth, below_curve)
@@ -1028,8 +1059,23 @@ contains
       end if
       st%ice_held = water_layer_ice(layer)
       call diagnose_water_layer(layer)
-      st%is_layer = st%is_layer .and. layer_depth(layer) >= min_depth
    end subroutine water_layer_stage
+
+   !---~---
+   !   The water layer as it lies exposed at the stage: what it holds over the step and its free
+   ! water together, at their energy, its temperature and liquid fraction read off it, over its
+   ! ice matrix: the store whose cover, optics and conductance the ground's radiation and its
+   ! stack read.
+   !---~---
+   pure function water_layer_exposed(held, free) result(layer)
+      type(water_layer_state_t), intent(in) :: held
+      type(ground_store_t),      intent(in) :: free
+      type(water_layer_state_t) :: layer
+      layer        = held
+      layer%water  = held%water + free%water
+      layer%energy = held%energy + free%energy
+      call diagnose_water_layer(layer)
+   end function water_layer_exposed
 
    !---~---
    !   [-] The water layer's cover over a step: Niu & Yang (2007)'s, over the depth and the bulk
@@ -1050,13 +1096,14 @@ contains
    end function water_layer_cover_of
 
    !---~---
-   !   water_layer_commit -- the water layer after a step: what it held over the step takes its
-   ! exchange with the canopy air (the energy in, the vapour out, and the heat the free water's
-   ! flows carried, all in energy_in), its free water back, the water the network's flows moved
-   ! with the heat energy_in already holds, and the condensate with the enthalpy the canopy air
-   ! gave up for it; then its matrix follows its ice (matrix_depth_update from ice_held, the ice
-   ! it held over the step: ice that melted or sublimated takes its share of the matrix, ice that
-   ! formed fills its pores), and its temperature and liquid fraction are read off its energy.
+   !   water_layer_commit -- the water layer after a step: what it held over the step and its free
+   ! water back take its exchange with the canopy air (the energy in, the vapour out, and the heat
+   ! the free water's flows carried, all in energy_in) and lose the water the network's flows took
+   ! from the free water, with the heat energy_in already holds; then the condensate joins with
+   ! the enthalpy the canopy air gave up for it, its matrix follows its ice (matrix_depth_update
+   ! from ice_held, the ice it held over the step: ice that melted or sublimated takes its share of
+   ! the matrix, ice that formed fills its pores), and its temperature and liquid fraction are read
+   ! off its energy.
    !---~---
    pure subroutine water_layer_commit(layer, energy_in, vapour_out, free, free_end, condensate, ice_held, params)
       type(water_layer_state_t), intent(inout) :: layer
@@ -1067,10 +1114,13 @@ contains
       real(wp),                  intent(in)    :: ice_held                ! [kg/m2]
       type(water_material_t),    intent(in)    :: params
       type(ground_store_t) :: giver
-      call store_take_exchange(layer, energy_in, vapour_out)
       giver = free
       call store_move(giver, layer, giver%water, giver%energy)
-      layer%water = layer%water + (free_end - free%water)
+      !---~---
+      !   The vapour and the water the network took from the free water leave the layer together. The
+      ! network can leave an empty pond a round-off past empty, which is no water.
+      !---~---
+      call store_take_exchange(layer, energy_in, vapour_out + (free%water - max(free_end, 0.0_wp)))   ! clamp-ok: round-off
       giver = condensate
       call store_move(giver, layer, giver%water, giver%energy)
       call diagnose_water_layer(layer)
