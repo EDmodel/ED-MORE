@@ -110,6 +110,13 @@ module ed_fast_integ_backward_euler
    real(wp),    parameter :: NODE_SOLVE_SHARE = 1.0e-3_wp
    integer(ik), parameter :: NODE_SOLVE_MAX   = 200_ik
    !---~---
+   !   The classes' hysteresis: a node keeps the class it had at the last accepted sub-step until
+   ! the measure that put it there has moved CLASS_HYSTERESIS times past the threshold, so a node
+   ! sitting at a threshold does not change class at round-off. A numerical choice: the classes
+   ! change how a balance is solved, not what solves it.
+   !---~---
+   real(wp),    parameter :: CLASS_HYSTERESIS = 2.0_wp
+   !---~---
    !   solve_node's bracket search: its first step Newton's, but at least NODE_STEP_MIN of the
    ! unknown (or of one), so it moves the unknown however flat the balance; how far one step may
    ! go towards zero on the dry side, to NODE_DRY_SHARE of the unknown, three decades of
@@ -597,6 +604,7 @@ contains
       logical     :: converged, last, spilled, forced, kept
       logical     :: fast(water%nsoil), cut(water%nsoil)   ! the sub-step's eliminated and detached core nodes
       logical     :: held_out(water%nsoil)                 ! the core nodes held out for the rest of the step
+      logical     :: was_fast(water%nsoil), was_cut(water%nsoil)   ! the classes of the last accepted sub-step
       type(water_state_t) :: start_state                   ! a forced sub-step's start, to hold still at
       type(water_flows_t) :: start_flows
 
@@ -612,6 +620,8 @@ contains
       water%start_ready = .false.
       forced = .false.
       held_out = .false.
+      was_fast = .false.
+      was_cut  = .false.
 
       t = 0.0_wp
       h = dt
@@ -624,8 +634,8 @@ contains
          tau_soil = water%state%tau_soil
          tau_coh = water%state%tau_coh
          call water_newton_substep(static, profile, soil, hyd, drive, h, atol, scale_soil, scale_coh,           &
-                                   tau_soil, tau_coh, held_out, water, converged, iters, i_sol, fast, cut, worst_at,   &
-                                   n_unsolved, n_search, n_sweep)
+                                   tau_soil, tau_coh, held_out, was_fast, was_cut, water, converged, iters, i_sol,     &
+                                   fast, cut, worst_at, n_unsolved, n_search, n_sweep)
          work_count(WORK_WATER_NEWTON) = work_count(WORK_WATER_NEWTON) + iters
          work_count(WORK_WATER_NODE_UNSOLVED) = work_count(WORK_WATER_NODE_UNSOLVED) + n_unsolved
          work_count(WORK_WATER_LINE_SEARCH) = work_count(WORK_WATER_LINE_SEARCH) + n_search
@@ -667,6 +677,8 @@ contains
          if (forced) call count_forced(converged, worst_at)
          call count_classes(fast, WORK_WATER_FAST_POND, WORK_WATER_FAST_SLOT, WORK_WATER_FAST_LAYER)
          call count_classes(cut, WORK_WATER_CUT_POND, WORK_WATER_CUT_SLOT, WORK_WATER_CUT_LAYER)
+         was_fast = fast
+         was_cut  = cut .and. .not. held_out
          if (converged) then
             !--- A sub-step's balance that is not finite is never committed: the run stops.
             if (.not. finite_evaluation(water%ev(i_sol), tau_soil, tau_coh))                                  &
@@ -798,8 +810,8 @@ contains
    ! blocks solved by sweeps are counted (n_unsolved, n_sweep).
    !---~---
    subroutine water_newton_substep(static, profile, soil, hyd, drive, h, atol, scale_soil, scale_coh,             &
-                                   tau_soil, tau_coh, held_out, water, converged, iters, i_sol, fast, cut, worst_at,   &
-                                   n_unsolved, n_search, n_sweep)
+                                   tau_soil, tau_coh, held_out, was_fast, was_cut, water, converged, iters, i_sol,     &
+                                   fast, cut, worst_at, n_unsolved, n_search, n_sweep)
       type(fast_static_state_t), intent(in)    :: static
       type(soil_profile_t),      intent(in)    :: profile
       type(soil_params_t),       intent(in)    :: soil
@@ -808,6 +820,7 @@ contains
       real(wp),                  intent(in)    :: h, atol, scale_soil(:), scale_coh(:,:)
       real(wp),                  intent(inout) :: tau_soil(:), tau_coh(:,:)   ! start of sub-step in, solution out
       logical,                   intent(in)    :: held_out(:)   ! (nsoil) core nodes held out, detached whatever their links
+      logical,                   intent(in)    :: was_fast(:), was_cut(:)   ! (nsoil) the last accepted sub-step's classes
       type(water_work_t),        intent(inout) :: water
       logical,                   intent(out)   :: converged
       integer(ik),               intent(out)   :: iters
@@ -848,8 +861,9 @@ contains
          call water_derivs(static, profile, soil, hyd, drive, tau_soil, tau_coh, water%ev(i_sol), water%sys, .true.)
          water%start_ready = .true.
       end if
-      call classify_fast(drive, tau_soil, water%sys, water%ev(i_sol), h, tol, scale_soil, fast, t_relax, at_once)
-      call inert_groups(water%ev(i_sol), h, tol, scale_soil, cut)
+      call classify_fast(drive, tau_soil, water%sys, water%ev(i_sol), h, tol, scale_soil, was_fast, fast, t_relax,   &
+                         at_once)
+      call inert_groups(water%ev(i_sol), h, tol, scale_soil, was_cut, cut)
       cut  = cut .or. held_out
       fast = fast .and. .not. cut
       call fast_blocks(t_relax, at_once, fast)
@@ -864,7 +878,7 @@ contains
          if (worst <= 1.0_wp) exit
          iters = it
          !--- A group the solve has lost sight of is detached; one whose links have returned rejoins.
-         call inert_groups(water%ev(i_sol), h, tol, scale_soil, cut_new)
+         call inert_groups(water%ev(i_sol), h, tol, scale_soil, cut .and. .not. held_out, cut_new)
          cut_new = cut_new .or. held_out
          if (any(cut_new .neqv. cut)) then
             cut  = cut_new
@@ -1019,21 +1033,25 @@ contains
    ! the start would carry past the head where its face meets the node below. So, too, is a node
    ! that starts on a corner of its curve (on_curve_corner): a Newton step linearised there holds
    ! one side of the corner only, its own bracketed solve both. Of a run of adjacent fast nodes,
-   ! those that relax at once are eliminated together, as blocks (fast_blocks).
+   ! those that relax at once are eliminated together, as blocks (fast_blocks). A node eliminated
+   ! at the last accepted sub-step (was_fast) stays so until its time scale passes
+   ! CLASS_HYSTERESIS times the threshold, and its link is seen at a CLASS_HYSTERESIS-th of the
+   ! tolerance (seen_links).
    !---~---
-   pure subroutine classify_fast(drive, tau_soil, sys, ev, h, tol, scale_soil, fast, t_relax, at_once)
+   pure subroutine classify_fast(drive, tau_soil, sys, ev, h, tol, scale_soil, was_fast, fast, t_relax, at_once)
       type(water_drive_t),      intent(in)  :: drive
       real(wp),                 intent(in)  :: tau_soil(:)
       type(arrowhead_system_t), intent(in)  :: sys
       type(water_tend_t),       intent(in)  :: ev
       real(wp),                 intent(in)  :: h, tol, scale_soil(:)
+      logical,                  intent(in)  :: was_fast(:)
       logical,                  intent(out) :: fast(:)
       real(wp),                 intent(out) :: t_relax(:)   ! [s] each node's time to relax to its neighbours
       logical,                  intent(out) :: at_once(:)   ! it holds no water where it starts, or starts on a corner
       real(wp)    :: big_l
       integer(ik) :: c, i, ib
       logical     :: seen(sys%nc), linked
-      call seen_links(ev, tol, scale_soil, seen)
+      call seen_links(ev, tol, scale_soil, 1.0_wp / face_hysteresis(was_fast(1:sys%nc)), seen)
       do c = 1_ik, sys%nc
          big_l = 0.0_wp
          do i = 1_ik, sys%nc
@@ -1042,7 +1060,7 @@ contains
          do ib = 1_ik, sys%nb
             big_l = big_l + abs(sys%c(c, ib))
          end do
-         linked = seen(c) .or. ev%root_link(c) >= tol * scale_soil(c)
+         linked = seen(c) .or. ev%root_link(c) >= tol * scale_soil(c) / hysteresis(was_fast(c))
          if (c > 1_ik) linked = linked .or. seen(c - 1_ik)
          t_relax(c) = abs(ev%dwater_soil(c)) / max(big_l, tiny_num)
          at_once(c) = ev%dwater_soil(c) == 0.0_wp
@@ -1053,9 +1071,26 @@ contains
          end if
          !--- So does one that empties within the sub-step.
          if (at_once(c) .or. -h * ev%inflow_soil(c) > ev%water_soil(c)) t_relax(c) = 0.0_wp
-         fast(c) = linked .and. t_relax(c) < FAST_SHARE * h
+         fast(c) = linked .and. t_relax(c) < FAST_SHARE * h * hysteresis(was_fast(c))
       end do
    end subroutine classify_fast
+
+   !--- [-] The factor by which a class's threshold moves for a node that held the class (CLASS_HYSTERESIS), else 1.
+   elemental real(wp) function hysteresis(held) result(f)
+      logical, intent(in) :: held
+      f = merge(CLASS_HYSTERESIS, 1.0_wp, held)
+   end function hysteresis
+
+   !--- [-] Each face's hysteresis (hysteresis): face c's when either of its nodes, c and c + 1, held the class.
+   pure function face_hysteresis(held) result(f)
+      logical, intent(in) :: held(:)
+      real(wp) :: f(size(held))
+      integer(ik) :: c
+      do c = 1_ik, size(held, kind=ik)
+         f(c) = hysteresis(held(c))
+         if (c < size(held, kind=ik)) f(c) = hysteresis(held(c) .or. held(c + 1_ik))
+      end do
+   end function face_hysteresis
 
    !---~---
    !   The blocks of eliminated nodes (docs/science/soil_plant_water.md §3, "Node classes"). In a
@@ -1099,16 +1134,19 @@ contains
    !---~---
    !   The chain's faces the solve can see: face c, joining nodes c and c + 1, is seen when a whole
    ! unit of either end's unknown moves either end's balance by the convergence tolerance (each
-   ! weighed as water_residual weighs that balance), from its slopes whether or not it is cut.
+   ! weighed as water_residual weighs that balance), from its slopes whether or not it is cut, the
+   ! tolerance moved by each face's factor (the classes' hysteresis).
    !---~---
-   pure subroutine seen_links(ev, tol, scale_soil, seen)
+   pure subroutine seen_links(ev, tol, scale_soil, factor, seen)
       type(water_tend_t), intent(in)  :: ev
       real(wp),           intent(in)  :: tol, scale_soil(:)
+      real(wp),           intent(in)  :: factor(:)   ! (nc) [-] face c's tolerance over the convergence tolerance
       logical,            intent(out) :: seen(:)
       integer(ik) :: c, nc
       nc = size(seen, kind=ik)
       do c = 1_ik, nc - 1_ik
-         seen(c) = max(abs(ev%face_dqa(c)), abs(ev%face_dqb(c))) >= tol * min(scale_soil(c), scale_soil(c + 1_ik))
+         seen(c) = max(abs(ev%face_dqa(c)), abs(ev%face_dqb(c)))                                               &
+                   >= tol * min(scale_soil(c), scale_soil(c + 1_ik)) * factor(c)
       end do
       seen(nc) = .false.
    end subroutine seen_links
@@ -1121,23 +1159,27 @@ contains
    ! group none of whose members holds storage the solve can see, with no link it can see to a
    ! node outside it or to a cohort, is detached as one unit. Its matrix would be singular, or so
    ! close to it that a step sends its unknowns off by kilometres: an empty pond on sealed frozen
-   ! ground, a frozen layer whose pores are full, and those with frozen porous layers between.
+   ! ground, a frozen layer whose pores are full, and those with frozen porous layers between. A
+   ! node detached before (was_cut) rejoins only once its storage or a link out is
+   ! CLASS_HYSTERESIS times what the solve can see.
    !---~---
-   pure subroutine inert_groups(ev, h, tol, scale_soil, cut)
+   pure subroutine inert_groups(ev, h, tol, scale_soil, was_cut, cut)
       type(water_tend_t), intent(in)  :: ev
       real(wp),           intent(in)  :: h, tol, scale_soil(:)
+      logical,            intent(in)  :: was_cut(:)
       logical,            intent(out) :: cut(:)
       integer(ik) :: nc, c, first
       logical     :: seen_link(size(cut)), active
+      real(wp)    :: seen_at
       nc = size(cut, kind=ik)
-      call seen_links(ev, tol, scale_soil, seen_link)
+      call seen_links(ev, tol, scale_soil, face_hysteresis(was_cut(1:nc)), seen_link)
       cut = .false.
       !--- The chain's groups: runs of nodes joined by seen faces.
       first = 1_ik
       active = .false.
       do c = 1_ik, nc
-         if (abs(ev%dwater_soil(c)) / h >= tol * scale_soil(c) .or. ev%root_link(c) >= tol * scale_soil(c))      &
-            active = .true.
+         seen_at = tol * scale_soil(c) * hysteresis(was_cut(c))
+         if (abs(ev%dwater_soil(c)) / h >= seen_at .or. ev%root_link(c) >= seen_at) active = .true.
          if (.not. seen_link(c)) then
             if (.not. active) cut(first:c) = .true.
             first  = c + 1_ik
