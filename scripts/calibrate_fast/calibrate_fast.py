@@ -103,8 +103,9 @@ def base_record(cal, work, workers, runner, log):
     csv = rdir / "out" / f"{trials.PREFIX}_parameters.csv"
     if not csv.exists():
         cfg = trials.with_keys(cal.base, [], [], cal.overrides)
-        w = cal.windows[0]
-        for k, v in {"run.start_time": trials.stamp(w.start), "run.end_time": trials.stamp(w.start + dt.timedelta(days=1)),
+        #--- a restart continues from its state's date, so a base that restarts runs its own first day
+        start = chains.restart_start(cfg) or cal.windows[0].start
+        for k, v in {"run.start_time": trials.stamp(start), "run.end_time": trials.stamp(start + dt.timedelta(days=1)),
                      "run.slow_on": False, "run.n_threads": 1, "output.state_write": False, "output.enabled": True,
                      "output.dir": str(rdir / "out"), "output.prefix": trials.PREFIX, "output.daily.enabled": False,
                      "output.fast.enabled": False, "output.monthly.enabled": False,

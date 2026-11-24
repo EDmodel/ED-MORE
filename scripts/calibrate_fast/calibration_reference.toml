@@ -74,8 +74,9 @@ days            = 10             # A calibration window's length [days]. Ten fro
                                  #   water-stress keys need the seasonal runs ([seasonal_runs]).
 skip_hours      = 0              # Hours left unscored at each window's start (the restart's first hours).
 chain_lead_days = 180            # Every window restarts from its own state: a frozen run from the initial stand (the
-                                 #   base config's census or state) that starts this many days before the window, so the
-                                 #   soil water and temperature are the model's own. Half a year spans a wet season
+                                 #   base config's census) that starts this many days before the window, so the soil
+                                 #   water and temperature are the model's own; a base that restarts from a state file
+                                 #   starts its chains at the state's date instead. Half a year spans a wet season
                                  #   before any dry-season window. A chain of a frozen stand ([demography].
                                  #   demography_on = false) runs the slow tier, so its leaves follow the season:
                                  #   give it a year (365).

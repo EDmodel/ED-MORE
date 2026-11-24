@@ -372,6 +372,15 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 
 ### Fixed
 
+- `calibrate_fast` with a base config that restarts from a state file (`[init].init_mode = 2`) runs: a
+  restart continues from its state's time, so the parameter record's run and every chain now start at the
+  state's date and keep the restart. The record run started at the first window and stopped in the forcing
+  reader, and the chains started from the census a lead before each window, not from the spin-up's soil.
+  A window before the state's date stops with a message. (#TBD)
+- The calibrated config of a base that restarts from a state file sets `init.reacclimate_traits = true`,
+  unless `[calibrated]` says otherwise: without it every cohort kept the traits its state held, and the
+  fitted `vcmax25`, `stomatal_g1` and `capacity_low_temp` never reached the calibrated run. Census bases
+  are unchanged. (#TBD)
 - `calibrate_fast` with `[closure].shares = "none"` no longer stops at the closure alternative: with H and LE
   scored as measured there is no closure factor, and the alternative is skipped with that reason. (#96)
 - Cohort output under daily growth: the stand is re-sorted every day, so a monthly cohort record could

@@ -1141,3 +1141,69 @@ def test_a_chain_runs_the_leaves_only_of_a_frozen_stand():
     assert not chains.leaves_follow(cfg({"demography": {"demography_on": True}}))
     assert not chains.leaves_follow(cfg({}))                                         # demography on by default
     assert not chains.leaves_follow(cfg({"demography": {"demography_on": False}, "run": {"slow_on": False}}))
+
+
+def test_the_calibrated_config_of_a_restart_reacclimates_its_traits(tmp_path):
+    """A base config that restarts from a state file writes a calibrated config that re-acclimates
+    the cohorts' traits to the fitted values, as the trials do; a census base does not need it."""
+    import types
+    from edmore.config import RunConfig
+
+    def written(init):
+        main = tmp_path / "main.toml"
+        main.write_text("[init]\n" + "".join(f"{k} = {v}\n" for k, v in init.items()))
+        pft = tmp_path / "pft.toml"
+        pft.write_text("[pft]\nwood_density = [0.5]\n")
+        cal = types.SimpleNamespace(main_path=main, pft_path=pft, kattge_knorr={}, kattge_knorr_replaced={},
+                                    overrides={}, settings={"calibrated": {}}, variant=None,
+                                    base=RunConfig({"init": init}, {"pft": {"wood_density": [0.5]}}))
+        out = tmp_path / "out"
+        out.mkdir(exist_ok=True)
+        calibrated_files.write(cal, [], [], out)
+        return (out / "ed_config_calibrated.toml").read_text()
+    assert "reacclimate_traits = true" in written({"init_mode": 2, "restart_file": '"s.nc"'})
+    assert "reacclimate_traits" not in written({"init_mode": 1})
+
+
+def test_a_chain_from_a_state_file_starts_at_the_state(tmp_path):
+    """A base config that restarts from a state file starts its chain at its own start, the state's date
+    (a restart continues from its state's time), and keeps the restart; a census base starts the chain
+    chain_lead_days before the window. A window before the state's date stops."""
+    import datetime as dt
+    import tomllib
+    import chains
+    from edmore.config import RunConfig
+    from trials import TrialError, Window
+
+    seen = []
+
+    class Workers:
+        def run(self, tasks):
+            t = tasks[0]
+            main = tomllib.loads((Path(t.cwd) / "main.toml").read_text())
+            seen.append(main)
+            out = Path(t.cwd) / "out"
+            start = dt.datetime.fromisoformat(main["run"]["end_time"])
+            (out / f"c-S-{start:%Y%m%d%H%M%S}.nc").write_text("")
+            return {t.id: ("ok",)}
+
+    runner = tmp_path / "edmore"                          # the chains' names hash the model's build
+    runner.write_bytes(b"a build")
+    runner = str(runner)
+    pft = {"pft": {"wood_density": [0.5]}}
+    window = Window("w", dt.datetime(2021, 6, 14), 10, "cal")
+    state = RunConfig({"run": {"start_time": "2019-01-02 00:00:00"},
+                       "init": {"init_mode": 2, "restart_file": "spinup.nc"}}, pft)
+    assert chains.restart_start(state) == dt.datetime(2019, 1, 2)
+    chains.run_chain(window, 365, state, [], [], tmp_path / "a", Workers(), runner, {}, 30.0)
+    assert seen[-1]["run"]["start_time"] == "2019-01-02 00:00:00"
+    assert seen[-1]["init"]["init_mode"] == 2 and seen[-1]["init"]["restart_file"] == "spinup.nc"
+
+    census = RunConfig({"run": {"start_time": "2019-01-02 00:00:00"}, "init": {"init_mode": 1}}, pft)
+    assert chains.restart_start(census) is None
+    chains.run_chain(window, 365, census, [], [], tmp_path / "b", Workers(), runner, {}, 30.0)
+    assert seen[-1]["run"]["start_time"] == "2020-06-14 00:00:00" and seen[-1]["init"]["init_mode"] == 1
+
+    early = Window("e", dt.datetime(2018, 6, 14), 10, "cal")
+    with pytest.raises(TrialError):
+        chains.run_chain(early, 365, state, [], [], tmp_path / "c", Workers(), runner, {}, 30.0)

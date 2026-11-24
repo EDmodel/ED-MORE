@@ -144,8 +144,11 @@ python calibrate_fast.py fit ... --queue
   coverage of LE alone (its own target, not the windows' three); a site with a short growing season
   shortens the runs (`days`). A year under 100 mm gives none; without any, the drought keys are fixed,
   and `report` gives each year's reasons.
-- **Chains.** Every window has its own chain: a run from the initial stand (the base config's census
-  or state) that starts `[windows].chain_lead_days` (180) before it. The chains run at once. When the
+- **Chains.** Every window has its own chain: a run from the initial stand to the window. From a
+  census it starts `[windows].chain_lead_days` (180) before the window. From a state file (a base config
+  with `init_mode = 2`, such as a spun-up permafrost column) it starts at the base config's own start,
+  the state's date, since a restart continues from its state's time; the one-day run that reads the
+  parameter record starts there too. The chains run at once. When the
   base config freezes the stand (`[demography].demography_on = false`), a chain runs the slow tier, so
   the leaves follow the season to the window: a deciduous canopy is bare in a winter window, not the
   census's full leaf. Give such a chain a year's lead, so its phenology has seen a whole season. A
