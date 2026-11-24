@@ -190,8 +190,8 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - A plant is one individual: a tree with several stems is one plant at the diameter of their summed basal
   area, $`\sqrt{\sum_i D_i^2}`$, as `make_census.py` now lumps a stem table. Harvard's stand (examples 04 and
   07) is 10,014 trees from 12,075 stems at the same 41.6 m² ha⁻¹: its allometric LAI falls 2.7 %, its AGB
-  rises 2.4 % and its biomass mortality falls from 0.82 to 0.72 % yr⁻¹; its fitted `lai_b1`, phenology and
-  soil-carbon spin-up predate the change. BCI's tree tables keep each tree's main stem (the tool warns). (#99)
+  rises 2.4 % and its biomass mortality falls from 0.82 to 0.72 % yr⁻¹. BCI's tree tables keep each tree's
+  main stem (the tool warns). (#99)
 - The ground has surface layers, top down: one water layer, snow, ice and ponded water together,
   then the litter, the above-ground metabolic litter pool's dry matter, and the moss, a site's
   `[soil].moss_depth` (none by default) (docs/science/ground_surface_layers.md). Each layer has its own
