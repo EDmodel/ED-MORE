@@ -633,6 +633,7 @@ contains
       real(wp)    :: tau_soil(water%nsoil), tau_coh(COHORT_STORES, water%ncoh)
       integer(ik) :: trials, iters, i_sol, worst_at, n_unsolved, n_search, n_sweep
       logical     :: converged, last, spilled, forced, kept
+      logical     :: reread   ! the next sub-step's unknowns are read again from the water committed
       logical     :: fast(water%nsoil), cut(water%nsoil)   ! the sub-step's eliminated and detached core nodes
       logical     :: held_out(water%nsoil)                 ! the core nodes held out for the rest of the step
       logical     :: was_fast(water%nsoil), was_cut(water%nsoil)   ! the classes of the last accepted sub-step
@@ -651,6 +652,7 @@ contains
       call ground_evaporation_setup(profile, soil, drive%ground)
       water%start_ready = .false.
       forced = .false.
+      reread = .false.
       held_out = .false.
       was_fast = .false.
       was_cut  = .false.
@@ -744,19 +746,23 @@ contains
          !---~---
          !   The next sub-step starts where this one ended: its start is this one's solution, whose
          ! Jacobian sys still holds -- unless the spill moved the pond, or a node was detached, whose
-         ! cut faces the next sub-step's classes must not read, or the sub-step was forced, whose
-         ! unknowns are read again from the water it committed.
+         ! cut faces the next sub-step's classes must not read, or the sub-step was taken although its
+         ! Newton had not converged, whose unknowns are read again from the water it committed. A
+         ! sub-step forced by the error filter alone is a converged solution, its unknowns its water's:
+         ! read again, an eliminated node's unknown would lose the balance its own solve gave it, and
+         ! the next sub-step's error would see that balance's flow return at every length.
          !---~---
          water%i_start = i_sol
-         water%start_ready = .not. (spilled .or. any(cut) .or. forced)
-         if (forced) call unknowns_from_water(static, profile, hyd, drive%ice(1:water%nsl), drive%porous, water%state)
+         reread = forced .and. .not. converged
+         water%start_ready = .not. (spilled .or. any(cut) .or. reread)
+         if (reread) call unknowns_from_water(static, profile, hyd, drive%ice(1:water%nsl), drive%porous, water%state)
          t = t + h
          work_count(WORK_WATER_NSUB) = work_count(WORK_WATER_NSUB) + 1_ik
          if (err <= 1.0_wp)                                                                                   &
             h = h * min(GROW_MAX, max(SHRINK_MIN, SAFETY * max(err, 1.0e-10_wp) ** (-0.5_wp))) ! clamp-ok: controller floor
       end do
-      !--- The potentials a forced last sub-step left are its unknowns' as read again from its water.
-      if (forced)                                                                                             &
+      !--- The potentials an unconverged last sub-step left are its unknowns' as read again from its water.
+      if (reread)                                                                                             &
          call water_derivs(static, profile, soil, hyd, drive, water%state%tau_soil, water%state%tau_coh,         &
                            water%ev(water%i_start), water%sys, .false.)
       water%state%psi_soil = water%ev(water%i_start)%psi_soil
