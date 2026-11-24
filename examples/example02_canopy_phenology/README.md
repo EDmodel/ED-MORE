@@ -130,9 +130,8 @@ python ../../../scripts/calibrate_phenology/calibrate_phenology.py iterate \
 python plot_fit.py                       # harvard_stand.png
 ```
 
-A round is a coupled run of the stand (about 5 minutes) and an offline fit (10–15 minutes) on one
-40-core node. From example 04's values the fit settles in two rounds (31 minutes); from part 1's it
-takes four, about an hour. The fit writes example 04's PFT file with its values to
+A round is a coupled run of the stand (about 5 minutes) and an offline fit (13–15 minutes) on one
+40-core node; from example 04's values the four rounds take 72 minutes. The fit writes example 04's PFT file with its values to
 `../data/harvard_stand_runs/pft_parameters_fitted.toml`; example 04's file carries them.
 
 ### What is fitted
@@ -152,30 +151,32 @@ refill). The tool's README explains each.
 
 | target | cohorts | model − observed (RMSE) |
 |---|---|---|
-| HF003, leaf-out day of the canopy species | broadleaves above 15 m | −2.2 days (3.8) |
-| HF003, leaf-out day of the understorey species | broadleaves below 10 m | −0.5 days (2.5) |
-| HF003, leaves fallen, canopy species | broadleaves above 15 m | −0.06 of the canopy (0.09) |
-| HF003, leaves fallen, understorey species | broadleaves below 10 m | −0.02 (0.07) |
-| full in mid-July | broadleaves below 10 m | −0.02 |
-| LAI-2000, deciduous, over its summer level | all broadleaves | −0.03 (0.13) |
-| EMS baskets, share of the autumn's litter | all broadleaves | +0.06 (0.10) |
+| HF003, leaf-out day of the canopy species | broadleaves above 15 m | −2.3 days (3.9) |
+| HF003, leaf-out day of the understorey species | broadleaves below 10 m | −0.6 days (2.5) |
+| HF003, leaves fallen, canopy species | broadleaves above 15 m | −0.07 of the canopy (0.10) |
+| HF003, leaves fallen, understorey species | broadleaves below 10 m | −0.03 (0.07) |
+| full in mid-July | broadleaves below 10 m | −0.03 |
+| LAI-2000, deciduous, over its summer level | all broadleaves | −0.02 (0.14) |
+| EMS baskets, share of the autumn's litter | all broadleaves | +0.05 (0.09) |
 | canopies lost a year (1) | all broadleaves | +0.01 |
-| MODIS, scaled within each year | the whole stand | +0.05 (0.17) |
-| hemlock shoots half grown (day 163) | conifers | +0.9 days (4.4) |
-| white pine shoots half grown (day 186) | conifers | −22.4 days |
-| half the autumn's needles fallen (day 276) | conifers | +1.2 days (2.4) |
-| needles lost a year (0.35) | conifers | +0.00 |
-| full at the end of August | conifers | −0.01 |
+| MODIS, scaled within each year | the whole stand | +0.05 (0.18) |
+| hemlock shoots half grown (day 163) | conifers | +0.7 days (4.4) |
+| white pine shoots half grown (day 186) | conifers | −22.6 days |
+| half the autumn's needles fallen (day 276) | conifers | +0.8 days (2.2) |
+| needles lost a year (0.35) | conifers | +0.01 |
+| full at the end of August | conifers | −0.02 |
 
 - **The cohorts' own cues change the answer.** With part 1's values (the dashed lines), fitted to the
   site's air and the light above the canopy, the understorey fills only two thirds and falls two to
   three weeks early, because its light cue reads the fewer hours under the canopy. With the cohorts'
-  own cues, the broadleaves need more warmth to flush (264 against 92 K day above 5 °C) and more cold to
-  drop (169 K day below 292.0 K, against 48 below 290.3 K).
+  own cues, the broadleaves need more warmth to flush (260 against 92 K day above 5 °C) and more cold to
+  drop (185 K day below 292.1 K, against 48 below 290.3 K).
 - **The conifers** keep two thirds of their needles from October to June, grow their shoots in June
   and are full by the end of August; the needles fall in early October. White pine's shoots, the
   loosest target (a 20-day spread), lose to hemlock's.
-- **The fit settled**, and the offline stand matched each coupled run's leaf cover to within 0.002.
+- **The fit does not settle in its four rounds:** each moves a key by 0.09–0.49 of its range. The tool keeps
+  the values whose own coupled run scored best, the third's; the table is that run's. The offline stand
+  matched each coupled run's leaf cover to within 0.002.
 
 ## Part 3 — a savanna: Tonzi Ranch
 
