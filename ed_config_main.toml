@@ -144,7 +144,8 @@ ksat         = 1.83e-3    # [m/s]   saturated conductivity (the same)
 [ground_surface_layer.moss]
 # Moss, on the soil: a site's [soil].moss_depth at its bulk density.
 mass_source  = "site_depth"   # none | metabolic_litter | site_depth
-bulk_density = 43.0       # [kg/m3] MAT tundra's top organic 5 cm (ARC LTER knb-lter-arc.20129.1)
+bulk_density = 43.0       # [kg/m3] moist acidic tundra, the top 5 cm of the organic soil horizon (McLaren
+                          #         2021, ARC LTER knb-lter-arc.20129.1)
 k_dry        = 0.06       # [W/m/K] (Chadburn et al. 2015)
 k_wet        = 0.50       # [W/m/K] saturated (Chadburn et al. 2015)
 retention    = "van_genuchten" # van_genuchten | campbell

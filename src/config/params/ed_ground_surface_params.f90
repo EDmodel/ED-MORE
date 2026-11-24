@@ -77,10 +77,10 @@ module ed_ground_surface_params
    ! matter stays where it came from. The litter is the above-ground metabolic litter pool's dry
    ! matter (Napoly et al. 2017's forest-floor values), retaining and conducting water as Letts et
    ! al. (2000)'s surface moss, the curve CLASS gives its litter and moss (Wu et al. 2016); the
-   ! moss is a site's [soil].moss_depth, at the MAT tundra's top organic 5 cm (ARC LTER
-   ! knb-lter-arc.20129.1), Chadburn et al. (2015)'s conductivities, Zhang et al. (2010)'s
-   ! retention of surface moss and O'Connor et al. (2020)'s saturated conductivity of the Arctic
-   ! acrotelm.
+   ! moss is a site's [soil].moss_depth, at the bulk density of the top 5 cm of moist acidic
+   ! tundra's organic soil horizon (ARC LTER knb-lter-arc.20129.1), Chadburn et al. (2015)'s
+   ! conductivities, Zhang et al. (2010)'s retention of surface moss and O'Connor et al. (2020)'s
+   ! saturated conductivity of the Arctic acrotelm.
    !---~---
    type :: ground_surface_layer_params_t
       real(wp) :: min_depth = 1.0e-4_wp                ! [m]

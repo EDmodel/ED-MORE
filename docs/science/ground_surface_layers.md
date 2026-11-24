@@ -265,7 +265,7 @@ The `[ground_surface_layer]` block, every key optional ([configuration](../confi
 | Key | Litter | Moss | Meaning | Source |
 |---|---|---|---|---|
 | `mass_source` | `metabolic_litter` | `site_depth` | where the dry matter comes from: `none`, `metabolic_litter` or `site_depth` | |
-| `bulk_density` | 45 kg m⁻³ | 43 kg m⁻³ | dry mass per volume | litter: Napoly et al. (2017); moss: moist acidic tussock tundra, the organic layer's top 5 cm (McLaren 2021) |
+| `bulk_density` | 45 kg m⁻³ | 43 kg m⁻³ | dry mass per volume | litter: Napoly et al. (2017); moss: moist acidic tussock tundra, the top 5 cm of the organic soil horizon (McLaren 2021) |
 | `k_dry`, `k_wet` | 0.10, 0.1294 W m⁻¹ K⁻¹ | 0.06, 0.50 W m⁻¹ K⁻¹ | conductivity dry and saturated, eq. (8) | litter: de Vries (1963)'s 0.1 + 0.03 θ, via Napoly et al. (2017), at θ = 0 and `theta_sat`; moss: Chadburn et al. (2015) |
 | `retention` | `campbell` | `van_genuchten` | the retention curve's form | litter: Letts et al. (2000)'s surface moss, as CLASS takes it for litter and moss (Wu et al. 2016); moss: Zhang et al. (2010) |
 | `theta_sat`, `theta_res` | 0.98, 0.01 | 0.85, 0.18 | water at saturation and residual [m³ m⁻³] | litter: Wu et al. (2016) Table 1, surface moss (0–10 cm); moss: Zhang et al. (2010) Table 4, surface moss and lichen (0–0.1 m) |
@@ -303,7 +303,7 @@ Fixed in the code: $`\rho_{ref}`$ = 100 kg m⁻³ in eq. (5) (Niu & Yang 2007's 
 - Lawrence, D. et al. (2018), *Technical Description of version 5.0 of the Community Land Model (CLM)*, NCAR — lake ice, open-water and snow optics.
 - Letts, M. G. et al. (2000), *Atmosphere-Ocean* 38:141 — the hydraulic parameters of organic soils.
 - Matthews, S. (2014), *Int. J. Wildland Fire* 23:78–92, doi:10.1071/WF13005 — a review of the water dynamics of litter and fuels.
-- McLaren, J. (2021), *Soil biogeochemical variables collected on the Arctic LTER experimental plots in moist acidic, moist non-acidic, wet shrub and shrub tundra, Toolik Field Station, Alaska 2015*, Arctic LTER, knb-lter-arc.20129.1 — the bulk density of the top 5 cm of the organic soil.
+- McLaren, J. (2021), *Soil biogeochemical variables collected on the Arctic LTER experimental plots in moist acidic, moist non-acidic, wet shrub and shrub tundra, Toolik Field Station, Alaska 2015*, Arctic LTER, knb-lter-arc.20129.1 — the bulk density of the top 5 cm of the organic soil horizon.
 - Murphy, D. M. & Koop, T. (2005), *Q. J. R. Meteorol. Soc.* 131:1539 — vapour pressure over ice.
 - Napoly, A. et al. (2017), *Geosci. Model Dev.* 10:1621–1644 — the ISBA-MEB forest-floor litter layer.
 - Niu, G.-Y. & Yang, Z.-L. (2007), *J. Geophys. Res.* 112:D21101, doi:10.1029/2007JD008674 — snow-cover fraction (eq. 4).
