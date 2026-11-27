@@ -267,7 +267,7 @@ own water (The canopy's surface water, above).
 
 The wood's area and its sapwood come from stem-size allometries (`ed_allometry_lib`; each PFT's
 `[allometry]` `wai_b1/b2`, `sapwood_area_b1/b2`), with $D$ the diameter [cm]. The wood area index is
-$`\mathrm{WAI} = n_{plant}\,b_1\,D^{b_2}`$ (`dbh_to_wai`), and the sapwood is the share
+$`\mathrm{WAI} = n_{plant}\,b_1\,D^{b_2}`$ (`diameter_to_wai`), and the sapwood is the share
 $`f_{sap} = \min\big(1,\ b_{1SA}\,D^{b_{2SA}}/(\tfrac{\pi}{4} D^2)\big)`$ of the basal area
 (`sapwood_fraction`), capped at one because a small stem is sapwood throughout. WAI follows the stem
 rather than the leaf area on purpose: a wood area proportional to LAI would make

@@ -551,10 +551,10 @@ contains
       call def_var(d, 'wood_carbon_co',          NC_DOUBLE, [d%cohort], 'wood carbon per plant [kgC]')
       call def_var(d, 'nonstructural_carbon_co', NC_DOUBLE, [d%cohort], 'nonstructural carbon per plant [kgC]')
       !---~---
-      !   3. Size: the reader derives it from the pools, so dbh, height, basal_area, agb and
+      !   3. Size: the reader derives it from the pools, so diameter, height, basal_area, agb and
       ! leaf_area are for readers of the file; overtopping_lai is the cohort's light.
       !---~---
-      call def_var(d, 'dbh_co',             NC_DOUBLE, [d%cohort], 'diameter at breast height [cm]')
+      call def_var(d, 'diameter_co',             NC_DOUBLE, [d%cohort], 'stem diameter [cm]')
       call def_var(d, 'height_co',          NC_DOUBLE, [d%cohort], 'height [m]')
       call def_var(d, 'basal_area_co',      NC_DOUBLE, [d%cohort], 'basal area per plant [cm2]')
       call def_var(d, 'agb_co',             NC_DOUBLE, [d%cohort], 'aboveground biomass per plant [kgC]')
@@ -620,7 +620,7 @@ contains
          call put_dbl(r, 'wood_carbon_co',          c%wood_carbon(1:ncoh))
          call put_dbl(r, 'nonstructural_carbon_co', c%nonstructural_carbon(1:ncoh))
          !--- 3. Size.
-         call put_dbl(r, 'dbh_co',             c%dbh(1:ncoh))
+         call put_dbl(r, 'diameter_co',             c%diameter(1:ncoh))
          call put_dbl(r, 'height_co',          c%height(1:ncoh))
          call put_dbl(r, 'basal_area_co',      c%basal_area(1:ncoh))
          call put_dbl(r, 'agb_co',             c%agb(1:ncoh))

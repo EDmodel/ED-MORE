@@ -223,6 +223,7 @@ module ed_pft_params
       !--- Reproduction and recruitment.
       real(wp), allocatable :: reproduction_investment_fraction(:) ! [--] growth fraction diverted to reproduction
       real(wp), allocatable :: min_repro_height(:)                 ! [m]  the height a cohort reproduces from
+      real(wp), allocatable :: min_recruit_height(:)               ! [m]  the height a recruit is born at
       real(wp), allocatable :: recruit_carbon_efficiency(:)        ! [--] share of reproduction carbon that becomes recruits
       real(wp), allocatable :: recruit_shade_decay(:)              ! [1/(m2/m2)] that share falls as exp(-k * patch LAI)
       real(wp), allocatable :: nbg_init_density(:)                 ! [plant/m2] seedlings of a bare-ground start, per patch
@@ -233,8 +234,6 @@ module ed_pft_params
       !--- Recruitment.
       real(wp),    allocatable :: seed_rain_recruits(:) ! [plant/m2/yr] baseline external seed rain
       integer(ik), allocatable :: include_pft(:)        ! 1 = PFT may recruit, 0 = excluded
-      !--- Shared height thresholds.
-      real(wp) :: min_cohort_height          ! [m] smallest tracked cohort; recruits born here
       !--- Leaf photosynthesis and stomata (docs/science/leaf_gas_exchange.md).
       integer(ik), allocatable :: photosynthetic_pathway(:) ! PATH_C3 | PATH_C4
       real(wp), allocatable :: vcmax25(:)            ! [umol/m2/s] max carboxylation at 25 degC
@@ -282,7 +281,7 @@ module ed_pft_params
       !--- Sink limits, 0 = off (docs/science/plant_carbon_allocation.md eq. (3)).
       real(wp),    allocatable :: max_relative_growth_rate(:) ! [1/yr] maximum relative growth rate of wood
       real(wp),    allocatable :: max_absolute_growth_rate(:) ! [cm/yr] maximum diameter growth of a 1 cm stem
-      real(wp),    allocatable :: max_absolute_growth_exponent(:) ! [--] its scaling with dbh [cm]
+      real(wp),    allocatable :: max_absolute_growth_exponent(:) ! [--] its scaling with diameter [cm]
       real(wp),    allocatable :: growth_resp_factor(:)     ! [--]     construction cost (fraction of metabolic NPP)
       !--- Stem and root respiration (docs/science/plant_respiration.md §2-§3).
       real(wp),    allocatable :: stem_resp_factor25(:)     ! [umol CO2/m2 stem/s @25C] stem rate per surface
@@ -318,8 +317,8 @@ module ed_pft_params
       type(hydraulics_table_t) :: hydraulics   ! DERIVED each PFT's hydraulics and Kirchhoff lookup
       type(rad_pft_optics_t)   :: optics       ! DERIVED the two-stream's per-PFT optics
       !---~---
-      !   A recruit's carbon [kgC/plant] on its PFT's allometry (a tree's AGB at
-      ! min_cohort_height, a grass's whole plant), the value of one plant of the recruit pool;
+      !   A recruit's carbon [kgC/plant] on its PFT's allometry (a tree's AGB at its
+      ! min_recruit_height, a grass's whole plant), the value of one plant of the recruit pool;
       ! derived on a polygon's own copy of the table, which carries the cell's allometry
       ! (derive_recruit_carbon).
       !---~---

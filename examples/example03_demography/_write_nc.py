@@ -22,9 +22,9 @@ import numpy as np
 from netCDF4 import Dataset
 
 #----- Per-cohort fields copied straight out of the engine, plus `basal_area`, which is derived
-#      from dbh here rather than carried: it is pi*(dbh/2)^2 by definition and there is no reason
+#      from diameter here rather than carried: it is pi*(diameter/2)^2 by definition and there is no reason
 #      for the C-API to export a second copy of the same number.
-_COHORT_REAL = ("dbh", "height", "nplant", "agb", "leaf_area", "growth_avg")
+_COHORT_REAL = ("diameter", "height", "nplant", "agb", "leaf_area", "growth_avg")
 _COHORT_INT = ("pft", "owner_patch")
 _PATCH_REAL = ("area", "age")
 _PATCH_INT = ("dist_type", "cohort_offset", "cohort_count")
@@ -55,11 +55,11 @@ class StandWriter:
         for f in _PATCH_INT:
             r[f if f != "dist_type" else "dist_type"] = site.get_patch(f)
         r["global_patch_id"] = site.get_patch("global_id")
-        #----- pi*(dbh/2)^2 in cm2, matching the Fortran `basal_area` column. -------------------
-        r["basal_area"] = np.pi * (r["dbh"] / 2.0) ** 2
-        #----- mean dbh, nplant-weighted -- the one site scalar not exposed as a total. ---------
+        #----- pi*(diameter/2)^2 in cm2, matching the Fortran `basal_area` column. -------------------
+        r["basal_area"] = np.pi * (r["diameter"] / 2.0) ** 2
+        #----- mean diameter, nplant-weighted -- the one site scalar not exposed as a total. ---------
         w = r["nplant"]
-        r["mean_dbh"] = float((r["dbh"] * w).sum() / w.sum()) if w.size and w.sum() > 0 else 0.0
+        r["mean_diameter"] = float((r["diameter"] * w).sum() / w.sum()) if w.size and w.sum() > 0 else 0.0
         self.records.append(r)
 
     def write(self):
@@ -95,7 +95,7 @@ class StandWriter:
             var("n_cohort", ("time",), "i4", "-", "live cohorts this record")
             var("n_patch", ("time",), "i4", "-", "live patches this record")
 
-            spec_c = {"dbh": ("cm", "cohort mean diameter at breast height"),
+            spec_c = {"diameter": ("cm", "cohort mean stem diameter"),
                       "height": ("m", "cohort height"),
                       "nplant": ("plant/m2", "stem density (per m2 of its own patch)"),
                       "agb": ("kgC/plant", "aboveground biomass per plant"),
@@ -120,7 +120,7 @@ class StandWriter:
             var("total_lai", ("time",), "f8", "m2/m2", "site leaf area index")
             var("total_nplant", ("time",), "f8", "plant/m2", "site stem density")
             var("total_basal_area", ("time",), "f8", "m2/m2", "site basal area")
-            var("mean_dbh", ("time",), "f8", "cm", "stem-weighted mean diameter")
+            var("mean_diameter", ("time",), "f8", "cm", "stem-weighted mean diameter")
 
             for i, r in enumerate(self.records):
                 nc_, np_ = r["n_cohort"], r["n_patch"]
@@ -142,6 +142,6 @@ class StandWriter:
                     d["cohort_offset"][i, :np_] = r["cohort_offset"][:np_]
                     d["cohort_count"][i, :np_] = r["cohort_count"][:np_]
                     d["global_patch_id"][i, :np_] = r["global_patch_id"][:np_]
-                for k in ("total_agb", "total_lai", "total_nplant", "total_basal_area", "mean_dbh"):
+                for k in ("total_agb", "total_lai", "total_nplant", "total_basal_area", "mean_diameter"):
                     d[k][i] = r[k]
         return self.path

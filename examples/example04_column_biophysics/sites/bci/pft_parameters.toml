@@ -20,7 +20,7 @@ reproduction_investment_fraction = [0.3]
 recruit_carbon_efficiency          = [1.0e-3]
 seed_rain_recruits = [0.01]      # [plant/m2/yr]
 include_pft        = [1]
-min_cohort_height       = 2.0    # [m] shared scalar (recruit/birth size)
+min_recruit_height      = 2.0    # [m] recruits are born at this height
 min_repro_height   = [20.0]   # [m] a cohort reproduces from this height
 # Leaf photosynthesis / stomatal traits (C3).
 photosynthetic_pathway = [1]

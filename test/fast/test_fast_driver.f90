@@ -529,11 +529,11 @@ program test_fast_driver
       call build_soil_profile(cfg%soil, test_profile)            ! the site's column from [soil] from here on
       call init_bare_ground(poly, cfg, 1_ik)
       call use_test_column(poly)
-      call add_cohort(poly, cfg, 1_ik, 1_ik, 1.0_wp, 45.0_wp)     ! tall overstory  (big dbh -> tall)
+      call add_cohort(poly, cfg, 1_ik, 1_ik, 1.0_wp, 45.0_wp)     ! tall overstory  (big diameter -> tall)
       call add_cohort(poly, cfg, 1_ik, 1_ik, 1.0_wp,  6.0_wp)     ! short understory (shaded below it)
       call finalize_init(poly)
       !---~---
-      !   equalize per-cohort LAI (leaf_area is per-plant, set from dbh, independent of nplant),
+      !   equalize per-cohort LAI (leaf_area is per-plant, set from diameter, independent of nplant),
       ! so the RT's vertical light gradient is the ONLY thing separating the two per-leaf PARs.
       !---~---
       do ii = 1_ik, poly%cohort%n

@@ -139,13 +139,13 @@ def run_trial(cfg, out):
     with Run(main, verbose=False) as run:
         for step in run:
             if start is None or step.date.day == 1:
-                c = run.cohorts("global_id", "dbh", "overtopping_lai", "nplant", "pft", "owner_patch")
+                c = run.cohorts("global_id", "diameter", "overtopping_lai", "nplant", "pft", "owner_patch")
                 t = step.date.toordinal() / 365.25
                 area = run.patches("share")["share"][c["owner_patch"] - 1]
                 if start is None:
                     start = {int(i): (d, l, a * n, p, t) for i, d, l, a, n, p in
-                             zip(c["global_id"], c["dbh"], c["overtopping_lai"], area, c["nplant"], c["pft"])}
-                for i, d, a, n in zip(c["global_id"], c["dbh"], area, c["nplant"]):
+                             zip(c["global_id"], c["diameter"], c["overtopping_lai"], area, c["nplant"], c["pft"])}
+                for i, d, a, n in zip(c["global_id"], c["diameter"], area, c["nplant"]):
                     i = int(i)
                     if i in fused:
                         continue

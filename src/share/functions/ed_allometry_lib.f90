@@ -17,15 +17,15 @@
 !---~---
 module ed_allometry_lib
    use ed_kinds,       only : wp, ik
-   use ed_constants,   only : tiny_num, pio4
+   use ed_constants,   only : tiny_num, pio4, breast_height
    implicit none
    private
 
    public :: allometry_t, HEIGHT_POWER, HEIGHT_CHAVE, GROWTH_TREE, GROWTH_GRASS
-   public :: dbh_to_height, height_to_dbh
-   public :: dbh_to_agb, agb_to_dbh, recruit_agb
-   public :: dbh_to_leaf_area, dbh_to_wai, sapwood_fraction
-   public :: size_to_leaf_carbon, size_to_wood_carbon, wood_to_dbh, carbon_to_structure, storage_carbon_target
+   public :: diameter_to_height, height_to_diameter
+   public :: diameter_to_agb, agb_to_diameter, recruit_agb
+   public :: diameter_to_leaf_area, diameter_to_wai, sapwood_fraction
+   public :: size_to_leaf_carbon, size_to_wood_carbon, wood_to_diameter, carbon_to_structure, storage_carbon_target
 
    !---~---
    !   Height curves: a power law, or the log-quadratic of Chave et al. (2014) eq. 6a,
@@ -46,19 +46,22 @@ module ed_allometry_lib
    !---~---
    type :: allometry_t
       integer(ik) :: growth_form = GROWTH_TREE    ! GROWTH_TREE | GROWTH_GRASS ([pft].growth_form)
+      !--- The diameter every curve takes: a stem's, measured at this height.
+      real(wp)    :: diameter_height = breast_height ! [m] 1.3 m (breast height) for a tree, 0 (the root collar)
+                                                  !     for a shrub; a grass has no diameter
       !--- Height: the curve, and the cap on every curve.
       integer(ik) :: height_allometry = HEIGHT_POWER   ! the height curve: power law or log-quadratic
       real(wp)    :: hgt_max     = 46.0_wp        ! [m]   the largest height
-      real(wp)    :: b1Ht        = 1.139963_wp    ! [--]  power law: intercept of ln H on ln dbh
-      real(wp)    :: b2Ht        = 0.564899_wp    ! [--]  power law: slope of ln H on ln dbh
+      real(wp)    :: b1Ht        = 1.139963_wp    ! [--]  power law: intercept of ln H on ln diameter
+      real(wp)    :: b2Ht        = 0.564899_wp    ! [--]  power law: slope of ln H on ln diameter
       real(wp)    :: chave_a     = 0.893_wp       ! [--]  log-quadratic: intercept (Chave et al. 2014 eq. 6a)
-      real(wp)    :: chave_b     = 0.760_wp       ! [--]  log-quadratic: slope on ln dbh
-      real(wp)    :: chave_c     = -0.0340_wp     ! [--]  log-quadratic: coefficient of (ln dbh)^2
+      real(wp)    :: chave_b     = 0.760_wp       ! [--]  log-quadratic: slope on ln diameter
+      real(wp)    :: chave_c     = -0.0340_wp     ! [--]  log-quadratic: coefficient of (ln diameter)^2
       real(wp)    :: chave_rse   = 0.243_wp       ! [--]  log-quadratic: residual standard error of the fit
       real(wp)    :: chave_e     = 0.0_wp         ! [--]  the site's stress index E: the larger, the shorter
       !--- Biomass, leaf area, wood area and sapwood.
       real(wp)    :: agb_c1      = 0.03365_wp     ! [kgC] AGB scale: Chave et al. (2014) eq. 4, halved to carbon
-      real(wp)    :: agb_c2      = 0.976_wp       ! [--]  AGB exponent on rho and on dbh^2*h
+      real(wp)    :: agb_c2      = 0.976_wp       ! [--]  AGB exponent on rho and on diameter^2*h
       real(wp)    :: lai_b1      = 0.23384770_wp  ! [--]  per-stem leaf-area scale
       real(wp)    :: lai_b2      = 0.6410495_wp   ! [--]  per-stem leaf-area exponent
       real(wp)    :: wai_b1      = 0.0096_wp      ! [--]  per-stem wood-area scale
@@ -73,9 +76,9 @@ contains
    !--- Height: the PFT's curve, capped at hgt_max, and its inverse.
 
    !--- Diameter [cm] -> height [m] on the PFT's curve, capped at hgt_max; a grass's is hgt_max.
-   elemental pure function dbh_to_height(allom, dbh) result(h)
+   elemental pure function diameter_to_height(allom, diameter) result(h)
       type(allometry_t), intent(in) :: allom
-      real(wp),          intent(in) :: dbh
+      real(wp),          intent(in) :: diameter
       real(wp)                      :: h, x
       if (allom%growth_form == GROWTH_GRASS) then
          h = allom%hgt_max
@@ -83,34 +86,34 @@ contains
       end if
       select case (allom%height_allometry)
       case (HEIGHT_CHAVE)
-         x  = log(max(dbh, tiny_num))
+         x  = log(max(diameter, tiny_num))
          h  = exp(chave_intercept(allom) + allom%chave_b * x + allom%chave_c * x * x)
       case default
-         h  = exp(allom%b1Ht + allom%b2Ht * log(max(dbh, tiny_num)))
+         h  = exp(allom%b1Ht + allom%b2Ht * log(max(diameter, tiny_num)))
       end select
       h = min(h, allom%hgt_max)
-   end function dbh_to_height
+   end function diameter_to_height
 
    !--- Height [m] -> diameter [cm], the inverse of the uncapped curve; a grass has none.
-   elemental pure function height_to_dbh(allom, h) result(dbh)
+   elemental pure function height_to_diameter(allom, h) result(diameter)
       type(allometry_t), intent(in) :: allom
       real(wp),          intent(in) :: h
-      real(wp)                      :: dbh
+      real(wp)                      :: diameter
       if (allom%growth_form == GROWTH_GRASS) then
-         dbh = 0.0_wp
+         diameter = 0.0_wp
          return
       end if
       select case (allom%height_allometry)
       case (HEIGHT_CHAVE)
-         dbh = exp(chave_small_root(allom%chave_c, allom%chave_b, chave_intercept(allom) - log(max(h, tiny_num))))
+         diameter = exp(chave_small_root(allom%chave_c, allom%chave_b, chave_intercept(allom) - log(max(h, tiny_num))))
       case default
-         dbh = exp((log(max(h, tiny_num)) - allom%b1Ht) / allom%b2Ht)
+         diameter = exp((log(max(h, tiny_num)) - allom%b1Ht) / allom%b2Ht)
       end select
-   end function height_to_dbh
+   end function height_to_diameter
 
    !---~---
    !   The intercept of the log-quadratic curve, ln H = intercept + chave_b x + chave_c
-   ! x^2 with x = ln(dbh): the fit's, less the site's E, plus RSE^2/2, which turns
+   ! x^2 with x = ln(diameter): the fit's, less the site's E, plus RSE^2/2, which turns
    ! the fit's median into its mean.
    !---~---
    pure real(wp) function chave_intercept(allom)
@@ -120,7 +123,7 @@ contains
 
    !---~---
    !   The smaller root x of a x^2 + b x + c = 0: the curve's rising branch, which for
-   ! Chave's coefficients holds up to dbh = exp(-b / (2a)), about 70,000 cm. Written
+   ! Chave's coefficients holds up to diameter = exp(-b / (2a)), about 70,000 cm. Written
    ! as 2(-c)/(b + sqrt(.)) so it keeps its digits when c is small.
    !---~---
    pure real(wp) function chave_small_root(a, b, c) result(x)
@@ -131,121 +134,121 @@ contains
    !--- Aboveground biomass (Chave et al. 2014 eq. 4, in carbon) and its inverse.
 
    !--- Aboveground biomass [kgC/plant], Chave et al. (2014) eq. 4 in carbon; a grass's wood has none.
-   elemental pure function dbh_to_agb(allom, dbh, h, rho) result(agb)
+   elemental pure function diameter_to_agb(allom, diameter, h, rho) result(agb)
       type(allometry_t), intent(in) :: allom
-      real(wp),          intent(in) :: dbh, h, rho
+      real(wp),          intent(in) :: diameter, h, rho
       real(wp)                      :: agb
       if (allom%growth_form == GROWTH_GRASS) then
          agb = 0.0_wp
          return
       end if
-      agb = allom%agb_c1 * rho ** allom%agb_c2 * (dbh * dbh * h) ** allom%agb_c2
-   end function dbh_to_agb
+      agb = allom%agb_c1 * rho ** allom%agb_c2 * (diameter * diameter * h) ** allom%agb_c2
+   end function diameter_to_agb
 
    !---~---
    !   AGB -> diameter [cm], which recovers a diameter from the conserved carbon. Under
-   ! the power law agb = K dbh^P on both sides of the height cap: solve the uncapped
+   ! the power law agb = K diameter^P on both sides of the height cap: solve the uncapped
    ! form, and redo it in the capped form if that stem is taller than hgt_max.
    !---~---
-   elemental pure function agb_to_dbh(allom, agb, rho) result(dbh)
+   elemental pure function agb_to_diameter(allom, agb, rho) result(diameter)
       type(allometry_t), intent(in) :: allom
       real(wp),          intent(in) :: agb, rho
-      real(wp)                      :: dbh, k_un, p_un, k_cap, p_cap, h
+      real(wp)                      :: diameter, k_un, p_un, k_cap, p_cap, h
       if (allom%growth_form == GROWTH_GRASS) then
-         dbh = 0.0_wp
+         diameter = 0.0_wp
          return
       end if
       if (allom%height_allometry == HEIGHT_CHAVE) then
-         dbh = agb_to_dbh_chave(allom, agb, rho)
+         diameter = agb_to_diameter_chave(allom, agb, rho)
          return
       end if
       k_un = allom%agb_c1 * rho ** allom%agb_c2 * exp(allom%agb_c2 * allom%b1Ht)
       p_un = allom%agb_c2 * (2.0_wp + allom%b2Ht)
-      dbh  = (max(agb, tiny_num) / k_un) ** (1.0_wp / p_un)
-      h    = exp(allom%b1Ht + allom%b2Ht * log(max(dbh, tiny_num)))
+      diameter  = (max(agb, tiny_num) / k_un) ** (1.0_wp / p_un)
+      h    = exp(allom%b1Ht + allom%b2Ht * log(max(diameter, tiny_num)))
       if (h > allom%hgt_max) then
          k_cap = allom%agb_c1 * rho ** allom%agb_c2 * allom%hgt_max ** allom%agb_c2
          p_cap = 2.0_wp * allom%agb_c2
-         dbh   = (max(agb, tiny_num) / k_cap) ** (1.0_wp / p_cap)
+         diameter   = (max(agb, tiny_num) / k_cap) ** (1.0_wp / p_cap)
       end if
-   end function agb_to_dbh
+   end function agb_to_diameter
 
    !---~---
    !   AGB -> diameter under Chave's height, in closed form: below the cap, the biomass
-   ! law 2x + ln h(x) = target is quadratic in x = ln(dbh); x is its smaller root. A
+   ! law 2x + ln h(x) = target is quadratic in x = ln(diameter); x is its smaller root. A
    ! stem that root makes taller than hgt_max has 2x + ln(hgt_max) = target.
    !---~---
-   elemental pure function agb_to_dbh_chave(allom, agb, rho) result(dbh)
+   elemental pure function agb_to_diameter_chave(allom, agb, rho) result(diameter)
       type(allometry_t), intent(in) :: allom
       real(wp),          intent(in) :: agb, rho
-      real(wp)                      :: dbh, target, x
+      real(wp)                      :: diameter, target, x
       target = log(max(agb, tiny_num) / (allom%agb_c1 * rho ** allom%agb_c2)) / allom%agb_c2
       x = chave_small_root(allom%chave_c, 2.0_wp + allom%chave_b, chave_intercept(allom) - target)
       if (chave_intercept(allom) + allom%chave_b * x + allom%chave_c * x * x > log(allom%hgt_max))     &
          x = 0.5_wp * (target - log(allom%hgt_max))
-      dbh = exp(x)
-   end function agb_to_dbh_chave
+      diameter = exp(x)
+   end function agb_to_diameter_chave
 
    !---~---
-   !   The AGB [kgC/plant] of a tree recruit at min_cohort_height: the carbon per recruit
+   !   The AGB [kgC/plant] of a tree recruit at its PFT's min_recruit_height: the carbon per recruit
    ! that turns reproduction carbon into recruit numbers.
    !---~---
-   elemental pure function recruit_agb(allom, min_cohort_height, rho) result(carbon_min)
+   elemental pure function recruit_agb(allom, recruit_height, rho) result(carbon_min)
       type(allometry_t), intent(in) :: allom
-      real(wp),          intent(in) :: min_cohort_height, rho
+      real(wp),          intent(in) :: recruit_height, rho
       real(wp)                      :: carbon_min
-      carbon_min = dbh_to_agb(allom, height_to_dbh(allom, min_cohort_height), min_cohort_height, rho)
+      carbon_min = diameter_to_agb(allom, height_to_diameter(allom, recruit_height), recruit_height, rho)
    end function recruit_agb
 
    !--- Leaf area, wood area and sapwood.
 
    !---~---
    !   One-sided leaf area of one stem [m2]; the cohort's LAI is nplant times it. A tree's
-   ! follows dbh^2 h, a grass's its height alone.
+   ! follows diameter^2 h, a grass's its height alone.
    !---~---
-   elemental pure function dbh_to_leaf_area(allom, dbh, h) result(leaf_area)
+   elemental pure function diameter_to_leaf_area(allom, diameter, h) result(leaf_area)
       type(allometry_t), intent(in) :: allom
-      real(wp),          intent(in) :: dbh, h
+      real(wp),          intent(in) :: diameter, h
       real(wp)                      :: leaf_area
       if (allom%growth_form == GROWTH_GRASS) then
          leaf_area = allom%lai_b1 * max(h, 0.0_wp) ** allom%lai_b2
          return
       end if
-      leaf_area = allom%lai_b1 * (dbh * dbh * h) ** allom%lai_b2
-   end function dbh_to_leaf_area
+      leaf_area = allom%lai_b1 * (diameter * diameter * h) ** allom%lai_b2
+   end function diameter_to_leaf_area
 
    !---~---
-   !   Wood area index [m2/m2], nplant wai_b1 dbh^wai_b2. It follows the stem, not the
+   !   Wood area index [m2/m2], nplant wai_b1 diameter^wai_b2. It follows the stem, not the
    ! leaf area, because the wood's heat store and exchanges scale with the stem
    ! (docs/science/vegetation_energy_dynamics.md, below eq. (8)).
    !---~---
-   elemental pure function dbh_to_wai(allom, dbh, nplant) result(wai)
+   elemental pure function diameter_to_wai(allom, diameter, nplant) result(wai)
       type(allometry_t), intent(in) :: allom
-      real(wp),          intent(in) :: dbh      ! [cm]    diameter at breast height
+      real(wp),          intent(in) :: diameter      ! [cm]    stem diameter
       real(wp),          intent(in) :: nplant   ! [pl/m2] plant density
       real(wp)                      :: wai      ! [m2/m2] wood area index
       if (allom%growth_form == GROWTH_GRASS) then
          wai = 0.0_wp
          return
       end if
-      wai = nplant * allom%wai_b1 * max(dbh, tiny_num) ** allom%wai_b2
-   end function dbh_to_wai
+      wai = nplant * allom%wai_b1 * max(diameter, tiny_num) ** allom%wai_b2
+   end function diameter_to_wai
 
    !---~---
-   !   Sapwood share of basal area, sapwood_area_b1 dbh^sapwood_area_b2/(pi/4 dbh^2)
+   !   Sapwood share of basal area, sapwood_area_b1 diameter^sapwood_area_b2/(pi/4 diameter^2)
    ! (Xu 2018), capped at one since a small stem is all sapwood
    ! (docs/science/vegetation_energy_dynamics.md, below eq. (8)).
    !---~---
-   elemental pure function sapwood_fraction(allom, dbh) result(f_sap)
+   elemental pure function sapwood_fraction(allom, diameter) result(f_sap)
       type(allometry_t), intent(in) :: allom
-      real(wp),          intent(in) :: dbh      ! [cm] diameter at breast height
+      real(wp),          intent(in) :: diameter      ! [cm] stem diameter
       real(wp)                      :: f_sap    ! [--] sapwood area / basal area, in (0,1]; 0 for a grass
       real(wp) :: d, sapw_area, basal_area
       if (allom%growth_form == GROWTH_GRASS) then
          f_sap = 0.0_wp
          return
       end if
-      d          = max(dbh, tiny_num)
+      d          = max(diameter, tiny_num)
       sapw_area  = allom%sapwood_area_b1 * d ** allom%sapwood_area_b2
       basal_area = pio4 * d * d
       f_sap      = min(1.0_wp, sapw_area / max(basal_area, tiny_num))
@@ -258,49 +261,49 @@ contains
    ! cohort at its target shows exactly that leaf area
    ! (docs/science/plant_carbon_allocation.md §2).
    !---~---
-   elemental pure function size_to_leaf_carbon(allom, dbh, h, sla) result(leaf_carbon)
+   elemental pure function size_to_leaf_carbon(allom, diameter, h, sla) result(leaf_carbon)
       type(allometry_t), intent(in) :: allom
-      real(wp),          intent(in) :: dbh, h, sla        ! [cm],[m],[m2/kgC]
+      real(wp),          intent(in) :: diameter, h, sla        ! [cm],[m],[m2/kgC]
       real(wp)                      :: leaf_carbon         ! [kgC/plant]
-      leaf_carbon = dbh_to_leaf_area(allom, dbh, h) / max(sla, tiny_num)
+      leaf_carbon = diameter_to_leaf_area(allom, diameter, h) / max(sla, tiny_num)
    end function size_to_leaf_carbon
 
    !---~---
    !   A stem's total wood carbon [kgC/plant], coarse roots included: its AGB over the
    ! aboveground fraction, so the aboveground share is exactly the AGB.
    !---~---
-   elemental pure function size_to_wood_carbon(allom, dbh, h, rho) result(wood_carbon)
+   elemental pure function size_to_wood_carbon(allom, diameter, h, rho) result(wood_carbon)
       type(allometry_t), intent(in) :: allom
-      real(wp),          intent(in) :: dbh, h, rho
+      real(wp),          intent(in) :: diameter, h, rho
       real(wp)                      :: wood_carbon         ! [kgC/plant] total woody (above + belowground)
-      wood_carbon = dbh_to_agb(allom, dbh, h, rho) / max(allom%aboveground_frac, tiny_num)
+      wood_carbon = diameter_to_agb(allom, diameter, h, rho) / max(allom%aboveground_frac, tiny_num)
    end function size_to_wood_carbon
 
    !---~---
    !   The inverse of size_to_wood_carbon: wood carbon is the prognostic size, and the
    ! diameter follows from it.
    !---~---
-   elemental pure function wood_to_dbh(allom, wood_carbon, rho) result(dbh)
+   elemental pure function wood_to_diameter(allom, wood_carbon, rho) result(diameter)
       type(allometry_t), intent(in) :: allom
       real(wp),          intent(in) :: wood_carbon, rho
-      real(wp)                      :: dbh                 ! [cm]
-      dbh = agb_to_dbh(allom, wood_carbon * allom%aboveground_frac, rho)
-   end function wood_to_dbh
+      real(wp)                      :: diameter                 ! [cm]
+      diameter = agb_to_diameter(allom, wood_carbon * allom%aboveground_frac, rho)
+   end function wood_to_diameter
 
    !---~---
    !   A cohort's geometry from its carbon pools: the diameter from wood carbon, then
    ! the height, basal area and AGB, and the leaf area from leaf carbon. It is the
    ! body of set_cohort_size_from_carbon, the one writer of a cohort's geometry.
    !---~---
-   pure subroutine carbon_to_structure(allom, wood_carbon, leaf_carbon, rho, sla, dbh, height, basal_area,  &
+   pure subroutine carbon_to_structure(allom, wood_carbon, leaf_carbon, rho, sla, diameter, height, basal_area,  &
                                        agb, leaf_area)
       type(allometry_t), intent(in)  :: allom
       real(wp),          intent(in)  :: wood_carbon, leaf_carbon    ! [kgC/plant] prognostic pools
       real(wp),          intent(in)  :: rho, sla                    ! [g/cm3], [m2/kgC]
-      real(wp),          intent(out) :: dbh, height, basal_area, agb, leaf_area
-      dbh        = wood_to_dbh(allom, wood_carbon, rho)
-      height     = dbh_to_height(allom, dbh)
-      basal_area = pio4 * dbh * dbh
+      real(wp),          intent(out) :: diameter, height, basal_area, agb, leaf_area
+      diameter        = wood_to_diameter(allom, wood_carbon, rho)
+      height     = diameter_to_height(allom, diameter)
+      basal_area = pio4 * diameter * diameter
       agb        = allom%aboveground_frac * wood_carbon
       leaf_area  = leaf_carbon * sla
    end subroutine carbon_to_structure

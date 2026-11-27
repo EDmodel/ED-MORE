@@ -128,7 +128,7 @@ contains
          p%recruit_carbon_efficiency = [ 1.0e-3_wp, 1.0e-3_wp, 1.0e-3_wp ]
          p%seed_rain_recruits = [ 0.01_wp, 0.01_wp, 0.01_wp ]
          p%include_pft = [ 1_ik, 1_ik, 1_ik ]
-         p%min_cohort_height = 2.0_wp
+         p%min_recruit_height = [ 2.0_wp, 2.0_wp, 2.0_wp ]
          p%min_repro_height  = [ 13.912064431085485_wp, 13.912064431085485_wp, 13.912064431085485_wp ]
          !--- The mortality hazard and the plasticity slopes.
          p%mort_gamma = [ 0.019815037439806053_wp, 0.0094_wp, 0.004953547651645506_wp ]

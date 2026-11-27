@@ -11,8 +11,8 @@ module ed_config_io
    use ed_kinds,      only : wp, ik
    use ed_constants,  only : n_soil_layer_max
    use ed_allometry_lib, only : HEIGHT_POWER, HEIGHT_CHAVE, GROWTH_TREE, GROWTH_GRASS
-   use ed_config,       only : ed_config_t, derive_parameters, alloc_pft_table, INIT_CENSUS,        &
-                               INIT_RESTART
+   use ed_config,       only : ed_config_t, init_params_t, derive_parameters, alloc_pft_table,       &
+                               INIT_CENSUS, INIT_RESTART
    use ed_pft_derive,   only : pft_stomata_psi_onset, pft_wstress_psi_open, pft_wstress_psi_close
    use ed_fast_params,     only : INTEG_ESDIRK2, INTEG_RK45, RK45_RTOL
    use ed_soil_params,     only : soil_params_t, ENERGY_BC_GEOTHERMAL, ENERGY_BC_DIRICHLET,           &
@@ -29,7 +29,7 @@ module ed_config_io
                                    forcing_params_t, MET_BACKEND_DEFAULT, MET_BACKEND_ERA5LAND, METAVG_END,       &
                                    METAVG_BEGIN, LW_FILE, LW_SYNTHESIZE, CLAMP_ERROR, CLAMP_HOLD,                 &
                                    GRIDMATCH_EXPLICIT, GRIDMATCH_NEAREST
-   use ed_output_params, only : output_params_t, MAX_DBH_EDGE, SYNC_FLUSH, SYNC_NEVER, FC_DAY, FC_MONTH,      &
+   use ed_output_params, only : output_params_t, MAX_DIAMETER_EDGE, SYNC_FLUSH, SYNC_NEVER, FC_DAY, FC_MONTH,      &
                                  FC_YEAR, FC_ALL, STATE_DAYS, STATE_MONTHS, STATE_YEARS
    use ed_time,       only : ed_time_t, string_to_time
    use ed_biophysics_params,   only : snow_params_t, aero_params_t
@@ -46,7 +46,7 @@ module ed_config_io
    private
 
    public :: load_ed_config, write_pft_params_csv
-   public :: load_fast_params, load_soil, load_snow_params, load_aero_params   ! exposed for unit tests
+   public :: load_fast_params, load_soil, load_snow_params, load_aero_params, load_soil_temp   ! exposed for unit tests
 
    integer(ik), parameter :: MAXPFT  = 64_ik    ! largest PFT count the array buffers handle
    integer,     parameter :: MAXMISS = 256       ! largest missing-key list
@@ -441,6 +441,25 @@ contains
          one = toml_real(tm, key, one)                 ! recorded, set or default
       end if
    end subroutine opt_texture
+
+   !---~---
+   !   [init].soil_temp: one value for every soil layer, or a list of one per layer, top down
+   ! (n_soil_temp counts it; validate_config matches it to the column's layers).
+   !---~---
+   subroutine load_soil_temp(tm, init)
+      type(toml_table_t),  intent(in)    :: tm
+      type(init_params_t), intent(inout) :: init
+      real(wp) :: temps(n_soil_layer_max)
+      if (.not. toml_is_array(tm, 'init.soil_temp')) then
+         init%soil_temp   = toml_real(tm, 'init.soil_temp', init%soil_temp(1))
+         init%n_soil_temp = 0_ik
+         return
+      end if
+      call toml_real_array(tm, 'init.soil_temp', temps, init%n_soil_temp)
+      if (init%n_soil_temp == 0_ik) return                         ! an empty list keeps the default
+      init%soil_temp = temps(init%n_soil_temp)                     ! below the list: no layer
+      init%soil_temp(1:init%n_soil_temp) = temps(1:init%n_soil_temp)
+   end subroutine load_soil_temp
 
    !---~---
    !   [soil].water_bottom_bc: the column's water boundary and its drainage factor, kept when
@@ -982,10 +1001,10 @@ contains
       call opt_choice(t, 'output.diel_interval', [character(len=NAME_LEN) :: '1 hour', '2 hours', '3 hours',    &
                       '4 hours'], [1_ik, 2_ik, 3_ik, 4_ik], cfg%output%diel_interval_hours, m)
       !---~---
-      !   DBH size-class edges (DIM_SIZE), ascending, n_class+1 of them. Absent -> setup_output_files
+      !   diameter size-class edges (DIM_SIZE), ascending, n_class+1 of them. Absent -> setup_output_files
       ! installs the built-in inventory default.
       !---~---
-      call load_dbh_edges(t, cfg%output)
+      call load_diameter_edges(t, cfg%output)
       !--- Per-tier switch and file chunk, in tier order: fast, daily, monthly, annual.
       cfg%output%freq_on(1) = toml_logical(t, 'output.fast.enabled',    .false.)
       cfg%output%freq_on(2) = toml_logical(t, 'output.daily.enabled',   .true.)
@@ -1237,7 +1256,7 @@ contains
          cfg%init%census_file = toml_string(tm, 'init.census_file', '')
       end if
       call req_s(tm, 'init.pft_config',    cfg%init%pft_config,        miss)
-      cfg%init%soil_temp  = toml_real(tm, 'init.soil_temp',  cfg%init%soil_temp)
+      call load_soil_temp(tm, cfg%init)
       cfg%init%soil_theta = toml_real(tm, 'init.soil_theta', cfg%init%soil_theta)
       cfg%init%reacclimate_traits = toml_logical(tm, 'init.reacclimate_traits', cfg%init%reacclimate_traits)
 
@@ -1291,7 +1310,7 @@ contains
       call opt_pa(tp, 'pft.nbg_init_density',                 cfg%pft%nbg_init_density,                 npft, miss)
       call req_pa(tp, 'pft.seed_rain_recruits',               cfg%pft%seed_rain_recruits,               npft, miss)
       call req_pa_int(tp, 'pft.include_pft',                  cfg%pft%include_pft,                      npft, miss)
-      call req_r(tp, 'pft.min_cohort_height',       cfg%pft%min_cohort_height,       miss)
+      call req_pa_bcast(tp, 'pft.min_recruit_height', cfg%pft%min_recruit_height, npft, miss)
       call req_pa(tp, 'pft.min_repro_height',                 cfg%pft%min_repro_height,                 npft, miss)
 
       !--- Leaf-photosynthesis per-PFT traits.
@@ -1401,6 +1420,7 @@ contains
       !--- Each PFT's allometry: every key one value for all PFTs, or one per PFT.
       associate (allom => cfg%pft%allom)
          call req_pa_bcast(tp, 'allometry.hgt_max',          allom%hgt_max,          npft, miss)
+         call opt_pa_bcast(tp, 'allometry.diameter_height',  allom%diameter_height,  npft, miss)
          call req_pa_bcast(tp, 'allometry.b1Ht',             allom%b1Ht,             npft, miss)
          call req_pa_bcast(tp, 'allometry.b2Ht',             allom%b2Ht,             npft, miss)
          call req_pa_bcast(tp, 'allometry.agb_c1',           allom%agb_c1,           npft, miss)
@@ -1458,10 +1478,10 @@ contains
          write(*,'(3a)') ' warning: could not write PFT parameters CSV "', trim(path), '"'
          return
       end if
-      write(u,'(a)') 'pft,growth_form,wood_density,hgt_max,'                                                    &
+      write(u,'(a)') 'pft,growth_form,wood_density,hgt_max,diameter_height,'                                                    &
            //'reproduction_investment_fraction,recruit_carbon_efficiency,'                            &
            //'mort_gamma,mort_alpha,mort_beta,seed_rain_recruits,include_pft,'                         &
-           //'min_cohort_height,min_repro_height,'                                         &
+           //'min_recruit_height,min_repro_height,'                                         &
            //'photosynthetic_pathway,vcmax25,jmax25,tpu25,rd25,kp25,'                                  &
            //'stomatal_g0,stomatal_g1,stomatal_d0,quantum_yield_c4,theta_j,theta_cj_c3,theta_ip_c3,'   &
            //'theta_cj_c4,theta_ic_c4,capacity_low_temp,capacity_low_temp_slope,'                     &
@@ -1482,15 +1502,15 @@ contains
       associate (p => cfg%pft)
          do pf = 1_ik, p%n
             !---~---
-            !   94 items: 2 i0 + 8 + i0 + 2 + i0 + 47 + i0 + 32. Keep the format in step with
+            !   95 items: 2 i0 + 9 + i0 + 2 + i0 + 47 + i0 + 32. Keep the format in step with
             ! the header and the list: a shorter format reuses its last group, printing a
             ! real into an integer slot and dropping the trailing columns.
             !---~---
-            write(u,'(i0,",",i0,8(",",es15.8),",",i0,2(",",es15.8),",",i0,47(",",es15.8),",",i0,32(",",es15.8))') &
-                 pf, p%allom(pf)%growth_form, p%wood_density(pf), p%allom(pf)%hgt_max,                                           &
+            write(u,'(i0,",",i0,9(",",es15.8),",",i0,2(",",es15.8),",",i0,47(",",es15.8),",",i0,32(",",es15.8))') &
+                 pf, p%allom(pf)%growth_form, p%wood_density(pf), p%allom(pf)%hgt_max, p%allom(pf)%diameter_height,             &
                  p%reproduction_investment_fraction(pf), p%recruit_carbon_efficiency(pf),                &
                  p%mort_gamma(pf), p%mort_alpha(pf), p%mort_beta(pf), p%seed_rain_recruits(pf),         &
-                 p%include_pft(pf), p%min_cohort_height, p%min_repro_height(pf),                        &
+                 p%include_pft(pf), p%min_recruit_height(pf), p%min_repro_height(pf),                        &
                  p%photosynthetic_pathway(pf), p%vcmax25(pf), p%jmax25(pf), p%tpu25(pf),                &
                  p%rd25(pf), p%kp25(pf), p%stomatal_g0(pf), p%stomatal_g1(pf), p%stomatal_d0(pf),       &
                  p%quantum_yield_c4(pf), p%theta_j(pf), p%theta_cj_c3(pf), p%theta_ip_c3(pf),           &
@@ -1530,21 +1550,21 @@ contains
    end subroutine write_pft_params_csv
 
    !---~---
-   !   [output].dbh_class_edges: a list given needs at least two edges (one class), since a
+   !   [output].diameter_class_edges: a list given needs at least two edges (one class), since a
    ! user who set the key meant to control the binning.
    !---~---
-   subroutine load_dbh_edges(t, out_cfg)
+   subroutine load_diameter_edges(t, out_cfg)
       type(toml_table_t),    intent(in)    :: t
       type(output_params_t), intent(inout) :: out_cfg
-      real(wp)    :: tmp(MAX_DBH_EDGE)
+      real(wp)    :: tmp(MAX_DIAMETER_EDGE)
       integer(ik) :: nout
-      out_cfg%n_dbh_class = 0_ik
-      if (.not. toml_has(t, 'output.dbh_class_edges')) return
-      call toml_real_array(t, 'output.dbh_class_edges', tmp, nout)
+      out_cfg%n_diameter_class = 0_ik
+      if (.not. toml_has(t, 'output.diameter_class_edges')) return
+      call toml_real_array(t, 'output.diameter_class_edges', tmp, nout)
       if (nout < 2_ik)                                                                           &
-         error stop 'ed_config_io: [output].dbh_class_edges needs at least 2 edges (1 class)'
-      out_cfg%n_dbh_class        = nout - 1_ik
-      out_cfg%dbh_class_edges(1:nout)  = tmp(1:nout)
-   end subroutine load_dbh_edges
+         error stop 'ed_config_io: [output].diameter_class_edges needs at least 2 edges (1 class)'
+      out_cfg%n_diameter_class        = nout - 1_ik
+      out_cfg%diameter_class_edges(1:nout)  = tmp(1:nout)
+   end subroutine load_diameter_edges
 
 end module ed_config_io

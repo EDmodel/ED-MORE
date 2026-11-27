@@ -12,7 +12,7 @@
 module ed_config_check
    use ed_kinds,              only : wp, ik
    use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
-   use ed_constants,            only : n_soil_layer_max, day_sec
+   use ed_constants,            only : n_soil_layer_max, day_sec, breast_height
    use ed_output_params,        only : STATE_DAYS, FC_DAY, FC_MONTH, TIER_MONTHLY, TIER_ANNUAL
    use ed_time,                 only : time_lt, time_valid, time_to_string, whole_years_between
    use ed_toml,                 only : toml_table_t, toml_has, toml_has_section
@@ -351,6 +351,10 @@ contains
             error stop TAG//'soil: the per-layer texture does not match the column''s layers: a [soil] '// &
                        'texture list takes one value per layer (soil.layer_bottoms, or the default '//   &
                        'layers, cut at soil.depth), and every list the same number'
+         !--- A map's column takes its layers from its cell: seed_patch_stores checks the list there.
+         if (cfg%init%n_soil_temp /= 0_ik .and. cfg%init%n_soil_temp /= n .and. .not. soil_maps_on(cfg%maps)) &
+            error stop TAG//'init.soil_temp: a list takes one value per soil layer (soil.layer_bottoms, '//   &
+                       'or the default layers, cut at soil.depth)'
          call soil_layer_textures(sc, tex)
          !---~---
          !   Each layer check states what must hold, so a NaN fails it: a map layer with no sand
@@ -437,7 +441,7 @@ contains
    !--- [init].
    subroutine check_init(cfg)
       type(ed_config_t), intent(in) :: cfg
-      if (cfg%init%soil_temp < 233.0_wp .or. cfg%init%soil_temp > 333.0_wp)                           &
+      if (.not. all(cfg%init%soil_temp >= 233.0_wp .and. cfg%init%soil_temp <= 333.0_wp))               &
          error stop TAG//'init.soil_temp outside 233-333 K'
       if (cfg%init%reacclimate_traits .and. cfg%init%init_mode /= INIT_RESTART)                            &
          error stop TAG//'init.reacclimate_traits applies to a restart (init.init_mode = 2) only'
@@ -757,6 +761,25 @@ contains
             error stop TAG//'a grass PFT needs pft.root_to_leaf_ratio > 0: its fine roots hold its water'
          if (any(p%allom(1:p%n)%growth_form == GROWTH_GRASS) .and. cfg%demography%demography_on)          &
             error stop TAG//'a PFT with growth_form = "grass" needs [demography].demography_on = false'
+         !---~---
+         !   A tree's diameter is measured at diameter_height, below its height cap, and its recruits are
+         ! born below the cap too. A grass has no diameter and is born at its height, so neither applies.
+         !---~---
+         if (any(p%allom(1:p%n)%growth_form /= GROWTH_GRASS .and.                                        &
+                 (p%allom(1:p%n)%diameter_height < 0.0_wp .or.                                           &
+                  p%allom(1:p%n)%diameter_height >= p%allom(1:p%n)%hgt_max)))                            &
+            error stop TAG//'allometry.diameter_height must be in [0, hgt_max) for a tree'
+         if (any(p%allom(1:p%n)%growth_form /= GROWTH_GRASS .and.                                        &
+                 (p%min_recruit_height(1:p%n) <= 0.0_wp .or.                                             &
+                  p%min_recruit_height(1:p%n) >= p%allom(1:p%n)%hgt_max)))                               &
+            error stop TAG//'pft.min_recruit_height must be in (0, hgt_max) for a tree'
+         !---~---
+         !   Chave et al. (2014) fitted the log-quadratic height curve and its stress index E on
+         ! diameters measured at breast height or above the buttresses.
+         !---~---
+         if (any(p%allom(1:p%n)%height_allometry == HEIGHT_CHAVE .and.                                   &
+                 p%allom(1:p%n)%diameter_height < breast_height))                                        &
+            error stop TAG//'allometry.height_allometry = "chave2014" needs diameter_height >= 1.3 m (breast height)'
       end associate
    end subroutine check_pft
 

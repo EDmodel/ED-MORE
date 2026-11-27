@@ -23,8 +23,8 @@ module ed_cohort_state_vars
                                     tissue_energy_to_temp, internal_energy_liquid
    use ed_plant_hydr_lib,    only : water_curve_t, tissue_psi_to_water
    use ed_numerics,          only : pair_mean
-   use ed_allometry_lib,     only : dbh_to_height, size_to_leaf_carbon, size_to_wood_carbon,  &
-                                    carbon_to_structure, dbh_to_wai, sapwood_fraction, storage_carbon_target
+   use ed_allometry_lib,     only : diameter_to_height, size_to_leaf_carbon, size_to_wood_carbon,  &
+                                    carbon_to_structure, diameter_to_wai, sapwood_fraction, storage_carbon_target
    use ed_pft_params,        only : pft_table_t
    use ed_diag_vars,         only : cohort_diag_block, expand_cohort_diag, reorder_cohort_diag,              &
                                     copy_cohort_diag, clear_cohort_diag
@@ -63,7 +63,7 @@ module ed_cohort_state_vars
       real(wp),    allocatable :: wood_carbon(:)          ! [kgC/plant] the size anchor
       real(wp),    allocatable :: nonstructural_carbon(:) ! [kgC/plant] storage
       !--- 3. SIZE, DERIVED FROM THE CARBON POOLS (never integrated)
-      real(wp),    allocatable :: dbh(:)              ! [cm]
+      real(wp),    allocatable :: diameter(:)              ! [cm]
       real(wp),    allocatable :: height(:)           ! [m]
       real(wp),    allocatable :: basal_area(:)       ! [cm2/plant]
       real(wp),    allocatable :: agb(:)              ! [kgC/plant] aboveground biomass
@@ -97,7 +97,7 @@ module ed_cohort_state_vars
       real(wp),    allocatable :: wet_psi_sum(:)          ! [MPa day] predawn potential above it
       real(wp),    allocatable :: light_hours_mean(:)     ! [h/day]   running mean of the hours of light
       !--- 8. GROWTH HISTORY (the mortality law reads growth_avg)
-      real(wp),    allocatable :: growth_avg(:)       ! [cm/yr] moving-average dbh growth, read once growth_count > 0
+      real(wp),    allocatable :: growth_avg(:)       ! [cm/yr] moving-average diameter growth, read once growth_count > 0
       real(wp),    allocatable :: growth_accum(:)     ! [cm/yr] sum of the samples in the window
       integer(ik), allocatable :: growth_count(:)     ! samples in the window
       real(wp),    allocatable :: growth_hist(:,:)    ! [cm/yr] (window, cohort) ring buffer of samples
@@ -162,10 +162,10 @@ contains
       cohort%wood_carbon = 0.0_wp
       cohort%nonstructural_carbon = 0.0_wp
       !--- 3. Size, derived from the carbon pools
-      allocate(cohort%dbh(cap), cohort%height(cap), cohort%basal_area(cap), cohort%agb(cap),                   &
+      allocate(cohort%diameter(cap), cohort%height(cap), cohort%basal_area(cap), cohort%agb(cap),                   &
                cohort%leaf_area(cap), cohort%wood_area(cap), cohort%sapwood_carbon(cap),                       &
                cohort%sapwood_area(cap), cohort%overtopping_lai(cap))
-      cohort%dbh = 0.0_wp
+      cohort%diameter = 0.0_wp
       cohort%height = 0.0_wp
       cohort%basal_area = 0.0_wp
       cohort%agb = 0.0_wp
@@ -232,7 +232,7 @@ contains
       cohort%cap = 0_ik
       if (allocated(cohort%nplant)) deallocate(cohort%pft, cohort%global_id, cohort%owner_patch,               &
                                                cohort%nplant, cohort%leaf_carbon, cohort%fineroot_carbon,      &
-                                               cohort%wood_carbon, cohort%nonstructural_carbon, cohort%dbh,    &
+                                               cohort%wood_carbon, cohort%nonstructural_carbon, cohort%diameter,    &
                                                cohort%height, cohort%basal_area, cohort%agb, cohort%leaf_area, &
                                                cohort%wood_area, cohort%sapwood_carbon, cohort%sapwood_area,   &
                                                cohort%overtopping_lai, cohort%leaf_water_mass,                 &
@@ -289,7 +289,7 @@ contains
       tmp%wood_carbon(1:m)          = cohort%wood_carbon(1:m)
       tmp%nonstructural_carbon(1:m) = cohort%nonstructural_carbon(1:m)
       !--- 3. Size, derived from the carbon pools
-      tmp%dbh(1:m)             = cohort%dbh(1:m)
+      tmp%diameter(1:m)             = cohort%diameter(1:m)
       tmp%height(1:m)          = cohort%height(1:m)
       tmp%basal_area(1:m)      = cohort%basal_area(1:m)
       tmp%agb(1:m)             = cohort%agb(1:m)
@@ -362,7 +362,7 @@ contains
       call move_alloc(src%wood_carbon, dst%wood_carbon)
       call move_alloc(src%nonstructural_carbon, dst%nonstructural_carbon)
       !--- 3. Size, derived from the carbon pools
-      call move_alloc(src%dbh, dst%dbh)
+      call move_alloc(src%diameter, dst%diameter)
       call move_alloc(src%height, dst%height)
       call move_alloc(src%basal_area, dst%basal_area)
       call move_alloc(src%agb, dst%agb)
@@ -430,7 +430,7 @@ contains
       cohort%wood_carbon(1:m)          = cohort%wood_carbon(perm(1:m))
       cohort%nonstructural_carbon(1:m) = cohort%nonstructural_carbon(perm(1:m))
       !--- 3. Size, derived from the carbon pools
-      cohort%dbh(1:m)             = cohort%dbh(perm(1:m))
+      cohort%diameter(1:m)             = cohort%diameter(perm(1:m))
       cohort%height(1:m)          = cohort%height(perm(1:m))
       cohort%basal_area(1:m)      = cohort%basal_area(perm(1:m))
       cohort%agb(1:m)             = cohort%agb(perm(1:m))
@@ -518,7 +518,7 @@ contains
       cohort%wood_carbon(dst)          = cohort%wood_carbon(src)
       cohort%nonstructural_carbon(dst) = cohort%nonstructural_carbon(src)
       !--- 3. Size, derived from the carbon pools
-      cohort%dbh(dst)             = cohort%dbh(src)
+      cohort%diameter(dst)             = cohort%diameter(src)
       cohort%height(dst)          = cohort%height(src)
       cohort%basal_area(dst)      = cohort%basal_area(src)
       cohort%agb(dst)             = cohort%agb(src)
@@ -572,8 +572,8 @@ contains
    !--- SIZE: the geometry derived from the carbon pools
 
    !---~---
-   !   Place ONE cohort slot on the allometry from its dbh (setup, census, recruitment, a state
-   ! file without pools): the four carbon pools a plant of that dbh holds, then the geometry
+   !   Place ONE cohort slot on the allometry from its diameter (setup, census, recruitment, a state
+   ! file without pools): the four carbon pools a plant of that diameter holds, then the geometry
    ! derived from those pools by set_cohort_size_from_carbon, exactly as after every other
    ! carbon change. Geometry has that one writer, so a cohort's geometry is always the same
    ! function of its carbon and a restart that re-derives it gets the same bits.
@@ -585,9 +585,9 @@ contains
       integer(ik) :: pf
       pf = cohort%pft(i)
       associate (pft => cohort%pft_table)
-         height = dbh_to_height(pft%allom(pf), cohort%dbh(i))
-         cohort%leaf_carbon(i)          = size_to_leaf_carbon(pft%allom(pf), cohort%dbh(i), height, cohort%sla(i))
-         cohort%wood_carbon(i)          = size_to_wood_carbon(pft%allom(pf), cohort%dbh(i), height,             &
+         height = diameter_to_height(pft%allom(pf), cohort%diameter(i))
+         cohort%leaf_carbon(i)          = size_to_leaf_carbon(pft%allom(pf), cohort%diameter(i), height, cohort%sla(i))
+         cohort%wood_carbon(i)          = size_to_wood_carbon(pft%allom(pf), cohort%diameter(i), height,             &
                                                            pft%wood_density(pf))
          cohort%fineroot_carbon(i)      = pft%root_to_leaf_ratio(pf) * cohort%leaf_carbon(i)
          cohort%nonstructural_carbon(i) = storage_carbon_target(pft%storage_cushion(pf), cohort%leaf_carbon(i), &
@@ -597,8 +597,8 @@ contains
    end subroutine set_cohort_size
 
    !---~---
-   !   The ONE writer of a cohort's geometry: with wood_carbon the size anchor, derive dbh from
-   ! it (wood_to_dbh) and the rest of the geometry, and take leaf_area straight from leaf_carbon.
+   !   The ONE writer of a cohort's geometry: with wood_carbon the size anchor, derive diameter from
+   ! it (wood_to_diameter) and the rest of the geometry, and take leaf_area straight from leaf_carbon.
    ! Called after every operator that moves carbon or SLA (birth, the daily update, trait
    ! acclimation, fusion, fission, a restart read). The pools are the inputs and are not
    ! changed.
@@ -614,16 +614,16 @@ contains
       pf = cohort%pft(i)
       call carbon_to_structure(cohort%pft_table%allom(pf), cohort%wood_carbon(i), cohort%leaf_carbon(i), &
                                cohort%pft_table%wood_density(pf), cohort%sla(i),                 &
-                               cohort%dbh(i), cohort%height(i), cohort%basal_area(i),             &
+                               cohort%diameter(i), cohort%height(i), cohort%basal_area(i),             &
                                cohort%agb(i), cohort%leaf_area(i))
       call set_cohort_wood_allometry(cohort, i)
    end subroutine set_cohort_size_from_carbon
 
 
    !---~---
-   !   The cached WOOD geometry of one slot, from the just-set dbh / basal_area / wood_carbon.
+   !   The cached WOOD geometry of one slot, from the just-set diameter / basal_area / wood_carbon.
    ! Part of set_cohort_size_from_carbon, so the leaf and wood caches can never disagree about
-   ! which dbh they were derived from. Everything here is PER PLANT (see the declarations):
+   ! which diameter they were derived from. Everything here is PER PLANT (see the declarations):
    ! `wood_area` is the per-plant twin of `leaf_area`, so WAI = nplant*wood_area at the point
    ! of use and no cached field carries a stale plant density.
    !---~---
@@ -634,9 +634,9 @@ contains
       integer(ik) :: pf
       pf = cohort%pft(i)
       associate (pft => cohort%pft_table)
-         !--- dbh_to_wai is exactly linear in nplant, so passing 1 gives the per-plant area.
-         cohort%wood_area(i)      = dbh_to_wai(pft%allom(pf), cohort%dbh(i), 1.0_wp)
-         f_sap                    = sapwood_fraction(pft%allom(pf), cohort%dbh(i))
+         !--- diameter_to_wai is exactly linear in nplant, so passing 1 gives the per-plant area.
+         cohort%wood_area(i)      = diameter_to_wai(pft%allom(pf), cohort%diameter(i), 1.0_wp)
+         f_sap                    = sapwood_fraction(pft%allom(pf), cohort%diameter(i))
          cohort%sapwood_carbon(i) = f_sap * cohort%wood_carbon(i)
          cohort%sapwood_area(i)   = f_sap * cohort%basal_area(i)
       end associate
@@ -782,7 +782,7 @@ contains
    !--- BIRTH
 
    !---~---
-   !   Initialize ONE freshly-created cohort slot at BIRTH from (pft, patch, dbh): set the
+   !   Initialize ONE freshly-created cohort slot at BIRTH from (pft, patch, diameter): set the
    ! per-slot identity + prognostic fields to their birth values, then derive
    ! the on-allometry geometry via set_cohort_size. The SINGLE canonical birth-field policy
    ! shared by add_cohort (setup / census) and apply_recruitment -- add any new per-cohort
@@ -790,11 +790,11 @@ contains
    ! hold a stale value; it is recomputed by update_overtopping_lai every slow step anyway).
    ! The caller ensures capacity, stamps the global id, and bumps cohort%n.
    !---~---
-   subroutine init_cohort(cohort, m, pft, ipft, owner_patch, nplant, dbh, birth_temp, birth_psi)
+   subroutine init_cohort(cohort, m, pft, ipft, owner_patch, nplant, diameter, birth_temp, birth_psi)
       type(cohort_block), intent(inout) :: cohort
       integer(ik),        intent(in)    :: m, ipft, owner_patch
       type(pft_table_t),  intent(in)    :: pft
-      real(wp),           intent(in)    :: nplant, dbh
+      real(wp),           intent(in)    :: nplant, diameter
       !---~---
       !   The state the cohort is born in, its patch's (patch_physical_state): its leaves and wood
       ! start at birth_temp, holding the water their tissues hold at birth_psi, and with the
@@ -805,7 +805,7 @@ contains
       cohort%pft(m)              = ipft
       cohort%owner_patch(m)      = owner_patch
       cohort%nplant(m)           = nplant
-      cohort%dbh(m)              = dbh
+      cohort%diameter(m)              = diameter
       cohort%growth_avg(m)       = UNSET_POSITIVE     ! read once growth_count > 0
       !---~---
       !   UNSET: the fast loop seeds it from the surface-layer soil potential on the cohort's
@@ -836,7 +836,7 @@ contains
       cohort%wood_temp(m)        = birth_temp
       cohort%leaf_surf_water(m)  = 0.0_wp             ! a new cohort's canopy starts dry
       cohort%wood_surf_water(m)  = 0.0_wp
-      call set_cohort_size(cohort, m)                 ! carbon pools from dbh, then the geometry from them
+      call set_cohort_size(cohort, m)                 ! carbon pools from diameter, then the geometry from them
       call set_cohort_tissue_water(cohort, m, birth_psi, pft%hydro(ipft)%leaf_curve, pft%hydro(ipft)%wood_curve)
       call hold_cohort_tissue_temps(cohort, m)
    end subroutine init_cohort

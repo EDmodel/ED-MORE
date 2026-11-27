@@ -93,7 +93,7 @@ def basal_area_m2(dbh_cm):
 
 
 def height_m(dbh_cm, pft):
-    """ED-MORE's dbh_to_height: each PFT's height curve (power law or log-quadratic), capped at its hgt_max."""
+    """ED-MORE's diameter_to_height: each PFT's height curve (power law or log-quadratic), capped at its hgt_max."""
     i = np.asarray(pft) - 1
     x = np.log(dbh_cm)
     h = np.exp(per_pft("b1Ht")[i] + per_pft("b2Ht")[i] * x)
@@ -107,13 +107,13 @@ def height_m(dbh_cm, pft):
 
 
 def agb_kgc(dbh_cm, pft, rho):
-    """ED-MORE's dbh_to_agb: agb_c1 (rho D^2 h)^agb_c2 [kgC per tree]."""
+    """ED-MORE's diameter_to_agb: agb_c1 (rho D^2 h)^agb_c2 [kgC per tree]."""
     i = np.asarray(pft) - 1
     return per_pft("agb_c1")[i] * (rho * dbh_cm ** 2 * height_m(dbh_cm, pft)) ** per_pft("agb_c2")[i]
 
 
 def leaf_area_m2(dbh_cm, pft):
-    """ED-MORE's dbh_to_leaf_area: lai_b1 (D^2 h)^lai_b2 [m2 per tree]."""
+    """ED-MORE's diameter_to_leaf_area: lai_b1 (D^2 h)^lai_b2 [m2 per tree]."""
     i = np.asarray(pft) - 1
     return per_pft("lai_b1")[i] * (dbh_cm ** 2 * height_m(dbh_cm, pft)) ** per_pft("lai_b2")[i]
 
@@ -211,7 +211,7 @@ for y in (1985, 2005):
     rows["patch_id"] = rows.quad.astype(int) + 1
     rows["patch_area"] = QUAD * QUAD
     rows["nplant"] = rows.n / (QUAD * QUAD)
-    rows[["patch_id", "patch_area", "pft", "dbh", "nplant"]].to_csv(
+    rows.rename(columns={"dbh": "diameter"})[["patch_id", "patch_area", "pft", "diameter", "nplant"]].to_csv(
         os.path.join(OUT, f"bci_{y}_census.csv"), index=False, float_format="%.6g")
 
 # every census's stand by PFT and size class, for the comparison with the model
@@ -225,6 +225,6 @@ for y in YEARS:
             stand.append((y, p, SIZE_CLASSES[j], m.sum() / PLOT_AREA,
                           basal_area_m2(live.dbh[m]).sum() / PLOT_AREA,
                           agb_kgc(live.dbh[m], p, live.rho[m]).sum() / (PLOT_AREA * 1e4)))
-pd.DataFrame(stand, columns=["year", "pft", "dbh_class", "stems", "basal_area", "agb"]).to_csv(
+pd.DataFrame(stand, columns=["year", "pft", "diameter_class", "stems", "basal_area", "agb"]).to_csv(
     os.path.join(HERE, "census_stand.csv"), index=False, float_format="%.6g")
 print("wrote data/ and census_stand.csv")

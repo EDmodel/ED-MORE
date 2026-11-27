@@ -30,7 +30,7 @@ module ed_output_extract
    public :: extract_variable, extract_fast_scalar
    public :: src_class, SRCK_COHORT, SRCK_PATCH, SRCK_LAYER, SRCK_POLYGON, SRCK_FAST, SRCK_SITE, SRC_NONE
    !--- Cohort fields (1000-1999).
-   public :: FLD_C_NPLANT, FLD_C_DBH, FLD_C_HEIGHT, FLD_C_BASAL_AREA, FLD_C_AGB, FLD_C_LEAF_AREA
+   public :: FLD_C_NPLANT, FLD_C_DIAMETER, FLD_C_HEIGHT, FLD_C_BASAL_AREA, FLD_C_AGB, FLD_C_LEAF_AREA
    public :: FLD_C_GROWTH_AVG, FLD_C_PFT, FLD_C_OWNER_PATCH, FLD_C_GLOBAL_ID
    public :: FLD_C_LAI, FLD_C_WAI, FLD_C_LEAF_CARBON, FLD_C_FINEROOT_CARBON, FLD_C_WOOD_CARBON
    public :: FLD_C_NONSTRUCTURAL_CARBON, FLD_C_BGB, FLD_C_VEG_CARBON, FLD_C_ONE
@@ -74,7 +74,7 @@ module ed_output_extract
 
    !--- Cohort fields (SRCK_COHORT). Raw SoA columns first, then derived ones.
    integer(ik), parameter :: FLD_C_NPLANT          = 1001_ik
-   integer(ik), parameter :: FLD_C_DBH             = 1002_ik
+   integer(ik), parameter :: FLD_C_DIAMETER             = 1002_ik
    integer(ik), parameter :: FLD_C_HEIGHT          = 1003_ik
    integer(ik), parameter :: FLD_C_BASAL_AREA      = 1004_ik
    integer(ik), parameter :: FLD_C_AGB             = 1005_ik
@@ -272,8 +272,8 @@ contains
       select case (src)
       case (FLD_C_NPLANT)
          x(1:n) = poly%cohort%nplant(1:n)
-      case (FLD_C_DBH)
-         x(1:n) = poly%cohort%dbh(1:n)
+      case (FLD_C_DIAMETER)
+         x(1:n) = poly%cohort%diameter(1:n)
       case (FLD_C_HEIGHT)
          x(1:n) = poly%cohort%height(1:n)
       case (FLD_C_BASAL_AREA)
@@ -596,9 +596,9 @@ contains
          call reduce_cohort_to_pft(poly, x, v%weight, v%mean, setup%n_pft, slab_out, valid_out,   &
                                    n_out, scale=v%scale, w_given=cohort_w)
 
-      !--- DBH size class: each cohort whole in the class of its mean dbh.
+      !--- diameter size class: each cohort whole in the class of its mean diameter.
       case (DIM_SIZE)
-         call reduce_cohort_to_size(poly, x, v%weight, v%mean, setup%dbh_edges, setup%n_dbh_class,   &
+         call reduce_cohort_to_size(poly, x, v%weight, v%mean, setup%diameter_edges, setup%n_diameter_class,   &
                                     slab_out, valid_out, n_out, scale=v%scale, w_given=cohort_w)
 
       !--- Each site's column, its patches area-weighted, at (is-1)*n_soil_layer_max + k.

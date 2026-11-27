@@ -9,7 +9,7 @@ no binning and no fusion: ED-MORE restructures the stand itself before the first
 
 A declaration TOML names the table and says how to read it; `bci_census.toml` in
 examples/example04_column_biophysics/sites/bci is the worked example. The tool writes:
-  * the census CSV `init_from_census` reads: site_id, patch_id, patch_area [m2], dbh [cm], pft,
+  * the census CSV `init_from_census` reads: site_id, patch_id, patch_area [m2], diameter [cm], pft,
     nplant [plants per m2 of the patch];
   * a summary JSON: what was kept and dropped, the stand under the PFT's allometry beside the table's
     own biomass, and, when the declaration names a PFT file and an earlier census, the steady-state
@@ -41,8 +41,11 @@ ALIVE = ("A",)
 DEAD = ("D",)                           # a later census's status of a tree that died since the earlier one
 # The columns the tool reads, by their names in a ForestGEO tree table (BCI's). A table that names them
 # otherwise maps them in [source].columns, e.g. { treeID = "stem.id", date = "jd" }.
-COLUMNS = ("treeID", "status", "dbh", "gx", "gy", "date", "ExactDate", "agb", "sp")
+COLUMNS = ("treeID", "stemID", "status", "dbh", "gx", "gy", "date", "ExactDate", "agb", "sp")
 DBH_TO_MM = {"mm": 1.0, "cm": 10.0}
+BREAST_HEIGHT = 1.3          # [m] where a ForestGEO table measures a stem: [source].diameter_height's default
+HEIGHT_SLACK = 0.1           # [m] a table and a PFT measured within this of each other agree (1.3 m and the
+                             #     1.37 m of US inventories do)
 
 
 # --------------------------------------------------------------------------------------------- #
@@ -98,6 +101,49 @@ def standard_columns(table, src):
     if units != "mm":
         table["dbh"] = pd.to_numeric(table["dbh"], errors="coerce") * DBH_TO_MM[units]
     return table
+
+
+def lump_stems(table, alive_status):
+    """One row per plant. A table that lists a tree's stems under one treeID (a ForestGEO stem table)
+    gives each tree as one plant: its live, measured stems lumped at equal basal area, sqrt(sum d^2)
+    (docs/configuration.md, "The diameter"), and its AGB their sum. Its status, position, species and
+    dates are its first live stem's, or its first stem's when none lives. A table with one row per
+    treeID comes back as it is. Returns the table and the number of rows it had."""
+    n_rows = len(table)
+    if "treeID" not in table or not table["treeID"].duplicated().any():
+        return table, n_rows
+    t = table.copy()
+    alive = t["status"].astype(str).isin(alive_status)
+    t["_tree"] = t.groupby("treeID", sort=False).ngroup()
+    t["_dead"] = ~alive
+    t["_d2"] = pd.to_numeric(t["dbh"], errors="coerce").where(alive) ** 2
+    if "agb" in t:
+        t["agb"] = pd.to_numeric(t["agb"], errors="coerce").where(alive)
+    t = t.sort_values(["_tree", "_dead"], kind="stable")     # each tree's live stems first
+    g = t.groupby("_tree", sort=True)
+    plants = g.nth(0).set_index("_tree")
+    plants["dbh"] = np.sqrt(g["_d2"].sum(min_count=1))
+    if "agb" in t:
+        plants["agb"] = g["agb"].sum(min_count=1)
+    return plants.drop(columns=["_dead", "_d2"]).reset_index(drop=True), n_rows
+
+
+def follow_later_trees(earlier, later):
+    """The earlier census's stems under the later census's trees. A stem table (one row per stem) may
+    move a stem to another tree between censuses (a correction, or two trees found to be one); with a
+    stemID in both tables, each earlier stem takes the treeID the later census gives it, so the two
+    censuses lump the same plants. A stem the later census does not list keeps its own treeID. A tree
+    table, one row per tree, comes back as it is."""
+    if "stemID" not in earlier or "stemID" not in later or not later["treeID"].duplicated().any():
+        return earlier
+    known = later.dropna(subset=["stemID"])
+    if known["stemID"].duplicated().any():
+        raise SystemExit("ERROR: a stem table lists a stemID twice; map stemID to the table's unique stem id "
+                         "([source].columns)")
+    tree_of = pd.Series(known["treeID"].to_numpy(), index=known["stemID"].to_numpy())
+    out = earlier.copy()
+    out["treeID"] = out["stemID"].map(tree_of).fillna(out["treeID"]).astype(earlier["treeID"].dtype)
+    return out
 
 
 def in_stand(gx, gy, plot):
@@ -180,14 +226,14 @@ def census_rows(trees, plot, pft):
     """One row per distinct (cell, diameter, PFT): the census file's content, the cell areas, and the
     number of the stand's cells without a kept tree. `pft` is one PFT, or one per tree."""
     pid, area, nx, ny = cells(trees, plot)
-    frame = pd.DataFrame({"patch_id": pid, "dbh_mm": trees["dbh"].to_numpy(float),
+    frame = pd.DataFrame({"patch_id": pid, "diameter_mm": trees["dbh"].to_numpy(float),
                           "pft": np.broadcast_to(np.asarray(pft, dtype=int), (len(pid),))})
-    rows = frame.groupby(["patch_id", "dbh_mm", "pft"]).size().reset_index(name="n")
+    rows = frame.groupby(["patch_id", "diameter_mm", "pft"]).size().reset_index(name="n")
     rows["patch_area"] = area[rows["patch_id"].to_numpy() - 1]
     rows["nplant"] = rows["n"] / rows["patch_area"]
-    rows["dbh"] = rows["dbh_mm"] / 10.0
+    rows["diameter"] = rows["diameter_mm"] / 10.0
     rows["site_id"] = 1
-    rows = rows.sort_values(["patch_id", "dbh", "pft"], ascending=[True, False, True]).reset_index(drop=True)
+    rows = rows.sort_values(["patch_id", "diameter", "pft"], ascending=[True, False, True]).reset_index(drop=True)
     empty = int(stand_cell_mask(plot).sum()) - rows["patch_id"].nunique()
     return rows, area, empty
 
@@ -196,9 +242,9 @@ def write_census(rows, out, header_lines):
     with open(out, "w") as fh:
         for line in header_lines:
             fh.write(f"# {line}\n")
-        fh.write("site_id,patch_id,patch_area,dbh,pft,nplant\n")
+        fh.write("site_id,patch_id,patch_area,diameter,pft,nplant\n")
         for r in rows.itertuples(index=False):
-            fh.write(f"{r.site_id},{r.patch_id},{r.patch_area:.3f},{r.dbh:.4f},{r.pft},{r.nplant:.9e}\n")
+            fh.write(f"{r.site_id},{r.patch_id},{r.patch_area:.3f},{r.diameter:.4f},{r.pft},{r.nplant:.9e}\n")
 
 
 # --------------------------------------------------------------------------------------------- #
@@ -230,6 +276,7 @@ def pft_params(pft_file, pft):
             "lai_b1": allom("lai_b1"), "lai_b2": allom("lai_b2"), "hgt_max": allom("hgt_max"),
             "rho": pick("wood_density"), "sla": pick("sla"), "root_to_leaf": pick("root_to_leaf_ratio"),
             "aboveground_frac": allom("aboveground_frac"),
+            "diameter_height": allom("diameter_height", BREAST_HEIGHT),
             "leaf_turnover": pick("leaf_turnover_rate_toc") + seasonal_fall,
             "retained": float(retained[k]) if retained is not None else 0.3,
             "fineroot_turnover": pick("fineroot_turnover_rate"), "f_labile_leaf": pick("f_labile_leaf"),
@@ -312,14 +359,33 @@ def main(argv=None):
         decl = tomllib.load(fh)
     src, plot, out_decl = decl["source"], decl["plot"], decl.get("output", {})
 
-    table, path = read_table(src, base)
+    stem_rows, path = read_table(src, base)
+    alive_status = tuple(plot.get("alive_status", ALIVE))
+    table, n_rows = lump_stems(stem_rows, alive_status)
     trees, dropped = live_trees(table, plot)
+    #----- A tree table gives each tree by its main stem: its other stems are not in the file. ------#
+    unlisted = 0
+    if "nostems" in trees and n_rows == len(table):
+        unlisted = int((pd.to_numeric(trees["nostems"], errors="coerce") > 1).sum())
+    if unlisted:
+        print(f"WARNING: {unlisted} kept trees have more stems than the table lists: each is its main stem "
+              "alone. A stem table lumps them all.")
     pft = tree_pfts(trees, out_decl)
     rows, area, empty = census_rows(trees, plot, pft)
     stand = stand_cell_mask(plot)
     plot_area = float(area[stand].sum())               # the stand's area: the plot, or its cells in the circle
     if empty:
         print(f"WARNING: {empty} cells hold no kept tree and are left out; their area is lost to the site")
+
+    #----- A PFT's curves take its diameter at its diameter_height: the table's must be measured there. --#
+    measured_at = float(src.get("diameter_height", BREAST_HEIGHT))
+    pft_file = decl.get("pft", {}).get("pft_file")
+    params = {p: pft_params(os.path.join(base, pft_file), p) for p in np.unique(pft)} if pft_file else {}
+    for p, pp in params.items():
+        if abs(pp["diameter_height"] - measured_at) > HEIGHT_SLACK:
+            raise SystemExit(f"ERROR: the table's diameters are measured at {measured_at:g} m "
+                             f"([source].diameter_height), PFT {p}'s at {pp['diameter_height']:g} m "
+                             "([allometry].diameter_height)")
 
     dbh_cm = trees["dbh"].to_numpy(float) / 10.0
     dates = pd.to_datetime(trees.get("ExactDate"), errors="coerce") if "ExactDate" in trees else None
@@ -328,30 +394,30 @@ def main(argv=None):
     header = [f"ED-MORE census: {src.get('census', os.path.basename(path))}, measured {date_note}",
               f"source {os.path.basename(path)}, SHA-256 {sha256(path)[:16]}...; {src.get('citation', '')}".rstrip("; "),
               f"{len(trees)} live trees >= {plot.get('min_dbh_mm', 10.0):g} mm; one patch per "
-              f"{float(plot.get('cell_size', 20.0)):g} m cell; one row per distinct (cell, dbh, pft)",
-              "patch_area [m2]; dbh [cm]; nplant [plants per m2 of the patch]; "
+              f"{float(plot.get('cell_size', 20.0)):g} m cell; one row per distinct (cell, diameter, pft)"
+              + (f"; {n_rows} stems lumped into {len(table)} plants at sqrt(sum d^2)" if n_rows > len(table) else ""),
+              f"patch_area [m2]; diameter [cm] at {measured_at:g} m; nplant [plants per m2 of the patch]; "
               f"made by scripts/prepare_input/census/make_census.py at {git_commit(base)} on "
               f"{datetime.date.today().isoformat()}"]
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     write_census(rows, args.out, header)
 
-    stems = float((rows["nplant"] * rows["patch_area"]).sum())
+    plants = float((rows["nplant"] * rows["patch_area"]).sum())
     summary = {
         "census": src.get("census"), "source": path, "measured": date_note,
         "kept_trees": int(len(trees)), "dropped": dropped,
+        "table_rows": int(n_rows), "table_plants": int(len(table)), "kept_trees_with_unlisted_stems": unlisted,
         "cells": int(stand.sum()), "cells_without_trees": int(empty), "stand_area_ha": plot_area / 1e4,
         "trees_by_pft": {str(p): int(n) for p, n in zip(*np.unique(pft, return_counts=True))},
         "cell_size_m": float(plot.get("cell_size", 20.0)), "rows": int(len(rows)),
-        "stems_in_file": stems,
-        "stems_per_ha": len(trees) / plot_area * 1e4,
+        "plants_in_file": plants,
+        "plants_per_ha": len(trees) / plot_area * 1e4,
         "basal_area_m2_per_ha": float((np.pi / 4 * (dbh_cm / 100.0) ** 2).sum() / plot_area * 1e4),
     }
     if "agb" in trees:
         summary["table_agb_Mg_per_ha"] = float(pd.to_numeric(trees["agb"], errors="coerce").sum() / plot_area * 1e4)
 
-    pft_file = decl.get("pft", {}).get("pft_file")
     if pft_file:
-        params = {p: pft_params(os.path.join(base, pft_file), p) for p in np.unique(pft)}
         by_pft = {}
         for p, pp in params.items():
             _, la, agb = allometry(dbh_cm[pft == p], pp)
@@ -362,6 +428,7 @@ def main(argv=None):
         mort = decl.get("mortality")
         if mort:
             earlier, _ = read_table(mort, base)
+            earlier, _ = lump_stems(follow_later_trees(earlier, stem_rows), alive_status)
             if plot.get("circle"):                     # the stand's own trees
                 earlier = earlier[in_stand(pd.to_numeric(earlier["gx"], errors="coerce"),
                                            pd.to_numeric(earlier["gy"], errors="coerce"), plot)]
@@ -380,7 +447,7 @@ def main(argv=None):
     with open(out_json, "w") as fh:
         json.dump(summary, fh, indent=2)
     print(f"wrote {args.out}: {len(rows)} rows, {rows['patch_id'].nunique()} patches, "
-          f"{stems:.0f} stems ({len(trees)} trees kept)")
+          f"{plants:.0f} plants ({len(trees)} trees kept)")
     if "soil_carbon_spinup" in summary:
         print("[soil_carbon] steady-state litter input:")
         for k, v in summary["soil_carbon_spinup"].items():

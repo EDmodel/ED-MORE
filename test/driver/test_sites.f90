@@ -139,7 +139,7 @@ program test_sites
                     'each site has its census patches')
          biggest = 0.0_wp
          do i = 1_ik, poly%cohort%n
-            if (poly%patch%owner_site(poly%cohort%owner_patch(i)) == 1_ik) biggest = max(biggest, poly%cohort%dbh(i))
+            if (poly%patch%owner_site(poly%cohort%owner_patch(i)) == 1_ik) biggest = max(biggest, poly%cohort%diameter(i))
          end do
          call check(biggest > 40.0_wp, 'the first site holds census site 9''s big tree')
       end associate
@@ -328,7 +328,7 @@ contains
       character(len=*), intent(in) :: path
       integer :: u
       open(newunit=u, file=path, status='replace', action='write')
-      write(u, '(a)') 'site_id,patch_id,dbh,pft,nplant'
+      write(u, '(a)') 'site_id,patch_id,diameter,pft,nplant'
       write(u, '(a)') '7,1,12.0,1,0.02'
       write(u, '(a)') '7,2,8.0,1,0.05'
       write(u, '(a)') '9,1,45.0,1,0.005'

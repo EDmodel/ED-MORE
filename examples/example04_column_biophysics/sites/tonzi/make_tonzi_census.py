@@ -23,7 +23,7 @@ The stand, on 1 ha of 10 m cells (one patch each; ED-MORE fuses them before the 
      heights' 99th percentile.
   3. The oaks' leaf area: the PFT file's lai_b1, printed, that gives the stems the site's tree LAI,
      0.65 (Baldocchi et al. 2004, p. 16), with the PFT file's lai_b2.
-  4. Grass. One grass row in every cell, with dbh 0: a grass's size is its PFT's height. The tillers
+  4. Grass. One grass row in every cell, with diameter 0: a grass's size is its PFT's height. The tillers
      per m2 set its leaf area, and the per-tiller leaf area is the PFT file's lai_b1 (lai_b2 = 0):
      a cell in the open carries Vaira's open-grassland peak LAI, a cell under the oaks the Tonzi
      understory's. No count of tillers was found for these swards; in a frozen stand only the leaf
@@ -177,8 +177,8 @@ def main(argv=None):
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     with open(args.out, "w") as fh:
         fh.write("# The Tonzi (US-Ton) stand, written by make_tonzi_census.py: oaks at the field survey's size\n"
-                 "# distributions (NOT measured trees) and one grass row (dbh 0) per 10 m cell. height is for reference.\n")
-        fh.write("site_id,patch_id,cohort_id,dbh,height,pft,nplant,patch_area\n")
+                 "# distributions (NOT measured trees) and one grass row (diameter 0) per 10 m cell. height is for reference.\n")
+        fh.write("site_id,patch_id,cohort_id,diameter,height,pft,nplant,patch_area\n")
         for i, (cell, d, h, pft, n) in enumerate(rows, start=1):
             fh.write(f"1,{cell},{i},{d},{h},{pft},{n:.6g},{CELL_M * CELL_M}\n")
 

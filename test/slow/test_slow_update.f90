@@ -38,10 +38,10 @@ contains
       !---~---
       !   The applier advances only the carbon and derives the geometry from it: a cohort
       ! that sheds every leaf ends with leaf area exactly 0, never a round-off negative, and its
-      ! dbh and AGB are the allometry of its committed wood carbon.
+      ! diameter and AGB are the allometry of its committed wood carbon.
       !---~---
       block
-         real(wp) :: dt, dbh_c, h_c, ba_c, agb_c, la_c
+         real(wp) :: dt, diameter_c, h_c, ba_c, agb_c, la_c
          dt = 1.0_wp / 365.0_wp
          call init_bare_ground(poly, cfg, 1_ik)
          call add_cohort(poly, cfg, 1_ik, 2_ik, 0.5_wp, 3.0_wp)
@@ -58,8 +58,8 @@ contains
          call check(poly%cohort%leaf_area(1) == 0.0_wp, 'applier: and exactly no leaf area')
          call carbon_to_structure(poly%cohort%pft_table%allom(poly%cohort%pft(1)), poly%cohort%wood_carbon(1),        &
                                   poly%cohort%leaf_carbon(1), cfg%pft%wood_density(poly%cohort%pft(1)),     &
-                                  poly%cohort%sla(1), dbh_c, h_c, ba_c, agb_c, la_c)
-         call check(poly%cohort%dbh(1) == dbh_c .and. poly%cohort%height(1) == h_c                     &
+                                  poly%cohort%sla(1), diameter_c, h_c, ba_c, agb_c, la_c)
+         call check(poly%cohort%diameter(1) == diameter_c .and. poly%cohort%height(1) == h_c                     &
                     .and. poly%cohort%agb(1) == agb_c, 'applier: geometry is the allometry of the carbon')
 
          !---~---
@@ -227,7 +227,7 @@ module test_slow_update_cohorts
 
    type(ed_config_t) :: cfg
    type(polygon_t)  :: poly
-   real(wp)            :: agb_tot, n0, agb0, dbh_avg
+   real(wp)            :: agb_tot, n0, agb0, diameter_avg
    real(wp)            :: wr, wd, leafmass_exp, woodmass_exp, ltemp_exp, wtemp_exp
    real(wp)            :: cl1, cw1, cl2, cw2, clf, cwf, e_leaf0, e_wood0
    real(wp) :: np1, np2, xdiag(4), surf_water0, e_sum0
@@ -240,13 +240,13 @@ contains
       call banner('cohort fusion/fission conservation')
       cfg = build_test_config()
 
-      !--- 1. fuse_2_cohorts conserves N and AGB; DBH is re-derived, not averaged.
+      !--- 1. fuse_2_cohorts conserves N and AGB; diameter is re-derived, not averaged.
       call init_bare_ground(poly, cfg, 1_ik)
       call add_cohort(poly, cfg, 1_ik, 1_ik, 0.5_wp, 10.0_wp)
       call add_cohort(poly, cfg, 1_ik, 1_ik, 0.3_wp, 12.0_wp)
-      call finalize_init(poly)                          ! sorted: index 1 = taller (dbh 12)
+      call finalize_init(poly)                          ! sorted: index 1 = taller (diameter 12)
       agb_tot = poly%cohort%nplant(1)*poly%cohort%agb(1) + poly%cohort%nplant(2)*poly%cohort%agb(2)
-      dbh_avg = 0.5_wp*(poly%cohort%dbh(1) + poly%cohort%dbh(2))
+      diameter_avg = 0.5_wp*(poly%cohort%diameter(1) + poly%cohort%diameter(2))
       !---~---
       !   Seed distinct fast state + predict the merge. The tissue TEMPERATURES are intensive per
       ! unit HEAT CAPACITY, so they fuse on the capacity that carries them -- what that conserves
@@ -316,9 +316,9 @@ contains
       call check_close(poly%cohort%nplant(1), 0.8_wp, 1.0e-12_wp, 'fused nplant must be summed')
       call check_close(poly%cohort%nplant(1)*poly%cohort%agb(1), agb_tot, 1.0e-12_wp,                  &
                        'fused total AGB not conserved')
-      call check_close(poly%cohort%basal_area(1), pio4*poly%cohort%dbh(1)**2, 1.0e-12_wp,              &
-                       'basal area inconsistent with re-derived DBH')
-      call check(abs(poly%cohort%dbh(1) - dbh_avg) > 1.0e-6_wp, 'DBH must NOT be a plain average')
+      call check_close(poly%cohort%basal_area(1), pio4*poly%cohort%diameter(1)**2, 1.0e-12_wp,              &
+                       'basal area inconsistent with re-derived diameter')
+      call check(abs(poly%cohort%diameter(1) - diameter_avg) > 1.0e-6_wp, 'diameter must NOT be a plain average')
       call check_close(poly%cohort%leaf_water_mass(1), leafmass_exp, 1.0e-12_wp,                       &
                        'leaf_water_mass not nplant-weighted (extensive) on cohort fusion')
       call check_close(poly%cohort%wood_water_mass(1), woodmass_exp, 1.0e-12_wp,                       &
@@ -541,7 +541,7 @@ contains
       end block
 
       !---~---
-      !   7. Geometry has ONE writer: a cohort placed on the allometry from its dbh carries
+      !   7. Geometry has ONE writer: a cohort placed on the allometry from its diameter carries
       ! exactly the geometry its carbon gives, so a restart that re-derives it gets the same bits.
       !---~---
       block
@@ -549,10 +549,10 @@ contains
          call init_bare_ground(poly, cfg, 1_ik)
          call add_cohort(poly, cfg, 1_ik, 2_ik, 0.4_wp, 17.3_wp)
          call finalize_init(poly)
-         g0 = [poly%cohort%dbh(1), poly%cohort%height(1), poly%cohort%basal_area(1),                    &
+         g0 = [poly%cohort%diameter(1), poly%cohort%height(1), poly%cohort%basal_area(1),                    &
                poly%cohort%agb(1), poly%cohort%leaf_area(1)]
          call set_cohort_size_from_carbon(poly%cohort, 1_ik)
-         call check(all([poly%cohort%dbh(1), poly%cohort%height(1), poly%cohort%basal_area(1),          &
+         call check(all([poly%cohort%diameter(1), poly%cohort%height(1), poly%cohort%basal_area(1),          &
                          poly%cohort%agb(1), poly%cohort%leaf_area(1)] == g0),                          &
                     'birth geometry must be the geometry derived from the birth carbon, bit for bit')
 

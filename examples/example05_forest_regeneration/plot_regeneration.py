@@ -48,7 +48,7 @@ def read(path):
         def v(k):                                          # a variable on the run's one polygon
             x, dims = np.array(ds[k][:], dtype=float), ds[k].dimensions
             return x.take(0, axis=dims.index("polygon")) if "polygon" in dims else x
-        lower = v("dbh_lower")
+        lower = v("diameter_lower")
         yr = year_seconds(v("year"))                                    # a mean rate times this: per year
         return {"year": v("year"), "agb": v("mean_agb_pft_py") * 10.0,                 # kgC/m2 -> MgC/ha
                 "ba": v("mean_basal_area_pft_py") * 1e4, "lai": v("mean_lai_pft_py"),          # m2/m2 -> m2/ha
@@ -63,7 +63,7 @@ def census():
     c = pd.read_csv(CENSUS)
     by = c.groupby(["year", "pft"])
     return pd.DataFrame({"agb": by.agb.sum() * 10.0, "ba": by.basal_area.sum(),
-                         "stems10": c[c.dbh_class >= 10].groupby(["year", "pft"]).stems.sum()}).reset_index()
+                         "stems10": c[c.diameter_class >= 10].groupby(["year", "pft"]).stems.sum()}).reset_index()
 
 
 def end_labels(ax, ys, names, top):

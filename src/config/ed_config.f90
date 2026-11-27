@@ -61,7 +61,8 @@ module ed_config
       character(len=256) :: restart_file = ''             ! the state file init_mode = 2 reads
       character(len=256) :: census_file  = ''             ! the cohort CSV init_mode = 1 reads
       character(len=256) :: pft_config                    ! the PFT file
-      real(wp)           :: soil_temp    = 288.0_wp       ! [K] every soil layer's start
+      real(wp)           :: soil_temp(n_soil_layer_max) = 288.0_wp   ! [K] each soil layer's start, top down
+      integer(ik)        :: n_soil_temp  = 0_ik           ! the layers soil_temp lists; 0: one value for all
       real(wp)           :: soil_theta   = 0.30_wp        ! [m3/m3] every soil layer's start
       logical            :: reacclimate_traits = .false.  ! a restart's plastic traits from this PFT file
    end type init_params_t
@@ -249,7 +250,8 @@ contains
       integer(ik),       intent(in)    :: n
       pft%n = n
       allocate(pft%allom(n), pft%hydro(n), pft%wood_density(n))
-      allocate(pft%reproduction_investment_fraction(n), pft%min_repro_height(n), pft%recruit_carbon_efficiency(n))
+      allocate(pft%reproduction_investment_fraction(n), pft%min_repro_height(n), pft%recruit_carbon_efficiency(n),     &
+               pft%min_recruit_height(n))
       allocate(pft%recruit_shade_decay(n))
       pft%recruit_shade_decay = 0.0_wp      ! optional key; 0 = the same share under any canopy
       allocate(pft%nbg_init_density(n))

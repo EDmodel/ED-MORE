@@ -230,13 +230,13 @@ whatever the mode.
 | Mode | Start from | Needs |
 |---|---|---|
 | `0` | near-bare ground | nothing; `[pft].nbg_init_density` seeds it (below) |
-| `1` | a cohort census | `[init].census_file`, a CSV with one row per cohort. Columns are matched by name from its header: `patch_id`, `dbh` [cm], `pft` and `nplant` [plants m⁻² of the patch] are required; `patch_area`, `site_id`, `cohort_id` and `height` are optional. `dbh` drives the allometry. A grass's row has `dbh` 0: its size is its PFT's height |
+| `1` | a cohort census | `[init].census_file`, a CSV with one row per cohort. Columns are matched by name from its header: `patch_id`, `diameter` [cm], `pft` and `nplant` [plants m⁻² of the patch] are required; `patch_area`, `site_id`, `cohort_id` and `height` are optional. `diameter` drives the allometry. A grass's row has `diameter` 0: its size is its PFT's height |
 | `2` | a state file | `[init].restart_file`, a `<prefix>-S-*.nc` written by a previous run. It continues the exact instantaneous state: a run split at a restart ends where the unsplit run ends, bit for bit |
 
 A bare-ground start lays out six identical patches per site. In a census, each distinct `patch_id` (per
 site) is a patch of age 0. With `patch_area`, in any unit, the patches take their areas normalized to the
 site; without it they share it equally. A file without a header whose rows are seven numbers is read
-positionally as `site_id, patch_id, cohort_id, dbh, height, pft, nplant`. An unknown or repeated column,
+positionally as `site_id, patch_id, cohort_id, diameter, height, pft, nplant`. An unknown or repeated column,
 a missing required one, or a patch whose rows disagree on `patch_area` stops the run, naming it. An
 example file is `data/census_example.csv`; the reader is
 `init_from_census` in [`src/io/init/ed_init_census.f90`](../src/io/init/ed_init_census.f90).
@@ -251,7 +251,7 @@ once to the leaf area above it; a bare-ground start begins at the top-of-canopy 
 
 **Near-bare ground is empty unless seeded.** Each patch starts without cohorts and the stand grows from
 recruitment. `[pft].nbg_init_density` [plants m⁻²], optional and 0 by default, gives each patch one cohort
-of every PFT with a positive value, that many plants per m² at `min_cohort_height` on the PFT's own
+of every PFT with a positive value, that many plants per m² at its `min_recruit_height` on the PFT's own
 height curve, where recruits are born. A regional spin-up uses it to start every polygon with the same
 seedlings.
 
@@ -275,7 +275,9 @@ starts from bare ground instead. `edmore` stops, and `edmore.model.Run` raises `
 **The initial soil state** is `[init].soil_temp` [K] and `[init].soil_theta` [m³ m⁻³], both optional:
 every soil layer of every patch starts there, unless a state file restores the soil. They default to
 288 K and 0.30. A run with no spin-up starts from them, so set them to the site: the mean annual air
-temperature, for instance, keeps a warm site's column from starting cold. Below the freezing point
+temperature, for instance, keeps a warm site's column from starting cold. `soil_temp` may instead list
+one temperature per layer, top down (as many as the column's layers), for a column whose start differs
+with depth, such as permafrost below a thawed active layer. Below the freezing point
 (273.16 K) the soil's water starts as ice, at that temperature. The loader refuses a temperature outside
 233–333 K and a water content outside (`[soil].theta_res`, `[soil].theta_sat`]. A column from the soil
 maps, or one whose `[soil]` texture is given per layer, has a texture per layer, so each layer starts at
@@ -390,8 +392,8 @@ reproduction parameters are per PFT but ship uniform.
 [plants m⁻² yr⁻¹], plus those its reproduction buys. From `min_repro_height` up, a cohort diverts
 `reproduction_investment_fraction` of its growth carbon to reproduction
 ([plant_carbon_allocation](science/plant_carbon_allocation.md) §2). `recruit_carbon_efficiency` of that
-carbon (seed set, germination and seedling survival together) becomes recruits at `min_cohort_height`
-(one value for every PFT), a share that falls as exp(−`recruit_shade_decay` × patch LAI).
+carbon (seed set, germination and seedling survival together) becomes recruits at the PFT's
+`min_recruit_height` [m] (one value for every PFT, or one per PFT), a share that falls as exp(−`recruit_shade_decay` × patch LAI).
 `include_pft = 0` keeps a PFT from recruiting.
 
 **Growth form.** `[pft].growth_form` is `"tree"` or `"grass"`, one name for every PFT or one per PFT
@@ -402,12 +404,21 @@ store ([`science/plant_carbon_allocation.md`](science/plant_carbon_allocation.md
 grass needs `[demography].demography_on = false`, a positive `hgt_max` and `lai_b1`, and a positive
 `[pft].root_to_leaf_ratio`; the stem's keys take a value for it that it does not use.
 
+**The diameter.** Every curve takes a plant's diameter $`D`$ [cm], measured at the PFT's
+`[allometry].diameter_height` [m]: 1.3 m (breast height, the default) for a tree, the root collar (0)
+for a shrub, or wherever the PFT's own curves were fitted. The census gives each plant's diameter at its
+PFT's height, and the outputs report it there. A plant is one individual: a tree or shrub with several
+stems is one plant at the diameter of their summed basal area, $`D = \sqrt{\sum_i D_i^2}`$ (the census
+tool lumps a stem table's stems so). A tree's `diameter_height` lies in [0, `hgt_max`), and
+`"chave2014"`, fitted on breast-height diameters, needs 1.3 m or more. A tree's recruits are born at
+`[pft].min_recruit_height`, below its `hgt_max`.
+
 **Height allometry.** Each PFT's height follows the curve `[allometry].height_allometry` names for it
 (one name for every PFT, or one per PFT, `["chave2014", "power", "power"]`).
 
-- `"power"`, the default, is the pan-tropical power law $`\exp(b_{1Ht} + b_{2Ht} \ln \text{dbh})`$.
+- `"power"`, the default, is the pan-tropical power law $`\exp(b_{1Ht} + b_{2Ht} \ln D)`$, with $`D`$ the diameter.
 - `"chave2014"` is the log-quadratic
-  ln H = `chave_a` − E + `chave_b` ln dbh + `chave_c` (ln dbh)² + `chave_rse`²/2, taken at its mean as
+  ln H = `chave_a` − E + `chave_b` ln D + `chave_c` (ln D)² + `chave_rse`²/2, taken at its mean as
   BIOMASS's `retrieveH` does. Its coefficients default to Chave et al. (2014)'s pantropical fit (0.893,
   0.760, −0.0340, 0.243), and a site's own heights give a local fit (examples 03 and 05 use one for
   Barro Colorado Island). The `chave_*` keys are refused when no PFT uses `"chave2014"`.
@@ -474,7 +485,7 @@ row ([Regional runs](#regional-runs) gives the layout).
 | `diel_interval` | `"1 hour"` | the bins of a `diel_` variable's mean diel cycle: `"1 hour"`, `"2 hours"`, `"3 hours"` or `"4 hours"`; `[fast].dt_fast` must divide it ([diagnostics](science/diagnostics.md) §4) |
 | `sync_every` | `"flush"` | `"flush"`: records reach the disk each month; `"never"` |
 | `overwrite` | `false` | `true`: a run replaces the diagnostic files of its own names where they exist; `false`: it stops before its first step (below) |
-| `dbh_class_edges` | 0, 10, 20, 30, 50, 70, 100 | ascending edges [cm] of the `dbh_class` axis |
+| `diameter_class_edges` | 0, 10, 20, 30, 50, 70, 100 | ascending edges [cm] of the `diameter_class` axis |
 | `[output.fast]`, `[output.daily]`, `[output.monthly]`, `[output.annual]` | fast off, the others on | `enabled` switches a tier (an off tier writes nothing, whatever `io_config` says); `file_chunk` (`"day"`, `"month"`, `"year"` or `"all"`, one file for all of the run's records) is the span of one file, at least one of its tier's records (a monthly file a month or more, an annual one a year or more): defaults day, month, year and all |
 
 **A run never overwrites output.** Before its first step a run lists every diagnostic file it would

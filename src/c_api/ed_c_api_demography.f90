@@ -37,7 +37,7 @@ module ed_c_api_demography
    use ed_slow_update,   only : accumulate_recruit_pool, update_cohort_states, fill_cohort_deriv,        &
                                 age_patches, update_overtopping_lai, sort_cohorts
    use ed_output_reduce,   only : total_agb, total_lai, total_nplant, total_basal_area
-   use ed_allometry_lib,            only : dbh_to_height, size_to_leaf_carbon, size_to_wood_carbon,  &
+   use ed_allometry_lib,            only : diameter_to_height, size_to_leaf_carbon, size_to_wood_carbon,  &
                                            storage_carbon_target
    implicit none
    private
@@ -173,7 +173,7 @@ contains
       integer(ik) :: n, np, npft, ip, pf, i, n_window
       real(wp), allocatable :: g(:), m(:), rec(:,:)
       real(wp)              :: seed_c
-      real(wp) :: dbh_new, height_new
+      real(wp) :: diameter_new, height_new
       real(wp) :: lc_new, fc_new, wc_new, nc_new
       type(slow_ledger_t) :: no_ledger   ! inactive: this path books no ledger
 
@@ -200,7 +200,7 @@ contains
          ! on-allometry pools of the new size from the SUPPLIED growth rate [cm/yr] (mirrors
          ! set_cohort_size), back out each pool's time-
          ! derivative, and advance the moving-average ring buffer with the supplied rate (the
-         ! empirical convention -- records the request even when dbh is capped); then let the
+         ! empirical convention -- records the request even when diameter is capped); then let the
          ! core engine's pure applier advance the state. There is deliberately NO empirical
          ! twin of the driver's carbon update_cohort_derivatives -- this is thin C-API glue, not
          ! a named peer computer.
@@ -210,19 +210,19 @@ contains
             do i = 1_ik, cohort%n
                pf = cohort%pft(i)
                !---~---
-               !   Forward allometry from the supplied dbh growth. It CALLS
+               !   Forward allometry from the supplied diameter growth. It CALLS
                ! ed_allometry_lib rather than inlining it, so a coefficient change
                ! reaches the model and this shim alike.
                !---~---
-               dbh_new    = cohort%dbh(i) + g(i) * cfg%dt_years
-               height_new = dbh_to_height(cohort%pft_table%allom(pf), dbh_new)
-               lc_new     = size_to_leaf_carbon(cohort%pft_table%allom(pf), dbh_new, height_new, cohort%sla(i))
-               wc_new     = size_to_wood_carbon(cohort%pft_table%allom(pf), dbh_new, height_new, pft%wood_density(pf))
+               diameter_new    = cohort%diameter(i) + g(i) * cfg%dt_years
+               height_new = diameter_to_height(cohort%pft_table%allom(pf), diameter_new)
+               lc_new     = size_to_leaf_carbon(cohort%pft_table%allom(pf), diameter_new, height_new, cohort%sla(i))
+               wc_new     = size_to_wood_carbon(cohort%pft_table%allom(pf), diameter_new, height_new, pft%wood_density(pf))
                fc_new     = pft%root_to_leaf_ratio(pf) * lc_new
                nc_new     = storage_carbon_target(pft%storage_cushion(pf), lc_new, fc_new)
                !---~---
                !   Back out the tendencies + advance the ring buffer with the SUPPLIED growth
-               ! rate (empirical behaviour -- records the request even when dbh is capped).
+               ! rate (empirical behaviour -- records the request even when diameter is capped).
                !---~---
                call fill_cohort_deriv(cohort, i, poly%deriv, cfg%dt_years, m(i), g(i),                &
                                       lc_new, fc_new, wc_new, nc_new, n_window, poly%growth_hist_pos)
@@ -315,7 +315,7 @@ contains
          if (n < 1_ik) return
          select case (field_id)
          case (0_c_int)
-            buf(1:n) = real(c%dbh(1:n),             c_double)
+            buf(1:n) = real(c%diameter(1:n),             c_double)
          case (1_c_int)
             buf(1:n) = real(c%height(1:n),          c_double)
          case (2_c_int)

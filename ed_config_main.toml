@@ -182,7 +182,7 @@ init_mode    = 0                     # 0 near-bare ground | 1 a cohort census | 
 census_file  = "data/census_example.csv"   # the cohort CSV: required by init_mode = 1, and read by the
                                            #   Python census start in any mode
 pft_config   = "ed_config_pft.toml"        # the PFT file
-# soil_temp          = 288.0      # [K]      every soil layer's start
+# soil_temp          = 288.0      # [K]      every soil layer's start, or a list of one per layer, top down
 # soil_theta         = 0.30       # [m3/m3]  every soil layer's start
 # reacclimate_traits = false      # a restart's plastic leaf traits from this run's PFT file
 
@@ -210,8 +210,8 @@ fast_interval_steps = 4         # dt_fast sub-steps a sub-daily record spans (4 
 diel_interval = "1 hour"        # the bins of a diel_ variable's mean diel cycle: "1 hour" .. "4 hours"
 sync_every    = "flush"         # "flush": records reach the disk each month | "never"
 
-  # --- The dbh_class axis: ascending edges [cm]; a cohort counts whole in the class of its dbh. ---
-  dbh_class_edges = [0.0, 10.0, 20.0, 30.0, 50.0, 70.0, 100.0]
+  # --- The diameter_class axis: ascending edges [cm]; a cohort counts whole in the class of its diameter. ---
+  diameter_class_edges = [0.0, 10.0, 20.0, 30.0, 50.0, 70.0, 100.0]
 
   # --- Each tier: on or off (off writes nothing, whatever io_config says), and the span of one file. ---
   [output.fast]

@@ -21,7 +21,7 @@ module ed_output_registry
                                    DIM_SIZE, DIM_SOIL_PATCH, DIM_SITE, XTYPE_DOUBLE, XTYPE_INT, ragged_dim
    use ed_output_reduce, only : W_NONE, W_NPLANT, W_LEAF_AREA, W_BASAL_AREA, W_AGB
    use ed_constants,         only : cm2_to_m2, kgc_2_umol
-   use ed_output_extract,     only : src_class, SRCK_FAST, SRC_NONE, FLD_C_NPLANT, FLD_C_DBH, FLD_C_HEIGHT,                 &
+   use ed_output_extract,     only : src_class, SRCK_FAST, SRC_NONE, FLD_C_NPLANT, FLD_C_DIAMETER, FLD_C_HEIGHT,                 &
                                      FLD_C_BASAL_AREA, FLD_C_AGB, FLD_C_LEAF_AREA, FLD_C_GROWTH_AVG, FLD_C_PFT,   &
                                      FLD_C_OWNER_PATCH, FLD_C_GLOBAL_ID, FLD_C_LAI, FLD_C_WAI,                    &
                                      FLD_C_LEAF_CARBON, FLD_C_FINEROOT_CARBON, FLD_C_WOOD_CARBON,                 &
@@ -59,7 +59,7 @@ module ed_output_registry
                                     PA_RECO, PA_SW_UP, PA_SKIN_TEMP, PY_SW_IN, PY_PRECIP, PY_TAIR, PY_QAIR,       &
                                     PY_PSURF, PY_WIND, PY_LWDOWN, PY_PAR_BEAM, PY_PAR_DIFFUSE, PY_NIR_BEAM,       &
                                     PY_NIR_DIFFUSE, PY_SNOWFALL, PY_CO2, PY_COSZ, PY_RHO_AIR, PY_RAINF,           &
-                                    CO_DDBH_DT, CO_DAGB_DT, CO_MORT_RATE, CO_NPP_LEAF, CO_NPP_FINEROOT,           &
+                                    CO_DDIAMETER_DT, CO_DAGB_DT, CO_MORT_RATE, CO_NPP_LEAF, CO_NPP_FINEROOT,           &
                                     CO_NPP_WOOD, CO_NPP_STORAGE, CO_NPP_REPRO, CO_GROWTH_RESP,                    &
                                     CO_EXUDATE, CO_FROZEN_GROWTH, CO_PHENO_TEMP, CO_PHENO_LIGHT,                  &
                                     PA_LITTER_LEAF, PA_LITTER_FINEROOT,                                           &
@@ -177,8 +177,8 @@ contains
                         FLD_C_NPLANT)
       call add_variable(reg, 'mean_nplant_co', 'plant number density', 'plant/m2', DIM_COHORT, AGG_MEAN, GRP_STRUCTURE,         &
                         FREQ_NONE, FLD_C_NPLANT)
-      call add_variable(reg, 'mean_dbh_co', 'diameter at breast height', 'cm', DIM_COHORT, AGG_MEAN, GRP_STRUCTURE, DAY_MON,    &
-                        FLD_C_DBH)
+      call add_variable(reg, 'mean_diameter_co', 'stem diameter', 'cm', DIM_COHORT, AGG_MEAN, GRP_STRUCTURE, DAY_MON,    &
+                        FLD_C_DIAMETER)
       call add_variable(reg, 'mean_height_co', 'height', 'm', DIM_COHORT, AGG_MEAN, GRP_STRUCTURE, ior(FAST, DAY_MON),          &
                         FLD_C_HEIGHT, fast_source=SRC_F_COH_HEIGHT)
       call add_variable(reg, 'mean_basal_area_co', 'basal area per plant', 'cm2/plant', DIM_COHORT, AGG_MEAN, GRP_STRUCTURE,    &
@@ -230,8 +230,8 @@ contains
       call add_variable(reg, 'mean_dmax_psi_leaf_co', 'predawn (daily-max) leaf water potential', 'MPa', DIM_COHORT, AGG_MEAN,  &
                         GRP_STRUCTURE, DAY_MON, FLD_C_DMAX_PSI_LEAF)
       !--- Slow-loop rates off the per-step diagnostic block (poly%cohort%sdiag).
-      call add_variable(reg, 'mean_dbh_growth_co', 'diameter growth rate', 'cm/yr', DIM_COHORT, AGG_MEAN, GRP_STRUCTURE, MON,   &
-                        FLD_C_DIAG0 + CO_DDBH_DT, flux=.true.)
+      call add_variable(reg, 'mean_diameter_growth_co', 'diameter growth rate', 'cm/yr', DIM_COHORT, AGG_MEAN, GRP_STRUCTURE, MON, &
+                        FLD_C_DIAG0 + CO_DDIAMETER_DT, flux=.true.)
       call add_variable(reg, 'mean_agb_growth_co', 'per-plant AGB growth rate', 'kgC/plant/yr', DIM_COHORT, AGG_MEAN,           &
                         GRP_STRUCTURE, MON, FLD_C_DIAG0 + CO_DAGB_DT, flux=.true.)
       call add_variable(reg, 'mean_mort_rate_co', 'mortality hazard rate', '1/yr', DIM_COHORT, AGG_MEAN, GRP_STRUCTURE, MON,    &
@@ -290,8 +290,8 @@ contains
       !   Intensive structural means, basal-area-weighted: dominated by the trees that hold
       ! the stand, not by a regenerating understory (docs/science/diagnostics.md §2).
       !---~---
-      call add_variable(reg, 'mean_dbh_py', 'basal-area-weighted mean DBH', 'cm', DIM_SCALAR, AGG_MEAN, GRP_STRUCTURE,          &
-                        DAY_MON_YR, FLD_C_DBH, weight=W_BASAL_AREA, mean=.true.)
+      call add_variable(reg, 'mean_diameter_py', 'basal-area-weighted mean diameter', 'cm', DIM_SCALAR, AGG_MEAN, GRP_STRUCTURE,   &
+                        DAY_MON_YR, FLD_C_DIAMETER, weight=W_BASAL_AREA, mean=.true.)
       call add_variable(reg, 'mean_height_py', 'basal-area-weighted mean height', 'm', DIM_SCALAR, AGG_MEAN, GRP_STRUCTURE,     &
                         DAY_MON_YR, FLD_C_HEIGHT, weight=W_BASAL_AREA, mean=.true.)
       call add_variable(reg, 'mean_canopy_height_py', 'height of the tallest cohort', 'm', DIM_SCALAR, AGG_MEAN, GRP_STRUCTURE, &
@@ -317,27 +317,27 @@ contains
                         FLD_C_LEAF_AREA, weight=W_NPLANT)
       call add_variable(reg, 'mean_basal_area_pft_py', 'basal area by PFT', 'm2/m2', DIM_PFT, AGG_MEAN, GRP_STRUCTURE, MON_YR,  &
                         FLD_C_BASAL_AREA, weight=W_NPLANT, scale=cm2_to_m2)
-      call add_variable(reg, 'mean_dbh_pft_py', 'basal-area-weighted mean DBH by PFT', 'cm', DIM_PFT, AGG_MEAN, GRP_STRUCTURE,  &
-                        MON_YR, FLD_C_DBH, weight=W_BASAL_AREA, mean=.true.)
+      call add_variable(reg, 'mean_diameter_pft_py', 'basal-area-weighted mean diameter by PFT', 'cm', DIM_PFT,                    &
+                        AGG_MEAN, GRP_STRUCTURE, MON_YR, FLD_C_DIAMETER, weight=W_BASAL_AREA, mean=.true.)
    end subroutine register_structure_pft
 
    !---~---
-   !   DBH size-class axis: a stem-density distribution comparable to a forest inventory
+   !   diameter size-class axis: a stem-density distribution comparable to a forest inventory
    ! (docs/science/diagnostics.md §3).
    !---~---
    subroutine register_structure_size(reg)
       type(output_registry_t), intent(inout) :: reg
-      call add_variable(reg, 'mean_nplant_size_py', 'plant number density by DBH class', 'plant/m2', DIM_SIZE, AGG_MEAN,        &
+      call add_variable(reg, 'mean_nplant_size_py', 'plant number density by diameter class', 'plant/m2', DIM_SIZE, AGG_MEAN,      &
                         GRP_STRUCTURE, MON_YR, FLD_C_NPLANT, weight=W_NONE)
-      call add_variable(reg, 'mean_agb_size_py', 'aboveground biomass by DBH class', 'kgC/m2', DIM_SIZE, AGG_MEAN,              &
+      call add_variable(reg, 'mean_agb_size_py', 'aboveground biomass by diameter class', 'kgC/m2', DIM_SIZE, AGG_MEAN,            &
                         GRP_STRUCTURE, MON_YR, FLD_C_AGB, weight=W_NPLANT)
-      call add_variable(reg, 'mean_lai_size_py', 'leaf area index by DBH class', 'm2/m2', DIM_SIZE, AGG_MEAN, GRP_STRUCTURE,    &
+      call add_variable(reg, 'mean_lai_size_py', 'leaf area index by diameter class', 'm2/m2', DIM_SIZE, AGG_MEAN, GRP_STRUCTURE,  &
                         MON_YR, FLD_C_LEAF_AREA, weight=W_NPLANT)
-      call add_variable(reg, 'mean_basal_area_size_py', 'basal area by DBH class', 'm2/m2', DIM_SIZE, AGG_MEAN, GRP_STRUCTURE,  &
-                        MON_YR, FLD_C_BASAL_AREA, weight=W_NPLANT, scale=cm2_to_m2)
-      call add_variable(reg, 'mean_agb_growth_size_py', 'AGB growth rate by DBH class', 'kgC/m2/yr', DIM_SIZE, AGG_MEAN,        &
+      call add_variable(reg, 'mean_basal_area_size_py', 'basal area by diameter class', 'm2/m2', DIM_SIZE, AGG_MEAN,               &
+                        GRP_STRUCTURE, MON_YR, FLD_C_BASAL_AREA, weight=W_NPLANT, scale=cm2_to_m2)
+      call add_variable(reg, 'mean_agb_growth_size_py', 'AGB growth rate by diameter class', 'kgC/m2/yr', DIM_SIZE, AGG_MEAN,      &
                         GRP_STRUCTURE, MON_YR, FLD_C_DIAG0 + CO_DAGB_DT, weight=W_NPLANT, flux=.true.)
-      call add_variable(reg, 'mean_mort_rate_size_py', 'nplant-weighted mortality rate by DBH class', '1/yr', DIM_SIZE,         &
+      call add_variable(reg, 'mean_mort_rate_size_py', 'nplant-weighted mortality rate by diameter class', '1/yr', DIM_SIZE,       &
                         AGG_MEAN, GRP_STRUCTURE, MON_YR, FLD_C_DIAG0 + CO_MORT_RATE, weight=W_NPLANT, mean=.true., flux=.true.)
    end subroutine register_structure_size
 
@@ -1622,7 +1622,7 @@ contains
 
    pure function dim_name(d) result(s)
       integer(ik), intent(in) :: d
-      character(len=10) :: s
+      character(len=16) :: s
       select case (d)
       case (DIM_SCALAR)
          s = 'polygon'
@@ -1635,7 +1635,7 @@ contains
       case (DIM_PFT)
          s = 'pft'
       case (DIM_SIZE)
-         s = 'dbh_class'
+         s = 'diameter_class'
       case (DIM_SOIL_PATCH)
          s = 'soil,patch'
       case (DIM_SITE)

@@ -4,7 +4,7 @@
 [variables]
 "*_pa"                      = false     # no per-patch record
 nplant_co                   = "D M"
-mean_dbh_co                 = "D M"
+mean_diameter_co                 = "D M"
 mean_height_co              = "F D M"
 mean_lai_co                 = "D M"
 pft_co                      = "D M"

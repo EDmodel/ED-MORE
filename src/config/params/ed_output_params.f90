@@ -19,7 +19,7 @@ module ed_output_params
    public :: FC_DAY, FC_MONTH, FC_YEAR, FC_ALL
    public :: SYNC_NEVER, SYNC_FLUSH
    public :: STATE_DAYS, STATE_MONTHS, STATE_YEARS
-   public :: MAX_DBH_EDGE
+   public :: MAX_DIAMETER_EDGE
    public :: freq_tier_index, freq_letter
 
    !---~---
@@ -39,7 +39,7 @@ module ed_output_params
    !   Variable groups, the headings of the --dump-io-config list (docs/science/diagnostics.md
    ! §5).
    !---~---
-   integer(ik), parameter :: GRP_STRUCTURE = 1_ik  ! demography/size: nplant, dbh, agb, patch geometry, ids
+   integer(ik), parameter :: GRP_STRUCTURE = 1_ik  ! demography/size: nplant, diameter, agb, patch geometry, ids
    integer(ik), parameter :: GRP_CARBON    = 2_ik  ! GPP, NPP, Ra, allocation, vegetation carbon stocks
    integer(ik), parameter :: GRP_WATER     = 3_ik  ! ET, soil moisture and potential, snow, surface water
    integer(ik), parameter :: GRP_ENERGY    = 4_ik  ! LE, H, net radiation, temperatures, canopy-air state
@@ -50,8 +50,8 @@ module ed_output_params
    integer(ik), parameter :: GRP_FORCING    = 9_ik  ! the forcing the run used, after the reader's partitions
    integer(ik), parameter :: N_GRP          = 9_ik
 
-   !--- DBH size-class edge ceiling (n_class <= MAX_DBH_EDGE-1).
-   integer(ik), parameter :: MAX_DBH_EDGE = 33_ik
+   !--- diameter size-class edge ceiling (n_class <= MAX_DIAMETER_EDGE-1).
+   integer(ik), parameter :: MAX_DIAMETER_EDGE = 33_ik
 
    !---~---
    !   File-chunk buckets: the span of one file of a tier ([output.<tier>].file_chunk), at least
@@ -101,18 +101,18 @@ module ed_output_params
       integer(ik)        :: state_unit        = STATE_YEARS
       character(len=256) :: state_file_dir    = '.'            ! their directory, and the PFT table's
       character(len=256) :: state_file_prefix = 'ED'           ! their file-name stem
-      !--- DBH class edges [cm]; empty here, setup_output_files installs the default.
-      integer(ik)        :: n_dbh_class = 0_ik
-      real(wp)           :: dbh_class_edges(MAX_DBH_EDGE) = 0.0_wp
+      !--- diameter class edges [cm]; empty here, setup_output_files installs the default.
+      integer(ik)        :: n_diameter_class = 0_ik
+      real(wp)           :: diameter_class_edges(MAX_DIAMETER_EDGE) = 0.0_wp
    end type output_params_t
 
    !---~---
-   !   Default DBH class edges [cm], the common tropical forest-inventory set: 0-10,
-   ! 10-20, 20-30, 30-50, 50-70 and 70+, the last open at the top (dbh_class_index;
+   !   Default diameter class edges [cm], the common tropical forest-inventory set: 0-10,
+   ! 10-20, 20-30, 30-50, 50-70 and 70+, the last open at the top (diameter_class_index;
    ! docs/science/diagnostics.md §3).
    !---~---
-   integer(ik), parameter, public :: N_DBH_CLASS_DEFAULT = 6_ik
-   real(wp),    parameter, public :: DBH_EDGES_DEFAULT(7) =                                      &
+   integer(ik), parameter, public :: N_DIAMETER_CLASS_DEFAULT = 6_ik
+   real(wp),    parameter, public :: DIAMETER_EDGES_DEFAULT(7) =                                      &
       [0.0_wp, 10.0_wp, 20.0_wp, 30.0_wp, 50.0_wp, 70.0_wp, 100.0_wp]
 
 contains

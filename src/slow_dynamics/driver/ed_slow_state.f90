@@ -201,7 +201,7 @@ contains
             !   A higher SLA lowers the leaf target: the excess leaf carbon goes to storage, so
             ! leaf area stays at allometry; a lower SLA leaves a deficit growth fills.
             !---~---
-            leaf_target = size_to_leaf_carbon(cohort%pft_table%allom(cohort%pft(j)), cohort%dbh(j), cohort%height(j), &
+            leaf_target = size_to_leaf_carbon(cohort%pft_table%allom(cohort%pft(j)), cohort%diameter(j), cohort%height(j), &
                                            cohort%sla(j))
             leaf_carbon_new(j) = cohort%leaf_carbon(j)
             storage_new(j)     = cohort%nonstructural_carbon(j)
@@ -343,7 +343,7 @@ contains
             pf  = cohort%pft(j)
             r2l = pft%root_to_leaf_ratio(pf)
             !--- The leaf target at the cohort's own SLA conserves leaf area (docs/science/plant_traits.md §4).
-            leaf_target  = size_to_leaf_carbon(cohort%pft_table%allom(pf), cohort%dbh(j), cohort%height(j), &
+            leaf_target  = size_to_leaf_carbon(cohort%pft_table%allom(pf), cohort%diameter(j), cohort%height(j), &
                                             cohort%sla(j))
             leaf_turn    = cohort%leaf_turnover_rate(j)   ! baseline leaf turnover [1/yr]
             store_demand = max(0.0_wp, storage_carbon_target(pft%storage_cushion(pf), leaf_target,      &
@@ -384,7 +384,7 @@ contains
                      deficit=deficit,                                                              &
                      wood_growth_max=growth_sink_limitation(                                       &
                         allom=cohort%pft_table%allom(pf),                                            &
-                        wood_carbon=cohort%wood_carbon(j), dbh=cohort%dbh(j),                       &
+                        wood_carbon=cohort%wood_carbon(j), diameter=cohort%diameter(j),                       &
                         wood_density=pft%wood_density(pf),                                          &
                         max_relative_growth_rate=pft%max_relative_growth_rate(pf),                  &
                         max_absolute_growth_rate=pft%max_absolute_growth_rate(pf),                  &
@@ -491,7 +491,7 @@ contains
       type(ed_config_t),      intent(in)    :: cfg
       type(slow_step_data_t), intent(inout) :: step   ! reads d_wood, npp_repro, exhausted, recruit_efficiency
       integer(ik) :: n, np, npft, j, pf, ip
-      real(wp)    :: dbh_rate, dt_yr
+      real(wp)    :: diameter_rate, dt_yr
 
       n     = poly%cohort%n
       np    = poly%patch%n
@@ -515,9 +515,9 @@ contains
             pf = cohort%pft(j)
             ip = cohort%owner_patch(j)
             !--- Prospective diameter rate and the Camac hazard (docs/science/demography.md eqs. (1), (3)).
-            dbh_rate = npp_to_growth(cohort%pft_table%allom(pf), cohort%wood_carbon(j), npp_wood(j),  &
-                                     cohort%dbh(j), dt_yr, pft%wood_density(pf))
-            mortality(j) = camac_mortality(cohort%growth_avg(j), dbh_rate,                          &
+            diameter_rate = npp_to_growth(cohort%pft_table%allom(pf), cohort%wood_carbon(j), npp_wood(j),  &
+                                     cohort%diameter(j), dt_yr, pft%wood_density(pf))
+            mortality(j) = camac_mortality(cohort%growth_avg(j), diameter_rate,                          &
                                            cohort%growth_count(j) > 0_ik,                           &
                                            pft%mort_gamma(pf), pft%mort_alpha(pf), pft%mort_beta(pf))
             !---~---

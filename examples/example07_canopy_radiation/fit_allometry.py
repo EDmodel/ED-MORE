@@ -28,7 +28,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import harvard_data as hd                       # noqa: E402
 
-DBH_CLASSES = [1, 5, 10, 20, 30, 40, 60, 100]  # [cm]
+DIAMETER_CLASSES = [1, 5, 10, 20, 30, 40, 60, 100]  # [cm]
 HGT_MAX = 28.0                                 # [m] the canopy top (above)
 RADIUS = 40.0                                  # [m] the stand around a tower, as in run_example.py
 LAI_B1_DEFAULT, LAI_B2 = 0.23384770, 0.6410495
@@ -49,10 +49,10 @@ def neon_trees(data: Path) -> pd.DataFrame:
     x = ai.merge(mt.drop_duplicates("individualID", keep="last")[["individualID", "genus"]], on="individualID")
     x = x[x["plantStatus"].astype(str).str.startswith("Live") & x["height"].notna() & x["heightQualifier"].isna()
           & x["growthForm"].isin(["single bole tree", "multi-bole tree", "small tree"])
-          & (x["stemDiameter"] > DBH_CLASSES[0]) & (x["stemDiameter"] <= DBH_CLASSES[-1])]
+          & (x["stemDiameter"] > DIAMETER_CLASSES[0]) & (x["stemDiameter"] <= DIAMETER_CLASSES[-1])]
     x = x.sort_values("date").drop_duplicates("individualID", keep="last")
     x["pft"] = np.where(x["genus"].isin(hd.EVERGREEN_GENERA), 2, 1)
-    x["cls"] = pd.cut(x["stemDiameter"], DBH_CLASSES)
+    x["cls"] = pd.cut(x["stemDiameter"], DIAMETER_CLASSES)
     return x
 
 
@@ -128,8 +128,8 @@ def main():
              "lai_b2": [LAI_B2] * 2, "wai_b1": [0.0096] * 2, "wai_b2": [2.0947] * 2}
     for k in ("chave_a", "chave_b", "chave_c", "chave_rse"):
         allom[k] = [fit[1][k], fit[2][k]]
-    stems = hd.live_stems(a.data)
-    dec = [hd.stand_around(stems, *xy, RADIUS, allom, cell=0)[0] for xy in
+    plants = hd.live_plants(a.data)
+    dec = [hd.stand_around(plants, *xy, RADIUS, allom, cell=0)[0] for xy in
            (hd.plot_xy(hd.TOWER_LAT, hd.TOWER_LON), hd.plot_xy(42.537755, -72.171478))]   # NEON, EMS towers
     lai_now = np.mean([p["lai"][p["pft"] == 1].sum() for p in dec])
     print(f"the census within {RADIUS:.0f} m of the NEON and EMS towers at the default lai_b1: deciduous LAI {lai_now:.2f}")

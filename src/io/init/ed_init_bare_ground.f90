@@ -13,7 +13,7 @@ module ed_init_bare_ground
    use ed_therm_lib,    only : cas_temp_to_enthalpy
    use ed_soil_heat,    only : soil_layer_energy, soil_layer_temp
    use ed_met_types,    only : met_forcing_t
-   use ed_allometry_lib, only : height_to_dbh
+   use ed_allometry_lib, only : height_to_diameter
    use ed_cohort_state_vars,       only : expand_cohort_block, init_cohort
    use ed_site_state_vars,         only : make_site_surface
    use ed_polygon_state_vars,      only : polygon_t, alloc_polygon, rebuild_patch_map, rebuild_cohort_map,      &
@@ -80,11 +80,11 @@ contains
 
    !---~---
    !   A start's patch stores, the same on every patch of a site: the soil at its site's
-   ! theta_start and [init].soil_temp, its water liquid and ice as the layer's freezing curve
-   ! holds them there (soil_layer_energy); the pond dry; and the canopy air at the reference
-   ! climate (met_forcing_t's air, at the run's CO2), which the fast loop's first window
-   ! replaces with the first forcing sample (docs/science/canopy_air_space_biophysics.md, The
-   ! start).
+   ! theta_start and [init].soil_temp (one value, or one per layer), its water liquid and ice
+   ! as the layer's freezing curve holds them there (soil_layer_energy); the pond dry; and the
+   ! canopy air at the reference climate (met_forcing_t's air, at the run's CO2), which the
+   ! fast loop's first window replaces with the first forcing sample
+   ! (docs/science/canopy_air_space_biophysics.md, The start).
    !---~---
    subroutine seed_patch_stores(poly, cfg)
       type(polygon_t),     intent(inout) :: poly
@@ -96,11 +96,13 @@ contains
          associate (cas => poly%patch%cas(ip), se => poly%patch%soil_energy(ip), sw => poly%patch%soil_water(ip), &
                     surf => poly%site%surface(poly%patch%owner_site(ip)))
             nsl = surf%soil_profile%n_active
+            if (cfg%init%n_soil_temp /= 0_ik .and. cfg%init%n_soil_temp /= nsl)                                 &
+               error stop 'seed_patch_stores: [init].soil_temp lists another number of layers than the column has'
             sw%theta(1:nsl)     = surf%theta_start(1:nsl)
             sw%w_surface        = 0.0_wp
             sw%w_surface_energy = 0.0_wp        ! dry pond -> zero enthalpy
             do k = 1_ik, nsl
-               se%soil_energy(k) = soil_layer_energy(cfg%init%soil_temp, surf%theta_start(k),                  &
+               se%soil_energy(k) = soil_layer_energy(cfg%init%soil_temp(k), surf%theta_start(k),               &
                                                      surf%soil_profile%dry_heat_capacity(k),                    &
                                                      surf%soil_profile%layer_curve(k))
                call soil_layer_temp(se%soil_energy(k), surf%theta_start(k), surf%soil_profile%dry_heat_capacity(k), &
@@ -116,31 +118,31 @@ contains
 
    !---~---
    !   A near-bare-ground start's seedlings: every patch gets one cohort of each PFT with
-   ! nbg_init_density > 0, that many plants per m2, at min_cohort_height on the PFT's own
+   ! nbg_init_density > 0, that many plants per m2, at the PFT's min_recruit_height on its own
    ! height curve, where recruits are born. All densities 0 leave the patches empty.
    !---~---
    subroutine seed_bare_ground(poly, cfg)
       type(polygon_t),     intent(inout) :: poly
       type(ed_config_t), intent(in)      :: cfg
-      real(wp)    :: dbh
+      real(wp)    :: diameter
       integer(ik) :: ip, ipft
       if (.not. any(cfg%pft%nbg_init_density > 0.0_wp)) return
       do ip = 1_ik, poly%patch%n
          do ipft = 1_ik, cfg%pft%n
             if (cfg%pft%nbg_init_density(ipft) <= 0.0_wp) cycle
-            dbh = height_to_dbh(poly%cohort%pft_table%allom(ipft), cfg%pft%min_cohort_height)
-            call add_cohort(poly, cfg, ip, ipft, cfg%pft%nbg_init_density(ipft), dbh)
+            diameter = height_to_diameter(poly%cohort%pft_table%allom(ipft), cfg%pft%min_recruit_height(ipft))
+            call add_cohort(poly, cfg, ip, ipft, cfg%pft%nbg_init_density(ipft), diameter)
          end do
       end do
       call finalize_init(poly)
    end subroutine seed_bare_ground
 
    !--- Append one cohort to patch ip (caller invokes finalize_init afterwards).
-   subroutine add_cohort(poly, cfg, ip, ipft, nplant, dbh)
+   subroutine add_cohort(poly, cfg, ip, ipft, nplant, diameter)
       type(polygon_t),     intent(inout) :: poly
       type(ed_config_t),   intent(in)    :: cfg
       integer(ik),         intent(in)    :: ip, ipft
-      real(wp),            intent(in)    :: nplant, dbh
+      real(wp),            intent(in)    :: nplant, diameter
       integer(ik) :: m
       real(wp)    :: t_birth, psi_birth
       call expand_cohort_block(poly%cohort, poly%cohort%n + 1_ik)
@@ -148,7 +150,7 @@ contains
       !--- Born in its patch's state (patch_physical_state), which init_bare_sites seeded.
       call patch_physical_state(poly%patch%cas(ip), poly%patch%soil_water(ip),                         &
                                 poly%site%surface(poly%patch%owner_site(ip)), t_birth, psi_birth)
-      call init_cohort(poly%cohort, m, cfg%pft, ipft, ip, nplant, dbh, t_birth, psi_birth)
+      call init_cohort(poly%cohort, m, cfg%pft, ipft, ip, nplant, diameter, t_birth, psi_birth)
       call assign_cohort_id(poly, m)
       poly%cohort%n = m
    end subroutine add_cohort

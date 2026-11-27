@@ -11,7 +11,7 @@ passes them to the engine's law-free apply-primitives through
 
 | Law | Rate | Form | Fitted by |
 |---|---|---|---|
-| growth | dbh growth g [cm/yr] per cohort | g = [g_min + (g_max − g_min) / (1 + (D/D₀)^−k)] · e^(−b·L) | Gamma quasi-likelihood |
+| growth | diameter growth g [cm/yr] per cohort | g = [g_min + (g_max − g_min) / (1 + (D/D₀)^−k)] · e^(−b·L) | Gamma quasi-likelihood |
 | mortality | death rate m [1/yr] per cohort | m = γ + α · e^(−β·g) (Camac et al. 2018) | maximum likelihood, P(die in Δt) = 1 − e^(−m·Δt) |
 | recruitment | new stems ≥ 1 cm [1/m²/yr] per PFT and patch | R = exp(c₀ + c₁·LAI) | Poisson GLM, weighted by area × Δt |
 
@@ -21,7 +21,7 @@ passes them to the engine's law-free apply-primitives through
 | 2 | 0.50 | 0.11 | 0.57 | 7 | 2.1 | 0.17 | 0.021 | 0.09 | 19 |
 | 3 | 0.68 | 0.04 | 0.77 | 54 | 1.1 | 0.06 | 0.020 | 0.15 | 59 |
 
-- **Growth** rises with dbh D from g_min to g_max, half-way at D₀, and shade shrinks it by e^(−b·L).
+- **Growth** rises with diameter D from g_min to g_max, half-way at D₀, and shade shrinks it by e^(−b·L).
   L is the overtopping LAI, the leaf area of taller trees per m² of ground: the competition index the
   engine computes for every cohort (`overtopping_lai`), which the driver reads as it is. For each
   census tree it is the leaf area of taller trees within 20 m, with height and leaf area from ED-MORE's
@@ -46,10 +46,10 @@ passes them to the engine's law-free apply-primitives through
   split at 0.42 and 0.58 g cm⁻³ so each class holds a third of the 1985 basal area.
 - **Height follows Barro Colorado's own curve**, a log-quadratic fitted to Cano et al. (2019)'s curve
   for 9884 trees of the Barro Colorado Nature Monument: ln H = 0.8898 + 0.7908 ln D − 0.04923 (ln D)²
-  [m], 32.7 m at 1 m dbh and 44.6 m at 3 m, within 4.3 % of Cano's curve (`[allometry]
+  [m], 32.7 m at 1 m diameter and 44.6 m at 3 m, within 4.3 % of Cano's curve (`[allometry]
   height_allometry = "chave2014"`). Leaf area and biomass take this height.
 - **A tree is one stem**, as in ED-MORE: a tree that loses its main stem has died, and returns as a
-  recruit when a stem is measured again. Recruits enter at the census's 1 cm (`min_cohort_height`
+  recruit when a stem is measured again. Recruits enter at the census's 1 cm (`min_recruit_height`
   2.435 m on the BCI curve).
 - **Treefall** (`patch_disturbance_rate` 0.014 yr⁻¹) kills canopy trees above 10 m on the disturbed
   area. The census counts those deaths too, so the driver takes the rate off the mortality of
@@ -146,9 +146,9 @@ assets of the v0.4.1 release; the commands under Run remake them.
 ## Plotting the stand file
 
 `run_demography.py` writes the stand once a year to `output/<start>.nc`, with plain names: per cohort
-`pft`, `dbh`, `height`, `nplant`, `agb`, `leaf_area`, `owner_patch`, `global_cohort_id`; per patch
+`pft`, `diameter`, `height`, `nplant`, `agb`, `leaf_area`, `owner_patch`, `global_cohort_id`; per patch
 `patch_area`, `patch_age`, `dist_type`, `global_patch_id`; per record `n_cohort`, `n_patch`, `year`
-and the site totals `total_nplant`, `total_lai`, `total_agb`, `total_basal_area`, `mean_dbh`. Four
+and the site totals `total_nplant`, `total_lai`, `total_agb`, `total_basal_area`, `mean_diameter`. Four
 scripts here read it. They need numpy, matplotlib and netCDF4, and the two 3-D renderers also the
 `viz` extra (`pip install -e python/[viz]`: pyvista and scipy); on a node with no display, render
 through EGL with `VTK_DEFAULT_OPENGL_WINDOW=vtkEGLRenderWindow` and `XDG_RUNTIME_DIR` set to a folder

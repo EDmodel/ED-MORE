@@ -4,7 +4,8 @@
 ! tables derive_parameters builds from it.
 !   1. THE SHIPPED FILE: ed_config_pft.toml, loaded through ed_config_main.toml, gives
 !      as many PFTs as wood_density lists; each [pft] optics key and each [hydraulics] key
-!      reaches every PFT's field (one value broadcast, or one per PFT), and the two-stream
+!      reaches every PFT's field (one value broadcast, or one per PFT), allometry.diameter_height
+!      left out is breast height, and the two-stream
 !      table holds each shipped PFT's optics.
 !   2-5. On the test fixture: the optics, the clumping and the leaf angles, and the
 !      hydraulics arrive per PFT and DIFFERENTIATE the PFTs; the ground optics come from
@@ -32,7 +33,7 @@ program test_pft_config
    use ed_toml,             only : toml_table_t, toml_parse_file, toml_has, toml_is_array, toml_real, toml_real_array
    use ed_pft_params,       only : hydraulics_table_t, RAD_VIS, RAD_NIR, RAD_LW
    use ed_allometry_lib,    only : GROWTH_TREE
-   use ed_constants,        only : stefan_boltzmann
+   use ed_constants,        only : stefan_boltzmann, breast_height
    use ed_met_types,        only : met_forcing_t
    use ed_fast_integ_types,     only : fast_static_state_t, fast_dynamic_state_t, fast_forcing_t,       &
                                    ensure_static_capacity, ensure_forcing_capacity
@@ -273,6 +274,9 @@ contains
          call check_key(t, 'pft.leaf_angle_std',    p%leaf_angle_std,    p%n)
          call check_key(t, 'pft.wood_angle_mean',   p%wood_angle_mean,   p%n)
          call check_key(t, 'pft.wood_angle_std',    p%wood_angle_std,    p%n)
+         call check_key(t, 'pft.min_recruit_height', p%min_recruit_height, p%n)
+         call check(all(p%allom(1:p%n)%diameter_height == breast_height),                                   &
+                    'allometry.diameter_height, left out, is breast height for every PFT')
          call check_key(t, 'hydraulics.leaf_pi0',             p%hydro(1:p%n)%leaf_curve%pi0,           p%n)
          call check_key(t, 'hydraulics.leaf_elastic_mod',     p%hydro(1:p%n)%leaf_curve%elastic_mod,   p%n)
          call check_key(t, 'hydraulics.leaf_apoplast_frac',   p%hydro(1:p%n)%leaf_curve%apoplast_frac, p%n)

@@ -36,11 +36,11 @@ contains
    ! eq. (3)). Elemental: a scalar call does one cohort, an array call a patch, with the
    ! parameters broadcast. A grass (is_woody = .false.) respires nothing here.
    !---~---
-   elemental pure subroutine stem_maintenance_respiration(wood_temp, dbh, height, wai, nplant,          &
+   elemental pure subroutine stem_maintenance_respiration(wood_temp, diameter, height, wai, nplant,          &
                                                          aboveground_frac, is_woody, resp_factor25,     &
                                                          sap_volume, resp_sapwood25, ea, hd, ds, stem_resp)
       real(wp),            intent(in)  :: wood_temp   ! [K]  woody-tissue temperature
-      real(wp),            intent(in)  :: dbh         ! [cm] stem diameter at breast height
+      real(wp),            intent(in)  :: diameter         ! [cm] stem diameter
       real(wp),            intent(in)  :: height      ! [m]  cohort height
       real(wp),            intent(in)  :: wai         ! [m2/m2 ground] wood area index
       real(wp),            intent(in)  :: nplant      ! [plant/m2] stem density
@@ -69,7 +69,7 @@ contains
       ! ground, hence /nplant), over the aboveground fraction to cover the whole woody plant;
       ! both divisors are kept above zero.
       !---~---
-      stem_area = ( pi * (dbh * 1.0e-2_wp) * height                                             &
+      stem_area = ( pi * (diameter * 1.0e-2_wp) * height                                             &
                   + pi * wai / max(nplant, tiny_num) ) / max(aboveground_frac, tiny_num)
       !---~---
       !   The surface and sapwood terms share the temperature response; a PFT with no sapwood

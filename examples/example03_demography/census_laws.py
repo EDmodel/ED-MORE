@@ -9,7 +9,7 @@ vital_rates.json. Each step this module reads the stand from the engine and retu
   mortality    [1/yr]         gamma + alpha exp(-beta growth)          (Camac et al. 2018)
   recruitment  [plants/m2/yr] exp(c0 + c1 LAI), per PFT and patch
 
-D is the cohort's dbh and L its overtopping LAI, both the engine's own: the census described every tree
+D is the cohort's diameter and L its overtopping LAI, both the engine's own: the census described every tree
 by the same allometry and the same index (the leaf area of taller trees). LAI is the patch's leaf
 area index, all PFTs' together; beyond the census's range it takes its edge.
 
@@ -28,7 +28,7 @@ except ModuleNotFoundError:             # pragma: no cover -- py3.10 and older
 import numpy as np
 
 COEFFICIENTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vital_rates.json")
-FIELDS = ("dbh", "height", "nplant", "leaf_area", "overtopping_lai", "pft", "owner_patch")
+FIELDS = ("diameter", "height", "nplant", "leaf_area", "overtopping_lai", "pft", "owner_patch")
 
 
 class CensusLaws:
@@ -45,10 +45,10 @@ class CensusLaws:
         self.lai_range = laws["range"]["lai"]
         self.n_pft = len(self.g)
 
-    def growth(self, pft, dbh, lai_over):
+    def growth(self, pft, diameter, lai_over):
         """[cm/yr] for 0-based ``pft``; the arguments broadcast against each other."""
         t = self.g[pft]
-        size = 1.0 / (1.0 + np.exp(-t[..., 3] * (np.log(dbh) - np.log(t[..., 2]))))
+        size = 1.0 / (1.0 + np.exp(-t[..., 3] * (np.log(diameter) - np.log(t[..., 2]))))
         return (t[..., 0] + (t[..., 1] - t[..., 0]) * size) * np.exp(-t[..., 4] * lai_over)
 
     def mortality(self, pft, growth):
@@ -71,7 +71,7 @@ class CensusLaws:
         np.add.at(lai, patch, s["nplant"] * s["leaf_area"])
         recruitment = self.recruitment(np.arange(self.n_pft)[:, None], lai[None, :])
 
-        growth = self.growth(pft, s["dbh"], s["overtopping_lai"])
+        growth = self.growth(pft, s["diameter"], s["overtopping_lai"])
         mortality = self.mortality(pft, growth)
         tall = s["height"] >= self.treefall_height
         mortality[tall] = np.maximum(mortality[tall] - self.treefall_rate, 0.0)

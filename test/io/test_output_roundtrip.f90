@@ -76,7 +76,7 @@ program test_output_roundtrip
    poly%cohort%n = 1_ik
    poly%patch%n = 1_ik
    poly%cohort%nplant(1) = 1.0_wp
-   poly%cohort%dbh(1) = 5.0_wp
+   poly%cohort%diameter(1) = 5.0_wp
    poly%cohort%height(1) = 4.0_wp
    poly%cohort%basal_area(1) = 19.6_wp
    poly%cohort%leaf_area(1) = 2.0_wp

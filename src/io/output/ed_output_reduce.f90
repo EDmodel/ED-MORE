@@ -2,7 +2,7 @@
 !---~---
 !   ed_output_reduce -- stage [3] of the diagnostic output (docs/science/diagnostics.md
 ! §1-§2): one weighted reduction of a per-cohort field to each patch, the polygon, each PFT
-! or each DBH class, and of a per-patch field to the polygon or to each site's soil column.
+! or each diameter class, and of a per-patch field to the polygon or to each site's soil column.
 ! The weight kind and the sum or mean come from the variable's descriptor. An empty set is
 ! not valid (the caller writes _FillValue), except a sum over a PFT or class, a true 0.
 ! Also the polygon totals the driver and the C API read. Keep each sum(array-expression) as
@@ -28,7 +28,7 @@ module ed_output_reduce
    !---~---
    public :: total_nplant, total_basal_area, total_agb, total_lai, total_area
    public :: print_summary
-   public :: dbh_class_index
+   public :: diameter_class_index
 
 contains
 
@@ -205,11 +205,11 @@ contains
       end do
    end subroutine reduce_cohort_to_pft
 
-   !--- cohort -> DBH size class   (DIM_SIZE)
+   !--- cohort -> diameter size class   (DIM_SIZE)
 
    !---~---
-   !   Reduce a per-cohort field onto the DBH-class axis: each cohort whole in the class of
-   ! its mean dbh, weighted and closed over empty classes as on the PFT axis above.
+   !   Reduce a per-cohort field onto the diameter-class axis: each cohort whole in the class of
+   ! its mean diameter, weighted and closed over empty classes as on the PFT axis above.
    !---~---
    pure subroutine reduce_cohort_to_size(poly, x, wkind, mean, edges, n_class, out, valid,     &
                                          n_out, scale, w_given)
@@ -237,7 +237,7 @@ contains
          i1 = i0 + poly%patch%cohort_count(ip) - 1_ik
          aw = patch_polygon_area(poly, ip)
          do i = i0, i1
-            k = dbh_class_index(poly%cohort%dbh(i), edges, n_class)
+            k = diameter_class_index(poly%cohort%diameter(i), edges, n_class)
             num(k) = num(k) + aw * w(i) * x(i) * sc
             den(k) = den(k) + aw * w(i)
          end do
@@ -383,11 +383,11 @@ contains
    end function total_area
 
    !--- Basal-area-weighted mean diameter [cm] (a simple structural index).
-   pure real(wp) function mean_dbh(poly) result(dm)
+   pure real(wp) function mean_diameter(poly) result(dm)
       type(polygon_t), intent(in) :: poly
       logical :: ok
-      call reduce_cohort_to_polygon(poly, poly%cohort%dbh, W_BASAL_AREA, .true., dm, ok)
-   end function mean_dbh
+      call reduce_cohort_to_polygon(poly, poly%cohort%diameter, W_BASAL_AREA, .true., dm, ok)
+   end function mean_diameter
 
 
    !--- Health checks / reporting
@@ -400,28 +400,28 @@ contains
       write(*,'(a,t18,a,i6,a,i4,a,f9.4,a,f8.4,a,f8.3,a,f7.2)')                             &
          trim(label), 'cohorts=', poly%cohort%n, '  patches=', poly%patch%n,                    &
          '  N=', total_nplant(poly), '  LAI=', total_lai(poly),                            &
-         '  AGB=', total_agb(poly), '  Dmean=', mean_dbh(poly)
+         '  AGB=', total_agb(poly), '  Dmean=', mean_diameter(poly)
    end subroutine print_summary
 
    !---~---
-   !   1-based DBH class of a dbh (docs/science/diagnostics.md §3). Over n_class+1 ascending
-   ! edges, bin k is [edges(k), edges(k+1)); the last bin also takes every dbh above its
-   ! top edge, and a dbh below edges(1) falls in bin 1, so no plant is dropped and
+   !   1-based diameter class of a diameter (docs/science/diagnostics.md §3). Over n_class+1 ascending
+   ! edges, bin k is [edges(k), edges(k+1)); the last bin also takes every diameter above its
+   ! top edge, and a diameter below edges(1) falls in bin 1, so no plant is dropped and
    ! sum(mean_nplant_size_py) == mean_nplant_py holds.
    !---~---
-   pure integer(ik) function dbh_class_index(dbh, edges, n_class) result(k)
-      real(wp),    intent(in) :: dbh
+   pure integer(ik) function diameter_class_index(diameter, edges, n_class) result(k)
+      real(wp),    intent(in) :: diameter
       real(wp),    intent(in) :: edges(:)   ! (n_class+1) ascending
       integer(ik), intent(in) :: n_class
       integer(ik) :: j
       k = 1_ik
       if (n_class <= 0_ik) return
       do j = n_class, 1_ik, -1_ik
-         if (dbh >= edges(j)) then
+         if (diameter >= edges(j)) then
             k = j
             return
          end if
       end do
-   end function dbh_class_index
+   end function diameter_class_index
 
 end module ed_output_reduce

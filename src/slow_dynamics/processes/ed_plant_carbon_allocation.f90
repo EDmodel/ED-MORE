@@ -16,7 +16,7 @@
 !---~---
 module ed_plant_carbon_allocation
    use ed_kinds,             only : wp, ik
-   use ed_allometry_lib,     only : allometry_t, size_to_wood_carbon, dbh_to_height, GROWTH_GRASS
+   use ed_allometry_lib,     only : allometry_t, size_to_wood_carbon, diameter_to_height, GROWTH_GRASS
    use ed_constants,         only : yr_day
    use ed_plant_phenology,   only : leaf_turnover_step, turnover_gate
    implicit none
@@ -25,7 +25,7 @@ module ed_plant_carbon_allocation
    public :: cohort_carbon_demand, growth_window_so_far, growth_sink_limitation
    public :: plant_carbon_allocation, growth_respiration
 
-   real(wp), parameter :: DBH_FLOOR = 1.0e-3_wp   ! [cm] keeps dbh^exponent defined for any exponent
+   real(wp), parameter :: DIAMETER_FLOOR = 1.0e-3_wp   ! [cm] keeps diameter^exponent defined for any exponent
 
 contains
 
@@ -102,22 +102,22 @@ contains
    ! to exactly the cap; window_yr = dt_yr with grown_in_window = 0 is a per-step cap.
    ! With both limits off the result is huge(1.0_wp): no limit. A grass builds no wood: 0.
    !---~---
-   elemental pure function growth_sink_limitation(allom, wood_carbon, dbh, wood_density,                &
+   elemental pure function growth_sink_limitation(allom, wood_carbon, diameter, wood_density,                &
                                                   max_relative_growth_rate,                          &
                                                   max_absolute_growth_rate, max_absolute_growth_exponent, &
                                                   dt_yr, window_yr, grown_in_window) result(growth_max)
       type(allometry_t), intent(in) :: allom            ! the cohort's PFT's allometry
       real(wp), intent(in) :: wood_carbon               ! [kgC/plant] wood carbon at the step's start
-      real(wp), intent(in) :: dbh                       ! [cm] stem diameter at the step's start
+      real(wp), intent(in) :: diameter                       ! [cm] stem diameter at the step's start
       real(wp), intent(in) :: wood_density              ! [g/cm3] the cohort's wood density
       real(wp), intent(in) :: max_relative_growth_rate  ! [1/yr] the PFT's maximum relative growth rate of wood
       real(wp), intent(in) :: max_absolute_growth_rate  ! [cm/yr] the PFT's maximum diameter growth of a 1 cm stem
-      real(wp), intent(in) :: max_absolute_growth_exponent ! [--] how that maximum scales with dbh [cm]
+      real(wp), intent(in) :: max_absolute_growth_exponent ! [--] how that maximum scales with diameter [cm]
       real(wp), intent(in) :: dt_yr                     ! [yr] step length
       real(wp), intent(in) :: window_yr                 ! [yr] the growth window this step closes (>= dt_yr)
       real(wp), intent(in) :: grown_in_window           ! [cm] diameter already grown in it, before this step
       real(wp)             :: growth_max                ! [kgC/plant] the most wood the step can build
-      real(wp) :: dt, dbh_room, dbh_max, wood_now, wood_max
+      real(wp) :: dt, diameter_room, diameter_max, wood_now, wood_max
 
       if (allom%growth_form == GROWTH_GRASS) then
          growth_max = 0.0_wp
@@ -128,11 +128,11 @@ contains
       if (max_relative_growth_rate > 0.0_wp)                                                        &
          growth_max = min(growth_max, max_relative_growth_rate * max(wood_carbon, 0.0_wp) * dt)
       if (max_absolute_growth_rate > 0.0_wp) then
-         dbh_room   = max_absolute_growth_rate * max(dbh, DBH_FLOOR) ** max_absolute_growth_exponent       &
+         diameter_room   = max_absolute_growth_rate * max(diameter, DIAMETER_FLOOR) ** max_absolute_growth_exponent       &
                     * max(window_yr, dt) - max(grown_in_window, 0.0_wp)
-         dbh_max    = dbh + max(dbh_room, 0.0_wp)
-         wood_now   = size_to_wood_carbon(allom, dbh,     dbh_to_height(allom, dbh),     wood_density)
-         wood_max   = size_to_wood_carbon(allom, dbh_max, dbh_to_height(allom, dbh_max), wood_density)
+         diameter_max    = diameter + max(diameter_room, 0.0_wp)
+         wood_now   = size_to_wood_carbon(allom, diameter,     diameter_to_height(allom, diameter),     wood_density)
+         wood_max   = size_to_wood_carbon(allom, diameter_max, diameter_to_height(allom, diameter_max), wood_density)
          growth_max = min(growth_max, max(wood_max - wood_now, 0.0_wp))
       end if
    end function growth_sink_limitation

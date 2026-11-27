@@ -242,8 +242,8 @@ contains
       if (hasp) call nc_check(nc_def_dim_f(ncid, 'patch',  NC_UNLIMITED, dp), 'dim patch')
       if (hass) call nc_check(nc_def_dim_f(ncid, 'soil',   int(n_soil_layer_max, c_size_t), ds), 'dim soil')
       if (haspf) call nc_check(nc_def_dim_f(ncid, 'pft',   int(max(setup%n_pft,1_ik), c_size_t), dpf), 'dim pft')
-      if (hassz) call nc_check(nc_def_dim_f(ncid, 'dbh_class',                                       &
-                               int(max(setup%n_dbh_class,1_ik), c_size_t), dsz), 'dim dbh_class')
+      if (hassz) call nc_check(nc_def_dim_f(ncid, 'diameter_class',                                       &
+                               int(max(setup%n_diameter_class,1_ik), c_size_t), dsz), 'dim diameter_class')
       if (hasd) call nc_check(nc_def_dim_f(ncid, 'diel', int(files%n_diel, c_size_t), dd), 'dim diel')
 
       !--- time coordinate + calendar companions (period-start stamp).
@@ -309,12 +309,12 @@ contains
       end if
 
       !---~---
-      !   Axis coordinates: the pft and dbh_class axes have run-dependent lengths, so each file
+      !   Axis coordinates: the pft and diameter_class axes have run-dependent lengths, so each file
       ! carries its own coordinates and stands on its own (docs/science/diagnostics.md §3).
       !---~---
       stream%v_pft = -1_ik
-      stream%v_dbh_lower = -1_ik
-      stream%v_dbh_upper = -1_ik
+      stream%v_diameter_lower = -1_ik
+      stream%v_diameter_upper = -1_ik
       stream%v_soil_z = -1_ik
       if (haspf) then
          dims1 = [dpf]
@@ -340,11 +340,12 @@ contains
       end if
       if (hassz) then
          dims1 = [dsz]
-         call define_var(ncid, 'dbh_lower', NC_DOUBLE, dims1, vid, units='cm', long_name='DBH class lower edge (inclusive)')
-         stream%v_dbh_lower = int(vid, ik)
-         call define_var(ncid, 'dbh_upper', NC_DOUBLE, dims1, vid, units='cm',                         &
-                         long_name='DBH class upper edge (exclusive; the last class also holds every larger plant)')
-         stream%v_dbh_upper = int(vid, ik)
+         call define_var(ncid, 'diameter_lower', NC_DOUBLE, dims1, vid, units='cm',                                                &
+                         long_name='diameter class lower edge (inclusive)')
+         stream%v_diameter_lower = int(vid, ik)
+         call define_var(ncid, 'diameter_upper', NC_DOUBLE, dims1, vid, units='cm',                         &
+                         long_name='diameter class upper edge (exclusive; the last class also holds every larger plant)')
+         stream%v_diameter_upper = int(vid, ik)
       end if
       !--- The mean diel cycles' bins, by the hour of the day each starts at.
       if (hasd) then
@@ -386,7 +387,7 @@ contains
                        'put chave_e_py')
       if (hass) call write_site_soil_coord(ncid, int(stream%v_soil_z, c_int), v_bnds, files)
       if (haspf) call write_pft_coord(ncid, stream%v_pft, setup%n_pft)
-      if (hassz) call write_size_coord(ncid, stream%v_dbh_lower, stream%v_dbh_upper, setup)
+      if (hassz) call write_size_coord(ncid, stream%v_diameter_lower, stream%v_diameter_upper, setup)
       if (hasd) call write_diel_coord(ncid, v_dh, v_dhb, files%n_diel)
 
       stream%ncid = int(ncid, ik)
@@ -483,25 +484,25 @@ contains
    end subroutine write_pft_coord
 
    !---~---
-   !   The dbh_class coordinates: the lower and upper edge of each class, so a reader can
+   !   The diameter_class coordinates: the lower and upper edge of each class, so a reader can
    ! label the axis without knowing the run's TOML.
    !---~---
    subroutine write_size_coord(ncid, vlo_ik, vhi_ik, setup)
       integer(c_int),      intent(in) :: ncid
       integer(ik),         intent(in) :: vlo_ik, vhi_ik
       type(diag_setup_t),  intent(in) :: setup
-      real(c_double)    :: lo(max(setup%n_dbh_class,1_ik)), hi(max(setup%n_dbh_class,1_ik))
+      real(c_double)    :: lo(max(setup%n_diameter_class,1_ik)), hi(max(setup%n_diameter_class,1_ik))
       integer(c_size_t) :: st(1), cn(1)
       integer(ik)       :: i, nc
-      nc = max(setup%n_dbh_class, 1_ik)
+      nc = max(setup%n_diameter_class, 1_ik)
       do i = 1_ik, nc
-         lo(i) = real(setup%dbh_edges(i),        c_double)
-         hi(i) = real(setup%dbh_edges(i + 1_ik), c_double)
+         lo(i) = real(setup%diameter_edges(i),        c_double)
+         hi(i) = real(setup%diameter_edges(i + 1_ik), c_double)
       end do
       st = [0_c_size_t]
       cn = [int(nc, c_size_t)]
-      call nc_check(nc_put_vara_double(ncid, int(vlo_ik, c_int), st, cn, lo), 'put dbh_lower')
-      call nc_check(nc_put_vara_double(ncid, int(vhi_ik, c_int), st, cn, hi), 'put dbh_upper')
+      call nc_check(nc_put_vara_double(ncid, int(vlo_ik, c_int), st, cn, lo), 'put diameter_lower')
+      call nc_check(nc_put_vara_double(ncid, int(vhi_ik, c_int), st, cn, hi), 'put diameter_upper')
    end subroutine write_size_coord
 
    !--- Define a 1-D record variable (time) + units/long_name; returns its varid.
@@ -557,7 +558,7 @@ contains
       case (DIM_SIZE)
          rank = rank + 1_c_int
          dims(rank) = dsz
-         chunk(rank) = int(max(setup%n_dbh_class, 1_ik), c_size_t)
+         chunk(rank) = int(max(setup%n_diameter_class, 1_ik), c_size_t)
       case (DIM_SOIL_PATCH)
          rank = rank + 1_c_int
          dims(rank) = dp
@@ -649,7 +650,7 @@ contains
          case (DIM_PFT)
             n = max(files%diag%n_pft, 1_ik)
          case (DIM_SIZE)
-            n = max(files%diag%n_dbh_class, 1_ik)
+            n = max(files%diag%n_diameter_class, 1_ik)
          case (DIM_SOIL_PATCH)
             n = n_patch * n_soil_layer_max
          case (DIM_SITE)

@@ -281,7 +281,7 @@ contains
          if (n < 1_ik) return
          select case (field_id)
          case (0_c_int)
-            buf(1:n) = real(c%dbh(1:n),             c_double)
+            buf(1:n) = real(c%diameter(1:n),             c_double)
          case (1_c_int)
             buf(1:n) = real(c%height(1:n),          c_double)
          case (2_c_int)

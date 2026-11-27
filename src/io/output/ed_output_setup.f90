@@ -14,8 +14,8 @@ module ed_output_setup
    use ed_polygon_state_vars,   only : polygon_t
    use ed_diag_vars,            only : N_CO_FAST_ROWS, N_CO_ROWS, N_PA_ROWS, N_PY_ROWS, N_SI_ROWS,               &
                                        alloc_cohort_diag, alloc_patch_diag, alloc_site_diag
-   use ed_output_params,    only : N_FREQ, TIER_FAST, N_DBH_CLASS_DEFAULT, DBH_EDGES_DEFAULT, FREQ_NONE
-   use ed_output_types,     only : output_files_t, output_buffers_t, MAX_DBH_CLASS, DIM_COHORT, DIM_PATCH,        &
+   use ed_output_params,    only : N_FREQ, TIER_FAST, N_DIAMETER_CLASS_DEFAULT, DIAMETER_EDGES_DEFAULT, FREQ_NONE
+   use ed_output_types,     only : output_files_t, output_buffers_t, MAX_DIAMETER_CLASS, DIM_COHORT, DIM_PATCH,        &
                                    DIM_SOIL, DIM_PFT, DIM_SIZE, DIM_SOIL_PATCH, DIM_SITE, MISSING_VALUE,          &
                                    MISSING_INT, var_desc_t, slab_var
    use ed_constants,         only : n_soil_layer_max
@@ -178,16 +178,16 @@ contains
       ! so the files carry a pft coordinate (docs/science/diagnostics.md §3).
       !---~---
       files%diag%n_pft  = cfg%pft%n
-      !--- DBH size classes: TOML edges if given, else the built-in inventory set.
-      if (cfg%output%n_dbh_class > 0_ik) then
-         files%diag%n_dbh_class = min(cfg%output%n_dbh_class, MAX_DBH_CLASS)
-         ne = files%diag%n_dbh_class + 1_ik
-         files%diag%dbh_edges(1:ne) = cfg%output%dbh_class_edges(1:ne)
+      !--- diameter size classes: TOML edges if given, else the built-in inventory set.
+      if (cfg%output%n_diameter_class > 0_ik) then
+         files%diag%n_diameter_class = min(cfg%output%n_diameter_class, MAX_DIAMETER_CLASS)
+         ne = files%diag%n_diameter_class + 1_ik
+         files%diag%diameter_edges(1:ne) = cfg%output%diameter_class_edges(1:ne)
       else
-         files%diag%n_dbh_class = N_DBH_CLASS_DEFAULT
-         files%diag%dbh_edges(1:N_DBH_CLASS_DEFAULT + 1_ik) = DBH_EDGES_DEFAULT
+         files%diag%n_diameter_class = N_DIAMETER_CLASS_DEFAULT
+         files%diag%diameter_edges(1:N_DIAMETER_CLASS_DEFAULT + 1_ik) = DIAMETER_EDGES_DEFAULT
       end if
-      call check_dbh_edges(files%diag%dbh_edges, files%diag%n_dbh_class)
+      call check_diameter_edges(files%diag%diameter_edges, files%diag%n_diameter_class)
       !---~---
       !   attach_output sets soil_ready on a polygon's buffers when its fast loop runs; until
       ! then the psi/wetness diagnostics emit _FillValue.
@@ -229,7 +229,7 @@ contains
       case (DIM_PFT)
          cap = max(files%diag%n_pft, 1_ik)
       case (DIM_SIZE)
-         cap = max(files%diag%n_dbh_class, 1_ik)
+         cap = max(files%diag%n_diameter_class, 1_ik)
       case (DIM_SOIL_PATCH)
          cap = files%patch_max * n_soil_layer_max
       case (DIM_SITE)
@@ -240,18 +240,18 @@ contains
    end function dim_capacity
 
    !---~---
-   !   The size-class edges must be strictly ascending, or dbh_class_index mis-bins without a
+   !   The size-class edges must be strictly ascending, or diameter_class_index mis-bins without a
    ! word and the closure of docs/science/diagnostics.md eq. (3) fails; stop at start-up.
    !---~---
-   subroutine check_dbh_edges(edges, n_class)
+   subroutine check_diameter_edges(edges, n_class)
       real(wp),    intent(in) :: edges(:)
       integer(ik), intent(in) :: n_class
       integer(ik) :: j
       do j = 1_ik, n_class
          if (.not. (edges(j+1_ik) > edges(j)))                                                   &
-            error stop 'ed_output_setup: [output].dbh_class_edges must be strictly ascending'
+            error stop 'ed_output_setup: [output].diameter_class_edges must be strictly ascending'
       end do
-   end subroutine check_dbh_edges
+   end subroutine check_diameter_edges
 
    !---~---
    !   Finish the file set once the registry is final (after setup_output_files and any

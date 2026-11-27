@@ -15,7 +15,7 @@ python make_census.py --declaration ../../../examples/example04_column_biophysic
     --out ../../../examples/example04_column_biophysics/sites/bci/data/bci_census2010_ed.csv
 ```
 
-It writes the census CSV (`site_id`, `patch_id`, `patch_area`, `dbh`, `pft`, `nplant`) and a summary
+It writes the census CSV (`site_id`, `patch_id`, `patch_area`, `diameter`, `pft`, `nplant`) and a summary
 JSON, by default the CSV's path with `_summary.json`.
 
 (Example 04's declaration names its tables' folder as `/path/to/bci_census`: point the two paths at
@@ -33,12 +33,21 @@ observed biomass mortality between the two censuses, routed as ED-MORE routes ne
 |---|---|
 | status `A` (`[plot].alive_status`), a diameter of at least `min_dbh_mm`, coordinates inside the plot (and the circle) | every other status, live trees without a diameter, smaller trees, trees outside the plot or the circle |
 
+**A tree with several stems is one plant.** A stem table, one row per stem with the tree's id in
+`treeID`, gives each tree as one plant: its live, measured stems lumped at equal basal area,
+$`D = \sqrt{\sum_i D_i^2}`$, its AGB their sum, alive while any stem lives, at its first live stem's
+position. With a `stemID` column in both censuses, the earlier census's stems take the trees the later
+one gives them, so a stem moved to another tree between the two follows it. A tree table that gives
+each tree by its main stem alone (BCI's, with a `nostems` column) misses the others: the tool warns
+and counts the trees in the summary.
+
 Tables other than BCI's, and stands of several PFTs:
 
 | Key | What it does |
 |---|---|
-| `[source].columns` | maps the tool's column names (`treeID`, `status`, `dbh`, `gx`, `gy`, `date`, `ExactDate`, `agb`, `sp`) to the table's, e.g. `{ treeID = "stem.id", date = "jd" }`; `[mortality]` takes its own |
+| `[source].columns` | maps the tool's column names (`treeID`, `stemID`, `status`, `dbh`, `gx`, `gy`, `date`, `ExactDate`, `agb`, `sp`) to the table's, e.g. `{ treeID = "tree.id", stemID = "stem.id", date = "jd" }`; `[mortality]` takes its own |
 | `[source].dbh_units` | `"mm"` (default) or `"cm"` |
+| `[source].diameter_height` | the height [m] the table measures its stems at (default 1.3, breast height). With a PFT file, each PFT's `[allometry].diameter_height` must be within 0.1 m of it: a PFT's curves take the diameter at that height |
 | `[output].pft_by_species` | a PFT per species code (`{ tsugca = 2 }`); every other tree takes `[output].pft`. The rows are then one per (cell, diameter, PFT), and the summary's allometry and litter are each tree's own PFT's |
 | `[plot].circle` | `{ x, y, radius }` [m, plot coordinates]: only the cells whose centre lies within, such as a tower's surroundings. The summary's per-hectare values, and the earlier census's mortality, are over those cells |
 | `[mortality].dead_status` | the later census's statuses of a tree that died (default `["D"]`); the two censuses are matched by `treeID` |

@@ -12,7 +12,7 @@
 module ed_demography
    use ed_kinds,           only : wp
    use ed_constants,       only : tiny_num
-   use ed_allometry_lib,   only : allometry_t, wood_to_dbh
+   use ed_allometry_lib,   only : allometry_t, wood_to_diameter
    implicit none
    private
 
@@ -26,12 +26,12 @@ contains
    ! reach if the step's wood growth were added to its wood carbon (at least 0), less its
    ! current diameter, over the step. The mortality hazard reads it (eq. (3)).
    !---~---
-   elemental pure function npp_to_growth(allom, wood_carbon, npp_wood, dbh, dt_yr, rho) result(dbh_rate)
+   elemental pure function npp_to_growth(allom, wood_carbon, npp_wood, diameter, dt_yr, rho) result(diameter_rate)
       type(allometry_t), intent(in) :: allom   ! the cohort's PFT's allometry
-      real(wp), intent(in) :: wood_carbon, npp_wood, dbh, dt_yr, rho
-      real(wp)             :: dbh_rate, dbh_new
-      dbh_new  = wood_to_dbh(allom, max(wood_carbon + npp_wood, 0.0_wp), rho)
-      dbh_rate = (dbh_new - dbh) / dt_yr
+      real(wp), intent(in) :: wood_carbon, npp_wood, diameter, dt_yr, rho
+      real(wp)             :: diameter_rate, diameter_new
+      diameter_new  = wood_to_diameter(allom, max(wood_carbon + npp_wood, 0.0_wp), rho)
+      diameter_rate = (diameter_new - diameter) / dt_yr
    end function npp_to_growth
 
    !---~---

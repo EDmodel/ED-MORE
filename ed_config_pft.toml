@@ -21,10 +21,11 @@ recruit_carbon_efficiency          = [1.0e-3, 1.0e-3, 1.0e-3] # [--] share of re
                                     #      recruits: seed set, germination and seedling survival together
 # recruit_shade_decay = [0.0, 0.0, 0.0]   # [1/(m2/m2)] that share x exp(-k * patch LAI); optional, default 0
 # nbg_init_density = [0.0, 0.0, 0.0]      # [plant/m2] a bare-ground start's seedlings, per patch, at
-                                          #      min_cohort_height (ED2 init_density); optional, default 0
+                                          #      the PFT's min_recruit_height (ED2 init_density); optional, default 0
 seed_rain_recruits = [0.01, 0.01, 0.01]    # [plant/m2/yr] baseline external seed rain
 include_pft        = [1, 1, 1]             # 1 = PFT may recruit, 0 = excluded
-min_cohort_height       = 2.0              # [m] smallest tracked cohort; recruits born here (all PFTs)
+min_recruit_height      = 2.0              # [m] a tree recruit is born at this height on its PFT's curve, the
+                                          #      smallest tracked (ED2 hgt_min); one value, or one per PFT
 min_repro_height   = [13.912064431085485, 13.912064431085485, 13.912064431085485]   # [m] a cohort reproduces from this height:
                                     #      0.33 of a 100 cm tree's height on the power curve (Thomas 1996: 0.2-0.75)
 # Leaf photosynthesis / stomatal traits (FvCB C3 + Collatz C4; docs/science/leaf_gas_exchange.md).
@@ -121,7 +122,7 @@ growth_resp_factor     = [0.3, 0.3, 0.3]            # [--] construction cost: th
 # max_relative_growth_rate = [0.0, 0.0, 0.0]       # [1/yr] sink limit on wood growth per unit wood carbon
 # max_absolute_growth_rate = [0.0, 0.0, 0.0]       # [cm/yr] sink limit on diameter growth of a 1 cm stem;
 #                                                  #        with both, the tighter applies; the residual is exuded (0 = off)
-# max_absolute_growth_exponent = [0.0, 0.0, 0.0]   # [--] that limit scales as dbh[cm]^exponent (0 = size-independent)
+# max_absolute_growth_exponent = [0.0, 0.0, 0.0]   # [--] that limit scales as diameter[cm]^exponent (0 = size-independent)
 leaf_turnover_rate_toc = [1.0, 0.5, 0.33]          # [1/yr] top-of-canopy baseline leaf turnover (> 0)
 # Light plasticity: a cohort's trait is its PFT's top-of-canopy value times exp(k * LAI above it), k in
 # 1/(m2/m2), when [trait_dynamics].trait_plasticity_on (docs/science/plant_traits.md eqs. (1), (3)-(4)).
@@ -142,28 +143,31 @@ struct_lignin_frac     = [0.20, 0.25, 0.30]         # [--] lignin fraction of th
 # one value, for every PFT, or an array with one value per PFT.
 height_allometry = "power"  # "power" or "chave2014", or one per PFT (["chave2014", "power", "power"])
 hgt_max    = [46.0, 46.0, 46.0]   # [m] the largest height: the cap on every curve
-# The power law, height = exp(b1Ht + b2Ht ln dbh): pan-tropical (ED2 iallom 3).
+# diameter_height = 1.3   # [m] the height a stem's diameter is measured at, the diameter every curve takes: 1.3 m
+#                         #     (breast height) for a tree, the default; 0 (the root collar) for a shrub. A curve
+#                         #     fitted at another height needs this one: "chave2014" needs 1.3 m or more
+# The power law, height = exp(b1Ht + b2Ht ln diameter): pan-tropical (ED2 iallom 3).
 b1Ht       = 1.139963
 b2Ht       = 0.564899
-# The log-quadratic curve, for the PFTs on "chave2014": ln height = chave_a - chave_e + chave_b ln dbh
-# + chave_c (ln dbh)^2 + chave_rse^2/2 (the mean, as BIOMASS's retrieveH). The coefficients default to
+# The log-quadratic curve, for the PFTs on "chave2014": ln height = chave_a - chave_e + chave_b ln diameter
+# + chave_c (ln diameter)^2 + chave_rse^2/2 (the mean, as BIOMASS's retrieveH). The coefficients default to
 # Chave et al. (2014) eq. 6a; a site's own heights give a local fit (examples 03 and 05 fit BCI's).
 # chave_a   = 0.893     # [--] intercept
-# chave_b   = 0.760     # [--] slope on ln dbh
-# chave_c   = -0.0340   # [--] coefficient of (ln dbh)^2
+# chave_b   = 0.760     # [--] slope on ln diameter
+# chave_c   = -0.0340   # [--] coefficient of (ln diameter)^2
 # chave_rse = 0.243     # [--] the fit's residual standard error
 # chave_e is the site's stress index, the same for every PFT: E = 1e-3 (0.178 TS - 0.938 CWD - 6.61 PS)
 # (Chave eq. 6b), below 0 at wet, aseasonal sites (taller trees), above 0 where it is dry, seasonal or
 # hot (shorter trees). With [maps].chave_e_map each polygon takes its cell's.
 # chave_e = 0.0   # [--] Chave's environmental stress index
 # Biomass, leaf area, wood area and sapwood of one stem:
-agb_c1     = 0.03365        # [kgC] agb = agb_c1 * rho^agb_c2 * (dbh^2*h)^agb_c2: Chave et al. (2014) eq. 4, 0.0673 / C2B
-agb_c2     = 0.976          # [--] AGB exponent on rho and on dbh^2*h
-lai_b1     = 0.23384770     # [--] leaf area = lai_b1 * (dbh^2*h)^lai_b2 [m2]: ED2 c14f15_bl_xx / C2B
+agb_c1     = 0.03365        # [kgC] agb = agb_c1 * rho^agb_c2 * (diameter^2*h)^agb_c2: Chave et al. (2014) eq. 4, 0.0673 / C2B
+agb_c2     = 0.976          # [--] AGB exponent on rho and on diameter^2*h
+lai_b1     = 0.23384770     # [--] leaf area = lai_b1 * (diameter^2*h)^lai_b2 [m2]: ED2 c14f15_bl_xx / C2B
 lai_b2     = 0.6410495      # [--] leaf-area exponent
-wai_b1     = [0.0096, 0.0096, 0.0096]   # [--] wood area = wai_b1 * dbh^wai_b2 [m2]: ED2 b1WAI = 0.0192*0.5, broadleaf
+wai_b1     = [0.0096, 0.0096, 0.0096]   # [--] wood area = wai_b1 * diameter^wai_b2 [m2]: ED2 b1WAI = 0.0192*0.5, broadleaf
 wai_b2     = [2.0947, 2.0947, 2.0947]   # [--] ED2 b2WAI, broadleaf
-sapwood_area_b1  = [1.582, 1.582, 1.582]  # [cm2/cm^b2] sapwood area = sapwood_area_b1 * dbh^sapwood_area_b2:
+sapwood_area_b1  = [1.582, 1.582, 1.582]  # [cm2/cm^b2] sapwood area = sapwood_area_b1 * diameter^sapwood_area_b2:
                                           #   ED2 b1SA, tropical broadleaf; its share of basal area is capped at 1
 sapwood_area_b2  = [1.764, 1.764, 1.764]  # [--] ED2 b2SA, tropical broadleaf
 aboveground_frac = [0.7, 0.7, 0.7]        # [--] share of the wood carbon above ground (ED2 agf_bs)
