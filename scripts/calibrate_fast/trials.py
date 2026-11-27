@@ -20,10 +20,12 @@ keys' ranges has a bug to fix.
 from __future__ import annotations
 
 import datetime as dt
+import functools
 import hashlib
 import json
 import math
 import re
+import shutil
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -105,9 +107,12 @@ def with_keys(base: RunConfig, keys, values, overrides: dict | None = None) -> R
 
 
 def build_trial(base: RunConfig, keys, values, window: Window, state_file, root: Path,
-                overrides: dict | None = None, write_state: bool = False, threads: int = 1) -> Path:
-    """Write a trial directory (or find the finished one) and return its path. The thread count is
-    set after the name is made, so a finished trial is found whatever the count it ran with."""
+                overrides: dict | None = None, write_state: bool = False, threads: int = 1,
+                model: str = "") -> Path:
+    """Write a trial directory (or find the finished one) and return its path. The name hashes the
+    model (model_identity) with the configs, so a rebuilt model never reuses another build's trial.
+    The thread count is set after the name is made, so a finished trial is found whatever the count
+    it ran with."""
     cfg = with_keys(base, keys, values, overrides)
     run = {"run.start_time": stamp(window.start), "run.end_time": stamp(window.end),
            "run.slow_on": False, "run.n_threads": 1,         # in the name as 1; the real count is set below
@@ -119,7 +124,7 @@ def build_trial(base: RunConfig, keys, values, window: Window, state_file, root:
            "output.annual.enabled": False}
     for k, v in run.items():
         cfg.set(k, v)
-    tag = digest(cfg.main, cfg.pft)
+    tag = digest(model, cfg.main, cfg.pft)
     tdir = root / f"{window.name}-{tag[:16]}"
     if (tdir / "series.npz").exists():
         return tdir
@@ -139,6 +144,23 @@ def command(runner: str, config: Path) -> list[str]:
     if runner == PYTHON_RUNNER:
         return [sys.executable, "-m", "edmore.model", str(config)]
     return [runner, str(config)]
+
+
+@functools.lru_cache(maxsize=None)
+def model_identity(runner: str) -> str:
+    """The model a runner runs, as a hash of its compiled code: the edmore executable, or for the
+    Python API the libedmore.so it loads. Trials, chains and the parameter record are named with it,
+    so a rebuilt model runs them again instead of reusing what another build wrote."""
+    if runner == PYTHON_RUNNER:
+        from edmore._libedmore import library_path
+        path = Path(library_path())
+    else:
+        path = Path(shutil.which(runner) or runner)
+    h = hashlib.sha1()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(1 << 20), b""):
+            h.update(block)
+    return h.hexdigest()
 
 
 def log_tail(path: Path, n: int = 15) -> str:
@@ -257,8 +279,9 @@ class TrialRunner:
         """Run (or find finished) every (values, window) trial; returns, per set of values, its
         trial directories. A failed trial raises TrialError."""
         threads = {w.name: threads_for(w.days, self.max_threads) for w in windows}
+        model = model_identity(self.runner)
         dirs = [[build_trial(self.base, self.keys, vals, w, self.states[w.name], self.root, self.overrides,
-                             threads=threads[w.name]) for w in windows] for vals in value_sets]
+                             threads=threads[w.name], model=model) for w in windows] for vals in value_sets]
         todo, seen = [], set()
         for vals, tds in zip(value_sets, dirs):
             for w, td in zip(windows, tds):

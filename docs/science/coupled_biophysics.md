@@ -11,11 +11,12 @@ are compared in [numerical_scheme](numerical_scheme.md).
   three prognostic variables (enthalpy, humidity, CO₂).
 - [soil_biophysics](soil_biophysics.md) — the coupled soil water (Richards) and soil thermal
   (internal-energy heat) columns, canopy interception, ground evaporation, heterotrophic respiration.
-- [soil_plant_water](soil_plant_water.md) — the pond, soil layers and every cohort's wood and leaves,
-  solved as one water network each fast step.
+- [soil_plant_water](soil_plant_water.md) — the pond, the porous layers, the soil layers and every
+  cohort's wood and leaves, solved as one water network each fast step.
 - [vegetation_energy_dynamics](vegetation_energy_dynamics.md) — the leaf/wood tissue energy balance
   (diagnostic and prognostic modes).
-- [snow_biophysics](snow_biophysics.md) — the always-active snow / temporary-surface-water store.
+- [ground_surface_layers](ground_surface_layers.md) — the layers on the soil, top down: water (snow, ice
+  and ponded water), litter and moss.
 - [canopy_aerodynamics](canopy_aerodynamics.md) — the Monin-Obukhov surface layer and boundary-layer
   conductances that set the shared $`u_*`$ atm↔CAS transfer.
 - [canopy_radiation_transfer](canopy_radiation_transfer.md) — the two-stream absorbed SW / net LW that
@@ -36,7 +37,7 @@ are compared in [numerical_scheme](numerical_scheme.md).
    internal energy as its prognostic variable and diagnoses temperature (and liquid fraction) by
    inverting the thermodynamics: `ed_therm_lib%internal_energy_to_temp` for a snow layer, whose
    water melts at the triple point, and the layer's freezing curve for a soil layer, whose liquid the
-   pores hold below it (`ed_soil_heat%soil_layer_temp`; [soil_biophysics](soil_biophysics.md),
+   pores hold below it (`ed_ground_surface_lib%porous_layer_temp`; [soil_biophysics](soil_biophysics.md),
    "Frozen soil"). Freeze/thaw is then a *read-off* of the inverter: cooling a wet pack pins its
    temperature at the triple point while the liquid fraction absorbs $`w\,L_f`$, and a wet soil layer
    lingers just below it as its curve gives up the liquid. Phase change needs no separate solver.
@@ -59,13 +60,14 @@ integrators (`[fast].time_integrator`); [numerical_scheme](numerical_scheme.md) 
 says why an operator-split stepper is not among them.
 
 Whichever runs, the step first builds the **frozen record** (`build_frozen`: aerodynamics; leaf gas
-exchange → GPP, $g_s$, $R_d$; stem, root and heterotrophic respiration; CAS capacities; the snow stage's
-snowfall, rain and meltwater drainage, whose exchange with the canopy air is the march's; and canopy
+exchange → GPP, $g_s$, $R_d$; stem, root and heterotrophic respiration; CAS capacities; and canopy
 interception) and steps the soil-plant water network (`water_step`), whose time-mean flows
 are handed on as constants (`record_water_flows`) and whose θ is committed. After the march,
 `update_dynamic_state` commits the step and `close_ledgers` closes the ledgers, the same for both
-schemes. The canopy radiation transfer runs before it, in the fast-loop driver
-([order_of_processes](order_of_processes.md) §3). These quantities are **frozen for the whole
+schemes. The frozen record starts with the ground's stage (`ground_stage`: the rain, snowfall and shed
+water join the water layer, whose free water is the water network's top node) and then the canopy
+radiation transfer (`canopy_ground_radiation`), so the radiation and the ground's balance see the step's
+one cover of the water layer ([order_of_processes](order_of_processes.md) §3). These quantities are **frozen for the whole
 `dt_fast`**: the Category-0 semi-discretisation ED-MORE inherits from ED2.
 
 **One coefficient is deliberately excluded from the freeze.** The CAS↔atmosphere conductances are
@@ -116,9 +118,10 @@ machine precision.
 | Store | Type | Prognostic variable(s) | Diagnosed |
 |---|---|---|---|
 | Canopy air space | `cas_state_t` | `can_enthalpy`, `can_shv`, `can_co2` (`can_depth` is set by the slow step) | `can_temp` |
-| Soil water | `soil_water_state_t` | `theta(:)`, `w_surface`, `w_surface_energy` [J m⁻²] | `psi_soil` |
+| Soil water | `soil_water_state_t` | `theta(:)` | `psi_soil` |
 | Soil thermal | `soil_energy_state_t` | `soil_energy(:)` [J m⁻³] | `soil_temp`, `soil_fliq` |
-| Snow / surface water | `snow_state_t` | `swe`, `snow_energy` [J m⁻²], `snow_depth` | `snow_temp`, `snow_fliq` |
+| The water layer (snow, ice and ponded water; its free water is the pond) | `water_layer_state_t` | `water` [kg m⁻²], `energy` [J m⁻²], `matrix_depth` [m] | `temp`, `fliq` |
+| The porous layers (litter, moss), each its own node | `porous_layer_state_t` | `matter`, `water` [kg m⁻²], `energy` [J m⁻²] | `temp`, `fliq` |
 | Leaf / wood tissue | `fast_dynamic_state_t` | `leaf_energy`, `wood_energy` [J m⁻²; on the cohort block, J plant⁻¹] (exact exponential relaxation) | `leaf_temp`, `wood_temp` |
 | Plant water | `fast_dynamic_state_t` | `leaf_water_mass`, `wood_water_mass` [kg plant⁻¹] | leaf and wood ψ |
 | Canopy surface water | `fast_dynamic_state_t` | `leaf_surf_water`, `wood_surf_water` [kg m⁻²; on the cohort block, kg plant⁻¹] | — |
@@ -143,9 +146,10 @@ When two patches fuse, or a disturbance carves a gap from its donors, each store
 mixed from the two by a `blend_*` function (`ed_patch_state_vars`). The weights are the area
 fractions $`w_i = a_i/(a_1+a_2)`$:
 
-- **Per ground area: area-weighted.** Soil water and soil energy per layer, the pond's mass and
-  energy, the snow's mass and energy, the soil-carbon pools, and the day's accumulators (`decomp_xi`,
-  `litter_in`) are all amounts per m² of ground, so $`w_1 v_1 + w_2 v_2`$ keeps the site total.
+- **Per ground area: area-weighted.** Soil water and soil energy per layer, the ground's surface
+  layers (each layer's water and energy, the porous layers' matter and the water layer's matrix depth,
+  `blend_ground_surface`), the soil-carbon pools, and the day's accumulators (`decomp_xi`, `litter_in`)
+  are all amounts per m² of ground, so $`w_1 v_1 + w_2 v_2`$ keeps the site total.
 - **The canopy air: weighted by air mass.** Its enthalpy, humidity and CO₂ are per kg of air, and a
   patch holds $`\rho\,a\,d`$ of air over depth $d$. The merged depth is area-weighted (the merged volume
   over the merged ground), so conserving the content gives
@@ -181,10 +185,9 @@ fractions $`w_i = a_i/(a_1+a_2)`$:
 | canopy interception | `ed_canopy_water`: `canopy_interception`, `intercept_canopy_layer` |
 | soil thermal (implicit BE heat) | `ed_soil_heat`: `soil_energy_step_implicit` (tridiagonal solve: `thomas_solve`, `ed_linear_algebra`) |
 | leaf/wood energy | `ed_plant_energy`: `tissue_energy_balance` — one kernel for leaf and wood, diagnostic (`store_hcap_per_dt = 0`) or prognostic (`> 0`); every cohort, `canopy_tissue_energy` |
-| ground surface (the snow/bare blend) and skin fluxes | `ed_surface`: `ground_surface_exchange`, `ground_surface_fluxes` |
+| the ground's surface stack (water layer, litter and moss over the soil top) and the bare soil's fluxes | `ed_surface`: `ground_surface_exchange`, `surface_stack_balance`, `surface_node_balance`, `ground_surface_fluxes` |
 | soil heterotrophic Rh | `ed_respiration`: `heterotrophic_respiration`; per patch and sub-step, `ed_fast_integ_frozen`: `patch_heterotrophic_respiration` |
-| snow energy / base conductance | `ed_surface`: `snow_surface_balance`, `snow_take_exchange`, `snow_base_conductance` |
-| snow mass / cover / melt | `ed_surface`: `snow_accumulate`, `snow_cover_fraction`, `snow_drain_meltwater` |
+| the ground's stage, the water layer's mass, cover and commit | `ed_fast_integ_frozen`: `ground_stage`; `ed_surface`: `water_layer_stage`, `water_layer_cover_of`, `water_layer_commit`; `ed_patch_state_vars`: `store_take_exchange` |
 | the step, the march + RK45→ESDIRK2 rescue | `ed_fast_integ_stepper`: `fast_step`, `adaptive_march` |
 | the frozen record | `ed_fast_integ_frozen`: `build_frozen`, `record_water_flows` |
 | the update + ledgers | `ed_fast_integ_update`: `update_dynamic_state`, `close_ledgers` |
@@ -193,4 +196,4 @@ fractions $`w_i = a_i/(a_1+a_2)`$:
 | Cash–Karp step (config `rk45`) | `ed_fast_integ_rk45`: `rk45_step`, `rk45_state_railed` |
 | whole-patch tendency right-hand side | `ed_fast_integ_derivs`: `march_derivs` (`rk45`), `surface_derivs` (both) |
 | explicit tendency siblings | `ed_soil_heat`: `soil_energy_time_deriv`; the soil and plant water tendencies are the water network's rates, set in `march_derivs` |
-| prognostic state types | `ed_patch_state_vars`: `cas_state_t`, `snow_state_t`, `soil_water_state_t`, `soil_energy_state_t` |
+| prognostic state types | `ed_patch_state_vars`: `cas_state_t`, `ground_surface_state_t` (`water_layer_state_t`, `porous_layer_state_t`, both a `ground_store_t`), `soil_water_state_t`, `soil_energy_state_t` |

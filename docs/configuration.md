@@ -52,15 +52,17 @@ Two kinds of value are not in the config:
   plasticity slopes from Vcmax25) is computed outside ED-MORE, by
   `scripts/prepare_input/pft_traits/README.md`, and written into the PFT file.
 - **Optional keys** read with a fallback to a default. They are the solver settings, process switches and
-  whole blocks (`[soil]`, `[snow]`, `[aerodynamics]`, `[soil_carbon]`, `[trait_dynamics]`, most of
+  whole blocks (`[soil]`, `[ground_surface_layer]`, `[aerodynamics]`, `[soil_carbon]`, `[trait_dynamics]`, most of
   `[fast]` and `[output]`). The reference file lists each one commented out at its default.
 
 **Every key ED-MORE reads is listed in the two reference configs**, set or commented out at its default.
 The test `config_keys_listed` holds the references equal to the keys the loader reads. Before a run
 starts, the loader checks every key of both files and reports all the problems at once:
 
-- a key the reference does not list, with a suggestion: the section it moved to
-  (`state.cohort_max` → `output.cohort_max`) or the key it most likely meant (a misspelling);
+- a key the reference does not list, with a suggestion: the key that holds its value, for a key the
+  loader maps to another (`snow.k_snow` → `ground_surface_layer.water.conductivity_at_fresh`), the
+  section it moved to (`state.cohort_max` → `output.cohort_max`) or the key it most likely meant (a
+  misspelling);
 - a listed key that the run's other settings give nothing to do, with the setting that makes it
   inapplicable: `forcing.path` with `format = "ERA5land"`, a `[region]` block in a site run, a soil key
   the `[maps]` provide. A key that parses and does nothing is worse than one that is absent:
@@ -89,9 +91,10 @@ The main file holds all non-PFT settings. It names the PFT file in `[init].pft_c
 | Block | What it controls |
 |---|---|
 | `[run]` | the slow step `dt_slow` (`"1d"`, `"12h"`, `"900s"`: a number and a unit `s`, `m`, `h`, `d` or `w`; a bare number is seconds), the span as calendar dates (`start_time`, `end_time`, exclusive; `"YYYY-MM-DD[ HH:MM:SS]"`, Gregorian with leap years), `mode` (`"site"`, the default, or `"region"`), the thread count and two slow-step switches |
-| `[fast]` | the sub-daily loop: whether it runs (`fast_biophysics_on`), its step `dt_fast`, the GPP of a run without it (`gpp_ref`; its soil carbon decays at `[soil_carbon].spinup_xi`), the integrator and its error control (`time_integrator`, `rtol`, `atol_scale`, `water_atol`), the budget checks (`soil_energy_budget_atol`, `debug_error`), canopy interception, and the initial snow |
-| `[soil]` | the ground: column, hydraulic and thermal texture, surface, and the two bottom boundaries |
-| `[snow]`, `[aerodynamics]` | the snow store's and the canopy aerodynamics' parameters |
+| `[fast]` | the sub-daily loop: whether it runs (`fast_biophysics_on`), its step `dt_fast`, the GPP of a run without it (`gpp_ref`; its soil carbon decays at `[soil_carbon].spinup_xi`), the integrator and its error control (`time_integrator`, `rtol`, `atol_scale`, `water_atol`), the budget checks (`soil_energy_budget_atol`, `debug_error`) and canopy interception |
+| `[soil]` | the ground: column, hydraulic and thermal texture, surface, the moss on it (`moss_depth` [m]: 0, the default, or at least `[ground_surface_layer].min_depth`, with a material whose `mass_source` is `site_depth`; a `[[sites]]` table may set it), and the two bottom boundaries |
+| `[ground_surface_layer]` | the layers on the soil, top down: `min_depth`, the depth from which a porous layer's matter is a layer, and one table per material. `[ground_surface_layer.water]`: the water layer (snow, ice and ponded water), whose free water is the pond: fresh snow's density, its ice matrix's conductivity at that density, the albedos of fresh and aged snow, solid ice and standing water, the emissivity, the liquid its ice holds, the cover's scale, the pond's capacity, and the layer at a fresh start ([ground_surface_layers](science/ground_surface_layers.md)). `[ground_surface_layer.litter]` and `[ground_surface_layer.moss]`: each porous layer's `mass_source` (`none`, `metabolic_litter`, or `site_depth`, a site's `[soil].moss_depth`), its bulk density, its conductivity dry and saturated, and its water retention as a soil layer's ([ground_surface_layers](science/ground_surface_layers.md)) |
+| `[aerodynamics]` | the canopy aerodynamics' parameters |
 | `[demography]` | the stand's structure: one switch per operator, and the settings of cohort and patch fusion, fission, the cull, treefall gaps and recruitment |
 | `[init]` | how the run starts, and the path to the PFT file |
 | `[trait_dynamics]` | light acclimation of leaf traits (`trait_plasticity_on`) |
@@ -433,6 +436,11 @@ Every curve is capped at the PFT's `[allometry].hgt_max`, and biomass (`agb_c1`,
 per PFT too. A cohort reproduces once its height reaches its PFT's `[pft].min_repro_height` [m], a height
 set outside ED-MORE.
 
+**Snow on the crown.** A snow pack buries a crown from its base: `[allometry].crown_base_fraction`, the
+crown's base over the height (0.5 by default), and `snow_bending`, the share of its height a pack bends a
+plant down by (0 by default), each in [0, 1)
+([`science/ground_surface_layers.md`](science/ground_surface_layers.md) §6).
+
 **Leaf traits.** Leaves are parameterized by their turnover: `[pft].leaf_turnover_rate_toc` [yr⁻¹, > 0]
 is the share of a top-of-canopy cohort's leaf carbon that background turnover replaces a year, and with
 `[trait_dynamics].trait_plasticity_on` it slows in shade
@@ -661,11 +669,11 @@ A polygon is one site unless `[[sites]]` divides it, in a site run. Each `[[site
 | `elevation` [m] | default: the polygon's, `[site].elevation` |
 | `slope`, `aspect` [degrees] | slope from horizontal in [0, 90), and the aspect clockwise from north the way the slope faces, in [0, 360]; default flat (0, 0) |
 | `census_site_id` | the census rows it reads (`init_mode = 1`, where every site needs a distinct positive one) |
-| any of `[soil]`'s column keys | `depth`, `layer_bottoms`, `retention`, the hydraulic and thermal texture, `psi_fc`, `water_bottom_bc`, `deep_temp`, `deep_depth`, under the same names |
+| any of `[soil]`'s column keys | `depth`, `layer_bottoms`, `retention`, the hydraulic and thermal texture, `psi_fc`, `water_bottom_bc`, `deep_temp`, `deep_depth`, and the site's moss, `moss_depth`, under the same names |
 
 - **The ground.** A table that sets any of `[soil]`'s column keys gives its site its own column, taking
   `[soil]`'s value for each key it leaves out; a table that sets none takes `[soil]`'s column. Each
-  site's column is checked as `[soil]`'s is. The ground's surface (pond, dry surface layer, optics) and
+  site's column is checked as `[soil]`'s is. The ground's surface (its layers' materials, the dry surface layer, optics) and
   its thermal boundary type are the run's. With the soil maps, every site takes the cell's soil, and the
   column keys are refused.
 - **The terrain.** Each sub-step the polygon's forcing is moved to each site: to its elevation, by the

@@ -20,6 +20,7 @@ module ed_output_extract
    use ed_state_defaults,       only : is_unset_positive
    use ed_constants,     only : n_soil_layer_max
    use ed_soil_hydr_lib,      only : soil_matric_potential, soil_theta_to_saturation
+   use ed_ground_surface_lib, only : water_layer_depth
    use ed_output_reduce,  only : reduce_cohort_to_polygon, reduce_cohort_to_patch,             &
                                        reduce_cohort_to_pft, reduce_cohort_to_size,               &
                                        reduce_patch_to_polygon, reduce_patch_columns_to_sites,       &
@@ -40,7 +41,8 @@ module ed_output_extract
    public :: FLD_C_DIAG0, FLD_P_DIAG0, FLD_PY_DIAG0
    !--- Patch fields (2000-2999).
    public :: FLD_P_AREA, FLD_P_AGE, FLD_P_DIST_TYPE, FLD_P_COHORT_OFFSET, FLD_P_COHORT_COUNT
-   public :: FLD_P_GLOBAL_ID, FLD_P_SITE, FLD_P_CAS_DEPTH, FLD_P_SWE, FLD_P_SNOW_DEPTH
+   public :: FLD_P_GLOBAL_ID, FLD_P_SITE, FLD_P_CAS_DEPTH, FLD_P_WATER_LAYER_MASS, FLD_P_WATER_LAYER_DEPTH,      &
+             FLD_P_WATER_LAYER_ICE
    public :: FLD_P_SOILC_FAST_GRND, FLD_P_SOILC_FAST_SOIL, FLD_P_SOILC_STRUCT_GRND
    public :: FLD_P_SOILC_STRUCT_SOIL, FLD_P_SOILC_MICROBIAL, FLD_P_SOILC_SLOW
    public :: FLD_P_SOILC_PASSIVE, FLD_P_SOILC_TOTAL, FLD_P_RHET
@@ -146,8 +148,9 @@ module ed_output_extract
    ! are rows of the patch block (FLD_P_DIAG0 + PA_*), accumulated through the step.
    !---~---
    integer(ik), parameter :: FLD_P_CAS_DEPTH       = 2014_ik
-   integer(ik), parameter :: FLD_P_SWE             = 2016_ik
-   integer(ik), parameter :: FLD_P_SNOW_DEPTH      = 2017_ik
+   integer(ik), parameter :: FLD_P_WATER_LAYER_MASS  = 2016_ik
+   integer(ik), parameter :: FLD_P_WATER_LAYER_DEPTH = 2017_ik
+   integer(ik), parameter :: FLD_P_WATER_LAYER_ICE   = 2018_ik
    integer(ik), parameter :: FLD_P_SOILC_FAST_GRND   = 2020_ik
    integer(ik), parameter :: FLD_P_SOILC_FAST_SOIL   = 2021_ik
    integer(ik), parameter :: FLD_P_SOILC_STRUCT_GRND = 2022_ik
@@ -389,13 +392,21 @@ contains
          do ip = 1_ik, n
             x(ip) = poly%patch%cas(ip)%can_depth
          end do
-      case (FLD_P_SWE)
+      case (FLD_P_WATER_LAYER_MASS)
          do ip = 1_ik, n
-            x(ip) = sum(poly%patch%snow(ip)%swe(:))
+            x(ip) = poly%patch%ground_surface(ip)%water%water
          end do
-      case (FLD_P_SNOW_DEPTH)
+      case (FLD_P_WATER_LAYER_DEPTH)
          do ip = 1_ik, n
-            x(ip) = sum(poly%patch%snow(ip)%snow_depth(:))
+            associate (layer => poly%patch%ground_surface(ip)%water)
+               x(ip) = water_layer_depth(layer%matrix_depth, (1.0_wp - layer%fliq) * layer%water, layer%fliq * layer%water)
+            end associate
+         end do
+      case (FLD_P_WATER_LAYER_ICE)
+         do ip = 1_ik, n
+            associate (layer => poly%patch%ground_surface(ip)%water)
+               x(ip) = (1.0_wp - layer%fliq) * layer%water
+            end associate
          end do
       case (FLD_P_SOILC_FAST_GRND)
          do ip = 1_ik, n

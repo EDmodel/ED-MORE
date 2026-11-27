@@ -1,15 +1,15 @@
 ! SPDX-License-Identifier: Apache-2.0
 !---~---
 !   ed_fast_integ_update -- the end of a fast step, the same for both schemes.
-! update_dynamic_state commits the march's end state, the water network's soil water and
-! pond, the tissues' energy, the condensate and the snow pack: the one place a step writes
-! the dynamic state. close_ledgers closes the seven conservation ledgers on the march's
+! update_dynamic_state commits the march's end state, the water network's soil water, the
+! tissues' energy, and the ground's surface layers with the condensate: the one place a step
+! writes the dynamic state. close_ledgers closes the seven conservation ledgers on the march's
 ! boundary-flux amounts (docs/science/numerical_scheme.md §5b). Also the commit's parts
 ! and the store totals the ledgers read.
 !---~---
 module ed_fast_integ_update
    use ed_kinds,              only : wp, ik
-   use ed_constants,          only : rho_h2o, tiny_num, mmh2o
+   use ed_constants,          only : rho_h2o, tiny_num, mmh2o, t_3ple
    use ed_config,             only : ed_config_t
    use ed_site_state_vars,    only : site_surface_t
    use ed_fast_integ_types,       only : fast_static_state_t, fast_dynamic_state_t, fast_forcing_t, fast_output_t,     &
@@ -17,9 +17,11 @@ module ed_fast_integ_update
                                      diagnose_soil_temps
    use ed_plant_energy,       only : commit_tissue_energy
    use ed_canopy_water,       only : clamp_surface_water
-   use ed_patch_state_vars,   only : soil_water_store, soil_energy_store
+   use ed_patch_state_vars,   only : soil_water_store, soil_energy_store, ground_store_t, ground_surface_store,      &
+                                     store_take_exchange, porous_layers_diagnose
+   use ed_ground_surface_params, only : N_POROUS
    use ed_diag_vars,          only : CO_TRANSP
-   use ed_surface, only : snow_take_exchange
+   use ed_surface, only : water_layer_commit, water_layer_ice, STORE_WATER, N_SURFACE_STORE
    use ed_therm_lib,          only : cas_enthalpy_to_temp, latent_heat_vap
    use ed_budget_check,       only : budget_check, BUDGET_ENERGY_RATE_FLOOR, BUDGET_WATER_RATE_FLOOR,           &
                                      BUDGET_CO2_RATE_FLOOR
@@ -32,33 +34,29 @@ module ed_fast_integ_update
    !---~---
    !   What the update moved besides the march, which the ledgers book: the surface water's
    ! overflow at its capacity and deficit below zero, and their net enthalpy at the tissues'
-   ! start-of-step temperatures, the condensate deposited in the top soil layer with its
-   ! enthalpy, the tissue store (surface water included) before and after, and the snow pack
-   ! after its exchange.
+   ! start-of-step temperatures, the tissue store (surface water included) before and after, the
+   ! ground's surface stores at the step's end, and the vapour the ground gave from ice.
    !---~---
    type :: commit_amounts_t
       real(wp) :: surf_overflow = 0.0_wp, surf_deficit = 0.0_wp   ! [kg/m2]
       real(wp) :: surf_net_enth = 0.0_wp                          ! [J/m2] (overflow - deficit) x u_liq
-      real(wp) :: cond_mass     = 0.0_wp                          ! [kg/m2]
-      real(wp) :: cond_enth     = 0.0_wp                          ! [J/m2]
       real(wp) :: tissue_store0 = 0.0_wp, tissue_store1 = 0.0_wp  ! [J/m2]
-      real(wp) :: snow_swe1     = 0.0_wp                          ! [kg/m2] the pack's mass at the step's end
-      real(wp) :: snow_enth1    = 0.0_wp                          ! [J/m2]  its internal energy then
+      type(ground_store_t) :: surface1                            ! [kg/m2], [J/m2] the ground's surface stores at the end
+      real(wp) :: vapour_ice = 0.0_wp                             ! [kg/m2] the ground's vapour from its frozen share
    end type commit_amounts_t
 
 contains
 
    !---~---
-   !   update_dynamic_state -- commit one fast step. Soil water and the pond are the water
-   ! network's: the march moved theta at the network's steady rate, and its end-of-step theta
-   ! and pond are committed once, here. Surface water evaporating at its frozen conductance can
+   !   update_dynamic_state -- commit one fast step. Soil water and the water layer's free water
+   ! are the water network's: the march moved theta at the network's steady rate, and its
+   ! end-of-step theta and free water are committed once, here. Surface water evaporating at its frozen conductance can
    ! overdraw below zero, which would create water in the next step's interception, so the
    ! surface water is floored at zero and capped at capacity, and the update reports both. Each
    ! tissue's energy is committed from its time-average temperature over the march, the
    ! complement of what the canopy air received (docs/science/vegetation_energy_dynamics.md
    ! §One formulation). The condensate, dew and fog, lands inside the column, so it goes,
-   ! mass and enthalpy paired, into soil layer 1 (docs/science/numerical_scheme.md §7, item 3)
-   ! before the soil's temperatures are diagnosed.
+   ! mass and enthalpy paired, into the water layer, the ground's top water store.
    !---~---
    subroutine update_dynamic_state(dt_fast, cfg, site, static, frozen, acc, dt_warm, y_out, dynamic, out, moved)
       real(wp),                   intent(in)    :: dt_fast
@@ -73,15 +71,14 @@ contains
       type(fast_output_t),        intent(inout) :: out
       type(commit_amounts_t),     intent(out)   :: moved
       real(wp)    :: t_leaf_avg(static%n), t_wood_avg(static%n), leaf_surf_water0(static%n), wood_surf_water0(static%n)
-      integer(ik) :: n, nsl
+      real(wp)    :: t_buried   ! [K] the buried tissue's end temperature
+      integer(ik) :: n, nsl, k
 
       n   = static%n
       leaf_surf_water0(1:n) = dynamic%leaf_surf_water(1:n)              ! the surface water at the step's start
       wood_surf_water0(1:n) = dynamic%wood_surf_water(1:n)
       nsl = site%soil_profile%n_active
       y_out%theta(1:nsl)     = frozen%hydrology%theta1(1:nsl)
-      y_out%w_surface        = frozen%hydrology%w_surface1
-      y_out%w_surface_energy = frozen%hydrology%w_surface_energy1
       if (cfg%canopy_water_on) then
          call clamp_surface_water(y_out%leaf_surf_water, y_out%wood_surf_water, static%lai, static%wai,             &
                                 cfg%pft%leaf_surf_water_max(static%pft(1:n)),                                  &
@@ -89,44 +86,74 @@ contains
                                 frozen%tissue%t_wood0, n, moved%surf_overflow, moved%surf_deficit,             &
                                 moved%surf_net_enth)
       end if
-      !---~---
-      !   The condensate lands before the soil's temperatures are diagnosed, so the top layer's
-      ! temperature includes its water and enthalpy.
-      !---~---
-      if (acc%whole_cond > 0.0_wp) then
-         moved%cond_mass = acc%whole_cond
-         moved%cond_enth = acc%whole_cond_enth       ! b-weighted at the stage CAS temperatures (boundary_flux_t)
-         call deposit_condensate(y_out, site%soil_profile%dz(1), moved%cond_mass, moved%cond_enth)
-      end if
-
       call unpack_column_state(y_out, n, nsl, dynamic)
       !--- The capacities this step held, which the next step books its change from.
       dynamic%cas%air_mass_capacity  = frozen%cas%box%air_mass_capacity
       dynamic%cas%air_molar_capacity = frozen%cas%box%air_molar_capacity
-      dynamic%soil_water%w_surface        = y_out%w_surface
-      dynamic%soil_water%w_surface_energy = y_out%w_surface_energy
       call diagnose_soil_temps(y_out, site%soil_profile, nsl, dynamic%soil_energy%soil_temp,                    &
                                dynamic%soil_energy%soil_fliq)
       t_leaf_avg(1:n) = acc%tissue_leaf_int(1:n) / dt_fast
       t_wood_avg(1:n) = acc%tissue_wood_int(1:n) / dt_fast
-      call commit_tissue_energy(frozen%tissue, static%nplant, dt_fast, t_leaf_avg, t_wood_avg, n,                 &
+      !--- The buried tissue ends at the temperature the heat the water layer's node gave it brings it to.
+      t_buried = t_3ple
+      if (frozen%ground%buried_cap > 0.0_wp)                                                                   &
+         t_buried = (acc%stores%buried_heat + frozen%ground%buried_energy) / frozen%ground%buried_cap
+      call commit_tissue_energy(frozen%tissue, frozen%veg_surface, static%nplant, dt_fast, t_leaf_avg, t_wood_avg, n, &
                                 dynamic%leaf_water_mass, dynamic%wood_water_mass, leaf_surf_water0, wood_surf_water0,         &
-                                dynamic%leaf_surf_water, dynamic%wood_surf_water, dynamic%leaf_energy,            &
+                                dynamic%leaf_surf_water, dynamic%wood_surf_water, t_buried, dynamic%leaf_energy,  &
                                 dynamic%wood_energy, dynamic%leaf_temp, dynamic%wood_temp, moved%tissue_store0,   &
                                 moved%tissue_store1)
-      !--- Each cohort's transpiration over the step, as the leaf water was debited.
+      !---~---
+      !   Each cohort's transpiration over the step, as the leaf water was debited, per area of the
+      ! leaves above the snow pack that transpire it, as their photosynthesis is reported.
+      !---~---
       if (out%capture .and. allocated(acc%transp_coh))                                                       &
          out%cdiag(CO_TRANSP, 1:n) = transp_per_leaf_area(acc%transp_coh(1:n), dt_fast, static%nplant(1:n),     &
-                                                          static%leaf_area(1:n))
+                                                          static%leaf_area(1:n) * static%exposed(1:n))
       !---~---
-      !   The pack takes its exchange over the march, the energy and vapour the canopy air and the
-      ! soil received from it (docs/science/snow_biophysics.md §The snow store); and the warm start
-      ! of the next march.
+      !   The water layer takes its exchange over the march, the energy and vapour the canopy air
+      ! and the soil received from it (docs/science/ground_surface_layers.md §3) and the heat
+      ! its free water's flows carried, its free water back as the water network leaves it, and
+      ! the condensate with the enthalpy the canopy air gave up for it at each stage
+      ! (boundary_flux_t).
       !---~---
-      dynamic%snow = frozen%ground%pack
-      call snow_take_exchange(dynamic%snow, acc%snow_enth_in, acc%snow_vap_out, frozen%ground%params)
-      moved%snow_swe1       = dynamic%snow%swe(1)
-      moved%snow_enth1      = dynamic%snow%snow_energy(1)
+      dynamic%ground_surface%water = frozen%ground%pack
+      call water_layer_commit(dynamic%ground_surface%water, acc%stores%energy_in(STORE_WATER),                     &
+                              acc%stores%vapour_out(STORE_WATER), frozen%stage%free, frozen%hydrology%free_water1,  &
+                              ground_store_t(water=acc%whole_cond, energy=acc%whole_cond_enth),                   &
+                              frozen%stage%ice_held, frozen%ground%params)
+      !---~---
+      !   Each porous layer takes its own (docs/science/ground_surface_layers.md §3): the march's energy,
+      ! the heat of the water that passed through it included, and the vapour the water network
+      ! took from it, which the canopy air received.
+      !---~---
+      dynamic%ground_surface%porous = frozen%porous
+      do k = 1_ik, N_POROUS
+         call store_take_exchange(dynamic%ground_surface%porous(k), acc%stores%energy_in(STORE_WATER + k),         &
+                                  acc%stores%vapour_out(STORE_WATER + k))
+      end do
+      call porous_layers_diagnose(dynamic%ground_surface%porous, cfg%ground_surface)
+      moved%surface1 = ground_surface_store(dynamic%ground_surface)
+      !---~---
+      !   The water layer's net melt over the step, its ice at the stage's start and the snow it
+      ! took less its ice at the end and the ice it sublimated; and its free water at the end.
+      !---~---
+      out%report%exports%melt_export = frozen%stage%ice_start + frozen%stage%snowfall                             &
+                                       - water_layer_ice(dynamic%ground_surface%water)                             &
+                                       - acc%stores%vapour_out(STORE_WATER) * (1.0_wp - dynamic%ground_surface%water%fliq)
+      out%report%exports%free_water  = frozen%hydrology%free_water1
+      !---~---
+      !   The vapour the ground gave from ice: each store's, the water layer's, each porous layer's
+      ! and the top soil layer's, times its frozen share at the step's end, as the melt above splits
+      ! the water layer's.
+      !---~---
+      moved%vapour_ice = acc%stores%vapour_out(STORE_WATER) * (1.0_wp - dynamic%ground_surface%water%fliq)       &
+                         + frozen%ground%soil_evap * dt_fast * (1.0_wp - dynamic%soil_energy%soil_fliq(1))
+      do k = 1_ik, N_POROUS
+         moved%vapour_ice = moved%vapour_ice + acc%stores%vapour_out(STORE_WATER + k)                             &
+                                               * (1.0_wp - dynamic%ground_surface%porous(k)%fliq)
+      end do
+      !--- And the warm start of the next march.
       dynamic%adapt_dt_last = dt_warm
    end subroutine update_dynamic_state
 
@@ -151,8 +178,9 @@ contains
       type(step_report_t),       intent(inout) :: report
       real(wp)    :: cas_mass_capacity, cas_molar_capacity, enth0, shv0, co20, enth1, shv1, co21
       real(wp)    :: fliq   ! [-] liquid share of the exported vapour
-      real(wp)    :: e_soil0, e_soil1, w_soil0, w_soil1, w_plant0, w_plant1, w_surface0, e_pond0, e_pond1
+      real(wp)    :: e_soil0, e_soil1, w_soil0, w_soil1, w_plant0, w_plant1
       real(wp)    :: surf_water0, surf_water1, intercept_total
+      real(wp)    :: ground_w0, ground_w1, ground_e0, ground_e1   ! [kg/m2], [J/m2] the ground surface's stores
       integer(ik) :: n, nsl
 
       n   = static%n
@@ -165,10 +193,6 @@ contains
       enth1 = y_out%cas_enthalpy
       shv1  = y_out%cas_shv
       co21  = y_out%cas_co2
-      !--- The pond at the start, as the march started from it, and at the end, the network's.
-      w_surface0 = y%w_surface
-      e_pond0    = y%w_surface_energy
-      e_pond1    = frozen%hydrology%w_surface_energy1
       e_soil0 = soil_energy_store(y%soil_energy,     site%soil_profile%dz, nsl)
       e_soil1 = soil_energy_store(y_out%soil_energy, site%soil_profile%dz, nsl)
       w_soil0 = soil_water_store(y%theta,     site%soil_profile%dz, nsl)
@@ -185,17 +209,27 @@ contains
       !---~---
       surf_water0 = surface_water_store(y%leaf_surf_water,     y%wood_surf_water,     n)
       surf_water1 = surface_water_store(y_out%leaf_surf_water, y_out%wood_surf_water, n)
+      !---~---
+      !   The ground surface's stores, the water layer and the porous layers: at the start, before
+      ! the ground's stage moved anything, and at the end. Before the stage the top soil layer also
+      ! held the heat a film took from it (stage_soil_heat), which the march starts without.
+      !---~---
+      ground_w0 = frozen%surface0%water
+      ground_w1 = moved%surface1%water
+      ground_e0 = frozen%surface0%energy
+      ground_e1 = moved%surface1%energy
       intercept_total = sum(frozen%veg_surface%intercept_leaf(1:n) + frozen%veg_surface%intercept_wood(1:n))
 
       report%exports%atm_heat_export = acc%atm_heat_out
       report%exports%atm_vap_export  = acc%atm_vap_out
       !---~---
       !   The reported latent heat, booked once: the vapour exported at its latent heat at the
-      ! step's final canopy-air temperature, ice for the snow pack's share of it (sublimation) and
-      ! liquid for the rest. Both LE and the energy budget's outflows read this number.
+      ! step's final canopy-air temperature, ice for the share of it the ground's stores gave from
+      ! their ice (sublimation) and liquid for the rest. Both LE and the energy budget's outflows
+      ! read this number.
       !---~---
       if (acc%atm_vap_out > tiny_num) then
-         fliq = 1.0_wp - min(1.0_wp, max(0.0_wp, acc%snow_vap_out / acc%atm_vap_out))
+         fliq = 1.0_wp - min(1.0_wp, max(0.0_wp, moved%vapour_ice / acc%atm_vap_out))
       else
          fliq = 1.0_wp
       end if
@@ -208,7 +242,7 @@ contains
       report%exports%transp_export      = 0.0_wp
       if (allocated(acc%transp_coh)) report%exports%transp_export = sum(acc%transp_coh(1:n))
       report%exports%veg_surface_evap_export   = acc%veg_surface_evap
-      report%exports%ground_evap_export = frozen%ground%soil_evap * dt_fast + acc%snow_vap_out
+      report%exports%ground_evap_export = frozen%ground%soil_evap * dt_fast + sum(acc%stores%vapour_out(1:N_SURFACE_STORE))
       report%exports%cond_export        = acc%whole_cond
       !---~---
       !   The budgets' other terms, so both close from the output (docs/science/diagnostics.md §4,
@@ -218,26 +252,23 @@ contains
       ! drainage, the runoff, the surface water's overflow, and the exported vapour's beyond LE).
       !---~---
       report%exports%intercept_export    = intercept_total * dt_fast
-      report%exports%infiltration_export = frozen%hydrology%infiltration * dt_fast
-      report%exports%melt_export         = frozen%snow%melt_rate * dt_fast
-      report%exports%sublimation_export  = acc%snow_vap_out
+      report%exports%infiltration_export = frozen%hydrology%pond_infil * dt_fast
+      report%exports%sublimation_export  = acc%stores%vapour_out(STORE_WATER)
       report%exports%shed_water_export   = static%shed_water_rate * dt_fast
       report%exports%veg_surface_overflow_export  = moved%surf_overflow - moved%surf_deficit
-      report%exports%water_store_gain    = (w_soil1 + cas_mass_capacity*shv1 + frozen%hydrology%w_surface1 + w_plant1 &
-                                           + surf_water1 + moved%snow_swe1)                                       &
-                                           - (w_soil0 + cas_mass_capacity*shv0 + w_surface0 + w_plant0 + surf_water0 &
-                                           + frozen%snow%swe0)
+      report%exports%water_store_gain    = (w_soil1 + cas_mass_capacity*shv1 + w_plant1 + surf_water1 + ground_w1)  &
+                                           - (w_soil0 + cas_mass_capacity*shv0 + w_plant0 + surf_water0 + ground_w0)
       report%exports%veg_surface_water_store          = surf_water1
       report%exports%soil_water_store    = w_soil1
       report%exports%plant_water_store   = w_plant1
       report%exports%heat_bottom_export  = acc%whole_enth_in - acc%rad_net
       report%exports%precip_enth_export  = intercept_total*dt_fast*frozen%veg_surface%rain_liquid_enthalpy                  &
-                                           + frozen%snow%acc_enth + frozen%hydrology%ground_inflow_enth*dt_fast
+                                           + frozen%stage%inflow_enth
       report%exports%outflow_enth_export = acc%whole_enth_out - acc%atm_heat_out - report%exports%atm_le_export  &
                                            + frozen%hydrology%runoff_enth*dt_fast + moved%surf_net_enth
-      report%exports%heat_gain_soil      = e_soil1 - e_soil0
+      report%exports%heat_gain_soil      = e_soil1 - (e_soil0 + frozen%stage_soil_heat)
       report%exports%heat_gain_canopy    = cas_mass_capacity*(enth1 - enth0) + moved%tissue_store1 - moved%tissue_store0
-      report%exports%heat_gain_surface   = moved%snow_enth1 - frozen%snow%enth0 + e_pond1 - e_pond0
+      report%exports%heat_gain_surface   = ground_e1 - ground_e0
       report%exports%h_canopy_export     = acc%h_canopy
       report%exports%h_ground_export     = acc%h_ground
       call budget_check(report%ledgers%cas_energy,                                                           &
@@ -249,44 +280,41 @@ contains
       call budget_check(report%ledgers%cas_co2,                                                              &
                         cas_molar_capacity*co20, cas_molar_capacity*co21, acc%cas_co2_in,  acc%cas_co2_out,  &
                         dt_fast, BUDGET_CO2_RATE_FLOOR, 'cas_co2', halt)
-      !---~---
-      !   The condensate deposit is an inflow to the soil budgets, though the whole-column ledger
-      ! sees it as a transfer between two of its stores.
-      !---~---
-      call budget_check(report%ledgers%soil_energy, e_soil0, e_soil1, acc%soil_enth_in + moved%cond_enth,          &
+      call budget_check(report%ledgers%soil_energy, e_soil0, e_soil1, acc%soil_enth_in,                            &
                         acc%soil_enth_out, dt_fast, BUDGET_ENERGY_RATE_FLOOR, 'soil_energy', halt)
       !---~---
       !   Soil water: theta^n -> theta1, in through the top face net of evaporation and
-      ! exfiltration (q_top), out through the bottom and to the roots, plus the condensate.
+      ! exfiltration (q_top), out through the bottom and to the roots.
       !---~---
       call budget_check(report%ledgers%soil_water,  w_soil0, w_soil1,                                              &
-                        frozen%hydrology%q_top*rho_h2o*dt_fast + moved%cond_mass,                          &
+                        frozen%hydrology%q_top*rho_h2o*dt_fast,                                            &
                         (frozen%hydrology%drainage + frozen%roots%uptake)*dt_fast,                         &
                         dt_fast, BUDGET_WATER_RATE_FLOOR, 'soil_water', halt)
       !---~---
       !   Whole water: rainfall, snowfall and shed water in; the CAS vapour export, drainage and
-      ! runoff out; soil, pond, plant water, surface water, snow pack and canopy-air vapour stored.
-      ! Sublimation leaves through the vapour export and meltwater moves pack -> pond, so
-      ! neither needs a term.
+      ! runoff out; soil, plant water, surface water, the ground's surface layers and canopy-air
+      ! vapour stored. The water layer's vapour leaves through the vapour export, and its free
+      ! water is its own through the water network, so neither needs a term.
       !---~---
       call budget_check(report%ledgers%whole_water,                                                                &
-                        w_soil0 + cas_mass_capacity*shv0 + w_surface0 + w_plant0 + surf_water0 + frozen%snow%swe0,  &
-                        w_soil1 + cas_mass_capacity*shv1 + frozen%hydrology%w_surface1 + w_plant1 + surf_water1 &
-                        + moved%snow_swe1,                                                                 &
+                        w_soil0 + cas_mass_capacity*shv0 + w_plant0 + surf_water0 + ground_w0,             &
+                        w_soil1 + cas_mass_capacity*shv1 + w_plant1 + surf_water1 + ground_w1,             &
                         acc%whole_wat_in + (forcing%rainfall + forcing%snowfall + static%shed_water_rate)*dt_fast, &
                         acc%whole_wat_out + (frozen%hydrology%runoff_surf + frozen%hydrology%drainage)*dt_fast  &
                         + moved%surf_overflow - moved%surf_deficit,                                        &
                         dt_fast, BUDGET_WATER_RATE_FLOOR, 'whole_water', halt)
       !---~---
-      !   Whole energy: meltwater passes pack -> pond, both stores, so it telescopes. The
-      ! surface water's capture comes in at the rain's liquid enthalpy, and the update's cut leaves at
-      ! the tissues' (moved%surf_net_enth).
+      !   Whole energy: the free water's heat stays in the water layer's store, its flows moving it
+      ! between the stores; the throughfall and the shed water come in at their enthalpy (the
+      ! stage's inflow_enth), the surface water's capture at the rain's liquid enthalpy, and the
+      ! runoff (at the free water's temperature) and the update's cut (at the tissues', moved%surf_net_enth) leave.
       !---~---
       call budget_check(report%ledgers%whole_energy,                                                               &
-                        e_soil0 + cas_mass_capacity*enth0 + frozen%snow%enth0 + e_pond0 + moved%tissue_store0,      &
-                        e_soil1 + cas_mass_capacity*enth1 + moved%snow_enth1 + e_pond1 + moved%tissue_store1,       &
+                        e_soil0 + frozen%stage_soil_heat + cas_mass_capacity*enth0 + moved%tissue_store0      &
+                        + ground_e0,                                                                       &
+                        e_soil1 + cas_mass_capacity*enth1 + moved%tissue_store1 + ground_e1,              &
                         acc%whole_enth_in + intercept_total*dt_fast*frozen%veg_surface%rain_liquid_enthalpy               &
-                                          + frozen%snow%acc_enth + frozen%hydrology%ground_inflow_enth*dt_fast, &
+                                          + frozen%stage%inflow_enth,                                         &
                         acc%whole_enth_out + moved%surf_net_enth + frozen%hydrology%runoff_enth*dt_fast,         &
                         dt_fast, BUDGET_ENERGY_RATE_FLOOR, 'whole_energy', halt)
    end subroutine close_ledgers
@@ -328,19 +356,8 @@ contains
    end function surface_water_store
 
    !---~---
-   !   Deposit condensed canopy-air vapour into soil layer 1 as paired mass [kg/m2] + liquid
-   ! enthalpy [J/m2] (an internal CAS -> soil transfer; the ledger needs no boundary term).
-   !---~---
-   pure subroutine deposit_condensate(y_out, dz1, mass, enth)
-      type(march_state_t), intent(inout) :: y_out
-      real(wp),             intent(in)    :: dz1, mass, enth
-      y_out%theta(1)       = y_out%theta(1) + mass / (rho_h2o * dz1)
-      y_out%soil_energy(1) = y_out%soil_energy(1) + enth / dz1
-   end subroutine deposit_condensate
-
-   !---~---
    !   Unpack the committed column state into the dynamic state: CAS twins (and their
-   ! temperature), soil energy and moisture, plant internal water, canopy surface water; not the pond.
+   ! temperature), soil energy and moisture, plant internal water, canopy surface water.
    !---~---
    pure subroutine unpack_column_state(y_out, n, nsl, dynamic)
       type(march_state_t),       intent(in)    :: y_out
@@ -356,10 +373,6 @@ contains
       dynamic%wood_water_mass(1:n) = y_out%wood_water_mass(1:n)
       dynamic%leaf_surf_water(1:n) = y_out%leaf_surf_water(1:n)
       dynamic%wood_surf_water(1:n) = y_out%wood_surf_water(1:n)
-      !---~---
-      !   The pond (w_surface, w_surface_energy) is left out on purpose: each scheme commits it from
-      ! the water network, so writing it here would commit it twice (test_fast_integ_kernels).
-      !---~---
    end subroutine unpack_column_state
 
 end module ed_fast_integ_update

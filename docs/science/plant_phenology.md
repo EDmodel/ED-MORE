@@ -69,7 +69,9 @@ sum the spring warmth, and the canopy air is the air its buds and twigs sit in. 
 air space, which its cohorts share. It differs from the air above the canopy at the reference height
 by the canopy's own warming and cooling (a closed canopy's shaded air on a sunny day, the radiative
 cooling of a clear night), so cohorts of one PFT in an open and a closed patch keep different
-calendars; within a patch, the cohorts' calendars differ through their light.
+calendars; within a patch, the cohorts' calendars differ through their light. A crown the snow pack buries
+sits, for its buried share, at the ground's surface under the pack instead ([canopy_aerodynamics](canopy_aerodynamics.md), "Snow on the canopy"), so a buried bud sums no warmth
+until the melt.
 
 **Light (`CUE_LIGHT`).** The hours of light $H$ [h day⁻¹]: the time each day the PAR reaching the
 cohort's top exceeds the PFT's `par_min` [µmol m⁻² s⁻¹], as a running mean $`\bar H`$ over
@@ -81,7 +83,9 @@ cohort's top exceeds the PFT's `par_min` [µmol m⁻² s⁻¹], as a running mea
 
 The fast loop counts $H$: each fast step adds its length when the visible light, beam plus downward
 diffuse, reaching the top of the cohort's layer in the two-stream canopy radiation exceeds `par_min`
-(converted to photons); the slow step divides the sum by its length in days. A cohort under others counts fewer hours than one in the sun. A cohort
+(converted to photons), and a cohort the snow pack buries whole counts none
+([canopy_aerodynamics](canopy_aerodynamics.md), "Snow on the canopy"); the slow step divides the sum
+by its length in days. A cohort under others counts fewer hours than one in the sun. A cohort
 with no light memory yet (a cold start, a recruit) starts its mean from its first day's hours, so its
 first days do not read as darkness.
 

@@ -26,6 +26,7 @@ module ed_allometry_lib
    public :: diameter_to_agb, agb_to_diameter, recruit_agb
    public :: diameter_to_leaf_area, diameter_to_wai, sapwood_fraction
    public :: size_to_leaf_carbon, size_to_wood_carbon, wood_to_diameter, carbon_to_structure, storage_carbon_target
+   public :: crown_exposed_fraction
 
    !---~---
    !   Height curves: a power law, or the log-quadratic of Chave et al. (2014) eq. 6a,
@@ -49,6 +50,15 @@ module ed_allometry_lib
       !--- The diameter every curve takes: a stem's, measured at this height.
       real(wp)    :: diameter_height = breast_height ! [m] 1.3 m (breast height) for a tree, 0 (the root collar)
                                                   !     for a shrub; a grass has no diameter
+      !---~---
+      !   The crown under a snow pack: its base as a share of the height (canopy bottom over top:
+      ! CLM4.5's needleleaf trees 8.5 m under 17 m, Oleson et al. 2013, Table 2.2; CLM5's shrubs
+      ! 0.2 and grasses 0.02, Lawrence et al. 2018, Table 2.2.2), and how far the pack bends it down,
+      ! as a share of the height (CTSM's 0.2 for grasses and crops, Lombardozzi et al. 2018; none,
+      ! as for trees and shrubs, by default).
+      !---~---
+      real(wp)    :: crown_base_fraction = 0.5_wp ! [-]
+      real(wp)    :: snow_bending        = 0.0_wp ! [-]
       !--- Height: the curve, and the cap on every curve.
       integer(ik) :: height_allometry = HEIGHT_POWER   ! the height curve: power law or log-quadratic
       real(wp)    :: hgt_max     = 46.0_wp        ! [m]   the largest height
@@ -319,5 +329,30 @@ contains
       real(wp)             :: storage                      ! [kgC/plant]
       storage = storage_cushion * (leaf_carbon + fineroot_carbon)
    end function storage_carbon_target
+
+   !---~---
+   !   The share of a cohort's crown above a snow pack [-] (docs/science/canopy_aerodynamics.md,
+   ! "Snow on the canopy"): its leaves and wood spread evenly from the crown's base to its top,
+   ! the pack bending the top down by snow_bending of the height while it lies on the plant.
+   ! The leaves and wood under the pack drop out of the canopy; 1 with no pack, or a pack below
+   ! the crown.
+   !---~---
+   elemental real(wp) function crown_exposed_fraction(height, snow_depth, crown_base_fraction, snow_bending)    &
+      result(f)
+      real(wp), intent(in) :: height               ! [m] the cohort's height
+      real(wp), intent(in) :: snow_depth           ! [m] the pack's depth
+      real(wp), intent(in) :: crown_base_fraction  ! [-] the crown's base over the height
+      real(wp), intent(in) :: snow_bending         ! [-] the pack's bend of the top, as a share of the height
+      real(wp) :: top, base
+      f = 1.0_wp
+      if (snow_depth <= 0.0_wp) return
+      top  = height * (1.0_wp - snow_bending)
+      base = crown_base_fraction * top
+      if (snow_depth >= top) then
+         f = 0.0_wp
+      else if (snow_depth > base) then
+         f = (top - snow_depth) / (top - base)
+      end if
+   end function crown_exposed_fraction
 
 end module ed_allometry_lib

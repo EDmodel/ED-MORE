@@ -31,7 +31,8 @@ module ed_output_registry
                                      FLD_C_STEM_RESP, FLD_C_ROOT_RESP, FLD_C_DMAX_PSI_LEAF,                       &
                                      FLD_C_LEAF_FLUSH_TENDENCY, FLD_C_LEAF_SHED_TENDENCY, FLD_P_AREA,             &
                                      FLD_P_AGE, FLD_P_DIST_TYPE, FLD_P_COHORT_OFFSET, FLD_P_COHORT_COUNT,         &
-                                     FLD_P_GLOBAL_ID, FLD_P_SITE, FLD_P_SWE, FLD_P_SNOW_DEPTH,                    &
+                                     FLD_P_GLOBAL_ID, FLD_P_SITE, FLD_P_WATER_LAYER_MASS, FLD_P_WATER_LAYER_DEPTH, &
+                                     FLD_P_WATER_LAYER_ICE,                                                       &
                                      FLD_P_SOILC_FAST_GRND, FLD_P_SOILC_FAST_SOIL, FLD_P_SOILC_STRUCT_GRND,       &
                                      FLD_P_SOILC_STRUCT_SOIL, FLD_P_SOILC_MICROBIAL, FLD_P_SOILC_SLOW,            &
                                      FLD_P_SOILC_PASSIVE, FLD_P_SOILC_TOTAL, FLD_P_RHET, FLD_L_SOIL_TEMP,           &
@@ -53,7 +54,8 @@ module ed_output_registry
                                     PA_SW_UP_VIS, PA_SW_UP_NIR, PA_LW_UP, PA_USTAR, PA_GGNET, PA_ROUGH,           &
                                     PA_DISPLACE, PA_GPP, PA_NEE, PA_TRANSP, PA_SOIL_TEMP_TOP, PA_RESID_ENERGY,    &
                                     PA_VEG_SURFACE_EVAP, PA_GROUND_EVAP, PA_DEW,                                  &
-                                    PA_CAS_VPD, PA_W_SURFACE, PA_CAS_TEMP, PA_CAS_SHV, PA_CAS_CO2,                &
+                                    PA_CAS_VPD, PA_FREE_WATER, PA_CAS_TEMP, PA_CAS_SHV, PA_CAS_CO2,                &
+                                    PA_GROUND_TOP_TEMP, PA_LITTER_WATER, PA_MOSS_WATER, PA_WATER_LAYER_COVER,    &
                                     PA_WIND_CAS_TOP, PA_TAIR_CAS_TOP, PA_Z_CAS_TOP, PA_RESID_WATER, PA_NPP,       &
                                     PA_BUDGET_CAS_CAP_ENERGY, PA_BUDGET_CAS_CAP_WATER, PA_BUDGET_CAS_CAP_CO2,     &
                                     PA_RECO, PA_SW_UP, PA_SKIN_TEMP, PY_SW_IN, PY_PRECIP, PY_TAIR, PY_QAIR,       &
@@ -70,8 +72,8 @@ module ed_output_registry
                                     PA_HEAT_GAIN_SOIL,                                                            &
                                     PA_HEAT_GAIN_CANOPY, PA_HEAT_GAIN_SURFACE, PA_RAUT, PA_LEAF_RESP,             &
                                     PA_STEM_RESP, PA_ROOT_RESP, PA_RHET, PA_ET, PA_RUNOFF_SURF, PA_DRAINAGE,      &
-                                    PA_RUNOFF, PA_INTERCEPT, PA_THROUGHFALL, PA_INFILTRATION, PA_SNOWMELT,        &
-                                    PA_SUBLIMATION, PA_SHED_WATER, PA_VEG_SURFACE_OVERFLOW, PA_WATER_STORE_GAIN,  &
+                                    PA_RUNOFF, PA_INTERCEPT, PA_THROUGHFALL, PA_INFILTRATION, PA_ICE_MELT,        &
+                                    PA_WATER_LAYER_EVAP, PA_SHED_WATER, PA_VEG_SURFACE_OVERFLOW, PA_WATER_STORE_GAIN,  &
                                     PA_VEG_SURFACE_WATER, PA_SOIL_WATER_TOTAL, PA_PLANT_WATER, CO_WET_FRACTION
    implicit none
    private
@@ -420,17 +422,33 @@ contains
       call add_variable(reg, 'mean_soil_wetness_layer_si', 'each site''s area-weighted relative saturation', '-', DIM_SOIL,     &
                         AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_L_SOIL_WETNESS,                    &
                         fast_source=SRC_F_SOIL_LAYER)
-      !--- Surface water stores.
-      call add_variable(reg, 'mean_w_surface_py', 'ponded surface water', 'kg/m2', DIM_SCALAR, AGG_TMEAN, GRP_WATER, DAY_MON_YR, &
-                        FLD_P_DIAG0 + PA_W_SURFACE)
-      call add_variable(reg, 'mean_swe_py', 'snow water equivalent', 'kg/m2', DIM_SCALAR, AGG_TMEAN, GRP_WATER, DAY_MON_YR,     &
-                        FLD_P_SWE)
-      call add_variable(reg, 'mean_snow_depth_py', 'snow depth', 'm', DIM_SCALAR, AGG_TMEAN, GRP_WATER, DAY_MON_YR,             &
-                        FLD_P_SNOW_DEPTH)
-      call add_variable(reg, 'mean_w_surface_pa', 'patch ponded surface water', 'kg/m2', DIM_PATCH, AGG_TMEAN, GRP_WATER, MON,  &
-                        FLD_P_DIAG0 + PA_W_SURFACE)
-      call add_variable(reg, 'mean_swe_pa', 'patch snow water equivalent', 'kg/m2', DIM_PATCH, AGG_TMEAN, GRP_WATER, MON,       &
-                        FLD_P_SWE)
+      !--- The ground's surface layers: the water layer and its free water, the litter and the moss.
+      call add_variable(reg, 'mean_free_water_py', 'the water layer''s free water, the pond that infiltrates', 'kg/m2',  &
+                        DIM_SCALAR, AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_FREE_WATER)
+      call add_variable(reg, 'mean_water_layer_mass_py', 'the water layer''s water: snow, ice and ponded water',   &
+                        'kg/m2', DIM_SCALAR, AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_WATER_LAYER_MASS)
+      call add_variable(reg, 'mean_water_layer_ice_py', 'the water layer''s ice (the frozen water equivalent)', 'kg/m2',   &
+                        DIM_SCALAR, AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_WATER_LAYER_ICE)
+      call add_variable(reg, 'mean_water_layer_depth_py', 'the water layer''s depth', 'm', DIM_SCALAR, AGG_TMEAN,          &
+                        GRP_WATER, DAY_MON_YR, FLD_P_WATER_LAYER_DEPTH)
+      call add_variable(reg, 'mean_water_layer_cover_py', 'the share of the ground the water layer covers', '-',          &
+                        DIM_SCALAR, AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_WATER_LAYER_COVER)
+      call add_variable(reg, 'mean_free_water_pa', 'patch free water, the pond', 'kg/m2', DIM_PATCH, AGG_TMEAN, GRP_WATER, &
+                        MON, FLD_P_DIAG0 + PA_FREE_WATER)
+      call add_variable(reg, 'mean_water_layer_mass_pa', 'patch water layer''s water', 'kg/m2', DIM_PATCH, AGG_TMEAN,     &
+                        GRP_WATER, MON, FLD_P_WATER_LAYER_MASS)
+      call add_variable(reg, 'mean_litter_water_py', 'the litter''s water, liquid and ice', 'kg/m2', DIM_SCALAR,            &
+                        AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_LITTER_WATER)
+      call add_variable(reg, 'mean_moss_water_py', 'the moss''s water, liquid and ice', 'kg/m2', DIM_SCALAR, AGG_TMEAN,     &
+                        GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_MOSS_WATER)
+      call add_variable(reg, 'mean_litter_water_pa', 'patch litter''s water', 'kg/m2', DIM_PATCH, AGG_TMEAN, GRP_WATER,    &
+                        FREQ_NONE, FLD_P_DIAG0 + PA_LITTER_WATER)
+      call add_variable(reg, 'mean_moss_water_pa', 'patch moss''s water', 'kg/m2', DIM_PATCH, AGG_TMEAN, GRP_WATER,        &
+                        FREQ_NONE, FLD_P_DIAG0 + PA_MOSS_WATER)
+      call add_variable(reg, 'mean_ground_top_temp_py', 'the ground''s top: the top porous layer''s, else the top soil node''s', &
+                        'K', DIM_SCALAR, AGG_TMEAN, GRP_ENERGY, DAY_MON_YR, FLD_P_DIAG0 + PA_GROUND_TOP_TEMP)
+      call add_variable(reg, 'mean_ground_top_temp_pa', 'patch ground''s top temperature', 'K', DIM_PATCH, AGG_TMEAN,      &
+                        GRP_ENERGY, FREQ_NONE, FLD_P_DIAG0 + PA_GROUND_TOP_TEMP)
       !---~---
       !   2-D (soil layer x patch) columns, off by default (the largest after the cohorts): the
       ! gap-vs-closed-canopy drydown contrast the area-weighted site column hides.
@@ -759,9 +777,10 @@ contains
       call add_variable(reg, 'mean_veg_surface_evap_py', 'evaporation of the leaves'' and wood''s surface water (dew < 0)', &
                         'kg/m2/s', DIM_SCALAR, AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_VEG_SURFACE_EVAP,           &
                         flux=.true.)
-      call add_variable(reg, 'mean_ground_evap_py', 'ground evaporation: bare soil and snow pack', 'kg/m2/s', DIM_SCALAR,       &
-                        AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_GROUND_EVAP, flux=.true.)
-      call add_variable(reg, 'mean_dew_py', 'condensation from the canopy air (dew, fog), to the soil', 'kg/m2/s', DIM_SCALAR,  &
+      call add_variable(reg, 'mean_ground_evap_py', 'ground evaporation: its surface layers and the soil', 'kg/m2/s',    &
+                        DIM_SCALAR, AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_GROUND_EVAP, flux=.true.)
+      call add_variable(reg, 'mean_dew_py', 'condensation from the canopy air (dew, fog), to the water layer', 'kg/m2/s', &
+                        DIM_SCALAR,                                                                                    &
                         AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_DEW, flux=.true.)
       !--- budget health (GRP_NUMERICS): the numbers that say whether anything above is real.
       call add_variable(reg, 'mean_resid_energy_py', 'signed whole-column energy-budget residual (+ = appearing)', 'W/m2',       &
@@ -786,10 +805,10 @@ contains
                         FREQ_NONE, FLD_P_DIAG0 + PA_TRANSP, flux=.true.)
       call add_variable(reg, 'mean_veg_surface_evap_pa', 'patch evaporation of the leaves'' and wood''s surface water', 'kg/m2/s', &
                         DIM_PATCH, AGG_TMEAN, GRP_WATER, FREQ_NONE, FLD_P_DIAG0 + PA_VEG_SURFACE_EVAP, flux=.true.)
-      call add_variable(reg, 'mean_ground_evap_pa', 'patch ground evaporation: bare soil and snow pack', 'kg/m2/s', DIM_PATCH,  &
-                        AGG_TMEAN, GRP_WATER, FREQ_NONE, FLD_P_DIAG0 + PA_GROUND_EVAP, flux=.true.)
-      call add_variable(reg, 'mean_dew_pa', 'patch condensation from the canopy air, to the soil', 'kg/m2/s', DIM_PATCH,        &
-                        AGG_TMEAN, GRP_WATER, FREQ_NONE, FLD_P_DIAG0 + PA_DEW, flux=.true.)
+      call add_variable(reg, 'mean_ground_evap_pa', 'patch ground evaporation: its surface layers and the soil',         &
+                        'kg/m2/s', DIM_PATCH, AGG_TMEAN, GRP_WATER, FREQ_NONE, FLD_P_DIAG0 + PA_GROUND_EVAP, flux=.true.)
+      call add_variable(reg, 'mean_dew_pa', 'patch condensation from the canopy air, to the water layer', 'kg/m2/s',      &
+                        DIM_PATCH, AGG_TMEAN, GRP_WATER, FREQ_NONE, FLD_P_DIAG0 + PA_DEW, flux=.true.)
       call add_variable(reg, 'mean_resid_energy_pa', 'patch signed energy-budget residual (+ = appearing)', 'W/m2', DIM_PATCH,  &
                         AGG_TMEAN, GRP_NUMERICS, FREQ_NONE, FLD_P_DIAG0 + PA_RESID_ENERGY, flux=.true.)
       call add_variable(reg, 'mean_resid_water_pa', 'patch signed water-budget residual (+ = appearing)', 'kg/m2/s',            &
@@ -822,16 +841,17 @@ contains
    subroutine register_budgets(reg)
       type(output_registry_t), intent(inout) :: reg
       !--- water: the fluxes
-      call add_variable(reg, 'mean_intercept_py', 'precipitation the leaves and wood caught, net', 'kg/m2/s', DIM_SCALAR,    &
+      call add_variable(reg, 'mean_intercept_py', 'rain the leaves and wood caught, net', 'kg/m2/s', DIM_SCALAR,    &
                         AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_INTERCEPT, flux=.true.)
       call add_variable(reg, 'mean_throughfall_py', 'precipitation reaching the ground', 'kg/m2/s', DIM_SCALAR, AGG_TMEAN,   &
                         GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_THROUGHFALL, flux=.true.)
-      call add_variable(reg, 'mean_infiltration_py', 'infiltration: pond to soil layer 1', 'kg/m2/s', DIM_SCALAR, AGG_TMEAN, &
-                        GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_INFILTRATION, flux=.true.)
-      call add_variable(reg, 'mean_snowmelt_py', 'meltwater the snow pack drains to the pond', 'kg/m2/s', DIM_SCALAR,        &
-                        AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_SNOWMELT, flux=.true.)
-      call add_variable(reg, 'mean_sublimation_py', 'sublimation from the snow pack (deposition < 0)', 'kg/m2/s',            &
-                        DIM_SCALAR, AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_SUBLIMATION, flux=.true.)
+      call add_variable(reg, 'mean_infiltration_py', 'infiltration: the free water into the ground', 'kg/m2/s',           &
+                        DIM_SCALAR, AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_INFILTRATION, flux=.true.)
+      call add_variable(reg, 'mean_ice_melt_py', 'the water layer''s ice that melts, net of water that freezes',   &
+                        'kg/m2/s',                                                                                &
+                        DIM_SCALAR, AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_ICE_MELT, flux=.true.)
+      call add_variable(reg, 'mean_water_layer_evap_py', 'vapour from the water layer (deposition < 0)', 'kg/m2/s',       &
+                        DIM_SCALAR, AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_WATER_LAYER_EVAP, flux=.true.)
       call add_variable(reg, 'mean_shed_water_py', 'tissue water the slow step shed to the pond', 'kg/m2/s', DIM_SCALAR,     &
                         AGG_TMEAN, GRP_WATER, DAY_MON_YR, FLD_P_DIAG0 + PA_SHED_WATER, flux=.true.)
       call add_variable(reg, 'mean_veg_surface_overflow_py', 'leaf and wood surface water above capacity, removed',         &
@@ -854,8 +874,8 @@ contains
       !--- energy: the sensible heat's sources, and the terms beyond Rn, H and LE
       call add_variable(reg, 'mean_h_canopy_py', 'sensible heat, leaves and wood to the canopy air', 'W/m2', DIM_SCALAR,     &
                         AGG_TMEAN, GRP_ENERGY, DAY_MON_YR, FLD_P_DIAG0 + PA_H_CANOPY, flux=.true.)
-      call add_variable(reg, 'mean_h_ground_py', 'sensible heat, ground (soil, snow) to the canopy air', 'W/m2', DIM_SCALAR, &
-                        AGG_TMEAN, GRP_ENERGY, DAY_MON_YR, FLD_P_DIAG0 + PA_H_GROUND, flux=.true.)
+      call add_variable(reg, 'mean_h_ground_py', 'sensible heat, the ground (its layers, soil) to the canopy air', 'W/m2', &
+                        DIM_SCALAR, AGG_TMEAN, GRP_ENERGY, DAY_MON_YR, FLD_P_DIAG0 + PA_H_GROUND, flux=.true.)
       call add_variable(reg, 'mean_heat_bottom_py', 'heat into the soil column through its bottom', 'W/m2', DIM_SCALAR,      &
                         AGG_TMEAN, GRP_ENERGY, DAY_MON_YR, FLD_P_DIAG0 + PA_HEAT_BOTTOM, flux=.true.)
       call add_variable(reg, 'mean_precip_enth_py', 'enthalpy the rain and snow carry into the column', 'W/m2', DIM_SCALAR,  &
@@ -866,8 +886,8 @@ contains
                         GRP_ENERGY, DAY_MON_YR, FLD_P_DIAG0 + PA_HEAT_GAIN_SOIL, flux=.true.)
       call add_variable(reg, 'mean_heat_gain_canopy_py', 'the canopy air''s and tissues'' energy gain', 'W/m2', DIM_SCALAR,  &
                         AGG_TMEAN, GRP_ENERGY, DAY_MON_YR, FLD_P_DIAG0 + PA_HEAT_GAIN_CANOPY, flux=.true.)
-      call add_variable(reg, 'mean_heat_gain_surface_py', 'the snow pack''s and pond''s energy gain', 'W/m2', DIM_SCALAR,    &
-                        AGG_TMEAN, GRP_ENERGY, DAY_MON_YR, FLD_P_DIAG0 + PA_HEAT_GAIN_SURFACE, flux=.true.)
+      call add_variable(reg, 'mean_heat_gain_surface_py', 'the ground surface layers'' and pond''s energy gain', 'W/m2',  &
+                        DIM_SCALAR, AGG_TMEAN, GRP_ENERGY, DAY_MON_YR, FLD_P_DIAG0 + PA_HEAT_GAIN_SURFACE, flux=.true.)
       call add_variable(reg, 'mean_apar_py', 'PAR (VIS) the leaves absorbed', 'W/m2', DIM_SCALAR, AGG_TMEAN, GRP_RADIATION, &
                         DAY_MON_YR, FLD_P_DIAG0 + PA_APAR, flux=.true.)
       !--- carbon: autotrophic respiration (Reco - Rhet) and the ecosystem's carbon

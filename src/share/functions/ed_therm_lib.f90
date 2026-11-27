@@ -4,7 +4,7 @@
 ! the specific energies of liquid, ice, vapour and canopy air in one datum and the energy
 ! -> temperature inverter with phase change (docs/science/soil_biophysics.md); moist
 ! air: saturation vapour pressure and humidity, VPD, the dry air's pressure, density and the gas
-! constant (docs/science/snow_biophysics.md eq. (1), docs/science/forcing.md eq. (11)); the
+! constant (docs/science/ground_surface_layers.md eq. (11), docs/science/forcing.md eq. (11)); the
 ! rain/snow split; the air at another height (docs/science/forcing.md §8); plant
 ! tissue heat capacity and energy (docs/science/vegetation_energy_dynamics.md eqs.
 ! (8)-(10)); soil heat: the thermal properties of a texture and the soil's conductivity
@@ -18,7 +18,7 @@ module ed_therm_lib
    use ed_constants,   only : mmdry, tiny_num, cp_air, cp_vap, cp_liq, cp_ice, latent_heat_fusion,  &
                               latent_heat_vap_3ple,                                               &
                               t_3ple, tsupercool_liq, tsupercool_vap, r_dry, r_wv, es_3ple,        &
-                              rho_h2o, k_water, k_ice, c2b_wood, r_gas, t_ref_photo, safe_exp,      &
+                              rho_h2o, k_water, k_ice, c2b, r_gas, t_ref_photo, safe_exp,      &
                               t_kelvin, grav,                                                       &
                               h2o_dry_ratio, virtual_temp_factor
    implicit none
@@ -47,12 +47,14 @@ module ed_therm_lib
    public :: TEMP_RESPONSE_ARRHENIUS, TEMP_RESPONSE_PEAKED
 
    !---~---
-   !   CLM5 mineral soil (Lawrence & Slater 2008; CLM5 technote 2.7.2): the solids'
-   ! conductivity and heat capacity per sand and clay, and the dry soil's
-   ! conductivity from its bulk density (Johansen 1975); grains are 2700 kg/m3.
+   !   Mineral soil: the solids' conductivity by their quartz content, the geometric
+   ! mean of quartz and the other minerals (Johansen 1975; Peters-Lidard et al. 1998,
+   ! J. Atmos. Sci. 55:1209), the quartz taken as the sand; CLM5's solids heat capacity
+   ! per sand and clay (Lawrence & Slater 2008; CLM5 technote 2.7.2); and the dry soil's
+   ! conductivity from its bulk density (Johansen 1975). Grains are 2700 kg/m3.
    !---~---
-   real(wp), parameter :: K_QUARTZ          = 8.80_wp     ! [W/m/K]    sand grains
-   real(wp), parameter :: K_CLAY_MINERAL    = 2.92_wp     ! [W/m/K]    clay grains
+   real(wp), parameter :: K_QUARTZ          = 7.7_wp      ! [W/m/K]    quartz
+   real(wp), parameter :: K_OTHER_MINERALS  = 2.0_wp      ! [W/m/K]    the other minerals
    real(wp), parameter :: CV_SAND           = 2.128e6_wp  ! [J/m3/K]   sand grains
    real(wp), parameter :: CV_CLAY           = 2.385e6_wp  ! [J/m3/K]   clay grains
    real(wp), parameter :: CLM_GRAIN_DENSITY = 2700.0_wp   ! [kg/m3]
@@ -185,12 +187,12 @@ contains
    end subroutine precip_phase
 
    !---~---
-   !   Moist air (docs/science/snow_biophysics.md eq. (1), docs/science/forcing.md eq.
+   !   Moist air (docs/science/ground_surface_layers.md eq. (11), docs/science/forcing.md eq.
    ! (11)).
    !---~---
 
    !---~---
-   !   Saturation vapour pressure [Pa] (docs/science/snow_biophysics.md eq. (1)): Ambaum
+   !   Saturation vapour pressure [Pa] (docs/science/ground_surface_layers.md eq. (11)): Ambaum
    ! (2020) over liquid and over ice, blended by the liquid fraction fliq. Without fliq it is
    ! over liquid, as dewpoint and VPD need (docs/science/forcing.md §7).
    !---~---
@@ -211,7 +213,7 @@ contains
 
    !---~---
    !   The saturation vapour pressure e [Pa] over one phase (phase = 1 liquid, 0 ice) and its
-   ! slope de/dT [Pa/K] (docs/science/snow_biophysics.md eqs. (1), (2)). The latent heat is the
+   ! slope de/dT [Pa/K] (docs/science/ground_surface_layers.md eqs. (11), (12)). The latent heat is the
    ! Kirchhoff L(T) of latent_heat_vap, so the slope is the Clausius-Clapeyron equation
    ! e L / (Rv T**2) by construction, and both phases meet at es_3ple at t_3ple.
    !---~---
@@ -272,7 +274,7 @@ contains
    end function rh_to_specific_humidity
 
    !---~---
-   !   The slope d(e_sat)/dT [Pa/K], at fixed fliq: on the melt plateau, where fliq
+   !   The slope d(e_sat)/dT [Pa/K], at fixed fliq: on the plateau at the triple point, where fliq
    ! changes, the temperature is pinned at the triple point.
    !---~---
    elemental function sat_vapor_pressure_temp_deriv(t_k, fliq) result(desat)
@@ -497,7 +499,7 @@ contains
       real(wp), intent(in) :: nplant   ! [plant/m2]
       real(wp), intent(in) :: carbon   ! [kgC/plant] the tissue's carbon
       real(wp), intent(in) :: c_dry    ! [J/kg/K]    specific heat of its dry matter
-      cap = carbon * nplant * c2b_wood * c_dry
+      cap = carbon * nplant * c2b * c_dry
    end function tissue_dry_heat_capacity
 
    !---~---
@@ -527,10 +529,13 @@ contains
    !--- Soil heat (docs/science/soil_biophysics.md §The soil thermal column).
 
    !---~---
-   !   The thermal properties of one soil layer by CLM5's mineral-soil formulas
-   ! (docs/science/soil_biophysics.md eq. (9)). The heat capacity holds the solids
-   ! only, since the model counts the water and ice itself. The formulas weigh sand
-   ! and clay alone, so a layer needs some of either: check_soil refuses one without.
+   !   The thermal properties of one soil layer (docs/science/soil_biophysics.md eq. (9)).
+   ! The solids conduct by their quartz, the sand's share of the fine earth: silt and clay
+   ! count with the other minerals. One value for the other minerals, where Peters-Lidard
+   ! et al. take 3.0 W/m/K below 20 % quartz, keeps the conductivity from jumping at 20 %
+   ! sand. The heat capacity holds the solids only, since the model counts the water and ice
+   ! itself; it weighs sand and clay alone, so a layer needs some of either: check_soil
+   ! refuses one without.
    !---~---
    elemental subroutine soil_texture_to_thermal(sand, clay, theta_sat, k_solid, k_dry, dry_cvol)
       real(wp), intent(in)  :: sand       ! [%]      sand share of the fine earth
@@ -539,8 +544,9 @@ contains
       real(wp), intent(out) :: k_solid    ! [W/m/K]  conductivity of the soil solids
       real(wp), intent(out) :: k_dry      ! [W/m/K]  conductivity of the dry soil
       real(wp), intent(out) :: dry_cvol   ! [J/m3/K] heat capacity of the solids per layer volume
-      real(wp) :: bulk_density
-      k_solid      = (K_QUARTZ*sand + K_CLAY_MINERAL*clay) / (sand + clay)
+      real(wp) :: bulk_density, quartz
+      quartz       = 0.01_wp * sand                                    ! [-] quartz share of the solids
+      k_solid      = K_QUARTZ**quartz * K_OTHER_MINERALS**(1.0_wp - quartz)
       bulk_density = CLM_GRAIN_DENSITY * (1.0_wp - theta_sat)
       k_dry        = (0.135_wp*bulk_density + 64.7_wp) / (CLM_GRAIN_DENSITY - 0.947_wp*bulk_density)
       dry_cvol     = (CV_SAND*sand + CV_CLAY*clay) / (sand + clay) * (1.0_wp - theta_sat)

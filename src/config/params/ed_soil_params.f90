@@ -60,15 +60,15 @@ module ed_soil_params
       real(wp)    :: dry_conductivity   = 0.15_wp   ! [W/m/K]  dry-matrix conductivity
       real(wp)    :: dry_heat_capacity  = 2.0e6_wp  ! [J/m3/K] dry-matrix volumetric heat capacity
       !---~---
-      !   The surface: the pond, the dry surface layer (soil evaporation), and the bare-soil
-      ! optics, blended with snow where there is snow.
+      !   The surface: the dry surface layer (soil evaporation), and the bare-soil optics,
+      ! blended with snow where there is snow.
       !---~---
-      real(wp)    :: w_pond_max        = 5.0_wp     ! [kg/m2] ponding capacity before surface runoff
       real(wp)    :: dsl_dmax          = 0.015_wp   ! [m] DSL max thickness (soil evap)
       real(wp)    :: dsl_theta_init    = 0.8_wp     ! DSL initiation theta_1/theta_sat
       real(wp)    :: ground_albedo_vis = 0.15_wp    ! [-] soil albedo, visible
       real(wp)    :: ground_albedo_nir = 0.30_wp    ! [-] soil albedo, near infrared
-      real(wp)    :: ground_emissivity = 0.95_wp    ! [-] soil longwave emissivity
+      real(wp)    :: ground_emissivity = 0.96_wp    ! [-] soil longwave emissivity (CLM5's)
+      real(wp)    :: moss_depth        = 0.0_wp     ! [m] the moss on the soil, under the litter (0: none)
       !--- The water bottom boundary, with drainage's factor f of q = f K.
       integer(ik) :: water_bottom_bc = SOIL_BC_DRAIN    ! SOIL_BC_DRAIN | SOIL_BC_AQUIFER
       real(wp)    :: drain_factor    = 1.0_wp           ! [-] f in [0, 1]: free_drain 1, bedrock 0

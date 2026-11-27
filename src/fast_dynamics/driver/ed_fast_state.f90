@@ -13,12 +13,12 @@
 !---~---
 module ed_fast_state
    use ed_kinds,                 only : wp, ik
-   use ed_constants,             only : cm2_to_m2, c2b_wood, t_3ple, umol_2_kgc, day_sec, par_w_2_umol, pi,      &
+   use ed_constants,             only : cm2_to_m2, c2b, t_3ple, umol_2_kgc, day_sec, par_w_2_umol, pi,      &
                                         tiny_num, tissue_c_leaf, tissue_c_wood_dry
    use ed_numerics,              only : ascending_order
    use ed_config,                only : ed_config_t
    use ed_pft_params,            only : pft_table_t, hydraulics_table_t
-   use ed_allometry_lib,         only : GROWTH_TREE
+   use ed_allometry_lib,         only : GROWTH_TREE, crown_exposed_fraction
    use ed_soil_params,           only : soil_profile_t
    use ed_plant_hydraulics,      only : cohort_root_profile, crown_gravity_head
    use ed_plant_hydr_lib,        only : plant_max_conductance, rhizosphere_conductance
@@ -26,11 +26,11 @@ module ed_fast_state
    use ed_cohort_state_vars,     only : cohort_block, alloc_cohort_block, init_cohort, cohort_tissue_temps,       &
                                         set_cohort_tissue_temps, hold_cohort_tissue_temps
    use ed_met_types,             only : met_forcing_t
-   use ed_patch_state_vars,      only : decomp_xi_t
+   use ed_patch_state_vars,      only : decomp_xi_t, porous_layers_diagnose
    use ed_polygon_state_vars,    only : polygon_t
    use ed_state_defaults,        only : DMAX_PSI_LEAF_ACCUM_RESET
    use ed_canopy_aerodynamics,   only : canopy_roughness, open_canopy_fraction, canopy_burial_fraction
-   use ed_soil_heat,             only : soil_layer_temp
+   use ed_ground_surface_lib,    only : porous_layer_temp
    use ed_fast_integ_types,          only : fast_static_state_t, fast_dynamic_state_t, fast_forcing_t, fast_output_t,  &
                                         ensure_static_capacity
    implicit none
@@ -105,20 +105,34 @@ contains
       integer(ik),                intent(in)    :: ip
       type(fast_static_state_t),  intent(inout) :: static    ! sized to the largest patch (ensure_static_capacity)
       type(fast_dynamic_state_t), intent(inout) :: dynamic   ! sized to the largest patch (ensure_dynamic_capacity)
-      real(wp)    :: sum_lai, sum_wai, t_leaf_e, t_wood_e
+      real(wp)    :: sum_lai, sum_wai, t_leaf_e, t_wood_e, bend
       integer(ik) :: i0, ncoh, i, j
 
       ncoh = poly%patch%cohort_count(ip)
       i0   = poly%patch%cohort_offset(ip)
       call gather_cohorts(static, poly%cohort, i0, ncoh)
+      !---~---
+      !   The pack at the window's start buries each cohort's crown below its depth: the leaves and
+      ! wood under it leave the canopy (docs/science/canopy_aerodynamics.md, "Snow on the canopy").
+      !---~---
+      do j = 1_ik, ncoh
+         associate (allom => poly%cohort%pft_table%allom(static%pft(j)))
+            static%exposed(j) = crown_exposed_fraction(static%height(j), poly%patch%ground_surface(ip)%water%matrix_depth, &
+                                                       allom%crown_base_fraction, allom%snow_bending)
+         end associate
+         static%lai(j) = static%lai(j) * static%exposed(j)
+         static%wai(j) = static%wai(j) * static%exposed(j)
+      end do
       call derive_cohort_terms(static, cfg%pft%hydraulics, poly%site%surface(poly%patch%owner_site(ip))%soil_profile)
 
       !---~---
       !   Canopy geometry. The open fraction exp(-(LAI + WAI)) weighs bare ground in the ground
       ! conductance (docs/science/canopy_aerodynamics.md eq. (7)), so a patch without cohorts
       ! couples as bare soil; the pack at the window's start buries the canopy's roughness,
-      ! eq. (1). The canopy is at least the height whose roughness is the bare soil's, so a
-      ! patch without cohorts, or with only shorter ones, has the soil's roughness.
+      ! eq. (1), the canopy standing at its tops bent by the pack (crown_exposed_fraction's
+      ! bend), as its crowns' burial reads them. The canopy is at least the height whose roughness
+      ! is the bare soil's, so a patch without cohorts, or with only shorter ones, has the soil's
+      ! roughness.
       !---~---
       sum_lai = 0.0_wp
       sum_wai = 0.0_wp
@@ -128,10 +142,14 @@ contains
       end do
       static%geom%veg_height = cfg%aero%soil_rough / cfg%aero%z0m_ratio
       do j = 1_ik, ncoh
-         static%geom%veg_height = max(static%geom%veg_height, static%height(j))
+         bend = 0.0_wp
+         if (poly%patch%ground_surface(ip)%water%matrix_depth > 0.0_wp)                                         &
+            bend = poly%cohort%pft_table%allom(static%pft(j))%snow_bending
+         static%geom%veg_height = max(static%geom%veg_height, static%height(j) * (1.0_wp - bend))
       end do
       static%geom%opencan_frac = open_canopy_fraction(sum_lai, sum_wai)
-      static%geom%snowfac      = canopy_burial_fraction(poly%patch%snow(ip)%snow_depth(1), static%geom%veg_height)
+      static%geom%snowfac      = canopy_burial_fraction(poly%patch%ground_surface(ip)%water%matrix_depth,           &
+                                                       static%geom%veg_height)
       !---~---
       !   The canopy-air top and roughness, fixed for the day. Each forcing sample is moved to
       ! that top along the patch's log profile (docs/science/forcing.md §8).
@@ -160,12 +178,13 @@ contains
       ! with, so a consistent state reads back unchanged.
       !---~---
       associate (prof => poly%site%surface(poly%patch%owner_site(ip))%soil_profile)
-         call soil_layer_temp(dynamic%soil_energy%soil_energy(1:prof%n_active),                           &
+         call porous_layer_temp(dynamic%soil_energy%soil_energy(1:prof%n_active),                           &
                               dynamic%soil_water%theta(1:prof%n_active), prof%dry_heat_capacity(1:prof%n_active), &
                               prof%layer_curve(1:prof%n_active), dynamic%soil_energy%soil_temp(1:prof%n_active), &
                               dynamic%soil_energy%soil_fliq(1:prof%n_active))
       end associate
-      dynamic%snow          = poly%patch%snow(ip)
+      dynamic%ground_surface = poly%patch%ground_surface(ip)
+      call porous_layers_diagnose(dynamic%ground_surface%porous, cfg%ground_surface)   ! after a blend, as the soil's
       dynamic%adapt_dt_last = poly%patch%adapt_dt_last(ip)   ! per-patch, not loop-carried
       do j = 1_ik, ncoh
          i = i0 + j - 1_ik
@@ -207,7 +226,7 @@ contains
       poly%patch%cas(ip)           = dynamic%cas
       poly%patch%soil_energy(ip)   = dynamic%soil_energy
       poly%patch%soil_water(ip)    = dynamic%soil_water
-      poly%patch%snow(ip)          = dynamic%snow
+      poly%patch%ground_surface(ip) = dynamic%ground_surface
       poly%patch%adapt_dt_last(ip) = dynamic%adapt_dt_last
       do j = 1_ik, poly%patch%cohort_count(ip)
          i = i0 + j - 1_ik
@@ -225,13 +244,15 @@ contains
    !   Add one fast step of patch ip to the sums the slow step reads. The cohorts' slots are
    ! disjoint across patches, so the threads need no reduction.
    !---~---
-   subroutine accumulate_fast_to_slow(poly, cfg, ip, forcing, out, can_temp)
+   subroutine accumulate_fast_to_slow(poly, cfg, ip, forcing, out, can_temp, exposed, t_buried)
       type(polygon_t),      intent(inout) :: poly
       type(ed_config_t),    intent(in)    :: cfg
       integer(ik),          intent(in)    :: ip
       type(fast_forcing_t), intent(in)    :: forcing
       type(fast_output_t),  intent(in)    :: out
       real(wp),             intent(in)    :: can_temp   ! [K] the patch's canopy air at the step's end
+      real(wp),             intent(in)    :: exposed(:) ! [-] each cohort's crown above the snow pack
+      real(wp),             intent(in)    :: t_buried   ! [K] what a buried crown sits at: the ground's surface
       real(wp)    :: dt_fast_days
       integer(ik) :: i0, i, j
       !---~---
@@ -258,15 +279,19 @@ contains
          poly%cohort%root_resp_accum(i) = poly%cohort%root_resp_accum(i) + out%root_resp_coh(j) * cfg%dt_fast * umol_2_kgc
          !---~---
          !   Hours of light at the cohort's top, the phenology light cue: a step counts when the
-         ! PAR there exceeds the PFT's par_min.
+         ! PAR there exceeds the PFT's par_min, and a crown the snow pack buries sees none.
          !---~---
-         if (forcing%par_top(j) * par_w_2_umol > cfg%pft%pheno(poly%cohort%pft(i))%par_min)               &
+         if (exposed(j) > 0.0_wp .and.                                                                    &
+             forcing%par_top(j) * par_w_2_umol > cfg%pft%pheno(poly%cohort%pft(i))%par_min)               &
             poly%cohort%light_hours_accum(i) = poly%cohort%light_hours_accum(i) + cfg%dt_fast / 3600.0_wp
          !---~---
          !   The phenology's temperature: the canopy air the cohort's buds and leaves sit in, its
-         ! patch's, time-integrated over the step (docs/science/plant_phenology.md §2).
+         ! patch's, time-integrated over the step (docs/science/plant_phenology.md §2); a crown the
+         ! pack buries sits, for its buried share, at the ground's surface under it.
          !---~---
-         poly%cohort%pheno_temp_accum(i) = poly%cohort%pheno_temp_accum(i) + can_temp * cfg%dt_fast / 3600.0_wp
+         poly%cohort%pheno_temp_accum(i) = poly%cohort%pheno_temp_accum(i)                                  &
+                                           + (exposed(j) * can_temp + (1.0_wp - exposed(j)) * t_buried)     &
+                                           * cfg%dt_fast / 3600.0_wp
          !---~---
          !   Running daily maximum of psi_leaf, the predawn value that drives tomorrow's stomatal
          ! control (docs/science/leaf_gas_exchange.md §4.2).
@@ -303,6 +328,7 @@ contains
          !--- Per-ground indices: nplant * per-plant area, formed here, never stored.
          static%lai(j)           = cohort%nplant(i) * cohort%leaf_area(i)
          static%wai(j)           = cohort%nplant(i) * cohort%wood_area(i)
+         static%wai_whole(j)     = static%wai(j)
          !--- Carbon pools the fast loop reads (capacitance + thermal stores).
          static%bleaf(j)         = cohort%leaf_carbon(i)
          static%broot(j)         = cohort%fineroot_carbon(i)
@@ -327,7 +353,7 @@ contains
          !   Sapwood volume [m3/plant]: its carbon as dry mass over the PFT's wood density
          ! [g/cm3 = 1000 kg/m3]; biomass grows as density^0.976, so it barely depends on it.
          !---~---
-         static%sap_volume(j)          = cohort%sapwood_carbon(i) * c2b_wood / (1.0e3_wp * pft%wood_density(pf))
+         static%sap_volume(j)          = cohort%sapwood_carbon(i) * c2b / (1.0e3_wp * pft%wood_density(pf))
          static%root_resp_factor25(j)  = pft%root_resp_factor25(pf)
          static%leaf_emissivity(j)     = pft%leaf_emissivity(pf)
          static%wood_emissivity(j)     = pft%wood_emissivity(pf)

@@ -2,8 +2,8 @@
 !---~---
 !   ed_patch_state_vars -- what one patch holds, and the block of all the site's patches.
 !
-!   A patch holds five stores -- canopy air, snow, soil water, soil energy and soil carbon
-! -- and two daily accumulators. Each is a derived type, and `patch_block` keeps an array
+!   A patch holds five stores -- canopy air, the ground's surface layers, soil water, soil
+! energy and soil carbon -- and two daily accumulators. Each is a derived type, and `patch_block` keeps an array
 ! of each, one element per patch, rather than one array per field as the cohort block
 ! does. A store is used whole and one patch at a time: a kernel takes one patch's store as
 ! its argument and sees nothing else of the state, the fast loop copies a patch's stores
@@ -17,8 +17,13 @@
 module ed_patch_state_vars
    use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
    use ed_kinds,              only : wp, ik
-   use ed_constants,          only : n_soil_layer_max, n_snow_layer_max, tiny_num, t_3ple, rho_h2o
-   use ed_therm_lib,          only : cas_molar_density
+   use ed_constants,          only : n_soil_layer_max, tiny_num, t_3ple, rho_h2o, cp_organic
+   use ed_therm_lib,          only : cas_molar_density, internal_energy_to_temp
+   use ed_numerics,           only : within_roundoff
+   use ed_soil_hydr_lib,      only : soil_layer_curve_t, build_soil_layer_curve
+   use ed_ground_surface_lib, only : porous_layer_depth, porous_layer_capacity, porous_layer_temp,              &
+                                     porous_layer_energy
+   use ed_ground_surface_params, only : ground_surface_layer_params_t, porous_material_t, N_POROUS
    use ed_diag_vars,          only : patch_diag_block, expand_patch_diag, reorder_patch_diag
    use ed_state_defaults,     only : UNSET_POSITIVE, CAN_CO2_UNSEEDED, CAN_DEPTH_UNSET
    use ed_soil_derive,        only : top_soil_psi
@@ -27,10 +32,14 @@ module ed_patch_state_vars
    implicit none
    private
 
-   public :: cas_state_t, snow_state_t, soil_water_state_t, soil_energy_state_t, soil_carbon_state_t
+   public :: cas_state_t, soil_water_state_t, soil_energy_state_t, soil_carbon_state_t
+   public :: ground_store_t, water_layer_state_t, porous_layer_state_t, ground_surface_state_t
+   public :: ground_store_present, ground_surface_store, ground_top_temp, store_move, store_take_exchange
+   public :: porous_layers_present, porous_layer_curve, porous_layers_diagnose, porous_layers_spill
+   public :: porous_layer_energy_at
    public :: decomp_xi_t, litter_input_t
    public :: blend_cas, cas_set_depth, cas_capacities, cas_capacity_change
-   public :: blend_snow, blend_soil_water, blend_soil_energy, blend_soil_carbon
+   public :: blend_ground_surface, blend_soil_water, blend_soil_energy, blend_soil_carbon
    public :: soil_water_store, soil_energy_store
    public :: blend_decomp_xi, blend_litter_input, blend_patch_stores, add_shed_water
    public :: patch_block, alloc_patch_block, expand_patch_block, reorder_patch_block, free_patch_block
@@ -57,28 +66,36 @@ module ed_patch_state_vars
    end type cas_state_t
 
    !---~---
-   !   Snow, or temporary surface water: mass and energy per ground area, with
-   ! temperature and liquid fraction read off them; nlayer = 0 is no snow
-   ! (docs/science/snow_biophysics.md).
+   !   The ground's surface layers (docs/science/ground_surface_layers.md §1): each a store of water
+   ! (liquid and ice) and its internal energy per ground area, with its temperature and liquid fraction read off them.
+   ! The water layer holds snow, ice and ponded water, and its ice matrix's depth; its liquid
+   ! beyond what its ice holds is its free water, the pond. The porous layers, top down litter over
+   ! moss (POROUS_LITTER, POROUS_MOSS), each hold their dry matter, their depth that matter over
+   ! the material's bulk density. A store holding nothing is absent.
    !---~---
-   type :: snow_state_t
-      real(wp) :: swe(n_snow_layer_max)         = 0.0_wp   ! [kg/m2] water-equivalent mass (prognostic)
-      real(wp) :: snow_energy(n_snow_layer_max) = 0.0_wp   ! [J/m2]  internal energy (prognostic)
-      real(wp) :: snow_depth(n_snow_layer_max)  = 0.0_wp   ! [m]     swe over the snow density
-      real(wp) :: snow_temp(n_snow_layer_max)   = t_3ple   ! [K]     diagnosed
-      real(wp) :: snow_fliq(n_snow_layer_max)   = 0.0_wp   ! [-]     liquid fraction, diagnosed
-      integer(ik) :: nlayer                     = 0_ik     ! layers in use (0 = no snow)
-   end type snow_state_t
+   type :: ground_store_t
+      real(wp) :: water  = 0.0_wp            ! [kg/m2] liquid and ice (prognostic)
+      real(wp) :: energy = 0.0_wp            ! [J/m2]  internal energy (prognostic)
+      real(wp) :: temp   = t_3ple            ! [K]     diagnosed
+      real(wp) :: fliq   = 0.0_wp            ! [-]     liquid fraction, diagnosed
+   end type ground_store_t
 
-   !---~---
-   !   Soil water, and the pond on top of it. The pond holds its own energy, so water
-   ! that crosses into or out of it carries heat (docs/science/numerical_scheme.md,
-   ! "The pond holds heat").
-   !---~---
+   type, extends(ground_store_t) :: water_layer_state_t
+      real(wp) :: matrix_depth = 0.0_wp      ! [m] its depth (prognostic): its mass over its bulk density
+   end type water_layer_state_t
+
+   type, extends(ground_store_t) :: porous_layer_state_t
+      real(wp) :: matter = 0.0_wp            ! [kg/m2] dry matter (the slow step's)
+   end type porous_layer_state_t
+
+   type :: ground_surface_state_t
+      type(water_layer_state_t)  :: water
+      type(porous_layer_state_t) :: porous(N_POROUS)
+   end type ground_surface_state_t
+
+   !--- Soil water: each layer's water content, liquid and ice.
    type :: soil_water_state_t
       real(wp) :: theta(n_soil_layer_max) = 0.0_wp   ! [m3/m3] volumetric water content (prognostic)
-      real(wp) :: w_surface = 0.0_wp                 ! [kg/m2] ponded water (prognostic)
-      real(wp) :: w_surface_energy = 0.0_wp          ! [J/m2]  ponded water's internal energy (prognostic)
    end type soil_water_state_t
 
    !---~---
@@ -159,10 +176,10 @@ module ed_patch_state_vars
       real(wp),    allocatable :: recruit_pool(:,:)  ! [plant/m2] (pft, patch) recruits waiting to reach min_recruit_size
       !--- 4. CANOPY AIR
       type(cas_state_t),          allocatable :: cas(:)          ! canopy air
-      !--- 5. SNOW
-      type(snow_state_t),         allocatable :: snow(:)         ! snow, or temporary surface water
+      !--- 5. GROUND SURFACE LAYERS
+      type(ground_surface_state_t), allocatable :: ground_surface(:)   ! the water layer, the litter and the moss
       !--- 6. SOIL WATER AND HEAT
-      type(soil_water_state_t),   allocatable :: soil_water(:)   ! soil water and the pond
+      type(soil_water_state_t),   allocatable :: soil_water(:)   ! soil water
       type(soil_energy_state_t),  allocatable :: soil_energy(:)  ! soil heat
       !--- 7. SOIL CARBON
       type(soil_carbon_state_t),  allocatable :: soil_carbon(:)  ! soil-carbon pools
@@ -331,26 +348,36 @@ contains
       end do
    end function soil_energy_store
 
-   !--- nlayer is the larger; the caller sets it to 0 when no snow is left.
-   pure function blend_snow(w1, a, w2, b) result(c)
-      real(wp),            intent(in) :: w1, w2
-      type(snow_state_t),  intent(in) :: a, b
-      type(snow_state_t)              :: c
-      c%swe         = w1 * a%swe         + w2 * b%swe
-      c%snow_energy = w1 * a%snow_energy + w2 * b%snow_energy
-      c%snow_depth  = w1 * a%snow_depth  + w2 * b%snow_depth
-      c%snow_temp   = w1 * a%snow_temp   + w2 * b%snow_temp   ! provisional
-      c%snow_fliq   = w1 * a%snow_fliq   + w2 * b%snow_fliq   ! provisional
-      c%nlayer      = max(a%nlayer, b%nlayer)
-   end function blend_snow
+   !---~---
+   !   The ground's surface layers area-weighted, layer by layer: each store's water, energy and
+   ! its geometry (the water layer's depth, a porous layer's matter), all extensive. A porous
+   ! layer's material is the run's, so its depth follows its matter. The temperatures and liquid
+   ! fractions are provisional, read off the blend before they are used.
+   !---~---
+   pure function blend_ground_surface(w1, a, w2, b) result(c)
+      real(wp),                     intent(in) :: w1, w2
+      type(ground_surface_state_t), intent(in) :: a, b
+      type(ground_surface_state_t)             :: c
+      integer(ik) :: k
+      c%water%water        = w1 * a%water%water        + w2 * b%water%water
+      c%water%energy       = w1 * a%water%energy       + w2 * b%water%energy
+      c%water%matrix_depth = w1 * a%water%matrix_depth + w2 * b%water%matrix_depth
+      c%water%temp         = w1 * a%water%temp         + w2 * b%water%temp           ! provisional
+      c%water%fliq         = w1 * a%water%fliq         + w2 * b%water%fliq           ! provisional
+      do k = 1_ik, N_POROUS
+         c%porous(k)%matter = w1 * a%porous(k)%matter + w2 * b%porous(k)%matter
+         c%porous(k)%water  = w1 * a%porous(k)%water  + w2 * b%porous(k)%water
+         c%porous(k)%energy = w1 * a%porous(k)%energy + w2 * b%porous(k)%energy
+         c%porous(k)%temp   = w1 * a%porous(k)%temp   + w2 * b%porous(k)%temp          ! provisional
+         c%porous(k)%fliq   = w1 * a%porous(k)%fliq   + w2 * b%porous(k)%fliq          ! provisional
+      end do
+   end function blend_ground_surface
 
    pure function blend_soil_water(w1, a, w2, b) result(c)
       real(wp),                  intent(in) :: w1, w2
       type(soil_water_state_t),  intent(in) :: a, b
       type(soil_water_state_t)              :: c
       c%theta     = w1 * a%theta     + w2 * b%theta
-      c%w_surface = w1 * a%w_surface + w2 * b%w_surface
-      c%w_surface_energy = w1 * a%w_surface_energy + w2 * b%w_surface_energy
    end function blend_soil_water
 
    pure function blend_soil_energy(w1, a, w2, b) result(c)
@@ -397,6 +424,184 @@ contains
    end function blend_litter_input
 
 
+   !--- THE GROUND'S SURFACE LAYERS: what they hold, their temperature and their exchanges
+
+   !--- Whether a store holds anything: water, or the energy a store that gave its last water keeps.
+   pure logical function ground_store_present(store)
+      class(ground_store_t), intent(in) :: store
+      ground_store_present = store%water /= 0.0_wp .or. store%energy /= 0.0_wp
+   end function ground_store_present
+
+   !---~---
+   !   Move water [kg/m2] and the energy it carries [J/m2] from one store to another, a matched
+   ! pair: what the one gives the other takes, so every ledger that holds both sees no change. A
+   ! store asked for more water than it holds beyond round-off stops the run; within round-off it
+   ! gives what it holds. The amounts arrive as copies (value), so a store may give all it holds
+   ! by passing its own water and energy.
+   !---~---
+   pure subroutine store_move(from, to, water, energy)
+      class(ground_store_t), intent(inout) :: from, to
+      real(wp), value,       intent(in)    :: water, energy
+      real(wp) :: moved
+      moved = water
+      if (water > from%water) then
+         if (.not. within_roundoff(from%water - water, from%water + water))                                   &
+            error stop 'store_move: a store gave more water than it held'
+         moved = from%water
+      end if
+      from%water  = from%water  - moved
+      from%energy = from%energy - energy
+      to%water    = to%water    + moved
+      to%energy   = to%energy   + energy
+   end subroutine store_move
+
+   !---~---
+   !   A store takes its exchange with the canopy air over a step: the energy it gained [J/m2], and
+   ! the vapour it gave [kg/m2] (deposition, negative, adds to it). A store that gave more vapour
+   ! than it held beyond round-off stops the run; within round-off it is left with none.
+   !---~---
+   pure subroutine store_take_exchange(store, energy_in, vapour_out)
+      class(ground_store_t), intent(inout) :: store
+      real(wp),              intent(in)    :: energy_in, vapour_out
+      if (.not. (store%water - vapour_out >= 0.0_wp                                                            &
+                 .or. within_roundoff(store%water - vapour_out, store%water + abs(vapour_out))))                &
+         error stop 'store_take_exchange: a store gave the canopy air more vapour than it held'
+      store%energy = store%energy + energy_in
+      store%water  = max(0.0_wp, store%water - vapour_out)   ! clamp-ok: round-off (asserted)
+   end subroutine store_take_exchange
+
+   !---~---
+   !   The ground's surface layers' water [kg/m2] and energy [J/m2] together, the stores the fast,
+   ! slow and restart ledgers read: the water layer's and the porous layers', top down.
+   !---~---
+   pure function ground_surface_store(gs) result(store)
+      type(ground_surface_state_t), intent(in) :: gs
+      type(ground_store_t) :: store
+      integer(ik) :: k
+      store%water  = gs%water%water
+      store%energy = gs%water%energy
+      do k = 1_ik, N_POROUS
+         store%water  = store%water  + gs%porous(k)%water
+         store%energy = store%energy + gs%porous(k)%energy
+      end do
+   end function ground_surface_store
+
+   !--- Whether the ground has a porous layer: dry matter in any.
+   pure logical function porous_layers_present(porous)
+      type(porous_layer_state_t), intent(in) :: porous(:)
+      porous_layers_present = top_porous_layer(porous) > 0_ik
+   end function porous_layers_present
+
+   !--- The top porous layer, the first top down that holds dry matter; 0 with none.
+   pure integer(ik) function top_porous_layer(porous) result(k_top)
+      type(porous_layer_state_t), intent(in) :: porous(:)
+      integer(ik) :: k
+      k_top = 0_ik
+      do k = 1_ik, size(porous, kind=ik)
+         if (porous(k)%matter > 0.0_wp) then
+            k_top = k
+            return
+         end if
+      end do
+   end function top_porous_layer
+
+   !---~---
+   !   [K] The temperature of the ground's top, which the canopy air and the radiation see: the
+   ! top porous layer's where there is one, else the top soil node's.
+   !---~---
+   pure real(wp) function ground_top_temp(gs, soil_temp_top) result(t)
+      type(ground_surface_state_t), intent(in) :: gs
+      real(wp),                     intent(in) :: soil_temp_top   ! [K]
+      integer(ik) :: k
+      t = soil_temp_top
+      k = top_porous_layer(gs%porous)
+      if (k > 0_ik) t = gs%porous(k)%temp
+   end function ground_top_temp
+
+   !---~---
+   !   A porous layer's water retention and conductivity, its material's as a soil layer's
+   ! (build_soil_layer_curve), at its depth.
+   !---~---
+   pure function porous_layer_curve(m, layer) result(c)
+      type(porous_material_t),    intent(in) :: m
+      type(porous_layer_state_t), intent(in) :: layer
+      type(soil_layer_curve_t)               :: c
+      call build_soil_layer_curve(m%retention, m%theta_sat, m%theta_res, m%curve_par_a, m%curve_par_n, m%ksat,     &
+                                  porous_layer_depth(layer%matter, m%bulk_density), c)
+   end function porous_layer_curve
+
+   !---~---
+   !   Each porous layer's temperature and liquid fraction from its own energy on its freezing
+   ! curve, the soil's law (porous_layer_temp, docs/science/soil_biophysics.md eq. (15)): its water
+   ! over its depth, its dry matter's heat capacity, and its material's curve at its depth
+   ! (porous_layer_curve). Water left where the matter has gone is that water's, on pure water's
+   ! law; the triple point, all liquid, where there is nothing.
+   !---~---
+   pure subroutine porous_layers_diagnose(porous, params)
+      type(porous_layer_state_t),          intent(inout) :: porous(:)
+      type(ground_surface_layer_params_t), intent(in)    :: params
+      real(wp)    :: depth
+      integer(ik) :: k
+      do k = 1_ik, size(porous, kind=ik)
+         porous(k)%temp = t_3ple
+         porous(k)%fliq = 1.0_wp
+         if (porous(k)%matter > 0.0_wp) then
+            depth = porous_layer_depth(porous(k)%matter, params%porous(k)%bulk_density)
+            call porous_layer_temp(porous(k)%energy / depth, porous(k)%water / (rho_h2o * depth),                 &
+                                   cp_organic * porous(k)%matter / depth,                                        &
+                                   porous_layer_curve(params%porous(k), porous(k)), porous(k)%temp, porous(k)%fliq)
+         else if (porous(k)%water > 0.0_wp) then
+            call internal_energy_to_temp(porous(k)%energy, porous(k)%water, 0.0_wp, porous(k)%temp, porous(k)%fliq)
+         end if
+      end do
+   end subroutine porous_layers_diagnose
+
+   !---~---
+   !   [J/m2] A porous layer's energy at a temperature [K] with the matter and water it holds, on
+   ! its freezing curve (porous_layer_energy); none with no matter.
+   !---~---
+   pure real(wp) function porous_layer_energy_at(layer, m, temp) result(e)
+      type(porous_layer_state_t), intent(in) :: layer
+      type(porous_material_t),    intent(in) :: m
+      real(wp),                   intent(in) :: temp
+      real(wp) :: depth
+      e = 0.0_wp
+      if (layer%matter <= 0.0_wp) return
+      depth = porous_layer_depth(layer%matter, m%bulk_density)
+      e = porous_layer_energy(temp, layer%water / (rho_h2o * depth), cp_organic * layer%matter / depth,           &
+                              porous_layer_curve(m, layer)) * depth
+   end function porous_layer_energy_at
+
+   !---~---
+   !   The water each porous layer holds beyond its saturation passes to the water layer, its free
+   ! water (store_move): its pores cannot hold it. It takes the energy that leaves the layer at its
+   ! temperature on its freezing curve (porous_layer_energy_at), so the layer keeps its
+   ! temperature; a layer whose matter is gone passes all its water and all its energy. The water
+   ! network keeps a layer within its pores but for a sub-step it took although unconverged, and
+   ! the slow step changes a layer's matter.
+   !---~---
+   pure subroutine porous_layers_spill(porous, params, water_layer)
+      type(porous_layer_state_t),          intent(inout) :: porous(:)
+      type(ground_surface_layer_params_t), intent(in)    :: params
+      class(ground_store_t),               intent(inout) :: water_layer
+      type(porous_layer_state_t) :: kept
+      real(wp)    :: excess
+      integer(ik) :: k
+      call porous_layers_diagnose(porous, params)
+      do k = 1_ik, size(porous, kind=ik)
+         kept = porous(k)
+         kept%water = 0.0_wp
+         if (porous(k)%matter > 0.0_wp)                                                                       &
+            kept%water = porous_layer_capacity(porous(k)%matter, params%porous(k)%bulk_density,               &
+                                               params%porous(k)%theta_sat)
+         excess = porous(k)%water - kept%water
+         if (.not. (excess > 0.0_wp)) cycle
+         call store_move(porous(k), water_layer, excess,                                                       &
+                         porous(k)%energy - porous_layer_energy_at(kept, params%porous(k), porous(k)%temp))
+      end do
+      call porous_layers_diagnose(porous, params)
+   end subroutine porous_layers_spill
+
    !--- THE PATCH LOCKSTEP: the routines that list every patch field, in section order
 
    subroutine alloc_patch_block(patch, cap, n_pft)
@@ -421,8 +626,8 @@ contains
       patch%recruit_pool = 0.0_wp
       !--- 4. Canopy air
       allocate(patch%cas(cap))                                   ! default-initialised by its type
-      !--- 5. Snow
-      allocate(patch%snow(cap))                                  ! default-initialised by its type
+      !--- 5. Ground surface layers
+      allocate(patch%ground_surface(cap))                        ! default-initialised by its type
       !--- 6. Soil water and heat
       allocate(patch%soil_water(cap), patch%soil_energy(cap))    ! default-initialised by its type
       !--- 7. Soil carbon
@@ -470,8 +675,8 @@ contains
       tmp%recruit_pool(:,1:m) = patch%recruit_pool(:,1:m)
       !--- 4. Canopy air
       tmp%cas(1:m) = patch%cas(1:m)
-      !--- 5. Snow
-      tmp%snow(1:m) = patch%snow(1:m)
+      !--- 5. Ground surface layers
+      tmp%ground_surface(1:m) = patch%ground_surface(1:m)
       !--- 6. Soil water and heat
       tmp%soil_water(1:m)  = patch%soil_water(1:m)
       tmp%soil_energy(1:m) = patch%soil_energy(1:m)
@@ -502,8 +707,8 @@ contains
       call move_alloc(tmp%recruit_pool, patch%recruit_pool)
       !--- 4. Canopy air
       call move_alloc(tmp%cas, patch%cas)
-      !--- 5. Snow
-      call move_alloc(tmp%snow, patch%snow)
+      !--- 5. Ground surface layers
+      call move_alloc(tmp%ground_surface, patch%ground_surface)
       !--- 6. Soil water and heat
       call move_alloc(tmp%soil_water, patch%soil_water)
       call move_alloc(tmp%soil_energy, patch%soil_energy)
@@ -544,8 +749,8 @@ contains
       patch%recruit_pool(:,1:m) = patch%recruit_pool(:,perm(1:m))
       !--- 4. Canopy air
       patch%cas(1:m) = patch%cas(perm(1:m))
-      !--- 5. Snow
-      patch%snow(1:m) = patch%snow(perm(1:m))
+      !--- 5. Ground surface layers
+      patch%ground_surface(1:m) = patch%ground_surface(perm(1:m))
       !--- 6. Soil water and heat
       patch%soil_water(1:m)  = patch%soil_water(perm(1:m))
       patch%soil_energy(1:m) = patch%soil_energy(perm(1:m))
@@ -574,7 +779,8 @@ contains
       if (allocated(patch%area)) deallocate(patch%global_id, patch%dist_type, patch%owner_site, patch%area,    &
                                             patch%age,                                                         &
                                             patch%cohort_offset, patch%cohort_count, patch%recruit_pool,       &
-                                            patch%cas, patch%snow, patch%soil_water, patch%soil_energy,        &
+                                            patch%cas, patch%ground_surface, patch%soil_water,                 &
+                                            patch%soil_energy,                                                 &
                                             patch%soil_carbon, patch%shed_water_rate, patch%shed_water_enth,   &
                                             patch%slow_co2_rate,                                               &
                                             patch%decomp_xi, patch%litter_in, patch%adapt_dt_last,      &
@@ -632,7 +838,7 @@ contains
 
    !---~---
    !   Patch dst's stores as w1 x src1's plus w2 x src2's, in the file's section order: the
-   ! recruit pool, the canopy air, snow, soil water and heat, soil carbon, the day's
+   ! recruit pool, the canopy air, the ground's surface layers, soil water and heat, soil carbon, the day's
    ! decomposition integral and litter. Patch fusion and a new treefall gap both blend
    ! through it, so a store added to the patch is blended in both.
    !---~---
@@ -642,7 +848,7 @@ contains
       real(wp),          intent(in)    :: w1, w2
       patch%recruit_pool(:, dst) = w1 * patch%recruit_pool(:, src1) + w2 * patch%recruit_pool(:, src2)
       patch%cas(dst)         = blend_cas(w1, patch%cas(src1), w2, patch%cas(src2))
-      patch%snow(dst)        = blend_snow(w1, patch%snow(src1), w2, patch%snow(src2))
+      patch%ground_surface(dst) = blend_ground_surface(w1, patch%ground_surface(src1), w2, patch%ground_surface(src2))
       patch%soil_water(dst)  = blend_soil_water(w1, patch%soil_water(src1), w2, patch%soil_water(src2))
       patch%soil_energy(dst) = blend_soil_energy(w1, patch%soil_energy(src1), w2, patch%soil_energy(src2))
       patch%soil_carbon(dst) = blend_soil_carbon(w1, patch%soil_carbon(src1), w2, patch%soil_carbon(src2))

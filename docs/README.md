@@ -43,7 +43,7 @@ The changelog is at the repository root: [`../CHANGELOG-v0.md`](../CHANGELOG-v0.
 | [`soil_plant_water.md`](science/soil_plant_water.md) | The pond, the soil layers and every cohort's wood and leaves solved as one water network. |
 | [`vegetation_energy_dynamics.md`](science/vegetation_energy_dynamics.md) | Leaf and wood temperature as an exact relaxation toward each tissue's energy balance. |
 | [`soil_biophysics.md`](science/soil_biophysics.md) | Soil water (mixed-form Richards) and soil heat as conserved quantities, frozen soil, and the soil parameters from texture and maps. |
-| [`snow_biophysics.md`](science/snow_biophysics.md) | The snow and temporary surface-water store. |
+| [`ground_surface_layers.md`](science/ground_surface_layers.md) | The layers on the soil, top down: water (snow, ice and ponded water), litter and moss; their energy stack, their water, their lifecycle and burial by snow. |
 | [`forcing.md`](science/forcing.md) | Meteorological forcing: the file format, interpolation, shortwave disaggregation and partition, the corrections to the site and the canopy-air top, calendar recycling, and CO₂. |
 
 **Once per slow step (`dt_slow`, a day by default)**

@@ -4,11 +4,12 @@
 ! keys its settings use.
 !
 !   check_config_keys reports an unknown key with the listed key it most likely meant: a
-! misspelling, or a key that moved section. A key the reference lists only commented out,
-! at its default, is a listed key. check_key_use reports a listed key the loaded settings
-! give nothing to do. A block is present by any of its keys, and its name matches a whole
-! segment, not a prefix: an optional block gated on one chosen key is skipped in silence
-! when it is written without that key.
+! misspelling, or a key that moved section; a key whose block was replaced, the [snow] block's
+! or a [surface_layer] key now in a material's table, with the key that holds it now. A key
+! the reference lists only commented out, at its default, is a listed key. check_key_use
+! reports a listed key the loaded settings give nothing to do. A block is present by any of
+! its keys, and its name matches a whole segment, not a prefix: an optional block gated on
+! one chosen key is skipped in silence when it is written without that key.
 !---~---
 program test_config_keys
    use ed_kinds,            only : ik
@@ -46,21 +47,31 @@ program test_config_keys
    write(u,'(a)') 'cohort_max = 2048'               ! an [output] key, in another table
    write(u,'(a)') '[output]'
    write(u,'(a)') 'strict_caps = true'              ! not a key
+   write(u,'(a)') '[snow]'
+   write(u,'(a)') 'k_snow = 0.2'                    ! a key the loader maps to another
+   write(u,'(a)') '[surface_layer]'
+   write(u,'(a)') 'litter_bulk_density = 45.0'      ! a key the loader maps to its material's table
    close(u)
    call toml_parse_file('test_config_keys.toml', t, ok)
    call check(ok, 'the test config parses')
    call check_config_keys(t, MAIN_KEYS, report)
-   call check(report%n == 3_ik, 'three keys are reported, and the two listed ones are not')
+   call check(report%n == 5_ik, 'five keys are reported, and the two listed ones are not')
    call check(index(report%line(1), 'forcing.timestpe') > 0 .and.                                  &
               index(report%line(1), 'did you mean forcing.timestep?') > 0, 'the misspelling is named')
    call check(index(report%line(2), 'did you mean output.cohort_max?') > 0, 'the moved key is named')
    call check(index(report%line(3), 'output.strict_caps') > 0 .and.                                &
               index(report%line(3), 'is not a key ED-MORE reads') > 0, 'an unknown key is named')
+   call check(index(report%line(4), 'snow.k_snow') > 0 .and.                                       &
+              index(report%line(4), 'it is now ground_surface_layer.water.conductivity_at_fresh') > 0,     &
+              'a key that moved block is named with the key that holds it now')
+   call check(index(report%line(5), 'surface_layer.litter_bulk_density') > 0 .and.                 &
+              index(report%line(5), 'it is now ground_surface_layer.litter.bulk_density') > 0,     &
+              'a key that moved into a material''s table is named with the key that holds it now')
 
    !--- The PFT file is checked against its own list: a main-file key is unknown there.
    report = key_report_t()
    call check_config_keys(t, PFT_KEYS, report)
-   call check(report%n == 5_ik, 'every main-file key is unknown to the PFT reference')
+   call check(report%n == 7_ik, 'every main-file key is unknown to the PFT reference')
 
    !---~---
    !   A listed key the settings give nothing to do: the forcing file's name with the archive,

@@ -158,7 +158,7 @@ function(ed_fortran_flags tgt)
       target_compile_options(${tgt} PRIVATE -stand f18 -warn all -diag-disable=7712
          $<$<BOOL:${ED_HEAP_ARRAYS}>:-heap-arrays;256>
          $<$<BOOL:${ED_AUTO_LOCALS}>:-auto>
-         $<$<CONFIG:Debug>:-O0;-g;-check;all;-fpe0;-traceback>
+         $<$<CONFIG:Debug>:-O0;-g;-check;all,noarg_temp_created;-fpe0;-traceback>
          $<$<CONFIG:Release>:-O2>)
    elseif(id STREQUAL "NVHPC" OR id STREQUAL "PGI")
       target_compile_options(${tgt} PRIVATE -Minform=warn
@@ -184,7 +184,7 @@ endfunction()
 #      position, and the budget checks at the top, and the stateless constitutive laws in         #
 #      functions/, one library per domain: allometry, plant hydraulics, soil hydraulics,           #
 #      thermodynamics (moist air and its lapse, with the temperature response of enzyme rates),    #
-#      canopy optics and the radiation above the canopy.                                           #
+#      the ground's surface layers, canopy optics and the radiation above the canopy.              #
 #                                                                                                  #
 #      One folder, one library, and it links NOTHING. A module belongs in src/share/ only if it    #
 #      `use`s nothing outside src/share/ -- no model state, no configuration, no external          #
@@ -379,9 +379,10 @@ endif()
 
 #----- Diagnostic output's writer (src/io/output/ed_output_stream.f90): the netCDF files. Links    #
 #      the netCDF bindings (ed_netcdf_c, above). netCDF is always compiled.                          #
-#      (The C-binding layer passes array temporaries to the netCDF C `(*)` dummies --                #
-#      correct for interop, but Intel Debug `-check all` emits a harmless arg_temp_created warning   #
-#      per call; a Release build, the default, is clean.)                                            #
+#      (The C-binding layer passes array temporaries to the netCDF C `(*)` dummies -- correct for    #
+#      interop; Intel Debug checks everything but arg_temp_created, whose warnings, each with a     #
+#      traceback, flood a run's log and, raised in one OpenMP thread while another reports an       #
+#      error, corrupt the Fortran runtime's diagnostics.)                                            #
 add_library(ed_output_stream STATIC ${CMAKE_CURRENT_SOURCE_DIR}/src/io/output/ed_output_stream.f90)
 target_link_libraries(ed_output_stream PUBLIC ed_netcdf_c ed_output)
 ed_fortran_flags(ed_output_stream)
@@ -402,6 +403,13 @@ ed_fortran_flags(ed_run)
 add_executable(ed_main ${CMAKE_CURRENT_SOURCE_DIR}/src/main/ed_main.f90)
 target_link_libraries(ed_main PRIVATE ed_run)
 set_target_properties(ed_main PROPERTIES OUTPUT_NAME edmore)
+#----- Intel's runtime linked in, as libedmore.so links it (below): edmore and a run through   #
+#      Python then call one and the same math library. Intel's math library chooses its code   #
+#      by the CPU it finds, and its shared copy and the static one keep that choice apart, so  #
+#      on some CPUs the two gave different last digits from the same call.                    #
+if(CMAKE_Fortran_COMPILER_ID MATCHES "^Intel")
+   target_link_options(ed_main PRIVATE -static-intel)
+endif()
 
 #----- The C-API shims (src/c_api): the bind(c) procedures Python calls, compiled ONCE, into an #
 #      object library that both of their users link: libedmore.so (below) and the C-API tests.  #

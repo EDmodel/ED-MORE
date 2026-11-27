@@ -80,6 +80,12 @@ module ed_plant_energy
       real(wp), allocatable :: wood_wmass(:)      ! [kg/m2]   the wood store's water (sapwood, fine roots)
       real(wp), allocatable :: leaf_dry_hcap(:)   ! [J/m2/K]  dry leaf heat capacity
       real(wp), allocatable :: leaf_wmass(:)      ! [kg/m2]   internal (symplast) leaf water
+      !---~---
+      !   The share of each cohort's crown a snow pack buries (1 - its exposed share): its balance
+      ! runs on the rest of its heat capacity, and the buried share's heat is the water layer's
+      ! node's (docs/science/vegetation_energy_dynamics.md, "Buried tissue").
+      !---~---
+      real(wp), allocatable :: buried(:)          ! [-]
    end type plant_energy_env_t
 
    !---~---
@@ -224,7 +230,7 @@ contains
       real(wp),                 intent(out)   :: veg_surface_evap   ! [kg/m2/s]  surface-water evaporation into it
       real(wp),                 intent(out)   :: rnet_canopy        ! [W/m2]     net radiation the canopy absorbs
       type(latent_pathway_t) :: leaf_dry, leaf_wet, wood_dry, wood_wet
-      real(wp)    :: q_def, h_evap, lw_slope, lw_slope_w, u_leaf0, u_wood0, q_surf_leaf, q_surf_wood
+      real(wp)    :: q_def, h_evap, lw_slope, lw_slope_w, u_leaf0, u_wood0, q_leaf, q_wood, exposed
       real(wp)    :: dtl, transp_i, dh, drnet, dtw, transp_w, dh_w, drnet_w
       integer(ik) :: i
       q_def  = qsat_cas - q_cas
@@ -257,12 +263,8 @@ contains
          !---~---
          u_leaf0     = internal_energy_liquid(env%t_leaf0(i))
          u_wood0     = internal_energy_liquid(env%t_wood0(i))
-         q_surf_leaf = (veg_surface%intercept_leaf(i) + veg_surface%transfer_lw(i))                               &
-                       * (veg_surface%rain_liquid_enthalpy - u_leaf0)                                             &
-                       + max(-veg_surface%transfer_lw(i), 0.0_wp) * (u_wood0 - u_leaf0)
-         q_surf_wood = (veg_surface%intercept_wood(i) - veg_surface%transfer_lw(i))                               &
-                       * (veg_surface%rain_liquid_enthalpy - u_wood0)                                             &
-                       + max(veg_surface%transfer_lw(i), 0.0_wp) * (u_leaf0 - u_wood0)
+         call tissue_water_heat(env, veg_surface, i, q_leaf, q_wood)
+         exposed = 1.0_wp - env%buried(i)
          leaf_wet = latent_pathway(h_evap - u_leaf0, rho, veg_surface%g_surf_leaf(i), dqsat_dt, q_def)
          wood_dry = latent_pathway_t(h_vap=h_evap)                ! wood does not transpire
          wood_wet = latent_pathway(h_evap - u_wood0, rho, veg_surface%g_surf_wood(i), dqsat_dt, q_def)
@@ -276,13 +278,13 @@ contains
          lw_slope_w = lw_emission_slope(env%wood_emiss(i), env%t_wood0(i), env%wai(i))
          !--- Wood: q_wood_net enters as q_extra, as qwflux_wl does for the leaf.
          call tissue_energy_balance(env%abs_sw_wood(i), env%abs_lw_wood(i) + lw_slope_w * (env%t_wood0(i) - t_cas), &
-                                    env%q_wood_net(i) + q_surf_wood,                                             &
+                                    exposed * q_wood,                                                            &
                                     env%h_coeff_w(i),                                                            &
                                     lw_slope_w, wood_dry, wood_wet, veg_surface%f_wet_c(i), t_cas, t_cas,              &
                                     env%wood_hcap_per_dt(i), env%t_wood0(i), dtw, wood_temp(i), transp_w,       &
                                     wood_surface_evap(i), dh_w, drnet_w)
          call tissue_energy_balance(env%abs_sw(i), env%abs_lw(i) + lw_slope * (env%t_leaf0(i) - t_cas),            &
-                                    env%qwflux_wl(i) + q_surf_leaf,                                              &
+                                    exposed * q_leaf,                                                            &
                                     env%h_coeff_leaf(i),                                                         &
                                     lw_slope, leaf_dry, leaf_wet, veg_surface%f_wet_c(i), t_cas, wood_temp(i),          &
                                     env%leaf_hcap_per_dt(i), env%t_leaf0(i), dtl, leaf_temp(i), transp_i,       &
@@ -313,12 +315,15 @@ contains
    ! share of the heat is a step behind, and it lies between the start-of-step temperature
    ! and t_avg even where surface water far heavier than its tissue evaporated within the
    ! step. A tissue with no heat capacity keeps a temperature: wood its own, a leaf its wood's.
+   ! The share of a tissue a snow pack buries ends at t_buried, the water layer's node's
+   ! temperature over the step, its heat the node's: a matched pair with the water layer.
    !---~---
-   pure subroutine commit_tissue_energy(env, nplant, dt, t_leaf_avg, t_wood_avg, n, leaf_water_mass,          &
+   pure subroutine commit_tissue_energy(env, veg_surface, nplant, dt, t_leaf_avg, t_wood_avg, n, leaf_water_mass, &
                                         wood_water_mass, leaf_surf_water0, wood_surf_water0, leaf_surf_water1,     &
-                                        wood_surf_water1,                                                          &
+                                        wood_surf_water1, t_buried,                                                &
                                         leaf_energy, wood_energy, leaf_temp, wood_temp, store0, store1)
       type(plant_energy_env_t), intent(in)    :: env                                ! the cohorts' inputs for the step
+      type(canopy_water_out_t), intent(in)    :: veg_surface                        ! the surface water's capture
       real(wp),                 intent(in)    :: nplant(:)                          ! [plant/m2]
       real(wp),                 intent(in)    :: dt                                 ! [s]
       real(wp),                 intent(in)    :: t_leaf_avg(:), t_wood_avg(:)       ! [K] each tissue's step average
@@ -326,16 +331,24 @@ contains
       real(wp),                 intent(in)    :: leaf_water_mass(:), wood_water_mass(:)   ! [kg/plant] end of step
       real(wp),                 intent(in)    :: leaf_surf_water0(:), wood_surf_water0(:)   ! [kg/m2 ground] start of step
       real(wp),                 intent(in)    :: leaf_surf_water1(:), wood_surf_water1(:)   ! [kg/m2 ground] end of step
+      real(wp),                 intent(in)    :: t_buried                           ! [K] the buried shares' end temperature
       real(wp),                 intent(inout) :: leaf_energy(:), wood_energy(:)     ! [J/m2 ground]
       real(wp),                 intent(inout) :: leaf_temp(:), wood_temp(:)         ! [K]
       real(wp),                 intent(out)   :: store0, store1                     ! [J/m2 ground] the tissue store
-      real(wp)    :: heat_leaf, heat_wood, enth_leaf, enth_wood, w_leaf, w_wood
+      real(wp)    :: heat_leaf, heat_wood, enth_leaf, enth_wood, w_leaf, w_wood, q_leaf, q_wood
       integer(ik) :: i
       store0 = 0.0_wp
       store1 = 0.0_wp
       do i = 1_ik, n
          heat_leaf = env%leaf_hcap_per_dt(i) * dt * (t_leaf_avg(i) - env%t_leaf0(i))
          heat_wood = env%wood_hcap_per_dt(i) * dt * (t_wood_avg(i) - env%t_wood0(i))
+         if (env%buried(i) > 0.0_wp) then
+            call tissue_water_heat(env, veg_surface, i, q_leaf, q_wood)
+            heat_leaf = heat_leaf + env%buried(i) * (tissue_hcap_per_dt(env%leaf_dry_hcap(i), env%leaf_wmass(i), dt) &
+                                                     * dt * (t_buried - env%t_leaf0(i)) + q_leaf * dt)
+            heat_wood = heat_wood + env%buried(i) * (tissue_hcap_per_dt(env%wood_dry_hcap(i), env%wood_wmass(i), dt) &
+                                                     * dt * (t_buried - env%t_wood0(i)) + q_wood * dt)
+         end if
          enth_leaf = env%leaf_water_enth(i) * dt                                                           &
                      + (leaf_surf_water1(i) - leaf_surf_water0(i)) * internal_energy_liquid(env%t_leaf0(i))
          enth_wood = env%wood_water_enth(i) * dt                                                           &
@@ -353,6 +366,31 @@ contains
             leaf_temp(i) = tissue_energy_to_temp(leaf_energy(i), w_leaf, env%leaf_dry_hcap(i))
       end do
    end subroutine commit_tissue_energy
+
+   !---~---
+   !   The heat the water reaching a cohort's leaf and wood brings them beyond their own [W/m2 ground]
+   ! (the q_extra of tissue_energy_balance), the whole tissue's: the leaf's sapflow (qwflux_wl) and
+   ! the wood's net inflow (q_wood_net), and each tissue's share of its surface water's capture, the
+   ! rain's liquid enthalpy less what its tissue holds for the water (u_liq at its start-of-step
+   ! temperature), and of the surface water one tissue passes the other, at the giver's.
+   !---~---
+   pure subroutine tissue_water_heat(env, veg_surface, i, q_leaf, q_wood)
+      type(plant_energy_env_t), intent(in)  :: env
+      type(canopy_water_out_t), intent(in)  :: veg_surface
+      integer(ik),              intent(in)  :: i
+      real(wp),                 intent(out) :: q_leaf, q_wood   ! [W/m2]
+      real(wp) :: u_leaf0, u_wood0, q_surf_leaf, q_surf_wood
+      u_leaf0     = internal_energy_liquid(env%t_leaf0(i))
+      u_wood0     = internal_energy_liquid(env%t_wood0(i))
+      q_surf_leaf = (veg_surface%intercept_leaf(i) + veg_surface%transfer_lw(i))                                   &
+                    * (veg_surface%rain_liquid_enthalpy - u_leaf0)                                                 &
+                    + max(-veg_surface%transfer_lw(i), 0.0_wp) * (u_wood0 - u_leaf0)
+      q_surf_wood = (veg_surface%intercept_wood(i) - veg_surface%transfer_lw(i))                                   &
+                    * (veg_surface%rain_liquid_enthalpy - u_wood0)                                                 &
+                    + max(veg_surface%transfer_lw(i), 0.0_wp) * (u_leaf0 - u_wood0)
+      q_leaf      = env%qwflux_wl(i) + q_surf_leaf
+      q_wood      = env%q_wood_net(i) + q_surf_wood
+   end subroutine tissue_water_heat
 
    !---~---
    !   The coefficients of tissue_energy_balance's linearization, for leaf or wood, all per

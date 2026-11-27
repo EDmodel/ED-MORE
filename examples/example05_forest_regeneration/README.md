@@ -16,8 +16,7 @@ fixes.
 
 ## 1. Barro Colorado Island, 1600–2020
 
-The numbers here come from the first ED-MORE release, built with ifx and the production preset
-(`cmake --preset production`).
+The numbers here come from ED-MORE built with ifx and the production preset (`cmake --preset production`).
 
 Three PFTs, early, mid and late successional, compete for light.
 
@@ -30,32 +29,32 @@ trees of 10 cm and more, against the 50-ha plot's censuses (circles) and the BCI
 
 | year | AGB [MgC ha⁻¹] | early / mid / late | basal area [m² ha⁻¹] | LAI | trees ≥ 10 cm ha⁻¹ | GPP / NPP [MgC ha⁻¹ yr⁻¹] |
 |---|---|---|---|---|---|---|
-| 1650 | 50.0 | 35.0 / 14.3 / 0.7 | 23.0 | 5.8 | 384 | 25.8 / 12.8 |
-| 1700 | 66.6 | 23.6 / 41.1 / 1.8 | 24.5 | 5.7 | 413 | 25.6 / 12.0 |
-| 1800 | 81.8 | 7.5 / 72.1 / 2.2 | 25.9 | 5.8 | 350 | 26.1 / 12.0 |
-| 1900 | 91.9 | 4.3 / 84.2 / 3.3 | 27.3 | 5.9 | 355 | 27.1 / 12.6 |
-| 1950 | 102.8 | 5.7 / 94.3 / 2.8 | 29.5 | 6.1 | 353 | 28.3 / 13.3 |
-| 2010 | 126.9 | 16.7 / 107.4 / 2.7 | 34.0 | 6.3 | 326 | 32.6 / 16.2 |
-| 2020 | 130.9 | 24.3 / 103.9 / 2.7 | 34.8 | 6.3 | 302 | 34.0 / 17.2 |
+| 1650 | 47.7 | 32.6 / 14.4 / 0.8 | 22.6 | 5.8 | 413 | 25.5 / 12.6 |
+| 1700 | 64.1 | 21.4 / 40.8 / 1.9 | 24.1 | 5.8 | 413 | 25.4 / 11.9 |
+| 1800 | 79.1 | 6.6 / 70.0 / 2.6 | 25.4 | 5.8 | 366 | 25.7 / 11.8 |
+| 1900 | 88.7 | 4.3 / 81.2 / 3.1 | 26.9 | 5.9 | 358 | 26.8 / 12.4 |
+| 1950 | 99.6 | 7.0 / 89.6 / 3.1 | 29.1 | 6.1 | 359 | 28.0 / 13.1 |
+| 2010 | 125.2 | 15.1 / 106.7 / 3.4 | 33.9 | 6.4 | 345 | 32.4 / 16.1 |
+| 2020 | 130.1 | 20.5 / 106.4 / 3.2 | 34.7 | 6.4 | 324 | 33.9 / 17.1 |
 | census 2010 | 117.0 | 37.7 / 34.2 / 45.1 | 30.5 | | 416 | 31.5 (tower) |
 
 Yearly values. The census is the 50-ha plot's 2010 census on the model's allometry (example 03's
 [`census_stand.csv`](../example03_demography/census_stand.csv)); the tower's GPP is example 04's,
 2012–2017, corrected for its low bias.
 
-- **The early PFT takes the bare ground, the mid PFT the forest.** The early PFT holds 70 % of the
-  biomass in 1650 and falls to 6–9 MgC ha⁻¹ around 1800; the mid PFT overtakes it in 1677. The late
-  PFT peaks at 4 MgC ha⁻¹ near 1870 and holds 2.6–3.8 since, against the census's 45. Time is not what it
+- **The early PFT takes the bare ground, the mid PFT the forest.** The early PFT holds 68 % of the
+  biomass in 1650 and falls to 4–9 MgC ha⁻¹ around 1800; the mid PFT overtakes it in 1675. The late
+  PFT peaks at 4 MgC ha⁻¹ near 1870 and holds 2.8–3.8 since, against the census's 45. Time is not what it
   lacks: it stays that small for four centuries. The PFTs are wood-density classes, not the census's
   successional guilds.
-- **Under pre-industrial CO₂ the forest levels off at 82–93 MgC ha⁻¹**, three quarters of today's
-  census; it reaches half the census's biomass by 1670. From 1900 the CO₂ rise lifts GPP from 27.1 to
-  32.6 MgC ha⁻¹ yr⁻¹ and the biomass by 35 MgC ha⁻¹, to 127 in 2010 against the census's 117.
-- **The model still gains biomass**, 0.5 MgC ha⁻¹ yr⁻¹ over 1985–2010, while the plot lost a
-  little (121.2 to 117.0 on the same allometry). The early PFT returns after 1950, from 6 to 24
+- **Under pre-industrial CO₂ the forest levels off at 79–89 MgC ha⁻¹**, nearly three quarters of today's
+  census; it reaches half the census's biomass by 1681. From 1900 the CO₂ rise lifts GPP from 26.8 to
+  32.4 MgC ha⁻¹ yr⁻¹ and the biomass by 37 MgC ha⁻¹, to 125 in 2010 against the census's 117.
+- **The model still gains biomass**, 0.6 MgC ha⁻¹ yr⁻¹ over 1985–2010, while the plot lost a
+  little (121.2 to 117.0 on the same allometry). The early PFT returns after 1950, from 7 to 21
   MgC ha⁻¹ by 2020.
-- **The stand's structure is steady over the last three centuries**: LAI 5.8–6.4, 300–400 trees
-  above 10 cm a hectare (the census 416), evapotranspiration 1,400–1,520 mm a year.
+- **The stand's structure is steady over the last three centuries**: LAI 5.8–6.4, 320–410 trees
+  above 10 cm a hectare (the census 416), evapotranspiration 1,350–1,490 mm a year.
   ERA5-Land's hourly drizzle keeps the canopy wet and raises this figure; it is a property of the
   forcing, described in [the canopy's surface water](../../docs/science/vegetation_energy_dynamics.md).
 
@@ -73,19 +72,19 @@ Diameter growth [cm yr⁻¹], model / census, by size class:
 
 | diameter [cm] | early | mid | late |
 |---|---|---|---|
-| 1–2 | 0.093 / 0.130 | 0.089 / 0.056 | 0.056 / 0.044 |
-| 2–5 | 0.132 / 0.155 | 0.103 / 0.070 | 0.078 / 0.052 |
-| 5–10 | 0.219 / 0.201 | 0.192 / 0.126 | 0.117 / 0.084 |
-| 10–20 | 0.368 / 0.231 | 0.345 / 0.247 | 0.198 / 0.119 |
-| 20–50 | 0.84 / 0.52 | 0.71 / 0.31 | 0.39 / 0.22 |
-| 50–100 | 1.26 / 0.56 | 0.98 / 0.33 | 0.67 / 0.35 |
-| ≥ 100 | 1.12 / 0.28 | | 0.78 / 0.47 |
+| 1–2 | 0.095 / 0.130 | 0.089 / 0.056 | 0.057 / 0.044 |
+| 2–5 | 0.131 / 0.155 | 0.103 / 0.070 | 0.077 / 0.052 |
+| 5–10 | 0.218 / 0.201 | 0.191 / 0.126 | 0.117 / 0.084 |
+| 10–20 | 0.362 / 0.231 | 0.340 / 0.247 | 0.197 / 0.119 |
+| 20–50 | 0.80 / 0.52 | 0.68 / 0.31 | 0.39 / 0.22 |
+| 50–100 | 1.23 / 0.56 | 0.96 / 0.33 | 0.67 / 0.35 |
+| ≥ 100 | 1.07 / 0.28 | | 0.77 / 0.47 |
 
-- **Below 20 cm the model grows 0.72–1.67 times the census**, the early PFT's saplings slow, the mid
-  and late PFTs' 28–67 % fast.
-- **Above 20 cm it grows 1.6–4.0 times as fast**, most for the biggest early-PFT trees.
-- **By light it is too steep.** Under less than 3 m² m⁻² of taller leaves the model grows 1.7–4.3
-  times the census, under 3–6 0.1–1.7 times, and under more than 6 0.1–2.5 times. The census's
+- **Below 20 cm the model grows 0.73–1.66 times the census**, the early PFT's saplings slow, the mid
+  and late PFTs' 29–66 % fast.
+- **Above 20 cm it grows 1.5–3.8 times as fast**, most for the biggest early-PFT trees.
+- **By light it is too steep.** Under less than 3 m² m⁻² of taller leaves the model grows 1.7–4.1
+  times the census, under 3–6 0.1–1.7 times, and under more than 6 0.1–2.3 times. The census's
   overtopping LAI, the leaf area of taller trees within 20 m, is a noisy measure of a tree's light,
   which flattens the census's own response to it.
 
@@ -93,22 +92,22 @@ The stand's carbon budget, the mean of the trial's years 2–5 [MgC ha⁻¹ yr�
 
 | | model | BCI |
 |---|---|---|
-| GPP | 31.4 | 31.5 (tower 2012–2017, corrected; example 04) |
-| NPP (net of all plant respiration) | 12.5 | |
+| GPP | 31.2 | 31.5 (tower 2012–2017, corrected; example 04) |
+| NPP (net of all plant respiration) | 12.4 | |
 | leaf NPP | 2.3 | 2.7–3.5 (leaf litterfall) |
-| aboveground wood NPP | 4.5 | 2.4 (census 2005–2010, on the model's allometry) |
-| fine roots' share of NPP | 26 % | 27 ± 11 % (Malhi et al. 2011, 35 tropical forests) |
-| root respiration, rhizosphere included | 5.5 | 5.5–5.8 (Gigante, Manaus) |
-| aboveground stem respiration | 4.5 | 4.2–5.1 (stem CO₂ efflux, Amazon and La Selva) |
+| aboveground wood NPP | 4.4 | 2.4 (census 2005–2010, on the model's allometry) |
+| fine roots' share of NPP | 27 % | 27 ± 11 % (Malhi et al. 2011, 35 tropical forests) |
+| root respiration, rhizosphere included | 5.4 | 5.5–5.8 (Gigante, Manaus) |
+| aboveground stem respiration | 4.4 | 4.2–5.1 (stem CO₂ efflux, Amazon and La Selva) |
 | reproduction | 0.7 | about 0.5 (flowers and fruit in BCI's litter traps; Chave et al. 2010) |
-| root exudate (the sink limit's surplus) | 0.5 | |
+| root exudate (the sink limit's surplus) | 0.4 | |
 
 GPP, the respiration and the roots match. The canopy makes too little leaf and too much wood,
 likely for want of two sinks the model lacks or undercounts: its canopy leaves turn over more
 slowly than BCI's litterfall implies, and it sheds no branches, so the carbon goes into stems.
 
 To redo it (example 03's census files first: `python ../example03_demography/prepare_census.py DIR`),
-`python calibrate_growth.py check` (about 2.5 minutes on 8 threads). The same script can also search
+`python calibrate_growth.py check` (about 3 minutes on 8 threads). The same script can also search
 three parameters against the census (`design`, `run`, `fit` and `final`; its docstring says how): it
 fitted the reproduction onset height, `min_repro_height` = 5.27 m.
 [`calibrate_recruitment.py`](calibrate_recruitment.py)
@@ -167,7 +166,7 @@ python run_example.py --plot-only                            # redraw regenerati
 The first step cuts BCI's ERA5-Land cell out of the processed archive
 ([`make_forcing_file.py`](../../scripts/prepare_input/era5/make_forcing_file.py); about 7 minutes) into
 `data/`; the archive is `--era5-archive` or the environment variable `ERA5LAND_ARCHIVE`. The run
-takes about 1.4 hours on 20 threads with the production build (`EDMORE_LIB=../../build-production/libedmore.so`)
+takes about 1.2 hours on 20 threads with the production build (`EDMORE_LIB=../../build-production/libedmore.so`)
 and writes monthly and yearly site, PFT and size-class totals to
 `output/`, with the full stand checkpointed every 20 years.
 
@@ -193,11 +192,11 @@ this stand:
 
 | 2009–2010 | ED-MORE | Target |
 |---|---|---|
-| Leaf litter [kg dry m⁻² yr⁻¹] | 0.49 | 0.5 (litter traps 0.54) |
+| Leaf litter [kg dry m⁻² yr⁻¹] | 0.48 | 0.5 (litter traps 0.54) |
 | AGB growth of trees ≥ 10 cm [kg dry m⁻² yr⁻¹] | 0.47 | 0.3–0.5 |
-| Relative AGB growth, Ds / D / BD / E [% yr⁻¹] | 5.6 / 4.1 / 3.0 / 1.1 | 5 / 2–3 / 2–3 / 1–2 |
-| Lowest leaf cover, Ds / D / BD / E | 0.02 / 0.01 / 0.32 / 0.76 | bare / bare / 0.25–0.5 / ≥ 0.5 |
-| Stand LAI, March–April / wet season | 2.2 / 5.0 | MODIS 1.5 / 5.3 |
+| Relative AGB growth, Ds / D / BD / E [% yr⁻¹] | 5.7 / 4.1 / 3.0 / 1.0 | 5 / 2–3 / 2–3 / 1–2 |
+| Lowest leaf cover, Ds / D / BD / E | 0.00 / 0.00 / 0.30 / 0.73 | bare / bare / 0.25–0.5 / ≥ 0.5 |
+| Stand LAI, March–April / wet season | 1.9 / 5.0 | MODIS 1.5 / 5.3 |
 | Mortality of trees ≥ 10 cm, Ds / D / BD / E [% yr⁻¹] | 2.5 / 1.2 / 0.7 / 0.5 | 0.7–3.1 for the plots (Powers et al. 2020) |
 
 ### The regrowth
@@ -217,23 +216,23 @@ trees of 10 cm and more.
 
 | | ED-MORE, 150 years | 2009 inventory |
 |---|---|---|
-| AGB [MgC ha⁻¹], all / Ds / D / BD / E | 78 / 21 / 3 / 8 / 46 | 88 / 2 / 16 / 56 / 14 |
-| basal area [m² ha⁻¹] | 24.1 | 21.8 |
-| trees ≥ 10 cm [ha⁻¹] | 599 | 460 |
+| AGB [MgC ha⁻¹], all / Ds / D / BD / E | 69 / 29 / 6 / 2 / 32 | 88 / 2 / 16 / 56 / 14 |
+| basal area [m² ha⁻¹] | 24.0 | 21.8 |
+| trees ≥ 10 cm [ha⁻¹] | 342 | 460 |
 
-- **The soft-wooded deciduous PFT takes the bare ground.** Ds holds 80–95 % of the biomass for 50
-  years, peaking at 36 MgC ha⁻¹ at 63 years, and thins after; E builds up beneath it and passes it
-  at 125 years, while BD stays below 9 MgC ha⁻¹. Basal area reaches 16 m² ha⁻¹ within four years and
-  holds there until year 30, a dense Ds stand of up to 1,080 trees ≥ 10 cm ha⁻¹ at 14 years, which
-  thins to 210 by 90 years.
-- **After 150 years the biomass is 89 % of the inventory's, and the mix is not the inventory's.** The
-  evergreen PFT holds 3.3 times the inventory's biomass and Ds 10 times, D a fifth of its and BD a
-  seventh; the stand still gains 0.4 MgC ha⁻¹ a year.
+- **The soft-wooded deciduous PFT takes the bare ground.** Ds holds 85–97 % of the biomass from the
+  fifth year to the fiftieth, peaking at 38 MgC ha⁻¹ at 81 years, and thins after; E builds up beneath
+  it and passes it at 147 years, while D and BD stay below 7 and 3 MgC ha⁻¹. Basal area reaches 16 m² ha⁻¹
+  within four years and holds there until year 30, a dense Ds stand of up to 1,060 trees ≥ 10 cm ha⁻¹ at
+  14 years, which thins to 220 by 90 years.
+- **After 150 years the biomass is 79 % of the inventory's, and the mix is not the inventory's.** The
+  evergreen PFT holds 2.3 times the inventory's biomass and Ds 14 times, D a third of its and BD a
+  twentieth; the stand still gains 0.4 MgC ha⁻¹ a year.
 - **The first decades are slow:** 24 MgC ha⁻¹ after 20 years, against 71 on Palo Verde's
   chronosequence (143 dry Mg ha⁻¹), the same shortfall as across example 06's region.
-- **The canopy grows more evergreen.** The driest month's leaf area averages 0.8 in the first thirty
-  years and 3.0 in the last ten (the wettest month 5.8); in the 2009 stand it is 2.2 (MODIS 1.5). GPP
-  stays at 26–28 MgC ha⁻¹ yr⁻¹, and evapotranspiration is 984 mm a year in the last ten years.
+- **The canopy grows more evergreen.** The driest month's leaf area averages 0.6 in the first thirty
+  years and 2.2 in the last ten (the wettest month 5.7); in the 2009 stand it is 1.9 (MODIS 1.5). GPP
+  stays at 25–28 MgC ha⁻¹ yr⁻¹, and evapotranspiration is 962 mm a year in the last ten years.
 
 ### Run
 
@@ -249,7 +248,7 @@ forcing cut into `palo_verde/data/`; the inventory check reads the archive itsel
 copy of `ed_config_inventory.toml` with the archive's folder in `[forcing].data_path`
 (`palo_verde/output/config/inventory.toml`). To run that config by hand, set `data_path` to the folder.
 The forcing cut takes about 6 minutes; with the production build
-(`--edmore ../../../build-production/edmore`), the inventory check takes about 1.5 minutes and
+(`--edmore ../../../build-production/edmore`), the inventory check takes about a minute and
 the regrowth about 20 minutes on 12 threads (`[run].n_threads`). Output goes to `palo_verde/output/`.
 
 ## Plotting the diagnostic files

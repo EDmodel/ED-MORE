@@ -84,7 +84,7 @@ ed_fortran_flags(ed_testfastfixture)
 #  ed_share alone; test_optics_lib also the config layer, whose ed_pft_derive turns a         #
 #  PFT's leaf-angle moments into the LIDF's Beta parameters.                                  #
 #==========================================================================================#
-foreach(t numerics therm_lib plant_hydr_lib soil_hydr_lib optics_lib radiation_lib)
+foreach(t numerics therm_lib plant_hydr_lib soil_hydr_lib ground_surface_lib optics_lib radiation_lib)
    ed_add_test(${t} SOURCES share/test_${t}.f90 LINK ed_share ed_testassert LABELS unit)
 endforeach()
 target_link_libraries(test_optics_lib PRIVATE ed_config)
@@ -271,7 +271,9 @@ set(refused_cases config_unknown_keys config_bad_choice config_inapplicable_keys
 if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
    list(APPEND refused_cases soil_nan_layer)
 endif()
-list(APPEND refused_cases toml_unclosed_string toml_duplicate_key config_fineroot_plastic init_soil_temp_layers)
+list(APPEND refused_cases toml_unclosed_string toml_duplicate_key config_fineroot_plastic init_soil_temp_layers
+                          ground_surface_layer_residual ground_surface_layer_moved ground_surface_layer_moss_thin
+                          ground_surface_layer_fresh_density)
 foreach(case IN LISTS refused_cases)
    ed_add_test(${case}_refused
                COMMAND ${CMAKE_COMMAND} -DEDMORE_MAIN=$<TARGET_FILE:ed_main> -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
@@ -377,13 +379,15 @@ ed_add_pytest(output_diel PATH ${CMAKE_CURRENT_SOURCE_DIR}/python/test_output_di
               IMPORTS numpy netCDF4 pytest ENVIRONMENT EDMORE_MAIN=$<TARGET_FILE:ed_main> LABEL integration)
 #----- The input tools' tests (scripts/prepare_input): a tower forcing file from flux-tower         #
 #      data, an ERA5-Land forcing file from the archive or box files, a census from a ForestGEO     #
-#      table, and the PFT traits that follow published fits.                                        #
+#      table, the PFT traits that follow published fits, and a soil horizon's properties.           #
 ed_add_pytest(prepare_flux_tower PATH ${PROJECT_SOURCE_DIR}/scripts/prepare_input/flux_tower/tests
               IMPORTS numpy pandas netCDF4 pytest LABEL python)
 ed_add_pytest(prepare_era5 PATH ${PROJECT_SOURCE_DIR}/scripts/prepare_input/era5/tests
               IMPORTS numpy netCDF4 pytest LABEL python)
 ed_add_pytest(prepare_census PATH ${PROJECT_SOURCE_DIR}/scripts/prepare_input/census/tests
               IMPORTS numpy pandas pytest LABEL python)
+ed_add_pytest(prepare_soil PATH ${PROJECT_SOURCE_DIR}/scripts/prepare_input/soil/tests
+              IMPORTS pandas pytest LABEL python)
 ed_add_pytest(pft_traits PATH ${PROJECT_SOURCE_DIR}/scripts/prepare_input/pft_traits/tests
               IMPORTS pytest LABEL python)
 #----- The fast-parameter calibration (scripts/calibrate_fast/tests): the unit tests, a smoke       #

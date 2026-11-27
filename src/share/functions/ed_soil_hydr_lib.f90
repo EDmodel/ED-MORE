@@ -16,6 +16,7 @@
 !---~---
 module ed_soil_hydr_lib
    use ed_kinds,       only : wp, ik
+   use ed_numerics,    only : within_roundoff
    use ed_constants,   only : grav_head, rho_h2o, day_sec, tiny_num, grav, t_3ple, latent_heat_fusion
    implicit none
    private
@@ -25,14 +26,14 @@ module ed_soil_hydr_lib
    !--- Retention curve: theta(head), head(theta) and potential(theta) read-offs.
    public :: SOIL_RETENTION_VG, SOIL_RETENTION_CAMPBELL, VG_PORE_CONNECTIVITY
    public :: soil_head_to_theta, soil_theta_to_head, soil_matric_potential, soil_theta_to_saturation
-   public :: soil_liquid_capacity
+   public :: soil_liquid_capacity, curve_kinks, on_curve_corner, PSI_AIR_DRY
    !---~---
    !   The water relations the soil-plant water solver uses, in the variable it solves
    ! for: a soil layer's saturation (dry) or potential (wet), the pond's head.
    !---~---
    public :: SOIL_SPECIFIC_STORAGE, POND_DEPRESSION_DEPTH
    public :: soil_layer_curve_t, build_soil_layer_curve, soil_water_relations, soil_theta_to_unknown
-   public :: soil_ice_t, soil_ice_state
+   public :: soil_ice_t, soil_ice_state, ice_impedance
    public :: pond_water_relations, pond_water_to_head
 
    !--- One soil layer as the soil maps describe it (SoilGrids 2.0's quantities).
@@ -73,6 +74,8 @@ module ed_soil_hydr_lib
    ! none.
    !---~---
    real(wp), parameter :: SE_MIN = 1.0e-9_wp
+   !--- CLM5 eq 5.78: the 'air dry' matric head [m], where a soil counts as dry (CLM5's 1e7 mm).
+   real(wp), parameter :: PSI_AIR_DRY = -1.0e4_wp
    !---~---
    !   The largest logarithm the dry-soil head is evaluated at: e^700 m of head is far
    ! beyond any physical soil and still finite in double precision.
@@ -112,7 +115,13 @@ module ed_soil_hydr_lib
    ! theta_ice/theta_sat) (CLM5, Swenson et al. 2012). Once the liquid fills the
    ! pores the ice leaves, the liquid's head rises from the head they filled at with
    ! no more water, and above zero through SOIL_SPECIFIC_STORAGE, as a thawed
-   ! layer's does. A record at its defaults is a layer with no ice.
+   ! layer's does. Water drawn below the liquid the layer starts with comes from the
+   ! ice: the ice melts and the liquid stays at its start, the freezing curve's
+   ! potential, until the ice is gone (the melt plateau, tau_dry to tau_melt). A layer
+   ! that starts holding less than its residual carries the water it lacks as an offset
+   ! (deficit): its unknown starts at its curve's dry end and its water is the curve's less the
+   ! lack, so its mass is exact and its potential the dry end's, whatever the store, a soil layer
+   ! or a porous layer. A record at its defaults is a layer with no ice and no lack.
    !---~---
    type :: soil_ice_t
       real(wp) :: theta_ice  = 0.0_wp          ! [m3/m3] the ice
@@ -121,10 +130,25 @@ module ed_soil_hydr_lib
       real(wp) :: head_full  = 0.0_wp          ! [m] the head there
       real(wp) :: dhead_full = 0.0_wp          ! [m per unit tau] the head's slope there, kept beyond
       real(wp) :: k_full     = 0.0_wp          ! [m/s] the liquid's conductivity there, unimpeded
+      real(wp) :: tau_melt   = -huge(1.0_wp)   ! the unknown of the liquid the layer starts with, the plateau's top
+      real(wp) :: tau_dry    = -huge(1.0_wp)   ! the unknown at which the plateau's ice is gone
+      real(wp) :: w_melt     = 0.0_wp          ! [kg/m2] that liquid
+      real(wp) :: head_melt  = 0.0_wp          ! [m] its head, the freezing curve's
+      real(wp) :: k_melt     = 0.0_wp          ! [m/s] its conductivity, unimpeded
+      real(wp) :: deficit    = 0.0_wp          ! [kg/m2] the water the layer lacks of its residual at its start
    end type soil_ice_t
 
    !--- [-] CLM5's ice impedance exponent (Swenson et al. 2012, e_ice).
    real(wp), parameter :: ICE_IMPEDANCE_EXP = 6.0_wp
+   !---~---
+   !   [-] The lowest the melt plateau reaches, as a share of its top's unknown. The plateau spans
+   ! the unknown its ice's water would span on the liquid's curve at the layer's start, so the
+   ! layer's water keeps its slope where the ice takes over; a layer with more ice than that fits
+   ! ends the plateau here. Below it the ice is gone and the liquid's curve resumes, stretched
+   ! over (0, tau_dry] so the layer's water, potential and conductivity join the plateau's
+   ! continuously and the unknown stays positive. A choice of scale only: it moves no answer.
+   !---~---
+   real(wp), parameter :: MELT_DRY_SHARE = 0.5_wp
 
    !---~---
    !   [m] Depth of the surface's small hollows, which the pond fills before a head
@@ -331,18 +355,52 @@ contains
    ! Dry of the branch point tau is the effective saturation Se; wet of it tau runs
    ! linearly with the potential, at the slope that joins the two branches smoothly.
    ! Above saturation the layer stores water through SOIL_SPECIFIC_STORAGE instead of
-   ! being clipped. With ice, tau measures the liquid alone: the layer's water is the
-   ! liquid's and the ice's, and its conductivity the liquid's times the ice's
-   ! impedance (soil_ice_t).
+   ! being clipped. With ice, tau measures the liquid alone above the liquid the layer
+   ! starts with: the layer's water is the liquid's and the ice's, and its conductivity
+   ! the liquid's times the ice's impedance (soil_ice_t). Below that start the ice melts
+   ! to supply the water, at the start's potential, until it is gone.
    !---~---
    elemental subroutine soil_water_relations(c, ice, tau, psi, dpsi, w, dw, kcond, dkcond)
+      type(soil_layer_curve_t), intent(in)  :: c
+      type(soil_ice_t),         intent(in)  :: ice
+      real(wp),                 intent(in)  :: tau
+      real(wp),                 intent(out) :: psi, dpsi, w, dw, kcond, dkcond   ! as layer_water_relations's
+      call layer_water_relations(c, ice, tau, psi, dpsi, w, dw, kcond, dkcond)
+      w = w - ice%deficit
+   end subroutine soil_water_relations
+
+   !--- soil_water_relations of a layer that lacks none of its residual.
+   elemental subroutine layer_water_relations(c, ice, tau, psi, dpsi, w, dw, kcond, dkcond)
       type(soil_layer_curve_t), intent(in)  :: c
       type(soil_ice_t),         intent(in)  :: ice
       real(wp),                 intent(in)  :: tau
       real(wp),                 intent(out) :: psi, dpsi    ! [MPa], [MPa per unit tau]
       real(wp),                 intent(out) :: w, dw        ! [kg/m2], [kg/m2 per unit tau]
       real(wp),                 intent(out) :: kcond, dkcond ! [m/s], [m/s per unit tau]
-      real(wp) :: head
+      real(wp) :: head, stretch
+      if (tau <= ice%tau_melt) then
+         if (tau >= ice%tau_dry) then
+            !---~---
+            !   The melt plateau: the water comes from the ice, which melts as the liquid would
+            ! fall below its start, so the liquid's potential and conductivity stay the start's.
+            !---~---
+            psi    = grav_head * ice%head_melt
+            dpsi   = 0.0_wp
+            dw     = rho_h2o * c%dz * ice%theta_ice / (ice%tau_melt - ice%tau_dry)
+            w      = ice%w_melt + (tau - ice%tau_dry) * dw
+            kcond  = ice%k_melt * ice%impedance
+            dkcond = 0.0_wp
+            return
+         end if
+         !--- The ice is gone: the liquid falls below its start, on its curve stretched over (0, tau_dry].
+         stretch = ice%tau_melt / ice%tau_dry
+         call liquid_water_relations(c, tau * stretch, psi, dpsi, w, dw, kcond, dkcond)
+         dpsi   = dpsi * stretch
+         dw     = dw * stretch
+         kcond  = kcond * ice%impedance
+         dkcond = dkcond * stretch * ice%impedance
+         return
+      end if
       if (tau > ice%tau_full) then
          !---~---
          !   The pores are full: the liquid's head rises from where they filled with no more
@@ -363,7 +421,7 @@ contains
       w      = w + rho_h2o * c%dz * ice%theta_ice
       kcond  = kcond * ice%impedance
       dkcond = dkcond * ice%impedance
-   end subroutine soil_water_relations
+   end subroutine layer_water_relations
 
    !--- soil_water_relations of a layer with no ice.
    elemental subroutine liquid_water_relations(c, tau, psi, dpsi, w, dw, kcond, dkcond)
@@ -403,39 +461,71 @@ contains
       end if
    end subroutine liquid_water_relations
 
-   !---~---
-   !   A layer's ice record (soil_ice_t) for theta_ice [m3/m3]: its impedance, and
-   ! where on the curve the liquid fills the pores the ice leaves. A layer that is
-   ! nearly all ice fills at the curve's driest start, SE_MIN.
-   !---~---
-   elemental function soil_ice_state(c, theta_ice) result(ice)
+   !--- The factor theta_ice [m3/m3] of ice puts on a layer's conductivity (soil_ice_t).
+   elemental real(wp) function ice_impedance(c, theta_ice) result(impedance)
       type(soil_layer_curve_t), intent(in) :: c
       real(wp),                 intent(in) :: theta_ice
+      impedance = 10.0_wp ** (-ICE_IMPEDANCE_EXP * max(theta_ice, 0.0_wp) / c%theta_sat)
+   end function ice_impedance
+
+   !---~---
+   !   A layer's ice record (soil_ice_t) for theta_ice [m3/m3] of ice beside theta_liq
+   ! [m3/m3] of liquid, the layer's start: the water it lacks of its residual, if it holds less,
+   ! its liquid then taken as the residual's less its ice; its impedance; where on the curve the
+   ! liquid fills the pores the ice leaves; and the melt plateau, from the liquid it starts with
+   ! (at most the pores the ice leaves) down as far as its ice lasts at the liquid's slope
+   ! there, and no further than MELT_DRY_SHARE of that unknown. A layer
+   ! that is nearly all ice fills at the curve's driest start, SE_MIN.
+   !---~---
+   elemental function soil_ice_state(c, theta_ice, theta_liq) result(ice)
+      type(soil_layer_curve_t), intent(in) :: c
+      real(wp),                 intent(in) :: theta_ice
+      real(wp),                 intent(in) :: theta_liq
       type(soil_ice_t) :: ice
-      real(wp) :: psi, dpsi, w, dw, dk
+      real(wp) :: psi, dpsi, w, dw, dk, liq
+      ice%deficit = max(0.0_wp, c%theta_res - theta_ice - theta_liq) * rho_h2o * c%dz
+      liq = theta_liq + ice%deficit / (rho_h2o * c%dz)
       if (theta_ice <= 0.0_wp) return
       ice%theta_ice = theta_ice
-      ice%impedance = 10.0_wp ** (-ICE_IMPEDANCE_EXP * theta_ice / c%theta_sat)
+      ice%impedance = ice_impedance(c, theta_ice)
       ice%tau_full  = liquid_theta_to_unknown(c, c%theta_sat - theta_ice)
       call liquid_water_relations(c, ice%tau_full, psi, dpsi, w, dw, ice%k_full, dk)
       ice%head_full  = psi / grav_head
       ice%dhead_full = dpsi / grav_head
+      ice%tau_melt   = min(liquid_theta_to_unknown(c, min(liq, c%theta_sat - theta_ice)), ice%tau_full)
+      call liquid_water_relations(c, ice%tau_melt, psi, dpsi, ice%w_melt, dw, ice%k_melt, dk)
+      ice%head_melt  = psi / grav_head
+      !--- The plateau stores the ice at the liquid's slope there, down to MELT_DRY_SHARE of the start at most.
+      ice%tau_dry    = ice%tau_melt - min(rho_h2o * c%dz * theta_ice / max(dw, tiny_num),                      &
+                                          (1.0_wp - MELT_DRY_SHARE) * ice%tau_melt)
    end function soil_ice_state
 
    !---~---
    !   The unknown tau of a layer holding theta [m3/m3] of water, liquid and ice, the
-   ! inverse of soil_water_relations's water.
+   ! inverse of soil_water_relations's water: the curve's at theta and the water the layer
+   ! lacks of its residual (soil_ice_t's deficit).
    !---~---
-   elemental function soil_theta_to_unknown(c, ice, theta) result(tau)
+   elemental function soil_theta_to_unknown(c, ice, theta_held) result(tau)
       type(soil_layer_curve_t), intent(in) :: c
       type(soil_ice_t),         intent(in) :: ice
-      real(wp),                 intent(in) :: theta
+      real(wp),                 intent(in) :: theta_held
       real(wp) :: tau
+      real(wp) :: theta_melt, theta
+      theta = theta_held + ice%deficit / (rho_h2o * c%dz)
       if (ice%theta_ice > 0.0_wp .and. theta > c%theta_sat) then
          tau = ice%tau_full + ((theta - c%theta_sat) / SOIL_SPECIFIC_STORAGE - ice%head_full) / ice%dhead_full
-      else
-         tau = liquid_theta_to_unknown(c, theta - ice%theta_ice)
+         return
       end if
+      theta_melt = ice%w_melt / (rho_h2o * c%dz)                ! the liquid the layer started with
+      if (ice%theta_ice > 0.0_wp .and. theta < theta_melt + ice%theta_ice) then
+         if (theta >= theta_melt) then                          ! on the melt plateau
+            tau = ice%tau_dry + (theta - theta_melt) / ice%theta_ice * (ice%tau_melt - ice%tau_dry)
+         else                                                   ! the ice gone
+            tau = liquid_theta_to_unknown(c, theta) * ice%tau_dry / ice%tau_melt
+         end if
+         return
+      end if
+      tau = liquid_theta_to_unknown(c, theta - ice%theta_ice)
    end function soil_theta_to_unknown
 
    !---~---
@@ -620,5 +710,43 @@ contains
          h = depth + 0.5_wp * POND_DEPRESSION_DEPTH
       end if
    end function pond_water_to_head
+
+   !---~---
+   !   The kinks of a layer curve's storage in its unknown that a Newton step should land on
+   ! rather than cross: Campbell's air entry, where its storage's slope jumps; van Genuchten's
+   ! curve has none. The joins a node sits on (zero head, a frozen layer's plateau) are not listed:
+   ! a step chopped there would stall.
+   !---~---
+   pure subroutine curve_kinks(c, kinks, n)
+      type(soil_layer_curve_t), intent(in)  :: c
+      real(wp),                 intent(out) :: kinks(:)   ! [-] in the curve's unknown
+      integer(ik),              intent(out) :: n
+      n = 0_ik
+      if (c%retention /= SOIL_RETENTION_CAMPBELL) return
+      n = 1_ik
+      kinks(1) = c%se_switch
+   end subroutine curve_kinks
+
+   !---~---
+   !   Whether a frozen layer's unknown tau sits, to round-off, on a corner of its curve, where its
+   ! water and its potential change their slopes in the unknown at once (soil_water_relations): its
+   ! melt plateau's top and the point its liquid fills the pores the ice leaves, where its potential
+   ! turns from fixed to rising and its storage from the ice's to none, and zero head above them,
+   ! where the specific storage begins. A frozen layer whose pores ice and liquid fill starts every
+   ! step on one. A Newton step linearised there holds one side of the corner only. A layer with no
+   ! ice has none: its storage alone breaks, at zero head and at Campbell's air entry, a kink a step
+   ! is chopped at (curve_kinks).
+   !---~---
+   pure logical function on_curve_corner(ice, tau) result(on)
+      type(soil_ice_t),         intent(in) :: ice
+      real(wp),                 intent(in) :: tau
+      real(wp) :: corner(3)
+      on = .false.
+      if (.not. (ice%theta_ice > 0.0_wp)) return
+      corner(1) = ice%tau_melt
+      corner(2) = ice%tau_full
+      corner(3) = ice%tau_full - ice%head_full / ice%dhead_full
+      on = any(within_roundoff(tau - corner, abs(corner)))
+   end function on_curve_corner
 
 end module ed_soil_hydr_lib

@@ -18,6 +18,7 @@ module ed_fast_dynamics
    use ed_met,                  only : met_co2
    use ed_forcing_params,       only : CO2_SOURCE_FILE
    use ed_polygon_state_vars,   only : polygon_t, patch_polygon_area
+   use ed_patch_state_vars,     only : ground_top_temp
    use ed_fast_integ_types,         only : fast_static_state_t, fast_dynamic_state_t, fast_forcing_t, fast_output_t,   &
                                        fast_workspace_t, step_report_t, surface_source_slopes_t,                 &
                                        ensure_static_capacity,                                                   &
@@ -80,7 +81,7 @@ contains
    !---~---
    subroutine fast_dynamics(poly, cfg, met_src, met_cur, step_start, worst_energy, worst_water,  &
                             n_budget_fail, out_bufs, run_energy_budget, run_water_budget,      &
-                            run_face_budget, patch_threads)
+                            run_face_budget, patch_threads, run_work)
       type(polygon_t),      intent(inout) :: poly
       type(ed_config_t),  intent(in)      :: cfg
       type(met_source_t), optional, intent(in)    :: met_src       ! the run's forcing source (read-only here)
@@ -98,6 +99,8 @@ contains
       type(budget_t), optional, intent(inout) :: run_face_budget
       !--- Threads for the patch loop: [run].n_threads in a one-polygon run, else 1 (the default).
       integer(ik),         optional, intent(in) :: patch_threads
+      !--- Run-level work counts (WORK_*), every patch's steps summed, unweighted.
+      integer(ik),         optional, intent(inout) :: run_work(:)
 
       !---~---
       !   The window's samples, each site's after its terrain, and their times: the same for every
@@ -116,6 +119,7 @@ contains
       type(budget_t), allocatable :: red_budget_energy(:), red_budget_water(:) ! (patch); area-merged
       type(budget_t), allocatable :: red_budget_face(:)                        ! (patch); area-merged
       integer(ik),    allocatable :: red_nfail(:)                              ! (patch) budget-failure counts
+      integer(ik),    allocatable :: patch_work(:,:)                             ! (N_WORK, patch) work over the steps
       real(wp),       allocatable :: rain_sub(:), snow_sub(:)                  ! (sub-step) the patches' split
       type(budget_t) :: site_energy_budget, site_water_budget, site_face_budget
       !---~---
@@ -125,6 +129,7 @@ contains
       !---~---
       type(fast_step_data_t), allocatable :: step_data(:)
       real(wp)    :: area
+      real(wp)    :: t_buried   ! [K] the ground's surface, where a buried crown sits
       integer(ik) :: ip, isub, npatch, ncoh_max, nsub, n_thread, ith, is_p, k, iv
       integer(ik), allocatable :: visit(:)          ! the patch loop's order, costliest first
       real(wp),    allocatable :: neg_cost(:)
@@ -176,7 +181,7 @@ contains
       allocate(red_budget_energy(max(npatch,1_ik)), red_budget_water(max(npatch,1_ik)))
       allocate(red_budget_face(max(npatch,1_ik)))
       allocate(red_worst_energy(max(npatch,1_ik)), red_worst_water(max(npatch,1_ik)),               &
-               red_nfail(max(npatch,1_ik)))
+               red_nfail(max(npatch,1_ik)), patch_work(N_WORK, max(npatch,1_ik)))
 
       !--- The step data, sized to the largest patch.
       ncoh_max = 0_ik
@@ -211,7 +216,7 @@ contains
       ! step data.
       !---~---
       !$omp parallel do default(shared) schedule(monotonic: dynamic, 1) num_threads(n_thread)       &
-      !$omp    private(iv, ip, ith, isub, is_p, area, k, tick0, tick1, tick_rate)
+      !$omp    private(iv, ip, ith, isub, is_p, area, k, tick0, tick1, tick_rate, t_buried)
       do iv = 1_ik, npatch
          ip = visit(iv)
          call system_clock(tick0, tick_rate)
@@ -229,9 +234,10 @@ contains
          ! which patch before (docs/science/numerical_scheme.md §3, "The stage Newton").
          !---~---
          sd%work%stages%slopes = surface_source_slopes_t()
+         patch_work(:, ip) = 0_ik
          do isub = 1_ik, nsub
             !--- The patch's forcing, the site's air temperature (thermal acclimation) and the precipitation split.
-            call patch_forcing(cfg, sd%static, sd%dynamic, met_site(isub, is_p), do_forcing, sd%forcing)
+            call patch_forcing(cfg, sd%static, met_site(isub, is_p), do_forcing, sd%forcing)
             red_site(RED_TAIR_DAY, isub, ip) = met_site(isub, is_p)%air_temp
             red_site(RED_RAINF,      isub, ip) = area * sd%forcing%rainfall
             red_site(RED_SNOWFALL,   isub, ip) = area * sd%forcing%snowfall
@@ -243,9 +249,12 @@ contains
             do k = 1_ik, N_WORK
                red_site(RED_WORK + k, isub, ip) = area * real(sd%out%report%work(k), wp)
             end do
+            patch_work(:, ip) = patch_work(:, ip) + sd%out%report%work
             call record_substep(poly, ip, isub, cfg%dt_fast, sd%static, sd%dynamic, sd%forcing, sd%out,  &
                                 do_fast, out_bufs)
-            call accumulate_fast_to_slow(poly, cfg, ip, sd%forcing, sd%out, sd%dynamic%cas%can_temp)
+            t_buried = ground_top_temp(sd%dynamic%ground_surface, sd%dynamic%soil_energy%soil_temp(1))
+            call accumulate_fast_to_slow(poly, cfg, ip, sd%forcing, sd%out, sd%dynamic%cas%can_temp,           &
+                                         sd%static%exposed(1:sd%static%n), t_buried)
          end do
          call scatter_patch(sd%dynamic, poly, ip)
 
@@ -322,6 +331,11 @@ contains
          end do
       end if
       if (present(n_budget_fail)) n_budget_fail = sum(red_nfail(1:npatch))
+      if (present(run_work)) then
+         do ip = 1_ik, npatch
+            run_work = run_work + patch_work(:, ip)
+         end do
+      end if
       if (present(run_energy_budget) .or. present(run_water_budget) .or. present(run_face_budget)) then
          site_energy_budget = budget_t()
          site_water_budget = budget_t()

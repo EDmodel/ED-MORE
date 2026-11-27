@@ -605,14 +605,112 @@ contains
 end module test_slow_update_cohorts
 
 !---~---
+!   The ground's surface layers as a gap or a fusion blends them: a ground surface stamped with
+! a pack, a litter and a moss, each where asked; the check that a blend holds each of its
+! extensive fields as the weighted mix of two; and a stand's fields per unit area of its site.
+!---~---
+module test_slow_update_ground
+   use ed_kinds,                 only : wp, ik
+   use ed_therm_lib,             only : temp_to_internal_energy
+   use ed_polygon_state_vars,    only : polygon_t
+   use ed_patch_state_vars,      only : ground_surface_state_t, porous_layer_energy_at
+   use ed_ground_surface_params, only : ground_surface_layer_params_t, POROUS_LITTER, POROUS_MOSS, N_POROUS
+   use ed_test_support,          only : check_close
+   implicit none
+   private
+   public :: ground_layers, check_ground_mix, ground_totals, N_GROUND_FIELD
+
+   !--- The extensive fields: the water layer's water, energy and depth, then each porous layer's matter, water, energy.
+   integer(ik), parameter :: N_GROUND_FIELD = 3_ik + 3_ik * N_POROUS
+   character(len=*), parameter :: FIELD_NAME(N_GROUND_FIELD) = [character(len=24) ::                          &
+      'the water layer''s water', 'the water layer''s energy', 'the water layer''s depth',                       &
+      'the litter''s matter', 'the litter''s water', 'the litter''s energy',                                    &
+      'the moss''s matter', 'the moss''s water', 'the moss''s energy']
+
+contains
+
+   !---~---
+   !   A ground surface holding, where asked, a pack of 40 kg/m2 at 265 K and 16 cm deep, 1.35 kg/m2
+   ! of litter holding 10 kg/m2 of water at 270 K, and 2.15 kg/m2 of moss holding 20 kg/m2 at 280 K.
+   !---~---
+   function ground_layers(o, with_pack, with_litter, with_moss) result(gs)
+      type(ground_surface_layer_params_t), intent(in) :: o
+      logical,                             intent(in) :: with_pack, with_litter, with_moss
+      type(ground_surface_state_t) :: gs
+      if (with_pack) then
+         gs%water%water        = 40.0_wp
+         gs%water%energy       = temp_to_internal_energy(0.0_wp, 40.0_wp, 265.0_wp, 0.0_wp)
+         gs%water%matrix_depth = 0.16_wp
+      end if
+      if (with_litter) then
+         gs%porous(POROUS_LITTER)%matter = 1.35_wp
+         gs%porous(POROUS_LITTER)%water  = 10.0_wp
+         gs%porous(POROUS_LITTER)%energy = porous_layer_energy_at(gs%porous(POROUS_LITTER), o%porous(POROUS_LITTER), &
+                                                                  270.0_wp)
+      end if
+      if (with_moss) then
+         gs%porous(POROUS_MOSS)%matter = 2.15_wp
+         gs%porous(POROUS_MOSS)%water  = 20.0_wp
+         gs%porous(POROUS_MOSS)%energy = porous_layer_energy_at(gs%porous(POROUS_MOSS), o%porous(POROUS_MOSS),       &
+                                                                280.0_wp)
+      end if
+   end function ground_layers
+
+   !--- A ground surface's extensive fields, in FIELD_NAME's order.
+   function ground_fields(gs) result(f)
+      type(ground_surface_state_t), intent(in) :: gs
+      real(wp)    :: f(N_GROUND_FIELD)
+      integer(ik) :: k
+      f(1) = gs%water%water
+      f(2) = gs%water%energy
+      f(3) = gs%water%matrix_depth
+      do k = 1_ik, N_POROUS
+         f(3_ik * k + 1_ik) = gs%porous(k)%matter
+         f(3_ik * k + 2_ik) = gs%porous(k)%water
+         f(3_ik * k + 3_ik) = gs%porous(k)%energy
+      end do
+   end function ground_fields
+
+   !--- Each extensive field of got is w1 times a's plus w2 times b's, to round-off.
+   subroutine check_ground_mix(got, w1, a, w2, b, what)
+      type(ground_surface_state_t), intent(in) :: got, a, b
+      real(wp),                     intent(in) :: w1, w2
+      character(len=*),             intent(in) :: what
+      real(wp)    :: fg(N_GROUND_FIELD), fa(N_GROUND_FIELD), fb(N_GROUND_FIELD)
+      integer(ik) :: j
+      fg = ground_fields(got)
+      fa = ground_fields(a)
+      fb = ground_fields(b)
+      do j = 1_ik, N_GROUND_FIELD
+         call check_close(fg(j), w1 * fa(j) + w2 * fb(j), 1.0e-12_wp,                                           &
+                          what//': '//trim(FIELD_NAME(j))//' is not the area-weighted mix')
+      end do
+   end subroutine check_ground_mix
+
+   !--- The stand's extensive ground-surface fields per m2 of its site, each patch's by its area.
+   function ground_totals(p) result(t)
+      type(polygon_t), intent(in) :: p
+      real(wp)    :: t(N_GROUND_FIELD), f(N_GROUND_FIELD)
+      integer(ik) :: ip
+      t = 0.0_wp
+      do ip = 1_ik, p%patch%n
+         f = ground_fields(p%patch%ground_surface(ip))
+         t = t + p%patch%area(ip) * f
+      end do
+   end function ground_totals
+
+end module test_slow_update_ground
+
+!---~---
 !   Treefall gaps: one gap per site, the survivors' density, the donors' remainder, the area
-! conserved and the diagnostic rows.
+! conserved, the ground's surface layers the gap takes from its donor, and the diagnostic rows.
 !---~---
 module test_slow_update_gaps
    use ed_kinds,              only : wp, ik
    use ed_config,             only : ed_config_t
-   use ed_patch_state_vars,   only : DIST_TREEFALL
+   use ed_patch_state_vars,   only : DIST_TREEFALL, ground_surface_state_t
    use ed_polygon_state_vars, only : polygon_t
+   use test_slow_update_ground, only : ground_layers, check_ground_mix, ground_totals, N_GROUND_FIELD
    use ed_slow_update, only : apply_patch_disturbance
    use ed_diag_vars,                   only : PA_DISTURB_AREA, PA_LE, PA_MORT_C_CULL, alloc_patch_diag, patch_diag_value
    use ed_constants,                   only : yr_sec
@@ -635,6 +733,8 @@ module test_slow_update_gaps
    real(wp)            :: disturb_rate(8)
    real(wp)            :: n_before, h_tall, h_short, surf_water_before, surf_water_after, frac_expect
    real(wp)            :: le(8), le_site, cull_before, cull_after, w_canopy
+   type(ground_surface_state_t) :: gs_donor                                 ! the donor's ground surface
+   real(wp)            :: ground_before(N_GROUND_FIELD), ground_after(N_GROUND_FIELD)
 
 contains
 
@@ -672,6 +772,10 @@ contains
       poly%patch%shed_water_rate(1) = 7.0_wp
       w_canopy = poly%cohort%nplant(1) * (poly%cohort%leaf_water_mass(1) + poly%cohort%wood_water_mass(1))
       call check(w_canopy > 0.0_wp, 'the dying canopy holds tissue water')
+      !--- The donor's ground: a pack on a litter and a moss, which the gap takes per unit area.
+      poly%patch%ground_surface(1) = ground_layers(cfg%ground_surface, .true., .true., .true.)
+      gs_donor = poly%patch%ground_surface(1)
+      ground_before = ground_totals(poly)
 
       call decide_disturbance(poly, cfg, 1.0_wp, dist_frac, dist_survives)
       call apply_patch_disturbance(poly, cfg, dist_frac, dist_survives, shed_water, kills)
@@ -710,6 +814,14 @@ contains
       call check_close(poly%patch%age(ig), 0.0_wp, 1.0e-12_wp, 'gap patch should have age 0')
       call check_close(poly%patch%shed_water_rate(ig), w_canopy / cfg%dt_slow, 1.0e-12_wp,             &
                        'gap patch starts a fresh shed_water_rate, like age, and receives the dead canopy''s water')
+      !--- The gap holds its donor's ground per unit area, the donor keeps its own, and the stand's is unchanged.
+      call check_ground_mix(poly%patch%ground_surface(ig), 1.0_wp, gs_donor, 0.0_wp, gs_donor, 'the treefall gap')
+      call check_ground_mix(poly%patch%ground_surface(3_ik - ig), 1.0_wp, gs_donor, 0.0_wp, gs_donor, 'its donor')
+      ground_after = ground_totals(poly)
+      do i = 1_ik, N_GROUND_FIELD
+         call check_close(ground_after(i), ground_before(i), 1.0e-12_wp,                                       &
+                          'a treefall gap keeps the stand''s ground surface per unit area')
+      end do
 
       !--- The gap holds ONLY survivors (height < threshold): the short cohort.
       i0 = poly%patch%cohort_offset(ig)
@@ -821,7 +933,8 @@ end module test_slow_update_gaps
 
 !---~---
 !   Patch fusion and termination: plant number and area conserved, a sliver merged rather
-! than dropped, the stores riding the patch lockstep, the tolerance ceiling.
+! than dropped, the stores riding the patch lockstep (the ground's surface layers among them,
+! each field the area-weighted mix), the tolerance ceiling.
 !---~---
 module test_slow_update_patches
    use ed_kinds,            only : wp, ik
@@ -831,6 +944,8 @@ module test_slow_update_patches
    use ed_slow_update, only : fuse_patches, terminate_patches, sort_patches, patch_light_profile
    use ed_output_reduce, only : total_nplant, total_area
    use ed_cohort_state_vars, only : cohort_surface_water
+   use ed_patch_state_vars, only : ground_surface_state_t
+   use test_slow_update_ground, only : ground_layers, check_ground_mix
    use ed_test_support, only : banner, build_test_config, check, check_close
    implicit none
    private
@@ -840,6 +955,7 @@ module test_slow_update_patches
    type(ed_config_t) :: cfg
    type(polygon_t)  :: poly
    real(wp)            :: n0, w_before, w_after, cas_before, cas_after, davg, surf_water0
+   type(ground_surface_state_t) :: gs_a, gs_b   ! the two patches' ground surfaces before they fuse
    real(wp), allocatable :: light1(:), light2(:)
    integer(ik)         :: ip
 
@@ -939,8 +1055,14 @@ contains
       poly%patch%cas(2)%can_depth = 10.0_wp
       cas_before = poly%patch%area(1) * poly%patch%cas(1)%can_depth * poly%patch%cas(1)%can_enthalpy  &
                  + poly%patch%area(2) * poly%patch%cas(2)%can_depth * poly%patch%cas(2)%can_enthalpy
+      !--- The ground's surface layers: a pack on a litter in the first patch, a moss alone in the second.
+      poly%patch%ground_surface(1) = ground_layers(cfg%ground_surface, .true., .true., .false.)
+      poly%patch%ground_surface(2) = ground_layers(cfg%ground_surface, .false., .false., .true.)
+      gs_a = poly%patch%ground_surface(1)
+      gs_b = poly%patch%ground_surface(2)
       call fuse_patches(poly, cfg)
       call check(poly%patch%n == 1_ik, 'reservoir patches should fuse to one')
+      call check_ground_mix(poly%patch%ground_surface(1), 0.75_wp, gs_a, 0.25_wp, gs_b, 'patch fusion')
       call check_close(poly%patch%soil_water(1)%theta(1),       0.25_wp,   1.0e-9_wp, 'soil water not area-weighted on fusion')
       call check_close(poly%patch%soil_energy(1)%soil_energy(3), 1.5e6_wp,  1.0e-3_wp, 'soil energy not area-weighted on fusion')
       call check_close(poly%patch%cas(1)%can_depth,         25.0_wp,   1.0e-9_wp, 'CAS depth not area-weighted on fusion')
@@ -1215,10 +1337,269 @@ contains
 end module test_slow_update_ledger
 
 !---~---
+!   The porous layers follow their matter (follow_porous_layers): litter that shrinks passes the
+! water its new depth cannot hold saturated to the water layer, with its energy; litter that
+! vanishes passes all of it; matter that arrives brings what its own volume holds at the top soil
+! layer's head, drawn from that layer with the energy its water has there, a matched pair, no more
+! than the layer holds above its residual, its dry heat alone declared. On frozen ground the water
+! comes with the soil's ice. The water and the energy, the declared terms included, close in every
+! case.
+!---~---
+module test_slow_update_litter
+   use ed_kinds,                only : wp, ik
+   use ed_constants,            only : rho_h2o, cp_organic, cp_ice
+   use ed_therm_lib,            only : internal_energy_liquid
+   use ed_patch_state_vars,     only : patch_block, alloc_patch_block, porous_layer_state_t, porous_layer_energy_at
+   use ed_ground_surface_params, only : ground_surface_layer_params_t, POROUS_LITTER, POROUS_MOSS
+   use ed_ground_surface_lib,   only : porous_layer_matter
+   use ed_soil_hydr_lib,        only : soil_head_to_theta
+   use ed_slow_update,          only : follow_porous_layers
+   use ed_test_support,         only : banner, check, check_close
+   implicit none
+   private
+   public :: run_litter_follows
+   real(wp), parameter :: SOIL_DZ = 0.1_wp   ! [m] the top soil layer's thickness
+contains
+   subroutine run_litter_follows()
+      type(patch_block)      :: patch
+      type(ground_surface_layer_params_t) :: o
+      real(wp) :: heat(1), water(1), w0, e0, cap, th_in, add, u_frozen, t_before
+      call banner('litter follows its pool')
+      !--- A film thinner than min_depth is no layer; from it, all its matter is.
+      associate (rho_b => o%porous(POROUS_LITTER)%bulk_density)
+         call check(porous_layer_matter(0.5_wp * o%min_depth * rho_b, rho_b, o%min_depth) == 0.0_wp,           &
+                    'litter thinner than the minimum depth is no layer')
+         call check(porous_layer_matter(o%min_depth * rho_b, rho_b, o%min_depth) == o%min_depth * rho_b,       &
+                    'litter at the minimum depth is a layer, all of it')
+      end associate
+      associate (m => o%porous(POROUS_LITTER))
+         th_in = soil_head_to_theta(m%retention, -1.0_wp, m%theta_sat, m%theta_res, m%curve_par_a, m%curve_par_n)
+      end associate
+      call alloc_patch_block(patch, 1_ik, 1_ik)
+      patch%n = 1_ik
+      patch%soil_water(1)%theta(1)        = 0.30_wp
+      patch%soil_energy(1)%soil_energy(1) = 2.0e8_wp
+      associate (org => patch%ground_surface(1)%porous, layer => patch%ground_surface(1)%water)
+         org = porous_layer_state_t()
+         org%matter  = [0.02_wp * o%porous(POROUS_LITTER)%bulk_density, 0.05_wp * o%porous(POROUS_MOSS)%bulk_density]
+         org%water   = [0.5_wp * 0.02_wp * rho_h2o, 0.4_wp * 0.05_wp * rho_h2o]
+         org(POROUS_LITTER)%energy = porous_layer_energy_at(org(POROUS_LITTER), o%porous(POROUS_LITTER), 285.0_wp)
+         org(POROUS_MOSS)%energy   = porous_layer_energy_at(org(POROUS_MOSS), o%porous(POROUS_MOSS), 285.0_wp)
+         layer%water  = 0.0_wp
+         layer%energy = 0.0_wp
+         !--- Shrinks to a fifth: 4 mm hold 3.92 kg/m2 saturated, of the 10 it held.
+         w0 = total_water()
+         e0 = total_energy()
+         call follow_litter(0.004_wp * o%porous(POROUS_LITTER)%bulk_density, internal_energy_liquid(280.0_wp),      &
+                            huge(1.0_wp))
+         cap = o%porous(POROUS_LITTER)%theta_sat * rho_h2o * 0.004_wp
+         call check_close(org(POROUS_LITTER)%water, cap, 1.0e-9_wp,                                                 &
+                          'shrinking litter keeps what its depth holds saturated')
+         call check_close(layer%water, 10.0_wp - cap, 1.0e-9_wp, 'and passes the rest to the water layer')
+         call check_close(total_water(), w0, 1.0e-9_wp, 'the water closes')
+         call check_close(total_energy(), e0 + heat(1), 1.0e-9_wp * abs(e0),                                      &
+                          'the energy closes on the matter''s declared heat')
+         !--- Vanishes: all its water to the water layer; the moss keeps its own.
+         w0 = total_water()
+         e0 = total_energy()
+         call follow_litter(0.0_wp, internal_energy_liquid(280.0_wp), huge(1.0_wp))
+         call check(org(POROUS_LITTER)%water == 0.0_wp .and. org(POROUS_LITTER)%matter == 0.0_wp,                     &
+                    'vanished litter holds nothing')
+         call check_close(org(POROUS_MOSS)%water, 0.4_wp * 0.05_wp * rho_h2o, 1.0e-9_wp, 'the moss keeps its water')
+         call check_close(total_water(), w0, 1.0e-9_wp, 'vanishing: the water closes')
+         call check_close(total_energy(), e0 + heat(1), 1.0e-9_wp * abs(e0), 'vanishing: the energy closes')
+         !--- Appears from nothing: what its curve holds at the top soil's head (-1 m), drawn from the top soil.
+         w0 = total_water()
+         e0 = total_energy()
+         call follow_litter(0.1_wp, internal_energy_liquid(280.0_wp), huge(1.0_wp))
+         call check(org(POROUS_LITTER)%matter > 0.0_wp .and. org(POROUS_LITTER)%water > 0.0_wp,                         &
+                    'new litter appears holding water')
+         call check_close(org(POROUS_LITTER)%water / (rho_h2o * 0.1_wp / o%porous(POROUS_LITTER)%bulk_density),     &
+                          0.1427_wp, 1.0e-3_wp,                                                                      &
+                          'what its curve holds at the top soil''s head of -1 m')
+         call check(water(1) == 0.0_wp, 'its water is declared nowhere')
+         call check_close(total_water(), w0, 1.0e-9_wp, 'its water comes from the top soil')
+         call check_close(total_energy(), e0 + heat(1), 1.0e-9_wp * abs(e0),                                      &
+                          'the energy closes on the dry matter''s declared heat alone')
+         call check_close(heat(1), cp_organic * 0.1_wp * 280.0_wp, 1.0e-9_wp, 'which enters at the top soil''s temperature')
+         !--- Grows by half: the new matter brings what its own volume holds at the top soil's head.
+         w0 = org(POROUS_LITTER)%water
+         call follow_litter(0.15_wp, internal_energy_liquid(280.0_wp), huge(1.0_wp))
+         call check_close(org(POROUS_LITTER)%water, w0 + th_in * rho_h2o * 0.05_wp / o%porous(POROUS_LITTER)%bulk_density, &
+                          1.0e-12_wp, 'growing litter brings the water its volume holds at the top soil''s head')
+         !--- On frozen ground, a fifth liquid: the water comes with the soil's ice, at its energy there.
+         u_frozen = 0.2_wp * internal_energy_liquid(268.0_wp) + 0.8_wp * cp_ice * 268.0_wp
+         w0 = total_water()
+         e0 = total_energy()
+         add = org(POROUS_LITTER)%water
+         t_before = org(POROUS_LITTER)%temp
+         call follow_litter(0.2_wp, u_frozen, huge(1.0_wp))
+         add = org(POROUS_LITTER)%water - add
+         call check(add > 0.0_wp, 'on frozen ground: the litter takes water from the soil')
+         call check_close(total_water(), w0, 1.0e-9_wp, 'on frozen ground: the water closes')
+         call check_close(total_energy(), e0 + heat(1), 1.0e-9_wp * abs(e0), 'on frozen ground: the energy closes')
+         call check_close(heat(1), cp_organic * 0.05_wp * t_before, 1.0e-9_wp * heat(1),                              &
+                          'the dry matter enters at the litter''s temperature')
+         !--- A litter that holds no water vanishes: all its energy goes with its matter, declared.
+         w0 = total_water()
+         e0 = total_energy()
+         org(POROUS_LITTER)%water  = 0.0_wp
+         org(POROUS_LITTER)%energy = cp_organic * org(POROUS_LITTER)%matter * 276.123456789_wp
+         e0 = total_energy()
+         call follow_litter(0.0_wp, internal_energy_liquid(280.0_wp), huge(1.0_wp))
+         call check(org(POROUS_LITTER)%energy == 0.0_wp .and. org(POROUS_LITTER)%matter == 0.0_wp                   &
+                    .and. org(POROUS_LITTER)%water == 0.0_wp, 'a dry litter that vanishes keeps nothing')
+         call check_close(total_energy(), e0 + heat(1), 1.0e-9_wp * abs(e0), 'and its energy is declared')
+         !--- It returns, as before.
+         call follow_litter(0.2_wp, internal_energy_liquid(280.0_wp), huge(1.0_wp))
+         !--- The top soil holds little above its residual: the litter takes that much only.
+         w0 = org(POROUS_LITTER)%water
+         call follow_litter(0.3_wp, internal_energy_liquid(280.0_wp), 1.0e-3_wp)
+         call check_close(org(POROUS_LITTER)%water, w0 + 1.0e-3_wp, 1.0e-12_wp,                                     &
+                          'no more than the top soil holds above its residual')
+      end associate
+   contains
+      !--- The slow step's follow: the litter to litter_mass, the moss as it is, the water drawn from the top soil.
+      subroutine follow_litter(litter_mass, u_water, spare)
+         real(wp), intent(in) :: litter_mass, u_water, spare
+         real(wp) :: want(2, 1), theta_in(2, 1)
+         want(POROUS_LITTER, 1) = litter_mass
+         want(POROUS_MOSS, 1)   = patch%ground_surface(1)%porous(POROUS_MOSS)%matter
+         theta_in(:, 1)         = [th_in, 0.0_wp]
+         call follow_porous_layers(patch, o, want, [280.0_wp], theta_in, [u_water], [spare], [SOIL_DZ], .true.,   &
+                                   heat, water)
+      end subroutine follow_litter
+      real(wp) function total_water()
+         total_water = sum(patch%ground_surface(1)%porous%water) + patch%ground_surface(1)%water%water            &
+                       + rho_h2o * SOIL_DZ * patch%soil_water(1)%theta(1)
+      end function total_water
+      real(wp) function total_energy()
+         total_energy = sum(patch%ground_surface(1)%porous%energy) + patch%ground_surface(1)%water%energy         &
+                        + SOIL_DZ * patch%soil_energy(1)%soil_energy(1)
+      end function total_energy
+   end subroutine run_litter_follows
+end module test_slow_update_litter
+
+!---~---
+!   New litter on frozen ground (follow_porous_sources): a top soil layer at 268 K, a fifth of its
+! water liquid on its freezing curve, under a metabolic litter pool that makes 2 cm of litter. At
+! a start the litter's water arrives from outside, what its own volume holds at the head the top
+! soil layer's liquid gives, with the energy that water has in the soil, and its dry matter at the
+! soil's temperature, all of it declared; during a run the water is drawn from the top soil layer,
+! whose water and the litter's together are unchanged, and the energy closes on the declared heat.
+!---~---
+module test_slow_update_sources
+   use ed_kinds,                 only : wp, ik
+   use ed_constants,             only : c2b, rho_h2o, cp_organic, cp_ice
+   use ed_config,                only : ed_config_t
+   use ed_therm_lib,             only : internal_energy_liquid
+   use ed_biogeochem_params,     only : IP_FAST_GRND
+   use ed_polygon_state_vars,    only : polygon_t
+   use ed_ground_surface_params, only : POROUS_LITTER
+   use ed_ground_surface_lib,    only : porous_layer_energy, porous_layer_temp
+   use ed_soil_hydr_lib,         only : soil_liquid_capacity, soil_theta_to_head, soil_head_to_theta
+   use ed_init_bare_ground,      only : init_bare_ground, finalize_init
+   use ed_slow_dynamics,         only : follow_porous_sources
+   use ed_test_support,          only : banner, build_test_config, check, check_close
+   implicit none
+   private
+   public :: run_porous_sources
+   real(wp), parameter :: T_SOIL = 268.0_wp      ! [K] the top soil layer's temperature
+   real(wp), parameter :: FLIQ_SOIL = 0.2_wp     ! [-] its water's liquid fraction there
+   real(wp), parameter :: LITTER = 0.9_wp        ! [kg/m2] the litter the pool makes: 2 cm at 45 kg/m3
+contains
+   subroutine run_porous_sources()
+      type(ed_config_t) :: cfg
+      type(polygon_t)   :: poly
+      real(wp) :: heat(1), water(1), head, theta_in, u_water, w_new, e_new, w0, e0, dz1
+      call banner('new litter on frozen ground')
+      cfg = build_test_config()
+
+      !--- At a start: the water from outside, at the top soil layer's head, temperature and liquid fraction.
+      call frozen_stand(cfg, poly)
+      associate (c => poly%site%surface(1)%soil_profile%layer_curve(1), m => cfg%ground_surface%porous(POROUS_LITTER), &
+                 se => poly%patch%soil_energy(1), theta1 => poly%patch%soil_water(1)%theta(1))
+         head     = soil_theta_to_head(c%retention, se%soil_fliq(1) * theta1, c%theta_sat, c%theta_res, c%par_a, c%par_n)
+         theta_in = soil_head_to_theta(m%retention, head, m%theta_sat, m%theta_res, m%curve_par_a, m%curve_par_n)
+         w_new    = theta_in * rho_h2o * LITTER / m%bulk_density
+         u_water  = se%soil_fliq(1) * internal_energy_liquid(se%soil_temp(1))                                    &
+                    + (1.0_wp - se%soil_fliq(1)) * cp_ice * se%soil_temp(1)
+         e_new    = cp_organic * LITTER * se%soil_temp(1) + w_new * u_water
+      end associate
+      call follow_porous_sources(poly, cfg, .false., heat, water)
+      associate (layer => poly%patch%ground_surface(1)%porous(POROUS_LITTER))
+         call check(layer%matter == LITTER, 'new litter on frozen ground: the pool''s matter is the layer''s')
+         call check(w_new > 0.0_wp, 'new litter on frozen ground: it holds water at the frozen soil''s head')
+         call check_close(layer%water, w_new, 1.0e-12_wp,                                                          &
+                          'new litter on frozen ground: it holds what its curve holds at the soil liquid''s head')
+         call check_close(layer%energy, e_new, 1.0e-12_wp, 'new litter on frozen ground: its dry heat at the soil''s ' &
+                          //'temperature, its water at the soil''s temperature and liquid fraction')
+         call check_close(water(1), layer%water, 1.0e-12_wp, 'new litter on frozen ground: its water is declared')
+         call check_close(heat(1), layer%energy, 1.0e-12_wp, 'new litter on frozen ground: and all its energy')
+      end associate
+
+      !--- During a run: the water drawn from the top soil layer, and only the dry heat declared.
+      call frozen_stand(cfg, poly)
+      dz1 = poly%site%surface(1)%soil_profile%dz(1)
+      w0  = ground_water(poly, dz1)
+      e0  = ground_energy(poly, dz1)
+      call follow_porous_sources(poly, cfg, .true., heat, water)
+      call check(poly%patch%ground_surface(1)%porous(POROUS_LITTER)%water > 0.0_wp,                                &
+                 'drawn on frozen ground: the litter takes water from the soil')
+      call check(water(1) == 0.0_wp, 'drawn on frozen ground: no water is declared')
+      call check_close(ground_water(poly, dz1), w0, 1.0e-12_wp,                                                     &
+                       'drawn on frozen ground: the top soil layer''s water and the litter''s are unchanged')
+      call check_close(ground_energy(poly, dz1), e0 + heat(1), 1.0e-12_wp,                                          &
+                       'drawn on frozen ground: the energy closes on the declared heat')
+   contains
+      !---~---
+      !   One bare patch whose top soil layer is at T_SOIL, holding the water of which its freezing
+      ! curve keeps FLIQ_SOIL liquid there, its energy that state's; no porous layer yet, and the
+      ! pool that makes LITTER of litter.
+      !---~---
+      subroutine frozen_stand(c_in, p_out)
+         type(ed_config_t), intent(in)  :: c_in
+         type(polygon_t),   intent(out) :: p_out
+         real(wp) :: theta_liq, dtheta
+         call init_bare_ground(p_out, c_in, 1_ik)
+         call finalize_init(p_out)
+         associate (prof => p_out%site%surface(1)%soil_profile, se => p_out%patch%soil_energy(1),                  &
+                    theta1 => p_out%patch%soil_water(1)%theta(1))
+            call soil_liquid_capacity(prof%layer_curve(1), T_SOIL, theta_liq, dtheta)
+            theta1 = theta_liq / FLIQ_SOIL
+            call check(theta1 < prof%theta_sat(1), 'frozen stand: the top soil layer holds its water within its pores')
+            se%soil_energy(1) = porous_layer_energy(T_SOIL, theta1, prof%dry_heat_capacity(1), prof%layer_curve(1))
+            call porous_layer_temp(se%soil_energy(1), theta1, prof%dry_heat_capacity(1), prof%layer_curve(1),        &
+                                   se%soil_temp(1), se%soil_fliq(1))
+            call check_close(se%soil_temp(1), T_SOIL, 1.0e-10_wp, 'frozen stand: the top soil layer''s temperature')
+            call check_close(se%soil_fliq(1), FLIQ_SOIL, 1.0e-10_wp, 'frozen stand: its liquid fraction')
+         end associate
+         p_out%patch%soil_carbon(1)%carbon(IP_FAST_GRND) = LITTER / c2b
+      end subroutine frozen_stand
+      !--- [kg/m2] The top soil layer's water and the ground's surface layers'.
+      real(wp) function ground_water(p, dz) result(w)
+         type(polygon_t), intent(in) :: p
+         real(wp),        intent(in) :: dz
+         w = rho_h2o * dz * p%patch%soil_water(1)%theta(1) + p%patch%ground_surface(1)%water%water                &
+             + p%patch%ground_surface(1)%porous(1)%water + p%patch%ground_surface(1)%porous(2)%water
+      end function ground_water
+      !--- [J/m2] Their energy.
+      real(wp) function ground_energy(p, dz) result(e)
+         type(polygon_t), intent(in) :: p
+         real(wp),        intent(in) :: dz
+         e = dz * p%patch%soil_energy(1)%soil_energy(1) + p%patch%ground_surface(1)%water%energy                   &
+             + p%patch%ground_surface(1)%porous(1)%energy + p%patch%ground_surface(1)%porous(2)%energy
+      end function ground_energy
+   end subroutine run_porous_sources
+end module test_slow_update_sources
+
+!---~---
 !   test_slow_update -- the operators of ed_slow_update, the one writer of the stand's
 ! carbon and structure (docs/science/demography.md §2-§4): the commit, cohort fusion and
-! fission, the treefall gaps, patch fusion and termination, a recruit's birth state, and
-! the restructuring through the slow ledger with soil carbon on. One module per section.
+! fission, the treefall gaps, patch fusion and termination, a recruit's birth state, the
+! restructuring through the slow ledger with soil carbon on, the litter slot following its
+! pool, and new litter's water and energy on frozen ground. One module per section, and one the
+! ground-surface sections share.
 !---~---
 program test_slow_update
    use test_slow_update_commit, only : run_commit
@@ -1227,6 +1608,8 @@ program test_slow_update
    use test_slow_update_patches, only : run_patch_operators
    use test_slow_update_birth, only : run_birth_state
    use test_slow_update_ledger, only : run_restructure_ledger
+   use test_slow_update_litter, only : run_litter_follows
+   use test_slow_update_sources, only : run_porous_sources
    use ed_test_support, only : test_report
    implicit none
 
@@ -1236,6 +1619,8 @@ program test_slow_update
    call run_patch_operators()
    call run_birth_state()
    call run_restructure_ledger()
+   call run_litter_follows()
+   call run_porous_sources()
 
    call test_report('test_slow_update')
 end program test_slow_update

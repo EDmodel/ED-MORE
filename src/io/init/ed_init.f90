@@ -22,7 +22,8 @@ module ed_init
                                         refresh_canopy_depth
    use ed_slow_ledger,           only : slow_ledger_t
    use ed_soil_carbon,           only : soil_carbon_steady_pools
-   use ed_patch_state_vars,      only : soil_carbon_state_t
+   use ed_patch_state_vars,      only : soil_carbon_state_t, porous_layer_state_t, water_layer_state_t
+   use ed_slow_dynamics,         only : follow_porous_sources
    use ed_slow_state,            only : advance_plant_traits, reacclimate_plant_traits
    use ed_init_bare_ground,      only : init_bare_ground, init_bare_sites, seed_bare_ground, seed_patch_stores, &
                                          N_PATCH_INIT
@@ -138,8 +139,9 @@ contains
       if (cfg%init%init_mode /= INIT_RESTART) then
          call init_fast_state(poly, cfg)
          poly%seed_canopy_air = .true.
-         if (verbose .and. cfg%snow_init_swe > 0.0_wp)                                             &
-            write(*,'(a,f6.1,a)') ' snow  : seeded initial pack SWE = ', cfg%snow_init_swe, ' kg/m2'
+         if (verbose .and. cfg%ground_surface%water%initial_mass > 0.0_wp)                                             &
+            write(*,'(a,f6.1,a)') ' snow  : seeded initial pack SWE = ', cfg%ground_surface%water%initial_mass,  &
+                                  ' kg/m2'
       end if
       !---~---
       !   What every start ends with: each site's terrain, the canopy-air depth the stand sets (a
@@ -155,8 +157,29 @@ contains
          if (verbose) write(*,'(a,f8.3,a)') ' soilc : steady-state spin-up, total = ',            &
             sum(pools%carbon), ' kgC/m2'
       end if
+      call seed_porous_layers(poly, cfg)
       ok = .true.
    end subroutine init_polygon
+
+   !---~---
+   !   Each patch's porous layers at the start (docs/science/ground_surface_layers.md §5), through the
+   ! one path the slow step's follows (follow_porous_sources): a fresh start from no layer, a
+   ! restart from the layers its state file held, so a layer the file lacks, or one its
+   ! mass_source does not give, is made or removed. The water the matter brings arrives from
+   ! outside, at the top soil layer's matric head, temperature and liquid fraction.
+   !---~---
+   subroutine seed_porous_layers(poly, cfg)
+      type(polygon_t),   intent(inout) :: poly
+      type(ed_config_t), intent(in)    :: cfg
+      real(wp)    :: heat(poly%patch%n), water(poly%patch%n)
+      integer(ik) :: ip
+      if (cfg%init%init_mode /= INIT_RESTART) then
+         do ip = 1_ik, poly%patch%n
+            poly%patch%ground_surface(ip)%porous = porous_layer_state_t()
+         end do
+      end if
+      call follow_porous_sources(poly, cfg, .false., heat, water)
+   end subroutine seed_porous_layers
 
    !--- Each site's terrain: the polygon's elevation, flat, unless its [[sites]] table gives its own.
    subroutine set_site_terrain(poly, cfg)
@@ -180,7 +203,7 @@ contains
    ! stand's fusion leaves no blend behind); each cohort settled in its patch as a recruit is
    ! born, its tissues at the canopy-air temperature holding the water they hold at the top
    ! soil layer's potential (the restructuring and the traits' acclimation change the tissues
-   ! the setup cohorts were born with); and the snowpack [fast].snow_init_swe asks for.
+   ! the setup cohorts were born with); and the snowpack [ground_surface_layer.water].initial_mass asks for.
    !---~---
    subroutine init_fast_state(poly, cfg)
       type(polygon_t),     intent(inout) :: poly
@@ -202,25 +225,24 @@ contains
             end do
          end associate
       end do
-      if (cfg%snow_init_swe > 0.0_wp) call seed_snow(poly, cfg)
+      if (cfg%ground_surface%water%initial_mass > 0.0_wp) call seed_snow(poly, cfg)
    end subroutine init_fast_state
 
-   !--- The initial snowpack, [fast].snow_init_swe at [fast].snow_init_temp, one layer per patch.
+   !--- The initial snowpack, [ground_surface_layer.water].initial_mass at its initial_temp, one layer per patch.
    subroutine seed_snow(poly, cfg)
       type(polygon_t),      intent(inout) :: poly
       type(ed_config_t),  intent(in)      :: cfg
       integer(ik) :: ipp
+      associate (w => cfg%ground_surface%water)
       do ipp = 1_ik, poly%patch%n
-         poly%patch%snow(ipp)%swe(1)         = cfg%snow_init_swe
-         poly%patch%snow(ipp)%snow_energy(1) =                                                   &
-            temp_to_internal_energy(0.0_wp, cfg%snow_init_swe, cfg%snow_init_temp, 0.0_wp)
-         poly%patch%snow(ipp)%snow_depth(1)  = cfg%snow_init_swe / cfg%snow%rho_snow
-         poly%patch%snow(ipp)%nlayer         = 1_ik
-         call internal_energy_to_temp(poly%patch%snow(ipp)%snow_energy(1),                       &
-                                      cfg%snow_init_swe, 0.0_wp,                                 &
-                                      poly%patch%snow(ipp)%snow_temp(1),                         &
-                                      poly%patch%snow(ipp)%snow_fliq(1))
+         associate (layer => poly%patch%ground_surface(ipp)%water)
+            layer%water        = w%initial_mass
+            layer%energy       = temp_to_internal_energy(0.0_wp, w%initial_mass, w%initial_temp, 0.0_wp)
+            layer%matrix_depth = w%initial_mass / w%fresh_density
+            call internal_energy_to_temp(layer%energy, w%initial_mass, 0.0_wp, layer%temp, layer%fliq)
+         end associate
       end do
+      end associate
    end subroutine seed_snow
 
    !--- What a restart read: its file and time, and a restructuring the stand still owes.

@@ -26,9 +26,9 @@ python run_site.py --calibrate --workers 40           # ... and redo the calibra
 It needs numpy, pandas, netCDF4, matplotlib and a built `edmore` (`--edmore` or `EDMORE_MAIN`,
 default `../../../../build-dev/edmore`). The first full run builds the census file from the census
 tables, which it reads from `--census-dir` or the environment variable `BCI_CENSUS_DIR` (see The
-data); later runs reuse `data/bci_census2010_ed.csv`. Every step together takes about 9 minutes
+data); later runs reuse `data/bci_census2010_ed.csv`. Every step together takes about 10 minutes
 on 8 threads with the production build (`--edmore ../../../../build-production/edmore`, see
-[`docs/building.md`](../../../../docs/building.md)). The calibration's 996 runs took 60 minutes on 200 cores of five nodes, with the queue
+[`docs/building.md`](../../../../docs/building.md)). The calibration's 836 runs took 45 minutes on 120 cores of three nodes, with the queue
 workers of [`scripts/calibrate_fast`](../../../../scripts/calibrate_fast/README.md).
 
 ## The data
@@ -80,13 +80,12 @@ tower's energy-balance gap (it closes to 0.75) goes to H, and the tower's GPP, m
 about the soil's alone, is corrected by a fitted κ. The fit, its keys and its validation are the
 calibration tool's worked example
 ([its README](../../../../scripts/calibrate_fast/README.md#worked-example-barro-colorado-island)): it
-improves u\*, GPP, LE and the upwelling longwave on the validation windows, and does 11 % worse on H,
+improves u\*, GPP, LE and the upwelling longwave on the validation windows, and does 10.4 % worse on H,
 which is flagged. The calibrated configs, the fit and its report are in [`calibration/`](calibration).
 
 ## 4. Against the tower
 
-The numbers here come from the first ED-MORE release, built with ifx and the production preset
-(`cmake --preset production`).
+The numbers here come from ED-MORE built with ifx and the production preset (`cmake --preset production`).
 
 ![ED-MORE against the BCI tower: mean diurnal and seasonal cycles of carbon, water and energy](evaluation.png)
 
@@ -96,19 +95,19 @@ calendar month's hours of the day averaged over the years: [`evaluation.py`](../
 
 | | tower | target | default | calibrated |
 |---|---|---|---|---|
-| GPP [µmol m⁻² s⁻¹] | 7.64 | 8.43 | 10.74 | 8.93 |
-| LE [W m⁻²] | 76.7 | 76.7 | 80.8 | 66.5 |
-| H [W m⁻²] | 35.1 | 72.6 | 74.8 | 86.3 |
-| NEE [µmol m⁻² s⁻¹] | −4.42 | | −4.05 | −3.19 |
-| net radiation [W m⁻²] | 136.0 | | 139.8 | 139.1 |
+| GPP [µmol m⁻² s⁻¹] | 7.64 | 8.51 | 10.72 | 9.00 |
+| LE [W m⁻²] | 76.7 | 76.7 | 77.6 | 65.1 |
+| H [W m⁻²] | 35.1 | 72.6 | 79.0 | 87.6 |
+| NEE [µmol m⁻² s⁻¹] | −4.42 | | −4.97 | −4.12 |
+| net radiation [W m⁻²] | 136.0 | | 139.8 | 138.0 |
 
-- **Carbon:** the calibration brings GPP from 27 % above its target to 6 % above. Through the year the
+- **Carbon:** the calibration brings GPP from 26 % above its target to 6 % above. Through the year the
   model's GPP is highest in the dry season (March) and the tower's in the wet season (June–August).
-- **Energy:** the model's canopy still reflects more than the tower sees (daytime albedo 0.163–0.168
+- **Energy:** the model's canopy still reflects more than the tower sees (daytime albedo 0.166–0.168
   against 0.131), but its net radiation, the leaves', the wood's and the ground's as their balances
-  book it, is within 3–4 W m⁻² of the tower's. The default's H is 3 % above the target; the calibrated
-  run's is 19 % above it.
-- **Water:** the calibration lowers LE to 66.5 W m⁻², below the tower's 76.7, although it improves LE
+  book it, is within 2–4 W m⁻² of the tower's. The default's H is 9 % above the target; the calibrated
+  run's is 21 % above it.
+- **Water:** the calibration lowers LE to 65.1 W m⁻², below the tower's 76.7, although it improves LE
   on the validation windows.
 - Whole-site energy and water close in both runs.
 
@@ -119,20 +118,20 @@ calendar month's hours of the day averaged over the years: [`evaluation.py`](../
 The example runs the calibrated model to 20 April 2016, then restarts it for ten days with every
 patch's and cohort's states written each half hour ([`output_window.toml`](output_window.toml)).
 These are the last days of the 2016 El Niño dry season: four bright dry days, small showers, then
-42 mm of rain on the 27th. The figure shows the patch that covers the most ground (8 % of the site,
-LAI 5.4) and its tallest tree.
-- **Temperatures.** Only the air at 41 m is forcing. The canopy air peaks 1–2.6 K above it, and the
-  top tree's leaves 2.7–5.5 K above it at midday. The soil at 2.5 cm swings 1–5.5 K a day.
+42 mm of rain on the 27th. The figure shows the patch that covers the most ground (9 % of the site,
+LAI 5.2) and its tallest tree.
+- **Temperatures.** Only the air at 41 m is forcing. The canopy air peaks 1.3–2.8 K above it, and the
+  top tree's leaves 2.8–6.5 K above it at midday. Under its litter the soil at 2.5 cm swings 0.3–1.2 K a day.
 - **Canopy-air CO₂** falls to about 399 µmol mol⁻¹ by day as the canopy draws it down, and builds up
-  again to 404–409 at night, and to 415 in the calm last night.
-- **Leaf water potential** refills to −0.5 to −0.6 MPa each night of the dry spell (−0.36 after the
-  storm) and falls to −1.2 to −1.3 MPa at midday on the bright days: the tension that pulls the day's
+  again to 404–412 at night, and to 414 in the calm last night.
+- **Leaf water potential** refills to −0.5 MPa each night of the dry spell (−0.3 after the
+  storm) and falls to −1.1 to −1.2 MPa at midday on the bright days: the tension that pulls the day's
   transpiration up through the sapwood. Panama's canopy trees measure −0.6 to −1.0 MPa before dawn
   and −1.4 to −2.0 at midday in a dry season, so the model's tree is at the wet end of the measured
   range.
-- **Soil moisture.** Before the storm the top 15 cm holds 0.30–0.31 m³ m⁻³, near the tower's sensor
-  (0.27–0.30). The storm wets the top layers within hours, and the model holds more of it than the
-  sensor in the days after (0.41–0.43 against 0.36–0.37).
+- **Soil moisture.** Before the storm the top 15 cm holds 0.30–0.32 m³ m⁻³, near the tower's sensor
+  (0.26–0.31). The storm wets the top layers within hours, and the model holds more of it than the
+  sensor in the days after (0.41–0.44 against 0.36–0.37).
 
 ## Files
 

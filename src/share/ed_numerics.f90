@@ -13,18 +13,25 @@ module ed_numerics
    implicit none
    private
 
-   public :: quadratic_smaller_root, adaptive_step_update, smooth_max0
+   public :: quadratic_smaller_root, adaptive_step_update, smooth_max0, smooth_step
    public :: sufficient_decrease, fraction_to_boundary
    public :: root_bracket_t, regula_falsi_point, illinois_narrow
    public :: logistic, clamp01, clamp, cbrt, linear_interpolate, weighted_mean
    public :: ascending_order, equal_height_layers
-   public :: conserved, pair_mean
+   public :: conserved, pair_mean, within_roundoff
 
    !---~---
    !   A line-search step is accepted when the merit falls by at least this share of
    ! the step taken (Armijo's sufficient-decrease condition).
    !---~---
    real(wp), parameter :: ARMIJO_C = 1.0e-4_wp
+   !---~---
+   !   [-] How far, in epsilons of the magnitudes it touched, a quantity that should be zero may
+   ! be from round-off alone (within_roundoff): it has passed through a few roundings, a
+   ! temperature's inversion and back at most, so 64 leaves a wide margin above round-off and
+   ! lies far below any real leak.
+   !---~---
+   real(wp), parameter :: ROUNDOFF_EPSILONS = 64.0_wp
 
    !---~---
    !   A bracket [a, b] on a root of a continuous function, with residuals fa and fb of
@@ -130,8 +137,8 @@ contains
    !---~---
    !   max(x, 0) with its corner rounded over [0, width] by the cubic 2x^2/w - x^3/w^2,
    ! which matches both sides in value and slope, so Newton never meets a corner.
-   ! Every one-way water flow uses it: root uptake, the leaves' supply limit and
-   ! ground evaporation (docs/science/soil_plant_water.md eq. (1)).
+   ! Every one-way water flow uses it: root uptake, the leaves' supply limit, ground
+   ! evaporation and the pond's wetting face (docs/science/soil_plant_water.md eq. (1)).
    !---~---
    elemental subroutine smooth_max0(x, width, f, df)
       real(wp), intent(in)  :: x, width
@@ -149,6 +156,27 @@ contains
          df = 1.0_wp
       end if
    end subroutine smooth_max0
+
+   !---~---
+   !   The cubic smooth step from 0 to 1, 3x^2 - 2x^3 with x held to [0, 1], and its slope in x:
+   ! flat at both ends, so a switch made through it has no corner for Newton to meet. The ground's
+   ! evaporation tapers through it as its water runs out, and roots lose their contact with
+   ! freezing soil.
+   !---~---
+   elemental subroutine smooth_step(x, f, df)
+      real(wp), intent(in)  :: x
+      real(wp), intent(out) :: f, df    ! [-] the step and its slope
+      real(wp) :: u
+      u  = min(1.0_wp, max(0.0_wp, x))
+      f  = u * u * (3.0_wp - 2.0_wp * u)
+      df = 6.0_wp * u * (1.0_wp - u)
+   end subroutine smooth_step
+
+   !--- Whether x, which should be zero, is round-off of the magnitudes it was made from (scale).
+   elemental logical function within_roundoff(x, scale) result(ok)
+      real(wp), intent(in) :: x, scale
+      ok = abs(x) <= ROUNDOFF_EPSILONS * epsilon(1.0_wp) * abs(scale) + tiny(1.0_wp)
+   end function within_roundoff
 
    !---~---
    !   Regula falsi's point on a bracket: where the line through its two ends crosses

@@ -119,31 +119,36 @@ contains
    ! temperature factor, a moisture-and-oxygen factor and, for the structural pools
    ! (3, 4), the lignin brake exp(-e_lignin*f_lignin) (docs/science/soil_carbon.md
    ! eqs. (3)-(4)). The above-ground pools (1, 3) take the surface temperature and the
-   ! rest the soil's (ED2's A_decomp / B_decomp). xi > 0; under the default scheme it is
-   ! also <= 1, while scheme 5's Q10 is uncapped.
+   ! rest the soil's (ED2's A_decomp / B_decomp). With porous layers on the soil, they take the
+   ! top one's temperature and their wetness, surf_rel, as their moisture
+   ! (docs/science/ground_surface_layers.md §7).
+   ! xi > 0; under the default scheme it is also <= 1, while scheme 5's Q10 is uncapped.
    !---~---
    pure subroutine decomposition_env_scalar(soil_temp_surf, soil_temp_active, theta_active, theta_dry, &
-                                       theta_sat, pools, params, xi)
+                                       theta_sat, pools, params, xi, surf_rel)
       real(wp),                   intent(in)  :: soil_temp_surf, soil_temp_active     ! [K] ground surface, soil
       real(wp),                   intent(in)  :: theta_active, theta_dry, theta_sat   ! [m3/m3]
       type(soil_carbon_state_t),  intent(in)  :: pools                               ! [kgC/m2] for f_lignin
       type(soil_carbon_params_t), intent(in)  :: params                              ! the [soil_carbon] parameters
       real(wp),                   intent(out) :: xi(N_SOIL_POOL)                     ! [-] diagonal scalar, > 0
-      real(wp) :: f_temp_surf, f_temp_active, f_water, rel, f_lig_g, f_lig_s, brake_g, brake_s
+      real(wp), optional,         intent(in)  :: surf_rel    ! [-] the porous layers' wetness, for pools 1 and 3
+      real(wp) :: f_temp_surf, f_temp_active, f_water, f_water_surf, rel, f_lig_g, f_lig_s, brake_g, brake_s
 
       f_temp_surf   = decomp_temperature_factor(soil_temp_surf,   params)
       f_temp_active = decomp_temperature_factor(soil_temp_active, params)
       rel     = min(1.0_wp, max(0.0_wp, (theta_active - theta_dry) / max(theta_sat - theta_dry, tiny_num)))
       f_water = decomp_water_factor(rel, params)
+      f_water_surf = f_water
+      if (present(surf_rel)) f_water_surf = decomp_water_factor(min(1.0_wp, max(0.0_wp, surf_rel)), params)
 
       f_lig_g = lignin_fraction(pools%lignin(1), pools%carbon(IP_STRUCT_GRND))
       f_lig_s = lignin_fraction(pools%lignin(2), pools%carbon(IP_STRUCT_SOIL))
       brake_g = exp(-params%e_lignin * f_lig_g)
       brake_s = exp(-params%e_lignin * f_lig_s)
 
-      xi(IP_FAST_GRND)   = f_temp_surf   * f_water
+      xi(IP_FAST_GRND)   = f_temp_surf   * f_water_surf
       xi(IP_FAST_SOIL)   = f_temp_active * f_water
-      xi(IP_STRUCT_GRND) = f_temp_surf   * f_water * brake_g
+      xi(IP_STRUCT_GRND) = f_temp_surf   * f_water_surf * brake_g
       xi(IP_STRUCT_SOIL) = f_temp_active * f_water * brake_s
       xi(IP_MICR)        = f_temp_active * f_water
       xi(IP_SLOW)        = f_temp_active * f_water

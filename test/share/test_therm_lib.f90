@@ -8,12 +8,12 @@
 !      plant's entropy shift keeps more capacity in heat and moves the optimum up.
 !   2. DATUM (internal_energy_to_temp, temp_to_internal_energy, internal_energy_ice): the
 !      phase-change inverter round-trips liquid and ice, is continuous at the ends of the
-!      melt plateau and sits at t_3ple on it; ice holds internal_energy_ice per kilogram,
-!      and melting it at t_3ple costs the latent heat of fusion
+!      plateau at the triple point and sits at t_3ple on it; ice holds internal_energy_ice per
+!      kilogram, and melting it at t_3ple costs the latent heat of fusion
 !      (docs/science/coupled_biophysics.md, principle 1).
 !   3. CLAUSIUS-CLAPEYRON (sat_vapor_pressure_temp_deriv): the slope of e_sat against a
 !      finite difference, and e L / (Rv T**2) with the model's latent heat, over both phases.
-!   4. ICE SATURATION (sat_vapor_pressure; docs/science/snow_biophysics.md eq. (1)): an
+!   4. ICE SATURATION (sat_vapor_pressure; docs/science/ground_surface_layers.md eq. (11)): an
 !      absent liquid fraction is the liquid curve to the bit; the branches meet at the
 !      triple point, at es_3ple; both phases agree with Murphy & Koop (2005); at 268 K the air saturated
 !      over ice holds 3-8 % less vapour than over liquid.
@@ -158,7 +158,7 @@ contains
 
    !---~---
    !   2. The phase-change inverter, per m3 of soil with 1000 J/m3/K of dry matter and 0.3 kg of
-   ! water: liquid and ice round-trip; at both ends of the melt plateau it reads t_3ple, and
+   ! water: liquid and ice round-trip; at both ends of the plateau at the triple point it reads t_3ple, and
    ! half way along it t_3ple and half liquid. And 5 kg of snow, with no dry matter: all ice,
    ! it holds internal_energy_ice per kilogram, and melting it at t_3ple costs 5 x 3.34e5 J.
    !---~---
@@ -217,7 +217,7 @@ contains
    end subroutine test_clausius
 
    !---~---
-   !   4. SATURATION OVER ICE (docs/science/snow_biophysics.md eq. (1)). The liquid curve over a
+   !   4. SATURATION OVER ICE (docs/science/ground_surface_layers.md eq. (11)). The liquid curve over a
    ! frozen surface overstates e_sat by 10 % at -10 C and 34 % at -30 C, which would overdrive
    ! sublimation from the snow pack and from frozen soil. Three things must hold:
    !   (a) an ABSENT fliq gives the liquid curve (fliq = 1) BIT-IDENTICALLY;
@@ -238,7 +238,7 @@ contains
 
       !---~---
       !   (b) both branches are es_3ple at t_3ple, because ice's latent heat there is the liquid's
-      ! plus the fusion heat, so they meet EXACTLY at the triple point, where the melt plateau
+      ! plus the fusion heat, so they meet EXACTLY at the triple point, where the plateau
       ! sits. A surface melting at t_3ple then sees no step in e_sat as fliq changes.
       !---~---
       call check('liquid branch is es_3ple at t_3ple', sat_vapor_pressure(t_3ple), es_3ple, 1.0e-9_wp)
@@ -303,17 +303,22 @@ contains
    end subroutine test_soil_conductivity
 
    !---~---
-   !   6. CLM5's mineral soil at Palo Verde's column (sand 33 %, clay 40 %, porosity 0.4456),
-   ! computed apart from ED-MORE: solids (8.80 x 33 + 2.92 x 40) / 73 = 5.57808 W/m/K; dry bulk
-   ! density 1496.88 kg/m3, so dry soil (0.135 x 1496.88 + 64.7) / (2700 - 0.947 x 1496.88)
-   ! = 0.208022 W/m/K; and the solids' heat capacity (2.128 x 33 + 2.385 x 40) / 73 x 1e6 x
-   ! 0.5544 = 1.257835e6 J/m3/K.
+   !   6. The mineral soil at Palo Verde's column (sand 33 %, clay 40 %, porosity 0.4456),
+   ! computed apart from ED-MORE: solids by their quartz, the sand, 7.7^0.33 x 2.0^0.67 =
+   ! 3.120556 W/m/K; dry bulk density 1496.88 kg/m3, so dry soil (0.135 x 1496.88 + 64.7) /
+   ! (2700 - 0.947 x 1496.88) = 0.208022 W/m/K; and the solids' heat capacity (2.128 x 33 +
+   ! 2.385 x 40) / 73 x 1e6 x 0.5544 = 1.257835e6 J/m3/K. Silt counts with the other minerals: a
+   ! silty soil and a clayey one of the same sand conduct alike.
    !---~---
    subroutine test_soil_texture()
-      real(wp) :: k_solid, k_dry, dry_cvol
+      real(wp) :: k_solid, k_dry, dry_cvol, k_silty, k_clayey
       print '(a)', 'test_soil_texture:'
       call soil_texture_to_thermal(33.0_wp, 40.0_wp, 0.4456_wp, k_solid, k_dry, dry_cvol)
-      call check('CLM5 solids conductivity', k_solid, 5.5780822_wp, 1.0e-6_wp)
+      call check('solids conductivity by quartz', k_solid, 3.1205564_wp, 1.0e-6_wp)
+      call soil_texture_to_thermal(20.0_wp, 10.0_wp, 0.45_wp, k_silty, k_dry, dry_cvol)
+      call soil_texture_to_thermal(20.0_wp, 60.0_wp, 0.45_wp, k_clayey, k_dry, dry_cvol)
+      call check('silt and clay conduct as the other minerals', k_silty, k_clayey, 1.0e-12_wp)
+      call soil_texture_to_thermal(33.0_wp, 40.0_wp, 0.4456_wp, k_solid, k_dry, dry_cvol)
       call check('CLM5 dry conductivity', k_dry, 0.20802202_wp, 1.0e-7_wp)
       call check('CLM5 solids heat capacity', dry_cvol, 1.2578349e6_wp, 1.0_wp)
    end subroutine test_soil_texture

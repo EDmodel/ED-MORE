@@ -41,7 +41,8 @@ calibrate_fast.py variants runs/off/fit.json runs/on/fit.json --out runs/variant
   default, or through an executable with `--runner ../../build-dev/edmore`. The two give the same
   output, bit for bit. The EEO vcmax25 prior needs `libedmore.so` in any case.
 - **Re-running.** A re-run of `fit` replays every trial it has run from the cache in `--work`, so it
-  costs only what is new, such as the post-fit steps after a change in the tool.
+  costs only what is new, such as the post-fit steps after a change in the tool. The cache is per
+  build of the model: a rebuilt executable (or `libedmore.so`) runs every trial again.
 - **Threads.** A run takes one thread for every 15 simulated days, up to `[fit].max_threads` (8). The
   120-day seasonal runs and the 180-day chains set an iteration's pace; the ten-day windows run on one
   thread. `--workers` (one machine) and a queue worker's `--slots` count cores, and a run takes as many
@@ -123,7 +124,8 @@ python calibrate_fast.py fit ... --queue
 - **A trial** is a frozen run (`[run].slow_on = false`) restarted from its window's state, with
   `[init].reacclimate_traits = true` so a changed trait reaches the cohorts. Its main and PFT files are
   the base configuration with keys set through `edmore.config`, and its directory is named by a hash of
-  them, so a repeated set of values reuses the finished run. A trial passes when it ends with `OK`, no
+  them and of the model's compiled code, so a repeated set of values on the same build reuses the
+  finished run. A trial passes when it ends with `OK`, no
   whole-site budget breaches its tolerance, the model's parameter record lists every key the trial set
   with the value written, and the output has no missing or non-finite value. A trial that fails, or
   times out (`[fit].timeout_per_day`), stops the fit with its log: a model that cannot run a set of
@@ -142,8 +144,11 @@ python calibrate_fast.py fit ... --queue
   coverage of LE alone (its own target, not the windows' three); a site with a short growing season
   shortens the runs (`days`). A year under 100 mm gives none; without any, the drought keys are fixed,
   and `report` gives each year's reasons.
-- **Chains.** Every window has its own chain: a run from the initial stand (the base config's census
-  or state) that starts `[windows].chain_lead_days` (180) before it. The chains run at once. When the
+- **Chains.** Every window has its own chain: a run from the initial stand to the window. From a
+  census it starts `[windows].chain_lead_days` (180) before the window. From a state file (a base config
+  with `init_mode = 2`, such as a spun-up permafrost column) it starts at the base config's own start,
+  the state's date, since a restart continues from its state's time; the one-day run that reads the
+  parameter record starts there too. The chains run at once. When the
   base config freezes the stand (`[demography].demography_on = false`), a chain runs the slow tier, so
   the leaves follow the season to the window: a deciduous canopy is bare in a winter window, not the
   census's full leaf. Give such a chain a year's lead, so its phenology has seen a whole season. A
@@ -252,21 +257,21 @@ Two choices are BCI's own:
 
 | key | calibrated (68 % range) | prior centre |
 |---|---|---|
-| `vcmax25` [µmol m⁻² s⁻¹] | 33.6 (32.7–34.5) | 39.9 (from the climate) |
-| `stomatal_g1` [kPa^0.5] | 2.88 (2.81–2.95) | 2.80 (from the climate) |
-| `stomatal_g0` [mol m⁻² s⁻¹] | 0.0003 (0.0002–0.0006) | 0.01 |
-| `leaf_angle_mean` [°] | 51.6 (47.7–55.4) | 45 |
+| `vcmax25` [µmol m⁻² s⁻¹] | 34.4 (33.5–35.4) | 44.7 (from the climate) |
+| `stomatal_g1` [kPa^0.5] | 2.99 (2.91–3.07) | 2.78 (from the climate) |
+| `stomatal_g0` [mol m⁻² s⁻¹] | 0.0005 (0.0003–0.0012) | 0.01 |
+| `leaf_angle_mean` [°] | 43.1 (38.5–47.7) | 45 |
 | `z0m_ratio` | 0.049 (0.048–0.051) | 0.13 |
-| `wstress_sref_stomata` | 2.8 (1.4–4.7: the data barely constrain it) | 2 |
-| κ | 0.714 (0.680–0.747) | 0.65 |
+| `wstress_sref_stomata` | 3.4 (1.8–5.3: the data barely constrain it) | 2 |
+| κ | 0.692 (0.660–0.724) | 0.65 |
 
 On the validation windows, the RMSE in units of each target's error goes from default to calibrated:
-u\* 2.16 → 0.73, GPP 2.32 → 1.59, upwelling longwave 4.12 → 3.93, LE 1.66 → 1.59, and H 3.85 → 4.29.
+u\* 2.17 → 0.74, GPP 2.34 → 1.59, upwelling longwave 4.16 → 4.03, LE 1.61 → 1.57, and H 3.84 → 4.24.
 **The validation fails on H**: the protocol asks that no target do more than 10 % worse than the default,
-and H does 11 % worse. The calibrated parameters ship as the fit's best, with H flagged: lowering the
+and H does 10.4 % worse. The calibrated parameters ship as the fit's best, with H flagged: lowering the
 canopy's sensible heat would cost GPP, u\* and the longwave. Sharing the energy-balance gap between H and
-LE instead moves `stomatal_g1` to 4.75 and `vcmax25` to 30.6. The fit's 996 runs took 60 minutes on 200
-cores of five nodes, with the queue workers of [Run](#run).
+LE instead moves `stomatal_g1` to 4.83 and `vcmax25` to 30.8. The fit's 836 runs took 45 minutes on 120
+cores of three nodes, with the queue workers of [Run](#run).
 
 ```bash
 cd examples/example04_column_biophysics/sites/bci

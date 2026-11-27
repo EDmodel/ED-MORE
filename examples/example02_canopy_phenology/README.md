@@ -1,6 +1,6 @@
 # Example 02 — Canopy phenology
 
-The leaf-phenology module of ED-MORE, in three parts.
+The leaf-phenology module of ED-MORE, in four parts.
 - **[Part 1](#part-1--the-module-at-four-forests)** shows how the module is built — one kernel, three
   cues, and leaf habits as parameter sets — at four forests. It is not a calibration of any of them.
 - **[Part 2](#part-2--fitting-a-stand-harvard-forest)** fits it: the broadleaves and conifers of
@@ -9,6 +9,8 @@ The leaf-phenology module of ED-MORE, in three parts.
   those values.
 - **[Part 3](#part-3--a-savanna-tonzi-ranch)** fits a savanna the same way: the blue oaks and the annual
   grass of example 04's Tonzi Ranch stand, the grass on the WATER cue.
+- **[Part 4](#part-4--a-tundra-toolik)** fits a tundra: the tussock sedge and the evergreen and deciduous
+  dwarf shrubs of example 04's Toolik stand, under the midnight sun, from its permafrost spin-up's state.
 
 Every habit runs the same compiled kernel
 ([`ed_plant_phenology.f90`](../../src/slow_dynamics/processes/ed_plant_phenology.f90)) and differs only
@@ -130,9 +132,8 @@ python ../../../scripts/calibrate_phenology/calibrate_phenology.py iterate \
 python plot_fit.py                       # harvard_stand.png
 ```
 
-A round is a coupled run of the stand (about 5 minutes) and an offline fit (10–15 minutes) on one
-40-core node. From example 04's values the fit settles in two rounds (31 minutes); from part 1's it
-takes four, about an hour. The fit writes example 04's PFT file with its values to
+A round is a coupled run of the stand (about 5 minutes) and an offline fit (13–15 minutes) on one
+40-core node; from example 04's values the four rounds take 72 minutes. The fit writes example 04's PFT file with its values to
 `../data/harvard_stand_runs/pft_parameters_fitted.toml`; example 04's file carries them.
 
 ### What is fitted
@@ -152,30 +153,32 @@ refill). The tool's README explains each.
 
 | target | cohorts | model − observed (RMSE) |
 |---|---|---|
-| HF003, leaf-out day of the canopy species | broadleaves above 15 m | −2.2 days (3.8) |
-| HF003, leaf-out day of the understorey species | broadleaves below 10 m | −0.5 days (2.5) |
-| HF003, leaves fallen, canopy species | broadleaves above 15 m | −0.06 of the canopy (0.09) |
-| HF003, leaves fallen, understorey species | broadleaves below 10 m | −0.02 (0.07) |
-| full in mid-July | broadleaves below 10 m | −0.02 |
-| LAI-2000, deciduous, over its summer level | all broadleaves | −0.03 (0.13) |
-| EMS baskets, share of the autumn's litter | all broadleaves | +0.06 (0.10) |
+| HF003, leaf-out day of the canopy species | broadleaves above 15 m | −2.3 days (3.9) |
+| HF003, leaf-out day of the understorey species | broadleaves below 10 m | −0.6 days (2.5) |
+| HF003, leaves fallen, canopy species | broadleaves above 15 m | −0.07 of the canopy (0.10) |
+| HF003, leaves fallen, understorey species | broadleaves below 10 m | −0.03 (0.07) |
+| full in mid-July | broadleaves below 10 m | −0.03 |
+| LAI-2000, deciduous, over its summer level | all broadleaves | −0.02 (0.14) |
+| EMS baskets, share of the autumn's litter | all broadleaves | +0.05 (0.09) |
 | canopies lost a year (1) | all broadleaves | +0.01 |
-| MODIS, scaled within each year | the whole stand | +0.05 (0.17) |
-| hemlock shoots half grown (day 163) | conifers | +0.9 days (4.4) |
-| white pine shoots half grown (day 186) | conifers | −22.4 days |
-| half the autumn's needles fallen (day 276) | conifers | +1.2 days (2.4) |
-| needles lost a year (0.35) | conifers | +0.00 |
-| full at the end of August | conifers | −0.01 |
+| MODIS, scaled within each year | the whole stand | +0.05 (0.18) |
+| hemlock shoots half grown (day 163) | conifers | +0.7 days (4.4) |
+| white pine shoots half grown (day 186) | conifers | −22.6 days |
+| half the autumn's needles fallen (day 276) | conifers | +0.8 days (2.2) |
+| needles lost a year (0.35) | conifers | +0.01 |
+| full at the end of August | conifers | −0.02 |
 
 - **The cohorts' own cues change the answer.** With part 1's values (the dashed lines), fitted to the
   site's air and the light above the canopy, the understorey fills only two thirds and falls two to
   three weeks early, because its light cue reads the fewer hours under the canopy. With the cohorts'
-  own cues, the broadleaves need more warmth to flush (264 against 92 K day above 5 °C) and more cold to
-  drop (169 K day below 292.0 K, against 48 below 290.3 K).
+  own cues, the broadleaves need more warmth to flush (260 against 92 K day above 5 °C) and more cold to
+  drop (185 K day below 292.1 K, against 48 below 290.3 K).
 - **The conifers** keep two thirds of their needles from October to June, grow their shoots in June
   and are full by the end of August; the needles fall in early October. White pine's shoots, the
   loosest target (a 20-day spread), lose to hemlock's.
-- **The fit settled**, and the offline stand matched each coupled run's leaf cover to within 0.002.
+- **The fit does not settle in its four rounds:** each moves a key by 0.09–0.49 of its range. The tool keeps
+  the values whose own coupled run scored best, the third's; the table is that run's. The offline stand
+  matched each coupled run's leaf cover to within 0.002.
 
 ## Part 3 — a savanna: Tonzi Ranch
 
@@ -241,6 +244,70 @@ summer while the leaf area holds.
   made on the last run's cues, overshoots on its own run. The tool keeps the values whose own coupled
   run scored best (the fourth of six); the oaks' keys settled.
 
+## Part 4 — a tundra: Toolik
+
+![Example 04's Toolik stand: its deciduous dwarf shrubs, tussock sedge and evergreen dwarf shrubs fitted with each cohort's own cues, against NEON's tagged plants and the tower camera's greenness](toolik_stand/toolik_stand.png)
+
+Three canopies in a short season: deciduous dwarf shrubs (Betula nana, the willows), the tussock sedge
+(Eriophorum vaginatum), which keeps a tenth of its leaves green through the winter, and evergreen dwarf
+shrubs (Ledum, Vaccinium vitis-idaea), which keep half. The snow melts in late May and the leaves fall in
+August. The sun does not set from late May to mid July, so the hours of light stay at 24 through the flush.
+The fit is example 04's Toolik stand (synthesised from the site's harvest and NEON's cover, frozen; the
+tower's forcing, 2019–2024). It starts from that site's permafrost spin-up's state on 2 January 2019, so
+every cohort carries the spin-up's phenology memory, and the offline stand starts from it too.
+
+### Run
+
+Run example 04's Toolik site first ([its README](../example04_column_biophysics/sites/toolik/README.md#run)), then:
+
+```bash
+cd examples/example02_canopy_phenology/toolik_stand
+python prepare_observations.py --neon <toolik>/neon --phenocam <toolik>/phenocam
+python ../../../scripts/calibrate_phenology/calibrate_phenology.py iterate \
+       --config phenology.toml --work ../data/toolik_stand_runs --workers 40
+python plot_fit.py                       # toolik_stand.png
+```
+
+`<toolik>/neon` holds NEON's plant phenology observations at TOOL (DP1.10055.001), and
+`<toolik>/phenocam` the tower camera's files (`NEON.D18.TOOL.DP1.00033_TN_1000_1day.csv`). A round is a
+coupled run and an offline fit; the fit settled in five, in about 8 minutes on 40 cores.
+
+### What is fitted
+
+[`phenology.toml`](toolik_stand/phenology.toml) fits 16 keys:
+- **the deciduous shrubs and the sedge** (PFTs 3 and 1): the warmth that flushes them and how fast, the day
+  length that ends the flush, and the cold, the day length and the rate that end their season. The flush
+  runs while the days are warm and long; with its gate at 16 hours, as in the starting values, it held the
+  canopy full until late August, whatever the shed's cues. Freed, the gate moves to about 21 hours, which
+  the shortening days cross in late July;
+- **the evergreens** (PFT 2): the warmth that breaks their buds and how fast the shoots fill. Nothing at
+  the site records when their old leaves fall.
+
+### Results
+
+**These results predate the ground surface layers; they will be refit in this pull request.**
+
+| target | model − observed (RMSE) |
+|---|---|
+| deciduous shrubs: NEON's green share of the canopy | +0.07 (0.22) |
+| deciduous shrubs: NEON's bud break | +9 days (12) |
+| sedge: NEON's green share of the graminoids | −0.01 (0.29) |
+| evergreen shrubs: NEON's bud break | 0 days (4.6) |
+| the stand in the tower camera, scaled within each year | +0.06 (0.22) |
+| canopies lost a year, deciduous shrubs (1) / sedge (0.9) | +0.03 / +0.03 |
+
+- **The season ends on time.** The deciduous shrubs drop to a third of their canopy in late August and are
+  bare in September, as the tagged plants are. The starting values kept them full into September, and
+  short of shedding the whole canopy each year.
+- **The deciduous shrubs break bud late**, 9 days on average and 24 in 2019. Their 20 cm crowns are under
+  the snow until it melts, and a buried crown reads no light, so the light memory has to rise to the gate
+  after the melt.
+- **The cold the shed needs counts the days.** Its base went to the range's top, 20 °C, which Toolik's
+  canopy air is below nearly every day, so the cold sum grows from midsummer like a clock, and the day
+  length times the fall.
+- **The sedge's green share rises over two months** from late May, and the model's over one: it is low in
+  June and full in July, where the tussocks reach 0.8.
+
 ## Files
 
 - [`fetch_phenology_data.py`](fetch_phenology_data.py) — downloads the Harvard Forest, Hyytiälä and
@@ -260,6 +327,9 @@ summer while the leaf area holds.
   [`prepare_observations.py`](tonzi_stand/prepare_observations.py) (the BADM's dates and clip LAI and the
   grass's PhenoCam greenness, in `data/tonzi_stand/`), [`plot_fit.py`](tonzi_stand/plot_fit.py) and its
   figure.
+- [`toolik_stand/`](toolik_stand) — part 4: [`phenology.toml`](toolik_stand/phenology.toml),
+  [`prepare_observations.py`](toolik_stand/prepare_observations.py) (NEON's tagged plants and the tower
+  camera's greenness, in `data/toolik_stand/`), [`plot_fit.py`](toolik_stand/plot_fit.py) and its figure.
 
 References: Borchert, R. & Rivera, G. (2001) *Tree Physiology* 21: 213–221; Rivera, G. et al.
 (2002) *Trees* 16: 445–456; Xu, X. et al. (2016) *New Phytologist* 212: 80–95.

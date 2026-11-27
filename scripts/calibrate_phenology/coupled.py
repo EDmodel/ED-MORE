@@ -6,6 +6,11 @@ A run is the site's own configuration with the phenology values of one iteration
 output, so each one is a column of the offline stand. The daily cohort output gives each cohort the
 cues it read (the canopy-air temperature around it, the hours of light at its top, its predawn leaf
 water potential), its leaf turnover rate, and its leaf area.
+
+A run from the census starts every cohort flushing in full leaf, as the offline stand starts by default.
+A run from a state file ([init].init_mode = 2) starts each cohort from that file's phenology state, its
+tendencies and its cue memory, which the offline stand then starts its column from, with the leaf cover
+of the run's first day (a start in the dormant season changes no leaf on that day).
 """
 from __future__ import annotations
 
@@ -25,6 +30,9 @@ PREFIX = "pheno"
 #----- The daily cohort output a run writes; the layout (cohort_offset, cohort_count) comes with it.
 VARIABLES = ("area_pa", "pft_co", "mean_height_co", "mean_lai_co", "mean_pheno_temp_co",
              "mean_pheno_light_hours_co", "mean_dmax_psi_leaf_co", "mean_leaf_turnover_rate_co")
+#----- A state file's phenology memory per cohort, in the order of edmore.plant.pheno.State's fields.
+STATE_VARIABLES = ("leaf_flush_tendency_co", "leaf_shed_tendency_co", "growing_degree_days_co",
+                   "cold_degree_days_co", "wet_psi_sum_co", "dry_psi_sum_co", "light_hours_avg_co")
 
 
 class RunError(RuntimeError):
@@ -70,6 +78,13 @@ def config_digest(main: Path) -> str:
     return hashlib.sha256(main.read_bytes() + (main.parent / "pft.toml").read_bytes()).hexdigest()
 
 
+def restart_file(cfg: RunConfig):
+    """The state file a run starts from, or None for a run from the census."""
+    if int(cfg.get("init.init_mode", default=1)) != 2:
+        return None
+    return Path(cfg.get("init.restart_file"))
+
+
 def run(main: Path, runner: str) -> None:
     """Run a configuration; its log goes beside it."""
     cmd = [sys.executable, "-m", "edmore.model", str(main)] if runner == "python" else [runner, str(main)]
@@ -95,6 +110,9 @@ class Drivers:
     turnover: np.ndarray         # [1/yr]
     cover: np.ndarray            # [-] the coupled run's leaf / full leaf
     values: dict = field(default_factory=dict)   # the values the run was made with, by label
+    state: np.ndarray = None     # (n_col, len(STATE_VARIABLES)) the phenology state a column starts from,
+                                 #   a state file's; None: born flushing, as from the census
+    cover0: np.ndarray = None    # (n_col,) [-] the leaf cover it starts from with `state`
 
     @property
     def doy(self) -> np.ndarray:
@@ -102,7 +120,7 @@ class Drivers:
         return (d - d.astype("datetime64[Y]")).astype(int) + 1
 
     def save(self, path: Path) -> None:
-        np.savez(path, **{k: v for k, v in self.__dict__.items() if k != "values"},
+        np.savez(path, **{k: v for k, v in self.__dict__.items() if k != "values" and v is not None},
                  value_labels=np.array(list(self.values)), value_numbers=np.array(list(self.values.values())))
 
     @classmethod
@@ -113,9 +131,23 @@ class Drivers:
         return cls(**d, values=values)
 
 
-def read(out_dir: Path, values: dict) -> Drivers:
-    """The drivers of a finished run. Stops if the run had more than one site or its cohorts
-    changed: the offline stand needs one fixed set of columns."""
+def read_state(path: Path, pft: np.ndarray) -> np.ndarray:
+    """Each cohort's phenology state in the state file a run started from, (n_col, len(STATE_VARIABLES)).
+    Stops unless the file holds the run's cohorts, in its order."""
+    from netCDF4 import Dataset
+    with Dataset(path) as ds:
+        if ds.dimensions["polygon"].size != 1:
+            raise RunError(f"{path}: the phenology calibration runs one site (one polygon)")
+        file_pft = np.ma.filled(ds["pft_co"][:], 0)[0].astype(int)
+        if file_pft.tolist() != pft.tolist():
+            raise RunError(f"{path}: its cohorts' PFTs {file_pft.tolist()} are not the run's {pft.tolist()}")
+        return np.column_stack([np.ma.filled(ds[v][:], np.nan)[0].astype(float) for v in STATE_VARIABLES])
+
+
+def read(out_dir: Path, values: dict, restart: Path = None) -> Drivers:
+    """The drivers of a finished run, which started from the state file `restart` (None: from the
+    census). Stops if the run had more than one site or its cohorts changed: the offline stand needs
+    one fixed set of columns."""
     from netCDF4 import Dataset
     files = sorted(out_dir.glob(f"{PREFIX}-D*.nc"))
     if len(files) != 1:
@@ -148,12 +180,13 @@ def read(out_dir: Path, values: dict) -> Drivers:
         if not np.isfinite(x).all():
             raise RunError(f"{files[0].name}: {v} has missing values")
     lai = series["mean_lai_co"]
-    #----- The stand is frozen and the census starts in full leaf, so each cohort's largest leaf area
-    #      is its full canopy.
+    #----- The stand is frozen and each cohort reaches its full canopy in the run (the census starts in
+    #      full leaf; a run from a state file passes a summer), so its largest leaf area is that canopy.
     lai_full = lai.max(axis=1)
+    cover = np.divide(lai, lai_full[:, None], out=np.ones_like(lai), where=lai_full[:, None] > 0)
+    state = read_state(restart, pft[0].astype(int)) if restart is not None else None
     return Drivers(dates=dates, pft=pft[0].astype(int), height=series["mean_height_co"][:, 0], area=area,
                    lai_full=lai_full, temp=series["mean_pheno_temp_co"],
                    hours=series["mean_pheno_light_hours_co"], psi=series["mean_dmax_psi_leaf_co"],
-                   turnover=series["mean_leaf_turnover_rate_co"],
-                   cover=np.divide(lai, lai_full[:, None], out=np.ones_like(lai), where=lai_full[:, None] > 0),
-                   values=dict(values))
+                   turnover=series["mean_leaf_turnover_rate_co"], cover=cover, values=dict(values),
+                   state=state, cover0=cover[:, 0].copy() if state is not None else None)

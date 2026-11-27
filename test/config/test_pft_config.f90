@@ -38,6 +38,7 @@ program test_pft_config
    use ed_fast_integ_types,     only : fast_static_state_t, fast_dynamic_state_t, fast_forcing_t,       &
                                    ensure_static_capacity, ensure_forcing_capacity
    use ed_fast_forcing,     only : patch_forcing
+   use ed_fast_integ_radiation, only : canopy_ground_radiation
    use ed_plant_hydr_lib,   only : conductance_retained_fraction, tissue_psi_tlp,  &
                                    tissue_psi_to_water
    use ed_polygon_state_vars, only : polygon_t
@@ -107,13 +108,27 @@ program test_pft_config
       call ensure_static_capacity(bare, 0_ik)
       call ensure_forcing_capacity(forcing, 0_ik)
       dyn%soil_energy%soil_temp(1) = 290.0_wp
-      call patch_forcing(cfg, bare, dyn, met, .false., forcing)
+      call patch_forcing(cfg, bare, met, .false., forcing)
+      call canopy_ground_radiation(cfg, bare, dyn, dyn%ground_surface%water, 0.0_wp, forcing)
       call check_close(forcing%sw_up_vis, 0.11_wp * forcing%sw_in_vis, 1.0e-12_wp,                            &
                        'soil.ground_albedo_vis did not reach the radiation solver')
       call check_close(forcing%sw_up_nir, 0.22_wp * forcing%sw_in_nir, 1.0e-12_wp,                            &
                        'soil.ground_albedo_nir did not reach the radiation solver')
       lw_up = (1.0_wp - 0.93_wp) * met%lw_down + 0.93_wp * stefan_boltzmann * 290.0_wp**4
       call check_close(forcing%lw_up, lw_up, 1.0e-9_wp, 'soil.ground_emissivity did not reach the radiation solver')
+      !---~---
+      !   A pack after the ground's stage: the two-stream's ground is the bare soil's blended toward
+      ! the pack's own albedo by the cover the stage set, the cover the pack's balance exchanges over.
+      !---~---
+      dyn%ground_surface%water%water        = 10.0_wp
+      dyn%ground_surface%water%energy       = -1.0e6_wp
+      dyn%ground_surface%water%temp         = 263.0_wp
+      dyn%ground_surface%water%fliq         = 0.0_wp
+      dyn%ground_surface%water%matrix_depth = 0.04_wp
+      call canopy_ground_radiation(cfg, bare, dyn, dyn%ground_surface%water, 0.3_wp, forcing)
+      call check_close(forcing%sw_up_vis,                                                                       &
+                       (0.7_wp * 0.11_wp + 0.3_wp * cfg%ground_surface%water%albedo_vis_fresh) * forcing%sw_in_vis,   &
+                       1.0e-12_wp, 'the two-stream''s ground takes the pack''s cover from the stage')
    end block
    cfg%soil%ground_albedo_vis = 0.15_wp
    cfg%soil%ground_albedo_nir = 0.30_wp

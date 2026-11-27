@@ -1,13 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
 """The state chains (protocol §6.1).
 
-Every window has its own chain: a run from the initial stand (the base config's census or state)
-that starts `chain_lead_days` before the window and writes a state at its start. Every trial of that
+Every window has its own chain: a run from the initial stand that writes a state at the window's
+start. A base config that starts from a census starts its chain `chain_lead_days` before the window; one
+that restarts from a state file starts it at its own start, the state's date, since ED-MORE continues a
+restart from its state's time (a spun-up column, whose soil a year from the census would not be). Every trial of that
 window restarts from it, so the soil water and temperature a window starts with are the model's own,
 not the census's initialization. When the base config freezes the stand ([demography].demography_on
 = false), the chain runs the slow tier too, so the leaves follow the season to the window (a census
 starts in full leaf); otherwise the chain is frozen like a trial ([run].slow_on = false). A chain runs with one set of key values (the start's,
-and again the fit's at the refresh); a chain already run with the same values is reused.
+and again the fit's at the refresh); a chain already run with the same values and the same build of
+the model is reused.
 """
 from __future__ import annotations
 
@@ -15,7 +18,8 @@ import datetime as dt
 import threading
 from pathlib import Path
 
-from trials import TrialError, command, digest, log_tail, stamp, threads_for, timeout_for, with_keys
+from trials import (TrialError, command, digest, log_tail, model_identity, stamp, threads_for, timeout_for,
+                    with_keys)
 from workers import Task
 
 PREFIX = "c"
@@ -27,21 +31,33 @@ def leaves_follow(cfg) -> bool:
     return cfg.get("demography.demography_on", default=True) is False and cfg.get("run.slow_on", default=True) is True
 
 
+def restart_start(cfg):
+    """The date a base config that restarts from a state file starts at (its run.start_time, the state's
+    own), or None for a census start."""
+    if int(cfg.get("init.init_mode", default=1)) != 2:
+        return None
+    return dt.datetime.fromisoformat(str(cfg.get("run.start_time")))
+
+
 def run_chain(window, lead_days: int, base, keys, values, root: Path, workers, runner, overrides,
               timeout_per_day: float, max_threads: int = 1) -> Path:
     """Run one window's chain; return the state file at the window's start."""
-    start = window.start - dt.timedelta(days=lead_days)
-    tag = digest(window.name, str(start), str(window.start),
+    cfg = with_keys(base, keys, values, overrides)
+    state_start = restart_start(cfg)
+    start = state_start if state_start is not None else window.start - dt.timedelta(days=lead_days)
+    if start >= window.start:
+        raise TrialError(f"the window {window.name} ({window.start}) starts before the base state's date ({start})")
+    lead = (window.start - start).days
+    tag = digest(model_identity(runner), window.name, str(start), str(window.start),
                  [(p.name, float(v)) for p, v in zip(keys, values) if p.file != "obs"], overrides or {},
                  base.main, base.pft)
     cdir = root / f"chain-{window.name}-{tag[:12]}"
     state = cdir / "out" / f"{PREFIX}-S-{window.start.strftime('%Y%m%d%H%M%S')}.nc"
     if state.exists():
         return state
-    cfg = with_keys(base, keys, values, overrides)
-    threads = threads_for(lead_days, max_threads)
+    threads = threads_for(lead, max_threads)
     for k, v in {"run.start_time": stamp(start), "run.end_time": stamp(window.start), "run.slow_on": leaves_follow(cfg),
-                 "run.n_threads": threads, "init.init_mode": 1,
+                 "run.n_threads": threads, "init.init_mode": 2 if state_start is not None else 1,
                  "output.state_write": True, "output.state_file_dir": str(cdir / "out"),
                  "output.state_file_prefix": PREFIX, "output.state_interval": "1000 years",
                  "output.enabled": False}.items():
@@ -49,7 +65,7 @@ def run_chain(window, lead_days: int, base, keys, values, root: Path, workers, r
     (cdir / "out").mkdir(parents=True, exist_ok=True)
     main = cfg.write(cdir)
     res = workers.run([Task(f"chain-{window.name}", command(runner, main), str(cdir), str(cdir / "run.log"),
-                            timeout_for(lead_days, timeout_per_day), threads)])
+                            timeout_for(lead, timeout_per_day), threads)])
     status = next(iter(res.values()))[0]
     if status != "ok" or not state.exists():
         raise TrialError(f"the chain of {window.name} ({start} -> {window.start}) failed: {status}\n"
@@ -68,7 +84,11 @@ def run_chains(windows, lead_days: int, base, keys, values, root: Path, workers,
                                        timeout_per_day, max_threads)
         except Exception as e:           # noqa: BLE001 -- raised below
             errors.append(e)
-    log(f"state chains: {len(windows)} windows, each from the initial stand {lead_days} days before it")
+    state_start = restart_start(base)
+    if state_start is not None:
+        log(f"state chains: {len(windows)} windows, each from the base state of {state_start:%Y-%m-%d}")
+    else:
+        log(f"state chains: {len(windows)} windows, each from the initial stand {lead_days} days before it")
     threads = [threading.Thread(target=one, args=(w,)) for w in windows]
     for th in threads:
         th.start()

@@ -86,7 +86,9 @@ def label(key: str, file: str, pft) -> str:
 def write(cal, keys, values, out_dir: Path):
     """pft_parameters_calibrated.toml and ed_config_calibrated.toml in out_dir: the base files with
     the fitted values and the Kattge & Knorr values written in, then the calibration's overrides (the
-    variant's among them: the values were fitted with them) and its [calibrated] settings."""
+    variant's among them: the values were fitted with them) and its [calibrated] settings. A base that
+    restarts from a state file re-acclimates the traits there (init.reacclimate_traits), as the trials do:
+    a restart otherwise keeps the traits its state holds."""
     text = {"main": cal.main_path.read_text(), "pft": cal.pft_path.read_text()}
     changed = {"pft": [], "main": []}
     for p, v in zip(keys, values):
@@ -100,6 +102,9 @@ def write(cal, keys, values, out_dir: Path):
         changed[file].append((label(key, file, pft), float(v), float(cal.kattge_knorr_replaced[(file, key, pft)]),
                               "KATTGE & KNORR"))
     settings = dict(cal.overrides) | dict(cal.settings["calibrated"])
+    #--- a base that restarts from a state re-acclimates its cohorts' traits to the fitted values, as every trial did
+    if int(cal.base.get("init.init_mode", default=1)) == 2:
+        settings.setdefault("init.reacclimate_traits", True)
     for k, v in settings.items():
         text["main"] = set_toml_text(text["main"], k, v)
     (out_dir / "pft_parameters_calibrated.toml").write_text(

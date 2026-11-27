@@ -98,13 +98,14 @@ def open_work(args, log_name):
 
 def base_record(cal, work, workers, runner, log):
     """Run one day at the base configs to read the model's parameter record: the defaults of keys the
-    base files leave to the model (cal.record)."""
-    rdir = work / "record"
+    base files leave to the model (cal.record). One record per build of the model."""
+    rdir = work / f"record-{trials.model_identity(runner)[:12]}"
     csv = rdir / "out" / f"{trials.PREFIX}_parameters.csv"
     if not csv.exists():
         cfg = trials.with_keys(cal.base, [], [], cal.overrides)
-        w = cal.windows[0]
-        for k, v in {"run.start_time": trials.stamp(w.start), "run.end_time": trials.stamp(w.start + dt.timedelta(days=1)),
+        #--- a restart continues from its state's date, so a base that restarts runs its own first day
+        start = chains.restart_start(cfg) or cal.windows[0].start
+        for k, v in {"run.start_time": trials.stamp(start), "run.end_time": trials.stamp(start + dt.timedelta(days=1)),
                      "run.slow_on": False, "run.n_threads": 1, "output.state_write": False, "output.enabled": True,
                      "output.dir": str(rdir / "out"), "output.prefix": trials.PREFIX, "output.daily.enabled": False,
                      "output.fast.enabled": False, "output.monthly.enabled": False,
@@ -168,17 +169,20 @@ def cmd_check(args):
     moved = bool(np.any(J[:, 0] != 0.0))
     log(f"the gradient column of {name} moves the output: {moved} (|J| = {np.linalg.norm(J[:, 0]):.4g})")
 
+    model = trials.model_identity(args.runner)      # the trials' names hash the model, as the fit's do
+
     def run_again(subdir, write_state=False):
         threads = trials.threads_for(w.days, max_threads)
         tdir = trials.build_trial(cal.base, keys, x0, w, states[w.name], work / subdir, cal.overrides, write_state,
-                                  threads)
+                                  threads, model)
         status = workers.run([Task(subdir, trials.command(args.runner, tdir / "main.toml"), str(tdir),
                                    str(tdir / "run.log"), trials.timeout_for(w.days, per_day), threads)])[subdir][0]
         if status != "ok":
             raise trials.TrialError(f"{tdir.name}: {status}\n{trials.log_tail(tdir / 'run.log')}")
         return tdir, trials.finish(tdir, keys, start, cal.step)
     _, again = run_again("repeat")
-    first = trials.load_series(trials.build_trial(cal.base, keys, x0, w, states[w.name], work / "trials", cal.overrides))
+    first = trials.load_series(trials.build_trial(cal.base, keys, x0, w, states[w.name], work / "trials", cal.overrides,
+                                                  model=model))
     same = all(np.array_equal(first[v].values, again[v].values) for v in trials.TRIAL_VARIABLES)
     log(f"a repeated trial is byte-identical: {same}")
     sdir, _ = run_again("stand", write_state=True)

@@ -146,6 +146,13 @@ hgt_max    = [46.0, 46.0, 46.0]   # [m] the largest height: the cap on every cur
 # diameter_height = 1.3   # [m] the height a stem's diameter is measured at, the diameter every curve takes: 1.3 m
 #                         #     (breast height) for a tree, the default; 0 (the root collar) for a shrub. A curve
 #                         #     fitted at another height needs this one: "chave2014" needs 1.3 m or more
+# crown_base_fraction = 0.5   # [-] the crown's base over the height, under a snow pack: canopy bottom
+#                             #     over top, 0.5 CLM4.5's needleleaf trees (8.5 m under 17 m; Oleson et
+#                             #     al. 2013, Table 2.2), 0.2 CLM5's shrubs, 0.02 its grasses (Lawrence et
+#                             #     al. 2018, Table 2.2.2)
+# snow_bending        = 0.0   # [-] how far a snow pack bends the plant down, a share of its height: 0 for
+#                             #     trees and shrubs; CTSM bends grasses and crops by 0.2 (Lombardozzi et
+#                             #     al. 2018)
 # The power law, height = exp(b1Ht + b2Ht ln diameter): pan-tropical (ED2 iallom 3).
 b1Ht       = 1.139963
 b2Ht       = 0.564899

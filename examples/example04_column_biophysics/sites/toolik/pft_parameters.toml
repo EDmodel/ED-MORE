@@ -1,0 +1,209 @@
+# SPDX-License-Identifier: Apache-2.0
+# The Toolik site's three PFTs in moist acidic tussock tundra: 1 the tussock sedge (Eriophorum vaginatum,
+# Carex bigelowii), a grass with no stem; 2 the evergreen dwarf shrubs (Rhododendron tomentosum = Ledum
+# palustre, Vaccinium vitis-idaea, Empetrum nigrum, Cassiope tetragona); 3 the deciduous dwarf shrubs
+# (Betula nana, Salix pulchra, Vaccinium uliginosum). Forbs are left out. Every key is the repository PFT
+# file's (ed_config_pft.toml), at its default unless a comment gives the source. A grass takes a value for
+# the stem's keys that it does not use. Toolik's measured leaf traits: MAT = the moist acidic tussock tundra
+# at Toolik Lake.
+#
+# Sources cited by tag:
+#   S18  Schedlbauer et al. 2018, Ecol. Evol. 8:3711-3725, doi:10.1002/ece3.3939 (Toolik-ecotype E. vaginatum)
+#   vW13 van de Weg, Shaver & Salmon 2013, Plant Ecol. 214:1273-1286, doi:10.1007/s11258-013-0250-6 (MAT)
+#   IG20 Iturrate-Garcia et al. 2020, Biogeosciences 17:4981-4998, doi:10.5194/bg-17-4981-2020 (NE Siberian tundra)
+#   R17  Rogers et al. 2017, New Phytol. 216:1090-1103, doi:10.1111/nph.14740 (Arctic Alaska)
+#   L15  Lin et al. 2015, Nature Clim. Change 5:459-464, doi:10.1038/nclimate2550
+#   CLM5 the CLM5.0 parameter file (clm5_params.c171117.nc) and Technical Note (Lawrence et al. 2018):
+#        broadleaf evergreen shrub, broadleaf deciduous boreal shrub, C3 arctic grass
+#   CLM45 the CLM4.5 Technical Note (Oleson et al. 2013, NCAR/TN-503+STR), Table 8.1
+#   B15  Berner et al. 2015, For. Ecol. Manage. 337:110-118, doi:10.1016/j.foreco.2014.10.027, Appendix A
+#        (harvested shrubs: dwarf birch and willows in tundra and boreal forest)
+#   WB91 Walker & Barry 1991, Toolik Lake vegetation plots (ORNL DAAC 1333, doi:10.3334/ORNLDAAC/1333):
+#        the mean shrub height of its six tussock-tundra plots
+#   TTT  the Tundra Trait Team database (Bjorkman et al. 2018, Global Ecol. Biogeogr. 27:1402,
+#        doi:10.1111/geb.12821): the plants' heights north of 60 N
+#   C96  Chapin et al. 1996, J. Veg. Sci. 7:347-358, Alaska's maximum rooting depths (Iversen et al. 2015,
+#        New Phytol. 205:34-58, Table 1)
+#   S14  Shaver et al. 2014, in Hobbie & Kling (eds), Alaska's Changing Arctic, Oxford UP, Table 5.1 (MAT)
+#   M06  the ARC LTER MAT06 control plots' harvest, 2012 (knb-lter-arc.20158.2), make_toolik_census.py
+#   GWDD the Global Wood Density Database (Zanne et al. 2009)
+
+[pft]
+growth_form        = ["grass", "tree", "tree"]
+wood_density       = [0.538, 0.62, 0.538]   # [g/cm3] GWDD: the deciduous shrubs Betula's genus mean (B. nana is
+                                            #   88 % of their leaves in M06), the evergreens the Ericaceae's family
+                                            #   mean (no Rhododendron tomentosum, Vaccinium, Empetrum or Cassiope is
+                                            #   listed); the grass has no wood
+# The mortality hazard and the conductivity below from wood density, the plasticity from vcmax25
+# (scripts/prepare_input/pft_traits); the stand is frozen, so the hazard only sets the shrubs' wood litter
+# for the soil carbon's spin-up.
+mort_gamma         = [0.011488117580213618, 0.008849868915833468, 0.011488117580213618]   # [1/yr]
+mort_alpha         = [0.05667756282099476, 0.04815079562819573, 0.05667756282099476]      # [1/yr]
+mort_beta          = [18.15851907855689, 18.89216695968993, 18.15851907855689]            # [yr/cm]
+leaf_width         = [0.001, 0.005, 0.01]   # [m] E. vaginatum's filiform blades, about 1 mm; the evergreens'
+                                            #   narrow leaves (Ledum's 2-5 mm, V. vitis-idaea's 5-10 mm); B. nana's
+                                            #   round blades, about 1 cm (the species' descriptions, Flora of North
+                                            #   America)
+branch_diameter    = [0.005, 0.005, 0.005]  # [m] a dwarf shrub's twigs: its stems are 0.1-2.5 cm at the ground (B15)
+reproduction_investment_fraction = [0.3, 0.3, 0.3]
+recruit_carbon_efficiency          = [1.0e-3, 1.0e-3, 1.0e-3]
+seed_rain_recruits = [0.01, 0.01, 0.01]     # [plant/m2/yr]
+include_pft        = [1, 1, 1]
+min_recruit_height = 0.05                   # [m] below every PFT's height
+min_repro_height   = [0.146, 0.08, 0.20]    # [m] each PFT's height: the stand is frozen
+photosynthetic_pathway = [1, 1, 1]
+vcmax25            = [68.9, 61.7, 78.0]     # [umol/m2/s] the sedge: Toolik-ecotype E. vaginatum, 68.9 (S18, Table 4);
+                                            #   the evergreens: no measurement was found, CLM4.5's broadleaf evergreen
+                                            #   shrub (CLM45); the deciduous shrubs: B. nana in MAT, about 50 at 20 C
+                                            #   (vW13, Fig. 3, read off the figure), at 25 C on ea_vcmax
+jmax_vcmax_ratio   = [2.33, 2.53, 2.53]     # the sedge: S18's 160.3 / 68.9; the shrubs: Arctic Alaska's species mean
+                                            #   (R17, 2.53 at 25 C)
+tpu_vcmax_ratio    = [0.167, 0.167, 0.167]
+rd_vcmax_ratio     = [0.015, 0.015, 0.015]
+kp25               = [1.0e-9, 1.0e-9, 1.0e-9]
+stomatal_g0        = [0.01, 0.01, 0.01]
+stomatal_g1        = [2.22, 2.22, 2.22]     # Medlyn [kPa^0.5]: the Arctic's (L15, Fig. 2: 162 measurements in
+                                            #   Arctic Alaska); the calibration fits each PFT's
+stomatal_d0        = [1500.0, 1500.0, 1500.0]
+quantum_yield_c4   = [0.0, 0.0, 0.0]
+theta_j            = [0.70, 0.70, 0.70]
+capacity_low_temp       = [277.8637, 277.8637, 277.8637]   # [K]
+capacity_low_temp_slope = [0.4, 0.4, 0.4]                  # [1/K]
+theta_cj_c3        = [0.98, 0.98, 0.98]
+theta_ip_c3        = [0.95, 0.95, 0.95]
+theta_cj_c4        = [0.80, 0.80, 0.80]
+theta_ic_c4        = [0.95, 0.95, 0.95]
+katul_lambda25     = [800.0, 800.0, 800.0]
+wstress_lambda_exp = [1.0, 1.0, 1.0]
+wstress_sref_stomata = [2.0, 2.0, 2.0]      # [1/MPa]
+sla                = [19.15, 11.36, 24.7]   # [m2/kgC] at a carbon fraction of 0.5: the sedge, 95.74 cm2/g (S18,
+                                            #   Table 3); the evergreens, R. tomentosum's 54.6 and V. vitis-idaea's 59.5
+                                            #   (IG20, Table 2), weighted by their leaves in M06; the deciduous shrubs,
+                                            #   B. nana's mass per area in MAT, about 81 g/m2 (vW13, Fig. 4, read off the
+                                            #   figure)
+root_to_leaf_ratio = [2.8, 9.9, 9.9]        # M06's fine roots over leaves (make_toolik_census.py, 7.): the sedge,
+                                            #   the graminoids' 122 +- 36 g/m2 (Carex bigelowii 92, Eriophorum
+                                            #   vaginatum 28) over their blades, 43 g/m2; the shrubs, the other
+                                            #   plants' 743 +- 88 g/m2 over the shrubs' leaves, 75 g/m2
+stem_resp_factor25 = [0.06, 0.06, 0.06]
+root_resp_factor25 = [0.30, 0.30, 0.30]
+# The leaves' and stems' optics: CLM5's C3 arctic grass, broadleaf evergreen shrub and broadleaf deciduous
+# boreal shrub (CLM5).
+leaf_reflect_vis   = [0.11, 0.07, 0.10]
+leaf_transmit_vis  = [0.05, 0.05, 0.05]
+leaf_reflect_nir   = [0.35, 0.35, 0.45]
+leaf_transmit_nir  = [0.34, 0.10, 0.25]
+leaf_emissivity    = [0.97, 0.97, 0.97]
+wood_reflect_vis   = [0.31, 0.16, 0.16]
+wood_transmit_vis  = [0.12, 0.001, 0.001]
+wood_reflect_nir   = [0.53, 0.39, 0.39]
+wood_transmit_nir  = [0.25, 0.001, 0.001]
+wood_emissivity    = [0.90, 0.90, 0.90]
+leaf_clumping      = [0.80, 0.80, 0.80]
+wood_clumping      = [0.50, 0.50, 0.50]
+leaf_angle_mean    = [63.24, 57.3, 57.3]    # [deg] the sedge: de Wit's (1965) erectophile distribution (CLM5's xl
+                                            #   -0.30); the shrubs: the spherical distribution (CLM5's xl 0.01, 0.25)
+leaf_angle_std     = [18.5, 21.6, 21.6]     # [deg] those distributions' spreads
+wood_angle_mean    = [75.0, 75.0, 75.0]     # [deg]
+wood_angle_std     = [20.0, 20.0, 20.0]
+storage_cushion    = [3.0, 3.0, 3.0]
+growth_resp_factor = [0.3, 0.3, 0.3]
+leaf_turnover_rate_toc = [0.000106781, 0.000106781, 0.000106781]   # [1/yr] the background loss while in leaf:
+                                                                    #   Harvard's broadleaves' (example 02); each
+                                                                    #   loses leaves at senescence ([phenology])
+kplastic_vcmax         = [-0.1658736375630452, -0.1495481297253642, -0.18908095921606985]   # pft_traits.py
+kplastic_rd            = [-0.1658736375630452, -0.1495481297253642, -0.18908095921606985]
+kplastic_sla           = [0.17793717484035756, 0.16042435734175428, 0.20283230170451125]
+kplastic_leaf_turnover = [0.0, 0.0, 0.0]
+fineroot_turnover_rate = [1.0, 1.0, 1.0]    # [1/yr] E. vaginatum's roots live 1-2 years (Iversen et al. 2015, p. 48)
+f_labile_leaf          = [0.70, 0.70, 0.70]
+f_labile_stem          = [0.05, 0.05, 0.05]
+struct_lignin_frac     = [0.25, 0.25, 0.25]
+
+[allometry]
+# The shrubs: the dwarf birch harvested by B15, the stem's diameter D [cm] at the ground (diameter_height =
+# 0), for both shrub PFTs, since no evergreen dwarf shrub was harvested. make_toolik_census.py fits them in
+# log-log on B15's 52 birch:
+#   - the height, 62.66 D^0.850 cm (the 25 with a height, R2 0.87);
+#   - the stem's above-ground carbon, its wood (stem and branch), 25.86 D^2.915 g (R2 0.97), at 0.5 gC per g;
+#   - the leaf area, following the new growth (leaves and new twigs), 4.82 D^2.413 g (R2 0.95).
+# The stem's silhouette, its diameter times its height, is its wood area, and the stem is all sapwood. The
+# deciduous shrubs stand at the shrub height of the site's tussock tundra, 20 cm (WB91, the median of six
+# plots), so D = 0.26 cm; there the birch's new growth is 0.37 of its wood, as M06's deciduous new leaves
+# and stems are 0.40 of their old stems. The evergreens stand at Ledum palustre's median height, 8 cm
+# (TTT), so D = 0.089 cm. Each caps at its 90th percentile: the deciduous at the tallest of WB91's plots,
+# 30 cm, the evergreens at Ledum's 15.3 cm (TTT). A grass's height is its hgt_max: the sedge stands at E.
+# vaginatum's median, 14.6 cm (TTT). make_toolik_census.py prints the values below and the leaf area each
+# cohort holds.
+height_allometry = "power"
+hgt_max    = [0.146, 0.153, 0.30]      # [m]
+diameter_height = [1.3, 0.0, 0.0]     # [m] the shrubs' stems at the ground (B15); a grass ignores it
+b1Ht       = -0.467496
+b2Ht       = 0.850116
+agb_c1     = [0.034008, 0.034008, 0.039318]
+agb_c2     = 1.02269
+lai_b1     = [0.000247973, 0.040885, 0.06774]   # the sedge's per tiller [m2]; each shrub cohort's its leaf area
+lai_b2     = [0.0, 0.846727, 0.846727]
+wai_b1     = [0.0, 0.0008, 0.002]      # [m2 per cm of diameter] 0.01 m/cm times the cohort's height
+wai_b2     = [1.0, 1.0, 1.0]
+sapwood_area_b1  = [0.7853982, 0.7853982, 0.7853982]   # [cm2/cm^2] pi/4: the stem is all sapwood
+sapwood_area_b2  = [2.0, 2.0, 2.0]
+aboveground_frac = [0.7, 0.262, 0.241]  # the shrubs' stems above the ground over all their stems in M06:
+                                        #   101.5 / 388.1 and 40.1 / 166.1 g/m2
+crown_base_fraction = [0.02, 0.2, 0.2]  # [-] the crown's base over its top: CLM5's canopy bottom over top, 0.01 /
+                                        #   0.5 m for the arctic grass and 0.1 / 0.5 m for the shrubs
+
+[hydraulics]
+leaf_pi0             = -1.5
+leaf_elastic_mod     = 12.0
+leaf_apoplast_frac   = 0.3
+leaf_water_sat       = 2.0
+wood_pi0             = -1.0
+wood_elastic_mod     = 8.0
+wood_apoplast_frac   = 0.2
+wood_water_sat       = 1.0
+wood_psi50           = -2.0
+wood_kexp            = 2.0
+wood_kmax            = [3.8057382746650967, 3.1117958398413266, 3.8057382746650967]   # [kg/m/s/MPa] pft_traits.py
+leaf_kmax            = [10.5, 10.5, 10.5]   # [mmol/m2/s/MPa]
+# The roots, to the maximum rooting depths of Alaska's species (C96): E. vaginatum's 40 cm, R. tomentosum's
+# 20 and V. vitis-idaea's 10 weighted by their leaves in M06, B. nana's 20 and V. uliginosum's 15 likewise,
+# less the 6 cm of moss above the soil column; within it, Jackson et al. (1996)'s tundra profile as CLM5 takes
+# it, 1 - beta^d with d in cm (beta 0.914 for the arctic grass and the deciduous shrub, 0.964 for the evergreen
+# shrub), whose root_beta is beta to the rooting depth in cm.
+root_beta            = [0.0470, 0.7059, 0.2840]
+root_depth_b1        = [0.34, 0.095, 0.14]   # [m] with root_depth_b2 = 0, each PFT's rooting depth
+root_depth_b2        = [0.0, 0.0, 0.0]
+specific_root_length = 20000.0
+fine_root_radius     = 0.00025
+
+# Leaf phenology (docs/science/plant_phenology.md): every PFT flushes on warmth and long days and sheds on cold
+# and short days, as Harvard's broadleaves do (example 02, part 2), fitted in example 02, part 4
+# (toolik_stand/phenology.toml) to NEON's tagged plants at TOOL and the tower camera, 2019-2024: for the sedge and
+# the deciduous shrubs, the warmth and the day length that flush them and how fast, and the cold, the day length
+# and the rate that end their season; for the evergreens, the warmth that breaks their buds and how fast the
+# shoots fill. The flush runs until the hours of light fall below about 21 (early August); the cold the shed
+# needs is summed below about 20 C, every day at Toolik, so it counts the days from midsummer. The evergreens
+# keep half their leaves through the winter: R. tomentosum's leaves live about two years (Shaver 1981, Oecologia
+# 49:362), their shed not fitted; the sedge keeps a tenth green, as NEON's graminoids are at the season's end.
+[phenology]
+flush_cue_mask        = [3, 3, 3]
+shed_cue_mask         = [3, 3, 3]
+flush_cue_timescale   = [5.0, 5.0, 5.0]
+shed_cue_timescale    = [5.0, 5.0, 5.0]
+flush_rate_max        = [0.045773, 0.263052, 0.055505]
+shed_rate_max         = [0.240605, 0.05, 0.318429]
+min_leaf_cover        = [0.1, 0.5, 0.0]
+bare_leaf_cover       = [0.02, 0.02, 0.02]
+flush_base_temp       = [278.15, 278.15, 278.15]
+flush_degree_days     = [8.3169, 109.29, 5.891]
+flush_temp_sharpness  = [0.04, 0.04, 0.04]
+shed_base_temp        = [292.82, 283.15, 293.09]
+shed_degree_days      = [391.55, 123.0, 460.22]
+shed_temp_sharpness   = [0.1, 0.1, 0.1]
+par_min               = [2.0, 2.0, 2.0]
+flush_light_hours     = [21.388, 16.0, 21.437]
+flush_light_sharpness = [4.0, 4.0, 4.0]
+shed_light_hours      = [17.545, 16.0, 20.425]
+shed_light_sharpness  = [-1.0, -1.0, -1.0]
+light_window          = [10.0, 10.0, 10.0]

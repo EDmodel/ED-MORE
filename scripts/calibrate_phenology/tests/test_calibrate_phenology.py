@@ -261,6 +261,34 @@ def test_a_changed_stand_stops(tmp_path):
         coupled.read(out, {})
 
 
+def state_file(path, pft=(1, 2, 1)):
+    """A state file's phenology memory for three cohorts: cohort k's variable j is 10 k + j."""
+    from netCDF4 import Dataset
+    with Dataset(path, "w") as ds:
+        ds.createDimension("polygon", 1)
+        ds.createDimension("cohort", len(pft))
+        ds.createVariable("pft_co", "i4", ("polygon", "cohort"))[:] = [pft]
+        for j, name in enumerate(coupled.STATE_VARIABLES):
+            ds.createVariable(name, "f8", ("polygon", "cohort"))[:] = [[10.0 * k + j for k in range(len(pft))]]
+
+
+def test_a_state_file_starts_each_column(tmp_path):
+    out = tmp_path / "out"
+    out.mkdir()
+    daily_file(out / "pheno-D.nc")
+    state_file(tmp_path / "state.nc")
+    d = coupled.read(out, {}, tmp_path / "state.nc")
+    assert d.state.shape == (3, len(coupled.STATE_VARIABLES)) and d.state[2, 1] == 21.0
+    assert np.allclose(d.cover0, d.cover[:, 0])
+    d.save(tmp_path / "d.npz")
+    back = coupled.Drivers.load(tmp_path / "d.npz")
+    assert np.array_equal(back.state, d.state) and np.array_equal(back.cover0, d.cover0)
+    assert coupled.read(out, {}).state is None                  # from the census: born flushing
+    state_file(tmp_path / "other.nc", pft=(2, 2, 1))
+    with pytest.raises(coupled.RunError, match="not the run's"):
+        coupled.read(out, {}, tmp_path / "other.nc")
+
+
 #----- the offline stand and the fit (needs libedmore.so) ------------------------------------------#
 def lib_or_skip():
     import edmore.plant.pheno as pheno
@@ -284,6 +312,21 @@ def synthetic_stand(pheno):
                         area=np.repeat([0.6, 0.4], 6), lai_full=0.2 + height / 10.0, temp=temp, hours=hours,
                         psi=np.zeros_like(temp), turnover=np.full_like(temp, 0.01), cover=np.ones_like(temp))
     return d
+
+
+def test_an_offline_column_starts_from_its_state_file(tmp_path):
+    pheno = lib_or_skip()
+    import offline
+    d = synthetic_stand(pheno)                            # from 1 January: cold, short days
+    p = pheno.temperate_deciduous(leaf_turnover_rate=0.01)
+    born, _ = offline.Stand(d, {1: p}).run({1: p})
+    n = len(d.pft)
+    d.state = np.tile([0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 8.0], (n, 1))   # dormant: shedding, not flushing
+    d.cover0 = np.full(n, 0.05)
+    cover, _ = offline.Stand(d, {1: p}).run({1: p})
+    assert born[:, 0].min() > 0.9 and cover[:, 0].max() < 0.1   # a winter start stays bare
+    d.cover = cover                                       # the "coupled run" that restarted from that state
+    assert max(w for w, _ in offline.closure(offline.Stand(d, {1: p})).values()) < 1e-12
 
 
 def test_the_fit_finds_the_values_the_observations_were_made_with(tmp_path):

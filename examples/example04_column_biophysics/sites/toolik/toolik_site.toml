@@ -1,0 +1,80 @@
+# SPDX-License-Identifier: Apache-2.0
+# Toolik, Alaska: the moist acidic tussock tundra flux tower NEON TOOL (AmeriFlux US-xTL), the site TOML
+# that DECLARES what the tower file is, for scripts/prepare_input/flux_tower/make_tower_forcing.py and the
+# fast calibration. prepare_tower.py makes the file from the tower's FLUXNET product (ONEFlux v1.3_r1,
+# AmeriFlux, CC-BY-4.0) and the NOAA USCRN station Toolik Lake 5 ENE, 1.6 km away (public domain): only
+# the measured meteorology, with the station's humidity and precipitation and the product's ERA5 wind
+# and pressure where the tower measured nothing (flagged <VAR>_QC), so the build fills every other gap
+# by its own rules.
+
+[input]
+format = "fluxnet"
+path   = "data/toolik_tower.csv"            # prepare_tower.py writes it
+
+[site]
+name      = "Toolik (NEON TOOL, US-xTL)"
+latitude  = 68.6611                         # [deg N]  the tower (the product's BIF, LOCATION_LAT)
+longitude = -149.3705                       # [deg E]  (LOCATION_LONG)
+elevation = 843.0                           # [m]      (LOCATION_ELEV)
+# The green season: the vascular canopy leafs out after the melt (late May to mid June) and senesces
+# from mid August (PhenoCam, NEON TOOL); the calibration takes its windows from these months.
+leaf_on_months = [6, 7, 8]
+
+[clock]
+utc_offset = -9.0                           # [h] Alaska standard time (the product's BIF, UTC_OFFSET)
+stamp      = "begin"                        # TIMESTAMP_START marks the start of each half hour
+timestep   = 1800                           # [s]
+# The sun lingers just below the horizon for weeks at 68.7 N: its twilight, lit on the radiometer, falls
+# where the model's window-mean sun is below its horizon (0.30 % of the shortwave, 2019-2024), which the
+# model drops. The clock itself fits the sun (V2's shift).
+night_shortwave_max = 0.005                 # [-] V2's bound on the shortwave in model night (0.001 by default)
+
+[heights]                                   # [m] above the ground (NEON's sensor positions at TOOL)
+tq_height       = 8.42                      # the tower-top humidity and temperature probe (level 4)
+wind_height     = 8.89                      # the level-4 3D sonic
+pressure_height = 5.62                      # the barometer
+
+[variables]                                 # ED-MORE variable -> the file's column and units
+Tair   = { column = "TA",      units = "degC" }
+RH     = { column = "RH",      units = "%" }                 # RH_QC = 1 where it is the USCRN station's (1.5 m)
+PSurf  = { column = "PA",      units = "kPa" }               # PA_QC = 2 where it is the product's ERA5
+Rainf  = { column = "P",       units = "mm" }                # per half hour; the Pluvio weighing gauge catches snow;
+                                                             #   P_QC = 1 the USCRN station's gauge, 2 ERA5
+SWdown = { column = "SW_IN",   units = "W m-2" }
+LWdown = { column = "LW_IN",   units = "W m-2" }
+Wind   = { column = "WS",      units = "m s-1" }             # WS_QC = 2 where it is the product's ERA5 (all of 2020)
+PAR    = { column = "PPFD_IN", units = "umol m-2 s-1" }       # reports only
+
+[gapfill]
+short_gap_max = 4                           # [records] interpolate gaps up to 2 h
+
+# The tower's fluxes (8.9 m), for the calibration and the evaluation. A FLUXNET flux is measured where
+# its _QC column is 0; the product has no turbulent fluxes in 2020. The partitioned GPP and respiration
+# count where the NEE they come from was measured.
+[fluxes]
+SW_out  = { column = "SW_OUT",          units = "W m-2" }
+LW_out  = { column = "LW_OUT",          units = "W m-2" }
+Rnet    = { column = "NETRAD",          units = "W m-2" }
+G       = { column = "G_F_MDS",         units = "W m-2" }
+LE      = { column = "LE_F_MDS",        units = "W m-2" }
+H       = { column = "H_F_MDS",         units = "W m-2" }
+NEE     = { column = "NEE_VUT_REF",     units = "umol m-2 s-1" }
+GPP     = { column = "GPP_NT_VUT_REF",  units = "umol m-2 s-1", measured = { column = "NEE_VUT_REF_QC", equals = 0 } }
+RECO    = { column = "RECO_NT_VUT_REF", units = "umol m-2 s-1", measured = { column = "NEE_VUT_REF_QC", equals = 0 } }
+GPP_DT  = { column = "GPP_DT_VUT_REF",  units = "umol m-2 s-1", measured = { column = "NEE_VUT_REF_QC", equals = 0 } }
+RECO_DT = { column = "RECO_DT_VUT_REF", units = "umol m-2 s-1", measured = { column = "NEE_VUT_REF_QC", equals = 0 } }
+USTAR   = { column = "USTAR",           units = "m s-1" }
+
+[provider]
+gpp_method  = "ONEFlux (Pastorello et al. 2020): NEE_VUT_REF partitioned by the night-time method (Reichstein et al. 2005, GPP_NT) and the daytime method (Lasslop et al. 2010, GPP_DT)"
+notes       = "NEON's eddy covariance at TOOL processed by AmeriFlux ONEFlux v1.3_r1. The meteorology is measured only (prepare_tower.py blanks the product's MDS and ERA5 fills); the USCRN station's humidity and precipitation (_QC = 1) and the product's ERA5 wind and pressure (_QC = 2) stand in where the tower has none."
+uncertainty = { LE = "LE_RANDUNC", H = "H_RANDUNC", NEE = "NEE_VUT_REF_RANDUNC" }
+
+# [m s-1] ONEFlux's CO2 u* threshold, each year's median of the VUT bootstrap (the product's BIF, GRP_UST_THR)
+[provider.ustar_threshold]
+2019 = 0.170
+2020 = 0.142
+2021 = 0.103
+2022 = 0.100
+2023 = 0.105
+2024 = 0.138
