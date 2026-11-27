@@ -34,12 +34,12 @@ is u\*-filtered), and a plain mean over its measured hours would be mostly a mea
 
 | Site, run | GPP [µmol m⁻² s⁻¹] tower / model | LE [W m⁻²] | H [W m⁻²] | net radiation [W m⁻²] |
 |---|---|---|---|---|
-| BCI, default | 7.64 / 10.74 | 76.7 / 80.8 | 35.1 / 74.8 | 136.0 / 139.8 |
-| BCI, calibrated | 7.64 / 8.93 | 76.7 / 66.5 | 35.1 / 86.3 | 136.0 / 139.1 |
-| Harvard, default | 4.56 / 4.87 | 41.1 / 50.3 | 25.2 / 47.5 | 87.3 / 88.0 |
-| Harvard, calibrated | 4.56 / 5.22 | 41.1 / 45.0 | 25.2 / 51.3 | 87.3 / 87.3 |
-| Tonzi, default | 2.85 / 3.22 | 31.9 / 35.9 | 57.8 / 49.2 | 103.3 / 81.6 |
-| Tonzi, calibrated | 2.85 / 3.14 | 31.9 / 30.3 | 57.8 / 53.4 | 103.3 / 81.4 |
+| BCI, default | 7.64 / 10.72 | 76.7 / 77.6 | 35.1 / 79.0 | 136.0 / 139.8 |
+| BCI, calibrated | 7.64 / 9.00 | 76.7 / 65.1 | 35.1 / 87.6 | 136.0 / 138.0 |
+| Harvard, default | 4.56 / 4.82 | 41.1 / 52.4 | 25.2 / 46.1 | 87.3 / 88.4 |
+| Harvard, calibrated | 4.56 / 5.12 | 41.1 / 46.3 | 25.2 / 51.1 | 87.3 / 88.2 |
+| Tonzi, default | 2.85 / 3.02 | 31.9 / 36.7 | 57.8 / 54.2 | 103.3 / 86.5 |
+| Tonzi, calibrated | 2.85 / 2.58 | 31.9 / 28.6 | 57.8 / 60.5 | 103.3 / 85.8 |
 
 BCI's and Harvard's towers close their energy balance to about 0.75 of the net radiation, and at both the
 calibration's attribution test gives the gap to H: most of the model's higher H is the tower's missing H.

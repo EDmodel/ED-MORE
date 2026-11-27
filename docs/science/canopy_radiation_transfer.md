@@ -242,13 +242,16 @@ This section gives the lower boundary of the two-stream and the fluxes `canopy_r
 `ground_optics` closes the two-stream at the bottom. For a shortwave band the ground reflectance is the
 per-band soil albedo and its emission is zero. For the thermal band the reflectance is
 $1-\varepsilon_{soil}$ and the emission is $`\varepsilon_{soil}\,\sigma\,T_{soil}^4`$. Its input
-(`ground_optics_env_t`) is **bare soil plus snow**: the per-band soil albedo, the emissivity and the
-skin temperature, which the driver blends toward the snowpack's albedo and emissivity by the Niu–Yang
-snow-cover fraction, so a partial pack changes the ground continuously. The blended temperature is the
-one at which the blended emissivity emits what the soil and the pack emit at their own temperatures.
-What reaches the ground in each band is then shared between soil and snow at their own optics
-([snow_biophysics](snow_biophysics.md), "The ground's radiation"). Litter, standing water and soil
-moisture do not change the ground optics.
+(`ground_optics_env_t`) is **the uncovered ground plus the water layer**: the per-band albedo and the
+emissivity of the uncovered ground (bare soil, or litter and moss, which take the soil's optics), which
+the driver blends toward the water layer's (snow, ice or standing water) by that layer's cover, so a
+partial cover changes the ground continuously. The blended ground emits at the temperature at which the
+blended emissivity emits what the uncovered ground emits at its top's temperature (the top porous
+layer's, else the top soil node's) and the water layer at its own. What reaches the ground in each band
+is then shared between the uncovered ground and the water layer at their own optics, and in their
+balances each layer forms its longwave at its own temperature
+([ground_surface_layers](ground_surface_layers.md), "The ground's radiation"). Litter and soil moisture do
+not change the albedo; standing water does, through the water layer's optics.
 
 `canopy_radiation` (the per-patch entry point) loops over the bands, blends the optics per cohort and
 passes each band to `solve_band`.
@@ -344,8 +347,8 @@ vegetation indices are built on. A snow-covered ground raises both.
 | $`\rho_{wood},\tau_{wood}`$ | `[pft].wood_reflect_vis`, `wood_reflect_nir`, `wood_transmit_vis`, `wood_transmit_nir` | wood reflectance and transmittance |
 | $`\varepsilon_{leaf},\varepsilon_{wood}`$ | `[pft].leaf_emissivity`, `wood_emissivity` | longwave: $`\rho=1-\varepsilon,\ \tau=0`$ |
 | $`\Omega_{leaf},\Omega_{wood}`$ | `[pft].leaf_clumping`, `wood_clumping` | clumping factors in $(0,1]$ |
-| $`\varepsilon_{soil}`$ | `[soil].ground_emissivity` (0.95) | ground thermal emissivity |
-| — | `[soil].ground_albedo_vis`, `[soil].ground_albedo_nir` (0.15, 0.30) | bare-soil shortwave albedo per band |
+| $`\varepsilon_{soil}`$ | `[soil].ground_emissivity` (0.96, CLM5's soil, Lawrence et al. 2018, §2.4) | the uncovered ground's thermal emissivity (bare soil; litter and moss take it, unmeasured) |
+| — | `[soil].ground_albedo_vis`, `[soil].ground_albedo_nir` (0.15, 0.30) | the uncovered ground's shortwave albedo per band (bare soil, litter and moss) |
 | $`\alpha_{leaf}`$ | `[leaf_physiology].leaf_absorptance` | leaf VIS absorptance (the PAR conversion above) |
 
 ## Code map
@@ -373,3 +376,4 @@ vegetation indices are built on. A snow-covered ground raises both.
 - van der Tol et al. (2009), *Biogeosciences* 6:3109: SCOPE (leaf angle and `volscatt`).
 - Goel & Strebel (1984), *Agron. J.* 76:800: Beta leaf-inclination distribution.
 - ED2 `../ED2/ED/src/dynamics/twostream_rad.f90`.
+- Lawrence, D. et al. (2018), *Technical Description of version 5.0 of the Community Land Model (CLM)*, NCAR, §2.4: the soil's longwave emissivity.

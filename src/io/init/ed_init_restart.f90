@@ -13,7 +13,9 @@ module ed_init_restart
    use iso_c_binding,       only : c_int, c_size_t
    use ed_kinds,            only : wp, ik
    use ed_biogeochem_params, only : N_SOIL_POOL, SOIL_POOL_NAME
-   use ed_constants,        only : n_soil_layer_max, n_snow_layer_max
+   use ed_constants,        only : n_soil_layer_max
+   use ed_therm_lib,        only : internal_energy_to_temp
+   use ed_ground_surface_params, only : N_POROUS
    use ed_state_defaults,   only : is_unset_positive
    use ed_config,           only : ed_config_t, growth_window_steps
    use ed_time,             only : ed_time_t, time_to_stamp, time_to_decimal_year
@@ -25,6 +27,7 @@ module ed_init_restart
    use ed_netcdf_write,     only : define_var, put_global_text, define_polygon_axis, write_polygon_axis,             &
                                    define_site_statics, write_site_statics, RESTART_DEFLATE
    use ed_polygon_state_vars,           only : polygon_t, alloc_polygon, rebuild_patch_map, rebuild_cohort_map
+   use ed_patch_state_vars,             only : patch_block
    use ed_site_state_vars,              only : make_site_surface
    use ed_cohort_state_vars,            only : set_cohort_size_from_carbon
    use ed_slow_update, only : sort_cohorts
@@ -48,7 +51,8 @@ module ed_init_restart
    !--- The dimensions of a file being defined.
    type :: file_dims_t
       integer(c_int) :: ncid = -1_c_int
-      integer(c_int) :: polygon, cohort, patch, site, pft, meta_int, meta_real, soil_layer, snow_layer
+      integer(c_int) :: polygon, cohort, patch, site, pft, meta_int, meta_real, soil_layer
+      integer(c_int) :: porous_layer
       integer(c_int) :: growth_window
    end type file_dims_t
 
@@ -99,7 +103,8 @@ contains
       call nc_check(nc_def_dim_f(ncid, 'nmeta_int',  int(N_META_INT, c_size_t), d%meta_int), 'state dim mi')
       call nc_check(nc_def_dim_f(ncid, 'nmeta_real', int(N_META_REAL, c_size_t), d%meta_real), 'state dim mr')
       call nc_check(nc_def_dim_f(ncid, 'soil_layer', int(n_soil_layer_max, c_size_t), d%soil_layer), 'state dim soill')
-      call nc_check(nc_def_dim_f(ncid, 'snow_layer', int(n_snow_layer_max, c_size_t), d%snow_layer), 'state dim snowl')
+      call nc_check(nc_def_dim_f(ncid, 'porous_layer', int(N_POROUS, c_size_t), d%porous_layer),            &
+                    'state dim porous')
       call nc_check(nc_def_dim_f(ncid, 'growth_window', int(max(n_window,1_ik), c_size_t), d%growth_window),     &
                     'state dim gwin')
       call define_polygon_vars(d)
@@ -750,27 +755,33 @@ contains
       call def_var(d, 'age_pa',       NC_DOUBLE, [d%patch], 'time since last disturbance [yr]')
       !--- 3. Recruit bank.
       call def_var(d, 'recruit_pool_pa', NC_DOUBLE, [d%patch, d%pft], 'carry-forward recruit pool [plant/m2]')
-      !--- 4-6. The fast reservoirs (canopy air, snow, soil, pond), with their diagnosed twins.
+      !--- 4-6. The fast reservoirs (canopy air, the ground's surface layers, soil, pond), with their diagnosed twins.
       call def_var(d, 'cas_can_enthalpy_pa', NC_DOUBLE, [d%patch], 'CAS specific enthalpy [J/kg] (prognostic)')
       call def_var(d, 'cas_can_shv_pa',      NC_DOUBLE, [d%patch], 'CAS specific humidity [kg/kg] (prognostic)')
       call def_var(d, 'cas_can_co2_pa',      NC_DOUBLE, [d%patch], 'CAS CO2 mixing ratio [umol/mol] (prognostic)')
       call def_var(d, 'cas_can_temp_pa',     NC_DOUBLE, [d%patch], 'CAS temperature [K] (diagnosed twin)')
       call def_var(d, 'cas_air_mass_capacity_pa',  NC_DOUBLE, [d%patch], 'CAS air mass the last fast step held [kg/m2]')
       call def_var(d, 'cas_air_molar_capacity_pa', NC_DOUBLE, [d%patch], 'CAS dry-air moles the last fast step held [mol/m2]')
-      call def_var(d, 'snow_nlayer_pa', NC_INT,    [d%patch], 'active snow layer count (0 = no snow)')
-      call def_var(d, 'snow_swe_layer_pa',    NC_DOUBLE, [d%patch, d%snow_layer], 'snow water-equivalent mass [kg/m2] (prognostic)')
-      call def_var(d, 'snow_energy_layer_pa', NC_DOUBLE, [d%patch, d%snow_layer],                                   &
-                   'snow extensive internal energy [J/m2] (prognostic)')
-      call def_var(d, 'snow_depth_layer_pa',  NC_DOUBLE, [d%patch, d%snow_layer], 'snow geometric depth [m] (prognostic)')
-      call def_var(d, 'snow_temp_layer_pa',   NC_DOUBLE, [d%patch, d%snow_layer], 'snow temperature [K] (diagnosed twin)')
-      call def_var(d, 'snow_fliq_layer_pa',   NC_DOUBLE, [d%patch, d%snow_layer], 'snow liquid fraction [-] (diagnosed twin)')
+      call def_var(d, 'ground_water_layer_water_pa',  NC_DOUBLE, [d%patch],                                         &
+                   'the water layer''s water, ice and liquid, its free water among it [kg/m2] (prognostic)')
+      call def_var(d, 'ground_water_layer_energy_pa', NC_DOUBLE, [d%patch],                                         &
+                   'the water layer''s internal energy [J/m2] (prognostic)')
+      call def_var(d, 'ground_water_layer_matrix_depth_pa', NC_DOUBLE, [d%patch],                                   &
+                   'the water layer''s ice matrix''s depth [m] (prognostic)')
+      call def_var(d, 'ground_water_layer_temp_pa', NC_DOUBLE, [d%patch], 'the water layer''s temperature [K] (diagnosed twin)')
+      call def_var(d, 'ground_water_layer_fliq_pa', NC_DOUBLE, [d%patch],                                           &
+                   'the water layer''s liquid fraction [-] (diagnosed twin)')
+      call def_var(d, 'ground_porous_layer_matter_pa', NC_DOUBLE, [d%patch, d%porous_layer],                        &
+                   'each porous layer''s dry matter [kg/m2], litter, moss')
+      call def_var(d, 'ground_porous_layer_water_pa',  NC_DOUBLE, [d%patch, d%porous_layer],                        &
+                   'each porous layer''s water [kg/m2] (prognostic)')
+      call def_var(d, 'ground_porous_layer_energy_pa', NC_DOUBLE, [d%patch, d%porous_layer],                        &
+                   'each porous layer''s internal energy [J/m2] (prognostic)')
       call def_var(d, 'soil_theta_layer_pa',  NC_DOUBLE, [d%patch, d%soil_layer], 'soil volumetric moisture [m3/m3] (prognostic)')
       call def_var(d, 'soil_energy_layer_pa', NC_DOUBLE, [d%patch, d%soil_layer],                                   &
                    'soil volumetric internal energy [J/m3] (prognostic)')
       call def_var(d, 'soil_temp_layer_pa',   NC_DOUBLE, [d%patch, d%soil_layer], 'soil temperature [K] (diagnosed twin)')
       call def_var(d, 'soil_fliq_layer_pa',   NC_DOUBLE, [d%patch, d%soil_layer], 'soil liquid-water fraction [-] (diagnosed twin)')
-      call def_var(d, 'soil_w_surface_pa',      NC_DOUBLE, [d%patch], 'ponded surface water [kg/m2]')
-      call def_var(d, 'soil_w_surface_enth_pa', NC_DOUBLE, [d%patch], 'ponded-water internal energy [J/m2]')
       !--- 7. Soil carbon (docs/science/soil_carbon.md §2).
       call def_var(d, 'soilc_fast_grnd_pa',   NC_DOUBLE, [d%patch], 'fast/metabolic litter carbon, above-ground [kgC/m2]')
       call def_var(d, 'soilc_fast_soil_pa',   NC_DOUBLE, [d%patch], 'fast/metabolic litter carbon, below-ground [kgC/m2]')
@@ -796,7 +807,7 @@ contains
    subroutine put_patch_vars(r, poly)
       type(file_row_t), intent(in) :: r
       type(polygon_t),  intent(in) :: poly
-      real(wp)    :: buf(poly%patch%n)
+      real(wp)    :: buf(poly%patch%n), pbuf(N_POROUS)
       integer(ik) :: ibuf(poly%patch%n), npat, npft, ip, kp
       npat = poly%patch%n
       npft = poly%n_pft
@@ -824,27 +835,46 @@ contains
          call put_dbl(r, 'cas_air_mass_capacity_pa', buf)
          buf = p%cas(1:npat)%air_molar_capacity
          call put_dbl(r, 'cas_air_molar_capacity_pa', buf)
-         !--- 5. Snow.
-         ibuf = p%snow(1:npat)%nlayer
-         call put_int(r, 'snow_nlayer_pa', ibuf)
+         !--- 5. The ground's surface layers.
+         !---~---
+         !   The water layer's numbers patch by patch: a section through two components,
+         ! ground_surface(:)%water%x, is the form docs/building.md's compiler traps keep out.
+         !---~---
          do ip = 1_ik, npat
-            call put_dbl(r, 'snow_swe_layer_pa',    p%snow(ip)%swe(1:n_snow_layer_max),         item=ip)
-            call put_dbl(r, 'snow_energy_layer_pa', p%snow(ip)%snow_energy(1:n_snow_layer_max), item=ip)
-            call put_dbl(r, 'snow_depth_layer_pa',  p%snow(ip)%snow_depth(1:n_snow_layer_max),  item=ip)
-            call put_dbl(r, 'snow_temp_layer_pa',   p%snow(ip)%snow_temp(1:n_snow_layer_max),   item=ip)
-            call put_dbl(r, 'snow_fliq_layer_pa',   p%snow(ip)%snow_fliq(1:n_snow_layer_max),   item=ip)
+            buf(ip) = p%ground_surface(ip)%water%water
          end do
-         !--- 6. Soil water and heat, and the pond.
+         call put_dbl(r, 'ground_water_layer_water_pa', buf)
+         do ip = 1_ik, npat
+            buf(ip) = p%ground_surface(ip)%water%energy
+         end do
+         call put_dbl(r, 'ground_water_layer_energy_pa', buf)
+         do ip = 1_ik, npat
+            buf(ip) = p%ground_surface(ip)%water%matrix_depth
+         end do
+         call put_dbl(r, 'ground_water_layer_matrix_depth_pa', buf)
+         do ip = 1_ik, npat
+            buf(ip) = p%ground_surface(ip)%water%temp
+         end do
+         call put_dbl(r, 'ground_water_layer_temp_pa', buf)
+         do ip = 1_ik, npat
+            buf(ip) = p%ground_surface(ip)%water%fliq
+         end do
+         call put_dbl(r, 'ground_water_layer_fliq_pa', buf)
+         do ip = 1_ik, npat
+            pbuf = p%ground_surface(ip)%porous%matter
+            call put_dbl(r, 'ground_porous_layer_matter_pa', pbuf, item=ip)
+            pbuf = p%ground_surface(ip)%porous%water
+            call put_dbl(r, 'ground_porous_layer_water_pa',  pbuf, item=ip)
+            pbuf = p%ground_surface(ip)%porous%energy
+            call put_dbl(r, 'ground_porous_layer_energy_pa', pbuf, item=ip)
+         end do
+         !--- 6. Soil water and heat.
          do ip = 1_ik, npat
             call put_dbl(r, 'soil_theta_layer_pa',  p%soil_water(ip)%theta(1:n_soil_layer_max),        item=ip)
             call put_dbl(r, 'soil_energy_layer_pa', p%soil_energy(ip)%soil_energy(1:n_soil_layer_max), item=ip)
             call put_dbl(r, 'soil_temp_layer_pa',   p%soil_energy(ip)%soil_temp(1:n_soil_layer_max),   item=ip)
             call put_dbl(r, 'soil_fliq_layer_pa',   p%soil_energy(ip)%soil_fliq(1:n_soil_layer_max),   item=ip)
          end do
-         buf = p%soil_water(1:npat)%w_surface
-         call put_dbl(r, 'soil_w_surface_pa', buf)
-         buf = p%soil_water(1:npat)%w_surface_energy
-         call put_dbl(r, 'soil_w_surface_enth_pa', buf)
          !--- 7. Soil carbon: each pool by its name, then the structural pools' lignin.
          do kp = 1_ik, N_SOIL_POOL
             buf = p%soil_carbon(1:npat)%carbon(kp)
@@ -870,7 +900,7 @@ contains
    subroutine get_patch_vars(r, poly)
       type(file_row_t), intent(in)    :: r
       type(polygon_t),  intent(inout) :: poly
-      real(wp)    :: buf(poly%patch%n)
+      real(wp)    :: buf(poly%patch%n), pbuf(N_POROUS)
       integer(ik) :: ibuf(poly%patch%n), npat, npft, ip, kp
       npat = poly%patch%n
       npft = poly%n_pft
@@ -901,27 +931,64 @@ contains
             call get_dbl(r, 'cas_air_molar_capacity_pa', buf)
             p%cas(1:npat)%air_molar_capacity = buf
          end if
-         !--- 5. Snow.
-         call get_int(r, 'snow_nlayer_pa', ibuf)
-         p%snow(1:npat)%nlayer = ibuf
-         do ip = 1_ik, npat
-            call get_dbl(r, 'snow_swe_layer_pa',    p%snow(ip)%swe(1:n_snow_layer_max),         item=ip)
-            call get_dbl(r, 'snow_energy_layer_pa', p%snow(ip)%snow_energy(1:n_snow_layer_max), item=ip)
-            call get_dbl(r, 'snow_depth_layer_pa',  p%snow(ip)%snow_depth(1:n_snow_layer_max),  item=ip)
-            call get_dbl(r, 'snow_temp_layer_pa',   p%snow(ip)%snow_temp(1:n_snow_layer_max),   item=ip)
-            call get_dbl(r, 'snow_fliq_layer_pa',   p%snow(ip)%snow_fliq(1:n_snow_layer_max),   item=ip)
-         end do
-         !--- 6. Soil water and heat, and the pond.
+         !--- 5. The ground's surface layers.
+         if (has_var(r%ncid, 'ground_water_layer_water_pa')) then
+            call get_dbl(r, 'ground_water_layer_water_pa', buf)
+            do ip = 1_ik, npat
+               p%ground_surface(ip)%water%water = buf(ip)
+            end do
+            call get_dbl(r, 'ground_water_layer_energy_pa', buf)
+            do ip = 1_ik, npat
+               p%ground_surface(ip)%water%energy = buf(ip)
+            end do
+            call get_dbl(r, 'ground_water_layer_matrix_depth_pa', buf)
+            do ip = 1_ik, npat
+               p%ground_surface(ip)%water%matrix_depth = buf(ip)
+            end do
+            call get_dbl(r, 'ground_water_layer_temp_pa', buf)
+            do ip = 1_ik, npat
+               p%ground_surface(ip)%water%temp = buf(ip)
+            end do
+            call get_dbl(r, 'ground_water_layer_fliq_pa', buf)
+            do ip = 1_ik, npat
+               p%ground_surface(ip)%water%fliq = buf(ip)
+            end do
+            do ip = 1_ik, npat
+               call get_dbl(r, 'ground_porous_layer_matter_pa', pbuf, item=ip)
+               p%ground_surface(ip)%porous%matter = pbuf
+               call get_dbl(r, 'ground_porous_layer_water_pa',  pbuf, item=ip)
+               p%ground_surface(ip)%porous%water = pbuf
+               call get_dbl(r, 'ground_porous_layer_energy_pa', pbuf, item=ip)
+               p%ground_surface(ip)%porous%energy = pbuf
+            end do
+         else
+            call read_older_surface_layers(r, p, npat)
+         end if
+         !--- 6. Soil water and heat.
          do ip = 1_ik, npat
             call get_dbl(r, 'soil_theta_layer_pa',  p%soil_water(ip)%theta(1:n_soil_layer_max),        item=ip)
             call get_dbl(r, 'soil_energy_layer_pa', p%soil_energy(ip)%soil_energy(1:n_soil_layer_max), item=ip)
             call get_dbl(r, 'soil_temp_layer_pa',   p%soil_energy(ip)%soil_temp(1:n_soil_layer_max),   item=ip)
             call get_dbl(r, 'soil_fliq_layer_pa',   p%soil_energy(ip)%soil_fliq(1:n_soil_layer_max),   item=ip)
          end do
-         call get_dbl(r, 'soil_w_surface_pa', buf)
-         p%soil_water(1:npat)%w_surface = buf
-         call get_dbl(r, 'soil_w_surface_enth_pa', buf)
-         p%soil_water(1:npat)%w_surface_energy = buf
+         !---~---
+         !   A file that holds the pond apart: it is the water layer's free water, so it joins the
+         ! layer, its water and energy, and the layer's temperature is read off the sum.
+         !---~---
+         if (has_var(r%ncid, 'soil_w_surface_pa')) then
+            call get_dbl(r, 'soil_w_surface_pa', buf)
+            do ip = 1_ik, npat
+               p%ground_surface(ip)%water%water = p%ground_surface(ip)%water%water + buf(ip)
+            end do
+            call get_dbl(r, 'soil_w_surface_enth_pa', buf)
+            do ip = 1_ik, npat
+               associate (layer => p%ground_surface(ip)%water)
+                  layer%energy = layer%energy + buf(ip)
+                  if (layer%water > 0.0_wp)                                                                     &
+                     call internal_energy_to_temp(layer%energy, layer%water, 0.0_wp, layer%temp, layer%fliq)
+               end associate
+            end do
+         end if
          !--- 7. Soil carbon: each pool by its name, then the structural pools' lignin.
          do kp = 1_ik, N_SOIL_POOL
             call get_dbl(r, 'soilc_'//trim(SOIL_POOL_NAME(kp))//'_pa', buf)
@@ -939,6 +1006,44 @@ contains
          call get_dbl(r, 'adapt_dt_last_pa', p%adapt_dt_last(1:npat))
       end associate
    end subroutine get_patch_vars
+
+   !---~---
+   !   A state file that holds the snow pack and the litter and moss apart (snow_*_layer_pa,
+   ! organic_*_pa): its snow pack is the water layer (its single snow layer's mass, energy,
+   ! depth, temperature and liquid fraction; the density it held is the mass over that depth),
+   ! and its litter and moss are the porous layers. A file with neither leaves them empty: the
+   ! start's follow builds them from their sources (seed_porous_layers).
+   !---~---
+   subroutine read_older_surface_layers(r, p, npat)
+      type(file_row_t),  intent(in)    :: r
+      type(patch_block), intent(inout) :: p
+      integer(ik),       intent(in)    :: npat
+      integer(ik), parameter :: OLD_SNOW_LAYERS = 1_ik        ! the one snow layer those files held
+      real(wp)    :: one(OLD_SNOW_LAYERS), pbuf(N_POROUS)
+      integer(ik) :: ip
+      do ip = 1_ik, npat
+         associate (layer => p%ground_surface(ip)%water)
+            call get_dbl(r, 'snow_swe_layer_pa', one, item=ip)
+            layer%water = one(1)
+            call get_dbl(r, 'snow_energy_layer_pa', one, item=ip)
+            layer%energy = one(1)
+            call get_dbl(r, 'snow_depth_layer_pa', one, item=ip)
+            layer%matrix_depth = one(1)
+            call get_dbl(r, 'snow_temp_layer_pa', one, item=ip)
+            layer%temp = one(1)
+            call get_dbl(r, 'snow_fliq_layer_pa', one, item=ip)
+            layer%fliq = one(1)
+         end associate
+         if (has_var(r%ncid, 'organic_mass_pa')) then
+            call get_dbl(r, 'organic_mass_pa', pbuf, item=ip)
+            p%ground_surface(ip)%porous%matter = pbuf
+            call get_dbl(r, 'organic_water_pa', pbuf, item=ip)
+            p%ground_surface(ip)%porous%water = pbuf
+            call get_dbl(r, 'organic_energy_pa', pbuf, item=ip)
+            p%ground_surface(ip)%porous%energy = pbuf
+         end if
+      end do
+   end subroutine read_older_surface_layers
 
    !---~---
    !   4. AFTER THE READ: the geometry from the pools, the growth rings of another window

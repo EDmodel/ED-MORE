@@ -1,34 +1,15 @@
 ! SPDX-License-Identifier: Apache-2.0
 !---~---
-!   ed_biophysics_params -- the [snow] and [aerodynamics] blocks: the snow store's and the
-! canopy aerodynamics' parameters. A config leaf (ed_kinds only), so the device-eligible
-! kernels import it without ed_config. The ground's are in ed_soil_params.
+!   ed_biophysics_params -- the [aerodynamics] block: the canopy aerodynamics' parameters. A
+! config leaf (ed_kinds only), so the device-eligible kernels import it without ed_config. The
+! ground's are in ed_soil_params, its surface layers' in ed_ground_surface_params.
 !---~---
 module ed_biophysics_params
    use ed_kinds, only : wp, ik
    implicit none
    private
 
-   public :: snow_params_t, aero_params_t
-
-   !---~---
-   !   The [snow] block (docs/science/snow_biophysics.md): one layer of fixed density
-   ! and conductivity.
-   !---~---
-   type :: snow_params_t
-      real(wp) :: rho_snow          = 250.0_wp    ! [kg/m3] fixed seasonal-mean bulk density (depth = swe/rho)
-      real(wp) :: k_snow            = 0.15_wp     ! [W/m/K] fixed snow thermal conductivity
-      real(wp) :: albedo_vis_fresh  = 0.85_wp     ! [-] fresh-snow VIS albedo
-      real(wp) :: albedo_nir_fresh  = 0.65_wp     ! [-] fresh-snow NIR albedo
-      real(wp) :: albedo_vis_aged   = 0.518_wp    ! [-] aged VIS endpoint
-      real(wp) :: albedo_nir_aged   = 0.435_wp    ! [-] aged NIR endpoint
-      real(wp) :: snow_emiss        = 0.97_wp     ! [-] thermal (LW) emissivity
-      real(wp) :: liquid_holding_frac = 0.10_wp   ! [-] percolation holding capacity (LEAF-3 1:9)
-      real(wp) :: min_new_snow_mass = 1.0e-3_wp   ! [kg/m2] first-flake creation threshold
-      real(wp) :: tiny_snow_mass    = 1.0e-6_wp   ! [kg/m2] melt-out threshold (dump residual to soil)
-      real(wp) :: ny07_a            = 2.5_wp      ! [-] Niu-Yang07 snow-cover-fraction shape factor
-      real(wp) :: ny07_m            = 1.0_wp      ! [-] Niu-Yang07 snow-cover-fraction exponent
-   end type snow_params_t
+   public :: aero_params_t
 
    !---~---
    !   The [aerodynamics] block (docs/science/canopy_aerodynamics.md); the von Karman

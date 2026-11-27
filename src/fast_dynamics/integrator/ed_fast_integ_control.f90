@@ -16,7 +16,7 @@ module ed_fast_integ_control
    use ed_numerics,      only : adaptive_step_update
    use ed_config,        only : ed_config_t
    use ed_fast_integ_types,  only : march_state_t, tol_set_t, error_control_t, GRP_THETA, fast_static_state_t, POND, &
-                                state_to_array, state_entry_rules
+                                state_to_array, state_entry_rules, water_porous_t
    use ed_soil_params,   only : soil_profile_t
    use ed_pft_params,    only : hydraulics_table_t
    implicit none
@@ -95,7 +95,7 @@ contains
       integer(ik),          intent(in) :: n, nsl
       type(tol_set_t),      intent(in) :: tols
       real(wp)    :: err, s
-      real(wp)    :: va(5_ik + 2_ik*nsl + 4_ik*n), vb(5_ik + 2_ik*nsl + 4_ik*n), vr(5_ik + 2_ik*nsl + 4_ik*n)
+      real(wp)    :: va(3_ik + 2_ik*nsl + 4_ik*n), vb(3_ik + 2_ik*nsl + 4_ik*n), vr(3_ik + 2_ik*nsl + 4_ik*n)
       integer(ik) :: j, grp, cnt
       logical     :: counted
       call state_to_array(a, n, nsl, va)
@@ -128,19 +128,25 @@ contains
    !---~---
    !   Each water store's scale [kg/m2], against which its tolerances are set: a soil layer's or
    ! the pond's is a metre of water per metre of the (top) layer, so its tolerances read as
-   ! water content; a cohort's is the water its wood and leaf cells hold at full turgor, shared
-   ! by both stores so a leafless cohort's empty leaf is weighed against its plant.
+   ! water content; a porous layer's is its own depth's, but no less than the top soil layer's,
+   ! so a thin one is held to the same water as the pond; a cohort's is the water its wood and leaf
+   ! cells hold at full turgor, shared by both stores so a leafless cohort's empty leaf is
+   ! weighed against its plant.
    !---~---
-   pure subroutine water_scales(static, profile, hyd, scale_soil, scale_coh)
+   pure subroutine water_scales(static, profile, hyd, porous, scale_soil, scale_coh)
       type(fast_static_state_t), intent(in)  :: static
       type(soil_profile_t),      intent(in)  :: profile
       type(hydraulics_table_t),  intent(in)  :: hyd
+      type(water_porous_t),      intent(in)  :: porous     ! the porous layers in the network
       real(wp),                  intent(out) :: scale_soil(:), scale_coh(:,:)
-      integer(ik) :: k, i
+      integer(ik) :: k, i, j
       real(wp)    :: s
       scale_soil(POND) = rho_h2o * profile%dz(1)
+      do j = 1_ik, porous%n
+         scale_soil(1_ik + j) = rho_h2o * max(porous%depth(j), profile%dz(1))
+      end do
       do k = 1_ik, profile%n_active
-         scale_soil(1_ik + k) = rho_h2o * profile%dz(k)
+         scale_soil(1_ik + porous%n + k) = rho_h2o * profile%dz(k)
       end do
       do i = 1_ik, static%n
          associate (lc => hyd%pft(static%pft(i))%leaf_curve, wc => hyd%pft(static%pft(i))%wood_curve)

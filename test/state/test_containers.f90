@@ -8,6 +8,12 @@
 !   2. THE FAST DIAGNOSTIC BLOCK (ed_diag_vars: reorder_cohort_diag, copy_cohort_diag,
 !      clear_cohort_diag, fuse_cohort_diag, cohort_diag_value): it moves in lockstep with
 !      the cohorts, and a fused cohort's diagnostics blend by each field's own kind.
+!   3. THE GROUND'S SURFACE LAYERS (ed_patch_state_vars: blend_ground_surface, ground_surface_store,
+!      ground_store_present): two patches' layers blend by area, each store's water, energy and
+!      geometry, so the site's total is kept; a layer one patch lacks is present in the blend.
+!   4. MOVES BETWEEN STORES (store_move, store_take_exchange): a move keeps the two stores' sum
+!      exactly; a store asked for a round-off more than it holds gives what it holds; an exchange
+!      takes its energy and vapour.
 !---~---
 program test_containers
    use ed_kinds,             only : wp, ik
@@ -20,6 +26,9 @@ program test_containers
                                     CO_SAPFLOW, CO_ABS_SW, CO_WOOD_TEMP, CO_GSW
    use ed_test_support, only : banner, build_test_config, check, check_close
    use ed_slow_state,  only : kill_report_t
+   use ed_patch_state_vars, only : ground_surface_state_t, ground_store_t, blend_ground_surface,                &
+                                   ground_surface_store, ground_store_present, store_move, store_take_exchange
+   use ed_ground_surface_params, only : POROUS_LITTER, POROUS_MOSS
    implicit none
    type(kill_report_t)  :: kills   ! what the cull and the treefall killed
    real(wp)            :: shed_water   ! an operator's shed water, unread here
@@ -111,6 +120,8 @@ program test_containers
    call check(nread <= int(size(xshort), ik), 'extractor reported more than the caller''s array holds')
 
    call test_diag_lockstep()
+   call test_ground_surface_blend()
+   call test_store_moves()
 
    write(*,'(a)') '   PASS'
 
@@ -204,5 +215,52 @@ contains
          call check(n == 0_ik, 'inactive block reports no data and does not crash')
       end block
    end subroutine test_diag_lockstep
+
+   !--- 3. Two patches' surface layers blend by area: a pack and litter on one, moss alone on the other.
+   subroutine test_ground_surface_blend()
+      type(ground_surface_state_t) :: a, b, c
+      type(ground_store_t)         :: sa, sb, sc
+      real(wp), parameter :: W1 = 0.3_wp, W2 = 0.7_wp
+      call banner('the ground surface layers blend by area')
+      a%water%water        = 40.0_wp
+      a%water%energy       = -3.0e7_wp
+      a%water%matrix_depth = 0.16_wp
+      a%porous(POROUS_LITTER)%matter = 0.9_wp
+      a%porous(POROUS_LITTER)%water  = 2.0_wp
+      a%porous(POROUS_LITTER)%energy = 1.5e6_wp
+      b%porous(POROUS_MOSS)%matter   = 2.6_wp
+      b%porous(POROUS_MOSS)%water    = 30.0_wp
+      b%porous(POROUS_MOSS)%energy   = 3.6e7_wp
+      c  = blend_ground_surface(W1, a, W2, b)
+      sa = ground_surface_store(a)
+      sb = ground_surface_store(b)
+      sc = ground_surface_store(c)
+      call check_close(c%water%water, W1 * 40.0_wp, 1.0e-12_wp, 'the pack''s water blends by area')
+      call check_close(c%water%matrix_depth, W1 * 0.16_wp, 1.0e-12_wp, 'and its depth')
+      call check_close(c%porous(POROUS_MOSS)%matter, W2 * 2.6_wp, 1.0e-12_wp, 'the moss''s matter blends by area')
+      call check(ground_store_present(c%water), 'a pack one patch lacks is present in the blend')
+      call check_close(sc%water, W1 * sa%water + W2 * sb%water, 1.0e-12_wp, 'the layers'' water is kept')
+      call check_close(sc%energy, W1 * sa%energy + W2 * sb%energy, 1.0e-6_wp, 'and their energy')
+   end subroutine test_ground_surface_blend
+
+   !--- 4. A pond and a pack: moves are matched pairs, and no store gives more than it holds.
+   subroutine test_store_moves()
+      type(ground_store_t) :: pond, pack
+      real(wp) :: w_sum, e_sum
+      call banner('moves between the ground''s stores')
+      pond = ground_store_t(water=3.0_wp, energy=1.2e6_wp)
+      pack = ground_store_t(water=20.0_wp, energy=-6.0e6_wp)
+      w_sum = pond%water + pack%water
+      e_sum = pond%energy + pack%energy
+      call store_move(pond, pack, 1.0_wp, 4.0e5_wp)
+      call check(pond%water + pack%water == w_sum .and. pond%energy + pack%energy == e_sum,                   &
+                 'a move keeps the two stores'' water and energy')
+      call store_move(pond, pack, pond%water * (1.0_wp + 4.0_wp * epsilon(1.0_wp)), pond%energy)
+      call check(pond%water == 0.0_wp .and. pack%water == w_sum, 'a round-off more than the store holds: all of it')
+      call store_take_exchange(pack, 1.0e3_wp, 0.5_wp)
+      call check_close(pack%water, w_sum - 0.5_wp, 1.0e-15_wp, 'an exchange takes its vapour')
+      call check_close(pack%energy, e_sum - pond%energy + 1.0e3_wp, 1.0e-12_wp, 'and gives its energy')
+      call check(ground_store_present(pond) .eqv. (pond%energy /= 0.0_wp), 'an empty store with energy is present')
+   end subroutine test_store_moves
 
 end program test_containers

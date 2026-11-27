@@ -105,7 +105,7 @@ contains
                                        alpha_pi, dt, intercept_leaf, intercept_wood, transfer_lw, f_wet,       &
                                        throughfall)
       integer(ik), intent(in)    :: n                                ! [-] number of cohorts, tallest first
-      real(wp),    intent(in)    :: rain                             ! [kg/m2/s] rain and snow above the canopy
+      real(wp),    intent(in)    :: rain                             ! [kg/m2/s] rain above the canopy
       real(wp),    intent(in)    :: leaf_water(:), wood_water(:)     ! [kg/m2 ground] the surface water at the start
       real(wp),    intent(in)    :: lai(:), wai(:)                   ! [m2/m2] leaf and wood area index
       real(wp),    intent(in)    :: leaf_max(:), wood_max(:)         ! [kg/m2 leaf], [kg/m2 wood] capacities

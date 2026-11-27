@@ -45,8 +45,9 @@ program test_fast_integ_kernels
    use ed_therm_lib,           only : cas_temp_to_enthalpy, cas_enthalpy_to_temp, sat_specific_humidity,           &
                                       sat_vapor_pressure, sat_vapor_pressure_temp_deriv, enthalpy_vapor,          &
                                       temp_to_internal_energy, internal_energy_liquid, cas_heat_capacity
-   use ed_soil_heat,           only : soil_heat_env_t, soil_energy_time_deriv, soil_layer_temp
-   use ed_patch_state_vars,    only : soil_energy_state_t, snow_state_t
+   use ed_soil_heat,           only : soil_heat_env_t, soil_energy_time_deriv
+   use ed_ground_surface_lib,  only : porous_layer_temp
+   use ed_patch_state_vars,    only : soil_energy_state_t, water_layer_state_t, ground_store_t
    use ed_site_state_vars,     only : site_surface_t
    use ed_fast_integ_types,    only : surface_state_t, surface_tend_t, march_state_t, march_tend_t, frozen_t,      &
                                       error_control_t, tol_set_t, fast_dynamic_state_t, GRP_ENTH, GRP_SHV,         &
@@ -58,7 +59,8 @@ program test_fast_integ_kernels
    use ed_fast_integ_backward_euler, only : backward_euler_stage, advance_plant_water, newton_surface_solve,        &
                                             surface_source_slopes, surface_jacobian, surface_residual_scaled,     &
                                             SURFACE_NEWTON_MAX
-   use ed_surface,             only : surface_env_t, ground_surface_exchange, snow_take_exchange
+   use ed_surface,             only : surface_env_t, ground_surface_exchange, water_layer_commit,          &
+                                      water_layer_ice, store_exchange_t, STORE_WATER
    use ed_fast_integ_rk45,   only : rk45_step, RK45_P_ORDER
    use ed_fast_integ_control, only : build_tol_set, build_error_control, state_wrms_grouped, step_control_factor
    use ed_fast_integ_update,   only : unpack_column_state
@@ -242,8 +244,6 @@ contains
       frozen%hydrology%w_flux_frozen(1:nsl) = 2.0e-8_wp
       frozen%hydrology%w_flux_frozen(nsl)   = 0.0_wp
       frozen%hydrology%drainage     = 2.0e-8_wp * rho_h2o
-      frozen%hydrology%infiltration = frozen%hydrology%q_top * rho_h2o
-      frozen%hydrology%exfil_enth   = 1.0e-7_wp * internal_energy_liquid(296.0_wp)
       do k = 1_ik, nsl
          frozen%roots%root_heat(k) = frozen%roots%uptake * frozen%roots%root_share(k) * internal_energy_liquid(295.0_wp)
       end do
@@ -257,7 +257,7 @@ contains
       call check_true('march_derivs: every tendency finite', finite)
 
       !--- The canopy-air part is surface_derivs at the state's diagnosed soil-top temperature.
-      call soil_layer_temp(y%soil_energy(1), y%theta(1), col%site%soil_profile%dry_heat_capacity(1),             &
+      call porous_layer_temp(y%soil_energy(1), y%theta(1), col%site%soil_profile%dry_heat_capacity(1),             &
                            col%site%soil_profile%layer_curve(1), t_ground, fliq)
       y_stage%cas_enthalpy = y%cas_enthalpy
       y_stage%cas_shv      = y%cas_shv
@@ -283,9 +283,9 @@ contains
                  surf_tend%coh_rnet, 1.0e-9_wp * max(abs(surf_tend%coh_rnet), 1.0_wp))
 
       !---~---
-      !   The soil-heat part is soil_energy_time_deriv on the same surface coupling (g_top) and the
-      ! water network's flows: the enthalpy leaving each layer with the uptake, the time-mean
-      ! faces, the infiltration at the pond's temperature and the drainage at the bottom's.
+      !   The soil-heat part is soil_energy_time_deriv on the same surface coupling (g_top, the
+      ! water crossing the top included) and the water network's flows: the enthalpy leaving each
+      ! layer with the uptake, the time-mean faces and the drainage at the bottom's.
       !---~---
       se%soil_energy(1:nsl) = y%soil_energy(1:nsl)
       eforc%g_top = surf_tend%g_top
@@ -294,11 +294,8 @@ contains
          eforc%water_heat_out(k) = frozen%roots%root_heat(k)
          eforc%w_flux(k)         = -frozen%hydrology%w_flux_frozen(k)
       end do
-      eforc%water_heat_out(1)   = eforc%water_heat_out(1) + frozen%hydrology%exfil_enth
       eforc%water_heat_out(nsl) = eforc%water_heat_out(nsl)                                                      &
                                   + frozen%hydrology%drainage * internal_energy_liquid(frozen%hydrology%t_bot)
-      eforc%w_flux_top  = -frozen%hydrology%infiltration / rho_h2o
-      eforc%t_water_top = frozen%hydrology%t_infil
       call soil_energy_time_deriv(se, eforc, col%site%soil_profile, col%site%soil, dedt)
       call check('march_derivs: its soil-heat tendency is soil_energy_time_deriv on the network''s flows',        &
                  maxval(abs(f%dedt(1:nsl) - dedt(1:nsl))), 0.0_wp, 1.0e-9_wp)
@@ -580,7 +577,7 @@ contains
    !---~---
    subroutine test_state_vector()
       integer(ik), parameter :: N = 2_ik, NL = 3_ik
-      integer(ik), parameter :: NV = 5_ik + 2_ik*NL + 4_ik*N   ! the flat layout's length
+      integer(ik), parameter :: NV = 3_ik + 2_ik*NL + 4_ik*N   ! the flat layout's length
       real(wp),    parameter :: BB = 0.25_wp
       type(march_state_t) :: a, b, out, expect
       type(march_tend_t)  :: k
@@ -628,13 +625,10 @@ contains
       expect%wood_water_mass = 0.0_wp
       expect%leaf_surf_water = 0.0_wp
       expect%wood_surf_water = 0.0_wp
-      expect%w_surface = 0.0_wp
-      expect%w_surface_energy = 0.0_wp
       call same_state('state_err_diff', out, expect)
 
       !---~---
-      !   state_accum adds a*k to every field that has a stage tendency, and leaves the pond, which
-      ! has none (it is committed from the water network), as it was rather than zeroed.
+      !   state_accum adds a*k to every field.
       !---~---
       call fill_state(out, 1.0_wp)
       call fill_tend(k)
@@ -649,9 +643,9 @@ contains
       expect%wood_water_mass = expect%wood_water_mass + 2.0_wp * k%d_wood_water_mass
       expect%leaf_surf_water = expect%leaf_surf_water + 2.0_wp * k%d_leaf_surf_water
       expect%wood_surf_water = expect%wood_surf_water + 2.0_wp * k%d_wood_surf_water
-      call same_state('state_accum (the pond passed through)', out, expect)
+      call same_state('state_accum', out, expect)
 
-      !--- state_extrap blends every field, the pond included: (1 - b) a + b b = fill(0.8125).
+      !--- state_extrap blends every field: (1 - b) a + b b = fill(0.8125).
       call state_extrap(a, BB, b, N, NL, out)
       call fill_state(expect, (1.0_wp - BB) * 1.0_wp + BB * 0.25_wp)
       call same_state('state_extrap', out, expect)
@@ -667,8 +661,6 @@ contains
       dyn%wood_water_mass = 0.0_wp
       dyn%leaf_surf_water = 0.0_wp
       dyn%wood_surf_water = 0.0_wp
-      dyn%soil_water%w_surface = -1.0_wp
-      dyn%soil_water%w_surface_energy = -2.0_wp
       call unpack_column_state(a, N, NL, dyn)
       call check('unpack: cas_enthalpy committed', dyn%cas%can_enthalpy, a%cas_enthalpy, 0.0_wp)
       call check('unpack: cas_shv committed', dyn%cas%can_shv, a%cas_shv, 0.0_wp)
@@ -687,8 +679,6 @@ contains
                  maxval(abs(dyn%wood_surf_water - a%wood_surf_water)), 0.0_wp, 0.0_wp)
       call check('unpack: can_temp re-diagnosed from the committed enthalpy', dyn%cas%can_temp,                   &
                  cas_enthalpy_to_temp(a%cas_enthalpy, a%cas_shv), 1.0e-12_wp)
-      call check_true('unpack: the pond left as it was (the water network commits it)',                           &
-                      dyn%soil_water%w_surface == -1.0_wp .and. dyn%soil_water%w_surface_energy == -2.0_wp)
 
       !---~---
       !   The layout: state_to_array places each field where state_entry_rules reads it, and the
@@ -703,8 +693,6 @@ contains
       call check('state_to_array: then the tissue water and the surface water, cohort by cohort',                 &
                  maxval(abs(v(4+2*NL:3+2*NL+4*N) - [(a%leaf_water_mass(j), a%wood_water_mass(j), j = 1_ik, N),     &
                                                      (a%leaf_surf_water(j), a%wood_surf_water(j), j = 1_ik, N)])),  &
-                 0.0_wp, 0.0_wp)
-      call check('state_to_array: the pond last', abs(v(NV-1) - a%w_surface) + abs(v(NV) - a%w_surface_energy),   &
                  0.0_wp, 0.0_wp)
       n_norm = 0_ik
       n_err = 0_ik
@@ -732,8 +720,6 @@ contains
       y%cas_enthalpy     = 11.0_wp * s
       y%cas_shv          = 12.0_wp * s
       y%cas_co2          = 13.0_wp * s
-      y%w_surface        = 14.0_wp * s
-      y%w_surface_energy = 15.0_wp * s
       y%soil_energy = 0.0_wp
       y%theta = 0.0_wp
       do j = 1_ik, NL
@@ -792,8 +778,6 @@ contains
                  0.0_wp, TOL)
       call check(tag//': wood_surf_water, every cohort', maxval(abs(x%wood_surf_water - y%wood_surf_water)),       &
                  0.0_wp, TOL)
-      call check(tag//': w_surface (the pond)', x%w_surface, y%w_surface, TOL)
-      call check(tag//': w_surface_energy (the pond)', x%w_surface_energy, y%w_surface_energy, TOL)
    end subroutine same_state
 
    !--- 6. THE ERROR CONTROL (ed_fast_integ_control).
@@ -850,8 +834,6 @@ contains
       call kernel_record(col%site, col%cfg%pft%hydraulics, N, y, frozen)
       y%leaf_surf_water = 0.1_wp
       y%wood_surf_water = 0.2_wp
-      y%w_surface = 1.0_wp
-      y%w_surface_energy = 1.0e5_wp
       t_abs%rtol = 0.0_wp
       t_rel%atol = 0.0_wp
       t_rel%rtol = 1.0e-3_wp
@@ -860,7 +842,7 @@ contains
                  0.0_wp)
       !---~---
       !   What the march does not integrate is left out: the soil water and the plant water move at
-      ! the water network's rate, the surface water and the pond by their maps.
+      ! the water network's rate, the surface water by its map.
       !---~---
       call state_init(y, N, nsl, a)
       a%theta = 0.5_wp * a%theta
@@ -868,9 +850,7 @@ contains
       a%wood_water_mass = 0.5_wp * a%wood_water_mass
       a%leaf_surf_water = 0.5_wp * a%leaf_surf_water
       a%wood_surf_water = 0.5_wp * a%wood_surf_water
-      a%w_surface = 0.5_wp * a%w_surface
-      a%w_surface_energy = 0.5_wp * a%w_surface_energy
-      call check('state_wrms_grouped: the soil and plant water, the surface water and the pond are left out',      &
+      call check('state_wrms_grouped: the soil and plant water and the surface water are left out',                &
                  state_wrms_grouped(a, y, y, N, nsl, t_abs), 0.0_wp, 0.0_wp)
       !---~---
       !   One tolerance unit in every counted entry is an error of 1, with each group's own unit: the
@@ -995,7 +975,7 @@ contains
             leaf_w(i) = tissue_psi_to_water(PSI_LEAF, hyd%pft(PFTS(i))%leaf_curve, s%bleaf(i))
          end do
          call set_water_state(s, two%site%soil_profile, hyd, two%dynamic%soil_water%theta(1:nsl),                    &
-                              fz%water_drive%ice(1:nsl), 0.0_wp, 0.0_wp, leaf_w, wood_w, water)
+                              fz%water_drive%ice(1:nsl), 0.0_wp, leaf_w, wood_w, water)
          call water_derivs(s, two%site%soil_profile, two%site%soil, hyd, fz%water_drive, water%state%tau_soil,       &
                            water%state%tau_coh, water%ev(1), water%sys, .false.)
          do i = 1_ik, N
@@ -1177,17 +1157,15 @@ contains
          g%soil_evap   = 0.0_wp
          g%sw_snow     = 30.0_wp
          g%lw_down     = stefan_boltzmann * (T_AIR(b) - 8.0_wp) ** 4
-         g%k_soil_top  = 1.5_wp
-         g%dz_soil_top = 0.05_wp
+         g%r_soil_top  = 0.05_wp / 1.5_wp
          g%snowfac     = 0.6_wp
          g%dt          = 900.0_wp
          if (b == 3_ik) g%ggnet = 0.05_wp
-         g%pack%nlayer         = 1_ik
-         g%pack%swe(1)         = SWE(b)
-         g%pack%snow_energy(1) = temp_to_internal_energy(0.0_wp, SWE(b), T_PACK(b), FLIQ(b))
-         g%pack%snow_depth(1)  = SWE(b) / g%params%rho_snow
-         g%pack%snow_temp(1)   = T_PACK(b)
-         g%pack%snow_fliq(1)   = FLIQ(b)
+         g%pack%water        = SWE(b)
+         g%pack%energy       = temp_to_internal_energy(0.0_wp, SWE(b), T_PACK(b), FLIQ(b))
+         g%pack%matrix_depth = SWE(b) / g%params%fresh_density
+         g%pack%temp         = T_PACK(b)
+         g%pack%fliq         = FLIQ(b)
       end associate
       t_ground = T_SOIL(b)
    end subroutine snow_problem
@@ -1201,8 +1179,10 @@ contains
       type(frozen_t), intent(in) :: frozen
       real(wp),       intent(in) :: h, q, t_ground   ! [J/kg], [kg/kg], [K]
       type(surface_env_t) :: env
-      type(snow_state_t)  :: pack
-      real(wp) :: h_ground, le_ground, g_top, ground_rad, energy_in, vapour_out
+      type(water_layer_state_t) :: pack
+      real(wp) :: h_ground, le_ground, g_top, ground_rad
+      type(store_exchange_t) :: stores
+      integer(ik) :: it_stack, fb_stack
       env            = frozen%ground
       env%can_temp   = cas_enthalpy_to_temp(h, q)
       env%can_shv    = q
@@ -1210,18 +1190,19 @@ contains
       env%cp_cas     = frozen%cas%cp
       env%press      = frozen%cas%press
       env%t_soil_top = t_ground
-      call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, energy_in, vapour_out)
+      call ground_surface_exchange(env, h_ground, le_ground, g_top, ground_rad, stores, it_stack, fb_stack)
       pack = env%pack
-      call snow_take_exchange(pack, env%dt * energy_in, env%dt * vapour_out, env%params)
+      call water_layer_commit(pack, env%dt * stores%energy_in(STORE_WATER), env%dt * stores%vapour_out(STORE_WATER), &
+                              ground_store_t(), 0.0_wp, ground_store_t(), water_layer_ice(pack), env%params)
       select case (k - SNOW_FIRST)
       case (0_ik)
-         on = pack%snow_temp(1) < t_3ple                                     ! the ice line
+         on = pack%temp < t_3ple                                     ! the ice line
       case (1_ik)
-         on = pack%snow_fliq(1) > 0.0_wp .and. pack%snow_fliq(1) < 1.0_wp    ! the melt plateau
+         on = pack%fliq > 0.0_wp .and. pack%fliq < 1.0_wp    ! the plateau at the triple point
       case (2_ik)
-         on = pack%snow_temp(1) > t_3ple                                     ! the liquid line
+         on = pack%temp > t_3ple                                     ! the liquid line
       case default
-         on = pack%swe(1) <= env%params%tiny_snow_mass                       ! sublimated away
+         on = pack%water <= 0.0_wp                                   ! sublimated away
       end select
    end function pack_on_branch
 

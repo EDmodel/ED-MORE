@@ -53,6 +53,43 @@ def outputs(run_dir: Path) -> dict:
     return out
 
 
+def difference_report(a: dict, b: dict, logs: dict | None = None, limit: int = 30) -> str:
+    """Where two runs' outputs part: for each differing variable, the first record (along its first
+    axis, time) whose values differ and its largest difference, earliest first; then the log lines
+    the two runs do not share. A failure on another machine then says where to look."""
+    rows = []
+    for f in sorted(a):
+        for v in a[f]:
+            x, y = a[f][v], b[f].get(v)
+            if y is None or x.shape != y.shape:
+                rows.append((f, -1, v, f"shapes {x.shape} and {None if y is None else y.shape}"))
+                continue
+            try:
+                x, y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
+            except (TypeError, ValueError):
+                if not np.array_equal(x, y):
+                    rows.append((f, 0, v, "non-numeric values differ"))
+                continue
+            neq = ~((x == y) | (np.isnan(x) & np.isnan(y)))
+            if not neq.any():
+                continue
+            first = int(np.argwhere(neq)[0][0]) if x.ndim else 0
+            d = np.abs(x - y)[neq]
+            scale = np.maximum(np.abs(x[neq]), np.abs(y[neq]))
+            rel = np.max(d / np.where(scale > 0, scale, 1.0))
+            rows.append((f, first, v, f"max |diff| {d.max():.3e}, max relative {rel:.3e}"))
+    rows.sort(key=lambda r: (r[1], r[0], r[2]))
+    lines = [f"{len(rows)} variables differ; earliest first (file, first differing record, variable):"]
+    lines += [f"  {f} [{first}] {v}: {what}" for f, first, v, what in rows[:limit]]
+    if logs:
+        (na, la), (nb, lb) = logs.items()
+        only_a = [s for s in la if s not in set(lb)]
+        only_b = [s for s in lb if s not in set(la)]
+        lines.append(f"log lines only in {na}: {only_a[:15]}")
+        lines.append(f"log lines only in {nb}: {only_b[:15]}")
+    return "\n".join(lines)
+
+
 def record(run_dir: Path) -> dict:
     """The run's parameter record, with the run's own directory written as <run>."""
     rec = read_record(run_dir / "out" / "m_parameters.csv",
@@ -77,8 +114,24 @@ def test_python_run_matches_edmore(tmp_path):
     assert a.keys() == b.keys() and a
     differ = [(f, v) for f in a for v in a[f]
               if a[f][v].shape != b[f][v].shape or not np.array_equal(a[f][v], b[f][v], equal_nan=True)]
-    assert not differ, f"{len(differ)} variables differ between edmore and edmore.model: {differ[:8]}"
+    runs = {n: [s.replace(str(tmp_path / n), "<run>") for s in log.splitlines()] for n, log in logs.items()}
+    assert not differ, "edmore and edmore.model differ:\n" + difference_report(a, b, runs)
     assert record(tmp_path / "exe") == record(tmp_path / "py")
+
+
+def test_the_difference_report_names_the_first_differing_record():
+    same = np.arange(6.0).reshape(3, 2)
+    late = same.copy()
+    late[2, 1] += 1e-12
+    early = same.copy()
+    early[0, 0] += 1.0
+    a = {"m-D.nc": {"same": same, "late": same, "early": same}}
+    b = {"m-D.nc": {"same": same, "late": late, "early": early}}
+    report = difference_report(a, b, {"exe": ["x", "only exe"], "py": ["x"]})
+    lines = report.splitlines()
+    assert lines[0].startswith("2 variables differ")
+    assert "[0] early" in lines[1] and "[2] late" in lines[2]       # earliest first
+    assert "only exe" in report and " same" not in report
 
 
 def test_each_run_in_a_process_keeps_its_own_record(tmp_path):

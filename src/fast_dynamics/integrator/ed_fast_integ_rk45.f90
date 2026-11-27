@@ -67,9 +67,8 @@ contains
       type(march_tend_t),   intent(in)  :: k
       type(surface_tend_t),  intent(in)  :: surf_tend
       type(stage_bflux_t),   intent(out) :: bf
-      real(wp) :: gah, gaw, gac, e_infil, e_drain
+      real(wp) :: gah, gaw, gac, e_drain
       call cas_conductances(frozen%cas, y_stage%cas_enthalpy, y_stage%cas_shv, gah, gaw, gac)
-      e_infil = frozen%hydrology%infiltration * internal_energy_liquid(frozen%hydrology%t_infil)
       e_drain = k%drainage_rate * internal_energy_liquid(frozen%hydrology%t_bot)
       bf%cas_enth_in   = surf_tend%src_enth + gah*frozen%cas%box%atm_enthalpy
       bf%cas_enth_out  = gah*y_stage%cas_enthalpy
@@ -77,8 +76,8 @@ contains
       bf%cas_vap_out   = gaw*y_stage%cas_shv
       bf%cas_co2_in    = frozen%cas%nee_biotic + gac*frozen%cas%box%atm_co2
       bf%cas_co2_out   = gac*y_stage%cas_co2
-      bf%soil_enth_in  = k%g_top + k%g_bottom + e_infil
-      bf%soil_enth_out = sum(frozen%roots%root_heat) + frozen%hydrology%exfil_enth + e_drain
+      bf%soil_enth_in  = k%g_top + k%g_bottom
+      bf%soil_enth_out = sum(frozen%roots%root_heat) + e_drain
       !---~---
       !   Soil water's storage change and flows are the network's, booked once per step by
       ! close_ledgers: the per-stage soil-water amounts are zero, and the whole-column water
@@ -92,8 +91,9 @@ contains
       bf%whole_wat_out = gaw*(y_stage%cas_shv - frozen%cas%box%atm_specific_humidity)
       bf%whole_cond    = surf_tend%cond
       bf%whole_cond_enth = surf_tend%cond_enth   ! exactly what surface_derivs debited from the CAS
-      bf%snow_enth_in  = surf_tend%snow_enth_in
-      bf%snow_vap_out  = surf_tend%snow_vap_out
+      bf%stores        = surf_tend%stores
+      bf%stack_newton   = surf_tend%stack_newton
+      bf%stack_fallback = surf_tend%stack_fallback
       bf%veg_surface_evap     = sum(surf_tend%leaf_surface_evap) + sum(surf_tend%wood_surface_evap)
       bf%h_canopy      = surf_tend%h_canopy
       bf%h_ground      = surf_tend%h_ground
@@ -266,10 +266,14 @@ contains
                             + B6*s(6)%whole_cond) * dt
       acc%whole_cond_enth = (B1*s(1)%whole_cond_enth + B3*s(3)%whole_cond_enth + B4*s(4)%whole_cond_enth       &
                              + B6*s(6)%whole_cond_enth) * dt
-      acc%snow_enth_in   = (B1*s(1)%snow_enth_in   + B3*s(3)%snow_enth_in   + B4*s(4)%snow_enth_in             &
-                            + B6*s(6)%snow_enth_in) * dt
-      acc%snow_vap_out   = (B1*s(1)%snow_vap_out   + B3*s(3)%snow_vap_out   + B4*s(4)%snow_vap_out             &
-                            + B6*s(6)%snow_vap_out) * dt
+      acc%stores%energy_in  = (B1*s(1)%stores%energy_in  + B3*s(3)%stores%energy_in                         &
+                               + B4*s(4)%stores%energy_in  + B6*s(6)%stores%energy_in) * dt
+      acc%stores%vapour_out = (B1*s(1)%stores%vapour_out + B3*s(3)%stores%vapour_out                        &
+                               + B4*s(4)%stores%vapour_out + B6*s(6)%stores%vapour_out) * dt
+      acc%stores%buried_heat = (B1*s(1)%stores%buried_heat + B3*s(3)%stores%buried_heat                     &
+                                + B4*s(4)%stores%buried_heat + B6*s(6)%stores%buried_heat) * dt
+      acc%stack_newton   = sum(s%stack_newton)
+      acc%stack_fallback = sum(s%stack_fallback)
       acc%veg_surface_evap = (B1*s(1)%veg_surface_evap + B3*s(3)%veg_surface_evap + B4*s(4)%veg_surface_evap     &
                               + B6*s(6)%veg_surface_evap) * dt
       acc%h_canopy       = (B1*s(1)%h_canopy       + B3*s(3)%h_canopy       + B4*s(4)%h_canopy                 &

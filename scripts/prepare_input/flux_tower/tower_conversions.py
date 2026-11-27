@@ -72,7 +72,7 @@ def latent_heat_vap(t_k, fliq):
 def _sat_phase(t_k, phase):
     """(e, de/dT) [Pa, Pa/K] over one phase (1 liquid, 0 ice): Ambaum (2020) on the Kirchhoff latent heat,
     so the slope is Clausius-Clapeyron, e L / (Rv T**2) (ed_therm_lib%sat_phase,
-    docs/science/snow_biophysics.md eq. (1))."""
+    docs/science/ground_surface_layers.md eq. (11))."""
     t_k = np.asarray(t_k, dtype=float)
     c_cond = phase * CP_LIQ + (1.0 - phase) * CP_ICE
     l_ref = latent_heat_vap(T_3PLE, phase)

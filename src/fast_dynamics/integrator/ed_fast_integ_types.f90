@@ -17,21 +17,23 @@
 module ed_fast_integ_types
    use ed_kinds, only : wp, ik
    use ed_constants, only : n_soil_layer_max
+   use ed_ground_surface_params, only : N_POROUS
    use ed_pft_params, only : leaf_photo_table_t
-   use ed_patch_state_vars,   only : cas_state_t, soil_water_state_t, soil_energy_state_t, snow_state_t, soil_carbon_state_t
+   use ed_patch_state_vars,   only : cas_state_t, soil_water_state_t, soil_energy_state_t, soil_carbon_state_t,      &
+                                     ground_surface_state_t, porous_layer_state_t, ground_store_t
    use ed_therm_lib, only : cas_temp_to_enthalpy, cas_enthalpy_to_temp
    use ed_biophysics_params,   only : aero_params_t
    use ed_biogeochem_params,   only : N_SOIL_POOL
    use ed_budget_check, only : budget_t
    use ed_linear_algebra, only : arrowhead_system_t
    use ed_soil_water, only : ground_evap_env_t
-   use ed_soil_hydr_lib, only : soil_ice_t
+   use ed_soil_hydr_lib, only : soil_ice_t, soil_layer_curve_t
    use ed_canopy_aerodynamics, only : aero_env_t, aero_args_t, aero_out_t, ensure_aero_out_capacity
    use ed_canopy_air_space, only : cas_env_t
    use ed_plant_energy,   only : plant_energy_env_t
    use ed_canopy_water,   only : canopy_water_out_t
-   use ed_surface, only : surface_env_t, snow_out_t
-   use ed_soil_heat, only : soil_layer_temp
+   use ed_surface, only : surface_env_t, water_stage_out_t, store_exchange_t
+   use ed_ground_surface_lib, only : porous_layer_temp
    use ed_soil_params, only : soil_profile_t
    use ed_diag_vars, only : N_CO_FAST_ROWS
    use ed_state_defaults,    only : UNSET_NEGATIVE
@@ -41,7 +43,11 @@ module ed_fast_integ_types
    public :: fast_static_state_t, fast_dynamic_state_t, fast_forcing_t, fast_output_t, fast_workspace_t
    public :: step_report_t, step_ledgers_t, step_exports_t
    public :: WORK_INTEG_STEPS, WORK_INTEG_REJECT, WORK_WATER_NSUB, WORK_WATER_NEWTON, WORK_WATER_REJECT,         &
-             WORK_WATER_NFAIL, WORK_RK45_RESCUE, WORK_CLAMP_STAGE, N_WORK
+             WORK_WATER_NFAIL, WORK_RK45_RESCUE, WORK_CLAMP_STAGE, WORK_WATER_FORCED_NEWTON,                      &
+             WORK_WATER_FORCED_FAST, WORK_WATER_FORCED_CUT, WORK_WATER_FORCED_COHORT, WORK_WATER_NODE_UNSOLVED,  &
+             WORK_WATER_FAST_POND, WORK_WATER_FAST_SLOT, WORK_WATER_FAST_LAYER, WORK_WATER_CUT_POND,             &
+             WORK_WATER_CUT_SLOT, WORK_WATER_CUT_LAYER, WORK_STACK_NEWTON, WORK_STACK_FALLBACK,                  &
+             WORK_WATER_FORCED_HELD, WORK_WATER_LINE_SEARCH, WORK_WATER_BLOCK_SWEEP, WORK_WATER_HELD_OUT, N_WORK
    public :: GRP_ENTH, GRP_SHV, GRP_CO2, GRP_SE, GRP_LEAF_W, GRP_WOOD_W, GRP_THETA, N_TOL_GROUP
    public :: tol_set_t, error_control_t
    public :: ensure_static_capacity, ensure_dynamic_capacity, ensure_forcing_capacity, ensure_output_capacity
@@ -50,7 +56,7 @@ module ed_fast_integ_types
    public :: soil_hydrology_t, root_zone_t, plant_water_t, esdirk2_stages_t, surface_source_slopes_t
    public :: march_state_t, frozen_t, march_tend_t
    public :: stage_bflux_t, boundary_flux_t
-   public :: POND, WOOD, LEAF, COHORT_STORES
+   public :: POND, WOOD, LEAF, COHORT_STORES, water_porous_t
    public :: water_drive_t, water_tend_t, water_state_t, water_flows_t, water_work_t, ensure_water_capacity
    public :: alloc_static_state, alloc_dynamic_state   ! used only by the tests
    !--- The march state's arithmetic.
@@ -92,8 +98,8 @@ module ed_fast_integ_types
 
    !---~---
    !   The soil-plant water network's nodes (docs/science/soil_plant_water.md §1): the pond is
-   ! soil node POND and soil layer k is node 1 + k; each cohort has two stores, its wood and its
-   ! leaves.
+   ! soil node POND, the porous layers in the network are nodes 2 .. 1 + n_porous top down, and
+   ! soil layer k is node 1 + n_porous + k; each cohort has two stores, its wood and its leaves.
    !---~---
    integer(ik), parameter :: POND = 1_ik
    integer(ik), parameter :: WOOD = 1_ik
@@ -143,6 +149,8 @@ module ed_fast_integ_types
       !---~---
       integer(ik), allocatable :: order(:)
       real(wp),    allocatable :: lai(:), wai(:), height(:)
+      real(wp),    allocatable :: exposed(:)   ! [-] the share of the crown above the snow pack (lai, wai carry it)
+      real(wp),    allocatable :: wai_whole(:) ! [m2/m2] the whole crown's wood area index, buried or not (respiration)
       real(wp),    allocatable :: leaf_width(:), branch_diam(:)
       real(wp),    allocatable :: aboveground_frac(:)          ! [--] gathered per-PFT (stem respiration)
       logical,     allocatable :: is_woody(:)                   ! gathered per-PFT (stem respiration off for grass)
@@ -216,7 +224,7 @@ module ed_fast_integ_types
       type(cas_state_t)          :: cas               ! canopy-air-space twins (enthalpy/shv/co2)
       type(soil_energy_state_t)  :: soil_energy       ! soil thermal column (internal energy; temp diagnosed)
       type(soil_water_state_t)   :: soil_water        ! soil water column (theta; psi_soil diagnosed)
-      type(snow_state_t)         :: snow              ! temporary-surface-water / snow store (swe + energy)
+      type(ground_surface_state_t) :: ground_surface  ! the water layer, the litter and the moss
       real(wp), allocatable      :: leaf_energy(:)    ! [J/m2 ground] per-cohort leaf internal energy
       real(wp), allocatable      :: wood_energy(:)    ! [J/m2 ground] per-cohort wood internal energy
       real(wp), allocatable      :: leaf_temp(:)      ! [K] derived from leaf_energy
@@ -238,8 +246,9 @@ module ed_fast_integ_types
    end type fast_dynamic_state_t
 
    !---~---
-   !   The drivers of one fast step: the air at the patch's canopy-air top and the radiation the
-   ! two-stream gives each cohort and the ground (patch_forcing).
+   !   The drivers of one fast step: the air at the patch's canopy-air top and the sky above it
+   ! (patch_forcing), and the radiation the two-stream gives each cohort and the ground, which the
+   ! step computes after the ground's stage (canopy_ground_radiation).
    !---~---
    type :: fast_forcing_t
       real(wp)              :: enthalpy_atm  = 0.0_wp   ! [J/kg]     reference-level specific enthalpy
@@ -248,11 +257,24 @@ module ed_fast_integ_types
       real(wp)              :: air_temp      = 288.0_wp ! [K]        reference-level air temperature
       real(wp)              :: wind          = 2.0_wp   ! [m/s]      wind at the reference level
       real(wp)              :: press         = 101325.0_wp  ! [Pa]   air pressure
+      !---~---
+      !   The sky: the sun's height and the radiation reaching the canopy's top in each band.
+      ! sky_live says the driver set them, so the step runs them through the canopy; a record built
+      ! by hand (a test fixture) leaves it false and gives the absorbed radiation below as it is.
+      !---~---
+      logical               :: sky_live      = .false.
+      real(wp)              :: cosz          = 0.0_wp   ! [-]    cosine of the solar zenith angle
+      real(wp)              :: par_beam      = 0.0_wp   ! [W/m2] visible beam
+      real(wp)              :: par_diffuse   = 0.0_wp   ! [W/m2] visible diffuse
+      real(wp)              :: nir_beam      = 0.0_wp   ! [W/m2] near-infrared beam
+      real(wp)              :: nir_diffuse   = 0.0_wp   ! [W/m2] near-infrared diffuse
+      real(wp)              :: lw_down       = 0.0_wp   ! [W/m2] longwave from the sky
       real(wp)              :: abs_sw_ground = 0.0_wp   ! [W/m2] shortwave the ground absorbs, snow and soil
       real(wp)              :: abs_lw_ground = 0.0_wp   ! [W/m2] net longwave at the ground, snow and soil
       !--- Each ground tile's radiation per unit of its own area (ground_tile_radiation).
       real(wp)              :: rnet_soil     = 0.0_wp   ! [W/m2] the bare soil's net all-wave radiation
       real(wp)              :: sw_snow       = 0.0_wp   ! [W/m2] the shortwave the snow absorbs
+      real(wp)              :: sw_ground     = 0.0_wp   ! [W/m2] the shortwave the ground beneath it absorbs
       real(wp)              :: lw_down_ground = 0.0_wp  ! [W/m2] the longwave reaching the ground
       real(wp)              :: rainfall      = 0.0_wp   ! [kg/m2/s] reference-level rainfall (intercepted downstream)
       real(wp)              :: snowfall      = 0.0_wp   ! [kg/m2/s] snowfall (drives snow accumulation)
@@ -296,7 +318,50 @@ module ed_fast_integ_types
    ! neither scheme clamps the committed state.
    !---~---
    integer(ik), parameter :: WORK_CLAMP_STAGE  = 8_ik
-   integer(ik), parameter :: N_WORK            = 8_ik
+   !---~---
+   !   Why the water network's sub-steps were taken although unconverged (WORK_WATER_NFAIL):
+   ! those whose Newton had not converged, the rest having failed the error filter; and the class
+   ! of the store whose imbalance (or error) was worst, an eliminated or a detached core node or a
+   ! cohort's store, the rest a core node in the solve. Then the evaluations of an eliminated or
+   ! detached node whose own balance solve_node left unsolved (solved to its tolerance it was not).
+   !---~---
+   integer(ik), parameter :: WORK_WATER_FORCED_NEWTON = 9_ik
+   integer(ik), parameter :: WORK_WATER_FORCED_FAST   = 10_ik
+   integer(ik), parameter :: WORK_WATER_FORCED_CUT    = 11_ik
+   integer(ik), parameter :: WORK_WATER_FORCED_COHORT = 12_ik
+   integer(ik), parameter :: WORK_WATER_NODE_UNSOLVED = 13_ik
+   !---~---
+   !   The water network's core nodes by class over its accepted sub-steps
+   ! (docs/science/soil_plant_water.md §3, "Node classes"): eliminated (fast) and detached (cut),
+   ! for the pond, the porous layers and the soil layers.
+   !---~---
+   integer(ik), parameter :: WORK_WATER_FAST_POND  = 14_ik
+   integer(ik), parameter :: WORK_WATER_FAST_SLOT  = 15_ik
+   integer(ik), parameter :: WORK_WATER_FAST_LAYER = 16_ik
+   integer(ik), parameter :: WORK_WATER_CUT_POND   = 17_ik
+   integer(ik), parameter :: WORK_WATER_CUT_SLOT   = 18_ik
+   integer(ik), parameter :: WORK_WATER_CUT_LAYER  = 19_ik
+   !---~---
+   !   The ground surface's stack (surface_stack_balance) over the evaluations the march committed:
+   ! its Newton iterations, and the evaluations that fell back to Gauss-Seidel sweeps.
+   !---~---
+   integer(ik), parameter :: WORK_STACK_NEWTON     = 20_ik
+   integer(ik), parameter :: WORK_STACK_FALLBACK   = 21_ik
+   !---~---
+   !   The water network's failure paths: the core nodes held out of the network for the rest of
+   ! a step because its Newton failed at the shortest sub-step with that node's balance the worst
+   ! (WORK_WATER_HELD_OUT); the sub-steps forced at the shortest length with no node left to hold
+   ! out, whose unconverged Newton iterate would have committed a store out of its bounds, from
+   ! which the network held still for the rest of the step instead (WORK_WATER_FORCED_HELD); the
+   ! Newton iterations stopped because no backtracked step lowered the merit
+   ! (WORK_WATER_LINE_SEARCH); and the solves of a block of eliminated nodes whose Newton fell back
+   ! to Gauss-Seidel sweeps (WORK_WATER_BLOCK_SWEEP).
+   !---~---
+   integer(ik), parameter :: WORK_WATER_FORCED_HELD = 22_ik
+   integer(ik), parameter :: WORK_WATER_LINE_SEARCH = 23_ik
+   integer(ik), parameter :: WORK_WATER_BLOCK_SWEEP = 24_ik
+   integer(ik), parameter :: WORK_WATER_HELD_OUT    = 25_ik
+   integer(ik), parameter :: N_WORK                 = 25_ik
 
    !---~---
    !   The per-patch conservation ledgers. The per-kernel ledgers close by construction;
@@ -318,6 +383,7 @@ module ed_fast_integ_types
    !--- What the step exported, and the slow tier's inputs it produced.
    type :: step_exports_t
       real(wp)       :: gpp_last = 0.0_wp, nee_last = 0.0_wp   ! [umol/m2/s] this step's patch GPP and NEE
+      real(wp)       :: water_layer_cover = 0.0_wp             ! [-] the share of the ground the water layer covered
       !--- Net CAS -> atmosphere export over the step, b-weighted like the ledgers: the reported H, LE.
       real(wp)       :: atm_heat_export = 0.0_wp   ! [J/m2]  sensible heat over this dt_fast
       real(wp)       :: atm_vap_export  = 0.0_wp   ! [kg/m2] evapotranspiration over this dt_fast
@@ -331,8 +397,8 @@ module ed_fast_integ_types
       !---~---
       !   The canopy air's vapour sources over the step, as its ledger booked them: the cohorts'
       ! transpiration, the evaporation of the leaves' and wood's surface water (net of dew onto
-      ! it), the ground's (bare soil and snow pack), and the condensate (dew, fog) it lost to
-      ! soil layer 1. ET (atm_vap_export) is the first three less the condensate, less the
+      ! it), the ground's (the water layer, the litter, the moss and the soil), and the condensate (dew, fog) it lost to
+      ! the water layer. ET (atm_vap_export) is the first three less the condensate, less the
       ! canopy air's own vapour gain.
       !---~---
       real(wp)       :: transp_export      = 0.0_wp   ! [kg/m2] over this dt_fast
@@ -342,13 +408,13 @@ module ed_fast_integ_types
       !---~---
       !   The whole-column water budget's other terms over the step (docs/science/diagnostics.md
       ! §4, The budgets): the surface water's net capture of the rain and snow, the pond's
-      ! infiltration into the soil, the pack's meltwater and sublimation, the tissue water the
+      ! infiltration into the ground, the water layer's melt and sublimation, the tissue water the
       ! slow step shed, the surface water above capacity that the update removed, and the change
-      ! of every store; and three stores at the step's end.
+      ! of every store; and four stores at the step's end.
       !---~---
       real(wp)       :: intercept_export    = 0.0_wp   ! [kg/m2] over this dt_fast
       real(wp)       :: infiltration_export = 0.0_wp   ! [kg/m2] over this dt_fast
-      real(wp)       :: melt_export         = 0.0_wp   ! [kg/m2] over this dt_fast
+      real(wp)       :: melt_export         = 0.0_wp   ! [kg/m2] over this dt_fast: the water layer's ice to liquid, net
       real(wp)       :: sublimation_export  = 0.0_wp   ! [kg/m2] over this dt_fast (deposition < 0)
       real(wp)       :: shed_water_export   = 0.0_wp   ! [kg/m2] over this dt_fast
       real(wp)       :: veg_surface_overflow_export  = 0.0_wp   ! [kg/m2] over this dt_fast
@@ -356,13 +422,14 @@ module ed_fast_integ_types
       real(wp)       :: veg_surface_water_store          = 0.0_wp   ! [kg/m2] at the step's end
       real(wp)       :: soil_water_store    = 0.0_wp   ! [kg/m2] at the step's end
       real(wp)       :: plant_water_store   = 0.0_wp   ! [kg/m2] at the step's end
+      real(wp)       :: free_water          = 0.0_wp   ! [kg/m2] at the step's end: the water layer's, the pond
       !---~---
       !   The whole-column energy budget's other terms over the step: the heat through the soil
       ! column's bottom (+ up, into it), the enthalpy the rain and snow carried in and the
       ! enthalpy the outflows carried out (runoff, drainage, the surface water's overflow and the
-      ! exported vapour's beyond LE), and the change of the soil's, the canopy's (its air and tissues) and the surface's
-      ! (snow pack and pond) stores; and the sensible heat from the canopy and the ground to
-      ! the canopy air.
+      ! exported vapour's beyond LE), and the change of the soil's, the canopy's (its air and
+      ! tissues) and the ground's surface layers' stores; and the sensible heat from the canopy
+      ! and the ground to the canopy air.
       !---~---
       real(wp)       :: heat_bottom_export  = 0.0_wp   ! [J/m2] over this dt_fast
       real(wp)       :: precip_enth_export  = 0.0_wp   ! [J/m2] over this dt_fast
@@ -478,8 +545,9 @@ module ed_fast_integ_types
       real(wp) :: cond           = 0.0_wp     ! [kg/m2/s]  smooth condensation sink (dew) draining CAS supersat
       real(wp) :: cond_enth      = 0.0_wp     ! [W/m2]     liquid enthalpy the sink debited from the CAS
       real(wp) :: ground_rad     = 0.0_wp     ! [W/m2]     the ground's net radiation, snow's and bare soil's
-      real(wp) :: snow_enth_in   = 0.0_wp     ! [W/m2]     energy into the snow pack (0 without one)
-      real(wp) :: snow_vap_out   = 0.0_wp     ! [kg/m2/s]  vapour from the snow pack to the CAS
+      type(store_exchange_t) :: stores        ! [W/m2], [kg/m2/s] each surface store's exchange (0 without it)
+      integer(ik) :: stack_newton   = 0_ik    ! the ground surface stack's Newton iterations (surface_stack_balance)
+      integer(ik) :: stack_fallback = 0_ik    ! 1 if it fell back to Gauss-Seidel sweeps
       real(wp), allocatable :: leaf_temp(:)   ! [K]        diagnosed per-cohort leaf temperature
       real(wp), allocatable :: wood_temp(:)   ! [K]        diagnosed per-cohort wood temperature
       real(wp), allocatable :: transp_c(:)    ! [kg/m2/s]  per-cohort transpiration demand
@@ -504,12 +572,6 @@ module ed_fast_integ_types
       real(wp), allocatable :: leaf_water_mass(:) ! [kg/plant] internal leaf water (ncoh)
       real(wp), allocatable :: wood_water_mass(:) ! [kg/plant] internal wood water (ncoh)
       !---~---
-      !   The pond: carried through the stages unchanged and committed from the water network.
-      ! Like the surface water it carries no error group, so the controller scores no frozen quantity.
-      !---~---
-      real(wp) :: w_surface      = 0.0_wp         ! [kg/m2] ponded surface water
-      real(wp) :: w_surface_energy = 0.0_wp         ! [J/m2]  enthalpy of the ponded water
-      !---~---
       !   The leaves' and wood's surface water, distinct from the internal water above: it
       ! evaporates with no stomatal resistance. Per m2 of ground, unlike the per-plant fields above.
       !---~---
@@ -524,22 +586,13 @@ module ed_fast_integ_types
    ! advects soil enthalpy on these same faces (docs/science/numerical_scheme.md §5b).
    !---~---
    type :: soil_hydrology_t
-      real(wp) :: q_top         = 0.0_wp          ! [m/s]     net top-face water flux (infiltration - exfiltration - evaporation)
-      real(wp) :: infiltration  = 0.0_wp          ! [kg/m2/s] pond -> top layer
+      real(wp) :: q_top         = 0.0_wp          ! [m/s]     net top-face water flux (in from above - evaporation)
+      real(wp) :: pond_infil    = 0.0_wp          ! [kg/m2/s] the free water's into the ground: the top porous layer or soil layer
       real(wp) :: drainage      = 0.0_wp          ! [kg/m2/s] bottom-face drainage
       real(wp) :: runoff_surf   = 0.0_wp          ! [kg/m2/s] surface runoff
-      real(wp) :: ground_inflow_enth = 0.0_wp     ! [W/m2]    the enthalpy it brings across the column's boundary
-      real(wp) :: t_infil       = 0.0_wp          ! [K]       temperature of the infiltrating (pond) water
-      real(wp) :: w_surface_energy1 = 0.0_wp        ! [J/m2]    end-of-step pond ENTHALPY
-      real(wp) :: runoff_enth   = 0.0_wp          ! [W/m2]    enthalpy leaving with surface runoff
-      !---~---
-      !   Water a supersaturated top layer pushed up into the pond, and the enthalpy it took, valued at
-      ! the layer's start-of-step temperature (the pond received the same number).
-      !---~---
-      real(wp) :: exfiltration  = 0.0_wp          ! [kg/m2/s] top layer -> pond
-      real(wp) :: exfil_enth    = 0.0_wp          ! [W/m2]    enthalpy leaving the top layer with it
+      real(wp) :: runoff_enth   = 0.0_wp          ! [W/m2]    enthalpy leaving with surface runoff, at the free water's temperature
       real(wp) :: t_bot         = 0.0_wp          ! [K]       bottom-layer soil temperature @ state^n
-      real(wp) :: w_surface1    = 0.0_wp          ! [kg/m2]   end-of-step ponded surface water
+      real(wp) :: free_water1   = 0.0_wp          ! [kg/m2]   the water layer's free water at the step's end
       real(wp) :: w_flux_frozen(n_soil_layer_max) = 0.0_wp  ! [m/s]   DOWNWARD interior face flux, k=1..nsl-1
       !--- The network's end-of-step soil moisture, which every scheme commits.
       real(wp), allocatable :: theta1(:)          ! [m3/m3]   committed post-step soil moisture (per layer)
@@ -576,18 +629,38 @@ module ed_fast_integ_types
    end type plant_water_t
 
    !---~---
+   !   The porous layers in the network, top down (docs/science/ground_surface_layers.md §4):
+   ! each node's layer (POROUS_LITTER, POROUS_MOSS), its retention curve and ice, held over the
+   ! step, its depth and its water at the step's start, the water it lacks of its residual, and the
+   ! boundary it evaporates to, by the soil's law, through the porous layers above it. n = 0
+   ! without a porous layer: the network is the pond and the soil.
+   !---~---
+   type :: water_porous_t
+      integer(ik) :: n = 0_ik                            ! porous layers in the network
+      integer(ik) :: slot(N_POROUS) = 0_ik               ! node j's layer (POROUS_LITTER, POROUS_MOSS)
+      type(soil_layer_curve_t) :: curve(N_POROUS)        ! node j's retention and conductivity
+      type(soil_ice_t)         :: ice(N_POROUS)          ! its ice, held over the step
+      real(wp) :: depth(N_POROUS) = 0.0_wp               ! [m]
+      real(wp) :: water(N_POROUS) = 0.0_wp               ! [kg/m2] at the step's start, liquid and ice
+      type(ground_evap_env_t) :: air(N_POROUS)           ! node j's evaporation boundary (slot_evaporation_setup)
+   end type water_porous_t
+
+   !---~---
    !   What drives the soil-plant water network over the step, held fixed across it: the water
-   ! reaching the pond and the temperature that values it, the temperature of the water each
-   ! layer gives up, each cohort's transpiration demand and the ground evaporation's boundary
-   ! (docs/science/soil_plant_water.md §4-§5).
+   ! reaching the pond, each layer's temperature and ice, each cohort's transpiration demand, the
+   ! ground evaporation's boundary and the porous layers (docs/science/soil_plant_water.md §4-§5).
+   ! The network moves water only: the heat the water carries is the energy solves' (the ground
+   ! surface's stack and the soil's heat column).
    !---~---
    type :: water_drive_t
-      real(wp) :: rain   = 0.0_wp                          ! [kg/m2/s] water reaching the pond
-      real(wp) :: t_rain = 298.15_wp                       ! [K] the temperature that values it
+      real(wp) :: rain   = 0.0_wp                          ! [kg/m2/s] water reaching the pond: the free water, over the step
+      real(wp) :: pond_capacity = 0.0_wp                   ! [kg/m2] the pond above which it runs off
       real(wp) :: t_soil(n_soil_layer_max) = 298.15_wp     ! [K] temperature of the water a layer gives up
       type(soil_ice_t) :: ice(n_soil_layer_max)              ! each layer's ice, held over the step
+      real(wp) :: root_contact(n_soil_layer_max) = 1.0_wp ! [-] each layer's root-soil contact, held over the step
       real(wp), allocatable :: e_demand(:)                 ! (ncoh) [kg/m2/s] the stomata's transpiration demand
       type(ground_evap_env_t) :: ground                    ! the ground evaporation's boundary
+      type(water_porous_t)    :: porous                    ! the porous layers in the network
    end type water_drive_t
 
    !---~---
@@ -600,51 +673,64 @@ module ed_fast_integ_types
       real(wp), allocatable :: k_soil(:), dk_soil(:), inflow_soil(:)                       ! (nsoil)
       real(wp), allocatable :: psi_coh(:,:), dpsi_coh(:,:), water_coh(:,:), dwater_coh(:,:) ! (2, ncoh)
       real(wp), allocatable :: inflow_coh(:,:)                                             ! (2, ncoh)
-      real(wp), allocatable :: face_flux(:)        ! (nsl) down through the face below layer k
+      real(wp), allocatable :: face(:)             ! (nsoil) down through face c, from node c to node c + 1
       real(wp), allocatable :: uptake(:,:)         ! (nsl, ncoh) from each layer into each cohort
       real(wp), allocatable :: sapflow(:), transp(:)   ! (ncoh)
-      real(wp) :: pond_flux = 0.0_wp               ! pond -> top layer
       real(wp) :: drain = 0.0_wp, evap = 0.0_wp    ! out of the bottom; out of the top layer to the air
+      real(wp) :: porous_evap(N_POROUS) = 0.0_wp   ! out of porous node j to the air
+      !---~---
+      !   What the solve can see of each link, whether or not the node is detached: face c's flow's
+      ! slopes in its upper node's unknown and its lower one's, and the largest slope of a soil
+      ! node's root uptake in its own or a wood's unknown.
+      !---~---
+      real(wp), allocatable :: face_dqa(:), face_dqb(:)   ! (nsoil) face c joins node c to c + 1
+      real(wp), allocatable :: root_link(:)               ! (nsoil)
    end type water_tend_t
 
    !---~---
-   !   The water network's state: each store's unknown and the water it holds [kg/m2], the pond's
-   ! enthalpy, and each store's potential at the end of the step.
+   !   The water network's state: each store's unknown and the water it holds [kg/m2], and each
+   ! store's potential at the end of the step.
    !---~---
    type :: water_state_t
       real(wp), allocatable :: tau_soil(:), tau_coh(:,:)       ! (nsoil), (2, ncoh)
       real(wp), allocatable :: water_soil(:), water_coh(:,:)   ! (nsoil), (2, ncoh)
       real(wp), allocatable :: psi_soil(:), psi_coh(:,:)       ! (nsoil), (2, ncoh) [MPa]
-      real(wp) :: e_pond = 0.0_wp                              ! [J/m2] the pond's enthalpy
    end type water_state_t
 
-   !--- What each of the network's paths moved over the step [kg/m2, J/m2].
+   !---~---
+   !   What each of the network's paths moved over the step [kg/m2]: each face of the chain, net
+   ! (face c from node c to node c + 1: the pond's into the top porous layer or soil layer, the
+   ! porous layers', the soil's); the pond's face both ways, gross; the pond's runoff; and the
+   ! evaporation, drainage, uptake, sapflow and transpiration.
+   !---~---
    type :: water_flows_t
-      real(wp), allocatable :: face(:)          ! (nsl) down through the face below layer k
+      real(wp), allocatable :: face(:)          ! (nsoil) down through face c, net
       real(wp), allocatable :: uptake(:,:)      ! (nsl, ncoh) from each layer into each cohort
       real(wp), allocatable :: sapflow(:), transp(:)   ! (ncoh)
-      real(wp) :: infil = 0.0_wp, infil_enth = 0.0_wp  ! pond -> top layer, and its enthalpy
-      real(wp) :: exfil = 0.0_wp, exfil_enth = 0.0_wp  ! top layer -> pond
+      real(wp) :: infil = 0.0_wp, exfil = 0.0_wp       ! the pond's face, down and up
       real(wp) :: drain = 0.0_wp, evap = 0.0_wp        ! out of the bottom; out of the top layer to the air
-      real(wp) :: spill = 0.0_wp, spill_enth = 0.0_wp  ! pond runoff over its capacity
-      real(wp) :: rain_enth = 0.0_wp                   ! enthalpy the rain brought
+      real(wp) :: spill = 0.0_wp                       ! pond runoff over its capacity
+      real(wp) :: porous_evap(N_POROUS) = 0.0_wp       ! out of porous node j to the air
    end type water_flows_t
 
    !---~---
    !   One thread's water network, kept from step to step so its arrays are allocated again only
    ! when the shape changes: its size, its state and flows, and the Newton scratch. ev(i_start)
    ! is the network at a sub-step's start; Newton evaluates its iterates into the other. sys
-   ! holds the flows' Jacobian of the latest evaluation (its factorisation is kept apart). A
+   ! holds the flows' Jacobian of the latest evaluation (its factorisation is kept apart);
+   ! sys_start keeps the sub-step's first factorisation, at its start, for the error filter. A
    ! sub-step starts where the last accepted one ended, so while start_ready holds, its start's
    ! evaluation and Jacobian are already there.
    !---~---
    type :: water_work_t
       integer(ik)              :: nsl   = 0_ik      ! soil layers
+      integer(ik)              :: n_porous = 0_ik   ! porous layers in the network
       integer(ik)              :: ncoh  = 0_ik      ! cohorts
-      integer(ik)              :: nsoil = 0_ik      ! soil nodes: the pond and the nsl layers
+      integer(ik)              :: nsoil = 0_ik      ! core nodes: the pond, the n_porous layers and the nsl soil layers
       type(water_state_t)      :: state
       type(water_flows_t)      :: flows
       type(arrowhead_system_t) :: sys
+      type(arrowhead_system_t) :: sys_start
       type(water_tend_t)       :: ev(2)
       integer(ik)              :: i_start = 1_ik
       logical                  :: start_ready = .false.
@@ -655,12 +741,23 @@ module ed_fast_integ_types
       type(cas_boundary_t)         :: cas          ! CAS <-> atmosphere boundary
       type(plant_energy_env_t)     :: tissue       ! per-cohort leaf/wood energy coefficients + heat store
       type(canopy_water_out_t)     :: veg_surface         ! the canopy's surface water
-      type(surface_env_t)          :: ground       ! what the ground surface reads, the snow pack among it
-      type(snow_out_t)             :: snow         ! the snow stage's hand-off (all zero without a pack)
+      type(surface_env_t)          :: ground       ! what the ground surface reads, the water layer among it
+      type(water_stage_out_t)      :: stage        ! the water layer's stage: its free water, and what it moved
+      real(wp) :: stage_soil_heat = 0.0_wp         ! [J/m2] the heat a film took from the top soil layer at the stage
       type(soil_hydrology_t)       :: hydrology    ! the water network's soil flows over the step
       type(root_zone_t)            :: roots        ! the network's root uptake and its placement by layer
       type(plant_water_t)          :: plant        ! the network's sapflow and uptake per plant
       type(water_drive_t)          :: water_drive  ! what drives the water network over the step
+      !---~---
+      !   The porous layers over the step: their energy at its start, and the water the network
+      ! leaves them with their own evaporation not yet gone, which the update commits.
+      !---~---
+      type(porous_layer_state_t)   :: porous(N_POROUS)
+      !---~---
+      !   The ground's surface stores at the step's start, before its stage moves anything: the
+      ! water [kg/m2] and energy [J/m2] the whole-column ledgers start from.
+      !---~---
+      type(ground_store_t)         :: surface0
    end type frozen_t
 
    !---~---
@@ -730,11 +827,11 @@ module ed_fast_integ_types
       real(wp) :: whole_wat_in  = 0.0_wp, whole_wat_out  = 0.0_wp! [kg/m2/s]
       real(wp) :: whole_cond    = 0.0_wp                         ! [kg/m2/s] condensate
       real(wp) :: whole_cond_enth = 0.0_wp                       ! [W/m2] its liquid enthalpy at the stage CAS temperature
-      real(wp) :: snow_enth_in = 0.0_wp                          ! [W/m2]    energy into the snow pack
-      real(wp) :: snow_vap_out = 0.0_wp                          ! [kg/m2/s] vapour from it to the CAS
+      type(store_exchange_t) :: stores                           ! [W/m2], [kg/m2/s] each surface store's exchange
+      integer(ik) :: stack_newton = 0_ik, stack_fallback = 0_ik   ! the stage's surface stack's work (surface_tend_t's)
       real(wp) :: veg_surface_evap = 0.0_wp                      ! [kg/m2/s] leaf and wood surface water evaporated (dew < 0)
       real(wp) :: h_canopy     = 0.0_wp                          ! [W/m2]    the leaves' and wood's sensible heat to the CAS
-      real(wp) :: h_ground     = 0.0_wp                          ! [W/m2]    the ground's (soil, snow) sensible heat to the CAS
+      real(wp) :: h_ground     = 0.0_wp                          ! [W/m2]    the ground's (layers, soil) sensible heat to the CAS
       !---~---
       !   Net CAS -> atmosphere export at the ledger's own stage states and conductances: the
       ! reported H and LE (ed_fast_integ_stepper%atm_fluxes; docs/science/numerical_scheme.md §5b).
@@ -757,8 +854,8 @@ module ed_fast_integ_types
       real(wp) :: whole_enth_in = 0.0_wp, whole_enth_out = 0.0_wp
       real(wp) :: whole_wat_in  = 0.0_wp, whole_wat_out  = 0.0_wp
       !---~---
-      !   Condensate, apart from whole_wat_out: dew and fog land inside the column, and the caller
-      ! deposits them into soil layer 1 (docs/science/numerical_scheme.md §7, item 3).
+      !   Condensate, apart from whole_wat_out: dew and fog land inside the column, and the update
+      ! puts them in the water layer.
       !---~---
       real(wp) :: whole_cond    = 0.0_wp   ! [kg/m2] condensed vapour over the step (>= 0)
       !---~---
@@ -766,12 +863,12 @@ module ed_fast_integ_types
       ! temperature, as surface_derivs debited it; the deposit carries this, not u_liq(T_end).
       !---~---
       real(wp) :: whole_cond_enth = 0.0_wp ! [J/m2]
-      !--- The snow pack's exchange over the step, which the update commits to the pack.
-      real(wp) :: snow_enth_in = 0.0_wp    ! [J/m2]  energy into the pack
-      real(wp) :: snow_vap_out = 0.0_wp    ! [kg/m2] vapour from it to the CAS
+      !--- Each surface store's exchange over the step [J/m2, kg/m2], which the update commits to it.
+      type(store_exchange_t) :: stores
+      integer(ik) :: stack_newton = 0_ik, stack_fallback = 0_ik   ! the stages' surface stack's work, summed
       real(wp) :: veg_surface_evap    = 0.0_wp    ! [kg/m2] leaf and wood surface water evaporated (dew < 0)
       real(wp) :: h_canopy     = 0.0_wp    ! [J/m2]  the leaves' and wood's sensible heat to the CAS
-      real(wp) :: h_ground     = 0.0_wp    ! [J/m2]  the ground's (soil, snow) sensible heat to the CAS
+      real(wp) :: h_ground     = 0.0_wp    ! [J/m2]  the ground's (its layers, soil) sensible heat to the CAS
       real(wp) :: atm_heat_out = 0.0_wp    ! [J/m2]  net CAS -> atmosphere sensible-heat export (reported H)
       real(wp) :: atm_vap_out  = 0.0_wp    ! [kg/m2] net CAS -> atmosphere vapour export (reported LE / L_v)
       real(wp) :: rad_net      = 0.0_wp    ! [J/m2]  net radiation the canopy and the ground booked (reported)
@@ -796,7 +893,8 @@ contains
       integer(ik),               intent(in)  :: n
       integer(ik) :: i
       static%n = n
-      allocate(static%pft(n), static%order(n), static%lai(n), static%wai(n), static%height(n),                    &
+      allocate(static%pft(n), static%order(n), static%lai(n), static%wai(n), static%height(n), static%exposed(n), &
+               static%wai_whole(n),                                                                           &
                static%leaf_width(n), static%branch_diam(n), static%aboveground_frac(n),                   &
                static%is_woody(n), static%stem_resp_factor25(n), static%root_resp_factor25(n),            &
                static%stem_resp_sapwood25(n), static%sap_volume(n),                                         &
@@ -811,6 +909,8 @@ contains
       static%lai = 0.0_wp
       static%wai = 0.0_wp
       static%height = 0.0_wp
+      static%exposed = 1.0_wp
+      static%wai_whole = 0.0_wp
       static%leaf_width = 0.04_wp
       static%branch_diam = 0.02_wp
       static%aboveground_frac = 0.7_wp
@@ -891,17 +991,19 @@ contains
    ! right after.
    !---~---
    !---~---
-   !   Size the water network for nsl soil layers and ncoh cohorts, keeping the storage when the
-   ! shape is unchanged.
+   !   Size the water network for nsl soil layers, n_porous porous layers and ncoh cohorts, keeping
+   ! the storage when the shape is unchanged.
    !---~---
-   subroutine ensure_water_capacity(water, nsl, ncoh)
+   subroutine ensure_water_capacity(water, nsl, n_porous, ncoh)
       type(water_work_t), intent(inout) :: water
-      integer(ik),        intent(in)    :: nsl, ncoh
+      integer(ik),        intent(in)    :: nsl, n_porous, ncoh
       integer(ik) :: ns
-      if (allocated(water%state%tau_soil) .and. water%nsl == nsl .and. water%ncoh == ncoh) return
-      water%nsl   = nsl
-      water%ncoh  = ncoh
-      water%nsoil = 1_ik + nsl
+      if (allocated(water%state%tau_soil) .and. water%nsl == nsl .and. water%n_porous == n_porous                &
+          .and. water%ncoh == ncoh) return
+      water%nsl      = nsl
+      water%n_porous = n_porous
+      water%ncoh     = ncoh
+      water%nsoil    = 1_ik + n_porous + nsl
       ns = water%nsoil
       associate (st => water%state, fl => water%flows)
          if (allocated(st%tau_soil)) deallocate(st%tau_soil, st%tau_coh, st%water_soil, st%water_coh,          &
@@ -909,7 +1011,7 @@ contains
          allocate(st%tau_soil(ns), st%tau_coh(COHORT_STORES, ncoh), st%water_soil(ns),                      &
                   st%water_coh(COHORT_STORES, ncoh), st%psi_soil(ns), st%psi_coh(COHORT_STORES, ncoh))
          if (allocated(fl%face)) deallocate(fl%face, fl%uptake, fl%sapflow, fl%transp)
-         allocate(fl%face(nsl), fl%uptake(nsl, ncoh), fl%sapflow(ncoh), fl%transp(ncoh))
+         allocate(fl%face(ns), fl%uptake(nsl, ncoh), fl%sapflow(ncoh), fl%transp(ncoh))
       end associate
       call tend_allocate(water%ev(1))
       call tend_allocate(water%ev(2))
@@ -918,15 +1020,19 @@ contains
          type(water_tend_t), intent(inout) :: ev
          if (allocated(ev%psi_soil)) deallocate(ev%psi_soil, ev%dpsi_soil, ev%water_soil, ev%dwater_soil,       &
                                                 ev%k_soil, ev%dk_soil, ev%inflow_soil, ev%psi_coh, ev%dpsi_coh, &
-                                                ev%water_coh, ev%dwater_coh, ev%inflow_coh, ev%face_flux,       &
-                                                ev%uptake, ev%sapflow, ev%transp)
+                                                ev%water_coh, ev%dwater_coh, ev%inflow_coh, ev%face,            &
+                                                ev%uptake, ev%sapflow, ev%transp, ev%face_dqa, ev%face_dqb,     &
+                                                ev%root_link)
          allocate(ev%psi_soil(ns), ev%dpsi_soil(ns), ev%water_soil(ns), ev%dwater_soil(ns), ev%k_soil(ns),     &
-                  ev%dk_soil(ns), ev%inflow_soil(ns))
+                  ev%dk_soil(ns), ev%inflow_soil(ns), ev%face_dqa(ns), ev%face_dqb(ns), ev%root_link(ns))
+         ev%face_dqa  = 0.0_wp
+         ev%face_dqb  = 0.0_wp
+         ev%root_link = 0.0_wp
          allocate(ev%psi_coh(COHORT_STORES, ncoh), ev%dpsi_coh(COHORT_STORES, ncoh),                           &
                   ev%water_coh(COHORT_STORES, ncoh), ev%dwater_coh(COHORT_STORES, ncoh),                       &
                   ev%inflow_coh(COHORT_STORES, ncoh))
-         allocate(ev%face_flux(nsl), ev%uptake(nsl, ncoh), ev%sapflow(ncoh), ev%transp(ncoh))
-         ev%face_flux = 0.0_wp
+         allocate(ev%face(ns), ev%uptake(nsl, ncoh), ev%sapflow(ncoh), ev%transp(ncoh))
+         ev%face = 0.0_wp
       end subroutine tend_allocate
    end subroutine ensure_water_capacity
 
@@ -989,7 +1095,7 @@ contains
    ! state_entry_rules the only one that says how each is treated. Fortran cannot check that a
    ! field is listed, so test_fast_integ_kernels runs every field through every combinator.
    ! Layout: CAS enthalpy, humidity, CO2 | soil energy (1:nsl) | soil water (1:nsl) |
-   !   per cohort: leaf, wood water | per cohort: leaf, wood surface water | pond: water, enthalpy
+   !   per cohort: leaf, wood water | per cohort: leaf, wood surface water
    !---~---
    pure subroutine state_to_array(y, n, nsl, v)
       type(march_state_t), intent(in)  :: y
@@ -1011,9 +1117,6 @@ contains
          v(o+2*i-1) = y%leaf_surf_water(i)
          v(o+2*i) = y%wood_surf_water(i)
       end do
-      o = o + 2_ik*n
-      v(o+1) = y%w_surface
-      v(o+2) = y%w_surface_energy
    end subroutine state_to_array
 
    !---~---
@@ -1043,15 +1146,9 @@ contains
          y%leaf_surf_water(i) = v(o+2*i-1)
          y%wood_surf_water(i) = v(o+2*i)
       end do
-      o = o + 2_ik*n
-      y%w_surface = v(o+1)
-      y%w_surface_energy = v(o+2)
    end subroutine array_to_state
 
-   !---~---
-   !   A tendency in the same layout. The pond has none (it is committed from the water network),
-   ! so its entries are 0 and y + a*k leaves it as it was.
-   !---~---
+   !--- A tendency in the same layout.
    pure subroutine tend_to_array(k, n, nsl, v)
       type(march_tend_t), intent(in)  :: k
       integer(ik),         intent(in)  :: n, nsl
@@ -1072,16 +1169,13 @@ contains
          v(o+2*i-1) = k%d_leaf_surf_water(i)
          v(o+2*i) = k%d_wood_surf_water(i)
       end do
-      o = o + 2_ik*n
-      v(o+1) = 0.0_wp
-      v(o+2) = 0.0_wp
    end subroutine tend_to_array
 
    !---~---
    !   How entry j of the flat array is treated: norm_group, its group's tolerances (0: none), and
    ! in_embedded_error, whether the march integrates it and so has an error to measure: the
    ! canopy air and the soil heat. The soil and plant water move at the water network's fixed
-   ! rate on both schemes, and the surface water and the pond by operator-split maps, so their
+   ! rate on both schemes, and the surface water by operator-split maps, so their
    ! embedded difference is structurally zero: it is set to 0, not left as rounding noise, and
    ! the norm leaves them out.
    !---~---
@@ -1111,7 +1205,7 @@ contains
          in_embedded_error = .false.
       else
          norm_group = 0_ik
-         in_embedded_error = .false.         ! surface water and pond
+         in_embedded_error = .false.         ! surface water
       end if
    end subroutine state_entry_rules
 
@@ -1137,7 +1231,7 @@ contains
       type(march_state_t), intent(in)    :: y
       integer(ik),          intent(in)    :: n, nsl
       type(march_state_t), intent(inout) :: y_stage
-      real(wp) :: v(5_ik + 2_ik*nsl + 4_ik*n)
+      real(wp) :: v(3_ik + 2_ik*nsl + 4_ik*n)
       call state_to_array(y, n, nsl, v)
       call array_to_state(v, n, nsl, y_stage)
    end subroutine state_init
@@ -1151,7 +1245,7 @@ contains
       real(wp),             intent(in)    :: a
       type(march_tend_t),  intent(in)    :: k
       integer(ik),          intent(in)    :: n, nsl
-      real(wp) :: vy(5_ik + 2_ik*nsl + 4_ik*n), vk(5_ik + 2_ik*nsl + 4_ik*n)
+      real(wp) :: vy(3_ik + 2_ik*nsl + 4_ik*n), vk(3_ik + 2_ik*nsl + 4_ik*n)
       call state_to_array(y_stage, n, nsl, vy)
       call tend_to_array(k, n, nsl, vk)
       vy = vy + a * vk
@@ -1185,8 +1279,11 @@ contains
       acc%whole_wat_out = b2*s2%whole_wat_out + b3*s3%whole_wat_out
       acc%whole_cond    = b2*s2%whole_cond    + b3*s3%whole_cond
       acc%whole_cond_enth = b2*s2%whole_cond_enth + b3*s3%whole_cond_enth
-      acc%snow_enth_in  = b2*s2%snow_enth_in  + b3*s3%snow_enth_in
-      acc%snow_vap_out  = b2*s2%snow_vap_out  + b3*s3%snow_vap_out
+      acc%stores%energy_in  = b2*s2%stores%energy_in  + b3*s3%stores%energy_in
+      acc%stores%vapour_out = b2*s2%stores%vapour_out + b3*s3%stores%vapour_out
+      acc%stores%buried_heat = b2*s2%stores%buried_heat + b3*s3%stores%buried_heat
+      acc%stack_newton      = s2%stack_newton + s3%stack_newton
+      acc%stack_fallback    = s2%stack_fallback + s3%stack_fallback
       acc%veg_surface_evap = b2*s2%veg_surface_evap + b3*s3%veg_surface_evap
       acc%h_canopy      = b2*s2%h_canopy      + b3*s3%h_canopy
       acc%h_ground      = b2*s2%h_ground      + b3*s3%h_ground
@@ -1226,8 +1323,11 @@ contains
       acc%whole_wat_out = acc%whole_wat_out + s%whole_wat_out
       acc%whole_cond    = acc%whole_cond    + s%whole_cond
       acc%whole_cond_enth = acc%whole_cond_enth + s%whole_cond_enth
-      acc%snow_enth_in  = acc%snow_enth_in  + s%snow_enth_in
-      acc%snow_vap_out  = acc%snow_vap_out  + s%snow_vap_out
+      acc%stores%energy_in  = acc%stores%energy_in  + s%stores%energy_in
+      acc%stores%vapour_out = acc%stores%vapour_out + s%stores%vapour_out
+      acc%stores%buried_heat = acc%stores%buried_heat + s%stores%buried_heat
+      acc%stack_newton      = acc%stack_newton + s%stack_newton
+      acc%stack_fallback    = acc%stack_fallback + s%stack_fallback
       acc%veg_surface_evap = acc%veg_surface_evap + s%veg_surface_evap
       acc%h_canopy      = acc%h_canopy      + s%h_canopy
       acc%h_ground      = acc%h_ground      + s%h_ground
@@ -1255,7 +1355,7 @@ contains
       real(wp),             intent(in)    :: b
       integer(ik),          intent(in)    :: n, nsl
       type(march_state_t), intent(inout) :: out
-      real(wp) :: vy(5_ik + 2_ik*nsl + 4_ik*n), v2(5_ik + 2_ik*nsl + 4_ik*n)
+      real(wp) :: vy(3_ik + 2_ik*nsl + 4_ik*n), v2(3_ik + 2_ik*nsl + 4_ik*n)
       call state_to_array(y, n, nsl, vy)
       call state_to_array(Y2, n, nsl, v2)
       vy = (1.0_wp - b)*vy + b*v2
@@ -1301,8 +1401,8 @@ contains
       type(march_state_t), intent(in)    :: Y3, base3, Y2, y
       integer(ik),          intent(in)    :: n, nsl
       type(march_state_t), intent(inout) :: err
-      real(wp)    :: v3(5_ik + 2_ik*nsl + 4_ik*n), vb(5_ik + 2_ik*nsl + 4_ik*n)
-      real(wp)    :: v2(5_ik + 2_ik*nsl + 4_ik*n), vy(5_ik + 2_ik*nsl + 4_ik*n)
+      real(wp)    :: v3(3_ik + 2_ik*nsl + 4_ik*n), vb(3_ik + 2_ik*nsl + 4_ik*n)
+      real(wp)    :: v2(3_ik + 2_ik*nsl + 4_ik*n), vy(3_ik + 2_ik*nsl + 4_ik*n)
       integer(ik) :: j, grp
       logical     :: counted
       call state_to_array(Y3, n, nsl, v3)
@@ -1325,7 +1425,7 @@ contains
       type(march_state_t), intent(in)    :: a, b
       integer(ik),          intent(in)    :: n, nsl
       type(march_state_t), intent(inout) :: out
-      real(wp) :: va(5_ik + 2_ik*nsl + 4_ik*n), vb(5_ik + 2_ik*nsl + 4_ik*n)
+      real(wp) :: va(3_ik + 2_ik*nsl + 4_ik*n), vb(3_ik + 2_ik*nsl + 4_ik*n)
       call state_to_array(a, n, nsl, va)
       call state_to_array(b, n, nsl, vb)
       va = va - vb
@@ -1340,7 +1440,7 @@ contains
       type(march_state_t), intent(in) :: ref
       integer(ik),          intent(in) :: n, nsl
       type(march_state_t) :: z
-      real(wp) :: v(5_ik + 2_ik*nsl + 4_ik*n)
+      real(wp) :: v(3_ik + 2_ik*nsl + 4_ik*n)
       v = 0.0_wp
       call array_to_state(v, n, nsl, z)
    end function zero_like
@@ -1353,7 +1453,7 @@ contains
       real(wp),             intent(inout) :: soil_temp(:), soil_fliq(:)
       integer(ik) :: k
       do k = 1_ik, nsl
-         call soil_layer_temp(y_out%soil_energy(k), y_out%theta(k), profile%dry_heat_capacity(k),             &
+         call porous_layer_temp(y_out%soil_energy(k), y_out%theta(k), profile%dry_heat_capacity(k),             &
                               profile%layer_curve(k), soil_temp(k), soil_fliq(k))
       end do
    end subroutine diagnose_soil_temps

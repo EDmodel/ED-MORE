@@ -14,7 +14,10 @@
 !---~---
 module ed_slow_update
    use ed_kinds,                only : wp, ik
-   use ed_constants,            only : tiny_num, lnexp_min, lnexp_max, almost_one, yr_sec, rho_air_ref, umol_2_kgc
+   use ed_constants,            only : tiny_num, lnexp_min, lnexp_max, almost_one, yr_sec, rho_air_ref, umol_2_kgc, &
+                                       cp_organic, rho_h2o
+   use ed_therm_lib,            only : internal_energy_to_temp
+   use ed_ground_surface_params, only : ground_surface_layer_params_t, N_POROUS
    use ed_numerics,             only : equal_height_layers, conserved, pair_mean
    use ed_cohort_state_vars,    only : cohort_block, cohort_deriv_block, set_cohort_size_from_carbon,    &
                                        hold_cohort_tissue_temps, reorder_cohort_block,                   &
@@ -25,7 +28,8 @@ module ed_slow_update
                                        cohort_deriv_alloc
    use ed_patch_state_vars,     only : patch_block, soil_carbon_state_t, blend_patch_stores,             &
                                        add_shed_water, patch_physical_state, DIST_TREEFALL,              &
-                                       expand_patch_block, reorder_patch_block, cas_set_depth
+                                       expand_patch_block, reorder_patch_block, cas_set_depth,           &
+                                       porous_layers_diagnose, porous_layers_spill
    use ed_polygon_state_vars,   only : polygon_t, rebuild_cohort_map, assign_cohort_id,                  &
                                        patch_polygon_area, rebuild_patch_map, assign_patch_id
    use ed_allometry_lib,        only : height_to_diameter, carbon_to_structure, GROWTH_GRASS
@@ -40,7 +44,7 @@ module ed_slow_update
 
    public :: commit_vegetation_step, update_cohort_derivatives, fill_cohort_deriv, update_cohort_states
    public :: advance_pool, accumulate_recruit_pool, age_patches, update_overtopping_lai
-   public :: commit_trait_carbon, commit_soil_carbon
+   public :: commit_trait_carbon, commit_soil_carbon, follow_porous_layers
    public :: refresh_canopy_depth, apply_recruitment, apply_patch_disturbance
    public :: sort_cohorts, max_cohort_count, fuse_cohorts, fuse_2_cohorts, split_cohorts, terminate_cohorts
    public :: sort_patches, patch_light_profile, fuse_patches, fuse_2_patches, terminate_patches
@@ -278,6 +282,92 @@ contains
       type(soil_carbon_state_t), intent(in)    :: pools_new(:)   ! (patch)
       patch%soil_carbon(1:patch%n) = pools_new(1:patch%n)
    end subroutine commit_soil_carbon
+
+   !---~---
+   !   follow_porous_layers -- each patch's porous layers follow their dry matter, target_mass
+   ! (docs/science/ground_surface_layers.md §5), one operator for the litter and the moss at a run's
+   ! start, at a restart and at every slow step. Matter that arrives enters at the layer's
+   ! temperature, or at the top soil layer's in a layer it starts, its dry heat declared (heat).
+   ! It brings the water its own volume holds at the top soil layer's matric head (theta_arrive,
+   ! per volume of the matter), drawn from the top soil layer with that water's energy there
+   ! (water_energy, per kilogram: the layer's temperature and liquid fraction), a matched pair,
+   ! when draw; at a start, which has no ledger, the water arrives from outside with that energy,
+   ! and is declared with it (water, heat). The top soil layer gives no more than it holds above
+   ! its air-dry water content (soil_spare). Matter that leaves takes its dry heat at the layer's temperature
+   ! (declared); its water stays, and what a layer then holds beyond its saturation, or all its
+   ! water when its matter is gone, passes to the water layer (porous_layers_spill). A layer that
+   ! goes holding no water takes all its energy with its matter, the energy of its matter alone
+   ! (its temperature is read off it only to the phase law's tolerance, far coarser than
+   ! round-off). A slot with no matter holds nothing: what round-off left in it joins the water
+   ! layer.
+   !---~---
+   subroutine follow_porous_layers(patch, params, target_mass, t_new, theta_arrive, water_energy, soil_spare,   &
+                                   soil_dz, draw, heat, water)
+      type(patch_block),                   intent(inout) :: patch
+      type(ground_surface_layer_params_t), intent(in)    :: params
+      real(wp),               intent(in)    :: target_mass(:,:)    ! [kg/m2] (layer, patch)
+      real(wp),               intent(in)    :: t_new(:)            ! [K] (patch) the top soil layer's
+      real(wp),               intent(in)    :: theta_arrive(:,:)   ! [m3/m3] (layer, patch) at its matric head
+      real(wp),               intent(in)    :: water_energy(:)     ! [J/kg] (patch) its water's, as it holds it
+      real(wp),               intent(in)    :: soil_spare(:)       ! [kg/m2] (patch) its water above its residual
+      real(wp),               intent(in)    :: soil_dz(:)          ! [m] (patch) its thickness
+      logical,                intent(in)    :: draw                ! the water comes from it (else from outside)
+      real(wp),               intent(out)   :: heat(:)             ! [J/m2] (patch) in, out if < 0
+      real(wp),               intent(out)   :: water(:)            ! [kg/m2] (patch) in from outside
+      real(wp)    :: temp, dm, add, e_add, q_dry, spare
+      integer(ik) :: ip, k
+      heat(1:patch%n)  = 0.0_wp
+      water(1:patch%n) = 0.0_wp
+      do ip = 1_ik, patch%n
+         if (all(target_mass(1:N_POROUS, ip) == patch%ground_surface(ip)%porous%matter)) cycle
+         spare = soil_spare(ip)
+         associate (layer => patch%ground_surface(ip)%porous, water_layer => patch%ground_surface(ip)%water)
+            call porous_layers_diagnose(layer, params)
+            do k = 1_ik, N_POROUS
+               if (target_mass(k, ip) == layer(k)%matter) cycle
+               temp = layer(k)%temp
+               if (layer(k)%matter <= 0.0_wp) temp = t_new(ip)
+               dm    = target_mass(k, ip) - layer(k)%matter
+               q_dry = cp_organic * dm * temp
+               !--- A layer that goes holding no water takes all its energy, its matter's, with it.
+               if (target_mass(k, ip) <= 0.0_wp .and. .not. (layer(k)%water > 0.0_wp)) q_dry = -layer(k)%energy
+               add   = 0.0_wp
+               if (dm > 0.0_wp) add = theta_arrive(k, ip) * rho_h2o * dm / params%porous(k)%bulk_density
+               if (draw) then
+                  add   = max(0.0_wp, min(add, spare))
+                  spare = spare - add
+               end if
+               e_add = add * water_energy(ip)
+               layer(k)%matter = target_mass(k, ip)
+               layer(k)%water  = layer(k)%water + add
+               layer(k)%energy = layer(k)%energy + q_dry + e_add
+               heat(ip) = heat(ip) + q_dry
+               if (draw) then
+                  patch%soil_water(ip)%theta(1)        = patch%soil_water(ip)%theta(1) - add / (rho_h2o * soil_dz(ip))
+                  patch%soil_energy(ip)%soil_energy(1) = patch%soil_energy(ip)%soil_energy(1) - e_add / soil_dz(ip)
+               else
+                  heat(ip)  = heat(ip) + e_add
+                  water(ip) = water(ip) + add
+               end if
+            end do
+            call porous_layers_spill(layer, params, water_layer)
+            !---~---
+            !   A slot with no matter holds nothing: whatever water and energy a round-off left in it
+            ! join the water layer, a matched move.
+            !---~---
+            do k = 1_ik, N_POROUS
+               if (layer(k)%matter > 0.0_wp) cycle
+               water_layer%water  = water_layer%water  + layer(k)%water
+               water_layer%energy = water_layer%energy + layer(k)%energy
+               layer(k)%water  = 0.0_wp
+               layer(k)%energy = 0.0_wp
+            end do
+            if (water_layer%water > 0.0_wp)                                                                     &
+               call internal_energy_to_temp(water_layer%energy, water_layer%water, 0.0_wp, water_layer%temp,      &
+                                            water_layer%fliq)
+         end associate
+      end do
+   end subroutine follow_porous_layers
 
    !---~---
    !   The leaf and storage carbon a trait change leaves, at constant total carbon: the

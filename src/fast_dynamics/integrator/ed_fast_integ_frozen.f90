@@ -4,11 +4,14 @@
 ! computed once at the start of the dt_fast, from that moment's state and forcing, and
 ! held fixed across the march (docs/science/numerical_scheme.md §2, Category 0).
 ! build_frozen runs it as named steps:
+!   * the ground's stage: the stores the step starts from, the canopy's interception of the
+!     rain, the porous layers' spill and the water layer's stage; then the radiation through
+!     the canopy onto that ground (ed_fast_integ_radiation);
 !   * the processes' rates at the start state: canopy aerodynamics, the root zone, leaf
 !     gas exchange, stem and fine-root maintenance respiration, heterotrophic respiration,
 !     the biotic CO2 source, and the canopy-air capacities and atmosphere conductances;
-!   * the snow stage, canopy interception, the tissue coefficients, the rest of the
-!     canopy-air and ground boundary, the transpiration demand and the ground inflow;
+!   * the tissue coefficients, the rest of the canopy-air and ground boundary, the
+!     transpiration demand and the ground inflow;
 !   * the soil-plant water network's start state, and the march's.
 ! The water network is stepped next (water_step), and record_water_flows turns what it
 ! moved into the record's rates (docs/science/soil_plant_water.md §4-§5). Both schemes
@@ -16,16 +19,15 @@
 !---~---
 module ed_fast_integ_frozen
    use ed_kinds,              only : wp, ik
-   use ed_constants,          only : tiny_num, rho_h2o, pi, r_gas,                              &
+   use ed_constants,          only : tiny_num, rho_h2o, pi, r_gas, cp_organic,                            &
                                      kgcday_2_umols
    use ed_diag_vars,          only : CO_ANET, CO_AGROSS, CO_GSW, CO_GBW, CO_CI, CO_CS, CO_RD, CO_BETA_STOM,     &
                                      CO_BETA_NONSTOM, CO_LEAF_TEMP, CO_WOOD_TEMP, CO_LEAF_VPD, CO_PSI_LEAF,      &
                                      CO_ABS_PAR, CO_ABS_SW, CO_ABS_LW, CO_WIND, CO_LEAF_WATER, CO_WOOD_WATER,    &
                                      CO_GPP_RATE, CO_LEAF_PAR, CO_GB_MOL, CO_PSI_PREDAWN,    &
                                      CO_PSI_WOOD, CO_PLC, CO_SAPFLOW, CO_ROOT_UPTAKE, CO_WET_FRACTION
-   use ed_plant_hydr_lib,     only : conductance_retained_fraction
+   use ed_plant_hydr_lib,     only : conductance_retained_fraction, root_soil_contact
    use ed_plant_hydraulics,   only : leaf_node_psi
-   use ed_surface, only : snow_out_t
    use ed_soil_derive,        only : top_soil_psi
    use ed_soil_params,        only : soil_profile_t
    use ed_soil_hydr_lib,      only : soil_ice_state
@@ -38,10 +40,13 @@ module ed_fast_integ_frozen
                                      surface_tend_t, cas_boundary_t,                                              &
                                      plant_water_t, step_exports_t,                                              &
                                      water_work_t, POND, WOOD, WORK_WATER_NFAIL
-   use ed_fast_integ_derivs, only : surface_derivs, set_water_state
+   use ed_fast_integ_derivs, only : canopy_demand, set_water_state
    use ed_state_defaults,   only : is_unset_negative
    use ed_biophysics_params, only : aero_params_t
-   use ed_patch_state_vars, only : cas_state_t, soil_carbon_state_t, cas_capacities, cas_capacity_change
+   use ed_patch_state_vars, only : cas_state_t, soil_carbon_state_t, cas_capacities, cas_capacity_change,          &
+                                   porous_layer_state_t, porous_layer_curve, porous_layers_diagnose,              &
+                                   porous_layers_present, porous_layers_spill, ground_top_temp, ground_surface_store
+   use ed_ground_surface_params, only : ground_surface_layer_params_t, porous_material_t, N_POROUS
    use ed_biogeochem_params, only : N_SOIL_POOL
    use ed_canopy_aerodynamics, only : canopy_aerodynamics, cas_atm_conductances
    use ed_plant_energy,   only : plant_energy_env_t, sensible_heat_coeff, leaf_transp_coeff, leaf_surface_evap_coeff, &
@@ -50,12 +55,15 @@ module ed_fast_integ_frozen
    use ed_leaf_gas_exchange, only : leaf_gas_exchange_batch, cohort_leaf_par
    use ed_respiration,   only : stem_maintenance_respiration, fine_root_maintenance_respiration, root_zone_temp_scale, &
                                 decomposition_env_scalar, decomposition_transfer_matrix, heterotrophic_respiration
-   use ed_surface, only : surface_env_t, prepare_snow_stage
-   use ed_soil_water, only : pond_inflow
-   use ed_therm_lib,          only : internal_energy_liquid, liquid_energy_to_temp,                              &
+   use ed_surface, only : surface_env_t, porous_node_env_t, water_layer_stage, water_layer_cover_of, water_layer_exposed
+   use ed_soil_water, only : porous_cover_path, slot_evaporation_setup
+   use ed_therm_lib,          only : internal_energy_liquid,                                                     &
                                      cas_enthalpy_to_temp, cas_heat_capacity, air_vpd, air_density,             &
                                      soil_thermal_conductivity, specific_humidity_to_vapor_pressure
    use ed_numerics,           only : weighted_mean
+   use ed_ground_surface_lib, only : porous_layer_fill, porous_layer_depth, porous_layer_capacity,              &
+                                     porous_layer_resistance
+   use ed_fast_integ_radiation, only : canopy_ground_radiation
    implicit none
    private
 
@@ -66,17 +74,18 @@ contains
    !---~---
    !   build_frozen -- the frozen record both schemes march against, as named steps, and the
    ! water network's and the march's start states. It only reads the dynamic state: the
-   ! snow stage advances a copy of the pack, which the update commits. The record is the
-   ! thread's, reused step to step (prepare_frozen). out receives the aerodynamics, the
-   ! per-cohort rates, the step's GPP, NEE and decomposition scalars, and, with
-   ! out%capture, the per-cohort diagnostics (docs/science/diagnostics.md §1, stage [2]).
+   ! ground's stage advances a copy of its stores, which the update commits. With the sky
+   ! live, the radiation through the canopy fills the forcing's absorbed radiation after the
+   ! stage. The record is the thread's, reused step to step (prepare_frozen). out receives the
+   ! aerodynamics, the per-cohort rates, the step's GPP, NEE and decomposition scalars, and,
+   ! with out%capture, the per-cohort diagnostics (docs/science/diagnostics.md §1, stage [2]).
    !---~---
    subroutine build_frozen(dt_fast, cfg, site, static, forcing, dynamic, out, water, frozen, y)
       real(wp),                   intent(in)    :: dt_fast
       type(ed_config_t),          intent(in)    :: cfg
       type(site_surface_t),       intent(in)    :: site
       type(fast_static_state_t),  intent(in)    :: static
-      type(fast_forcing_t),       intent(in)    :: forcing
+      type(fast_forcing_t),       intent(inout) :: forcing
       type(fast_dynamic_state_t), intent(in)    :: dynamic
       type(fast_output_t),        intent(inout) :: out
       type(water_work_t),         intent(inout) :: water    ! the soil-plant water network
@@ -90,16 +99,31 @@ contains
       real(wp)    :: can_dmol      ! [mol/m3] the canopy air's dry-air molar density
       !--- The processes' patch totals [umol/m2 ground/s] and the root zone's drivers.
       real(wp)    :: gpp, ra_leaf, ra_stem, ra_root, rh, soil_temp_root, theta_mean
-      real(wp)    :: throughfall   ! [kg/m2/s] the rain and snow through the canopy
+      real(wp)    :: t_surface        ! [K] the ground's surface: the top porous layer's, else the top soil node's
+      real(wp)    :: t_soil_top       ! [K] the top soil node's
       integer(ik) :: n, nsl
 
       n   = static%n
       nsl = site%soil_profile%n_active
       call prepare_frozen(n, nsl, frozen)
 
-      !--- The processes' rates at the start state.
+      !---~---
+      !   The ground's stage, then the radiation through the canopy onto the ground it leaves, so
+      ! the two-stream's ground and the surface's balance have one cover.
+      !---~---
+      call ground_stage(dt_fast, cfg, site, static, forcing, dynamic, out, frozen)
+      if (forcing%sky_live) call canopy_ground_radiation(cfg, static, dynamic, frozen%ground%exposed,           &
+                                                         frozen%ground%snowfac, forcing)
+
+      !---~---
+      !   The processes' rates at the start state. The ground's surface is the top porous layer
+      ! where there is one (docs/science/ground_surface_layers.md §7): the aerodynamics and the
+      ! litter's decomposition read its temperature, the soil's own evaporation the top soil node's.
+      !---~---
+      t_soil_top = dynamic%soil_energy%soil_temp(1)
+      t_surface  = ground_top_temp(dynamic%ground_surface, t_soil_top)
       call refresh_canopy_aerodynamics(cfg%aero, frozen%cas%env, static, forcing, dynamic%cas,               &
-                                       dynamic%soil_energy%soil_temp(1), dynamic%leaf_temp, dynamic%wood_temp, &
+                                       t_surface, dynamic%leaf_temp, dynamic%wood_temp,                       &
                                        out%aero, tcas, qcas, press, rho, cp_cas, t_ground)
       call root_zone_environment(site%soil_profile, static%root_frac_patch(1:nsl), dynamic%soil_energy%soil_temp, &
                                  dynamic%soil_water%theta, soil_temp_root, theta_mean)
@@ -112,8 +136,15 @@ contains
                                           static%root_frac_patch(1:nsl), static, dynamic%wood_temp,               &
                                           dynamic%soil_energy%soil_temp, ra_stem, ra_root, out%stem_resp_coh,     &
                                           out%root_resp_coh)
-      call patch_heterotrophic_respiration(cfg, site%soil_profile, static%soil_carbon, t_ground, soil_temp_root, &
-                                           theta_mean, rh, out%report%exports)
+      if (porous_layers_present(dynamic%ground_surface%porous)) then
+         call patch_heterotrophic_respiration(cfg, site%soil_profile, static%soil_carbon, t_ground, soil_temp_root, &
+                                              theta_mean, rh, out%report%exports,                                 &
+                                              surf_rel=porous_layers_wetness(dynamic%ground_surface%porous,        &
+                                                                             cfg%ground_surface))
+      else
+         call patch_heterotrophic_respiration(cfg, site%soil_profile, static%soil_carbon, t_ground, soil_temp_root, &
+                                              theta_mean, rh, out%report%exports)
+      end if
       !---~---
       !   The biotic CO2 source (docs/science/plant_respiration.md eq. (7)), positive to the canopy
       ! air. slow_co2_rate is the autotrophic part this loop cannot compute, the allocator's daily
@@ -139,39 +170,103 @@ contains
                                out%report%exports%cas_capacity_co2)
 
       !---~---
-      !   The snow stage (docs/science/snow_biophysics.md §The snow store): the step's snow and rain
-      ! into the pack and the liquid it holds out to the pond, before the water network, which takes
-      ! that water this step. The pack's exchange with the canopy air and the soil is the march's.
-      ! A no-op without a pack.
+      !   The thermal resistance from the ground's surface down to the top soil node, its depth over
+      ! the top layer's conductivity, which the stack's bottom node conducts through.
       !---~---
-      frozen%ground%pack   = dynamic%snow
-      frozen%ground%params = cfg%snow
-      frozen%ground%dt     = dt_fast
-      call prepare_snow_stage(forcing%snowfall, forcing%rainfall, forcing%air_temp, cfg%aero%soil_rough,          &
-                              frozen%ground, frozen%snow)
-      !--- The top soil node the ground surface conducts to, under the snow's base.
       associate (prof => site%soil_profile)
-         frozen%ground%dz_soil_top = max(-prof%z_node(1), tiny_num)
-         frozen%ground%k_soil_top  = soil_thermal_conductivity(dynamic%soil_water%theta(1),                       &
-                                                               dynamic%soil_energy%soil_fliq(1), prof%theta_sat(1), &
-                                                               prof%solid_conductivity(1), prof%dry_conductivity(1))
+         frozen%ground%r_soil_top = max(-prof%z_node(1), tiny_num)                                                &
+                                    / max(soil_thermal_conductivity(dynamic%soil_water%theta(1),                  &
+                                                                    dynamic%soil_energy%soil_fliq(1),             &
+                                                                    prof%theta_sat(1), prof%solid_conductivity(1), &
+                                                                    prof%dry_conductivity(1)), tiny_num)
       end associate
 
-      call intercept_rain(dt_fast, cfg, static, forcing, dynamic, frozen%snow%exists, frozen%veg_surface, throughfall)
       call tissue_coefficients(dt_fast, cfg, static, forcing, dynamic, out%aero, rho, cp_cas, frozen%tissue,          &
                                frozen%veg_surface, frozen%plant)
+      call buried_tissue_store(frozen%tissue, static%n, dt_fast, frozen%ground%buried_cap, frozen%ground%buried_energy)
       call canopy_air_boundary(cfg%aero, static%geom, out%aero, forcing, rho, cp_cas, press, frozen%cas, frozen%ground)
-      call ground_inflow(static, site%soil_profile, forcing, dynamic, out%aero%ggnet, throughfall, tcas, qcas, rho, &
-                         t_ground, nsl, frozen)
-      call transpiration_demand(dt_fast, cfg%canopy_water_on, n, dynamic, t_ground, frozen)
+      call ground_inflow(site%soil_profile, forcing, dynamic, out%aero%ggnet, tcas, qcas, rho, &
+                         t_soil_top, nsl, cfg%ground_surface, frozen)
+      frozen%water_drive%pond_capacity = cfg%ground_surface%water%pond_capacity
+      frozen%ground%ground_emiss = cfg%soil%ground_emissivity
+      call transpiration_demand(dt_fast, cfg%canopy_water_on, n, dynamic, frozen)
+      call porous_network_drive(cfg%ground_surface, frozen)
 
-      !--- The start states: the water network's, from the stores' state^n water, and the march's.
+      !--- The start states: the water network's, from the stores' state^n water and an empty pond, and the march's.
       call set_water_state(static, site%soil_profile, cfg%pft%hydraulics, dynamic%soil_water%theta(1:nsl),       &
-                           frozen%water_drive%ice(1:nsl),                                                        &
-                           dynamic%soil_water%w_surface, dynamic%soil_water%w_surface_energy,                    &
-                           dynamic%leaf_water_mass(1:n), dynamic%wood_water_mass(1:n), water)
-      call pack_march_start(dynamic, n, nsl, y)
+                           frozen%water_drive%ice(1:nsl), 0.0_wp,                                                &
+                           dynamic%leaf_water_mass(1:n), dynamic%wood_water_mass(1:n), water,                    &
+                           frozen%water_drive%porous)
+      call pack_march_start(dynamic, site%soil_profile%dz(1), frozen%stage_soil_heat, n, nsl, y)
    end subroutine build_frozen
+
+   !---~---
+   !   ground_stage -- the ground's stores before the step's radiation and its march: their water
+   ! and energy as the step finds them, which the whole-column ledgers start from; the canopy's
+   ! interception of the rain, which the ground does not change; the porous layers' spill, what a
+   ! layer holds beyond its saturation joining the water layer; and the water layer's stage
+   ! (water_layer_stage): the rain through the canopy, all the snowfall, and the water the
+   ! tissues shed join it, its free water is set apart for the water network, a film takes the
+   ! temperature of the node it lies on, the top porous layer or the top soil layer, and its
+   ! cover is set. The water layer's exchange with the canopy air and the soil is the march's.
+   !---~---
+   subroutine ground_stage(dt_fast, cfg, site, static, forcing, dynamic, out, frozen)
+      real(wp),                   intent(in)    :: dt_fast
+      type(ed_config_t),          intent(in)    :: cfg
+      type(site_surface_t),       intent(in)    :: site
+      type(fast_static_state_t),  intent(in)    :: static
+      type(fast_forcing_t),       intent(in)    :: forcing
+      type(fast_dynamic_state_t), intent(in)    :: dynamic
+      type(fast_output_t),        intent(inout) :: out
+      type(frozen_t),             intent(inout) :: frozen
+      real(wp)    :: rain_through   ! [kg/m2/s] the rain through the canopy
+      integer(ik) :: k
+      frozen%surface0 = ground_surface_store(dynamic%ground_surface)
+      call intercept_rain(dt_fast, cfg, static, forcing, dynamic, frozen%veg_surface, rain_through)
+      frozen%ground%pack   = dynamic%ground_surface%water
+      frozen%ground%params = cfg%ground_surface%water
+      frozen%ground%dt     = dt_fast
+      frozen%porous = dynamic%ground_surface%porous
+      call porous_layers_spill(frozen%porous, cfg%ground_surface, frozen%ground%pack%ground_store_t)
+      k = top_porous(frozen%porous)
+      if (k > 0_ik) then
+         associate (top => frozen%porous(k))
+            call water_layer_stage(rain_through, forcing%snowfall, forcing%air_temp, static%shed_water_rate,        &
+                                   static%shed_water_enth, dt_fast, cfg%ground_surface%water,                      &
+                                   cfg%ground_surface%min_depth, top%temp, top%fliq, frozen%ground%pack,            &
+                                   frozen%stage, below=top%ground_store_t, below_dry_cap=cp_organic * top%matter, &
+                                   below_depth=porous_layer_depth(top%matter, cfg%ground_surface%porous(k)%bulk_density), &
+                                   below_curve=porous_layer_curve(cfg%ground_surface%porous(k), top))
+            !--- A film's heat comes from the top porous layer.
+            top%energy = top%energy - frozen%stage%film_heat
+         end associate
+         call porous_layers_diagnose(frozen%porous, cfg%ground_surface)
+         frozen%stage_soil_heat = 0.0_wp
+      else
+         call water_layer_stage(rain_through, forcing%snowfall, forcing%air_temp, static%shed_water_rate,           &
+                                static%shed_water_enth, dt_fast, cfg%ground_surface%water,                         &
+                                cfg%ground_surface%min_depth, dynamic%soil_energy%soil_temp(1),                     &
+                                dynamic%soil_energy%soil_fliq(1), frozen%ground%pack, frozen%stage)
+         !--- A film's heat comes from the top soil layer, at the march's start.
+         frozen%stage_soil_heat = frozen%stage%film_heat
+      end if
+      !---~---
+      !   The layer exposed, what it holds and its free water together, sets its cover of the
+      ! ground and its optics (water_layer_exposed).
+      !---~---
+      frozen%ground%exposed = water_layer_exposed(frozen%ground%pack, frozen%stage%free)
+      frozen%ground%snowfac = water_layer_cover_of(frozen%ground%exposed, frozen%stage%is_layer,                  &
+                                                   cfg%ground_surface%water, cfg%aero%soil_rough)
+      !---~---
+      !   The free water reaches the water network's pond over the step at a steady rate, so the
+      ! pond starts from empty at the head the ground below gives it. The network moves its water;
+      ! its heat is the water layer's store's.
+      !---~---
+      frozen%water_drive%rain = frozen%stage%free%water / dt_fast
+      frozen%ground%free_temp  = frozen%stage%free_temp
+      frozen%ground%free_start = frozen%stage%free
+      out%report%exports%water_layer_cover = frozen%ground%snowfac
+   end subroutine ground_stage
 
    !---~---
    !   The frozen record for a step, reused from the last: every scalar back at its default, as
@@ -200,6 +295,7 @@ contains
       call fit(frozen%tissue%wood_wmass, n)
       call fit(frozen%tissue%leaf_dry_hcap, n)
       call fit(frozen%tissue%leaf_wmass, n)
+      call fit(frozen%tissue%buried, n)
       call fit(frozen%tissue%leaf_hcap_per_dt, n)
       call fit(frozen%tissue%wood_hcap_per_dt, n)
       call fit(frozen%tissue%t_leaf0, n)
@@ -248,6 +344,7 @@ contains
       call move_alloc(from%tissue%wood_wmass, to%tissue%wood_wmass)
       call move_alloc(from%tissue%leaf_dry_hcap, to%tissue%leaf_dry_hcap)
       call move_alloc(from%tissue%leaf_wmass, to%tissue%leaf_wmass)
+      call move_alloc(from%tissue%buried, to%tissue%buried)
       call move_alloc(from%tissue%leaf_hcap_per_dt, to%tissue%leaf_hcap_per_dt)
       call move_alloc(from%tissue%wood_hcap_per_dt, to%tissue%wood_hcap_per_dt)
       call move_alloc(from%tissue%t_leaf0, to%tissue%t_leaf0)
@@ -452,9 +549,9 @@ contains
          !   GPP is gross A, and Rd is charged below either way, so the canopy air receives the
          ! leaf's net exchange A_g - Rd whatever the water-stress controls did to A_g.
          !---~---
-         gpp     = gpp     + a_gross_arr(i) * static%leaf_area(i) * static%nplant(i)
-         gpp_coh(i) = a_gross_arr(i) * static%leaf_area(i)
-         if (capture) cdiag(CO_GPP_RATE, i) = a_gross_arr(i) * static%leaf_area(i)
+         gpp     = gpp     + a_gross_arr(i) * static%leaf_area(i) * static%exposed(i) * static%nplant(i)
+         gpp_coh(i) = a_gross_arr(i) * static%leaf_area(i) * static%exposed(i)   ! the leaves above the snow
+         if (capture) cdiag(CO_GPP_RATE, i) = gpp_coh(i)
          ra_leaf = ra_leaf + rd_arr(i)      * static%leaf_area(i) * static%nplant(i)
          leaf_resp_coh(i) = rd_arr(i) * static%leaf_area(i)
          h_coeff_leaf(i) = sensible_heat_coeff(EFFAREA_HEAT * static%lai(i), aero%leaf_gbh(i), rho, cp_cas)
@@ -489,7 +586,7 @@ contains
       ra_stem = 0.0_wp
       ra_root = 0.0_wp
       call stem_maintenance_respiration(wood_temp(1:n), static%diameter(1:n), static%height(1:n),   &
-                                   static%wai(1:n), static%nplant(1:n),                          &
+                                   static%wai_whole(1:n), static%nplant(1:n),                    &
                                    static%aboveground_frac(1:n), static%is_woody(1:n),          &
                                    static%stem_resp_factor25(1:n), static%sap_volume(1:n),      &
                                    static%stem_resp_sapwood25(1:n), ea_rd, hd_rd, ds_rd,          &
@@ -511,18 +608,19 @@ contains
    ! soil carbon off.
    !---~---
    subroutine patch_heterotrophic_respiration(cfg, soil, soil_carbon, t_ground, soil_temp_root,          &
-                                              theta_mean, rh, exports)
+                                              theta_mean, rh, exports, surf_rel)
       type(ed_config_t),    intent(in)    :: cfg
       type(soil_profile_t), intent(in)    :: soil          ! the surface layer's retention limits
       type(soil_carbon_state_t),  intent(in)    :: soil_carbon
       real(wp),             intent(in)    :: t_ground, soil_temp_root, theta_mean
       real(wp),             intent(out)   :: rh              ! [umol/m2/s]
       type(step_exports_t), intent(inout) :: exports
+      real(wp), optional,   intent(in)    :: surf_rel        ! [-] the porous layers' wetness (pools 1 and 3)
       real(wp) :: xi(N_SOIL_POOL), a_mat(N_SOIL_POOL, N_SOIL_POOL), k_diag(N_SOIL_POOL), er(N_SOIL_POOL)
       real(wp) :: rh_kgc                                     ! [kgC/m2/day] the matrix's own currency
       if (cfg%soil_carbon%soil_carbon_on) then
          call decomposition_env_scalar(t_ground, soil_temp_root, theta_mean, soil%theta_res(1),                    &
-                                  soil%theta_sat(1), soil_carbon, cfg%soil_carbon, xi)
+                                  soil%theta_sat(1), soil_carbon, cfg%soil_carbon, xi, surf_rel)
          call decomposition_transfer_matrix(soil_carbon, cfg%soil_carbon, a_mat, k_diag, er)
          !---~---
          !   The matrix returns kgC/m2/day, the pools' currency, which exports%rh_matrix_step keeps for
@@ -543,18 +641,19 @@ contains
 
    !---~---
    !   intercept_rain -- the step's canopy interception (canopy_interception) with the canopy
-   ! water store on. None under a pack, which takes the rain and the snow; throughfall
-   ! carries sub-threshold snowfall, which forms no pack, as liquid.
+   ! water store on, of the rain only, whatever lies on the ground: the canopy's surface water
+   ! is liquid, so the snowfall passes through the canopy to the ground (snow held on the
+   ! branches is not represented). A crown the snow buries has its exposed share's leaf and
+   ! wood area (crown_exposed_fraction).
    !---~---
-   subroutine intercept_rain(dt_fast, cfg, static, forcing, dynamic, pack_exists, veg_surface, throughfall)
+   subroutine intercept_rain(dt_fast, cfg, static, forcing, dynamic, veg_surface, rain_through)
       real(wp),                     intent(in)    :: dt_fast
       type(ed_config_t),            intent(in)    :: cfg
       type(fast_static_state_t),    intent(in)    :: static
       type(fast_forcing_t),         intent(in)    :: forcing
       type(fast_dynamic_state_t),   intent(in)    :: dynamic
-      logical,                      intent(in)    :: pack_exists
       type(canopy_water_out_t),     intent(inout) :: veg_surface
-      real(wp),                     intent(out)   :: throughfall   ! [kg/m2/s] what reaches the ground
+      real(wp),                     intent(out)   :: rain_through   ! [kg/m2/s] the rain that reaches the ground
       integer(ik) :: n
       n = static%n
       veg_surface%intercept_leaf = 0.0_wp
@@ -563,14 +662,14 @@ contains
       veg_surface%f_wet_c = 0.0_wp
       veg_surface%g_surf_leaf = 0.0_wp
       veg_surface%g_surf_wood = 0.0_wp
-      throughfall = forcing%rainfall + forcing%snowfall
-      if (cfg%canopy_water_on .and. .not. pack_exists)                                                         &
-         call canopy_interception(n, forcing%rainfall + forcing%snowfall, dynamic%leaf_surf_water,              &
+      rain_through = forcing%rainfall
+      if (cfg%canopy_water_on)                                                                                 &
+         call canopy_interception(n, forcing%rainfall, dynamic%leaf_surf_water,                                 &
                                   dynamic%wood_surf_water, static%lai, static%wai,                              &
                                   cfg%pft%leaf_surf_water_max(static%pft(1:n)),                                 &
                                   cfg%pft%wood_surf_water_max(static%pft(1:n)), cfg%intercept_k,                &
                                   cfg%intercept_alpha, dt_fast, veg_surface%intercept_leaf, veg_surface%intercept_wood,       &
-                                  veg_surface%transfer_lw, veg_surface%f_wet_c, throughfall)
+                                  veg_surface%transfer_lw, veg_surface%f_wet_c, rain_through)
    end subroutine intercept_rain
 
    !---~---
@@ -617,10 +716,14 @@ contains
          !---~---
          !   Tissue heat store a = cap/dt_fast, relaxing from the start-of-step temperature
          ! (docs/science/vegetation_energy_dynamics.md eqs. (3)-(5)): an algebraic closure in every
-         ! stage evaluation, not a tableau unknown.
+         ! stage evaluation, not a tableau unknown. The share a snow pack buries is the water
+         ! layer's node's (buried_tissue_store), so the balance runs on the exposed share's.
          !---~---
-         tissue%leaf_hcap_per_dt(i) = tissue_hcap_per_dt(tissue%leaf_dry_hcap(i), tissue%leaf_wmass(i), dt_fast)
-         tissue%wood_hcap_per_dt(i) = tissue_hcap_per_dt(tissue%wood_dry_hcap(i), tissue%wood_wmass(i), dt_fast)
+         tissue%buried(i)           = 1.0_wp - static%exposed(i)
+         tissue%leaf_hcap_per_dt(i) = static%exposed(i)                                                        &
+                                      * tissue_hcap_per_dt(tissue%leaf_dry_hcap(i), tissue%leaf_wmass(i), dt_fast)
+         tissue%wood_hcap_per_dt(i) = static%exposed(i)                                                        &
+                                      * tissue_hcap_per_dt(tissue%wood_dry_hcap(i), tissue%wood_wmass(i), dt_fast)
          tissue%t_leaf0(i) = dynamic%leaf_temp(i)
          tissue%t_wood0(i) = dynamic%wood_temp(i)
          tissue%leaf_emiss(i) = static%leaf_emissivity(i)
@@ -667,6 +770,7 @@ contains
       cas%press = press
       ground%rnet_soil = forcing%rnet_soil
       ground%sw_snow   = forcing%sw_snow
+      ground%sw_ground = forcing%sw_ground
       ground%lw_down   = forcing%lw_down_ground
       ground%ggnet     = aero%ggnet
    end subroutine canopy_air_boundary
@@ -675,19 +779,19 @@ contains
    !   transpiration_demand -- the start-of-step surface solve, at the state^n canopy air: each
    ! cohort's transpiration demand on the water network (docs/science/soil_plant_water.md §4).
    ! It takes the canopy air's exchange the pre-pass solved at that same state, so the
-   ! surface layer is not solved again.
+   ! surface layer is not solved again, and the ground is not solved at all: the tissues'
+   ! exchange does not depend on it (canopy_demand).
    ! The evaporation conductance of each tissue's surface water is first scaled so its
    ! potential evaporation over dt_fast cannot exceed what that water holds plus this step's
    ! interception; then the leaf is credited the liquid enthalpy of the sapflow that replaces
    ! its transpiration, as the stages will, estimated as if the sapflow matched it, and the
    ! surface is solved again.
    !---~---
-   subroutine transpiration_demand(dt_fast, canopy_water_on, n, dynamic, t_ground, frozen)
+   subroutine transpiration_demand(dt_fast, canopy_water_on, n, dynamic, frozen)
       real(wp),                   intent(in)    :: dt_fast
       logical,                    intent(in)    :: canopy_water_on
       integer(ik),                intent(in)    :: n
       type(fast_dynamic_state_t), intent(in)    :: dynamic
-      real(wp),                   intent(in)    :: t_ground
       type(frozen_t),      intent(inout) :: frozen
       type(surface_state_t) :: y_stage
       type(surface_tend_t)  :: sf0
@@ -699,7 +803,7 @@ contains
       y_stage%cas_co2 = dynamic%cas%can_co2
       cas_start = frozen%cas
       cas_start%mo_live = .false.
-      call surface_derivs(y_stage, cas_start, frozen%tissue, frozen%veg_surface, frozen%ground, t_ground, n, sf0)
+      call canopy_demand(y_stage, cas_start, frozen%tissue, frozen%veg_surface, n, sf0)
       if (canopy_water_on)                                                                                    &
          call limit_surface_evaporation(n, dt_fast, dynamic%leaf_surf_water, dynamic%wood_surf_water,              &
                                      sf0%leaf_surface_evap, sf0%wood_surface_evap, frozen%veg_surface)
@@ -707,34 +811,103 @@ contains
          t_up_wl = merge(dynamic%wood_temp(i), dynamic%leaf_temp(i), sf0%transp_c(i) >= 0.0_wp)
          frozen%tissue%qwflux_wl(i) = sf0%transp_c(i) * internal_energy_liquid(t_up_wl)
       end do
-      call surface_derivs(y_stage, cas_start, frozen%tissue, frozen%veg_surface, frozen%ground, t_ground, n, sf0)
+      call canopy_demand(y_stage, cas_start, frozen%tissue, frozen%veg_surface, n, sf0)
       frozen%water_drive%e_demand(1:n) = sf0%transp_c(1:n)
    end subroutine transpiration_demand
 
    !---~---
-   !   ground_inflow -- what drives the water network besides the transpiration demand
-   ! (docs/science/soil_plant_water.md §5, "The ground inflow"): the water reaching the
-   ! pond, the temperature that values it and the enthalpy it brings across the column's
-   ! boundary (pond_inflow), each layer's temperature and ice, and the ground evaporation's
-   ! boundary. Also the liquid enthalpy of the rain the canopy's surface water exchanges with,
-   ! which the start-of-step surface solves read, so it runs before them.
+   !   The tissue a snow pack buries, as the water layer's node holds it over the step
+   ! (docs/science/vegetation_energy_dynamics.md, "Buried tissue"): each cohort's buried share of
+   ! its leaves' and wood's heat capacity, its tissue and its water (tissue_hcap_per_dt), and their
+   ! heat at their start temperatures, from zero kelvin, as the node's phase law counts a dry
+   ! heat capacity's.
    !---~---
-   subroutine ground_inflow(static, profile, forcing, dynamic, ggnet, throughfall, tcas, qcas, rho, t_ground, nsl, &
-                            frozen)
-      type(fast_static_state_t),  intent(in)    :: static
+   pure subroutine buried_tissue_store(tissue, n, dt_fast, cap, energy)
+      type(plant_energy_env_t), intent(in)  :: tissue
+      integer(ik),              intent(in)  :: n
+      real(wp),                 intent(in)  :: dt_fast
+      real(wp),                 intent(out) :: cap, energy   ! [J/m2/K], [J/m2]
+      real(wp)    :: c_leaf, c_wood
+      integer(ik) :: i
+      cap    = 0.0_wp
+      energy = 0.0_wp
+      do i = 1_ik, n
+         if (.not. (tissue%buried(i) > 0.0_wp)) cycle
+         c_leaf = tissue%buried(i) * tissue_hcap_per_dt(tissue%leaf_dry_hcap(i), tissue%leaf_wmass(i), dt_fast) * dt_fast
+         c_wood = tissue%buried(i) * tissue_hcap_per_dt(tissue%wood_dry_hcap(i), tissue%wood_wmass(i), dt_fast) * dt_fast
+         cap    = cap + c_leaf + c_wood
+         energy = energy + c_leaf * tissue%t_leaf0(i) + c_wood * tissue%t_wood0(i)
+      end do
+   end subroutine buried_tissue_store
+
+   !---~---
+   !   The porous layers as nodes of the water network (docs/science/ground_surface_layers.md §4,
+   ! Water), top down, every layer that holds matter: its retention curve at its depth and its
+   ! water; its ice what its energy holds on its freezing curve, the soil's law, held over the step
+   ! as a frozen soil layer's, so the network's liquid is the energy's. The water it lacks of its
+   ! residual, if it holds less (litter just arrived, dry), is carried as an offset, so its
+   ! potential is its curve's dry end and its mass exact. Each layer evaporates by the soil's law
+   ! to the canopy air at its own temperature (slot_evaporation_setup), through its own dried top,
+   ! which its water sets over the step, and the open pores of the layers above it, held over the
+   ! step (porous_cover_path), as the top soil layer's vapour crosses them all.
+   !---~---
+   subroutine porous_network_drive(params, frozen)
+      type(ground_surface_layer_params_t), intent(in)    :: params
+      type(frozen_t),                      intent(inout) :: frozen
+      type(porous_material_t) :: m
+      real(wp)    :: depth, theta, ice, path
+      integer(ik) :: k
+      associate (o => frozen%water_drive%porous, layer => frozen%porous)
+         o%n = 0_ik
+         path = 0.0_wp
+         do k = 1_ik, N_POROUS
+            if (layer(k)%matter <= 0.0_wp) cycle
+            m     = params%porous(k)
+            depth = porous_layer_depth(layer(k)%matter, m%bulk_density)
+            o%n = o%n + 1_ik
+            o%slot(o%n)    = k
+            o%depth(o%n)   = depth
+            o%water(o%n)   = layer(k)%water
+            o%curve(o%n)   = porous_layer_curve(m, layer(k))
+            theta = layer(k)%water / (rho_h2o * depth)
+            o%air(o%n)     = slot_evaporation_setup(frozen%water_drive%ground, layer(k)%temp, path, m%theta_sat)
+            path  = path + porous_cover_path(depth, theta, m%theta_sat)
+            ice   = (1.0_wp - layer(k)%fliq) * theta
+            o%ice(o%n) = soil_ice_state(o%curve(o%n), ice, theta - ice)
+         end do
+      end associate
+   end subroutine porous_network_drive
+
+   !---~---
+   !   ground_inflow -- what drives the water network besides the transpiration demand and the
+   ! pond, which the water layer's free water already is (docs/science/soil_plant_water.md §5):
+   ! each layer's temperature and ice, its roots' contact, and the ground evaporation's boundary.
+   ! Also the liquid enthalpy of the rain the canopy's surface water exchanges with, which the
+   ! start-of-step surface solves read, so it runs before them.
+   !---~---
+   subroutine ground_inflow(profile, forcing, dynamic, ggnet, tcas, qcas, rho, t_ground, nsl, params, frozen)
       type(soil_profile_t),       intent(in)    :: profile
       type(fast_forcing_t),       intent(in)    :: forcing
       type(fast_dynamic_state_t), intent(in)    :: dynamic
       real(wp),                   intent(in)    :: ggnet         ! [m/s] ground <-> canopy-air conductance
-      real(wp),                   intent(in)    :: throughfall   ! [kg/m2/s]
       real(wp),                   intent(in)    :: tcas, qcas, rho, t_ground
       integer(ik),                intent(in)    :: nsl
+      type(ground_surface_layer_params_t), intent(in)    :: params    ! the porous layers' materials
       type(frozen_t),      intent(inout) :: frozen
-      real(wp) :: t_water_base   ! [K] the meltwater's or the rain's, before the shed water joins it
-      associate (snow => frozen%snow, drive => frozen%water_drive)
-         call pond_inflow(snow%exists, snow%melt_rate, snow%t_melt, throughfall, forcing%rainfall, forcing%snowfall,  &
-                          forcing%air_temp, tcas, static%shed_water_rate, static%shed_water_enth, drive%rain,         &
-                          drive%t_rain, t_water_base, frozen%hydrology%ground_inflow_enth)
+      real(wp) :: t_rain         ! [K] the temperature of the rain the canopy's surface water exchanges with
+      real(wp) :: depth          ! [m] a porous layer's depth
+      type(porous_material_t) :: m
+      integer(ik) :: k
+      associate (drive => frozen%water_drive)
+         !--- The soil's vapour diffuses up through the porous layers, through their open pores.
+         drive%ground%cover_path = 0.0_wp
+         do k = 1_ik, N_POROUS
+            if (frozen%porous(k)%matter <= 0.0_wp) cycle
+            m     = params%porous(k)
+            depth = porous_layer_depth(frozen%porous(k)%matter, m%bulk_density)
+            drive%ground%cover_path = drive%ground%cover_path                                                    &
+                                      + porous_cover_path(depth, frozen%porous(k)%water / (rho_h2o * depth), m%theta_sat)
+         end do
          drive%ground%snow_free_frac  = 1.0_wp - frozen%ground%snowfac
          drive%ground%t_ground        = t_ground
          drive%ground%q_air           = qcas
@@ -743,21 +916,34 @@ contains
          !--- Bare-soil aerodynamic resistance; snow_free_frac above weights the flux, not this.
          drive%ground%r_aero = 1.0_wp / max(ggnet, tiny_num)
          drive%t_soil(1:nsl) = dynamic%soil_energy%soil_temp(1:nsl)
-         !--- Each layer's ice, held over the step (docs/science/soil_biophysics.md, "Frozen soil").
+         !---~---
+         !   Each layer's ice beside the liquid it starts with: the ice is held over the step, and
+         ! melts for the water drawn below that liquid (docs/science/soil_biophysics.md, "Frozen soil").
+         !---~---
          drive%ice(1:nsl) = soil_ice_state(profile%layer_curve(1:nsl),                                            &
                                            (1.0_wp - dynamic%soil_energy%soil_fliq(1:nsl))                        &
-                                           * dynamic%soil_water%theta(1:nsl))
-         !--- The rain the surface water captures and drips back is the throughfall's, at its temperature.
-         frozen%veg_surface%rain_liquid_enthalpy = internal_energy_liquid(t_water_base)
+                                           * dynamic%soil_water%theta(1:nsl),                                     &
+                                           dynamic%soil_energy%soil_fliq(1:nsl) * dynamic%soil_water%theta(1:nsl))
+         !--- Each layer's roots lose their contact with it as it freezes (docs/science/plant_hydraulics.md §4, "Frozen layers").
+         drive%root_contact(1:nsl) = root_soil_contact(dynamic%soil_energy%soil_temp(1:nsl))
+         !---~---
+         !   The rain the surface water captures and drips back is liquid at the air's temperature
+         ! (precip_enthalpy's rain); the canopy air's when no rain falls.
+         !---~---
+         t_rain = tcas
+         if (forcing%rainfall > tiny_num) t_rain = forcing%air_temp
+         frozen%veg_surface%rain_liquid_enthalpy = internal_energy_liquid(t_rain)
       end associate
    end subroutine ground_inflow
 
    !---~---
    !   The march's start state, the state^n canopy air, soil energy and water, plant water and
-   ! surface water; the pond rides it (the stages pass it through; each scheme commits the network's).
+   ! surface water; the top soil layer less the heat a film took from it at the stage.
    !---~---
-   subroutine pack_march_start(dynamic, n, nsl, y)
+   subroutine pack_march_start(dynamic, dz1, film_heat, n, nsl, y)
       type(fast_dynamic_state_t), intent(in)  :: dynamic
+      real(wp),                   intent(in)  :: dz1         ! [m] the top soil layer's thickness
+      real(wp),                   intent(in)  :: film_heat   ! [J/m2] what a film took from it
       integer(ik),                intent(in)  :: n, nsl
       type(march_state_t),       intent(out) :: y
       allocate(y%leaf_water_mass(n), y%wood_water_mass(n), y%leaf_surf_water(n), y%wood_surf_water(n))
@@ -765,9 +951,8 @@ contains
       y%cas_shv = dynamic%cas%can_shv
       y%cas_co2 = dynamic%cas%can_co2
       y%soil_energy(1:nsl) = dynamic%soil_energy%soil_energy(1:nsl)
+      y%soil_energy(1)     = y%soil_energy(1) - film_heat / dz1
       y%theta(1:nsl)       = dynamic%soil_water%theta(1:nsl)
-      y%w_surface          = dynamic%soil_water%w_surface
-      y%w_surface_energy   = dynamic%soil_water%w_surface_energy
       y%leaf_water_mass(1:n) = dynamic%leaf_water_mass(1:n)
       y%wood_water_mass(1:n) = dynamic%wood_water_mass(1:n)
       y%leaf_surf_water(1:n) = dynamic%leaf_surf_water(1:n)
@@ -777,9 +962,10 @@ contains
    !---~---
    !   record_water_flows -- what the water network moved over the step, as the frozen record's
    ! rates (docs/science/soil_plant_water.md §4-§5): ground evaporation, the soil's boundary
-   ! flows, its faces and end-of-step water, and the pond; the per-layer face closure; root
-   ! uptake by layer and by cohort with the enthalpy it carries; sapflow and transpiration;
-   ! the hydraulic diagnostics; and the plant water's advective enthalpy.
+   ! flows, its faces and end-of-step water, and the free water's; the per-layer face closure;
+   ! root uptake by layer and by cohort with the enthalpy it carries; sapflow and transpiration;
+   ! the hydraulic diagnostics; the plant water's advective enthalpy; and the porous layers as the
+   ! ground surface's stack reads them (porous_nodes).
    !---~---
    subroutine record_water_flows(dt_fast, cfg, site, static, dynamic, water, out, frozen)
       real(wp),                   intent(in)    :: dt_fast
@@ -792,34 +978,28 @@ contains
       type(frozen_t),      intent(inout) :: frozen
       real(wp)    :: share_tot, face_resid, f_in, f_out, u_liq_soil_k(site%soil_profile%n_active)
       real(wp)    :: t_up_wl, u_liq_up, u_liq_leaf, u_liq_wood, sapflow_gnd, uptake_gnd, transp_gnd
-      integer(ik) :: i, k, n, nsl
-      n   = static%n
-      nsl = site%soil_profile%n_active
+      real(wp)    :: top                 ! [kg/m2] net into the top soil layer across its top face
+      integer(ik) :: i, k, n, nsl, soff
+      n    = static%n
+      nsl  = site%soil_profile%n_active
+      soff = 1_ik + water%n_porous
       associate (fl => water%flows, st => water%state)
-         !--- Ground evaporation, the soil's boundary flows and the pond, as the network moved them.
+         !--- Ground evaporation, the soil's boundary flows and the free water, as the network moved them.
+         top = fl%face(soff)
          frozen%ground%soil_evap         = fl%evap / dt_fast
-         frozen%hydrology%infiltration   = fl%infil / dt_fast
-         frozen%hydrology%exfiltration   = fl%exfil / dt_fast
-         frozen%hydrology%exfil_enth     = fl%exfil_enth / dt_fast
-         frozen%hydrology%q_top          = (fl%infil - fl%exfil - fl%evap) / (rho_h2o * dt_fast)
+         frozen%hydrology%pond_infil     = fl%infil / dt_fast
+         frozen%hydrology%q_top          = (top - fl%evap) / (rho_h2o * dt_fast)
          frozen%hydrology%drainage       = fl%drain / dt_fast
          frozen%hydrology%runoff_surf    = fl%spill / dt_fast
          out%report%exports%runoff_surf_export = fl%spill
          out%report%exports%drainage_export    = fl%drain
-         frozen%hydrology%runoff_enth    = fl%spill_enth / dt_fast
-         !---~---
-         !   Infiltration leaves the pond, so the top face is valued at the temperature that carries the
-         ! enthalpy the pond gave up (docs/science/numerical_scheme.md §5b, "The pond holds heat").
-         !---~---
-         frozen%hydrology%t_infil = frozen%water_drive%t_rain
-         if (fl%infil > tiny_num) frozen%hydrology%t_infil = liquid_energy_to_temp(fl%infil_enth / fl%infil)
-         frozen%hydrology%t_bot           = dynamic%soil_energy%soil_temp(nsl)
-         frozen%hydrology%w_surface1      = st%water_soil(POND)
-         frozen%hydrology%w_surface_energy1 = st%e_pond
+         frozen%hydrology%runoff_enth    = fl%spill / dt_fast * internal_energy_liquid(frozen%stage%free_temp)
+         frozen%hydrology%t_bot          = dynamic%soil_energy%soil_temp(nsl)
+         frozen%hydrology%free_water1    = st%water_soil(POND)
          frozen%hydrology%w_flux_frozen(1:nsl)   = 0.0_wp
-         frozen%hydrology%w_flux_frozen(1:nsl-1) = fl%face(1:nsl-1) / (rho_h2o * dt_fast)
+         frozen%hydrology%w_flux_frozen(1:nsl-1) = fl%face(soff+1:soff+nsl-1) / (rho_h2o * dt_fast)
          do k = 1_ik, nsl
-            frozen%hydrology%theta1(k) = st%water_soil(1_ik + k) / (rho_h2o * site%soil_profile%dz(k))
+            frozen%hydrology%theta1(k) = st%water_soil(soff + k) / (rho_h2o * site%soil_profile%dz(k))
          end do
          frozen%hydrology%theta_rate(1:nsl) = (frozen%hydrology%theta1(1:nsl) - dynamic%soil_water%theta(1:nsl))  &
                                               / dt_fast
@@ -833,10 +1013,10 @@ contains
          do k = 1_ik, nsl
             f_in = 0.0_wp
             f_out = 0.0_wp
-            if (k > 1_ik)   f_in  = fl%face(k-1)
-            if (k < nsl)    f_out = fl%face(k)
+            if (k > 1_ik)   f_in  = fl%face(soff + k - 1_ik)
+            if (k < nsl)    f_out = fl%face(soff + k)
             if (k == nsl)   f_out = fl%drain
-            if (k == 1_ik)  f_in  = fl%infil - fl%exfil - fl%evap
+            if (k == 1_ik)  f_in  = top - fl%evap
             face_resid = face_resid + abs((frozen%hydrology%theta1(k) - dynamic%soil_water%theta(k))           &
                                           * site%soil_profile%dz(k) * rho_h2o - (f_in - f_out - sum(fl%uptake(k, 1:n))))
          end do
@@ -910,6 +1090,87 @@ contains
             frozen%tissue%leaf_water_enth(i) = (sapflow_gnd - transp_gnd) * u_liq_leaf
          end do
       end associate
+      call porous_nodes(cfg%ground_surface, dt_fast, water, frozen)
    end subroutine record_water_flows
+
+   !---~---
+   !   The porous layers and the free water as the ground surface's stack reads them over the
+   ! march (porous_node_env_t; surface_env_t's free water), from what the water network moved:
+   ! each layer's record holds its end water with its own evaporation not yet gone, which the
+   ! update takes with the march's energy, and its node the end water it keeps, its vapour
+   ! taking its whole enthalpy from the layer's energy; its dry heat capacity, its energy and
+   ! temperature at the step's start, its thermal resistance at its end water, its evaporation
+   ! over the step, and the network's net flow out of its bottom; the free water's net flow into
+   ! the ground and its runoff. The heat that water carries is the stack's
+   ! (ground_surface_exchange).
+   !---~---
+   subroutine porous_nodes(params, dt_fast, water, frozen)
+      type(ground_surface_layer_params_t), intent(in)    :: params
+      real(wp),                            intent(in)    :: dt_fast
+      type(water_work_t),                  intent(in)    :: water
+      type(frozen_t),                      intent(inout) :: frozen
+      type(porous_material_t) :: m
+      integer(ik) :: j, k
+      associate (fl => water%flows, env => frozen%ground)
+         env%free_down = fl%face(POND) / dt_fast
+         env%runoff    = fl%spill / dt_fast
+         env%free_end  = water%state%water_soil(POND)
+         env%porous    = porous_node_env_t()
+         do j = 1_ik, water%n_porous
+            k = frozen%water_drive%porous%slot(j)
+            m = params%porous(k)
+            associate (layer => frozen%porous(k), node => env%porous(k))
+               layer%water     = water%state%water_soil(1_ik + j) + fl%porous_evap(j)
+               node%dry_cap    = cp_organic * layer%matter
+               node%depth      = frozen%water_drive%porous%depth(j)
+               node%curve      = frozen%water_drive%porous%curve(j)
+               node%water      = water%state%water_soil(1_ik + j)
+               node%energy     = layer%energy
+               node%temp       = layer%temp
+               node%fliq       = layer%fliq
+               node%resistance = porous_layer_resistance(porous_layer_depth(layer%matter, m%bulk_density),          &
+                                                         porous_layer_fill(layer%water,                              &
+                                                         porous_layer_capacity(layer%matter, m%bulk_density,         &
+                                                                               m%theta_sat)), m%k_dry, m%k_wet)
+               node%vapour     = fl%porous_evap(j) / dt_fast
+               node%down       = fl%face(1_ik + j) / dt_fast
+            end associate
+         end do
+      end associate
+   end subroutine porous_nodes
+
+   !--- The top porous layer, the first top down that holds dry matter; 0 with none.
+   pure integer(ik) function top_porous(porous) result(k_top)
+      type(porous_layer_state_t), intent(in) :: porous(:)
+      integer(ik) :: k
+      k_top = 0_ik
+      do k = size(porous, kind=ik), 1_ik, -1_ik
+         if (porous(k)%matter > 0.0_wp) k_top = k
+      end do
+   end function top_porous
+
+   !---~---
+   !   [-] The porous layers' wetness, all layers together, which the above-ground litter's
+   ! decomposition reads: their saturation above residual, the water they hold beyond their
+   ! residual over what they hold beyond it saturated, as the soil's wetness is read.
+   !---~---
+   pure real(wp) function porous_layers_wetness(porous, params) result(wet)
+      type(porous_layer_state_t),          intent(in) :: porous(:)
+      type(ground_surface_layer_params_t), intent(in) :: params
+      real(wp)    :: w, w_sat, w_res
+      integer(ik) :: k
+      w     = 0.0_wp
+      w_sat = 0.0_wp
+      w_res = 0.0_wp
+      do k = 1_ik, N_POROUS
+         if (porous(k)%matter <= 0.0_wp) cycle
+         w     = w + porous(k)%water
+         w_sat = w_sat + porous_layer_capacity(porous(k)%matter, params%porous(k)%bulk_density,                  &
+                                               params%porous(k)%theta_sat)
+         w_res = w_res + porous_layer_capacity(porous(k)%matter, params%porous(k)%bulk_density,                  &
+                                               params%porous(k)%theta_res)
+      end do
+      wet = (w - w_res) / max(w_sat - w_res, tiny_num)
+   end function porous_layers_wetness
 
 end module ed_fast_integ_frozen

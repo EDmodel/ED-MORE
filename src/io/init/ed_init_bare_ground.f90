@@ -11,7 +11,7 @@ module ed_init_bare_ground
    use ed_kinds,        only : wp, ik
    use ed_config,       only : ed_config_t, growth_window_steps
    use ed_therm_lib,    only : cas_temp_to_enthalpy
-   use ed_soil_heat,    only : soil_layer_energy, soil_layer_temp
+   use ed_ground_surface_lib, only : porous_layer_energy, porous_layer_temp
    use ed_met_types,    only : met_forcing_t
    use ed_allometry_lib, only : height_to_diameter
    use ed_cohort_state_vars,       only : expand_cohort_block, init_cohort
@@ -81,7 +81,7 @@ contains
    !---~---
    !   A start's patch stores, the same on every patch of a site: the soil at its site's
    ! theta_start and [init].soil_temp (one value, or one per layer), its water liquid and ice
-   ! as the layer's freezing curve holds them there (soil_layer_energy); the pond dry; and the
+   ! as the layer's freezing curve holds them there (porous_layer_energy); the pond dry; and the
    ! canopy air at the reference climate (met_forcing_t's air, at the run's CO2), which the
    ! fast loop's first window replaces with the first forcing sample
    ! (docs/science/canopy_air_space_biophysics.md, The start).
@@ -99,13 +99,11 @@ contains
             if (cfg%init%n_soil_temp /= 0_ik .and. cfg%init%n_soil_temp /= nsl)                                 &
                error stop 'seed_patch_stores: [init].soil_temp lists another number of layers than the column has'
             sw%theta(1:nsl)     = surf%theta_start(1:nsl)
-            sw%w_surface        = 0.0_wp
-            sw%w_surface_energy = 0.0_wp        ! dry pond -> zero enthalpy
             do k = 1_ik, nsl
-               se%soil_energy(k) = soil_layer_energy(cfg%init%soil_temp(k), surf%theta_start(k),               &
+               se%soil_energy(k) = porous_layer_energy(cfg%init%soil_temp(k), surf%theta_start(k),               &
                                                      surf%soil_profile%dry_heat_capacity(k),                    &
                                                      surf%soil_profile%layer_curve(k))
-               call soil_layer_temp(se%soil_energy(k), surf%theta_start(k), surf%soil_profile%dry_heat_capacity(k), &
+               call porous_layer_temp(se%soil_energy(k), surf%theta_start(k), surf%soil_profile%dry_heat_capacity(k), &
                                     surf%soil_profile%layer_curve(k), se%soil_temp(k), se%soil_fliq(k))
             end do
             cas%can_shv      = ref%air_shv

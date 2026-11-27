@@ -77,6 +77,27 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   Map `treeID` to the table's tree id (`tree.id` in a ForestGEO stem table), and `stemID` to its stem
   id. The summary's `stems_in_file` and `stems_per_ha` are now `plants_in_file` and `plants_per_ha`.
   (#99)
+- `[snow]` is replaced by `[ground_surface_layer]`, the layers on the soil top down: a water layer
+  (snow, ice and ponded water) and the litter and the moss, one table per material (`water`, `litter`,
+  `moss`) beside `min_depth`. A key that moved stops the run, naming the key that holds its value:
+  `[snow].rho_snow` is `water.fresh_density`, `k_snow` is `water.conductivity_at_fresh`, `snow_emiss`
+  is `water.emissivity`, `albedo_*` are `water.albedo_*`, `ny07_a` and `ny07_m` are
+  `water.cover_scale_factor` and `cover_density_exponent`, `liquid_holding_frac` is
+  `water.liquid_holding_frac`; `[soil].w_pond_max` is `water.pond_capacity`; `[fast].snow_init_swe`
+  and `snow_init_temp` are `water.initial_mass` and `initial_temp`; and `min_new_snow_mass` and
+  `tiny_snow_mass` give way to `[ground_surface_layer].min_depth`, the depth from which water is a
+  layer (0.1 mm, 0.025 kg m⁻² of fresh snow). (#100)
+- The water layer's outputs are renamed: `mean_swe_py` and `_pa` are `mean_water_layer_mass_py` and
+  `_pa` (its water: snow, ice and the pond), `mean_w_surface_py` and `_pa` are `mean_free_water_py`
+  and `_pa`, `mean_snow_depth_py` is `mean_water_layer_depth_py`, `mean_snowmelt_py` is
+  `mean_ice_melt_py`, and `mean_sublimation_py` is `mean_water_layer_evap_py`, the pond's evaporation
+  included. An io_config that names an old one stops the run. `mean_ground_evap_py`,
+  `mean_h_ground_py`, `mean_heat_gain_surface_py` and `mean_infiltration_py` keep their names and
+  take in the new layers (docs/science/ground_surface_layers.md §7). (#100)
+- A state file carries the ground's surface layers (`ground_water_layer_*_pa`,
+  `ground_porous_layer_*_pa`). One from before is read with its snow pack and its pond joined into the
+  water layer, the pack's depth its matrix's, and the litter and the moss are built at the restart from
+  their sources; such a restart is not bit for bit with the run that wrote the file. (#100)
 
 ### Answer changes
 
@@ -169,8 +190,38 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
 - A plant is one individual: a tree with several stems is one plant at the diameter of their summed basal
   area, $`\sqrt{\sum_i D_i^2}`$, as `make_census.py` now lumps a stem table. Harvard's stand (examples 04 and
   07) is 10,014 trees from 12,075 stems at the same 41.6 m² ha⁻¹: its allometric LAI falls 2.7 %, its AGB
-  rises 2.4 % and its biomass mortality falls from 0.82 to 0.72 % yr⁻¹; its fitted `lai_b1`, phenology and
-  soil-carbon spin-up predate the change. BCI's tree tables keep each tree's main stem (the tool warns). (#99)
+  rises 2.4 % and its biomass mortality falls from 0.82 to 0.72 % yr⁻¹. BCI's tree tables keep each tree's
+  main stem (the tool warns). (#99)
+- The ground has surface layers, top down: one water layer, snow, ice and ponded water together,
+  then the litter, the above-ground metabolic litter pool's dry matter, and the moss, a site's
+  `[soil].moss_depth` (none by default) (docs/science/ground_surface_layers.md). Each layer has its own
+  temperature, and their energies are solved together over the soil top, each emitting and exchanging
+  at its own; a layer's heat to the one below crosses its whole depth. The litter and the moss are
+  nodes of the soil-plant water network on their materials' retention curves, and every store on the
+  ground evaporates through its own dried top and one shared aerodynamic leg. The pond is the water
+  layer's free water and freezes in it; the canopy intercepts rain only, its snowfall passing to the
+  ground; a pack buries the crowns it reaches; and the above-ground litter decays at the litter's
+  temperature and moisture. Litter is on by default, so every run with litter pools moves. Example
+  04's first year at its default parameters, beta against this release with gfortran: BCI LE 77.8 to
+  76.6 and H 62.2 to 63.3 W/m² (GPP −0.1 %); Harvard LE 53.9 to 57.8 and H 35.8 to 32.6 W/m² (GPP
+  −1.5 %; with #99's census); Tonzi LE 41.4 to 42.7, H 46.2 to 47.4 and net radiation 84.2 to 86.3 W/m²
+  (GPP −1.1 %). Examples 02 (its Harvard stand), 04, 05 and 07 are refit and rerun on this release;
+  their READMEs give the results. (#100)
+- A soil's solids conduct heat by their quartz content, the geometric mean of quartz (7.7 W m⁻¹ K⁻¹)
+  and the other minerals (2.0), with the quartz taken as the sand and silt and clay counting with the
+  other minerals (Johansen 1975; Peters-Lidard et al. 1998; docs/science/soil_biophysics.md eq. (9)).
+  CLM5's arithmetic mean of sand and clay left silt out and gave a loam of 45 % sand 7.0 W m⁻¹ K⁻¹,
+  where this gives 3.7. It applies where the soil comes from the maps: over example 06's 983 cells the
+  solids' conductivity falls from a median of 5.6 to 3.1 W m⁻¹ K⁻¹. Sites with their own `[soil]` keys,
+  example 04's among them, do not move. (#100)
+- Frozen ground and the water solve. A frozen soil layer's roots take up no water, and its ice
+  supplies the water drawn out of it; the top layer's evaporation stops at its residual. The
+  soil-plant water solve treats its small and inert stores by one rule (docs/science/soil_plant_water.md
+  §3): a store that relaxes within the sub-step is solved on its own and eliminated, a group the solve
+  cannot see is detached, a cohort's leaves are classified as the soil's stores are, and a sub-step
+  that fails holds out its worst store rather than committing an unconverged state. A tundra column's
+  freeze-up and spring, which forced sub-steps through or ended a run in NaN, now solve. Example 04's
+  first year moves with the surface layers above. (#100)
 
 ### Added
 
@@ -265,6 +316,14 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   gains `diameter_height` and `min_recruit_height` columns. (#99)
 - `[init].soil_temp` may list one temperature per soil layer, top down, for a column whose start differs
   with depth, such as a thawed top over permafrost; a list needs one value per layer. (#99)
+- The ground's surface layers and what reads them: `[ground_surface_layer]`'s materials (the litter's
+  and the moss's bulk density, conductivity dry and saturated, and water retention as a soil layer's;
+  the water layer's solid-ice and standing-water albedos), `[soil].moss_depth` per site, and per PFT
+  `[allometry].crown_base_fraction` and `snow_bending`; the outputs `mean_water_layer_ice_py`,
+  `mean_water_layer_cover_py`, `mean_litter_water_py`, `mean_moss_water_py` and
+  `mean_ground_top_temp_py` (the last three with `_pa` twins); and a run's log ends with the water
+  solve's forced sub-steps by reason (`forced[water]`) and the ground stack's Newton iterations and
+  fallbacks (`surface stack`). (#100)
 
 ### Changed
 
@@ -330,6 +389,10 @@ This file covers every 0.x release; version 1.0 starts `CHANGELOG-v1.md`. The fo
   `TA_F_MDS` or `SW_IN_F_MDS` count as fills, not observations. (#91)
 - `calibrate_fast.py check` rebuilds its trials from the values the prior trial ran with, so a key
   whose transform does not round-trip exactly no longer stops it. (#91)
+- `calibrate_fast` runs its trials again after the model is rebuilt: it named its trials, chains and
+  parameter record by the configs alone, so a run after a rebuild reused the old build's results. Each
+  name now hashes the model's compiled code too, and `calibrate_fast.py check` finds the trials it ran.
+  (#100)
 
 ## [0.4.1] - 2026-10-26
 

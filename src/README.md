@@ -22,8 +22,9 @@ src/
 │   └── functions/ stateless constitutive laws, one module per domain:
 │                  allometry, plant hydraulics, soil hydraulics,
 │                  thermodynamics (moist air and its lapse, with the
-│                  temperature response of enzyme rates), canopy optics,
-│                  the radiation above the canopy
+│                  temperature response of enzyme rates), the ground's
+│                  surface layers, canopy optics, the radiation above
+│                  the canopy
 │
 │  ── CONFIGURATION ──────────────────── the run's inputs: ed_config
 ├── config/        ed_config_t (one field per key) and the routines that
@@ -33,9 +34,9 @@ src/
 │   │              and their values
 │   └── params/    the run's parameters, one leaf per TOML block: the types
 │                  and codes a kernel imports without ed_config (the PFT
-│                  table, the soil, forcing, output, the fast loop, snow and
-│                  aerodynamics, leaf, soil carbon, demography, trait
-│                  dynamics, sites, region, maps)
+│                  table, the soil, the ground's surface layers, forcing,
+│                  output, the fast loop, aerodynamics, leaf, soil carbon,
+│                  demography, trait dynamics, sites, region, maps)
 │
 │  ── STATE, one file per level of the hierarchy, each in sections ────────────
 ├── state/         ed_cohort_state_vars: the flat cohort structure-of-arrays
@@ -140,7 +141,7 @@ kernel's own argument records are not parameters in this sense: they live with t
 named by role. `<process>_env_t` is what a kernel reads that changes during the run (`leaf_env_t`,
 `cas_env_t`); `<process>_args_t` is what it reads that is fixed for the run or the slow step, which a
 driver fills from the parameters (`aero_args_t`); `<process>_out_t` is what it returns
-(`rad_out_t`, `snow_out_t`). `_state_t` is prognostic state: the stores in `state/`, and the
+(`rad_out_t`, `water_stage_out_t`). `_state_t` is prognostic state: the stores in `state/`, and the
 per-cohort state a kernel reads and writes back (`pheno_state_t`).
 
 **4. Laws and operators do not touch.** The demographic laws decide: they are a process module,

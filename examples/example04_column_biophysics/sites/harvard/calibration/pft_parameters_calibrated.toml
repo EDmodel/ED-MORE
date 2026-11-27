@@ -3,14 +3,14 @@
 # Every line is the base file's, comments included, except these keys the fit set
 # (calibrated value, the base file's value; EFFECTIVE: its value belongs to this model structure;
 # KATTGE & KNORR: fixed at the growth temperature's value, not fitted):
-#   pft.leaf_angle_mean            24.371  (33.9)
-#   pft.vcmax25                    92.9675  (60)
-#   pft.vcmax25 (PFT 2)            19.91  (45)
-#   pft.capacity_low_temp (PFT 2)  274.46  (277.864)  EFFECTIVE
-#   pft.stomatal_g1                3.4378  (4.45)
-#   pft.stomatal_g1 (PFT 2)        3.6188  (2.35)
-#   pft.stomatal_g0                0.00125531  (0.01)
-#   pft.stomatal_g0 (PFT 2)        0.00207754  (0.01)
+#   pft.leaf_angle_mean            32.714  (33.9)
+#   pft.vcmax25                    90.8171  (60)
+#   pft.vcmax25 (PFT 2)            20.4583  (45)
+#   pft.capacity_low_temp (PFT 2)  277.901  (277.864)  EFFECTIVE
+#   pft.stomatal_g1                3.30382  (4.45)
+#   pft.stomatal_g1 (PFT 2)        3.25322  (2.35)
+#   pft.stomatal_g0                0.00118165  (0.01)
+#   pft.stomatal_g0 (PFT 2)        0.00412077  (0.01)
 #   pft.jmax_vcmax_ratio           1.92554  (1.8)  KATTGE & KNORR
 #   pft.jmax_vcmax_ratio (PFT 2)   1.92554  (1.7)  KATTGE & KNORR
 # The Harvard site's two PFTs: 1 the cold-deciduous broadleaves (red oak, red maple, birches, beech),
@@ -35,18 +35,18 @@ include_pft        = [1, 1]
 min_recruit_height = 2.0              # [m]
 min_repro_height   = [13.9, 13.9]     # [m]
 photosynthetic_pathway = [1, 1]
-vcmax25            = [92.9675, 19.91]     # [umol/m2/s] the repository's PFT 1 and 2; the calibration fits it
+vcmax25            = [90.8171, 20.4583]     # [umol/m2/s] the repository's PFT 1 and 2; the calibration fits it
 jmax_vcmax_ratio   = [1.92554, 1.92554]
 tpu_vcmax_ratio    = [0.167, 0.167]
 rd_vcmax_ratio     = [0.015, 0.015]
 kp25               = [1.0e-9, 1.0e-9]
-stomatal_g0        = [0.00125531, 0.00207754]
-stomatal_g1        = [3.4378, 3.6188]     # Medlyn [kPa^0.5]: deciduous angiosperm trees and evergreen gymnosperms
+stomatal_g0        = [0.00118165, 0.00412077]
+stomatal_g1        = [3.30382, 3.25322]     # Medlyn [kPa^0.5]: deciduous angiosperm trees and evergreen gymnosperms
                                       #   (Lin et al. 2015, Nat. Clim. Change 5:459; CLM5's BDT and NET)
 stomatal_d0        = [1500.0, 1500.0]
 quantum_yield_c4   = [0.0, 0.0]
 theta_j            = [0.70, 0.70]
-capacity_low_temp       = [277.8637, 274.46]   # [K] the leaf temperature that halves Vcmax, Jmax and TPU
+capacity_low_temp       = [277.8637, 277.901]   # [K] the leaf temperature that halves Vcmax, Jmax and TPU
                                                  #   (ED2's; the calibration fits the conifers': calibration.toml)
 capacity_low_temp_slope = [0.4, 0.4]             # [1/K]
 theta_cj_c3        = [0.98, 0.98]
@@ -72,15 +72,15 @@ wood_transmit_nir  = [0.001, 0.001]
 wood_emissivity    = [0.90, 0.90]
 # Example 07's fit of the foliage to NEON's PAR sensors below the crowns, 2019 (its calibrated_optics.json):
 # the 20 m patches already hold the gaps between crowns, so the clumping within a layer is near 1.
-leaf_clumping      = [0.933, 0.933]
+leaf_clumping      = [0.956, 0.956]
 wood_clumping      = [1.0, 1.0]
-leaf_angle_mean    = [24.371, 33.9]     # [deg]
+leaf_angle_mean    = [32.714, 33.9]     # [deg]
 leaf_angle_std     = [20.0, 20.0]
 wood_angle_mean    = [75.0, 75.0]     # [deg] the woody surface (unpublished TLS data: 72-76)
 wood_angle_std     = [20.0, 20.0]
 storage_cushion    = [3.0, 3.0]       # the repository's: a deciduous canopy rebuilds itself from storage each spring
 growth_resp_factor = [0.3, 0.3]
-leaf_turnover_rate_toc = [0.000106781, 0.00247286]   # [1/yr] the background loss while flushing. Deciduous: example
+leaf_turnover_rate_toc = [0.000106781, 0.0179807]   # [1/yr] the background loss while flushing. Deciduous: example
                                                    #   02's part 1 (its leaves go at senescence); conifers: example 02's
                                                    #   part 2, with the autumn shed about a third of the needles a year
 kplastic_vcmax         = [-0.1459341188305866, -0.11760191025318557]   # pft_traits.py from vcmax25
@@ -96,8 +96,9 @@ struct_lignin_frac     = [0.25, 0.30]
 # Example 07's Harvard allometry (its run_example.py, HARVARD_PFT; fit_allometry.py): height on Chave's
 # log-quadratic, each PFT fitted to the 3,400 trees NEON measured at HARV, capped at the lidar canopy top;
 # the deciduous leaf area scaled to a July LAI of 3.95 around NEON's sensors. Here the broadleaves'
-# lai_b1 is scaled down so the stand's July-August LAI is the mean of MODIS and the LAI-2000 (4.54:
-# broadleaves 2.80, conifers 1.74); the conifers' winter LAI, 1.19, already matches their mean (1.20).
+# lai_b1 is scaled down so the stand's July-August LAI is the mean of MODIS and the LAI-2000, 4.54 (the
+# model's 4.53: broadleaves 2.78, conifers 1.75); the conifers' winter LAI, 1.18, already matches their
+# mean (1.20).
 height_allometry = ["chave2014", "chave2014"]
 chave_a    = [0.47289, 0.43288]
 chave_b    = [1.0693, 0.71177]
@@ -109,7 +110,7 @@ b1Ht       = 1.139963                 # the power law, unused on "chave2014"
 b2Ht       = 0.564899
 agb_c1     = 0.03365
 agb_c2     = 0.976
-lai_b1     = [0.12457, 0.23384770]   # the broadleaves' scaled by 0.713: see the comment above
+lai_b1     = [0.12990, 0.23384770]   # the broadleaves' scaled by 0.725: see the comment above
 lai_b2     = 0.6410495
 wai_b1     = [0.0096, 0.0096]
 wai_b2     = [2.0947, 2.0947]
@@ -154,19 +155,19 @@ flush_cue_mask        = [3, 3]
 shed_cue_mask         = [3, 3]
 flush_cue_timescale   = [5.0, 5.0]
 shed_cue_timescale    = [5.0, 5.0]
-flush_rate_max        = [0.117051, 0.06667]
-shed_rate_max         = [0.244309, 0.05]
+flush_rate_max        = [0.120556, 0.06667]
+shed_rate_max         = [0.254173, 0.05]
 min_leaf_cover        = [0.0, 0.67]
 bare_leaf_cover       = [0.02, 0.02]
 flush_base_temp       = [278.15, 278.15]
-flush_degree_days     = [263.916, 487.635]
+flush_degree_days     = [259.651, 482.982]
 flush_temp_sharpness  = [0.04, 0.04]
-shed_base_temp        = [291.955, 290.15]
-shed_degree_days      = [169.465, 57.5329]
+shed_base_temp        = [292.106, 290.15]
+shed_degree_days      = [185.057, 56.1506]
 shed_temp_sharpness   = [0.1, 0.1]
 par_min               = [2.0001, 0.5]
-flush_light_hours     = [12.1698, 13.3587]
+flush_light_hours     = [12.0922, 13.2663]
 flush_light_sharpness = [7.99321, 4.0]
-shed_light_hours      = [9.61012, 13.8717]
+shed_light_hours      = [9.5776, 13.5573]
 shed_light_sharpness  = [-1.0, -1.0]
 light_window          = [1.00135, 10.0]

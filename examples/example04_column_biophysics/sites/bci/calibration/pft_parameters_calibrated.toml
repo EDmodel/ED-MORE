@@ -3,11 +3,11 @@
 # Every line is the base file's, comments included, except these keys the fit set
 # (calibrated value, the base file's value; EFFECTIVE: its value belongs to this model structure;
 # KATTGE & KNORR: fixed at the growth temperature's value, not fitted):
-#   pft.leaf_angle_mean            51.6361  (45)
-#   pft.vcmax25                    33.5877  (45)
-#   pft.stomatal_g1                2.87558  (3)
-#   pft.stomatal_g0                0.000299389  (0.01)
-#   pft.wstress_sref_stomata       2.78129  (2)  EFFECTIVE
+#   pft.leaf_angle_mean            43.0794  (45)
+#   pft.vcmax25                    34.434  (45)
+#   pft.stomatal_g1                2.98996  (3)
+#   pft.stomatal_g0                0.000516261  (0.01)
+#   pft.wstress_sref_stomata       3.41569  (2)  EFFECTIVE
 #   pft.jmax_vcmax_ratio           1.6983  (1.7)  KATTGE & KNORR
 # The PFT of example 04 at Barro Colorado Island: ONE evergreen broadleaf PFT at a mid-successional
 # wood density, for the whole census. Its fast parameters are the calibration's starting point
@@ -34,13 +34,13 @@ min_recruit_height      = 2.0    # [m] recruits are born at this height
 min_repro_height   = [20.0]   # [m] a cohort reproduces from this height
 # Leaf photosynthesis / stomatal traits (C3).
 photosynthetic_pathway = [1]
-vcmax25            = [33.5877]
+vcmax25            = [34.434]
 jmax_vcmax_ratio   = [1.6983]
 tpu_vcmax_ratio    = [0.167]
 rd_vcmax_ratio     = [0.015]
 kp25               = [1.0e-9]
-stomatal_g0        = [0.000299389]
-stomatal_g1        = [2.87558]        # Medlyn [kPa^0.5]
+stomatal_g0        = [0.000516261]
+stomatal_g1        = [2.98996]        # Medlyn [kPa^0.5]
 stomatal_d0        = [1500.0]
 quantum_yield_c4   = [0.0]
 theta_j            = [0.70]       # the effective curvature of a mean-light cohort (CLM5, ED2)
@@ -50,7 +50,7 @@ theta_cj_c4        = [0.80]
 theta_ic_c4        = [0.95]
 katul_lambda25     = [800.0]
 wstress_lambda_exp = [1.0]
-wstress_sref_stomata = [2.78129]     # [1/MPa] Sabot stomatal-stress sensitivity
+wstress_sref_stomata = [3.41569]     # [1/MPa] Sabot stomatal-stress sensitivity
 # Carbon-dynamics traits.
 sla                    = [13.0]
 root_to_leaf_ratio     = [1.0]
@@ -76,7 +76,7 @@ wood_transmit_nir  = [0.001]   # [--] wood/bark NIR transmittance
 wood_emissivity    = [0.90]    # [--] wood thermal emissivity
 leaf_clumping      = [0.80]    # [--] leaf clumping factor in (0,1]
 wood_clumping      = [0.50]    # [--] wood clumping factor in (0,1]
-leaf_angle_mean    = [51.6361]   # [deg] mean leaf inclination (spherical: mean 57.3, std 21.6)
+leaf_angle_mean    = [43.0794]   # [deg] mean leaf inclination (spherical: mean 57.3, std 21.6)
 leaf_angle_std     = [20.0]   # [deg] its standard deviation
 wood_angle_mean    = [75.0]   # [deg] mean inclination of the wood surface (unpublished TLS data: 72-76)
 wood_angle_std     = [20.0]   # [deg] its standard deviation

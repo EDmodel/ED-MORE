@@ -250,13 +250,21 @@ contains
    !---~---
    !   Each ground tile's radiation from the ground's: the bare soil nets what the ground absorbs,
    ! and a pack absorbs its shortwave under a sky that emits what the pack does, so the pack has
-   ! no longwave loss at the step's start.
+   ! no longwave loss at the step's start. Where no pack lies (less than a gram of water, whose
+   ! temperature means nothing: a film's comes from the ground at the next stage), the sky emits
+   ! what the top soil layer does.
    !---~---
    subroutine set_ground_tiles(col)
       type(fast_column_t), intent(inout) :: col
+      real(wp), parameter :: PACK_MIN = 1.0e-3_wp   ! [kg/m2]
       col%forcing%rnet_soil      = col%forcing%abs_sw_ground + col%forcing%abs_lw_ground
       col%forcing%sw_snow        = col%forcing%abs_sw_ground
-      col%forcing%lw_down_ground = stefan_boltzmann * col%dynamic%snow%snow_temp(1) ** 4
+      col%forcing%sw_ground      = col%forcing%abs_sw_ground
+      if (col%dynamic%ground_surface%water%water >= PACK_MIN) then
+         col%forcing%lw_down_ground = stefan_boltzmann * col%dynamic%ground_surface%water%temp ** 4
+      else
+         col%forcing%lw_down_ground = stefan_boltzmann * col%dynamic%soil_energy%soil_temp(1) ** 4
+      end if
    end subroutine set_ground_tiles
 
    !---~---
@@ -337,7 +345,6 @@ contains
       frozen%roots%qloss_frozen = 0.0_wp
       frozen%roots%root_heat = 0.0_wp
       frozen%hydrology%q_top  = 1.0e-6_wp
-      frozen%hydrology%t_infil = 296.0_wp
       frozen%hydrology%t_bot   = 292.0_wp
       !---~---
       !   The tissues: leaf area 2.0, 1.5, ... from the top, 250, 200, ... W/m2 of shortwave, -30 of
@@ -348,7 +355,8 @@ contains
                frozen%tissue%abs_sw_wood(n), frozen%tissue%abs_lw_wood(n), frozen%tissue%wai(n),                &
                frozen%tissue%leaf_hcap_per_dt(n), frozen%tissue%wood_hcap_per_dt(n), frozen%tissue%t_leaf0(n),  &
                frozen%tissue%t_wood0(n), frozen%tissue%qwflux_wl(n), frozen%tissue%q_wood_net(n),               &
-               frozen%tissue%leaf_emiss(n), frozen%tissue%wood_emiss(n), frozen%tissue%transp_net(n))
+               frozen%tissue%leaf_emiss(n), frozen%tissue%wood_emiss(n), frozen%tissue%transp_net(n),           &
+               frozen%tissue%buried(n))
       do i = 1_ik, n
          frozen%tissue%lai(i)    = 2.0_wp - 0.5_wp * real(i - 1_ik, wp)
          frozen%tissue%abs_sw(i) = 250.0_wp - 50.0_wp * real(i - 1_ik, wp)
@@ -366,6 +374,7 @@ contains
       frozen%tissue%t_wood0 = 298.5_wp
       frozen%tissue%qwflux_wl  = 0.0_wp
       frozen%tissue%q_wood_net = 0.0_wp
+      frozen%tissue%buried     = 0.0_wp
       frozen%tissue%leaf_emiss = 0.95_wp
       frozen%tissue%wood_emiss = 0.95_wp
       frozen%tissue%transp_net = frozen%plant%sapflow_frozen * frozen%plant%nplant

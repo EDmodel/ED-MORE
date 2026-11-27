@@ -822,10 +822,8 @@ contains
       !---~---
       poly%patch%soil_water(1)%theta(1:soil%n_active)      = 0.30_wp
       poly%patch%soil_energy(1)%soil_energy(1:soil%n_active) = 5.0e7_wp
-      poly%patch%soil_water(1)%w_surface      = 2.0_wp
-      poly%patch%soil_water(1)%w_surface_energy = 8.0e5_wp
-      poly%patch%snow(1)%swe(1)           = 5.0_wp
-      poly%patch%snow(1)%snow_energy(1)   = -1.0e6_wp
+      poly%patch%ground_surface(1)%water%water           = 5.0_wp
+      poly%patch%ground_surface(1)%water%energy   = -1.0e6_wp
       poly%patch%cas(1)%can_shv      = 0.008_wp
       poly%patch%cas(1)%can_enthalpy = 2.9e5_wp
       poly%patch%cas(1)%can_co2      = 400.0_wp
@@ -1024,8 +1022,7 @@ contains
    !   restructure_stand (apply_patch_disturbance) CREATES patches after vegetation_dynamics has
    ! filled the step's litter, and the consumer (advance_soil_carbon) loops to the NEW
    ! patch count. An accumulator sized to the patch count when it was filled is read past its
-   ! end, feeding undefined memory into the CENTURY litter input (1.8e9 kgC/m2 on a gap patch
-   ! born that step, over a 50-year spin-up).
+   ! end, feeding undefined memory into the CENTURY litter input.
    !
    !   The slow ledger cannot catch that: it DECLARES the same out-of-bounds read as a boundary
    ! term and so balances perfectly against the garbage. Only `-check bounds` sees it.

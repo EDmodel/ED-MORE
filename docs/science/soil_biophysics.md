@@ -34,7 +34,15 @@ Each layer is solved in its effective saturation on the dry side and its potenti
 
 The **root sink** is the network's own: each cohort's uptake from each layer it roots in, solved with the layer's water. The soil has no wilting point of its own: the soil-to-root conductance falls with $`K(\theta)`$ and a layer drier than the wood gives nothing, so a threshold here would cut the same water twice.
 
-**Ground evaporation** (`ground_evaporation_rate`, at the end-of-sub-step state) is Philip's pore-space relative humidity of the top layer through a Swenson–Lawrence dry-surface-layer (DSL) resistance, in series with the aerodynamic resistance $`r_{aero}=1/g_{g,net}`$ from the aerodynamics kernel. As the top layer dries, Philip's humidity goes to zero and evaporation stops by itself. The DSL resistance is $`r_{soil} = (d_{max}/D_{dsl})\,\max(\theta_{init}-\theta_1,0)/(\theta_{init}-\theta_{air})`$ with the diffusivity through the layer $`D_{dsl} = D_v\,\phi_{air}^{10/3}/\phi^2`$, where $`d_{max}`$ is `[soil].dsl_dmax`, $`\theta_{init}`$ is `[soil].dsl_theta_init` times the saturated water content, $`\theta_{air}`$ is the air-dry water content at a matric head of −10⁴ m (CLM5's), $`\phi`$ is the porosity, $`\phi_{air}=\phi-\theta_{air}`$, and $`D_v`$ is the vapour diffusivity in free air. The layer's thickness and tortuosity are referenced to the air-dry water content: referenced to the bulk $`\theta_1`$ instead, the tortuosity would fall faster than the layer thickens and a wetter soil would evaporate less. The tortuosity is Millington–Quirk's rather than CLM5's form in the Clapp–Hornberger $b$; with $`\phi_{air}`$ fixed the two differ by a constant factor, so the moisture response has the same shape. This flux alone sets the ground latent flux: it drives both the canopy air's humidity and the ground energy balance's latent heat, so no water is counted twice.
+**Ground evaporation** (`ground_vapour`, at the end-of-sub-step state) is Philip's pore-space relative humidity of the top layer through a Swenson–Lawrence dry-surface-layer (DSL) resistance, in series with the aerodynamic resistance $`r_{aero}=1/g_{g,net}`$ from the aerodynamics kernel. That leg is the ground's one: where porous layers lie over the soil ([ground_surface_layers](ground_surface_layers.md)), each of them and the soil's top is a store whose vapour crosses its own path, its dried top and the open pores of the layers above it, $`g_i = 1/(r_{dry,i} + r_{cover,i})`$, up to one ground-surface node; the paths meet there in parallel, and the node passes their sum to the canopy air through $`r_{aero}`$, the leg the ground's sensible heat takes. The node's humidity holds the balance in closed form,
+
+```math
+rac{q_s - q_{air}}{r_{aero}} = \sum_{i:\,q_i > q_s} g_i\,(q_i - q_s), \qquad E_i = (1 - f_{snow})\,
+ho\,g_i\,(q_i - q_s)^+ ,
+```
+
+over the stores more humid than the node, found by taking them most humid first while each is more humid than the node of those before it. A store drier than the node takes nothing, so there is no dew, from the air or between the stores. With one store this is the series law $`E=
+ho\,(q_1-q_{air})/(r_{aero}+r_{dry})`$; with several, the leg is counted once, so two equal stores evaporate as one of twice the conductance, not twice one. A store whose path is open ($`r_{dry}+r_{cover}=0`$, a wet top) sets the node's humidity. The water network takes every store's flux and its slopes in each store's unknown in its Jacobian. As the top layer dries, Philip's humidity goes to zero and evaporation stops by itself. On a steep retention curve it does so only a hair above residual: a peat of $`n`$ 3.3 keeps its pore air above half saturation down to $`S_e = 10^{-9}`$. The flux is therefore also limited by the layer's supply (`evaporation_supply`), as The evaporation is limited by the water the top layer holds: the whole demand until the layer's water above residual, ice included, falls to $`10^{-4}`$ of its span to saturation, then a smooth step to nothing at residual. The supply scales the store's path conductance $`g_i`$, so a store running out leaves the node to the others. The DSL resistance is $`r_{soil} = (d_{max}/D_{dsl})\,\max(\theta_{init}-\theta_1,0)/(\theta_{init}-\theta_{air})`$ with the diffusivity through the layer $`D_{dsl} = D_v\,\phi_{air}^{10/3}/\phi^2`$, where $`d_{max}`$ is `[soil].dsl_dmax`, $`\theta_{init}`$ is `[soil].dsl_theta_init` times the saturated water content, $`\theta_{air}`$ is the air-dry water content at a matric head of −10⁴ m (CLM5's), $`\phi`$ is the porosity, $`\phi_{air}=\phi-\theta_{air}`$, and $`D_v`$ is the vapour diffusivity in free air. The layer's thickness and tortuosity are referenced to the air-dry water content: referenced to the bulk $`\theta_1`$ instead, the tortuosity would fall faster than the layer thickens and a wetter soil would evaporate less. The tortuosity is Millington–Quirk's rather than CLM5's form in the Clapp–Hornberger $b$; with $`\phi_{air}`$ fixed the two differ by a constant factor, so the moisture response has the same shape. This flux alone sets the ground latent flux: it drives both the canopy air's humidity and the ground energy balance's latent heat, so no water is counted twice.
 
 ### Boundary conditions, and what the aquifer option actually means
 
@@ -44,7 +52,7 @@ The **top boundary** is the pond, a store of its own. Rain enters it, and it exc
 q_{pond} = \sqrt{K(\theta_1)\,K_{sat}}\;\Big(1 + \frac{h-\psi_1}{-z_1}\Big) \qquad(4)
 ```
 
-from the pond, treated as a saturated layer as thick as the top one, to the top node at elevation $`z_1<0`$. This is eq. (3) with $w = 1/2$; $h$ is the pond's head and $`\psi_1`$ is in metres here. The flux is solved implicitly and is two-way: a top layer pushed past saturation exfiltrates to the pond. The pond holds up to `[soil].w_pond_max`; its first millimetre is a depression store, where its head grows as the square root of what it holds ([soil_plant_water](soil_plant_water.md) §2). Above `w_pond_max`, water runs off at the pond's temperature.
+from the pond, treated as a saturated layer as thick as the top one, to the top node at elevation $`z_1<0`$. This is eq. (3) with $w = 1/2$; $h$ is the pond's head and $`\psi_1`$ is in metres here. The flux is solved implicitly and is two-way: a top layer pushed past saturation exfiltrates to the pond. Where porous layers lie on the soil, the litter and the moss lie between the pond and the top layer as nodes of their own; the pond's face onto the top porous layer wets ([soil_plant_water](soil_plant_water.md) §1), and the top layer's top face takes the water the bottom porous layer passes down, by eq. (3) between that layer's centre and the top node ([ground_surface_layers](ground_surface_layers.md) §4). The pond holds up to `[ground_surface_layer.water].pond_capacity`; its first millimetre is a depression store, where its head grows as the square root of what it holds ([soil_plant_water](soil_plant_water.md) §2). Above `pond_capacity`, water runs off at the pond's temperature.
 
 The geometric mean with $`K_{sat}`$ is what lets the pond re-wet a dried surface. Near residual water content the top layer's own $`K(\theta_1)`$ is about $10^{-15}$ of $`K_{sat}`$ for a van Genuchten loam, so a face conductivity of $`K(\theta_1)`$ alone would seal the surface: after a dry season the pond would overflow and the soil would never re-wet.
 
@@ -123,10 +131,10 @@ With the `[maps]` soil maps (ED-SoilMaps v2; [configuration](../configuration.md
 
 - **The layers.** The profile ends at the map's `soil_depth`, on the layers of § The soil layers.
 - **Each layer's soil.** A layer takes the texture and chemistry of the map layers it overlaps (SoilGrids' six, to 2 m), each weighted by the overlap. Below 2 m it takes the deepest map layer's.
-- **Hydraulics and heat, per layer.** Each layer gets its own curve and $K_{sat}$ by eqs. (6)–(8). Its thermal properties come from the same texture by CLM5's mineral-soil formulas (Lawrence & Slater 2008), with $\theta_{sat}$ the layer's porosity and silt left out as in CLM5:
+- **Hydraulics and heat, per layer.** Each layer gets its own curve and $K_{sat}$ by eqs. (6)–(8). Its thermal properties come from the same texture, with $\theta_{sat}$ the layer's porosity. The solids conduct by their quartz content $q$, the geometric mean of quartz and the other minerals (Johansen 1975; Peters-Lidard et al. 1998), with the quartz taken as the sand's share of the fine earth, $q = Sa/100$: silt and clay count with the other minerals. Peters-Lidard et al. give the other minerals 3.0 W m⁻¹ K⁻¹ where quartz is at most a fifth of the solids; one value keeps the conductivity from jumping at 20 % sand. CLM5's arithmetic mean of sand at 8.80 and clay at 2.92, silt left out, gives a loam of 45 % sand 7.0 W m⁻¹ K⁻¹, where this gives 3.7. The dry soil's conductivity and the solids' heat capacity are CLM5's (Lawrence & Slater 2008):
 
   ```math
-  k_{solid} = \frac{8.80\,Sa + 2.92\,Cl}{Sa + Cl}, \qquad
+  k_{solid} = 7.7^{\,q}\;2.0^{\,1-q}, \qquad
   k_{dry} = \frac{0.135\,\rho_d + 64.7}{2700 - 0.947\,\rho_d}, \qquad
   c_{dry} = \frac{2.128\,Sa + 2.385\,Cl}{Sa + Cl}\,10^6\,(1-\theta_{sat}) \qquad(9)
   ```
@@ -246,28 +254,30 @@ f_{liq}=\min\!\big(1,\theta_{liq,max}(T)/\theta\big) \qquad(15)
 
 with $`C_{dry}`$ the solids' heat capacity per m³, $`\rho_w`$ the density of water, $`u_{liq}(T)`$ the liquid's internal energy (`internal_energy_liquid`) and $`c_{ice}`$ the specific heat of ice. $`E`$ rises with $`T`$. Its slope, the apparent heat capacity, adds to the sensible heat the latent heat of the liquid freed per kelvin, $`\rho_w\,(u_{liq}-c_{ice}T)\,d\theta_{liq,max}/dT`$.
 
-`soil_layer_temp` inverts it:
+`porous_layer_temp` inverts it:
 - the all-liquid temperature when the curve holds all the water;
 - otherwise Newton, kept inside the bracket between the all-liquid temperature and the lower of the
   all-ice temperature and $`T_f`$, with bisection when a step leaves it.
 
 The thermal step (§ The soil thermal column) and every diagnosis use this one inversion.
 
-**Water.** Over a water step each layer's ice is held at its start, $`\theta_{ice}=(1-f_{liq})\,\theta`$
-(`soil_ice_t`, built by `soil_ice_state`). The water network then reads the layer as follows:
+**Water.** Over a water step each layer's ice is held at its start, $`\theta_{ice}=(1-f_{liq})\,\theta`$,
+beside the liquid it starts with, $`\theta_{liq,0}=f_{liq}\,\theta`$ (`soil_ice_t`, built by `soil_ice_state`),
+unless water is drawn out below that liquid. The water network then reads the layer as follows:
 - **The liquid's potential is the curve's at the liquid's content**, $`\psi(\theta-\theta_{ice})`$, on the full pore space. A frozen layer's liquid therefore sits at $`h_{frz}(T)`$, and it draws water from the wet soil beside it (cryosuction).
 - **The ice impedes the flow:** each node's conductivity is the liquid's times $`10^{-6\,\theta_{ice}/\theta_{sat}}`$ (CLM5; Swenson et al. 2012). The face conductivity is the weighted geometric mean of its two nodes' (eq. (3)), so a face takes 10 to the mean of its nodes' ice fractions, which is CLM5's face impedance. The pond face and the aquifer face lie inside the top and bottom layers, so each takes its layer's impedance in full: the pond conducts at $`K_{sat,1}`$ times the top layer's impedance, and the table at $`K_{sat,n}`$ times the bottom layer's.
 - **Pores the ice leaves.** Once the liquid fills the pores the ice leaves, $`\theta_{liq}=\theta_{sat}-\theta_{ice}`$, the layer holds no more water. The liquid's head rises from the head the pores filled at (pressure in a gas-free frozen soil), and above zero the layer stores through the specific storage, as a thawed layer does. Cryosuction therefore fills a frozen layer to saturation and no further.
 - **Evaporation** reads the liquid. Philip's humidity is taken on the liquid's potential, with saturation over liquid: on the freezing curve the liquid's vapour pressure is the ice's, so blending in the ice's saturation as well would count the ice twice. The dry surface layer reads the liquid plus `[soil].dsl_theta_init` of the ice, so it forms below `dsl_theta_init` of the pores the ice leaves, which is CLM5's effective porosity.
+- **The ice supplies the water drawn out.** Water drawn below $`\theta_{liq,0}`$ (sublimation, drainage, root uptake) comes from the ice: the ice melts and the liquid stays at $`\theta_{liq,0}`$, at the freezing curve's potential and conductivity, until the ice is gone (the melt plateau); only then does the liquid fall below its start. In the solver's unknown the plateau spans what the ice's water would span on the liquid's curve at the start, so the layer's water keeps its slope where the ice takes over and Newton meets no break in it there; where the ice would reach below half the start's unknown, the plateau ends at that half instead (`MELT_DRY_SHARE`). A fixed half of the unknown would let a trace of ice at freeze-up store almost nothing on the plateau, and Newton would swing across its top. A frozen layer in equilibrium keeps its liquid on the freezing curve, so this is what it does. Drawn from the liquid alone, a steep curve could not supply a step: a peat of $`n`$ 3.3 holds a millionth of its pores as liquid above $`\theta_{res}`$ at −2 °C, about $`6\times10^{-5}`$ kg m⁻² in a 5 cm layer, against $`10^{-4}`$–$`10^{-3}`$ kg m⁻² of sublimation a step under dry winter air.
 
-The energy step that follows sees the new water through $`\theta`$, so water drawn into a frozen layer freezes there at the next diagnosis, and its latent heat enters the layer's energy balance.
+The energy step that follows sees the new water through $`\theta`$, so water drawn into a frozen layer freezes there at the next diagnosis, and water drawn out of one leaves at the liquid's enthalpy, the next diagnosis taking the latent heat of the ice that melted for it from the layer, which cools. Either way the latent heat enters the layer's energy balance.
 
 ## Water–thermal coupling
 
 The water and thermal stores are coupled by construction: the thermal step reads the just-updated soil moisture (for $`\kappa`$ and the freezing curve), and the water the network moves carries liquid enthalpy.
 - Across each face, water carries the enthalpy of the node it leaves.
-- Root uptake takes enthalpy out of each layer at that layer's own temperature (`root_heat`, per layer). Exfiltration to the pond leaves the top layer in the same way (`water_heat_out`).
-- Infiltration crosses the top face at the pond's temperature.
+- Root uptake takes enthalpy out of each layer at that layer's own temperature (`root_heat`, per layer). Exfiltration to the pond, or to the bottom porous layer, leaves the top layer in the same way (`water_heat_out`).
+- Infiltration crosses the top face at the temperature it leaves the ground's surface stack at: the free water's, or the bottom porous layer's where it passes through one ([ground_surface_layers](ground_surface_layers.md) §3).
 - Drainage has no face term: its enthalpy leaves with the bottom layer's sink, `water_heat_out`, beside the root uptake.
 - Soil evaporation is not a face either: its water leaves as vapour, and its enthalpy (liquid plus latent) has already left in the ground's latent flux inside $`G_{top}`$.
 
@@ -304,7 +314,6 @@ The `[soil]` block ([configuration](../configuration.md) lists every key, and th
 | α or $\psi_{sat}$; $n$ or $b$ | `curve_par_a`, `curve_par_n` | 3.6 m⁻¹, 1.56 | van Genuchten α and $n$, or Campbell $\psi_{sat}$ (< 0, m) and $b$ |
 | $\psi_{fc}$ | `psi_fc` | −3.37 m | field-capacity matric head; sets each layer's field capacity |
 | $k_{solid}$, $k_{dry}$, $C_{dry}$ | `solid_conductivity`, `dry_conductivity`, `dry_heat_capacity` | 3.0, 0.15 W m⁻¹ K⁻¹; 2.0×10⁶ J m⁻³ K⁻¹ | thermal texture, eqs. (9)–(11) |
-| | `w_pond_max` | 5.0 kg m⁻² | ponding capacity before runoff |
 | $d_{max}$ | `dsl_dmax` | 0.015 m | greatest thickness of the dry surface layer |
 | | `dsl_theta_init` | 0.8 | top-layer $\theta/\theta_{sat}$ below which the dry surface layer forms |
 | | `water_bottom_bc` | `"free_drain"` | `"free_drain"`, `"bedrock"` or `"aquifer"` |
@@ -327,7 +336,7 @@ Fixed in the code: the Mualem pore connectivity $L=-1$, the specific storage 10�
 | thermal properties from texture, eqs. (9) and (11) | `ed_therm_lib`: `soil_texture_to_thermal`, `soil_thermal_conductivity` |
 | soil thermal step (backward Euler, Newton on the energies), eq. (10) | `ed_soil_heat`: `soil_energy_step_implicit` |
 | the soil's thermal forcing from the water network's flows | `ed_soil_heat`: `set_soil_heat_env` |
-| a layer's temperature from its energy, and back, eq. (15) | `ed_soil_heat`: `soil_layer_temp`, `soil_layer_energy`, `soil_layer_energy_slope` |
+| a layer's temperature from its energy, and back, eq. (15) | `ed_ground_surface_lib`: `porous_layer_temp`, `porous_energy_state`, `porous_layer_energy`, `porous_energy_at_temp` |
 | the soil freezing curve, eq. (14) | `ed_soil_hydr_lib`: `soil_liquid_capacity` |
 | a layer's ice in the water network | `ed_soil_hydr_lib`: `soil_ice_t`, `soil_ice_state` |
 | explicit thermal tendency (RK45) | `ed_soil_heat`: `soil_energy_time_deriv` |
@@ -347,7 +356,8 @@ Fixed in the code: the Mualem pore connectivity $L=-1$, the specific storage 10�
 - Saxton & Rawls (2006), *Soil Sci. Soc. Am. J.* 70:1569 — coarse fragments.
 - Gupta et al. (2021), *Earth Syst. Sci. Data* 13:1593 (SoilKsatDB) and (2022), *Sci. Data* 9:444 (GSHP) — the measurements the function was chosen on.
 - Swenson & Lawrence (2014), *JGR-Atmos.* 119:10299 — dry-surface-layer soil evaporation.
-- Lawrence & Slater (2008), *Clim. Dyn.* 30:145 — the mineral and dry-soil thermal properties CLM uses, eq. (9).
+- Lawrence & Slater (2008), *Clim. Dyn.* 30:145 — the dry-soil conductivity and the solids' heat capacity CLM uses, eq. (9).
+- Johansen (1975), *Thermal conductivity of soils*, PhD thesis, Trondheim; Peters-Lidard, Blackburn, Liang & Wood (1998), *J. Atmos. Sci.* 55:1209 — the solids' conductivity by their quartz content, eq. (9).
 - Niu & Yang (2006), *J. Hydrometeorol.* 7:937 — the supercooled liquid of a frozen soil, eq. (14).
 - Swenson, Lawrence & Lee (2012), *J. Adv. Model. Earth Syst.* 4:M08002 — the ice impedance on the conductivity.
 - Lawrence et al. (2018), *Technical Description of version 5.0 of the Community Land Model (CLM)*, NCAR — the supercooled soil water and frozen-soil hydrology.

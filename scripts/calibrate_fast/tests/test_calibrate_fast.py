@@ -129,8 +129,20 @@ def test_build_trial_sets_keys(tmp_path):
     # the same values are the same trial; others are another
     assert trials.build_trial(base, ps, [5.0, 0.1], w, "/x/state.nc", tmp_path) == tdir
     assert trials.build_trial(base, ps, [5.0, 0.11], w, "/x/state.nc", tmp_path) != tdir
+    # another build of the model is another trial: a rebuilt model never reuses an old run
+    assert trials.build_trial(base, ps, [5.0, 0.1], w, "/x/state.nc", tmp_path, model="a") != \
+        trials.build_trial(base, ps, [5.0, 0.1], w, "/x/state.nc", tmp_path, model="b")
     assert base.get("pft.stomatal_g1", file="pft") == [3.0, 4.0]      # the base is not changed
     assert trials.timeout_for(10, 30.0) == 300.0 and trials.timeout_for(1, 30.0) == 300.0   # at least ten days' worth
+
+
+def test_the_model_identity_follows_the_compiled_code(tmp_path):
+    exe = tmp_path / "edmore"
+    exe.write_bytes(b"one build")
+    other = tmp_path / "edmore-rebuilt"
+    other.write_bytes(b"another build")
+    assert trials.model_identity(str(exe)) != trials.model_identity(str(other))
+    assert trials.model_identity(str(exe)) == trials.model_identity(str(exe))
 
 
 def test_a_run_takes_threads_by_its_length():

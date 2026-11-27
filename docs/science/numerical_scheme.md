@@ -14,8 +14,8 @@ Companion pages: [coupled_biophysics](coupled_biophysics.md) describes *what* is
 ## 1. The problem: one patch, wildly different clocks
 
 Each `dt_fast` ED-MORE advances one patch's whole surface: canopy air (heat, moisture, CO₂), leaf and
-wood temperature, leaf and wood internal water, canopy surface water, a snow pack, a soil thermal
-column and a soil water column. These are coupled — the leaf's temperature sets its transpiration,
+wood temperature, leaf and wood internal water, canopy surface water, the ground's surface layers
+(water, litter and moss), a soil thermal column and a soil water column. These are coupled — the leaf's temperature sets its transpiration,
 which sets canopy humidity, which sets the leaf's temperature — so they cannot be advanced
 independently without penalty.
 
@@ -27,7 +27,7 @@ orders of magnitude**:
 | leaf temperature | seconds | almost no heat capacity, strong radiative + convective coupling |
 | plant water potential | ~20 s | small tissue capacitance, high xylem conductance |
 | canopy air | ~2 min (daytime) | thin air layer, vented by turbulence |
-| snow surface | minutes | thin, low heat capacity |
+| snow surface, thin litter | minutes | thin, low heat capacity |
 | soil surface layer | hours | real heat capacity, conduction-limited |
 | deep soil, soil moisture | days to weeks | large stores, slow transport |
 
@@ -53,7 +53,7 @@ ED-MORE sorts the processes into three categories.
 - canopy radiative transfer (absorbed shortwave and net longwave per cohort)
 - stem and fine-root maintenance respiration
 - aerodynamic conductances
-- soil and plant water — the pond, the soil layers and every cohort's wood and leaves, solved
+- soil and plant water — the pond, the porous layers, the soil layers and every cohort's wood and leaves, solved
   together as one network by implicit Euler with its own sub-steps
   ([soil_plant_water](soil_plant_water.md)); its **time-mean** flows (face fluxes, infiltration,
   drainage, ground evaporation, root uptake, sapflow, transpiration) handed to the rest of the patch
@@ -69,8 +69,9 @@ for exactly the same reason. Freezing hydraulics removes the ~20 s mode from the
 which is what makes any of the schemes below affordable.
 
 **Category 1 — stiff, must be treated implicitly**: canopy-air enthalpy / humidity / CO₂, the
-leaf and wood energy balance, the ground surface (the top soil layer and the snow pack's exchange),
-the soil thermal column, and the soil–plant water network (pond, soil layers, leaf and wood water).
+leaf and wood energy balance, the ground's surface stack (the water layer, the litter and the moss over
+the top soil layer), the soil thermal column, and the soil–plant water network (pond, porous layers,
+soil layers, leaf and wood water).
 
 **Category 2 — non-stiff**: the canopy's surface water, the transpiration and aerodynamic fluxes
 themselves.
@@ -202,8 +203,8 @@ Both schemes judge a sub-step by the same weighted root-mean-square of their err
 ```
 
 $`a_g`$ is the group's absolute tolerance, times `atol_scale` (soil moisture's is `[fast].water_atol`);
-$`r_g`$ is `[fast].rtol`, the same for every group. The canopy's surface water and the pond carry no
-group. A sub-step with $`\lVert\varepsilon\rVert\le 1`$ is accepted, and the next one is
+$`r_g`$ is `[fast].rtol`, the same for every group. The canopy's surface water and the ground's surface layers carry
+no group: each layer's balance is solved within the stage (`surface_stack_balance`). A sub-step with $`\lVert\varepsilon\rVert\le 1`$ is accepted, and the next one is
 scaled by the integral controller:
 
 ```math
@@ -223,7 +224,7 @@ R_q = \frac{m\,(q - q_0)}{\Delta t} - S_q(H, q) - g_q\,(q_{atm} - q) = 0
 ```
 
 with $m$ the canopy air's mass capacity, $`S_H`$ and $`S_q`$ the enthalpy and vapour the leaves, wood,
-ground and snow hand it at that canopy air (`surface_derivs`), and $`g_H`$, $`g_q`$ its conductances to
+ground and its surface layers hand it at that canopy air (`surface_derivs`), and $`g_H`$, $`g_q`$ its conductances to
 the atmosphere, re-solved at the stage's start (§2). The balance counts as solved when each residual,
 as the change of the canopy air over the stage it stands for ($`|R|\,\Delta t/m`$), is within 50 J/kg
 (about 0.05 K) and 10⁻⁶ kg/kg, plus 10⁻⁷ of the state. The Newton's Jacobian has two parts:
@@ -299,7 +300,7 @@ you refine; a *bookkeeping* difference is a conservation defect.
 
 | difference | esdirk2 | rk45 | kind |
 |---|---|---|---|
-| snow | shared stage before the march, its exchange in the march, always active | same | unified |
+| the ground's surface layers | shared stage before the radiation, their stack's exchange in the march, always active | same | unified |
 | canopy surface water | present | present | unified |
 | sapflow advected enthalpy | present | present | unified |
 | tissue (leaf + wood) heat store | exact exponential relaxation | same | unified |
@@ -429,7 +430,7 @@ Rank by `Phi'`, not by peak-to-peak.
 
 Both schemes close the whole-patch water and energy ledgers to machine precision in the unsaturated
 regime every production run lives in (residuals ~10⁻¹³ kg m⁻² and ~10⁻⁷ J m⁻²), with a snow pack
-present and with condensation active. This holds with the tissue heat store active: the heat each
+and porous layers present and with condensation active. This holds with the tissue heat store active: the heat each
 tissue's energy gains is taken from a b-weighted time integral of its temperature, so it is exactly
 the complement of the flux the canopy air received. The tissue's temperature differs from stage to
 stage as the canopy air moves, so committing the last stage's temperature instead would leave the
@@ -487,13 +488,13 @@ effective saturation, so an explicit stage that reads θ slightly above θ_sat e
 saturated; `theta_ood_max` is the largest excursion an RK45 sub-step started from, a watch on that
 excursion staying small rather than a correction (ESDIRK2 has no explicit stage and reports 0).
 
-**The pond holds heat.** It carries a prognostic enthalpy, and every seam moves mass and enthalpy as a
-pair: rain in at its own temperature, snowmelt in at the pack's, infiltration out at the *mixed* pond
-temperature, exfiltration from the top layer in at that layer's temperature, and runoff out at the
-pond's. A pond with no thermal state would shed the enthalpy of every kilogram crossing into it,
-and that energy would leave the patch ledger while the water sat on the surface still holding it.
-The pond's energy (`w_surface_energy`, J m⁻²) is stored like the snow's; its temperature is read off
-it with the liquid datum, so the pond stays liquid and does not freeze.
+**The pond holds heat.** It is the free water of the ground's water layer, whose energy is that
+layer's, so every seam moves mass and enthalpy as a pair: rain and snow in at their own temperature,
+the free water down at its stage temperature, water rising from below in at its giver's temperature,
+and runoff out at the free water's ([ground_surface_layers](ground_surface_layers.md) §2–§3). A pond
+with no thermal state would shed the enthalpy of every kilogram crossing into it, and that energy
+would leave the patch ledger while the water sat on the surface still holding it. Water below its
+freezing point freezes in the water layer, whose phase is read off its energy.
 
 **A thin tissue closes its own balance.** A leaf or wood store's relaxation closes for any coupling,
 however small, since it is written on the start-of-step imbalance with no division by the coupling;
@@ -504,10 +505,10 @@ No tissue needs a floor that routes energy elsewhere. With the budget hard-stop 
 whole-patch check. Tightening the tolerance makes the run halt, which shows the guard is live.
 
 **Condensate keeps the enthalpy it was debited.** Dew and fog are booked apart from the vapour
-export, because they land inside the column, and are deposited into soil layer 1 (§7, item 3) with
-the liquid enthalpy the canopy air lost, $b$-weighted at each stage's own canopy-air temperature.
-The deposit lands before the step's soil temperatures are diagnosed, so the top layer's temperature,
-which the next step's ground and respiration read, includes it. Valuing the deposit at the end-of-step temperature instead would leave
+export, because they land inside the column, and join the water layer, the ground's top water store
+(§7, item 3), with the liquid enthalpy the canopy air lost, $b$-weighted at each stage's own
+canopy-air temperature. The deposit lands before the layer's temperature is read off its energy, so
+the temperature the next step reads includes it. Valuing the deposit at the end-of-step temperature instead would leave
 $`\sum_i b_i\,c_i\,[u(T_{end}) - u(T_i)]`$ unbooked on every dew step, with $`c_i`$ the stage's
 condensation and $u$ the liquid's internal energy.
 
@@ -693,7 +694,7 @@ agreement of those aggregates in one realization is reassurance rather than a co
    second difference is −0.06, where a period-2 oscillation gives −1. §5a′ gives the multiplier
    across wind speeds and `dt_fast`. It is scored at one site.
 
-3. **Condensate is deposited into soil layer 1**, not onto foliage. It is small, about 0.5 % of
+3. **Condensate joins the ground's water layer**, not the foliage. It is small, about 0.5 % of
    evapotranspiration at a humid tropical site, so routing it onto the leaves would change little;
    the canopy's surface water, which is optional, is part of its tissue's energy and could take it.
 4. **Where the forcing is sampled within the sub-step** (`forcing_sample_frac`) is a real accuracy
@@ -740,7 +741,7 @@ agreement of those aggregates in one realization is reassurance rather than a co
 | the soil–plant water network | `ed_fast_integ_backward_euler.f90` (`water_step`), its flows and Jacobian in `ed_fast_integ_derivs.f90` (`water_derivs`) ([soil_plant_water](soil_plant_water.md)) |
 | the commit and the seven ledgers (§5b) | `src/fast_dynamics/integrator/ed_fast_integ_update.f90` (`update_dynamic_state`, `close_ledgers`) |
 | error norm and step controller, eqs. (3)–(4) | `src/fast_dynamics/integrator/ed_fast_integ_control.f90` (`state_wrms_grouped`, `step_control_factor`); the tolerance set and the error control from config: `build_tol_set`, `build_error_control` there |
-| shared snow stage, its exchange and commit | `ed_surface.f90` (`prepare_snow_stage`, `ground_surface_exchange`), called from `ed_fast_integ_frozen.f90` (`build_frozen`) and `ed_fast_integ_derivs.f90` (`surface_derivs`); `ed_fast_integ_update.f90` (`update_dynamic_state`) |
+| the ground's stage, its stack's exchange and commit | `ed_fast_integ_frozen.f90` (`ground_stage`, from `build_frozen`); `ed_surface.f90` (`water_layer_stage`, `ground_surface_exchange`, from `ed_fast_integ_derivs.f90`'s `surface_derivs`); `ed_fast_integ_update.f90` (`update_dynamic_state`) |
 | patch loop, per-thread step data, order-preserving reductions (§6a) | `src/fast_dynamics/driver/ed_fast_dynamics.f90` (`fast_dynamics`) |
 | the linear solvers and the conservation test (§9) | `src/share/ed_linear_algebra.f90`, `src/share/ed_numerics.f90` (`conserved`) |
 
@@ -764,8 +765,8 @@ it. The soil-carbon steady state ([soil_carbon](soil_carbon.md) eq. (7)) solves 
 it and stops on a singular block; the arrowhead solve factors its core with it.
 
 **The block arrowhead solve** (`arrowhead_*`) is the linear step of the soil–plant water Newton
-iteration ([soil_plant_water](soil_plant_water.md) §3). The unknowns are a core $`x_0`$ (the pond and
-the soil layers) and $B$ blocks $`x_j`$ (one per cohort), and each block meets the core only through
+iteration ([soil_plant_water](soil_plant_water.md) §3). The unknowns are a core $`x_0`$ (the pond, the porous
+layers and the soil layers) and $B$ blocks $`x_j`$ (one per cohort), and each block meets the core only through
 its first unknown:
 
 ```math

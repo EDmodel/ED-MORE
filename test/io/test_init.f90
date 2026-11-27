@@ -16,13 +16,18 @@
 !      defaults pinned (288 K, theta = 0.30); a start below freezing holds the liquid its
 !      freezing curve allows; a texture per layer starts each layer at its own field capacity;
 !      and bare ground is empty unless a PFT's nbg_init_density seeds it at its min_recruit_height.
-!   4. THE INITIAL SNOWPACK (ed_init: init_fast_state; docs/science/snow_biophysics.md): no
+!   4. THE INITIAL SNOWPACK (ed_init: init_fast_state; docs/science/ground_surface_layers.md §5): no
 !      [fast].snow_init_swe seeds no pack; one seeds every patch with one frozen layer of that
 !      water equivalent at [fast].snow_init_temp, as deep as its water over the snow density,
 !      at a configured density too.
 !   5. THE CANOPY AIR'S DEPTH (ed_init: init_polygon, which ends every start with the depth
 !      the stand sets): a bare-ground start, which has no stand, opens each patch's canopy air
 !      at [aerodynamics].min_canopy_depth.
+!   6. THE POROUS LAYERS AT A FRESH START (ed_init: init_polygon, through follow_porous_sources):
+!      a [soil].moss_depth over a frozen top soil layer seeds a moss on every patch, its matter
+!      that depth at its bulk density, its water what its curve holds at the head the top soil
+!      layer's liquid gives, and its energy its dry heat and that water's energy at the soil's
+!      temperature and liquid fraction.
 !---~---
 program test_init
    use ed_kinds,                only : wp, ik
@@ -33,9 +38,12 @@ program test_init
    use ed_soil_derive,          only : soil_layers, build_soil_profile
    use ed_soil_params,          only : soil_profile_t
    use ed_init_bare_ground,     only : init_bare_ground, seed_bare_ground, finalize_init
-   use ed_constants,            only : n_soil_layer_max, rho_h2o
-   use ed_soil_heat,            only : soil_layer_temp
-   use ed_soil_hydr_lib,        only : soil_liquid_capacity
+   use ed_constants,            only : n_soil_layer_max, rho_h2o, cp_organic, cp_ice
+   use ed_therm_lib,            only : internal_energy_liquid
+   use ed_ground_surface_lib,   only : porous_layer_temp
+   use ed_ground_surface_params, only : POROUS_MOSS
+   use ed_patch_state_vars,     only : ground_store_present
+   use ed_soil_hydr_lib,        only : soil_liquid_capacity, soil_theta_to_head, soil_head_to_theta
    use ed_init,                 only : init_fast_state, init_polygon
    use ed_met_types,            only : met_forcing_t
    use ed_time,                 only : ed_time_t
@@ -48,6 +56,7 @@ program test_init
    call test_soil_state()
    call test_initial_snowpack()
    call test_canopy_air_floor()
+   call test_porous_start()
    write(*,'(a)') 'test_init: ALL PASSED'
 
 contains
@@ -355,7 +364,7 @@ contains
       call init_bare_ground(poly, cfg, 3_ik)
       associate (se => poly%patch%soil_energy(2), surf => poly%site%surface(1))
          do k = 1_ik, nsl
-            call soil_layer_temp(se%soil_energy(k), surf%theta_start(k), surf%soil_profile%dry_heat_capacity(k),   &
+            call porous_layer_temp(se%soil_energy(k), surf%theta_start(k), surf%soil_profile%dry_heat_capacity(k),   &
                                  surf%soil_profile%layer_curve(k), tdiag, fdiag)
             call check_close(tdiag, 260.0_wp, 1.0e-10_wp, 'a frozen start does not give back its temperature')
             call soil_liquid_capacity(surf%soil_profile%layer_curve(k), 260.0_wp, theta_liq, dtheta)
@@ -445,21 +454,21 @@ contains
       call finalize_init(poly)
       call init_fast_state(poly, cfg)
       do ip = 1_ik, poly%patch%n
-         call check(poly%patch%snow(ip)%nlayer == 0_ik .and. poly%patch%snow(ip)%swe(1) == 0.0_wp,               &
-                    'a patch holds snow with no [fast].snow_init_swe')
+         call check(.not. ground_store_present(poly%patch%ground_surface(ip)%water),                             &
+                    'a patch holds snow with no initial_mass')
       end do
-      cfg%snow_init_swe  = SWE
-      cfg%snow_init_temp = T_PACK
+      cfg%ground_surface%water%initial_mass = SWE
+      cfg%ground_surface%water%initial_temp = T_PACK
       call init_bare_ground(poly, cfg, 3_ik)
       call finalize_init(poly)
       call init_fast_state(poly, cfg)
       do ip = 1_ik, poly%patch%n
-         associate (snow => poly%patch%snow(ip))
-            call check(snow%nlayer == 1_ik, 'a seeded patch does not hold one snow layer')
-            call check_close(snow%swe(1), SWE, 1.0e-15_wp, 'a seeded pack does not hold [fast].snow_init_swe')
-            call check_close(snow%snow_temp(1), T_PACK, 1.0e-10_wp, 'a seeded pack''s energy does not give back its temperature')
-            call check(snow%snow_fliq(1) == 0.0_wp, 'a seeded pack below freezing holds liquid')
-            call check_close(snow%snow_depth(1), SWE / cfg%snow%rho_snow, 1.0e-12_wp,                               &
+         associate (snow => poly%patch%ground_surface(ip)%water)
+            call check(ground_store_present(snow), 'a seeded patch does not hold its water layer')
+            call check_close(snow%water, SWE, 1.0e-15_wp, 'a seeded pack does not hold its initial_mass')
+            call check_close(snow%temp, T_PACK, 1.0e-10_wp, 'a seeded pack''s energy does not give back its temperature')
+            call check(snow%fliq == 0.0_wp, 'a seeded pack below freezing holds liquid')
+            call check_close(snow%matrix_depth, SWE / cfg%ground_surface%water%fresh_density, 1.0e-12_wp,      &
                              'a seeded pack is not as deep as its water over the snow density')
          end associate
       end do
@@ -468,12 +477,13 @@ contains
       ! until the pack's first exchange, and the first window's canopy burial and snow cover
       ! would read the wrong depth.
       !---~---
-      cfg%snow%rho_snow = 350.0_wp
+      cfg%ground_surface%water%fresh_density = 350.0_wp
       call init_bare_ground(poly, cfg, 3_ik)
       call finalize_init(poly)
       call init_fast_state(poly, cfg)
-      call check_close(poly%patch%snow(1)%snow_depth(1), SWE / cfg%snow%rho_snow, 1.0e-12_wp,                       &
-                       'a pack seeded at [snow].rho_snow = 350 is as deep as its water over 350 kg/m3')
+      call check_close(poly%patch%ground_surface(1)%water%matrix_depth,                                          &
+                       SWE / cfg%ground_surface%water%fresh_density, 1.0e-12_wp,     &
+                       'a pack seeded at a fresh_density of 350 is as deep as its water over 350 kg/m3')
    end subroutine test_initial_snowpack
 
    !---~---
@@ -496,5 +506,42 @@ contains
       call check(all(poly%patch%cas(1:poly%patch%n)%can_depth == FLOOR),                                  &
                  'a bare-ground stand does not open at the canopy-air floor')
    end subroutine test_canopy_air_floor
+
+   !--- 6. A 5 cm moss over a top soil layer at 268 K, a bare-ground start.
+   subroutine test_porous_start()
+      real(wp), parameter :: MOSS_DEPTH = 0.05_wp, T_SOIL = 268.0_wp   ! [m], [K]
+      type(ed_config_t)   :: cfg
+      type(polygon_t)     :: poly
+      type(ed_time_t)     :: now
+      logical             :: ok
+      integer(ik)         :: ip
+      real(wp)            :: head, w_moss, u_water
+      call banner('the porous layers at a fresh start')
+      cfg = build_test_config()
+      cfg%soil%moss_depth = MOSS_DEPTH
+      cfg%init%soil_temp  = T_SOIL
+      now = cfg%start_time
+      call init_polygon(poly, cfg, 'bare ground', .false., 1_ik, now, ok, 0_ik, 0.0_wp, 0.0_wp, 0.0_wp)
+      call check(ok .and. poly%patch%n > 0_ik, 'the bare-ground start did not open')
+      do ip = 1_ik, poly%patch%n
+         associate (moss => poly%patch%ground_surface(ip)%porous(POROUS_MOSS), m => cfg%ground_surface%porous(POROUS_MOSS), &
+                    c => poly%site%surface(poly%patch%owner_site(ip))%soil_profile%layer_curve(1),                      &
+                    se => poly%patch%soil_energy(ip), theta1 => poly%patch%soil_water(ip)%theta(1))
+            call check(se%soil_fliq(1) > 0.0_wp .and. se%soil_fliq(1) < 1.0_wp, 'the top soil layer is not partly frozen')
+            call check_close(moss%matter, MOSS_DEPTH * m%bulk_density, 1.0e-12_wp,                                  &
+                             'a moss_depth does not seed that depth of moss at its bulk density')
+            head    = soil_theta_to_head(c%retention, se%soil_fliq(1) * theta1, c%theta_sat, c%theta_res, c%par_a,   &
+                                         c%par_n)
+            w_moss  = soil_head_to_theta(m%retention, head, m%theta_sat, m%theta_res, m%curve_par_a, m%curve_par_n)   &
+                      * rho_h2o * MOSS_DEPTH
+            u_water = se%soil_fliq(1) * internal_energy_liquid(se%soil_temp(1))                                      &
+                      + (1.0_wp - se%soil_fliq(1)) * cp_ice * se%soil_temp(1)
+            call check_close(moss%water, w_moss, 1.0e-12_wp,                                                         &
+                             'the moss does not hold what its curve holds at the top soil liquid''s head')
+            call check_close(moss%energy, cp_organic * moss%matter * se%soil_temp(1) + moss%water * u_water,         &
+                             1.0e-12_wp, 'the moss''s energy is not its dry heat and its water''s at the soil''s state')
+         end associate
+      end do
+   end subroutine test_porous_start
 
 end program test_init

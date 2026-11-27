@@ -113,7 +113,7 @@ radiation.
 
 ## The canopy's surface water
 
-With `[fast].canopy_water_on`, rain and snow are intercepted and held as surface water on each
+With `[fast].canopy_water_on`, rain is intercepted and held as surface water on each
 cohort's leaves and wood. **Canopy interception** is a top-to-bottom cascade
 (`intercept_canopy_layer`, in `ed_canopy_water`): a
 capacity-limited bucket with a Beer interception fraction
@@ -130,9 +130,11 @@ In the fast loop the cascade runs once per fast step, at the step's start, as ca
 surface water's evaporation is the energy stages' own flux. Each cohort holds one combined
 leaf-and-wood bucket, filled tallest first and shared between leaf and wood by capacity, and the
 update reaches both integrators as a constant rate whose Euler step over the fast step reproduces it.
-Under a snowpack nothing is intercepted: the pack takes the rain and the snow. Snowfall below the
-new-snow threshold forms no pack and joins the rain as liquid: the canopy intercepts it as surface
-water, and the rest reaches the pond.
+The canopy intercepts the rain whatever lies on the ground, and only the rain: the surface water is
+liquid, so snow it caught would evaporate as liquid, at a latent heat and from a store that snow on
+branches does not have. The snowfall passes through the canopy to the ground's water layer. Snow held
+on the branches, its sublimation, its unloading and its shading of the crowns are not represented; a
+canopy snow store of its own, with the ice phase, would add them.
 
 **A known bias under reanalysis rain.** Hourly reanalysis rain (ERA5-Land) falls as frequent light
 drizzle: at BCI it wets about four times as many hours as the tower's rain does, for the same total. The
@@ -366,6 +368,25 @@ from the water's datum. The store a step ends with is then not the one the next 
 is re-valued by $`\Delta W c_{liq}(T_1-T_0+T_{sc})`$ each step, large when wet soil refills dry wood.
 
 ---
+
+## Buried tissue
+
+A snow pack buries the share $`b = 1 - e`$ of a cohort's crown that lies below its depth, $`e`$ its exposed share
+(`crown_exposed_fraction`, [canopy_aerodynamics](canopy_aerodynamics.md)). The exposed share exchanges with the
+canopy air through its leaf and wood area, which carry $`e`$, and its balance above runs on $`e`$ of the tissue's
+heat capacity over the step. The buried share takes the temperature of the snow around it: its heat capacity
+$`b\,C`$ (its dry matter and its water) and its heat at its start temperature join the water layer's node in the
+ground's stack as a dry heat capacity ([ground_surface_layers](ground_surface_layers.md) §6), so the node and the buried tissue
+relax together to one temperature over the step. The heat the buried tissue gains,
+$`Q_b = C_b T_w - \sum b\,C\,T^n`$ with $`C_b = \sum b\,C`$ over the cohorts, leaves the water layer's own store
+and reaches each cohort's tissues as $`b\,C\,(\bar T - T^n)`$, with $`\bar T = (Q_b + \sum b\,C\,T^n)/C_b`$ the
+temperature the march's integral of $`Q_b`$ brings the buried tissue to (`buried_tissue_store`,
+`commit_tissue_energy`): a matched pair. The heat the water reaching a cohort brings beyond its own, its sapflow's
+and its surface water's capture (`tissue_water_heat`, eq. (1)'s advected term), splits by the same shares: the
+exposed share's balance takes $`e`$ of it, and the buried share's store $`b`$ of it at the commit. Given whole to
+the exposed balance, the heat of the water reaching a cohort buried whole, whose balance has neither area nor heat
+capacity, would be lost. Where the snow is a film, no node holds the buried tissue,
+and its share keeps its heat and its share of the water's.
 
 ## Prognostic state
 

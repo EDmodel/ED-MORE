@@ -15,7 +15,8 @@ module ed_slow_ledger
    use ed_config,               only : ed_config_t
    use ed_cohort_state_vars,    only : cohort_surface_water, cohort_carbon_supply
    use ed_polygon_state_vars,   only : polygon_t, patch_polygon_area
-   use ed_patch_state_vars,     only : cas_capacities, soil_water_store, soil_energy_store, litter_input_t
+   use ed_patch_state_vars,     only : cas_capacities, soil_water_store, soil_energy_store, litter_input_t,       &
+                                       ground_store_t, ground_surface_store
    use ed_budget_check,         only : BUDGET_RTOL_FLUX
    use ed_soil_carbon,          only : soil_carbon_bad_pool, soil_carbon_out_t
    use ed_constants,            only : rho_air_ref, umol_2_kgc
@@ -63,8 +64,8 @@ module ed_slow_ledger
    !--- One total per currency, per m2 of site, area-weighted over the patches (§2).
    type :: slow_store_t
       real(wp) :: carbon = 0.0_wp   ! [kgC/m2] live pools + necromass + canopy air + recruit pool
-      real(wp) :: water  = 0.0_wp   ! [kg/m2]  soil + pond + snow + canopy vapour + tissue + surface water
-      real(wp) :: energy = 0.0_wp   ! [J/m2]   soil + pond + snow + canopy air + tissue heat
+      real(wp) :: water  = 0.0_wp   ! [kg/m2]  soil + pond + surface layers + canopy vapour + tissue + surface water
+      real(wp) :: energy = 0.0_wp   ! [J/m2]   soil + pond + surface layers + canopy air + tissue heat
    end type slow_store_t
 
    !--- The run's accumulator, held in the polygon's run record (polygon_run_t).
@@ -296,6 +297,7 @@ contains
       type(ed_config_t),   intent(in) :: cfg
       type(slow_store_t)              :: store
       real(wp)    :: a, dmol, cap_mass, cap_mol, e_soil, w_soil
+      type(ground_store_t) :: surface   ! [kg/m2], [J/m2] the ground's surface layers
       integer(ik) :: ip, i, i0, i1, pf
 
       do ip = 1_ik, poly%patch%n
@@ -310,11 +312,13 @@ contains
          store%water  = store%water  + a * w_soil
          store%energy = store%energy + a * e_soil
 
-         !--- Pond and snow: both already extensive per m2 of patch ground.
-         store%water  = store%water  + a * poly%patch%soil_water(ip)%w_surface
-         store%energy = store%energy + a * poly%patch%soil_water(ip)%w_surface_energy
-         store%water  = store%water  + a * sum(poly%patch%snow(ip)%swe)
-         store%energy = store%energy + a * sum(poly%patch%snow(ip)%snow_energy)
+         !---~---
+         !   The pond and the ground's surface layers, all already extensive per m2 of patch ground
+         ! (the porous layers' dry matter's carbon is the pools').
+         !---~---
+         surface      = ground_surface_store(poly%patch%ground_surface(ip))
+         store%water  = store%water  + a * surface%water
+         store%energy = store%energy + a * surface%energy
 
          !---~---
          !   Canopy air at the fast step's capacities; a depth change is the

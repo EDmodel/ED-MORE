@@ -130,8 +130,8 @@ either on is a decision to leave the shipped baseline.
 | `SOIL_DATABASE`, `SOILDEPTH_DB`, texture classes, pedotransfer functions | Without maps, the column's hydraulic and thermal parameters are given directly. With the `[maps]` soil maps, each layer's curve is Hodnett and Tomasella's (2002) van Genuchten fit (ED2's `SOIL_HYDRO_SCHEME = 2`) with Ottoni et al. (2019) conductivity, from texture and chemistry. Layers follow the SoilGrids depths | `[soil]`, `[maps]` | [soil_biophysics](science/soil_biophysics.md), "Hydraulic parameters from soil texture" |
 | `ISOILBC` 0–3; 1, `SLDRAIN` | Drainage `q = f·K` (free drainage `f = 1`, bedrock `f = 0`, a soil map's leaky base at its `f_leak`) or an aquifer, a head-driven two-way boundary. No slope-scaled lateral drainage | `[soil].water_bottom_bc` | [soil_biophysics](science/soil_biophysics.md) |
 | soil heat in the RK4 state | Implicit backward-Euler heat diffusion on internal energy; freeze/thaw and ice-aware conductivity and heat capacity always on. The bottom is no-flux (`geothermal`) or an optional Dirichlet anchor below the column. A shallow column reflects the annual wave off a no-flux base; the anchor is the alternative to deepening it | `[soil].thermal_bottom_bc`, `deep_temp`, `deep_depth` | [soil_biophysics](science/soil_biophysics.md), "The bottom thermal boundary" |
-| `NZS` (4), `IPERCOL` | One bulk snow layer: Niu–Yang cover fraction, accumulation, meltwater percolation, surface balance. The clearest resolution loss | `[snow]` | [snow_biophysics](science/snow_biophysics.md) |
-| `therm_lib8` saturation vapour pressure (Murphy–Koop family) | Ambaum (2020) over liquid and over ice, blended on the liquid fraction; its slope is Clausius–Clapeyron with the model's latent heat | | [snow_biophysics](science/snow_biophysics.md), "Sublimation saturates over ice" |
+| `NZS` (4), `IPERCOL` | One bulk snow layer: Niu–Yang cover fraction, accumulation, meltwater percolation, surface balance. The clearest resolution loss | `[ground_surface_layer.water]` | [ground_surface_layers](science/ground_surface_layers.md) |
+| `therm_lib8` saturation vapour pressure (Murphy–Koop family) | Ambaum (2020) over liquid and over ice, blended on the liquid fraction; its slope is Clausius–Clapeyron with the model's latent heat | | [ground_surface_layers](science/ground_surface_layers.md), "Vapour saturates over ice" |
 | `IED_GRNDVAP` 0–5; 0 (modified Lee–Pielke) | Dry-surface-layer resistance | `[soil].dsl_dmax`, `dsl_theta_init` | [soil_biophysics](science/soil_biophysics.md) |
 | `LEAF_MAXWHC` | Optional canopy interception into surface water with a Beer-law catch and a per-PFT storage capacity. Off by default | `[fast].canopy_water_on`, `intercept_*`; `[pft].*_surf_water_max` | [vegetation_energy_dynamics](science/vegetation_energy_dynamics.md) |
 | `DECOMP_SCHEME` 0–5; 2 | A seven-pool CENTURY carbon matrix (metabolic and structural litter above and below ground, microbial, slow, passive; lignin tracer). `"ed2"` has the topology of ED2's schemes 0–4 (three active pools) and the capped temperature and moisture responses of ED2's default; `"century5"` is ED2's scheme 5 (five active pools). Daily forward-Euler or matrix-exponential step; an optional semi-analytic steady-state spin-up that ED2 does not have. On by default | `[soil_carbon]` | [soil_carbon](science/soil_carbon.md) |
@@ -373,8 +373,8 @@ what they take from ED2 is listed here.
 The reference config, `ed_config_main.toml`, gives each key's default and meaning; what the defaults take
 from ED2 and the models ED2 builds on is listed here.
 
-- **Snow** (`[snow]`). The aged-snow albedos, 0.518 visible and 0.435 near infrared, are ED2's, and
-  `min_new_snow_mass` is ED2's `tiny_sfcwater_mass`. The liquid-holding fraction 0.10 is LEAF-3's 1:9 ratio
+- **Snow** (`[ground_surface_layer.water]`). The aged-snow albedos, 0.518 visible and 0.435 near infrared, are ED2's, and
+  `[ground_surface_layer].min_depth`, the depth from which water is a layer, stands in for ED2's `tiny_sfcwater_mass`. The liquid-holding fraction 0.10 is LEAF-3's 1:9 ratio
   of liquid to ice.
 - **Canopy aerodynamics** (`[aerodynamics]`). The roughness and displacement ratios are ED2's `vh2vr` and
   `vh2dh`; the Monin–Obukhov constants and the convective velocity scale `wc` are CLM5's, and the
@@ -539,7 +539,7 @@ two-stream) and replaces the SW/LW duplication and the CLM leaf-angle optics.
 | Turbulence | `src/fast_dynamics/processes/ed_canopy_aerodynamics.f90`; [canopy_aerodynamics](science/canopy_aerodynamics.md) | `canopy_struct_dynamics.f90` |
 | Hydraulics | `src/fast_dynamics/processes/ed_plant_hydraulics.f90`; [plant_hydraulics](science/plant_hydraulics.md), [soil_plant_water](science/soil_plant_water.md) | `plant_hydro.f90` |
 | Soil | `src/fast_dynamics/processes/ed_soil_{water,heat}.f90`; [soil_biophysics](science/soil_biophysics.md) | `rk4_misc.f90`, `lsm_hyd.f90`, `soil_coms.F90` |
-| Snow | `src/fast_dynamics/processes/ed_surface.f90`; [snow_biophysics](science/snow_biophysics.md) | `rk4_derivs.f90` (temporary surface water) |
+| Snow | `src/fast_dynamics/processes/ed_surface.f90`; [ground_surface_layers](science/ground_surface_layers.md) | `rk4_derivs.f90` (temporary surface water) |
 | Allocation and growth | `src/slow_dynamics/processes/ed_plant_carbon_allocation.f90`; [plant_carbon_allocation](science/plant_carbon_allocation.md) | `growth_balive.f90`, `structural_growth.f90` |
 | Decomposition | `src/slow_dynamics/processes/ed_soil_carbon.f90`; [soil_carbon](science/soil_carbon.md) | `soil_respiration.f90`, `decomp_coms.f90` |
 | Respiration | `src/fast_dynamics/processes/ed_respiration.f90`; [plant_respiration](science/plant_respiration.md) | `stem_resp_driv.f90` |

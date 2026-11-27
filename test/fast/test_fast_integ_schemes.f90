@@ -21,7 +21,7 @@ program test_fast_integ_schemes
    use ed_constants,            only : tiny_num
    use ed_fast_params,          only : INTEG_ESDIRK2, INTEG_RK45, RK45_RTOL
    use ed_therm_lib,            only : cas_enthalpy_to_temp, cas_temp_to_enthalpy
-   use ed_soil_heat,            only : soil_layer_temp
+   use ed_ground_surface_lib,   only : porous_layer_temp
    use ed_fast_integ_types,     only : march_state_t, frozen_t, error_control_t, surface_tend_t, boundary_flux_t, &
                                        surface_source_slopes_t, state_init, state_sub
    use ed_fast_integ_backward_euler,   only : backward_euler_stage, advance_plant_water
@@ -306,7 +306,7 @@ contains
    function soil_top_temp(y) result(t)
       type(march_state_t), intent(in) :: y
       real(wp) :: t, fl
-      call soil_layer_temp(y%soil_energy(1), y%theta(1), col%site%soil_profile%dry_heat_capacity(1),             &
+      call porous_layer_temp(y%soil_energy(1), y%theta(1), col%site%soil_profile%dry_heat_capacity(1),             &
                            col%site%soil_profile%layer_curve(1), t, fl)
    end function soil_top_temp
 

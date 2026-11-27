@@ -34,6 +34,10 @@
 !   9. SPLIT INVARIANCE AND THE LEAFLESS LEAF (fast_dynamics, end to end): one cohort and
 !      two at half density reach the same temperatures and GPP per plant; a leafless leaf
 !      takes its wood's temperature, and the budgets close.
+!  10. BURIAL (gather_patch, then fast_dynamics): a pack three quarters of a 2 m sapling's height
+!      deep leaves half its crown and half its leaf area above it, and buries the canopy by its
+!      depth over the canopy's height; a pack above its top buries the crown whole. Over a night
+!      and a noon window under either, every budget closes.
 !---~---
 program test_fast_driver
    use ed_kinds,                 only : wp, ik
@@ -50,6 +54,12 @@ program test_fast_driver
    use ed_slow_dynamics, only : settle_tissue_water
    use ed_fast_dynamics,         only : fast_dynamics
    use ed_init,                  only : init_fast_state
+   use ed_fast_state,            only : gather_patch
+   use ed_fast_integ_types,      only : fast_static_state_t, fast_dynamic_state_t, ensure_static_capacity,       &
+                                        ensure_dynamic_capacity
+   use ed_allometry_lib,         only : crown_exposed_fraction, height_to_diameter
+   use ed_canopy_aerodynamics,   only : canopy_burial_fraction
+   use ed_therm_lib,             only : temp_to_internal_energy
    use ed_stepper,               only : advance_one_step, run_ledgers_t
    use ed_test_support, only : banner, build_test_config, check, check_close
    use ed_time,                  only : ed_time_t, time_advance_seconds
@@ -742,6 +752,65 @@ program test_fast_driver
       cfg%rtol = rtol0
       cfg%atol_scale = atol_scale0
       cfg%water_atol = water_atol0
+   end block
+
+   !---~---
+   !   10. BURIAL (docs/science/canopy_aerodynamics.md, "Snow on the canopy"). A sapling 2 m tall,
+   ! its crown from half its height (crown_base_fraction), under a pack at 268 K and the fresh
+   ! density, 1.5 m and then 2.5 m deep: the window's start leaves the share of its crown above the
+   ! pack in the canopy, half and then none, its leaf area with it, and the canopy buried by the
+   ! pack's depth over the canopy's height. A night and a noon window under each close every budget.
+   !---~---
+   block
+      real(wp),        parameter :: DEPTHS(2) = [1.5_wp, 2.5_wp]       ! [m] the pack's depths
+      real(wp),        parameter :: EXPOSED(2) = [0.5_wp, 0.0_wp]      ! [-] the crown's share above each
+      real(wp),        parameter :: T_PACK = 268.0_wp                  ! [K]
+      type(ed_time_t), parameter :: WINDOWS(2) = [NIGHT, NOON]
+      type(fast_static_state_t)  :: static
+      type(fast_dynamic_state_t) :: dynamic
+      real(wp)    :: lai_open, expect
+      integer(ik) :: icase, iwin, nfail
+      character(len=40) :: tag
+      do icase = 1_ik, 2_ik
+         write(tag, '(a,f3.1,a)') 'burial under ', DEPTHS(icase), ' m of snow:'
+         call init_bare_ground(poly, cfg, 1_ik)
+         call use_test_column(poly)
+         call add_cohort(poly, cfg, 1_ik, 1_ik, 0.5_wp, height_to_diameter(cfg%pft%allom(1), 2.0_wp))
+         call finalize_init(poly)
+         call init_fast_state(poly, cfg)
+         call ensure_static_capacity(static, 1_ik)
+         call ensure_dynamic_capacity(dynamic, 1_ik)
+         call gather_patch(poly, cfg, 1_ik, static, dynamic)
+         lai_open = static%lai(1)
+         associate (layer => poly%patch%ground_surface(1)%water)
+            layer%water        = cfg%ground_surface%water%fresh_density * DEPTHS(icase)
+            layer%energy       = temp_to_internal_energy(0.0_wp, layer%water, T_PACK, 0.0_wp)
+            layer%matrix_depth = DEPTHS(icase)
+            layer%temp         = T_PACK
+            layer%fliq         = 0.0_wp
+         end associate
+         call gather_patch(poly, cfg, 1_ik, static, dynamic)
+         associate (allom => cfg%pft%allom(1))
+            expect = crown_exposed_fraction(static%height(1), DEPTHS(icase), allom%crown_base_fraction,           &
+                                            allom%snow_bending)
+         end associate
+         call check(abs(static%height(1) - 2.0_wp) < 1.0e-9_wp .and. lai_open > 0.0_wp,                            &
+                    trim(tag)//' the sapling is 2 m tall, in leaf')
+         call check(static%exposed(1) == expect .and. abs(expect - EXPOSED(icase)) < 1.0e-9_wp,                      &
+                    trim(tag)//' the crown''s share above the pack')
+         call check_close(static%lai(1), expect * lai_open, 1.0e-12_wp, trim(tag)//' its leaf area with it')
+         call check_close(static%geom%snowfac, canopy_burial_fraction(DEPTHS(icase), static%geom%veg_height),     &
+                          1.0e-12_wp, trim(tag)//' the canopy buried by the pack''s depth over its height')
+         do iwin = 1_ik, size(WINDOWS, kind=ik)
+            call site_cursor(cur)
+            call fast_dynamics(poly, cfg, met_src=src, met_cur=cur, step_start=WINDOWS(iwin), worst_energy=we,    &
+                               worst_water=ww, n_budget_fail=nfail)
+            write(*,'(3a,i0,2(a,es10.3),a)') '   (', trim(tag), ' window ', iwin, ': worst energy ', we, ' J/m2, water ', &
+                  ww, ' kg/m2)'
+            call check(nfail == 0_ik .and. we < 1.0e-3_wp .and. ww < 1.0e-8_wp,                                   &
+                       trim(tag)//' a window closes every budget')
+         end do
+      end do
    end block
 
    call met_close(src)
